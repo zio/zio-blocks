@@ -29,10 +29,10 @@ trait Header {
  *
  * The companion groups the header model: the [[Header.Codec Codec]] /
  * [[Header.Typed Typed]] / [[Header.Custom Custom]] core lives here, the
- * auth-challenge models live in `HeaderAuthorization.scala`,
- * `HeaderProxyAuthorization.scala`, and `HeaderWwwAuthenticate.scala` (aliased
- * back onto [[Header]] so `Header.Authorization` and friends keep working), and
- * the remaining typed headers live below in this file.
+ * auth-challenge models live in `Authorization.scala`,
+ * `ProxyAuthorization.scala`, and `WwwAuthenticate.scala` (aliased back onto
+ * [[Header]] so `Header.Authorization` and friends keep working), and the
+ * remaining typed headers live below in this file.
  */
 object Header {
 
@@ -62,8 +62,8 @@ object Header {
   val Cookie: Typed[CookieHeader]       = CookieHeader
   val SetCookie: Typed[SetCookieHeader] = SetCookieHeader
 
-  // Auth models live in HeaderAuthorization.scala, HeaderProxyAuthorization.scala,
-  // and HeaderWwwAuthenticate.scala. These aliases keep the `Header.X` paths
+  // Auth models live in Authorization.scala, ProxyAuthorization.scala,
+  // and WwwAuthenticate.scala. These aliases keep the `Header.X` paths
   // (types, values, and extractors) working unchanged.
   type Authorization = zio.http.Authorization
   val Authorization: zio.http.Authorization.type = zio.http.Authorization
