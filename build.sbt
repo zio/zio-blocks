@@ -121,10 +121,10 @@ addCommandAlias(
       "zioGolemCoreJS/publishLocal"
     )
     List(
-      // Scala 3.8.3 JVM / 3.3.7 JS (via jsSettings) for deps
+      // Scala 3.9.0 JVM / 3.3.7 JS (via jsSettings) for deps
       List(setVersion, noDoc) ++ deps,
-      // Scala 3.8.3 for all Golem projects (Symbol.newClass requires 3.5+)
-      List("++3.8.3", setVersion, noDoc) ++ golem,
+      // Scala 3.9.0 for all Golem projects (Symbol.newClass requires 3.5+)
+      List("++3.9.0", setVersion, noDoc) ++ golem,
       // Scala 2.13 for deps + Golem
       List("++2.13.18", setVersion, noDoc) ++ deps ++ golem,
       // Scala 2.12 for sbt plugin
@@ -530,7 +530,7 @@ lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.data.migration"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .settings(crossScalaVersions := Seq("3.8.3", "3.3.7"))
+  .settings(crossScalaVersions := Seq("3.9.0", "3.3.7"))
   .jvmSettings(
     libraryDependencies ++= Seq(
       "org.xerial"     % "sqlite-jdbc" % "3.53.2.0" % Test,
@@ -610,7 +610,7 @@ lazy val `scope-examples` = project
 
 lazy val `scope-benchmarks` = project
   .in(file("scope-benchmarks"))
-  .settings(stdSettings("zio-blocks-scope-benchmarks", Seq("3.8.3")))
+  .settings(stdSettings("zio-blocks-scope-benchmarks", Seq("3.9.0")))
   .dependsOn(scope.jvm)
   .enablePlugins(JmhPlugin)
   .settings(
@@ -1394,7 +1394,7 @@ lazy val `schema-csv` = crossProject(JSPlatform, JVMPlatform)
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
-  .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.8.3")))
+  .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.9.0")))
   .dependsOn(schema % "compile->compile;test->test")
   .settings(crossProjectSettings)
   .settings(
@@ -1411,7 +1411,7 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
 
 lazy val benchmarks = project
-  .settings(stdSettings("zio-blocks-benchmarks", Seq("3.8.3")))
+  .settings(stdSettings("zio-blocks-benchmarks", Seq("3.9.0")))
   .dependsOn(schema.jvm % "compile->compile;test->test")
   .dependsOn(chunk.jvm)
   .dependsOn(`schema-avro`)
@@ -1448,7 +1448,7 @@ lazy val benchmarks = project
 
 lazy val `sql-benchmarks` = project
   .in(file("sql-benchmarks"))
-  .settings(stdSettings("zio-blocks-sql-benchmarks", Seq("3.8.3")))
+  .settings(stdSettings("zio-blocks-sql-benchmarks", Seq("3.9.0")))
   .dependsOn(sql.jvm % "compile->compile;test->test")
   .enablePlugins(JmhPlugin)
   .settings(
@@ -1727,7 +1727,7 @@ lazy val ringbufferBenchmarks = project
 
 lazy val `streams-benchmark` = project
   .in(file("streams-benchmark"))
-  .settings(stdSettings("zio-blocks-streams-benchmark", Seq("3.8.3")))
+  .settings(stdSettings("zio-blocks-streams-benchmark", Seq("3.9.0")))
   .dependsOn(streams.jvm)
   .enablePlugins(JmhPlugin)
   .settings(
@@ -2145,7 +2145,7 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
 
 lazy val `async-benchmarks` = project
   .in(file("async-benchmarks"))
-  .settings(stdSettings("zio-blocks-async-benchmarks", Seq("3.8.3")))
+  .settings(stdSettings("zio-blocks-async-benchmarks", Seq("3.9.0")))
   .dependsOn(async.jvm)
   .enablePlugins(JmhPlugin)
   .settings(

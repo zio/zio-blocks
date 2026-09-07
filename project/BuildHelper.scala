@@ -9,7 +9,7 @@ import scoverage.ScoverageKeys._
 object BuildHelper {
   val Scala213: String    = "2.13.18"
   val Scala33: String     = "3.3.7" // LTS
-  val Scala3: String      = "3.8.3"
+  val Scala3: String      = "3.9.0"
   val Scala3Golem: String = "3.8.3" // Golem macros use experimental APIs (Symbol.newClass etc.)
 
   def removeOptionWithValue(options: Seq[String], option: String): Seq[String] =
@@ -204,16 +204,35 @@ object BuildHelper {
             "-Wconf:msg=Ignoring .*this.* qualifier:s",
             "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
             "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s",
-            "-Wconf:id=E029:s",                                                      // suppress non-exhaustive pattern match warnings in macro code
-            "-Wconf:id=E030:s",                                                      // suppress unreachable case warnings in type pattern matching
-            "-Wconf:id=E198&src=.*SqlMacros.scala:s",                                // quoted $tbl binding triggers false unused on Scala 3.3
-            "-Wconf:msg=package scala contains object and package with same name:s", // Scala.js classpath artifact
+            "-Wconf:id=E029:s",                                                                                      // suppress non-exhaustive pattern match warnings in macro code
+            "-Wconf:id=E030:s",                                                                                      // suppress unreachable case warnings in type pattern matching
+            "-Wconf:id=E198&src=.*SqlMacros.scala:s",                                                                // quoted $tbl binding triggers false unused on Scala 3.3
+            "-Wconf:msg=package scala contains object and package with same name:s",                                 // Scala.js classpath artifact
+            "-Wconf:id=E198&src=.*NameMapper.scala:s",                                                               // Scala 3.9 new unused analysis false positive: loop-carried vars read inside their own assignment
+            "-Wconf:id=E198&src=.*EntityPath.scala:s",                                                               // same pattern in toSnakeCase: isPrecedingNotUpperCased read inside its own assignment
+            "-Wconf:msg=unused explicit parameter.*&src=.*WireCodeGen.scala:s",                                      // quote-spliced lambda params (scope/ctx) invisible to 3.9 unused analysis
+            "-Wconf:msg=Type ascriptions after patterns.*&src=.*DerivedOptics.scala:s",                              // Scala 3.9 ignores tuple-pattern ascriptions; removal deferred
+            "-Wconf:msg=Skipping coverage instrumentation.*:s",                                                      // scoverage skips giant macro methods on 3.9 (telemetry LogMacros); informational, fatal under -Werror
+            "-Wconf:msg=unused explicit parameter.*&src=.*AsyncDcaTransform.scala:s",                                // Scala 3.9 stricter unused analysis: quote-spliced givens consumed by cps.async macro expansion
+            "-Wconf:msg=unused pattern variable.*&src=.*AsyncDcaTransform.scala:s",                                  // Scala 3.9 stricter unused analysis in DCA transform shape checks
+            "-Wconf:msg=unused pattern variable.*&src=.*shared/src/main/scala/cps/.*:s",                             // dotty-cps-async macro TASTY inlined under 3.9 (lib paths rebased onto our base dir); no repo source matches this layout
+            "-Wconf:msg=the type test for NamedTuple.*cannot be checked at runtime.*&src=.*zio/test/Macros.scala:s", // zio-test macro TASTY inlined on 3.9 (NamedTuple became abstract-membered); lib-internal, same phantom-path class
             "-Werror"
           ) ++ {
             if (minor >= 8) {
               Seq(
                 "-experimental",
                 "-opt"
+              )
+            } else Seq.empty
+          } ++ {
+            // E230 exists only on Scala 3.9+; older compilers reject the unknown id and the
+            // parse warning itself is fatal under -Werror (bare `sbt docs/mdoc` and the Golem
+            // 3.8.2 job both compile below 3.9).
+            if (minor >= 9) {
+              Seq(
+                "-Wconf:id=E230:s",               // `$`-identifiers are deliberate public API (Scope.$, JsonSchema $defs), not compiler artifacts
+                "-Wconf:id=E028&src=.*/test/.*:s" // 3.9 "Illegal literal" syntax warning for `-1.toByte`-style test literals
               )
             } else Seq.empty
           }

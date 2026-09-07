@@ -373,7 +373,7 @@ val program: Async[Int] =
 
 - [Getting Started with Async](./guides/async-getting-started.md) — create, compose, and run async effects
 - [Async reference](./reference/async.md) — the full API, including `zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and `Future` / `CompletionStage` interop
-- [`async-examples`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala) — a single-file order-fulfillment demo (`sbt "++3.8.3; async-examples/run"`)
+- [`async-examples`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala) — a single-file order-fulfillment demo (`sbt "++3.9.0; async-examples/run"`)
 
 ---
 

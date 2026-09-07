@@ -561,15 +561,19 @@ private[endpoint] object EndpointGroupMacro {
         val (composedPC, finalOutTpe) = composedPCWithType
         // Build precise Endpoint type with finalOut as PathInput
         val composedEndpointTpe: TypeRepr = TypeRepr.of[Endpoint].appliedTo(List(finalOutTpe, i, e, o, a))
-        composedEndpointTpe.asType match {
-          case '[ce] =>
+        (composedEndpointTpe.asType, pi.asType) match {
+          case ('[ce], '[p]) =>
+            // NOTE (Scala 3.9 / E007): ep0 pins the endpoint to its own
+            // PathInput (plus wildcards) so every route/pathCodec selection and
+            // copy argument conforms exactly. The previous shape called copy
+            // through the existential epRefExpr, whose rigid PathInput skolem
+            // 3.9 refuses to unify with the inner RoutePattern copy.
             Block(
               List(epDef),
               '{
-                val pc = $composedPC.asInstanceOf[PathCodec[Any]]
-                $epRefExpr
-                  .copy(route = $epRefExpr.route.copy(pathCodec = pc.asInstanceOf[PathCodec[Any]]))
-                  .asInstanceOf[ce]
+                val pc  = $composedPC.asInstanceOf[PathCodec[p]]
+                val ep0 = $epRefExpr.asInstanceOf[Endpoint[p, ?, ?, ?, ?]]
+                ep0.copy(route = ep0.route.copy(pathCodec = pc)).asInstanceOf[ce]
               }.asTerm
             ).asExpr
         }
