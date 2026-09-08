@@ -63,12 +63,11 @@ object PathCodec {
    * Compile-time evidence that combines two `PathVars` tracks (`PV` and `PV2`)
    * into `PVC`, exactly like `Tuples.Tuples.WithOut` and driving `PVC`'s
    * inference for `PathCodecOps.++`/`/` and `RoutePatternOps./`. This is the
-   * ONE combiner for the phantom track: `RoutePatternOps./` reuses it directly
-   * (it used to take a duplicate `RoutePathVarsCombiner` that deferred to
-   * `Tuples` identically). It exists as a thin `PathCodec`-owned wrapper so
-   * that this companion object is part of the implicit search scope for the
-   * combiner, letting [[PathVarsCombiner.noPathVarsBoth]] disambiguate the
-   * otherwise-ambiguous `NoPathVars` + `NoPathVars` case on Scala 3 (where
+   * ONE combiner for the phantom track: `RoutePatternOps./` reuses it directly.
+   * It exists as a thin `PathCodec`-owned wrapper so that this companion object
+   * is part of the implicit search scope for the combiner, letting
+   * [[PathVarsCombiner.noPathVarsBoth]] disambiguate the otherwise-ambiguous
+   * `NoPathVars` + `NoPathVars` case on Scala 3 (where
    * `NoPathVars = EmptyTuple` matches both `leftEmptyTuple` and
    * `rightEmptyTuple` givens equally).
    */
@@ -98,19 +97,6 @@ object PathCodec {
       new PathVarsCombiner[PV, PV2, PVC] {}
     }
   }
-
-  /**
-   * Backwards-compatible alias for [[PathVarsCombiner]]. `RoutePatternOps./`
-   * used to require its own duplicate `RoutePathVarsCombiner`, which deferred
-   * to `Tuples.Tuples.WithOut` identically to `PathVarsCombiner`; there is now
-   * exactly one combiner and `RoutePatternOps./` takes it directly. Kept (with
-   * both the type and the term alias) so existing call sites keep compiling.
-   */
-  @deprecated("Use PathCodec.PathVarsCombiner instead — the two combiners were identical", "0.1.0")
-  type RoutePathVarsCombiner[PV, PV2, PVC] = PathVarsCombiner[PV, PV2, PVC]
-
-  @deprecated("Use PathCodec.PathVarsCombiner instead — the two combiners were identical", "0.1.0")
-  val RoutePathVarsCombiner: PathVarsCombiner.type = PathVarsCombiner
 
   implicit final class PathCodecOps[A, PV](private val self: PathCodec[A] { type PathVars = PV }) extends AnyVal {
     def ++[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit

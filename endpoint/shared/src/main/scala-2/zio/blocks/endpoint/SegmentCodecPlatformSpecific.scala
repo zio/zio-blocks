@@ -143,9 +143,36 @@ private[endpoint] trait SegmentCodecPlatformSpecific {
   }
 }
 
-private[endpoint] trait CanCombinePlatformSpecific {
+private[endpoint] trait CanCombinePlatformSpecificLowPriority {
   import SegmentCodec.BoundaryTag
 
-  implicit def canCombine[L <: BoundaryTag, R <: BoundaryTag]: SegmentCodec.CanCombine[L, R] =
+  implicit def canCombineGeneral[L <: BoundaryTag, R <: BoundaryTag]: SegmentCodec.CanCombine[L, R] =
     new SegmentCodec.CanCombine[L, R] {}
+}
+
+private[endpoint] trait CanCombinePlatformSpecific extends CanCombinePlatformSpecificLowPriority {
+  import SegmentCodec.BoundaryTag
+
+  // Forbidden adjacent pairs resolve to TWO equally-specific implicits, so the
+  // `~` call fails at compile time with an ambiguity error instead of
+  // resolving. This mirrors the Scala 3 `canCombineImpl` macro rejection for
+  // the same pairs (string ~ string, numeric ~ numeric in any Int/Long order),
+  // and covers flattened combined tails because `~` threads the accumulated
+  // `Suffix`/`Prefix` boundary types through `CanCombine[S, P2]`.
+  // The runtime `validateCombination` check stays as defense-in-depth.
+  implicit def forbiddenStringStringEvidence1[S <: BoundaryTag.String, P <: BoundaryTag.String]
+    : SegmentCodec.CanCombine[S, P] =
+    new SegmentCodec.CanCombine[S, P] {}
+
+  implicit def forbiddenStringStringEvidence2[S <: BoundaryTag.String, P <: BoundaryTag.String]
+    : SegmentCodec.CanCombine[S, P] =
+    new SegmentCodec.CanCombine[S, P] {}
+
+  implicit def forbiddenNumericNumericEvidence1[S <: BoundaryTag.Numeric, P <: BoundaryTag.Numeric]
+    : SegmentCodec.CanCombine[S, P] =
+    new SegmentCodec.CanCombine[S, P] {}
+
+  implicit def forbiddenNumericNumericEvidence2[S <: BoundaryTag.Numeric, P <: BoundaryTag.Numeric]
+    : SegmentCodec.CanCombine[S, P] =
+    new SegmentCodec.CanCombine[S, P] {}
 }

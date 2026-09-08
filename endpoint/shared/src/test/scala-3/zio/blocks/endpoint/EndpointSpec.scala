@@ -77,6 +77,24 @@ object EndpointSpec extends ZIOSpecDefault {
           """)
         )(isLeft)
       },
+      test("rejects combining two long segments (long ~ long)") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val invalid = SegmentCodec.long("a") ~ SegmentCodec.long("b")
+          """)
+        )(isLeft)
+      },
+      test("rejects flattened string tails at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val invalid = SegmentCodec.int("a") ~ SegmentCodec.string("s") ~ SegmentCodec.string("t")
+          """)
+        )(isLeft)
+      },
       test("rejects invalid nested combinations at compile time") {
         assertZIO(
           typeCheck("""

@@ -179,7 +179,7 @@ object EndpointRoutingFixesSpec extends ZIOSpecDefault {
           trailing.matches(Path("/assets/a/b")) == trailing.decode(Path("/assets/a/b")).isRight
         )
       },
-      test("decoded values are unchanged by the longest-match-only decode") {
+      test("decoded values are unchanged by the deterministic single-split decode") {
         val versioned = PathCodec(SegmentCodec.literal("v") ~ SegmentCodec.int("n"))
         val bang      = PathCodec(SegmentCodec.string("word") ~ SegmentCodec.literal("!"))
         val uuid      = UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
@@ -200,6 +200,94 @@ object EndpointRoutingFixesSpec extends ZIOSpecDefault {
           route.matches(Method.POST, Path("/users/42")) == route.decode(Method.POST, Path("/users/42")).isRight,
           route.matches(Method.HEAD, Path("/users/42")) == route.decode(Method.HEAD, Path("/users/42")).isRight,
           route.matches(Method.HEAD, Path("/users/abc")) == route.decode(Method.HEAD, Path("/users/abc")).isRight
+        )
+      }
+    ),
+    suite("allocation-free numeric parsing")(
+      test("plus sign is rejected for int and long, whole and intra segment") {
+        val withInt  = PathCodec.literal("users") / PathCodec.int("id")
+        val withLong = PathCodec.literal("orders") / PathCodec.long("orderId")
+        val vInt     = PathCodec(SegmentCodec.literal("v") ~ SegmentCodec.int("n"))
+        assertTrue(
+          withInt.decode(Path("/users/+42")).isLeft,
+          withInt.matches(Path("/users/+42")) == false,
+          withLong.decode(Path("/orders/+42")).isLeft,
+          withLong.matches(Path("/orders/+42")) == false,
+          vInt.decode(Path("/v+42")).isLeft,
+          vInt.matches(Path("/v+42")) == false
+        )
+      },
+      test("minus zero and leading zeroes decode, overflow and blanks do not") {
+        val withInt  = PathCodec.literal("users") / PathCodec.int("id")
+        val withLong = PathCodec.literal("orders") / PathCodec.long("orderId")
+        assertTrue(
+          withInt.decode(Path("/users/-0")) == Right(0),
+          withInt.decode(Path("/users/007")) == Right(7),
+          withLong.decode(Path("/orders/-0")) == Right(0L),
+          withLong.decode(Path("/orders/007")) == Right(7L),
+          withInt.decode(Path("/users/2147483647")) == Right(Int.MaxValue),
+          withInt.decode(Path("/users/2147483648")).isLeft,
+          withInt.decode(Path("/users/-2147483648")) == Right(Int.MinValue),
+          withInt.decode(Path("/users/-2147483649")).isLeft,
+          withLong.decode(Path("/orders/9223372036854775807")) == Right(Long.MaxValue),
+          withLong.decode(Path("/orders/9223372036854775808")).isLeft,
+          withLong.decode(Path("/orders/-9223372036854775808")) == Right(Long.MinValue),
+          withLong.decode(Path("/orders/-9223372036854775809")).isLeft,
+          SegmentCodec.matchesComplete(SegmentCodec.int("n"), "") == false,
+          SegmentCodec.decodeComplete(SegmentCodec.int("n"), "") == Nil,
+          SegmentCodec.matchesComplete(SegmentCodec.int("n"), " 42") == false,
+          SegmentCodec.matchesComplete(SegmentCodec.int("n"), "42 ") == false,
+          SegmentCodec.matchesComplete(SegmentCodec.long("n"), "  ") == false
+        )
+      },
+      test("intra-segment number-then-string is greedy and overflow-checked") {
+        val vIntRest = PathCodec(SegmentCodec.literal("v") ~ SegmentCodec.int("n") ~ SegmentCodec.string("rest"))
+        val numStr   = PathCodec(SegmentCodec.int("n") ~ SegmentCodec.string("s"))
+        assertTrue(
+          vIntRest.decode(Path("/v-42rest")) == Right((-42, "rest")),
+          vIntRest.matches(Path("/v-42rest")) == true,
+          numStr.decode(Path("/42rest")) == Right((42, "rest")),
+          numStr.decode(Path("/9999999999rest")).isLeft,
+          numStr.matches(Path("/9999999999rest")) == false
+        )
+      },
+      test("string-before-literal uses first-lookahead with no backtracking") {
+        val bang = PathCodec(SegmentCodec.string("word") ~ SegmentCodec.literal("!"))
+        assertTrue(
+          bang.decode(Path("/hi!")) == Right("hi"),
+          bang.decode(Path("/a!b!")).isLeft,
+          bang.matches(Path("/a!b!")) == false
+        )
+      }
+    ),
+    suite("uuid boundaries and deterministic splits")(
+      test("v1, v4, v7, nil and uppercase decode; short and malformed do not") {
+        val v1    = UUID.fromString("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+        val v4    = UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
+        val v7    = UUID.fromString("0190e8d5-5c9d-7b4a-9c9d-1e2f3a4b5c6d")
+        val nil   = UUID.fromString("00000000-0000-0000-0000-000000000000")
+        val items = PathCodec.literal("items") / PathCodec.uuid("itemId")
+        assertTrue(
+          items.decode(Path(s"/items/$v1")) == Right(v1),
+          items.decode(Path(s"/items/$v4")) == Right(v4),
+          items.decode(Path(s"/items/$v7")) == Right(v7),
+          items.decode(Path(s"/items/$nil")) == Right(nil),
+          items.decode(Path("/items/123E4567-E89B-12D3-A456-426614174000")) == Right(v4),
+          items.decode(Path("/items/123e4567-e89b-12d3-a456-42661417400")).isLeft,
+          items.matches(Path("/items/123e4567-e89b-12d3-a456-42661417400")) == false,
+          items.decode(Path("/items/123e4567_e89b-12d3-a456-426614174000")).isLeft,
+          items.matches(Path("/items/123e4567_e89b-12d3-a456-426614174000")) == false
+        )
+      },
+      test("uuid directly followed by a literal matches without backtracking") {
+        val uuid     = UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
+        val suffixed = PathCodec(SegmentCodec.uuid("id") ~ SegmentCodec.literal("-v1"))
+        assertTrue(
+          suffixed.decode(Path(s"/$uuid-v1")) == Right(uuid),
+          suffixed.matches(Path(s"/$uuid-v1")) == true,
+          suffixed.decode(Path("/not-a-uuid-v1")).isLeft,
+          suffixed.matches(Path("/not-a-uuid-v1")) == false,
+          suffixed.decode(Path("/123e4567-e89b-12d3-a456-426614174000-v1x")).isLeft
         )
       }
     ),

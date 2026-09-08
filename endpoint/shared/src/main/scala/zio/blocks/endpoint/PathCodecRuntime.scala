@@ -111,16 +111,27 @@ private[endpoint] object PathCodecRuntime {
             case _       => Nil
           }
       case SegmentCodec.IntSeg(_, _, _) =>
-        segments.lift(index).flatMap(_.toIntOption).map(v => List((v, index + 1))).getOrElse(Nil)
+        segments.lift(index) match {
+          case Some(s) => SegmentCodec.parseIntWindow(s, 0, s.length).map(v => List((v, index + 1))).getOrElse(Nil)
+          case None    => Nil
+        }
       case SegmentCodec.LongSeg(_, _, _) =>
-        segments.lift(index).flatMap(_.toLongOption).map(v => List((v, index + 1))).getOrElse(Nil)
+        segments.lift(index) match {
+          case Some(s) => SegmentCodec.parseLongWindow(s, 0, s.length).map(v => List((v, index + 1))).getOrElse(Nil)
+          case None    => Nil
+        }
       case SegmentCodec.StringSeg(_, _, _) => segments.lift(index).map(v => List((v, index + 1))).getOrElse(Nil)
       case SegmentCodec.UUIDSeg(_, _, _)   =>
         segments
           .lift(index)
-          .flatMap { segment =>
-            try Some(java.util.UUID.fromString(segment))
-            catch { case _: IllegalArgumentException => None }
+          .flatMap { s =>
+            // Whole-segment fast path: the layout gate is index-based (no
+            // substring), and `java.util.UUID` construction takes the segment
+            // itself — no window copy is ever materialized here.
+            if (!SegmentCodec.isUuidWindow(s, 0, s.length)) None
+            else
+              try Some(java.util.UUID.fromString(s))
+              catch { case _: IllegalArgumentException => None }
           }
           .map(v => List((v, index + 1)))
           .getOrElse(Nil)
