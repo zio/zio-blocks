@@ -155,12 +155,12 @@ object RoutePattern {
   implicit final class RoutePatternOps[A, PV](private val self: RoutePattern[A] { type PathVars = PV }) extends AnyVal {
     def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
       combiner: Tuples.Tuples.WithOut[A, B, C],
-      _pathVarsCombiner: PathCodec.PathVarsCombiner[PV, PV2, PVC]
+      pathVarsCombiner: PathCodec.PathVarsCombiner[PV, PV2, PVC]
     ): RoutePattern[C] { type PathVars = PVC } = {
-      // `_pathVarsCombiner` is pure compile-time evidence driving `PVC`'s inference (never read at
+      // `pathVarsCombiner` is pure compile-time evidence driving `PVC`'s inference (never read at
       // runtime); referenced only to satisfy unused-parameter warnings. The REAL, precisely-computed
       // PathVars combine is carried by this method's own refined return type.
-      val _ = _pathVarsCombiner
+      val _ = pathVarsCombiner
       self
         .copy(pathCodec = PathCodec.combineUnrefined(self.pathCodec, that)(combiner))
         .asInstanceOf[RoutePattern[C] { type PathVars = PVC }]

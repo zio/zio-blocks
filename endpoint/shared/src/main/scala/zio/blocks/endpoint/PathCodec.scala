@@ -101,17 +101,17 @@ object PathCodec {
   implicit final class PathCodecOps[A, PV](private val self: PathCodec[A] { type PathVars = PV }) extends AnyVal {
     def ++[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
       combiner: Tuples.Tuples.WithOut[A, B, C],
-      _pathVarsCombiner: PathVarsCombiner[PV, PV2, PVC]
+      pathVarsCombiner: PathVarsCombiner[PV, PV2, PVC]
     ): PathCodec[C] { type PathVars = PVC } = {
-      val _ = _pathVarsCombiner
+      val _ = pathVarsCombiner
       combineUnrefined(self, that)(combiner).asInstanceOf[PathCodec[C] { type PathVars = PVC }]
     }
 
     def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
       combiner: Tuples.Tuples.WithOut[A, B, C],
-      _pathVarsCombiner: PathVarsCombiner[PV, PV2, PVC]
+      pathVarsCombiner: PathVarsCombiner[PV, PV2, PVC]
     ): PathCodec[C] { type PathVars = PVC } = {
-      val _ = _pathVarsCombiner
+      val _ = pathVarsCombiner
       self ++ that
     }
 

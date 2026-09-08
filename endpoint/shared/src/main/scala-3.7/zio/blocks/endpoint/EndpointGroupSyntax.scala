@@ -73,16 +73,16 @@ extension [A, PV](codec: PathCodec[A] { type PathVars = PV }) {
    */
   def concat[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
     combiner: zio.blocks.combinators.Tuples.Tuples.WithOut[A, B, C],
-    _pathVarsCombiner: PathCodec.PathVarsCombiner[PV, PV2, PVC]
+    pathVarsCombiner: PathCodec.PathVarsCombiner[PV, PV2, PVC]
   ): PathCodec[C] { type PathVars = PVC } = {
-    val _ = _pathVarsCombiner
+    val _ = pathVarsCombiner
     PathCodec.combineUnrefined(codec, that)(combiner).asInstanceOf[PathCodec[C] { type PathVars = PVC }]
   }
 
   /** Symbolic alias for [[concat]] — `codec / codec`. */
   def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
     combiner: zio.blocks.combinators.Tuples.Tuples.WithOut[A, B, C],
-    _pathVarsCombiner: PathCodec.PathVarsCombiner[PV, PV2, PVC]
+    pathVarsCombiner: PathCodec.PathVarsCombiner[PV, PV2, PVC]
   ): PathCodec[C] { type PathVars = PVC } =
-    concat(that)(combiner, _pathVarsCombiner)
+    concat(that)(combiner, pathVarsCombiner)
 }
