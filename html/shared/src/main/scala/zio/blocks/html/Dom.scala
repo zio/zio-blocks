@@ -825,9 +825,57 @@ object Dom {
 
   object AttributeValue {
     final case class StringValue(value: String)                                       extends AttributeValue
-    final case class MultiValue(values: Chunk[String], separator: AttributeSeparator) extends AttributeValue
-    final case class JsValue(js: Js)                                                  extends AttributeValue
-    final case class BooleanValue(value: Boolean)                                     extends AttributeValue
+    final case class MultiValue(values: Chunk[String], separator: AttributeSeparator) extends AttributeValue {
+
+      /**
+       * Cached unsafe-URL verdict for the separator-joined values: 0 = unknown,
+       * 1 = safe, 2 = unsafe. Values and separator are immutable, so the
+       * verdict stays valid for the lifetime of the instance; the benign race
+       * on first concurrent render resolves to the same value either way. Only
+       * the verdict is cached, never rendered strings.
+       */
+      @volatile private var urlVerdict: Int = 0
+
+      /**
+       * Test instrumentation: number of verdict computations (cache misses).
+       * Incremented only on the cold compute path, never on repeat renders.
+       */
+      @volatile private[html] var urlVerdictComputations: Int = 0
+
+      /**
+       * Whether the separator-joined values would be rejected by
+       * [[Escape.sanitizeUrl]]. Computed once via flatten plus sanitize; repeat
+       * calls reuse the cached verdict without flattening or resanitizing.
+       * Consulted only for URL attributes, so sharing one instance between URL
+       * and non-URL attributes stays correct.
+       */
+      private[html] def isUnsafeUrl: Boolean = {
+        var verdict = urlVerdict
+        if (verdict == 0) {
+          if (values.length == 1) verdict = if (Escape.isUnsafeUrl(values(0))) 2 else 1
+          else {
+            verdict = if (Escape.isUnsafeUrl(joinedValues())) 2 else 1
+          }
+          urlVerdictComputations += 1
+          urlVerdict = verdict
+        }
+        verdict == 2
+      }
+
+      private def joinedValues(): String = {
+        val sep = separator.render
+        val sb  = new java.lang.StringBuilder(values.length * 8)
+        var i   = 0
+        while (i < values.length) {
+          if (i > 0) sb.append(sep)
+          sb.append(values(i))
+          i += 1
+        }
+        sb.toString
+      }
+    }
+    final case class JsValue(js: Js)              extends AttributeValue
+    final case class BooleanValue(value: Boolean) extends AttributeValue
   }
 
   sealed trait AttributeSeparator extends Product with Serializable {
@@ -1030,11 +1078,12 @@ object Dom {
         Escape.htmlTo(sanitized, sb)
         sb.append('"')
 
-      case AttributeValue.MultiValue(values, separator) =>
+      case mv @ AttributeValue.MultiValue(values, separator) =>
         if (values.nonEmpty) {
           sb.append(' ')
           sb.append(name)
           sb.append("=\"")
+          if (isUrlAttribute(name) && mv.isUnsafeUrl) sb.append("unsafe:")
           var j = 0
           while (j < values.length) {
             if (j > 0) sb.append(separator.render)

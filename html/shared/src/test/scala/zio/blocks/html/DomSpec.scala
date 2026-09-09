@@ -1082,6 +1082,76 @@ object DomSpec extends ZIOSpecDefault {
         val el   = Dom.Element.Generic("button", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<button formaction="unsafe:javascript:void(0)"></button>""")
       },
+      test("multi-value safe href renders unchanged") {
+        val attr = Dom.Attribute.KeyValue(
+          "href",
+          Dom.AttributeValue
+            .MultiValue(Chunk("https://example.com/a", "https://example.com/b"), Dom.AttributeSeparator.Space)
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a href="https://example.com/a https://example.com/b">x</a>""")
+      },
+      test("multi-value javascript: href is blocked") {
+        val attr = Dom.Attribute.KeyValue(
+          "href",
+          Dom.AttributeValue.MultiValue(Chunk("javascript:alert(1)"), Dom.AttributeSeparator.Space)
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a href="unsafe:javascript:alert(1)">x</a>""")
+      },
+      test("multi-value split scheme is blocked") {
+        val attr = Dom.Attribute.KeyValue(
+          "href",
+          Dom.AttributeValue.MultiValue(Chunk("java", "script:alert(1)"), Dom.AttributeSeparator.Custom(""))
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a href="unsafe:javascript:alert(1)">x</a>""")
+      },
+      test("multi-value entity-encoded href is blocked") {
+        val attr = Dom.Attribute.KeyValue(
+          "href",
+          Dom.AttributeValue.MultiValue(Chunk("&#106;avascript:alert(1)"), Dom.AttributeSeparator.Space)
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a href="unsafe:&amp;#106;avascript:alert(1)">x</a>""")
+      },
+      test("repeated multi-value safe URL renders reuse cached verdict") {
+        val mv = Dom.AttributeValue.MultiValue(
+          Chunk("https://example.com/a", "https://example.com/b"),
+          Dom.AttributeSeparator.Space
+        )
+        val el     = Dom.Element.Generic("a", Chunk(Dom.Attribute.KeyValue("href", mv)), Chunk(Dom.Text("x")))
+        val first  = el.render
+        val second = el.render
+        val third  = el.render
+        assertTrue(first == second) &&
+        assertTrue(second == third) &&
+        assertTrue(first == """<a href="https://example.com/a https://example.com/b">x</a>""") &&
+        assertTrue(mv.urlVerdictComputations == 1)
+      },
+      test("repeated multi-value dangerous URL renders stay blocked") {
+        val mv     = Dom.AttributeValue.MultiValue(Chunk("javascript:alert(1)"), Dom.AttributeSeparator.Space)
+        val el     = Dom.Element.Generic("a", Chunk(Dom.Attribute.KeyValue("href", mv)), Chunk(Dom.Text("x")))
+        val first  = el.render
+        val second = el.render
+        assertTrue(first == second) &&
+        assertTrue(first == """<a href="unsafe:javascript:alert(1)">x</a>""") &&
+        assertTrue(mv.urlVerdictComputations == 1)
+      },
+      test("non-URL multi-value never computes URL verdict") {
+        val mv = Dom.AttributeValue.MultiValue(Chunk("a", "b"), Dom.AttributeSeparator.Space)
+        val el = Dom.Element.Generic("div", Chunk(Dom.Attribute.KeyValue("class", mv)), Chunk.empty)
+        assertTrue(el.render == """<div class="a b"></div>""") &&
+        assertTrue(mv.urlVerdictComputations == 0)
+      },
+      test("multi-value empty URL attribute omits attribute entirely") {
+        val attr = Dom.Attribute.KeyValue(
+          "href",
+          Dom.AttributeValue.MultiValue(Chunk.empty, Dom.AttributeSeparator.Space)
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == "<a>x</a>")
+      },
       test("style child escapes closing style tag in render") {
         val s = Dom.Element.Style(Chunk.empty, Chunk(Dom.Text("</style>")))
         assertTrue(s.render == """<style><\/style></style>""")
