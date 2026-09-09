@@ -34,6 +34,13 @@ object HeadersSpec extends HttpModelBaseSpec {
     def render(value: Int): String = "trace-" + value.toString
   }
 
+  private object IntHeader extends Header.Codec[Int] {
+    def name: String                              = "x-n"
+    def parse(value: String): Either[String, Int] =
+      value.toIntOption.toRight(s"not an int: $value")
+    def render(value: Int): String = value.toString
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("Headers")(
     suite("empty")(
       test("is empty") {
@@ -212,6 +219,53 @@ object HeadersSpec extends HttpModelBaseSpec {
           strings == Chunk("trace-1", "trace-22"),
           lengths == Chunk(7, 8),
           again == Chunk("trace-1", "trace-22")
+        )
+      }
+    ),
+    suite("getStrict")(
+      test("reports an absent header as Right(None)") {
+        assertTrue(Headers.empty.getStrict(IntHeader) == Right(None))
+      },
+      test("reports a present-but-unparseable header as Left where get reads None") {
+        val h = Headers("x-n" -> "abc")
+        assertTrue(
+          h.get(IntHeader) == None,
+          h.getStrict(IntHeader) == Left("not an int: abc")
+        )
+      },
+      test("keeps scanning past bad entries for a later good one") {
+        val h = Headers("x-n" -> "abc", "x-n" -> "42")
+        assertTrue(
+          h.get(IntHeader) == Some(42),
+          h.getStrict(IntHeader) == Right(Some(42))
+        )
+      },
+      test("reports the first error when no entry parses") {
+        val h = Headers("x-n" -> "abc", "x-n" -> "def")
+        assertTrue(h.getStrict(IntHeader) == Left("not an int: abc"))
+      },
+      test("reuses values cached by the same codec") {
+        val h     = Headers("x-n" -> "7")
+        val first = h.get(IntHeader)
+        assertTrue(
+          first == Some(7),
+          h.getStrict(IntHeader) == Right(Some(7))
+        )
+      }
+    ),
+    suite("getAllStrict")(
+      test("collects every matching entry") {
+        val h = Headers("x-n" -> "1", "x-n" -> "2")
+        assertTrue(h.getAllStrict(IntHeader) == Right(Chunk(1, 2)))
+      },
+      test("returns Right(empty) when no header matches") {
+        assertTrue(Headers.empty.getAllStrict(IntHeader) == Right(Chunk.empty))
+      },
+      test("fails fast on the first bad entry where getAll skips it") {
+        val h = Headers("x-n" -> "1", "x-n" -> "abc", "x-n" -> "3")
+        assertTrue(
+          h.getAll(IntHeader) == Chunk(1, 3),
+          h.getAllStrict(IntHeader) == Left("not an int: abc")
         )
       }
     ),
