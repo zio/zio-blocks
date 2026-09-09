@@ -60,10 +60,10 @@ object DatastarEvent {
       sb.append("event: ").append(EventType.PatchElements.render).append('\n')
       appendId(sb, eventId)
       appendRetry(sb, retryMillis)
-      selector.toOption.foreach(s => appendDataLines(sb, "selector ", s.render))
+      selector.foreach(s => appendDataLines(sb, "selector ", s.render))
       if (mode != ElementPatchMode.Outer) appendDataLines(sb, "mode ", mode.render)
       if (useViewTransition) appendData(sb, "useViewTransition true")
-      namespace.toOption.foreach(ns => appendDataLines(sb, "namespace ", ns))
+      namespace.foreach(ns => appendDataLines(sb, "namespace ", ns))
       appendDataLines(sb, "elements ", elements.renderMinified)
       sb.append('\n')
       sb.toString
@@ -94,7 +94,7 @@ object DatastarEvent {
    * (`id` must not contain CR or LF).
    */
   private def appendId(sb: java.lang.StringBuilder, eventId: Maybe[String]): Unit =
-    eventId.toOption.foreach { id =>
+    eventId.foreach { id =>
       if (id.indexOf('\n') >= 0 || id.indexOf('\r') >= 0)
         throw new IllegalArgumentException("SSE id must not contain CR or LF characters")
       sb.append("id: ").append(id).append('\n')
@@ -105,7 +105,7 @@ object DatastarEvent {
    * (retry must be non-negative).
    */
   private def appendRetry(sb: java.lang.StringBuilder, retryMillis: Maybe[Long]): Unit =
-    retryMillis.toOption.foreach { millis =>
+    retryMillis.foreach { millis =>
       if (millis < 0)
         throw new IllegalArgumentException("SSE retry must be non-negative")
       sb.append("retry: ").append(millis).append('\n')
