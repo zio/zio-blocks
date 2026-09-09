@@ -17,6 +17,7 @@
 package zio.blocks.schema
 
 import scala.collection.Factory
+import scala.unchecked
 
 trait Into[-A, +B] {
 
@@ -149,8 +150,8 @@ trait IntoPrimitiveInstances {
 trait IntoContainerInstances {
 
   implicit def optionInto[A, B](implicit into: Into[A, B]): Into[Option[A], Option[B]] = {
-    case Some(value) =>
-      into.into(value) match {
+    case some: Some[A @unchecked] =>
+      into.into(some.value) match {
         case Right(b)    => new Right(new Some(b))
         case l @ Left(_) => l.asInstanceOf[Either[SchemaError, Option[B]]]
       }
