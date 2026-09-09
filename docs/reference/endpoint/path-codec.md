@@ -176,7 +176,7 @@ import zio.blocks.endpoint.PathCodec._
 final case class UserId(value: Int)
 
 val userIdCodec: PathCodec[UserId] =
-  PathCodec.int("id").transform[UserId](UserId(_), _.value)
+  PathCodec.int("id").transform(UserId(_), _.value)
 ```
 
 ### `PathCodec#transformOrFail`
@@ -188,9 +188,9 @@ import zio.blocks.endpoint._
 import zio.blocks.endpoint.RoutePattern._
 
 val nonNegativeInt: PathCodec[Int] =
-  PathCodec.int("count").transformOrFail[Int](
+  PathCodec.int("count").transformOrFail(
     n => if (n >= 0) Right(n) else Left(s"Expected non-negative, got $n"),
-    n => Right(n)
+    (n: Int) => Right(n)
   )
 ```
 

@@ -34,6 +34,19 @@ import zio.http.Path
  * transformed wire codec is a domain value, not intra-segment structure).
  */
 sealed trait SegmentCodec[A] { self =>
+
+  /**
+   * Phantom capture marker: [[SegmentCodec.NoPathVars]] when this segment
+   * captures nothing (empty and literal segments), [[SegmentCodec.HasPathVars]]
+   * when it captures a value (bool, int, long, string, UUID, trailing, and any
+   * composition containing one of those). This is a second, parallel type
+   * track: it never affects `A` (the runtime-decoded value type) and has zero
+   * runtime footprint. Its only consumer is [[PathCodec.orElse]], which
+   * requires both branches to be `NoPathVars` so a capturing codec mapped to
+   * `Unit` is rejected at the call site instead of failing `expand` at runtime.
+   */
+  type PathVars
+
   def doc: Doc
   def examples: Chunk[(String, A)]
 
@@ -45,10 +58,20 @@ sealed trait SegmentCodec[A] { self =>
    * including through a flattened combined tail), and anything involving
    * `Trailing` are rejected at runtime with `IllegalArgumentException`
    * (ambiguous splits); put a literal, bool, or UUID segment between them.
+   *
+   * The result's `PathVars` is the logical OR of both sides (computed by the
+   * `pathVarsCombiner` implicit, which defaults conservatively to `HasPathVars`
+   * when either side's marker is unknown), so `orElse` keeps rejecting
+   * compositions that capture.
    */
-  final def ~[B, C](that: SegmentCodec[B])(implicit combiner: Tuples.Tuples.WithOut[A, B, C]): SegmentCodec[C] = {
+  final def ~[B, C, PV2, PVC](that: SegmentCodec[B] { type PathVars = PV2 })(implicit
+    combiner: Tuples.Tuples.WithOut[A, B, C],
+    pathVarsCombiner: SegmentCodec.CombinePathVars[self.PathVars, PV2, PVC]
+  ): SegmentCodec[C] { type PathVars = PVC } = {
     SegmentCodec.validateCombination(self, that)
-    SegmentCodec.combineValidated(self, that, combiner)
+    SegmentCodec
+      .combineValidated(self, that, combiner)
+      .asInstanceOf[SegmentCodec[C] { type PathVars = PVC }]
   }
 
   /**
@@ -57,9 +80,12 @@ sealed trait SegmentCodec[A] { self =>
    * [[SegmentCodec.literal]] (empty, `/`-carrying, or encoding-requiring values
    * are rejected with `IllegalArgumentException`).
    */
-  final def ~[C](that: String)(implicit combiner: Tuples.Tuples.WithOut[A, Unit, C]): SegmentCodec[C] = {
+  final def ~[C, PVC](that: String)(implicit
+    combiner: Tuples.Tuples.WithOut[A, Unit, C],
+    pathVarsCombiner: SegmentCodec.CombinePathVars[self.PathVars, SegmentCodec.NoPathVars, PVC]
+  ): SegmentCodec[C] { type PathVars = PVC } = {
     SegmentCodec.validateLiteralValue(that)
-    self ~ SegmentCodec.literalValidated(that)
+    (self ~ SegmentCodec.literalValidated(that)).asInstanceOf[SegmentCodec[C] { type PathVars = PVC }]
   }
 
   /**
@@ -77,8 +103,19 @@ sealed trait SegmentCodec[A] { self =>
    *   a path codec with the transformed value type and the same route shape as
    *   `self`
    */
-  final def transform[B](decode: A => B, encode: B => A): PathCodec[B] =
-    PathCodec.Segment(self).transform(decode, encode)
+  final def transform[B, PV](decode: A => B, encode: B => A)(implicit
+    ev: SegmentCodec.CombinePathVars[self.PathVars, SegmentCodec.NoPathVars, PV]
+  ): PathCodec[B] { type PathVars = PV } = {
+    // Marker reification: solved at the call site against the caller's
+    // refined `self` type (identity OR with `NoPathVars`) - precise for
+    // refined segments, `HasPathVars` for unknown ones, and always concrete
+    // (see `PathCodec.transform`).
+    val _ = ev
+    PathCodec
+      .Segment(self)
+      .transform(decode, encode)
+      .asInstanceOf[PathCodec[B] { type PathVars = PV }]
+  }
 
   /**
    * Effectfully maps the decoded segment value into a domain type, lifting into
@@ -89,11 +126,19 @@ sealed trait SegmentCodec[A] { self =>
    * Example:
    * `SegmentCodec.string("id").transformOrFail(CustomerId.parse, id => Right(id.value))`
    */
-  final def transformOrFail[B](
+  final def transformOrFail[B, PV](
     decode: A => Either[String, B],
     encode: B => Either[String, A]
-  ): PathCodec[B] =
-    PathCodec.Segment(self).transformOrFail(decode, encode)
+  )(implicit
+    ev: SegmentCodec.CombinePathVars[self.PathVars, SegmentCodec.NoPathVars, PV]
+  ): PathCodec[B] { type PathVars = PV } = {
+    // Marker reification: see `transform` above.
+    val _ = ev
+    PathCodec
+      .Segment(self)
+      .transformOrFail(decode, encode)
+      .asInstanceOf[PathCodec[B] { type PathVars = PV }]
+  }
 
   final def format(value: A): Path =
     Path(s"/${SegmentCodec.formatSegment(self, value)}")
@@ -135,6 +180,48 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   // bound would let the compiler infer the widened `String` type instead. Overload resolution picks
   // this singleton-preserving overload for literal call sites (its parameter type, instantiated at
   // the literal's singleton type, is a subtype of the fallback's plain `String` parameter type).
+
+  /**
+   * Phantom marker for segments that capture nothing (`Empty`, `Literal`).
+   * Never instantiated - exists purely as a `PathVars` tag with zero runtime
+   * footprint.
+   */
+  sealed trait NoPathVars
+
+  /**
+   * Phantom marker for segments that capture a value (bool, int, long, string,
+   * UUID, trailing, and any composition containing one of those). Never
+   * instantiated - exists purely as a `PathVars` tag with zero runtime
+   * footprint.
+   */
+  sealed trait HasPathVars
+
+  /**
+   * Compile-time evidence combining two `PathVars` markers into their logical
+   * OR, driving `PVC` inference for `~` (and, transitively, `PathCodec.++` and
+   * `/`). The four precise instances cover every concrete pair; the
+   * low-priority fallback maps anything unknown (an unrefined codec type, whose
+   * marker is abstract) to `HasPathVars` - always sound (capturing is the safe
+   * over-approximation: `orElse` may reject a harmless unrefined codec, but it
+   * can never accept a capturing one through this path).
+   */
+  sealed trait CombinePathVars[L, R, Out]
+
+  object CombinePathVars extends CombinePathVarsLowPriority {
+    implicit val noNo: CombinePathVars[NoPathVars, NoPathVars, NoPathVars] =
+      new CombinePathVars[NoPathVars, NoPathVars, NoPathVars] {}
+    implicit val noYes: CombinePathVars[NoPathVars, HasPathVars, HasPathVars] =
+      new CombinePathVars[NoPathVars, HasPathVars, HasPathVars] {}
+    implicit val yesNo: CombinePathVars[HasPathVars, NoPathVars, HasPathVars] =
+      new CombinePathVars[HasPathVars, NoPathVars, HasPathVars] {}
+    implicit val yesYes: CombinePathVars[HasPathVars, HasPathVars, HasPathVars] =
+      new CombinePathVars[HasPathVars, HasPathVars, HasPathVars] {}
+  }
+
+  trait CombinePathVarsLowPriority {
+    implicit def unknown[L, R]: CombinePathVars[L, R, HasPathVars] =
+      new CombinePathVars[L, R, HasPathVars] {}
+  }
   def bool[N <: String with Singleton](name: N): BoolSeg[N]     = BoolSeg(name)
   def int[N <: String with Singleton](name: N): IntSeg[N]       = IntSeg(name)
   def long[N <: String with Singleton](name: N): LongSeg[N]     = LongSeg(name)
@@ -315,44 +402,66 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   }
 
   case object Empty extends SegmentCodec[Unit] {
+    type PathVars = NoPathVars
+
     val doc: Doc                        = Doc.empty
     val examples: Chunk[(String, Unit)] = Chunk.empty
   }
 
   final case class Literal(value: String, doc: Doc = Doc.empty, examples: Chunk[(String, Unit)] = Chunk.empty)
-      extends SegmentCodec[Unit]
+      extends SegmentCodec[Unit] {
+    type PathVars = NoPathVars
+  }
 
   final case class BoolSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Boolean)] = Chunk.empty)
-      extends SegmentCodec[Boolean]
+      extends SegmentCodec[Boolean] {
+    type PathVars = HasPathVars
+  }
 
   final case class IntSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Int)] = Chunk.empty)
-      extends SegmentCodec[Int]
+      extends SegmentCodec[Int] {
+    type PathVars = HasPathVars
+  }
 
   final case class LongSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Long)] = Chunk.empty)
-      extends SegmentCodec[Long]
+      extends SegmentCodec[Long] {
+    type PathVars = HasPathVars
+  }
 
   final case class StringSeg[N <: String](
     name: N,
     doc: Doc = Doc.empty,
     examples: Chunk[(String, String)] = Chunk.empty
-  ) extends SegmentCodec[String]
+  ) extends SegmentCodec[String] {
+    type PathVars = HasPathVars
+  }
 
   final case class UUIDSeg[N <: String](
     name: N,
     doc: Doc = Doc.empty,
     examples: Chunk[(String, java.util.UUID)] = Chunk.empty
-  ) extends SegmentCodec[java.util.UUID]
+  ) extends SegmentCodec[java.util.UUID] {
+    type PathVars = HasPathVars
+  }
 
   final case class Combined[A, B, C](
     left: SegmentCodec[A],
     right: SegmentCodec[B],
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ) extends SegmentCodec[C] {
+    // Left abstract: only `~` (which proves the OR of both sides via
+    // `CombinePathVars`) may ascribe a concrete marker. A directly constructed
+    // `Combined` keeps an unknown marker, which the low-priority combiner
+    // treats as capturing - conservative and sound for `orElse`.
+    type PathVars
+
     val doc: Doc                     = left.doc ++ right.doc
     val examples: Chunk[(String, C)] = Chunk.empty
   }
 
   case object Trailing extends SegmentCodec[Path] {
+    type PathVars = HasPathVars
+
     val doc: Doc                        = Doc.empty
     val examples: Chunk[(String, Path)] = Chunk.empty
   }
@@ -381,15 +490,15 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
    * Returns how many segments `codec` consumes at `index` (`-1` for no match).
    *
    * This is the boolean fast path for routing: `Literal` is a single `==`,
-   * `IntSeg`/`LongSeg` a single allocation-free ASCII window scan
+   * `IntSeg`/`LongSeg` allocation-free ASCII window scans
    * (`isIntWindow`/`isLongWindow`), `UUIDSeg` a hand-rolled shape check (no
-   * exceptions thrown), and `Combined` goes through the deterministic
-   * single-split `matchesWindow` below. Candidate lists are never built here
-   * (unlike [[decodeCombined]]), so per-request trie lookups pay no
-   * per-candidate tuple or substring-enumeration cost. The subsequent handler
-   * `decode` re-parses the matched segment once — that match-then-decode double
-   * parse is accepted deliberately (decode happens once per matched request,
-   * while `matches` runs per dynamic branch).
+   * exceptions thrown), and `Combined` goes through the exhaustive-split
+   * `matchesWindow` below. Candidate lists are never built here (unlike
+   * [[decodeCombined]]), so per-request trie lookups pay no per-candidate tuple
+   * or substring-enumeration cost. The subsequent handler `decode` re-parses
+   * the matched segment once — that match-then-decode double parse is accepted
+   * deliberately (decode happens once per matched request, while `matches` runs
+   * per dynamic branch).
    */
   def matches(codec: SegmentCodec[_], segments: Chunk[String], index: Int): Int =
     if (index < 0 || index > segments.length) -1
@@ -404,30 +513,41 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
       }
 
   /**
-   * Boolean fast path for a whole segment: does `codec` match `segment` exactly
-   * (deterministic single split)? Never builds candidate lists and never
-   * allocates — `StringSeg` is a constant-time accept, numerics validate the
-   * whole window with the allocation-free ASCII scanners (no substring),
-   * `UUIDSeg` is validated index-by-index without exceptions. Used by
-   * [[matches]] and `PathCodecRuntime.matchesCodec`; the allocating
-   * [[decodeCombined]] remains for callers that need decoded values at every
-   * split.
+   * Boolean counterpart to [[decodeComplete]]: does `codec` match `segment`
+   * exactly? Never builds candidate lists and never allocates — `StringSeg` is
+   * a constant-time accept, numerics validate each candidate window with the
+   * allocation-free ASCII scanners (no substring), `UUIDSeg` is validated
+   * index-by-index without exceptions, and `Combined` enumerates candidate
+   * split points with the same accept/reject predicate `decodeCombined` uses —
+   * so `matches` and `decode` agree structurally (one existential, one
+   * constructive, over the same split language). Used by [[matches]] and
+   * `PathCodecRuntime.matchesCodec`.
    */
   def matchesComplete(codec: SegmentCodec[_], segment: String): Boolean =
     matchesWindow(codec, segment, 0, segment.length)
 
   /**
-   * Value-carrying counterpart to [[matchesComplete]]: like
-   * `decodeCombined(codec, segment, 0)` but keeps the deterministic single
-   * split only (`end == segment.length`), so `StringSeg` materializes one
-   * substring instead of O(n) and numerics parse once instead of per prefix.
-   * Correct wherever callers already filter `end == segment.length` (`Combined`
-   * decode); nested splits inside a `Combined` go through `decodeBounded` with
-   * the split point as the bound.
+   * Value-carrying counterpart to [[matchesComplete]]: the full-length
+   * survivors of `decodeCombined(codec, segment, 0)` (candidates whose end
+   * equals `segment.length`), longest split first. `StringSeg` materializes one
+   * substring per surviving split only — the decoded `String` value IS a
+   * substring, so that allocation is the result, not a parse intermediate. Used
+   * by `PathCodecRuntime.decodeSegment` for `Combined` segments.
    */
   def decodeComplete(codec: SegmentCodec[_], segment: String): List[(Any, Int)] =
-    decodeBounded(codec, segment, 0, segment.length)
+    decodeCombined(codec, segment, 0).filter(_._2 == segment.length)
 
+  /**
+   * Exact-window boolean check over `[from, end)`: does `codec` match exactly
+   * that slice? Leaves validate the whole window with the allocation-free index
+   * scanners (never a substring, never a stdlib parser, never thrown
+   * exceptions); `Combined` enumerates every candidate split point `mid` in
+   * `[from, end]` (bounded by the segment length - no backtracking explosion,
+   * since `~` already rejects the ambiguous `string ~ string` and numeric ~
+   * numeric shapes) and accepts when both sides match exactly. Agrees with
+   * [[decodeCombined]] by construction: the same windows that validate here are
+   * the windows `decodeCombined` decodes.
+   */
   private def matchesWindow(codec: SegmentCodec[_], segment: String, from: Int, end: Int): Boolean =
     if (from < 0 || end > segment.length || from > end) false
     else
@@ -441,54 +561,14 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
         case UUIDSeg(_, _, _)            => isUuidWindow(segment, from, end)
         case Trailing                    => true
         case combined: Combined[_, _, _] =>
-          val mid = splitMid(combined.left, combined.right, segment, from, end)
-          mid >= 0 && matchesWindow(combined.left, segment, from, mid) &&
-          matchesWindow(combined.right, segment, mid, end)
-      }
-
-  /**
-   * Bounded variant of [[decodeCombined]] keeping only `(value, end)` pairs
-   * whose end equals the `end` bound. Every leaf yields at most one pair, so no
-   * garbage candidates are ever built; `Combined` uses the single deterministic
-   * split (see `splitMid`: greedy numerics, fixed-width UUID, first-valid
-   * string lookahead, no backtracking) with both sides bounded. Per-pattern
-   * memoization was considered and skipped: patterns are immutable descriptors
-   * shared across requests, but results depend on the input segment, so a cache
-   * keyed by input would grow without bound for negligible gain on short
-   * segments.
-   */
-  private[endpoint] def decodeBounded(
-    codec: SegmentCodec[_],
-    segment: String,
-    from: Int,
-    end: Int
-  ): List[(Any, Int)] =
-    if (from < 0 || end > segment.length || from > end) Nil
-    else
-      codec match {
-        case Empty                => if (from == end) List(((), from)) else Nil
-        case Literal(value, _, _) =>
-          if (end - from == value.length && segment.startsWith(value, from)) List(((), end)) else Nil
-        case BoolSeg(_, _, _)   => parseBoolWindow(segment, from, end).map(value => List((value, end))).getOrElse(Nil)
-        case IntSeg(_, _, _)    => parseIntWindow(segment, from, end).map(value => List((value, end))).getOrElse(Nil)
-        case LongSeg(_, _, _)   => parseLongWindow(segment, from, end).map(value => List((value, end))).getOrElse(Nil)
-        case StringSeg(_, _, _) => List((segment.substring(from, end), end))
-        case UUIDSeg(_, _, _)   =>
-          if (!isUuidWindow(segment, from, end)) Nil
-          else
-            try List((java.util.UUID.fromString(segment.substring(from, end)), end))
-            catch { case _: IllegalArgumentException => Nil }
-        case Trailing                    => List((Path(segment.substring(from)).addLeadingSlash, segment.length))
-        case combined: Combined[_, _, _] =>
-          val mid = splitMid(combined.left, combined.right, segment, from, end)
-          if (mid < 0) Nil
-          else
-            decodeBounded(combined.left, segment, from, mid).flatMap { case (leftValue, _) =>
-              decodeBounded(combined.right, segment, mid, end).map { case (rightValue, _) =>
-                val typed = combined.combiner.asInstanceOf[Tuples.Tuples.WithOut[Any, Any, Any]]
-                (typed.combine(leftValue, rightValue), end)
-              }
-            }
+          var mid   = from
+          var found = false
+          while (!found && mid <= end) {
+            found = matchesWindow(combined.left, segment, from, mid) &&
+              matchesWindow(combined.right, segment, mid, end)
+            mid += 1
+          }
+          found
       }
 
   private def parseBoolWindow(segment: String, from: Int, end: Int): Option[Boolean] = {
@@ -671,14 +751,8 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
         List("true" -> true, "false" -> false).collect {
           case (text, value) if segment.startsWith(text, from) => (value, from + text.length)
         }
-      case IntSeg(_, _, _) =>
-        val runEnd = scanNumericRun(segment, from, segment.length)
-        if (runEnd < 0) Nil
-        else parseIntWindow(segment, from, runEnd).map(value => List((value, runEnd))).getOrElse(Nil)
-      case LongSeg(_, _, _) =>
-        val runEnd = scanNumericRun(segment, from, segment.length)
-        if (runEnd < 0) Nil
-        else parseLongWindow(segment, from, runEnd).map(value => List((value, runEnd))).getOrElse(Nil)
+      case IntSeg(_, _, _)    => intCandidates(segment, from)
+      case LongSeg(_, _, _)   => longCandidates(segment, from)
       case StringSeg(_, _, _) =>
         if (from > segment.length) Nil
         else {
@@ -703,20 +777,67 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
         }
       case Trailing                    => List((Path(segment.substring(from)).addLeadingSlash, segment.length))
       case combined: Combined[_, _, _] =>
-        // Deterministic single split over the whole remaining segment (no
-        // backtracking): `splitMid` fixes the left/right boundary, then each
-        // side decodes at most one value — numerics greedily, UUID fixed-width,
-        // string-before-X by first-valid lookahead.
-        val mid = splitMid(combined.left, combined.right, segment, from, segment.length)
-        if (mid < 0) Nil
-        else
-          decodeBounded(combined.left, segment, from, mid).flatMap { case (leftValue, _) =>
-            decodeBounded(combined.right, segment, mid, segment.length).map { case (rightValue, end) =>
-              val typed = combined.combiner.asInstanceOf[Tuples.Tuples.WithOut[Any, Any, Any]]
-              (typed.combine(leftValue, rightValue), end)
-            }
+        // Exhaustive split enumeration (no backtracking cap beyond the segment
+        // length): every `(leftValue, next)` candidate pairs with every
+        // right-side decode from `next`. Leaves enumerate longest-first
+        // (`StringSeg` substrings descending, numerics longest valid prefix
+        // first), so the first full-length survivor is the longest viable left
+        // split. Callers keep only `end == segment.length` pairs
+        // (`decodeComplete`), which is what makes `"a!b!"` decode as `"a!b"`
+        // for `string ~ literal("!")` and `"9999999999rest"` as
+        // `(999999999, "9rest")` for `int ~ string` (the overflowing full digit
+        // run validates per prefix, longest valid prefix first). The `~` guard
+        // already rejects `string ~ string` and numeric ~ numeric, so this
+        // enumeration stays linear-ish on real segments instead of exploding.
+        decodeCombined(combined.left, segment, from).flatMap { case (leftValue, next) =>
+          decodeCombined(combined.right, segment, next).map { case (rightValue, end) =>
+            val typed = combined.combiner.asInstanceOf[Tuples.Tuples.WithOut[Any, Any, Any]]
+            (typed.combine(leftValue, rightValue), end)
           }
+        }
     }
+
+  /**
+   * Longest-first `Int` candidates over the digit run starting at `from`: the
+   * greedy ASCII run (`scanNumericRun`) is walked back towards `from`, and each
+   * prefix is validated by the allocation-free [[isIntWindow]] scanner and
+   * decoded by [[parseIntWindow]] — same acceptance, value included. An
+   * overflowing full run is simply skipped (yields `None`) while shorter valid
+   * prefixes still decode, which is what lets `int("n") ~ string("s")` decode
+   * `"9999999999rest"` as `(999999999, "9rest")`. Never allocates a substring,
+   * never touches a stdlib parser.
+   */
+  private def intCandidates(segment: String, from: Int): List[(Int, Int)] = {
+    val runEnd = scanNumericRun(segment, from, segment.length)
+    if (runEnd < 0) Nil
+    else {
+      val results = List.newBuilder[(Int, Int)]
+      var end     = runEnd
+      while (end > from) {
+        parseIntWindow(segment, from, end).foreach(value => results += ((value, end)))
+        end -= 1
+      }
+      results.result()
+    }
+  }
+
+  /**
+   * Longest-first `Long` candidates, same contract as [[intCandidates]] over
+   * [[isLongWindow]] / [[parseLongWindow]].
+   */
+  private def longCandidates(segment: String, from: Int): List[(Long, Int)] = {
+    val runEnd = scanNumericRun(segment, from, segment.length)
+    if (runEnd < 0) Nil
+    else {
+      val results = List.newBuilder[(Long, Int)]
+      var end     = runEnd
+      while (end > from) {
+        parseLongWindow(segment, from, end).foreach(value => results += ((value, end)))
+        end -= 1
+      }
+      results.result()
+    }
+  }
 
   def formatSegment(codec: SegmentCodec[_], value: Any): String =
     codec match {
@@ -739,97 +860,4 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
       case Combined(left, right, _) => flatten(left) ++ flatten(right)
       case other                    => Chunk(other)
     }
-
-  /**
-   * First syntactic leaf of a (possibly nested) codec, used only to compute
-   * deterministic string lookahead in `stringSplitHead`. Values still decode
-   * through the tree recursion, never through this helper.
-   */
-  private def firstLeaf(codec: SegmentCodec[_]): SegmentCodec[_] =
-    codec match {
-      case Combined(left, _, _) => firstLeaf(left)
-      case other                => other
-    }
-
-  /**
-   * Deterministic string-before-X split: the end index of the string part, or
-   * `-1` when no deterministic split exists. `head` is the first leaf of what
-   * follows the string. Literals use first occurrence, numerics split at the
-   * first ASCII digit, UUID takes the first layout-valid 36-char window, bools
-   * split at the first `true`/`false` keyword. Never allocates, never throws.
-   */
-  private def stringSplitHead(head: SegmentCodec[_], segment: String, from: Int, end: Int): Int =
-    head match {
-      case Literal(value, _, _) =>
-        val idx = segment.indexOf(value, from)
-        if (idx < 0 || idx + value.length > end) -1 else idx
-      case IntSeg(_, _, _) | LongSeg(_, _, _) =>
-        var i = from
-        while (i < end && (segment.charAt(i) < '0' || segment.charAt(i) > '9')) i += 1
-        if (i >= end) -1 else i
-      case UUIDSeg(_, _, _) =>
-        var m     = from
-        var found = -1
-        while (found < 0 && m + 36 <= end) {
-          if (isUuidWindow(segment, m, m + 36)) found = m else m += 1
-        }
-        found
-      case BoolSeg(_, _, _) =>
-        var m     = from
-        var found = -1
-        while (found < 0 && m < end) {
-          if ((m + 4 <= end && segment.startsWith("true", m)) || (m + 5 <= end && segment.startsWith("false", m)))
-            found = m
-          else m += 1
-        }
-        found
-      case Empty => end
-      case _     => -1
-    }
-
-  /**
-   * Deterministic intra-segment split for `Combined(left, right)` over
-   * `[from, end)`: the index where `left` ends and `right` begins, or `-1`.
-   *
-   * Rules (no backtracking — at most one split is ever produced):
-   *   - fixed-extent leaves (`Empty`, `Literal`, `Bool`, `UUID`) match at
-   *     `from`;
-   *   - numerics greedily consume the ASCII digit run (`scanNumericRun`) and
-   *     the window must additionally satisfy the overflow-checked validators;
-   *   - `String` uses first-valid lookahead into the first leaf of `right`;
-   *   - nested `Combined` on the left resolves inside-out (`(a ~ b) ~ c`
-   *     behaves as the flat `a ~ b ~ c` sequence).
-   */
-  private def splitMid(
-    left: SegmentCodec[_],
-    right: SegmentCodec[_],
-    segment: String,
-    from: Int,
-    end: Int
-  ): Int =
-    if (from < 0 || end > segment.length || from > end) -1
-    else
-      left match {
-        case Empty                => from
-        case Literal(value, _, _) =>
-          if (from + value.length <= end && segment.startsWith(value, from)) from + value.length else -1
-        case BoolSeg(_, _, _) =>
-          if (from + 4 <= end && segment.startsWith("true", from)) from + 4
-          else if (from + 5 <= end && segment.startsWith("false", from)) from + 5
-          else -1
-        case IntSeg(_, _, _) =>
-          val runEnd = scanNumericRun(segment, from, end)
-          if (runEnd < 0 || !isIntWindow(segment, from, runEnd)) -1 else runEnd
-        case LongSeg(_, _, _) =>
-          val runEnd = scanNumericRun(segment, from, end)
-          if (runEnd < 0 || !isLongWindow(segment, from, runEnd)) -1 else runEnd
-        case UUIDSeg(_, _, _) =>
-          if (end - from >= 36 && isUuidWindow(segment, from, from + 36)) from + 36 else -1
-        case StringSeg(_, _, _) =>
-          stringSplitHead(firstLeaf(right), segment, from, end)
-        case Combined(a, b, _) =>
-          val midA = splitMid(a, b, segment, from, end)
-          if (midA < 0) -1 else splitMid(b, right, segment, midA, end)
-        case Trailing => -1
-      }
 }

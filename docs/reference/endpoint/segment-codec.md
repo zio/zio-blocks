@@ -119,7 +119,7 @@ import zio.blocks.endpoint.RoutePattern._
 final case class UserId(value: java.util.UUID)
 
 val userIdCodec: PathCodec[UserId] =
-  SegmentCodec.uuid("id").transform[UserId](UserId(_), _.value)
+  SegmentCodec.uuid("id").transform(UserId(_), _.value)
 ```
 
 ### `SegmentCodec#transformOrFail`
@@ -133,7 +133,7 @@ import zio.blocks.endpoint.RoutePattern._
 final case class PositiveInt(value: Int)
 
 val positiveIntCodec: PathCodec[PositiveInt] =
-  SegmentCodec.int("count").transformOrFail[PositiveInt](
+  SegmentCodec.int("count").transformOrFail(
     n => if (n > 0) Right(PositiveInt(n)) else Left(s"Expected positive, got $n"),
     p => Right(p.value)
   )

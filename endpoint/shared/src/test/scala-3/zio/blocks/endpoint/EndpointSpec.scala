@@ -143,7 +143,7 @@ object EndpointSpec extends ZIOSpecDefault {
       test("transformed segment codec decodes and formats") {
         val uuid                     = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
         val codec: PathCodec[String] =
-          SegmentCodec.uuid("id").transform[String](_.toString, UUID.fromString)
+          SegmentCodec.uuid("id").transform(_.toString, UUID.fromString)
 
         assertTrue(
           codec.decode(zio.http.Path(s"/$uuid")) == Right(uuid.toString),
@@ -161,7 +161,7 @@ object EndpointSpec extends ZIOSpecDefault {
         )(isLeft)
       },
       test("transformed path codec decodes and formats") {
-        val codec = PathCodec.int("id").transform[String](_.toString, _.toInt)
+        val codec = PathCodec.int("id").transform(_.toString, _.toInt)
 
         assertTrue(
           codec.decode(zio.http.Path("/42")) == Right("42"),

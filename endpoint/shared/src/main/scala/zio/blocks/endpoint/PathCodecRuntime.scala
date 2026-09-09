@@ -111,14 +111,16 @@ private[endpoint] object PathCodecRuntime {
             case _       => Nil
           }
       case SegmentCodec.IntSeg(_, _, _) =>
-        segments.lift(index) match {
-          case Some(s) => SegmentCodec.parseIntWindow(s, 0, s.length).map(v => List((v, index + 1))).getOrElse(Nil)
-          case None    => Nil
+        if (index >= segments.length) Nil
+        else {
+          val segment = segments(index)
+          SegmentCodec.parseIntWindow(segment, 0, segment.length).map(v => List((v, index + 1))).getOrElse(Nil)
         }
       case SegmentCodec.LongSeg(_, _, _) =>
-        segments.lift(index) match {
-          case Some(s) => SegmentCodec.parseLongWindow(s, 0, s.length).map(v => List((v, index + 1))).getOrElse(Nil)
-          case None    => Nil
+        if (index >= segments.length) Nil
+        else {
+          val segment = segments(index)
+          SegmentCodec.parseLongWindow(segment, 0, segment.length).map(v => List((v, index + 1))).getOrElse(Nil)
         }
       case SegmentCodec.StringSeg(_, _, _) => segments.lift(index).map(v => List((v, index + 1))).getOrElse(Nil)
       case SegmentCodec.UUIDSeg(_, _, _)   =>

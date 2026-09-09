@@ -29,7 +29,7 @@ import zio.http.{Method, Path, Status}
 import zio.test._
 import zio.test.Assertion.isLeft
 
-object EndpointRoutingFixesSpec extends ZIOSpecDefault {
+object PathCodecRoutingSpec extends ZIOSpecDefault {
 
   private def statusOf(codec: HttpCodec[_, _]): Option[Status] =
     codec match {
@@ -47,7 +47,7 @@ object EndpointRoutingFixesSpec extends ZIOSpecDefault {
       case _                                         => Chunk.empty
     }
 
-  def spec: Spec[Any, Nothing] = suite("EndpointRoutingFixesSpec")(
+  def spec: Spec[Any, Nothing] = suite("PathCodecRoutingSpec")(
     suite("out overload defaults")(
       test("out(schema) defaults the status to 200 Ok") {
         val endpoint = Endpoint(Method.GET / "users").out(Schema.string)
@@ -160,9 +160,9 @@ object EndpointRoutingFixesSpec extends ZIOSpecDefault {
         val bang      = PathCodec(SegmentCodec.string("word") ~ SegmentCodec.literal("!"))
         val positive  = PathCodec
           .int("id")
-          .transformOrFail[Int](
+          .transformOrFail(
             value => if (value > 0) Right(value) else Left("must be positive"),
-            value => Right(value)
+            (value: Int) => Right(value)
           )
         val fallback = PathCodec.literal("users").orElse(PathCodec.literal("posts"))
         val trailing = PathCodec.literal("assets") / PathCodec.trailing
@@ -172,6 +172,7 @@ object EndpointRoutingFixesSpec extends ZIOSpecDefault {
           bang.matches(Path("/hi!")) == bang.decode(Path("/hi!")).isRight,
           bang.matches(Path("/hi")) == bang.decode(Path("/hi")).isRight,
           bang.matches(Path("/hi!x")) == bang.decode(Path("/hi!x")).isRight,
+          bang.matches(Path("/a!b!")) == bang.decode(Path("/a!b!")).isRight,
           positive.matches(Path("/5")) == positive.decode(Path("/5")).isRight,
           positive.matches(Path("/-3")) == positive.decode(Path("/-3")).isRight,
           fallback.matches(Path("/posts")) == fallback.decode(Path("/posts")).isRight,
@@ -180,7 +181,7 @@ object EndpointRoutingFixesSpec extends ZIOSpecDefault {
           trailing.matches(Path("/assets/a/b")) == trailing.decode(Path("/assets/a/b")).isRight
         )
       },
-      test("decoded values are unchanged by the deterministic single-split decode") {
+      test("decoded values come from the exhaustive split enumeration") {
         val versioned = PathCodec(SegmentCodec.literal("v") ~ SegmentCodec.int("n"))
         val bang      = PathCodec(SegmentCodec.string("word") ~ SegmentCodec.literal("!"))
         val uuid      = UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
@@ -241,27 +242,33 @@ object EndpointRoutingFixesSpec extends ZIOSpecDefault {
           SegmentCodec.matchesComplete(SegmentCodec.long("n"), "  ") == false
         )
       },
-      test("intra-segment number-then-string is greedy and overflow-checked") {
+      test("intra-segment number-then-string keeps the longest valid numeric prefix") {
         val vIntRest = PathCodec(SegmentCodec.literal("v") ~ SegmentCodec.int("n") ~ SegmentCodec.string("rest"))
         val numStr   = PathCodec(SegmentCodec.int("n") ~ SegmentCodec.string("s"))
         assertTrue(
           vIntRest.decode(Path("/v-42rest")) == Right((-42, "rest")),
           vIntRest.matches(Path("/v-42rest")) == true,
           numStr.decode(Path("/42rest")) == Right((42, "rest")),
-          numStr.decode(Path("/9999999999rest")).isLeft,
-          numStr.matches(Path("/9999999999rest")) == false
+          // The full digit run overflows `Int`, so per-prefix validation skips
+          // it and the longest valid prefix wins - the whole segment still
+          // decodes instead of failing.
+          numStr.decode(Path("/9999999999rest")) == Right((999999999, "9rest")),
+          numStr.matches(Path("/9999999999rest")) == true
         )
       },
-      test("string-before-literal uses first-lookahead with no backtracking") {
+      test("string-before-literal keeps the longest full-length split") {
         val bang = PathCodec(SegmentCodec.string("word") ~ SegmentCodec.literal("!"))
         assertTrue(
           bang.decode(Path("/hi!")) == Right("hi"),
-          bang.decode(Path("/a!b!")).isLeft,
-          bang.matches(Path("/a!b!")) == false
+          bang.decode(Path("/a!b!")) == Right("a!b"),
+          bang.matches(Path("/a!b!")) == true,
+          bang.decode(Path("/a!b!c!")) == Right("a!b!c"),
+          bang.decode(Path("/hi")).isLeft,
+          bang.matches(Path("/hi")) == false
         )
       }
     ),
-    suite("uuid boundaries and deterministic splits")(
+    suite("uuid boundaries and fixed-width splits")(
       test("v1, v4, v7, nil and uppercase decode; short and malformed do not") {
         val v1    = UUID.fromString("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
         val v4    = UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
@@ -297,6 +304,31 @@ object EndpointRoutingFixesSpec extends ZIOSpecDefault {
         val codec = PathCodec.literal("users").orElse(PathCodec.literal("users"))
         assertTrue(codec.alternatives.length == 1)
       },
+      test("orElse accepts a literal-only codec mapped through transform") {
+        val unit  = PathCodec.literal("users").transform((_: Unit) => (), (_: Unit) => ())
+        val codec = unit.orElse(PathCodec.literal("posts"))
+        assertTrue(codec.decode(Path("/users")).isRight, codec.decode(Path("/posts")).isRight)
+      },
+      test("orElse rejects a capturing codec mapped to Unit at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val capturing = PathCodec.int("id").transform(_ => (), (_: Unit) => 0)
+            val invalid: PathCodec[Unit] = capturing.orElse(PathCodec.literal("users"))
+          """)
+        )(isLeft)
+      },
+      test("orElse rejects a capturing that-branch at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val capturing = PathCodec.int("id").transform(_ => (), (_: Unit) => 0)
+            val invalid: PathCodec[Unit] = PathCodec.literal("users").orElse(capturing)
+          """)
+        )(isLeft)
+      },
       test("multi-method patterns fan out to one pattern per method") {
         val route = RoutePattern(Method.GET #| Method.POST, PathCodec.literal("users"))
         assertTrue(route.alternatives.map(_.method).map(Method.render).toSet == Set("GET", "POST"))
@@ -318,8 +350,12 @@ object EndpointRoutingFixesSpec extends ZIOSpecDefault {
     ),
     suite("segment transform lifts to PathCodec")(
       test("SegmentCodec.string(...).transform(...) returns a PathCodec that composes with /") {
-        val id: PathCodec[String] = SegmentCodec.string("id").transform(_.toUpperCase, _.toLowerCase)
-        val route                 = RoutePattern(Method.GET, PathCodec.literal("users") / id)
+        // No type annotation on `id`: annotating `PathCodec[String]` would drop
+        // the capture marker the `/` below threads on Scala 2.13.
+        // (Lambdas are annotated for the same dialect's inference.)
+        val id =
+          SegmentCodec.string("id").transform((s: String) => s.toUpperCase, (s: String) => s.toLowerCase)
+        val route = RoutePattern(Method.GET, PathCodec.literal("users") / id)
         assertTrue(
           id.decode(Path("/abc")) == Right("ABC"),
           id.format("ABC").map(_.render) == Right("/abc"),
@@ -328,11 +364,13 @@ object EndpointRoutingFixesSpec extends ZIOSpecDefault {
       },
       test("~ composes raw segments before transform; the composed codec then transforms correctly") {
         final case class Versioned(major: Int, suffix: String)
-        val combined: SegmentCodec[(Int, String)] =
+        // No annotation on `combined`/`codec`: plain annotations would drop the
+        // capture markers threaded above (and crash Scala 2.13 codegen).
+        val combined =
           SegmentCodec.literal("v") ~ SegmentCodec.int("major") ~ SegmentCodec.string("suffix")
-        val codec: PathCodec[Versioned] = combined.transform(
+        val codec = combined.transform(
           { case (major, suffix) => Versioned(major, suffix) },
-          versioned => (versioned.major, versioned.suffix)
+          (versioned: Versioned) => (versioned.major, versioned.suffix)
         )
         assertTrue(
           codec.decode(Path("/v42stable")) == Right(Versioned(42, "stable")),
