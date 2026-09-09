@@ -16,7 +16,6 @@
 
 package zio.blocks.endpoint
 
-import scala.annotation.implicitNotFound
 import scala.language.implicitConversions
 
 import zio.blocks.combinators.Tuples
@@ -27,223 +26,123 @@ import zio.http.Path
  * alternatives with `orElse`. Use `decode` / `format` for bidirectional path
  * conversion, and `alternatives` to expand `orElse` branches for routing-trie
  * insertion.
- *
- * Path variables (the names declared by `int`/`long`/`string`/`bool`/`uuid`)
- * are tracked twice: once as runtime values of type `A`, once as phantom
- * [[zio.blocks.endpoint.SegmentCodec.PathVars SegmentCodec.PathVars]] markers.
- * See that member for the value-track-vs-phantom-track table; this trait only
- * repeats the punchline — the phantom track never affects `A` and costs nothing
- * at runtime.
  */
-sealed trait PathCodec[A] {
+sealed trait PathCodec[A] { self =>
 
   /**
-   * Ordered, purely phantom registry of [[PathVar]] markers contributed by this
-   * path (the concatenation, in order, of every captured segment's own
-   * `SegmentCodec.PathVars`). Zero runtime footprint; see
-   * [[zio.blocks.endpoint.SegmentCodec.PathVars SegmentCodec.PathVars]] for the
-   * full table (value track vs phantom track vs runtime cost).
+   * Concatenates two path codecs, combining decoded values with
+   * `Tuples.Tuples.WithOut` (so `Int / String` decodes to `(Int, String)`).
    */
-  type PathVars
+  final def ++[B, C](that: PathCodec[B])(implicit combiner: Tuples.Tuples.WithOut[A, B, C]): PathCodec[C] =
+    PathCodec.combineUnrefined(self, that)(combiner)
+
+  /**
+   * Symbolic alias for [[++]] —
+   * `PathCodec.int("id") / PathCodec.string("slug")`.
+   */
+  final def /[B, C](that: PathCodec[B])(implicit combiner: Tuples.Tuples.WithOut[A, B, C]): PathCodec[C] =
+    self ++ that
+
+  /**
+   * Literal-only alternative (`users` or `posts`). Both branches must be
+   * literal-only (validated at runtime by `expand`); `ev` keeps capturing
+   * codecs out of alternatives at the type level.
+   */
+  final def orElse(that: PathCodec[Unit])(implicit ev: A =:= Unit): PathCodec[Unit] = {
+    val _ = ev
+    PathCodec.Fallback(self.asInstanceOf[PathCodec[Unit]], that)
+  }
+
+  final def alternatives: List[PathCodec[A]] =
+    PathCodecRuntime.expand(self).asInstanceOf[List[PathCodec[A]]].distinct
+
+  /**
+   * Decodes `path`, naming the furthest segment reached on failure (for example
+   * `failed at segment 1 ('abc')`). The position is message-level context only
+   * — errors stay `Either[String, A]`; a full `Either[SchemaError, A]`
+   * migration composing positions à la `SchemaError.atField`/`atIndex` remains
+   * future work.
+   */
+  final def decode(path: Path): Either[String, A] =
+    PathCodecRuntime
+      .decodeCodec(self, path.segments, 0)
+      .collectFirst {
+        case (value, end) if end == path.segments.length => value.asInstanceOf[A]
+      }
+      .toRight {
+        val segments = path.segments
+        val furthest = PathCodecRuntime.furthestIndex(self, segments, 0)
+        val where    =
+          if (furthest < segments.length) s"failed at segment $furthest ('${segments(furthest)}')"
+          else s"matched $furthest of ${segments.length} segments without a complete match"
+        s"Path ${path.encode} did not match ${PathCodec.render(self)}: $where"
+      }
+
+  final def format(value: A): Either[String, Path] =
+    PathCodecRuntime.formatCodec(self, value.asInstanceOf[Any]).map(_.addLeadingSlash)
+
+  /**
+   * Boolean fast path: equivalent to `decode(path).isRight` without building
+   * any decoded values or candidate lists (see
+   * `PathCodecRuntime.matchesCodec`).
+   */
+  final def matches(path: Path): Boolean =
+    PathCodecRuntime.matchesCodec(self, path.segments)
+
+  final def render: String = PathCodec.render(codec = self)
+
+  /**
+   * Maps the decoded path value without changing the underlying path structure.
+   *
+   * Example: {{ val customerPath =
+   * PathCodec.int("id").transform[CustomerId](CustomerId(_), _.value) }}
+   *
+   * @param decode
+   *   maps the decoded path value into the exposed type
+   * @param encode
+   *   maps the exposed type back into the original path representation used by
+   *   `format`
+   * @return
+   *   a path codec with the transformed value type and the same route shape as
+   *   `self`
+   */
+  final def transform[B](decode: A => B, encode: B => A): PathCodec[B] =
+    transformOrFail[B](value => Right(decode(value)), value => Right(encode(value)))
+
+  /**
+   * Effectfully maps the decoded path value without changing the underlying
+   * path structure.
+   *
+   * `decode` returning `Left` causes path decoding / matching to fail. `format`
+   * remains effectful, so `encode` returning `Left` is propagated as the `Left`
+   * result of `format`.
+   *
+   * Example: {{ val customerPath = PathCodec .string("id")
+   * .transformOrFail[CustomerId](CustomerId.parse, value => Right(value.value))
+   * }}
+   *
+   * @param decode
+   *   validates and maps the decoded path value into the exposed type
+   * @param encode
+   *   validates and maps the exposed type back into the original path
+   *   representation used by `format`
+   * @return
+   *   a path codec with the transformed value type and the same route shape as
+   *   `self`
+   */
+  final def transformOrFail[B](
+    decode: A => Either[String, B],
+    encode: B => Either[String, A]
+  ): PathCodec[B] =
+    PathCodec.Transform(self, decode, encode)
 }
 
 object PathCodec {
 
   private type DecodeError = String
 
-  /**
-   * Type alias capturing a `PathCodec[A]`'s precise `PathVars` member,
-   * mirroring `SegmentCodec.WithBoundaries`.
-   */
-  type WithPathVars[A, PV] = PathCodec[A] { type PathVars = PV }
-
   implicit val unitUnit: Tuples.Tuples.WithOut[Unit, Unit, Unit] = Tuples.Tuples.leftUnit[Unit]
 
-  /**
-   * Compile-time evidence that combines two `PathVars` tracks (`PV` and `PV2`)
-   * into `PVC`, exactly like `Tuples.Tuples.WithOut` and driving `PVC`'s
-   * inference for `PathCodecOps.++`/`/` and `RoutePatternOps./`. This is the
-   * ONE combiner for the phantom track: `RoutePatternOps./` reuses it directly.
-   * It exists as a thin `PathCodec`-owned wrapper so that this companion object
-   * is part of the implicit search scope for the combiner, letting
-   * [[PathVarsCombiner.noPathVarsBoth]] disambiguate the otherwise-ambiguous
-   * `NoPathVars` + `NoPathVars` case on Scala 3 (where
-   * `NoPathVars = EmptyTuple` matches both `leftEmptyTuple` and
-   * `rightEmptyTuple` givens equally).
-   */
-  @implicitNotFound(
-    "Cannot combine the captured path variables of these two patterns (${PV} with ${PV2}). " +
-      "Combine concrete patterns built from PathCodec.literal/int/long/string/bool/uuid/trailing " +
-      "(via PathCodecOps.++ or /, SegmentCodec.~, or RoutePatternOps./) so both sides carry a concrete " +
-      "PathVars track; abstract PathVars (for example a bare PathCodec[A] method parameter) cannot be combined."
-  )
-  sealed trait PathVarsCombiner[PV, PV2, PVC]
-
-  object PathVarsCombiner extends PathVarsCombinerLowPriority {
-    // Highest priority: two empty tracks combine to the empty track. Pinning `PVC = NoPathVars`
-    // here resolves the Scala 3 `EmptyTuple` + `EmptyTuple` ambiguity that would otherwise arise
-    // when deferring to `Tuples` (e.g. `PathCodec.literal(..) / PathCodec.trailing`).
-    implicit val noPathVarsBoth
-      : PathVarsCombiner[SegmentCodec.NoPathVars, SegmentCodec.NoPathVars, SegmentCodec.NoPathVars] =
-      new PathVarsCombiner[SegmentCodec.NoPathVars, SegmentCodec.NoPathVars, SegmentCodec.NoPathVars] {}
-  }
-
-  trait PathVarsCombinerLowPriority {
-    // Fallback: defer to `Tuples.Tuples.WithOut` for every non-(empty, empty) shape.
-    implicit def fromTuples[PV, PV2, PVC](implicit
-      combiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
-    ): PathVarsCombiner[PV, PV2, PVC] = {
-      val _ = combiner
-      new PathVarsCombiner[PV, PV2, PVC] {}
-    }
-  }
-
-  implicit final class PathCodecOps[A, PV](private val self: PathCodec[A] { type PathVars = PV }) extends AnyVal {
-    def ++[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
-      combiner: Tuples.Tuples.WithOut[A, B, C],
-      pathVarsCombiner: PathVarsCombiner[PV, PV2, PVC]
-    ): PathCodec[C] { type PathVars = PVC } = {
-      val _ = pathVarsCombiner
-      combineUnrefined(self, that)(combiner).asInstanceOf[PathCodec[C] { type PathVars = PVC }]
-    }
-
-    def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
-      combiner: Tuples.Tuples.WithOut[A, B, C],
-      pathVarsCombiner: PathVarsCombiner[PV, PV2, PVC]
-    ): PathCodec[C] { type PathVars = PVC } = {
-      val _ = pathVarsCombiner
-      self ++ that
-    }
-
-    // `orElse` only supports literal alternatives (validated at runtime by `expand`), which never
-    // capture path variables. The `ev` evidence enforces that at the type level: `self`'s `PathVars`
-    // (`PV`) and `that`'s `PathVars` must both be `SegmentCodec.NoPathVars`, so a capturing codec
-    // `.transform`-ed to `PathCodec[Unit]` (whose `PathVars` is still a `PathVar[..]`) is rejected at
-    // the call site rather than being silently mislabeled `NoPathVars`.
-    def orElse(that: PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars })(implicit
-      ev: (A, PV) =:= (Unit, SegmentCodec.NoPathVars)
-    ): PathCodec[Unit] {
-      type PathVars = SegmentCodec.NoPathVars
-    } = {
-      val _ = ev
-      Fallback(self.asInstanceOf[PathCodec[Unit]], that)
-        .asInstanceOf[PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars }]
-    }
-
-    def alternatives: List[PathCodec[A]] =
-      PathCodecRuntime.expand(self).asInstanceOf[List[PathCodec[A]]].distinct
-
-    /**
-     * Decodes `path`, naming the furthest segment reached on failure (for
-     * example `failed at segment 1 ('abc')`). The position is message-level
-     * context only — errors stay `Either[String, A]`; a full
-     * `Either[SchemaError, A]` migration composing positions à la
-     * `SchemaError.atField`/`atIndex` remains future work.
-     */
-    def decode(path: Path): Either[String, A] =
-      PathCodecRuntime
-        .decodeCodec(self, path.segments, 0)
-        .collectFirst {
-          case (value, end) if end == path.segments.length => value.asInstanceOf[A]
-        }
-        .toRight {
-          val segments = path.segments
-          val furthest = PathCodecRuntime.furthestIndex(self, segments, 0)
-          val where    =
-            if (furthest < segments.length) s"failed at segment $furthest ('${segments(furthest)}')"
-            else s"matched $furthest of ${segments.length} segments without a complete match"
-          s"Path ${path.encode} did not match ${PathCodec.render(self)}: $where"
-        }
-
-    def format(value: A): Either[String, Path] =
-      PathCodecRuntime.formatCodec(self, value.asInstanceOf[Any]).map(_.addLeadingSlash)
-
-    /**
-     * Boolean fast path: equivalent to `decode(path).isRight` without building
-     * any decoded values or candidate lists (see
-     * `PathCodecRuntime.matchesCodec`).
-     */
-    def matches(path: Path): Boolean =
-      PathCodecRuntime.matchesCodec(self, path.segments)
-
-    def render: String = PathCodec.render(codec = self)
-
-    /**
-     * Maps the decoded path value without changing the underlying path
-     * structure.
-     *
-     * Example: {{ val customerPath =
-     * PathCodec.int("id").transform[CustomerId](CustomerId(_), _.value) }}
-     *
-     * @param decode
-     *   maps the decoded path value into the exposed type
-     * @param encode
-     *   maps the exposed type back into the original path representation used
-     *   by `format`
-     * @return
-     *   a path codec with the transformed value type and the same route shape
-     *   as `self`
-     */
-    def transform[B](decode: A => B, encode: B => A): PathCodec[B] { type PathVars = PV } =
-      transformOrFail[B](value => Right(decode(value)), value => Right(encode(value)))
-
-    /**
-     * Effectfully maps the decoded path value without changing the underlying
-     * path structure.
-     *
-     * `decode` returning `Left` causes path decoding / matching to fail.
-     * `format` remains effectful, so `encode` returning `Left` is propagated as
-     * the `Left` result of `format`.
-     *
-     * Example: {{ val customerPath = PathCodec .string("id")
-     * .transformOrFail[CustomerId](CustomerId.parse, value =>
-     * Right(value.value)) }}
-     *
-     * @param decode
-     *   validates and maps the decoded path value into the exposed type
-     * @param encode
-     *   validates and maps the exposed type back into the original path
-     *   representation used by `format`
-     * @return
-     *   a path codec with the transformed value type and the same route shape
-     *   as `self`
-     */
-    def transformOrFail[B](
-      decode: A => Either[DecodeError, B],
-      encode: B => Either[DecodeError, A]
-    ): PathCodec[B] { type PathVars = PV } =
-      Transform(self, decode, encode).asInstanceOf[PathCodec[B] { type PathVars = PV }]
-  }
-
-  implicit final class SinglePathVarPathCodecOps[A, N <: String with Singleton, T](
-    private val self: PathCodec[A] { type PathVars = PathVar[N, T] }
-  ) extends AnyVal {
-
-    /**
-     * Same path codec as `self` (identical decoded value type and identical
-     * encode/decode behavior) - a pure type-level relabeling of a single
-     * captured path variable from `PathVar[N, T]` to `PathVar.Ignored[N, T]`.
-     * This mirrors [[SegmentCodec.IntSeg.unused]] and makes the public
-     * `PathCodec.int/string/long/bool/uuid` smart constructors support the same
-     * `.unused` escape hatch directly.
-     */
-    def unused: PathCodec[A] { type PathVars = PathVar.Ignored[N, T] } =
-      self.asInstanceOf[PathCodec[A] { type PathVars = PathVar.Ignored[N, T] }]
-  }
-
-  /**
-   * Combines `left`/`right` at the VALUE level only
-   * (`Tuples.Tuples.WithOut[A,B,C]`), with no `PathVars`-combining implicit
-   * requirement. Used internally, where at least one operand's `PathVars` is
-   * not statically known to be a concrete `Unit`/bare-leaf/`TupleN` shape (e.g.
-   * `nest`'s `prefix: PathCodec[Unit]` parameter, or a fold's running
-   * accumulator) - the Scala 2.13 `Tuples.Tuples` whitebox macro can only
-   * compute a concrete `Out` when the operands are concrete shapes, so it must
-   * never be required for internal plumbing that operates on unrefined
-   * `PathCodec` values. Public composition (`PathCodecOps.++`/`/`) is built on
-   * top of this helper and adds the real, precise `PathVars` combine on top via
-   * a final cast.
-   */
   private[endpoint] def combineUnrefined[A, B, C](left: PathCodec[A], right: PathCodec[B])(implicit
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ): PathCodec[C] =
@@ -263,7 +162,7 @@ object PathCodec {
    * `SegmentCodec.validateLiteralValue`. `RoutePattern.apply(method,
    * pathString)` funnels through this same constructor.
    */
-  def apply(value: String): PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars } = {
+  def apply(value: String): PathCodec[Unit] = {
     val path                   = Path(value)
     val built: PathCodec[Unit] =
       if (path.segments.isEmpty) empty
@@ -271,85 +170,54 @@ object PathCodec {
         path.segments.foldLeft(empty: PathCodec[Unit])((acc, segment) =>
           combineUnrefined(acc, Segment(SegmentCodec.literalValidated(segment)))(unitUnit)
         )
-    built.asInstanceOf[PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars }]
+    built
   }
 
-  def apply[A, PV](segment: SegmentCodec[A] { type PathVars = PV }): PathCodec[A] { type PathVars = PV } =
-    Segment(segment).asInstanceOf[PathCodec[A] { type PathVars = PV }]
+  def apply[A](segment: SegmentCodec[A]): PathCodec[A] =
+    Segment(segment)
 
-  implicit def stringToPathCodec(value: String): PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars } =
+  implicit def stringToPathCodec(value: String): PathCodec[Unit] =
     apply(value)
 
-  implicit def segmentToPathCodec[A, PV](
-    value: SegmentCodec[A] { type PathVars = PV }
-  ): PathCodec[A] { type PathVars = PV } =
-    Segment(value).asInstanceOf[PathCodec[A] { type PathVars = PV }]
+  implicit def segmentToPathCodec[A](value: SegmentCodec[A]): PathCodec[A] =
+    Segment(value)
 
-  final case class Segment[A](segment: SegmentCodec[A]) extends PathCodec[A] {
-    type PathVars = segment.PathVars
-  }
+  final case class Segment[A](segment: SegmentCodec[A]) extends PathCodec[A]
   final case class Concat[A, B, C](
     left: PathCodec[A],
     right: PathCodec[B],
     combiner: Tuples.Tuples.WithOut[A, B, C]
-  ) extends PathCodec[C] {
-    // Best-effort placeholder, same reason as `SegmentCodec.Combined` (see `SegmentCodec.PathVars`
-    // for the phantom-track table). The REAL flat ordered concatenation is carried by
-    // `PathCodecOps.++`/`/`'s own refined return type (via `Tuples.Tuples.WithOut`).
-    type PathVars = (left.PathVars, right.PathVars)
-  }
+  ) extends PathCodec[C]
   final case class Transform[A, B](
     codec: PathCodec[A],
     decode: A => Either[DecodeError, B],
     encode: B => Either[DecodeError, A]
-  ) extends PathCodec[B] {
-    type PathVars = codec.PathVars
-  }
-  final case class Fallback(left: PathCodec[Unit], right: PathCodec[Unit]) extends PathCodec[Unit] {
-    // orElse alternatives are validated (via `expand`) to only ever contain literal segments, so
-    // a Fallback never contributes any captured path variable - NoPathVars is the correct,
-    // precise (not merely best-effort) value here.
-    type PathVars = SegmentCodec.NoPathVars
-  }
+  ) extends PathCodec[B]
+  final case class Fallback(left: PathCodec[Unit], right: PathCodec[Unit]) extends PathCodec[Unit]
 
-  val empty: PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars } =
+  val empty: PathCodec[Unit] =
     apply(SegmentCodec.Empty)
 
-  def literal(value: String): PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars } = {
+  def literal(value: String): PathCodec[Unit] = {
     SegmentCodec.validateLiteralValue(value)
     apply(SegmentCodec.literalValidated(value))
   }
-  // `N <: String with Singleton` preserves the literal singleton type of a literal `name`
-  // argument (mirrors SegmentCodec.bool/int/long/string/uuid, PathCodec.scala:105-112) so that
-  // every PathCodec built from these smart constructors carries a CONCRETE (never abstract)
-  // PathVars all the way through - this is load-bearing for `/`/`++`: the Scala 2.13
-  // `Tuples.Tuples` whitebox macro can only compute a concrete `Out` type when the operands it is
-  // asked to combine are concrete shapes, so an abstract PathVars anywhere in an existing call
-  // chain (e.g. RouteTreeSpec's `literal(...) / int(...) / literal(...) / int(...)`) would abort
-  // compilation on Scala 2.13 once two abstract operands meet.
-  def bool[N <: String with Singleton](name: N): PathCodec[Boolean] {
-    type PathVars = PathVar[N, Boolean]
-  } =
+
+  // `N <: String with Singleton` preserves the literal singleton type of a literal `name` argument
+  // (instead of widening it to plain `String`) on both Scala 2.13 and Scala 3.
+  def bool[N <: String with Singleton](name: N): PathCodec[Boolean] =
     apply(SegmentCodec.bool(name))
-  def int[N <: String with Singleton](name: N): PathCodec[Int] {
-    type PathVars = PathVar[N, Int]
-  } =
+  def int[N <: String with Singleton](name: N): PathCodec[Int] =
     apply(SegmentCodec.int(name))
-  def long[N <: String with Singleton](name: N): PathCodec[Long] {
-    type PathVars = PathVar[N, Long]
-  } =
+  def long[N <: String with Singleton](name: N): PathCodec[Long] =
     apply(SegmentCodec.long(name))
-  def string[N <: String with Singleton](
-    name: N
-  ): PathCodec[String] { type PathVars = PathVar[N, String] } =
+  def string[N <: String with Singleton](name: N): PathCodec[String] =
     apply(SegmentCodec.string(name))
-  def uuid[N <: String with Singleton](
-    name: N
-  ): PathCodec[java.util.UUID] { type PathVars = PathVar[N, java.util.UUID] } =
+  def uuid[N <: String with Singleton](name: N): PathCodec[java.util.UUID] =
     apply(SegmentCodec.uuid(name))
 
-  val trailing: PathCodec[Path] { type PathVars = SegmentCodec.NoPathVars } =
-    apply(SegmentCodec.Trailing).asInstanceOf[PathCodec[Path] { type PathVars = SegmentCodec.NoPathVars }]
+  val trailing: PathCodec[Path] =
+    apply(SegmentCodec.Trailing)
 
   def render(codec: PathCodec[_], prefix: String = "{", suffix: String = "}"): String =
     PathCodecRuntime.render(codec, prefix, suffix)

@@ -27,6 +27,7 @@ import zio.blocks.mediatype.{MediaType, MediaTypes}
 import zio.blocks.schema.Schema
 import zio.http.{Method, Path, Status}
 import zio.test._
+import zio.test.Assertion.isLeft
 
 object EndpointRoutingFixesSpec extends ZIOSpecDefault {
 
@@ -313,6 +314,40 @@ object EndpointRoutingFixesSpec extends ZIOSpecDefault {
           tree.get(Method.GET, Path("/other")) == Some("catch-all"),
           tree.get(Method.GET, Path("/")) == Some("catch-all")
         )
+      }
+    ),
+    suite("segment transform lifts to PathCodec")(
+      test("SegmentCodec.string(...).transform(...) returns a PathCodec that composes with /") {
+        val id: PathCodec[String] = SegmentCodec.string("id").transform(_.toUpperCase, _.toLowerCase)
+        val route                 = RoutePattern(Method.GET, PathCodec.literal("users") / id)
+        assertTrue(
+          id.decode(Path("/abc")) == Right("ABC"),
+          id.format("ABC").map(_.render) == Right("/abc"),
+          route.decode(Method.GET, Path("/users/abc")) == Right("ABC")
+        )
+      },
+      test("~ composes raw segments before transform; the composed codec then transforms correctly") {
+        final case class Versioned(major: Int, suffix: String)
+        val combined: SegmentCodec[(Int, String)] =
+          SegmentCodec.literal("v") ~ SegmentCodec.int("major") ~ SegmentCodec.string("suffix")
+        val codec: PathCodec[Versioned] = combined.transform(
+          { case (major, suffix) => Versioned(major, suffix) },
+          versioned => (versioned.major, versioned.suffix)
+        )
+        assertTrue(
+          codec.decode(Path("/v42stable")) == Right(Versioned(42, "stable")),
+          codec.format(Versioned(42, "stable")).map(_.render) == Right("/v42stable")
+        )
+      },
+      test("transformed ~ rawSegment does not compile") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val left = SegmentCodec.string("left").transform(identity, identity)
+            val invalid = left ~ SegmentCodec.string("right")
+          """)
+        )(isLeft)
       }
     )
   )

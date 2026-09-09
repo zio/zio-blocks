@@ -33,19 +33,6 @@ final case class RoutePattern[A](
 ) {
 
   /**
-   * Ordered, purely phantom registry of [[PathVar]] markers contributed by
-   * `pathCodec` - a pass-through of `pathCodec.PathVars`. Zero runtime
-   * footprint; see
-   * [[zio.blocks.endpoint.SegmentCodec.PathVars SegmentCodec.PathVars]] for the
-   * value-track-vs-phantom-track table. Like `PathCodec`'s own `Segment` case,
-   * this class-body declaration is a best-effort placeholder: the REAL,
-   * precisely-computed value is carried by
-   * [[RoutePattern.RoutePatternOps]]`.`/`'s own refined return type, which is
-   * what every acceptance test asserts against.
-   */
-  type PathVars = pathCodec.PathVars
-
-  /**
    * Expands `orElse` branches and multi-method patterns into one pattern per
    * (method, path) pair for routing-trie insertion. The fan-out is intentional
    * — the trie is keyed by method first, so each method needs its own copy —
@@ -123,47 +110,21 @@ object RoutePattern {
   def fromMethod(method: Method): RoutePattern[Unit] =
     RoutePattern(method, PathCodec.empty)
 
-  // Both `any` constructors build a value that is ALREADY a `RoutePattern[Path]` at runtime
-  // (`PathCodec.trailing` decodes to `Path`); the `asInstanceOf` only refines the phantom
-  // `PathVars` member to the precise `NoPathVars`, carrying zero runtime cost — the same
-  // phantom-type refinement idiom `RoutePatternOps./` uses below.
-  def any: RoutePattern[Path] { type PathVars = SegmentCodec.NoPathVars } =
+  def any: RoutePattern[Path] =
     RoutePattern(Method.ANY, PathCodec.trailing)
-      .asInstanceOf[RoutePattern[Path] { type PathVars = SegmentCodec.NoPathVars }]
 
-  def any(method: Method): RoutePattern[Path] { type PathVars = SegmentCodec.NoPathVars } =
+  def any(method: Method): RoutePattern[Path] =
     RoutePattern(method, PathCodec.trailing)
-      .asInstanceOf[RoutePattern[Path] { type PathVars = SegmentCodec.NoPathVars }]
 
   implicit final class MethodSyntax(private val method: Method) extends AnyVal {
-    // Same phantom-type refinement idiom as `RoutePatternOps./`: the copied value is already a
-    // `RoutePattern[A]` at runtime; the cast only refines the phantom `PathVars` member.
-    def /[A, PV](path: PathCodec[A] { type PathVars = PV }): RoutePattern[A] { type PathVars = PV } =
-      RoutePattern(method, path).asInstanceOf[RoutePattern[A] { type PathVars = PV }]
+    def /[A](path: PathCodec[A]): RoutePattern[A] =
+      RoutePattern(method, path)
   }
 
-  /**
-   * Carries the precise, ordered `PathVars` combine through `/` via
-   * refinement-typed receiver capture (the same pattern
-   * `PathCodec.PathCodecOps` uses, and the same pattern
-   * `SegmentCodecPlatformSpecific`'s `~` extension uses on Scala 3/2) -
-   * `RoutePattern[A]`'s own class-body `PathVars` (a plain pass-through of
-   * `pathCodec.PathVars`) cannot be more precise on its own, since
-   * dependent-type capture requires a refinement on the METHOD RECEIVER, not a
-   * case-class-body declaration.
-   */
-  implicit final class RoutePatternOps[A, PV](private val self: RoutePattern[A] { type PathVars = PV }) extends AnyVal {
-    def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
-      combiner: Tuples.Tuples.WithOut[A, B, C],
-      pathVarsCombiner: PathCodec.PathVarsCombiner[PV, PV2, PVC]
-    ): RoutePattern[C] { type PathVars = PVC } = {
-      // `pathVarsCombiner` is pure compile-time evidence driving `PVC`'s inference (never read at
-      // runtime); referenced only to satisfy unused-parameter warnings. The REAL, precisely-computed
-      // PathVars combine is carried by this method's own refined return type.
-      val _ = pathVarsCombiner
-      self
-        .copy(pathCodec = PathCodec.combineUnrefined(self.pathCodec, that)(combiner))
-        .asInstanceOf[RoutePattern[C] { type PathVars = PVC }]
-    }
+  implicit final class RoutePatternOps[A](private val self: RoutePattern[A]) extends AnyVal {
+    def /[B, C](that: PathCodec[B])(implicit
+      combiner: Tuples.Tuples.WithOut[A, B, C]
+    ): RoutePattern[C] =
+      self.copy(pathCodec = PathCodec.combineUnrefined(self.pathCodec, that)(combiner))
   }
 }

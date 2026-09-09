@@ -16,8 +16,6 @@
 
 package zio.blocks.endpoint
 
-import scala.annotation.implicitNotFound
-
 import zio.blocks.chunk.Chunk
 import zio.blocks.combinators.Tuples
 import zio.blocks.docs.Doc
@@ -29,38 +27,73 @@ import zio.http.Path
  * [[SegmentCodec.StringSeg String]], [[SegmentCodec.Combined Combined]]
  * (intra-segment composition via `~`), and [[SegmentCodec.Trailing Trailing]]
  * (captures remaining path).
+ *
+ * Combine representation first, then transform: `~` composes only physical
+ * `SegmentCodec` structure, while [[transform]] / [[transformOrFail]] lift the
+ * segment into a [[PathCodec]] (making `~` unavailable afterwards — a
+ * transformed wire codec is a domain value, not intra-segment structure).
  */
 sealed trait SegmentCodec[A] { self =>
-  type Prefix <: SegmentCodec.BoundaryTag
-  type Suffix <: SegmentCodec.BoundaryTag
-
-  /**
-   * Ordered, purely phantom registry of [[PathVar]] markers contributed by this
-   * segment - one marker per captured segment, zero markers for non-capturing
-   * segments (`Empty`/`Literal`/`Trailing`). The phantom track parallels the
-   * value track:
-   *
-   * {{{
-   * | Track         | Carries                                              | Runtime cost |
-   * |---------------|------------------------------------------------------|--------------|
-   * | Value (`A`)   | the decoded segment value (`Int`, `String`, ...)  | real         |
-   * | Phantom       | `PathVar[Name, Type]` markers, one per capture      | zero         |
-   * }}}
-   *
-   * A single captured segment carries the BARE `PathVar[..]` leaf directly
-   * (mirroring how the value track carries the bare decoded type); multiple
-   * captured segments are combined into a flat tuple by
-   * `zio.blocks.combinators.Tuples`, exactly as the value track is combined.
-   * The single [[zio.blocks.endpoint.PathCodec.PathVarsCombiner combiner]] for
-   * this track defers to `Tuples.WithOut` identically, so the two tracks can
-   * never drift apart. Left unbounded here (rather than `<: Tuple`, which does
-   * not exist as a cross-version supertype on Scala 2.13) so this single
-   * declaration compiles identically under both Scala 2.13 and Scala 3.
-   */
-  type PathVars
-
   def doc: Doc
   def examples: Chunk[(String, A)]
+
+  /**
+   * Composes two physical segments into one (for example
+   * `int("n") ~ literal("-") ~ string("rest")`).
+   *
+   * Adjacent `string ~ string`, numeric ~ numeric (`Int`/`Long` in any order,
+   * including through a flattened combined tail), and anything involving
+   * `Trailing` are rejected at runtime with `IllegalArgumentException`
+   * (ambiguous splits); put a literal, bool, or UUID segment between them.
+   */
+  final def ~[B, C](that: SegmentCodec[B])(implicit combiner: Tuples.Tuples.WithOut[A, B, C]): SegmentCodec[C] = {
+    SegmentCodec.validateCombination(self, that)
+    SegmentCodec.combineValidated(self, that, combiner)
+  }
+
+  /**
+   * Composes a physical segment with a literal suffix (for example
+   * `string("word") ~ "!"`). The literal is validated exactly like
+   * [[SegmentCodec.literal]] (empty, `/`-carrying, or encoding-requiring values
+   * are rejected with `IllegalArgumentException`).
+   */
+  final def ~[C](that: String)(implicit combiner: Tuples.Tuples.WithOut[A, Unit, C]): SegmentCodec[C] = {
+    SegmentCodec.validateLiteralValue(that)
+    self ~ SegmentCodec.literalValidated(that)
+  }
+
+  /**
+   * Maps the decoded segment value into a domain type, lifting into a
+   * [[PathCodec]].
+   *
+   * Example: `SegmentCodec.string("id").transform(CustomerId(_), _.value)`
+   *
+   * @param decode
+   *   maps the decoded segment value into the exposed type
+   * @param encode
+   *   maps the exposed type back into the original segment representation used
+   *   by `format`
+   * @return
+   *   a path codec with the transformed value type and the same route shape as
+   *   `self`
+   */
+  final def transform[B](decode: A => B, encode: B => A): PathCodec[B] =
+    PathCodec.Segment(self).transform(decode, encode)
+
+  /**
+   * Effectfully maps the decoded segment value into a domain type, lifting into
+   * a [[PathCodec]]. `decode` returning `Left` causes path decoding / matching
+   * to fail; `encode` returning `Left` is propagated as the `Left` result of
+   * `format`.
+   *
+   * Example:
+   * `SegmentCodec.string("id").transformOrFail(CustomerId.parse, id => Right(id.value))`
+   */
+  final def transformOrFail[B](
+    decode: A => Either[String, B],
+    encode: B => Either[String, A]
+  ): PathCodec[B] =
+    PathCodec.Segment(self).transformOrFail(decode, encode)
 
   final def format(value: A): Path =
     Path(s"/${SegmentCodec.formatSegment(self, value)}")
@@ -70,31 +103,6 @@ sealed trait SegmentCodec[A] { self =>
 }
 
 object SegmentCodec extends SegmentCodecPlatformSpecific {
-
-  private[endpoint] type DecodeError                         = String
-  type WithBoundaries[A, P <: BoundaryTag, S <: BoundaryTag] = SegmentCodec[A] { type Prefix = P; type Suffix = S }
-
-  @implicitNotFound(
-    "Cannot combine these two adjacent path segments (${L} ~ ${R}). Adjacent string ~ string and " +
-      "adjacent numeric ~ numeric (Int / Long in any order, including through a flattened combined tail) " +
-      "are ambiguous and are rejected at compile time; put a literal, bool, or UUID segment between them instead."
-  )
-  trait CanCombine[L <: BoundaryTag, R <: BoundaryTag]
-  object CanCombine extends CanCombinePlatformSpecific
-
-  sealed trait BoundaryTag
-  object BoundaryTag {
-    sealed trait Empty    extends BoundaryTag
-    sealed trait Literal  extends BoundaryTag
-    sealed trait Bool     extends BoundaryTag
-    sealed trait Numeric  extends BoundaryTag
-    sealed trait Int      extends Numeric
-    sealed trait Long     extends Numeric
-    sealed trait String   extends BoundaryTag
-    sealed trait UUID     extends BoundaryTag
-    sealed trait Trailing extends BoundaryTag
-    sealed trait Unknown  extends BoundaryTag
-  }
 
   sealed trait Kind
   object Kind {
@@ -156,6 +164,72 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   private[endpoint] def literalValidated(value: String): Literal = Literal(value)
 
   /**
+   * Runtime composition guard for [[SegmentCodec.~]] (mirroring zio-http's
+   * `Combinable`): adjacent `string ~ string`, numeric ~ numeric, and anything
+   * involving `Trailing` are ambiguous splits and fail fast with
+   * `IllegalArgumentException`. Never allocates, never throws otherwise.
+   */
+  private[endpoint] def validateCombination(left: SegmentCodec[_], right: SegmentCodec[_]): Unit =
+    (suffixBoundary(left), prefixBoundary(right)) match {
+      case (Some((leftKind, _)), Some((rightKind, _))) if leftKind == Kind.Trailing || rightKind == Kind.Trailing =>
+        throw new IllegalArgumentException(
+          s"Cannot combine trailing path segments with `~`: ${boundaryLabel(leftKind)} ~ ${boundaryLabel(rightKind)}"
+        )
+      case (Some((Kind.String, leftName)), Some((Kind.String, rightName))) =>
+        throw new IllegalArgumentException(
+          s"Cannot combine two string segments. Their names are $leftName and $rightName"
+        )
+      case (Some((leftKind, leftName)), Some((rightKind, rightName))) if isNumeric(leftKind) && isNumeric(rightKind) =>
+        throw new IllegalArgumentException(
+          s"Cannot combine two numeric segments. Their names are $leftName and $rightName"
+        )
+      case _ => ()
+    }
+
+  private def prefixBoundary(codec: SegmentCodec[_]): Option[(Kind, String)] =
+    codec match {
+      case Empty                    => None
+      case Literal(value, _, _)     => Some((Kind.Literal, value))
+      case BoolSeg(name, _, _)      => Some((Kind.Bool, name))
+      case IntSeg(name, _, _)       => Some((Kind.Int, name))
+      case LongSeg(name, _, _)      => Some((Kind.Long, name))
+      case StringSeg(name, _, _)    => Some((Kind.String, name))
+      case UUIDSeg(name, _, _)      => Some((Kind.UUID, name))
+      case Trailing                 => Some((Kind.Trailing, "trailing"))
+      case Combined(left, right, _) =>
+        prefixBoundary(left).orElse(prefixBoundary(right))
+    }
+
+  private def suffixBoundary(codec: SegmentCodec[_]): Option[(Kind, String)] =
+    codec match {
+      case Empty                    => None
+      case Literal(value, _, _)     => Some((Kind.Literal, value))
+      case BoolSeg(name, _, _)      => Some((Kind.Bool, name))
+      case IntSeg(name, _, _)       => Some((Kind.Int, name))
+      case LongSeg(name, _, _)      => Some((Kind.Long, name))
+      case StringSeg(name, _, _)    => Some((Kind.String, name))
+      case UUIDSeg(name, _, _)      => Some((Kind.UUID, name))
+      case Trailing                 => Some((Kind.Trailing, "trailing"))
+      case Combined(left, right, _) =>
+        suffixBoundary(right).orElse(suffixBoundary(left))
+    }
+
+  private def boundaryLabel(kind: Kind): String =
+    kind match {
+      case Kind.Literal  => "literal"
+      case Kind.Bool     => "bool"
+      case Kind.Int      => "int"
+      case Kind.Long     => "long"
+      case Kind.String   => "string"
+      case Kind.UUID     => "uuid"
+      case Kind.Combined => "combined"
+      case Kind.Trailing => "trailing"
+      case Kind.Empty    => "empty"
+    }
+
+  private def isNumeric(kind: Kind): Boolean = kind == Kind.Int || kind == Kind.Long
+
+  /**
    * Rejects empty literals and literals carrying `/` or characters requiring
    * URL encoding (see the encoding trio on `PathCodec.apply(String)`): such
    * literals cannot be expressed — use a capturing segment instead.
@@ -174,39 +248,30 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     }
   }
 
-  private[endpoint] def transformValidated[A, B](
-    codec: SegmentCodec[A],
-    decode: A => Either[DecodeError, B],
-    encode: B => Either[DecodeError, A]
-  ): SegmentCodec[B] =
-    Transform(codec, decode, encode)
-
   private[endpoint] def kind(codec: SegmentCodec[_]): Kind =
     codec match {
-      case Empty                  => Kind.Empty
-      case Literal(_, _, _)       => Kind.Literal
-      case BoolSeg(_, _, _)       => Kind.Bool
-      case IntSeg(_, _, _)        => Kind.Int
-      case LongSeg(_, _, _)       => Kind.Long
-      case StringSeg(_, _, _)     => Kind.String
-      case UUIDSeg(_, _, _)       => Kind.UUID
-      case Combined(_, _, _)      => Kind.Combined
-      case Transform(inner, _, _) => kind(inner)
-      case Trailing               => Kind.Trailing
+      case Empty              => Kind.Empty
+      case Literal(_, _, _)   => Kind.Literal
+      case BoolSeg(_, _, _)   => Kind.Bool
+      case IntSeg(_, _, _)    => Kind.Int
+      case LongSeg(_, _, _)   => Kind.Long
+      case StringSeg(_, _, _) => Kind.String
+      case UUIDSeg(_, _, _)   => Kind.UUID
+      case Combined(_, _, _)  => Kind.Combined
+      case Trailing           => Kind.Trailing
     }
 
   private[endpoint] def key(codec: SegmentCodec[_]): Key =
     codec match {
-      case Empty                  => Key.Empty
-      case Literal(value, _, _)   => Key.Literal(value)
-      case BoolSeg(_, _, _)       => Key.Bool
-      case IntSeg(_, _, _)        => Key.Int
-      case LongSeg(_, _, _)       => Key.Long
-      case StringSeg(_, _, _)     => Key.String
-      case UUIDSeg(_, _, _)       => Key.UUID
-      case Combined(_, _, _)      => Key.Combined(flatten(codec).map(key))
-      case Transform(inner, _, _) => key(inner)
-      case Trailing               => Key.Trailing
+      case Empty                => Key.Empty
+      case Literal(value, _, _) => Key.Literal(value)
+      case BoolSeg(_, _, _)     => Key.Bool
+      case IntSeg(_, _, _)      => Key.Int
+      case LongSeg(_, _, _)     => Key.Long
+      case StringSeg(_, _, _)   => Key.String
+      case UUIDSeg(_, _, _)     => Key.UUID
+      case Combined(_, _, _)    => Key.Combined(flatten(codec).map(key))
+      case Trailing             => Key.Trailing
     }
 
   implicit val segmentCodecOrdering: Ordering[Kind] = Ordering.by {
@@ -250,166 +315,44 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   }
 
   case object Empty extends SegmentCodec[Unit] {
-    type Prefix   = BoundaryTag.Empty
-    type Suffix   = BoundaryTag.Empty
-    type PathVars = NoPathVars
     val doc: Doc                        = Doc.empty
     val examples: Chunk[(String, Unit)] = Chunk.empty
   }
 
   final case class Literal(value: String, doc: Doc = Doc.empty, examples: Chunk[(String, Unit)] = Chunk.empty)
-      extends SegmentCodec[Unit] {
-    type Prefix   = BoundaryTag.Literal
-    type Suffix   = BoundaryTag.Literal
-    type PathVars = NoPathVars
-  }
+      extends SegmentCodec[Unit]
 
   final case class BoolSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Boolean)] = Chunk.empty)
-      extends SegmentCodec[Boolean] {
-    type Prefix   = BoundaryTag.Bool
-    type Suffix   = BoundaryTag.Bool
-    type PathVars = PathVar[N, Boolean]
-
-    /**
-     * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
-     * encode/decode behavior) - a pure type-level relabeling of `PathVars` from
-     * `PathVar[N, Boolean]` to `PathVar.Ignored[N, Boolean]`, marking this
-     * captured segment as intentionally unused (see [[PathVar.Ignored]] for
-     * what that distinction means to downstream consumers). Zero runtime cost:
-     * implemented as a same-instance type ascription, exactly like every other
-     * phantom-type refinement in this file.
-     */
-    def unused: WithBoundaries[Boolean, BoundaryTag.Bool, BoundaryTag.Bool] {
-      type PathVars = PathVar.Ignored[N, Boolean]
-    } =
-      this.asInstanceOf[
-        WithBoundaries[Boolean, BoundaryTag.Bool, BoundaryTag.Bool] {
-          type PathVars = PathVar.Ignored[N, Boolean]
-        }
-      ]
-  }
+      extends SegmentCodec[Boolean]
 
   final case class IntSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Int)] = Chunk.empty)
-      extends SegmentCodec[Int] {
-    type Prefix   = BoundaryTag.Int
-    type Suffix   = BoundaryTag.Int
-    type PathVars = PathVar[N, Int]
-
-    /**
-     * Pure type-level relabeling of `PathVars` from `PathVar[N, Int]` to
-     * `PathVar.Ignored[N, Int]` — same mechanics as [[BoolSeg.unused]] (zero
-     * runtime cost; see [[PathVar.Ignored]] for what the tag means).
-     */
-    def unused: WithBoundaries[Int, BoundaryTag.Int, BoundaryTag.Int] {
-      type PathVars = PathVar.Ignored[N, Int]
-    } =
-      this.asInstanceOf[
-        WithBoundaries[Int, BoundaryTag.Int, BoundaryTag.Int] {
-          type PathVars = PathVar.Ignored[N, Int]
-        }
-      ]
-  }
+      extends SegmentCodec[Int]
 
   final case class LongSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Long)] = Chunk.empty)
-      extends SegmentCodec[Long] {
-    type Prefix   = BoundaryTag.Long
-    type Suffix   = BoundaryTag.Long
-    type PathVars = PathVar[N, Long]
-
-    /**
-     * Pure type-level relabeling of `PathVars` from `PathVar[N, Long]` to
-     * `PathVar.Ignored[N, Long]` — same mechanics as [[BoolSeg.unused]] (zero
-     * runtime cost; see [[PathVar.Ignored]] for what the tag means).
-     */
-    def unused: WithBoundaries[Long, BoundaryTag.Long, BoundaryTag.Long] {
-      type PathVars = PathVar.Ignored[N, Long]
-    } =
-      this.asInstanceOf[
-        WithBoundaries[Long, BoundaryTag.Long, BoundaryTag.Long] {
-          type PathVars = PathVar.Ignored[N, Long]
-        }
-      ]
-  }
+      extends SegmentCodec[Long]
 
   final case class StringSeg[N <: String](
     name: N,
     doc: Doc = Doc.empty,
     examples: Chunk[(String, String)] = Chunk.empty
-  ) extends SegmentCodec[String] {
-    type Prefix   = BoundaryTag.String
-    type Suffix   = BoundaryTag.String
-    type PathVars = PathVar[N, String]
-
-    /**
-     * Pure type-level relabeling of `PathVars` from `PathVar[N, String]` to
-     * `PathVar.Ignored[N, String]` — same mechanics as [[BoolSeg.unused]] (zero
-     * runtime cost; see [[PathVar.Ignored]] for what the tag means).
-     */
-    def unused: WithBoundaries[String, BoundaryTag.String, BoundaryTag.String] {
-      type PathVars = PathVar.Ignored[N, String]
-    } =
-      this.asInstanceOf[
-        WithBoundaries[String, BoundaryTag.String, BoundaryTag.String] {
-          type PathVars = PathVar.Ignored[N, String]
-        }
-      ]
-  }
+  ) extends SegmentCodec[String]
 
   final case class UUIDSeg[N <: String](
     name: N,
     doc: Doc = Doc.empty,
     examples: Chunk[(String, java.util.UUID)] = Chunk.empty
-  ) extends SegmentCodec[java.util.UUID] {
-    type Prefix   = BoundaryTag.UUID
-    type Suffix   = BoundaryTag.UUID
-    type PathVars = PathVar[N, java.util.UUID]
-
-    /**
-     * Pure type-level relabeling of `PathVars` from `PathVar[N, UUID]` to
-     * `PathVar.Ignored[N, UUID]` — same mechanics as [[BoolSeg.unused]] (zero
-     * runtime cost; see [[PathVar.Ignored]] for what the tag means).
-     */
-    def unused: WithBoundaries[java.util.UUID, BoundaryTag.UUID, BoundaryTag.UUID] {
-      type PathVars = PathVar.Ignored[N, java.util.UUID]
-    } =
-      this.asInstanceOf[
-        WithBoundaries[java.util.UUID, BoundaryTag.UUID, BoundaryTag.UUID] {
-          type PathVars = PathVar.Ignored[N, java.util.UUID]
-        }
-      ]
-  }
+  ) extends SegmentCodec[java.util.UUID]
 
   final case class Combined[A, B, C](
     left: SegmentCodec[A],
     right: SegmentCodec[B],
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ) extends SegmentCodec[C] {
-    type Prefix = left.Prefix
-    type Suffix = right.Suffix
-    // Best-effort placeholder (see `PathVars` above for the phantom-track table): `left`/`right`
-    // are unrefined, so no expression here can be precise. The REAL flat ordered concatenation is
-    // carried by the `~` extension method's own refined return type (via `Tuples.Tuples.WithOut`).
-    type PathVars = (left.PathVars, right.PathVars)
     val doc: Doc                     = left.doc ++ right.doc
     val examples: Chunk[(String, C)] = Chunk.empty
   }
 
-  final case class Transform[A, B](
-    codec: SegmentCodec[A],
-    decode: A => Either[DecodeError, B],
-    encode: B => Either[DecodeError, A]
-  ) extends SegmentCodec[B] {
-    type Prefix   = codec.Prefix
-    type Suffix   = codec.Suffix
-    type PathVars = codec.PathVars
-    val doc: Doc                     = codec.doc
-    val examples: Chunk[(String, B)] = Chunk.empty
-  }
-
   case object Trailing extends SegmentCodec[Path] {
-    type Prefix   = BoundaryTag.Trailing
-    type Suffix   = BoundaryTag.Trailing
-    type PathVars = NoPathVars
     val doc: Doc                        = Doc.empty
     val examples: Chunk[(String, Path)] = Chunk.empty
   }
@@ -428,8 +371,6 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
         case Combined(left, right, _) =>
           loop(left)
           loop(right)
-        case Transform(inner, _, _) =>
-          loop(inner)
         case Trailing => out.append("...")
       }
     loop(codec)
@@ -442,7 +383,7 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
    * This is the boolean fast path for routing: `Literal` is a single `==`,
    * `IntSeg`/`LongSeg` a single allocation-free ASCII window scan
    * (`isIntWindow`/`isLongWindow`), `UUIDSeg` a hand-rolled shape check (no
-   * exceptions thrown), and `Combined`/`Transform` go through the deterministic
+   * exceptions thrown), and `Combined` goes through the deterministic
    * single-split `matchesWindow` below. Candidate lists are never built here
    * (unlike [[decodeCombined]]), so per-request trie lookups pay no
    * per-candidate tuple or substring-enumeration cost. The subsequent handler
@@ -480,9 +421,9 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
    * `decodeCombined(codec, segment, 0)` but keeps the deterministic single
    * split only (`end == segment.length`), so `StringSeg` materializes one
    * substring instead of O(n) and numerics parse once instead of per prefix.
-   * Correct wherever callers already filter `end == segment.length`
-   * (segment-level `Transform`/`Combined` decode); nested splits inside a
-   * `Combined` go through `decodeBounded` with the split point as the bound.
+   * Correct wherever callers already filter `end == segment.length` (`Combined`
+   * decode); nested splits inside a `Combined` go through `decodeBounded` with
+   * the split point as the bound.
    */
   def decodeComplete(codec: SegmentCodec[_], segment: String): List[(Any, Int)] =
     decodeBounded(codec, segment, 0, segment.length)
@@ -491,20 +432,14 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     if (from < 0 || end > segment.length || from > end) false
     else
       codec match {
-        case Empty                        => from == end
-        case Literal(value, _, _)         => end - from == value.length && segment.startsWith(value, from)
-        case BoolSeg(_, _, _)             => parseBoolWindow(segment, from, end).isDefined
-        case IntSeg(_, _, _)              => isIntWindow(segment, from, end)
-        case LongSeg(_, _, _)             => isLongWindow(segment, from, end)
-        case StringSeg(_, _, _)           => true
-        case UUIDSeg(_, _, _)             => isUuidWindow(segment, from, end)
-        case Trailing                     => true
-        case transformed: Transform[_, _] =>
-          // `decode` needs the decoded value, so this one node type falls back to the bounded
-          // decode and checks acceptance only (intra-segment `Transform` is rare).
-          val inner  = transformed.codec.asInstanceOf[SegmentCodec[Any]]
-          val decode = transformed.decode.asInstanceOf[Any => Either[DecodeError, Any]]
-          decodeBounded(inner, segment, from, end).exists { case (value, _) => decode(value).isRight }
+        case Empty                       => from == end
+        case Literal(value, _, _)        => end - from == value.length && segment.startsWith(value, from)
+        case BoolSeg(_, _, _)            => parseBoolWindow(segment, from, end).isDefined
+        case IntSeg(_, _, _)             => isIntWindow(segment, from, end)
+        case LongSeg(_, _, _)            => isLongWindow(segment, from, end)
+        case StringSeg(_, _, _)          => true
+        case UUIDSeg(_, _, _)            => isUuidWindow(segment, from, end)
+        case Trailing                    => true
         case combined: Combined[_, _, _] =>
           val mid = splitMid(combined.left, combined.right, segment, from, end)
           mid >= 0 && matchesWindow(combined.left, segment, from, mid) &&
@@ -543,13 +478,7 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
           else
             try List((java.util.UUID.fromString(segment.substring(from, end)), end))
             catch { case _: IllegalArgumentException => Nil }
-        case Trailing                     => List((Path(segment.substring(from)).addLeadingSlash, segment.length))
-        case transformed: Transform[_, _] =>
-          val inner  = transformed.codec.asInstanceOf[SegmentCodec[Any]]
-          val decode = transformed.decode.asInstanceOf[Any => Either[DecodeError, Any]]
-          decodeBounded(inner, segment, from, end).flatMap { case (value, _) =>
-            decode(value).toOption.map(_ -> end)
-          }
+        case Trailing                    => List((Path(segment.substring(from)).addLeadingSlash, segment.length))
         case combined: Combined[_, _, _] =>
           val mid = splitMid(combined.left, combined.right, segment, from, end)
           if (mid < 0) Nil
@@ -772,12 +701,6 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
           try List((java.util.UUID.fromString(candidate), from + 36))
           catch { case _: IllegalArgumentException => Nil }
         }
-      case transformed: Transform[_, _] =>
-        val inner  = transformed.codec.asInstanceOf[SegmentCodec[Any]]
-        val decode = transformed.decode.asInstanceOf[Any => Either[DecodeError, Any]]
-        decodeCombined(inner, segment, from).flatMap { case (value, end) =>
-          decode(value).toOption.map(_ -> end)
-        }
       case Trailing                    => List((Path(segment.substring(from)).addLeadingSlash, segment.length))
       case combined: Combined[_, _, _] =>
         // Deterministic single split over the whole remaining segment (no
@@ -797,20 +720,13 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
 
   def formatSegment(codec: SegmentCodec[_], value: Any): String =
     codec match {
-      case Empty                        => ""
-      case Literal(value, _, _)         => value
-      case BoolSeg(_, _, _)             => value.toString
-      case IntSeg(_, _, _)              => value.toString
-      case LongSeg(_, _, _)             => value.toString
-      case StringSeg(_, _, _)           => value.asInstanceOf[String]
-      case UUIDSeg(_, _, _)             => value.toString
-      case transformed: Transform[_, _] =>
-        val inner  = transformed.codec.asInstanceOf[SegmentCodec[Any]]
-        val encode = transformed.encode.asInstanceOf[Any => Either[DecodeError, Any]]
-        encode(value) match {
-          case Right(innerValue) => formatSegment(inner, innerValue)
-          case Left(message)     => throw new IllegalArgumentException(message)
-        }
+      case Empty                       => ""
+      case Literal(value, _, _)        => value
+      case BoolSeg(_, _, _)            => value.toString
+      case IntSeg(_, _, _)             => value.toString
+      case LongSeg(_, _, _)            => value.toString
+      case StringSeg(_, _, _)          => value.asInstanceOf[String]
+      case UUIDSeg(_, _, _)            => value.toString
       case Trailing                    => value.asInstanceOf[Path].render.stripPrefix("/")
       case combined: Combined[_, _, _] =>
         val typed                   = combined.combiner.asInstanceOf[Tuples.Tuples.WithOut[Any, Any, Any]]
@@ -821,21 +737,18 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   def flatten(codec: SegmentCodec[_]): Chunk[SegmentCodec[_]] =
     codec match {
       case Combined(left, right, _) => flatten(left) ++ flatten(right)
-      case Transform(inner, _, _)   => flatten(inner)
       case other                    => Chunk(other)
     }
 
   /**
-   * First syntactic leaf of a (possibly nested or transformed) codec, used only
-   * to compute deterministic string lookahead in `stringSplitHead`. `Transform`
-   * preserves boundaries, so unwrapping it is shape-correct; values still
-   * decode through the tree recursion, never through this helper.
+   * First syntactic leaf of a (possibly nested) codec, used only to compute
+   * deterministic string lookahead in `stringSplitHead`. Values still decode
+   * through the tree recursion, never through this helper.
    */
   private def firstLeaf(codec: SegmentCodec[_]): SegmentCodec[_] =
     codec match {
-      case Combined(left, _, _)   => firstLeaf(left)
-      case Transform(inner, _, _) => firstLeaf(inner)
-      case other                  => other
+      case Combined(left, _, _) => firstLeaf(left)
+      case other                => other
     }
 
   /**
@@ -885,8 +798,7 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
    *     the window must additionally satisfy the overflow-checked validators;
    *   - `String` uses first-valid lookahead into the first leaf of `right`;
    *   - nested `Combined` on the left resolves inside-out (`(a ~ b) ~ c`
-   *     behaves as the flat `a ~ b ~ c` sequence), which covers flattened
-   *     combined tails because every `~` already rejected ambiguous adjacency.
+   *     behaves as the flat `a ~ b ~ c` sequence).
    */
   private def splitMid(
     left: SegmentCodec[_],
@@ -915,8 +827,6 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
           if (end - from >= 36 && isUuidWindow(segment, from, from + 36)) from + 36 else -1
         case StringSeg(_, _, _) =>
           stringSplitHead(firstLeaf(right), segment, from, end)
-        case Transform(inner, _, _) =>
-          splitMid(inner, right, segment, from, end)
         case Combined(a, b, _) =>
           val midA = splitMid(a, b, segment, from, end)
           if (midA < 0) -1 else splitMid(b, right, segment, midA, end)

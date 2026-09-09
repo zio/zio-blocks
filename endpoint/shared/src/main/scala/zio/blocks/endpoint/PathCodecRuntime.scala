@@ -140,14 +140,6 @@ private[endpoint] object PathCodecRuntime {
           if (index >= segments.length) Path.root
           else Path(segments.drop(index), hasLeadingSlash = true, trailingSlash = false)
         List((path, segments.length))
-      case transformed: SegmentCodec.Transform[_, _] =>
-        if (index >= segments.length) Nil
-        else {
-          val segment = segments(index)
-          SegmentCodec.decodeComplete(transformed, segment).collect {
-            case (value, end) if end == segment.length => (value, index + 1)
-          }
-        }
       case combined: SegmentCodec.Combined[_, _, _] =>
         if (index >= segments.length) Nil
         else {
@@ -166,8 +158,7 @@ private[endpoint] object PathCodecRuntime {
    * branch end — every `expand`-valid alternative is a single literal, so
    * overlapping branches agree and routing is unaffected. Path-level
    * `Transform` is the one node that needs its decoded value, and falls back to
-   * [[decodeCodec]] (rare on the path level; segment-level transforms go
-   * through `SegmentCodec.matchesComplete` and never allocate).
+   * [[decodeCodec]] (rare on the path level).
    */
   def matchesCodec(codec: PathCodec[_], segments: Chunk[String]): Boolean =
     matchEnd(codec, segments, 0) == segments.length
@@ -218,10 +209,8 @@ private[endpoint] object PathCodecRuntime {
 
   private def furthestSegment(codec: SegmentCodec[_], segments: Chunk[String], index: Int): Int =
     codec match {
-      case SegmentCodec.Trailing                     => segments.length
-      case transformed: SegmentCodec.Transform[_, _] =>
-        furthestSegment(transformed.codec, segments, index)
-      case _ =>
+      case SegmentCodec.Trailing => segments.length
+      case _                     =>
         if (index >= segments.length) index
         else if (SegmentCodec.matchesComplete(codec, segments(index))) index + 1
         else index

@@ -373,9 +373,6 @@ private[endpoint] object EndpointGroupMacro {
         case Apply(Select(Ident(givenName), "apply"), List(lit)) if givenName.startsWith("given_Conversion") =>
           pathRender0(lit)
         case Apply(conversion, List(lit)) if conversion.tpe.toString.contains("Conversion") => pathRender0(lit)
-        case Apply(Select(inner, "unused"), _)                                              => pathRender0(inner)
-        case Apply(TypeApply(Select(inner, "unused"), _), _)                                => pathRender0(inner)
-        case Select(inner, "unused")                                                        => pathRender0(inner)
         case Literal(StringConstant(s))                                                     => s
         case Apply(TypeApply(Select(Select(_, "PathCodec"), ctor), _), List(Literal(StringConstant(n))))
             if Set("int", "long", "string", "bool", "uuid").contains(ctor) =>
