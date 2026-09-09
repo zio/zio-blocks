@@ -128,7 +128,7 @@ object DatastarEvent {
     while (index < length) {
       val c = value.charAt(index)
       if (c == '\n' || c == '\r') {
-        appendDataLine(sb, prefix, first, value.substring(start, index))
+        appendDataLineRange(sb, prefix, first, value, start, index)
         if (c == '\r' && index + 1 < length && value.charAt(index + 1) == '\n')
           index += 1
         start = index + 1
@@ -136,18 +136,20 @@ object DatastarEvent {
       }
       index += 1
     }
-    appendDataLine(sb, prefix, first, value.substring(start, length))
+    appendDataLineRange(sb, prefix, first, value, start, length)
   }
 
-  private def appendDataLine(
+  private def appendDataLineRange(
     sb: java.lang.StringBuilder,
     prefix: String,
     first: Boolean,
-    segment: String
+    value: String,
+    start: Int,
+    end: Int
   ): Unit = {
     sb.append("data: ")
     if (first) sb.append(prefix)
-    sb.append(segment).append('\n')
+    sb.append(value, start, end).append('\n')
   }
 
   final case class PatchElementsBuilder private[DatastarEvent] (

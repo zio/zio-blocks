@@ -218,6 +218,102 @@ object EscapeSpec extends ZIOSpecDefault {
       },
       test("allows data:image bitmap types") {
         assertTrue(Escape.sanitizeUrl("data:image/jpeg;base64,abc") == "data:image/jpeg;base64,abc")
+      },
+      test("allows http scheme") {
+        assertTrue(Escape.sanitizeUrl("http://example.com") == "http://example.com")
+      },
+      test("allows empty URL") {
+        assertTrue(Escape.sanitizeUrl("") == "")
+      },
+      test("allows uppercase path beyond scheme prefix") {
+        assertTrue(Escape.sanitizeUrl("https://example.com/ABC?x=1") == "https://example.com/ABC?x=1")
+      },
+      test("allows non-ASCII host") {
+        assertTrue(Escape.sanitizeUrl("https://exämple.com") == "https://exämple.com")
+      },
+      test("allows query with ampersand") {
+        assertTrue(Escape.sanitizeUrl("https://example.com/?a=1&b=2") == "https://example.com/?a=1&b=2")
+      },
+      test("preserves trailing whitespace on safe URL") {
+        assertTrue(Escape.sanitizeUrl("https://example.com ") == "https://example.com ")
+      },
+      test("blocks semicolon-less decimal entity scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("&#106avascript:alert(1)") == "unsafe:&#106avascript:alert(1)"
+        )
+      },
+      test("blocks semicolon-less hex entity scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("javasc&#x72ipt:alert(1)") == "unsafe:javasc&#x72ipt:alert(1)"
+        )
+      },
+      test("blocks Tab entity splitting the scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("java&Tab;script:alert(1)") == "unsafe:java&Tab;script:alert(1)"
+        )
+      },
+      test("blocks NewLine entity splitting the scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("java&NewLine;script:alert(1)") == "unsafe:java&NewLine;script:alert(1)"
+        )
+      },
+      test("blocks tab splitting the scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("java\tscript:alert(1)") == "unsafe:java\tscript:alert(1)"
+        )
+      },
+      test("blocks newline splitting the scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("java\nscript:alert(1)") == "unsafe:java\nscript:alert(1)"
+        )
+      },
+      test("blocks carriage return splitting the scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("java\rscript:alert(1)") == "unsafe:java\rscript:alert(1)"
+        )
+      },
+      test("blocks numeric tab entity splitting the scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("java&#9;script:alert(1)") == "unsafe:java&#9;script:alert(1)"
+        )
+      },
+      test("blocks uppercase entity scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("&#74;AVASCRIPT:alert(1)") == "unsafe:&#74;AVASCRIPT:alert(1)"
+        )
+      },
+      test("ignores unknown entities") {
+        assertTrue(Escape.sanitizeUrl("https://example.com/?a=&bogus;x") == "https://example.com/?a=&bogus;x")
+      },
+      test("ignores malformed numeric entity") {
+        assertTrue(Escape.sanitizeUrl("&#;javascript:alert(1)") == "&#;javascript:alert(1)")
+      },
+      test("ignores invalid hex entity") {
+        assertTrue(Escape.sanitizeUrl("&#xzz;javascript:alert(1)") == "&#xzz;javascript:alert(1)")
+      },
+      test("ignores overlong entity span") {
+        assertTrue(Escape.sanitizeUrl("&toolongname;https://example.com") == "&toolongname;https://example.com")
+      },
+      test("ignores NUL numeric entity") {
+        assertTrue(Escape.sanitizeUrl("&#0javascript:alert(1)") == "&#0javascript:alert(1)")
+      },
+      test("ignores out-of-range numeric entity") {
+        assertTrue(Escape.sanitizeUrl("&#x110000;javascript:alert(1)") == "&#x110000;javascript:alert(1)")
+      },
+      test("decodes harmless named entities without blocking") {
+        assertTrue(
+          Escape.sanitizeUrl("&lt;&gt;&amp;&quot;&semi;https://example.com") ==
+            "&lt;&gt;&amp;&quot;&semi;https://example.com"
+        )
+      },
+      test("ignores empty hex entity") {
+        assertTrue(Escape.sanitizeUrl("&#x;javascript:alert(1)") == "&#x;javascript:alert(1)")
+      },
+      test("ignores semicolon-less bare hash") {
+        assertTrue(Escape.sanitizeUrl("&# javascript:alert(1)") == "&# javascript:alert(1)")
+      },
+      test("ignores semicolon-less hex without digits") {
+        assertTrue(Escape.sanitizeUrl("&#xhjavascript:alert(1)") == "&#xhjavascript:alert(1)")
       }
     )
   )
