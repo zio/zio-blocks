@@ -7,7 +7,7 @@ title: "Bulk Endpoint Creation"
 
 The `endpoints` macro (Scala 3.8+ with `-experimental` for `NamedTuple`, also works on Scala 3.7 with `-experimental`) lets you define multiple `Endpoint` values in a block and access them by name on the returned `NamedTuple`. Member names are either explicit `val` names or auto-generated from the `RoutePattern.render` string (method prefix + path template). Prefix grouping via `/` (`"api" / endpoints { ... }`, `PathCodec.int("id") / endpoints { ... }`) is available via the default `import zio.blocks.endpoint.*` — no extra import is needed. All examples below assume `import zio.blocks.endpoint.*` and `scalacOptions += "-experimental"`.
 
-String prefixes such as `"api"` are auto-converted to a literal `PathCodec[Unit]` via a `Conversion[String, PathCodec[Unit]]` provided by `zio.blocks.endpoint.*` — there is no String-specific `/` operator; both constant and capturing prefixes go through the single `PathCodec` `/` extension.
+String prefixes such as `"api"` are auto-converted to a literal `PathCodec[Unit]` via a `Conversion[String, PathCodec[Unit]]` provided by `zio.blocks.endpoint.*` — there is no String-specific `/` operator; constant prefixes auto-convert and use the same grouping `/` as capturing prefixes.
 
 > **Inline-only:** prefix grouping (`prefix / endpoints { ... }`) requires an inline `endpoints { ... }` block. Binding the group to a value first (`val g = endpoints { ... }; "api" / g`) is not supported — the macro must see the block literal to compose prefixes.
 
@@ -43,7 +43,6 @@ Auto-naming follows `RoutePattern.render` exactly:
 - `GET#|POST /orders` for multi-method
 - `v{major}` for `~` concat segments
 - `...` for trailing segments
-- `.unused` renders as `{name}`
 
 Constant-prefix nesting bakes the prefix into each child's `RoutePattern` at the description level; grouping nodes have no path themselves:
 

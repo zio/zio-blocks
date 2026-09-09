@@ -141,7 +141,7 @@ object EndpointSpec extends ZIOSpecDefault {
         )
       },
       test("transformed segment codec decodes and formats") {
-        val uuid           = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val uuid                     = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
         val codec: PathCodec[String] =
           SegmentCodec.uuid("id").transform[String](_.toString, UUID.fromString)
 
