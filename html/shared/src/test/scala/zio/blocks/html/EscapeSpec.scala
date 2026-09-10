@@ -291,8 +291,8 @@ object EscapeSpec extends ZIOSpecDefault {
       test("ignores invalid hex entity") {
         assertTrue(Escape.sanitizeUrl("&#xzz;javascript:alert(1)") == "&#xzz;javascript:alert(1)")
       },
-      test("ignores overlong entity span") {
-        assertTrue(Escape.sanitizeUrl("&toolongname;https://example.com") == "&toolongname;https://example.com")
+      test("rejects overlong named entity span in scheme window") {
+        assertTrue(Escape.sanitizeUrl("&toolongname;https://example.com") == "unsafe:&toolongname;https://example.com")
       },
       test("ignores NUL numeric entity") {
         assertTrue(Escape.sanitizeUrl("&#0javascript:alert(1)") == "&#0javascript:alert(1)")
@@ -300,10 +300,10 @@ object EscapeSpec extends ZIOSpecDefault {
       test("ignores out-of-range numeric entity") {
         assertTrue(Escape.sanitizeUrl("&#x110000;javascript:alert(1)") == "&#x110000;javascript:alert(1)")
       },
-      test("decodes harmless named entities without blocking") {
+      test("rejects named entities in scheme window without decoding") {
         assertTrue(
           Escape.sanitizeUrl("&lt;&gt;&amp;&quot;&semi;https://example.com") ==
-            "&lt;&gt;&amp;&quot;&semi;https://example.com"
+            "unsafe:&lt;&gt;&amp;&quot;&semi;https://example.com"
         )
       },
       test("ignores empty hex entity") {
@@ -314,6 +314,61 @@ object EscapeSpec extends ZIOSpecDefault {
       },
       test("ignores semicolon-less hex without digits") {
         assertTrue(Escape.sanitizeUrl("&#xhjavascript:alert(1)") == "&#xhjavascript:alert(1)")
+      },
+      test("blocks overlong decimal entity scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("&#000000106;avascript:alert(1)") == "unsafe:&#000000106;avascript:alert(1)"
+        )
+      },
+      test("blocks overlong hex entity scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("&#x0000006A;avascript:alert(1)") == "unsafe:&#x0000006A;avascript:alert(1)"
+        )
+      },
+      test("blocks zero-padded 400-digit entity scheme") {
+        val padded = "&#" + ("0" * 400) + "106;avascript:alert(1)"
+        assertTrue(Escape.sanitizeUrl(padded) == "unsafe:" + padded)
+      },
+      test("blocks semicolon-less overlong decimal entity scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("&#000000106avascript:alert(1)") == "unsafe:&#000000106avascript:alert(1)"
+        )
+      },
+      test("leaves astronomically large entity literal") {
+        val huge = "&#" + ("9" * 400) + ";javascript:alert(1)"
+        assertTrue(Escape.sanitizeUrl(huge) == huge)
+      },
+      test("blocks data:application/xhtml+xml") {
+        assertTrue(
+          Escape.sanitizeUrl("data:application/xhtml+xml,<p>hi</p>") ==
+            "unsafe:data:application/xhtml+xml,<p>hi</p>"
+        )
+      },
+      test("blocks Data:Application/Xhtml+Xml with mixed case") {
+        assertTrue(
+          Escape.sanitizeUrl("Data:Application/Xhtml+Xml,<p>hi</p>") ==
+            "unsafe:Data:Application/Xhtml+Xml,<p>hi</p>"
+        )
+      },
+      test("blocks data:application/javascript") {
+        assertTrue(
+          Escape.sanitizeUrl("data:application/javascript,alert(1)") ==
+            "unsafe:data:application/javascript,alert(1)"
+        )
+      },
+      test("blocks unknown data mediatype") {
+        assertTrue(
+          Escape.sanitizeUrl("data:image/xyz;base64,abc") == "unsafe:data:image/xyz;base64,abc"
+        )
+      },
+      test("allows data:text/plain") {
+        assertTrue(Escape.sanitizeUrl("data:text/plain,hello") == "data:text/plain,hello")
+      },
+      test("allows data:image gif and webp") {
+        assertTrue(
+          Escape.sanitizeUrl("data:image/gif;base64,abc") == "data:image/gif;base64,abc",
+          Escape.sanitizeUrl("data:image/webp;base64,abc") == "data:image/webp;base64,abc"
+        )
       }
     )
   )
