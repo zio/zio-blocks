@@ -116,11 +116,11 @@ personAs.into(PersonA("Alice", 30)).flatMap(personAs.from)
 
 ### `As.apply[A, B]` — Summoning
 
-`As.apply[A, B]` (with no arguments) summons an implicit `As[A, B]` already in scope — the same pattern used by `Into.apply`:
+`As.summon[A, B]` summons an implicit `As[A, B]` already in scope — the same pattern used by `Into.apply`:
 
 ```scala
 object As {
-  def apply[A, B](implicit ev: As[A, B]): As[A, B]
+  def summon[A, B](implicit ev: As[A, B]): As[A, B]
 }
 ```
 
@@ -135,7 +135,7 @@ case class Bar(x: Int)
 implicit val fooBarAs: As[Foo, Bar] = As.derived[Foo, Bar]
 
 // Summon the implicit instance
-val summoned = As[Foo, Bar]
+val summoned = As.summon[Foo, Bar]
 summoned.into(Foo(1))
 summoned.from(Bar(2))
 ```

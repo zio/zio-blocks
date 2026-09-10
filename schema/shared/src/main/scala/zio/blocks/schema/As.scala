@@ -60,7 +60,7 @@ object As extends AsVersionSpecific with AsLowPriorityImplicits {
   }
 
   /** Summons the implicit As[A, B] from scope. */
-  def apply[A, B](implicit ev: As[A, B]): As[A, B] = ev
+  def summon[A, B](implicit ev: As[A, B]): As[A, B] = ev
 }
 
 trait AsLowPriorityImplicits {
