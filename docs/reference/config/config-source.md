@@ -343,6 +343,33 @@ Reading the value back requires the explicit `Secret.unwrap`, which makes every 
 Secret.unwrap(token)
 ```
 
+### Schema Decoding
+
+`Secret` carries its own `Schema[Secret]`, derived by transforming `Schema[String]` rather than reflecting over a case class. That means a `Secret` field decodes like any other primitive wherever `Schema.derived` is used — no per-field annotation or special-casing at the call site:
+
+```scala mdoc:silent:reset
+import zio.blocks.config._
+import zio.blocks.schema.Schema
+
+case class Db(host: String, password: Secret)
+
+object Db {
+  implicit val schema: Schema[Db] = Schema.derived[Db]
+}
+```
+
+The raw string is read from the source exactly like any other field, then wrapped:
+
+```scala mdoc
+Config.load[Db](ConfigSource.fromMap(Map("host" -> "localhost", "password" -> "hunter2"), "defaults"))
+```
+
+The decoded `password` is a `Secret`, so the value never appears in a `toString` of the loaded record even though the source held it as a plain string:
+
+```scala mdoc
+Config.load[Db](ConfigSource.fromMap(Map("host" -> "localhost", "password" -> "hunter2"), "defaults")).map(_.password)
+```
+
 ### Displayable
 
 `Displayable[A]` is the type class behind rendered flag values, with instances for `String`, `Int`, `Long`, `Double`, and `Boolean`, plus a low-priority fallback that calls `toString`. The module provides `Displayable[Secret]` as an implicit in the `zio.blocks.config` package object, so a `StaticFlag[Secret]` renders as `<secret>` in `Flag.dump` output without any per-flag configuration.

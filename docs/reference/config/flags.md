@@ -332,6 +332,8 @@ try {
 
 `FlagDuplicateNameException` means two objects derived the same name, which happens when two flags share a fully-qualified name after `$`-to-dot rewriting. Renaming either object resolves it.
 
+`FlagValueParseException#getMessage` redacts the raw value the same way [`ConfigError.InvalidValue`](./errors.md) does — `<secret>` in its place, and the underlying cause dropped — when the flag's name looks like it names a secret. A flag named `Db.password` that fails to parse never leaks the value it was given.
+
 ## Integration Points
 
 Flags depend on `FlagSource` — and therefore accept any `ConfigSource` — on `Flag.Reader` for parsing, on `Displayable` for rendering, and on `ConfigError` for parse failures. `DynamicFlag` additionally depends on `Rollout` for expression evaluation.
