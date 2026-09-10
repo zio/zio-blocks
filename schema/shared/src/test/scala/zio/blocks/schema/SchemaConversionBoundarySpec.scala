@@ -19,21 +19,21 @@ package zio.blocks.schema
 import zio.test._
 
 /**
- * PR1 regression tests: exact float/double boundary guards (B1), fused
- * collection converters (C1), closure-free option conversion (C2),
- * `SchemaMatch.matchesOption` (P3), and `RebindException` stack-trace
- * suppression (P3).
+ * Boundary and allocation-behavior tests: exact float/double boundary guards,
+ * fused collection converters, closure-free option conversion, `SchemaMatch`
+ * indeterminacy for nominal patterns, and `RebindException` stack-trace
+ * suppression.
  *
- * Allocation notes (not benchmarks — behavioral tests only): C1 fuses the
- * former 2-pass `toList.map` + `sequence` traversal into a single `while` loop
- * over the iterator writing straight into the result builder, so the happy path
- * allocates no intermediate `List[Either]` and no per-call closures; C2 avoids
- * the `Function1` closure in `optionInto`; C4 (migration) avoids per-element
- * `DynamicOptic` copies on the happy path.
+ * Allocation notes (not benchmarks — behavioral tests only): the collection
+ * converters fuse the former 2-pass `toList.map` + `sequence` traversal into a
+ * single `while` loop over the iterator writing straight into the result
+ * builder, so the happy path allocates no intermediate `List[Either]` and no
+ * per-call closures; `optionInto` avoids the `Function1` closure; migration
+ * avoids per-element `DynamicOptic` copies on the happy path.
  */
-object Pr1RegressionSpec extends SchemaBaseSpec {
-  def spec: Spec[TestEnvironment, Any] = suite("Pr1RegressionSpec")(
-    suite("B1 float/double boundary guards")(
+object SchemaConversionBoundarySpec extends SchemaBaseSpec {
+  def spec: Spec[TestEnvironment, Any] = suite("SchemaConversionBoundarySpec")(
+    suite("float/double boundary guards")(
       test("floatToInt rejects 2^31f") {
         assertTrue(Into.floatToInt.into(java.lang.Float.intBitsToFloat(0x4f000000)).isLeft)
       },
@@ -80,7 +80,7 @@ object Pr1RegressionSpec extends SchemaBaseSpec {
         )
       }
     ),
-    suite("C1 fused collection converters")(
+    suite("fused collection converters")(
       test("iterableInto converts and accumulates errors") {
         val ok     = implicitly[Into[List[Int], List[Long]]].into(List(1, 2, 3))
         val failed = implicitly[Into[List[Int], List[Byte]]].into(List(1, 128))
@@ -99,7 +99,7 @@ object Pr1RegressionSpec extends SchemaBaseSpec {
         assertTrue(ok == Right(List(1L, 2L)))
       }
     ),
-    suite("C2 option conversion")(
+    suite("option conversion")(
       test("optionInto maps Some without behavior change") {
         val some = implicitly[Into[Option[Int], Option[Long]]].into(Some(1))
         val none = implicitly[Into[Option[Int], Option[Long]]].into(None)
@@ -107,7 +107,7 @@ object Pr1RegressionSpec extends SchemaBaseSpec {
         assertTrue(some == Right(Some(1L)) && none == Right(None) && bad.isLeft)
       }
     ),
-    suite("P3 SchemaMatch.matchesOption")(
+    suite("SchemaMatch indeterminacy")(
       test("Nominal is indeterminate but matches stays false") {
         val value = DynamicValue.Primitive(PrimitiveValue.Int(1))
         assertTrue(
@@ -130,7 +130,7 @@ object Pr1RegressionSpec extends SchemaBaseSpec {
         )
       }
     ),
-    suite("P3 RebindException")(
+    suite("RebindException stack-trace suppression")(
       test("RebindException suppresses stack traces") {
         val ex = new RebindException(DynamicOptic.root, Schema[Int].reflect.typeId, "Record")
         assertTrue(ex.isInstanceOf[scala.util.control.NoStackTrace])
