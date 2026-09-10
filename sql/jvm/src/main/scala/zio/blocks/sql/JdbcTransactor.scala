@@ -215,7 +215,7 @@ object JdbcTransactor {
    * carrying any close failure as suppressed — shared by `connect` and both
    * `transact` overloads so the setup/teardown sequence lives in one place.
    */
-  private[sql] def openConnection(
+  private def openConnection(
     connectionFactory: () => Connection,
     dialect: SqlDialect
   ): JdbcConnection = {

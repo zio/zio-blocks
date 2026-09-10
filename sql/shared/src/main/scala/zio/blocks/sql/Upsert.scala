@@ -109,24 +109,14 @@ object Upsert {
     conflictColumn: String
   ): Frag = {
     val t       = SqlIdentifier.validate("table", tableName)
-    val columns = splitColumnList(allColumns, "Upsert.doNothingRaw")
+    val columns = allColumns.split(",").map(_.trim).filter(_.nonEmpty).toIndexedSeq
+    if (columns.isEmpty)
+      throw new IllegalArgumentException("Upsert.doNothingRaw: allColumns must not be empty")
     columns.foreach(c => SqlIdentifier.validate("column", c))
     SqlIdentifier.validate("column", conflictColumn)
     require(columns.size == values.size, "Upsert.doNothingRaw: columns/value count mismatch")
     val base = Repo.buildInsertFrag(t, columns.mkString(", "), values)
     base ++ doNothingSuffix(conflictColumn)
-  }
-
-  /**
-   * Splits a comma-joined column list (as `Repo` stores `allCols`) into
-   * validated, non-empty entries. Shared by the `*Raw` overloads so the
-   * normalize-then-validate step lives in one place.
-   */
-  private def splitColumnList(allColumns: String, where: String): IndexedSeq[String] = {
-    val columns = allColumns.split(",").map(_.trim).filter(_.nonEmpty).toIndexedSeq
-    if (columns.isEmpty)
-      throw new IllegalArgumentException(s"$where: allColumns must not be empty")
-    columns
   }
 
   /**
@@ -285,12 +275,12 @@ object Upsert {
     val values  = table.codec.toDbValues(entity)
     val allCols = table.columns.mkString(", ")
     val base    = Repo.buildInsertFrag(t, allCols, values)
-    // Index by position, not via `table.columns.zip(values).toMap`: a map keeps
-    // the LAST value on duplicate columns silently, while `indexOf` on a
-    // duplicate-checked `Table` (see `Table` constructor) resolves each column
-    // to its single position.
+    // Index by position in one pass, not via per-column `indexOf`: `Table`
+    // rejects duplicate columns at construction, so each name maps to exactly
+    // one position.
+    val columnPositions: Map[String, Int]          = table.columns.zipWithIndex.toMap
     val assignments: IndexedSeq[(String, DbValue)] =
-      validatedUpdateCols.map(col => col -> values(table.columns.indexOf(col)))
+      validatedUpdateCols.map(col => col -> values(columnPositions(col)))
     base ++ doUpdateSuffix(conflict, assignments)
   }
 }

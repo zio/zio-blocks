@@ -300,18 +300,6 @@ object DbCodecSpec extends ZIOSpecDefault {
     def wasNull: Boolean                                         = false
   }
 
-  /** Labels wrapper counting `slice` calls to lock the F2b hoist. */
-  private final class CountingLabels(underlying: IndexedSeq[String]) extends IndexedSeq[String] {
-    var sliceCalls: Int                                           = 0
-    def apply(i: Int): String                                     = underlying(i)
-    def length: Int                                               = underlying.length
-    override def iterator: Iterator[String]                       = underlying.iterator
-    override def slice(from: Int, until: Int): IndexedSeq[String] = {
-      sliceCalls += 1
-      underlying.slice(from, until)
-    }
-  }
-
   sealed trait Shape
   object Shape {
     case class Circle(radius: Double)     extends Shape
@@ -1194,19 +1182,22 @@ object DbCodecSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("record label-path slice hoist")(
-      test("reordered labels slice once per statement, not once per field per row") {
-        val codec  = deriveCodec[SimpleRecord]
-        val labels = new CountingLabels(IndexedSeq("name", "age"))
+    suite("record label-path offset slices")(
+      test("each field decodes from its precomputed offset slice on every call") {
+        val codec = deriveCodec[SimpleRecord]
         // Result set exposes a different first column, forcing the codec onto
         // the label fallback path for every row.
-        val reader = new LabelReader(Map[String, Any]("name" -> "Alice", "age" -> 3), IndexedSeq("other", "age"))
-        val first  = codec.readValue(reader, labels)
-        val second = codec.readValue(reader, labels)
+        val reader =
+          new LabelReader(Map[String, Any]("name" -> "Alice", "age" -> 3), IndexedSeq("other", "age"))
+        val first = codec.readValue(reader, IndexedSeq("name", "age"))
+        // A fresh labels instance decodes identically: slices are rebuilt from
+        // the field offsets per call, never reused from a previous call. Any
+        // offset mix-up would hand a field the wrong label (decoding "Alice"
+        // as an Int), so success pins the partitioning.
+        val second = codec.readValue(reader, IndexedSeq("name", "age"))
         assertTrue(
           first == SimpleRecord("Alice", 3),
-          second == SimpleRecord("Alice", 3),
-          labels.sliceCalls == 2
+          second == SimpleRecord("Alice", 3)
         )
       }
     ),

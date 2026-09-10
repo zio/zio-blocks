@@ -113,7 +113,7 @@ object DbCodec extends DbCodecOpaquePriority {
    * longer aborts the whole `Frag.query` list decode with an unactionable
    * `RuntimeException`.
    */
-  def decodeJsonbEither[A](input: String)(using jsonCodec: JsonCodec[A]): Either[SchemaError, A] =
+  private[sql] def decodeJsonbEither[A](input: String)(using jsonCodec: JsonCodec[A]): Either[SchemaError, A] =
     jsonCodec.decode(input)
 
   /**
@@ -121,7 +121,7 @@ object DbCodec extends DbCodecOpaquePriority {
    * callers that can handle failure as a value do not have to go through the
    * throwing given.
    */
-  def decodeViaAs[A, B](conv: As[A, B], decoded: A): Either[SchemaError, B] =
+  private[sql] def decodeViaAs[A, B](conv: As[A, B], decoded: A): Either[SchemaError, B] =
     conv.into(decoded)
 
   /**
@@ -129,7 +129,7 @@ object DbCodec extends DbCodecOpaquePriority {
    * callers that can handle failure as a value do not have to go through the
    * throwing given.
    */
-  def encodeViaAs[A, B](conv: As[A, B], value: B): Either[SchemaError, A] =
+  private[sql] def encodeViaAs[A, B](conv: As[A, B], value: B): Either[SchemaError, A] =
     conv.from(value)
 
   private def unexpectedNull(typeName: String): Nothing =

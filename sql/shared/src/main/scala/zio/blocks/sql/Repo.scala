@@ -279,7 +279,8 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
         entities.foreach { entity =>
           val vals       = table.codec.toDbValues(entity)
           val assignVals = updateIdx.map(i => vals(i)).toIndexedSeq
-          Frag.writeParams(ps.paramWriter, vals ++ assignVals)
+          Frag.writeParams(ps.paramWriter, vals)
+          Frag.writeParams(ps.paramWriter, assignVals, vals.length + 1)
           ps.addBatch()
         }
         val counts = ps.executeBatch()

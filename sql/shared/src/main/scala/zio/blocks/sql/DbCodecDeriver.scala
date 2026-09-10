@@ -206,8 +206,20 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       }
 
       private def readByLabels(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
-        val regs   = borrowRegs()
-        val slices = fieldSlices(columnLabels)
+        val regs = borrowRegs()
+        // Fresh slices per call, partitioned by the precomputed
+        // `fieldLabelOffsets`: field fi owns
+        // `columnLabels.slice(offset(fi), offset(fi) + columnCount(fi))`.
+        // Never cached: slicing is cheap and a cache would pin a whole labels
+        // array per thread.
+        val slices = new Array[IndexedSeq[String]](activeFieldIndices.length)
+        var si     = 0
+        while (si < activeFieldIndices.length) {
+          val count  = fieldCodecs(activeFieldIndices(si)).columnCount
+          val offset = fieldLabelOffsets(si)
+          slices(si) = columnLabels.slice(offset, offset + count)
+          si += 1
+        }
         try {
           var fi = 0
           while (fi < activeFieldIndices.length) {
@@ -265,32 +277,6 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
         else {
           pooled.startUse()
           pooled
-        }
-      }
-
-      // Per-field label slices, computed once per statement (per thread) instead
-      // of once per field per row. `Frag.rowDecoder` passes the same `labels`
-      // instance for every row of a statement, so a reference-equality hit
-      // reuses the slices; any other caller recomputes them (still correct,
-      // just not cached). Sound because `IndexedSeq` labels are immutable: an
-      // identical reference implies identical slice contents.
-      private val labelSlicesCache: ThreadLocal[(IndexedSeq[String], Array[IndexedSeq[String]])] =
-        new ThreadLocal[(IndexedSeq[String], Array[IndexedSeq[String]])]
-
-      private def fieldSlices(columnLabels: IndexedSeq[String]): Array[IndexedSeq[String]] = {
-        val cached = labelSlicesCache.get()
-        if (cached != null && (cached._1 eq columnLabels)) cached._2
-        else {
-          val slices = new Array[IndexedSeq[String]](activeFieldIndices.length)
-          var fi     = 0
-          while (fi < activeFieldIndices.length) {
-            val count  = fieldCodecs(activeFieldIndices(fi)).columnCount
-            val offset = fieldLabelOffsets(fi)
-            slices(fi) = columnLabels.slice(offset, offset + count)
-            fi += 1
-          }
-          labelSlicesCache.set((columnLabels, slices))
-          slices
         }
       }
 
