@@ -18,6 +18,7 @@ package zio.http
 
 import _root_.zio.test._
 import zio.blocks.chunk.Chunk
+import zio.blocks.maybe.Maybe
 
 object ResponseSpec extends HttpModelBaseSpec {
   private object TraceIdHeader extends Header.Codec[String] {
@@ -103,21 +104,17 @@ object ResponseSpec extends HttpModelBaseSpec {
       },
       test("returns custom typed header without Header subtype") {
         val response = Response(Status.Ok, Headers("X-Trace-Id" -> "trace-123"), Body.empty, Version.`HTTP/1.1`)
-        assertTrue(response.header(TraceIdHeader) == Some("trace-123"))
+        assertTrue(response.header(TraceIdHeader) == Maybe.present("trace-123"))
       }
     ),
     suite("contentType")(
       test("returns ContentType from headers") {
         val headers  = Headers("content-type" -> "text/plain")
         val response = Response(Status.Ok, headers, Body.empty, Version.`HTTP/1.1`)
-        val ct       = response.contentType
-        assertTrue(
-          ct.isDefined,
-          ct.get == ContentType.`text/plain`
-        )
+        assertTrue(response.contentType == ContentType.`text/plain`)
       },
       test("falls back to body content type when no content-type header is present") {
-        assertTrue(Response.ok.contentType == Some(ContentType.`application/octet-stream`))
+        assertTrue(Response.ok.contentType == ContentType.`application/octet-stream`)
       }
     ),
     suite("Response.badRequest")(
@@ -151,8 +148,8 @@ object ResponseSpec extends HttpModelBaseSpec {
         assertTrue(
           response.status == Status.Ok,
           response.body == Body.fromString("hello world"),
-          response.headers.rawGet("content-type") == Some("text/plain; charset=UTF-8"),
-          response.contentType == Some(response.body.contentType)
+          response.headers.rawGet("content-type") == Maybe.present("text/plain; charset=UTF-8"),
+          response.contentType == response.body.contentType
         )
       },
       test("accepts explicit status") {
@@ -165,8 +162,8 @@ object ResponseSpec extends HttpModelBaseSpec {
         val response = Response.json("{\"key\": \"value\"}")
         assertTrue(
           response.status == Status.Ok,
-          response.headers.rawGet("content-type") == Some("application/json"),
-          response.contentType == Some(ContentType.`application/json`)
+          response.headers.rawGet("content-type") == Maybe.present("application/json"),
+          response.contentType == ContentType.`application/json`
         )
       },
       test("accepts explicit status") {
@@ -181,7 +178,7 @@ object ResponseSpec extends HttpModelBaseSpec {
         assertTrue(
           response.status == Status.Ok,
           response.body == body,
-          response.headers.rawGet("content-type") == Some(body.contentType.render)
+          response.headers.rawGet("content-type") == Maybe.present(body.contentType.render)
         )
       }
     ),
@@ -190,14 +187,14 @@ object ResponseSpec extends HttpModelBaseSpec {
         val response = Response.redirect("/new-location")
         assertTrue(
           response.status == Status.TemporaryRedirect,
-          response.headers.rawGet("location") == Some("/new-location")
+          response.headers.rawGet("location") == Maybe.present("/new-location")
         )
       },
       test("permanent redirect when isPermanent is true") {
         val response = Response.redirect("/new-location", isPermanent = true)
         assertTrue(
           response.status == Status.PermanentRedirect,
-          response.headers.rawGet("location") == Some("/new-location")
+          response.headers.rawGet("location") == Maybe.present("/new-location")
         )
       }
     ),
@@ -206,18 +203,18 @@ object ResponseSpec extends HttpModelBaseSpec {
         val response = Response.seeOther("/other")
         assertTrue(
           response.status == Status.SeeOther,
-          response.headers.rawGet("location") == Some("/other")
+          response.headers.rawGet("location") == Maybe.present("/other")
         )
       }
     ),
     suite("Response addHeader")(
       test("adds a header") {
         val response = Response.ok.addHeader("X-Custom", "value")
-        assertTrue(response.headers.rawGet("x-custom") == Some("value"))
+        assertTrue(response.headers.rawGet("x-custom") == Maybe.present("value"))
       },
       test("adds a typed header") {
         val response = Response.ok.addHeader(Header.ContentLength(42L))
-        assertTrue(response.header(Header.ContentLength) == Some(Header.ContentLength(42L)))
+        assertTrue(response.header(Header.ContentLength) == Maybe.present(Header.ContentLength(42L)))
       }
     ),
     suite("Response addHeaders")(
@@ -225,8 +222,8 @@ object ResponseSpec extends HttpModelBaseSpec {
         val extra    = Headers("X-A" -> "1", "X-B" -> "2")
         val response = Response.ok.addHeaders(extra)
         assertTrue(
-          response.headers.rawGet("x-a") == Some("1"),
-          response.headers.rawGet("x-b") == Some("2")
+          response.headers.rawGet("x-a") == Maybe.present("1"),
+          response.headers.rawGet("x-b") == Maybe.present("2")
         )
       }
     ),
@@ -241,13 +238,13 @@ object ResponseSpec extends HttpModelBaseSpec {
         val response = Response.ok
           .addHeader("X-Custom", "old")
           .setHeader("X-Custom", "new")
-        assertTrue(response.headers.rawGet("x-custom") == Some("new"))
+        assertTrue(response.headers.rawGet("x-custom") == Maybe.present("new"))
       },
       test("sets a typed header replacing existing") {
         val response = Response.ok
           .addHeader(Header.ContentLength(1L))
           .setHeader(Header.ContentLength(42L))
-        assertTrue(response.header(Header.ContentLength) == Some(Header.ContentLength(42L)))
+        assertTrue(response.header(Header.ContentLength) == Maybe.present(Header.ContentLength(42L)))
       }
     ),
     suite("Response body (setter)")(
@@ -256,7 +253,7 @@ object ResponseSpec extends HttpModelBaseSpec {
         val response = Response.ok.body(newBody)
         assertTrue(
           response.body == newBody,
-          response.headers.rawGet("content-type") == Some(newBody.contentType.render)
+          response.headers.rawGet("content-type") == Maybe.present(newBody.contentType.render)
         )
       }
     ),
@@ -278,8 +275,8 @@ object ResponseSpec extends HttpModelBaseSpec {
           .addHeader("X-A", "1")
           .updateHeaders(_.add("X-B", "2"))
         assertTrue(
-          response.headers.rawGet("x-a") == Some("1"),
-          response.headers.rawGet("x-b") == Some("2")
+          response.headers.rawGet("x-a") == Maybe.present("1"),
+          response.headers.rawGet("x-b") == Maybe.present("2")
         )
       }
     ),

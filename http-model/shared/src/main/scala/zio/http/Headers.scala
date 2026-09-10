@@ -19,31 +19,67 @@ package zio.http
 import java.util.Locale
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.maybe.Maybe
 
 /**
  * Immutable collection of HTTP headers, backed by parallel arrays.
  *
  * Header names are stored pre-lowercased for case-insensitive matching.
- * Multiple headers with the same name are allowed (multi-value). The `parsed`
- * array is populated lazily on typed `get` calls. The cache is an optimization
- * only: duplicate benign parses are possible if the same `Headers` is read
- * concurrently.
+ * Multiple headers with the same name are allowed (multi-value).
+ * `parsedCodecs`/`parsedValues` are populated lazily on typed `get` calls: a
+ * non-null codec marks its entry as parsed by that exact codec instance. The
+ * cache is an optimization only: duplicate benign parses are possible if the
+ * same `Headers` is read concurrently.
  *
  * Typed reads come in two flavors. The lenient [[get]] / [[getAll]] skip
  * entries that fail to parse and continue scanning, so a wrong-typed header
- * reads as absent (`None` / empty). Use the strict [[getStrict]] /
+ * reads as absent ([[Maybe.absent]] / empty). Use the strict [[getStrict]] /
  * [[getAllStrict]] when you need to distinguish "header absent" from "header
  * present but unparseable": they report the parse error as `Left`.
  */
 final class Headers private[http] (
   private val names: Array[String],
   private val rawValues: Array[String],
-  private val parsed: Array[AnyRef],
+  private val parsedCodecs: Array[Header.Codec[_]],
+  private val parsedValues: Array[AnyRef],
   val size: Int
 ) {
 
   private def sameCodec(left: Header.Codec[_], right: Header.Codec[_]): Boolean =
     left.asInstanceOf[AnyRef] eq right.asInstanceOf[AnyRef]
+
+  /**
+   * Value cached for entry `i` when it was parsed by this exact codec instance,
+   * or `null` on a cache miss. A `null` value is treated as a miss (matching
+   * the previous behaviour where a `null` parse result never hit).
+   */
+  private def cachedValue[A](i: Int, headerCodec: Header.Codec[A]): AnyRef =
+    if (sameCodec(parsedCodecs(i), headerCodec)) parsedValues(i) else null
+
+  private def storeParsed[A](i: Int, headerCodec: Header.Codec[A], value: A): Unit = {
+    parsedCodecs(i) = headerCodec
+    parsedValues(i) = value.asInstanceOf[AnyRef]
+  }
+
+  /** Index of the first entry named `target` in `[0, size)`, or `-1`. */
+  private def indexOf(target: String): Int = {
+    var i = 0
+    while (i < size) {
+      if (names(i) == target) return i
+      i += 1
+    }
+    -1
+  }
+
+  /** Index of the last entry named `target` in `[0, size)`, or `-1`. */
+  private def lastIndexOf(target: String): Int = {
+    var i = size - 1
+    while (i >= 0) {
+      if (names(i) == target) return i
+      i -= 1
+    }
+    -1
+  }
 
   def isEmpty: Boolean  = size == 0
   def nonEmpty: Boolean = size > 0
@@ -57,89 +93,75 @@ final class Headers private[http] (
    *
    * This is the lenient read: entries that fail to parse are skipped and
    * scanning continues, so a present-but-wrong-typed header reads as absent
-   * (`None`). See [[getStrict]] for the error-reporting variant.
+   * ([[Maybe.absent]]). See [[getStrict]] for the error-reporting variant.
+   *
+   * The result is a [[Maybe]] rather than an `Option` so the hot path (e.g. a
+   * middleware checking a header on every request) pays no `Some` allocation on
+   * Scala 3: a present value is returned raw, absence is the `Absent`
+   * singleton.
    */
-  def get[A](headerCodec: Header.Codec[A]): Option[A] = {
-    val target = headerCodec.name.toLowerCase(Locale.ROOT)
+  def get[A](headerCodec: Header.Codec[A]): Maybe[A] = {
+    val target = Headers.lowerName(headerCodec.name)
     var i      = 0
     while (i < size) {
       if (names(i) == target) {
-        parsed(i) match {
-          case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
-            return Some(cached.value.asInstanceOf[A])
-          case _ =>
-        }
+        val cached = cachedValue(i, headerCodec)
+        if (cached != null) return Maybe.present(cached.asInstanceOf[A])
         headerCodec.parse(rawValues(i)) match {
           case Right(value) =>
-            parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
-            return Some(value)
+            storeParsed(i, headerCodec, value)
+            return Maybe.present(value)
           case Left(_) => // skip unparseable, continue scanning
         }
       }
       i += 1
     }
-    None
+    Maybe.absent
   }
 
   /**
    * Strict variant of [[get]]: distinguishes "header absent" from "header
    * present but unparseable".
    *
-   * Returns `Right(Some(value))` for the first entry that parses, `Right(None)`
+   * Returns `Right` of the first entry that parses, `Right` of [[Maybe.absent]]
    * when no entry matches the codec name, and `Left(error)` carrying the first
    * parse error when entries match but none parses. Like [[get]], scanning
    * continues past unparseable entries while a later entry may still parse; the
    * error is reported only when nothing parseable is found.
    */
-  def getStrict[A](headerCodec: Header.Codec[A]): Either[String, Option[A]] = {
-    val target             = headerCodec.name.toLowerCase(Locale.ROOT)
+  def getStrict[A](headerCodec: Header.Codec[A]): Either[String, Maybe[A]] = {
+    val target             = Headers.lowerName(headerCodec.name)
     var i                  = 0
     var firstError: String = null
     while (i < size) {
       if (names(i) == target) {
-        parsed(i) match {
-          case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
-            return Right(Some(cached.value.asInstanceOf[A]))
-          case _ =>
-        }
+        val cached = cachedValue(i, headerCodec)
+        if (cached != null) return Right(Maybe.present(cached.asInstanceOf[A]))
         headerCodec.parse(rawValues(i)) match {
           case Right(value) =>
-            parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
-            return Right(Some(value))
+            storeParsed(i, headerCodec, value)
+            return Right(Maybe.present(value))
           case Left(err) =>
             if (firstError == null) firstError = err
         }
       }
       i += 1
     }
-    if (firstError == null) Right(None) else Left(firstError)
+    if (firstError == null) Right(Maybe.absent) else Left(firstError)
   }
 
-  def rawGet(name: String): Option[String] = {
-    Headers.validateNameOrThrow(name)
-    val target = name.toLowerCase(Locale.ROOT)
-    var i      = 0
-    while (i < size) {
-      if (names(i) == target) return Some(rawValues(i))
-      i += 1
-    }
-    None
+  def rawGet(name: String): Maybe[String] = {
+    val idx = indexOf(Headers.validatedLowerName(name))
+    if (idx < 0) Maybe.absent else Maybe.present(rawValues(idx))
   }
 
-  def rawGetLast(name: String): Option[String] = {
-    Headers.validateNameOrThrow(name)
-    val target = name.toLowerCase(Locale.ROOT)
-    var i      = size - 1
-    while (i >= 0) {
-      if (names(i) == target) return Some(rawValues(i))
-      i -= 1
-    }
-    None
+  def rawGetLast(name: String): Maybe[String] = {
+    val idx = lastIndexOf(Headers.validatedLowerName(name))
+    if (idx < 0) Maybe.absent else Maybe.present(rawValues(idx))
   }
 
   def rawGetAll(name: String): Chunk[String] = {
-    Headers.validateNameOrThrow(name)
-    val target  = name.toLowerCase(Locale.ROOT)
+    val target  = Headers.validatedLowerName(name)
     val builder = Chunk.newBuilder[String]
     var i       = 0
     while (i < size) {
@@ -158,22 +180,20 @@ final class Headers private[http] (
    * fail-fast variant.
    */
   def getAll[A](headerCodec: Header.Codec[A]): Chunk[A] = {
-    val target  = headerCodec.name.toLowerCase(Locale.ROOT)
+    val target  = Headers.lowerName(headerCodec.name)
     val builder = Chunk.newBuilder[A]
     var i       = 0
     while (i < size) {
       if (names(i) == target) {
-        parsed(i) match {
-          case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
-            builder += cached.value.asInstanceOf[A]
-          case _ =>
-            headerCodec.parse(rawValues(i)) match {
-              case Right(value) =>
-                parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
-                builder += value
-              case Left(_) => // skip unparseable entries
-            }
-        }
+        val cached = cachedValue(i, headerCodec)
+        if (cached != null) builder += cached.asInstanceOf[A]
+        else
+          headerCodec.parse(rawValues(i)) match {
+            case Right(value) =>
+              storeParsed(i, headerCodec, value)
+              builder += value
+            case Left(_) => // skip unparseable entries
+          }
       }
       i += 1
     }
@@ -185,87 +205,98 @@ final class Headers private[http] (
    * of skipping unparseable entries.
    */
   def getAllStrict[A](headerCodec: Header.Codec[A]): Either[String, Chunk[A]] = {
-    val target  = headerCodec.name.toLowerCase(Locale.ROOT)
+    val target  = Headers.lowerName(headerCodec.name)
     val builder = Chunk.newBuilder[A]
     var i       = 0
     while (i < size) {
       if (names(i) == target) {
-        parsed(i) match {
-          case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
-            builder += cached.value.asInstanceOf[A]
-          case _ =>
-            headerCodec.parse(rawValues(i)) match {
-              case Right(value) =>
-                parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
-                builder += value
-              case Left(err) => return Left(err)
-            }
-        }
+        val cached = cachedValue(i, headerCodec)
+        if (cached != null) builder += cached.asInstanceOf[A]
+        else
+          headerCodec.parse(rawValues(i)) match {
+            case Right(value) =>
+              storeParsed(i, headerCodec, value)
+              builder += value
+            case Left(err) => return Left(err)
+          }
       }
       i += 1
     }
     Right(builder.result())
   }
 
-  def getLast[H <: Header](headerType: Header.Typed[H]): Option[H] = {
-    val all = getAll(headerType)
-    if (all.isEmpty) None else Some(all(all.length - 1))
+  /**
+   * Decodes the last header matching the supplied codec.
+   *
+   * Scans backwards so only entries down to the last parseable one are parsed;
+   * unlike `getAll(...).lastOption` this never parses the whole header list to
+   * return a single value. Unparseable entries are skipped like in [[get]].
+   */
+  def getLast[H <: Header](headerType: Header.Typed[H]): Maybe[H] = {
+    val target = Headers.lowerName(headerType.name)
+    var i      = size - 1
+    while (i >= 0) {
+      if (names(i) == target) {
+        val cached = cachedValue(i, headerType)
+        if (cached != null) return Maybe.present(cached.asInstanceOf[H])
+        headerType.parse(rawValues(i)) match {
+          case Right(value) =>
+            storeParsed(i, headerType, value)
+            return Maybe.present(value)
+          case Left(_) => // skip unparseable, keep scanning backwards
+        }
+      }
+      i -= 1
+    }
+    Maybe.absent
   }
 
   def add(header: Header): Headers = add(header.headerName, header.renderedValue)
 
   def add(name: String, value: String): Headers = {
-    Headers.validateNameOrThrow(name)
     Headers.validateValueOrThrow(value)
-    val newSize      = size + 1
-    val newNames     = new Array[String](newSize)
-    val newRawValues = new Array[String](newSize)
-    val newParsed    = new Array[AnyRef](newSize)
+    val newSize         = size + 1
+    val newNames        = new Array[String](newSize)
+    val newRawValues    = new Array[String](newSize)
+    val newParsedCodecs = new Array[Header.Codec[_]](newSize)
+    val newParsedValues = new Array[AnyRef](newSize)
     System.arraycopy(names, 0, newNames, 0, size)
     System.arraycopy(rawValues, 0, newRawValues, 0, size)
-    newNames(size) = name.toLowerCase(Locale.ROOT)
+    newNames(size) = Headers.validatedLowerName(name)
     newRawValues(size) = value
-    new Headers(newNames, newRawValues, newParsed, newSize)
+    new Headers(newNames, newRawValues, newParsedCodecs, newParsedValues, newSize)
   }
 
   def set(name: String, value: String): Headers = {
-    Headers.validateNameOrThrow(name)
-    Headers.validateValueOrThrow(value)
-    val lowerName = name.toLowerCase(Locale.ROOT)
-    val builder   = HeadersBuilder.make(size)
-    var i         = 0
+    val builder = HeadersBuilder.make(size)
+    var i       = 0
+    // Carried entries are already validated and lowercased: copy unchecked.
+    // The new pair goes through the validating `add`, which also enforces the
+    // name/value invariants for this call.
+    val target = Headers.lowerName(name)
     while (i < size) {
-      if (names(i) != lowerName) builder.add(names(i), rawValues(i))
+      if (names(i) != target) builder.addUnchecked(names(i), rawValues(i))
       i += 1
     }
-    builder.add(lowerName, value)
+    builder.add(name, value)
     builder.build()
   }
 
   def set(header: Header): Headers = set(header.headerName, header.renderedValue)
 
   def remove(name: String): Headers = {
-    Headers.validateNameOrThrow(name)
-    val lowerName = name.toLowerCase(Locale.ROOT)
+    val lowerName = Headers.validatedLowerName(name)
     val builder   = HeadersBuilder.make(size)
     var i         = 0
     while (i < size) {
-      if (names(i) != lowerName) builder.add(names(i), rawValues(i))
+      if (names(i) != lowerName) builder.addUnchecked(names(i), rawValues(i))
       i += 1
     }
     builder.build()
   }
 
-  def has(name: String): Boolean = {
-    Headers.validateNameOrThrow(name)
-    val target = name.toLowerCase(Locale.ROOT)
-    var i      = 0
-    while (i < size) {
-      if (names(i) == target) return true
-      i += 1
-    }
-    false
-  }
+  def has(name: String): Boolean =
+    indexOf(Headers.validatedLowerName(name)) >= 0
 
   def toList: List[(String, String)] = {
     val builder = List.newBuilder[(String, String)]
@@ -278,22 +309,40 @@ final class Headers private[http] (
   }
 
   override def equals(that: Any): Boolean = that match {
-    case h: Headers => toList == h.toList
-    case _          => false
+    case h: Headers =>
+      if (size != h.size) false
+      else {
+        var i = 0
+        while (i < size) {
+          if (names(i) != h.names(i) || rawValues(i) != h.rawValues(i)) return false
+          i += 1
+        }
+        true
+      }
+    case _ => false
   }
 
-  override def hashCode: Int = toList.hashCode
+  override def hashCode: Int = {
+    var h = 1
+    var i = 0
+    while (i < size) {
+      h = 31 * h + names(i).hashCode
+      h = 31 * h + rawValues(i).hashCode
+      i += 1
+    }
+    h
+  }
 
   def ++(other: Headers): Headers = {
     val builder = HeadersBuilder.make(size + other.size)
     var i       = 0
     while (i < size) {
-      builder.add(names(i), rawValues(i))
+      builder.addUnchecked(names(i), rawValues(i))
       i += 1
     }
     i = 0
     while (i < other.size) {
-      builder.add(other.names(i), other.rawValues(i))
+      builder.addUnchecked(other.names(i), other.rawValues(i))
       i += 1
     }
     builder.build()
@@ -327,9 +376,44 @@ final class Headers private[http] (
 }
 
 object Headers {
-  private final class ParsedValue(val codec: Header.Codec[_], val value: AnyRef)
+  val empty: Headers =
+    new Headers(Array.empty, Array.empty, Array.empty, Array.empty, 0)
 
-  val empty: Headers = new Headers(Array.empty, Array.empty, Array.empty, 0)
+  /**
+   * Lowercases a header name without validating it, allocating only when the
+   * name actually contains an uppercase ASCII character (or a non-ASCII
+   * character, which falls back to the JDK converter). Used for codec names,
+   * which were never validated on the read path.
+   */
+  private[http] def lowerName(name: String): String = {
+    var i = 0
+    while (i < name.length) {
+      val c = name.charAt(i)
+      if ((c >= 'A' && c <= 'Z') || c > 127) return name.toLowerCase(Locale.ROOT)
+      i += 1
+    }
+    name
+  }
+
+  /**
+   * Validates a header field name and returns its lowercase form in a single
+   * scan, allocating only when the name actually contains an uppercase ASCII
+   * character. Already-lowercase names — the common case — cost one cheap pass;
+   * this fuses the validation and case-normalization scans that raw reads would
+   * otherwise pay separately.
+   */
+  private[http] def validatedLowerName(name: String): String = {
+    if (name.isEmpty) throw new IllegalArgumentException("Header name cannot be empty")
+    var i          = 0
+    var needsLower = false
+    while (i < name.length) {
+      val c = name.charAt(i)
+      if (!isTokenChar(c)) throw new IllegalArgumentException(s"Invalid header name: $name")
+      if (c >= 'A' && c <= 'Z') needsLower = true
+      i += 1
+    }
+    if (needsLower) name.toLowerCase(Locale.ROOT) else name
+  }
 
   /**
    * Validates a header field name.
@@ -366,17 +450,32 @@ object Headers {
     Right(())
   }
 
-  private[http] def validateNameOrThrow(name: String): Unit =
-    validateName(name) match {
-      case Right(()) => ()
-      case Left(err) => throw new IllegalArgumentException(err)
+  /**
+   * Validates a header field name, throwing on failure. This is the hot-path
+   * entry point used by every read and write: unlike [[validateName]] it never
+   * allocates an `Either`, so a valid name costs a single scan.
+   */
+  private[http] def validateNameOrThrow(name: String): Unit = {
+    if (name.isEmpty) throw new IllegalArgumentException("Header name cannot be empty")
+    var i = 0
+    while (i < name.length) {
+      if (!isTokenChar(name.charAt(i))) throw new IllegalArgumentException(s"Invalid header name: $name")
+      i += 1
     }
+  }
 
-  private[http] def validateValueOrThrow(value: String): Unit =
-    validateValue(value) match {
-      case Right(()) => ()
-      case Left(err) => throw new IllegalArgumentException(err)
+  /**
+   * Validates a raw header field value, throwing on failure. Allocation-free on
+   * success, like [[validateNameOrThrow]].
+   */
+  private[http] def validateValueOrThrow(value: String): Unit = {
+    var i = 0
+    while (i < value.length) {
+      val c = value.charAt(i)
+      if (c == '\r' || c == '\n') throw new IllegalArgumentException("Header value cannot contain CR or LF")
+      i += 1
     }
+  }
 
   private def isTokenChar(c: Char): Boolean =
     (c >= 'A' && c <= 'Z') ||
@@ -400,10 +499,21 @@ final class HeadersBuilder private (
 ) {
 
   def add(name: String, value: String): Unit = {
-    Headers.validateNameOrThrow(name)
     Headers.validateValueOrThrow(value)
     ensureCapacity()
-    names(len) = name.toLowerCase(Locale.ROOT)
+    names(len) = Headers.validatedLowerName(name)
+    rawValues(len) = value
+    len += 1
+  }
+
+  /**
+   * Adds an entry whose name is already validated and lowercased, skipping both
+   * checks. Used when copying entries between collections, where every stored
+   * name already satisfies the invariants.
+   */
+  private[http] def addUnchecked(lowercasedName: String, value: String): Unit = {
+    ensureCapacity()
+    names(len) = lowercasedName
     rawValues(len) = value
     len += 1
   }
@@ -426,12 +536,13 @@ final class HeadersBuilder private (
     }
 
   def build(): Headers = {
-    val n = new Array[String](len)
-    val v = new Array[String](len)
-    val p = new Array[AnyRef](len)
+    val n  = new Array[String](len)
+    val v  = new Array[String](len)
+    val pc = new Array[Header.Codec[_]](len)
+    val pv = new Array[AnyRef](len)
     System.arraycopy(names, 0, n, 0, len)
     System.arraycopy(rawValues, 0, v, 0, len)
-    new Headers(n, v, p, len)
+    new Headers(n, v, pc, pv, len)
   }
 }
 
