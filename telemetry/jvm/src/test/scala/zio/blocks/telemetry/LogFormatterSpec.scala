@@ -552,6 +552,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
           .put("code.namespace", "com.example.Service")
           .put("code.function", "run")
           .put("code.lineno", 42L)
+          .put("code.reviewer", "ada")
           .put("user.string", "value")
           .put("user.long", 7L)
           .put("user.double", 3.5)
@@ -563,7 +564,11 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val viaRecord  =
           renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
 
-        assertTrue(viaBuilder == viaRecord)
+        assertTrue(
+          viaBuilder == viaRecord,
+          viaBuilder.contains("code.reviewer=\"ada\""),
+          viaRecord.contains("code.reviewer=\"ada\"")
+        )
       },
       test("json format and formatRecord are byte-identical") {
         val timestamp = 1719792613123000000L
@@ -572,6 +577,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val spanId    = 0x9999aaaabbbbccccL
         val builder   = Attributes.builder
           .put("code.namespace", "com.example.Service")
+          .put("code.reviewer", "ada")
           .put("user.string", "value")
           .put("user.long", 11L)
           .put("user.double", 4.25)
@@ -584,7 +590,11 @@ object LogFormatterSpec extends ZIOSpecDefault {
             logRecord(timestamp, Severity.Warn, "WARN", "json message", builder.build, traceIdHi, traceIdLo, spanId)
           )
 
-        assertTrue(viaBuilder == viaRecord)
+        assertTrue(
+          viaBuilder == viaRecord,
+          viaBuilder.contains("\"key\":\"code.reviewer\""),
+          viaRecord.contains("\"key\":\"code.reviewer\"")
+        )
       }
     ),
     suite("JsonLogFormatter.writeJsonStringContent")(
