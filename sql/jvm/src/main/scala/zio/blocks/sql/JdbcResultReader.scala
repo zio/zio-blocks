@@ -168,7 +168,7 @@ private[sql] class JdbcResultReader(val underlying: ResultSet) extends DbResultR
    * Treat that driver quirk as a NULL read.
    */
   private def isSqliteNullBigDecimalRead(e: java.sql.SQLException): Boolean =
-    e.getMessage != null && e.getMessage.contains("out of bounds")
+    e.getMessage != null && e.getMessage.contains("column -1 out of bounds")
 
   def getBytes(index: Int): Array[Byte] = {
     val v = underlying.getBytes(index)

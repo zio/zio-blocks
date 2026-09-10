@@ -33,15 +33,20 @@ object TransactorZIOSpec extends ZIOSpecDefault {
     var rollbackCalls: Int = 0,
     val autoCommitValues: ListBuffer[Boolean] = ListBuffer.empty,
     var failCommit: Boolean = false,
-    var failRollback: Boolean = false
+    var failRollback: Boolean = false,
+    var failGetAutoCommit: Boolean = false,
+    var failSetAutoCommit: Boolean = false
   )
 
   private def connection(state: ConnectionState): Connection = {
     val handler = new InvocationHandler {
       override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef =
         method.getName match {
-          case "getAutoCommit" => java.lang.Boolean.valueOf(state.autoCommit)
+          case "getAutoCommit" =>
+            if (state.failGetAutoCommit) throw new java.sql.SQLException("getAutoCommit failed")
+            java.lang.Boolean.valueOf(state.autoCommit)
           case "setAutoCommit" =>
+            if (state.failSetAutoCommit) throw new java.sql.SQLException("setAutoCommit failed")
             val value = args.nn(0).asInstanceOf[java.lang.Boolean].booleanValue()
             state.autoCommit = value
             state.autoCommitValues += value
@@ -111,6 +116,36 @@ object TransactorZIOSpec extends ZIOSpecDefault {
         state.closed,
         state.autoCommit,
         state.autoCommitValues.toList == List(false, true)
+      )
+    },
+    test("transactZIO closes conn and dbConn when getAutoCommit throws") {
+      val state                                               = ConnectionState(failGetAutoCommit = true)
+      val transactor                                          = new TransactorZIO(() => connection(state), SqlDialect.SQLite)
+      val program: DbTx ?=> _root_.zio.ZIO[Any, Nothing, Int] = _root_.zio.ZIO.succeed(42)
+
+      for {
+        exit <- transactor.transactZIO(program).exit
+      } yield assertTrue(
+        exit.isFailure,
+        state.closed,
+        state.autoCommit,
+        state.commitCalls == 0,
+        state.rollbackCalls == 0
+      )
+    },
+    test("transactZIO closes conn and dbConn when setAutoCommit throws") {
+      val state                                               = ConnectionState(failSetAutoCommit = true)
+      val transactor                                          = new TransactorZIO(() => connection(state), SqlDialect.SQLite)
+      val program: DbTx ?=> _root_.zio.ZIO[Any, Nothing, Int] = _root_.zio.ZIO.succeed(42)
+
+      for {
+        exit <- transactor.transactZIO(program).exit
+      } yield assertTrue(
+        exit.isFailure,
+        state.closed,
+        state.autoCommit,
+        state.commitCalls == 0,
+        state.rollbackCalls == 0
       )
     }
   )
