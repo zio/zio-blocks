@@ -1423,8 +1423,8 @@ lazy val benchmarks = project
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.40.1",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
       "dev.zio"                               %% "zio-json"              % "0.10.0",
-      "dev.zio"                               %% "zio-schema-avro"       % "1.8.6",
-      "dev.zio"                               %% "zio-schema-json"       % "1.8.6",
+      "dev.zio"                               %% "zio-schema-avro"       % "1.8.7",
+      "dev.zio"                               %% "zio-schema-json"       % "1.8.7",
       "io.github.arainko"                     %% "chanterelle"           % "0.1.6", // the last version that depends on Scala 3.7.x
       "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.15",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",
@@ -1513,7 +1513,7 @@ lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
   .jvmSettings(
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "ujson"                 % "3.1.0",
-      "dev.zio"     %% "zio-schema-derivation" % "1.8.6" % Test
+      "dev.zio"     %% "zio-schema-derivation" % "1.8.7" % Test
     )
   )
   .jsSettings(jsSettings)
@@ -1588,7 +1588,7 @@ lazy val zioGolemMacros = project
       "dev.zio"     %% "zio-test"              % "2.1.26" % Test,
       "dev.zio"     %% "zio-test-sbt"          % "2.1.26" % Test,
       "com.lihaoyi" %% "ujson"                 % "3.1.0"  % Test,
-      "dev.zio"     %% "zio-schema-derivation" % "1.8.6"  % Test
+      "dev.zio"     %% "zio-schema-derivation" % "1.8.7"  % Test
     )
   )
   .dependsOn(zioGolemModel.jvm)
