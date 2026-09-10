@@ -108,10 +108,10 @@ object HeaderCodecSpec extends ZIOSpecDefault {
     test("respects BindingInstance override for primitive codec") {
       val customIntCodec = new HeaderCodec[Int] {
         def encode(value: Int, output: HeadersBuilder): Unit =
-          output.add("Value", s"custom-$value")
+          output.add("value", s"custom-$value")
 
         def decode(input: Headers): Either[SchemaError, Int] = {
-          val raw = input.rawGet("Value")
+          val raw = input.rawGet("value")
           raw match {
             case Some(s) if s.startsWith("custom-") =>
               Right(s.stripPrefix("custom-").toInt)
@@ -125,7 +125,7 @@ object HeaderCodecSpec extends ZIOSpecDefault {
       val encoded = codec.encodeToHeaders(42)
 
       assertTrue(
-        encoded.rawGet("Value").contains("custom-42"),
+        encoded.rawGet("value").contains("custom-42"),
         codec.decode(encoded) == Right(42)
       )
     },

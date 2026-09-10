@@ -27,12 +27,16 @@ import zio.http.{QueryParams, QueryParamsBuilder}
  * derivation framework.
  */
 abstract class QueryCodec[A] extends Codec[QueryParams, QueryParamsBuilder, A] {
-  final def encodeToQueryParams(value: A): QueryParams =
-    ParamCodecSupport.withBuilder(QueryCodec.threadLocalBuilder, _.reset(), _.build())(encode(value, _))
+  final def encodeToQueryParams(value: A): QueryParams = {
+    val builder = QueryCodec.threadLocalBuilder.get()
+    builder.reset()
+    encode(value, builder)
+    builder.build()
+  }
 }
 
 object QueryCodec {
-  private[schema] val threadLocalBuilder: ThreadLocal[QueryParamsBuilder] =
+  private val threadLocalBuilder: ThreadLocal[QueryParamsBuilder] =
     new ThreadLocal[QueryParamsBuilder] {
       override def initialValue(): QueryParamsBuilder = QueryParamsBuilder.make()
     }
