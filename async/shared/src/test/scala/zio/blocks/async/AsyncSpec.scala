@@ -1566,7 +1566,7 @@ object AsyncSpec extends ZIOSpecDefault {
           )
         },
         test("deep catchAll spine over a PENDING failing source recovers below the depth bound") {
-          val n              = 2000
+          val n              = 10000
           val (c, p)         = AsyncTestSupport.pending[Int]
           var fa: Async[Int] = p.flatMap(_ => Async.fail(AsyncTestSupport.boom))
           var i              = 0

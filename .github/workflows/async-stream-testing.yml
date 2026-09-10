@@ -1,0 +1,158 @@
+name: Async stream testing
+
+on:
+  pull_request:
+    paths:
+      - 'streams/**'
+      - 'streams-benchmark/**'
+      - 'async/**'
+      - 'build.sbt'
+      - '.github/workflows/async-stream-testing.yml'
+  schedule:
+    - cron: '17 3 * * *'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      replay:
+        description: Serialized replay bundle
+        required: false
+
+jobs:
+  coverage:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: coursier/setup-action@v3
+        with: { jvm: 'temurin:25', apps: sbt }
+      - uses: coursier/cache-action@v8
+      - run: sbt 'set Global / concurrentRestrictions := Seq(Tags.limitAll(1)); ++3.8.3; project streamsJVM; coverage; clean; test; coverageReport'
+        env:
+          ASYNC_TEST_SAMPLES: '10000'
+          ASYNC_TEST_DEPTH: '8'
+      - run: python3 streams/testing/tool.py coverage streams/jvm/target/scala-3.8.3/scoverage-report/scoverage.xml
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with: { name: async-critical-coverage, path: streams/jvm/target/scala-3.8.3/scoverage-report, if-no-files-found: error }
+
+  pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { scala: '2.13.18', platform: JVM, java: '25' }
+          - { scala: '3.3.7', platform: JVM, java: '25' }
+          - { scala: '3.8.3', platform: JVM, java: '25' }
+          - { scala: '2.13.18', platform: JS, java: '17' }
+          - { scala: '3.3.7', platform: JS, java: '17' }
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: coursier/setup-action@v3
+        with: { jvm: 'temurin:${{ matrix.java }}', apps: sbt }
+      - uses: coursier/cache-action@v8
+      - run: python3 streams/testing/tool.py inventory && python3 streams/testing/tool.py check-campaigns && python3 streams/testing/tool.py check-replays && sbt "++${{ matrix.scala }}; streams${{ matrix.platform }}/test"
+        env:
+          ASYNC_TEST_SAMPLES: '10000'
+          ASYNC_TEST_DEPTH: '8'
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with: { name: 'async-repro-${{ matrix.platform }}-${{ matrix.scala }}', path: 'target/async-repro', if-no-files-found: ignore }
+
+  benchmarks:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: coursier/setup-action@v3
+        with: { jvm: 'temurin:25', apps: sbt }
+      - uses: coursier/cache-action@v8
+      - run: python3 streams-benchmark/tools/validate_matrix.py
+      - run: python3 streams-benchmark/tools/test_campaign.py
+      - run: sbt '++3.8.3; streams-benchmark/Jmh/compile; streams-benchmark/runMain zio.blocks.streams.bench.StreamAsyncBenchmarkCorrectness'
+
+  nightly:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { scala: '2.13.18', platform: JVM, java: '25' }
+          - { scala: '3.3.7', platform: JVM, java: '25' }
+          - { scala: '3.8.3', platform: JVM, java: '25' }
+          - { scala: '2.13.18', platform: JS, java: '17' }
+          - { scala: '3.3.7', platform: JS, java: '17' }
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: coursier/setup-action@v3
+        with: { jvm: 'temurin:${{ matrix.java }}', apps: sbt }
+      - run: python3 streams/testing/tool.py evidence --command "sbt '++${{ matrix.scala }}; streams${{ matrix.platform }}/test'" --out target/async-nightly-evidence.json
+        env:
+          ASYNC_TEST_SAMPLES: '100000'
+          ASYNC_TEST_DEPTH: '12'
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with: { name: 'async-nightly-${{ matrix.platform }}-${{ matrix.scala }}', path: 'target/async-*', if-no-files-found: error }
+
+  mutation:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: coursier/setup-action@v3
+        with: { jvm: 'temurin:25', apps: sbt }
+      - uses: coursier/cache-action@v8
+      - run: >-
+          python3 streams/testing/tool.py mutation
+          --command "sbt --client -Dsbt.color=false '++3.8.3; asyncJVM/testOnly zio.blocks.async.AsyncSpec; streamsJVM/testOnly zio.blocks.streams.AsyncReaderSpec zio.blocks.streams.SyncInterpreterSpec zio.blocks.streams.ReadNSpec zio.blocks.streams.SinkLawsSpec'"
+          --out target/async-mutation-evidence.json
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: async-mutation
+          path: |
+            target/async-mutation-evidence.json
+            target/mutations
+          if-no-files-found: error
+
+  soak:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 780
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { scala: '2.13.18', platform: JVM, java: '25' }
+          - { scala: '3.3.7', platform: JVM, java: '25' }
+          - { scala: '3.8.3', platform: JVM, java: '25' }
+          - { scala: '2.13.18', platform: JS, java: '17' }
+          - { scala: '3.3.7', platform: JS, java: '17' }
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: coursier/setup-action@v3
+        with: { jvm: 'temurin:${{ matrix.java }}', apps: sbt }
+      - run: python3 streams/testing/tool.py evidence --command "sbt '++${{ matrix.scala }}; streams${{ matrix.platform }}/test'" --out target/async-soak-evidence.json
+        env:
+          ASYNC_TEST_SAMPLES: '100000'
+          ASYNC_TEST_DEPTH: '12'
+          ASYNC_SOAK_MIN_HOURS: '12'
+          ASYNC_SOAK_MIN_OPERATIONS: '10000000'
+          ASYNC_SOAK_WATCHDOG_SECONDS: '60'
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with: { name: 'async-soak-${{ matrix.platform }}-${{ matrix.scala }}', path: 'target/async-*', if-no-files-found: error }
+
+  replay:
+    if: github.event_name == 'workflow_dispatch' && inputs.replay != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: coursier/setup-action@v3
+        with: { jvm: 'temurin:25', apps: sbt }
+      - run: python3 streams/testing/tool.py replay "$ASYNC_REPLAY" && sbt "++3.8.3; asyncReplay"
+        env:
+          ASYNC_REPLAY: '${{ inputs.replay }}'

@@ -17,7 +17,7 @@
 package zio.blocks.streams.internal
 
 object StreamState {
-  private final val IDX_BITS  = 13
+  private final val IDX_BITS  = 15
   private final val IDX_MASK  = (1 << IDX_BITS) - 1
   private final val LANE_BITS = 4
   private final val LANE_MASK = (1 << LANE_BITS) - 1
@@ -57,5 +57,5 @@ object StreamState {
     (s & ~LANE_MASK.toLong) | v.toLong
 
   final val empty: Long = 0L
-  final val MaxIndex    = 8191
+  final val MaxIndex    = 32767
 }

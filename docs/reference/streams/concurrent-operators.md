@@ -3,25 +3,35 @@ id: concurrent-operators
 title: "Concurrent Operators"
 ---
 
-ZIO Blocks Streams ships **three** concurrent operators that fan work across virtual threads while preserving the typed-error, synchronous, pull-based programming model. The calling thread still receives `Either[E, Z]` — no effect system is required.
+ZIO Blocks Streams has two concurrency families. `mapPar`, `mergeAll`, and `flatMapPar` select their reader implementation when the stream is materialized: asynchronous terminals use the cross-platform `AsyncConcurrentReaders`, while JVM plain terminals use blocking concurrent readers backed by virtual threads (or daemon platform threads on older JDKs). `mapParAsync` accepts native `Async` callbacks; use `Stream.unwrap` when `flatMapPar` children are produced asynchronously.
 
 | Operator | Purpose |
 |---|---|
-| `Stream#mapPar(n)(f)` | Apply `f` to each element on up to `n` worker threads. Output is **unordered** (arrival order, not input order). |
-| `Stream.mergeAll(n)(streams)` | Drain up to `n` inner streams concurrently; interleave their elements as they arrive. |
+| `Stream#mapPar(n)(f)` | Apply `f` to elements with up to `n` operations active. Output is **unordered** (arrival order, not input order). |
+| `Stream.mergeAll(n)(streams)` | Drain up to `n` inner streams concurrently; interleave their elements as they become available. |
 | `Stream#flatMapPar(n)(f)` | Per element, produce a sub-stream via `f`; drain up to `n` sub-streams concurrently. |
+| `Stream#mapParAsync(n)(f)` | Keep at most `n` `Async` callbacks in flight and emit results in completion order. |
 
-All three operators are **JVM-only**. On Scala.js they degrade to sequential equivalents (`map`, `flatten`, `flatMap`).
+With an asynchronous terminal such as `runCollectAsync`, both platforms use native asynchronous concurrent readers for these operators, even when the upstream and callback are synchronous. `mergeAll` and `flatMapPar` may then consume a dynamic mixture of synchronous and asynchronous inner streams; synchronous readers are adapted to async readers as each child is opened. On Scala.js this provides interleaved asynchronous progress and bounded in-flight work on the event loop, **not CPU parallelism**. It is therefore inaccurate to describe `mergeAll` as universally sequential on Scala.js: only its internal synchronous-reader fallback is sequential, and public Scala.js consumption uses asynchronous terminals.
+
+When `n` is one, `mapPar`, `mapParAsync`, `mergeAll`, and `flatMapPar`
+degrade to their corresponding sequential operator and avoid allocating
+concurrent coordination machinery.
+
+Use `mapParAsync` when an element callback returns `Async`. For asynchronous
+child construction, use `flatMapPar(n)(a => Stream.unwrap(f(a)))`; the callback
+and installed child share one of the `n` slots. For sequential asynchronous
+children, use `flatMap(a => Stream.unwrap(f(a)))`.
 
 ## Semantics
 
-**Output order.** Concurrent output is **unordered** with respect to input position. Elements arrive as workers complete, not in input order. If you need input order, use sequential `map` / `flatMap`.
+**Output order.** Concurrent output is **unordered** with respect to input position. Elements arrive as operations complete or children produce them, not in input order. If you need input order, use sequential `map` / `flatMap`.
 
-**Error propagation.** The first typed error from any worker or inner stream terminates all concurrent work and surfaces as `Left(e)` from the terminal operation. Defects (unexpected exceptions) propagate as thrown exceptions, same as sequential operators.
+**Error propagation.** The first observed typed source/child error terminates the operation and surfaces as `Left(e)`. A failed `Async` callback is a defect and fails the outer terminal effect. Remaining workers/callbacks are cancelled; already completed output may have been emitted because ordering is completion-based.
 
-**Resource safety.** All worker threads and ring-buffer queues are cleaned up deterministically when the consumer closes the reader, the stream errors, or the scope finalizes.
+**Resource safety.** All worker threads, asynchronous children, selectors, and queues are cleaned up when the consumer closes, fails, or cancels. Closing is idempotent and waits for cleanup; a cleanup failure is attached to a primary failure rather than replacing it.
 
-**Primitive specialization.** Readers produced by concurrent operators preserve primitive specialization — `Int`, `Long`, `Float`, and `Double` streams use specialized lock-free queues internally, avoiding boxing in the concurrent handoff between threads.
+**Primitive specialization.** JVM blocking concurrent readers preserve primitive specialization — `Int`, `Long`, `Float`, and `Double` streams use specialized lock-free queues internally, avoiding boxing in the handoff between worker threads. Async readers also carry the output `JvmType` through materialization.
 
 ## Buffer sizing
 
@@ -35,9 +45,11 @@ Stream.bufferSize(256) {
 
 Larger buffers help when producers are bursty; smaller buffers reduce memory when many concurrent streams are active. The default is fine for most workloads.
 
-`Pipeline.buffer(n)` inserts a buffer of `n` elements between upstream and downstream (async handoff on JVM, sync on JS).
+`Pipeline.buffer(n)` inserts a bounded buffer between upstream and downstream. It participates in the native asynchronous reader graph on both platforms.
 
 ## Examples
+
+The three plain-terminal examples below are **JVM-only** because Scala.js exposes asynchronous terminals rather than blocking ones. In shared code, replace the terminal with (for example) `runCollectAsync` or `runFoldAsync`; the plain concurrent operators still use the cross-platform async implementation. Use `mapParAsync` for an `Async` element callback and `Stream.unwrap` for an asynchronously produced child stream.
 
 ### `mapPar`
 
@@ -90,10 +102,11 @@ val err2 = Stream.mergeAll(4)(Stream.fromIterable(
 
 ## Guidelines
 
-- **Use `mapPar(n)(f)` for expensive per-element work** — network calls, CPU-bound computation, blocking I/O. Do not use it for trivially cheap functions (e.g. `_ + 1`); the thread-handoff overhead exceeds the parallelism benefit.
+- **Use `mapPar(n)(f)` for expensive per-element work.** JVM blocking terminals can parallelize CPU-bound computation and blocking I/O. With async terminals, use it to bound and interleave work, remembering that Scala.js still executes synchronous callbacks on one event-loop thread. Do not use it for trivially cheap functions (e.g. `_ + 1`); coordination overhead exceeds the benefit.
 - **Use `mergeAll(n)(streams)` for concurrent fan-in** — draining multiple independent sources (files, connections, partitions) simultaneously. Use `flatMapPar(n)(f)` when each input element produces a sub-stream to drain concurrently.
 - **Concurrent output is unordered.** If you need sorted results, apply `.runCollect.map(_.sorted)` or accumulate into a structure that handles ordering. If you need input-order preservation, use sequential `map` / `flatMap`.
-- **`mapPar`, `mergeAll`, and `flatMapPar` are JVM-only.** On JS they degrade to sequential equivalents.
+- **Choose the terminal for the platform.** JVM plain terminals materialize blocking concurrent readers. Async terminals materialize native `AsyncConcurrentReaders` on both JVM and Scala.js; on JS they overlap asynchronous progress on one event-loop thread rather than parallelizing CPU work.
+- **Mixed inner kinds are supported by async fan-in.** `mergeAll` / `flatMapPar` can open synchronous and asynchronous inner streams dynamically when consumed by an async terminal. The Scala.js-only synchronous fallback cannot drive an asynchronous inner.
 
 ## Comparison with other libraries
 

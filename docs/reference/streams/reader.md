@@ -3,9 +3,9 @@ id: reader
 title: "Reader"
 ---
 
-`Reader[+Elem]` is the **pull-based source that powers ZIO Blocks streams**. When you call a terminal operation like `stream.run(sink)`, the stream compiles into a `Reader`, which yields values one at a time on demand until closed. 
+`Reader[+Elem]` is the **pull-based source that powers ZIO Blocks streams**. When you call a terminal operation like `stream.run(sink)`, the stream compiles into a `Reader`, which yields values one at a time on demand until closed.
 
-The fundamental operations are `read(sentinel)` — returns the next element or a sentinel when exhausted — and `close()` — signals stream end and releases resources. Most users never interact with `Reader` directly, but understanding it clarifies how streams work internally.
+`Reader` is sealed into `Reader.SyncReader[Elem]` and `Reader.AsyncReader[Elem]`. A synchronous reader's `read` and `close` return directly; an asynchronous reader's pull and lifecycle methods return `Async`. Most users never interact with either subtype directly, but understanding them clarifies how streams work internally.
 
 The compilation and execution flow:
 
@@ -17,23 +17,44 @@ Stream[E, A] ──(compile)──> Reader[A]
 
 `Reader`:
 - Is lazy and pull-based — `Stream` transformations don't run until `read()` is called, running in constant space one element at a time
-- Is not thread-safe — designed for single-threaded consumption
-- Uses a sentinel protocol where callers specify the end-of-stream value; for primitives, specialized methods like `Reader#readInt(sentinel)` avoid boxing entirely
-- Dispatches on `Reader#jvmType` to use specialized, unboxed reads for primitive types
+- Is a single-consumer cursor — do not share a `SyncReader` between threads or overlap operations on an `AsyncReader`
+- Uses a sentinel protocol where callers specify the end-of-stream value; all eight JVM primitives have exact physical pull methods: `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`
+- Dispatches on `Reader#jvmType`, which describes the reader's physical representation and therefore the exact pull method it supports, not merely the static or logical element type
 - Is the compilation target of `Stream` — when a stream runs, it becomes a `Reader`
-- Guarantees resource safety by tracking and closing files, database connections, and buffers via `finally` blocks, even if consumption stops early or fails
+- Transfers lifecycle responsibility explicitly: terminals and bracketed APIs close their owned reader, while callers of `startAsync` own the returned reader and must await `close()`
 - Supports composition by chaining readers through transformations without materializing intermediate data
 
 Here is the core `Reader` interface with the most essential methods:
 
 ```scala
-abstract class Reader[+Elem] {
+sealed abstract class Reader[+Elem]
+
+abstract class Reader.SyncReader[+Elem] extends Reader[Elem] {
   def read[A >: Elem](sentinel: A): A
-  def close(): Unit
+  def readAll[A >: Elem](): Chunk[A]
+  def readN[A >: Elem](n: Int): Chunk[A]
+  def readUpToN[A >: Elem](n: Int): Chunk[A]
   def isClosed: Boolean
   def readable(): Boolean
+  def close(): Unit
+  def toAsync: Reader.AsyncReader[Elem]
+}
+
+abstract class Reader.AsyncReader[+Elem] extends Reader[Elem] {
+  def read[A >: Elem](sentinel: A): Async[A]
+  def readAll[A >: Elem](): Async[Chunk[A]]
+  def readN[A >: Elem](n: Int): Async[Chunk[A]]
+  def readUpToN[A >: Elem](n: Int): Async[Chunk[A]]
+  def isClosed: Async[Boolean]
+  def readable(): Async[Boolean]
+  def close(): Async[Unit]
+  // JVM only: def toSync: Reader.SyncReader[Elem]
 }
 ```
+
+The sealed root contains only kind-independent composition and metadata (`++`, `concat`, `concatAsync`, `withReleaseAsync`, and `jvmType`); it cannot be pulled, queried, or closed directly. Those operations belong to one of the two concrete reader kinds. Every primitive, bulk, lifecycle, and pushdown method on `AsyncReader` has the same parameters as its `SyncReader` counterpart but returns its result in `Async` (for example, `readInt: Async[Long]`, `readBytes: Async[Int]`, `skip: Async[Unit]`, and `setLimit: Async[Boolean]`). The eight physical primitive methods are `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`; a primitive `jvmType` is a contract that the corresponding method works, even when covariance has widened the reader's static element type.
+
+An `AsyncReader` permits one active operation at a time. Await each pull or control operation before starting the next; `close()` participates in the same lifecycle, cancels or joins active work, and must itself be awaited. Closing is the owner's responsibility and should happen exactly once (repeated close is tolerated by library readers). `SyncReader#toAsync` is cross-platform and returns a lifecycle-preserving view: closing either side closes the same underlying source. `AsyncReader#toSync` exists only on the JVM, blocks the calling thread, and likewise shares ownership rather than copying the reader; do not continue consuming through both views.
 
 ## Quick Showcase
 
@@ -76,13 +97,15 @@ The streaming intuition is different: instead of pulling all data at once, what 
 
 Several ways to create a `Reader`, from predefined singletons to collections and I/O sources:
 
+Factories such as `closed`, `fromChunk`, `fromIterable`, `fromRange`, `single`, `repeat`, and `unfold` return `SyncReader`. `unfoldAsync` returns a native `AsyncReader`; its state callback is lazy, only one callback is active, and state is committed only after a successful current-generation callback. `repeated` preserves whether its input is synchronous or asynchronous. Composition also preserves asynchronous work: `concatAsync` lazily acquires the next reader and `withReleaseAsync` awaits asynchronous cleanup. Asynchronous children are supported throughout the reader graph.
+
 ### Creating Predefined Readers
 
 `Reader.closed` — An already-closed reader that emits no elements. Useful as a base case or for empty streams:
 
 ```scala
 object Reader {
-  def closed: Reader[Nothing]
+  def closed: Reader.SyncReader[Nothing]
 }
 ```
 
@@ -102,7 +125,7 @@ println(r.read(-1))        // -1 (the sentinel)
 
 ```scala
 object Reader {
-  def fromChunk[A](chunk: Chunk[A])(implicit jt: JvmType.Infer[A]): Reader[A]
+  def fromChunk[A](chunk: Chunk[A])(implicit jt: JvmType.Infer[A]): Reader.SyncReader[A]
 }
 ```
 
@@ -130,7 +153,7 @@ drain()
 
 ```scala
 object Reader {
-  def fromIterable[A](it: Iterable[A]): Reader[A]
+  def fromIterable[A](it: Iterable[A]): Reader.SyncReader[A]
 }
 ```
 
@@ -157,7 +180,7 @@ drain()
 
 ```scala
 object Reader {
-  def fromRange(range: Range): Reader[Int]
+  def fromRange(range: Range): Reader.SyncReader[Int]
 }
 ```
 
@@ -181,19 +204,19 @@ drain()
 
 ### From I/O
 
-`Reader.fromInputStream` — Wraps a `java.io.InputStream` as a `Reader[Int]`, where each byte is widened to `Int` (0–255). This avoids boxing on `.map`/`.filter` since `Function1` is specialized for `Int`:
+`Reader.fromInputStream` — Wraps a `java.io.InputStream` as a `SyncReader[Byte]`. `readByte()` exposes the unsigned `0`–`255` view and reserves `-1` exclusively for EOF; ordinary element pulls retain `Byte` values:
 
 ```scala
 object Reader {
-  def fromInputStream(is: InputStream): Reader[Int]
+  def fromInputStream(is: InputStream): Reader.SyncReader[Byte]
 }
 ```
 
-`Reader.fromReader` — Wraps a `java.io.Reader` as a `Reader[Char]` for character-based I/O:
+`Reader.fromReader` — Wraps a `java.io.Reader` as a `SyncReader[Char]` for character-based I/O:
 
 ```scala
 object Reader {
-  def fromReader(r: java.io.Reader): Reader[Char]
+  def fromReader(r: java.io.Reader): Reader.SyncReader[Char]
 }
 ```
 
@@ -203,25 +226,25 @@ object Reader {
 
 ```scala
 object Reader {
-  def single[A](value: A)(implicit jt: JvmType.Infer[A]): Reader[A]
-  def singleInt(value: Int): Reader[Int]
-  def singleLong(value: Long): Reader[Long]
-  def singleFloat(value: Float): Reader[Float]
-  def singleDouble(value: Double): Reader[Double]
-  def singleChar(value: Char): Reader[Char]
-  def singleShort(value: Short): Reader[Short]
-  def singleByte(value: Byte): Reader[Int]
-  def singleBoolean(value: Boolean): Reader[Boolean]
+  def single[A](value: A)(implicit jt: JvmType.Infer[A]): Reader.SyncReader[A]
+  def singleInt(value: Int): Reader.SyncReader[Int]
+  def singleLong(value: Long): Reader.SyncReader[Long]
+  def singleFloat(value: Float): Reader.SyncReader[Float]
+  def singleDouble(value: Double): Reader.SyncReader[Double]
+  def singleChar(value: Char): Reader.SyncReader[Char]
+  def singleShort(value: Short): Reader.SyncReader[Short]
+  def singleByte(value: Byte): Reader.SyncReader[Byte]
+  def singleBoolean(value: Boolean): Reader.SyncReader[Boolean]
 }
 ```
 
 When you use `Reader.single`, behavior differs between reference types and primitives. The `JvmType.Infer[A]` implicit parameter enables compile-time type detection, automatically selecting the appropriate implementation (specialized primitive or reference-type generic).
 
-For reference types like String, `Reader.single("hello")` stores the element directly and uses an internal sentinel object (`EndOfStream`) to signal end-of-stream. You read via the generic `Reader#read[A](sentinel)` method, passing your own sentinel value. On the first call, you get your string; on subsequent calls, you receive the sentinel you provided, allowing you to detect stream closure.
+For reference types like String, `Reader.single("hello")` stores the element directly and uses an internal sentinel object (`EndOfStream`) to signal end-of-stream. You read via the generic `SyncReader#read[A](sentinel)` method, passing your own sentinel value. On the first call, you get your string; on subsequent calls, you receive the sentinel you provided, allowing you to detect stream closure.
 
 For primitive types, `Reader.single(42)` could naively box the integer, but the library avoids this penalty entirely via `SingletonPrim`—a zero-boxing specialization that stores the primitive unboxed in memory. The `JvmType.Infer` implicit detects this at compile time and routes you through specialized factory methods (`Reader.singleInt`, `Reader.singleLong`, etc.) and specialized read methods (`Reader#readInt`, `Reader#readLong`, etc.). Both storage and retrieval stay unboxed, maintaining zero-copy efficiency.
 
-Note: `Reader.singleByte` returns `Reader[Int]` (not `Reader[Byte]`) because Java's primitive byte type is typically widened to int in arrays and I/O contexts; this aligns with JVM conventions for byte-level operations. When reading, use `Reader#readInt(sentinel: Long): Long`, which returns a long to maintain the sentinel protocol—extract the int via casting if needed.
+`Reader.singleByte` returns `SyncReader[Byte]` and reports `JvmType.Byte`. Its physical scalar pull is `readByte(): Int`, which returns the unsigned byte value `0`–`255` or `-1` at EOF.
 
 Create and read from a single-element reference-type reader with a custom sentinel:
 
@@ -234,7 +257,7 @@ println(r.read(sentinel))    // hello
 println(r.read(sentinel))    // END (sentinel, reader is closed)
 ```
 
-For primitive types, use the specialized factory and read methods. The `Reader#readInt` method takes a `Long` sentinel (to avoid confusion with sentinel values that fit in int range) and returns `Long` so you can distinguish the actual int value from the sentinel:
+For primitive types, use the specialized factory and read methods. `SyncReader#readInt` takes a `Long` sentinel and returns `Long`; `AsyncReader#readInt` takes the same sentinel and returns `Async[Long]`:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
@@ -253,7 +276,7 @@ println(v2)    // -9223372036854775808 (sentinel, reader is closed)
 
 ```scala
 object Reader {
-  def repeat[A](a: A)(implicit jt: JvmType.Infer[A]): Reader[A]
+  def repeat[A](a: A)(implicit jt: JvmType.Infer[A]): Reader.SyncReader[A]
 }
 ```
 
@@ -279,6 +302,8 @@ drainN(3)
 
 ```scala
 object Reader {
+  def repeated[A](inner: SyncReader[A]): SyncReader[A]
+  def repeated[A](inner: AsyncReader[A]): AsyncReader[A]
   def repeated[A](inner: Reader[A]): Reader[A]
 }
 ```
@@ -289,7 +314,8 @@ object Reader {
 
 ```scala
 object Reader {
-  def unfold[S, A](s: S)(f: S => Option[(A, S)]): Reader[A]
+  def unfold[S, A](s: S)(f: S => Option[(A, S)]): Reader.SyncReader[A]
+  def unfoldAsync[S, A](s: S)(f: S => Async[Option[(A, S)]]): Reader.AsyncReader[A]
 }
 ```
 
@@ -319,11 +345,15 @@ These methods form the primary interface for consuming elements and querying rea
 
 ### Pulling Elements
 
-`Reader#read` — Pulls the next element, or returns `sentinel` if the reader is closed and empty. This is the fundamental operation: call it repeatedly to consume all elements until it returns your sentinel value:
+`read` pulls the next element, or produces `sentinel` if the reader is closed and empty. This is the fundamental operation. The synchronous and asynchronous signatures are distinct:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def read[A >: Elem](sentinel: A): A
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def read[A >: Elem](sentinel: A): Async[A]
 }
 ```
 
@@ -346,32 +376,40 @@ For primitive types, specialized methods avoid boxing by widening the return typ
 `Reader#readInt` — Sentinel-return `Int` pull. Returns the element widened to `Long`, or `sentinel` when closed. The sentinel must lie outside `[Int.MinValue, Int.MaxValue]` (typically `Long.MinValue`):
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def readInt(sentinel: Long)(using Elem <:< Int): Long
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def readInt(sentinel: Long)(using Elem <:< Int): Async[Long]
 }
 ```
 
 Why widen to `Long`? If `Reader#readInt` returned `Int`, you couldn't distinguish a real element from the sentinel—both would fit in the int range. By widening to `Long`, the sentinel (e.g., `Long.MinValue`) lies outside the possible int domain, allowing reliable end-of-stream detection. Cast the result back to `Int` if needed: `r.readInt(Long.MinValue).toInt`.
 
-`Reader#readLong` — Sentinel-return `Long` pull. Returns the element, or `sentinel` when closed. The sentinel must be a value that never appears in the stream (typically `Long.MaxValue`):
+`Reader#readLong` — Sentinel-return `Long` pull. This low-level scalar method cannot distinguish EOF from a real element equal to the caller's sentinel:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def readLong(sentinel: Long)(using Elem <:< Long): Long
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def readLong(sentinel: Long)(using Elem <:< Long): Async[Long]
 }
 ```
 
-:::note[Sentinel Collisions Are Disambiguated]
-Unlike `Reader#readInt` which widens to `Long`, `Reader#readLong` has no wider type to safely house the sentinel — a real `Long.MaxValue` element and end-of-stream both come back as the sentinel value. To disambiguate, every read records an out-of-band flag, exposed as `Reader#lastReadWasEOF`: after a read that returned the sentinel, `lastReadWasEOF` is `true` only for genuine end-of-stream. The library's own drain loops test `v == sentinel && reader.lastReadWasEOF`, so streams containing the sentinel value are processed losslessly; manual pull loops should do the same.
-
-**Performance Tradeoff:** `Reader#readLong` avoids boxing on every read—the long stays unboxed in memory, and retrieval is a simple memory fetch. In contrast, `Reader#read[Long](sentinel)` boxes each long into a generic `Any` reference, forcing allocation and garbage collection pressure in hot loops. For latency-sensitive or high-throughput workloads (millions of elements per second), this difference is measurable. The `lastReadWasEOF` check costs nothing on the hot path — it only needs consulting on the rare value/sentinel collision.
-:::
+The scalar API necessarily permits a collision with the caller's sentinel. Collision-free internal pulls preserve the complete `Long` domain by calling `readLongs` with a length-one array and using its returned count (`-1` for EOF, `1` for data) as status. Custom full-domain loops should use the same pattern.
 
 `Reader#readFloat` — Sentinel-return `Float` pull. Returns the element widened to `Double`, or `sentinel` when closed:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def readFloat(sentinel: Double)(using Elem <:< Float): Double
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def readFloat(sentinel: Double)(using Elem <:< Float): Async[Double]
 }
 ```
 
@@ -380,14 +418,16 @@ Like `Reader#readInt`, widening to `Double` allows the sentinel to lie safely ou
 `Reader#readDouble` — Sentinel-return `Double` pull. Returns the element, or `sentinel` when closed. The sentinel must be a value outside the domain (typically `Double.MaxValue`):
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def readDouble(sentinel: Double)(using Elem <:< Double): Double
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def readDouble(sentinel: Double)(using Elem <:< Double): Async[Double]
 }
 ```
 
-:::danger[Sentinel Collision Risk for Doubles]
-Like `Reader#readLong`, `Reader#readDouble` has no wider type to safely contain the sentinel. If your actual data stream contains `Double.MaxValue` or the sentinel you chose, you will incorrectly detect end-of-stream mid-stream. Always verify that your data domain excludes the chosen sentinel value. Alternatively, use `Reader#read[Double](sentinel)` (the generic method) if you need the flexibility to choose any sentinel regardless of your data—this trades performance (boxing on every read) for safety.
-:::
+Like scalar `readLong`, scalar `readDouble` cannot reserve a collision-free value (and NaN comparisons add another trap). Collision-free internal pulls call `readDoubles` with a length-one array and use its returned count as EOF/data status, preserving infinities, every NaN payload, and either zero. Custom full-domain loops should use the same pattern.
 
 These specialized methods are the hot path for primitive streams — they avoid allocation and boxing entirely:
 
@@ -406,8 +446,12 @@ val v = r.readInt(sentinel)
 `Reader#readByte` — Reads a single byte (0–255), widened to `Int`. Returns `-1` when the reader is closed. Dispatches on `Reader#jvmType` for zero-boxing when the reader is specialized:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def readByte(): Int
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def readByte(): Async[Int]
 }
 ```
 
@@ -439,7 +483,7 @@ drainBytes()
 
 `Reader#readBytes` — Bulk byte read into a caller-supplied buffer, mirroring `java.io.InputStream#read(byte[], int, int)`. The behavior is:
 
-- Blocks until at least 1 byte is available.
+- A `SyncReader` blocks until at least 1 byte is available; an `AsyncReader` represents that wait in `Async`.
 - Returns the number of bytes read (`1 <= r <= len`).
 - Returns `-1` when closed and empty.
 - Returns `0` immediately when `len == 0`.
@@ -447,8 +491,12 @@ drainBytes()
 The method signature is:
 
 ```scala
-abstract class Reader[+Elem] {
-  def readBytes(buf: Array[Byte], offset: Int, len: Int): Int
+abstract class Reader.SyncReader[+Elem] {
+  def readBytes(buf: Array[Byte], offset: Int, len: Int)(using Elem <:< Byte): Int
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def readBytes(buf: Array[Byte], offset: Int, len: Int)(using Elem <:< Byte): Async[Int]
 }
 ```
 
@@ -483,24 +531,36 @@ drainBulk()
 `Reader#readChar` — Sentinel-return `Char` pull. Returns the element widened to `Int`, or `sentinel` when closed. Requires evidence that `Elem <:< Char`:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def readChar(sentinel: Int)(using Elem <:< Char): Int
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def readChar(sentinel: Int)(using Elem <:< Char): Async[Int]
 }
 ```
 
 `Reader#readShort` — Sentinel-return `Short` pull. Returns the element widened to `Int`, or `sentinel` when closed:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def readShort(sentinel: Int)(using Elem <:< Short): Int
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def readShort(sentinel: Int)(using Elem <:< Short): Async[Int]
 }
 ```
 
 `Reader#readBoolean` — Sentinel-return `Boolean` pull. Returns `1` for `true`, `0` for `false`, or `sentinel` when closed. The sentinel must lie outside `[0, 1]` (typically `-1`):
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def readBoolean(sentinel: Int)(using Elem <:< Boolean): Int
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def readBoolean(sentinel: Int)(using Elem <:< Boolean): Async[Int]
 }
 ```
 
@@ -509,8 +569,12 @@ abstract class Reader[+Elem] {
 `Reader#readAll` — Drains the entire reader into a `Chunk`. Dispatches on `Reader#jvmType` for zero-boxing on primitive readers:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def readAll[A >: Elem](): Chunk[A]
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def readAll[A >: Elem](): Async[Chunk[A]]
 }
 ```
 
@@ -528,26 +592,38 @@ println(all)  // Chunk(10, 20, 30)
 `Reader#skip` — Eagerly discards the first `n` elements. Dispatches on `Reader#jvmType` for zero-boxing when possible:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def skip(n: Long): Unit
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def skip(n: Long): Async[Unit]
 }
 ```
 
 ### State Queries
 
-`Reader#isClosed` — Returns `true` if the reader is closed. Monotone: once `true`, never returns `false`:
+`isClosed` reports whether the reader is closed. Its result is monotone: once `true`, it never becomes `false`:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def isClosed: Boolean
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def isClosed: Async[Boolean]
 }
 ```
 
-`Reader#readable` — Returns `true` if the next `read()` would return a value (not the sentinel). Default implementation returns `!isClosed`. Buffered readers can override `readable()` for accuracy to peek ahead without consuming:
+`readable` reports whether the next `read()` would produce a value (not the sentinel). On `AsyncReader` the answer itself is asynchronous. Buffered readers can override it for an accurate, non-consuming probe:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def readable(): Boolean
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def readable(): Async[Boolean]
 }
 ```
 
@@ -616,19 +692,27 @@ Close readers and attach cleanup callbacks:
 
 ### Closing
 
-`Reader#close` — Signals end-of-stream from the consumer side and releases any held resources. Implementations set internal closed state and wake any blocked readers. This is always called in a `finally` block by sinks to guarantee resource cleanup:
+`close` signals end-of-stream from the consumer side and releases any held resources. Implementations set internal closed state and wake or cancel any pending work. A synchronous owner calls it directly; an asynchronous owner must run and await the returned `Async`:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def close(): Unit
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def close(): Async[Unit]
 }
 ```
 
-`Reader#withRelease` — Wraps this reader so that `release` runs after `Reader#close()`. Useful for attaching cleanup logic:
+`SyncReader#withRelease` wraps a synchronous reader so that `release` runs when it closes. `withReleaseAsync`, available on the sealed root, returns an `AsyncReader` and awaits asynchronous cleanup:
 
 ```scala
-abstract class Reader[+Elem] {
-  def withRelease(release: () => Unit): Reader[Elem]
+abstract class Reader.SyncReader[+Elem] {
+  def withRelease(release: () => Unit): Reader.SyncReader[Elem]
+}
+
+sealed abstract class Reader[+Elem] {
+  def withReleaseAsync(release: () => Async[Unit]): Reader.AsyncReader[Elem]
 }
 ```
 
@@ -656,8 +740,12 @@ Readers can sometimes handle skip, limit, and repeat operations natively (O(1), 
 `Reader#setSkip` — Attempts to set a skip (drop) on this reader. Returns `true` if handled natively, `false` if the caller must wrap. When `true`, the next n elements are discarded before producing. After `Reader#reset()`, the skip is re-applied:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def setSkip(n: Long): Boolean
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def setSkip(n: Long): Async[Boolean]
 }
 ```
 
@@ -689,8 +777,12 @@ drain()
 `Reader#setLimit` — Attempts to set a limit on this reader so it produces at most `n` elements. Returns `true` if handled natively, `false` if the caller must wrap. After `reset()`, the limit is re-applied from the new start position:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def setLimit(n: Long): Boolean
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def setLimit(n: Long): Async[Boolean]
 }
 ```
 
@@ -722,8 +814,12 @@ drain()
 `Reader#setRepeat` — Attempts to set this reader into repeat-forever mode, so it restarts from the beginning whenever it would otherwise close. Returns `true` if handled natively, `false` if the caller must wrap:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def setRepeat(): Boolean
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def setRepeat(): Async[Boolean]
 }
 ```
 
@@ -758,8 +854,12 @@ drain(0)
 `Reader#reset` — Rewinds this reader to its initial state, as if freshly constructed. After `Reader#reset()`, all elements are available again from the beginning. Not all readers support this; readers backed by one-shot resources (InputStreams, `java.io.Reader`s) throw `UnsupportedOperationException`:
 
 ```scala
-abstract class Reader[+Elem] {
+abstract class Reader.SyncReader[+Elem] {
   def reset(): Unit
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def reset(): Async[Unit]
 }
 ```
 
@@ -779,7 +879,7 @@ println(r.read(-1))  // 1 (back to the beginning)
 
 `Reader` is the compilation target of `Stream`. When you call a terminal operation, the stream compiles to a `Reader`, which is then consumed.
 
-You can also open a stream for manual element-by-element pulling using `Stream#start`:
+For cross-platform manual pulling, use caller-owned `Stream#startAsync` or bracketed `Stream#useReaderAsync`. `startAsync` transfers ownership to you, so you must await `close()` on every exit path; `useReaderAsync` retains ownership and closes automatically on success, failure, or cancellation. The JVM-only `Stream#start` returns a scoped blocking reader owned by its scope:
 
 ```scala
 import zio.blocks.streams.*
@@ -789,7 +889,7 @@ import zio.blocks.scope.*
 Scope.global.scoped { scope =>
   import scope.*
 
-  val reader: $[Reader[Int]] = Stream.range(1, 6).start(using scope)
+  val reader: $[Reader.SyncReader[Int]] = Stream.range(1, 6).start(using scope)
 
   $(reader) { r =>
     def drain(): Unit = {
@@ -806,20 +906,14 @@ Scope.global.scoped { scope =>
 ```
 
 :::caution
-Avoid holding references to a `Reader` obtained via `Stream#start` outside its `Scope`. The scope guarantees cleanup; escaping the reader defeats that guarantee.
+Avoid holding references to a `SyncReader` obtained via `Stream#start` outside its `Scope`. The scope guarantees cleanup; escaping the reader defeats that guarantee.
 :::
 
 ## Integration with Sink
 
-`Reader` and `Sink` are dual: `Reader` is the source, `Sink` is the consumer. When you call `stream.run(sink)`, the stream compiles to a `Reader`, and the sink drains it:
+`Reader` and `Sink` are dual: `Reader` is the source, and `Sink` is the consumer. A terminal compiles the stream to the reader kind required by the graph and gives ownership of that reader to the sink. On the JVM, plain terminals such as `run` use the blocking `SyncReader` path when the graph is synchronous and bridge genuine asynchronous boundaries at the final edge. Cross-platform `runAsync` drains an `AsyncReader` without blocking. Both terminal families close the owned reader on success, typed failure, defect, or cancellation.
 
-```scala
-abstract class Sink[+E, -A, +Z] {
-  def drain[A2 <: A](reader: Reader[A2]): Either[E, Z]
-}
-```
-
-The sink calls `read()` repeatedly until the reader is closed, transforming the sequence of elements into a result of type `Z`.
+The sink repeatedly pulls from its reader until end-of-stream, transforming the sequence of elements into a result of type `Z`. This kind-selected drain is an implementation detail; callers choose it through `run` or `runAsync` rather than invoking a sink drain method directly.
 
 For example, `Sink.collectAll` drains all elements and returns them as a `Chunk`:
 
@@ -838,7 +932,7 @@ Understand the design choices and mechanisms that power `Reader`:
 
 The `read(sentinel)` method uses a caller-chosen sentinel value to signal end-of-stream. This avoids the allocation and boxing of wrapping results in `Option` or `Either`. The sentinel must be a value that never appears as a real element.
 
-For reference types, `null` is the natural sentinel. For primitives, specialized methods widen the return type and use fixed sentinels:
+For reference types, `null` is a common sentinel. Primitive scalar callers choose a sentinel appropriate to the widened carrier:
 
 | Type   | Sentinel     | Method            | Return Type |
 |--------|--------------|-------------------|-------------|
@@ -847,13 +941,11 @@ For reference types, `null` is the natural sentinel. For primitives, specialized
 | `Float` | `Double.MaxValue` | `readFloat(sentinel: Double)` | `Double`   |
 | `Double` | `Double.MaxValue` | `readDouble(sentinel: Double)` | `Double`   |
 
-:::note
-The `Long.MaxValue` and `Double.MaxValue` sentinels coincide with valid data values. To keep specialized paths lossless, every read additionally records an out-of-band `Reader#lastReadWasEOF` flag: a sentinel-valued result means end-of-stream only when the flag is set. Streams containing exactly those values are therefore processed without truncation, at zero cost on the hot path.
-:::
+Scalar `Long` and `Double` pulls cannot avoid collisions. Library internals do not treat a numeric value as EOF for those lanes: they use length-one `readLongs` and `readDoubles` calls and inspect the returned count, so every bit pattern remains data.
 
 ### JVM Type Dispatch
 
-`Reader` dispatches on `jvmType` to choose between unboxed and boxed pull paths. Subclasses with primitive specialization override `jvmType`:
+`Reader` dispatches on `jvmType` to choose between unboxed and boxed pull paths. This is a physical contract: `JvmType.Byte`, for example, means `readByte` is supported and yields this reader's elements, even if covariance has widened its static type to `Reader[AnyVal]`. Type-preserving wrappers and widening operations preserve a known lane; only an actually unknown or mixed representation falls back to `AnyRef`. Subclasses with primitive specialization override `jvmType`:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -861,11 +953,11 @@ abstract class Reader[+Elem] {
 }
 ```
 
-For example, a `Reader[Int]` backed by a `Chunk[Int]` overrides `jvmType` to return `JvmType.Int`. Then, methods like `Reader#readAll` check `Reader#jvmType` and dispatch to the unboxed `Reader#readInt(sentinel: Long)` path instead of boxing.
+The eight primitive tags map exactly to `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`. For example, a `SyncReader[Int]` backed by a `Chunk[Int]` reports `JvmType.Int`, so consumers may use `readInt`; asynchronous readers expose the corresponding values through `Async`.
 
 ### Thread Safety
 
-`Reader` is **not thread-safe**. It is designed for single-threaded, pull-based consumption. Do not share a `Reader` across threads without external synchronization. If you need concurrent consumption, wrap the reader in a thread-safe queue or use a concurrent streaming library.
+Readers are single-consumer cursors, not concurrent work queues. In particular, do not overlap pulls on an `AsyncReader`; await one operation before beginning another.
 
 ## Running the Examples
 

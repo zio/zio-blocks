@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "normativeClauses": ["12.1","12.2","12.3","12.4","12.5","12.6","12.7","12.8","12.9","12.10","12.11","12.12","12.13","12.14","12.15"],
+  "operationMatrices": [
+    {"id":"OP-SYNC-MAP","first":0,"last":24,"test":"synchronous MAP executes every physical lane crossing"},
+    {"id":"OP-SYNC-FILTER","first":25,"last":29,"test":"synchronous FILTER executes true and false on every physical lane"},
+    {"id":"OP-SYNC-PUSH","first":30,"last":34,"test":"PUSH adapts callback input on every physical lane"},
+    {"id":"OP-SYNC-READ","first":35,"last":43,"test":"lane-aware readN preserves every logical lane and zero-length ownership"},
+    {"id":"OP-ASYNC-MAP","first":44,"last":68,"test":"white-box async MAP is lazy and executes all 25 lane crossings exactly once"},
+    {"id":"OP-ASYNC-FILTER","first":69,"last":73,"test":"async FILTER preserves accepted values on all lanes and adapts Boolean on I"},
+    {"id":"OP-ASYNC-COLLECT","first":74,"last":98,"test":"white-box async COLLECT executes all 25 crossings and Boolean adaptation"},
+    {"id":"OP-ASYNC-TAP","first":99,"last":103,"test":"white-box async TAP retains all five lanes and adapts logical Boolean"},
+    {"id":"OP-ASYNC-DISTINCT-KEY","first":104,"last":108,"test":"async DISTINCT_KEY retains all input lanes and logical Boolean and accepts null keys"},
+    {"id":"OP-ASYNC-MAP-ACCUM","first":109,"last":133,"test":"white-box async MAP_ACCUM transactionally executes all 25 lane crossings and Boolean"},
+    {"id":"OP-ASYNC-TAKE-WHILE","first":134,"last":138,"test":"white-box async TAKE_WHILE executes every lane, Boolean adaptation, and false is sticky EOF"}
+  ],
+  "entries": [
+    {"id":"SRC-PUBLIC-API","category":"public-api","source":"streams/shared/src/main/scala/zio/blocks/streams/Stream.scala","profiles":["terminal","stateful"],"obligations":["TEST-STREAM-PUBLIC-API"],"benchmark":"BENCH-STREAM"},
+    {"id":"SRC-NODES","category":"node","source":"streams/shared/src/main/scala/zio/blocks/streams/Stream.scala","profiles":["dynamic-inner","parallel"],"obligations":["TEST-STREAM-NODES"],"benchmark":"BENCH-NODES"},
+    {"id":"SRC-READERS","category":"reader","source":"streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala","profiles":["reader-control","async-callback"],"obligations":["TEST-READER-CONTROL"],"benchmark":"BENCH-READER"},
+    {"id":"SRC-SINKS","category":"sink","source":"streams/shared/src/main/scala/zio/blocks/streams/Sink.scala","profiles":["terminal","async-callback"],"obligations":["TEST-SINK-DRAIN"],"benchmark":"BENCH-SINK"},
+    {"id":"SRC-PIPELINES","category":"pipeline","source":"streams/shared/src/main/scala/zio/blocks/streams/Pipeline.scala","profiles":["stateful","dynamic-inner"],"obligations":["TEST-PIPELINE"],"benchmark":"BENCH-PIPELINE"},
+    {"id":"SRC-INTERPRETER-OPS","category":"interpreter-op","source":"streams/shared/src/main/scala/zio/blocks/streams/internal/OpTag.scala","profiles":["stateful"],"obligations":["TEST-OP-TAGS"],"benchmark":"BENCH-INTERPRETER"},
+    {"id":"SRC-RESUME","category":"resume","source":"streams/shared/src/main/scala/zio/blocks/streams/internal/AsyncInterpreter.scala","profiles":["async-callback","stateful"],"obligations":["TEST-RESUME-STATES","TEST-ASYNC-INTERPRETER-CALLBACK"],"benchmark":"BENCH-INTERPRETER"},
+    {"id":"SRC-LANES","category":"lane","source":"streams/shared/src/main/scala/zio/blocks/streams/JvmType.scala","profiles":["adapter"],"obligations":["TEST-25-LANES"],"benchmark":"BENCH-LANES"},
+    {"id":"SRC-PLATFORM-JVM","category":"platform","source":"streams/jvm/src/main/scala/zio/blocks/streams/AsyncNioReaders.scala","profiles":["native-source"],"obligations":["TEST-JVM-NIO"],"benchmark":"BENCH-NIO"},
+    {"id":"SRC-PLATFORM-JS","category":"platform","source":"streams/js/src/main/scala/zio/blocks/streams/ReadableStreamReaders.scala","profiles":["native-source"],"obligations":["TEST-JS-READABLE"],"benchmark":"N/A: browser adapter is integration-only"},
+    {"id":"SRC-WRITER","category":"writer","source":"streams/shared/src/main/scala/zio/blocks/streams/io/Writer.scala","profiles":["async-callback","adapter"],"obligations":["TEST-WRITER","TEST-READER-CLOSE-ASYNC"],"benchmark":"BENCH-WRITER"},
+    {"id":"SRC-ASYNC-FOUNDATION","category":"foundational-async","source":"async/shared/src/main/scala/zio/blocks/async/Async.scala","profiles":["async-callback","stateful"],"obligations":["TEST-ASYNC-STEP-FOLD"],"benchmark":"BENCH-ASYNC"},
+    {"id":"SRC-PENDING","category":"pending-leaf","source":"streams/shared/src/main/scala/zio/blocks/streams/internal/AsyncStatefulReader.scala","profiles":["async-callback","reader-control"],"obligations":["TEST-PENDING-LEAF"],"benchmark":"BENCH-PENDING"},
+    {"id":"SRC-FAIR","category":"fair-selection","source":"streams/shared/src/main/scala/zio/blocks/streams/internal/AsyncConcurrentReaders.scala","profiles":["parallel"],"obligations":["TEST-FAIR-SELECTION"],"benchmark":"BENCH-CONCURRENT"}
+  ],
+  "reservedIds": ["TEST-STREAM-PUBLIC-API","TEST-STREAM-NODES","TEST-READER-CONTROL","TEST-SINK-DRAIN","TEST-PIPELINE","TEST-OP-TAGS","TEST-RESUME-STATES","TEST-ASYNC-INTERPRETER-CALLBACK","TEST-25-LANES","TEST-JVM-NIO","TEST-JS-READABLE","TEST-WRITER","TEST-READER-CLOSE-ASYNC","TEST-ASYNC-STEP-FOLD","TEST-PENDING-LEAF","TEST-FAIR-SELECTION"]
+}

@@ -107,6 +107,12 @@ object ChunkBuilderSpec extends ChunkBaseSpec {
         builder.sizeHint(5)
         assertTrue(builder.result() == Chunk(true))
       },
+      test("grows when a partially filled byte reaches the hinted boundary") {
+        val builder = new ChunkBuilder.Boolean
+        builder.sizeHint(64)
+        (0 until 73).foreach(i => builder += (i % 2 == 0))
+        assertTrue(builder.result() == Chunk.fromIterable((0 until 73).map(_ % 2 == 0)))
+      },
       test("knownSize") {
         val builder    = new ChunkBuilder.Boolean
         val knownSize1 = builder.knownSize

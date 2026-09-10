@@ -6,21 +6,44 @@ title: "Stream"
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-`Stream[+E, +A]` is a **lazy, pull-based, typed-error stream** of elements that may fail with an error of type `E`. Nothing executes until a terminal operation is called. When you run a stream synchronously, you get `Either[E, Z]` — typed errors surface as `Left(e)`, and untyped defects propagate as exceptions:
+`Stream[+E, +A]` is a **lazy, pull-based, typed-error stream** of elements that may fail with an error of type `E`. Nothing executes until a terminal operation is driven. Cross-platform asynchronous terminals return `Async[Either[E, Z]]`; the JVM also provides the existing blocking terminal family returning `Either[E, Z]`. Typed errors surface as `Left(e)`, while defects and cleanup failures fail the outer `Async` or propagate from a JVM blocking terminal:
 
 ```scala
 abstract class Stream[+E, +A] {
+  def runAsync[E2 >: E, Z](sink: Sink[E2, A, Z]): Async[Either[E2, Z]]
+  def runCollectAsync: Async[Either[E, Chunk[A]]]
+
+  // JVM only
   def run[E2 >: E, Z](sink: Sink[E2, A, Z]): Either[E2, Z]
-  def runCollect: Either[E, Chunk[A]]
 }
 ```
 
 `Stream` is purely functional, referentially transparent, and resource-safe:
 - **Lazy**: descriptions of pipelines, not eager computations
-- **Synchronous**: all terminal operations return `Either[E, Z]` directly (no async effects)
+- **Nonblocking across platforms**: `*Async` terminals drive synchronous or asynchronous readers without blocking JavaScript
+- **JVM-compatible**: plain blocking terminals remain available on the JVM
 - **Pull-based**: execution is driven from the sink backward through the pipeline
 - **Typed errors**: distinguish recoverable errors (`E`) from untyped defects (`Throwable`)
 - **Resource-safe**: RAII semantics ensure resources are released in all cases
+
+### Asynchronous source constructors
+
+Asynchronous companion constructors defer their `Async` thunk until the first
+reader operation is driven. Compilation and materialization remain synchronous;
+closing before initialization neither invokes the thunk nor acquires a
+resource. `Stream.unwrap` flattens an `Async[Stream[E, A]]`, allowing ordinary
+operators such as `flatMap`, `catchAll`, and `flatMapPar` to compose with
+asynchronously produced streams. Other constructors include `attemptAsync`,
+`attemptEvalAsync`, `evalAsync`, `fromReaderAsync`, `fromIteratorAsync`, and
+`fromAcquireReleaseAsync`. `deferAsync` registers an asynchronous close action.
+Only the two `attempt*` constructors convert non-fatal callback failures into
+typed `Throwable` errors; other callback failures remain defects.
+
+### Migration and source compatibility
+
+The sealed reader split is a deliberate source-level API change for custom integrations. Code that previously implemented or accepted an undifferentiated `Reader[A]` must choose `Reader.SyncReader[A]`, `Reader.AsyncReader[A]`, or pattern-match both. Custom `Sink` subclasses now have dual drain implementations; prefer `Sink.createAsync`, `Sink.createBoth`, or the JVM-only `Sink.create` instead of subclassing. Plain terminals, `start`, `AsyncReader#toSync`, and `Sink.create` are JVM-only, so shared sources should migrate to `run*Async`, `startAsync`/`useReaderAsync`, and `createAsync`.
+
+Async constructor callbacks remain lazy until the first drive, and managed/unmanaged names encode ownership. Do not compensate by eagerly opening a resource before constructing the stream. Cancellation closes an acquired reader and awaits its finalizer; `startAsync` is the exception because it explicitly transfers that responsibility to its caller.
 
 ## Motivation
 
@@ -222,6 +245,8 @@ import zio.blocks.streams.*
 val singleElement = Stream.succeed(42)
 val result = singleElement.runCollect
 ```
+
+The `Byte` overload remains a byte stream: `Stream.succeed(1.toByte)` has type `Stream[Nothing, Byte]`, uses the `Byte` representation lane, and compiles through `Reader.singleByte` rather than widening the element type to `Int`.
 
 #### `Stream.fail[E]`
 
@@ -662,7 +687,7 @@ val doubled = nums.map(_ * 2)
 val result = doubled.runCollect
 ```
 
-**Key point:** `Stream#map` is covariant in the output type because it preserves the error type and only transforms elements. The implicit `JvmType.Infer[A]` and `JvmType.Infer[B]` enable compile-time dispatch to unboxed fast paths for primitive types (Int, Long, Double, etc.).
+**Key point:** `Stream#map` is covariant in the output type because it preserves the error type and only transforms elements. Output-changing operations such as `map`, `collect`, `flatMap`, `mapAccum`, `scan`, and `zipWith` take `JvmType.Infer` evidence for their result type; that result evidence selects the physical output lane. Type-preserving operations retain the source's known lane, including when the static element type is widened.
 
 #### `Stream#mapError[E2]`
 
@@ -1370,7 +1395,9 @@ val result = managed.runCollect
 
 ## Running Streams
 
-All terminal operations are synchronous and return `Either[E, Z]`. The error type is the union of the stream's error type and any sink-specific error type.
+Use the `*Async` terminal family on every platform. These methods return `Async[Either[E, Z]]`, are lazy until driven, and await reader cleanup on success, failure, or cancellation. The JVM additionally exposes the plain blocking terminal family shown below for source compatibility. JavaScript intentionally does not expose blocking terminals or `start`.
+
+The asynchronous family includes `runAsync`, `runCollectAsync`, `runDrainAsync`, `runFoldAsync`, `runForeachAsync`/`foreachAsync`, `countAsync`, `existsAsync`, `findAsync`, `forallAsync`, `headAsync`, and `lastAsync`. Use `useReaderAsync` for bracketed low-level access; `startAsync` transfers reader ownership to the caller, which must await `close()`.
 
 ### Collecting Results
 
@@ -1624,7 +1651,7 @@ Pipelines are composable transformations that can be reused across streams and s
 import zio.blocks.streams.*
 
 val nums = Stream(1, 2, 3, 4, 5)
-val pipe = Pipeline.filter((x: Int) => x > 2).andThen(Pipeline.map(_ * 10))
+val pipe = Pipeline.filter((x: Int) => x > 2).andThen(Pipeline.map((x: Int) => x * 10))
 val result = nums.via(pipe).runCollect
 ```
 
@@ -1656,15 +1683,18 @@ When you call `stream.run(sink)`, the stream is compiled to a `Reader` and the s
 
 ## Low-Level Pull with Reader
 
-`Reader[+Elem]` is the low-level, pull-based source that backs every stream at execution time. Most users never interact with `Reader` directly — it is the compilation target when a stream runs. However, you can open a stream for manual element-by-element pulling using `start` with a `Scope`.
+`Reader[+Elem]` is the low-level, pull-based source that backs every stream at execution time. Use cross-platform `startAsync` for a caller-owned `Reader.AsyncReader`, or `useReaderAsync` for bracketed access that awaits close on every outcome. The JVM additionally provides blocking `start` with a `Scope`.
 
 ### Manual Pull via `start`
 
-`start` — Opens a stream for manual pulling within a `Scope`. The reader is closed automatically when the scope exits.:
+`startAsync` transfers ownership to its caller, which must await `close()`. Prefer `useReaderAsync` when ownership need not escape. On the JVM, `start` opens a blocking reader within a `Scope`, which closes it when the scope exits:
 
 ```scala
 trait Stream[+E, +A] {
-  def start(using scope: Scope): scope.$[Reader[A]]
+  def startAsync: Async[Reader.AsyncReader[A]]
+  def useReaderAsync[Z](f: Reader.AsyncReader[A] => Async[Z]): Async[Z]
+  // JVM only
+  def start(using scope: Scope): scope.$[Reader.SyncReader[A]]
 }
 ```
 
@@ -1676,7 +1706,7 @@ import docs.SourceFile
 SourceFile.print("streams-examples/src/main/scala/stream/ManualPullUsingStart.scala")
 ```
 
-Use `Stream#start` when you need element-by-element control rather than running through a Sink. The returned Reader is closed automatically when the scope closes.
+Use these methods when you need element-by-element control rather than running through a Sink. Do not overlap asynchronous pulls: an async reader allows one active pull, and its lifecycle operations must be awaited.
 
 ### The Reader Protocol
 
@@ -1688,10 +1718,16 @@ The pull protocol uses a **sentinel value** to signal end-of-stream:
 
 For primitive types, specialized methods avoid boxing:
 
+- `readBoolean(sentinel: Int): Int`
+- `readByte(): Int`
+- `readChar(sentinel: Int): Int`
+- `readShort(sentinel: Int): Int`
 - `readInt(sentinel: Long): Long`
 - `readLong(sentinel: Long): Long`
 - `readFloat(sentinel: Double): Double`
 - `readDouble(sentinel: Double): Double`
+
+These are the eight exact physical methods selected by `Reader.jvmType`. The tag describes the reader's actual representation and method contract, so a known primitive lane survives type-preserving wrappers and static widening. Operations that produce a different element type select their output lane from result `JvmType.Infer` evidence.
 
 :::note
 Avoid holding references to a `Reader` obtained via `start` outside its `Scope`. The scope guarantees cleanup; escaping the reader defeats that guarantee.
@@ -1703,9 +1739,9 @@ ZIO Blocks Streams achieves zero-boxing via compile-time type detection and dual
 
 ### JVM Primitive Specialization
 
-By default, Scala's type system boxes primitive values (Int, Long, Double, etc.) into objects, which wastes memory and is slower. ZIO Blocks' `Stream` uses `JvmType.Infer[A]` (a compile-time implicit) to detect primitive types at compile time and dispatch to unboxed, specialized implementations.
+By default, Scala's type system boxes primitive values into objects, which wastes memory and is slower. ZIO Blocks specializes all eight JVM primitive representations: `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, and `Double`. `JvmType.Infer[A]` records a result type's physical lane at construction and at output-changing operations; type-preserving operations carry an already-known lane forward.
 
-For example, `Stream#map`, `Stream#filter`, and `Stream#scan` all have specialized branches for `JvmType.Int` that use `readInt(Long.MinValue)` instead of boxing:
+For example, an `Int` pipeline uses `readInt(Long.MinValue)` instead of boxing. A `Long` or `Double` internal pull cannot use a collision-free scalar sentinel, so it calls `readLongs` or `readDoubles` with a length-one array and interprets the returned count as EOF/data status. This preserves every `Long` and `Double` value:
 
 ```scala
 if (jvmType eq JvmType.Int) {
@@ -1823,6 +1859,24 @@ Run this example:
 ```bash
 sbt "streams-examples/runMain stream.StreamWindowingExample"
 ```
+
+## Native asynchronous byte readers
+
+On the JVM, `AsyncNioReaders.fromChannel` and `fromSocket` adapt NIO
+`AsynchronousByteChannel` and `AsynchronousSocketChannel` values without
+blocking. Their default, managed variants close the supplied native source with
+the reader; the `Unmanaged` variants leave it caller-owned. The older `NioReaders` methods intentionally
+remain synchronous because `ReadableByteChannel.read` is a blocking API.
+
+On Scala.js, `ReadableStreamReaders.fromReadableStream` acquires and owns a
+WHATWG reader, while `fromReadableStreamUnmanaged` only borrows it. Both APIs
+return `Reader.AsyncReader[Byte]`: a pull requests at most one upstream chunk,
+retains unread bytes for later pulls, and never treats an empty JavaScript chunk
+or a zero-byte NIO completion as EOF. Closing completes a pending pull as EOF;
+late callbacks cannot publish bytes into the closed reader. NIO
+`IOException`s and rejected `read()` promises are trusted source failures, so
+stream terminals expose them through the typed error channel rather than as
+callback defects.
 
 ## See Also
 

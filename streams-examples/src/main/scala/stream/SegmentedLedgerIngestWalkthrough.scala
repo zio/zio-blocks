@@ -71,7 +71,7 @@ object SegmentedLedgerIngestWalkthrough extends App {
     val exported = List.newBuilder[Long]
     Scope.global.scoped { scope =>
       import scope.*
-      val reader: $[Reader[Long]] = ledger().start(using scope)
+      val reader: $[Reader.SyncReader[Long]] = ledger().start(using scope)
       $(reader) { r =>
         val buf = new Array[Long](16)
         var n   = r.readLongs(buf, 0, 16)

@@ -17,6 +17,7 @@
 package zio.blocks.streams.internal
 
 import zio.blocks.streams.Platform
+import zio.blocks.streams.JvmType
 import zio.blocks.streams.io.Reader
 import zio.blocks.ringbuffer.SpscRingBuffer
 
@@ -24,34 +25,36 @@ import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference, 
 import java.util.concurrent.locks.LockSupport
 
 private[streams] final class ConcurrentMapParReader[A, B](
-  upstream: Reader[A],
+  upstream: Reader.SyncReader[A],
   n: Int,
   f: A => B,
-  bufferSize: Int
-) extends Reader[B] {
+  bufferSize: Int,
+  outType: JvmType
+) extends Reader.SyncReader[B] {
   import ConcurrentMapParReader._
 
   require(n >= 1, s"ConcurrentMapParReader requires n >= 1, got $n")
 
-  // `outputQueues` and `inputQueues` are reassigned on `reset()` so `mapPar`
-  // can replay a resettable upstream (e.g. under `repeated`). All such
-  // reassignment happens on the consumer thread only after the previous run's
-  // threads have fully terminated (see `reset()`), so single-threaded mutation
-  // is safe there.
-  private var outputQueues: Array[SpscRingBuffer[AnyRef]] =
+  override def jvmType: JvmType = outType
+
+  private val outputQueues: Array[SpscRingBuffer[AnyRef]] =
     Array.tabulate(n)(_ => new SpscRingBuffer[AnyRef](bufferSize))
   @volatile private var consumerWaiter: Thread = null
 
-  private var inputQueues: Array[SpscRingBuffer[AnyRef]] =
+  private val inputQueues: Array[SpscRingBuffer[AnyRef]] =
     Array.tabulate(n)(_ => new SpscRingBuffer[AnyRef](bufferSize))
   private val workerWaiters  = new AtomicReferenceArray[Thread](n)
   private val workerThreads  = new AtomicReferenceArray[Thread](n)
   private val workersRunning = new AtomicInteger(n)
 
   private val errorRef                            = new AtomicReference[Throwable](null)
-  @volatile private var errorDelivered: Boolean   = false
   @volatile private var consumerClosed: Boolean   = false
   @volatile private var coordinatorThread: Thread = null.asInstanceOf[Thread]
+  private val upstreamClose                       = new ConcurrentShutdown.CloseOnce(upstream)
+  private val closeLock                           = new AnyRef
+  @volatile private var closeDone: Boolean        = false
+  private var closeStarted: Boolean               = false
+  private var closeLeader: Thread                 = null
 
   private val workerTasks: Array[Runnable] = Array.tabulate(n) { idx =>
     new Runnable {
@@ -59,8 +62,16 @@ private[streams] final class ConcurrentMapParReader[A, B](
     }
   }
 
+  Array.tabulate(n) { idx =>
+    Platform.startVirtualThread(
+      s"zio-blocks-mappar-worker-${counter.getAndIncrement()}-$idx",
+      workerTasks(idx)
+    )
+  }
+
   private val coordinatorTask: Runnable = new Runnable {
-    def run(): Unit =
+    def run(): Unit = {
+      var coordinatorFailure: Throwable = null
       try {
         var scanIdx = 0
         var running = true
@@ -98,33 +109,22 @@ private[streams] final class ConcurrentMapParReader[A, B](
         }
       } catch {
         case t: Throwable =>
-          recordError(t)
+          coordinatorFailure = t
       } finally {
+        upstreamClose.close { closeFailure =>
+          if (coordinatorFailure eq null) coordinatorFailure = closeFailure
+          else if (coordinatorFailure ne closeFailure) coordinatorFailure.addSuppressed(closeFailure)
+        }
+        if (coordinatorFailure ne null) recordError(coordinatorFailure)
         signalWorkersToStop()
-        // A close failure must surface (Principle 4): record it so the
-        // consumer rethrows it from read() or close().
-        try upstream.close()
-        catch { case t: Throwable => recordError(t) }
       }
-  }
-
-  // Spawns the worker pool and the coordinator. Called from the constructor
-  // and from `reset()` after all per-run fields have been reinitialized (the
-  // `Runnable`s read instance fields, so they are reusable across runs).
-  private def startThreads(): Unit = {
-    Array.tabulate(n) { idx =>
-      Platform.startVirtualThread(
-        s"zio-blocks-mappar-worker-${counter.getAndIncrement()}-$idx",
-        workerTasks(idx)
-      )
     }
-    coordinatorThread = Platform.startVirtualThread(
-      s"zio-blocks-mappar-coordinator-${counter.getAndIncrement()}",
-      coordinatorTask
-    )
   }
 
-  startThreads()
+  coordinatorThread = Platform.startVirtualThread(
+    s"zio-blocks-mappar-coordinator-${counter.getAndIncrement()}",
+    coordinatorTask
+  )
 
   private def allOutputQueuesEmpty(): Boolean = {
     var i = 0
@@ -141,7 +141,39 @@ private[streams] final class ConcurrentMapParReader[A, B](
   private var doneSignalSeen: Boolean = false
   private var eofReturned: Boolean    = false
 
-  def read[B1 >: B](sentinel: B1): B1 = {
+  def read[B1 >: B](sentinel: B1): B1 = readRef(sentinel)
+
+  override def readBoolean(sentinel: Int)(implicit ev: B <:< Boolean): Int =
+    decode(sentinel)(value => if (value.asInstanceOf[Boolean]) 1 else 0)
+  override def readByte(): Int                                               = decode(-1)(_.asInstanceOf[Byte].toInt & 0xff)
+  override def readChar(sentinel: Int)(implicit ev: B <:< Char): Int         = decode(sentinel)(_.asInstanceOf[Char].toInt)
+  override def readShort(sentinel: Int)(implicit ev: B <:< Short): Int       = decode(sentinel)(_.asInstanceOf[Short].toInt)
+  override def readInt(sentinel: Long)(implicit ev: B <:< Int): Long         = decode(sentinel)(_.asInstanceOf[Int].toLong)
+  override def readLong(sentinel: Long)(implicit ev: B <:< Long): Long       = decode(sentinel)(_.asInstanceOf[Long])
+  override def readFloat(sentinel: Double)(implicit ev: B <:< Float): Double =
+    decode(sentinel)(_.asInstanceOf[Float].toDouble)
+  override def readDouble(sentinel: Double)(implicit ev: B <:< Double): Double =
+    decode(sentinel)(_.asInstanceOf[Double])
+  override def readLongs(dest: Array[Long], offset: Int, length: Int)(implicit ev: B <:< Long): Int = {
+    Reader.validateArrayRange(dest, offset, length)
+    if (length == 0) 0
+    else {
+      val value = readRef[Any](EndOfStream);
+      if (value.asInstanceOf[AnyRef] eq EndOfStream) -1
+      else { dest(offset) = value.asInstanceOf[Long]; 1 }
+    }
+  }
+  override def readDoubles(dest: Array[Double], offset: Int, length: Int)(implicit ev: B <:< Double): Int = {
+    Reader.validateArrayRange(dest, offset, length)
+    if (length == 0) 0
+    else {
+      val value = readRef[Any](EndOfStream);
+      if (value.asInstanceOf[AnyRef] eq EndOfStream) -1
+      else { dest(offset) = value.asInstanceOf[Double]; 1 }
+    }
+  }
+
+  private def readRef[B1 >: B](sentinel: B1): B1 = {
     while (true) {
       var i      = 0
       var sawAny = false
@@ -162,10 +194,11 @@ private[streams] final class ConcurrentMapParReader[A, B](
 
       val err = errorRef.get()
       if (err ne null) rethrow(err)
-      if (doneSignalSeen && !sawAny) { eofReturned = true; return sentinel }
+      if (consumerClosed) { eofReturned = true; return sentinel }
+      if (doneSignalSeen && !sawAny) { finishEof(); return sentinel }
 
       consumerWaiter = Thread.currentThread()
-      if (!doneSignalSeen && allOutputQueuesEmpty() && errorRef.get() == null) {
+      if (!consumerClosed && !doneSignalSeen && allOutputQueuesEmpty() && errorRef.get() == null) {
         LockSupport.park(this)
       }
       consumerWaiter = null
@@ -173,95 +206,57 @@ private[streams] final class ConcurrentMapParReader[A, B](
     sentinel
   }
 
-  def close(): Unit = {
-    consumerClosed = true
-    val cw = consumerWaiter
-    if (cw ne null) LockSupport.unpark(cw)
-    var i = 0
-    while (i < n) {
-      val ww = workerWaiters.get(i)
-      if (ww ne null) LockSupport.unpark(ww)
-      i += 1
-    }
-
-    val ct = coordinatorThread
-    if (ct ne null) {
-      ct.interrupt()
-      ct.join(5000)
-    }
-
-    i = 0
-    while (i < n) {
-      val t = workerThreads.get(i)
-      if (t ne null) {
-        t.interrupt()
-        t.join(5000)
-      }
-      i += 1
-    }
-
-    // A recorded error the consumer never observed via a read (e.g. an
-    // upstream close failure after the last element) must still surface
-    // (Principle 4): rethrow it exactly once at teardown.
-    val err = errorRef.get()
-    if ((err ne null) && !errorDelivered) { errorDelivered = true; rethrow(err) }
+  private def finishEof(): Unit = {
+    val interrupted = ConcurrentShutdown.join(coordinatorThread, null)
+    ConcurrentShutdown.replay(errorRef.get(), interrupted)
+    eofReturned = true
   }
 
-  override def reset(): Unit = {
-    // `mapPar` is a pure decoupling transform: it must not weaken
-    // replayability.
-    // 1) Fully terminate the current run, exactly as close() does — but discard
-    //    any recorded error instead of rethrowing it (reset starts a fresh
-    //    run). `Thread.join` establishes happens-before with the coordinator's
-    //    and workers' termination, making the subsequent single-threaded
-    //    mutation of the per-run fields safe.
-    consumerClosed = true
-    val cw = consumerWaiter
-    if (cw ne null) LockSupport.unpark(cw)
-    var i = 0
-    while (i < n) {
-      val ww = workerWaiters.get(i)
-      if (ww ne null) LockSupport.unpark(ww)
-      i += 1
+  private def decode[C](sentinel: C)(f: AnyRef => C): C = {
+    val value = readRef[Any](EndOfStream)
+    if (value.asInstanceOf[AnyRef] eq EndOfStream) sentinel else f(value.asInstanceOf[AnyRef])
+  }
+
+  def close(): Unit = {
+    val self   = Thread.currentThread()
+    val leader = closeLock.synchronized {
+      if (!closeStarted) { closeStarted = true; closeLeader = self; consumerClosed = true; true }
+      else false
     }
-    val ct = coordinatorThread
-    if (ct ne null) {
-      ct.interrupt()
-      ct.join(5000)
-    }
-    i = 0
-    while (i < n) {
-      val t = workerThreads.get(i)
-      if (t ne null) {
-        t.interrupt()
-        t.join(5000)
+    var interrupted: InterruptedException = null
+    if (leader) try {
+      val cw = consumerWaiter
+      if (cw ne null) LockSupport.unpark(cw)
+      var i = 0
+      while (i < n) {
+        val ww = workerWaiters.get(i)
+        if (ww ne null) LockSupport.unpark(ww)
+        i += 1
       }
-      i += 1
+
+      val ct = coordinatorThread
+      if (ct ne null) {
+        upstreamClose.close(recordError)
+        ct.interrupt()
+        interrupted = ConcurrentShutdown.join(ct, interrupted)
+      }
+
+      i = 0
+      while (i < n) {
+        val t = workerThreads.get(i)
+        if (t ne null) {
+          t.interrupt()
+          interrupted = ConcurrentShutdown.join(t, interrupted)
+        }
+        i += 1
+      }
+    } finally closeLock.synchronized { closeDone = true; closeLeader = null; closeLock.notifyAll() }
+    else if (closeLeader ne self) closeLock.synchronized {
+      while (!closeDone)
+        try closeLock.wait()
+        catch { case cause: InterruptedException => if (interrupted eq null) interrupted = cause }
     }
-    // 2) Replay the upstream. A genuine one-shot source throws
-    //    UnsupportedOperationException here, which correctly propagates: a
-    //    mapPar over a one-shot source is itself one-shot. (The coordinator
-    //    already closed `upstream` in its finally block; resettable readers
-    //    re-enable reads.)
-    upstream.reset()
-    // 3) Reinstate fresh per-run state and respawn the threads.
-    outputQueues = Array.tabulate(n)(_ => new SpscRingBuffer[AnyRef](bufferSize))
-    inputQueues = Array.tabulate(n)(_ => new SpscRingBuffer[AnyRef](bufferSize))
-    i = 0
-    while (i < n) {
-      workerWaiters.set(i, null)
-      workerThreads.set(i, null)
-      i += 1
-    }
-    workersRunning.set(n)
-    errorRef.set(null)
-    errorDelivered = false
-    consumerClosed = false
-    consumerWaiter = null
-    scanStart = 0
-    doneSignalSeen = false
-    eofReturned = false
-    startThreads()
+    ConcurrentShutdown.replay(errorRef.get(), interrupted)
   }
 
   private def workerLoop(idx: Int): Unit = {
@@ -332,7 +327,7 @@ private[streams] final class ConcurrentMapParReader[A, B](
   private def signalWorkersToStop(): Unit = {
     var i = 0
     while (i < n) {
-      while (!inputQueues(i).offer(DoneSentinel) && !consumerClosed && !Thread.currentThread().isInterrupted) {
+      while (!inputQueues(i).offer(DoneSentinel) && !consumerClosed) {
         LockSupport.parkNanos(this, 1000L)
       }
       val ww = workerWaiters.get(i)
@@ -362,14 +357,14 @@ private[streams] final class ConcurrentMapParReader[A, B](
         if (wt ne null) wt.interrupt()
         i += 1
       }
+    } else {
+      val primary = errorRef.get()
+      if ((primary ne null) && (primary ne t)) primary.addSuppressed(t)
     }
 
-  private def rethrow(t: Throwable): Nothing = {
-    errorDelivered = true
-    t match {
-      case se: StreamError => throw se
-      case _               => throw t
-    }
+  private def rethrow(t: Throwable): Nothing = t match {
+    case se: StreamError => throw se
+    case _               => throw t
   }
 }
 

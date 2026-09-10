@@ -20,7 +20,6 @@ import scala.collection.mutable
 import zio.blocks.chunk.Chunk
 import zio.blocks.maybe.Maybe
 import zio.blocks.streams.Stream
-import zio.blocks.streams.internal.StreamError
 import zio.blocks.streams.io.Reader
 
 /**
@@ -397,73 +396,75 @@ object Frag {
     def queryChunked[A](chunkSize: Int)(using con: DbCon, codec: DbCodec[A]): Stream[Throwable, Chunk[A]] = {
       require(chunkSize >= 1, s"queryChunked: chunkSize must be >= 1, got $chunkSize")
       val sqlStr = frag.sql(con.dialect)
-      Stream.fromAcquireRelease(
-        acquire = {
-          // Timed from acquisition, not construction: re-running or delaying
-          // the stream must not inherit a stale duration.
-          val start                   = System.nanoTime()
-          var ps: DbPreparedStatement = null
-          try {
-            ps = con.connection.prepareStatement(sqlStr)
-            writeParams(ps.paramWriter, frag.queryParams)
-            val rs = ps.executeQuery()
-            (ps, rs, FinishMark(start))
-          } catch {
-            case e: Throwable =>
-              // release does not run when acquire fails.
-              if (ps ne null)
-                try ps.close()
-                catch { case _: Throwable => () }
-              val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
-              con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
-              throw new StreamError(e)
-          }
-        },
-        release = { case (ps, rs, mark) =>
-          try rs.close()
-          finally ps.close()
-          // A consumer that closes early must still produce exactly one
-          // terminal log event; natural exhaustion and errors mark the same
-          // flag first, so this never double-logs.
-          if (mark.logged.compareAndSet(false, true)) {
-            val duration = java.time.Duration.ofNanos(System.nanoTime() - mark.start)
-            con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, mark.count.get))
-          }
+      Stream.attempt {
+        // Timed from acquisition, not construction: re-running or delaying
+        // the stream must not inherit a stale duration.
+        val start                   = System.nanoTime()
+        var ps: DbPreparedStatement = null
+        try {
+          ps = con.connection.prepareStatement(sqlStr)
+          writeParams(ps.paramWriter, frag.queryParams)
+          val rs = ps.executeQuery()
+          (ps, rs, FinishMark(start))
+        } catch {
+          case e: Throwable =>
+            // release does not run when acquire fails.
+            if (ps ne null)
+              try ps.close()
+              catch { case _: Throwable => () }
+            val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+            con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+            throw e
         }
-      ) { case (_, rs, mark) =>
-        val reader = rs.reader
-        val decode = rowDecoder(reader, codec)
-        Stream
-          .fromReader[Throwable, A](new Reader[A] {
-            private var done                    = false
-            def isClosed: Boolean               = done
-            def read[A1 >: A](sentinel: A1): A1 =
-              if (done) sentinel
-              else
-                try {
-                  if (rs.next()) { mark.count.incrementAndGet(); decode(reader).asInstanceOf[A1] }
-                  else {
-                    done = true
-                    if (mark.logged.compareAndSet(false, true)) {
-                      val duration = java.time.Duration.ofNanos(System.nanoTime() - mark.start)
-                      con.logger.onSuccess(
-                        SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, mark.count.get)
-                      )
+      }.flatMap { resource =>
+        Stream.fromAcquireRelease(
+          acquire = resource,
+          release = { case (ps, rs, mark) =>
+            try rs.close()
+            finally ps.close()
+            // A consumer that closes early must still produce exactly one
+            // terminal log event; natural exhaustion and errors mark the same
+            // flag first, so this never double-logs.
+            if (mark.logged.compareAndSet(false, true)) {
+              val duration = java.time.Duration.ofNanos(System.nanoTime() - mark.start)
+              con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, mark.count.get))
+            }
+          }
+        ) { case (_, rs, mark) =>
+          val reader = rs.reader
+          val decode = rowDecoder(reader, codec)
+          Stream
+            .fromReader[Throwable, A](new Reader.SyncReader[A] {
+              private var done                    = false
+              def isClosed: Boolean               = done
+              def read[A1 >: A](sentinel: A1): A1 =
+                if (done) sentinel
+                else
+                  try {
+                    if (rs.next()) { mark.count.incrementAndGet(); decode(reader).asInstanceOf[A1] }
+                    else {
+                      done = true
+                      if (mark.logged.compareAndSet(false, true)) {
+                        val duration = java.time.Duration.ofNanos(System.nanoTime() - mark.start)
+                        con.logger.onSuccess(
+                          SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, mark.count.get)
+                        )
+                      }
+                      sentinel
                     }
-                    sentinel
+                  } catch {
+                    case e: Throwable =>
+                      done = true
+                      if (mark.logged.compareAndSet(false, true)) {
+                        val duration = java.time.Duration.ofNanos(System.nanoTime() - mark.start)
+                        con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+                      }
+                      failSource(e)
                   }
-                } catch {
-                  case e: Throwable =>
-                    done = true
-                    if (mark.logged.compareAndSet(false, true)) {
-                      val duration = java.time.Duration.ofNanos(System.nanoTime() - mark.start)
-                      con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
-                    }
-                    throw new StreamError(e)
-                }
-            def close(): Unit = done = true
-          })
-          .chunked(chunkSize)
+              def close(): Unit = done = true
+            })
+            .chunked(chunkSize)
+        }
       }
     }
 

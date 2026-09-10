@@ -101,6 +101,26 @@ addCommandAlias(
 addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
+  "asyncTestPr",
+  "++2.13.18; streamsJVM/test; streamsJS/test; ++3.3.7; streamsJVM/test; streamsJS/test; ++3.9.0; streamsJVM/test"
+)
+addCommandAlias(
+  "asyncTestNightly",
+  "asyncTestPr; ++2.13.18; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec; ++3.3.7; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec; streamsJS/testOnly zio.blocks.streams.ResourceLeakSpec; ++3.9.0; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec"
+)
+addCommandAlias(
+  "asyncTestSoak",
+  "asyncTestNightly; ++2.13.18; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec; streamsJS/testOnly zio.blocks.streams.ReadableStreamReadersSpec; ++3.3.7; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec; streamsJS/testOnly zio.blocks.streams.ReadableStreamReadersSpec; ++3.9.0; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec"
+)
+addCommandAlias(
+  "asyncReplay",
+  "streamsJVM/testOnly zio.blocks.streams.verification.AsyncTestingCompletionSpec -- -t replay"
+)
+addCommandAlias(
+  "asyncCriticalCoverage",
+  "++3.9.0; project streamsJVM; coverage; test; coverageReport"
+)
+addCommandAlias(
   "golemPublishLocal", {
     val setVersion = """set ThisBuild / version := "0.0.0-SNAPSHOT""""
     val noDoc      = """set ThisBuild / packageDoc / publishArtifact := false"""
@@ -221,8 +241,11 @@ def commandForScalaVersion(name: String, scala2Command: String, scala3Command: S
       case _            => scala3Command
     }
 
-    selected.split(';').foldLeft(state) { case (current, command) =>
-      Command.process(command.trim, current, _ => ())
+    selected.split(';').iterator.map(_.trim).filter(_.nonEmpty).foldLeft(state) { case (current, command) =>
+      val projectId = command.takeWhile(_ != '/')
+      val supported = extracted.get(LocalProject(projectId) / crossScalaVersions).contains(version)
+      if (supported) Command.process(command, current, _ => ())
+      else current
     }
   }
 
@@ -354,7 +377,7 @@ lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.ringbuffer"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .jsSettings(jsSettings, crossScalaVersions += Scala3)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
@@ -372,7 +395,7 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.typeid"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .jsSettings(jsSettings, crossScalaVersions += Scala3)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
@@ -424,7 +447,7 @@ lazy val combinators = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.combinators"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .jsSettings(jsSettings, crossScalaVersions += Scala3)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
@@ -450,7 +473,7 @@ lazy val context = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.context"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .jsSettings(jsSettings, crossScalaVersions += Scala3)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
@@ -475,7 +498,7 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.scope"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .jsSettings(jsSettings, crossScalaVersions += Scala3)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
@@ -811,8 +834,8 @@ lazy val telemetryBenchmarks = project
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .dependsOn(scope, chunk, combinators, ringbuffer)
-  .settings(stdSettings("zio-blocks-streams", Seq(Scala3, Scala33, Scala213)))
+  .dependsOn(scope, chunk, combinators, ringbuffer, async)
+  .settings(stdSettings("zio-blocks-streams", Seq(Scala3, Scala3Golem, Scala33, Scala213)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.streams"))
   .enablePlugins(BuildInfoPlugin)
@@ -825,6 +848,16 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
     // to avoid CPU starvation across specs (parallelExecution := true is the
     // default from stdSettings).
     Test / parallelExecution := false,
+    // Repeated coverage runs in a persistent sbt server otherwise reuse the
+    // Invoker's in-process seen-ID set after measurements are deleted.
+    Test / fork := coverageEnabled.value,
+    // Scoverage instrumentation substantially enlarges the mutually recursive
+    // async-interpreter frames. Keep production yield thresholds independent
+    // of test instrumentation while retaining deep-graph coverage on CI.
+    Test / javaOptions ++= (if (coverageEnabled.value) Seq("-Xss4m") else Seq.empty),
+    // Ratchet the first truthful whole-module async-reader coverage baseline.
+    coverageMinimumStmtTotal   := 62,
+    coverageMinimumBranchTotal := 55,
     // Streams requires JDK 21+ (Project Loom virtual threads).
     // Override the default -release flag so Thread.ofVirtual() is available.
     // Only set -release 21 when running on JDK 21+; on JDK 17 CI, skip
@@ -851,6 +884,10 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
   )
   .jsSettings(
     jsSettings,
+    // Streams depends on Async, whose Scala 3.9 JS backend opts into the latest
+    // compiler. Keep the two projects on the same Scala version so Streams
+    // never consumes TASTy emitted by a different compiler release.
+    crossScalaVersions += Scala3,
     scalacOptions ++= Seq(
       // scope.leak is used intentionally throughout Streams internals
       "-Wconf:msg=being leaked from scope:s",
@@ -874,7 +911,7 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.chunk"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .jsSettings(jsSettings, crossScalaVersions += Scala3)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
@@ -2055,6 +2092,7 @@ lazy val datastar = crossProject(JSPlatform, JVMPlatform)
 lazy val async = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-async"))
+  .settings(crossScalaVersions += Scala3Golem)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.async"))
   .enablePlugins(BuildInfoPlugin)

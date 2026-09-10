@@ -3,7 +3,7 @@ id: sink
 title: "Sink"
 ---
 
-`Sink[+E, -A, +Z]` is a **stream consumer** that reads elements of type `A` and produces a result of type `Z`, potentially failing with an error of type `E`. You pass a sink to [Stream.run](./stream.md) to execute the stream synchronously and get `Either[E, Z]`.
+`Sink[+E, -A, +Z]` is a **stream consumer** that reads elements of type `A` and produces a result of type `Z`, potentially failing with an error of type `E`. Every sink has synchronous and asynchronous drain paths: use cross-platform `Stream.runAsync`, or the JVM-only blocking `Stream.run`.
 
 `Sink`:
 - Is covariant in `E` (error) and `Z` (result) — these are outputs
@@ -11,13 +11,18 @@ title: "Sink"
 - Participates in JVM primitive specialization for zero-boxing overhead
 - Provides `Sink#contramap`, `Sink#map`, and `Sink#mapError` for composable transformations
 
+Built-in sinks implement both drain paths. Asynchronous constructors include `existsAsync`, `findAsync`, `forallAsync`, `foreachAsync`, and `foldLeftAsync`; callbacks are sequential and back-pressured. The result/error combinators `contramapAsync`, `mapAsync`, and `mapErrorAsync` likewise select the native async drain when used by `runAsync`. On the JVM, driving such a sink through a plain blocking terminal blocks while awaiting its async drain; Scala.js has no blocking terminal.
+
 Here is the structural shape of the `Sink` type:
 
 ```scala
 abstract class Sink[+E, -A, +Z] {
-  def contramap[A2](g: A2 => A): Sink[E, A2, Z]
+  def contramap[A0 <: A, A2](g: A2 => A0)(implicit jtA0: JvmType.Infer[A0]): Sink[E, A2, Z]
+  def contramapAsync[A0 <: A, A2](g: A2 => Async[A0])(implicit jtA0: JvmType.Infer[A0]): Sink[E, A2, Z]
   def map[Z2](f: Z => Z2): Sink[E, A, Z2]
-  def mapError[E2](f: E => E2): Sink[E2, A, Z]
+  def mapAsync[Z2](f: Z => Async[Z2]): Sink[E, A, Z2]
+  def mapError[E2](f: E => E2)(implicit isNothing: Sink.IsNothing[E]): Sink[E2, A, Z]
+  def mapErrorAsync[E2](f: E => Async[E2])(implicit isNothing: Sink.IsNothing[E]): Sink[E2, A, Z]
 }
 ```
 
@@ -41,6 +46,14 @@ When you call `stream.run(sink)`:
 3. On success, the result wraps in `Right(z)`
 4. Typed errors (`E`) surface as `Left(e)`, while untyped defects propagate as exceptions
 5. The reader's `close()` runs in a `finally` block, ensuring resource safety
+
+### Physical Input Lanes and Ownership
+
+A sink discovers its input representation from the materialized reader's `jvmType`, not from the sink's contravariant static input type. Generic sinks dispatch once per drain and then pull `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, and `Double` through `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLongs`, `readFloat`, and `readDoubles`, respectively. Reference inputs use generic `read`. In particular, the four small primitive lanes do not share the `Int` pull.
+
+`Long` and `Double` use one-element primitive arrays with `readLongs(..., length = 1)` and `readDoubles(..., length = 1)`. The returned count carries end-of-stream status out of band, so every `Long` value and every raw `Double` bit pattern—including NaN payloads—remains valid data. The scratch storage is allocated once per drain, not once per element.
+
+The reader owns this physical representation. Consequently, widening a specialized stream (for example, from `Stream[Nothing, Int]` to `Stream[Nothing, AnyVal]`) does not erase its `Int` lane before it reaches a sink. A sink adapter preserves the wrapped reader's lane and forwards every exact pull method. It also preserves ownership: the run terminal owns and closes the materialized reader; a sink or sink adapter does not independently close it. External destinations supplied to I/O sinks remain caller-owned unless a constructor explicitly says otherwise.
 
 ## Predefined Sinks
 
@@ -388,18 +401,22 @@ Like `Sink.fromOutputStream`, this sink intentionally does not close the writer.
 
 Advanced low-level use cases with direct reader protocol access:
 
-#### `Sink.create[E, A, Z]` — Escape Hatch
+#### Custom sink factories
 
-Creates a sink from a raw function that takes a `Reader[A]` and returns `Z`. This is the low-level escape hatch for writing sinks that cannot be expressed using the built-in factories:
+`createAsync` is the cross-platform escape hatch for a native asynchronous drain. `createBoth` supplies independent native synchronous and asynchronous drains. The plain `create` factory is JVM-only because its callback consumes a blocking `SyncReader`:
 
 ```scala
 object Sink {
-  def create[E, A, Z](f: Reader[A] => Z): Sink[E, A, Z]
+  def createAsync[E, A, Z](f: Reader.AsyncReader[A] => Async[Z]): Sink[E, A, Z]
+  def createBoth[E, A, Z](sync: Reader.SyncReader[A] => Z,
+                           async: Reader.AsyncReader[A] => Async[Z]): Sink[E, A, Z]
+  // JVM only
+  def create[E, A, Z](f: Reader.SyncReader[A] => Z): Sink[E, A, Z]
 }
 ```
 
 :::note
-`Sink.create` gives you direct access to the `Reader`, so you are responsible for using the correct read protocol (`Reader#read(sentinel)` for AnyRef, `Reader#readInt(sentinel)` for Int, etc.). Prefer the built-in sinks when possible.
+These factories give you direct access to the reader protocol. Await asynchronous pulls sequentially and prefer built-in sinks when possible.
 :::
 
 Here's a custom sink that computes the average of all integers in a stream:
@@ -412,7 +429,7 @@ import zio.blocks.streams.io.Reader
 val average = Sink.create[Nothing, Int, Double] { reader =>
   def loop(sum: Long, count: Long): (Long, Long) = {
     val v = reader.readInt(Long.MinValue)
-    if (v.asInstanceOf[Long] == Long.MinValue) (sum, count)
+    if (v == Long.MinValue) (sum, count)
     else {
       val newSum = sum + v
       loop(newSum, count + 1)
@@ -423,7 +440,7 @@ val average = Sink.create[Nothing, Int, Double] { reader =>
 }
 ```
 
-This example shows how `Sink.create` works. The reader reads elements using `Reader#read[Any](null)` — the sentinel protocol — where `null` signals "read the next element" and the function returns `null` when the stream ends. We accumulate the sum and count via recursion, then return the average. You'd use `Sink.create` when no built-in sink provides the exact aggregation or transformation logic you need — it's powerful but requires understanding the low-level [Reader protocol](./reader.md).
+This example shows how `Sink.create` works. `readInt` widens an `Int` to `Long`, leaving `Long.MinValue` available as an out-of-domain end marker. For full-domain `Long` and `Double` inputs, do not choose a data sentinel: allocate a reusable one-element primitive array and use `readLongs` or `readDoubles`, whose returned count reports data or end-of-stream without collisions. You'd use `Sink.create` when no built-in sink provides the exact aggregation or transformation logic you need — it is powerful but requires understanding the low-level [Reader protocol](./reader.md).
 
 ## Transforming Sinks
 
@@ -435,9 +452,11 @@ Transforms the input elements before they reach the sink. The sink's result and 
 
 ```scala
 trait Sink[+E, -A, +Z] {
-  def contramap[A2](g: A2 => A): Sink[E, A2, Z]
+  def contramap[A0 <: A, A2](g: A2 => A0)(implicit jtA0: JvmType.Infer[A0]): Sink[E, A2, Z]
 }
 ```
+
+The evidence describes the callback's **result** type `A0`, not the new sink input `A2`. The bound `A0 <: A` is variance-sound for contravariant `A`, while invariant `JvmType.Infer[A0]` lets the mapped reader advertise the callback's exact physical result lane. Primitive results therefore retain their exact lane; the `AnyRef` fallback deliberately uses the boxed reference lane. `contramapAsync` has the same evidence and representation rules for `A2 => Async[A0]`. Both adapters transform only elements requested by the wrapped sink, preserve short-circuiting, and leave reader closure to the run terminal.
 
 `Sink#contramap` is the dual of `Sink#map`: it transforms what goes *in*, not what comes *out*:
 
@@ -446,7 +465,7 @@ import zio.blocks.streams._
 
 // A sink that counts the length of strings
 val totalLength: Sink[Nothing, String, Long] =
-  Sink.sumInt.contramap[String](_.length)
+  Sink.sumInt.contramap[Int, String](_.length)
 
 val result = Stream("hello", "world").run(totalLength)
 ```
@@ -478,11 +497,11 @@ Transforms the error channel of a sink:
 
 ```scala
 trait Sink[+E, -A, +Z] {
-  inline def mapError[E2](f: E => E2): Sink[E2, A, Z]
+  def mapError[E2](f: E => E2)(implicit isNothing: Sink.IsNothing[E]): Sink[E2, A, Z]
 }
 ```
 
-This method uses Scala 3's `inline` + `summonFrom` to perform a compile-time check: if `E` is `Nothing` (the sink never fails), the compiler elides the wrapper entirely and returns `this` cast to the new type with zero allocation:
+The `IsNothing` evidence records whether `E` is `Nothing`. For an infallible sink the method returns the same sink without allocating a wrapper; otherwise it maps typed errors:
 
 ```scala mdoc:compile-only
 import zio.blocks.streams._
@@ -537,11 +556,11 @@ See [Pipeline — Applying to a Sink](./pipeline.md#applying-to-a-sink) for more
 
 ## JVM NIO Sinks
 
-The `NioSinks` object (JVM-only) provides sinks for Java NIO (`java.nio`) buffers and channels. These exist because NIO is the standard high-performance I/O mechanism on the JVM: non-blocking, memory-efficient, and capable of handling thousands of concurrent connections. When you're writing to network sockets, memory-mapped files, or other NIO-based resources, these sinks give you a convenient way to drain streams directly into NIO data structures without intermediate allocation or copying.
+The `NioSinks` object (JVM-only) provides sinks for Java NIO (`java.nio`) buffers and channels. NIO offers efficient buffers and both blocking and selector-based channel APIs, but these sinks use blocking channel writes; they do not expose selector-based non-blocking output. When you're writing to network sockets, files, or other NIO-based resources, these sinks give you a convenient way to drain streams directly into NIO data structures without intermediate allocation or copying.
 
-Traditional Java I/O (`OutputStream`, `Writer`) blocks threads and requires manual buffering for efficiency. NIO provides non-blocking channels, but using them directly requires buffer allocation, position management, and explicit flushing. `NioSinks` bridges this gap: `NioSinks.fromChannel` handles buffering automatically (default 8KB), while typed variants like `NioSinks.fromByteBufferInt` and `NioSinks.fromByteBufferLong` eliminate boxing overhead by writing primitives directly to buffers you provide.
+Traditional Java I/O (`OutputStream`, `Writer`) blocks threads and requires manual buffering for efficiency. `NioSinks.fromChannel` also blocks, but handles buffer allocation, position management, and flushing automatically (default 8KB), while typed variants like `NioSinks.fromByteBufferInt` and `NioSinks.fromByteBufferLong` eliminate boxing overhead by writing primitives directly to buffers you provide.
 
-Choose `NioSinks.fromChannel` when you need to write to network sockets or files and cannot afford to block threads. Choose typed variants when you control buffer allocation and are streaming millions of primitives where boxing would degrade performance. **Important:** Read the Sentinel Value Limitation section below—it describes a hard constraint that affects your choice depending on whether your data can contain specific values.
+Choose `NioSinks.fromChannel` when blocking channel output is acceptable and you want automatic buffering for network sockets or files. Choose typed variants when you control buffer allocation and are streaming millions of primitives where boxing would degrade performance.
 
 Here are the available NIO sinks:
 
@@ -559,7 +578,7 @@ object NioSinks {
 ### From ByteBuffer Sinks
 
 **`NioSinks.fromByteBuffer` and typed variants** — Write primitive streams directly into a pre-allocated NIO ByteBuffer:
-- `NioSinks.fromByteBuffer` — writes individual `Byte` elements using a read sentinel of `-1`. Use only for unstructured byte data.
+- `NioSinks.fromByteBuffer` — writes individual `Byte` elements.
 - `NioSinks.fromByteBufferInt`, `NioSinks.fromByteBufferLong`, `NioSinks.fromByteBufferFloat`, `NioSinks.fromByteBufferDouble` — write primitives directly using the buffer's native methods (`putInt`, `putLong`, etc.). These avoid boxing and are faster than the byte variant.
 
 Here's an example using ByteBuffer with typed primitive writes:
@@ -606,85 +625,11 @@ sbt "streams-examples/runMain sink.SinkScientificComputingExample"
 
 This use case is typical in scientific instrumentation, machine learning data preprocessing, and signal processing pipelines where you need to efficiently batch-process numerical streams into memory-efficient structures for downstream computation.
 
-:::warning[Sentinel Collisions Throw — Never Silently Truncate]
-
-These typed sinks achieve **zero-boxing performance** by using a special "sentinel" value to signal end-of-stream, rather than allocating wrapper objects or checking for `null`. This design eliminates allocations entirely, keeping the read loop a **single primitive comparison per element**. This loop shape is a deliberate, protected performance choice (see the repository's `AGENTS.md`, "Sentinel performance policy"): no per-element flag checks, rawbits conversions, boxing, or extra branches are permitted in it.
-
-A natural question: what happens if the stream *contains* the sentinel value (e.g. a `Long.MaxValue` element streamed into `NioSinks.fromByteBufferLong`)? The sink **throws `IllegalArgumentException`** — your data is never silently dropped. Detection costs nothing on the hot path: every read records an out-of-band `lastReadWasEOF` flag on the reader, and the sink consults it **once, after the drain loop exits**, to distinguish genuine end-of-stream from a real sentinel-valued element:
-
-```scala
-// fromByteBufferLong - tight loop with primitives only
-val s = Long.MaxValue
-var v = reader.readLong(s)(using unsafeEvidence)
-while (v != s) { // single primitive comparison per element
-  buf.putLong(v)
-  v = reader.readLong(s)(using unsafeEvidence)
-}
-if (!reader.lastReadWasEOF) // consulted once, post-loop: zero hot-path cost
-  throw new IllegalArgumentException("stream contains Long.MaxValue ...")
-```
-
-**Sentinels per typed sink:**
-| Method | Input Type | Sentinel Value | Collision behavior |
-|--------|-----------|---|---|
-| `NioSinks.fromByteBuffer` | `Byte` | `-1` (as `Int`) | No collision possible — bytes are widened to [0, 255] |
-| `NioSinks.fromByteBufferInt` | `Int` | `Long.MinValue` | No collision possible — outside Int range |
-| `NioSinks.fromByteBufferLong` | `Long` | `Long.MaxValue` | Throws `IllegalArgumentException` |
-| `NioSinks.fromByteBufferFloat` | `Float` | `Double.MaxValue` | No collision possible — outside Float range |
-| `NioSinks.fromByteBufferDouble` | `Double` | `Double.MaxValue` | Throws `IllegalArgumentException` |
-
-**If your data may contain the sentinel value**, use a generic sink instead — these use an out-of-band object sentinel and handle every value:
-- `Sink.collectAll[A]` — collects into a Chunk
-- `Sink.foreach[A](f: A => Unit)` — processes each element individually
-- `Sink.foldLeft[A, Z](z: Z)(f: (Z, A) => Z)` — accumulates
-- `Sink.create[E, A, Z](f: Reader[A] => Z)` — manual control
-
-For a runnable demonstration of the guard, see the example below:
-
-```scala mdoc:passthrough
-import docs.SourceFile
-
-SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelGuardExample.scala")
-```
-
-
-Run it with:
-
-```bash
-sbt "streams-examples/runMain sink.SinkSentinelGuardExample"
-```
-:::
-
-You might ask: **Why not use a sentinel object like generic sinks do, instead of primitive values?** The answer reveals a fundamental performance trade-off.
-
-Generic sinks use object sentinels to signal end-of-stream:
-
-```scala
-// Sink.collectAll - uses object reference for end-of-stream
-def loop(v: Any): Unit =
-  if (v.asInstanceOf[AnyRef] ne EndOfStream) {
-    b += v.asInstanceOf[A]
-    loop(reader.read(EndOfStream))
-  }
-val firstValue = reader.read(EndOfStream)  // EndOfStream is an object
-loop(firstValue)
-```
-
-**Performance Impact:**
-- **Typed sinks:** Direct primitive comparison, zero allocations, tight loop optimizable by JVM
-- **Generic sinks:** Object casting, reference equality check, one `EndOfStream` object per stream
-
-For a stream processing **millions of elements**, the typed sink approach has measurably better performance because:
-1. No casting overhead per iteration
-2. Primitive values are faster than object references
-3. JIT compiler can better optimize tight primitive loops
-4. Zero per-element allocation pressure
-
-Neither approach silently drops data: the generic sinks use a reference-unique object that no stream element can equal, and the typed sinks detect a value/sentinel collision via the out-of-band EOF flag (consulted once, post-loop) and throw rather than truncate.
+The typed sinks dispatch through their exact primitive lanes. `Long` and `Double` use collision-free bulk-count status, so `Long.MinValue`, `Long.MaxValue`, every finite or infinite `Double`, signed zero, and every raw NaN payload are written as ordinary data. There is no sentinel-value truncation restriction. The supplied buffer remains caller-owned and is not flipped, rewound, or closed by the sink.
 
 ### From Channel Sink
 
-The **`Sink.fromChannel`**  constructor performs buffered writes to a `WritableByteChannel` (e.g., a network socket or file channel). This is the general-purpose NIO sink: it accumulates bytes in an internal buffer of size `bufSize` (default 8192), flushes when the buffer is full, and flushes again at end-of-stream.
+The **`NioSinks.fromChannel`** constructor performs buffered writes to a `WritableByteChannel` (e.g., a network socket or file channel). This is the general-purpose NIO sink: it accumulates bytes in an internal buffer of size `bufSize` (default 8192), flushes when the buffer is full, and flushes again at end-of-stream. It does not close the caller-owned channel.
 
 It handles `IOException` as a typed error, so failures surface as `Left(IOException)` from `Stream.run`. Use this for network I/O or when you can't pre-allocate a buffer. The channel I/O is blocking—NIO's non-blocking advantage comes when using selectors across many channels, which this sink does not expose.
 
@@ -766,20 +711,4 @@ Run this example with:
 
 ```bash
 sbt "streams-examples/runMain sink.SinkTransformationExample"
-```
-
-### Sentinel Guard (NIO Typed Sinks)
-
-This example demonstrates that the typed NIO sinks (`NioSinks.fromByteBufferLong`, `NioSinks.fromByteBufferDouble`) reject streams containing their sentinel value (e.g., `Long.MaxValue` for `NioSinks.fromByteBufferLong`) with an `IllegalArgumentException` instead of silently truncating — detected at zero hot-path cost via the reader's out-of-band EOF flag, consulted once after the drain loop exits:
-
-```scala mdoc:passthrough
-import docs.SourceFile
-
-SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelGuardExample.scala")
-```
-
-Run it with this command:
-
-```bash
-sbt "streams-examples/runMain sink.SinkSentinelGuardExample"
 ```

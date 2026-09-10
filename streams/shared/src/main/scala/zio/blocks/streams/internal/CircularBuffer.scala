@@ -54,6 +54,96 @@ private[streams] final class CircularBufferByte(capacity: Int) {
   }
 }
 
+private[streams] final class CircularBufferBoolean(capacity: Int) {
+  private val arr  = new Array[Boolean](capacity)
+  private var head = 0
+  private var len  = 0
+
+  def size: Int = len
+
+  def add(a: Boolean): Unit = {
+    val idx = (head + len) % capacity
+    arr(idx) = a
+    if (len == capacity) head = (head + 1) % capacity
+    else len += 1
+  }
+
+  def get(i: Int): Boolean = arr((head + i) % capacity)
+
+  def shift(n: Int): Unit = {
+    val drop = math.min(n, len)
+    head = (head + drop) % capacity
+    len -= drop
+  }
+
+  def toChunk: Chunk[Boolean] = {
+    val b = new ChunkBuilder.Boolean()
+    var i = 0
+    while (i < len) { b.addOne(get(i)); i += 1 }
+    b.result()
+  }
+}
+
+private[streams] final class CircularBufferChar(capacity: Int) {
+  private val arr  = new Array[Char](capacity)
+  private var head = 0
+  private var len  = 0
+
+  def size: Int = len
+
+  def add(a: Char): Unit = {
+    val idx = (head + len) % capacity
+    arr(idx) = a
+    if (len == capacity) head = (head + 1) % capacity
+    else len += 1
+  }
+
+  def get(i: Int): Char = arr((head + i) % capacity)
+
+  def shift(n: Int): Unit = {
+    val drop = math.min(n, len)
+    head = (head + drop) % capacity
+    len -= drop
+  }
+
+  def toChunk: Chunk[Char] = {
+    val b = new ChunkBuilder.Char()
+    var i = 0
+    while (i < len) { b.addOne(get(i)); i += 1 }
+    b.result()
+  }
+}
+
+private[streams] final class CircularBufferShort(capacity: Int) {
+  private val arr  = new Array[Short](capacity)
+  private var head = 0
+  private var len  = 0
+
+  def size: Int = len
+
+  def add(a: Short): Unit = {
+    val idx = (head + len) % capacity
+    arr(idx) = a
+    if (len == capacity) head = (head + 1) % capacity
+    else len += 1
+  }
+
+  def get(i: Int): Short = arr((head + i) % capacity)
+
+  def shift(n: Int): Unit = {
+    val drop = math.min(n, len)
+    head = (head + drop) % capacity
+    len -= drop
+  }
+
+  def toChunk: Chunk[Short] = {
+    val b = new ChunkBuilder.Short()
+    var i = 0
+    while (i < len) { b.addOne(get(i)); i += 1 }
+    b.result()
+  }
+}
+
 /**
  * A fixed-size, non-concurrent circular buffer specialized for unboxed `Int`
  * values. Used internally by the `sliding` combinator to avoid O(n) array

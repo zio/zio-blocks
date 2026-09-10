@@ -1,0 +1,1176 @@
+{
+  "schema": 1,
+  "syncBaseline": "2b3896cc1e740a7929056abbc66fbb6119655492",
+  "asyncBaseline": "79dbe2b0c7f76bc35bd1899948e193f77e84e606",
+  "scala": "3.9.0",
+  "providerRankingAllowlist": [
+    "StreamEvalBench",
+    "StreamPipelineBench",
+    "StreamSetupBench",
+    "StreamConcurrentBench",
+    "StreamAsyncEvalBench",
+    "StreamAsyncPipelineBench",
+    "StreamAsyncSetupBench",
+    "StreamAsyncConcurrentBench"
+  ],
+  "providerVersions": {
+    "fs2": "3.14.0",
+    "pekko": "1.7.0",
+    "kyo": "1.0.0-RC6",
+    "ox": "1.0.6"
+  },
+  "providerPolicies": {
+    "kyoStreamBufferSize": 16,
+    "kyoFanInPolicy": "N/A: public collectAll and binary merge do not expose bounded dynamic fan-in",
+    "oxBufferPolicy": "BufferCapacity.default; no explicit source buffer"
+  },
+  "parity": {
+    "eval": [
+      "singleton",
+      "drain",
+      "map_1",
+      "filter_1",
+      "flatMap_1",
+      "takeDrop",
+      "mapFilterFlatMap",
+      "mixed_1",
+      "mixed_2",
+      "mixed_3",
+      "nested_flatMap",
+      "nested_concat"
+    ],
+    "pipeline": [
+      "filterMap",
+      "map",
+      "filter",
+      "chainedMaps",
+      "flatMap",
+      "take",
+      "takeWhile",
+      "concat",
+      "drain",
+      "chainedMaps10",
+      "chainedMaps100",
+      "filterMapChain",
+      "takeDrop"
+    ],
+    "setup": [
+      "map1",
+      "map5",
+      "map10",
+      "map100",
+      "filter",
+      "filterMap",
+      "filterMapChain",
+      "takeDrop",
+      "drain"
+    ],
+    "concurrency": {
+      "operators": [
+        "mapPar",
+        "mergeAll",
+        "flatMapPar"
+      ],
+      "parallelism": [
+        1,
+        8,
+        16
+      ],
+      "workload": [
+        "light",
+        "heavy"
+      ]
+    }
+  },
+  "micro": [
+    {
+      "id": "state.static-sync-materialize",
+      "benchmark": "StreamSyncStateAllocationBench.staticSyncMaterialize",
+      "category": "static-sync",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "trial arrays only",
+      "budget": {
+        "fixedBytes": 8,
+        "bytesPerElement": 0,
+        "prohibited": [
+          "Async",
+          "Pollable",
+          "AsyncInterpreter"
+        ]
+      },
+      "baselineOwner": "syncBaseline",
+      "clause": "13.1"
+    },
+    {
+      "id": "state.selected-sync-wrapper",
+      "benchmark": "StreamSyncStateAllocationBench.selectedSyncWrapper",
+      "category": "static-sync",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 8,
+        "bytesPerElement": 0,
+        "prohibited": [
+          "Async",
+          "Pollable",
+          "AsyncInterpreter"
+        ]
+      },
+      "baselineOwner": "syncBaseline",
+      "clause": "13.1"
+    },
+    {
+      "id": "state.dynamic-all-sync",
+      "benchmark": "StreamAsyncStateAllocationBench.dynamicAllSync",
+      "category": "dynamic-sync",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 256,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.1"
+    },
+    {
+      "id": "state.lifted-sync",
+      "benchmark": "StreamAsyncStateAllocationBench.liftedSync",
+      "category": "async",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.6"
+    },
+    {
+      "id": "state.native-ready",
+      "benchmark": "StreamAsyncStateAllocationBench.nativeReady",
+      "category": "async",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.6"
+    },
+    {
+      "id": "state.ready-read",
+      "benchmark": "StreamAsyncStateAllocationBench.readyRead",
+      "category": "async",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "N == 0 ? -1 : 0",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 128,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.6"
+    },
+    {
+      "id": "state.ready-map",
+      "benchmark": "StreamAsyncStateAllocationBench.readyMap",
+      "category": "async",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 128,
+        "bytesPerElement": 0,
+        "prohibited": [
+          "Continuation"
+        ]
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.3"
+    },
+    {
+      "id": "state.ready-filter",
+      "benchmark": "StreamAsyncStateAllocationBench.readyFilter",
+      "category": "async",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(even 0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 128,
+        "bytesPerElement": 0,
+        "prohibited": [
+          "Continuation"
+        ]
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.3"
+    },
+    {
+      "id": "state.first-suspension",
+      "benchmark": "StreamAsyncSuspensionBench.firstSuspension",
+      "category": "async",
+      "params": {},
+      "expectedChecksum": "1",
+      "setupBoundary": "trial worker pool",
+      "budget": {
+        "fixedBytes": 1024,
+        "bytesPerElement": 256
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.6"
+    },
+    {
+      "id": "state.resume",
+      "benchmark": "StreamAsyncResumeBench.isolatedResume",
+      "category": "async",
+      "params": {},
+      "expectedChecksum": "1",
+      "setupBoundary": "invocation starts and suspends runner",
+      "budget": {
+        "fixedBytes": 256,
+        "bytesPerElement": 0,
+        "prohibited": [
+          "AsyncInterpreter",
+          "Continuation"
+        ]
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.6"
+    },
+    {
+      "id": "state.bulk-chunk",
+      "benchmark": "StreamAsyncStateAllocationBench.bulkChunk",
+      "category": "async",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "N",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 4
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.6"
+    },
+    {
+      "id": "state.direct-byte-bulk",
+      "benchmark": "StreamAsyncStateAllocationBench.directByteBulk",
+      "category": "async",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "N",
+      "setupBoundary": "trial arrays",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 1
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "state.sync-async-terminal",
+      "benchmark": "StreamAsyncStateAllocationBench.syncAsyncTerminal",
+      "category": "async-adapter",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 768,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.7"
+    },
+    {
+      "id": "state.cooperative-yield",
+      "benchmark": "StreamAsyncCooperativeYieldBench.cooperativeYield",
+      "category": "async",
+      "params": {
+        "N": [
+          2049
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 1024,
+        "bytesPerElement": 256
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.6"
+    },
+    {
+      "id": "suspension.per-element",
+      "benchmark": "StreamAsyncSuspensionBench.perElement",
+      "category": "async",
+      "params": {
+        "N": [
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "trial worker pool",
+      "budget": {
+        "fixedBytes": 1024,
+        "bytesPerElement": 256
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "suspension.per-chunk",
+      "benchmark": "StreamAsyncSuspensionBench.perChunk",
+      "category": "async",
+      "params": {
+        "N": [
+          1000
+        ]
+      },
+      "expectedChecksum": "N",
+      "setupBoundary": "trial worker pool",
+      "budget": {
+        "fixedBytes": 2048,
+        "bytesPerElement": 4
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "suspension.sequential-callback",
+      "benchmark": "StreamAsyncSuspensionBench.sequentialCallback",
+      "category": "async",
+      "params": {
+        "N": [
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "trial worker pool",
+      "budget": {
+        "fixedBytes": 1024,
+        "bytesPerElement": 256
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "suspension.bounded-callback",
+      "benchmark": "StreamAsyncSuspensionBench.boundedParallelCallback",
+      "category": "async",
+      "params": {
+        "N": [
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "trial worker pool",
+      "budget": {
+        "fixedBytes": 8192,
+        "bytesPerElement": 256
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "dynamic.lifted-after-async",
+      "benchmark": "StreamAsyncSuspensionBench.liftedAfterAsync",
+      "category": "async",
+      "params": {
+        "N": [
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 1024,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "dynamic.flat-map",
+      "benchmark": "StreamAsyncSuspensionBench.dynamicFlatMap",
+      "category": "async",
+      "params": {
+        "N": [
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 2048,
+        "bytesPerElement": 128
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "dynamic.sync-ready-callback",
+      "benchmark": "StreamAsyncSuspensionBench.syncReadyCallback",
+      "category": "async",
+      "params": {
+        "N": [
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 1024,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "dynamic.async-ready-callback",
+      "benchmark": "StreamAsyncSuspensionBench.asyncReadyCallback",
+      "category": "async",
+      "params": {
+        "N": [
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 1024,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "resource.acquire-finalize",
+      "benchmark": "StreamAsyncSuspensionBench.asyncAcquireFinalize",
+      "category": "async",
+      "params": {
+        "N": [
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 2048,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "primitive.boolean-sync-parity",
+      "benchmark": "StreamSyncPrimitiveTerminalBench.booleanSyncParity",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "count(even 0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 128,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "syncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "primitive.byte-sync-parity",
+      "benchmark": "StreamSyncPrimitiveTerminalBench.byteSyncParity",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(bytes 0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 128,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "syncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "primitive.char-sync-parity",
+      "benchmark": "StreamSyncPrimitiveTerminalBench.charSyncParity",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(chars 0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 128,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "syncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "primitive.short-sync-parity",
+      "benchmark": "StreamSyncPrimitiveTerminalBench.shortSyncParity",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(shorts 0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 128,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "syncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "primitive.int-reader",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.intReader",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0,
+        "prohibited": [
+          "boxToInteger"
+        ]
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "primitive.long-reader",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.longReader",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0,
+        "prohibited": [
+          "boxToLong"
+        ]
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "primitive.float-reader",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.floatReader",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0,
+        "prohibited": [
+          "boxToFloat"
+        ]
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "primitive.double-reader",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.doubleReader",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0,
+        "prohibited": [
+          "boxToDouble"
+        ]
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "primitive.int-callback",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.intCallback",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "primitive.long-callback",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.longCallback",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "primitive.float-callback",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.floatCallback",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "primitive.double-callback",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.doubleCallback",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.4"
+    },
+    {
+      "id": "primitive.semantic-boolean",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.semanticBoolean",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "count(even)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "primitive.semantic-byte",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.semanticByte",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(bytes)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "primitive.semantic-char",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.semanticChar",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(chars)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "primitive.semantic-short",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.semanticShort",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(shorts)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "primitive.semantic-int",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.semanticInt",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "primitive.semantic-long",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.semanticLong",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "primitive.semantic-float",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.semanticFloat",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "primitive.semantic-double",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.semanticDouble",
+      "category": "primitive",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "terminal.drain",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.terminalDrain",
+      "category": "terminal",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "unit",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "terminal.collect",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.terminalCollect",
+      "category": "terminal",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "N",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 4
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "terminal.primitive-fold",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.terminalPrimitiveFold",
+      "category": "terminal",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "terminal.reference-fold",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.terminalReferenceFold",
+      "category": "terminal",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "concat(first 10)",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 1024,
+        "bytesPerElement": 64
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "terminal.foreach-callback",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.terminalForeachCallback",
+      "category": "terminal",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "unit",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "terminal.short-circuit",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.terminalShortCircuit",
+      "category": "terminal",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "N > 0",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "terminal.sink-map-async",
+      "benchmark": "StreamAsyncPrimitiveTerminalBench.terminalSinkMapAsync",
+      "category": "terminal",
+      "params": {
+        "N": [
+          0,
+          1,
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(0 until N) + 1",
+      "setupBoundary": "none",
+      "budget": {
+        "fixedBytes": 512,
+        "bytesPerElement": 0
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "concurrency.suspended-map-par",
+      "benchmark": "StreamAsyncSuspendedConcurrentBench.suspended_mapPar",
+      "category": "async",
+      "params": {
+        "parallelism": [
+          1,
+          8,
+          16
+        ],
+        "N": [
+          1000
+        ]
+      },
+      "expectedChecksum": "sum(1 to N)",
+      "setupBoundary": "trial worker pool",
+      "budget": {
+        "fixedBytes": 16384,
+        "bytesPerElement": 256
+      },
+      "baselineOwner": "asyncBaseline",
+      "clause": "13.8"
+    },
+    {
+      "id": "primitive-specialization.sync-route",
+      "benchmark": "StreamPrimitiveSpecializationBench.syncPrimitiveRoute",
+      "category": "primitive-specialization",
+      "params": {
+        "primitive": ["boolean", "byte", "char", "short", "int", "long", "float", "double"],
+        "route": ["stream", "pipeline-stream", "pipeline-sink", "widened"],
+        "N": [0, 1, 1000]
+      },
+      "expectedChecksum": "sum of preserved transformed primitive source",
+      "setupBoundary": "trial primitive arrays",
+      "budget": {"fixedBytes": 512, "bytesPerElement": 0},
+      "baselineOwner": "syncBaseline",
+      "clause": "specialization.J"
+    },
+    {
+      "id": "primitive-specialization.async-route",
+      "benchmark": "StreamPrimitiveSpecializationBench.asyncPrimitiveRoute",
+      "category": "primitive-specialization",
+      "params": {
+        "primitive": ["boolean", "byte", "char", "short", "int", "long", "float", "double"],
+        "route": ["stream", "pipeline-stream", "pipeline-sink", "widened"],
+        "N": [0, 1, 1000]
+      },
+      "expectedChecksum": "sum of preserved transformed primitive source",
+      "setupBoundary": "trial primitive arrays",
+      "budget": {"fixedBytes": 1024, "bytesPerElement": 256},
+      "baselineOwner": "asyncBaseline",
+      "clause": "specialization.J"
+    }
+  ],
+  "primitiveSpecialization": {
+    "primitives": ["boolean", "byte", "char", "short", "int", "long", "float", "double"],
+    "routes": ["stream", "pipeline-stream", "pipeline-sink", "widened"],
+    "executions": {
+      "sync": "StreamPrimitiveSpecializationBench.syncPrimitiveRoute",
+      "async": "StreamPrimitiveSpecializationBench.asyncPrimitiveRoute"
+    },
+    "N": [0, 1, 1000],
+    "stageShape": ["source", "preserving", "transforming", "sink"]
+  },
+  "legacyStreamAsyncBench": {
+    "syncSource_asyncTerminal": "state.sync-async-terminal",
+    "liftedReader_readyRead": "state.lifted-sync",
+    "nativeReader_readyRead": "state.ready-read",
+    "readyCallback_map": "state.ready-map",
+    "readyCallback_filter": "state.ready-filter",
+    "suspendedCallback_map": "suspension.sequential-callback",
+    "suspendedReader_read": "suspension.per-element",
+    "liftedSync_afterAsync": "dynamic.lifted-after-async",
+    "asyncReader_readyCallback": "dynamic.async-ready-callback",
+    "dynamic_flatMapAsync": "dynamic.flat-map",
+    "asyncAcquire_finalize": "resource.acquire-finalize",
+    "directByte_bulk": "state.direct-byte-bulk",
+    "primitive_boolean": "primitive.semantic-boolean",
+    "primitive_byte": "primitive.semantic-byte",
+    "primitive_char": "primitive.semantic-char",
+    "primitive_short": "primitive.semantic-short",
+    "primitive_int": "primitive.semantic-int",
+    "primitive_long": "primitive.semantic-long",
+    "primitive_float": "primitive.semantic-float",
+    "primitive_double": "primitive.semantic-double",
+    "bulk_collect": "state.bulk-chunk",
+    "sink_drain": "terminal.drain",
+    "bounded_mapParAsync": "concurrency.suspended-map-par",
+    "bounded_flatMapParAsync": "suspension.bounded-callback"
+  }
+}

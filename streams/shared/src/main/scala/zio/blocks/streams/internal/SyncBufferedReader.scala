@@ -16,120 +16,126 @@
 
 package zio.blocks.streams.internal
 
-import zio.blocks.chunk.{Chunk, ChunkBuilder}
+import zio.blocks.chunk.Chunk
+import zio.blocks.streams.JvmType
 import zio.blocks.streams.io.Reader
 
 /**
- * A buffered reader that prefetches up to `bufferSize` elements from `upstream`
- * into an internal buffer and serves reads from it.
- *
- * Used on Scala.js where true concurrency is not available. Refills the
- * internal buffer lazily (only when exhausted). Elements are read using the
- * generic AnyRef lane (boxing is acceptable since no concurrency benefit exists
- * on JS).
- *
- * @param upstream
- *   the source reader
- * @param bufferSize
- *   maximum elements to prefetch per fill
+ * A lazy, synchronous buffered reader used by platforms without true
+ * concurrency.
  */
-private[streams] final class SyncBufferedReader[A](upstream: Reader[A], bufferSize: Int) extends Reader[A] {
-  private val buf: Array[AnyRef] = new Array[AnyRef](bufferSize)
-  private var pos: Int           = 0
-  private var limit: Int         = 0
-  private var upstreamDone       = false
-  // An upstream failure raised mid-refill, AFTER elements were already
-  // prefetched. `buffer` is a pure decoupling transform: the prefetched
-  // prefix must be served before the error surfaces — rethrowing from inside
-  // the refill loop would silently abandon those elements, diverging from the
-  // JVM `ConcurrentBufferedReader`, which drains its queue before surfacing
-  // the producer error (BUG-R5-05).
-  private var pendingError: Throwable = null
+private[streams] final class SyncBufferedReader[A](upstream: Reader.SyncReader[A], bufferSize: Int)
+    extends Reader.SyncReader[A] {
+  override val jvmType: JvmType = upstream.jvmType
 
-  def isClosed: Boolean = pos >= limit && (upstreamDone || upstream.isClosed)
+  private val refs      = if (jvmType eq JvmType.AnyRef) new Array[AnyRef](bufferSize) else null
+  private val booleans  = if (jvmType eq JvmType.Boolean) new Array[Boolean](bufferSize) else null
+  private val bytes     = if (jvmType eq JvmType.Byte) new Array[Byte](bufferSize) else null
+  private val chars     = if (jvmType eq JvmType.Char) new Array[Char](bufferSize) else null
+  private val shorts    = if (jvmType eq JvmType.Short) new Array[Short](bufferSize) else null
+  private val ints      = if (jvmType eq JvmType.Int) new Array[Int](bufferSize) else null
+  private val longs     = if (jvmType eq JvmType.Long) new Array[Long](bufferSize) else null
+  private val floats    = if (jvmType eq JvmType.Float) new Array[Float](bufferSize) else null
+  private val doubles   = if (jvmType eq JvmType.Double) new Array[Double](bufferSize) else null
+  private val longOne   = new Array[Long](1)
+  private val doubleOne = new Array[Double](1)
+  private var pos       = 0
+  private var limit     = 0
+  private var done      = false
 
-  def read[A1 >: A](sentinel: A1): A1 =
-    if (pos < limit) {
-      val v = buf(pos)
-      pos += 1
-      v.asInstanceOf[A1]
-    } else if (upstreamDone) {
-      if (pendingError ne null) throw pendingError
-      sentinel
-    } else {
-      pos = 0
-      limit = 0
-      var i = 0
-      while (i < bufferSize) {
-        val v =
-          try upstream.read[Any](EndOfStream)
-          catch {
-            case t: Throwable =>
-              pendingError = t
-              EndOfStream
-          }
-        if (v.asInstanceOf[AnyRef] eq EndOfStream) {
-          upstreamDone = true
-          i = bufferSize
-        } else {
-          buf(i) = v.asInstanceOf[AnyRef]
-          limit += 1
-          i += 1
-        }
-      }
-      if (limit > 0) {
-        val v = buf(pos)
-        pos += 1
-        v.asInstanceOf[A1]
-      } else {
-        if (pendingError ne null) throw pendingError
-        sentinel
-      }
-    }
+  def isClosed: Boolean                                          = pos >= limit && (done || upstream.isClosed)
+  override def readable(): Boolean                               = pos < limit || (!done && upstream.readable())
+  override private[streams] def tryReadable: Reader.Availability =
+    if (pos < limit) Reader.Available else if (done) Reader.Unavailable else upstream.tryReadable
 
-  override def readUpToN[A1 >: A](n: Int): Chunk[A1] = {
-    if (n <= 0) return Chunk.empty
-    if (pos >= limit && !upstreamDone) {
-      val first = read[Any](EndOfStream)
-      if (first.asInstanceOf[AnyRef] eq EndOfStream) return Chunk.empty
-      if (n == 1 || pos >= limit) return Chunk.single(first.asInstanceOf[A1])
-      val count = math.min(n - 1, limit - pos)
-      val b     = ChunkBuilder.make[A1](count + 1)
-      b += first.asInstanceOf[A1]
-      var i = 0
-      while (i < count) {
-        b += buf(pos).asInstanceOf[A1]
-        pos += 1
-        i += 1
-      }
-      b.result()
-    } else if (pos >= limit) {
-      if (pendingError ne null) throw pendingError
-      Chunk.empty
-    } else {
-      val count = math.min(n, limit - pos)
-      val b     = ChunkBuilder.make[A1](count)
-      var i     = 0
-      while (i < count) {
-        b += buf(pos).asInstanceOf[A1]
-        pos += 1
-        i += 1
-      }
-      b.result()
-    }
-  }
-
-  def close(): Unit = upstream.close()
-
-  override def reset(): Unit = {
-    // `buffer` is a pure decoupling transform: it must not weaken replayability.
-    // Reset the upstream (propagating UnsupportedOperationException for a genuine
-    // one-shot source) and discard any prefetched elements.
-    upstream.reset()
-    java.util.Arrays.fill(buf, null)
+  private def fill(): Unit = {
     pos = 0
     limit = 0
-    upstreamDone = false
-    pendingError = null
+    while (limit < bufferSize && !done) {
+      val available = jvmType match {
+        case JvmType.Boolean =>
+          val v = upstream.readBooleanPhysical(-1); if (v < 0) false else { booleans(limit) = v != 0; true }
+        case JvmType.Byte =>
+          val v = upstream.readBytePhysical(); if (v < 0) false else { bytes(limit) = v.toByte; true }
+        case JvmType.Char =>
+          val v = upstream.readCharPhysical(-1); if (v < 0) false else { chars(limit) = v.toChar; true }
+        case JvmType.Short =>
+          val v = upstream.readShortPhysical(Int.MinValue)
+          if (v == Int.MinValue) false else { shorts(limit) = v.toShort; true }
+        case JvmType.Int =>
+          val v = upstream.readIntPhysical(Long.MinValue)
+          if (v == Long.MinValue) false else { ints(limit) = v.toInt; true }
+        case JvmType.Long  => upstream.readLongsPhysical(longs, limit, 1) > 0
+        case JvmType.Float =>
+          val v = upstream.readFloatPhysical(Double.MaxValue)
+          if (v == Double.MaxValue) false else { floats(limit) = v.toFloat; true }
+        case JvmType.Double => upstream.readDoublesPhysical(doubles, limit, 1) > 0
+        case JvmType.AnyRef =>
+          val v = upstream.read[Any](EndOfStream)
+          if (v.asInstanceOf[AnyRef] eq EndOfStream) false else { refs(limit) = v.asInstanceOf[AnyRef]; true }
+      }
+      if (available) limit += 1 else done = true
+    }
   }
+
+  private def ensure(): Boolean = { if (pos >= limit && !done) fill(); pos < limit }
+
+  def read[A1 >: A](sentinel: A1): A1 =
+    if (!ensure()) sentinel
+    else {
+      val i = pos; pos += 1
+      (jvmType match {
+        case JvmType.Boolean => Boolean.box(booleans(i))
+        case JvmType.Byte    => Byte.box(bytes(i))
+        case JvmType.Char    => Char.box(chars(i))
+        case JvmType.Short   => Short.box(shorts(i))
+        case JvmType.Int     => Int.box(ints(i))
+        case JvmType.Long    => Long.box(longs(i))
+        case JvmType.Float   => Float.box(floats(i))
+        case JvmType.Double  => Double.box(doubles(i))
+        case JvmType.AnyRef  => refs(i)
+      }).asInstanceOf[A1]
+    }
+
+  override def readBoolean(sentinel: Int)(implicit ev: A <:< Boolean): Int =
+    if (!ensure()) sentinel else { val v = booleans(pos); pos += 1; if (v) 1 else 0 }
+  override def readByte(): Int                                       = if (!ensure()) -1 else { val v = bytes(pos); pos += 1; v.toInt & 0xff }
+  override def readChar(sentinel: Int)(implicit ev: A <:< Char): Int =
+    if (!ensure()) sentinel else { val v = chars(pos); pos += 1; v.toInt }
+  override def readShort(sentinel: Int)(implicit ev: A <:< Short): Int =
+    if (!ensure()) sentinel else { val v = shorts(pos); pos += 1; v.toInt }
+  override def readInt(sentinel: Long)(implicit ev: A <:< Int): Long =
+    if (!ensure()) sentinel else { val v = ints(pos); pos += 1; v.toLong }
+  override def readLong(sentinel: Long)(implicit ev: A <:< Long): Long =
+    if (readLongs(longOne, 0, 1) < 0) sentinel else longOne(0)
+  override def readFloat(sentinel: Double)(implicit ev: A <:< Float): Double =
+    if (!ensure()) sentinel else { val v = floats(pos); pos += 1; v.toDouble }
+  override def readDouble(sentinel: Double)(implicit ev: A <:< Double): Double =
+    if (readDoubles(doubleOne, 0, 1) < 0) sentinel else doubleOne(0)
+
+  override def readBytes(dest: Array[Byte], offset: Int, length: Int)(implicit ev: A <:< Byte): Int =
+    copy(dest, offset, length, bytes)
+  override def readInts(dest: Array[Int], offset: Int, length: Int)(implicit ev: A <:< Int): Int =
+    copy(dest, offset, length, ints)
+  override def readLongs(dest: Array[Long], offset: Int, length: Int)(implicit ev: A <:< Long): Int =
+    copy(dest, offset, length, longs)
+  override def readFloats(dest: Array[Float], offset: Int, length: Int)(implicit ev: A <:< Float): Int =
+    copy(dest, offset, length, floats)
+  override def readDoubles(dest: Array[Double], offset: Int, length: Int)(implicit ev: A <:< Double): Int =
+    copy(dest, offset, length, doubles)
+
+  private def copy[T](dest: Array[T], offset: Int, length: Int, source: Array[T]): Int = {
+    Reader.validateArrayRange(dest, offset, length)
+    if (length == 0) 0
+    else if (!ensure()) -1
+    else {
+      val count = math.min(length, limit - pos)
+      Array.copy(source, pos, dest, offset, count)
+      pos += count
+      count
+    }
+  }
+
+  override def readUpToN[A1 >: A](n: Int): Chunk[A1] = super.readUpToN(n)
+  def close(): Unit                                  = { done = true; upstream.close() }
 }

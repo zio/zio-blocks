@@ -9,7 +9,7 @@ object ManualPullUsingStart extends App {
     import scope.*
 
     // Open a stream for manual pulling
-    val reader: $[Reader[Int]] = Stream.range(1, 6).start(using scope)
+    val reader: $[Reader.SyncReader[Int]] = Stream.range(1, 6).start(using scope)
 
     $(reader) { r =>
       // Iterate through reader values using the protocol directly

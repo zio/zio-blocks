@@ -16,7 +16,9 @@
 
 package zio.blocks.streams
 
-import zio.blocks.streams.internal.SinkError
+import zio.blocks.async.Async
+import zio.blocks.async._
+import zio.blocks.streams.internal.StreamError
 import zio.blocks.streams.io.Reader
 
 import java.io.IOException
@@ -39,37 +41,31 @@ object NioSinks {
    */
   def fromByteBuffer(buf: ByteBuffer): Sink[Nothing, Byte, Unit] =
     new Sink[Nothing, Byte, Unit] {
-      private[streams] def drain(reader: Reader[_]): Unit = {
-        var b = reader.readByte()
-        while (b >= 0) { buf.put(b.toByte); b = reader.readByte() }
-      }
+      private[streams] override def drain(reader: Reader.AsyncReader[_]): Async[Unit] =
+        Sink.foldAsyncReader[Byte, Unit](reader, ()) { (_, b) =>
+          buf.put(b)
+          Async.succeed(())
+        }
+
+      private[streams] def drain(reader: Reader.SyncReader[_]): Unit =
+        Sink.foldSyncReader[Byte, Unit](reader, ())((_, value) => buf.put(value))
     }
 
   /**
    * Creates a sink that writes all stream Doubles into a [[ByteBuffer]] (8
    * bytes per element). Throws `BufferOverflowException` if the buffer has
    * insufficient remaining capacity.
-   *
-   * PERFORMANCE-CRITICAL SENTINEL POLICY: the drain loop must stay a single
-   * primitive comparison per element — do NOT add per-element EOF-flag or
-   * rawbits checks here (see AGENTS.md, "Sentinel performance policy"). A
-   * stream containing a real `Double.MaxValue` element (the sentinel value) is
-   * rejected with [[IllegalArgumentException]], detected at zero hot-path cost
-   * by consulting the reader's out-of-band EOF flag once, after the loop exits.
    */
   def fromByteBufferDouble(buf: ByteBuffer): Sink[Nothing, Double, Unit] =
     new Sink[Nothing, Double, Unit] {
-      private[streams] def drain(reader: Reader[_]): Unit = {
-        val s            = Double.MaxValue
-        val doubleReader = reader.asInstanceOf[Reader[Double]]
-        var v            = doubleReader.readDouble(s)
-        while (v != s) { buf.putDouble(v); v = doubleReader.readDouble(s) }
-        if (!doubleReader.lastReadWasEOF)
-          throw new IllegalArgumentException(
-            "NioSinks.fromByteBufferDouble: stream contains Double.MaxValue, which collides with the EOF sentinel; " +
-              "use a generic sink (e.g. Sink.collectAll/Sink.foreach) for data that may contain Double.MaxValue"
-          )
-      }
+      private[streams] override def drain(reader: Reader.AsyncReader[_]): Async[Unit] =
+        Sink.foldAsyncReader[Double, Unit](reader, ()) { (_, value) =>
+          buf.putDouble(value)
+          Async.succeed(())
+        }
+
+      private[streams] def drain(reader: Reader.SyncReader[_]): Unit =
+        Sink.foldSyncReader[Double, Unit](reader, ())((_, value) => buf.putDouble(value))
     }
 
   /**
@@ -79,12 +75,14 @@ object NioSinks {
    */
   def fromByteBufferFloat(buf: ByteBuffer): Sink[Nothing, Float, Unit] =
     new Sink[Nothing, Float, Unit] {
-      private[streams] def drain(reader: Reader[_]): Unit = {
-        val s           = Double.MaxValue
-        val floatReader = reader.asInstanceOf[Reader[Float]]
-        var v           = floatReader.readFloat(s)
-        while (v != s) { buf.putFloat(v.toFloat); v = floatReader.readFloat(s) }
-      }
+      private[streams] override def drain(reader: Reader.AsyncReader[_]): Async[Unit] =
+        Sink.foldAsyncReader[Float, Unit](reader, ()) { (_, value) =>
+          buf.putFloat(value)
+          Async.succeed(())
+        }
+
+      private[streams] def drain(reader: Reader.SyncReader[_]): Unit =
+        Sink.foldSyncReader[Float, Unit](reader, ())((_, value) => buf.putFloat(value))
     }
 
   /**
@@ -94,39 +92,31 @@ object NioSinks {
    */
   def fromByteBufferInt(buf: ByteBuffer): Sink[Nothing, Int, Unit] =
     new Sink[Nothing, Int, Unit] {
-      private[streams] def drain(reader: Reader[_]): Unit = {
-        val s         = Long.MinValue
-        val intReader = reader.asInstanceOf[Reader[Int]]
-        var v         = intReader.readInt(s)
-        while (v != s) { buf.putInt(v.toInt); v = intReader.readInt(s) }
-      }
+      private[streams] override def drain(reader: Reader.AsyncReader[_]): Async[Unit] =
+        Sink.foldAsyncReader[Int, Unit](reader, ()) { (_, value) =>
+          buf.putInt(value)
+          Async.succeed(())
+        }
+
+      private[streams] def drain(reader: Reader.SyncReader[_]): Unit =
+        Sink.foldSyncReader[Int, Unit](reader, ())((_, value) => buf.putInt(value))
     }
 
   /**
    * Creates a sink that writes all stream Longs into a [[ByteBuffer]] (8 bytes
    * per element). Throws `BufferOverflowException` if the buffer has
    * insufficient remaining capacity.
-   *
-   * PERFORMANCE-CRITICAL SENTINEL POLICY: the drain loop must stay a single
-   * primitive comparison per element — do NOT add per-element EOF-flag checks
-   * here (see AGENTS.md, "Sentinel performance policy"). A stream containing a
-   * real `Long.MaxValue` element (the sentinel value) is rejected with
-   * [[IllegalArgumentException]], detected at zero hot-path cost by consulting
-   * the reader's out-of-band EOF flag once, after the loop exits.
    */
   def fromByteBufferLong(buf: ByteBuffer): Sink[Nothing, Long, Unit] =
     new Sink[Nothing, Long, Unit] {
-      private[streams] def drain(reader: Reader[_]): Unit = {
-        val s          = Long.MaxValue
-        val longReader = reader.asInstanceOf[Reader[Long]]
-        var v          = longReader.readLong(s)
-        while (v != s) { buf.putLong(v); v = longReader.readLong(s) }
-        if (!longReader.lastReadWasEOF)
-          throw new IllegalArgumentException(
-            "NioSinks.fromByteBufferLong: stream contains Long.MaxValue, which collides with the EOF sentinel; " +
-              "use a generic sink (e.g. Sink.collectAll/Sink.foreach) for data that may contain Long.MaxValue"
-          )
-      }
+      private[streams] override def drain(reader: Reader.AsyncReader[_]): Async[Unit] =
+        Sink.foldAsyncReader[Long, Unit](reader, ()) { (_, value) =>
+          buf.putLong(value)
+          Async.succeed(())
+        }
+
+      private[streams] def drain(reader: Reader.SyncReader[_]): Unit =
+        Sink.foldSyncReader[Long, Unit](reader, ())((_, value) => buf.putLong(value))
     }
 
   /**
@@ -141,22 +131,45 @@ object NioSinks {
    */
   def fromChannel(ch: WritableByteChannel, bufSize: Int = 8192): Sink[IOException, Byte, Unit] =
     new Sink[IOException, Byte, Unit] {
-      private[streams] def drain(reader: Reader[_]): Unit = {
+      private def flush(buf: ByteBuffer): Async[Unit] = {
+        buf.flip()
+        def loop(budget: Int): Async[Unit] =
+          if (!buf.hasRemaining) {
+            buf.compact()
+            Async.succeed(())
+          } else
+            try {
+              val written = ch.write(buf)
+              if (written > 0 && budget > 0) loop(budget - 1)
+              else Sink.yieldEffect(loop(255))
+            } catch { case error: IOException => Async.failTrusted(StreamError.sink(error)) }
+        loop(255)
+      }
+
+      private[streams] override def drain(reader: Reader.AsyncReader[_]): Async[Unit] = {
         val buf = ByteBuffer.allocate(bufSize)
-        var b   = reader.readByte()
-        while (b >= 0) {
+        Sink
+          .foldAsyncReader[Byte, Unit](reader, ()) { (_, b) =>
+            val flushed = if (buf.hasRemaining) Async.succeed(()) else flush(buf)
+            flushed.map { _ => buf.put(b); () }
+          }
+          .flatMap(_ => flush(buf))
+      }
+
+      private[streams] def drain(reader: Reader.SyncReader[_]): Unit = {
+        val buf = ByteBuffer.allocate(bufSize)
+        Sink.foldSyncReader[Byte, Unit](reader, ()) { (_, b) =>
           if (!buf.hasRemaining) {
             buf.flip()
             try { while (buf.hasRemaining) ch.write(buf) }
-            catch { case e: IOException => throw new SinkError(e) }
+            catch { case e: IOException => throw StreamError.sink(e) }
             buf.compact()
           }
-          buf.put(b.toByte)
-          b = reader.readByte()
+          buf.put(b)
         }
         buf.flip()
         try { while (buf.hasRemaining) ch.write(buf) }
-        catch { case e: IOException => throw new SinkError(e) }
+        catch { case e: IOException => throw StreamError.sink(e) }
       }
     }
 }
