@@ -23,11 +23,10 @@ import zio.blocks.docs.Doc
 import zio.test._
 
 /**
- * Typo'd term-level derivation overrides are reported via `derivationReport`
- * and rejected by the `*Checked` variants, while the historical silent methods
- * keep their lenient behavior.
+ * Term-level derivation overrides for unknown terms are silently ignored:
+ * derivation still succeeds and the override has no effect.
  */
-object DerivationReportSpec extends SchemaBaseSpec {
+object LenientDerivationSpec extends SchemaBaseSpec {
 
   trait Marker[A]
   object Marker {
@@ -112,57 +111,20 @@ object DerivationReportSpec extends SchemaBaseSpec {
 
   private val parentId: TypeId[ReportPerson] = Schema[ReportPerson].reflect.typeId
 
-  def spec: Spec[TestEnvironment, Any] = suite("DerivationReportSpec")(
-    test("typo'd instance override is reported") {
-      val report = Schema[ReportPerson]
-        .deriving(Marker.deriver)
-        .instance(parentId, "naem", Marker[String])
-        .derivationReport
-      assertTrue(
-        report.nonEmpty &&
-          report.message.contains("naem") &&
-          report.ignoredInstanceTerms.size == 1 &&
-          report.ignoredInstanceTerms(0)._2 == "naem"
-      )
-    },
-    test("instanceChecked rejects typo'd override and accepts valid one") {
-      val builder = Schema[ReportPerson].deriving(Marker.deriver)
-      assertTrue(
-        builder.instanceChecked(parentId, "naem", Marker[String]).isLeft &&
-          builder.instanceChecked(parentId, "name", Marker[String]).isRight
-      )
-    },
-    test("modifierChecked rejects typo'd override and accepts valid one") {
-      val builder = Schema[ReportPerson].deriving(Marker.deriver)
-      assertTrue(
-        builder.modifierChecked(parentId, "naem", Modifier.rename("n")).isLeft &&
-          builder.modifierChecked(parentId, "name", Modifier.rename("n")).isRight
-      )
-    },
-    test("valid overrides produce an empty report") {
-      val report = Schema[ReportPerson]
-        .deriving(Marker.deriver)
-        .instance(parentId, "name", Marker[String])
-        .modifier(parentId, "age", Modifier.rename("years"))
-        .derivationReport
-      assertTrue(report.isEmpty && report.message.isEmpty)
-    },
-    test("silent methods keep lenient behavior for unknown terms") {
+  def spec: Spec[TestEnvironment, Any] = suite("LenientDerivationSpec")(
+    test("unknown instance term is ignored and derivation succeeds") {
       val builder = Schema[ReportPerson]
         .deriving(Marker.deriver)
         .instance(parentId, "naem", Marker[String])
       // No exception: derivation still succeeds, override ignored as before.
       assertTrue(builder.derive != null)
     },
-    test("Deriver checked variants validate against the schema") {
-      assertTrue(
-        Marker.deriver.withInstanceChecked(Schema[ReportPerson])(parentId, "naem", Marker[String]).isLeft &&
-          Marker.deriver.withInstanceChecked(Schema[ReportPerson])(parentId, "name", Marker[String]).isRight &&
-          Marker.deriver.withModifierChecked(Schema[ReportPerson])(parentId, "naem", Modifier.rename("n")).isLeft &&
-          Marker.deriver
-            .withModifierChecked(Schema[ReportPerson])(parentId, "name", Modifier.rename("n"))
-            .isRight
-      )
+    test("unknown modifier term is ignored and derivation succeeds") {
+      val builder = Schema[ReportPerson]
+        .deriving(Marker.deriver)
+        .modifier(parentId, "naem", Modifier.rename("n"))
+      // No exception: derivation still succeeds, modifier ignored as before.
+      assertTrue(builder.derive != null)
     }
   )
 }

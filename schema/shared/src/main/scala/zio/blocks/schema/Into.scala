@@ -169,8 +169,7 @@ trait IntoContainerInstances {
   // Collection converters fuse the per-element conversion and the error
   // accumulation into a single `while` loop over the iterator: successes go
   // straight into the result builder, failures accumulate via `++`. No
-  // intermediate `List[Either]` and no per-call closures. Errors accumulate
-  // via `++`, matching the previous `sequence`-based behavior.
+  // intermediate `List[Either]` and no per-call closures.
   implicit def mapInto[K1, V1, K2, V2](implicit
     keyInto: Into[K1, K2],
     valueInto: Into[V1, V2]
@@ -259,20 +258,5 @@ trait IntoContainerInstances {
     }
     if (err eq null) new Right(ok.result())
     else new Left(err)
-  }
-
-  protected def sequence[A](list: List[Either[SchemaError, A]]): Either[SchemaError, List[A]] = {
-    val successBuilder = List.newBuilder[A]
-    val errorBuilder   = List.newBuilder[SchemaError]
-    val iter           = list.iterator
-    while (iter.hasNext) {
-      iter.next() match {
-        case Right(a) => successBuilder.addOne(a)
-        case Left(e)  => errorBuilder.addOne(e)
-      }
-    }
-    val errors = errorBuilder.result()
-    if (errors.isEmpty) new Right(successBuilder.result())
-    else new Left(errors.reduceLeft(_ ++ _))
   }
 }

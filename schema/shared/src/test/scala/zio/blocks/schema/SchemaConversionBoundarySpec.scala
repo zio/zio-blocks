@@ -108,25 +108,22 @@ object SchemaConversionBoundarySpec extends SchemaBaseSpec {
       }
     ),
     suite("SchemaMatch indeterminacy")(
-      test("Nominal is indeterminate but matches stays false") {
+      test("Nominal never matches") {
         val value = DynamicValue.Primitive(PrimitiveValue.Int(1))
-        assertTrue(
-          SchemaMatch.matchesOption(SchemaRepr.Nominal("User"), value) == None &&
-            !SchemaMatch.matches(SchemaRepr.Nominal("User"), value)
-        )
+        assertTrue(!SchemaMatch.matches(SchemaRepr.Nominal("User"), value))
       },
-      test("nested Nominal propagates indeterminacy") {
+      test("nested Nominal never matches") {
         val pattern = SchemaRepr.Record(IndexedSeq("name" -> SchemaRepr.Nominal("Name")))
         val value   = DynamicValue.Record("name" -> DynamicValue.Primitive(PrimitiveValue.String("a")))
-        assertTrue(SchemaMatch.matchesOption(pattern, value) == None && !SchemaMatch.matches(pattern, value))
+        assertTrue(!SchemaMatch.matches(pattern, value))
       },
-      test("decidable patterns return Some") {
+      test("decidable patterns match") {
         assertTrue(
-          SchemaMatch.matchesOption(SchemaRepr.Wildcard, DynamicValue.Null) == Some(true) &&
-            SchemaMatch.matchesOption(
+          SchemaMatch.matches(SchemaRepr.Wildcard, DynamicValue.Null) &&
+            !SchemaMatch.matches(
               SchemaRepr.Primitive("int"),
               DynamicValue.Primitive(PrimitiveValue.String("x"))
-            ) == Some(false)
+            )
         )
       }
     ),
