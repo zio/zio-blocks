@@ -451,22 +451,8 @@ object Headers {
   }
 
   /**
-   * Validates a header field name, throwing on failure. This is the hot-path
-   * entry point used by every read and write: unlike [[validateName]] it never
-   * allocates an `Either`, so a valid name costs a single scan.
-   */
-  private[http] def validateNameOrThrow(name: String): Unit = {
-    if (name.isEmpty) throw new IllegalArgumentException("Header name cannot be empty")
-    var i = 0
-    while (i < name.length) {
-      if (!isTokenChar(name.charAt(i))) throw new IllegalArgumentException(s"Invalid header name: $name")
-      i += 1
-    }
-  }
-
-  /**
    * Validates a raw header field value, throwing on failure. Allocation-free on
-   * success, like [[validateNameOrThrow]].
+   * success.
    */
   private[http] def validateValueOrThrow(value: String): Unit = {
     var i = 0
