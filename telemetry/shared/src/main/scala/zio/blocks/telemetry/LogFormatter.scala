@@ -49,6 +49,16 @@ object TextLogFormatter extends LogFormatter {
   @volatile private var cachedSecond: Long   = 0L
   @volatile private var cachedPrefix: String = ""
 
+  /**
+   * Exact canonical location keys emitted by the logging macros
+   * (`code.filepath`, `code.namespace`, `code.function`, `code.lineno`). Any
+   * other `code.*` key is a user attribute and must stay visible. Prefix
+   * matching would over-delete those.
+   */
+  private def isCodeKey(key: String): Boolean =
+    key == "code.filepath" || key == "code.namespace" ||
+      key == "code.function" || key == "code.lineno"
+
   override def format(
     sb: StringBuilder,
     timestampNanos: Long,
@@ -97,7 +107,7 @@ object TextLogFormatter extends LogFormatter {
     var hasUserAttrs = false
     i = 0
     while (i < len) {
-      if (!keys(i).startsWith("code.")) {
+      if (!isCodeKey(keys(i))) {
         if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
         else sb.append(", ")
         sb.append(keys(i)); sb.append('=')
@@ -151,49 +161,49 @@ object TextLogFormatter extends LogFormatter {
       }
 
       override def visitString(key: String, value: String): Unit =
-        if (!key.startsWith("code.")) {
+        if (!isCodeKey(key)) {
           nextAttr(key)
           renderTextAttrValue(sb, 0, 0L, value, null)
         }
 
       override def visitLong(key: String, value: Long): Unit =
-        if (!key.startsWith("code.")) {
+        if (!isCodeKey(key)) {
           nextAttr(key)
           renderTextAttrValue(sb, 1, value, null, null)
         }
 
       override def visitDouble(key: String, value: Double): Unit =
-        if (!key.startsWith("code.")) {
+        if (!isCodeKey(key)) {
           nextAttr(key)
           renderTextAttrValue(sb, 2, java.lang.Double.doubleToRawLongBits(value), null, null)
         }
 
       override def visitBoolean(key: String, value: Boolean): Unit =
-        if (!key.startsWith("code.")) {
+        if (!isCodeKey(key)) {
           nextAttr(key)
           renderTextAttrValue(sb, 3, if (value) 1L else 0L, null, null)
         }
 
       override def visitStringSeq(key: String, value: Seq[String]): Unit =
-        if (!key.startsWith("code.")) {
+        if (!isCodeKey(key)) {
           nextAttr(key)
           renderTextAttrValue(sb, 4, 0L, null, value)
         }
 
       override def visitLongSeq(key: String, value: Seq[Long]): Unit =
-        if (!key.startsWith("code.")) {
+        if (!isCodeKey(key)) {
           nextAttr(key)
           renderTextAttrValue(sb, 5, 0L, null, value)
         }
 
       override def visitDoubleSeq(key: String, value: Seq[Double]): Unit =
-        if (!key.startsWith("code.")) {
+        if (!isCodeKey(key)) {
           nextAttr(key)
           renderTextAttrValue(sb, 6, 0L, null, value)
         }
 
       override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit =
-        if (!key.startsWith("code.")) {
+        if (!isCodeKey(key)) {
           nextAttr(key)
           renderTextAttrValue(sb, 7, 0L, null, value)
         }
