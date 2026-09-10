@@ -246,9 +246,9 @@ private[schema] object ParamCodecSupport {
       }
     } catch {
       case _: NumberFormatException =>
-        Left(s"Cannot parse '$raw' as ${PrimitiveTypeNames.typeName(primitiveType)}")
+        Left(s"Cannot parse '$raw' as ${typeName(primitiveType)}")
       case _: IllegalArgumentException =>
-        Left(s"Cannot parse '$raw' as ${PrimitiveTypeNames.typeName(primitiveType)}")
+        Left(s"Cannot parse '$raw' as ${typeName(primitiveType)}")
     }
 
   private def renderPrimitive[A](value: A, primitiveType: PrimitiveType[A]): String = primitiveType match {
@@ -267,19 +267,19 @@ private[schema] object ParamCodecSupport {
     case _                           => throw new UnsupportedOperationException(s"Unsupported primitive type: $primitiveType")
   }
 
-  /**
-   * Runs one encode against a thread-local builder, sharing the
-   * get/reset/use/build dance between the query and header codecs so the
-   * ordering cannot drift between the two call sites.
-   */
-  def withBuilder[Builder, Result](
-    local: ThreadLocal[Builder],
-    reset: Builder => Unit,
-    build: Builder => Result
-  )(use: Builder => Unit): Result = {
-    val builder = local.get()
-    reset(builder)
-    use(builder)
-    build(builder)
+  private def typeName[A](primitiveType: PrimitiveType[A]): String = primitiveType match {
+    case _: PrimitiveType.String     => "String"
+    case _: PrimitiveType.Int        => "Int"
+    case _: PrimitiveType.Long       => "Long"
+    case _: PrimitiveType.Boolean    => "Boolean"
+    case _: PrimitiveType.Double     => "Double"
+    case _: PrimitiveType.Float      => "Float"
+    case _: PrimitiveType.Short      => "Short"
+    case _: PrimitiveType.Byte       => "Byte"
+    case _: PrimitiveType.BigInt     => "BigInt"
+    case _: PrimitiveType.BigDecimal => "BigDecimal"
+    case _: PrimitiveType.UUID       => "UUID"
+    case _: PrimitiveType.Char       => "Char"
+    case _                           => "Unknown"
   }
 }
