@@ -18,6 +18,7 @@ package zio.http
 
 import _root_.zio.test._
 import zio.blocks.chunk.Chunk
+import zio.blocks.maybe.Maybe
 
 object RequestSpec extends HttpModelBaseSpec {
   private object TraceIdHeader extends Header.Codec[String] {
@@ -102,22 +103,18 @@ object RequestSpec extends HttpModelBaseSpec {
           Body.empty,
           Version.`HTTP/1.1`
         )
-        assertTrue(request.header(TraceIdHeader) == Some("trace-123"))
+        assertTrue(request.header(TraceIdHeader) == Maybe.present("trace-123"))
       }
     ),
     suite("contentType")(
       test("returns ContentType from headers") {
         val headers = Headers("content-type" -> "application/json")
         val request = Request(Method.POST, URL.fromPath(Path.root), headers, Body.empty, Version.`HTTP/1.1`)
-        val ct      = request.contentType
-        assertTrue(
-          ct.isDefined,
-          ct.get == ContentType.`application/json`
-        )
+        assertTrue(request.contentType == ContentType.`application/json`)
       },
       test("falls back to body content type when no content-type header is present") {
         val request = Request.get(URL.fromPath(Path.root))
-        assertTrue(request.contentType == Some(ContentType.`application/octet-stream`))
+        assertTrue(request.contentType == ContentType.`application/octet-stream`)
       }
     ),
     suite("path")(
@@ -195,11 +192,11 @@ object RequestSpec extends HttpModelBaseSpec {
     suite("addHeader")(
       test("adds a header to request") {
         val request = Request.get(URL.fromPath(Path.root)).addHeader("Accept", "text/html")
-        assertTrue(request.headers.rawGet("accept") == Some("text/html"))
+        assertTrue(request.headers.rawGet("accept") == Maybe.present("text/html"))
       },
       test("adds a typed header to request") {
         val request = Request.get(URL.fromPath(Path.root)).addHeader(Header.Host("example.com", Some(8080)))
-        assertTrue(request.header(Header.Host) == Some(Header.Host("example.com", Some(8080))))
+        assertTrue(request.header(Header.Host) == Maybe.present(Header.Host("example.com", Some(8080))))
       }
     ),
     suite("addHeaders")(
@@ -207,8 +204,8 @@ object RequestSpec extends HttpModelBaseSpec {
         val extra   = Headers("Accept" -> "text/html", "X-Custom" -> "value")
         val request = Request.get(URL.fromPath(Path.root)).addHeaders(extra)
         assertTrue(
-          request.headers.rawGet("accept") == Some("text/html"),
-          request.headers.rawGet("x-custom") == Some("value")
+          request.headers.rawGet("accept") == Maybe.present("text/html"),
+          request.headers.rawGet("x-custom") == Maybe.present("value")
         )
       }
     ),
@@ -227,13 +224,13 @@ object RequestSpec extends HttpModelBaseSpec {
           .get(URL.fromPath(Path.root))
           .addHeader("Accept", "text/html")
           .setHeader("Accept", "application/json")
-        assertTrue(request.headers.rawGet("accept") == Some("application/json"))
+        assertTrue(request.headers.rawGet("accept") == Maybe.present("application/json"))
       },
       test("sets a typed header on request") {
         val request = Request
           .get(URL.fromPath(Path.root))
           .setHeader(Header.Host("example.com", Some(8080)))
-        assertTrue(request.header(Header.Host) == Some(Header.Host("example.com", Some(8080))))
+        assertTrue(request.header(Header.Host) == Maybe.present(Header.Host("example.com", Some(8080))))
       }
     ),
     suite("cookies")(
@@ -252,7 +249,7 @@ object RequestSpec extends HttpModelBaseSpec {
           .addCookie(RequestCookie("session", "abc123"))
           .addCookie(RequestCookie("theme", "dark"))
         assertTrue(
-          request.headers.rawGet("cookie") == Some("session=abc123; theme=dark"),
+          request.headers.rawGet("cookie") == Maybe.present("session=abc123; theme=dark"),
           request.cookies == Chunk(RequestCookie("session", "abc123"), RequestCookie("theme", "dark"))
         )
       }
@@ -261,7 +258,10 @@ object RequestSpec extends HttpModelBaseSpec {
       test("replaces body") {
         val newBody = Body.fromString("new body")
         val request = Request.get(URL.fromPath(Path.root)).body(newBody)
-        assertTrue(request.body == newBody, request.headers.rawGet("content-type") == Some(newBody.contentType.render))
+        assertTrue(
+          request.body == newBody,
+          request.headers.rawGet("content-type") == Maybe.present(newBody.contentType.render)
+        )
       }
     ),
     suite("url (setter)")(
@@ -315,8 +315,8 @@ object RequestSpec extends HttpModelBaseSpec {
           .addHeader("Accept", "text/html")
           .updateHeaders(_.add("X-Custom", "value"))
         assertTrue(
-          request.headers.rawGet("accept") == Some("text/html"),
-          request.headers.rawGet("x-custom") == Some("value")
+          request.headers.rawGet("accept") == Maybe.present("text/html"),
+          request.headers.rawGet("x-custom") == Maybe.present("value")
         )
       }
     ),
