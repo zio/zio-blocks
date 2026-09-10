@@ -3,6 +3,9 @@ id: html
 title: "HTML"
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 `zio-blocks-html` is a **type-safe HTML templating library** providing immutable data structures and a fluent DSL for building HTML, CSS, and JavaScript. It offers compile-time safety, automatic XSS protection, and zero-dependency simplicity across Scala 2.13, 3.x, and both JVM and Scala.js platforms.
 
 Core types: `Dom` (HTML tree), `CssSelector` (CSS queries), `DomSelection` (DOM navigation), `Css` (stylesheets), `Js` (JavaScript expressions).
@@ -457,6 +460,88 @@ val card = div(
 ))
 ```
 
+### DomModifier and the Conversion Type Classes
+
+Everything passed to an element factory becomes a `DomModifier` — a deferred description of one modification, collected during construction and applied in a batch. The ADT has four cases:
+
+```scala
+sealed trait DomModifier {
+  def applyTo(element: Dom.Element): Dom.Element
+}
+
+object DomModifier {
+  final case class AddAttr(attr: Dom.Attribute)            extends DomModifier
+  final case class AddChild(child: Dom)                    extends DomModifier
+  final case class AddChildren(children: Chunk[Dom])       extends DomModifier
+  final case class AddEffects(effects: Chunk[DomModifier]) extends DomModifier
+}
+```
+
+`AddEffects` is what makes the ADT recursive, so a group of modifications can be passed as one value and applied as a unit.
+
+`DomModifier#applyTo` applies a single effect and returns the modified element. It is the direct path, and the one to avoid in a loop:
+
+```scala mdoc:silent
+import zio.blocks.html._
+
+val withId = DomModifier.AddAttr(id := "main").applyTo(div)
+```
+
+Each call produces a fresh element, so applying effects one at a time allocates an intermediate per effect:
+
+```scala mdoc
+withId.render
+```
+
+:::note[Prefer the factory for multiple effects]
+`ToModifier.buildFromEffects` — what `div(a, b, c)` calls internally — applies every effect in one pass. Reaching for `DomModifier#applyTo` repeatedly rebuilds the element each time. Use `DomModifier#applyTo` for a single effect computed at runtime, and the factory syntax for everything else.
+:::
+
+`DomModifierConversions` supplies the implicit that turns any `A` with a `ToModifier[A]` instance into a `DomModifier`, which is why strings, elements, and collections can be passed to a factory interchangeably.
+
+#### ToDom
+
+`ToDom[A]` converts a value into a `Dom` node. It is contravariant, and the instance set covers `Dom` itself, `Dom.Element`, `Dom.Text`, `String`, `Int`, `Long`, `Double`, `Boolean`, plus derived instances for `Option` and `Iterable`.
+
+The two derived instances have behaviour worth knowing, because both can produce a node you did not write. `None` becomes `Dom.Empty`, which renders as nothing:
+
+```scala mdoc:silent:reset
+import zio.blocks.html._
+
+val absent  = ToDom[Option[String]].toDom(None)
+val present = ToDom[Option[String]].toDom(Some("hello"))
+```
+
+That is what lets an optional value be dropped into a template without a conditional:
+
+```scala mdoc
+absent.render
+present.render
+```
+
+`Iterable` is the surprising one. An empty collection becomes `Dom.Empty` and a single-element collection becomes that element, but **two or more elements are wrapped in a `<span>`**:
+
+```scala mdoc
+ToDom[Iterable[String]].toDom(Nil).render
+ToDom[Iterable[String]].toDom(List("a")).render
+ToDom[Iterable[String]].toDom(List("a", "b")).render
+```
+
+:::warning[Collections of two or more get a wrapper element]
+`ToDom` has to return a single `Dom`, so a multi-element `Iterable` is wrapped in a `<span>`. That inserts an element into your markup which is invalid inside `<ul>`, `<table>`, and `<select>`, and which affects CSS descendant selectors. To splice a collection without a wrapper, pass it to a factory — `ul(items.map(li(_)))` uses the collection overload and adds the children directly.
+:::
+
+#### ToText
+
+`ToText[A]` converts a value to a plain `String` rather than a DOM node, and is what attribute values and text interpolation use. Instances cover `String`, `Int`, `Long`, `Double`, `Float`, `Boolean`, `Char`, `Byte`, `Short`, `BigInt`, and `BigDecimal`:
+
+```scala mdoc
+ToText[Int].toText(42)
+ToText[BigDecimal].toText(BigDecimal("1.50"))
+```
+
+There is deliberately no `ToText[Dom]`: rendering an element to text is `Dom#render`, which escapes, whereas `ToText` is for values that are already scalar. Providing your own instance is how a domain type becomes usable as an attribute value.
+
 ### Dom.Element.Void
 
 Void HTML elements (`br`, `hr`, `img`, `input`, `meta`, `link`, `area`, `base`, `col`, `embed`, `param`, `source`, `track`, `wbr`) are a **separate type** from `Dom.Element` — they extend `Dom.Element.Void` which extends `Dom` directly (not `Dom.Element`). This means they **structurally cannot have children** — passing a modifier like a string or another element to a void element factory is a **compile-time error**:
@@ -541,6 +626,117 @@ construction path. Elements with permissive content models (`li`, `th`, `td`,
 yet, so tables containing them cannot be built with the `table(...)`
 factory. Compose those tables with the `html""` interpolator or generic
 elements.
+:::
+
+### How the Constraint Is Encoded
+
+The guarantee is the same on both Scala versions, but the signature achieving it is not. Scala 3 uses a union type directly; Scala 2 has no unions, so each constrained factory takes a sealed argument trait with implicit conversions into it:
+
+<Tabs groupId="scala-version" defaultValue="scala2">
+  <TabItem value="scala2" label="Scala 2">
+
+```scala
+sealed trait ListArg
+object ListArg {
+  final case class Attribute(value: Dom.Attribute) extends ListArg
+  final case class Item(value: Dom.Element.Li)     extends ListArg
+
+  implicit def fromAttribute(attribute: Dom.Attribute): ListArg = Attribute(attribute)
+  implicit def fromLi(item: Dom.Element.Li): ListArg            = Item(item)
+}
+
+def ul(effect: ListArg, effects: ListArg*): Dom.Element
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3">
+
+```scala
+def ul(
+  effect: Dom.Attribute | Dom.Element.Li,
+  effects: (Dom.Attribute | Dom.Element.Li)*
+): Dom.Element
+```
+
+  </TabItem>
+</Tabs>
+
+Call sites are identical — `ul(id := "menu", li("Home"))` compiles unchanged on both — because the Scala 2 conversions are implicit. The encoding only becomes visible when you name the argument type, which is why these traits exist at all:
+
+| Factory                | Scala 2 argument type | Scala 3 union                                  |
+| ---------------------- | --------------------- | ---------------------------------------------- |
+| `ul(...)`, `ol(...)`   | `ListArg`             | `Dom.Attribute \| Dom.Element.Li`               |
+| `tr(...)`              | `CellArg`             | `Dom.Attribute \| Dom.Element.Cell`             |
+| `table(...)`           | `RowArg`              | `Dom.Attribute \| Dom.Element.Tr`               |
+| `select(...)`          | `SelectArg`           | `Dom.Attribute \| Dom.Element.SelectChild`      |
+| `optgroup(...)`        | `OptgroupArg`         | `Dom.Attribute \| Dom.Element.Opt`              |
+| `script(...)`          | `ScriptArg`           | `Dom.Attribute \| Js`                           |
+| `style(...)`           | `StyleArg`            | `Dom.Attribute \| Css`                          |
+
+`ScriptArg` and `StyleArg` follow the same shape for a different purpose: they admit typed inline source rather than a constrained child, so `script(js"...")` and `style(css"...")` embed a `Js` or `Css` value instead of a string.
+
+Writing a function that forwards to one of these factories is where the difference surfaces. On Scala 2 the parameter type is the argument trait; on Scala 3 it is the union:
+
+<Tabs groupId="scala-version" defaultValue="scala2">
+  <TabItem value="scala2" label="Scala 2">
+
+```scala
+def menu(items: ListArg*): Dom.Element = ul(items.head, items.tail: _*)
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3">
+
+```scala
+def menu(items: (Dom.Attribute | Dom.Element.Li)*): Dom.Element =
+  ul(items.head, items.tail*)
+```
+
+  </TabItem>
+</Tabs>
+
+Taking `Iterable[Dom.Element.Li]` avoids the difference entirely, since every constrained factory also has a collection overload that is spelled the same on both versions.
+
+### Concrete Element Classes
+
+The marker traits are implemented by case classes named after their tag: `LiElement`, `ThElement`, `TdElement`, `TrElement`, `OptElement`, and `OptgroupElement`. Each holds `attributes` and `children` and hard-codes its `tag`, which is what makes a value typed `Dom.Element.Li` guaranteed to render as `<li>`.
+
+You do not normally name them — the factories return the marker trait, not the implementation — but they appear in pattern matches over a DOM tree and in `toString` output. Because equality is structural, matching on `Dom.Element.Generic` will *not* catch a factory-produced `li`, even though the two are equal:
+
+```scala mdoc:silent
+import zio.blocks.html._
+
+val item = li("Home")
+```
+
+The factory returns the marker type, and the runtime class is the implementation behind it:
+
+```scala mdoc
+item.getClass.getSimpleName
+```
+
+Matching against `Generic` at that static type does not merely fail — it does not compile. `Dom.Element.Li` and `Generic` are disjoint, so the compiler reports the case as unreachable:
+
+```scala mdoc:fail
+item match {
+  case _: Dom.Element.Generic => "matched Generic"
+  case _                      => "no match"
+}
+```
+
+Widening to `Dom.Element` makes the match legal, and then `Generic` simply does not match:
+
+```scala mdoc
+val widened: Dom.Element = item
+widened match {
+  case _: Dom.Element.Generic => "matched Generic"
+  case _: Dom.Element.Li      => "matched Li"
+  case _                      => "no match"
+}
+```
+
+:::note[Structural equality, disjoint types]
+`li("Home") == Generic("li", ...)` is `true`, but `LiElement` is not a `Generic` and never matches one. Equality is structural and crosses classes; the types do not. Match on the marker trait, or on `Dom.Element` plus `tag`, rather than on a concrete class.
 :::
 
 ### Equality Across Element Classes
@@ -745,6 +941,80 @@ val containsClass = input.withAttributeContaining("class", "btn")  // input[clas
 val startsWithHref = a.withAttributeStarting("href", "https")      // a[href^="https"]
 val endsWithPng = img.withAttributeEnding("src", ".png")           // img[src$=".png"]
 ```
+
+### The Selector ADT
+
+The DSL operators are constructors: each one builds a `CssSelector` node, and the result is an ordinary sealed ADT you can pattern match on. That matters when a selector arrives from elsewhere — a stylesheet you are rewriting, a rule you are inspecting — rather than being written inline.
+
+Every operator and its node:
+
+| Expression                              | Node                                    | Renders as        |
+| --------------------------------------- | --------------------------------------- | ----------------- |
+| `CssSelector.Element("div")`            | `Element(tag)`                           | `div`             |
+| `CssSelector.Class("active")`           | `Class(name)`                            | `.active`         |
+| `CssSelector.Id("header")`              | `Id(name)`                               | `#header`         |
+| `CssSelector.Universal`                 | `Universal`                              | `*`               |
+| `div > span`                            | `Child(parent, child)`                   | `div > span`      |
+| `div >> span`                           | `Descendant(parent, descendant)`         | `div span`        |
+| `div + span`                            | `AdjacentSibling(previous, next)`        | `div + span`      |
+| `div ~ span`                            | `GeneralSibling(previous, sibling)`      | `div ~ span`      |
+| `div & CssSelector.Class("active")`     | `And(left, right)`                       | `div.active`      |
+| `div \| span`                           | `Or(left, right)`                        | `div, span`       |
+| `a.hover`                               | `PseudoClass(inner, pseudoClass)`        | `a:hover`         |
+| `div.before`                            | `PseudoElement(inner, pseudoElement)`    | `div::before`     |
+| `input.withAttribute("type")`           | `Attribute(inner, attribute, matcher)`   | `input[type]`     |
+| `CssSelector.Not(inner, negated)`       | `Not(inner, negated)`                    | `div:not(.hidden)`|
+| `CssSelector.Raw("...")`                | `Raw(value)`                             | verbatim          |
+
+Because the nodes are recursive, a selector built with operators nests rather than flattening:
+
+```scala mdoc:silent
+import zio.blocks.html._
+
+val selector = div >> span & CssSelector.Class("active")
+```
+
+Matching on the outermost node tells you which operator produced it:
+
+```scala mdoc
+selector.render
+selector match {
+  case CssSelector.And(left, right) => s"And(${left.render}, ${right.render})"
+  case other                        => other.getClass.getSimpleName
+}
+```
+
+`CssSelector.Raw` is the escape hatch for syntax the ADT does not model. It renders verbatim, so nothing validates it:
+
+```scala mdoc
+CssSelector.Raw("div:has(> img)").render
+```
+
+#### Attribute Matchers
+
+`CssSelector.Attribute` carries an `Option[AttributeMatch]`. `None` tests for presence alone; the six matchers correspond to the CSS attribute operators:
+
+| Builder                                    | Matcher                        | Renders as              |
+| ------------------------------------------ | ------------------------------ | ----------------------- |
+| `withAttribute(name)`                      | `None`                          | `[name]`                |
+| `withAttribute(name, value)`               | `Exact(value)`                  | `[name="value"]`        |
+| `withAttributeContaining(name, value)`     | `Contains(value)`               | `[name*="value"]`       |
+| `withAttributeStarting(name, value)`       | `StartsWith(value)`             | `[name^="value"]`       |
+| `withAttributeEnding(name, value)`         | `EndsWith(value)`               | `[name$="value"]`       |
+| —                                          | `WhitespaceContains(value)`     | `[name~="value"]`       |
+| —                                          | `HyphenPrefix(value)`           | `[name\|="value"]`      |
+
+`WhitespaceContains` and `HyphenPrefix` have no builder method, so construct them through `CssSelector.Attribute` directly:
+
+```scala mdoc
+CssSelector.Attribute(
+  CssSelector.Element("div"),
+  "class",
+  Some(CssSelector.AttributeMatch.WhitespaceContains("card"))
+).render
+```
+
+`WhitespaceContains` matches one word in a space-separated list, which is the correct matcher for a single class among several; `HyphenPrefix` matches a value or that value followed by a hyphen, which is what `lang` attributes need.
 
 ## DOM Querying with DomSelection
 
