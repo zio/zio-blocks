@@ -221,11 +221,24 @@ object HeadersSpec extends HttpModelBaseSpec {
           lengths == Chunk(7, 8),
           again == Chunk("trace-1", "trace-22")
         )
+      },
+      test("reuses cached values on a repeated read with the same codec") {
+        val h      = Headers("X-Trace-Id" -> "trace-1", "X-Trace-Id" -> "trace-2")
+        val first  = h.getAll(TraceIdHeader)
+        val second = h.getAll(TraceIdHeader)
+        assertTrue(
+          first == Chunk("trace-1", "trace-2"),
+          second == Chunk("trace-1", "trace-2")
+        )
       }
     ),
     suite("getStrict")(
-      test("reports an absent header as Right(None)") {
+      test("reports an absent header as Right(absent)") {
         assertTrue(Headers.empty.getStrict(IntHeader) == Right(Maybe.absent))
+      },
+      test("parses on a cold cache without a prior lenient read") {
+        val h = Headers("x-n" -> "7")
+        assertTrue(h.getStrict(IntHeader) == Right(Maybe.present(7)))
       },
       test("reports a present-but-unparseable header as Left where get reads None") {
         val h = Headers("x-n" -> "abc")
@@ -268,6 +281,10 @@ object HeadersSpec extends HttpModelBaseSpec {
           h.getAll(IntHeader) == Chunk(1, 3),
           h.getAllStrict(IntHeader) == Left("not an int: abc")
         )
+      },
+      test("ignores entries with other names") {
+        val h = Headers("x-n" -> "1", "other" -> "z", "x-n" -> "2")
+        assertTrue(h.getAllStrict(IntHeader) == Right(Chunk(1, 2)))
       }
     ),
     suite("getLast")(
@@ -276,9 +293,22 @@ object HeadersSpec extends HttpModelBaseSpec {
         val cookie = h.getLast(Header.SetCookieHeader)
         assertTrue(cookie == Maybe.present(Header.SetCookieHeader("b=2")))
       },
-      test("returns None when no matching typed header exists") {
+      test("returns absent when no matching typed header exists") {
         val h = Headers("content-type" -> "text/html")
-        assertTrue(h.getLast(Header.SetCookieHeader).isEmpty)
+        assertTrue(h.getLast(Header.SetCookieHeader).isAbsent)
+      },
+      test("skips unparseable entries scanning backwards") {
+        val h = Headers("content-length" -> "42", "content-length" -> "abc")
+        assertTrue(h.getLast(Header.ContentLength) == Maybe.present(Header.ContentLength(42L)))
+      },
+      test("reuses the cached value on a repeated read") {
+        val h      = Headers("content-length" -> "7")
+        val first  = h.getLast(Header.ContentLength)
+        val second = h.getLast(Header.ContentLength)
+        assertTrue(
+          first == Maybe.present(Header.ContentLength(7L)),
+          second == Maybe.present(Header.ContentLength(7L))
+        )
       }
     ),
     suite("rawGetLast")(
@@ -432,6 +462,11 @@ object HeadersSpec extends HttpModelBaseSpec {
         val h2 = Headers("a" -> "2")
         assertTrue(h1 != h2)
       },
+      test("headers of different sizes are not equal") {
+        val h1 = Headers("a" -> "1")
+        val h2 = Headers("a" -> "1", "b" -> "2")
+        assertTrue(h1 != h2)
+      },
       test("order matters") {
         val h1 = Headers("a" -> "1", "b" -> "2")
         val h2 = Headers("b" -> "2", "a" -> "1")
@@ -451,6 +486,29 @@ object HeadersSpec extends HttpModelBaseSpec {
           s.contains("Headers"),
           s.contains("content-type"),
           s.contains("text/html")
+        )
+      }
+    ),
+    suite("validateName / validateValue")(
+      test("accepts valid names and values") {
+        assertTrue(
+          Headers.validateName("content-type") == Right(()),
+          Headers.validateName("X-TRACE-ID") == Right(()),
+          Headers.validateValue("text/html") == Right(()),
+          Headers.validateValue("") == Right(())
+        )
+      },
+      test("rejects empty and non-token names") {
+        assertTrue(
+          Headers.validateName("") == Left("Header name cannot be empty"),
+          Headers.validateName("bad name").isLeft,
+          Headers.validateName("bad@name").isLeft
+        )
+      },
+      test("rejects values containing CR or LF") {
+        assertTrue(
+          Headers.validateValue("a\rb").isLeft,
+          Headers.validateValue("a\nb").isLeft
         )
       }
     ),
