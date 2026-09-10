@@ -23,9 +23,9 @@ import zio.blocks.docs.Doc
 import zio.test._
 
 /**
- * PR1 regression tests: typo'd term-level derivation overrides are reported via
- * `derivationReport` and rejected by the `*Checked` variants, while the
- * historical silent methods keep their lenient behavior.
+ * Typo'd term-level derivation overrides are reported via `derivationReport`
+ * and rejected by the `*Checked` variants, while the historical silent methods
+ * keep their lenient behavior.
  */
 object DerivationReportSpec extends SchemaBaseSpec {
 

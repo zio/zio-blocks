@@ -191,7 +191,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(migration(DynamicValue.Primitive(PrimitiveValue.Int(1))).isLeft)
       }
     ),
-    suite("PR1 nested-case paths")(
+    suite("TransformCase at nested case paths")(
       test("TransformCase navigates doubly-nested case paths") {
         val input = DynamicValue.Record(
           "u" -> DynamicValue.Variant(
@@ -250,7 +250,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("PR1 lazy per-element error paths")(
+    suite("per-element error paths")(
       test("TransformElements failure carries the failing element index") {
         import SchemaExpr.ConversionType._
         val input = DynamicValue.Sequence(
