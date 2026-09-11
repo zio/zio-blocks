@@ -1784,7 +1784,7 @@ lazy val `schema-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.7.2"
+      "dev.zio"     %% "zio-sbt-source" % "0.8.0"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1812,7 +1812,7 @@ lazy val `streams-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.7.2"
+      "dev.zio"     %% "zio-sbt-source" % "0.8.0"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1860,7 +1860,7 @@ lazy val docs = project
     publish / skip                             := true,
     libraryDependencies ++= Seq(
       "dev.zio"   %% "zio-prelude"    % "1.0.0-RC48",
-      "dev.zio"   %% "zio-sbt-source" % "0.7.2",
+      "dev.zio"   %% "zio-sbt-source" % "0.8.0",
       "org.xerial" % "sqlite-jdbc"    % "3.53.2.0"
     ),
     // Override @PROJECT_BADGES@ to exclude the javadoc badge and to anchor the Maven Central /
