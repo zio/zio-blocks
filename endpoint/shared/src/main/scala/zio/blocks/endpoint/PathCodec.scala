@@ -177,6 +177,31 @@ sealed trait PathCodec[A] { self =>
     val _ = ev
     PathCodec.Transform(self, decode, encode).asInstanceOf[PathCodec[B] { type PathVars = PV }]
   }
+
+  /**
+   * Marks this path's captured value as intentionally unused: the route keeps
+   * matching the same shape and keeps rendering the same `{name}` placeholders,
+   * but decoding yields `Unit` instead of the captured value, so no handler
+   * parameter is required for it.
+   *
+   * Example: `PathCodec.int("id").unused` still matches `/42` and still renders
+   * `/{id}`, yet the endpoint's path input is `Unit`.
+   *
+   * Like [[transform]], this reifies the marker (identity OR with
+   * `NoPathVars`), so an unused literal-only path stays `NoPathVars` while an
+   * unused capturing path stays `HasPathVars`. Formatting an unused path fails:
+   * there is no value to encode back into the ignored segment.
+   *
+   * @return
+   *   a path codec with value type `Unit` and the same route shape as `self`
+   */
+  final def unused[PV](implicit
+    ev: SegmentCodec.CombinePathVars[self.PathVars, SegmentCodec.NoPathVars, PV]
+  ): PathCodec[Unit] { type PathVars = PV } = {
+    // Marker reification: see `transform` (identity OR with `NoPathVars`).
+    val _ = ev
+    PathCodec.Ignored(self).asInstanceOf[PathCodec[Unit] { type PathVars = PV }]
+  }
 }
 
 object PathCodec {
@@ -247,6 +272,13 @@ object PathCodec {
   ) extends PathCodec[B] {
     // Left abstract: only `transform`/`transformOrFail` (which reify the
     // inner codec's own marker) may ascribe a concrete one.
+    type PathVars
+  }
+  final case class Ignored[A](
+    codec: PathCodec[A]
+  ) extends PathCodec[Unit] {
+    // Left abstract: only `unused` (which reifies the inner codec's own
+    // marker) may ascribe a concrete one.
     type PathVars
   }
   final case class Fallback(left: PathCodec[Unit], right: PathCodec[Unit]) extends PathCodec[Unit] {

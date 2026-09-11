@@ -447,6 +447,27 @@ val _ = endpoints { "oops" }
         val rp = Method.GET / pc
         assertTrue(group.a.route.render == "GET /a" && rp.render == "GET /{x}/{y}")
       }
+    ),
+    suite("unused segments")(
+      test(".unused renders as {name}") {
+        val group = endpoints {
+          val a = Endpoint(Method.GET / PathCodec.int("id").unused)
+        }
+        assertTrue(group.a.route.render == "GET /{id}")
+      },
+      test("bare unused endpoint auto-names to GET /{id}") {
+        val group = endpoints {
+          Endpoint(Method.GET / PathCodec.int("id").unused)
+        }
+        assertTrue(group.`GET /{id}`.route.render == "GET /{id}")
+      },
+      test("unused endpoint decodes to Unit with no handler parameter") {
+        val group = endpoints {
+          val a = Endpoint(Method.GET / PathCodec.int("id").unused)
+        }
+        val _: Endpoint[Unit, Unit, Unit, Unit, AuthType.None.type] = group.a
+        assertTrue(group.a.route.decode(Method.GET, Path("/42")) == Right(()))
+      }
     )
   )
 }

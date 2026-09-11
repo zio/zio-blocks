@@ -387,6 +387,99 @@ object PathCodecRoutingSpec extends ZIOSpecDefault {
           """)
         )(isLeft)
       }
+    ),
+    suite("unused segments")(
+      test("bool/int/long/string/uuid unused render as {name}") {
+        assertTrue(
+          PathCodec.bool("flag").unused.render == "/{flag}",
+          PathCodec.int("id").unused.render == "/{id}",
+          PathCodec.long("count").unused.render == "/{count}",
+          PathCodec.string("slug").unused.render == "/{slug}",
+          PathCodec.uuid("key").unused.render == "/{key}"
+        )
+      },
+      test("segment-level unused lifts to PathCodec with the same render") {
+        assertTrue(
+          SegmentCodec.bool("flag").unused.render == "/{flag}",
+          SegmentCodec.int("id").unused.render == "/{id}",
+          SegmentCodec.long("count").unused.render == "/{count}",
+          SegmentCodec.string("slug").unused.render == "/{slug}",
+          SegmentCodec.uuid("key").unused.render == "/{key}"
+        )
+      },
+      test("unused decodes shape-validated segments to Unit") {
+        assertTrue(
+          PathCodec.bool("flag").unused.decode(Path("/true")) == Right(()),
+          PathCodec.int("id").unused.decode(Path("/42")) == Right(()),
+          PathCodec.long("count").unused.decode(Path("/42")) == Right(()),
+          PathCodec.string("slug").unused.decode(Path("/hello")) == Right(()),
+          PathCodec.uuid("key").unused.decode(Path("/550e8400-e29b-41d4-a716-446655440000")) == Right(())
+        )
+      },
+      test("unused still rejects wrong shapes") {
+        assertTrue(
+          PathCodec.bool("flag").unused.decode(Path("/yes")).isLeft,
+          PathCodec.int("id").unused.decode(Path("/abc")).isLeft,
+          PathCodec.long("count").unused.decode(Path("/abc")).isLeft,
+          PathCodec.uuid("key").unused.decode(Path("/nope")).isLeft,
+          PathCodec.int("id").unused.decode(Path("/a/b")).isLeft
+        )
+      },
+      test("unused matches like the underlying segment") {
+        assertTrue(
+          PathCodec.int("id").unused.matches(Path("/42")),
+          !PathCodec.int("id").unused.matches(Path("/abc"))
+        )
+      },
+      test("unused composes with / after use") {
+        // No annotation: a plain `PathCodec[Unit]` annotation would drop the
+        // capture marker threaded above (see "segment transform lifts to PathCodec").
+        val codec = PathCodec.int("id").unused / PathCodec.string("slug")
+        assertTrue(
+          codec.render == "/{id}/{slug}",
+          codec.decode(Path("/42/hello")) == Right("hello")
+        )
+      },
+      test("unused-after-transform drops the domain value but keeps matching") {
+        val codec = PathCodec.int("id").transform((i: Int) => i + 1, (i: Int) => i - 1).unused
+        assertTrue(
+          codec.render == "/{id}",
+          codec.decode(Path("/41")) == Right(()),
+          codec.decode(Path("/nope")).isLeft
+        )
+      },
+      test("transform-after-unused maps Unit") {
+        val codec = PathCodec.int("id").unused.transform((_: Unit) => "hit", (_: String) => ())
+        assertTrue(
+          codec.render == "/{id}",
+          codec.decode(Path("/42")) == Right("hit"),
+          codec.decode(Path("/nope")).isLeft
+        )
+      },
+      test("unused keeps the route input at Unit") {
+        val route = Method.GET / PathCodec.int("id").unused
+        assertTrue(
+          route.render == "GET /{id}",
+          route.decode(Method.GET, Path("/42")) == Right(())
+        )
+      },
+      test("unused capturing segments still refuse orElse at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val ignored = PathCodec.int("id").unused
+            val invalid: PathCodec[Unit] = ignored.orElse(PathCodec.literal("users"))
+          """)
+        )(isLeft)
+      },
+      test("unused literal-only paths stay orElse-eligible") {
+        val codec = PathCodec.literal("users").unused.orElse(PathCodec.literal("posts"))
+        assertTrue(codec.decode(Path("/users")).isRight, codec.decode(Path("/posts")).isRight)
+      },
+      test("format of an unused segment fails with a clear message") {
+        assertTrue(PathCodec.int("id").unused.format(()).isLeft)
+      }
     )
   )
 }

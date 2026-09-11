@@ -31,6 +31,7 @@ private[endpoint] object PathCodecRuntime {
         case PathCodec.Segment(segment)       => segment.render(prefix, suffix)
         case PathCodec.Concat(left, right, _) => loop(left) + loop(right)
         case PathCodec.Transform(inner, _, _) => loop(inner)
+        case PathCodec.Ignored(inner)         => loop(inner)
         case PathCodec.Fallback(left, right)  => loop(left) + " | " + loop(right)
       }
 
@@ -48,6 +49,7 @@ private[endpoint] object PathCodecRuntime {
               head match {
                 case PathCodec.Segment(SegmentCodec.Empty)            => loop(tail, result)
                 case PathCodec.Fallback(left, right)                  => loop(left :: right :: tail, result)
+                case PathCodec.Ignored(inner)                         => loop(expand(inner) ::: tail, result)
                 case PathCodec.Segment(SegmentCodec.Literal(_, _, _)) => loop(tail, result :+ head)
                 case other                                            =>
                   throw new IllegalStateException(
@@ -74,6 +76,8 @@ private[endpoint] object PathCodecRuntime {
             encode.asInstanceOf[Any => Either[DecodeError, Any]]
           )
         )
+      case PathCodec.Ignored(inner) =>
+        expand(inner).map(wrapped => PathCodec.Ignored(wrapped.asInstanceOf[PathCodec[Any]]))
       case PathCodec.Segment(SegmentCodec.Empty) => Nil
       case other                                 => List(other)
     }
@@ -94,6 +98,8 @@ private[endpoint] object PathCodecRuntime {
         decodeCodec(codec, segments, index).flatMap { case (value, end) =>
           decode(value).toOption.map(_ -> end)
         }
+      case PathCodec.Ignored(inner) =>
+        decodeCodec(inner, segments, index).map { case (_, end) => ((), end) }
       case PathCodec.Fallback(left, right) => decodeCodec(left, segments, index) ++ decodeCodec(right, segments, index)
     }
 
@@ -171,6 +177,7 @@ private[endpoint] object PathCodecRuntime {
       case PathCodec.Concat(left, right, _) =>
         val mid = matchEnd(left, segments, index)
         if (mid < 0) -1 else matchEnd(right, segments, mid)
+      case PathCodec.Ignored(inner)        => matchEnd(inner, segments, index)
       case PathCodec.Fallback(left, right) =>
         math.max(matchEnd(left, segments, index), matchEnd(right, segments, index))
       case transformed: PathCodec.Transform[_, _] =>
@@ -203,6 +210,8 @@ private[endpoint] object PathCodecRuntime {
         val leftEnds = decodeCodec(left, segments, index).map(_._2)
         if (leftEnds.isEmpty) furthestIndex(left, segments, index)
         else leftEnds.map(end => furthestIndex(right, segments, end)).max
+      case PathCodec.Ignored(inner) =>
+        furthestIndex(inner, segments, index)
       case transformed: PathCodec.Transform[_, _] =>
         furthestIndex(transformed.codec, segments, index)
       case PathCodec.Fallback(left, right) =>
@@ -232,6 +241,8 @@ private[endpoint] object PathCodecRuntime {
         val codec  = transformed.codec.asInstanceOf[PathCodec[Any]]
         val encode = transformed.encode.asInstanceOf[Any => Either[DecodeError, Any]]
         encode(value).flatMap(inner => formatCodec(codec, inner))
+      case PathCodec.Ignored(inner) =>
+        Left(s"Cannot format an unused path segment: ${render(inner, "{", "}")} captures no value")
       case PathCodec.Fallback(left, _) => formatCodec(left, value)
     }
 }

@@ -416,16 +416,43 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   final case class BoolSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Boolean)] = Chunk.empty)
       extends SegmentCodec[Boolean] {
     type PathVars = HasPathVars
+
+    /**
+     * Marks this capture as intentionally unused: the route keeps matching the
+     * same `true`/`false` shape and keeps rendering `{name}`, but decoding
+     * yields `Unit`, so no handler parameter is required for it. Lifts into a
+     * [[PathCodec]] exactly like [[SegmentCodec.transform]].
+     */
+    def unused: PathCodec[Unit] { type PathVars = HasPathVars } =
+      PathCodec(this).unused
   }
 
   final case class IntSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Int)] = Chunk.empty)
       extends SegmentCodec[Int] {
     type PathVars = HasPathVars
+
+    /**
+     * Marks this capture as intentionally unused: the route keeps matching the
+     * same integer shape and keeps rendering `{name}`, but decoding yields
+     * `Unit`, so no handler parameter is required for it. Lifts into a
+     * [[PathCodec]] exactly like [[SegmentCodec.transform]].
+     */
+    def unused: PathCodec[Unit] { type PathVars = HasPathVars } =
+      PathCodec(this).unused
   }
 
   final case class LongSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Long)] = Chunk.empty)
       extends SegmentCodec[Long] {
     type PathVars = HasPathVars
+
+    /**
+     * Marks this capture as intentionally unused: the route keeps matching the
+     * same long shape and keeps rendering `{name}`, but decoding yields `Unit`,
+     * so no handler parameter is required for it. Lifts into a [[PathCodec]]
+     * exactly like [[SegmentCodec.transform]].
+     */
+    def unused: PathCodec[Unit] { type PathVars = HasPathVars } =
+      PathCodec(this).unused
   }
 
   final case class StringSeg[N <: String](
@@ -434,6 +461,15 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     examples: Chunk[(String, String)] = Chunk.empty
   ) extends SegmentCodec[String] {
     type PathVars = HasPathVars
+
+    /**
+     * Marks this capture as intentionally unused: the route keeps matching any
+     * segment and keeps rendering `{name}`, but decoding yields `Unit`, so no
+     * handler parameter is required for it. Lifts into a [[PathCodec]] exactly
+     * like [[SegmentCodec.transform]].
+     */
+    def unused: PathCodec[Unit] { type PathVars = HasPathVars } =
+      PathCodec(this).unused
   }
 
   final case class UUIDSeg[N <: String](
@@ -442,6 +478,15 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     examples: Chunk[(String, java.util.UUID)] = Chunk.empty
   ) extends SegmentCodec[java.util.UUID] {
     type PathVars = HasPathVars
+
+    /**
+     * Marks this capture as intentionally unused: the route keeps matching the
+     * same UUID shape and keeps rendering `{name}`, but decoding yields `Unit`,
+     * so no handler parameter is required for it. Lifts into a [[PathCodec]]
+     * exactly like [[SegmentCodec.transform]].
+     */
+    def unused: PathCodec[Unit] { type PathVars = HasPathVars } =
+      PathCodec(this).unused
   }
 
   final case class Combined[A, B, C](
