@@ -128,7 +128,9 @@ object DatastarEvent {
     while (index < length) {
       val c = value.charAt(index)
       if (c == '\n' || c == '\r') {
-        appendDataLineRange(sb, prefix, first, value, start, index)
+        sb.append("data: ")
+        if (first) sb.append(prefix)
+        sb.append(value, start, index).append('\n')
         if (c == '\r' && index + 1 < length && value.charAt(index + 1) == '\n')
           index += 1
         start = index + 1
@@ -136,30 +138,19 @@ object DatastarEvent {
       }
       index += 1
     }
-    appendDataLineRange(sb, prefix, first, value, start, length)
-  }
-
-  private def appendDataLineRange(
-    sb: java.lang.StringBuilder,
-    prefix: String,
-    first: Boolean,
-    value: String,
-    start: Int,
-    end: Int
-  ): Unit = {
     sb.append("data: ")
     if (first) sb.append(prefix)
-    sb.append(value, start, end).append('\n')
+    sb.append(value, start, length).append('\n')
   }
 
   final case class PatchElementsBuilder private[DatastarEvent] (
-    elements: Dom,
-    selector: Maybe[CssSelector],
-    mode: ElementPatchMode,
-    useViewTransition: Boolean,
-    namespace: Maybe[String],
-    eventId: Maybe[String],
-    retryMillis: Maybe[Long]
+    private val elements: Dom,
+    private val selector: Maybe[CssSelector],
+    private val mode: ElementPatchMode,
+    private val useViewTransition: Boolean,
+    private val namespace: Maybe[String],
+    private val eventId: Maybe[String],
+    private val retryMillis: Maybe[Long]
   ) {
 
     def selector(s: CssSelector): PatchElementsBuilder =
@@ -185,10 +176,10 @@ object DatastarEvent {
   }
 
   final case class PatchSignalsBuilder private[DatastarEvent] (
-    signalsJson: String,
-    emitOnlyIfMissing: Boolean,
-    eventId: Maybe[String],
-    retryMillis: Maybe[Long]
+    private val signalsJson: String,
+    private val emitOnlyIfMissing: Boolean,
+    private val eventId: Maybe[String],
+    private val retryMillis: Maybe[Long]
   ) {
 
     def onlyIfMissing: PatchSignalsBuilder =
@@ -236,7 +227,7 @@ object DatastarEvent {
     new PatchSignalsBuilder(json, false, Maybe.absent, Maybe.absent)
 
   final case class RemoveElementsBuilder private[DatastarEvent] (
-    inner: PatchElementsBuilder
+    private val inner: PatchElementsBuilder
   ) {
     def viewTransition: RemoveElementsBuilder        = copy(inner = inner.viewTransition)
     def namespace(ns: String): RemoveElementsBuilder = copy(inner = inner.namespace(ns))
