@@ -17,8 +17,8 @@
 package zio.blocks.data.migration
 
 import zio.test.*
-import zio.blocks.schema.migration.Migration
 import zio.blocks.sql.*
+import MigratorTestStubs.newInPlaceMigrator
 
 object SmallMigratorSpec extends ZIOSpecDefault {
 
@@ -33,39 +33,10 @@ object SmallMigratorSpec extends ZIOSpecDefault {
     override def transact[A](isolation: TransactionIsolation, readOnly: Boolean)(f: DbTx ?=> A): A = 0.asInstanceOf[A]
   }
 
-  /**
-   * Transactor stub that counts preparation transactions without executing
-   * them: proves `init()` runs its transaction body at most once.
-   */
-  final class CountingTransactor extends Transactor {
-    val transactCalls                          = new java.util.concurrent.atomic.AtomicInteger(0)
-    override def connect[A](f: DbCon ?=> A): A = 0L.asInstanceOf[A]
-    override def transact[A](f: DbTx ?=> A): A = {
-      transactCalls.incrementAndGet()
-      0.asInstanceOf[A]
-    }
-    override def transact[A](isolation: TransactionIsolation, readOnly: Boolean)(f: DbTx ?=> A): A =
-      transact(f)
-  }
-
-  private val idColumns = IndexedSeq(ColumnMeta("id", DbValue.DbInt(0), nullable = false))
-  private val v1Repo    = Repo(Table[Int]("users_v1", DbCodec.intCodec, idColumns), "id", DbCodec.intCodec, identity)
-  private val v2Repo    = Repo(Table[Int]("users_v2", DbCodec.intCodec, idColumns), "id", DbCodec.intCodec, identity)
-
-  // Never invoked: StubTransactor skips transaction bodies entirely.
-  private val unusedMigration = null.asInstanceOf[Migration[Int, Int]]
-
   private given dialect: Dialect = Dialect.Postgres
 
   private def newMigrator(tx: Transactor): SmallMigrator[Int, Int, Int, Int] =
-    SmallMigrator[Int, Int, Int, Int](
-      repoV1 = v1Repo,
-      repoV2 = v2Repo,
-      migration = unusedMigration,
-      queueTable = "q",
-      batchSize = 10,
-      target = TargetStrategy.InPlace
-    )(using tx, DbCodec.intCodec)
+    newInPlaceMigrator(tx)
 
   def spec = suite("SmallMigrator")(
     test("processBatch() before init() fails") {
@@ -107,7 +78,7 @@ object SmallMigratorSpec extends ZIOSpecDefault {
       assertTrue(scala.util.Try(m.complete()).isFailure)
     },
     test("init() twice prepares the target only once") {
-      val tx = new CountingTransactor
+      val tx = new MigratorTestStubs.CountingTransactor
       val m  = newMigrator(tx)
       m.init()
       m.init()

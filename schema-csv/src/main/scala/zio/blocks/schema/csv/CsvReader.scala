@@ -40,16 +40,17 @@ object CsvReader {
   /**
    * Parses a single CSV row starting at the given offset.
    *
+   * Error positions are reported relative to `offset` (the row starting at
+   * `offset` counts as row 1). `readAll` threads absolute document rows through
+   * the package-private overload below instead, so callers never need to
+   * pre-scan the input for line breaks.
+   *
    * @param input
    *   the full CSV input string
    * @param offset
    *   the character position to start parsing from
    * @param config
    *   the CSV configuration controlling delimiter and quoting
-   * @param initialRow
-   *   the 1-based number of the row starting at `offset` (used for absolute
-   *   error positions when parsing a document piece by piece; defaults to 1,
-   *   i.e. positions relative to `offset`)
    * @return
    *   `Right((fields, newOffset))` on success where `fields` contains the
    *   parsed field values and `newOffset` is the position after the consumed
@@ -58,8 +59,23 @@ object CsvReader {
   def readRow(
     input: String,
     offset: Int,
+    config: CsvConfig
+  ): Either[CsvError, (IndexedSeq[String], Int)] =
+    readRow(input, offset, config, 1)
+
+  /**
+   * Package-private `readRow` overload carrying the 1-based number of the row
+   * starting at `offset`, for absolute error positions when `readAll` parses a
+   * document piece by piece.
+   *
+   * @param initialRow
+   *   the 1-based number of the row starting at `offset`
+   */
+  private[csv] def readRow(
+    input: String,
+    offset: Int,
     config: CsvConfig,
-    initialRow: Int = 1
+    initialRow: Int
   ): Either[CsvError, (IndexedSeq[String], Int)] = {
     val len       = input.length
     val delimiter = config.delimiter
@@ -112,14 +128,12 @@ object CsvReader {
               sb.setLength(0)
               pos += 1
               if (pos < len && input.charAt(pos) == '\n') pos += 1
-              row += 1
               col = 1
               done = true
             } else if (c == '\n') {
               fields += sb.toString
               sb.setLength(0)
               pos += 1
-              row += 1
               col = 1
               done = true
             } else {
@@ -141,14 +155,12 @@ object CsvReader {
               sb.setLength(0)
               pos += 1
               if (pos < len && input.charAt(pos) == '\n') pos += 1
-              row += 1
               col = 1
               done = true
             } else if (c == '\n') {
               fields += sb.toString
               sb.setLength(0)
               pos += 1
-              row += 1
               col = 1
               done = true
             } else {
@@ -199,14 +211,12 @@ object CsvReader {
               sb.setLength(0)
               pos += 1
               if (pos < len && input.charAt(pos) == '\n') pos += 1
-              row += 1
               col = 1
               done = true
             } else if (c == '\n') {
               fields += sb.toString
               sb.setLength(0)
               pos += 1
-              row += 1
               col = 1
               done = true
             } else {

@@ -127,6 +127,20 @@ object MediaTypeParseSpec extends MediaTypeBaseSpec {
           result.toOption.get.parameters == Map("title" -> "\"abc")
         )
       },
+      test("strips single quotes symmetrically with double quotes") {
+        val result = MediaType.parse("text/html; charset='utf-8'")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.parameters == Map("charset" -> "utf-8")
+        )
+      },
+      test("keeps unbalanced single quotes as is") {
+        val result = MediaType.parse("text/html; title='abc")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.parameters == Map("title" -> "'abc")
+        )
+      },
       test("documents the semicolon-in-quotes limitation") {
         // Quoted values must not contain ';': it still splits parameters, and
         // the fragment without '=' is dropped.

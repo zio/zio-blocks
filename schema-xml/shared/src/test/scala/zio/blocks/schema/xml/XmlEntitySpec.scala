@@ -103,6 +103,30 @@ object XmlEntitySpec extends ZIOSpecDefault {
       test("numeric references decode through the codec") {
         val result = XmlCodec.stringCodec.decode("<value>&#65;</value>")
         assertTrue(result == Right("A"))
+      },
+      test("explicit signs on numeric references are rejected (decimal)") {
+        val plus     = XmlCodec.stringCodec.decode("<value>&#+65;</value>")
+        val minus    = XmlCodec.stringCodec.decode("<value>&#-65;</value>")
+        val plusMsg  = plus.fold(_.message, _ => "")
+        val minusMsg = minus.fold(_.message, _ => "")
+        assertTrue(
+          plus.isLeft,
+          minus.isLeft,
+          plusMsg.contains("Invalid entity"),
+          minusMsg.contains("Invalid entity")
+        )
+      },
+      test("explicit signs on numeric references are rejected (hexadecimal)") {
+        val plus     = XmlCodec.stringCodec.decode("<value>&#x+41;</value>")
+        val minus    = XmlCodec.stringCodec.decode("<value>&#x-41;</value>")
+        val plusMsg  = plus.fold(_.message, _ => "")
+        val minusMsg = minus.fold(_.message, _ => "")
+        assertTrue(
+          plus.isLeft,
+          minus.isLeft,
+          plusMsg.contains("Invalid entity"),
+          minusMsg.contains("Invalid entity")
+        )
       }
     )
   )
