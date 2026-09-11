@@ -36,15 +36,15 @@ object ScalaEmitter {
    *   The Scala type string (e.g., "String", "List[Int]", "Map[String, Int]")
    */
   def emitTypeRef(typeRef: TypeRef): String = typeRef.name match {
-    case "|" => typeRef.typeArgs.map(emitTypeRef).mkString(" | ")
-    case "&" => typeRef.typeArgs.map(emitTypeRef).mkString(" & ")
+    case "|" => emitList(typeRef.typeArgs, " | ")(emitTypeRef)
+    case "&" => emitList(typeRef.typeArgs, " & ")(emitTypeRef)
     case _   =>
       val safeName =
         if (typeRef.name.contains('.') || typeRef.name.exists(c => "()[]=>".contains(c)))
           typeRef.name
         else escapeName(typeRef.name)
       if (typeRef.typeArgs.isEmpty) safeName
-      else s"${safeName}[${typeRef.typeArgs.map(emitTypeRef).mkString(", ")}]"
+      else s"$safeName[${emitList(typeRef.typeArgs, ", ")(emitTypeRef)}]"
   }
 
   /**
@@ -64,7 +64,7 @@ object ScalaEmitter {
     }
     sb.append(escapeName(tp.name))
     if (tp.typeParams.nonEmpty)
-      sb.append("[").append(tp.typeParams.map(emitTypeParam).mkString(", ")).append("]")
+      sb.append("[").append(emitList(tp.typeParams, ", ")(emitTypeParam)).append("]")
     tp.lowerBound.foreach(lb => sb.append(" >: ").append(emitTypeRef(lb)))
     tp.upperBound.foreach(ub => sb.append(" <: ").append(emitTypeRef(ub)))
     tp.contextBounds.foreach(cb => sb.append(": ").append(emitTypeRef(cb)))
@@ -86,7 +86,7 @@ object ScalaEmitter {
   def emitAnnotation(annotation: Annotation): String =
     if (annotation.args.isEmpty) s"@${annotation.name}"
     else {
-      val argsStr = annotation.args.map { case (k, v) => s"$k = $v" }.mkString(", ")
+      val argsStr = emitList(annotation.args, ", ") { case (k, v) => s"$k = $v" }
       s"@${annotation.name}($argsStr)"
     }
 
@@ -107,10 +107,7 @@ object ScalaEmitter {
     val defaultStr = field.defaultValue.fold("")(d => s" = $d")
     val fieldStr   = s"${escapeName(field.name)}: $typeStr$defaultStr"
     if (field.annotations.isEmpty) fieldStr
-    else {
-      val annotStrs = field.annotations.map(emitAnnotation)
-      (annotStrs :+ fieldStr).mkString("\n")
-    }
+    else emitList(field.annotations, "\n")(emitAnnotation) + "\n" + fieldStr
   }
 
   /**
@@ -142,7 +139,7 @@ object ScalaEmitter {
       val arrow = if (config.scala3Syntax) "as" else "=>"
       s"import $path.{$from $arrow $to}"
     case Import.GroupImport(path, names) =>
-      s"import $path.{${names.mkString(", ")}}"
+      s"import $path.{${emitList(names, ", ")}}"
   }
 
   /**
@@ -181,6 +178,34 @@ object ScalaEmitter {
 
   private def ind(level: Int, config: EmitterConfig): String =
     " " * (level * config.indentWidth)
+
+  /**
+   * Shared list-joining helper replacing the repeated
+   * `xs.map(emitX).mkString(sep)` shape across per-node emitters.
+   */
+  private def emitList[A](xs: List[A], sep: String)(emit1: A => String): String = {
+    val sb = new StringBuilder
+    emitList(sb, xs, sep)(emit1)
+    sb.toString
+  }
+
+  /** `emitList` for plain string elements. */
+  private def emitList(xs: List[String], sep: String): String =
+    emitList(new StringBuilder, xs, sep)(s => s).toString
+
+  /**
+   * Shared-builder overload of `emitList`: appends the joined elements to an
+   * existing builder without allocating an intermediate string.
+   */
+  private def emitList[A](sb: StringBuilder, xs: List[A], sep: String)(emit1: A => String): StringBuilder = {
+    var first = true
+    xs.foreach { x =>
+      if (first) first = false
+      else sb.append(sep)
+      sb.append(emit1(x))
+    }
+    sb
+  }
 
   /**
    * Emits a complete Scala source file as a string.
@@ -265,7 +290,7 @@ object ScalaEmitter {
 
     sb.append(prefix).append("case class ").append(escapeName(cc.name))
     if (cc.typeParams.nonEmpty)
-      sb.append("[").append(cc.typeParams.map(emitTypeParam).mkString(", ")).append("]")
+      sb.append("[").append(emitList(cc.typeParams, ", ")(emitTypeParam)).append("]")
     sb.append("(")
 
     if (cc.fields.isEmpty) {
@@ -289,11 +314,13 @@ object ScalaEmitter {
     val allExtends =
       if (cc.isValueClass && !cc.extendsTypes.exists(_.name == "AnyVal")) TypeRef("AnyVal") :: cc.extendsTypes
       else cc.extendsTypes
-    if (allExtends.nonEmpty)
-      sb.append(" extends ").append(allExtends.map(emitTypeRef).mkString(" with "))
+    if (allExtends.nonEmpty) {
+      sb.append(" extends ")
+      emitList(sb, allExtends, " with ")(emitTypeRef)
+    }
 
     if (config.scala3Syntax && cc.derives.nonEmpty)
-      sb.append(" derives ").append(cc.derives.mkString(", "))
+      sb.append(" derives ").append(emitList(cc.derives, ", "))
 
     cc.companion.foreach { comp =>
       sb.append("\n")
@@ -328,9 +355,11 @@ object ScalaEmitter {
 
     sb.append(prefix).append("sealed trait ").append(escapeName(st.name))
     if (st.typeParams.nonEmpty)
-      sb.append("[").append(st.typeParams.map(emitTypeParam).mkString(", ")).append("]")
-    if (st.extendsTypes.nonEmpty)
-      sb.append(" extends ").append(st.extendsTypes.map(emitTypeRef).mkString(" with "))
+      sb.append("[").append(emitList(st.typeParams, ", ")(emitTypeParam)).append("]")
+    if (st.extendsTypes.nonEmpty) {
+      sb.append(" extends ")
+      emitList(sb, st.extendsTypes, " with ")(emitTypeRef)
+    }
     st.selfType.foreach { selfTp =>
       sb.append(" { self: ").append(emitTypeRef(selfTp)).append(" => }")
     }
@@ -389,22 +418,24 @@ object ScalaEmitter {
     }
 
     sb.append(prefix).append("enum ").append(escapeName(en.name))
-    if (en.extendsTypes.nonEmpty)
-      sb.append(" extends ").append(en.extendsTypes.map(emitTypeRef).mkString(" with "))
+    if (en.extendsTypes.nonEmpty) {
+      sb.append(" extends ")
+      emitList(sb, en.extendsTypes, " with ")(emitTypeRef)
+    }
     sb.append(" {\n")
 
     val simples       = en.cases.collect { case EnumCase.SimpleCase(n) => n }
     val parameterized = en.cases.collect { case p: EnumCase.ParameterizedCase => p }
 
     if (parameterized.isEmpty && simples.nonEmpty) {
-      sb.append(inner).append("case ").append(simples.mkString(", ")).append("\n")
+      sb.append(inner).append("case ").append(emitList(simples, ", ")).append("\n")
     } else {
       en.cases.foreach {
         case EnumCase.SimpleCase(n) =>
           sb.append(inner).append("case ").append(n).append("\n")
         case EnumCase.ParameterizedCase(n, fields, _) =>
           sb.append(inner).append("case ").append(n).append("(")
-          sb.append(fields.map(f => emitFieldInline(f, config)).mkString(", "))
+          sb.append(emitList(fields, ", ")(emitFieldInline(_, config)))
           sb.append(")\n")
       }
     }
@@ -459,8 +490,10 @@ object ScalaEmitter {
     else sb.append("object ")
     sb.append(escapeName(obj.name))
 
-    if (obj.extendsTypes.nonEmpty)
-      sb.append(" extends ").append(obj.extendsTypes.map(emitTypeRef).mkString(" with "))
+    if (obj.extendsTypes.nonEmpty) {
+      sb.append(" extends ")
+      emitList(sb, obj.extendsTypes, " with ")(emitTypeRef)
+    }
 
     if (obj.members.nonEmpty) {
       sb.append(" {\n")
@@ -533,9 +566,11 @@ object ScalaEmitter {
 
     sb.append(prefix).append("trait ").append(escapeName(t.name))
     if (t.typeParams.nonEmpty)
-      sb.append("[").append(t.typeParams.map(emitTypeParam).mkString(", ")).append("]")
-    if (t.extendsTypes.nonEmpty)
-      sb.append(" extends ").append(t.extendsTypes.map(emitTypeRef).mkString(" with "))
+      sb.append("[").append(emitList(t.typeParams, ", ")(emitTypeParam)).append("]")
+    if (t.extendsTypes.nonEmpty) {
+      sb.append(" extends ")
+      emitList(sb, t.extendsTypes, " with ")(emitTypeRef)
+    }
 
     val hasSelfType = t.selfType.isDefined
     if (t.members.nonEmpty || hasSelfType) {
@@ -583,7 +618,7 @@ object ScalaEmitter {
 
     sb.append(prefix).append("abstract class ").append(escapeName(ac.name))
     if (ac.typeParams.nonEmpty)
-      sb.append("[").append(ac.typeParams.map(emitTypeParam).mkString(", ")).append("]")
+      sb.append("[").append(emitList(ac.typeParams, ", ")(emitTypeParam)).append("]")
 
     if (ac.fields.nonEmpty) {
       sb.append("(")
@@ -602,8 +637,10 @@ object ScalaEmitter {
       sb.append(prefix).append(")")
     }
 
-    if (ac.extendsTypes.nonEmpty)
-      sb.append(" extends ").append(ac.extendsTypes.map(emitTypeRef).mkString(" with "))
+    if (ac.extendsTypes.nonEmpty) {
+      sb.append(" extends ")
+      emitList(sb, ac.extendsTypes, " with ")(emitTypeRef)
+    }
 
     if (ac.members.nonEmpty) {
       sb.append(" {\n")
@@ -722,7 +759,7 @@ object ScalaEmitter {
     }
     sb.append(prefix).append("type ").append(escapeName(ta.name))
     if (ta.typeParams.nonEmpty)
-      sb.append("[").append(ta.typeParams.map(emitTypeParam).mkString(", ")).append("]")
+      sb.append("[").append(emitList(ta.typeParams, ", ")(emitTypeParam)).append("]")
     sb.append(" = ").append(emitTypeRef(ta.typeRef))
     sb.toString
   }
@@ -747,7 +784,7 @@ object ScalaEmitter {
     sb.append("def ").append(escapeName(method.name))
 
     if (method.typeParams.nonEmpty)
-      sb.append("[").append(method.typeParams.map(emitTypeParam).mkString(", ")).append("]")
+      sb.append("[").append(emitList(method.typeParams, ", ")(emitTypeParam)).append("]")
 
     method.params.foreach { paramList =>
       sb.append("(")
@@ -758,7 +795,7 @@ object ScalaEmitter {
           sb.append(if (config.scala3Syntax) "using " else "implicit ")
         case ParamListModifier.Normal => ()
       }
-      sb.append(paramList.params.map(emitMethodParam).mkString(", "))
+      sb.append(emitList(paramList.params, ", ")(emitMethodParam))
       sb.append(")")
     }
 
@@ -844,7 +881,7 @@ object ScalaEmitter {
     val defaultStr = field.defaultValue.fold("")(d => s" = $d")
     val annotStr   =
       if (field.annotations.isEmpty) ""
-      else field.annotations.map(emitAnnotation).mkString(" ") + " "
+      else emitList(field.annotations, " ")(emitAnnotation) + " "
     s"$annotStr${escapeName(field.name)}: $typeStr$defaultStr"
   }
 

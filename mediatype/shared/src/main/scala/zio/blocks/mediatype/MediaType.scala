@@ -63,6 +63,15 @@ object MediaType {
     if (normalized.isEmpty) None else extensionMap.get(normalized)
   }
 
+  /**
+   * Parses a media type string such as `text/html; charset=utf-8`.
+   *
+   * Parameter values may be double- or single-quoted (`charset="utf-8"` and
+   * `charset='utf-8'` both parse to `utf-8`); one surrounding quote layer is
+   * stripped. Limitation: a `;` inside a quoted value still splits parameters,
+   * so quoted values must not contain `;`. Unknown types keep their original
+   * case.
+   */
   def parse(s: String): Either[String, MediaType] = {
     if (s.isEmpty) return Left("Invalid media type: cannot be empty")
 
@@ -98,12 +107,25 @@ object MediaType {
       .filter(_.nonEmpty)
       .flatMap { param =>
         param.split("=", 2) match {
-          case Array(key, value) => Some(key.trim.toLowerCase -> value.trim)
-          case _                 => None
+          // Strip one layer of surrounding quotes, double or single:
+          // charset="utf-8" -> utf-8, charset='utf-8' -> utf-8.
+          // A ';' inside quotes still splits (documented limitation of parse).
+          case Array(key, value) =>
+            Some(key.trim.toLowerCase -> stripQuoteLayer(value.trim))
+          case _ => None
         }
       }
       .toMap
   }
+
+  private[this] def stripQuoteLayer(value: String): String =
+    if (
+      value.length >= 2 && (
+        (value.startsWith("\"") && value.endsWith("\"")) ||
+          (value.startsWith("'") && value.endsWith("'"))
+      )
+    ) value.substring(1, value.length - 1)
+    else value
 
   def unsafeFromString(s: String): MediaType =
     parse(s) match {

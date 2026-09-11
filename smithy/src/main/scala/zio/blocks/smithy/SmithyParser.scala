@@ -16,6 +16,8 @@
 
 package zio.blocks.smithy
 
+import scala.util.control.NonFatal
+
 /**
  * Parser for Smithy IDL (Interface Definition Language) version 2.x.
  *
@@ -23,6 +25,10 @@ package zio.blocks.smithy
  * all Smithy IDL constructs including version declarations, namespaces,
  * metadata, use statements, shape definitions (simple, aggregate, enum,
  * service), trait applications, documentation comments, and apply statements.
+ *
+ * Errors (including lexer-level throws from `expectChar`/`expectString`) are
+ * funneled through the outer `NonFatal` catch in `parseModel`, so `parse`
+ * always returns a `Left` and never throws.
  */
 private[smithy] object SmithyParser {
 
@@ -156,6 +162,9 @@ private[smithy] object SmithyParser {
       } catch {
         case e: SmithyParseException =>
           Left(SmithyError.ParseError(e.getMessage, e.line, e.column, None))
+        case e if NonFatal(e) =>
+          val message = if (e.getMessage ne null) e.getMessage else e.getClass.getName
+          Left(SmithyError.ParseError(message, line, column, None))
       }
 
     // -----------------------------------------------------------------------
