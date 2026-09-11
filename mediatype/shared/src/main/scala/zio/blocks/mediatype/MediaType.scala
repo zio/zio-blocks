@@ -66,10 +66,11 @@ object MediaType {
   /**
    * Parses a media type string such as `text/html; charset=utf-8`.
    *
-   * Parameter values may be single-quoted (`charset="utf-8"` parses to
-   * `utf-8`); one surrounding quote layer is stripped. Limitation: a `;` inside
-   * a quoted value still splits parameters, so quoted values must not contain
-   * `;`. Unknown types keep their original case.
+   * Parameter values may be double- or single-quoted (`charset="utf-8"` and
+   * `charset='utf-8'` both parse to `utf-8`); one surrounding quote layer is
+   * stripped. Limitation: a `;` inside a quoted value still splits parameters,
+   * so quoted values must not contain `;`. Unknown types keep their original
+   * case.
    */
   def parse(s: String): Either[String, MediaType] = {
     if (s.isEmpty) return Left("Invalid media type: cannot be empty")
@@ -106,20 +107,25 @@ object MediaType {
       .filter(_.nonEmpty)
       .flatMap { param =>
         param.split("=", 2) match {
-          // Strip one layer of surrounding quotes: charset="utf-8" -> utf-8.
+          // Strip one layer of surrounding quotes, double or single:
+          // charset="utf-8" -> utf-8, charset='utf-8' -> utf-8.
           // A ';' inside quotes still splits (documented limitation of parse).
           case Array(key, value) =>
-            val trimmed  = value.trim
-            val unquoted =
-              if (trimmed.length >= 2 && trimmed.startsWith("\"") && trimmed.endsWith("\""))
-                trimmed.substring(1, trimmed.length - 1)
-              else trimmed
-            Some(key.trim.toLowerCase -> unquoted)
+            Some(key.trim.toLowerCase -> stripQuoteLayer(value.trim))
           case _ => None
         }
       }
       .toMap
   }
+
+  private[this] def stripQuoteLayer(value: String): String =
+    if (
+      value.length >= 2 && (
+        (value.startsWith("\"") && value.endsWith("\"")) ||
+          (value.startsWith("'") && value.endsWith("'"))
+      )
+    ) value.substring(1, value.length - 1)
+    else value
 
   def unsafeFromString(s: String): MediaType =
     parse(s) match {

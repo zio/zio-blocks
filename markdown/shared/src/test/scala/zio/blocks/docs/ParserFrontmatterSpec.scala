@@ -40,9 +40,8 @@ object ParserFrontmatterSpec extends MarkdownBaseSpec {
       )
     },
     test("parseWithFrontmatter leaves unclosed fences to strict parsing") {
-      val (meta, _) = Parser.stripFrontmatter("---\ntitle: test")
-      val result    = Parser.parseWithFrontmatter("---\ntitle: test")
-      assertTrue(meta.isEmpty, result.isRight)
+      val result = Parser.parseWithFrontmatter("---\ntitle: test")
+      assertTrue(result.isRight, result.toOption.get._1.isEmpty)
     },
     test("parseWithFrontmatter reports body errors after frontmatter") {
       val result = Parser.parseWithFrontmatter("---\ntitle: test\n---\n####### Too deep")
@@ -58,20 +57,45 @@ object ParserFrontmatterSpec extends MarkdownBaseSpec {
       )
     },
     test("empty fences are not frontmatter") {
-      val (meta, rest) = Parser.stripFrontmatter("---\n---\n# Hello")
-      assertTrue(meta.isEmpty, rest == "---\n---\n# Hello")
+      val result = Parser.parseWithFrontmatter("---\n---\n# Hello")
+      assertTrue(result.isRight, result.toOption.get._1.isEmpty)
     },
     test("strict parse still rejects frontmatter") {
       val result = Parser.parse("---\ntitle: test\n---\n# Hello")
       assertTrue(result.isLeft)
     },
-    test("stripFrontmatter splits pairs from the body") {
-      val (meta, rest) = Parser.stripFrontmatter("---\ntitle: test\n---\n# Hello")
-      assertTrue(meta == Map("title" -> "test"), rest == "# Hello")
+    test("parseWithFrontmatter returns pairs with the document") {
+      val result = Parser.parseWithFrontmatter("---\ntitle: test\n---\n# Hello")
+      assertTrue(
+        result.isRight,
+        result.toOption.get._1 == Map("title" -> "test"),
+        result.toOption.get._2.blocks == Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello"))))
+      )
     },
-    test("stripFrontmatter keeps inputs without fences unchanged") {
-      val (meta, rest) = Parser.stripFrontmatter("# Hello")
-      assertTrue(meta.isEmpty, rest == "# Hello")
+    test("parseWithFrontmatter keeps inputs without fences unchanged") {
+      val result = Parser.parseWithFrontmatter("# Hello")
+      assertTrue(
+        result.isRight,
+        result.toOption.get._1.isEmpty,
+        result.toOption.get._2.blocks.length == 1
+      )
+    },
+    test("parseWithFrontmatter accepts CRLF fences") {
+      val input  = "---\r\ntitle: test\r\nauthor: me\r\n---\r\n# Hello"
+      val result = Parser.parseWithFrontmatter(input)
+      assertTrue(
+        result.isRight,
+        result.toOption.get._1 == Map("title" -> "test", "author" -> "me"),
+        result.toOption.get._2.blocks.length == 1
+      )
+    },
+    test("strict parse rejects CRLF frontmatter") {
+      val result = Parser.parse("---\r\ntitle: test\r\n---\r\n# Hello")
+      assertTrue(result.isLeft)
+    },
+    test("parseWithFrontmatter leaves CRLF unclosed fences to strict parsing") {
+      val result = Parser.parseWithFrontmatter("---\r\ntitle: test")
+      assertTrue(result.isRight, result.toOption.get._1.isEmpty)
     }
   )
 }

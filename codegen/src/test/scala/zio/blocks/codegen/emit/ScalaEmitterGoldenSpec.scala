@@ -88,6 +88,19 @@ object ScalaEmitterGoldenSpec extends ZIOSpecDefault {
         name = "Codecs",
         members = List(ObjectMember.ValMember("version", TypeRef.String, "\"1.0\"")),
         extendsTypes = List(TypeRef("Serializable"))
+      ),
+      CaseClass(
+        name = "UserId",
+        fields = List(Field("value", TypeRef.Long)),
+        isValueClass = true
+      ),
+      SealedTrait(
+        name = "Service",
+        selfType = Some(TypeRef("Env"))
+      ),
+      CaseClass(
+        name = "Keyword",
+        fields = List(Field("type", TypeRef.String))
       )
     )
   )
@@ -140,6 +153,16 @@ object ScalaEmitterGoldenSpec extends ZIOSpecDefault {
              |object Codecs extends Serializable {
              |  val version: String = "1.0"
              |}
+             |
+             |case class UserId(
+             |  value: Long,
+             |) extends AnyVal
+             |
+             |sealed trait Service { self: Env => }
+             |
+             |case class Keyword(
+             |  `type`: String,
+             |)
              |""".stripMargin
       )
     }
