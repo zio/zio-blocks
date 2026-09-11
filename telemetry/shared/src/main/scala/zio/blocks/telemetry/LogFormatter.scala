@@ -43,6 +43,11 @@ trait LogFormatter {
 /**
  * Human-readable text format: "2026-03-31T17:30:00.123Z INFO
  * [MyClass.method:42] message {key=val}"
+ *
+ * String attribute values render double-quoted. A value containing `"`, `\`, or
+ * a line break would otherwise blur where the value ends, so those characters
+ * are backslash-escaped (`\"`, `\\`, `\n`, `\r`, `\t`) — in both scalar strings
+ * and string-seq elements, on both entry points.
  */
 object TextLogFormatter extends LogFormatter {
 
@@ -254,7 +259,7 @@ object TextLogFormatter extends LogFormatter {
    */
   private def renderTextAttrValue(sb: StringBuilder, tpe: Byte, long: Long, str: String, seq: Seq[Any]): Unit =
     (tpe: @scala.annotation.switch) match {
-      case 0 /* STRING */      => sb.append('"'); sb.append(str); sb.append('"')
+      case 0 /* STRING */      => sb.append('"'); appendTextEscaped(sb, str); sb.append('"')
       case 1 /* LONG */        => sb.append(long)
       case 2 /* DOUBLE */      => sb.append(java.lang.Double.longBitsToDouble(long))
       case 3 /* BOOLEAN */     => sb.append(if (long != 0L) "true" else "false")
@@ -263,6 +268,29 @@ object TextLogFormatter extends LogFormatter {
       case 6 /* DOUBLE_SEQ */  => appendScalarSeq(sb, if (seq == null) Seq.empty else seq)
       case 7 /* BOOLEAN_SEQ */ => appendScalarSeq(sb, if (seq == null) Seq.empty else seq)
       case _                   => sb.append("?")
+    }
+
+  /**
+   * Appends a string attribute value with `"`, `\`, and line-break characters
+   * backslash-escaped so quoted values stay unambiguous. A null value keeps the
+   * historical rendering.
+   */
+  private def appendTextEscaped(sb: StringBuilder, s: String): Unit =
+    if (s == null) sb.append(s)
+    else {
+      var i = 0
+      while (i < s.length) {
+        val c = s.charAt(i)
+        c match {
+          case '"'  => sb.append("\\\"")
+          case '\\' => sb.append("\\\\")
+          case '\n' => sb.append("\\n")
+          case '\r' => sb.append("\\r")
+          case '\t' => sb.append("\\t")
+          case _    => sb.append(c)
+        }
+        i += 1
+      }
     }
 
   /** Shared throwable rendering, used by both entry points. */
@@ -318,13 +346,19 @@ object TextLogFormatter extends LogFormatter {
     if (seqs == null || seqs(i) == null) Seq.empty
     else seqs(i).asInstanceOf[Seq[Any]]
 
-  /** Renders a String seq as `["a", "b"]` with each element double-quoted. */
+  /**
+   * Renders a String seq as `["a", "b"]` with each element double-quoted and
+   * escaped.
+   */
   private def appendStringSeq(sb: StringBuilder, value: Seq[Any]): Unit = {
     sb.append('[')
     var first = true
     value.foreach { v =>
       if (first) first = false else sb.append(", ")
-      sb.append('"').append(v.toString).append('"')
+      sb.append('"')
+      val element = if (v == null) null else v.toString
+      appendTextEscaped(sb, element)
+      sb.append('"')
     }
     sb.append(']')
   }
