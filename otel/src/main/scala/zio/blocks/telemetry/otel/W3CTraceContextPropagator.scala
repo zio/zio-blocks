@@ -27,7 +27,9 @@ import zio.blocks.telemetry._
  * Version handling follows the forward-compatibility rule: version `"00"` must
  * be exactly 55 characters; future versions (any 2-hex version other than
  * `"ff"`) are accepted when they carry at least the 55-character version-00
- * prefix, and trailing fields are ignored. `"ff"` is always rejected.
+ * prefix, and trailing fields are ignored. Longer inputs are only accepted when
+ * the trailing fields start with a `-` delimiter at index 55. `"ff"` is always
+ * rejected, in any letter case.
  *
  * tracestate is validated and bounded per the spec (at most 512 characters of
  * comma-separated `key=value` members). An absent, overlong, or malformed
@@ -56,7 +58,7 @@ object W3CTraceContextPropagator extends Propagator {
       _          <- if (traceparent.charAt(2) == '-' && traceparent.charAt(35) == '-' && traceparent.charAt(52) == '-') Some(())
            else None
       version         = traceparent.substring(0, 2)
-      _              <- if (isSupportedVersion(version, traceparent.length)) Some(()) else None
+      _              <- if (isSupportedVersion(version, traceparent)) Some(()) else None
       traceIdHex      = traceparent.substring(3, 35).toLowerCase
       (tidHi, tidLo) <- TraceId.fromHex(traceIdHex)
       _              <- if (TraceId.isValid(tidHi, tidLo)) Some(()) else None
@@ -73,13 +75,21 @@ object W3CTraceContextPropagator extends Propagator {
 
   /**
    * Accepts version `"00"` at exactly 55 characters, and any other 2-hex
-   * version (except `"ff"`) at 55+ characters so future versions with the same
-   * shape keep extracting.
+   * version (except `"ff"` in any letter case) at exactly 55 characters or
+   * longer when the extra fields start with a `-` delimiter at index 55, so
+   * future versions with the same shape keep extracting.
    */
-  private def isSupportedVersion(version: String, length: Int): Boolean =
-    if (version.length != 2 || !isHexByte(version) || version == "ff") false
-    else if (version == Version) length == TraceparentLength
-    else length >= TraceparentLength
+  private def isSupportedVersion(version: String, traceparent: String): Boolean =
+    if (version.length != 2 || !isHexByte(version)) false
+    else {
+      // Hex acceptance is case-insensitive, so the `ff` ban must be too.
+      val lower = version.toLowerCase
+      if (lower == "ff") false
+      else if (lower == Version) traceparent.length == TraceparentLength
+      else
+        traceparent.length == TraceparentLength ||
+        (traceparent.length > TraceparentLength && traceparent.charAt(TraceparentLength) == '-')
+    }
 
   private def isHexByte(s: String): Boolean =
     isHexChar(s.charAt(0)) && isHexChar(s.charAt(1))
