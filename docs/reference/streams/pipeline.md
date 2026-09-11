@@ -96,7 +96,11 @@ These laws guarantee that pipelines compose predictably, regardless of how you p
 
 ## Construction
 
-Pipelines are built using factory methods on the `Pipeline` companion object. Each factory creates a pipeline that performs a specific transformation: mapping elements, filtering, collecting, or controlling flow. All factories support JVM primitive specialization through implicit `JvmType.Infer` parameters.
+Pipelines are built using factory methods on the `Pipeline` companion object. Each factory creates a pipeline that performs a specific transformation: mapping elements, filtering, collecting, or controlling flow. A factory that changes the element type asks for `JvmType.Infer` evidence for the **result** type. The input representation already belongs to the stream or sink at application time; callers do not supply redundant input evidence. Type-preserving factories retain that representation directly.
+
+Cross-platform asynchronous factories are also available: `mapAsync`, `filterAsync`, `collectAsync`, `tapEachAsync`, and `distinctByAsync`. Their callbacks return `Async`, are evaluated sequentially as the downstream pulls, and work with both stream and sink application. Writer's similarly named deferred methods are adaptation wrappers around its synchronous operations; Writer does not have separate asynchronous structural combinators.
+
+Factory callbacks are protected as user callbacks: synchronous throws and failed callback effects are defects, not typed stream errors. When a pipeline is applied to a sink, both drain paths close the derived reader. Cancellation closes upstream and downstream state, and a cleanup failure is attached to an existing failure rather than hiding it.
 
 ### `Pipeline.map[A, B]` — Transform Each Element
 
@@ -104,7 +108,7 @@ Applies a function to every element, producing a new element type. Here is the s
 
 ```scala
 object Pipeline {
-  def map[A, B](f: A => B)(implicit jtA: JvmType.Infer[A], jtB: JvmType.Infer[B]): Pipeline[A, B]
+  def map[A, B](f: A => B)(implicit jtB: JvmType.Infer[B]): Pipeline[A, B]
 }
 ```
 
@@ -125,7 +129,7 @@ Keeps only elements that satisfy a predicate. Here is the signature:
 
 ```scala
 object Pipeline {
-  def filter[A](pred: A => Boolean)(implicit jtA: JvmType.Infer[A]): Pipeline[A, A]
+  def filter[A](pred: A => Boolean): Pipeline[A, A]
 }
 ```
 
@@ -145,7 +149,7 @@ Applies a partial function: only elements for which the function is defined pass
 
 ```scala
 object Pipeline {
-  def collect[A, B](pf: PartialFunction[A, B])(implicit jtA: JvmType.Infer[A], jtB: JvmType.Infer[B]): Pipeline[A, B]
+  def collect[A, B](pf: PartialFunction[A, B])(implicit jtB: JvmType.Infer[B]): Pipeline[A, B]
 }
 ```
 
@@ -205,7 +209,7 @@ The identity pipeline that passes all elements through unchanged. This is the ne
 
 ```scala
 object Pipeline {
-  def identity[A](implicit jtA: JvmType.Infer[A]): Pipeline[A, A]
+  def identity[A]: Pipeline[A, A]
 }
 ```
 
@@ -284,7 +288,7 @@ trait Stream[+E, +A] {
 }
 ```
 
-Under the hood, `via` calls `pipe.applyToStream(this)`. Each pipeline type delegates to a specific `Stream` node — for example, `Pipeline.map` creates a `Stream.Mapped`, and `Pipeline.filter` creates a `Stream.Filtered`.
+Under the hood, `via` calls `pipe.applyToStream(this)`. Each pipeline type delegates to a specific `Stream` node — for example, `Pipeline.map` creates a `Stream.Mapped`, and `Pipeline.filter` creates a `Stream.Filtered`. Type-preserving stages propagate the incoming stream representation; transforming stages attach the `JvmType.Infer[B]` evidence for their result. Composition preserves this metadata stage by stage rather than rediscovering the original input type at the call site.
 
 The key advantage of `via` over inline methods is **reuse**: define the pipeline once and apply it to multiple streams:
 
@@ -370,9 +374,9 @@ Prefer `andThenSink` for readability.
 
 ## JVM Primitive Specialization
 
-`Pipeline.map`, `Pipeline.filter`, `Pipeline.collect`, and `Pipeline.identity` all require `JvmType.Infer[A]` implicit parameters. These are resolved at compile time and enable unboxed, specialized code paths for primitive types (`Int`, `Long`, `Float`, `Double`, etc.). You never need to provide these explicitly — the compiler infers them automatically.
+`Pipeline.map`, `Pipeline.collect`, and their asynchronous transforming counterparts require `JvmType.Infer` for the transformed result type. It is resolved automatically and records whether that result is one of the eight JVM primitives or a reference. They do not request call-site evidence for the input type.
 
-`Pipeline.take` and `Pipeline.drop` do not require `JvmType.Infer` because they do not inspect or transform element values — they only count positions.
+Type-preserving factories such as `filter`, `identity`, `take`, and `drop` do not require `JvmType.Infer`: they preserve the representation supplied when the pipeline is applied. On the stream route, result evidence is stored on the transformed stream node. On the sink route, mapping passes the same result evidence to the sink's contramap machinery; structural pipelines use the generic run-via-sink route. Thus `stream.via(pipe).run(sink)` and `stream.run(pipe.andThenSink(sink))` preserve the same specialization information as well as the same semantics.
 
 ## Integration
 

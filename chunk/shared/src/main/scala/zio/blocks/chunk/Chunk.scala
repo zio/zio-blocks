@@ -221,7 +221,7 @@ object ChunkBuilder {
 
     private[this] def addLastByte(): Unit = {
       val idx = len
-      if (idx > array.length) array = util.Arrays.copyOf(array, idx << 1)
+      if (idx >= array.length) array = util.Arrays.copyOf(array, math.max(1, idx << 1))
       array(idx) = lastByte
       len = idx + 1
     }

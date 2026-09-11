@@ -4,7 +4,7 @@ title: "Zero-Boxing Optimization"
 sidebar_label: "Zero-Boxing"
 ---
 
-Working with streams of primitives (integers, longs, doubles, booleans) presents a performance challenge in languages with generic types: **boxing**. Without special care, primitive values get wrapped in objects, causing memory waste and slower code. ZIO Blocks Streams eliminates this overhead entirely through a novel runtime type-dispatch system.
+Working with streams of primitives presents a performance challenge in languages with generic types: **boxing**. Without special care, primitive values get wrapped in objects. ZIO Blocks Streams therefore carries runtime element-type information and provides primitive physical lanes for synchronous interpretation. This removes boxing at important boundaries and hot paths; it is not a promise that every stream program, callback, terminal, or asynchronous operation is allocation-free.
 
 ## The Boxing Problem
 
@@ -38,60 +38,48 @@ When you create a stream of primitives, the compiler infers a `JvmType` implicit
 ```scala
 val intStream: Stream[Nothing, Int] = Stream(1, 2, 3)
 // Compiler infers: JvmType.Infer[Int]
-// This information travels through the entire pipeline
+// The stream records its element representation
 
 val doubled = intStream.map(_ * 2)
-// JvmType.Int is available to map's implementation
+// map receives JvmType.Infer evidence for its transformed result type.
+// Its input representation comes from intStream, not call-site evidence.
 ```
 
 **Step 2: Runtime Type Dispatch**
 
-Each operation (map, filter, scan, etc.) checks the type at runtime and uses the appropriate fast path:
-
-```scala
-// Inside Stream#map's implementation
-def map[B](f: A => B)(implicit jvmTypeA: JvmType.Infer[A]): Stream[E, B] = {
-  val jt = jvmTypeA.jvmType
-  
-  if (jt eq JvmType.Int) {
-    // Fast unboxed path: read raw Int, apply function, write raw Int
-    val intValue = reader.readInt(Long.MinValue)
-    val result = f(intValue.asInstanceOf[A])
-    // result stays unboxed if B is also Int
-  } else if (jt eq JvmType.Long) {
-    // Fast unboxed path for Long
-    val longValue = reader.readLong(Long.MinValue)
-    val result = f(longValue.asInstanceOf[A])
-  } else {
-    // Generic path: works for any type, uses boxing for primitives
-    val value = reader.read(EndOfStream)
-    val result = f(value)
-  }
-}
-```
+Stream and pipeline nodes retain their logical `JvmType`. There are eight physical primitive pull identities (`Boolean`, `Byte`, `Short`, `Char`, `Int`, `Long`, `Float`, and `Double`), plus the reference fallback. These identities matter because their read contracts and element semantics differ. The synchronous interpreter compacts them into five storage lanes: int-like (`Boolean`/`Byte`/`Short`/`Char`/`Int`), `Long`, `Float`, `Double`, and reference. Eight primitive identities therefore does not mean eight interpreter arrays. Operator tags select the correct identity-specific reads and callback shapes over those five lanes.
 
 **Step 3: Unboxed Accessors**
 
 Instead of a single `read()` method that returns boxed `Any` (where boxed means wrapping primitives in object wrappers like `Integer`, `Long`, `Double`), primitives use specialized accessors that operate directly on primitive values:
 
 ```scala
-trait Reader[A] {
-  // Generic: wraps primitives in objects (Integer, Long, etc.)
-  def read(onEnd: A): A
-  
-  // Specialized: primitives stay unboxed
-  def readInt(onEnd: Long): Int
-  def readLong(onEnd: Long): Long
-  def readDouble(onEnd: Long): Double
-  def readBoolean(onEnd: Long): Boolean
+sealed abstract class Reader[+Elem]
+
+object Reader {
+  abstract class SyncReader[+Elem] extends Reader[Elem] {
+    def read[A1 >: Elem](sentinel: A1): A1
+    def readBoolean(sentinel: Int)(implicit ev: Elem <:< Boolean): Int
+    def readInt(sentinel: Long)(implicit ev: Elem <:< Int): Long
+    def readDouble(sentinel: Double)(implicit ev: Elem <:< Double): Double
+  }
+
+  abstract class AsyncReader[+Elem] extends Reader[Elem] {
+    def read[A1 >: Elem](sentinel: A1): Async[A1]
+    def readBoolean(sentinel: Int)(implicit ev: Elem <:< Boolean): Async[Int]
+    def readInt(sentinel: Long)(implicit ev: Elem <:< Int): Async[Long]
+    def readDouble(sentinel: Double)(implicit ev: Elem <:< Double): Async[Double]
+  }
 }
 ```
 
-The right method is called at runtime based on the detected type, so primitives bypass boxing entirely.
+The complete primitive pull surface distinguishes all eight identities: `Boolean`, `Byte`, `Short`, and `Char` use `Int` carriers; `Int` uses a widened `Long`; `Long` uses `Long`; `Float` uses a widened `Double`; and `Double` uses `Double`. (`readByte` has its own exact-read/EOF contract.) These carrier signatures are deliberate even where several identities share one storage lane.
+
+For `SyncReader`, the carrier is a JVM primitive at the method boundary. `SyncInterpreter` also stores primitive state in `Long`-backed physical arrays (using raw bits where necessary) and invokes lane-adapted operators. By contrast, `AsyncReader` returns generic `Async[T]` values. `AsyncInterpreter` keeps primitive lane state internally, but completed primitive results cross the generic async carrier and may be boxed. The asynchronous API should therefore be described as lane-aware, not end-to-end zero-boxing.
 
 ## Practical Benefits
 
-To understand the real-world impact, consider how boxing accumulates through a pipeline. Compare a hypothetical boxed implementation with ZIO Streams' zero-boxing approach.
+To understand the intended benefit, consider how boxing can accumulate through a pipeline. Compare a hypothetical boxed implementation with ZIO Streams' primitive-lane approach.
 
 ### Before (Hypothetical Boxed Streams)
 
@@ -109,41 +97,40 @@ val result = nums
 
 **Memory profile:** Each element is boxed/unboxed multiple times, creating temporary objects.
 
-### With ZIO Streams (Zero-Boxing)
+### With ZIO Streams (Primitive Lanes)
 
-With ZIO Streams' zero-boxing optimization, the same pipeline avoids all boxing overhead:
+The synchronous interpreter can keep the same pipeline on primitive physical lanes:
 
 ```scala
 val nums = Stream(1, 2, 3, 4, 5)
 val result = nums
-  .map(_ * 2)        // operates on raw Int in CPU registers
-  .filter(_ > 5)     // compares raw Int directly
-  .map(_ + 1)        // raw Int arithmetic
+  .map(_ * 2)
+  .filter(_ > 5)
+  .map(_ + 1)
   .runCollect
-// Zero boxing: primitives stay in registers and cache
 ```
 
-**Memory profile:** Same as non-generic code — primitives never leave the stack/registers.
+This design avoids per-stage primitive wrapper storage in the fused synchronous interpreter. It does **not** prove that the whole expression allocates nothing: generic Scala function interfaces, source or terminal construction, result collection, fallback paths, and JIT decisions can still introduce boxing or allocation.
 
 ## When Zero-Boxing Applies
 
-Zero-boxing is **automatic and transparent**. You get it for free when working with primitives:
+Primitive type inference and lane selection are automatic. Primitive streams are eligible for specialized synchronous paths, subject to the operation, source, terminal, and any fallback boundaries:
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
 
-// ✓ Zero-boxing: Int, Long, Double, Boolean
+// Primitive-specialized logical types
 val ints = Stream(1, 2, 3).map(_ * 2)
 val longs = Stream(1L, 2L, 3L).filter(_ > 0L)
 val doubles = Stream(1.5, 2.5, 3.5).map(_ + 1.0)
 val bools = Stream(true, false, true).filter(identity)
 
-// ✓ Zero-boxing: case classes with primitives
+// Reference lane: fields are primitive, but Point itself is an object
 case class Point(x: Int, y: Int)
 val points = Stream(Point(1, 2), Point(3, 4))
   .map(p => Point(p.x * 2, p.y * 2))
 
-// ✓ Zero-boxing: tuples of primitives
+// Reference lane: tuples are objects
 val pairs = Stream((1, 2), (3, 4))
   .map { case (x, y) => (x + 1, y + 1) }
 
@@ -167,44 +154,36 @@ class Stream[+E, +A] { ... }
 // - Stream$mcJ$sp (specialized for Long)
 // - Stream$mcD$sp (specialized for Double)
 // - Stream (generic fallback)
-// Result: Binary size 4-5x larger
+// Result: additional generated classes and bytecode
 ```
 
-**ZIO Blocks `JvmType` dispatch** uses runtime type checking in a single class:
-
-```scala
-abstract class Stream[+E, +A] {
-  def map[B](f: A => B)(implicit jvmType: JvmType.Infer[A]): Stream[E, B] = {
-    if (jvmType.jvmType eq JvmType.Int) { /* fast path */ }
-    else { /* generic path */ }
-  }
-}
-// Single class, runtime dispatch
-// Result: Binary size normal, zero boxing at runtime
-```
+**ZIO Blocks `JvmType` dispatch** records logical input and output types on stream and pipeline nodes. Compilation turns those types into interpreter lane and operator tags; it does not generate a separate `Stream` class for every primitive.
 
 | Metric | `@specialized` | JvmType |
 |--------|---|---|
-| **Binary size** | 4-5x larger | Normal |
+| **Binary size** | Additional specialized classes | No class-per-primitive specialization |
 | **Bytecode complexity** | High | Moderate |
-| **Runtime dispatch** | None (compile-time) | Type check once per operation |
+| **Runtime dispatch** | Selected by specialized class | Interpreter lane and operator-tag dispatch |
 | **Flexibility** | Fixed at compile time | Adaptive at runtime |
-| **Primitive support** | Configurable | Int, Long, Double, Boolean |
+| **Primitive support** | Configurable | Boolean, Byte, Short, Char, Int, Long, Float, Double |
 | **Generality** | Good for all generics | Specialized for Stream/Sink |
 
 ## Implementation Architecture
 
-Zero-boxing works across ZIO Blocks Streams' three core abstractions:
+Primitive type metadata is carried across ZIO Blocks Streams' three core abstractions. Whether a concrete execution remains on primitive physical lanes depends on the interpreter and operation.
 
 ### Stream[E, A]
 
-Detects element type via `JvmType.Infer[A]` and dispatches `Reader` accesses:
+Stores element representation when a source is constructed and dispatches `Reader` accesses. Transformations request fresh evidence for their result, not for an input whose representation the stream already knows:
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val stream: Stream[Nothing, Int] = Stream(1, 2, 3)
 // JvmType.Int is inferred and available to all operations
+
+val asLong = stream.map(_.toLong)
+// Infer[Long] records the transformed result representation
 ```
 
 ### Sink[E, A, Z]
@@ -217,29 +196,38 @@ import zio.blocks.chunk.Chunk
 
 val nums = Stream(1, 2, 3)
 val sum = nums.runFold(0)(_ + _)
-// Sink receives unboxed Int values
+// The synchronous interpreter can feed the fold through an Int lane
 ```
 
 ### Pipeline[A, B]
 
-Transforms elements without boxing when both A and B are primitives:
+Preserves the input representation and records evidence for transformed results:
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
 
 val pipe = Pipeline.map[Int, Int](_ * 2)
-// Entire pipeline operates on raw Int
+// Infer[Int] describes the result. The input representation is supplied when
+// the pipeline is applied to a Stream or Sink.
+
+val throughStream = Stream(1, 2, 3).via(pipe)
+val throughSink   = pipe.andThenSink(Sink.sumInt)
+// Both application routes propagate the same representation information.
 ```
 
 ## Performance Impact
 
-For typical streaming workloads, zero-boxing provides **2-5x throughput improvement** over boxed approaches:
+Performance falls into distinct categories:
 
-- **CPU-bound operations** (map, filter, scan): 3-5x faster
-- **Memory-bound operations** (collect, fold): 2-3x faster
-- **I/O operations** (reading, writing): Minimal impact (I/O latency dominates)
+- **Scalar CPU pipelines** (`map`, `filter`, folds) benefit most from primitive lanes because boxing, allocation, and dispatch are a large share of the work.
+- **Bulk memory paths** (`readInts`, `readLongs`, `readDoubles`, collection) additionally benefit from contiguous arrays and fewer per-element calls.
+- **Bounded concurrency** pays queue/selector and scheduling costs; use it when callback or child latency dominates, not for trivial arithmetic.
+- **Native asynchronous I/O** is governed mainly by source latency, chunk size, and cancellation/ownership costs; zero-boxing is usually secondary.
+- **Writer `*Async` adapters** defer synchronous work and may still block, so they should not be benchmarked as native async I/O.
 
-The benefit scales with pipeline depth and data volume. Shallow pipelines see modest gains; deep pipelines (>10 operations) over large datasets see dramatic improvements.
+Do not infer a universal multiplier from these categories. Results depend on JDK, Scala version, platform, element type, pipeline shape, buffer size, and terminal; use the repository JMH benchmarks with a workload representative of the application.
+
+Repository JMH results measure throughput for named benchmark methods and configurations. Unless a run also records an allocation profiler (for example `gc.alloc.rate.norm`), it is **not** evidence of zero allocations. The lane layout and primitive reader signatures establish where boxing is avoided by construction; claims about callback invocation, complete pipelines, async carriers, or parity with handwritten loops remain unproven until measured with allocation profiling for that exact workload.
 
 ## When Polymorphism Is Necessary
 
@@ -261,15 +249,15 @@ def processStream[A](stream: Stream[Nothing, A])(implicit jt: JvmType.Infer[A]):
 }
 ```
 
-This gives you runtime type information while maintaining full zero-boxing performance.
+This gives code runtime type information. It does not by itself guarantee allocation-free execution; the selected operation and interpreter still determine the physical path.
 
 ## Summary
 
-ZIO Blocks Streams achieves **zero-boxing for primitives** through:
+ZIO Blocks Streams reduces primitive boxing through:
 
 1. **Compile-time type detection** via `JvmType.Infer[A]` implicits
 2. **Runtime dispatch** that selects specialized fast paths
-3. **Unboxed accessors** that operate on raw primitives
-4. **Transparent optimization** — you write high-level code, the system handles the details
+3. **Primitive synchronous accessors** with widened sentinel carriers
+4. **Lane-aware async interpretation**, while accepting that generic `Async[T]` carriers may box completed primitives
 
-The result is **performance parity with hand-written imperative code** while maintaining the expressiveness and safety of functional streams. No binary bloat, no manual specialization annotations, no boxing overhead.
+The result is specialized hot paths without `@specialized` class proliferation. Some generic callbacks, reference values, tuples/case classes, and async/concurrent coordination can still allocate or box; verify important workloads with JMH rather than assuming allocation-free execution end to end.

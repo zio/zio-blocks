@@ -20,18 +20,19 @@ package zio.blocks.async
  * Handle returned by [[Async.start]] (via [[Async.Running]]) that stops a
  * running [[Async]].
  *
- * [[cancel]] is idempotent and synchronous. It prevents a terminal value from
- * being published if cancellation linearizes before the run reaches completion,
- * and it is a no-op once the run has completed.
+ * Calling `cancel()` is idempotent and synchronous. It prevents a terminal
+ * value from being published if cancellation linearizes before the run reaches
+ * completion, and it is a no-op once the run has completed.
  *
- * Cancellation is '''driver-level only''': it stops the poll loop and
- * suppresses the callback, but does NOT guarantee that an already-running
- * `poll` has returned, nor does it abort an in-flight leaf (socket read, timer,
- * JS promise). Aborting a leaf is the source's responsibility.
+ * When cancellation wins, the driver also signals [[Pollable.cancel]] on the
+ * active pending operation. A source that can abort an in-flight socket read,
+ * timer, or callback registration implements that hook; the default hook is a
+ * no-op. Cancellation does not wait for an already-running [[Pollable.poll]]
+ * invocation to return.
  *
  * Extends [[java.lang.AutoCloseable]] so a [[Async.Running]] handle can be used
  * as a managed resource (`scala.util.Using`, Java try-with-resources):
- * [[close]] simply delegates to [[cancel]]. `cancel` remains the canonical verb
+ * [[close]] simply delegates to `cancel()`. `cancel` remains the canonical verb
  * — it names the domain operation (stop an in-flight computation) and, unlike
  * `AutoCloseable.close`, declares no checked exception.
  */
@@ -43,7 +44,7 @@ trait Cancelable extends AutoCloseable {
    */
   def cancel(): Unit
 
-  /** Alias for [[cancel]] so a running handle works as an `AutoCloseable`. */
+  /** Alias for `cancel()` so a running handle works as an `AutoCloseable`. */
   final def close(): Unit = cancel()
 }
 

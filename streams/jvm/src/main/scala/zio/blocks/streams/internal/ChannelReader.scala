@@ -29,15 +29,27 @@ import java.nio.channels.ReadableByteChannel
  * internal [[java.nio.ByteBuffer]]. Single-threaded; not safe for concurrent
  * use.
  */
-private[streams] final class ChannelReader(ch: ReadableByteChannel, bufSize: Int) extends Reader[Byte] {
+private[streams] final class ChannelReader(ch: ReadableByteChannel, bufSize: Int, closeChannel: Boolean = true)
+    extends Reader.SyncReader[Byte] {
 
-  private var st: Int = 0 // 0 = Open, 1 = Finished, 2 = Errored
-  private val buf     = ByteBuffer.allocate(bufSize)
+  private var st: Int                  = 0 // 0 = Open, 1 = Finished, 2 = Errored
+  private val buf                      = ByteBuffer.allocate(bufSize)
+  private var channelClosed            = false
+  private var closeFailure: Throwable  = null
+  private var readFailure: StreamError = null
 
   // Start with buffer empty (position == limit) so first read triggers a fill.
   buf.flip()
 
-  def close(): Unit = st = 1
+  def close(): Unit = {
+    st = 1
+    if (closeChannel && !channelClosed) {
+      channelClosed = true
+      try ch.close()
+      catch { case cause: Throwable => closeFailure = cause }
+    }
+    if (closeFailure ne null) throw closeFailure
+  }
 
   def isClosed: Boolean = st != 0
 
@@ -51,13 +63,16 @@ private[streams] final class ChannelReader(ch: ReadableByteChannel, bufSize: Int
   override def readable(): Boolean = buf.hasRemaining && st == 0
 
   override def readByte(): Int =
-    if (st != 0) -1
+    if (readFailure ne null) throw readFailure
+    else if (st != 0) -1
     else if (buf.hasRemaining) (buf.get() & 0xff)
     else if (fill() && buf.hasRemaining) (buf.get() & 0xff)
     else -1
 
-  override def readBytes(arr: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Byte): Int =
-    if (len == 0) 0
+  override def readBytes(arr: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Byte): Int = {
+    Reader.validateArrayRange(arr, offset, len)
+    if (readFailure ne null) throw readFailure
+    else if (len == 0) 0
     else if (st != 0) -1
     else if (buf.hasRemaining) {
       val n = math.min(len, buf.remaining())
@@ -68,8 +83,10 @@ private[streams] final class ChannelReader(ch: ReadableByteChannel, bufSize: Int
       buf.get(arr, offset, n)
       n
     } else -1
+  }
 
   override def readN[A1 >: Byte](n: Int): Chunk[A1] = {
+    if (readFailure ne null) throw readFailure
     if (n <= 0 || isClosed) return Chunk.empty
     if (n <= 8192) {
       val arr     = new Array[Byte](n)
@@ -98,19 +115,12 @@ private[streams] final class ChannelReader(ch: ReadableByteChannel, bufSize: Int
   }
 
   override def readUpToN[A1 >: Byte](n: Int): Chunk[A1] = {
+    if (readFailure ne null) throw readFailure
     if (n <= 0 || isClosed) return Chunk.empty
-    // A single `readBytes` call returns at most one internal buffer's worth of
-    // bytes (`bufSize`), so bound the allocation by `bufSize` to avoid
-    // pre-allocating a multi-GB array for a huge `n` (e.g. Int.MaxValue) and
-    // OOMing — mirroring `readN` and the bounded sizing in the Int/Long/Double/
-    // Float ByteBuffer readers and the base `Reader.readUpToN`. The observable
-    // result is unchanged: `readBytes` already caps at `buf.remaining() <=
-    // bufSize`.
-    val cap  = math.min(n, bufSize)
-    val arr  = new Array[Byte](cap)
-    val read = readBytes(arr, 0, cap)(unsafeEvidence)
+    val arr  = new Array[Byte](n)
+    val read = readBytes(arr, 0, n)
     if (read <= 0) Chunk.empty
-    else if (read == cap) Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+    else if (read == n) Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
     else Chunk.fromArray(java.util.Arrays.copyOf(arr, read)).asInstanceOf[Chunk[A1]]
   }
 
@@ -130,6 +140,7 @@ private[streams] final class ChannelReader(ch: ReadableByteChannel, bufSize: Int
       case e: IOException =>
         buf.flip()
         st = 2
-        throw new StreamError(e)
+        readFailure = StreamError.source(e)
+        throw readFailure
     }
 }

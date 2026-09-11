@@ -230,6 +230,23 @@ object Writer {
 
 The fundamental operations on `Writer` cover pushing elements one at a time, bulk operations, specialized writes for primitives, and state checks:
 
+Every effectful lifecycle, state, scalar, bulk, and primitive operation also has
+a deferred `Async` mirror: `closeAsync()`, `failAsync`, `isClosedAsync`,
+`writeableAsync()`, `writeAsync`, `writeAllAsync`, `writeBooleanAsync`,
+`writeByteAsync`, `writeBytesAsync`, `writeCharAsync`, `writeDoubleAsync`,
+`writeFloatAsync`, `writeIntAsync`, `writeLongAsync`, and `writeShortAsync`.
+Constructing one of these effects performs no writer operation; driving it
+performs the corresponding synchronous operation once. Cancellation closes the
+writer so that an in-flight result cannot outlive the writer's lifecycle.
+
+These methods are cancellation-aware **deferral adapters**, not asynchronous I/O:
+driving `writeAsync` or `writeBytesAsync` may still block whenever the underlying
+`write` or `writeBytes` blocks. In particular, `concatAsync` and
+`contramapAsync` intentionally do not exist. The synchronous `Writer` protocol
+must return each write result immediately and therefore cannot honestly model a
+pending asynchronous composition callback; that requires a separate async-writer
+architecture.
+
 ### Writing Elements
 
 `Writer#write` — Pushes one element to the writer. Returns `true` on success, `false` if the writer is closed and cannot accept more elements. Throws if the writer was closed with an error via `Writer#fail`:

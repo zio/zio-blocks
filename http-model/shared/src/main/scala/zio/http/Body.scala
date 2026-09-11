@@ -17,6 +17,8 @@
 package zio.http
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.async.Async
+import zio.blocks.async._
 import zio.blocks.mediatype.MediaTypes
 import zio.blocks.streams.Stream
 
@@ -53,18 +55,21 @@ final class Body private (val stream: Stream[Nothing, Byte], val contentType: Co
   /** Returns the body content as a `Stream[Nothing, Byte]`. */
   def toStream: Stream[Nothing, Byte] = stream
 
-  /**
-   * Materializes the entire stream into a `Chunk[Byte]`.
-   *
-   * If the stream has a known chunk (e.g. created via `Stream.fromChunk`), this
-   * returns it directly without running the stream. Otherwise, the stream is
-   * collected.
-   */
-  def toChunk: Chunk[Byte] =
-    stream.knownChunk.getOrElse(stream.runCollect.getOrElse(Chunk.empty))
+  /** Materializes the entire stream into a `Chunk[Byte]`. */
+  def toChunk: Chunk[Byte] = stream.knownChunk.getOrElse(stream.runCollectAsync.block.getOrElse(Chunk.empty))
 
   /** Materializes the entire stream into a fresh `Array[Byte]`. */
   def toArray: Array[Byte] = toChunk.toArray
+
+  /** Materializes the entire stream asynchronously into a `Chunk[Byte]`. */
+  def toChunkAsync: Async[Chunk[Byte]] =
+    stream.knownChunk match {
+      case Some(chunk) => Async.succeed(chunk)
+      case None        => stream.runCollectAsync.map(_.getOrElse(Chunk.empty))
+    }
+
+  /** Materializes the entire stream asynchronously into a fresh array. */
+  def toArrayAsync: Async[Array[Byte]] = toChunkAsync.map(_.toArray)
 
   /**
    * Returns the known length of this body in bytes, or `None` if the length is
@@ -78,24 +83,25 @@ final class Body private (val stream: Stream[Nothing, Byte], val contentType: Co
   /** Returns `true` if this body is known to be non-empty. */
   def nonEmpty: Boolean = stream.knownLength.exists(_ > 0L)
 
-  /**
-   * Decodes the body bytes into a `String` using the given charset.
-   *
-   * @param charset
-   *   the charset to use for decoding (defaults to UTF-8)
-   */
-  def asString(charset: Charset = Charset.UTF8): String =
-    new String(toArray, charset.name)
+  /** Decodes the body using the given charset. */
+  def asString(charset: Charset = Charset.UTF8): String = new String(toArray, charset.name)
 
-  /**
-   * Decodes the body using the charset declared in the content type when
-   * present.
-   */
-  def asStringFromContentType: String =
-    asString(contentType.charset.getOrElse(Charset.UTF8))
+  /** Decodes the body using the content-type charset when present. */
+  def asStringFromContentType: String = asString(contentType.charset.getOrElse(Charset.UTF8))
 
   /** Alias for [[asStringFromContentType]]. */
   def text: String = asStringFromContentType
+
+  /** Decodes the body asynchronously using the given charset. */
+  def asStringAsync(charset: Charset = Charset.UTF8): Async[String] =
+    toArrayAsync.map(bytes => new String(bytes, charset.name))
+
+  /** Decodes asynchronously using the content-type charset when present. */
+  def asStringFromContentTypeAsync: Async[String] =
+    asStringAsync(contentType.charset.getOrElse(Charset.UTF8))
+
+  /** Alias for [[asStringFromContentTypeAsync]]. */
+  def textAsync: Async[String] = asStringFromContentTypeAsync
 
   override def toString: String =
     s"Body(length=${length.map(_.toString).getOrElse("unknown")}, contentType=$contentType)"

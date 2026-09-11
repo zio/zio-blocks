@@ -81,15 +81,14 @@ object JvmType {
   /**
    * A type class that records at compile time which JVM type `A` maps to.
    *
-   * Contravariant in `A`: if you need `Infer[Dog]`, an `Infer[Animal]` (which
-   * resolves to `AnyRef`) is acceptable. This contravariance allows `Infer` to
-   * appear as an implicit parameter on covariant types like `Stream[+E, +A]`
-   * without variance conflicts.
+   * Invariant in `A`, so primitive evidence cannot accidentally satisfy
+   * `Infer[Nothing]` and fallback evidence cannot drive output inference toward
+   * `Any` when the precise primitive type is available.
    *
    * Adding `(implicit jt: JvmType.Infer[A])` to a method is always
    * source-compatible — it never fails to resolve.
    */
-  sealed trait Infer[-A] {
+  sealed trait Infer[A] {
 
     /** The [[JvmType]] tag for `A`, or `AnyRef` for reference types. */
     def jvmType: JvmType
@@ -102,7 +101,8 @@ object JvmType {
    * Implicit instances for all 8 JVM primitive types and a low-priority
    * fallback.
    */
-  object Infer extends LowPriorityJvmTypeInfer {
+  object Infer extends LowPriorityJvmTypeInferPlatform {
+    implicit val nothing: Infer[Nothing]       = boxed[Nothing]
     implicit val int: Infer[scala.Int]         = new Infer[scala.Int] { def jvmType = JvmType.Int }
     implicit val long: Infer[scala.Long]       = new Infer[scala.Long] { def jvmType = JvmType.Long }
     implicit val double: Infer[scala.Double]   = new Infer[scala.Double] { def jvmType = JvmType.Double }
@@ -111,16 +111,9 @@ object JvmType {
     implicit val short: Infer[scala.Short]     = new Infer[scala.Short] { def jvmType = JvmType.Short }
     implicit val char: Infer[scala.Char]       = new Infer[scala.Char] { def jvmType = JvmType.Char }
     implicit val boolean: Infer[scala.Boolean] = new Infer[scala.Boolean] { def jvmType = JvmType.Boolean }
+
+    /** Safe boxed fallback for statically erased input types. */
+    def boxed[A]: Infer[A] = new Infer[A] { def jvmType = JvmType.AnyRef }
   }
 
-  /**
-   * Low-priority fallback: resolves for any type `A` not covered by the 8
-   * explicit primitive instances, returning `JvmType.AnyRef`.
-   */
-  private[streams] sealed abstract class LowPriorityJvmTypeInfer {
-    private val _anyRef: Infer[Any] = new Infer[Any] { def jvmType = JvmType.AnyRef }
-
-    /** Fallback: resolves for any type `A`, returning `AnyRef`. */
-    implicit def anyRef[A]: Infer[A] = _anyRef.asInstanceOf[Infer[A]]
-  }
 }

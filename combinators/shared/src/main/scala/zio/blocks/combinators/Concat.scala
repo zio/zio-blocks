@@ -72,7 +72,23 @@ trait Concat[L, R] {
   def right(r: R): Out
 }
 
-object Concat extends ConcatCompanionPlatform {
+private[combinators] trait EqualTypeConcat {
+
+  /**
+   * Identity concatenation for equal element types. Kept in shared bytecode so
+   * Scala 3 consumers of a Scala 2-built dependency do not need to expand the
+   * Scala-version-specific derivation macro merely to concatenate equal types.
+   */
+  implicit def same[A]: Concat.WithOut[A, A, A] =
+    new _root_.zio.blocks.combinators.Concat[A, A] {
+      type Out = A
+      def isIdentityLike: Boolean = true
+      def left(l: A): A           = l
+      def right(r: A): A          = r
+    }
+}
+
+object Concat extends ConcatCompanionPlatform with EqualTypeConcat {
 
   /**
    * Convenience alias for a [[Concat]] instance with a fixed output type.
