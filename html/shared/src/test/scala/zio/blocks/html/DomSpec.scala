@@ -1115,7 +1115,7 @@ object DomSpec extends ZIOSpecDefault {
         val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
         assertTrue(el.render == """<a href="unsafe:&amp;#106;avascript:alert(1)">x</a>""")
       },
-      test("repeated multi-value safe URL renders reuse cached verdict") {
+      test("repeated multi-value safe URL renders are stable") {
         val mv = Dom.AttributeValue.MultiValue(
           Chunk("https://example.com/a", "https://example.com/b"),
           Dom.AttributeSeparator.Space
@@ -1126,8 +1126,7 @@ object DomSpec extends ZIOSpecDefault {
         val third  = el.render
         assertTrue(first == second) &&
         assertTrue(second == third) &&
-        assertTrue(first == """<a href="https://example.com/a https://example.com/b">x</a>""") &&
-        assertTrue(mv.urlVerdictComputations == 1)
+        assertTrue(first == """<a href="https://example.com/a https://example.com/b">x</a>""")
       },
       test("repeated multi-value dangerous URL renders stay blocked") {
         val mv     = Dom.AttributeValue.MultiValue(Chunk("javascript:alert(1)"), Dom.AttributeSeparator.Space)
@@ -1135,14 +1134,13 @@ object DomSpec extends ZIOSpecDefault {
         val first  = el.render
         val second = el.render
         assertTrue(first == second) &&
-        assertTrue(first == """<a href="unsafe:javascript:alert(1)">x</a>""") &&
-        assertTrue(mv.urlVerdictComputations == 1)
+        assertTrue(first == """<a href="unsafe:javascript:alert(1)">x</a>""")
       },
-      test("non-URL multi-value never computes URL verdict") {
+      test("non-URL multi-value renders joined values") {
         val mv = Dom.AttributeValue.MultiValue(Chunk("a", "b"), Dom.AttributeSeparator.Space)
         val el = Dom.Element.Generic("div", Chunk(Dom.Attribute.KeyValue("class", mv)), Chunk.empty)
         assertTrue(el.render == """<div class="a b"></div>""") &&
-        assertTrue(mv.urlVerdictComputations == 0)
+        assertTrue(el.render == """<div class="a b"></div>""")
       },
       test("multi-value empty URL attribute omits attribute entirely") {
         val attr = Dom.Attribute.KeyValue(

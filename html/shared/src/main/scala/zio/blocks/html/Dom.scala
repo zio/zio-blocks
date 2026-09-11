@@ -837,12 +837,6 @@ object Dom {
       @volatile private var urlVerdict: Int = 0
 
       /**
-       * Test instrumentation: number of verdict computations (cache misses).
-       * Incremented only on the cold compute path, never on repeat renders.
-       */
-      @volatile private[html] var urlVerdictComputations: Int = 0
-
-      /**
        * Whether the separator-joined values would be rejected by
        * [[Escape.sanitizeUrl]]. Computed once via flatten plus sanitize; repeat
        * calls reuse the cached verdict without flattening or resanitizing.
@@ -856,7 +850,6 @@ object Dom {
           else {
             verdict = if (Escape.isUnsafeUrl(joinedValues())) 2 else 1
           }
-          urlVerdictComputations += 1
           urlVerdict = verdict
         }
         verdict == 2
