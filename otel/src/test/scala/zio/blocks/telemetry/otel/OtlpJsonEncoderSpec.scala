@@ -504,11 +504,22 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
         )
       },
       test("escapes control characters") {
-        val attrs = Attributes.builder.put("k", "null\u0000char").build
+        val attrs = Attributes.builder.put("k", "null char").build
         val span  = makeSimpleSpan(attributes = attrs)
         val json  = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
         assertTrue(json.contains("\\u0000"))
+      },
+      test("escapes user-controlled attribute keys") {
+        val trickyKey = "ke\"y\\with\ncontrols\u0001end"
+        val attrs     = Attributes.builder.put(trickyKey, "v").build
+        val span      = makeSimpleSpan(attributes = attrs)
+        val json      = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
+
+        assertTrue(
+          json.contains("{\"key\":\"ke\\\"y\\\\with\\ncontrols\\u0001end\",\"value\":{\"stringValue\":\"v\"}}"),
+          !json.contains(trickyKey)
+        )
       }
     ),
     suite("empty collections")(
