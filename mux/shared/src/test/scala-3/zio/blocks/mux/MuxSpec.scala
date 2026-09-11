@@ -397,20 +397,20 @@ object MuxSpec extends ZIOSpecDefault {
       (0 until 8).foreach(i => stream.send(s"msg-$i"))
       assertTrue(stream.send("overflow") == MuxError.QueueFull(8))
     },
-    test("receiveStrict drains buffered messages before the terminal error") {
+    test("receive drains buffered messages before the terminal error") {
       val mux    = makeMux()
       val stream = openStream(mux, 1)
       stream.offerInbound("hello")
       stream.close()
-      val first  = stream.receiveStrict()
-      val second = stream.receiveStrict()
+      val first  = stream.receive()
+      val second = stream.receive()
       assertTrue(first == Some("hello"), isMuxError(second))
     },
-    test("receiveStrict matches receive on an open stream") {
+    test("receive returns buffered message then None on an open stream") {
       val mux    = makeMux()
       val stream = openStream(mux, 1)
       stream.offerInbound("hello")
-      assertTrue(stream.receiveStrict() == Some("hello"), stream.receiveStrict() == None)
+      assertTrue(stream.receive() == Some("hello"), stream.receive() == None)
     }
   )
 

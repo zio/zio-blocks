@@ -20,9 +20,7 @@ import scala.collection.mutable
 
 private[mux] object PlatformMux {
 
-  private val DefaultStreamQueueCapacity = 256
-
-  def create[Id, In, Out](capacity: Int, streamQueueCapacity: Int = DefaultStreamQueueCapacity): Mux[Id, In, Out] =
+  def create[Id, In, Out](capacity: Int, streamQueueCapacity: Int = Mux.DefaultStreamQueueCapacity): Mux[Id, In, Out] =
     new JsMux[Id, In, Out](capacity, streamQueueCapacity)
 
   private final class JsMux[Id, In, Out](capacity: Int, streamQueueCapacity: Int) extends Mux[Id, In, Out] {
