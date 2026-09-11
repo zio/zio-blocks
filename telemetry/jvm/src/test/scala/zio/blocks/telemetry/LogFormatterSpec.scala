@@ -249,6 +249,23 @@ object LogFormatterSpec extends ZIOSpecDefault {
           rendered.contains("flags=[true, false]"),
           rendered.contains("empty=[]")
         )
+      },
+      test("escapes quotes, backslashes, and line breaks in text string values") {
+        val timestamp = 1719792602723000000L
+        val builder   = Attributes.builder
+          .put("code.filepath", "Escape.scala")
+          .put("code.namespace", "Escape")
+          .put("code.function", "go")
+          .put("code.lineno", 1L)
+          .put("quote", "say \"hi\"\nbye\\done")
+          .put(AttributeKey.stringSeq("tags"), Seq("a\"b", "c\nd"))
+
+        val rendered = renderText(timestamp, Severity.Info, "INFO", "escaped", builder)
+
+        assertTrue(
+          rendered.contains("quote=\"say \\\"hi\\\"\\nbye\\\\done\""),
+          rendered.contains("tags=[\"a\\\"b\", \"c\\nd\"]")
+        )
       }
     ),
     suite("TextLogFormatter.formatRecord")(
@@ -309,6 +326,19 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val rendered = renderTextRecord(logRecord(timestamp, Severity.Warn, "WARN", "no line", attrs))
 
         assertTrue(rendered.startsWith(s"${expectedTimestamp(timestamp)} WARN  [Standalone.act] no line"))
+      },
+      test("escapes quotes and line breaks in record string values") {
+        val timestamp = 1719792604523000000L
+        val attrs     = Attributes.builder
+          .put("code.namespace", "Escape")
+          .put("code.function", "go")
+          .put("code.lineno", 1L)
+          .put("quote", "say \"hi\"\nbye")
+          .build
+
+        val rendered = renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "escaped", attrs))
+
+        assertTrue(rendered.contains("quote=\"say \\\"hi\\\"\\nbye\""))
       }
     ),
     suite("JsonLogFormatter.format")(
