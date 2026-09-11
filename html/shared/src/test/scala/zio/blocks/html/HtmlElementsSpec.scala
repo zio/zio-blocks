@@ -259,6 +259,34 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(el.render == "<custom></custom>")
       }
     ),
+    suite("void element guard")(
+      test("element rejects void tags") {
+        assertTrue(
+          scala.util.Try(element("br")).isFailure,
+          scala.util.Try(element("img")).isFailure,
+          scala.util.Try(element("input")).isFailure
+        )
+      },
+      test("voidElement creates self-closing void elements") {
+        assertTrue(
+          voidElement("br").render == "<br/>",
+          voidElement("img").render == "<img/>"
+        )
+      },
+      test("voidElement rejects non-void tags") {
+        assertTrue(
+          scala.util.Try(voidElement("div")).isFailure,
+          scala.util.Try(voidElement("span")).isFailure
+        )
+      },
+      test("voidElement accepts attributes") {
+        val result = voidElement("img")(src := "a.png").render
+        assertTrue(result == """<img src="a.png"/>""")
+      },
+      test("element accepts non-void tags with children") {
+        assertTrue(element("section")("content").render == "<section>content</section>")
+      }
+    ),
     suite("empty helper")(
       test("empty renders nothing") {
         assertTrue(empty.render == "")

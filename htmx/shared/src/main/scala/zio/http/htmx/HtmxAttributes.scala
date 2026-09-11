@@ -39,46 +39,52 @@ import _root_.zio.blocks.html.{CssSelector, Dom, Js}
 trait HtmxAttributes {
   import ToHtmxValue.UrlLike
 
-  lazy val hxGet: HtmxAttrKey[UrlLike]    = HtmxAttrKey.stringValue[UrlLike]("hx-get")
-  lazy val hxPost: HtmxAttrKey[UrlLike]   = HtmxAttrKey.stringValue[UrlLike]("hx-post")
-  lazy val hxPut: HtmxAttrKey[UrlLike]    = HtmxAttrKey.stringValue[UrlLike]("hx-put")
-  lazy val hxPatch: HtmxAttrKey[UrlLike]  = HtmxAttrKey.stringValue[UrlLike]("hx-patch")
-  lazy val hxDelete: HtmxAttrKey[UrlLike] = HtmxAttrKey.stringValue[UrlLike]("hx-delete")
+  val hxGet: HtmxAttrKey[UrlLike]    = HtmxAttrKey.stringValue[UrlLike]("hx-get")
+  val hxPost: HtmxAttrKey[UrlLike]   = HtmxAttrKey.stringValue[UrlLike]("hx-post")
+  val hxPut: HtmxAttrKey[UrlLike]    = HtmxAttrKey.stringValue[UrlLike]("hx-put")
+  val hxPatch: HtmxAttrKey[UrlLike]  = HtmxAttrKey.stringValue[UrlLike]("hx-patch")
+  val hxDelete: HtmxAttrKey[UrlLike] = HtmxAttrKey.stringValue[UrlLike]("hx-delete")
 
-  lazy val hxSwap: HtmxAttrKey[HxSwap]             = HtmxAttrKey.stringValue[HxSwap]("hx-swap")
-  lazy val hxTrigger: HtmxAttrKey[HxTriggerValue]  = HtmxAttrKey.stringValue[HxTriggerValue]("hx-trigger")
-  lazy val hxTarget: HtmxAttrKey[HxTarget]         = HtmxAttrKey.stringValue[HxTarget]("hx-target")
-  lazy val hxBoost: HtmxAttrKey[Boolean]           = HtmxAttrKey.stringValue[Boolean]("hx-boost")
-  lazy val hxPushUrl: HtmxAttrKey[HxUrlUpdate]     = HtmxAttrKey.stringValue[HxUrlUpdate]("hx-push-url")
-  lazy val hxReplaceUrl: HtmxAttrKey[HxUrlUpdate]  = HtmxAttrKey.stringValue[HxUrlUpdate]("hx-replace-url")
-  lazy val hxSelect: HtmxAttrKey[CssSelector]      = HtmxAttrKey.stringValue[CssSelector]("hx-select")
-  lazy val hxSelectOob: HtmxAttrKey[CssSelector]   = HtmxAttrKey.stringValue[CssSelector]("hx-select-oob")
-  lazy val hxSwapOob: HtmxAttrKey[HxSwapOob]       = HtmxAttrKey.stringValue[HxSwapOob]("hx-swap-oob")
-  lazy val hxConfirm: HtmxAttrKey[String]          = HtmxAttrKey.stringValue[String]("hx-confirm")
-  lazy val hxPrompt: HtmxAttrKey[String]           = HtmxAttrKey.stringValue[String]("hx-prompt")
-  lazy val hxDisable: HtmxAttrKey[Boolean]         = HtmxAttrKey.stringValue[Boolean]("hx-disable")
-  lazy val hxDisabledElt: HtmxAttrKey[CssSelector] = HtmxAttrKey.stringValue[CssSelector]("hx-disabled-elt")
-  lazy val hxIndicator: HtmxAttrKey[CssSelector]   = HtmxAttrKey.stringValue[CssSelector]("hx-indicator")
-  lazy val hxInclude: HtmxAttrKey[HxTarget]        = HtmxAttrKey.stringValue[HxTarget]("hx-include")
-  lazy val hxParams: HtmxAttrKey[HxParams]         = HtmxAttrKey.stringValue[HxParams]("hx-params")
-  lazy val hxSync: HtmxAttrKey[HxSync]             = HtmxAttrKey.stringValue[HxSync]("hx-sync")
-  lazy val hxValidate: HtmxAttrKey[Boolean]        = HtmxAttrKey.stringValue[Boolean]("hx-validate")
-  lazy val hxPreserve: HtmxAttrKey[Boolean]        = HtmxAttrKey.stringValue[Boolean]("hx-preserve")
-  lazy val hxEncoding: HtmxAttrKey[HxEncoding]     = HtmxAttrKey.stringValue[HxEncoding]("hx-encoding")
-  lazy val hxVals: HtmxAttrKey[HxVals]             = HtmxAttrKey.stringValue[HxVals]("hx-vals")
-  lazy val hxHeaders: HtmxAttrKey[HxHeadersValue]  = HtmxAttrKey.stringValue[HxHeadersValue]("hx-headers")
-  lazy val hxHistory: HtmxAttrKey[Boolean]         = HtmxAttrKey.stringValue[Boolean]("hx-history")
+  val hxSwap: HtmxAttrKey[HxSwap]             = HtmxAttrKey.stringValue[HxSwap]("hx-swap")
+  val hxTrigger: HtmxAttrKey[HxTriggerValue]  = HtmxAttrKey.stringValue[HxTriggerValue]("hx-trigger")
+  val hxTarget: HtmxAttrKey[HxTarget]         = HtmxAttrKey.stringValue[HxTarget]("hx-target")
+  val hxBoost: HtmxAttrKey[Boolean]           = HtmxAttrKey.stringValue[Boolean]("hx-boost")
+  val hxPushUrl: HtmxAttrKey[HxUrlUpdate]     = HtmxAttrKey.stringValue[HxUrlUpdate]("hx-push-url")
+  val hxReplaceUrl: HtmxAttrKey[HxUrlUpdate]  = HtmxAttrKey.stringValue[HxUrlUpdate]("hx-replace-url")
+  val hxSelect: HtmxAttrKey[CssSelector]      = HtmxAttrKey.stringValue[CssSelector]("hx-select")
+  val hxSelectOob: HtmxAttrKey[CssSelector]   = HtmxAttrKey.stringValue[CssSelector]("hx-select-oob")
+  val hxSwapOob: HtmxAttrKey[HxSwapOob]       = HtmxAttrKey.stringValue[HxSwapOob]("hx-swap-oob")
+  val hxConfirm: HtmxAttrKey[String]          = HtmxAttrKey.stringValue[String]("hx-confirm")
+  val hxPrompt: HtmxAttrKey[String]           = HtmxAttrKey.stringValue[String]("hx-prompt")
+  val hxDisable: HtmxAttrKey[Boolean]         = HtmxAttrKey.stringValue[Boolean]("hx-disable")
+  val hxDisabledElt: HtmxAttrKey[CssSelector] = HtmxAttrKey.stringValue[CssSelector]("hx-disabled-elt")
+  val hxIndicator: HtmxAttrKey[CssSelector]   = HtmxAttrKey.stringValue[CssSelector]("hx-indicator")
+  val hxInclude: HtmxAttrKey[HxTarget]        = HtmxAttrKey.stringValue[HxTarget]("hx-include")
+  val hxParams: HtmxAttrKey[HxParams]         = HtmxAttrKey.stringValue[HxParams]("hx-params")
+  val hxSync: HtmxAttrKey[HxSync]             = HtmxAttrKey.stringValue[HxSync]("hx-sync")
+  val hxValidate: HtmxAttrKey[Boolean]        = HtmxAttrKey.stringValue[Boolean]("hx-validate")
+  val hxPreserve: HtmxAttrKey[Boolean]        = HtmxAttrKey.stringValue[Boolean]("hx-preserve")
+  val hxEncoding: HtmxAttrKey[HxEncoding]     = HtmxAttrKey.stringValue[HxEncoding]("hx-encoding")
+  val hxVals: HtmxAttrKey[HxVals]             = HtmxAttrKey.stringValue[HxVals]("hx-vals")
+  val hxHeaders: HtmxAttrKey[HxHeadersValue]  = HtmxAttrKey.stringValue[HxHeadersValue]("hx-headers")
+  val hxHistory: HtmxAttrKey[Boolean]         = HtmxAttrKey.stringValue[Boolean]("hx-history")
 
   def hxExt(first: String, rest: String*): Dom.Attribute = hxExt := HxExtensions(first, rest: _*)
-  lazy val hxExt: HtmxAttrKey[HxExtensions]              = HtmxAttrKey.stringValue[HxExtensions]("hx-ext")
+  val hxExt: HtmxAttrKey[HxExtensions]                   = HtmxAttrKey.stringValue[HxExtensions]("hx-ext")
 
   def hxDisinherit(first: String, rest: String*): Dom.Attribute =
     hxDisinherit := HxAttributeNames(first, rest: _*)
 
-  lazy val hxDisinherit: HtmxAttrKey[HxAttributeNames] = HtmxAttrKey.stringValue[HxAttributeNames]("hx-disinherit")
+  val hxDisinherit: HtmxAttrKey[HxAttributeNames] = HtmxAttrKey.stringValue[HxAttributeNames]("hx-disinherit")
 
-  /** Builder for event-specific `hx-on:*` attributes. */
-  lazy val hxOn: PartialHxOn = new PartialHxOn
+  /**
+   * Builder for event-specific `hx-on:*` attributes.
+   *
+   * Eagerly constructed: the keys in this trait are cheap wrappers, so plain
+   * `val`s avoid the bitmap plus synchronized initialization that `lazy val`
+   * would add to every importer scope.
+   */
+  val hxOn: PartialHxOn = new PartialHxOn
 }
 
 /** Partial builder for event-specific `hx-on:*` attributes. */

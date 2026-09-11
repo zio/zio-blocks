@@ -214,6 +214,24 @@ object Dom {
     def withAttributes(attrs: Chunk[Attribute]): Element
     def withChildren(kids: Chunk[Dom]): Element
 
+    /**
+     * Attributes with appends resolved and duplicate names collapsed, computed
+     * once on first render and reused afterwards. Elements are immutable case
+     * classes, so the cached value stays valid for the lifetime of the
+     * instance. The benign race on first concurrent render resolves to the same
+     * value either way.
+     */
+    @volatile private var resolvedCache: Chunk[Attribute] = null
+
+    private[html] def resolvedAttributes: Chunk[Attribute] = {
+      var cached = resolvedCache
+      if (cached eq null) {
+        cached = resolveOrPassthrough(attributes)
+        resolvedCache = cached
+      }
+      cached
+    }
+
     def apply(effect: DomModifier, effects: DomModifier*): Element =
       ToModifier.buildFromEffects(this, effect, effects)
 
@@ -249,7 +267,7 @@ object Dom {
     private[html] def renderTo(sb: java.lang.StringBuilder): Unit = {
       sb.append('<')
       sb.append(tag)
-      renderAttributes(resolveOrPassthrough(attributes), sb)
+      renderAttributes(resolvedAttributes, sb)
       if (isVoid) {
         sb.append("/>")
       } else {
@@ -275,7 +293,7 @@ object Dom {
     private[html] def renderIndented(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit = {
       sb.append('<')
       sb.append(tag)
-      renderAttributes(resolveOrPassthrough(attributes), sb)
+      renderAttributes(resolvedAttributes, sb)
       if (isVoid) {
         sb.append("/>")
       } else if (children.isEmpty) {
@@ -396,6 +414,10 @@ object Dom {
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
     ) extends Element {
+      require(
+        !Dom.voidElements.contains(tag) || children.isEmpty,
+        s"Void element <$tag> cannot have children. Use voidElement(\"$tag\") for void tags."
+      )
       private[html] def escapeText: Boolean                = true
       def withAttributes(attrs: Chunk[Attribute]): Generic = copy(attributes = attrs)
       def withChildren(kids: Chunk[Dom]): Generic          = copy(children = kids)
@@ -686,10 +708,21 @@ object Dom {
 
       def apply(attr: Attribute, attrs: Attribute*): Void
 
+      @volatile private var resolvedCache: Chunk[Attribute] = null
+
+      private[html] def resolvedAttributes: Chunk[Attribute] = {
+        var cached = resolvedCache
+        if (cached eq null) {
+          cached = resolveOrPassthrough(attributes)
+          resolvedCache = cached
+        }
+        cached
+      }
+
       private[html] def renderTo(sb: java.lang.StringBuilder): Unit = {
         sb.append('<')
         sb.append(tag)
-        renderAttributes(resolveOrPassthrough(attributes), sb)
+        renderAttributes(resolvedAttributes, sb)
         sb.append("/>")
       }
 
@@ -792,9 +825,50 @@ object Dom {
 
   object AttributeValue {
     final case class StringValue(value: String)                                       extends AttributeValue
-    final case class MultiValue(values: Chunk[String], separator: AttributeSeparator) extends AttributeValue
-    final case class JsValue(js: Js)                                                  extends AttributeValue
-    final case class BooleanValue(value: Boolean)                                     extends AttributeValue
+    final case class MultiValue(values: Chunk[String], separator: AttributeSeparator) extends AttributeValue {
+
+      /**
+       * Cached unsafe-URL verdict for the separator-joined values: 0 = unknown,
+       * 1 = safe, 2 = unsafe. Values and separator are immutable, so the
+       * verdict stays valid for the lifetime of the instance; the benign race
+       * on first concurrent render resolves to the same value either way. Only
+       * the verdict is cached, never rendered strings.
+       */
+      @volatile private var urlVerdict: Int = 0
+
+      /**
+       * Whether the separator-joined values would be rejected by
+       * [[Escape.sanitizeUrl]]. Computed once via flatten plus sanitize; repeat
+       * calls reuse the cached verdict without flattening or resanitizing.
+       * Consulted only for URL attributes, so sharing one instance between URL
+       * and non-URL attributes stays correct.
+       */
+      private[html] def isUnsafeUrl: Boolean = {
+        var verdict = urlVerdict
+        if (verdict == 0) {
+          if (values.length == 1) verdict = if (Escape.isUnsafeUrl(values(0))) 2 else 1
+          else {
+            verdict = if (Escape.isUnsafeUrl(joinedValues())) 2 else 1
+          }
+          urlVerdict = verdict
+        }
+        verdict == 2
+      }
+
+      private def joinedValues(): String = {
+        val sep = separator.render
+        val sb  = new java.lang.StringBuilder(values.length * 8)
+        var i   = 0
+        while (i < values.length) {
+          if (i > 0) sb.append(sep)
+          sb.append(values(i))
+          i += 1
+        }
+        sb.toString
+      }
+    }
+    final case class JsValue(js: Js)              extends AttributeValue
+    final case class BooleanValue(value: Boolean) extends AttributeValue
   }
 
   sealed trait AttributeSeparator extends Product with Serializable {
@@ -997,11 +1071,12 @@ object Dom {
         Escape.htmlTo(sanitized, sb)
         sb.append('"')
 
-      case AttributeValue.MultiValue(values, separator) =>
+      case mv @ AttributeValue.MultiValue(values, separator) =>
         if (values.nonEmpty) {
           sb.append(' ')
           sb.append(name)
           sb.append("=\"")
+          if (isUrlAttribute(name) && mv.isUnsafeUrl) sb.append("unsafe:")
           var j = 0
           while (j < values.length) {
             if (j > 0) sb.append(separator.render)
@@ -1066,41 +1141,55 @@ object Dom {
 
   private def filterImpl(dom: Dom, predicate: Dom => Boolean): Dom =
     if (!predicate(dom)) Empty
-    else
-      dom match {
-        case el: Element =>
-          val builder = Chunk.newBuilder[Dom]
-          var i       = 0
-          while (i < el.children.length) {
-            val c = el.children(i)
-            if (predicate(c)) builder += filterImpl(c, predicate)
-            i += 1
-          }
-          el.withChildren(builder.result())
-        case other => other
-      }
+    else filterMatched(dom, predicate)
 
-  private def findImpl(dom: Dom, predicate: Dom => Boolean): Option[Dom] =
-    if (predicate(dom)) Some(dom)
+  private def filterMatched(dom: Dom, predicate: Dom => Boolean): Dom =
+    dom match {
+      case el: Element =>
+        val builder = Chunk.newBuilder[Dom]
+        var i       = 0
+        while (i < el.children.length) {
+          val c = el.children(i)
+          if (predicate(c)) builder += filterMatched(c, predicate)
+          i += 1
+        }
+        el.withChildren(builder.result())
+      case other => other
+    }
+
+  private def findImpl(dom: Dom, predicate: Dom => Boolean): Option[Dom] = {
+    val found = findRaw(dom, predicate)
+    if (found eq null) None
+    else new Some(found)
+  }
+
+  private def findRaw(dom: Dom, predicate: Dom => Boolean): Dom =
+    if (predicate(dom)) dom
     else
       dom match {
         case el: Element =>
-          var i                   = 0
-          var result: Option[Dom] = None
-          while (i < el.children.length && result.isEmpty) {
-            result = findImpl(el.children(i), predicate)
+          var i          = 0
+          var found: Dom = null
+          while (i < el.children.length && (found eq null)) {
+            found = findRaw(el.children(i), predicate)
             i += 1
           }
-          result
-        case _ => None
+          found
+        case _ => null
       }
 
   private def transformImpl(dom: Dom, f: Dom => Dom): Dom = {
     val transformed = f(dom)
     transformed match {
       case el: Element =>
-        val newChildren = el.children.map(c => transformImpl(c, f))
-        el.withChildren(newChildren)
+        val kids    = el.children
+        val builder = Chunk.newBuilder[Dom]
+        var i       = 0
+        while (i < kids.length) {
+          builder += transformImpl(kids(i), f)
+          i += 1
+        }
+        el.withChildren(builder.result())
       case other => other
     }
   }

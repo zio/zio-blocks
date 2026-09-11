@@ -218,6 +218,23 @@ object MpscRingBufferSpec extends ZIOSpecDefault {
         rb.offer("a")
         val n = rb.drain(_ => (), 0)
         assertTrue(n == 0, rb.size == 1)
+      },
+      test("drain stops at the limit and advances the consumer index exactly") {
+        val rb = new MpscRingBuffer[String](8)
+        List("a", "b", "c", "d").foreach(rb.offer)
+        val first   = scala.collection.mutable.ArrayBuffer.empty[String]
+        val n1      = rb.drain(e => { first += e; () }, 2)
+        val midSize = rb.size
+        val second  = scala.collection.mutable.ArrayBuffer.empty[String]
+        val n2      = rb.drain(e => { second += e; () }, 10)
+        assertTrue(
+          n1 == 2,
+          first.toVector == Vector("a", "b"),
+          midSize == 2,
+          n2 == 2,
+          second.toVector == Vector("c", "d"),
+          rb.isEmpty
+        )
       }
     )
   )

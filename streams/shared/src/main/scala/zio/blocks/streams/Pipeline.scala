@@ -44,6 +44,16 @@ abstract class Pipeline[-In, +Out] {
   /**
    * Applies this pipeline to a sink, producing a sink that pre-processes
    * elements through this pipeline.
+   *
+   * Fusion note: only `map` fuses directly into the downstream sink (via
+   * `Sink.contramap`, which adds an interpreter map lane without reifying the
+   * stream). `filter`, `drop`, `take`, `buffer`, `chunked`, and `collect` fall
+   * back to reifying the pipeline as a reader chain per drain (`RunViaSink`):
+   * they need stream-level control flow (skipping elements, early termination,
+   * regrouping) that a single per-element function cannot express, so there are
+   * no `Sink.filter`/`take`/`drop` counterparts to fuse through. The reified
+   * path is semantically identical to applying the pipeline to the stream first
+   * (`pipe.applyToStream(stream).run(sink)`).
    */
   def applyToSink[E, Z](sink: Sink[E, Out, Z]): Sink[E, In, Z]
 

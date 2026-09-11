@@ -109,17 +109,326 @@ private[html] object Escape {
   }
 
   private val dangerousUrlSchemes: Array[String] =
-    Array("javascript:", "vbscript:", "data:text/html")
+    Array("javascript:", "vbscript:", "data:text/html", "data:image/svg")
 
-  def sanitizeUrl(url: String): String = {
-    val trimmed = url.trim.toLowerCase
-    var i       = 0
-    while (i < dangerousUrlSchemes.length) {
-      if (trimmed.startsWith(dangerousUrlSchemes(i))) return "unsafe:" + url
+  /**
+   * Media types allowed inside `data:` URLs. Everything else under `data:` is
+   * rejected: scriptable XML types (`application/xhtml+xml`, `application/xml`,
+   * `text/xml`, ...), script types (`application/javascript`, ...), and unknown
+   * bitmap claims that browsers may sniff. Bitmap images and plain text cannot
+   * execute script when navigated to or embedded.
+   */
+  private val safeDataMediaTypes: Array[String] =
+    Array("image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "text/plain")
+
+  /**
+   * Length of the longest dangerous scheme prefix (`data:text/html` and
+   * `data:image/svg`). Only bytes inside this prefix window can influence the
+   * scheme verdict, so the benign fast path only needs to prove this window
+   * needs no normalization.
+   */
+  private val maxDangerousPrefixLength = 14
+
+  /**
+   * Rejects URLs whose (entity-decoded, control-stripped, trimmed, lowercased)
+   * scheme is known dangerous by prefixing them with `unsafe:`.
+   *
+   * Browsers decode HTML character references (e.g. `&#106;avascript:`,
+   * including semicolon-less `&#106avascript:`) in attribute values and strip
+   * ASCII tab/LF/FF/CR anywhere inside the URL before comparing the scheme, so
+   * the scheme is matched against a normalized copy: numeric decimal/hex
+   * references with or without a trailing semicolon are decoded first (single
+   * pass, no re-decoding of produced text, matching browsers), then
+   * tab/LF/FF/CR are removed, and only then is the result lowercased and
+   * prefix-checked. Terminated `colon`/`Tab`/`NewLine` references are decoded
+   * anywhere (they are the only named decodes that can forge `:` or a stripped
+   * control from beyond the scheme window); any other `&` followed by an ASCII
+   * letter inside the scheme-position window is conservatively rejected as
+   * dangerous instead (fail-closed, no browser named-entity table to keep in
+   * sync). Exotic or double-encoded payloads remain the caller's responsibility
+   * — prefer an allowlist of `http`/`https`/`mailto`/`tel`/ relative URLs for
+   * untrusted input.
+   *
+   * `data:` URLs are allowed only for a pinned-safe media-type list (bitmap
+   * images, plain text); scriptable types such as `application/xhtml+xml` and
+   * unknown or empty types are rejected, since embedded SVG/XML can carry
+   * `<script>` content.
+   *
+   * Benign URLs (no `&`, no tab/LF/FF/CR, no leading/trailing whitespace, no
+   * uppercase or non-ASCII byte in the scheme-relevant prefix, no dangerous
+   * prefix) return unchanged without building any intermediate string.
+   */
+  def sanitizeUrl(url: String): String =
+    if (isBenignUrl(url)) url
+    else if (isDangerousNormalizedUrl(url)) "unsafe:" + url
+    else url
+
+  /**
+   * Returns true when [[sanitizeUrl]] would reject the URL, without building
+   * the `unsafe:`-prefixed verdict string. Used to cache the decision for
+   * multi-value URL attributes so repeat renders neither flatten nor
+   * resanitize.
+   */
+  private[html] def isUnsafeUrl(url: String): Boolean =
+    !isBenignUrl(url) && isDangerousNormalizedUrl(url)
+
+  /**
+   * Zero-allocation conservative proof that `url` needs no normalization: a
+   * single scan shows there is no `&` (no entity to decode), no tab/LF/FF/CR
+   * (nothing to strip), no leading/trailing whitespace (trim is identity), and
+   * no uppercase or non-ASCII byte inside the scheme-relevant prefix window
+   * (lowercasing cannot change the verdict window; case or width changes at or
+   * beyond the window cannot shift bytes into it). The raw prefix is then
+   * compared directly. Any uncertainty falls through to the full path, so this
+   * never accepts a URL the full normalization would reject.
+   */
+  private def isBenignUrl(url: String): Boolean = {
+    val len = url.length
+    if (len == 0) return true
+    if (url.charAt(0) <= ' ' || url.charAt(len - 1) <= ' ') return false
+    var i = 0
+    while (i < len) {
+      val c = url.charAt(i)
+      if (c == '&' || c == '\t' || c == '\n' || c == '\f' || c == '\r') return false
+      if (i < maxDangerousPrefixLength && ((c >= 'A' && c <= 'Z') || c > 127)) return false
       i += 1
     }
-    url
+    // `data:` URLs always need media-type parsing against the safe list, so
+    // they never take the raw-prefix fast path. The scan above already proved
+    // the `data:` prefix itself is lowercase ASCII, so this match is exact.
+    if (url.startsWith("data:")) return false
+    var k = 0
+    while (k < dangerousUrlSchemes.length) {
+      if (url.startsWith(dangerousUrlSchemes(k))) return false
+      k += 1
+    }
+    true
   }
+
+  private def isDangerousNormalizedUrl(url: String): Boolean = {
+    val trimmed = url.trim
+    hasSchemeWindowNamedReference(trimmed) ||
+    isDangerousScheme(stripUrlControls(decodeUrlEntities(trimmed)).toLowerCase(java.util.Locale.ROOT))
+  }
+
+  /**
+   * Fail-closed guard for the scheme-position window: true when the trimmed URL
+   * holds `&` followed by an ASCII letter before `maxDangerousPrefixLength`.
+   * Such a span is shaped like a named character reference, which browsers
+   * could decode into scheme text (`colon`, `Tab`, `NewLine`, ...); proving it
+   * harmless would require enumerating the browser named-entity table, so it is
+   * rejected instead. `&` followed by anything else cannot start a named
+   * reference and is left for the mechanical paths below, and references
+   * starting at or beyond the window cannot affect the scheme verdict: every
+   * normalization step either leaves window bytes in place (lowercasing,
+   * stripping controls beyond the window) or only moves bytes left when an
+   * in-window `&` or control is consumed, which the paths below resolve
+   * exactly.
+   */
+  private def hasSchemeWindowNamedReference(s: String): Boolean = {
+    val len   = s.length
+    val bound = if (len < maxDangerousPrefixLength) len else maxDangerousPrefixLength
+    var i     = 0
+    while (i < bound) {
+      if (s.charAt(i) == '&' && i + 1 < len) {
+        val next = s.charAt(i + 1)
+        if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z')) return true
+      }
+      i += 1
+    }
+    false
+  }
+
+  private def isDangerousScheme(normalized: String): Boolean = {
+    if (normalized.startsWith("data:")) return !isSafeDataUrl(normalized)
+    var i = 0
+    while (i < dangerousUrlSchemes.length) {
+      if (normalized.startsWith(dangerousUrlSchemes(i))) return true
+      i += 1
+    }
+    false
+  }
+
+  /**
+   * True when a lowercased `data:` URL carries a pinned-safe media type: the
+   * token after `data:` up to the first `;` or `,` must exactly match
+   * [[safeDataMediaTypes]] (surrounding blanks trimmed). Anything else —
+   * scriptable XML, script types, empty or unknown types — is dangerous.
+   */
+  private def isSafeDataUrl(normalized: String): Boolean = {
+    val rest = normalized.substring("data:".length)
+    var end  = 0
+    while (end < rest.length && rest.charAt(end) != ';' && rest.charAt(end) != ',') end += 1
+    val mediaType = rest.substring(0, end).trim
+    var i         = 0
+    while (i < safeDataMediaTypes.length) {
+      if (mediaType == safeDataMediaTypes(i)) return true
+      i += 1
+    }
+    false
+  }
+
+  /**
+   * Removes the ASCII tab/LF/FF/CR characters browsers strip anywhere inside a
+   * URL before scheme comparison. Returns `s` unchanged when clean, so the
+   * common slow-path case (mixed case only) allocates nothing here.
+   */
+  private def stripUrlControls(s: String): String = {
+    val len = s.length
+    var i   = 0
+    while (i < len) {
+      val c = s.charAt(i)
+      if (c == '\t' || c == '\n' || c == '\f' || c == '\r') {
+        val sb = new java.lang.StringBuilder(len - 1)
+        sb.append(s, 0, i)
+        i += 1
+        while (i < len) {
+          val d = s.charAt(i)
+          if (d != '\t' && d != '\n' && d != '\f' && d != '\r') sb.append(d)
+          i += 1
+        }
+        return sb.toString
+      }
+      i += 1
+    }
+    s
+  }
+
+  /**
+   * Decodes the numeric character references that can smuggle a URL scheme
+   * prefix past a prefix check: numeric decimal/hex references with or without
+   * a trailing semicolon (browsers decode `&#106` as well as `&#106;`,
+   * consuming digits greedily, with unlimited leading zeros). Terminated
+   * references starting with `#` are decoded at any length: capping the span
+   * would decode only a prefix and leave a stray `;` that masks the scheme
+   * (`&#000000106;…` must decode the same `j` browsers see). Terminated named
+   * references are decoded only for the verdict-flipping set (`colon`, `Tab`,
+   * `NewLine`): a named reference beyond the scheme window can still change the
+   * verdict when it decodes to `:` or to a stripped control
+   * (`&#x6A;avascript&colon;…` executes as `javascript:`), while references
+   * decoding to any other character cannot forge a scheme. All other named
+   * references are copied literally: in-window ones are already rejected by
+   * [[hasSchemeWindowNamedReference]], and beyond-window ones cannot affect the
+   * scheme verdict. Unknown or malformed references are left as-is. Index scans
+   * only; no substrings.
+   */
+  private def decodeUrlEntities(s: String): String = {
+    if (s.indexOf('&') < 0) return s
+    val sb  = new java.lang.StringBuilder(s.length)
+    val len = s.length
+    var i   = 0
+    while (i < len) {
+      val c = s.charAt(i)
+      if (c != '&') {
+        sb.append(c)
+        i += 1
+      } else {
+        val semi = s.indexOf(';', i + 1)
+        if (semi >= 0 && i + 1 < semi) {
+          val decoded =
+            if (s.charAt(i + 1) == '#') decodeNumericBody(s, i + 2, semi)
+            else decodeNamedBody(s, i + 1, semi)
+          if (decoded >= 0) {
+            sb.appendCodePoint(decoded)
+            i = semi + 1
+          } else {
+            sb.append(c)
+            i += 1
+          }
+        } else {
+          val end = semicolonLessNumericEnd(s, i)
+          if (end < 0) {
+            sb.append(c)
+            i += 1
+          } else {
+            val decoded = decodeNumericBody(s, i + 2, end)
+            if (decoded < 0) {
+              sb.append(c)
+              i += 1
+            } else {
+              sb.appendCodePoint(decoded)
+              i = end
+            }
+          }
+        }
+      }
+    }
+    sb.toString
+  }
+
+  /**
+   * Decodes the terminated named body in `s[start, end)` (text between `&` and
+   * `;`) when it forges scheme text: `colon` (`:`, the scheme terminator) and
+   * the stripped controls `Tab`/`NewLine` (which join split scheme parts once
+   * removed). Returns the code point, or -1 for anything else: no other
+   * single-character decode can flip the scheme verdict, and multi-character or
+   * unknown names are left literal.
+   */
+  private def decodeNamedBody(s: String, start: Int, end: Int): Int = {
+    val len = end - start
+    if (len == 5 && s.startsWith("colon", start)) ':'.toInt
+    else if (len == 3 && s.startsWith("Tab", start)) '\t'.toInt
+    else if (len == 7 && s.startsWith("NewLine", start)) '\n'.toInt
+    else -1
+  }
+
+  /**
+   * Decodes the numeric body in `s[start, end)`: ASCII digits, or `x`/`X`
+   * followed by hex digits. Returns the code point, or -1 when empty,
+   * malformed, NUL, a surrogate, or beyond U+10FFFF. The accumulator is a
+   * `Long` with an early overflow bail: bodies hundreds of digits long can
+   * never overflow it, since the value is rejected as soon as it exceeds
+   * U+10FFFF (an `Int` accumulator could wrap around to a small valid value and
+   * mis-decode).
+   */
+  private def decodeNumericBody(s: String, start: Int, end: Int): Int = {
+    var i     = start
+    var radix = 10
+    if (i < end && (s.charAt(i) == 'x' || s.charAt(i) == 'X')) {
+      radix = 16
+      i += 1
+    }
+    if (i >= end) return -1
+    var value = 0L
+    while (i < end) {
+      val c = s.charAt(i)
+      val d =
+        if (c >= '0' && c <= '9') c - '0'
+        else if (radix == 16 && c >= 'a' && c <= 'f') c - 'a' + 10
+        else if (radix == 16 && c >= 'A' && c <= 'F') c - 'A' + 10
+        else return -1
+      value = value * radix + d
+      if (value > 0x10ffffL) return -1
+      i += 1
+    }
+    if (value == 0 || (value >= 0xd800 && value <= 0xdfff)) -1
+    else value.toInt
+  }
+
+  /**
+   * Exclusive end index of a semicolon-less numeric reference at `i` (where
+   * `s(i) == '&'`): `&#[0-9]+` or `&#[xX][0-9a-fA-F]+` with greedy digit
+   * consumption, matching browser decoding. Returns -1 when absent.
+   */
+  private def semicolonLessNumericEnd(s: String, i: Int): Int = {
+    val len = s.length
+    var j   = i + 1
+    if (j >= len || s.charAt(j) != '#') return -1
+    j += 1
+    if (j < len && (s.charAt(j) == 'x' || s.charAt(j) == 'X')) {
+      j += 1
+      val digits = j
+      while (j < len && isHexDigit(s.charAt(j))) j += 1
+      if (j == digits) -1 else j
+    } else {
+      val digits = j
+      while (j < len && s.charAt(j) >= '0' && s.charAt(j) <= '9') j += 1
+      if (j == digits) -1 else j
+    }
+  }
+
+  private def isHexDigit(c: Char): Boolean =
+    (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 
   def cssString(s: String): String = {
     val len = s.length
