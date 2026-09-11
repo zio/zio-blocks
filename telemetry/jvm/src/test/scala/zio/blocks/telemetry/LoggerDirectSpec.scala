@@ -144,6 +144,40 @@ object LoggerDirectSpec extends ZIOSpecDefault {
         processor.seen.size == 1,
         processor.seen.head.severity == Severity.Warn
       )
+    },
+    test("direct calls ignore per-namespace level overrides") {
+      // Direct calls carry no SourceLocation, so the macro path's
+      // per-namespace effectiveLevel cannot apply: only this Logger's own
+      // processor levels gate them.
+      val processor = new RecordingProcessor(Severity.Info.number)
+      val logger    =
+        LoggerProvider.builder
+          .addLogRecordProcessor(processor)
+          .build()
+          .get("direct")
+      log.setMinSeverity("com.example.noisy", Severity.Error)
+      try {
+        logger.info("kept")
+        assertTrue(
+          processor.seen.size == 1,
+          processor.seen.head.body.value == "kept"
+        )
+      } finally log.clearMinSeverity("com.example.noisy")
+    },
+    test("direct calls ignore the live global severity floor") {
+      val processor = new RecordingProcessor(Severity.Info.number)
+      val logger    =
+        LoggerProvider.builder
+          .addLogRecordProcessor(processor)
+          .build()
+          .get("direct")
+      log.withMinSeverity(Severity.Fatal) {
+        logger.info("kept")
+      }
+      assertTrue(
+        processor.seen.size == 1,
+        processor.seen.head.body.value == "kept"
+      )
     }
   ) @@ TestAspect.sequential
 }
