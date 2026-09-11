@@ -121,9 +121,14 @@ final class Logger private[telemetry] (
     log(Severity.Fatal, body, attrs)
 
   private def log(severity: Severity, body: String, attrs: Seq[(String, AttributeValue)]): Unit = {
-    // Cheap gate first: below the minimum level of every processor, skip the
-    // clock read, builder work, and record allocation entirely (mirrors the
-    // macro path's globalMinLevel pre-check).
+    // Cheap gate first: below the minimum level of every processor attached to
+    // this Logger, skip the clock read, builder work, and record allocation
+    // entirely. This reads the construction-time processor snapshot only.
+    // Unlike the macro path — which checks the live GlobalLogState floor and
+    // then the per-namespace effectiveLevel — direct calls carry no
+    // SourceLocation, so GlobalLogState levels (global floor and
+    // per-namespace overrides) do not apply here; only this Logger's own
+    // processor levels gate direct calls.
     if (severity.number < processorMinLevel) return
     val now        = EpochClock.epochNanos()
     val spanCtxOpt = contextStorage.get()
