@@ -96,8 +96,7 @@ object Upsert {
     columns.foreach(c => SqlIdentifier.validate("column", c))
     SqlIdentifier.validate("column", conflictColumn)
     require(columns.size == values.size, "Upsert.doNothing: columns/value count mismatch")
-    val allCols = columns.mkString(", ")
-    val base    = Repo.buildInsertFrag(t, allCols, values)
+    val base = Repo.buildInsertFrag(t, columns, values)
     base ++ doNothingSuffix(conflictColumn)
   }
 
@@ -115,7 +114,7 @@ object Upsert {
     columns.foreach(c => SqlIdentifier.validate("column", c))
     SqlIdentifier.validate("column", conflictColumn)
     require(columns.size == values.size, "Upsert.doNothingRaw: columns/value count mismatch")
-    val base = Repo.buildInsertFrag(t, columns.mkString(", "), values)
+    val base = Repo.buildInsertFrag(t, columns, values)
     base ++ doNothingSuffix(conflictColumn)
   }
 
@@ -134,8 +133,7 @@ object Upsert {
     SqlIdentifier.validate("column", conflictColumn)
     assignments.foreach { case (col, _) => SqlIdentifier.validate("column", col) }
     require(columns.size == values.size, "Upsert.doUpdate: columns/value count mismatch")
-    val allCols = columns.mkString(", ")
-    val base    = Repo.buildInsertFrag(t, allCols, values)
+    val base = Repo.buildInsertFrag(t, columns, values)
     base ++ doUpdateSuffix(conflictColumn, assignments)
   }
 
@@ -170,7 +168,7 @@ object Upsert {
    * `INSERT ... ON CONFLICT ("conflict") DO NOTHING` for an entity.
    *
    * Builds
-   * `INSERT INTO table (cols) VALUES (?, ...) ON CONFLICT ("conflict") DO NOTHING`.
+   * `INSERT INTO "table" ("cols") VALUES (?, ...) ON CONFLICT ("conflict") DO NOTHING`.
    * The table name is validated via [[SqlIdentifier.validate]] and the conflict
    * column is validated as an identifier and checked for membership in
    * `table.columns`.
@@ -184,6 +182,7 @@ object Upsert {
    *   validated identifier that must be present in `table.columns`
    * @return
    *   a [[Frag]] whose SQL is `INSERT ... ON CONFLICT ("conflict") DO NOTHING`
+   *   with a quoted `INSERT INTO "table" ("cols")` head
    * @throws IllegalArgumentException
    *   if `conflictColumn` is not a valid identifier or is not found in
    *   `table.columns`
@@ -192,8 +191,7 @@ object Upsert {
     val t        = validatedTableName(table)
     val conflict = validatedConflictInTable(table, conflictColumn)
     val values   = table.codec.toDbValues(entity)
-    val allCols  = table.columns.mkString(", ")
-    val base     = Repo.buildInsertFrag(t, allCols, values)
+    val base     = Repo.buildInsertFrag(t, table.columns, values)
     base ++ doNothingSuffix(conflict)
   }
 
@@ -272,9 +270,8 @@ object Upsert {
       throw new IllegalArgumentException(
         s"Assignment columns must not contain duplicates: ${validatedUpdateCols.mkString(", ")}"
       )
-    val values  = table.codec.toDbValues(entity)
-    val allCols = table.columns.mkString(", ")
-    val base    = Repo.buildInsertFrag(t, allCols, values)
+    val values = table.codec.toDbValues(entity)
+    val base   = Repo.buildInsertFrag(t, table.columns, values)
     // Index by position in one pass, not via per-column `indexOf`: `Table`
     // rejects duplicate columns at construction, so each name maps to exactly
     // one position.

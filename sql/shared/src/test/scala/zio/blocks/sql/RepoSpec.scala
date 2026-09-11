@@ -97,27 +97,33 @@ object RepoSpec extends ZIOSpecDefault {
           DbValue.DbString("Alice"): DbValue,
           DbValue.DbString("alice@example.com"): DbValue
         )
-        val frag = Repo.buildInsertFrag("user", "id, name, email", values)
+        val frag = Repo.buildInsertFrag("user", IndexedSeq("id", "name", "email"), values)
         assertTrue(
-          frag.sql(SqlDialect.SQLite) == "INSERT INTO user (id, name, email) VALUES (?, ?, ?)",
-          frag.sql(SqlDialect.PostgreSQL) == "INSERT INTO user (id, name, email) VALUES (?, ?, ?)",
+          frag.sql(SqlDialect.SQLite) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?)""",
+          frag.sql(SqlDialect.PostgreSQL) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?)""",
           frag.queryParams == values
         )
       },
       test("builds correct INSERT Frag for 1 value") {
         val values = IndexedSeq(DbValue.DbInt(42): DbValue)
-        val frag   = Repo.buildInsertFrag("t", "id", values)
+        val frag   = Repo.buildInsertFrag("t", IndexedSeq("id"), values)
         assertTrue(
-          frag.sql(SqlDialect.SQLite) == "INSERT INTO t (id) VALUES (?)",
+          frag.sql(SqlDialect.SQLite) == """INSERT INTO "t" ("id") VALUES (?)""",
           frag.queryParams == values
         )
       },
       test("builds INSERT Frag with no values") {
-        val frag = Repo.buildInsertFrag("t", "", IndexedSeq.empty)
+        val frag = Repo.buildInsertFrag("t", IndexedSeq.empty, IndexedSeq.empty)
         assertTrue(
-          frag.sql(SqlDialect.SQLite) == "INSERT INTO t DEFAULT VALUES",
+          frag.sql(SqlDialect.SQLite) == """INSERT INTO "t" DEFAULT VALUES""",
           frag.queryParams.isEmpty
         )
+      },
+      test("rejects identifier injection in table and column names") {
+        val values   = IndexedSeq(DbValue.DbInt(1): DbValue)
+        val badTable = scala.util.Try(Repo.buildInsertFrag("t; DROP TABLE t", IndexedSeq("id"), values))
+        val badCol   = scala.util.Try(Repo.buildInsertFrag("t", IndexedSeq("id; DROP TABLE t"), values))
+        assertTrue(badTable.isFailure, badCol.isFailure)
       }
     ),
     suite("buildUpdateFrag")(
@@ -127,8 +133,8 @@ object RepoSpec extends ZIOSpecDefault {
         val idValues     = IndexedSeq(DbValue.DbInt(1): DbValue)
         val frag         = Repo.buildUpdateFrag("user", columns, entityValues, "id", idValues)
         assertTrue(
-          frag.sql(SqlDialect.SQLite) == "UPDATE user SET name = ?, email = ? WHERE id = ?",
-          frag.sql(SqlDialect.PostgreSQL) == "UPDATE user SET name = ?, email = ? WHERE id = ?",
+          frag.sql(SqlDialect.SQLite) == """UPDATE "user" SET "name" = ?, "email" = ? WHERE "id" = ?""",
+          frag.sql(SqlDialect.PostgreSQL) == """UPDATE "user" SET "name" = ?, "email" = ? WHERE "id" = ?""",
           frag.queryParams == entityValues ++ idValues
         )
       },
@@ -138,7 +144,7 @@ object RepoSpec extends ZIOSpecDefault {
         val idValues     = IndexedSeq(DbValue.DbInt(5): DbValue)
         val frag         = Repo.buildUpdateFrag("t", columns, entityValues, "id", idValues)
         assertTrue(
-          frag.sql(SqlDialect.SQLite) == "UPDATE t SET name = ? WHERE id = ?",
+          frag.sql(SqlDialect.SQLite) == """UPDATE "t" SET "name" = ? WHERE "id" = ?""",
           frag.queryParams == entityValues ++ idValues
         )
       }
@@ -339,7 +345,7 @@ object RepoSpec extends ZIOSpecDefault {
           total == 2,
           preparedSql.size == 1,
           preparedSql.head ==
-            """INSERT INTO user (id, name) VALUES (?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?""",
+            """INSERT INTO "user" ("id", "name") VALUES (?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?""",
           rowValues.size == 2,
           rowValues(0) == IndexedSeq(DbValue.DbInt(1), DbValue.DbString("Alice"), DbValue.DbString("Alice")),
           rowValues(1) == IndexedSeq(DbValue.DbInt(2), DbValue.DbString("Bob"), DbValue.DbString("Bob"))
@@ -364,14 +370,123 @@ object RepoSpec extends ZIOSpecDefault {
           preparedSql.head == expected.sql(SqlDialect.SQLite),
           rowValues.head == expected.queryParams
         )
+      },
+      test("nullable batch writes DbNull on both sides of the split write") {
+        case class Profile(id: Int, nickname: Option[String])
+        object Profile {
+          implicit val schema: Schema[Profile] = Schema.derived
+        }
+        val repo        = Repo.derived[Profile, Int]
+        val preparedSql = scala.collection.mutable.ListBuffer.empty[String]
+        val rowValues   = scala.collection.mutable.ListBuffer.empty[IndexedSeq[DbValue]]
+        given DbCon     = new DbCon {
+          val connection: DbConnection = new RecordingConnection(preparedSql, rowValues)
+          val dialect: SqlDialect      = SqlDialect.SQLite
+          val logger: SqlLogger        = SqlLogger.noop
+        }
+        val rows  = List(Profile(1, Some("Al")), Profile(2, None))
+        val total = repo.insertOrUpdateBatch(rows)
+        // The None row stores DbNull twice: once in the INSERT values
+        // (positions 1-2) and once in the DO UPDATE assignment written with
+        // startIndex = vals.length + 1 (position 3).
+        val expectedNone = Upsert.insertDoUpdate(repo.table, Profile(2, None), "id")
+        assertTrue(
+          total == 2,
+          preparedSql.size == 1,
+          preparedSql.head ==
+            """INSERT INTO "profile" ("id", "nickname") VALUES (?, ?) ON CONFLICT ("id") DO UPDATE SET "nickname" = ?""",
+          rowValues.size == 2,
+          rowValues(0) == IndexedSeq(DbValue.DbInt(1), DbValue.DbString("Al"), DbValue.DbString("Al")),
+          rowValues(1) == IndexedSeq(DbValue.DbInt(2), DbValue.DbNull, DbValue.DbNull),
+          rowValues(1) == expectedNone.queryParams
+        )
+      },
+      test("wide-row batch keeps assignment offsets after many columns") {
+        case class WideRow(id: Int, a: String, b: String, c: String, d: String, e: String)
+        object WideRow {
+          implicit val schema: Schema[WideRow] = Schema.derived
+        }
+        val repo        = Repo.derived[WideRow, Int]
+        val preparedSql = scala.collection.mutable.ListBuffer.empty[String]
+        val rowValues   = scala.collection.mutable.ListBuffer.empty[IndexedSeq[DbValue]]
+        given DbCon     = new DbCon {
+          val connection: DbConnection = new RecordingConnection(preparedSql, rowValues)
+          val dialect: SqlDialect      = SqlDialect.SQLite
+          val logger: SqlLogger        = SqlLogger.noop
+        }
+        val row      = WideRow(7, "a", "b", "c", "d", "e")
+        val total    = repo.insertOrUpdateBatch(List(row))
+        val expected = Upsert.insertDoUpdate(repo.table, row, "id")
+        // 6 INSERT values + 5 assignments; the first assignment lands at
+        // snapshot position 6 (JDBC index 7 = vals.length + 1).
+        assertTrue(
+          total == 1,
+          preparedSql.size == 1,
+          rowValues.size == 1,
+          rowValues(0).size == 11,
+          rowValues(0)(6) == DbValue.DbString("a"),
+          rowValues(0) == expected.queryParams
+        )
+      },
+      test("composite-ID batch binds a product ID through one statement") {
+        // Composite ID packed into a single column: exercises the batch path
+        // with a non-primitive ID type (Repo still requires a single-column
+        // ID codec, satisfied here by construction).
+        case class UserId(org: Int, seq: Int)
+        case class Member(id: UserId, name: String)
+        val userIdCodec: DbCodec[UserId] =
+          DbCodec.stringCodec.transform[UserId](s =>
+            s.split(":") match { case Array(o, q) => UserId(o.toInt, q.toInt) }
+          )(u => s"${u.org}:${u.seq}")
+        val memberCodec: DbCodec[Member] = new DbCodec[Member] {
+          val columns: IndexedSeq[String]                                                 = IndexedSeq("id", "name")
+          def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Member = {
+            val parts = reader.getString(columnLabels(0)).split(":")
+            Member(UserId(parts(0).toInt, parts(1).toInt), reader.getString(columnLabels(1)))
+          }
+          def writeValue(writer: DbParamWriter, startIndex: Int, value: Member): Unit = {
+            writer.setString(startIndex, s"${value.id.org}:${value.id.seq}")
+            writer.setString(startIndex + 1, value.name)
+          }
+          def toDbValues(value: Member): IndexedSeq[DbValue] =
+            IndexedSeq(DbValue.DbString(s"${value.id.org}:${value.id.seq}"), DbValue.DbString(value.name))
+        }
+        val table = Table(
+          "membership",
+          memberCodec,
+          IndexedSeq(
+            ColumnMeta("id", DbValue.DbString(""), false),
+            ColumnMeta("name", DbValue.DbString(""), false)
+          )
+        )
+        val repo        = Repo(table, "id", userIdCodec, (m: Member) => m.id)
+        val preparedSql = scala.collection.mutable.ListBuffer.empty[String]
+        val rowValues   = scala.collection.mutable.ListBuffer.empty[IndexedSeq[DbValue]]
+        given DbCon     = new DbCon {
+          val connection: DbConnection = new RecordingConnection(preparedSql, rowValues)
+          val dialect: SqlDialect      = SqlDialect.SQLite
+          val logger: SqlLogger        = SqlLogger.noop
+        }
+        val rows     = List(Member(UserId(1, 2), "Al"), Member(UserId(3, 4), "Bo"))
+        val total    = repo.insertOrUpdateBatch(rows)
+        val expected = Upsert.insertDoUpdate(table, rows.head, "id")
+        assertTrue(
+          total == 2,
+          preparedSql.size == 1,
+          preparedSql.head == expected.sql(SqlDialect.SQLite),
+          rowValues.size == 2,
+          rowValues(0) == IndexedSeq(DbValue.DbString("1:2"), DbValue.DbString("Al"), DbValue.DbString("Al")),
+          rowValues(1) == IndexedSeq(DbValue.DbString("3:4"), DbValue.DbString("Bo"), DbValue.DbString("Bo"))
+        )
       }
     ),
     suite("inListParts")(
       test("builds one placeholder group per element") {
         assertTrue(
-          Repo.inListParts("SELECT a FROM t WHERE (id) IN (", 1) == IndexedSeq("SELECT a FROM t WHERE (id) IN (", ")"),
-          Repo.inListParts("SELECT a FROM t WHERE (id) IN (", 3) ==
-            IndexedSeq("SELECT a FROM t WHERE (id) IN (", ", ", ", ", ")")
+          Repo.inListParts("""SELECT "a" FROM "t" WHERE ("id") IN (""", 1) ==
+            IndexedSeq("""SELECT "a" FROM "t" WHERE ("id") IN (""", ")"),
+          Repo.inListParts("""SELECT "a" FROM "t" WHERE ("id") IN (""", 3) ==
+            IndexedSeq("""SELECT "a" FROM "t" WHERE ("id") IN (""", ", ", ", ", ")")
         )
       }
     )

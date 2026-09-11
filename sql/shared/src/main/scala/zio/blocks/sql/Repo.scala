@@ -50,6 +50,14 @@ import zio.blocks.maybe.Maybe
  *   - [[update]] returns `0` both when no row matches the ID and when the
  *     entity carries only the ID column (nothing to set) — callers cannot
  *     distinguish the two cases from the return value alone.
+ *
+ * ==Identifier quoting==
+ * Every identifier this repository renders — table and column names in
+ * `SELECT`/`INSERT`/`UPDATE`/`DELETE` and in the `IN`-list prefixes — is
+ * validated and wrapped in standard double quotes, matching
+ * `zio.blocks.sql.query.QueryRenderer` and the legacy `SqlQuery` builder. Both
+ * dialects (`PostgreSQL`, `SQLite`) accept double-quoted identifiers, so there
+ * is no per-dialect quoting exception anywhere on these paths.
  */
 abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
 
@@ -91,8 +99,14 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
     s"idColumn '$idColumn' (validated as '$validatedIdColumn') not found in table '${table.name}' columns: ${table.columns.mkString(", ")}"
   )
 
-  private val allCols: String = table.columns.mkString(", ")
-  private val tbl: String     = table.name
+  // Quoted once at construction: every inline SQL string below reuses these,
+  // so SELECT/INSERT/UPDATE/DELETE/IN prefixes share one quoting style.
+  // `table.columns` and the table name arrive pre-validated from `Table`.
+  private val allCols: String = table.columns.map(c => s""""$c"""").mkString(", ")
+  private val tbl: String     = s""""${SqlIdentifier.validate("table", table.name)}""""
+  // Raw (unquoted) ID column for value-level comparisons; SQL strings use the
+  // quoted twin so `WHERE`/`ORDER BY`/conflict targets match the rest.
+  private val quotedIdColumn: String = s""""$validatedIdColumn""""
 
   /** The entity codec, exposed for internal Frag operations. */
   private given codec: DbCodec[E] = table.codec
@@ -118,7 +132,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
     if (idList.isEmpty) List.empty
     else {
       val allValues = idList.flatMap(id => idCodec.toDbValues(id)).toIndexedSeq
-      val parts     = Repo.inListParts(s"SELECT $allCols FROM $tbl WHERE ($validatedIdColumn) IN (", allValues.size)
+      val parts     = Repo.inListParts(s"SELECT $allCols FROM $tbl WHERE ($quotedIdColumn) IN (", allValues.size)
       Frag(parts, allValues).query[E]
     }
   }
@@ -126,7 +140,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
   /** Finds the row with the given primary key. */
   final def find(id: ID)(using con: DbCon): Maybe[E] = {
     val frag = Frag(
-      IndexedSeq(s"SELECT $allCols FROM $tbl WHERE $validatedIdColumn = ", ""),
+      IndexedSeq(s"SELECT $allCols FROM $tbl WHERE $quotedIdColumn = ", ""),
       idCodec.toDbValues(id)
     )
     frag.queryOne[E]
@@ -158,8 +172,8 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
     require(limit > 0, s"Repo.pageAfter: limit must be > 0, got $limit")
     val frag = Frag(
       IndexedSeq(
-        s"SELECT $allCols FROM $tbl WHERE $validatedIdColumn > ",
-        s" ORDER BY $validatedIdColumn ASC LIMIT $limit"
+        s"SELECT $allCols FROM $tbl WHERE $quotedIdColumn > ",
+        s" ORDER BY $quotedIdColumn ASC LIMIT $limit"
       ),
       idCodec.toDbValues(cursorId)
     )
@@ -171,7 +185,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
   /** Inserts `entity` and returns the affected row count (normally 1). */
   final def insert(entity: E)(using con: DbCon): Int = {
     val values = codec.toDbValues(entity)
-    val frag   = Repo.buildInsertFrag(tbl, allCols, values)
+    val frag   = Repo.buildInsertFrag(table.name, table.columns, values)
     frag.update
   }
 
@@ -183,7 +197,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
    *   if the row cannot be found after insert.
    */
   final def insertReturning(entity: E)(using con: DbCon): E = {
-    val frag   = Repo.buildInsertFrag(tbl, allCols, codec.toDbValues(entity))
+    val frag   = Repo.buildInsertFrag(table.name, table.columns, codec.toDbValues(entity))
     val keys   = frag.updateReturningKeys[ID](using con, idCodec)
     val result = Maybe.fromOption(keys.headOption).flatMap(find(_)).orElse(find(getId(entity)))
     result.getOrElse(
@@ -204,7 +218,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
     if (entities.isEmpty) return 0
     val first  = entities.head
     val values = codec.toDbValues(first)
-    val sqlStr = Repo.buildInsertFrag(tbl, allCols, values).sql(con.dialect)
+    val sqlStr = Repo.buildInsertFrag(table.name, table.columns, values).sql(con.dialect)
     val start  = System.nanoTime()
     try {
       val ps = con.connection.prepareStatement(sqlStr)
@@ -335,7 +349,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
     val updateValues  = updatePairs.map(_._2)
     if (updateColumns.isEmpty) 0
     else {
-      val frag = Repo.buildUpdateFrag(tbl, updateColumns, updateValues, validatedIdColumn, idValues)
+      val frag = Repo.buildUpdateFrag(table.name, updateColumns, updateValues, validatedIdColumn, idValues)
       frag.update
     }
   }
@@ -345,7 +359,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
    */
   final def delete(id: ID)(using con: DbCon): Int = {
     val frag = Frag(
-      IndexedSeq(s"DELETE FROM $tbl WHERE $validatedIdColumn = ", ""),
+      IndexedSeq(s"DELETE FROM $tbl WHERE $quotedIdColumn = ", ""),
       idCodec.toDbValues(id)
     )
     frag.update
@@ -363,7 +377,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
     if (idList.isEmpty) 0
     else {
       val allValues = idList.flatMap(id => idCodec.toDbValues(id)).toIndexedSeq
-      val parts     = Repo.inListParts(s"DELETE FROM $tbl WHERE ($validatedIdColumn) IN (", allValues.size)
+      val parts     = Repo.inListParts(s"DELETE FROM $tbl WHERE ($quotedIdColumn) IN (", allValues.size)
       Frag(parts, allValues).update
     }
   }
@@ -552,16 +566,39 @@ object Repo {
     IndexedSeq(prefix) ++ IndexedSeq.fill(size - 1)(", ") :+ ")"
   }
 
-  private[sql] def buildInsertFrag(tableName: String, allColumns: String, values: IndexedSeq[DbValue]): Frag =
-    if (values.isEmpty) Frag.literal(s"INSERT INTO $tableName DEFAULT VALUES")
+  /**
+   * Builds `INSERT INTO "table" ("a", "b", ...) VALUES (?, ...)` (or
+   * `INSERT INTO "table" DEFAULT VALUES` when `values` is empty).
+   *
+   * Identifiers are validated and double-quoted here, so every call site
+   * (`Repo` executors, `Upsert` builders) renders the same quoted style both
+   * dialects accept. Callers pass raw (unquoted) names with values aligned to
+   * `columns` by position.
+   */
+  private[sql] def buildInsertFrag(
+    tableName: String,
+    columns: IndexedSeq[String],
+    values: IndexedSeq[DbValue]
+  ): Frag = {
+    val t    = SqlIdentifier.validate("table", tableName)
+    val cols = columns.map(c => SqlIdentifier.validate("column", c))
+    if (values.isEmpty) Frag.literal(s"""INSERT INTO "$t" DEFAULT VALUES""")
     else {
+      require(cols.size == values.size, "Repo.buildInsertFrag: columns/value count mismatch")
       val parts =
-        IndexedSeq(s"INSERT INTO $tableName ($allColumns) VALUES (") ++
+        IndexedSeq(s"""INSERT INTO "$t" (${cols.map(c => s""""$c"""").mkString(", ")}) VALUES (""") ++
           IndexedSeq.fill(values.size - 1)(", ") :+
           ")"
       Frag(parts, values)
     }
+  }
 
+  /**
+   * Builds `UPDATE "table" SET "a" = ?, ... WHERE "id" = ?`.
+   *
+   * Identifiers are validated and double-quoted here (same contract as
+   * [[buildInsertFrag]]).
+   */
   private[sql] def buildUpdateFrag(
     tableName: String,
     columns: IndexedSeq[String],
@@ -571,18 +608,21 @@ object Repo {
   ): Frag = {
     require(columns.nonEmpty, "Cannot build UPDATE with no columns to set")
     require(columns.size == entityValues.size, "UPDATE column/value count mismatch")
+    val t         = SqlIdentifier.validate("table", tableName)
+    val cols      = columns.map(c => SqlIdentifier.validate("column", c))
+    val idCol     = SqlIdentifier.validate("column", idColumn)
     val allValues = entityValues ++ idValues
     val partsB    = IndexedSeq.newBuilder[String]
 
-    partsB += s"UPDATE $tableName SET ${columns(0)} = "
+    partsB += s"""UPDATE "$t" SET "${cols(0)}" = """
 
     var i = 1
-    while (i < columns.size) {
-      partsB += s", ${columns(i)} = "
+    while (i < cols.size) {
+      partsB += s""", "${cols(i)}" = """
       i += 1
     }
 
-    partsB += s" WHERE $idColumn = "
+    partsB += s""" WHERE "$idCol" = """
     partsB += ""
 
     Frag(partsB.result(), allValues)

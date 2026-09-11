@@ -34,6 +34,12 @@ import zio.blocks.sql.SqlStatement._
  * columns resolve correctly. `LIMIT`/`OFFSET` are literal-by-design (they are
  * validated `Int`s, matching `QueryRenderer` and `Repo.pageAfter`); only filter
  * values bind as `?` params.
+ *
+ * Legacy status: this class and its sole entry point [[SqlQuery.from]] are
+ * deprecated — a direct `SqlQuery.from(table)` call warns at compile time, so
+ * new code cannot adopt this builder silently. It remains for
+ * `SqlStatement`/`explain` inspection until the full merge lands; prefer
+ * `zio.blocks.sql.query.SqlQuery` for new queries.
  */
 @deprecated(
   "Use zio.blocks.sql.query.SqlQuery for new queries: it validates joins through typed Rels and composes Frag throughout. This builder remains for SqlStatement/explain inspection until the full merge lands.",
@@ -338,6 +344,17 @@ final class SqlQuery[A] private (
 
 object SqlQuery {
 
+  /**
+   * Sole entry point for the legacy builder. Deprecated alongside the class so
+   * that `SqlQuery.from(...)` warns at user call sites; without this, chaining
+   * off the inferred class type would stay silent.
+   */
+  @deprecated(
+    "Use zio.blocks.sql.query.SqlQuery for new queries: it validates joins through typed Rels and composes Frag throughout. This builder remains for SqlStatement/explain inspection until the full merge lands.",
+    "0.1.0"
+  )
+  // Covers only the `new SqlQuery` self-reference in this body; callers of
+  // `from` still warn (nowarn never propagates to call sites).
   @scala.annotation.nowarn("cat=deprecation")
   def from[A](table: Table[A]): SqlQuery[A] =
     new SqlQuery[A](table, "t0", Vector.empty, Vector.empty, None, Vector.empty, None, None, Map("t0" -> table.columns))

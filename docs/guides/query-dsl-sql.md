@@ -754,7 +754,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 val table: Table[User] = Table.derived[User]
 val user = User(42, "Alice", "alice@example.com")
 
-// INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING
+// INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING
 val frag: Frag = Upsert.insertDoNothing(table, user, conflictColumn = "id")
 ```
 
@@ -771,7 +771,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 val table: Table[User] = Table.derived[User]
 val user = User(42, "Alice", "alice@example.com")
 
-// INSERT INTO user (id, name, email) VALUES (?, ?, ?)
+// INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?)
 //   ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?
 val frag: Frag = Upsert.insertDoUpdate(table, user, conflictColumn = "id")
 ```
@@ -879,7 +879,7 @@ val totalAffected: Int = repo.insertOrUpdateBatch(users)
 These generate SQL like:
 
 ```sql
-INSERT INTO user (id, name, email) VALUES (?, ?, ?)
+INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?)
   ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?
 ```
 
@@ -914,7 +914,7 @@ val nextPage: List[User]   = repo.pageAfter(cursorId = firstPage.last.id, limit 
 It renders as:
 
 ```sql
-SELECT id, name, email FROM user WHERE id > ? ORDER BY id ASC LIMIT 20
+SELECT "id", "name", "email" FROM "user" WHERE "id" > ? ORDER BY "id" ASC LIMIT 20
 ```
 
 where `?` is bound via `idCodec.toDbValues(cursorId)`. `limit` must be `> 0`.
@@ -984,7 +984,7 @@ val q = SqlQuery
   .where(userTable, "name", DbValue.DbString("alice"))
 
 println(q.explain(SqlDialect.PostgreSQL))
-// SELECT t0.id, t0.name, t1.id, t1.owner_id, t1.name FROM user t0 INNER JOIN repo t1 ON t0.id = t1.owner_id WHERE t0.name = ?1
+// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" t0 INNER JOIN "repo" t1 ON t0."id" = t1."owner_id" WHERE t0."name" = ?1
 // -- params: 1:String
 ```
 

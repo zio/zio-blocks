@@ -19,7 +19,7 @@ package zio.blocks.sql
 import zio.blocks.maybe.Maybe
 import zio.blocks.schema.{As, Schema, SchemaError}
 import zio.blocks.schema.derive.DerivationBuilder
-import zio.blocks.schema.json.JsonCodec
+import zio.blocks.schema.json.{JsonCodec => JsonSchemaCodec}
 
 /**
  * Bidirectional codec between a Scala value `A` and one or more database
@@ -101,7 +101,7 @@ object DbCodec extends DbCodecOpaquePriority {
   // Matches java.sql.Types.NULL (0); kept local so shared sources stay free of java.sql.
   private val SqlNullType = 0
 
-  private def decodeJsonb[A](input: String)(using jsonCodec: JsonCodec[A]): A =
+  private def decodeJsonb[A](input: String)(using jsonCodec: JsonSchemaCodec[A]): A =
     decodeJsonbEither[A](input) match {
       case Right(value) => value
       case Left(err)    => throw new RuntimeException(s"JSONB decode error: $err")
@@ -113,21 +113,21 @@ object DbCodec extends DbCodecOpaquePriority {
    * longer aborts the whole `Frag.query` list decode with an unactionable
    * `RuntimeException`.
    */
-  private[sql] def decodeJsonbEither[A](input: String)(using jsonCodec: JsonCodec[A]): Either[SchemaError, A] =
+  private[sql] def decodeJsonbEither[A](input: String)(using jsonCodec: JsonSchemaCodec[A]): Either[SchemaError, A] =
     jsonCodec.decode(input)
 
   /**
-   * Either-returning `As` decode step used by [[dbCodecFromAs]]. Exposed so
-   * callers that can handle failure as a value do not have to go through the
-   * throwing given.
+   * Either-returning `As` decode step used by [[dbCodecFromAs]]. Visible inside
+   * `zio.blocks.sql` (not public API) so in-package codecs that can handle
+   * failure as a value do not have to go through the throwing given.
    */
   private[sql] def decodeViaAs[A, B](conv: As[A, B], decoded: A): Either[SchemaError, B] =
     conv.into(decoded)
 
   /**
-   * Either-returning `As` encode step used by [[dbCodecFromAs]]. Exposed so
-   * callers that can handle failure as a value do not have to go through the
-   * throwing given.
+   * Either-returning `As` encode step used by [[dbCodecFromAs]]. Visible inside
+   * `zio.blocks.sql` (not public API) so in-package codecs that can handle
+   * failure as a value do not have to go through the throwing given.
    */
   private[sql] def encodeViaAs[A, B](conv: As[A, B], value: B): Either[SchemaError, A] =
     conv.from(value)
@@ -161,13 +161,13 @@ object DbCodec extends DbCodecOpaquePriority {
   ): DbCodec[A] =
     configure(builder[A]).derive
 
-  def jsonb[A](using jsonCodec: JsonCodec[A]): DbCodec[A] =
+  def jsonb[A](using jsonCodec: JsonSchemaCodec[A]): DbCodec[A] =
     DbCodec[String].transform[A](decodeJsonb[A])(value => jsonCodec.encodeToString(value))
 
   def jsonb[A](encode: A => String, decode: String => A): DbCodec[A] =
     DbCodec[String].transform[A](decode)(encode)
 
-  def jsonbOption[A](using jsonCodec: JsonCodec[A]): DbCodec[Option[A]] =
+  def jsonbOption[A](using jsonCodec: JsonSchemaCodec[A]): DbCodec[Option[A]] =
     DbCodec[Option[String]].transform[Option[A]](
       _.map(str => decodeJsonb[A](str))
     )(

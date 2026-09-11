@@ -173,26 +173,26 @@ productCodec.columnCount
 
 ### `DbCodec.jsonb` — JSONB column codec
 
-`DbCodec.jsonb` creates a `DbCodec[A]` that stores and retrieves a value of type `A` as a JSON string in a single database column. Two overloads are available: one using an implicit `JsonCodec[A]` for the encode/decode pair, and one accepting explicit functions.
+`DbCodec.jsonb` creates a `DbCodec[A]` that stores and retrieves a value of type `A` as a JSON string in a single database column. Two overloads are available: one using an implicit `JsonSchemaCodec[A]` for the encode/decode pair, and one accepting explicit functions.
 
 ```scala
 object DbCodec {
-  def jsonb[A](using jsonCodec: JsonCodec[A]): DbCodec[A]
+  def jsonb[A](using jsonCodec: JsonSchemaCodec[A]): DbCodec[A]
   def jsonb[A](encode: A => String, decode: String => A): DbCodec[A]
 }
 ```
 
-The first overload requires a `JsonCodec[A]` (from `zio.blocks.schema.json`) in implicit scope:
+The first overload requires a `JsonSchemaCodec[A]` (aliased from `zio.blocks.schema.json.JsonCodec`) in implicit scope:
 
 ```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
-import zio.blocks.schema.json.{JsonCodec, JsonCodecDeriver}
+import zio.blocks.schema.json.{JsonCodec => JsonSchemaCodec, JsonCodecDeriver}
 
 case class Address(street: String, city: String)
 object Address {
   implicit val schema: Schema[Address]             = Schema.derived
-  implicit val jsonCodec: JsonCodec[Address] = schema.deriving(JsonCodecDeriver).derive
+  implicit val jsonCodec: JsonSchemaCodec[Address] = schema.deriving(JsonCodecDeriver).derive
 }
 
 // Address is stored as a JSON string in a single TEXT/JSONB column
@@ -202,7 +202,7 @@ codec.columns
 codec.toDbValues(Address("Main St", "NYC"))
 ```
 
-Use the two-argument overload when you supply custom encode/decode logic instead of relying on `JsonCodec`:
+Use the two-argument overload when you supply custom encode/decode logic instead of relying on `JsonSchemaCodec`:
 
 ```scala mdoc
 import zio.blocks.sql._
@@ -220,11 +220,11 @@ pointCodec.toDbValues(Point(1.0, 2.0))
 
 ### `DbCodec.jsonbOption` — Nullable JSONB column codec
 
-`DbCodec.jsonbOption` creates a `DbCodec[Option[A]]` that stores `Some(a)` as a JSON string and `None` as SQL `NULL`. Like `jsonb`, it has an implicit `JsonCodec[A]` overload and a two-argument overload:
+`DbCodec.jsonbOption` creates a `DbCodec[Option[A]]` that stores `Some(a)` as a JSON string and `None` as SQL `NULL`. Like `jsonb`, it has an implicit `JsonSchemaCodec[A]` overload and a two-argument overload:
 
 ```scala
 object DbCodec {
-  def jsonbOption[A](using jsonCodec: JsonCodec[A]): DbCodec[Option[A]]
+  def jsonbOption[A](using jsonCodec: JsonSchemaCodec[A]): DbCodec[Option[A]]
   def jsonbOption[A](encode: A => String, decode: String => A): DbCodec[Option[A]]
 }
 ```
@@ -233,9 +233,9 @@ The codec delegates to `DbCodec[Option[String]]` and applies the JSON encode/dec
 
 ```scala mdoc
 import zio.blocks.sql._
-import zio.blocks.schema.json.JsonCodec
+import zio.blocks.schema.json.{JsonCodec => JsonSchemaCodec}
 
-// Assume JsonCodec[Address] is in scope from the previous example
+// Assume JsonSchemaCodec[Address] is in scope from the previous example
 val nullableCodec: DbCodec[Option[Address]] = DbCodec.jsonbOption[Address]
 
 nullableCodec.toDbValues(Some(Address("Elm St", "LA")))
