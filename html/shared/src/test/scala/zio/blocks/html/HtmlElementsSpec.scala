@@ -273,6 +273,12 @@ object HtmlElementsSpec extends ZIOSpecDefault {
           voidElement("img").render == "<img/>"
         )
       },
+      test("voidElement rejects non-void tags") {
+        assertTrue(
+          scala.util.Try(voidElement("div")).isFailure,
+          scala.util.Try(voidElement("span")).isFailure
+        )
+      },
       test("voidElement accepts attributes") {
         val result = voidElement("img")(src := "a.png").render
         assertTrue(result == """<img src="a.png"/>""")
