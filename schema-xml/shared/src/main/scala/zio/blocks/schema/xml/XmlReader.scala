@@ -25,11 +25,13 @@ object XmlReader {
    *
    * ==Closed entity set==
    *   - Only the five predefined entities (`&amp;` `&lt;` `&gt;` `&quot;`
-   *     `&apos;`) and numeric character references (`&#...;` decimal, `&#x...;`
-   *     hexadecimal) are recognized. Every other entity (custom, external,
-   *     parameter) fails closed with a [[XmlCodecError]] carrying line/column
-   *     position; there is deliberately no DTD, `DOCTYPE`, or external-entity
-   *     branch, so external entities can never be expanded.
+   *     `&apos;`) and numeric character references (`&#...;` unsigned decimal,
+   *     `&#x...;` unsigned hexadecimal) are recognized. Explicit `+`/`-` signs
+   *     are rejected: the XML spec allows only digits and hex digits here.
+   *     Every other entity (custom, external, parameter) fails closed with a
+   *     [[XmlCodecError]] carrying line/column position; there is deliberately
+   *     no DTD, `DOCTYPE`, or external-entity branch, so external entities can
+   *     never be expanded.
    *   - Entities resolve in a single pass (no recursive re-expansion), so
    *     nested inputs such as `&amp;lt;` decode to the literal text `&lt;` and
    *     cannot blow up exponentially. Element nesting is additionally bounded
@@ -270,20 +272,30 @@ object XmlReader {
     }
 
     private[this] def parseNumericEntity(entity: String): String = {
+      // The XML spec allows only digits (decimal) or hex digits (hexadecimal)
+      // after `#`/`#x`: validate the charset explicitly instead of relying on
+      // `Integer.parseInt`, which would silently accept `+`/`-` signs.
       val digits         = entity.substring(1)
       val codePoint: Int =
         if (digits.startsWith("x") || digits.startsWith("X")) {
-          if (digits.length < 2) error(s"Invalid entity reference: &$entity;")
+          val hex = digits.substring(1)
+          if (hex.isEmpty || !hex.forall(isHexDigit)) error(s"Invalid entity reference: &$entity;")
           else
-            try Integer.parseInt(digits.substring(1), 16)
+            try Integer.parseInt(hex, 16)
             catch { case _: NumberFormatException => error(s"Invalid entity reference: &$entity;") }
-        } else if (digits.isEmpty) error(s"Invalid entity reference: &$entity;")
+        } else if (digits.isEmpty || !digits.forall(isDecimalDigit)) error(s"Invalid entity reference: &$entity;")
         else
           try Integer.parseInt(digits, 10)
           catch { case _: NumberFormatException => error(s"Invalid entity reference: &$entity;") }
       if (!isValidXmlChar(codePoint)) error(s"Invalid entity reference: &$entity;")
       else new String(Character.toChars(codePoint))
     }
+
+    private[this] def isDecimalDigit(c: Char): Boolean =
+      c >= '0' && c <= '9'
+
+    private[this] def isHexDigit(c: Char): Boolean =
+      isDecimalDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 
     private[this] def isValidXmlChar(codePoint: Int): Boolean =
       codePoint == 0x9 || codePoint == 0xa || codePoint == 0xd ||

@@ -65,6 +65,21 @@ object YamlSupportMatrixSpec extends SchemaBaseSpec {
       },
       test("duplicate keys after quoting variations are rejected") {
         failsClosed("a: 1\n\"a\": 2", "Duplicate mapping key", 2)
+      },
+      test("duplicate keys in top-level flow mappings are rejected") {
+        failsClosed("{a: 1, a: 2}", "Duplicate mapping key", 1)
+      },
+      test("duplicate keys in nested flow mappings are rejected") {
+        failsClosed("a: {x: 1, x: 2}", "Duplicate mapping key", 1)
+      },
+      test("duplicate keys in flow mappings inside sequences are rejected") {
+        failsClosed("[{a: 1, a: 2}]", "Duplicate mapping key", 1)
+      },
+      test("duplicate keys in sequence-embedded mappings are rejected") {
+        failsClosed("- a: 1\n  a: 2", "Duplicate mapping key", 2)
+      },
+      test("duplicate keys across sequence-embedded continuation lines are rejected") {
+        failsClosed("- a: 1\n  b: 2\n  a: 3", "Duplicate mapping key", 3)
       }
     ),
     suite("supported subset keeps parsing")(

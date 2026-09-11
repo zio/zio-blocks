@@ -30,8 +30,10 @@ import java.nio.charset.StandardCharsets.UTF_8
  *     `null`/`~`.
  *   - Rejected (fail closed with a [[YamlCodecError]] carrying the 1-based line
  *     number): anchors (`&name`) and aliases (`*name`), merge keys (`<<`), tags
- *     (`!tag`), tab-indented lines, and duplicate mapping keys. Full YAML 1.2
- *     support is intentionally out of scope.
+ *     (`!tag`), tab-indented lines, and duplicate mapping keys. The duplicate
+ *     policy is uniform: block mappings, flow mappings (`{...}` at any depth),
+ *     and sequence-embedded mappings (`- k: v` continuations) all reject a
+ *     repeated key. Full YAML 1.2 support is intentionally out of scope.
  */
 object YamlReader {
   def read(input: String): Yaml =
@@ -93,6 +95,19 @@ object YamlReader {
       else if (key.startsWith("&")) fail("Anchors are not supported", line)
       else if (key.startsWith("*")) fail("Aliases are not supported", line)
       else if (key.startsWith("!")) fail("Tags are not supported", line)
+
+    /**
+     * Shared duplicate-key gate for every mapping scope: block mappings, flow
+     * mappings, and sequence-embedded mappings all funnel repeated keys here so
+     * the policy cannot drift between scopes. Keys are compared after unquoting
+     * (`"a"` and `a` collide).
+     */
+    private[this] def rejectDuplicateKey(
+      seen: scala.collection.mutable.HashSet[String],
+      key: String,
+      line: Int
+    ): Unit =
+      if (!seen.add(key)) fail(s"Duplicate mapping key: '$key'", line)
 
     /**
      * Half-open `[start, end)` range of non-blank content within a raw line.
@@ -199,7 +214,7 @@ object YamlReader {
         val keyStr = raw.substring(start, keyEnd)
         rejectUnsupportedKey(keyStr, lineIdx + 1)
         val key = new Yaml.Scalar(unquoteScalar(keyStr))
-        if (!seen.add(key.value)) fail(s"Duplicate mapping key: '$keyStr'", lineIdx + 1)
+        rejectDuplicateKey(seen, key.value, lineIdx + 1)
         val hasValue = valueStart < valueEnd
         lineIdx += 1
         entries.addOne(
@@ -259,6 +274,8 @@ object YamlReader {
                 else Yaml.NullValue
               } else parseInlineValue(afterColon)
             val mapEntries = ChunkBuilder.make[(Yaml, Yaml)]()
+            val seen       = scala.collection.mutable.HashSet.empty[String]
+            rejectDuplicateKey(seen, key.value, lineIdx)
             mapEntries.addOne((key, firstValue))
             while (lineIdx < lines.length) {
               skipBlanksAndComments()
@@ -281,6 +298,7 @@ object YamlReader {
               rejectUnsupportedKey(innerKeyStr, lineIdx + 1)
               val innerKey        = new Yaml.Scalar(unquoteScalar(innerKeyStr))
               val innerAfterColon = innerLine.substring(innerColonIdx + 1).trim
+              rejectDuplicateKey(seen, innerKey.value, lineIdx + 1)
               lineIdx += 1
               mapEntries.addOne(
                 (
@@ -335,6 +353,8 @@ object YamlReader {
               else Yaml.NullValue
             } else parseInlineValue(afterColon)
             val mapEntries = ChunkBuilder.make[(Yaml, Yaml)]()
+            val seen       = scala.collection.mutable.HashSet.empty[String]
+            rejectDuplicateKey(seen, key.value, lineIdx)
             mapEntries.addOne((key, firstValue))
             while (lineIdx < lines.length) {
               skipBlanksAndComments()
@@ -352,6 +372,7 @@ object YamlReader {
               rejectUnsupportedKey(innerKeyStr, lineIdx + 1)
               val innerKey        = new Yaml.Scalar(unquoteScalar(innerKeyStr))
               val innerAfterColon = innerLine.substring(innerColonIdx + 1).trim
+              rejectDuplicateKey(seen, innerKey.value, lineIdx + 1)
               lineIdx += 1
               mapEntries.addOne(
                 (
@@ -429,6 +450,7 @@ object YamlReader {
           if (inner.isEmpty) Yaml.Mapping.empty
           else {
             val entries = ChunkBuilder.make[(Yaml, Yaml)]()
+            val seen    = scala.collection.mutable.HashSet.empty[String]
             val parts   = splitFlowItems(inner)
             var idx     = 0
             while (idx < parts.length) {
@@ -437,6 +459,7 @@ object YamlReader {
               if (colonIdx > 0) {
                 val k = unquoteScalar(part.substring(0, colonIdx).trim)
                 rejectUnsupportedKey(k, lineIdx)
+                rejectDuplicateKey(seen, k, lineIdx)
                 val v = part.substring(colonIdx + 1).trim
                 entries.addOne((new Yaml.Scalar(k), parseInlineValue(v)))
               }
@@ -559,6 +582,7 @@ object YamlReader {
         if (inner.isEmpty) Yaml.Mapping.empty
         else {
           val entries = ChunkBuilder.make[(Yaml, Yaml)]()
+          val seen    = scala.collection.mutable.HashSet.empty[String]
           val parts   = splitFlowItems(inner)
           var idx     = 0
           while (idx < parts.length) {
@@ -567,6 +591,7 @@ object YamlReader {
             if (colonIdx > 0) {
               val k = unquoteScalar(part.substring(0, colonIdx).trim)
               rejectUnsupportedKey(k, lineIdx)
+              rejectDuplicateKey(seen, k, lineIdx)
               val v = part.substring(colonIdx + 1).trim
               entries.addOne((Yaml.Scalar(k), parseInlineValue(v)))
             }
