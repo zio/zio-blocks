@@ -401,9 +401,19 @@ trait HtmlElements {
   /**
    * Creates a generic void element (e.g., `br`, `img`, `input`) that renders
    * self-closed and rejects children at compile time via [[Dom.Element.Void]].
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `tag` is not a void element (`div`, `span`, ...). Non-void tags must
+   *   carry a closing tag, so they are rejected here instead of rendering
+   *   self-closed; use [[element]] for those tags.
    */
-  def voidElement(tag: String): Dom.Element.Void =
+  def voidElement(tag: String): Dom.Element.Void = {
+    require(
+      Dom.voidElements.contains(tag),
+      s"Non-void element <$tag> cannot be void. Use element(\"$tag\") for non-void tags."
+    )
     Dom.Element.VoidGeneric(tag, Chunk.empty)
+  }
 
   /** Creates an empty `<li>` element, returning `Li`. */
   def li(): Dom.Element.Li = Dom.Element.LiElement(Chunk.empty, Chunk.empty)
