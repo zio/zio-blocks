@@ -114,6 +114,27 @@ object W3CTraceContextSpec extends ZIOSpecDefault {
         val result = propagator.extract(headers, getter)
         assertTrue(result.isEmpty)
       },
+      test("rejects version FF in upper case") {
+        val headers = Map(
+          "traceparent" -> "FF-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        )
+        val result = propagator.extract(headers, getter)
+        assertTrue(result.isEmpty)
+      },
+      test("rejects version Ff in mixed case") {
+        val headers = Map(
+          "traceparent" -> "Ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        )
+        val result = propagator.extract(headers, getter)
+        assertTrue(result.isEmpty)
+      },
+      test("rejects a future version with trailing data but no delimiter") {
+        val headers = Map(
+          "traceparent" -> "02-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01Xdeadbeef"
+        )
+        val result = propagator.extract(headers, getter)
+        assertTrue(result.isEmpty)
+      },
       test("rejects a non-hex version") {
         val headers = Map(
           "traceparent" -> "zz-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
