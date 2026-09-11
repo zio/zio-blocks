@@ -3,15 +3,11 @@ id: path-codec
 title: "PathCodec"
 ---
 
-`PathCodec[A]` is a composable descriptor for URL path structures. It holds a tree of segment codecs connected by concatenation and fallback nodes, and provides bidirectional path conversion: `PathCodec#decode` extracts a typed value from a `Path`, returning `Either[String, A]` (the typed value or error), and `PathCodec#format` formats a typed value back to a `Path`, returning `Either[String, Path]` (the path or error). In addition to its runtime value type `A`, each codec also carries a phantom `PathVars` track that records the ordered list of declared path-variable markers contributed by its dynamic segments. Its definition begins:
+`PathCodec[A]` is a composable descriptor for URL path structures. It holds a tree of segment codecs connected by concatenation and fallback nodes, and provides bidirectional path conversion: `PathCodec#decode` extracts a typed value from a `Path`, returning `Either[String, A]` (the typed value or error), and `PathCodec#format` formats a typed value back to a `Path`, returning `Either[String, Path]` (the path or error). Its definition begins:
 
 ```scala
-sealed trait PathCodec[A] {
-  type PathVars
-}
+sealed trait PathCodec[A]
 ```
-
-`PathVars` is purely type-level: it has zero runtime footprint and does not affect decoding or formatting. It exists so downstream tooling (for example, handler macros or static checks) can recover which named path variables a route declared, in order, and whether any of them were explicitly marked as ignored.
 
 ## Motivation
 
@@ -49,9 +45,7 @@ val boolFlag: PathCodec[Boolean]          = PathCodec.bool("enabled")
 val rest: PathCodec[zio.http.Path]        = PathCodec.trailing
 ```
 
-`PathCodec.literal` is a macro that validates the value at compile time — it rejects empty strings and strings containing `/` or characters requiring URL encoding.
-
-For literal names like `PathCodec.int("id")`, the name is preserved as a singleton type inside `PathVars`, so the phantom track remembers not just that the codec captures an `Int`, but that it came from the path variable named `"id"`.
+`PathCodec.literal` validates the value — it rejects empty strings and strings containing `/` or characters requiring URL encoding.
 
 ### From a string
 
@@ -78,28 +72,6 @@ val combined = PathCodec(SegmentCodec.literal("v") ~ SegmentCodec.int("version")
 ```
 
 There is also an implicit conversion from `SegmentCodec[A]` to `PathCodec[A]` and from `String` to `PathCodec[Unit]`, so both can appear directly in `/` expressions.
-
-## Phantom `PathVars` Track and `.unused`
-
-Every dynamic path segment contributes one phantom marker to `PathCodec#PathVars`:
-
-- `PathCodec.int("id")` contributes `PathVar["id", Int]`
-- `PathCodec.uuid("orderId")` contributes `PathVar["orderId", UUID]`
-- literal segments and `PathCodec.trailing` contribute no markers
-
-Sequential composition with `/` or `++` concatenates those markers in declaration order, matching the left-to-right route shape.
-
-Sometimes a route needs to capture a segment for matching or formatting, but a downstream handler intentionally does not consume that variable. For that case, single-variable codecs expose `.unused`, which keeps the runtime behavior identical while relabeling the phantom marker to `PathVar.Ignored[Name, Type]`:
-
-```scala mdoc:compile-only
-import zio.blocks.endpoint._
-import zio.blocks.endpoint.RoutePattern._
-
-val userId: PathCodec[Int] = PathCodec.int("id")
-val ignoredUserId: PathCodec[Int] = PathCodec.int("id").unused
-```
-
-`.unused` has zero runtime cost: decoding, formatting, rendering, and matching all behave exactly the same as the non-`.unused` codec. The only difference is the phantom `PathVars` marker, which tells tooling that this declared path variable was intentionally ignored.
 
 ## Composition
 
@@ -204,7 +176,7 @@ import zio.blocks.endpoint.PathCodec._
 final case class UserId(value: Int)
 
 val userIdCodec: PathCodec[UserId] =
-  PathCodec.int("id").transform[UserId](UserId(_), _.value)
+  PathCodec.int("id").transform(UserId(_), _.value)
 ```
 
 ### `PathCodec#transformOrFail`
@@ -216,9 +188,9 @@ import zio.blocks.endpoint._
 import zio.blocks.endpoint.RoutePattern._
 
 val nonNegativeInt: PathCodec[Int] =
-  PathCodec.int("count").transformOrFail[Int](
+  PathCodec.int("count").transformOrFail(
     n => if (n >= 0) Right(n) else Left(s"Expected non-negative, got $n"),
-    n => Right(n)
+    (n: Int) => Right(n)
   )
 ```
 

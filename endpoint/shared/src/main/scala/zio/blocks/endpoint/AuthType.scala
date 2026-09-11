@@ -103,6 +103,12 @@ object AuthType {
     type ClientRequirement = ClientReq
     override val codec: HttpCodec[CodecKind.Request, ClientReq] =
       HttpCodec.Fallback(left.codec, right.codec, Alternator.fromEithers(alternator))
+
+    /**
+     * Takes the LEFT scheme's status when the two sides disagree (the primary
+     * scheme decides the failure response). Wrap the combined auth with
+     * `withUnauthorizedStatus` to override both at once.
+     */
     override def unauthorizedStatus: Status = left.unauthorizedStatus
   }
 
@@ -114,6 +120,11 @@ object AuthType {
     override val codec: HttpCodec[CodecKind.Request, ClientReq] = authType.codec
   }
 
+  /**
+   * `inner` auth plus a descriptor-only `scopes` list. Scopes are NOT checked
+   * by the codec (it is `inner.codec` unchanged) — they are metadata for the
+   * server interpretation layer, which enforces them when handling the request.
+   */
   final case class Scoped[ClientReq](
     inner: AuthType { type ClientRequirement = ClientReq },
     scopes: List[String]

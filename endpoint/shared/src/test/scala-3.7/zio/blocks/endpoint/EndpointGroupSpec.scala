@@ -216,7 +216,7 @@ val _ = endpoints { "not an endpoint" }
         val byId2 = PathCodec.int("id") / endpoints(Endpoint(Method.GET / "orders"))
         assertTrue(byId2.`GET /orders`.route.render == "GET /{id}/orders")
       },
-      test("child endpoint with own var composes PathVars and decode order") {
+      test("child endpoint with own var composes path vars and decode order") {
         val group = PathCodec.int("id") / endpoints {
           val o = Endpoint(Method.GET / "orders" / PathCodec.int("orderId"))
         }
@@ -279,12 +279,6 @@ val _ = endpoints { "not an endpoint" }
           val v = Endpoint(Method.GET / PathCodec(SegmentCodec.literal("v") ~ SegmentCodec.int("major")))
         }
         assertTrue(group.v.route.render == "GET /v{major}")
-      },
-      test(".unused renders as {name}") {
-        val group = endpoints {
-          val a = Endpoint(Method.GET / PathCodec.int("id").unused)
-        }
-        assertTrue(group.a.route.render == "GET /{id}")
       },
       test("ANY method renders *") {
         val group = endpoints {
@@ -452,6 +446,27 @@ val _ = endpoints { "oops" }
         val pc = PathCodec.int("x") / PathCodec.string("y")
         val rp = Method.GET / pc
         assertTrue(group.a.route.render == "GET /a" && rp.render == "GET /{x}/{y}")
+      }
+    ),
+    suite("unused segments")(
+      test(".unused renders as {name}") {
+        val group = endpoints {
+          val a = Endpoint(Method.GET / PathCodec.int("id").unused)
+        }
+        assertTrue(group.a.route.render == "GET /{id}")
+      },
+      test("bare unused endpoint auto-names to GET /{id}") {
+        val group = endpoints {
+          Endpoint(Method.GET / PathCodec.int("id").unused)
+        }
+        assertTrue(group.`GET /{id}`.route.render == "GET /{id}")
+      },
+      test("unused endpoint decodes to Unit with no handler parameter") {
+        val group = endpoints {
+          val a = Endpoint(Method.GET / PathCodec.int("id").unused)
+        }
+        val _: Endpoint[Unit, Unit, Unit, Unit, AuthType.None.type] = group.a
+        assertTrue(group.a.route.decode(Method.GET, Path("/42")) == Right(()))
       }
     )
   )

@@ -85,7 +85,7 @@ import zio.http.{Method, Path}
   final case class UserId(value: Int)
 
   val userIdCodec: PathCodec[UserId] =
-    PathCodec.int("id").transform[UserId](UserId(_), _.value)
+    PathCodec.int("id").transform(UserId(_), _.value)
 
   val decodedUserId = userIdCodec.decode(Path("/99"))
   println(s"UserId decoded: $decodedUserId")
@@ -94,9 +94,9 @@ import zio.http.{Method, Path}
   val positiveInt: PathCodec[Int] =
     PathCodec
       .int("count")
-      .transformOrFail[Int](
+      .transformOrFail(
         n => if (n > 0) Right(n) else Left(s"Expected positive, got $n"),
-        n => Right(n)
+        (n: Int) => Right(n)
       )
 
   println(s"Positive decode 5:  ${positiveInt.decode(Path("/5"))}")

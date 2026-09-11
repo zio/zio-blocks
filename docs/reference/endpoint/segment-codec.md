@@ -3,19 +3,13 @@ id: segment-codec
 title: "SegmentCodec"
 ---
 
-`SegmentCodec[A]` describes a single URL path segment. It supports basic typed segment kinds — `SegmentCodec.bool`, `SegmentCodec.int`, `SegmentCodec.long`, `SegmentCodec.string`, `SegmentCodec.uuid`, and `SegmentCodec.literal` — as well as intra-segment composition via `~`, which combines multiple typed parts within a single path segment (for example, `v42` as a literal prefix followed by an integer). Ambiguous combinations are rejected at compile time by a Scala 3 macro. Alongside the runtime decoded value type `A`, every segment codec also carries phantom metadata describing its boundary behavior and any declared path variable. The core type-level shape is:
+`SegmentCodec[A]` describes a single URL path segment. It supports basic typed segment kinds — `SegmentCodec.bool`, `SegmentCodec.int`, `SegmentCodec.long`, `SegmentCodec.string`, `SegmentCodec.uuid`, and `SegmentCodec.literal` — as well as intra-segment composition via `~`, which combines multiple typed parts within a single path segment (for example, `v42` as a literal prefix followed by an integer). Ambiguous adjacencies (`string ~ string`, numeric ~ numeric in any `Int`/`Long` order, anything involving `Trailing`) are rejected at runtime with `IllegalArgumentException`. Combine representation first, then transform: `transform` / `transformOrFail` lift a segment into a `PathCodec`, ending intra-segment composition. The core type-level shape is:
 
 ```scala
-sealed trait SegmentCodec[A] {
-  type Prefix <: SegmentCodec.BoundaryTag
-  type Suffix <: SegmentCodec.BoundaryTag
-  type PathVars
-}
+sealed trait SegmentCodec[A]
 ```
 
-`PathVars` is purely type-level: it has zero runtime footprint. Capturing segments contribute one marker (for example `PathVar["id", Int]`), while non-capturing segments like `literal` and `Trailing` contribute none.
-
-(The trait also includes additional members for documentation, examples, formatting, and rendering.)
+(The trait also includes methods for `~` composition, `transform` lifting, documentation, examples, formatting, and rendering.)
 
 ## Motivation
 
@@ -23,7 +17,7 @@ Standard routing libraries treat path segments as plain strings, deferring all p
 
 - **Type-safe path building**: `PathCodec.int("id")` produces a `PathCodec[Int]`, not `PathCodec[String]`.
 - **Bidirectional conversion**: every `SegmentCodec` can both decode a string into `A` and format an `A` back to a string.
-- **Compile-time combination validation**: the `~` operator is a macro that validates boundary constraints, rejecting combinations like `string ~ string` before the code compiles.
+- **Fail-fast combination validation**: the `~` operator rejects ambiguous adjacencies (`string ~ string`, numeric ~ numeric) at composition time, so bad splits surface immediately instead of misrouting.
 
 ## Segment Kinds
 
@@ -57,20 +51,6 @@ val stringSeg: SegmentCodec[String]       = SegmentCodec.string("slug")
 val uuidSeg: SegmentCodec[java.util.UUID] = SegmentCodec.uuid("id")
 ```
 
-When the name is written as a literal string, that literal is preserved in the phantom `PathVars` marker. For example, `SegmentCodec.int("id")` contributes `PathVar["id", Int]`.
-
-If a route should keep a captured segment for matching/formatting but explicitly mark it as intentionally unused for downstream tooling, the leaf dynamic segment codecs expose `.unused`:
-
-```scala mdoc:compile-only
-import zio.blocks.endpoint._
-import zio.blocks.endpoint.RoutePattern._
-
-val requiredId: SegmentCodec[Int] = SegmentCodec.int("id")
-val ignoredId: SegmentCodec[Int] = SegmentCodec.int("id").unused
-```
-
-`.unused` keeps decoding, formatting, rendering, and composition identical, but changes the phantom marker from `PathVar[Name, Type]` to `PathVar.Ignored[Name, Type]`.
-
 The ordering of match priority in the routing trie follows the kind: `Literal` matches first, then `Int`, `Long`, `UUID`, `Bool`, `String`, `Combined`, and `Trailing` last.
 
 ### Trailing segment
@@ -99,14 +79,14 @@ val versionSeg: SegmentCodec[Int] =
 
 The type is automatically flattened (eliminating `Unit` from the literal), so the resulting codec decodes `"v42"` into `42` and formats `42` back to `"v42"`.
 
-### Compile-time boundary validation
+### Runtime adjacency validation
 
-The `~` operator is a macro that checks `BoundaryTag` phantom types at compile time. Two categories of combination are always rejected:
+The `~` operator checks the physical adjacency at composition time. Two categories of combination are always rejected with `IllegalArgumentException`:
 
 - **Two string segments**: `SegmentCodec.string("a") ~ SegmentCodec.string("b")` — both are unbounded greedy matchers; the parser cannot know where one ends and the other begins.
-- **Two numeric segments**: `SegmentCodec.int("a") ~ SegmentCodec.int("b")` — numeric segments are also ambiguously bounded.
+- **Two numeric segments**: `SegmentCodec.int("a") ~ SegmentCodec.int("b")` — numeric segments are also ambiguously bounded (any `Int`/`Long` order, including through a flattened combined tail).
 
-Combinations that are safe compile successfully:
+Anything involving `Trailing` is likewise rejected. Combinations that are safe compose normally:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -122,11 +102,11 @@ val prefixedUuid =
   SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.string("suffix")
 ```
 
-Attempting an ambiguous combination like `string ~ string` produces a compiler error describing the constraint violation, not a runtime failure.
+Attempting an ambiguous combination like `string ~ string` throws `IllegalArgumentException` at composition time, not a silent misroute.
 
 ## Type Transformations
 
-Use these methods to remap the value a codec decodes or encodes without changing the underlying segment structure or its compile-time boundary tags.
+Combine representation first, then transform: `transform` / `transformOrFail` map the decoded segment value into a domain type and lift the segment into a `PathCodec`, ending intra-segment composition (a transformed codec no longer offers `~`; compose with `/` instead).
 
 ### `SegmentCodec#transform`
 
@@ -138,13 +118,9 @@ import zio.blocks.endpoint.RoutePattern._
 
 final case class UserId(value: java.util.UUID)
 
-val userIdSeg: SegmentCodec[UserId] =
-  SegmentCodec.uuid("id").transform[UserId](UserId(_), _.value)
+val userIdCodec: PathCodec[UserId] =
+  SegmentCodec.uuid("id").transform(UserId(_), _.value)
 ```
-
-`SegmentCodec#transform` preserves the `BoundaryTag` types of the original codec, so transformed codecs still participate in compile-time `~` boundary validation.
-
-It also preserves the original `PathVars` marker unchanged: transforming a captured `SegmentCodec.int("id")` into a domain type still records that the segment came from the declared `"id"` path variable.
 
 ### `SegmentCodec#transformOrFail`
 
@@ -156,8 +132,8 @@ import zio.blocks.endpoint.RoutePattern._
 
 final case class PositiveInt(value: Int)
 
-val positiveIntSeg: SegmentCodec[PositiveInt] =
-  SegmentCodec.int("count").transformOrFail[PositiveInt](
+val positiveIntCodec: PathCodec[PositiveInt] =
+  SegmentCodec.int("count").transformOrFail(
     n => if (n > 0) Right(PositiveInt(n)) else Left(s"Expected positive, got $n"),
     p => Right(p.value)
   )

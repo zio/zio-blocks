@@ -24,7 +24,7 @@ import zio.http.{Method, Path, Status}
   final case class UserId(value: Int)
 
   val userIdPath: PathCodec[UserId] =
-    PathCodec.int("id").transform[UserId](UserId(_), _.value)
+    PathCodec.int("id").transform(UserId(_), _.value)
 
   // --- Endpoint definitions ---
 
