@@ -23,9 +23,7 @@ import java.util.concurrent.locks.ReentrantLock
 import zio.blocks.ringbuffer.MpscRingBuffer
 
 private[mux] object PlatformMux {
-  private val DefaultStreamQueueCapacity = 256
-
-  def create[Id, In, Out](capacity: Int, streamQueueCapacity: Int = DefaultStreamQueueCapacity): Mux[Id, In, Out] =
+  def create[Id, In, Out](capacity: Int, streamQueueCapacity: Int = Mux.DefaultStreamQueueCapacity): Mux[Id, In, Out] =
     new JvmMux[Id, In, Out](capacity, streamQueueCapacity)
 
   private final class JvmMux[Id, In, Out](capacity: Int, streamQueueCapacity: Int) extends Mux[Id, In, Out] {
