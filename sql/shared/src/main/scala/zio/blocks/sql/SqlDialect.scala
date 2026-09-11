@@ -45,6 +45,7 @@ object SqlDialect {
       case _: DbValue.DbInstant       => "TIMESTAMPTZ"
       case _: DbValue.DbDuration      => "INTERVAL"
       case _: DbValue.DbUUID          => "UUID"
+      case _: DbValue.DbArray         => "TEXT[]"
     }
 
     def paramPlaceholder(index: Int): String = "?"
@@ -72,6 +73,7 @@ object SqlDialect {
       case _: DbValue.DbInstant       => "TEXT"
       case _: DbValue.DbDuration      => "TEXT"
       case _: DbValue.DbUUID          => "TEXT"
+      case _: DbValue.DbArray         => "TEXT"
     }
 
     def paramPlaceholder(index: Int): String = "?"

@@ -526,10 +526,18 @@ object Frag {
   private val SqlNullType = 0
 
   /** Writes parameter values to a prepared statement. */
-  private[sql] def writeParams(writer: DbParamWriter, params: IndexedSeq[DbValue]): Unit = {
+  private[sql] def writeParams(writer: DbParamWriter, params: IndexedSeq[DbValue]): Unit =
+    writeParams(writer, params, 1)
+
+  /**
+   * Writes parameter values starting at 1-based JDBC position `startIndex`.
+   * Lets batch writers emit two adjacent values ranges with two calls instead
+   * of concatenating them into one temporary collection per row.
+   */
+  private[sql] def writeParams(writer: DbParamWriter, params: IndexedSeq[DbValue], startIndex: Int): Unit = {
     var i = 0
     while (i < params.length) {
-      val idx = i + 1
+      val idx = startIndex + i
       params(i) match {
         case DbValue.DbNull             => writer.setNull(idx, SqlNullType)
         case DbValue.DbInt(v)           => writer.setInt(idx, v)

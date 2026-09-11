@@ -42,7 +42,10 @@ final case class SqlStatement(
 object SqlStatement {
 
   final case class ColumnRef(tableAlias: String, column: String) {
-    def qualified: String = s"$tableAlias.$column"
+    // Quote the column (validated at every builder entry): the alias is either
+    // a generated tN or a validated alias, while the column may be mixed-case
+    // or reserved. Mirrors QueryRenderer's `alias."col"` shape.
+    def qualified: String = s"""$tableAlias."$column""""
   }
 
   sealed trait JoinKind

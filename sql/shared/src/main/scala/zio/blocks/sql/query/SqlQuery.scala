@@ -21,6 +21,13 @@ import zio.blocks.sql.{Frag, SqlDialect, SqlIdentifier, Table}
 /**
  * Immutable query IR starting from a source table.
  *
+ * This is the blessed SELECT builder for new code (see the module decision
+ * below): joins are validated through typed [[Rel]]s, rendering is performed by
+ * [[QueryRenderer]] through `Frag.++` composition only, every identifier is
+ * validated and double-quoted, and values always bind as `?` params. The legacy
+ * stringly builder `zio.blocks.sql.SqlQuery` remains (deprecated) for
+ * `SqlStatement`/`explain` inspection flows until the full merge lands.
+ *
  * Alias allocation is deterministic: t0 = source, t1..tN in join order
  * (self-join safe — same Table joined twice gets distinct aliases). Rendering
  * is performed by [[QueryRenderer]] and produces a [[Frag]] via `Frag.++`

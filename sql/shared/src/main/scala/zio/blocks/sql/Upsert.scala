@@ -96,8 +96,7 @@ object Upsert {
     columns.foreach(c => SqlIdentifier.validate("column", c))
     SqlIdentifier.validate("column", conflictColumn)
     require(columns.size == values.size, "Upsert.doNothing: columns/value count mismatch")
-    val allCols = columns.mkString(", ")
-    val base    = Repo.buildInsertFrag(t, allCols, values)
+    val base = Repo.buildInsertFrag(t, columns, values)
     base ++ doNothingSuffix(conflictColumn)
   }
 
@@ -108,15 +107,14 @@ object Upsert {
     values: IndexedSeq[DbValue],
     conflictColumn: String
   ): Frag = {
-    val t = SqlIdentifier.validate("table", tableName)
-    SqlIdentifier.validate("column", conflictColumn)
+    val t       = SqlIdentifier.validate("table", tableName)
     val columns = allColumns.split(",").map(_.trim).filter(_.nonEmpty).toIndexedSeq
     if (columns.isEmpty)
       throw new IllegalArgumentException("Upsert.doNothingRaw: allColumns must not be empty")
     columns.foreach(c => SqlIdentifier.validate("column", c))
+    SqlIdentifier.validate("column", conflictColumn)
     require(columns.size == values.size, "Upsert.doNothingRaw: columns/value count mismatch")
-    val normalizedCols = columns.mkString(", ")
-    val base           = Repo.buildInsertFrag(t, normalizedCols, values)
+    val base = Repo.buildInsertFrag(t, columns, values)
     base ++ doNothingSuffix(conflictColumn)
   }
 
@@ -135,8 +133,7 @@ object Upsert {
     SqlIdentifier.validate("column", conflictColumn)
     assignments.foreach { case (col, _) => SqlIdentifier.validate("column", col) }
     require(columns.size == values.size, "Upsert.doUpdate: columns/value count mismatch")
-    val allCols = columns.mkString(", ")
-    val base    = Repo.buildInsertFrag(t, allCols, values)
+    val base = Repo.buildInsertFrag(t, columns, values)
     base ++ doUpdateSuffix(conflictColumn, assignments)
   }
 
@@ -171,7 +168,7 @@ object Upsert {
    * `INSERT ... ON CONFLICT ("conflict") DO NOTHING` for an entity.
    *
    * Builds
-   * `INSERT INTO table (cols) VALUES (?, ...) ON CONFLICT ("conflict") DO NOTHING`.
+   * `INSERT INTO "table" ("cols") VALUES (?, ...) ON CONFLICT ("conflict") DO NOTHING`.
    * The table name is validated via [[SqlIdentifier.validate]] and the conflict
    * column is validated as an identifier and checked for membership in
    * `table.columns`.
@@ -185,6 +182,7 @@ object Upsert {
    *   validated identifier that must be present in `table.columns`
    * @return
    *   a [[Frag]] whose SQL is `INSERT ... ON CONFLICT ("conflict") DO NOTHING`
+   *   with a quoted `INSERT INTO "table" ("cols")` head
    * @throws IllegalArgumentException
    *   if `conflictColumn` is not a valid identifier or is not found in
    *   `table.columns`
@@ -193,8 +191,7 @@ object Upsert {
     val t        = validatedTableName(table)
     val conflict = validatedConflictInTable(table, conflictColumn)
     val values   = table.codec.toDbValues(entity)
-    val allCols  = table.columns.mkString(", ")
-    val base     = Repo.buildInsertFrag(t, allCols, values)
+    val base     = Repo.buildInsertFrag(t, table.columns, values)
     base ++ doNothingSuffix(conflict)
   }
 
@@ -251,7 +248,8 @@ object Upsert {
    *   specified columns
    * @throws IllegalArgumentException
    *   if any identifier is invalid, if any column is not in `table.columns`, if
-   *   `updateColumns` contains the conflict column, or if it is empty
+   *   `updateColumns` contains the conflict column or contains duplicates, or
+   *   if it is empty
    */
   def insertDoUpdate[A](
     table: Table[A],
@@ -268,12 +266,18 @@ object Upsert {
       throw new IllegalArgumentException(
         s"Assignment columns must not contain conflict column '$conflict'"
       )
-    val values  = table.codec.toDbValues(entity)
-    val allCols = table.columns.mkString(", ")
-    val base    = Repo.buildInsertFrag(t, allCols, values)
-    // Map column -> value via table.columns zip
-    val colValueMap                                = table.columns.zip(values).toMap
-    val assignments: IndexedSeq[(String, DbValue)] = validatedUpdateCols.map(col => col -> colValueMap(col))
+    if (validatedUpdateCols.distinct.size != validatedUpdateCols.size)
+      throw new IllegalArgumentException(
+        s"Assignment columns must not contain duplicates: ${validatedUpdateCols.mkString(", ")}"
+      )
+    val values = table.codec.toDbValues(entity)
+    val base   = Repo.buildInsertFrag(t, table.columns, values)
+    // Index by position in one pass, not via per-column `indexOf`: `Table`
+    // rejects duplicate columns at construction, so each name maps to exactly
+    // one position.
+    val columnPositions: Map[String, Int]          = table.columns.zipWithIndex.toMap
+    val assignments: IndexedSeq[(String, DbValue)] =
+      validatedUpdateCols.map(col => col -> values(columnPositions(col)))
     base ++ doUpdateSuffix(conflict, assignments)
   }
 }
