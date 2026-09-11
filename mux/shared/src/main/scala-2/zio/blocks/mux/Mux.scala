@@ -188,19 +188,13 @@ trait MuxStream[Id, In, Out] {
    *
    * Drain-before-error: already-buffered messages are returned first; the
    * terminal error surfaces only once the buffer is empty, so no message is
-   * lost on close. [[receiveStrict]] is an alias kept for discoverability.
+   * lost on close.
    *
    * @return
    *   Right(Some(msg)) if a message is available, Right(None) if no message
    *   yet, Left(error) if closed
    */
   def receive(): Either[MuxError, Option[Out]]
-
-  /**
-   * Alias for [[receive]] kept for discoverability: like `receive`, it drains
-   * already-buffered messages before surfacing the terminal error.
-   */
-  def receiveStrict(): Either[MuxError, Option[Out]] = receive()
 
   /**
    * Deliver a message to this stream's inbound queue.
