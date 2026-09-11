@@ -16,6 +16,7 @@
 
 package zio.blocks.sql
 
+import zio.*
 import zio.test.*
 
 import java.lang.reflect.{InvocationHandler, Method, Proxy}
@@ -27,7 +28,41 @@ import scala.collection.mutable.ArrayBuffer
 object JdbcResultReaderSpec extends ZIOSpecDefault {
   private val _ = Class.forName("org.sqlite.JDBC")
 
+  private class FakeSqlException(msg: String) extends java.sql.SQLException(msg)
+
   def spec: Spec[TestEnvironment, Any] = suite("JdbcResultReaderSpec")(
+    test("getBigDecimal(index) catches SQLite null column error and records null") {
+      val calls  = ArrayBuffer.empty[(String, List[AnyRef])]
+      val reader = new JdbcResultReader(bigDecimalResultSetProxy(calls, throwsSqliteNull = true))
+      val result = reader.getBigDecimal(1)
+      assertTrue(result == null, reader.isNull(1))
+    },
+    test("getBigDecimal(index) propagates non-SQLite errors") {
+      val calls  = ArrayBuffer.empty[(String, List[AnyRef])]
+      val reader = new JdbcResultReader(bigDecimalResultSetProxy(calls, throwsSqliteNull = false))
+      for {
+        exit <- ZIO.attempt(reader.getBigDecimal(1)).exit
+      } yield assertTrue(
+        exit.isFailure,
+        exit.toEither.swap.toOption.exists(_.getMessage == "real error")
+      )
+    },
+    test("getBigDecimal(label) catches SQLite null column error and records null") {
+      val calls  = ArrayBuffer.empty[(String, List[AnyRef])]
+      val reader = new JdbcResultReader(bigDecimalResultSetProxy(calls, throwsSqliteNull = true, useLabel = true))
+      val result = reader.getBigDecimal("amount")
+      assertTrue(result == null, reader.isNull("amount"))
+    },
+    test("getBigDecimal(label) propagates non-SQLite errors") {
+      val calls  = ArrayBuffer.empty[(String, List[AnyRef])]
+      val reader = new JdbcResultReader(bigDecimalResultSetProxy(calls, throwsSqliteNull = false, useLabel = true))
+      for {
+        exit <- ZIO.attempt(reader.getBigDecimal("amount")).exit
+      } yield assertTrue(
+        exit.isFailure,
+        exit.toEither.swap.toOption.exists(_.getMessage == "real error")
+      )
+    },
     test("getInstant(index) reads via getTimestamp with UTC Calendar") {
       val instant = Instant.parse("2025-07-10T15:52:46.632293Z")
       val calls   = ArrayBuffer.empty[(String, List[AnyRef])]
@@ -161,6 +196,33 @@ object JdbcResultReaderSpec extends ZIOSpecDefault {
           case "wasNull"  => java.lang.Boolean.FALSE
           case "toString" => "JdbcResultReaderSpec.ResultSetProxy"
           case other      => throw new UnsupportedOperationException(s"Unexpected ResultSet method: $other")
+        }
+      }
+    }
+
+    Proxy
+      .newProxyInstance(getClass.getClassLoader, Array(classOf[ResultSet]), handler)
+      .asInstanceOf[ResultSet]
+  }
+
+  private def bigDecimalResultSetProxy(
+    calls: ArrayBuffer[(String, List[AnyRef])],
+    throwsSqliteNull: Boolean,
+    useLabel: Boolean = false
+  ): ResultSet = {
+    val handler = new InvocationHandler {
+      override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef = {
+        val arguments = Option(args).map(_.toList).getOrElse(Nil)
+        method.getName match {
+          case "getBigDecimal" =>
+            calls += method.getName -> arguments
+            if (throwsSqliteNull)
+              throw new FakeSqlException("column -1 out of bounds")
+            else
+              throw new FakeSqlException("real error")
+          case "wasNull"  => java.lang.Boolean.FALSE
+          case "toString" => "JdbcResultReaderSpec.BigDecimalResultSetProxy"
+          case _          => null
         }
       }
     }
