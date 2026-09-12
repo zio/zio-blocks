@@ -23,9 +23,8 @@ import zio.http.{Header, Headers}
 final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
 
   def header[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, T] =
-    headers.rawGet(name) match {
-      case None      => Left(HeaderError.Missing(name))
-      case Some(raw) => StringDecoder.decode(raw, schema).left.map(e => HeaderError.Malformed(name, raw, e))
+    headers.rawGet(name).fold(Left(HeaderError.Missing(name)): Either[HeaderError, T]) { raw =>
+      StringDecoder.decode(raw, schema).left.map(e => HeaderError.Malformed(name, raw, e))
     }
 
   /**
@@ -35,9 +34,8 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
    * [[HeaderError.Malformed]] when parsing fails.
    */
   def header[A](headerCodec: Header.Codec[A]): Either[HeaderError, A] =
-    headers.rawGet(headerCodec.name) match {
-      case None      => Left(HeaderError.Missing(headerCodec.name))
-      case Some(raw) => headerCodec.parse(raw).left.map(e => HeaderError.Malformed(headerCodec.name, raw, e))
+    headers.rawGet(headerCodec.name).fold(Left(HeaderError.Missing(headerCodec.name)): Either[HeaderError, A]) { raw =>
+      headerCodec.parse(raw).left.map(e => HeaderError.Malformed(headerCodec.name, raw, e))
     }
 
   def headerAll[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, Chunk[T]] = {
