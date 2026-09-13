@@ -43,6 +43,7 @@ Auto-naming follows `RoutePattern.render` exactly:
 - `GET#|POST /orders` for multi-method
 - `v{major}` for `~` concat segments
 - `...` for trailing segments
+- `.unused` renders as `{name}`
 
 Constant-prefix nesting bakes the prefix into each child's `RoutePattern` at the description level; grouping nodes have no path themselves:
 

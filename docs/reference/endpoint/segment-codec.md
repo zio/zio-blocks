@@ -51,6 +51,17 @@ val stringSeg: SegmentCodec[String]       = SegmentCodec.string("slug")
 val uuidSeg: SegmentCodec[java.util.UUID] = SegmentCodec.uuid("id")
 ```
 
+If a route should capture a segment for matching or formatting but the handler intentionally does not consume the variable, the leaf dynamic segment codecs expose `.unused`:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint.SegmentCodec
+
+val requiredId = SegmentCodec.int("id")
+val ignoredId  = SegmentCodec.int("id").unused
+```
+
+`.unused` keeps decoding, formatting, rendering, and composition identical. The only difference is at the type level: downstream tooling (handler macros, static checks) sees the variable as intentionally unused and does not require the handler to bind it.
+
 The ordering of match priority in the routing trie follows the kind: `Literal` matches first, then `Int`, `Long`, `UUID`, `Bool`, `String`, `Combined`, and `Trailing` last.
 
 ### Trailing segment

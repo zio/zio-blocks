@@ -73,6 +73,22 @@ val combined = PathCodec(SegmentCodec.literal("v") ~ SegmentCodec.int("version")
 
 There is also an implicit conversion from `SegmentCodec[A]` to `PathCodec[A]` and from `String` to `PathCodec[Unit]`, so both can appear directly in `/` expressions.
 
+## Marking a capture as unused with `.unused`
+
+Sometimes a route needs to capture a segment for matching or formatting, but a downstream handler intentionally does not consume that variable. `PathCodec` instances expose `.unused`, which converts the value type to `Unit` while keeping the same path shape:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+
+val userId: PathCodec[Int] = PathCodec.int("id")
+val ignoredUserId: PathCodec[Unit] = PathCodec.int("id").unused
+```
+
+`.unused` converts the path codec's value type to `Unit`: the route still matches the same shape and renders `{name}` placeholders, but decoding yields `Unit` instead of the captured value, so no handler parameter is required. `format` on an unused path fails because there is no value to encode back into the ignored segment.
+
+`PathCodec.unused` composes normally with `/` and is unaffected by `transform` / `transformOrFail` lifting.
+
 ## Composition
 
 Path codecs compose in two ways: sequential concatenation with `/` or `++`, and literal alternatives with `orElse`.
