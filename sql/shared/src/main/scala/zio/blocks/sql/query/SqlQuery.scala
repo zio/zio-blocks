@@ -16,17 +16,15 @@
 
 package zio.blocks.sql.query
 
-import zio.blocks.sql.{Frag, SqlDialect, SqlIdentifier, Table}
+import zio.blocks.sql.{DbValue, Frag, SqlDialect, SqlIdentifier, Table}
 
 /**
  * Immutable query IR starting from a source table.
  *
- * This is the blessed SELECT builder for new code (see the module decision
- * below): joins are validated through typed [[Rel]]s, rendering is performed by
- * [[QueryRenderer]] through `Frag.++` composition only, every identifier is
- * validated and double-quoted, and values always bind as `?` params. The legacy
- * stringly builder `zio.blocks.sql.SqlQuery` remains (deprecated) for
- * `SqlStatement`/`explain` inspection flows until the full merge lands.
+ * This is the SELECT builder: joins are validated through typed [[Rel]]s,
+ * rendering is performed by [[QueryRenderer]] through `Frag.++` composition
+ * only, every identifier is validated and double-quoted, and values always bind
+ * as `?` params.
  *
  * Alias allocation is deterministic: t0 = source, t1..tN in join order
  * (self-join safe — same Table joined twice gets distinct aliases). Rendering
@@ -166,6 +164,36 @@ final case class SqlQuery[A] private[query] (
 
   def sql(dialect: SqlDialect): String = toFrag(dialect).sql(dialect)
 
+  /**
+   * Single-line SQL with numbered `?N` placeholders plus a `-- params: ...`
+   * footer for logging.
+   *
+   * Renders via [[QueryRenderer]] and renumbers the `?` placeholders as `?1`,
+   * `?2`, ... in bind order; the footer lists each position with its
+   * [[DbValue]] type label (`(none)` when the query binds no params). Values
+   * never appear in the output — only their positions and types.
+   */
+  def explain(dialect: SqlDialect): String = {
+    val frag = toFrag(dialect)
+    val sb   = new StringBuilder
+    var idx  = 1
+    var i    = 0
+    while (i < frag.parts.length) {
+      sb.append(frag.parts(i))
+      if (i < frag.params.length) {
+        sb.append(s"?$idx")
+        idx += 1
+      }
+      i += 1
+    }
+    val sql = sb.toString()
+    if (frag.params.isEmpty) s"$sql\n-- params: (none)"
+    else {
+      val types = frag.params.zipWithIndex.map { case (v, n) => s"${n + 1}:${SqlQuery.typeLabel(v)}" }.mkString(", ")
+      s"$sql\n-- params: $types"
+    }
+  }
+
   private def aliasOf(table: Table[_]): Option[String] =
     if (table.name == source.name) Some("t0")
     else joins.find(_.table.name == table.name).map(_.alias)
@@ -174,9 +202,31 @@ final case class SqlQuery[A] private[query] (
 object SqlQuery {
   def from[A](table: Table[A]): SqlQuery[A] =
     SqlQuery(table, Vector.empty, Vector.empty, Vector.empty, None, Vector.empty, None, None)
+
+  private[sql] def typeLabel(v: DbValue): String = v match {
+    case DbValue.DbNull             => "Null"
+    case _: DbValue.DbInt           => "Int"
+    case _: DbValue.DbLong          => "Long"
+    case _: DbValue.DbDouble        => "Double"
+    case _: DbValue.DbFloat         => "Float"
+    case _: DbValue.DbBoolean       => "Boolean"
+    case _: DbValue.DbString        => "String"
+    case _: DbValue.DbBigDecimal    => "BigDecimal"
+    case _: DbValue.DbBytes         => "Bytes"
+    case _: DbValue.DbShort         => "Short"
+    case _: DbValue.DbByte          => "Byte"
+    case _: DbValue.DbChar          => "Char"
+    case _: DbValue.DbLocalDate     => "LocalDate"
+    case _: DbValue.DbLocalDateTime => "LocalDateTime"
+    case _: DbValue.DbLocalTime     => "LocalTime"
+    case _: DbValue.DbInstant       => "Instant"
+    case _: DbValue.DbDuration      => "Duration"
+    case _: DbValue.DbUUID          => "UUID"
+    case _: DbValue.DbArray         => "Array"
+  }
 }
 
-private[query] final case class JoinNode(
+private[sql] final case class JoinNode(
   table: Table[_],
   alias: String,
   kind: JoinKind,
