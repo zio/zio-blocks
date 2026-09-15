@@ -54,7 +54,7 @@ object JdbcInstantTimezoneSpec extends ZIOSpecDefault {
 
           val insert = conn.prepareStatement("INSERT INTO jdbc_instant_timezone_spec (value) VALUES (?)")
           try {
-            new JdbcParamWriter(insert).setInstant(1, instant)
+            new JdbcParamWriter(insert, SqlDialect.PostgreSQL).setInstant(1, instant)
             insert.executeUpdate()
           } finally insert.close()
 

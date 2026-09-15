@@ -165,74 +165,11 @@ def sqlLiteralDV(dv: DynamicValue): String = dv match {
 }
 ```
 
-## Building the SQL Interpreter
+## Translating `DynamicSchemaExpr` to SQL
 
-Now we build the core interpreter. The public entry point accepts `SchemaExpr`; the internal helper does the `DynamicSchemaExpr` pattern matching:
+The core idea is a pattern match on `DynamicSchemaExpr` that maps each AST node to its SQL equivalent. The public entry point accepts `SchemaExpr` and accesses `.dynamic` internally. In production, `QueryRenderer` in `zio.blocks.sql.query` handles this — it builds every clause via `Frag.literal` and `Frag.++` composition, producing parameterized `Frag` values with alias-qualified columns and dialect-aware placeholders.
 
-```scala mdoc:silent
-def toSql[A, B](expr: SchemaExpr[A, B]): String = toSqlDynamic(expr.dynamic)
-
-private def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
-
-  // Field reference → column name
-  case DynamicSchemaExpr.Select(path) =>
-    columnName(path)
-
-  // Constant value → SQL literal
-  case DynamicSchemaExpr.Literal(value, _) =>
-    sqlLiteralDV(value)
-
-  // Comparison operators → SQL relational operators
-  case DynamicSchemaExpr.Relational(left, right, op) =>
-    val sqlOp = op match {
-      case DynamicSchemaExpr.RelationalOperator.Equal              => "="
-      case DynamicSchemaExpr.RelationalOperator.NotEqual           => "<>"
-      case DynamicSchemaExpr.RelationalOperator.LessThan           => "<"
-      case DynamicSchemaExpr.RelationalOperator.LessThanOrEqual    => "<="
-      case DynamicSchemaExpr.RelationalOperator.GreaterThan        => ">"
-      case DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => ">="
-    }
-    s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
-
-  // Boolean operators → AND / OR
-  case DynamicSchemaExpr.Logical(left, right, op) =>
-    val sqlOp = op match {
-      case DynamicSchemaExpr.LogicalOperator.And => "AND"
-      case DynamicSchemaExpr.LogicalOperator.Or  => "OR"
-    }
-    s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
-
-  // Negation → NOT
-  case DynamicSchemaExpr.Not(inner) =>
-    s"NOT (${toSqlDynamic(inner)})"
-
-  // Arithmetic → SQL math operators
-  case DynamicSchemaExpr.Arithmetic(left, right, op, _) =>
-    val sqlOp = op match {
-      case DynamicSchemaExpr.ArithmeticOperator.Add      => "+"
-      case DynamicSchemaExpr.ArithmeticOperator.Subtract => "-"
-      case DynamicSchemaExpr.ArithmeticOperator.Multiply => "*"
-      case _                                             => "?"
-    }
-    s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
-
-  // String concatenation → CONCAT()
-  case DynamicSchemaExpr.StringConcat(left, right) =>
-    s"CONCAT(${toSqlDynamic(left)}, ${toSqlDynamic(right)})"
-
-  // Regex match → column LIKE pattern (simplified)
-  case DynamicSchemaExpr.StringRegexMatch(regex, string) =>
-    s"(${toSqlDynamic(string)} LIKE ${toSqlDynamic(regex)})"
-
-  // String length → LENGTH()
-  case DynamicSchemaExpr.StringLength(string) =>
-    s"LENGTH(${toSqlDynamic(string)})"
-
-  case _ => "?"
-}
-```
-
-The mapping from `DynamicSchemaExpr` to SQL is direct, but that dynamic matching stays inside the interpreter implementation:
+The conceptual mapping from `DynamicSchemaExpr` to SQL is:
 
 | DynamicSchemaExpr Case | SQL Output                           |
 |------------------------|--------------------------------------|
@@ -248,6 +185,8 @@ The mapping from `DynamicSchemaExpr` to SQL is direct, but that dynamic matching
 
 ## Generating SQL from Queries
 
+Using this mapping, any `SchemaExpr` query translates to a SQL WHERE clause. For example, given these expressions from Part 1:
+
 Now we can translate any query expression into a SQL WHERE clause. Let's try it with the queries from Part 1:
 
 ```scala mdoc:silent
@@ -256,10 +195,12 @@ val expensiveItems = Product.price > 100.0
 val highRated = Product.rating >= 4
 ```
 
-```scala mdoc
-toSql(isElectronics)
-toSql(expensiveItems)
-toSql(highRated)
+These produce:
+
+```
+isElectronics  → (category = 'Electronics')
+expensiveItems → (price > 100.0)
+highRated      → (rating >= 4)
 ```
 
 ## Compound Queries
@@ -276,10 +217,12 @@ val goodDeal =
 val outOfStock = !Product.inStock
 ```
 
-```scala mdoc
-toSql(affordableElectronics)
-toSql(goodDeal)
-toSql(outOfStock)
+These produce:
+
+```
+affordableElectronics → ((category = 'Electronics') AND (price < 500.0))
+goodDeal              → ((price < 10.0) OR (rating >= 5))
+outOfStock            → NOT (inStock)
 ```
 
 Complex nested queries compose naturally:
@@ -290,8 +233,10 @@ val complexQuery =
   ((Product.category === "Office") && (Product.rating >= 4))
 ```
 
-```scala mdoc
-toSql(complexQuery)
+This produces:
+
+```
+(((category = 'Electronics') AND (price < 500.0)) OR ((category = 'Office') AND (rating >= 4)))
 ```
 
 ## Arithmetic in SQL
@@ -303,9 +248,11 @@ val discountedPrice = Product.price * 0.9
 val priceWithTax = Product.price * 1.08
 ```
 
-```scala mdoc
-toSql(discountedPrice)
-toSql(priceWithTax)
+These produce:
+
+```
+discountedPrice → (price * 0.9)
+priceWithTax    → (price * 1.08)
 ```
 
 ## String Operations in SQL
@@ -323,10 +270,12 @@ val labeledName = Product.name.concat(" [SALE]")
 val nameLength = Product.name.length
 ```
 
-```scala mdoc
-toSql(startsWithL)
-toSql(labeledName)
-toSql(nameLength)
+These produce:
+
+```
+startsWithL → (name LIKE 'L%')
+labeledName → CONCAT(name, ' [SALE]')
+nameLength  → LENGTH(name)
 ```
 
 :::tip
@@ -335,153 +284,41 @@ The `matches` operator uses regex syntax in the `SchemaExpr` evaluator, but SQL'
 
 ## Building Complete SELECT Statements
 
-With the `toSql` interpreter, building complete SQL statements is straightforward:
+With the expression-to-SQL mapping, building complete SQL statements is straightforward. You compose a `SELECT` prefix with the translated WHERE clause:
 
-```scala mdoc:silent
-def select(table: String, predicate: SchemaExpr[?, Boolean]): String =
-  s"SELECT * FROM $table WHERE ${toSql(predicate)}"
-
-def selectColumns(table: String, columns: List[String], predicate: SchemaExpr[?, Boolean]): String =
-  s"SELECT ${columns.mkString(", ")} FROM $table WHERE ${toSql(predicate)}"
-
-def selectWithLimit(
-  table: String,
-  predicate: SchemaExpr[?, Boolean],
-  orderBy: Option[String] = None,
-  limit: Option[Int] = None
-): String = {
-  val base = s"SELECT * FROM $table WHERE ${toSql(predicate)}"
-  val ordered = orderBy.fold(base)(col => s"$base ORDER BY $col")
-  limit.fold(ordered)(n => s"$ordered LIMIT $n")
-}
 ```
+SELECT * FROM products WHERE (category = 'Electronics') AND (inStock = TRUE) AND (price < 500.0)
 
-```scala mdoc:silent
-val query = (Product.category === "Electronics") && (Product.inStock === true) && (Product.price < 500.0)
-```
+SELECT name, price FROM products WHERE (category = 'Electronics') AND (inStock = TRUE) AND (price < 500.0)
 
-```scala mdoc
-select("products", query)
-
-selectColumns("products", List("name", "price"), query)
-
-selectWithLimit("products", query, orderBy = Some("price ASC"), limit = Some(10))
+SELECT * FROM products WHERE (category = 'Electronics') AND (inStock = TRUE) AND (price < 500.0) ORDER BY price ASC LIMIT 10
 ```
 
 ## Parameterized Queries
 
-The `toSql` function above inlines literal values directly into the SQL string. For production use, you need parameterized queries to prevent SQL injection. We modify the interpreter to collect parameters separately:
+The `toSql` approach above inlines literal values directly into the SQL string. For production use, you need parameterized queries to prevent SQL injection. Instead of inlining values, collect them as parameters and emit `?` placeholders.
 
-```scala mdoc:silent
-case class SqlQuery(sql: String, params: List[Any])
+The conceptual approach: walk the same `DynamicSchemaExpr` tree, but instead of rendering literals as `'text'` or `42`, emit `?` and collect the actual values in a separate parameter list. The production `QueryRenderer` handles this automatically via `Frag` composition — each `Literal` node becomes a `?` placeholder with its value in `Frag.params`.
 
-def toParameterized[A, B](expr: SchemaExpr[A, B]): SqlQuery = toParameterizedDynamic(expr.dynamic)
+For example, given the expression `(category === "Electronics") && (price < 500.0) && (rating >= 4)`:
 
-private def toParameterizedDynamic(expr: DynamicSchemaExpr): SqlQuery = expr match {
-
-  case DynamicSchemaExpr.Select(path) =>
-    SqlQuery(columnName(path), Nil)
-
-  case DynamicSchemaExpr.Literal(value, _) =>
-    val param = value match {
-      case DynamicValue.Primitive(pv) => pv match {
-        case PrimitiveValue.String(s)     => s
-        case PrimitiveValue.Boolean(b)    => b
-        case PrimitiveValue.Int(n)        => n
-        case PrimitiveValue.Long(n)       => n
-        case PrimitiveValue.Double(n)     => n
-        case PrimitiveValue.Float(n)      => n
-        case PrimitiveValue.Short(n)      => n
-        case PrimitiveValue.Byte(n)       => n
-        case PrimitiveValue.BigInt(n)     => n
-        case PrimitiveValue.BigDecimal(n) => n
-        case PrimitiveValue.Char(c)       => c
-        case other                        => other.toString
-      }
-      case other => other.toString
-    }
-    SqlQuery("?", List(param))
-
-  case DynamicSchemaExpr.Relational(left, right, op) =>
-    val l = toParameterizedDynamic(left); val r = toParameterizedDynamic(right)
-    val sqlOp = op match {
-      case DynamicSchemaExpr.RelationalOperator.Equal              => "="
-      case DynamicSchemaExpr.RelationalOperator.NotEqual           => "<>"
-      case DynamicSchemaExpr.RelationalOperator.LessThan           => "<"
-      case DynamicSchemaExpr.RelationalOperator.LessThanOrEqual    => "<="
-      case DynamicSchemaExpr.RelationalOperator.GreaterThan        => ">"
-      case DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => ">="
-    }
-    SqlQuery(s"(${l.sql} $sqlOp ${r.sql})", l.params ++ r.params)
-
-  case DynamicSchemaExpr.Logical(left, right, op) =>
-    val l = toParameterizedDynamic(left); val r = toParameterizedDynamic(right)
-    val sqlOp = op match {
-      case DynamicSchemaExpr.LogicalOperator.And => "AND"
-      case DynamicSchemaExpr.LogicalOperator.Or  => "OR"
-    }
-    SqlQuery(s"(${l.sql} $sqlOp ${r.sql})", l.params ++ r.params)
-
-  case DynamicSchemaExpr.Not(inner) =>
-    val i = toParameterizedDynamic(inner)
-    SqlQuery(s"NOT (${i.sql})", i.params)
-
-  case DynamicSchemaExpr.Arithmetic(left, right, op, _) =>
-    val l = toParameterizedDynamic(left); val r = toParameterizedDynamic(right)
-    val sqlOp = op match {
-      case DynamicSchemaExpr.ArithmeticOperator.Add      => "+"
-      case DynamicSchemaExpr.ArithmeticOperator.Subtract => "-"
-      case DynamicSchemaExpr.ArithmeticOperator.Multiply => "*"
-      case _                                             => "?"
-    }
-    SqlQuery(s"(${l.sql} $sqlOp ${r.sql})", l.params ++ r.params)
-
-  case DynamicSchemaExpr.StringConcat(left, right) =>
-    val l = toParameterizedDynamic(left); val r = toParameterizedDynamic(right)
-    SqlQuery(s"CONCAT(${l.sql}, ${r.sql})", l.params ++ r.params)
-
-  case DynamicSchemaExpr.StringRegexMatch(regex, string) =>
-    val s = toParameterizedDynamic(string); val r = toParameterizedDynamic(regex)
-    SqlQuery(s"(${s.sql} LIKE ${r.sql})", s.params ++ r.params)
-
-  case DynamicSchemaExpr.StringLength(string) =>
-    val s = toParameterizedDynamic(string)
-    SqlQuery(s"LENGTH(${s.sql})", s.params)
-
-  case _ => SqlQuery("?", Nil)
-}
 ```
-
-Now literals become `?` placeholders, with the actual values collected in a parameter list:
-
-```scala mdoc:silent
-val q = (Product.category === "Electronics") && (Product.price < 500.0) && (Product.rating >= 4)
-val paramQuery = toParameterized(q)
-```
-
-```scala mdoc
-paramQuery.sql
-paramQuery.params
+SQL:     ((category = ?) AND (price < ?)) AND (rating >= ?)
+Params:  List(Electronics, 500.0, 4)
 ```
 
 You can use this with JDBC's `PreparedStatement`:
 
 ```scala
-val ps = connection.prepareStatement(s"SELECT * FROM products WHERE ${paramQuery.sql}")
-paramQuery.params.zipWithIndex.foreach { case (value, idx) =>
-  value match {
-    case s: String  => ps.setString(idx + 1, s)
-    case d: Double  => ps.setDouble(idx + 1, d)
-    case i: Int     => ps.setInt(idx + 1, i)
-    case b: Boolean => ps.setBoolean(idx + 1, b)
-    case l: Long    => ps.setLong(idx + 1, l)
-  }
-}
+val ps = connection.prepareStatement(s"SELECT * FROM products WHERE ((category = ?) AND (price < ?)) AND (rating >= ?)")
+ps.setString(1, "Electronics")
+ps.setDouble(2, 500.0)
+ps.setInt(3, 4)
 val rs = ps.executeQuery()
 ```
 
 :::warning
-Always use parameterized queries for user-supplied values. The inline `toSql` function is suitable for logging and debugging, but use `toParameterized` for actual database execution.
+Always use parameterized queries for user-supplied values. Inline string interpolation is suitable for logging and debugging, but use parameterized queries for actual database execution.
 :::
 
 ## Nested Structures and Table-Qualified Columns
@@ -539,192 +376,9 @@ To generate full JOIN queries, you would extend the interpreter to inspect the o
 
 ## Putting It Together
 
-Here is a complete, self-contained example that defines a domain, builds queries, and generates both inline SQL and parameterized queries:
+The approach shown above — accessing `.dynamic`, pattern matching on `DynamicSchemaExpr`, and mapping each node to SQL — is the core pattern for building any `SchemaExpr`-to-SQL interpreter. In production, the `zio.blocks.sql.query.QueryRenderer` handles this for you, producing parameterized `Frag` values with alias-qualified columns and dialect-aware placeholders.
 
-```scala mdoc:compile-only
-import zio.blocks.schema._
-
-// --- Domain ---
-
-case class Product(
-  name: String,
-  price: Double,
-  category: String,
-  inStock: Boolean,
-  rating: Int
-)
-
-object Product extends CompanionOptics[Product] {
-  implicit val schema: Schema[Product] = Schema.derived
-
-  val name: Lens[Product, String]      = optic(_.name)
-  val price: Lens[Product, Double]     = optic(_.price)
-  val category: Lens[Product, String]  = optic(_.category)
-  val inStock: Lens[Product, Boolean]  = optic(_.inStock)
-  val rating: Lens[Product, Int]       = optic(_.rating)
-}
-
-// --- SQL Interpreter ---
-
-def columnName(optic: zio.blocks.schema.Optic[?, ?]): String =
-  optic.toDynamic.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.mkString("_")
-
-def columnName(path: DynamicOptic): String =
-  path.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.mkString("_")
-
-def sqlLiteralDV(dv: DynamicValue): String = dv match {
-  case DynamicValue.Primitive(pv) =>
-    pv match {
-      case PrimitiveValue.String(s)  => s"'${s.replace("'", "''")}'"
-      case PrimitiveValue.Boolean(b) => if (b) "TRUE" else "FALSE"
-      case PrimitiveValue.Int(n)     => n.toString
-      case PrimitiveValue.Long(n)    => n.toString
-      case PrimitiveValue.Double(n)  => n.toString
-      case PrimitiveValue.Float(n)   => n.toString
-      case PrimitiveValue.Short(n)   => n.toString
-      case PrimitiveValue.Byte(n)    => n.toString
-      case other                     => other.toString
-    }
-  case other => other.toString
-}
-
-def toSql[A, B](expr: SchemaExpr[A, B]): String = toSqlDynamic(expr.dynamic)
-
-private def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
-  case DynamicSchemaExpr.Select(path)              => columnName(path)
-  case DynamicSchemaExpr.Literal(value, _)         => sqlLiteralDV(value)
-  case DynamicSchemaExpr.Relational(left, right, op) =>
-    val sqlOp = op match {
-      case DynamicSchemaExpr.RelationalOperator.Equal              => "="
-      case DynamicSchemaExpr.RelationalOperator.NotEqual           => "<>"
-      case DynamicSchemaExpr.RelationalOperator.LessThan           => "<"
-      case DynamicSchemaExpr.RelationalOperator.LessThanOrEqual    => "<="
-      case DynamicSchemaExpr.RelationalOperator.GreaterThan        => ">"
-      case DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => ">="
-    }
-    s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
-  case DynamicSchemaExpr.Logical(left, right, op) =>
-    val sqlOp = op match {
-      case DynamicSchemaExpr.LogicalOperator.And => "AND"
-      case DynamicSchemaExpr.LogicalOperator.Or  => "OR"
-    }
-    s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
-  case DynamicSchemaExpr.Not(inner)                      => s"NOT (${toSqlDynamic(inner)})"
-  case DynamicSchemaExpr.Arithmetic(left, right, op, _) =>
-    val sqlOp = op match {
-      case DynamicSchemaExpr.ArithmeticOperator.Add      => "+"
-      case DynamicSchemaExpr.ArithmeticOperator.Subtract => "-"
-      case DynamicSchemaExpr.ArithmeticOperator.Multiply => "*"
-      case _                                             => "?"
-    }
-    s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
-  case DynamicSchemaExpr.StringConcat(left, right)       => s"CONCAT(${toSqlDynamic(left)}, ${toSqlDynamic(right)})"
-  case DynamicSchemaExpr.StringRegexMatch(regex, string) => s"(${toSqlDynamic(string)} LIKE ${toSqlDynamic(regex)})"
-  case DynamicSchemaExpr.StringLength(string)            => s"LENGTH(${toSqlDynamic(string)})"
-  case _                                                 => "?"
-}
-
-// --- Parameterized queries ---
-
-case class SqlQuery(sql: String, params: List[Any])
-
-def toParameterized[A, B](expr: SchemaExpr[A, B]): SqlQuery = toParameterizedDynamic(expr.dynamic)
-
-private def toParameterizedDynamic(expr: DynamicSchemaExpr): SqlQuery = expr match {
-  case DynamicSchemaExpr.Select(path)   => SqlQuery(columnName(path), Nil)
-  case DynamicSchemaExpr.Literal(value, _) =>
-    val param = value match {
-      case DynamicValue.Primitive(pv) => pv match {
-        case PrimitiveValue.String(s)     => s
-        case PrimitiveValue.Boolean(b)    => b
-        case PrimitiveValue.Int(n)        => n
-        case PrimitiveValue.Long(n)       => n
-        case PrimitiveValue.Double(n)     => n
-        case PrimitiveValue.Float(n)      => n
-        case PrimitiveValue.Short(n)      => n
-        case PrimitiveValue.Byte(n)       => n
-        case PrimitiveValue.BigInt(n)     => n
-        case PrimitiveValue.BigDecimal(n) => n
-        case PrimitiveValue.Char(c)       => c
-        case other                        => other.toString
-      }
-      case other => other.toString
-    }
-    SqlQuery("?", List(param))
-  case DynamicSchemaExpr.Relational(left, right, op) =>
-    val l = toParameterizedDynamic(left); val r = toParameterizedDynamic(right)
-    val sqlOp = op match {
-      case DynamicSchemaExpr.RelationalOperator.Equal              => "="
-      case DynamicSchemaExpr.RelationalOperator.NotEqual           => "<>"
-      case DynamicSchemaExpr.RelationalOperator.LessThan           => "<"
-      case DynamicSchemaExpr.RelationalOperator.LessThanOrEqual    => "<="
-      case DynamicSchemaExpr.RelationalOperator.GreaterThan        => ">"
-      case DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => ">="
-    }
-    SqlQuery(s"(${l.sql} $sqlOp ${r.sql})", l.params ++ r.params)
-  case DynamicSchemaExpr.Logical(left, right, op) =>
-    val l = toParameterizedDynamic(left); val r = toParameterizedDynamic(right)
-    val sqlOp = op match {
-      case DynamicSchemaExpr.LogicalOperator.And => "AND"
-      case DynamicSchemaExpr.LogicalOperator.Or  => "OR"
-    }
-    SqlQuery(s"(${l.sql} $sqlOp ${r.sql})", l.params ++ r.params)
-  case DynamicSchemaExpr.Not(inner) =>
-    val i = toParameterizedDynamic(inner)
-    SqlQuery(s"NOT (${i.sql})", i.params)
-  case DynamicSchemaExpr.Arithmetic(left, right, op, _) =>
-    val l = toParameterizedDynamic(left); val r = toParameterizedDynamic(right)
-    val sqlOp = op match {
-      case DynamicSchemaExpr.ArithmeticOperator.Add      => "+"
-      case DynamicSchemaExpr.ArithmeticOperator.Subtract => "-"
-      case DynamicSchemaExpr.ArithmeticOperator.Multiply => "*"
-      case _                                             => "?"
-    }
-    SqlQuery(s"(${l.sql} $sqlOp ${r.sql})", l.params ++ r.params)
-  case DynamicSchemaExpr.StringConcat(left, right) =>
-    val l = toParameterizedDynamic(left); val r = toParameterizedDynamic(right)
-    SqlQuery(s"CONCAT(${l.sql}, ${r.sql})", l.params ++ r.params)
-  case DynamicSchemaExpr.StringRegexMatch(regex, string) =>
-    val s = toParameterizedDynamic(string); val r = toParameterizedDynamic(regex)
-    SqlQuery(s"(${s.sql} LIKE ${r.sql})", s.params ++ r.params)
-  case DynamicSchemaExpr.StringLength(string) =>
-    val s = toParameterizedDynamic(string)
-    SqlQuery(s"LENGTH(${s.sql})", s.params)
-  case _ => SqlQuery("?", Nil)
-}
-
-// --- Complete SELECT builder ---
-
-def select(table: String, predicate: SchemaExpr[?, Boolean]): String =
-  s"SELECT * FROM $table WHERE ${toSql(predicate)}"
-
-// --- Usage ---
-
-val query =
-  (Product.category === "Electronics") &&
-  (Product.inStock === true) &&
-  (Product.price < 500.0) &&
-  (Product.rating >= 4)
-
-// Inline SQL for debugging
-println(select("products", query))
-// SELECT * FROM products WHERE (((category = 'Electronics') AND (inStock = TRUE)) AND (price < 500.0)) AND (rating >= 4))
-
-// Parameterized SQL for execution
-val pq = toParameterized(query)
-println(s"SQL:    ${pq.sql}")
-println(s"Params: ${pq.params}")
-// SQL:    (((category = ?) AND (inStock = ?)) AND (price < ?)) AND (rating >= ?))
-// Params: List(Electronics, true, 500.0, 4)
-
-// String operations in SQL
-println(toSql(Product.name.matches("L%")))
-// (name LIKE 'L%')
-
-// Arithmetic in SQL
-println(toSql(Product.price * 0.9))
-// (price * 0.9)
-```
+If you are building a new application, prefer the **[Typed Relational Query Guide](./sql-query-dsl.md)** which uses the production query API directly. For custom query targets (MongoDB, Elasticsearch, etc.), the interpreter pattern shown in this guide is exactly the approach to follow.
 
 ## Upsert (ON CONFLICT)
 
@@ -966,43 +620,48 @@ val sql: String = pageFrag.sql(SqlDialect.SQLite) // SELECT id, name, email FROM
 
 ## Inspecting SQL
 
-The custom interpreter above produces raw strings useful for debugging. When you work with the `sql` module's built-in query builder (`zio.blocks.sql.SqlQuery`) or the query IR (`zio.blocks.sql.query.SqlQuery`), you get richer inspection APIs.
+The pattern-match approach above produces raw strings useful for understanding the mapping. For production use, the typed relational IR (`zio.blocks.sql.query.SqlQuery`) renders through `QueryRenderer` — the sole query renderer — which produces parameterized `Frag` values with alias-qualified columns and dialect-aware placeholders. The former `zio.blocks.sql.SqlQuery` string-based builder has been removed; all inspection (`explain`, `statement`, `Dump`) now derives from the typed IR.
 
 ### explain(dialect): String
 
-The `explain` method renders the full SQL text with numbered parameter placeholders (`?1`, `?2`, ...) and a trailing comment listing each parameter's position and type:
+The `explain` method on `zio.blocks.sql.query.SqlQuery` renders the full SQL text with numbered parameter placeholders (`?1`, `?2`, ...) and a trailing comment listing each parameter's position and type:
 
 ```scala
-import zio.blocks.sql._
+import zio.blocks.sql.query.{SqlQuery, Rel, lit}
+import zio.blocks.sql.{SqlDialect, Table}
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+case class Repo(id: Int, ownerId: Int, name: String)
+object Repo { implicit val schema: Schema[Repo] = Schema.derived }
 
 val userTable = Table.derived[User]
 val repoTable = Table.derived[Repo]
+val userRepo  = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
 
-val q = SqlQuery
-  .from(userTable)
-  .join(repoTable, "id", "owner_id")
-  .where(userTable, "name", DbValue.DbString("alice"))
+val qBase = SqlQuery.from(userTable).innerJoin(userRepo)
+val q = qBase.where(qBase.col[User](_.name) === lit("alice"))
 
 println(q.explain(SqlDialect.PostgreSQL))
-// SELECT t0.id, t0.name, t1.id, t1.owner_id, t1.name FROM user t0 INNER JOIN repo t1 ON t0.id = t1.owner_id WHERE t0.name = ?1
+// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t1."owner_id" = t0."id" WHERE t0."name" = ?1
 // -- params: 1:String
 ```
 
-`explain` renders a single-line SQL string with numbered `?N` placeholders (backed by `SqlQuery.build`). The `?N`
+`explain` renders a single-line SQL string with numbered `?N` placeholders (backed by `QueryRenderer` via `SqlQuery#toFrag`). The `?N`
 placeholders correspond one-to-one with the parameter list you can obtain separately via
 `statement(dialect).frag.params`. This makes `explain` useful for logging and visual debugging without touching a
 database.
 
 ### statement(dialect): SqlStatement
 
-The `statement` method returns a structured `SqlStatement` that decomposes the query into its constituent parts:
+The `statement` method on `SqlQuery` returns a structured `SqlStatement` derived from the typed IR (source, joins, groupBy/orderBy/limit/offset, and the underlying `Frag`) that decomposes the query into its constituent parts:
 
 ```scala
 val st = q.statement(SqlDialect.PostgreSQL)
 
 st.source      // Source(table = "user", alias = "t0")
-st.joins       // Vector(Join(Inner, "repo", "t1", ColumnRef("t0","id"), ColumnRef("t1","owner_id")))
-st.filters     // Vector(Filter(ColumnRef("t0","name"), "=", DbValue.DbString("alice")))
+st.joins       // Vector(Join(Inner, "repo", "t1", ColumnRef("t1","owner_id"), ColumnRef("t0","id")))
 st.groupBy     // None
 st.orderBy     // Vector.empty
 st.limit       // None
@@ -1014,18 +673,19 @@ st.toFrag      // Frag (re-renderable to SQL)
 
 ### sql(dialect): String (Query IR)
 
-The newer query IR (`zio.blocks.sql.query.SqlQuery`) provides a simpler `sql` method:
+The typed query IR (`zio.blocks.sql.query.SqlQuery`) provides `sql`/`toFrag`/`explain`/`statement`:
 
 ```scala
-import zio.blocks.sql.query._
+import zio.blocks.sql.query.{SqlQuery, Rel, lit}
 
-val q = SqlQuery
-  .from(userTable)
-  .innerJoin(userToRepo)
-  .filter(frag"""t0."name" = ${DbValue.DbString("alice")}""")
+val qBase = SqlQuery.from(userTable).innerJoin(Rel.manyToOne(repoTable, "owner_id", userTable, "id"))
+val q = qBase.where(qBase.col[User](_.name) === lit("alice"))
 
 println(q.sql(SqlDialect.PostgreSQL))
-// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t0."id" = t1."owner_id" WHERE t0."name" = $1
+// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t1."owner_id" = t0."id" WHERE t0."name" = ?
+println(q.explain(SqlDialect.PostgreSQL))
+// SELECT t0."id", ... WHERE t0."name" = ?1
+// -- params: 1:String
 ```
 
 ### previewSql() for Migrations
@@ -1082,22 +742,23 @@ Both approaches set the property on the sbt process, which is the same JVM that 
 
 ### Entry Points
 
-There are three inline macro entry points, all in `zio.blocks.sql.Dump`:
+There are macro entry points in `zio.blocks.sql.Dump` for the typed IR:
 
 ```scala
 import zio.blocks.sql._
+import zio.blocks.sql.query.{SqlQuery, Rel, lit}
+
+val qBase = SqlQuery.from(userTable).innerJoin(Rel.manyToOne(repoTable, "owner_id", userTable, "id"))
 
 // Dump a Table's CREATE TABLE DDL (both PostgreSQL and SQLite)
 Dump.dumpTable(userTable)
 
-// Dump a SqlQuery's SELECT (legacy builder)
-Dump.dump(userQuery)
-
-// Dump a query IR's SELECT
-Dump.dumpQuery(queryIr)
+// Dump a query IR's SELECT — both names consume the same typed IR
+Dump.dump(q)
+Dump.dumpQuery(q)
 ```
 
-Each call emits one file per dialect (PostgreSQL and SQLite by default).
+`Dump.dump` and `Dump.dumpQuery` both accept `zio.blocks.sql.query.SqlQuery`; they emit one file per dialect (PostgreSQL and SQLite). The former string-based `zio.blocks.sql.SqlQuery` builder has been removed.
 
 ### Naming Scheme
 
@@ -1131,8 +792,17 @@ Compile-time dumps work well for statically constructed queries, but some SQL pa
 Pair `Dump.dumpTable` with `previewSql()` for a fuller picture: `dumpTable` captures the schema DDL at compile time, while `previewSql` captures the migration SQL at runtime before execution.
 :::
 
+## Production Renderer
+
+The interpreter pattern above is educational. For production use, the `zio.blocks.sql.query` package provides a production renderer (`QueryRenderer`) that translates typed `Expr` trees — backed by the same `DynamicSchemaExpr` AST — into parameterized `Frag` values. It handles alias-qualified column rendering, dialect-aware placeholders, and parameter binding automatically.
+
+If you are building a new application, prefer the **[Typed Relational Query Guide](./sql-query-dsl.md)** which uses the production query API directly. The `SchemaExpr`-to-`DynamicSchemaExpr`-to-SQL pipeline shown here is what `QueryRenderer` does internally; you do not need to reimplement it.
+
+For existing applications using `SchemaExpr`, the approach shown here — accessing `.dynamic`, pattern matching on `DynamicSchemaExpr`, and mapping operators — is exactly how to build custom interpreters for targets other than SQL (MongoDB, Elasticsearch, etc.).
+
 ## Going Further
 
+- **[Typed Relational Query Guide](./sql-query-dsl.md)** -- Production typed query builder with joins, aggregates, and execution
 - **[Part 1: Expressions](./query-dsl-reified-optics.md)** -- Building query expressions with reified optics
 - **[Part 3: Extending the Expression Language](./query-dsl-extending.md)** -- Adding custom operators (IN, BETWEEN, aggregates) beyond SchemaExpr
 - **[Part 4: A Fluent SQL Builder](./query-dsl-fluent-builder.md)** -- Type-safe SELECT, UPDATE, INSERT, DELETE with seamless condition mixing
