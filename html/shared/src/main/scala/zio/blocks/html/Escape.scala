@@ -395,10 +395,10 @@ private[html] object Escape {
     while (i < end) {
       val c = s.charAt(i)
       val d =
-        if (c >= '0' && c <= '9') c - '0'
-        else if (radix == 16 && c >= 'a' && c <= 'f') c - 'a' + 10
-        else if (radix == 16 && c >= 'A' && c <= 'F') c - 'A' + 10
-        else return -1
+        if (radix == 16) hexValue(c)
+        else if (c >= '0' && c <= '9') c - '0'
+        else -1
+      if (d < 0) return -1
       value = value * radix + d
       if (value > 0x10ffffL) return -1
       i += 1
@@ -420,7 +420,7 @@ private[html] object Escape {
     if (j < len && (s.charAt(j) == 'x' || s.charAt(j) == 'X')) {
       j += 1
       val digits = j
-      while (j < len && isHexDigit(s.charAt(j))) j += 1
+      while (j < len && hexValue(s.charAt(j)) >= 0) j += 1
       if (j == digits) -1 else j
     } else {
       val digits = j
@@ -429,8 +429,15 @@ private[html] object Escape {
     }
   }
 
-  private def isHexDigit(c: Char): Boolean =
-    (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+  /**
+   * Hex value of an ASCII hex digit, or -1 for anything else. Shared by both
+   * entity decoders so there is a single digit table.
+   */
+  private def hexValue(c: Char): Int =
+    if (c >= '0' && c <= '9') c - '0'
+    else if (c >= 'a' && c <= 'f') c - 'a' + 10
+    else if (c >= 'A' && c <= 'F') c - 'A' + 10
+    else -1
 
   def cssString(s: String): String = {
     val len = s.length
