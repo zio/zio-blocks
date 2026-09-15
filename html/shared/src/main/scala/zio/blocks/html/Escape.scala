@@ -209,36 +209,9 @@ private[html] object Escape {
 
   private def isDangerousNormalizedUrl(url: String): Boolean = {
     val trimmed = url.trim
-    hasSchemeWindowNamedReference(trimmed) ||
-    isDangerousScheme(stripUrlControls(decodeUrlEntities(trimmed)).toLowerCase(java.util.Locale.ROOT))
-  }
-
-  /**
-   * Fail-closed guard for the scheme-position window: true when the trimmed URL
-   * holds `&` followed by an ASCII letter before `maxDangerousPrefixLength`.
-   * Such a span is shaped like a named character reference, which browsers
-   * could decode into scheme text (`colon`, `Tab`, `NewLine`, ...); proving it
-   * harmless would require enumerating the browser named-entity table, so it is
-   * rejected instead. `&` followed by anything else cannot start a named
-   * reference and is left for the mechanical paths below, and references
-   * starting at or beyond the window cannot affect the scheme verdict: every
-   * normalization step either leaves window bytes in place (lowercasing,
-   * stripping controls beyond the window) or only moves bytes left when an
-   * in-window `&` or control is consumed, which the paths below resolve
-   * exactly.
-   */
-  private def hasSchemeWindowNamedReference(s: String): Boolean = {
-    val len   = s.length
-    val bound = if (len < maxDangerousPrefixLength) len else maxDangerousPrefixLength
-    var i     = 0
-    while (i < bound) {
-      if (s.charAt(i) == '&' && i + 1 < len) {
-        val next = s.charAt(i + 1)
-        if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z')) return true
-      }
-      i += 1
-    }
-    false
+    val (decoded, sawSuspiciousNamed) = decodeUrlEntities(trimmed)
+    sawSuspiciousNamed ||
+    isDangerousScheme(stripUrlControls(decoded).toLowerCase(java.util.Locale.ROOT))
   }
 
   /**
@@ -310,22 +283,39 @@ private[html] object Escape {
    * verdict when it decodes to `:` or to a stripped control
    * (`&#x6A;avascript&colon;…` executes as `javascript:`), while references
    * decoding to any other character cannot forge a scheme. All other named
-   * references are copied literally: in-window ones are already rejected by
-   * [[hasSchemeWindowNamedReference]], and beyond-window ones cannot affect the
-   * scheme verdict. Unknown or malformed references are left as-is. Index scans
-   * only; no substrings.
+   * references are copied literally: in-window ones are already rejected via
+   * the returned flag, and beyond-window ones cannot affect the scheme verdict.
+   * Unknown or malformed references are left as-is. Index scans only; no
+   * substrings.
+   *
+   * Also returns the fail-closed guard for the scheme-position window: true
+   * when the raw input holds `&` followed by an ASCII letter before
+   * `maxDangerousPrefixLength`. Such a span is shaped like a named character
+   * reference, which browsers could decode into scheme text (`colon`, `Tab`,
+   * `NewLine`, ...); proving it harmless would require enumerating the browser
+   * named-entity table, so callers reject it instead. The flag matches the old
+   * standalone pre-scan exactly: the loop visits every raw `&` once with the
+   * same bound on the trimmed raw length (successfully decoded spans never
+   * contain `&`, so skipping them visits no `&` twice or zero times).
    */
-  private def decodeUrlEntities(s: String): String = {
-    if (s.indexOf('&') < 0) return s
+  private def decodeUrlEntities(s: String): (String, Boolean) = {
+    if (s.indexOf('&') < 0) return (s, false)
     val sb  = new java.lang.StringBuilder(s.length)
     val len = s.length
-    var i   = 0
+    val bound =
+      if (len < maxDangerousPrefixLength) len else maxDangerousPrefixLength
+    var sawSuspiciousNamed = false
+    var i                  = 0
     while (i < len) {
       val c = s.charAt(i)
       if (c != '&') {
         sb.append(c)
         i += 1
       } else {
+        if (i < bound && i + 1 < len) {
+          val next = s.charAt(i + 1)
+          if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z')) sawSuspiciousNamed = true
+        }
         val semi = s.indexOf(';', i + 1)
         if (semi >= 0 && i + 1 < semi) {
           val decoded =
@@ -356,7 +346,7 @@ private[html] object Escape {
         }
       }
     }
-    sb.toString
+    (sb.toString, sawSuspiciousNamed)
   }
 
   /**
