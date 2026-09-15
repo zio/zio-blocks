@@ -147,7 +147,7 @@ object Maybe {
    * into Maybe. null becomes the Absent singleton.
    */
   private[blocks] def unsafeWrap[A](x: Any): Maybe[A] =
-    if (x == null) zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]] else x.asInstanceOf[Maybe[A]]
+    if (x.asInstanceOf[AnyRef] eq null) zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]] else x.asInstanceOf[Maybe[A]]
 
   extension [A](self: Maybe[A]) {
     inline def isAbsent: Boolean  = self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent
