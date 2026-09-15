@@ -234,10 +234,10 @@ object RepoUpsertSpec extends ZIOSpecDefault {
         assertTrue(
           frag.sql(
             SqlDialect.SQLite
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?""",
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?""",
           frag.sql(
             SqlDialect.PostgreSQL
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?""",
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?""",
           frag.queryParams == IndexedSeq(
             DbValue.DbInt(1),
             DbValue.DbString("Alice"),

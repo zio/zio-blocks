@@ -36,6 +36,14 @@ final case class Table[A](name: String, codec: DbCodec[A], columnsMeta: IndexedS
     column.copy(name = SqlIdentifier.validate("column", column.name))
   }
 
+  // Fail fast on duplicate columns: downstream builders (e.g.
+  // `Upsert.insertDoUpdate`) resolve column values by position, and a silently
+  // duplicated column would bind the wrong value to the wrong placeholder.
+  require(
+    validatedColumnsMeta.map(_.name).distinct.size == validatedColumnsMeta.size,
+    s"Table '$name' has duplicate columns: ${validatedColumnsMeta.map(_.name).mkString(", ")}"
+  )
+
   /** Column names in codec order (delegates to `codec.columns`). */
   def columns: IndexedSeq[String] = validatedColumnsMeta.map(_.name)
 
