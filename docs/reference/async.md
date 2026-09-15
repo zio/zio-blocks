@@ -1337,12 +1337,12 @@ What it gives you is a **repeatable** multi-way wait. You hand it a fixed number
 
 A hand-rolled race loop can do the first round of that, but not the thousandth. Racing N computations registers a callback on every loser, and the losers survive into the next round, so a fresh callback piles up on each of them every time round. The selector instead keeps **one stable waker per armed slot** for as long as that slot stays armed, no matter how many selections pass over it.
 
-Selection is round-robin rather than first-past-the-post. The scan starts at the slot *after* the previous winner, so a slot that is continuously eligible — armed, and with a completed computation — wins within at most the number of currently armed slots selections. No slot can be starved by a faster neighbour.
+Selection is round-robin rather than first-past-the-post. The scan starts at the slot *after* the previous winner, so a slot that is continuously eligible — armed, and with a completed computation — wins within at most `armedCount` *successful* selections. No slot can be starved by a faster neighbour.
 
 The public surface is small:
 
 ```scala
-final class AsyncSelector[A] extends Cancelable {
+final class AsyncSelector[A] private (slotCount: Int, initial: IndexedSeq[(Int, Async[A])]) extends Cancelable {
   def size: Int
   def replace(index: Int, value: => Async[A]): Unit
   def select: Async[(Int, A)]
@@ -1403,7 +1403,7 @@ final class Failure private (val cause: Throwable, private[async] val trusted: B
 }
 ```
 
-The one-argument constructor is the only one you can call, and it produces an ordinary, untrusted failure. The `trusted` flag is `private[async]`: it marks a failure that entered through the module's own internals rather than through user code, so that the runtime can take a faster path for it. It changes nothing you can observe — `cause` is the same `Throwable` either way, and every recovery combinator treats both kinds identically.
+The one-argument constructor is the only one you can call, and it produces an ordinary, untrusted failure. The `trusted` flag is `private[async]`: it marks a failure that entered through one of the library's own internal boundaries — the typed error channel that `zio-blocks-streams` carries in its `Either` — rather than through user code. It changes nothing in the public API: `cause` is the same `Throwable` either way, and every recovery combinator treats both kinds identically. The distinction is visible only to the module's internal fold, which routes a trusted cause down the typed-error path instead of the defect path.
 
 [`block`](#driving) re-throws `cause`; `catchAll` hands your recovery function the original `Throwable`, unwrapped; [`either`](#error-handling) turns it into a `Left` instead.
 
