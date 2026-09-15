@@ -306,6 +306,12 @@ object EscapeSpec extends ZIOSpecDefault {
             "unsafe:&lt;&gt;&amp;&quot;&semi;https://example.com"
         )
       },
+      test("window flag pins the raw 14-char boundary") {
+        assertTrue(
+          Escape.sanitizeUrl("https://examp&le;x") == "unsafe:https://examp&le;x",
+          Escape.sanitizeUrl("https://exampl&e;x") == "https://exampl&e;x"
+        )
+      },
       test("ignores empty hex entity") {
         assertTrue(Escape.sanitizeUrl("&#x;javascript:alert(1)") == "&#x;javascript:alert(1)")
       },
