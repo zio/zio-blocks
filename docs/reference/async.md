@@ -550,7 +550,9 @@ Two limits apply. On the JVM, never call `block` from inside a `poll` — you wo
 
 On Scala.js there is no thread to park at all. A ready value returns as usual, but a *pending* one gets a single chance to complete synchronously, and if it has not, `block` throws `IllegalStateException`. Scala.js code should reach for `toFuture` or `toJsPromise` and let the event loop deliver the result, or stay inside `Async.async { … }` and use `await`.
 
-`start` hands whatever is still waiting to a background worker and returns an `Async.Running[A]` immediately, without blocking. That worker — or, on Scala.js, the microtask queue — is what the rest of this page calls the *driver*: the thing that keeps asking a pending value for its result:
+`start` hands whatever is still waiting to a *driver* and returns an `Async.Running[A]` immediately, without blocking. The driver is the thing that keeps asking a pending value for its result. On the JVM it is a chain of serialized tasks on `ForkJoinPool.commonPool()`; on Scala.js it is the microtask queue. Neither holds a thread for the duration: a task exits as soon as its current pollable is still pending, and the waker that `poll` registered submits the next task when there is something new to see.
+
+`Async.start(body)` is the other entry point and it is not the same mechanism. It takes a block of ordinary synchronous code rather than an `Async`, so it needs somewhere to run that block: on the JVM a dedicated daemon thread named `zio-blocks-async-eval`, and on Scala.js the next microtask.
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -1025,6 +1027,47 @@ Three things to notice. The status check happens inside `poll`, so it runs only 
 
 Note also what is *not* in the example: no blocking wait, no lock, no shared mutable state. Polling puts you in charge of when the check happens, which is the reason to choose it. Because a `Pollable[A]` can be used wherever an `Async[A]` is expected, the value drops straight into any composition and works with every combinator.
 
+### The Pollable Protocol
+
+Everything above is what a `Pollable` looks like from the outside. This is the contract a driver and an implementation hold each other to, and it matters only if you are on one side of it — writing a `poll`, or writing a driver of your own. If you are composing `Async` values and running them with `block`, `start`, or an interop converter, the built-in drivers already honour every rule below and you can skip the section.
+
+**Polling is one-shot.** A driver keeps polling only while `poll` returns a still-pending `Pollable`, and must stop as soon as it returns a terminal result — a raw value, or a failed `Async`. Re-polling a `Pollable` after that is outside the contract: it is not guaranteed to be a pure re-observation, a continuation may run a second time, and diagnostic state may be repeated.
+
+**Identity carries meaning.** A still-pending result is either this pollable itself — the common case — or a *replacement* pollable standing for the rest of the computation, and the caller directs its next poll at whatever came back. Which of the two it is decides what the caller may do next:
+
+| What `poll` returns          | What it means                       | What the driver does next              |
+|------------------------------|-------------------------------------|----------------------------------------|
+| `this` — the same identity   | Pending; `onComplete` is registered | May wait for that callback             |
+| A different `Pollable`       | Synchronous progress, not readiness | Polls the replacement, without waiting |
+| A value, or a failed `Async` | Terminal                            | Stops polling                          |
+
+The middle row is the one that trips people up. An identity change is *not* a readiness event, so a caller or a wrapper must never synthesize an `onComplete` call for it — it means "there is more to do right now", and waiting on a callback that nobody will run is how such a wrapper hangs.
+
+**Wakes are permits, not proofs.** Real callbacks may be stale, reentrant, or duplicated. `onComplete` is therefore a coalescible wake permit — "look again" — rather than proof that any particular generation has completed. A driver re-polls and lets `poll` decide; an implementation is free to run `onComplete` more times than strictly necessary without breaking anything, though never fewer.
+
+**Cancellation reaches the leaf.** Alongside `poll`, a `Pollable` may override `cancel()`, which the driver signals on the active pending operation when cancellation wins the race against completion. The default is a no-op, so a source with abortable work has to supply it — and it must be idempotent and non-blocking, because cancellation never waits:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import java.util.concurrent.atomic.AtomicBoolean
+
+// `register` stands in for handing the waker to the real source: a socket
+// selector, a timer, a third-party library's callback slot.
+final class AbortableRead(register: Runnable => Unit) extends Pollable[Array[Byte]] {
+  private val aborted = new AtomicBoolean(false)
+
+  def poll(onComplete: Runnable): Async[Array[Byte]] =
+    if (aborted.get()) Async.fail(new java.io.IOException("read aborted"))
+    else { register(onComplete); this }
+
+  // Idempotent and non-blocking: it records the intent and returns. The
+  // driver has already stopped listening by the time this runs.
+  override def cancel(): Unit = aborted.set(true)
+}
+```
+
+The full contract lives in the scaladoc of `Pollable#poll`; [`Cancelable`](#cancelable) covers what cancelling does and does not stop.
+
 ### Completer
 
 Polling is the awkward case. Far more often the source does call you back — that is what `Completer[A]` is for, and why you will reach for it and not `Pollable`.
@@ -1157,7 +1200,7 @@ The once-only guarantee earns its keep in code like this. You are trusting a thi
 
 ## Controlling In-Flight Work
 
-Once `start` has handed you an `Async.Running[A]`, the computation is being driven for you — on a background worker if it still has waiting to do, and already settled if it does not. These two types are how you keep a grip on it: `Async.Running` is the handle, and `Cancelable` is the ability to stop what it refers to.
+Once `start` has handed you an `Async.Running[A]`, the computation is being driven for you — by the platform driver if it still has waiting to do, and already settled if it does not. These two types are how you keep a grip on it: `Async.Running` is the handle, and `Cancelable` is the ability to stop what it refers to.
 
 ### Async.Running
 
@@ -1184,11 +1227,11 @@ running.cancel()  // the driver stops polling; no value is ever published
 
 A cancelled run never settles at all — it does not fail, it simply stops. So anything still holding that handle and calling `block` on it waits forever on the JVM, and gets an `IllegalStateException` on Scala.js. Cancel only when you own every consumer of the handle.
 
-And with `Async.start(body)`, `cancel` stops the driver, not the thread evaluating `body`. That thread runs to completion regardless, so cancelling a `Running` means you have stopped waiting for the result — not that the work behind it has stopped.
+And with `Async.start(body)`, `cancel` stops the driver, not the evaluation of `body`. That block runs to completion regardless — on its own daemon thread on the JVM, on the next microtask on Scala.js — so cancelling that particular `Running` means you have stopped waiting for the result, not that the work behind it has stopped. A suspended `fa.start`, by contrast, does have its active leaf signalled; [`Cancelable`](#cancelable) draws the line.
 
 A `Running` is also an `AutoCloseable`, so [`scala.util.Using`](#integration-points) cancels it on leaving a block.
 
-All of the above describes the JVM, where the driver is a background thread. On Scala.js it is the microtask queue instead, and `block` is unavailable on a pending value — see [Platform Support](#platform-support).
+`block` on a pending handle is available on the JVM only — see [Platform Support](#platform-support).
 
 
 Attach what you want to observe *before* calling `start`, not after. `start` hands the still-waiting part of the value to a driver, and whatever you composed onto it beforehand is part of what that driver runs:
@@ -1221,13 +1264,51 @@ The second version is not a compile error and not a lost value, which is what ma
 
 All of that assumes there was something to wait for. If the value already holds its answer there is nothing to hand to a driver: `start` wraps it and returns, spawning no worker, and anything you attached ran while you were building the value — see [Evaluation Model](#evaluation-model).
 
+### Running#cancel
+
+A `Running` carries two `cancel` methods. One it inherits from [`Cancelable`](#cancelable) and takes nothing; the other takes a reporter:
+
+```scala
+abstract class Running[+A] extends Pollable[A] with Cancelable {
+  def cancel(): Unit                                    // inherited from Cancelable
+  def cancel(onCleanupFailure: Throwable => Unit): Unit
+}
+```
+
+They cancel identically. What differs is where a failure thrown by *cleanup* ends up — and cleanup is the one thing cancellation can still fail at. Cancelling signals `cancel()` on the active leaf, and the teardown that follows may be asynchronous and may throw. That failure has nowhere natural to go: the run has been cancelled, so it will never deliver a result, and there is no channel left to carry an exception to whoever was waiting.
+
+So it is reported instead. `cancel()` sends it to the ambient handler for the platform — the calling thread's `UncaughtExceptionHandler` on the JVM, the queue's failure reporter on Scala.js. `cancel(onCleanupFailure)` sends it to your function, which is what you want whenever "a socket refused to close" should reach a log or a metric rather than stderr:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val running: Async.Running[Nothing] = Async.never.start
+
+running.cancel { cause =>
+  System.err.println(s"cleanup after cancellation failed: ${cause.getMessage}")
+}
+```
+
+Three properties are worth knowing before you rely on it:
+
+- **The reporter is kept only if this cancellation wins.** If the run had already settled, or another `cancel` call claimed it first, your function is dropped and never invoked. A dropped reporter is not an error; it means there was no cancellation cleanup of yours to report on.
+- **It is invoked at most once.** When cleanup fails in more than one place, the later causes are attached to the first as suppressed exceptions and the first is what you are handed — so check `getSuppressed` if you are logging the whole picture.
+- **It may run on any thread.** Cleanup is driven by whichever party claims it, which is not necessarily the thread that called `cancel`. Keep the reporter short and make sure it cannot throw.
+
 ### Cancelable
 
 `Cancelable` is the minimal cancellation interface: one `cancel()` method, safe to call from any thread and safe to call twice.
 
-Be precise about what it stops, because the name promises more than it delivers. Cancellation is **driver-level**: it halts the poll loop and suppresses publication of a terminal value, and on the JVM it interrupts the worker thread. It does **not** reach into the thing you were waiting on. A socket read stays outstanding, a timer still fires, a `js.Promise` still settles — cancelling means you stop listening, not that the work stops happening.
+Be precise about what it stops. Cancellation does two things, and they reach different distances:
 
-That distinction matters when the leaf holds a resource. If a cancelled computation would otherwise leave a socket or a file handle open, close it yourself — pair the cancellation with [`ensuring`](#bracket-and-ensuring), or hold the resource in a `Using` block, rather than assuming `cancel()` released it.
+- **It stops the driver.** The poll loop halts and publication of a terminal value is suppressed. A cancelled run therefore never delivers at all — it does not fail, it simply stays pending forever, which is why anything still calling `block` on that handle waits indefinitely.
+- **It signals the active pending operation.** When cancellation wins the race against completion, the driver calls [`Pollable.cancel()`](#the-pollable-protocol) on whatever leaf the run is currently suspended on. A leaf that owns abortable work — an in-flight socket read, a timer, a registration with a third-party library — implements that hook and gets the chance to tear it down.
+
+The second point is the part to get right, because the default hook is a **no-op**. A leaf that does not override `cancel()` is not aborted by cancelling the run: its socket read stays outstanding, its timer still fires, its `js.Promise` still settles. Whether cancellation reaches the work is a property of the leaf, not of the handle you called `cancel()` on.
+
+Cancellation is also **cooperative**, never preemptive. It does not wait for an already-running `poll` invocation to return, and it interrupts no thread. Calling `cancel()` publishes the signal and returns; whatever teardown that triggers is driven afterwards, on whichever party wins the claim.
+
+That is why a leaf holding a resource still deserves an explicit finalizer. If a cancelled computation would otherwise leave a socket or a file handle open and you do not control its `Pollable`, close it yourself — pair the cancellation with [`ensuring`](#bracket-and-ensuring), or hold the resource in a `Using` block.
 
 The structural declaration is:
 
@@ -1248,13 +1329,81 @@ c.cancel()  // no-op
 c.close()   // no-op; delegates to cancel()
 ```
 
+## AsyncSelector
+
+`AsyncSelector[A]` is a low-level building block, and that is worth saying before anything else: most code should not reach for it. If what you want is "run N of these at a time and give me results as they land", the streams module already provides it — [`mapPar`](streams/concurrent-operators.md#mappar), [`mergeAll`](streams/concurrent-operators.md#mergeall), and `mapParAsync` — with backpressure, ordering rules, and resource cleanup you would otherwise write yourself. The selector exists because those operators needed a primitive underneath them, and the streams concurrency engine is its only production consumer.
+
+What it gives you is a **repeatable** multi-way wait. You hand it a fixed number of slots, each holding an independently-pending computation. `select` waits until one of them completes, hands you the winning slot index along with its value, and disarms that slot. `replace` arms the same slot with its next computation, and you select again. That loop is the whole point: a fan-in that runs for the life of a connection, a worker pool that keeps N requests in flight, anything where the same slot is re-used thousands of times.
+
+A hand-rolled race loop can do the first round of that, but not the thousandth. Racing N computations registers a callback on every loser, and the losers survive into the next round, so a fresh callback piles up on each of them every time round. The selector instead keeps **one stable waker per armed slot** for as long as that slot stays armed, no matter how many selections pass over it.
+
+Selection is round-robin rather than first-past-the-post. The scan starts at the slot *after* the previous winner, so a slot that is continuously eligible — armed, and with a completed computation — wins within at most the number of currently armed slots selections. No slot can be starved by a faster neighbour.
+
+The public surface is small:
+
+```scala
+final class AsyncSelector[A] extends Cancelable {
+  def size: Int
+  def replace(index: Int, value: => Async[A]): Unit
+  def select: Async[(Int, A)]
+  def shutdown: Async[Unit]
+  override def cancel(): Unit
+}
+```
+
+You never construct one directly; `Async.selector` does it:
+
+```scala
+def selector[A](inputs: IndexedSeq[Async[A]]): AsyncSelector[A]
+```
+
+The `inputs` sequence fixes the slot count for the life of the selector — `size` reports it, and it never changes, disarmed slots included. Here is the full loop:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val selector: AsyncSelector[Int] =
+  Async.selector(Vector(Async.succeed(10), Async.succeed(20), Async.succeed(30)))
+
+// Whichever slot is eligible, scanning from just after the previous winner.
+val (firstSlot, firstValue) = selector.select.block
+
+// Re-arm the slot that just won. Until this runs, that slot sits disarmed
+// and is skipped by every selection.
+selector.replace(firstSlot, Async.succeed(firstValue + 1))
+
+val (secondSlot, secondValue) = selector.select.block
+
+// Cancel every still-armed loser and join all of their cleanup.
+selector.shutdown.block
+```
+
+Four rules keep that loop honest:
+
+- **A slot can only be armed when it is disarmed.** `replace` on a slot that is still armed throws `IllegalStateException("selector slot N is already armed")`, and `replace` after shutdown throws `IllegalStateException("selector is closed")`. The safe pattern is the one above: re-arm the index you were just handed by `select`, and nothing else.
+- **`value` is by-name for a reason.** The thunk is evaluated lazily and outside the selector's own lock, so constructing the next computation cannot deadlock against a concurrent `select`. A thunk that returns `null` is reified as a failed `Async` carrying `NullPointerException("selector input returned null Async")` rather than corrupting the slot.
+- **A winner is removed exactly once.** Disarming happens atomically with the win, so the same completion cannot be handed to two selections, and a failure from an input surfaces as a failed `select` rather than poisoning the selector.
+- **`shutdown` is where cleanup is joined.** It cancels every armed loser, is idempotent, and — importantly — does not complete until cleanup for every still-armed loser has finished. `cancel()` is the `Cancelable` spelling of the same thing: it starts `shutdown` and returns immediately without waiting. Use `cancel()` when the selector is a resource being closed on the way out of a scope, and `shutdown` when you need to know the cleanup actually finished.
+
+:::warning[`.block` per selection is for the example only]
+The snippet above blocks once per round so it reads top to bottom. Real code composes `select` like any other `Async` — `flatMap` it, or `await` it inside `Async.async` — and blocks once at the edge, if at all. Blocking inside a driver deadlocks it; see [Driving](#driving).
+:::
+
 ## Failure
 
 `Failure` is how a failed `Async` is represented. You never construct one — `Async.fail` and `Completer#fail` produce it, `catchAll` and `either` recover from it — but it explains why a failure travels through a chain untouched: it extends `Pollable[Nothing]`, and `map` and `flatMap` return it unchanged instead of running their functions.
 
 ```scala
-final class Failure(val cause: Throwable) extends Pollable[Nothing]
+final class Failure private (val cause: Throwable, private[async] val trusted: Boolean) extends Pollable[Nothing] {
+
+  /** Public construction is deliberately an ordinary, untrusted failure. */
+  def this(cause: Throwable) = this(cause, false)
+
+  def poll(onComplete: Runnable): Async[Nothing] = this
+}
 ```
+
+The one-argument constructor is the only one you can call, and it produces an ordinary, untrusted failure. The `trusted` flag is `private[async]`: it marks a failure that entered through the module's own internals rather than through user code, so that the runtime can take a faster path for it. It changes nothing you can observe — `cause` is the same `Throwable` either way, and every recovery combinator treats both kinds identically.
 
 [`block`](#driving) re-throws `cause`; `catchAll` hands your recovery function the original `Throwable`, unwrapped; [`either`](#error-handling) turns it into a `Left` instead.
 
@@ -1262,17 +1411,75 @@ final class Failure(val cause: Throwable) extends Pollable[Nothing]
 
 The core API behaves identically everywhere by design, and the cross-platform test suite fails if any user-visible core behaviour diverges. What varies is the interop surface, which is deliberately platform-specific, and the two operations that depend on having a thread:
 
-| Feature                         | JVM | Scala.js | How it differs                                                     |
-|---------------------------------|:---:|:--------:|--------------------------------------------------------------------|
-| Constructors and combinators    | yes |   yes    | Identical on both                                                  |
-| `Async.async` / `await`         | yes |   yes    | Different backend per platform — see [Direct Style](#direct-style) |
-| `block` on a pending value      | yes |    no    | Throws on Scala.js: no thread to park                              |
-| `Async.start` / `Async.Running` | yes |   yes    | Worker thread on the JVM, microtasks on Scala.js                   |
-| `Future` interop                | yes |   yes    | Same API on both                                                   |
-| `CompletionStage` interop       | yes |    no    | JVM only                                                           |
-| `js.Promise` interop            |  no |   yes    | Scala.js only                                                      |
+| Feature                      | JVM | Scala.js | How it differs                                                     |
+|------------------------------|:---:|:--------:|--------------------------------------------------------------------|
+| Constructors and combinators | yes |   yes    | Identical on both                                                  |
+| `Async.async` / `await`      | yes |   yes    | Different backend per platform — see [Direct Style](#direct-style) |
+| `block` on a pending value   | yes |    no    | Throws on Scala.js: no thread to park                              |
+| `fa.start` / `Async.Running` | yes |   yes    | Serialized `ForkJoinPool` tasks on the JVM, microtasks on Scala.js |
+| `Async.start(body)`          | yes |   yes    | Daemon thread on the JVM, the next microtask on Scala.js           |
+| `Future` interop             | yes |   yes    | Same API on both                                                   |
+| `CompletionStage` interop    | yes |    no    | JVM only                                                           |
+| `js.Promise` interop         |  no |   yes    | Scala.js only                                                      |
 
 All of it works on Scala 2.13 and Scala 3.
+
+### Where Suspended Work Runs
+
+On the **JVM**, a suspended run is a chain of serialized tasks on `ForkJoinPool.commonPool()`. There is no dedicated worker thread per run and no pool of the module's own: a task exits the moment its current pollable is still pending, and the waker that `poll` registered submits the next task. A run that spends most of its life waiting therefore occupies no thread at all while it waits.
+
+The one exception is `Async.start(body)`, which evaluates an arbitrary synchronous block rather than driving an `Async`. That block gets a thread of its own — a daemon named `zio-blocks-async-eval`.
+
+`block` parks with `LockSupport.park` / `unpark` rather than a monitor, which is a deliberate choice for **virtual threads**: a parked virtual thread (JDK 21+) unmounts its carrier instead of pinning it. The module is Loom-*friendly* in this sense, but it is not Loom-based — it configures no virtual-thread executor, and running on a virtual thread is entirely the caller's decision.
+
+On **Scala.js** there is no thread to hand work to, so scheduling goes through `JSExecutionContext.queue` as microtasks, with a `setTimeout(0)` macrotask escape for work that must yield back to the host event loop. A cap of 1024 consecutive ready resumptions bounds how long a run of already-ready steps can hold the queue before yielding, so a long synchronous chain cannot starve rendering or I/O.
+
+That is also why `block` cannot work there. A pending value gets one chance to complete synchronously inside `poll`; if it has not, `block` throws:
+
+```
+java.lang.IllegalStateException: Async.block: suspension did not complete synchronously
+and JavaScript cannot block. Drive the Pollable from a non-blocking entry point instead.
+```
+
+:::note[There is no blocking-operations API]
+The async module has no `attemptBlocking`, no blocking thread pool, and no way to mark an operation as blocking. `block` is the only "blocking" thing in it, and it is a terminal — the point where you leave `Async` and go back to synchronous code, not a place to put a blocking call. Run genuinely blocking work on a thread you control, for example with `Async.start(body)`, and bridge the result back through the resulting `Running`.
+:::
+
+## Using Async with Streams
+
+`zio-blocks-streams` depends on this module, so `Async` is not a neighbouring library to streams — it is part of the streams vocabulary. Every cross-platform stream terminal hands you an `Async`, and everything on this page applies to the value you get back.
+
+One convention travels with it. Stream terminals return `Async[Either[E, Z]]`, never `Async[Z]`, because a stream has a typed error channel and `Async` does not. The two are deliberately kept apart:
+
+- The stream's **typed** error `E` stays inside the `Either`. A stream that fails with a typed error still completes its `Async` *successfully*, carrying a `Left`.
+- `Async`'s own untyped `Throwable` channel is reserved for **defects** — a callback that threw, a finalizer that failed, a cleanup failure. Those fail the outer `Async` and never appear as a `Left`.
+
+So `catchAll` on a stream terminal recovers bugs, not the errors the stream declares. Those you match on:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import zio.blocks.streams._
+
+val readings: Stream[String, Int] = Stream(12, 7, 30)
+
+// A terminal is an ordinary Async, so every combinator on this page applies.
+val summary: Async[String] =
+  readings.runCollectAsync.map(result =>
+    result match {
+      case Right(values) => s"collected ${values.length} readings"
+      case Left(error)   => s"typed error: $error"
+    }
+  )
+
+// At the edge of a JVM `main`, and nowhere else:
+val text: String = summary.block
+```
+
+`.block` is the edge-of-the-world move described under [Driving](#driving), and the same two limits hold: never inside a stream callback or a `poll`, and never on Scala.js, where it throws. Cross-platform stream code keeps the `Async` and hands it to the host — `toFuture`, `toJsPromise` — or stays inside `Async.async { … }` and uses `await`.
+
+Cancellation carries across too: cancelling a running stream is the [`Cancelable`](#cancelable) contract on this page, applied to a reader rather than a single leaf.
+
+[Asynchronous Stream Execution](streams/async-execution.md) is the reference for all of it — the terminal family, the async source constructors and operators, manual pull and reader ownership, and what cancelling a stream cleans up.
 
 ## Running the Examples
 
@@ -1286,6 +1493,7 @@ sbt "async-examples/run"
 
 ## See Also
 
+- [Asynchronous Stream Execution](streams/async-execution.md) — the `Async` terminal family, async source constructors and operators, reader ownership, and stream cancellation
 - [Stream Reference](streams/stream.md) — pull-based streaming with resource safety; use `Async.promise` and `Completer` to bridge callback-based push sources into the pull-based stream model
 - [Scope Reference](resource-management/scope.md) — compile-time resource safety; `Async.Running` extends `AutoCloseable` and can be used inside `scala.util.Using` or any Scope-managed context for structured cancellation
 - [Compile-Time Resource Safety with Scope](../guides/compile-time-resource-safety-with-scope.md) — step-by-step tutorial on resource ownership that applies equally to `Async.Running` handles
