@@ -482,7 +482,7 @@ cd zio-blocks
 
 ### Basic Usage
 
-This example demonstrates all six Pipeline factory methods: `map`, `filter`, `collect`, `take`, `drop`, and `identity`. Here is the source code:
+This example demonstrates six of the Pipeline factory methods: `map`, `filter`, `collect`, `take`, `drop`, and `identity`. Here is the source code:
 
 ```scala mdoc:passthrough
 import docs.SourceFile

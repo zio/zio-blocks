@@ -18,11 +18,15 @@ import TabItem from '@theme/TabItem';
 
 ```scala
 abstract class Stream[+E, +A] {
-  def runAsync[E2 >: E, Z](sink: Sink[E2, A, Z]): Async[Either[E2, Z]]
+  def runAsync[ES, E3, Z](sink: Sink[ES, A, Z])(implicit
+    errorConcat: Concat.WithOut[E, ES, E3]
+  ): Async[Either[E3, Z]]
   def runCollectAsync: Async[Either[E, Chunk[A]]]
 
   // JVM only
-  def run[E2 >: E, Z](sink: Sink[E2, A, Z]): Either[E2, Z]
+  def run[ES, E3, Z](sink: Sink[ES, A, Z])(implicit
+    errorConcat: Concat.WithOut[E, ES, E3]
+  ): Either[E3, Z]
 }
 ```
 
@@ -761,7 +765,7 @@ Maintains state while transforming each element:
 
 ```scala
 trait Stream[+E, +A] {
-  def mapAccum[S, B](init: S)(f: (S, A) => (S, B)): Stream[E, B]
+  def mapAccum[S, B](init: S)(f: (S, A) => (S, B))(implicit jtB: JvmType.Infer[B]): Stream[E, B]
 }
 ```
 
@@ -805,7 +809,7 @@ Like `mapAccum`, but also emits the state at each step (not the mapped value):
 
 ```scala
 trait Stream[+E, +A] {
-  def scan[S](init: S)(f: (S, A) => S): Stream[E, S]
+  def scan[S](init: S)(f: (S, A) => S)(implicit jtS: JvmType.Infer[S]): Stream[E, S]
 }
 ```
 
@@ -1601,7 +1605,7 @@ Folds all elements using an accumulator, returning the final result:
 
 ```scala
 trait Stream[+E, +A] {
-  def runFold[Z](z: Z)(f: (Z, A) => Z): Either[E, Z]
+  def runFold[Z](z: Z)(f: (Z, A) => Z)(implicit jtZ: JvmType.Infer[Z]): Either[E, Z]
 }
 ```
 

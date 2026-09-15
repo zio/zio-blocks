@@ -152,7 +152,7 @@ That is the whole reason classification exists. It is also the reason a purely s
 Two things readers look for here, and will not find:
 
 - **No type-level marker.** `Stream[E, A]` carries no phantom parameter, no `Sync`/`Async` tag, and no evidence that says which way a description will compile. You cannot write a signature that only accepts asynchronous streams, and you cannot ask a `Stream` value whether it will materialize asynchronously.
-- **No public lane diagnostic.** The primitive representation a stream uses internally — its physical pull lane — is not reported by any public API either. `JvmType.Infer` reports the static type, which is exactly the thing the representation machinery stopped trusting. See [Zero-Boxing Optimization](./zero-boxing.md) for what the lanes are and how one is chosen.
+- **No public lane diagnostic.** A `Stream` exposes no lane of its own; `Reader#jvmType` reports the lane of a reader you already hold, which answers a narrower question than whether every fused stage preserved it. `JvmType.Infer` reports the static type, which is exactly the thing the representation machinery stopped trusting. See [Zero-Boxing Optimization](./zero-boxing.md) for what the lanes are and how one is chosen.
 
 If you need to control the kind rather than observe it, use the union-preserving `Stream.fromReader` overloads below: they let you hand a specific reader kind to the stream.
 

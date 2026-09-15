@@ -254,7 +254,7 @@ Folds all elements using an accumulator function, starting from initial value `z
 
 ```scala
 object Sink {
-  def foldLeft[A, Z](z: Z)(f: (Z, A) => Z): Sink[Nothing, A, Z]
+  def foldLeft[A, Z](z: Z)(f: (Z, A) => Z)(implicit jtZ: JvmType.Infer[Z]): Sink[Nothing, A, Z]
 }
 ```
 
@@ -570,7 +570,7 @@ Every sink can be transformed using these instance methods:
 Transforms the input elements before they reach the sink. The sink's result and error types are unchanged:
 
 ```scala
-trait Sink[+E, -A, +Z] {
+abstract class Sink[+E, -A, +Z] {
   def contramap[A0 <: A, A2](g: A2 => A0)(implicit jtA0: JvmType.Infer[A0]): Sink[E, A2, Z]
 }
 ```
@@ -594,7 +594,7 @@ val result = Stream("hello", "world").run(totalLength)
 Transforms the result after the sink finishes draining:
 
 ```scala
-trait Sink[+E, -A, +Z] {
+abstract class Sink[+E, -A, +Z] {
   def map[Z2](f: Z => Z2): Sink[E, A, Z2]
 }
 ```
@@ -615,7 +615,7 @@ val result = Stream(1, 2, 3).run(countAsString)
 Transforms the error channel of a sink:
 
 ```scala
-trait Sink[+E, -A, +Z] {
+abstract class Sink[+E, -A, +Z] {
   def mapError[E2](f: E => E2)(implicit isNothing: Sink.IsNothing[E]): Sink[E2, A, Z]
 }
 ```
@@ -638,7 +638,7 @@ val failing = Sink.fail("oops").mapError[RuntimeException](new RuntimeException(
 Applies an asynchronous function to each element before it reaches the sink:
 
 ```scala
-trait Sink[+E, -A, +Z] {
+abstract class Sink[+E, -A, +Z] {
   def contramapAsync[A0 <: A, A2](g: A2 => Async[A0])(implicit jtA0: JvmType.Infer[A0]): Sink[E, A2, Z]
 }
 ```
@@ -662,7 +662,7 @@ val result: Async[Either[Nothing, Long]] =
 Transforms the result asynchronously after the sink finishes draining:
 
 ```scala
-trait Sink[+E, -A, +Z] {
+abstract class Sink[+E, -A, +Z] {
   def mapAsync[Z2](f: Z => Async[Z2]): Sink[E, A, Z2]
 }
 ```
@@ -685,7 +685,7 @@ val result: Async[Either[Nothing, String]] =
 Transforms the typed error channel asynchronously:
 
 ```scala
-trait Sink[+E, -A, +Z] {
+abstract class Sink[+E, -A, +Z] {
   def mapErrorAsync[E2](f: E => Async[E2])(implicit isNothing: Sink.IsNothing[E]): Sink[E2, A, Z]
 }
 ```

@@ -262,7 +262,7 @@ drain()
 
 ```scala
 object Reader {
-  def fromIterable[A](it: Iterable[A]): Reader.SyncReader[A]
+  def fromIterable[A](it: Iterable[A])(implicit jt: JvmType.Infer[A]): Reader.SyncReader[A]
 }
 ```
 
@@ -513,11 +513,11 @@ For primitive types, specialized methods avoid boxing by widening the return typ
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readInt(sentinel: Long)(using Elem <:< Int): Long
+  def readInt(sentinel: Long)(implicit ev: Elem <:< Int): Long
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readInt(sentinel: Long)(using Elem <:< Int): Async[Long]
+  def readInt(sentinel: Long)(implicit ev: Elem <:< Int): Async[Long]
 }
 ```
 
@@ -527,11 +527,11 @@ Why widen to `Long`? If `Reader#readInt` returned `Int`, you couldn't distinguis
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readLong(sentinel: Long)(using Elem <:< Long): Long
+  def readLong(sentinel: Long)(implicit ev: Elem <:< Long): Long
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readLong(sentinel: Long)(using Elem <:< Long): Async[Long]
+  def readLong(sentinel: Long)(implicit ev: Elem <:< Long): Async[Long]
 }
 ```
 
@@ -541,11 +541,11 @@ The scalar API necessarily permits a collision with the caller's sentinel. Colli
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readFloat(sentinel: Double)(using Elem <:< Float): Double
+  def readFloat(sentinel: Double)(implicit ev: Elem <:< Float): Double
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readFloat(sentinel: Double)(using Elem <:< Float): Async[Double]
+  def readFloat(sentinel: Double)(implicit ev: Elem <:< Float): Async[Double]
 }
 ```
 
@@ -555,11 +555,11 @@ Like `Reader#readInt`, widening to `Double` allows the sentinel to lie safely ou
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readDouble(sentinel: Double)(using Elem <:< Double): Double
+  def readDouble(sentinel: Double)(implicit ev: Elem <:< Double): Double
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readDouble(sentinel: Double)(using Elem <:< Double): Async[Double]
+  def readDouble(sentinel: Double)(implicit ev: Elem <:< Double): Async[Double]
 }
 ```
 
@@ -628,11 +628,11 @@ The method signature is:
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readBytes(buf: Array[Byte], offset: Int, len: Int)(using Elem <:< Byte): Int
+  def readBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Elem <:< Byte): Int
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readBytes(buf: Array[Byte], offset: Int, len: Int)(using Elem <:< Byte): Async[Int]
+  def readBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Elem <:< Byte): Async[Int]
 }
 ```
 
@@ -668,11 +668,11 @@ drainBulk()
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readChar(sentinel: Int)(using Elem <:< Char): Int
+  def readChar(sentinel: Int)(implicit ev: Elem <:< Char): Int
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readChar(sentinel: Int)(using Elem <:< Char): Async[Int]
+  def readChar(sentinel: Int)(implicit ev: Elem <:< Char): Async[Int]
 }
 ```
 
@@ -680,11 +680,11 @@ abstract class Reader.AsyncReader[+Elem] {
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readShort(sentinel: Int)(using Elem <:< Short): Int
+  def readShort(sentinel: Int)(implicit ev: Elem <:< Short): Int
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readShort(sentinel: Int)(using Elem <:< Short): Async[Int]
+  def readShort(sentinel: Int)(implicit ev: Elem <:< Short): Async[Int]
 }
 ```
 
@@ -692,11 +692,11 @@ abstract class Reader.AsyncReader[+Elem] {
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readBoolean(sentinel: Int)(using Elem <:< Boolean): Int
+  def readBoolean(sentinel: Int)(implicit ev: Elem <:< Boolean): Int
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readBoolean(sentinel: Int)(using Elem <:< Boolean): Async[Int]
+  def readBoolean(sentinel: Int)(implicit ev: Elem <:< Boolean): Async[Int]
 }
 ```
 
@@ -725,7 +725,7 @@ val all = r.readAll()
 println(all)  // Chunk(10, 20, 30)
 ```
 
-`Reader#readN` and `Reader#readUpToN` — Bounded drains. `readN` gathers up to `n` elements, returning early only when the reader is exhausted; `readUpToN` gathers between 1 and `n` elements and stops as soon as the next element is not already available, so it never waits for a slow producer to fill the request. Both produce an empty chunk when `n <= 0` or the reader is at end-of-stream:
+`Reader#readN` and `Reader#readUpToN` — Bounded drains. `readN` gathers up to `n` elements, returning early only when the reader is exhausted; `readUpToN` gathers at most `n` elements and stops as soon as the next element is not already available, so it never waits for a slow producer to fill the request. Both produce an empty chunk when `n <= 0` or the reader is at end-of-stream:
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {

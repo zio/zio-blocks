@@ -76,7 +76,7 @@ object Reader {
     def readDoubles(buf: Array[Double], offset: Int, maxLen: Int)(implicit ev: Elem <:< Double): Int
   }
 
-  abstract class AsyncReader[+Elem] extends Reader[Elem] {
+  abstract class AsyncReader[+Elem] extends Reader[Elem] with AsyncReaderPlatform[Elem] {
     def read[A >: Elem](sentinel: A): Async[A]
     def readBoolean(_sentinel: Int)(implicit _ev: Elem <:< Boolean): Async[Int]
     def readInt(_sentinel: Long)(implicit _ev: Elem <:< Int): Async[Long]
@@ -232,7 +232,7 @@ All eleven are recorded as remediated, each marked complete only after its speci
 
 A pull has to be able to say "there are no more elements" without allocating an `Option` to say it in, so every lane reports exhaustion out of band. The schemes differ because the lanes differ. The authority is the nine-branch dispatch in `Sink.foldSyncReader`; the library's other drain loops — `Reader#readAll`, `Sink.exists`, `Sink.find`, the asynchronous puller — use the same scheme for each lane.
 
-| Lane      | Pull used by the drain loop  | Carrier          | End of stream                       |
+| Lane      | Public pull for this lane    | Carrier          | End of stream                       |
 |-----------|------------------------------|------------------|-------------------------------------|
 | `Boolean` | `readBoolean(-1)`            | `Int`            | any negative value                  |
 | `Byte`    | `readByte()`                 | `Int`            | `-1`; takes no sentinel parameter   |

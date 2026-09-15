@@ -356,7 +356,7 @@ For primitive types, specialized write methods avoid boxing by using subtype wit
 
 ```scala
 abstract class Writer[-Elem] {
-  def writeInt(value: Int)(using Int <:< Elem): Boolean
+  def writeInt(value: Int)(implicit ev: Int <:< Elem): Boolean
 }
 ```
 
@@ -364,7 +364,7 @@ abstract class Writer[-Elem] {
 
 ```scala
 abstract class Writer[-Elem] {
-  def writeLong(value: Long)(using Long <:< Elem): Boolean
+  def writeLong(value: Long)(implicit ev: Long <:< Elem): Boolean
 }
 ```
 
@@ -372,7 +372,7 @@ abstract class Writer[-Elem] {
 
 ```scala
 abstract class Writer[-Elem] {
-  def writeFloat(value: Float)(using Float <:< Elem): Boolean
+  def writeFloat(value: Float)(implicit ev: Float <:< Elem): Boolean
 }
 ```
 
@@ -380,7 +380,7 @@ abstract class Writer[-Elem] {
 
 ```scala
 abstract class Writer[-Elem] {
-  def writeDouble(value: Double)(using Double <:< Elem): Boolean
+  def writeDouble(value: Double)(implicit ev: Double <:< Elem): Boolean
 }
 ```
 
@@ -390,7 +390,7 @@ abstract class Writer[-Elem] {
 
 ```scala
 abstract class Writer[-Elem] {
-  def writeByte(b: Byte)(using Byte <:< Elem): Boolean
+  def writeByte(b: Byte)(implicit ev: Byte <:< Elem): Boolean
 }
 ```
 
@@ -398,7 +398,7 @@ abstract class Writer[-Elem] {
 
 ```scala
 abstract class Writer[-Elem] {
-  def writeBytes(buf: Array[Byte], offset: Int, len: Int)(using Byte <:< Elem): Int
+  def writeBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Elem): Int
 }
 ```
 
@@ -406,7 +406,7 @@ abstract class Writer[-Elem] {
 
 ```scala
 abstract class Writer[-Elem] {
-  def writeChar(value: Char)(using Char <:< Elem): Boolean
+  def writeChar(value: Char)(implicit ev: Char <:< Elem): Boolean
 }
 ```
 
@@ -414,7 +414,7 @@ abstract class Writer[-Elem] {
 
 ```scala
 abstract class Writer[-Elem] {
-  def writeShort(value: Short)(using Short <:< Elem): Boolean
+  def writeShort(value: Short)(implicit ev: Short <:< Elem): Boolean
 }
 ```
 
@@ -422,7 +422,7 @@ abstract class Writer[-Elem] {
 
 ```scala
 abstract class Writer[-Elem] {
-  def writeBoolean(value: Boolean)(using Boolean <:< Elem): Boolean
+  def writeBoolean(value: Boolean)(implicit ev: Boolean <:< Elem): Boolean
 }
 ```
 
