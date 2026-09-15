@@ -110,15 +110,13 @@ object HeaderCodecSpec extends ZIOSpecDefault {
         def encode(value: Int, output: HeadersBuilder): Unit =
           output.add("Value", s"custom-$value")
 
-        def decode(input: Headers): Either[SchemaError, Int] = {
-          val raw = input.rawGet("Value")
-          raw match {
-            case Some(s) if s.startsWith("custom-") =>
-              Right(s.stripPrefix("custom-").toInt)
-            case other =>
-              Left(SchemaError(s"Expected custom- prefix, got: $other"))
-          }
-        }
+        def decode(input: Headers): Either[SchemaError, Int] =
+          input
+            .rawGet("Value")
+            .fold(Left(SchemaError("Expected custom- prefix, got: absent")): Either[SchemaError, Int]) { s =>
+              if (s.startsWith("custom-")) Right(s.stripPrefix("custom-").toInt)
+              else Left(SchemaError(s"Expected custom- prefix, got: $s"))
+            }
       }
       val codec = Schema[Int].deriving(HeaderCodecDeriver).instance(TypeId.int, customIntCodec).derive
 

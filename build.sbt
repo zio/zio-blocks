@@ -347,6 +347,7 @@ lazy val root = project
     scalaNextTests.js,
     benchmarks,
     `scope-benchmarks`,
+    `http-model-benchmarks`,
     `sql-benchmarks`,
     `streams-benchmark`,
     docs,
@@ -1103,6 +1104,18 @@ lazy val `http-model-examples` = project
     coverageMinimumBranchTotal := 0
   )
   .dependsOn(`http-model`.jvm)
+
+lazy val `http-model-benchmarks` = project
+  .in(file("http-model-benchmarks"))
+  .settings(stdSettings("zio-blocks-http-model-benchmarks", Seq("3.9.0")))
+  .dependsOn(`http-model`.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
 
 lazy val `zio-blocks-htmx-examples` = project
   .in(file("zio-blocks-htmx-examples"))
