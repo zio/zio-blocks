@@ -244,8 +244,12 @@ const sidebars = {
               "reference/streams/sink",
               "reference/streams/reader",
               "reference/streams/writer",
+              "reference/streams/async-execution",
               "reference/streams/concurrent-operators",
+              "reference/streams/async-io",
+              "reference/streams/platform-differences",
               "reference/streams/zero-boxing",
+              "reference/streams/migration",
               "reference/streams/scala-2-compatibility",
             ]
           },

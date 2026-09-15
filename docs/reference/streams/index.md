@@ -3,7 +3,7 @@ id: index
 title: "Streams"
 ---
 
-`zio.blocks.streams` is a **pull-based** streaming library for **Scala 3** (and Scala 2.13) with synchronous and asynchronous readers, typed errors, resource safety, and primitive specialization. Streams are lazy descriptions -- nothing executes until a terminal operation is driven. Cross-platform terminals ending in `Async` return `Async[Either[E, Z]]`; the JVM also provides blocking terminals returning `Either[E, Z]`. The library has zero runtime dependencies beyond ZIO Blocks modules, and achieves zero-boxing on primitive element types (`Int`, `Long`, `Float`, `Double`) through JVM-type-specialized internal readers.
+`zio.blocks.streams` is a **pull-based** streaming library for **Scala 3** (and Scala 2.13) with synchronous and asynchronous readers, typed errors, resource safety, and primitive specialization. Streams are lazy descriptions -- nothing executes until a terminal operation is driven. Cross-platform terminals ending in `Async` return `Async[Either[E, Z]]`; the JVM also provides blocking terminals returning `Either[E, Z]`. The library has zero runtime dependencies beyond ZIO Blocks modules, and avoids boxing on primitive element types through JVM-type-specialized internal readers.
 
 ZIO Blocks Streams is built on three composable primitives:
 
@@ -59,7 +59,7 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "@VERSION@"
 
 Supported Scala versions: 2.13.x and 3.x.
 
-When updating code written against the earlier specialization API, see the [specialization migration notes](./specialization-migration.md).
+When updating code written against an earlier release -- the specialization API, the blocking terminals, or a custom `Sink` -- see the [Migration Guide](./migration.md).
 
 ## Why Streams?
 
@@ -136,6 +136,13 @@ Operations on streams transform the pipeline and ultimately run it against a sin
 │ (or blocking Either on JVM)      │
 └──────────────────────────────────┘
 ```
+
+The last box is where the flow forks. The same `Stream` description is materialized either as a
+synchronous reader, drained on the calling thread by a blocking terminal such as `run` or
+`runCollect`, or as an asynchronous reader, driven without blocking by the matching `*Async`
+terminal. Which engine runs is decided by the source and operators the pipeline is built from, not
+by the terminal you call. See [Async Execution](./async-execution.md) for how that classification
+works.
 
 
 ### 1) `Stream[E, A]` -- a lazy sequence
@@ -247,6 +254,33 @@ val countLong: Sink[Nothing, String, Long] =
     .andThenSink(Sink.sumInt)
 ```
 
+## Synchronous and asynchronous execution
+
+There is one `Stream` type. It serves both execution modes, and there is no mode type parameter, no
+`AsyncStream`, and no annotation to write.
+
+The type that decides is [`Reader`](./reader.md), not `Stream`. Materializing a stream yields either
+a `Reader.SyncReader[A]`, whose pulls return values directly, or a `Reader.AsyncReader[A]`, whose
+pulls return `Async` values. A pipeline that is synchronous end to end materializes as the former; a
+single asynchronous source or operator anywhere in it makes the whole pipeline asynchronous.
+
+The `*Async` terminals -- `runAsync`, `runCollectAsync`, `runDrainAsync`, `runFoldAsync`,
+`countAsync`, `headAsync`, and their peers -- are the cross-platform API. They all return
+`Async[Either[E, Z]]`: the typed error `E` stays inside the `Either`, while the outer `Async` fails
+only on a defect. They drive a synchronous pipeline just as correctly as an asynchronous one, so
+shared JVM/Scala.js code can use them unconditionally.
+
+The blocking terminals -- `run`, `runCollect`, `runDrain`, `runFold`, `count`, `head`, and their
+peers -- are **JVM-only** compatibility twins returning a bare `Either[E, Z]`. They do not exist on
+Scala.js, and cross-compiled sources cannot call them.
+
+- [Async Execution](./async-execution.md) -- the full execution model: classification, the `Reader`
+  union, the async source constructors, operators, and terminals.
+- [Platform Differences](./platform-differences.md) -- the availability matrix of every member that
+  differs between the JVM and Scala.js.
+- [Migration Guide](./migration.md) -- what changed for existing blocking code, and the edit for
+  each break.
+
 ## Error Handling
 
 Streams distinguish between two kinds of failures:
@@ -282,7 +316,9 @@ This eliminates the need for manual try/finally when working with resources — 
 
 ## Primitive Specialization
 
-ZB Streams eliminates boxing for `Int`, `Long`, `Float`, and `Double` elements throughout the entire pipeline. Every intermediate step uses specialized `readInt`/`readLong`/`readFloat`/`readDouble` methods, so no `java.lang.Integer` wrappers are allocated.
+ZB Streams carries the JVM representation of the element type through the whole pipeline, so a stream of primitives is not boxed at each stage boundary. Specialization is not limited to `Int`, `Long`, `Float`, and `Double`: there are **nine logical lanes** -- the eight primitive pull identities `Boolean`, `Byte`, `Short`, `Char`, `Int`, `Long`, `Float`, and `Double`, plus the reference fallback -- and the synchronous interpreter compacts them into **five storage lanes**: int-like (`Boolean`/`Byte`/`Short`/`Char`/`Int`), `Long`, `Float`, `Double`, and reference. Nine logical lanes therefore does not mean nine interpreter arrays; the operator tag selects the identity-specific reads over the shared storage.
+
+[Zero-Boxing Streams](./zero-boxing.md) explains how a lane is chosen and what the specialization evidence is for. [Migration Guide](./migration.md) covers the source-compatibility breaks this generalization introduced.
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
@@ -306,7 +342,7 @@ This matters most for numeric workloads — data processing, statistics, encodin
 - **Use the auto-closing I/O constructors** (`fromInputStream`, `fromJavaReader`, `NioStreams.fromChannel`) by default. Only use the `Unmanaged` variants when you need to borrow a resource whose lifetime is managed elsewhere.
 - **Use `Pipeline`** when you have a transformation you want to reuse across multiple streams or apply to sinks.
 - **Use `&&` for zipping** instead of manual zip calls. Tuples flatten automatically: `a && b && c` produces `(A, B, C)` not `((A, B), C)`.
-- **Leverage primitive specialization** for numeric workloads. Streams of `Int`, `Long`, `Float`, and `Double` avoid boxing automatically; use `Sink.sumInt`, `runFold(0)(_ + _)`, etc. for zero-allocation folds.
+- **Leverage primitive specialization** for numeric workloads. Streams of any primitive element type avoid boxing automatically on the synchronous path; use `Sink.sumInt`, `runFold(0)(_ + _)`, etc. for allocation-free folds.
 - **Use `scan` for running accumulators**, `grouped` for batching, and `sliding` for windowed computations.
 - **Use `render`/`toString`** to inspect pipeline structure during debugging — it shows each transformation stage without executing the stream.
 - **Use `Sink.create`** as an escape hatch when none of the built-in sinks fit.
@@ -430,7 +466,7 @@ val s2: Stream[OtherError, Int] = Stream.fromIterable(List(4, 5, 6))
 
 ### Primitive specialization
 
-ZB Streams eliminates boxing for `Int`, `Long`, `Float`, and `Double` elements throughout the entire pipeline. Every intermediate step uses specialized `readInt`/`writeInt` (or the corresponding type) methods, so no `java.lang.Integer` wrappers are allocated.
+All nine logical lanes are specialized, not only `Int`, `Long`, `Float`, and `Double`. Every intermediate step uses the identity-specific read (`readInt`, `readByte`, `readChar`, and so on), so no `java.lang.Integer` wrappers are allocated between stages.
 
 ```scala mdoc:compile-only
 // This entire pipeline runs with ZERO boxing of the Int elements.
@@ -483,6 +519,49 @@ s.find(_ > 7)             // Right(Some(8))
 s.run(Sink.sumInt)        // Right(55L)
 s.run(Sink.take(3))       // Right(Chunk(1, 2, 3))
 ```
+
+---
+
+### Async execution
+
+`runCollectAsync` is the cross-platform twin of `runCollect`. It returns `Async[Either[E, Chunk[A]]]`
+rather than `Either[E, Chunk[A]]`, so it never blocks and compiles on both the JVM and Scala.js:
+
+```scala mdoc:compile-only
+import zio.blocks.streams._
+import zio.blocks.chunk.Chunk
+import zio.blocks.async._
+
+val evens: Stream[Nothing, Int] =
+  Stream.range(1, 100).filter(_ % 2 == 0).map(_ * 3)
+
+// Still a description -- nothing has run.
+val pending: Async[Either[Nothing, Chunk[Int]]] = evens.take(5).runCollectAsync
+
+// Stay in Async: map the result rather than extracting it.
+val described: Async[String] = pending.map {
+  case Right(values) => s"collected ${values.length} elements"
+  case Left(error)   => s"failed: $error"
+}
+```
+
+Something has to drive the `Async` at the edge of the world. On the JVM that is `.block`, which
+belongs in `main` or a test and nowhere else:
+
+```scala mdoc:compile-only
+import zio.blocks.streams._
+import zio.blocks.chunk.Chunk
+import zio.blocks.async._
+
+// JVM only: Async#block throws on Scala.js.
+val result: Either[Nothing, Chunk[Int]] =
+  Stream.range(1, 100).filter(_ % 2 == 0).take(5).runCollectAsync.block
+// Right(Chunk(2, 4, 6, 8, 10))
+```
+
+Scala.js code keeps the `Async` and hands it to the host runtime instead. See
+[Async Execution](./async-execution.md) for the full terminal family and
+[Platform Differences](./platform-differences.md) for what is available where.
 
 ---
 
@@ -670,3 +749,12 @@ Stream.fromIterable(List("10", "abc", "-3", "7", "0", "25"))
   .run(sumPositiveDoubled)
 // Right(84L)
 ```
+
+## See Also
+
+- [Async Execution](./async-execution.md) -- the synchronous/asynchronous execution model, the `Reader` union, and the `*Async` terminal family
+- [Platform Differences](./platform-differences.md) -- which members exist on the JVM, on Scala.js, and on both
+- [Migration Guide](./migration.md) -- upgrading code written against the blocking terminals or the earlier specialization API
+- [Zero-Boxing Streams](./zero-boxing.md) -- the primitive lanes and how one is chosen
+- [Async](../async.md) -- the `Async` effect type the cross-platform terminals return
+- [Mux](../mux.md) -- coordinating many keyed streams over one shared transport
