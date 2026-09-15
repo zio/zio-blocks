@@ -108,8 +108,11 @@ private[html] object Escape {
     }
   }
 
+  // `data:` URLs are not listed here: they are governed solely by
+  // [[isDangerousScheme]] through the [[safeDataMediaTypes]] allowlist, so a
+  // `data:` entry in this table would never match.
   private val dangerousUrlSchemes: Array[String] =
-    Array("javascript:", "vbscript:", "data:text/html", "data:image/svg")
+    Array("javascript:", "vbscript:")
 
   /**
    * Media types allowed inside `data:` URLs. Everything else under `data:` is
@@ -122,10 +125,10 @@ private[html] object Escape {
     Array("image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "text/plain")
 
   /**
-   * Length of the longest dangerous scheme prefix (`data:text/html` and
-   * `data:image/svg`). Only bytes inside this prefix window can influence the
-   * scheme verdict, so the benign fast path only needs to prove this window
-   * needs no normalization.
+   * Width of the scheme-relevant prefix window (14 chars, covering the
+   * longest dangerous scheme with margin). Only bytes inside this prefix
+   * window can influence the scheme verdict, so the benign fast path only
+   * needs to prove this window needs no normalization.
    */
   private val maxDangerousPrefixLength = 14
 
