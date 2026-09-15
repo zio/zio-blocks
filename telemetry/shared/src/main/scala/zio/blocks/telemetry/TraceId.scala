@@ -34,11 +34,15 @@ object TraceId {
 
   /**
    * Converts a trace ID to a 32-character lowercase hexadecimal string.
+   *
+   * Hand-rolled nibble appends (see `Hex`) instead of `String.format`: this
+   * runs per span on the inject/export hot path.
    */
   def toHex(hi: Long, lo: Long): String = {
-    val hiHex = String.format("%016x", hi)
-    val loHex = String.format("%016x", lo)
-    hiHex + loHex
+    val sb = new StringBuilder(32)
+    Hex.appendLong16(sb, hi)
+    Hex.appendLong16(sb, lo)
+    sb.toString
   }
 
   /**
@@ -97,4 +101,40 @@ object TraceId {
         case _: NumberFormatException => None
       }
     }
+}
+
+/**
+ * Hand-rolled lowercase hex formatting for hot paths.
+ *
+ * `String.format` parses a format string, boxes its arguments, and allocates
+ * formatters on every call; these nibble appends do straight-line work with no
+ * allocation beyond the caller's `StringBuilder`. Used by trace/span ID
+ * rendering on the per-span hot path (inject + export) and by JSON string
+ * escaping.
+ */
+private[telemetry] object Hex {
+  private final val Digits = "0123456789abcdef"
+
+  /** Appends `v` as 16 lowercase hex digits (big-endian nibble order). */
+  def appendLong16(sb: StringBuilder, v: Long): Unit = {
+    var i = 0
+    while (i < 16) {
+      sb.append(Digits.charAt(((v >>> ((15 - i) * 4)) & 0xfL).toInt))
+      i += 1
+    }
+  }
+
+  /** Appends the low 8 bits of `b` as 2 lowercase hex digits. */
+  def appendByte2(sb: StringBuilder, b: Int): Unit = {
+    sb.append(Digits.charAt((b >>> 4) & 0xf))
+    sb.append(Digits.charAt(b & 0xf))
+  }
+
+  /** Appends `c` as 4 lowercase hex digits (for `\uXXXX` escapes). */
+  def appendChar4(sb: StringBuilder, c: Int): Unit = {
+    sb.append(Digits.charAt((c >>> 12) & 0xf))
+    sb.append(Digits.charAt((c >>> 8) & 0xf))
+    sb.append(Digits.charAt((c >>> 4) & 0xf))
+    sb.append(Digits.charAt(c & 0xf))
+  }
 }
