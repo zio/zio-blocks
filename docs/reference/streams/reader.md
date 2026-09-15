@@ -26,7 +26,7 @@ Stream[E, A] ──(compile)──> Reader[A]
 `Reader`:
 - Is lazy and pull-based — `Stream` transformations don't run until `read()` is called, running in constant space one element at a time
 - Is a single-consumer cursor — do not share a `SyncReader` between threads or overlap operations on an `AsyncReader`
-- Uses a sentinel protocol where callers specify the end-of-stream value; all eight JVM primitives have exact physical pull methods: `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`
+- Uses a sentinel protocol where callers specify the end-of-stream value; all eight JVM primitives have exact physical pull methods: `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`. The `Long` and `Double` lanes are the exception: no sentinel is safe there, so they detect end of stream by the count returned from `readLongs` / `readDoubles`.
 - Dispatches on `Reader#jvmType`, which describes the reader's physical representation and therefore the exact pull method it supports, not merely the static or logical element type
 - Is the compilation target of `Stream` — when a stream runs, it becomes a `Reader`
 - Transfers lifecycle responsibility explicitly: terminals and bracketed APIs close their owned reader, while callers of `startAsync` own the returned reader and must await `close()`

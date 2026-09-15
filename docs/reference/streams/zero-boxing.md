@@ -125,7 +125,7 @@ val result = nums
   .runCollect
 ```
 
-This design avoids per-stage primitive wrapper storage in the fused synchronous interpreter. It does **not** prove that the whole expression allocates nothing: generic Scala function interfaces, source or terminal construction, result collection, fallback paths, and JIT decisions can still introduce boxing or allocation.
+This design avoids per-stage primitive wrapper storage in the fused synchronous interpreter. It does **not** prove that the whole expression allocates nothing: generic Scala function interfaces, source or terminal construction, result collection, fallback paths, and JIT decisions can still introduce boxing or allocation. `runCollect` above is a JVM-only terminal; in cross-platform source write `runCollectAsync`, which drives the same primitive lanes and returns `Async[Either[E, Chunk[Int]]]`.
 
 ## When Zero-Boxing Applies
 
