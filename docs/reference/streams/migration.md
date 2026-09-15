@@ -33,7 +33,7 @@ Every source-visible break in the release, the message that reports it, and what
 | `Stream.succeed(a: Byte)` is genuinely `Stream[Nothing, Byte]`              | `type mismatch: found Stream[Nothing, Byte], required Stream[Nothing, Int]`                       | Add the widening you were relying on: `.map(_ & 0xff)`                              |
 | `Sink#contramap` evidence describes `A0`, not the new input `A2`            | `no implicit argument of type JvmType.Infer[A0] was found`                                        | Drop explicit evidence and let it infer from the callback's result                  |
 | `Reader.range` was removed from the companion                               | `value range is not a member of object zio.blocks.streams.io.Reader`                              | `Reader.fromRange`                                                                  |
-| `internal.StreamError` is no longer constructible outside the module        | `constructor StreamError cannot be accessed`                                                      | Throw the cause itself and build the stream with `Stream.attempt`                   |
+| `internal.StreamError` is module-internal machinery, not an API             | Nothing — it still compiles, but its parent changed from `ControlThrowable` to `Exception`        | Throw the cause itself and build the stream with `Stream.attempt`                   |
 | Long/Double bulk reads no longer reserve a data value for EOF               | Nothing — a restriction was lifted, not added                                                     | Stop reserving a sentinel; read the returned count from `readLongs` / `readDoubles` |
 | Binary compatibility was broken deliberately; streams does not enforce MiMa | `NoSuchMethodError` at run time against a stale artifact                                          | Recompile every downstream module; do not drop the jar in                           |
 
@@ -314,22 +314,24 @@ This is the sharpest break in the group, because it changes what *infers* rather
 
 ```scala
 def concat[E2, E3, A2, A3](that: Stream[E2, A2])(implicit
-  errorConcat: Concat.WithOut[E, E2, E3],
-  valueConcat: Concat.WithOut[A, A2, A3],
+  errorConcat: Concat.WithOut[E @uncheckedVariance, E2, E3],
+  valueConcat: Concat.WithOut[A @uncheckedVariance, A2, A3],
   jtA3: JvmType.Infer[A3]
 ): Stream[E3, A3]
 
 def &&[E2, E3, B, C](that: Stream[E2, B])(implicit
-  errorConcat: Concat.WithOut[E, E2, E3],
+  errorConcat: Concat.WithOut[E @uncheckedVariance, E2, E3],
   zip: Stream.Zip[A, B, C],
   jtC: JvmType.Infer[C]
 ): Stream[E3, C]
 
 def catchAll[E2, A2, A3](f: E => Stream[E2, A2])(implicit
-  valueConcat: Concat.WithOut[A, A2, A3],
+  valueConcat: Concat.WithOut[A @uncheckedVariance, A2, A3],
   jtA3: JvmType.Infer[A3]
 ): Stream[E2, A3]
 ```
+
+The `@uncheckedVariance` annotations on the left inputs are how variance is kept sound here; the older notes described this as a lower bound on the left element type, which is not what the implementation does.
 
 Let these infer. Casts, invariant wrappers, and input-side evidence added to compensate for the older signatures should come out.
 
@@ -432,7 +434,7 @@ def sum(reader: Reader.SyncReader[Long]): Long = {
 }
 ```
 
-The scalar `readLong` and `readDouble` methods remain, for callers that can prove a sentinel lies outside their data domain. General-purpose code should not use them for EOF detection, and neither does the library: the conformance probes make the scalar `readLong` and `readDouble` entry points throw even on their own matching lane, so a regression that reintroduces sentinel detection fails a test rather than corrupting a value.
+The scalar `readLong` and `readDouble` methods remain, for callers that can prove a sentinel lies outside their data domain. General-purpose code should not use them for EOF detection, and neither does the library: the conformance probes install readers whose scalar `readLong` and `readDouble` entry points throw even on their own matching lane, so a regression that reintroduces sentinel detection fails a test rather than corrupting a value.
 
 ### Both Pipeline Routes
 
@@ -473,7 +475,7 @@ Stream.fromAcquireRelease(
 )
 ```
 
-`StreamError`'s constructor and companion are no longer reachable from outside the streams module. The fix throws the cause itself and lets `Stream.attempt` turn it into a typed `Throwable` channel:
+`StreamError` is internal machinery of the stream runtime rather than an API: it gained a private primary constructor and a `private[streams]` companion, and its parent changed from `ControlThrowable` to `Exception`. Code outside the module should stop constructing it — throw the cause itself and let `Stream.attempt` turn it into a typed `Throwable` channel:
 
 ```scala
 Stream.attempt {
@@ -481,6 +483,8 @@ Stream.attempt {
   catch { case e: Throwable => /* log */ throw e }
 }.flatMap { resource => Stream.fromAcquireRelease(/* ... */) }
 ```
+
+The parent change is the one consequence that reaches code which never names the type. A `ControlThrowable` is excluded by `scala.util.control.NonFatal` and is not a subtype of `Exception`, so a `catch { case NonFatal(e) => ... }` or a `scala.util.Try` around a stream could not swallow a typed stream error; an `Exception` can be caught by both. Handlers of that shape wrapped around stream code should be checked.
 
 ## What Did Not Break
 
