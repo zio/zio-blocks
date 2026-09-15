@@ -1,6 +1,14 @@
 ---
 id: sink
 title: "Sink"
+sidebar_label: "Sink"
+description: "The stream consumer: its dual synchronous and asynchronous drains, the three construction factories, and the async aggregation and transformation combinators."
+keywords:
+  - "Stream Consumer"
+  - "Dual Drain"
+  - "Async Sinks"
+  - "Custom Sink Factories"
+  - "Sink"
 ---
 
 `Sink[+E, -A, +Z]` is a **stream consumer** that reads elements of type `A` and produces a result of type `Z`, potentially failing with an error of type `E`. Every sink has synchronous and asynchronous drain paths: use cross-platform `Stream.runAsync`, or the JVM-only blocking `Stream.run`.
@@ -49,11 +57,79 @@ When you call `stream.run(sink)`:
 
 ### Physical Input Lanes and Ownership
 
-A sink discovers its input representation from the materialized reader's `jvmType`, not from the sink's contravariant static input type. Generic sinks dispatch once per drain and then pull `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, and `Double` through `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLongs`, `readFloat`, and `readDoubles`, respectively. Reference inputs use generic `read`. In particular, the four small primitive lanes do not share the `Int` pull.
+A sink consumes either kind of reader. `Reader` is not one type with a mode flag: it splits into `Reader.SyncReader[A]`, whose pulls return values, and `Reader.AsyncReader[A]`, whose pulls return `Async` values. [The reader union](./reader.md#the-reader-union) describes the split from the reader's side. From the sink's side, the consequence is that every sink is drained through one of two entry points, and the terminal decides which — the next section covers that choice.
+
+Whichever kind arrives, a sink discovers its input representation from the materialized reader's `jvmType`, not from the sink's contravariant static input type. Generic sinks dispatch once per drain and then pull `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, and `Double` through `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLongs`, `readFloat`, and `readDoubles`, respectively. Reference inputs use generic `read`. In particular, the four small primitive lanes do not share the `Int` pull.
 
 `Long` and `Double` use one-element primitive arrays with `readLongs(..., length = 1)` and `readDoubles(..., length = 1)`. The returned count carries end-of-stream status out of band, so every `Long` value and every raw `Double` bit pattern—including NaN payloads—remains valid data. The scratch storage is allocated once per drain, not once per element.
 
 The reader owns this physical representation. Consequently, widening a specialized stream (for example, from `Stream[Nothing, Int]` to `Stream[Nothing, AnyVal]`) does not erase its `Int` lane before it reaches a sink. A sink adapter preserves the wrapped reader's lane and forwards every exact pull method. It also preserves ownership: the run terminal owns and closes the materialized reader; a sink or sink adapter does not independently close it. External destinations supplied to I/O sinks remain caller-owned unless a constructor explicitly says otherwise.
+
+## Consuming asynchronous readers
+
+Every sink carries two drains, one per reader kind:
+
+```scala
+abstract class Sink[+E, -A, +Z] {
+  private[streams] def drain(reader: Reader.SyncReader[_]): Z
+  private[streams] def drain(reader: Reader.AsyncReader[_]): Async[Z]
+}
+```
+
+They are an overload on the argument type, not a runtime branch inside one method, so the selection is a static one made where the reader is known: at the terminal. Both are `private[streams]`, which means you never call either yourself. The terminal you already chose called one of them for you:
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│      Stream#run  (JVM only)         Stream#runAsync  (JVM and JS)  │
+│                 │ materializes                    │ materializes   │
+│                 ▼                                 ▼                │
+│       Reader.SyncReader[A]              Reader.AsyncReader[A]      │
+│                 │ is handed to                    │ is handed to   │
+│                 ▼                                 ▼                │
+│       drain(SyncReader): Z          drain(AsyncReader): Async[Z]   │
+│                 │ returns                         │ returns        │
+│                 ▼                                 ▼                │
+│           Either[E, Z]                   Async[Either[E, Z]]       │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+The asynchronous drain is a native one, not an adapter: `Stream#runAsync` hands the sink a `Reader.AsyncReader` and never converts it to a blocking reader first, so no thread is parked waiting for a pull. [Async Terminals](./async-execution.md#async-terminals) covers the terminal family that takes this path, and [The `Async[Either[E, Z]]` convention](./async-execution.md#the-asynceithere-z-convention) explains why the typed error stays inside the `Either`.
+
+Every built-in sink implements both drains, so nothing on this page is available on only one path. A third member, `drainAsync(reader: Reader.SyncReader[_]): Async[Z]`, is likewise `private[streams]`; it presents a synchronous reader through the asynchronous contract by calling `reader.toAsync`, and exists for internal stages that must expose an asynchronous face over synchronous input.
+
+### Choosing a factory
+
+Because a `Sink` has two abstract drains and both are `private[streams]`, code outside `zio.blocks.streams` cannot implement them — subclassing `Sink` directly is not a supported route, and the compiler will not let you complete the class. Build custom sinks from one of the three factories instead:
+
+```scala
+object Sink {
+  // JVM and Scala.js
+  def createAsync[E, A, Z](f: Reader.AsyncReader[A] => Async[Z]): Sink[E, A, Z]
+  def createBoth[E, A, Z](
+    sync: Reader.SyncReader[A] => Z,
+    async: Reader.AsyncReader[A] => Async[Z]
+  ): Sink[E, A, Z]
+
+  // JVM only — absent from the Scala.js companion entirely
+  def create[E, A, Z](f: Reader.SyncReader[A] => Z): Sink[E, A, Z]
+}
+```
+
+Each factory fills in the drain you did not write:
+
+| Factory            | Callbacks you write               | Platforms        | Reach for it when                                                    |
+|--------------------|-----------------------------------|------------------|----------------------------------------------------------------------|
+| `Sink.createAsync` | one asynchronous                  | JVM and Scala.js | one implementation is enough, and awaiting per element is acceptable |
+| `Sink.createBoth`  | one synchronous, one asynchronous | JVM and Scala.js | the synchronous path can be cheaper than the asynchronous one        |
+| `Sink.create`      | one synchronous                   | JVM only         | the sink is JVM-only anyway and its callback wants a blocking reader |
+
+`Sink.createAsync` writes the synchronous drain for you by awaiting the asynchronous one at a JVM blocking terminal. `Sink.create` writes the asynchronous drain for you by running the blocking callback on the blocking executor, where cancellation closes the reader. `Sink.createBoth` writes neither: it takes two independent callbacks and the terminal runs exactly one, so the two must agree on how much input they consume and what they produce — nothing compares their results.
+
+:::warning[`Sink.create` does not exist on Scala.js]
+It is declared in the JVM copy of `SinkCompanionPlatformSpecific` and simply absent from the Scala.js copy, so cross-built code that calls it fails to compile for the JS target rather than failing at runtime. [`Sink.create` and Custom Sinks](./platform-differences.md#sinkcreate-and-custom-sinks) states the platform rule; [Custom Sinks Now Have Two Drains](./migration.md#custom-sinks-now-have-two-drains) has the compile error and the edit that resolves it.
+:::
+
+[Custom sink factories](#custom-sink-factories) shows a worked callback against the reader protocol.
 
 ## Predefined Sinks
 
@@ -308,6 +384,49 @@ import zio.blocks.streams._
 val result = Stream(1, 2, 3).run(Sink.foreach[Int](x => println(s"Got: $x")))
 ```
 
+### Async aggregation and search
+
+Five of the aggregation, search, and effectful sinks have an `*Async` twin whose callback returns `Async` instead of a value. The twin consumes the same input and returns the same result type; only the callback's shape differs:
+
+```scala
+object Sink {
+  def existsAsync[A](pred: A => Async[Boolean]): Sink[Nothing, A, Boolean]
+  def findAsync[A](pred: A => Async[Boolean]): Sink[Nothing, A, Option[A]]
+  def foldLeftAsync[A, Z](z: Z)(f: (Z, A) => Async[Z])(implicit jtZ: JvmType.Infer[Z]): Sink[Nothing, A, Z]
+  def forallAsync[A](pred: A => Async[Boolean]): Sink[Nothing, A, Boolean]
+  def foreachAsync[A](f: A => Async[Unit]): Sink[Nothing, A, Unit]
+}
+```
+
+Each stops where its synchronous twin stops:
+
+| Async sink           | Sync twin       | Result      | Stops pulling at                                             |
+|----------------------|-----------------|-------------|--------------------------------------------------------------|
+| `Sink.existsAsync`   | `Sink.exists`   | `Boolean`   | the first `true`; otherwise end-of-stream, returning `false` |
+| `Sink.findAsync`     | `Sink.find`     | `Option[A]` | the first match; otherwise end-of-stream, returning `None`   |
+| `Sink.foldLeftAsync` | `Sink.foldLeft` | `Z`         | end-of-stream                                                |
+| `Sink.forallAsync`   | `Sink.forall`   | `Boolean`   | the first `false`; otherwise end-of-stream, returning `true` |
+| `Sink.foreachAsync`  | `Sink.foreach`  | `Unit`      | end-of-stream                                                |
+
+Three properties hold across all five. At most one callback effect runs at a time, in encounter order, so these are sequential and back-pressured rather than concurrent — for concurrency, put it in the stream with [`Stream#mapParAsync`](./concurrent-operators.md#streammapparasync) before the sink. No effect is started for input the sink never pulls, so short-circuiting still costs nothing after the decisive element. And a callback that fails or is cancelled fails or cancels the run as a *defect*, not as a value in the sink's typed error channel `E` — all five have `E = Nothing`.
+
+`Sink.foldLeftAsync` carries the same `JvmType.Infer[Z]` evidence as `Sink.foldLeft`. It keeps the asynchronous fold aligned with the specialized synchronous one; the semantics are identical.
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import zio.blocks.streams._
+
+val readings = Stream(12, 7, 30, 21, 5)
+
+// Sequential: one predicate effect at a time, stopping at 30.
+val tooHot: Async[Either[Nothing, Boolean]] =
+  readings.runAsync(Sink.existsAsync[Int](c => Async.succeed(c > 25)))
+
+// The fold visits every element; the accumulator is threaded through Async.
+val total: Async[Either[Nothing, Long]] =
+  readings.runAsync(Sink.foldLeftAsync(0L)((sum: Long, c: Int) => Async.succeed(sum + c)))
+```
+
 ### Failing
 
 These sinks can be used to produce typed errors or fail under specific conditions:
@@ -514,6 +633,76 @@ val mapped = Sink.drain.mapError[String](_.toString)
 val failing = Sink.fail("oops").mapError[RuntimeException](new RuntimeException(_))
 ```
 
+### `Sink#contramapAsync[A2]` — Pre-Process Input Asynchronously
+
+Applies an asynchronous function to each element before it reaches the sink:
+
+```scala
+trait Sink[+E, -A, +Z] {
+  def contramapAsync[A0 <: A, A2](g: A2 => Async[A0])(implicit jtA0: JvmType.Infer[A0]): Sink[E, A2, Z]
+}
+```
+
+The evidence is the same as `Sink#contramap`'s and targets the callback's **result** type `A0`, not the new sink input `A2`. The migration guide's [Specialization Changes](./migration.md#specialization-changes) covers the signature change that introduced this rule, and this page does not restate it. `g` runs sequentially, one effect at a time, as the wrapped sink requests elements, so short-circuiting is unchanged and `g` is never started for input the sink does not pull. A failed or cancelled `g` fails or cancels the run as a defect and stops pulling input; it does not appear in the sink's typed error channel.
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import zio.blocks.streams._
+
+// Resolve each identifier to a length before counting it
+val totalLength: Sink[Nothing, String, Long] =
+  Sink.sumInt.contramapAsync[Int, String](id => Async.succeed(id.length))
+
+val result: Async[Either[Nothing, Long]] =
+  Stream("hello", "world").runAsync(totalLength)
+```
+
+### `Sink#mapAsync[Z2]` — Transform Result Asynchronously
+
+Transforms the result asynchronously after the sink finishes draining:
+
+```scala
+trait Sink[+E, -A, +Z] {
+  def mapAsync[Z2](f: Z => Async[Z2]): Sink[E, A, Z2]
+}
+```
+
+`f` runs once, after the drain completes, so it does not change input consumption. When the sink fails, `f` is never started. Failure or cancellation of `f` fails or cancels the run as a defect.
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import zio.blocks.streams._
+
+val persistedCount: Sink[Nothing, Any, String] =
+  Sink.count.mapAsync(n => Async.succeed(s"Total: $n elements"))
+
+val result: Async[Either[Nothing, String]] =
+  Stream(1, 2, 3).runAsync(persistedCount)
+```
+
+### `Sink#mapErrorAsync[E2]` — Transform Error Asynchronously
+
+Transforms the typed error channel asynchronously:
+
+```scala
+trait Sink[+E, -A, +Z] {
+  def mapErrorAsync[E2](f: E => Async[E2])(implicit isNothing: Sink.IsNothing[E]): Sink[E2, A, Z]
+}
+```
+
+It carries the same `IsNothing` evidence as `Sink#mapError`: for an infallible sink (`E = Nothing`) the method returns the same sink without allocating a wrapper, and `f` can never be evaluated. Successful results, upstream stream errors, and defects pass through untransformed; only the sink's own typed error reaches `f`. Failure or cancellation of `f` is a defect.
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import zio.blocks.streams._
+
+// Infallible: no wrapper is allocated and `f` can never run
+val mapped = Sink.drain.mapErrorAsync[String](e => Async.succeed(e.toString))
+
+// Fallible: the typed error is transformed before it reaches the `Left`
+val failing = Sink.fail("oops").mapErrorAsync[RuntimeException](e => Async.succeed(new RuntimeException(e)))
+```
+
 ## Integration with Stream
 
 `Stream.run(sink)` is the primary entry point. ZIO Blocks also provides convenience methods on `Stream` that delegate to built-in sinks:
@@ -561,6 +750,8 @@ The `NioSinks` object (JVM-only) provides sinks for Java NIO (`java.nio`) buffer
 Traditional Java I/O (`OutputStream`, `Writer`) blocks threads and requires manual buffering for efficiency. `NioSinks.fromChannel` also blocks, but handles buffer allocation, position management, and flushing automatically (default 8KB), while typed variants like `NioSinks.fromByteBufferInt` and `NioSinks.fromByteBufferLong` eliminate boxing overhead by writing primitives directly to buffers you provide.
 
 Choose `NioSinks.fromChannel` when blocking channel output is acceptable and you want automatic buffering for network sockets or files. Choose typed variants when you control buffer allocation and are streaming millions of primitives where boxing would degrade performance.
+
+Each of these sinks implements both drains, so NIO output works under the blocking `Stream#run` and under `Stream#runAsync` alike. What the asynchronous drain removes is the thread parked waiting for stream *input*; the destination writes are the same blocking `java.nio` calls on either path. `NioSinks.fromChannel` does budget its asynchronous flush loop: when a channel write makes no progress it yields instead of spinning, so a stalled channel does not monopolise the caller. [Asynchronous I/O](./async-io.md) covers the NIO adapters on the source side in full, and this page does not duplicate them.
 
 Here are the available NIO sinks:
 
@@ -625,7 +816,7 @@ sbt "streams-examples/runMain sink.SinkScientificComputingExample"
 
 This use case is typical in scientific instrumentation, machine learning data preprocessing, and signal processing pipelines where you need to efficiently batch-process numerical streams into memory-efficient structures for downstream computation.
 
-The typed sinks dispatch through their exact primitive lanes. `Long` and `Double` use collision-free bulk-count status, so `Long.MinValue`, `Long.MaxValue`, every finite or infinite `Double`, signed zero, and every raw NaN payload are written as ordinary data. There is no sentinel-value truncation restriction. The supplied buffer remains caller-owned and is not flipped, rewound, or closed by the sink.
+The typed sinks dispatch through their exact primitive lanes. `Long` and `Double` use collision-free bulk-count status, so `Long.MinValue`, `Long.MaxValue`, every finite or infinite `Double`, signed zero, and every raw NaN payload are written as ordinary data. There is no sentinel-value truncation restriction. The supplied buffer remains caller-owned and is not flipped, rewound, or closed by the sink. [Zero-Boxing Streams](./zero-boxing.md) carries the per-lane end-of-stream table this rests on.
 
 ### From Channel Sink
 
@@ -712,3 +903,29 @@ Run this example with:
 ```bash
 sbt "streams-examples/runMain sink.SinkTransformationExample"
 ```
+
+### Async Sinks End to End
+
+This example builds a custom mean sink with `Sink.createBoth` — a `while` loop for the synchronous drain, an `Async#flatMap` recursion for the asynchronous one — then drives it and `Sink.existsAsync` through `Stream#runAsync`, unwrapping each `Either` at the end. It is JVM-only, because it finishes with `.block` to turn the `Async` into a value for `main`:
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("streams-examples/src/main/scala/sink/SinkAsyncExample.scala")
+```
+
+Run this example with:
+
+```bash
+sbt "streams-examples/runMain sink.SinkAsyncExample"
+```
+
+## See Also
+
+- [Asynchronous Stream Execution](./async-execution.md#async-terminals) — the terminals that select a sink's asynchronous drain, and the `Async[Either[E, Z]]` convention
+- [Platform Differences](./platform-differences.md#sinkcreate-and-custom-sinks) — why `Sink.create` is JVM-only and what replaces it in shared source
+- [Migration Guide](./migration.md#custom-sinks-now-have-two-drains) — the compile errors a custom sink hits after the drain split, and the edits that resolve them
+- [Reader](./reader.md#the-reader-union) — the two reader kinds a sink drains, from the reader's side
+- [Zero-Boxing Streams](./zero-boxing.md) — how a primitive lane is chosen, and the per-lane end-of-stream table
+- [Stream](./stream.md) — the producer a sink consumes
+- [Pipeline](./pipeline.md) — transformations that can be attached to a sink's input
