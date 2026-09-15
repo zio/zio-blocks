@@ -159,8 +159,7 @@ private[html] object Escape {
    * prefix) return unchanged without building any intermediate string.
    */
   def sanitizeUrl(url: String): String =
-    if (isBenignUrl(url)) url
-    else if (isDangerousNormalizedUrl(url)) "unsafe:" + url
+    if (isUnsafeUrl(url)) "unsafe:" + url
     else url
 
   /**
