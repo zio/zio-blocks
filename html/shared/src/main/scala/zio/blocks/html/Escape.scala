@@ -241,33 +241,34 @@ private[html] object Escape {
     false
   }
 
-  private def isDangerousScheme(normalized: String): Boolean = {
-    if (normalized.startsWith("data:")) return !isSafeDataUrl(normalized)
-    var i = 0
-    while (i < dangerousUrlSchemes.length) {
-      if (normalized.startsWith(dangerousUrlSchemes(i))) return true
-      i += 1
-    }
-    false
-  }
-
   /**
-   * True when a lowercased `data:` URL carries a pinned-safe media type: the
-   * token after `data:` up to the first `;` or `,` must exactly match
-   * [[safeDataMediaTypes]] (surrounding blanks trimmed). Anything else —
-   * scriptable XML, script types, empty or unknown types — is dangerous.
+   * True when a lowercased URL carries a dangerous scheme: `data:` URLs are
+   * dangerous unless the token after `data:` up to the first `;` or `,`
+   * exactly matches a pinned-safe entry of [[safeDataMediaTypes]]
+   * (surrounding blanks trimmed), so scriptable XML, script types, and empty
+   * or unknown types stay rejected (fail-closed default); every other URL is
+   * dangerous when it starts with a listed [[dangerousUrlSchemes]] prefix.
    */
-  private def isSafeDataUrl(normalized: String): Boolean = {
-    val rest = normalized.substring("data:".length)
-    var end  = 0
-    while (end < rest.length && rest.charAt(end) != ';' && rest.charAt(end) != ',') end += 1
-    val mediaType = rest.substring(0, end).trim
-    var i         = 0
-    while (i < safeDataMediaTypes.length) {
-      if (mediaType == safeDataMediaTypes(i)) return true
-      i += 1
+  private def isDangerousScheme(normalized: String): Boolean = {
+    if (normalized.startsWith("data:")) {
+      val rest = normalized.substring("data:".length)
+      var end  = 0
+      while (end < rest.length && rest.charAt(end) != ';' && rest.charAt(end) != ',') end += 1
+      val mediaType = rest.substring(0, end).trim
+      var i         = 0
+      while (i < safeDataMediaTypes.length) {
+        if (mediaType == safeDataMediaTypes(i)) return false
+        i += 1
+      }
+      true
+    } else {
+      var i = 0
+      while (i < dangerousUrlSchemes.length) {
+        if (normalized.startsWith(dangerousUrlSchemes(i))) return true
+        i += 1
+      }
+      false
     }
-    false
   }
 
   /**
