@@ -21,7 +21,7 @@ The asynchronous surface is five things: constructors that produce a stream from
 
 | Addition                   | Size                    | Documented in                                           |
 |----------------------------|-------------------------|---------------------------------------------------------|
-| Async source constructors  | 11 names / 14 overloads | [Async Source Constructors](#async-source-constructors) |
+| Async source constructors  | 10 names / 14 overloads | [Async Source Constructors](#async-source-constructors) |
 | Sequential async operators | 10 names                | [Async Operators](#async-operators)                     |
 | Async terminals            | 12 names / 16 overloads | [Async Terminals](#async-terminals)                     |
 | Manual-pull terminals      | 2 names                 | [Manual Pull and Ownership](#manual-pull-and-ownership) |
@@ -380,7 +380,7 @@ A terminal is what drives a stream. The cross-platform family all ends in `Async
 
 Every cross-platform terminal returns `Async[Either[E, Z]]`, never `Async[Z]`. The two channels are kept apart deliberately:
 
-- The **typed error channel** `E` stays inside the `Either`. A stream that fails with a typed error produces `Right`-less success: the `Async` completes normally, carrying `Left(e)`.
+- The **typed error channel** `E` stays inside the `Either`. A stream that fails with a typed error still succeeds at the `Async` level: the `Async` completes normally, carrying `Left(e)`.
 - `Async`'s own **untyped `Throwable` channel** is reserved for defects — a callback that threw, a finalizer that failed, a cleanup failure. These fail the outer `Async` and never appear as a `Left`.
 
 This one rule explains the shape of every signature in this section:
@@ -596,7 +596,7 @@ Run it with:
 sbt "streams-examples/runMain stream.StreamAsyncOwnershipExample"
 ```
 
-### Mixing synchronous and asynchronous stages
+### A mixed synchronous and asynchronous pipeline
 
 A synchronous source, one asynchronous operator, and no change to any annotation:
 
