@@ -1,6 +1,14 @@
 ---
 id: writer
 title: "Writer"
+sidebar_label: "Writer"
+description: "The push-based sink for elements: the write-and-close protocol, the primitive write family, and the sixteen deferred *Async mirrors."
+keywords:
+  - "Push-Based Writing"
+  - "Deferred Effects"
+  - "Writer Cancellation"
+  - "Specialized Writes"
+  - "Writer"
 ---
 
 `Writer[-Elem]` is a **push-based sink for elements** that accepts values one at a time until closed or filled. It is the push-based counterpart to `Reader[+Elem]` (which pulls). Elements are written on demand by the producer, making it ideal for streaming, buffering, and integration with I/O subsystems. The fundamental operations are `write(elem): Boolean` — pushes an element and returns success or closure — and `close()` — signals the end of writing and releases resources.
@@ -83,6 +91,71 @@ println(s"First write: ${w.write(42)}")      // true (accepted)
 println(s"Second write: ${w.write(99)}")     // false (writer auto-closed after one element)
 println(s"Third write: ${w.write(77)}")      // false (still closed)
 ```
+
+## Asynchronous Writes
+
+Every effectful member of `Writer` has a deferred mirror whose name ends in `Async` and whose result is an `Async`. There are sixteen of them, one per synchronous member, and together they are the entire asynchronous surface of the type.
+
+A mirror does one thing. It wraps a single synchronous call in an effect that has not happened yet: constructing `writer.writeAsync(42)` performs no write at all, and driving the returned effect performs `write(42)` exactly once and yields its `Boolean`. All sixteen are `final` and delegate to one private helper, which builds them on the library's internal cancellable-defer primitive `Async.deferCancelable` (`Writer.scala:57`).
+
+The mirrors group exactly as their synchronous twins do on this page:
+
+| Group              | Synchronous member             | Deferred mirror                     | Result                |
+|--------------------|--------------------------------|-------------------------------------|-----------------------|
+| Lifecycle          | `close()`                      | `closeAsync()`                      | `Async[Unit]`         |
+| Lifecycle          | `fail(error)`                  | `failAsync(error)`                  | `Async[Unit]`         |
+| Single element     | `write(a)`                     | `writeAsync(a)`                     | `Async[Boolean]`      |
+| Bulk               | `writeAll(chunk)`              | `writeAllAsync(chunk)`              | `Async[Chunk[Elem1]]` |
+| Specialized        | `writeInt(value)`              | `writeIntAsync(value)`              | `Async[Boolean]`      |
+| Specialized        | `writeLong(value)`             | `writeLongAsync(value)`             | `Async[Boolean]`      |
+| Specialized        | `writeFloat(value)`            | `writeFloatAsync(value)`            | `Async[Boolean]`      |
+| Specialized        | `writeDouble(value)`           | `writeDoubleAsync(value)`           | `Async[Boolean]`      |
+| Byte and character | `writeByte(b)`                 | `writeByteAsync(b)`                 | `Async[Boolean]`      |
+| Byte and character | `writeBytes(buf, offset, len)` | `writeBytesAsync(buf, offset, len)` | `Async[Int]`          |
+| Byte and character | `writeChar(value)`             | `writeCharAsync(value)`             | `Async[Boolean]`      |
+| Byte and character | `writeShort(value)`            | `writeShortAsync(value)`            | `Async[Boolean]`      |
+| Byte and character | `writeBoolean(value)`          | `writeBooleanAsync(value)`          | `Async[Boolean]`      |
+| State checks       | `isClosed`                     | `isClosedAsync`                     | `Async[Boolean]`      |
+| State checks       | `writeable()`                  | `writeableAsync()`                  | `Async[Boolean]`      |
+| State checks       | `jvmType`                      | `jvmTypeAsync`                      | `Async[JvmType]`      |
+
+Each mirror carries the same parameters and the same implicit evidence as its twin, so the specialized mirrors still ask for the subtype witness their twin asks for:
+
+```scala
+abstract class Writer[-Elem] {
+  final def closeAsync(): Async[Unit]
+  final def writeAsync(a: Elem): Async[Boolean]
+  final def writeAllAsync[Elem1 <: Elem](chunk: Chunk[Elem1]): Async[Chunk[Elem1]]
+  final def writeIntAsync(value: Int)(implicit ev: Int <:< Elem): Async[Boolean]
+  final def writeBytesAsync(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Elem): Async[Int]
+}
+```
+
+`jvmTypeAsync` is the mirror of `jvmType`, the writer's element representation (`JvmType.AnyRef` unless a subclass overrides it). It is the only mirror whose twin is not otherwise documented on this page.
+
+### What `*Async` Does and Does Not Do
+
+These are **cancellation-aware deferral adapters, not asynchronous I/O**. The library's own scaladoc says so in as many words (`Writer.scala:51`), and it is worth repeating because sixteen methods named `*Async` invite the opposite conclusion.
+
+What a mirror does:
+
+- **It defers one synchronous operation.** The wrapped call is first evaluated when the effect is driven, never when it is constructed, and it runs at most once however many times the effect is composed.
+- **It closes the writer on cancellation.** Every mirror installs `close()` as its cancellation hook. If cancellation wins before the operation finishes, the writer is closed and the operation's result is discarded rather than published — the run then delivers nothing at all, so a cancelled handle must never be given to `block`.
+
+What a mirror does not do:
+
+- **It does not move the write to another thread.** Driving `writeAsync` calls `write` on whichever thread is driving.
+- **It does not make a blocking write nonblocking.** When `write` blocks — a bounded buffer with no space, a socket with a full send window — driving `writeAsync` blocks in the same place for the same duration. `writeBytesAsync` on a `Writer.fromOutputStream` is a `java.io.OutputStream.write` behind an `Async`, and that call blocks.
+
+:::warning[These methods are not nonblocking I/O]
+A `Writer` whose `write` blocks still blocks when you drive its `*Async` mirror. The mirrors buy you deferral and a cancellation hook; they do not buy you a nonblocking writer. If you need writes that genuinely suspend rather than block, that is a different writer, not a different method on this one.
+:::
+
+Cancellation is cooperative and interrupts no thread, so the hook cannot abort a call already inside a blocking `write`. It calls `close()`, and that helps exactly when closing the writer is what releases the blocked call — which is true of a writer whose blocking wait is woken by closure, and false of one that ignores its own closed flag while parked. See [Running#cancel](../async.md#runningcancel) for what a cancelled run does and does not stop.
+
+### Why There Is No `concatAsync` or `contramapAsync`
+
+The structural combinators `concat` and `contramap` have no mirrors, and that is deliberate rather than an omission. The synchronous `Writer` protocol requires `write` to return its `Boolean` immediately. A composition callback that produced an `Async` would have no honest way to report that result: `write` cannot return a pending value, and inventing one — blocking on it, or guessing `true` — would break the very protocol the page opens with. Modelling asynchronous composition needs a separate async-writer architecture, not another method here.
 
 ## Capacity and Buffering
 
@@ -230,22 +303,7 @@ object Writer {
 
 The fundamental operations on `Writer` cover pushing elements one at a time, bulk operations, specialized writes for primitives, and state checks:
 
-Every effectful lifecycle, state, scalar, bulk, and primitive operation also has
-a deferred `Async` mirror: `closeAsync()`, `failAsync`, `isClosedAsync`,
-`writeableAsync()`, `writeAsync`, `writeAllAsync`, `writeBooleanAsync`,
-`writeByteAsync`, `writeBytesAsync`, `writeCharAsync`, `writeDoubleAsync`,
-`writeFloatAsync`, `writeIntAsync`, `writeLongAsync`, and `writeShortAsync`.
-Constructing one of these effects performs no writer operation; driving it
-performs the corresponding synchronous operation once. Cancellation closes the
-writer so that an in-flight result cannot outlive the writer's lifecycle.
-
-These methods are cancellation-aware **deferral adapters**, not asynchronous I/O:
-driving `writeAsync` or `writeBytesAsync` may still block whenever the underlying
-`write` or `writeBytes` blocks. In particular, `concatAsync` and
-`contramapAsync` intentionally do not exist. The synchronous `Writer` protocol
-must return each write result immediately and therefore cannot honestly model a
-pending asynchronous composition callback; that requires a separate async-writer
-architecture.
+Each of these operations also has a deferred mirror, listed in [Asynchronous Writes](#asynchronous-writes) above.
 
 ### Writing Elements
 
@@ -638,3 +696,27 @@ Run this example with:
 ```bash
 sbt "streams-examples/runMain writer.WriterBoundedImplementationExample"
 ```
+
+### Deferred and Cancellable Writes
+
+This example makes the `*Async` caveat concrete. It shows that constructing a mirror writes nothing while driving it writes once, composes three mirrors into one effect, and then cancels a driven `writeAsync` whose write is parked — observing that cancellation closed the writer, that no element was recorded, and that the run delivers no value at all:
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("streams-examples/src/main/scala/writer/WriterAsyncExample.scala")
+```
+
+Run this example with:
+
+```bash
+sbt "streams-examples/runMain writer.WriterAsyncExample"
+```
+
+## See Also
+
+- [Asynchronous Stream Execution](./async-execution.md#cancellation) — how cancellation reaches a stream's resources, and the asynchronous stream API the deferred mirrors sit beside
+- [Async Reference](../async.md#runningcancel) — what `Running#cancel` stops, why a cancelled run never delivers, and why the cancel hook cannot interrupt a blocked thread
+- [Reader](./reader.md) — the pull-based dual of this type, and the reader kinds a sink drains
+- [Sink](./sink.md) — the consumer side of a stream, which drains a `Reader` rather than feeding a `Writer`
+- [Zero-Boxing Streams](./zero-boxing.md) — why the specialized write family exists and how a primitive lane is chosen

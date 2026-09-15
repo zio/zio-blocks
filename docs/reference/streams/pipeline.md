@@ -1,6 +1,14 @@
 ---
 id: pipeline
 title: "Pipeline"
+sidebar_label: "Pipeline"
+description: "The reusable stream transformation: its synchronous and asynchronous factories, andThen composition, and the two routes for applying one."
+keywords:
+  - "Stream Transformation"
+  - "Pipeline Composition"
+  - "Async Pipeline Stages"
+  - "Primitive Specialization"
+  - "Pipeline"
 ---
 
 `Pipeline[-In, +Out]` is a **reusable, composable stream transformation** that converts elements of type `In` into elements of type `Out`. Pipelines are first-class values: you can define them once, compose them with `andThen`, and apply them to any [Stream](./stream.md) via `stream.via(pipe)` or to any `Sink` via `pipe.andThenSink(sink)`.
@@ -98,7 +106,7 @@ These laws guarantee that pipelines compose predictably, regardless of how you p
 
 Pipelines are built using factory methods on the `Pipeline` companion object. Each factory creates a pipeline that performs a specific transformation: mapping elements, filtering, collecting, or controlling flow. A factory that changes the element type asks for `JvmType.Infer` evidence for the **result** type. The input representation already belongs to the stream or sink at application time; callers do not supply redundant input evidence. Type-preserving factories retain that representation directly.
 
-Cross-platform asynchronous factories are also available: `mapAsync`, `filterAsync`, `collectAsync`, `tapEachAsync`, and `distinctByAsync`. Their callbacks return `Async`, are evaluated sequentially as the downstream pulls, and work with both stream and sink application. Writer's similarly named deferred methods are adaptation wrappers around its synchronous operations; Writer does not have separate asynchronous structural combinators.
+Three of those factories have asynchronous twins, and exactly three: `mapAsync`, `filterAsync`, and `collectAsync`. They are cross-platform, their callbacks return `Async`, they are evaluated sequentially as the downstream pulls, and they work through both application routes. Other `*Async` operators such as `tapEachAsync` and `distinctByAsync` exist on `Stream` rather than on `Pipeline`; see [Asynchronous Stream Execution](./async-execution.md#async-operators) for the full stream-level list. `Writer`'s similarly named deferred methods are something else again — adaptation wrappers around its synchronous operations, described in [Writer — Asynchronous Writes](./writer.md#asynchronous-writes).
 
 Factory callbacks are protected as user callbacks: synchronous throws and failed callback effects are defects, not typed stream errors. When a pipeline is applied to a sink, both drain paths close the derived reader. Cancellation closes upstream and downstream state, and a cleanup failure is attached to an existing failure rather than hiding it.
 
@@ -123,6 +131,27 @@ val toStr = Pipeline.map[Int, String](_.toString)
 val result = Stream(1, 2, 3).via(doubler).runCollect
 ```
 
+### `Pipeline.mapAsync[A, B]` — Transform Each Element Asynchronously
+
+The asynchronous twin of `map`. The callback returns an `Async`, and each one is awaited before the next element is pulled, so at most one invocation is in flight and input order is preserved. Here is the signature:
+
+```scala
+object Pipeline {
+  def mapAsync[A, B](f: A => Async[B])(implicit jtB: JvmType.Infer[B]): Pipeline[A, B]
+}
+```
+
+Like `map`, it asks for `JvmType.Infer` evidence for its result type only. A failed or defective `Async` fails the stream as a defect rather than through its typed error channel, and cancellation of a suspended callback is propagated:
+
+```scala mdoc:reset
+import zio.blocks.async.*
+import zio.blocks.streams.*
+
+val lookup = Pipeline.mapAsync[Int, String](id => Async.succeed(s"user-$id"))
+
+val result = Stream(1, 2, 3).via(lookup).runCollectAsync
+```
+
 ### `Pipeline.filter[A]` — Keep Matching Elements
 
 Keeps only elements that satisfy a predicate. Here is the signature:
@@ -143,6 +172,27 @@ val positives = Pipeline.filter[Int](_ > 0)
 val result = Stream(-2, -1, 0, 1, 2).via(positives).runCollect
 ```
 
+### `Pipeline.filterAsync[A]` — Keep Matching Elements Asynchronously
+
+The asynchronous twin of `filter`. Elements are tested sequentially and in input order, and an element is emitted only when its `Async` yields `true`. Here is the signature:
+
+```scala
+object Pipeline {
+  def filterAsync[A](f: A => Async[Boolean]): Pipeline[A, A]
+}
+```
+
+Like `filter`, it is type-preserving and therefore takes no `JvmType.Infer` evidence — it keeps whatever representation the stream or sink supplies. A failed predicate effect is a defect, and cancellation of a suspended predicate is propagated:
+
+```scala mdoc:reset
+import zio.blocks.async.*
+import zio.blocks.streams.*
+
+val allowed = Pipeline.filterAsync[Int](n => Async.succeed(n % 3 == 0))
+
+val result = Stream(1, 2, 3, 4, 5, 6).via(allowed).runCollectAsync
+```
+
 ### `Pipeline.collect[A, B]` — Partial Function Transformation
 
 Applies a partial function: only elements for which the function is defined pass through, and they are transformed to the output type. This combines filtering and mapping in one step. Here is the signature:
@@ -161,6 +211,29 @@ import zio.blocks.streams.*
 val extractInts = Pipeline.collect[Any, Int] { case n: Int => n }
 
 val result = Stream(1, "a", 2, "b", 3).via(extractInts).runCollect
+```
+
+### `Pipeline.collectAsync[A, B]` — Asynchronous Filtering Transformation
+
+The asynchronous twin of `collect`, with one shape difference worth noticing: where `collect` takes a `PartialFunction[A, B]`, `collectAsync` takes a total function returning `Async[Option[B]]`. A `None` drops the element and a `Some` emits its value. Here is the signature:
+
+```scala
+object Pipeline {
+  def collectAsync[A, B](f: A => Async[Option[B]])(implicit jtB: JvmType.Infer[B]): Pipeline[A, B]
+}
+```
+
+Elements are evaluated sequentially and in input order, and like `collect` the factory asks for `JvmType.Infer` evidence for its result type:
+
+```scala mdoc:reset
+import zio.blocks.async.*
+import zio.blocks.streams.*
+
+val parsePort = Pipeline.collectAsync[String, Int] { raw =>
+  Async.succeed(raw.toIntOption.filter(p => p > 0 && p <= 65535))
+}
+
+val result = Stream("80", "not-a-port", "8080", "99999").via(parsePort).runCollectAsync
 ```
 
 ### `Pipeline.take[A]` — First N Elements
@@ -278,6 +351,8 @@ def buildPipeline(limit: Option[Int], onlyPositive: Boolean): Pipeline[Int, Int]
 
 Apply a pipeline to a stream using `via` to transform its output elements. This is the most direct way to use a pipeline: define it once and apply it to multiple streams without repeating the transformation logic.
 
+Applying an asynchronous pipeline stage to a synchronous stream makes the resulting stream asynchronous. There is nothing to annotate and no type that changes: `Stream[E, A]` carries no marker for which way it will materialize, so `syncStream.via(Pipeline.mapAsync(...))` has exactly the type `syncStream.via(Pipeline.map(...))` would have. What changes is how the description compiles — one asynchronous node makes the whole graph recompile on the asynchronous path, and the synchronous source is adapted in place. On the JVM a blocking terminal still accepts the result; on Scala.js use an `*Async` terminal. See [Mixing synchronous and asynchronous stages](./async-execution.md#mixing-synchronous-and-asynchronous-stages) for how that widening works.
+
 ### `Stream#via[B]` — Apply a Pipeline to a Stream
 
 The primary way to use a pipeline is through `Stream.via`. Here is the signature:
@@ -374,9 +449,11 @@ Prefer `andThenSink` for readability.
 
 ## JVM Primitive Specialization
 
-`Pipeline.map`, `Pipeline.collect`, and their asynchronous transforming counterparts require `JvmType.Infer` for the transformed result type. It is resolved automatically and records whether that result is one of the eight JVM primitives or a reference. They do not request call-site evidence for the input type.
+`Pipeline.map`, `Pipeline.collect`, and their asynchronous counterparts `mapAsync` and `collectAsync` require `JvmType.Infer` for the transformed result type. It is resolved automatically and records which of the nine logical lanes that result belongs to: the eight JVM primitives, or the reference fallback. Those nine logical lanes compact into five interpreter storage lanes — int-like (`Boolean`, `Byte`, `Short`, `Char`, `Int`), `Long`, `Float`, `Double`, and reference — with operator tags selecting the identity-specific reads over them. Nine lanes therefore does not mean nine interpreter arrays; see [Zero-Boxing Streams](./zero-boxing.md) for how one is chosen. None of these factories request call-site evidence for the input type.
 
-Type-preserving factories such as `filter`, `identity`, `take`, and `drop` do not require `JvmType.Infer`: they preserve the representation supplied when the pipeline is applied. On the stream route, result evidence is stored on the transformed stream node. On the sink route, mapping passes the same result evidence to the sink's contramap machinery; structural pipelines use the generic run-via-sink route. Thus `stream.via(pipe).run(sink)` and `stream.run(pipe.andThenSink(sink))` preserve the same specialization information as well as the same semantics.
+Type-preserving factories such as `filter`, `filterAsync`, `identity`, `take`, and `drop` do not require `JvmType.Infer`: they preserve the representation supplied when the pipeline is applied.
+
+The rules hold identically through both application routes. On the stream route, result evidence is stored on the transformed stream node. On the sink route, mapping passes the same result evidence to the sink's contramap machinery, and structural pipelines use the generic run-via-sink route. So `stream.via(pipe)`, `pipe.andThenSink(sink)`, and `pipe.applyToSink(sink)` preserve the same specialization information as well as the same semantics — which means a migration edit that fixes one route must be applied to the other. See [Both Pipeline Routes](./migration.md#both-pipeline-routes) for the edits this affects.
 
 ## Integration
 
@@ -456,3 +533,29 @@ Run it with:
 ```bash
 sbt "streams-examples/runMain pipeline.PipelineSinkIntegrationExample"
 ```
+
+### Asynchronous Stages Through Both Routes
+
+This example builds `mapAsync`, `filterAsync`, and `collectAsync` into one composed pipeline value, then applies that same value through `stream.via(pipe)`, `pipe.andThenSink(sink)`, and `pipe.applyToSink(sink)` — showing that all three produce the same elements. Here is the source code:
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("streams-examples/src/main/scala/pipeline/PipelineAsyncExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/pipeline/PipelineAsyncExample.scala))
+
+Run it with:
+
+```bash
+sbt "streams-examples/runMain pipeline.PipelineAsyncExample"
+```
+
+## See Also
+
+- [Asynchronous Stream Execution](./async-execution.md#async-operators) — the stream-level `*Async` operators the three asynchronous factories delegate to, and how a mixed graph compiles
+- [Migration Guide](./migration.md#specialization-changes) — where evidence moved in this release, and the [Both Pipeline Routes](./migration.md#both-pipeline-routes) rule that every such edit obeys
+- [Stream](./stream.md#integration-with-pipeline-and-sink) — the producer side of `via`
+- [Sink](./sink.md) — the consumer a pipeline can be attached to instead
+- [Zero-Boxing Streams](./zero-boxing.md) — the lanes `JvmType.Infer` selects between, and why transforming factories need the evidence
