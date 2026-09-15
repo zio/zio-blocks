@@ -209,9 +209,14 @@ object SchemaExpr {
     if (value < min || value > max) outOfRange(value, target)
     else Right(result)
 
+  // Boundary guards use exact power-of-two bound constants with a strict `<`
+  // on the top side: `Int.MaxValue.toFloat` rounds UP to 2^31, so comparing
+  // against the widened `Int.MaxValue` would admit 2^31f, which then
+  // saturates in `toInt` and passes the round-trip check. Same for Long at
+  // 2^63 (Float and Double). Mirrors `Into` float/double narrowing guards.
   private def checkedFiniteFloatToInt(value: Float): Either[Predef.String, DynamicValue] =
     if (!java.lang.Float.isFinite(value)) lossyConversion(value, "Int")
-    else if (value < Int.MinValue.toFloat || value > Int.MaxValue.toFloat) outOfRange(value, "Int")
+    else if (value < -2147483648.0f || value >= 2147483648.0f) outOfRange(value, "Int")
     else {
       val converted = value.toInt
       if (converted.toFloat != value) lossyConversion(value, "Int")
@@ -220,7 +225,7 @@ object SchemaExpr {
 
   private def checkedFiniteFloatToLong(value: Float): Either[Predef.String, DynamicValue] =
     if (!java.lang.Float.isFinite(value)) lossyConversion(value, "Long")
-    else if (value < Long.MinValue.toFloat || value > Long.MaxValue.toFloat) outOfRange(value, "Long")
+    else if (value < -9223372036854775808.0f || value >= 9223372036854775808.0f) outOfRange(value, "Long")
     else {
       val converted = value.toLong
       if (converted.toFloat != value) lossyConversion(value, "Long")
@@ -229,7 +234,7 @@ object SchemaExpr {
 
   private def checkedFiniteDoubleToInt(value: Double): Either[Predef.String, DynamicValue] =
     if (!java.lang.Double.isFinite(value)) lossyConversion(value, "Int")
-    else if (value < Int.MinValue.toDouble || value > Int.MaxValue.toDouble) outOfRange(value, "Int")
+    else if (value < -2147483648.0 || value >= 2147483648.0) outOfRange(value, "Int")
     else {
       val converted = value.toInt
       if (converted.toDouble != value) lossyConversion(value, "Int")
@@ -238,7 +243,7 @@ object SchemaExpr {
 
   private def checkedFiniteDoubleToLong(value: Double): Either[Predef.String, DynamicValue] =
     if (!java.lang.Double.isFinite(value)) lossyConversion(value, "Long")
-    else if (value < Long.MinValue.toDouble || value > Long.MaxValue.toDouble) outOfRange(value, "Long")
+    else if (value < -9223372036854775808.0 || value >= 9223372036854775808.0) outOfRange(value, "Long")
     else {
       val converted = value.toLong
       if (converted.toDouble != value) lossyConversion(value, "Long")
