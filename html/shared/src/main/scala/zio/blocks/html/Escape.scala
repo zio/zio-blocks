@@ -209,9 +209,9 @@ private[html] object Escape {
 
   private def isDangerousNormalizedUrl(url: String): Boolean = {
     val trimmed = url.trim
-    val (decoded, sawSuspiciousNamed) = decodeUrlEntities(trimmed)
+    val (normalized, sawSuspiciousNamed) = normalizeUrlEntities(trimmed)
     sawSuspiciousNamed ||
-    isDangerousScheme(stripUrlControls(decoded).toLowerCase(java.util.Locale.ROOT))
+    isDangerousScheme(normalized.toLowerCase(java.util.Locale.ROOT))
   }
 
   /**
@@ -245,42 +245,25 @@ private[html] object Escape {
   }
 
   /**
-   * Removes the ASCII tab/LF/FF/CR characters browsers strip anywhere inside a
-   * URL before scheme comparison. Returns `s` unchanged when clean, so the
-   * common slow-path case (mixed case only) allocates nothing here.
-   */
-  private def stripUrlControls(s: String): String = {
-    val len = s.length
-    var i   = 0
-    while (i < len) {
-      val c = s.charAt(i)
-      if (c == '\t' || c == '\n' || c == '\f' || c == '\r') {
-        val sb = new java.lang.StringBuilder(len - 1)
-        sb.append(s, 0, i)
-        i += 1
-        while (i < len) {
-          val d = s.charAt(i)
-          if (d != '\t' && d != '\n' && d != '\f' && d != '\r') sb.append(d)
-          i += 1
-        }
-        return sb.toString
-      }
-      i += 1
-    }
-    s
-  }
-
-  /**
    * Decodes the numeric character references that can smuggle a URL scheme
-   * prefix past a prefix check: numeric decimal/hex references with or without
-   * a trailing semicolon (browsers decode `&#106` as well as `&#106;`,
-   * consuming digits greedily, with unlimited leading zeros). Terminated
-   * references starting with `#` are decoded at any length: capping the span
-   * would decode only a prefix and leave a stray `;` that masks the scheme
-   * (`&#000000106;…` must decode the same `j` browsers see). Terminated named
-   * references are decoded only for the verdict-flipping set (`colon`, `Tab`,
-   * `NewLine`): a named reference beyond the scheme window can still change the
-   * verdict when it decodes to `:` or to a stripped control
+   * prefix past a prefix check, and removes the ASCII tab/LF/FF/CR characters
+   * browsers strip anywhere inside a URL before scheme comparison, in a single
+   * pass. Decoding runs before stripping exactly as before (a decoded control
+   * such as `&#9;` is removed just like a raw one), so the fused output is
+   * byte-identical to decoding first and stripping second; callers lowercase
+   * the result as before. When the input holds no `&`, only the control scan
+   * runs and the input is returned unchanged when clean, so the common
+   * slow-path case (mixed case only) allocates nothing here.
+   *
+   * Numeric decimal/hex references decode with or without a trailing semicolon
+   * (browsers decode `&#106` as well as `&#106;`, consuming digits greedily,
+   * with unlimited leading zeros). Terminated references starting with `#`
+   * are decoded at any length: capping the span would decode only a prefix
+   * and leave a stray `;` that masks the scheme (`&#000000106;…` must decode
+   * the same `j` browsers see). Terminated named references are decoded only
+   * for the verdict-flipping set (`colon`, `Tab`, `NewLine`): a named
+   * reference beyond the scheme window can still change the verdict when it
+   * decodes to `:` or to a stripped control
    * (`&#x6A;avascript&colon;…` executes as `javascript:`), while references
    * decoding to any other character cannot forge a scheme. All other named
    * references are copied literally: in-window ones are already rejected via
@@ -298,10 +281,28 @@ private[html] object Escape {
    * same bound on the trimmed raw length (successfully decoded spans never
    * contain `&`, so skipping them visits no `&` twice or zero times).
    */
-  private def decodeUrlEntities(s: String): (String, Boolean) = {
-    if (s.indexOf('&') < 0) return (s, false)
-    val sb  = new java.lang.StringBuilder(s.length)
+  private def normalizeUrlEntities(s: String): (String, Boolean) = {
     val len = s.length
+    if (s.indexOf('&') < 0) {
+      var i = 0
+      while (i < len) {
+        val c = s.charAt(i)
+        if (c == '\t' || c == '\n' || c == '\f' || c == '\r') {
+          val sb = new java.lang.StringBuilder(len - 1)
+          sb.append(s, 0, i)
+          i += 1
+          while (i < len) {
+            val d = s.charAt(i)
+            if (d != '\t' && d != '\n' && d != '\f' && d != '\r') sb.append(d)
+            i += 1
+          }
+          return (sb.toString, false)
+        }
+        i += 1
+      }
+      return (s, false)
+    }
+    val sb  = new java.lang.StringBuilder(len)
     val bound =
       if (len < maxDangerousPrefixLength) len else maxDangerousPrefixLength
     var sawSuspiciousNamed = false
@@ -309,7 +310,7 @@ private[html] object Escape {
     while (i < len) {
       val c = s.charAt(i)
       if (c != '&') {
-        sb.append(c)
+        if (c != '\t' && c != '\n' && c != '\f' && c != '\r') sb.append(c)
         i += 1
       } else {
         if (i < bound && i + 1 < len) {
@@ -322,7 +323,8 @@ private[html] object Escape {
             if (s.charAt(i + 1) == '#') decodeNumericBody(s, i + 2, semi)
             else decodeNamedBody(s, i + 1, semi)
           if (decoded >= 0) {
-            sb.appendCodePoint(decoded)
+            if (decoded != '\t' && decoded != '\n' && decoded != '\f' && decoded != '\r')
+              sb.appendCodePoint(decoded)
             i = semi + 1
           } else {
             sb.append(c)
@@ -339,7 +341,8 @@ private[html] object Escape {
               sb.append(c)
               i += 1
             } else {
-              sb.appendCodePoint(decoded)
+              if (decoded != '\t' && decoded != '\n' && decoded != '\f' && decoded != '\r')
+                sb.appendCodePoint(decoded)
               i = end
             }
           }
