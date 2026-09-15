@@ -481,7 +481,7 @@ val sum: Either[Nothing, Long] =
 // at each pipeline stage boundary.
 ```
 
-This matters most for numeric workloads -- data processing, statistics, encoding/decoding -- where millions of elements flow through multi-stage pipelines. The benchmark results above reflect this advantage directly.
+This matters most for numeric workloads -- data processing, statistics, encoding/decoding -- where millions of elements flow through multi-stage pipelines.
 
 ---
 
