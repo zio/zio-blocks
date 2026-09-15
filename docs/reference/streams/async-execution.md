@@ -90,7 +90,7 @@ The same description can be materialized more than once, and each materializatio
 
 ### The Reader union
 
-`Reader[+Elem]` is the sealed root over two kinds:
+`Reader[+Elem]` is the root over two kinds:
 
 ```scala
 abstract class Reader[+Elem] {

@@ -1,11 +1,19 @@
 ---
 id: reader
 title: "Reader"
+sidebar_label: "Reader"
+description: "The pull-based source behind ZIO Blocks streams: the SyncReader and AsyncReader kinds, the pull protocol, and the custom reader contracts."
+keywords:
+  - "Pull-Based Streaming"
+  - "Reader Kinds"
+  - "Asynchronous Reading"
+  - "Sentinel Protocol"
+  - "Reader"
 ---
 
 `Reader[+Elem]` is the **pull-based source that powers ZIO Blocks streams**. When you call a terminal operation like `stream.run(sink)`, the stream compiles into a `Reader`, which yields values one at a time on demand until closed.
 
-`Reader` is sealed into `Reader.SyncReader[Elem]` and `Reader.AsyncReader[Elem]`. A synchronous reader's `read` and `close` return directly; an asynchronous reader's pull and lifecycle methods return `Async`. Most users never interact with either subtype directly, but understanding them clarifies how streams work internally.
+`Reader` has two library-provided kinds, `Reader.SyncReader[Elem]` and `Reader.AsyncReader[Elem]`. A synchronous reader's `read` and `close` return directly; an asynchronous reader's pull and lifecycle methods return `Async`. Most users never interact with either kind directly, but understanding them clarifies how streams work internally.
 
 The compilation and execution flow:
 
@@ -27,7 +35,7 @@ Stream[E, A] ──(compile)──> Reader[A]
 Here is the core `Reader` interface with the most essential methods:
 
 ```scala
-sealed abstract class Reader[+Elem]
+abstract class Reader[+Elem]
 
 abstract class Reader.SyncReader[+Elem] extends Reader[Elem] {
   def read[A >: Elem](sentinel: A): A
@@ -52,9 +60,9 @@ abstract class Reader.AsyncReader[+Elem] extends Reader[Elem] {
 }
 ```
 
-The sealed root contains only kind-independent composition and metadata (`++`, `concat`, `concatAsync`, `withReleaseAsync`, and `jvmType`); it cannot be pulled, queried, or closed directly. Those operations belong to one of the two concrete reader kinds. Every primitive, bulk, lifecycle, and pushdown method on `AsyncReader` has the same parameters as its `SyncReader` counterpart but returns its result in `Async` (for example, `readInt: Async[Long]`, `readBytes: Async[Int]`, `skip: Async[Unit]`, and `setLimit: Async[Boolean]`). The eight physical primitive methods are `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`; a primitive `jvmType` is a contract that the corresponding method works, even when covariance has widened the reader's static element type.
+The root contains only kind-independent composition and metadata (`++`, `concat`, `concatAsync`, `withReleaseAsync`, and `jvmType`); it cannot be pulled, queried, or closed directly. Those operations belong to one of the two reader kinds, described in [The reader union](#the-reader-union). Every primitive, bulk, lifecycle, and pushdown method on `AsyncReader` has the same parameters as its `SyncReader` counterpart but returns its result in `Async`; [Asynchronous reading](#asynchronous-reading) is the full member list. The eight physical primitive methods are `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`; a primitive `jvmType` is a contract that the corresponding method works, even when covariance has widened the reader's static element type.
 
-An `AsyncReader` permits one active operation at a time. Await each pull or control operation before starting the next; `close()` participates in the same lifecycle, cancels or joins active work, and must itself be awaited. Closing is the owner's responsibility and should happen exactly once (repeated close is tolerated by library readers). `SyncReader#toAsync` is cross-platform and returns a lifecycle-preserving view: closing either side closes the same underlying source. `AsyncReader#toSync` exists only on the JVM, blocks the calling thread, and likewise shares ownership rather than copying the reader; do not continue consuming through both views.
+An `AsyncReader` permits one active operation at a time, and closing it is the owner's responsibility. `SyncReader#toAsync` and the JVM-only `AsyncReader#toSync` move a reader between the two kinds without copying it.
 
 ## Quick Showcase
 
@@ -93,11 +101,112 @@ The streaming intuition is different: instead of pulling all data at once, what 
 
 `Reader` shines when you're processing large, unbounded, or expensive-to-produce data sources: database result sets, network streams, log files, sensor data, or any pipeline where memory or time efficiency matters. Instead of hoping your data fits in memory, you pay a constant, predictable cost per element.
 
+## The reader union
+
+`Reader[+Elem]` is the root of two kinds. It declares composition and one piece of metadata, and nothing that pulls, queries, or closes:
+
+```scala
+abstract class Reader[+Elem] {
+  def ++[Elem2 >: Elem](next: => Reader[Elem2]): Reader[Elem2]
+  def concat[Elem2 >: Elem](next: () => Reader[Elem2]): Reader[Elem2]
+  def concatAsync[Elem2 >: Elem](next: () => Async[Reader[Elem2]]): Reader.AsyncReader[Elem2]
+  def withReleaseAsync(release: () => Async[Unit]): Reader.AsyncReader[Elem]
+  def jvmType: JvmType = JvmType.AnyRef
+}
+```
+
+A value typed `Reader[A]` can be concatenated and can report its physical lane, and that is all. To read from it you must know its kind:
+
+- `Reader.SyncReader[Elem]` holds the direct pull API — `read`, `readAll`, `readN`, `readUpToN`, the eight primitive pulls, the array transfers, `skip`, the pushdown operations, `isClosed`, `readable()`, and `close()`, each returning its result immediately.
+- `Reader.AsyncReader[Elem]` mirrors that surface method for method, with every result wrapped in `Async`.
+
+The two kinds line up one to one, so a signature written against one translates mechanically to the other:
+
+| Member                                     | `SyncReader` result | `AsyncReader` result |
+|--------------------------------------------|---------------------|----------------------|
+| `read(sentinel)`                           | `A`                 | `Async[A]`           |
+| `readAll()`                                | `Chunk[A]`          | `Async[Chunk[A]]`    |
+| `readN(n)`, `readUpToN(n)`                 | `Chunk[A]`          | `Async[Chunk[A]]`    |
+| `readInt(_sentinel)`                       | `Long`              | `Async[Long]`        |
+| `readBytes(dest, offset, length)`          | `Int`               | `Async[Int]`         |
+| `isClosed`                                 | `Boolean`           | `Async[Boolean]`     |
+| `readable()`                               | `Boolean`           | `Async[Boolean]`     |
+| `close()`                                  | `Unit`              | `Async[Unit]`        |
+| `skip(n)`                                  | `Unit`              | `Async[Unit]`        |
+| `reset()`                                  | `Unit`              | `Async[Unit]`        |
+| `setLimit(n)`, `setRepeat()`, `setSkip(n)` | `Boolean`           | `Async[Boolean]`     |
+
+Which kind a stream materializes as is decided once, when the graph compiles: a fully synchronous graph produces a `SyncReader`, and a graph with any asynchronous node produces an `AsyncReader`. See [Asynchronous Stream Execution](./async-execution.md#one-stream-type-two-execution-modes) for that decision.
+
+One caveat about the root: `Reader` is declared `abstract class Reader[+Elem]`, not `sealed`. Every reader the library hands you is a `SyncReader` or an `AsyncReader`, and code may rely on that in practice — what it cannot rely on is the compiler proving a `match` over the two kinds exhaustive, so write such a match with a fallback case.
+
+### Mixed-kind composition
+
+Concatenation keeps both kinds usable through the same `++` and `concat` names. `SyncReader` adds a pair of overloads that are narrowed to synchronous arguments and disambiguated from the inherited ones by a `DummyImplicit` parameter:
+
+```scala
+abstract class Reader.SyncReader[+Elem] extends Reader[Elem] {
+  final def ++[Elem2 >: Elem](next: => SyncReader[Elem2])(implicit dummy: DummyImplicit): SyncReader[Elem2]
+  final def concat[Elem2 >: Elem](next: () => SyncReader[Elem2])(implicit dummy: DummyImplicit): SyncReader[Elem2]
+
+  final override def ++[Elem2 >: Elem](next: => Reader[Elem2]): AsyncReader[Elem2]
+  final override def concat[Elem2 >: Elem](next: () => Reader[Elem2]): AsyncReader[Elem2]
+}
+```
+
+The rule that falls out is simple: **synchronous plus synchronous stays synchronous; every other combination widens to `AsyncReader`**. When the widening overload is chosen, the synchronous side is adapted with `toAsync` and the pair is concatenated on the asynchronous path.
+
+```scala mdoc:compile-only
+import zio.blocks.streams.io.Reader
+import zio.blocks.chunk.Chunk
+
+val sync: Reader.SyncReader[Int]   = Reader.fromChunk(Chunk(1, 2))
+val async: Reader.AsyncReader[Int] = Reader.fromChunk(Chunk(3, 4)).toAsync
+
+val syncSync: Reader.SyncReader[Int]    = sync ++ Reader.fromChunk(Chunk(5, 6))
+val syncAsync: Reader.AsyncReader[Int]  = sync ++ async
+val asyncSync: Reader.AsyncReader[Int]  = async ++ Reader.fromChunk(Chunk(7, 8))
+val asyncAsync: Reader.AsyncReader[Int] = async ++ async
+```
+
+Because the overloads are selected on the *static* type of the argument, a value already widened to `Reader[Int]` picks the widening overload even when it happens to hold a `SyncReader` at runtime. Keep the narrow type if you want to stay on the synchronous path.
+
+`concatAsync` and `withReleaseAsync` are declared on the root and always produce an `AsyncReader`, whichever kind they are called on — the first because the next reader arrives inside an `Async`, the second because the release action does:
+
+```scala
+abstract class Reader[+Elem] {
+  def concatAsync[Elem2 >: Elem](next: () => Async[Reader[Elem2]]): Reader.AsyncReader[Elem2]
+  def withReleaseAsync(release: () => Async[Unit]): Reader.AsyncReader[Elem]
+}
+```
+
+### Converting between kinds
+
+Two adapters move a reader across the split:
+
+```scala
+abstract class Reader.SyncReader[+Elem] extends Reader[Elem] {
+  final def toAsync: Reader.AsyncReader[Elem]
+}
+
+abstract class Reader.AsyncReader[+Elem] extends Reader[Elem] {
+  final def toSync: Reader.SyncReader[Elem]   // JVM only
+}
+```
+
+`toAsync` is available on every platform. `toSync` is supplied by a JVM-only platform trait; on Scala.js that trait is empty, so the method does not exist and shared code cannot call it. [Platform Differences](./platform-differences.md#availability-matrix) has the full capability split.
+
+Both adapters are lifecycle-preserving views rather than copies. The adapter wraps the original reader, so the two sides share one position and one lifecycle: closing either one closes the underlying source, and consuming through both interleaves pulls on the same cursor. Pick one view and drive the reader through it.
+
+Both also unwrap a round trip instead of stacking. Calling `toAsync` on a reader that is itself the synchronous view of an `AsyncReader` returns that original asynchronous reader, and `toSync` on a synchronous reader's asynchronous view returns the original synchronous one. Converting back and forth therefore costs nothing and never builds a tower of adapters.
+
+`toSync` blocks the calling thread while the underlying asynchronous work completes, which carries the hazards a bridging API always has — a single consumer, and a `close()` that interrupts a blocked pull. [Asynchronous I/O](./async-io.md) covers them in full; the rule to carry away here is that `toSync` belongs at JVM edges, not in shared code.
+
 ## Construction
 
 Several ways to create a `Reader`, from predefined singletons to collections and I/O sources:
 
-Factories such as `closed`, `fromChunk`, `fromIterable`, `fromRange`, `single`, `repeat`, and `unfold` return `SyncReader`. `unfoldAsync` returns a native `AsyncReader`; its state callback is lazy, only one callback is active, and state is committed only after a successful current-generation callback. `repeated` preserves whether its input is synchronous or asynchronous. Composition also preserves asynchronous work: `concatAsync` lazily acquires the next reader and `withReleaseAsync` awaits asynchronous cleanup. Asynchronous children are supported throughout the reader graph.
+Every companion constructor states its kind in its return type, so you never have to guess which engine a hand-built reader will drive. Factories such as `closed`, `fromChunk`, `fromIterable`, `fromRange`, `single`, `repeat`, and `unfold` are declared to return `SyncReader` — `def fromRange(range: Range): SyncReader[Int]`, and so on. `unfoldAsync` is the one native asynchronous constructor and returns an `AsyncReader`. `repeated` is overloaded three ways and preserves whether its input is synchronous or asynchronous. Composition also preserves asynchronous work: `concatAsync` lazily acquires the next reader and `withReleaseAsync` awaits asynchronous cleanup. Asynchronous children are supported throughout the reader graph.
 
 ### Creating Predefined Readers
 
@@ -314,8 +423,7 @@ object Reader {
 
 ```scala
 object Reader {
-  def unfold[S, A](s: S)(f: S => Option[(A, S)]): Reader.SyncReader[A]
-  def unfoldAsync[S, A](s: S)(f: S => Async[Option[(A, S)]]): Reader.AsyncReader[A]
+  def unfold[S, A](s: S)(f: S => Option[(A, S)])(implicit jt: JvmType.Infer[A]): SyncReader[A]
 }
 ```
 
@@ -338,6 +446,34 @@ def drain(): Unit = {
 drain()
 // Output: 1, 2, 3
 ```
+
+### `Reader.unfoldAsync`
+
+`Reader.unfoldAsync` is the only native asynchronous constructor in the companion. It has the same shape as `unfold`, with the step function returning its `Option` inside an `Async`, and it produces an `AsyncReader`:
+
+```scala
+object Reader {
+  def unfoldAsync[S, A](s: S)(f: S => Async[Option[(A, S)]])(implicit jt: JvmType.Infer[A]): AsyncReader[A]
+}
+```
+
+Use it when producing the next element is itself asynchronous — a network round trip, a callback-based API, a timer. Everything downstream of it compiles on the asynchronous path.
+
+```scala mdoc:compile-only
+import zio.blocks.streams.io.Reader
+import zio.blocks.chunk.Chunk
+import zio.blocks.async._
+
+val ticks: Reader.AsyncReader[Int] =
+  Reader.unfoldAsync(1) { s =>
+    Async.succeed(if (s > 3) None else Some((s, s + 1)))
+  }
+
+val drained: Async[Chunk[Int]] = ticks.readAll()
+val closed: Async[Unit]        = ticks.close()
+```
+
+The state callback is lazy and generation-aware: exactly one callback may be in flight, and the next state is committed only when that callback succeeds while its reader generation is still current. A callback that completes after a `reset` or a `close` therefore cannot advance state that no longer exists.
 
 ## Core Operations
 
@@ -589,6 +725,24 @@ val all = r.readAll()
 println(all)  // Chunk(10, 20, 30)
 ```
 
+`Reader#readN` and `Reader#readUpToN` — Bounded drains. `readN` gathers up to `n` elements, returning early only when the reader is exhausted; `readUpToN` gathers between 1 and `n` elements and stops as soon as the next element is not already available, so it never waits for a slow producer to fill the request. Both produce an empty chunk when `n <= 0` or the reader is at end-of-stream:
+
+```scala
+abstract class Reader.SyncReader[+Elem] {
+  def readN[A >: Elem](n: Int): Chunk[A]
+  def readUpToN[A >: Elem](n: Int): Chunk[A]
+}
+
+abstract class Reader.AsyncReader[+Elem] {
+  def readN[A >: Elem](n: Int): Async[Chunk[A]]
+  def readUpToN[A >: Elem](n: Int): Async[Chunk[A]]
+}
+```
+
+:::caution[Bound `n` yourself]
+`n` is a request, and some readers size a buffer from it before knowing how much data will arrive. The JVM channel-backed byte reader allocates `new Array[Byte](n)` up front in `readUpToN`, and the only guard on that allocation is `n <= 0` — there is no upper bound. Passing `Int.MaxValue` therefore asks for a 2 GB array rather than "whatever is ready". Choose a bound that reflects how much you are prepared to hold in memory, such as a page or buffer size.
+:::
+
 `Reader#skip` — Eagerly discards the first `n` elements. Dispatches on `Reader#jvmType` for zero-boxing when possible:
 
 ```scala
@@ -641,6 +795,137 @@ r.read(-1)
 println(r.readable())      // false
 ```
 
+## Asynchronous reading
+
+`Reader.AsyncReader[Elem]` is the kind a stream materializes as whenever its graph contains an asynchronous node. It is not a second API: it is the surface described above with every result moved inside `Async`. What follows is that member list, and the handful of behaviours that are specific to the asynchronous kind.
+
+A custom asynchronous reader supplies four members. Everything else on the class has a working default built on top of them:
+
+```scala
+abstract class Reader.AsyncReader[+Elem] extends Reader[Elem] {
+  def read[A >: Elem](sentinel: A): Async[A]
+  def readable(): Async[Boolean]
+  def isClosed: Async[Boolean]
+  def close(): Async[Unit]
+}
+```
+
+That is enough to build a reader the whole stream machinery can drive:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.io.Reader
+import zio.blocks.async._
+
+final class OneShot(value: Int) extends Reader.AsyncReader[Int] {
+  private var delivered = false
+  private var closed    = false
+
+  def read[A >: Int](sentinel: A): Async[A] =
+    if (closed || delivered) Async.succeed(sentinel)
+    else { delivered = true; Async.succeed(value) }
+
+  def readable(): Async[Boolean] = Async.succeed(!closed && !delivered)
+  def isClosed: Async[Boolean]   = Async.succeed(closed)
+  def close(): Async[Unit]       = Async.succeed { closed = true }
+}
+```
+
+The three bulk reads are derived from `read` and the reader's lane, so an implementation gets them for free and overrides them only to exploit a cheaper native path:
+
+```scala
+abstract class Reader.AsyncReader[+Elem] extends Reader[Elem] {
+  def readAll[A >: Elem](): Async[Chunk[A]]
+  def readN[A >: Elem](n: Int): Async[Chunk[A]]
+  def readUpToN[A >: Elem](n: Int): Async[Chunk[A]]
+}
+```
+
+`readAll()` is `readN(Int.MaxValue)`, `readN` gathers until it has `n` elements or hits end-of-stream, and `readUpToN` additionally stops as soon as the next element is not already available. All three yield to the scheduler after a fixed budget of consecutive pulls, so a fast in-memory reader cannot monopolize the calling thread.
+
+The eight primitive pulls mirror the synchronous lane exactly, including the widened carriers — a `Char`, `Short`, `Boolean`, or `Byte` lane returns its value in an `Int`, an `Int` lane in a `Long`, and a `Float` lane in a `Double` — with the result inside `Async`:
+
+```scala
+abstract class Reader.AsyncReader[+Elem] extends Reader[Elem] {
+  def readBoolean(_sentinel: Int)(implicit _ev: Elem <:< Boolean): Async[Int]
+  def readByte(): Async[Int]
+  def readChar(_sentinel: Int)(implicit _ev: Elem <:< Char): Async[Int]
+  def readShort(_sentinel: Int)(implicit _ev: Elem <:< Short): Async[Int]
+  def readInt(_sentinel: Long)(implicit _ev: Elem <:< Int): Async[Long]
+  def readLong(_sentinel: Long)(implicit _ev: Elem <:< Long): Async[Long]
+  def readFloat(_sentinel: Double)(implicit _ev: Elem <:< Float): Async[Double]
+  def readDouble(_sentinel: Double)(implicit _ev: Elem <:< Double): Async[Double]
+}
+```
+
+Calling one of these on a reader whose `jvmType` is a different primitive lane does not throw at the call site: it returns a failed `Async` carrying an `UnsupportedOperationException` that names both lanes. A reader on the `AnyRef` lane, by contrast, satisfies every one of them by pulling boxed and converting.
+
+Five bulk array transfers fill a caller-supplied array and report how many elements were written, or `-1` when the reader was already at end-of-stream:
+
+```scala
+abstract class Reader.AsyncReader[+Elem] extends Reader[Elem] {
+  def readBytes(dest: Array[Byte], offset: Int, length: Int)(implicit ev: Elem <:< Byte): Async[Int]
+  def readInts(dest: Array[Int], offset: Int, length: Int)(implicit ev: Elem <:< Int): Async[Int]
+  def readLongs(dest: Array[Long], offset: Int, length: Int)(implicit ev: Elem <:< Long): Async[Int]
+  def readFloats(dest: Array[Float], offset: Int, length: Int)(implicit ev: Elem <:< Float): Async[Int]
+  def readDoubles(dest: Array[Double], offset: Int, length: Int)(implicit ev: Elem <:< Double): Async[Int]
+}
+```
+
+A transfer also stops short of `length` when the next element is not already available, so a partial count is a normal result rather than a sign of end-of-stream. An out-of-range `offset` or `length` surfaces as a failed `Async`, not a thrown exception.
+
+The five control operations complete the mirror:
+
+```scala
+abstract class Reader.AsyncReader[+Elem] extends Reader[Elem] {
+  def skip(n: Long): Async[Unit]
+  def reset(): Async[Unit]
+  def setLimit(n: Long): Async[Boolean]
+  def setRepeat(): Async[Boolean]
+  def setSkip(n: Long): Async[Boolean]
+}
+```
+
+`skip` has a real default that discards elements through the reader's own lane. The pushdown operations do not: on the base class `reset()` fails with an `UnsupportedOperationException`, and `setLimit`, `setRepeat`, and `setSkip` each succeed with `false`. Those defaults are the honest answer for a reader that cannot rewind or bound itself natively, and callers already handle them — a `false` simply means the interpreter wraps the reader instead of pushing the operation down. Override them only when your reader can genuinely do the work in O(1).
+
+### One active operation at a time
+
+An `AsyncReader` is a single-consumer cursor with one position and one lifecycle. **At most one operation may be in flight at a time.** Await the `Async` returned by a pull, a transfer, a control operation, or `close()` before beginning the next one.
+
+For an implementor this is a contract you may rely on and must not weaken: your `read` will not be re-entered while a previous `read` is still pending, so internal position and buffer state need no defence against overlap. It is also a contract you inherit — a reader you wrap gets the same guarantee only if you preserve it, so never fan a single downstream pull out into concurrent pulls on your source.
+
+Readers are not thread-safe either. Driving one reader from two threads without external synchronization is outside the contract, and the result is not specified. [Asynchronous Stream Execution](./async-execution.md#one-active-operation-per-reader) states the same rule from the consumer's side.
+
+### Close ownership
+
+Every asynchronous reader has exactly one owner, and the owner is responsible for awaiting `close()`. Ownership is never ambiguous, because each entry point states which side holds it:
+
+- Terminals — `run`, `runAsync`, and their siblings — own the reader they compile and close it on success, typed failure, defect, and cancellation. You do nothing.
+- `Stream#startAsync` **transfers ownership to you**. It returns `Async[Reader.AsyncReader[A]]`, and from that point the reader is yours: you must run and await `close()` on every exit path, including the ones you take because something failed.
+- `Stream#useReaderAsync` **retains ownership**. It takes `Reader.AsyncReader[A] => Async[Z]`, and awaits the reader's close on every outcome of your function. Prefer it whenever the reader's lifetime fits inside a single scope.
+
+`close()` is itself an asynchronous operation: it participates in the one-active-operation rule, it cancels or joins work already in flight, and its result must be awaited rather than discarded. Library readers tolerate a repeated close, but the owner should still close exactly once.
+
+For an implementor, `close()` is where release actions and underlying resources are surfaced. A failure during cleanup is reported through the returned `Async` rather than swallowed, so do not let a failing release leave the reader believing it is still open.
+
+```scala mdoc:compile-only
+import zio.blocks.streams._
+import zio.blocks.streams.io.Reader
+import zio.blocks.chunk.Chunk
+import zio.blocks.async._
+
+// Ownership retained by the library: the reader is closed on every outcome.
+val firstFive: Async[Chunk[Int]] =
+  Stream.range(1, 100).useReaderAsync { (r: Reader.AsyncReader[Int]) =>
+    r.readN(5)
+  }
+
+// Ownership transferred to the caller: closing is now your job.
+val owned: Async[Chunk[Int]] =
+  Stream.range(1, 100).startAsync.flatMap { r =>
+    r.readN(5).flatMap(chunk => r.close().map(_ => chunk))
+  }
+```
+
 ## Composition
 
 Combine multiple readers to build more complex sources:
@@ -684,6 +969,8 @@ drain()
 // Output: 1, 2, 3, 4
 ```
 
+These are the root's declarations, which answer with a `Reader[Elem2]`. `SyncReader` narrows them with a second pair of overloads so that concatenating two synchronous readers gives back a `SyncReader`; see [Mixed-kind composition](#mixed-kind-composition) for which combination produces which kind.
+
 **Optimization**: If this reader is already a `ConcatReader`, the thunk is appended to its internal array and `this` is returned (mutable append, O(1) amortized). Otherwise a new `ConcatReader` is created. This ensures that left-associative chains like `a ++ b ++ c ++ d` compile into a single flat `ConcatReader` with O(1) per-element read, rather than O(n) nested wrappers.
 
 ## Resource Management
@@ -704,14 +991,14 @@ abstract class Reader.AsyncReader[+Elem] {
 }
 ```
 
-`SyncReader#withRelease` wraps a synchronous reader so that `release` runs when it closes. `withReleaseAsync`, available on the sealed root, returns an `AsyncReader` and awaits asynchronous cleanup:
+`SyncReader#withRelease` wraps a synchronous reader so that `release` runs when it closes. `withReleaseAsync`, available on the root and therefore on both kinds, returns an `AsyncReader` and awaits asynchronous cleanup:
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
   def withRelease(release: () => Unit): Reader.SyncReader[Elem]
 }
 
-sealed abstract class Reader[+Elem] {
+abstract class Reader[+Elem] {
   def withReleaseAsync(release: () => Async[Unit]): Reader.AsyncReader[Elem]
 }
 ```
@@ -932,16 +1219,15 @@ Understand the design choices and mechanisms that power `Reader`:
 
 The `read(sentinel)` method uses a caller-chosen sentinel value to signal end-of-stream. This avoids the allocation and boxing of wrapping results in `Option` or `Either`. The sentinel must be a value that never appears as a real element.
 
-For reference types, `null` is a common sentinel. Primitive scalar callers choose a sentinel appropriate to the widened carrier:
+The contract has three parts, and it is the same on both reader kinds:
 
-| Type   | Sentinel     | Method            | Return Type |
-|--------|--------------|-------------------|-------------|
-| `Int`  | `Long.MinValue` | `readInt(sentinel: Long)` | `Long`      |
-| `Long` | `Long.MaxValue` | `readLong(sentinel: Long)` | `Long`      |
-| `Float` | `Double.MaxValue` | `readFloat(sentinel: Double)` | `Double`   |
-| `Double` | `Double.MaxValue` | `readDouble(sentinel: Double)` | `Double`   |
+1. **The caller owns the sentinel.** The reader never invents one. Pick a value that cannot occur in your data — `null` is the usual choice for reference elements.
+2. **The sentinel travels in the widened carrier.** A primitive pull returns the lane's widened type, not the element type, precisely so a value outside the element's domain is available to spend as the sentinel. `readInt` takes and returns `Long`; `readChar`, `readShort`, and `readBoolean` take and return `Int`; `readFloat` takes and returns `Double`. `readByte()` is the exception that proves the rule: it takes no sentinel parameter because it yields unsigned bytes in `0..255` and can reserve `-1` permanently.
+3. **Getting the sentinel back means exhausted, and nothing else.** It is not an error signal. Failures arrive as thrown exceptions on a `SyncReader` and as failed `Async` values on an `AsyncReader`.
 
-Scalar `Long` and `Double` pulls cannot avoid collisions. Library internals do not treat a numeric value as EOF for those lanes: they use length-one `readLongs` and `readDoubles` calls and inspect the returned count, so every bit pattern remains data.
+Two lanes sit outside that arrangement. There is no `Long` value and no `Double` bit pattern left over to reserve — the carrier is the element type itself, so every candidate sentinel is also legitimate data. **The `Long` and `Double` lanes therefore use no sentinel.** `readLong` and `readDouble` still take a sentinel parameter, for symmetry with the other six, but nothing can safely fill it; the library never relies on it. Instead those lanes detect end-of-stream by count: a length-one `readLongs` or `readDoubles` whose returned count is negative. That is what makes those two lanes fully lossless — every `Long` value and every `Double` bit pattern stays readable as data.
+
+For the per-lane end-of-stream detail, including which carrier each lane widens to, see [Zero-Boxing Streams](./zero-boxing.md), which owns that table.
 
 ### JVM Type Dispatch
 
@@ -953,7 +1239,9 @@ abstract class Reader[+Elem] {
 }
 ```
 
-The eight primitive tags map exactly to `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`. For example, a `SyncReader[Int]` backed by a `Chunk[Int]` reports `JvmType.Int`, so consumers may use `readInt`; asynchronous readers expose the corresponding values through `Async`.
+`JvmType` has nine lanes: the eight JVM primitives — `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, `Double` — and `AnyRef` for everything else. The eight primitive tags map exactly to `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`; `AnyRef` is the ninth, and it is the only lane on which all eight of those methods work, because it satisfies them by pulling boxed and converting. For example, a `SyncReader[Int]` backed by a `Chunk[Int]` reports `JvmType.Int`, so consumers may use `readInt` and no other primitive pull.
+
+The lane is a property of the reader, not of the kind. A `SyncReader` and the `AsyncReader` it becomes under `toAsync` report the same `jvmType`, and asynchronous readers expose the corresponding values through `Async`.
 
 ### Thread Safety
 
@@ -1019,3 +1307,14 @@ Run it with:
 ```bash
 sbt "streams-examples/runMain reader.ReaderCompositionExample"
 ```
+
+## See Also
+
+- [Asynchronous Stream Execution](./async-execution.md) — how a graph picks its engine, the `*Async` surface, and close ownership from the stream's side
+- [Asynchronous I/O](./async-io.md) — asynchronous sources, and the full hazards of bridging kinds with `toSync`
+- [Platform Differences](./platform-differences.md#availability-matrix) — which reader operations exist on the JVM, on Scala.js, and on both
+- [Migration](./migration.md#the-reader-split) — moving code that accepted an undifferentiated `Reader` onto the two kinds
+- [Zero-Boxing Streams](./zero-boxing.md) — how a primitive lane is chosen, and the per-lane end-of-stream table
+- [Stream](./stream.md) — the operator and terminal reference for the type that compiles to a `Reader`
+- [Sink](./sink.md) — the consumer that drains a `Reader`
+- [Async](../async.md#the-pollable-protocol) — `Async[A]`, `Pollable`, and what awaiting an asynchronous result means
