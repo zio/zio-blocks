@@ -125,10 +125,10 @@ private[html] object Escape {
     Array("image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "text/plain")
 
   /**
-   * Width of the scheme-relevant prefix window (14 chars, covering the
-   * longest dangerous scheme with margin). Only bytes inside this prefix
-   * window can influence the scheme verdict, so the benign fast path only
-   * needs to prove this window needs no normalization.
+   * Width of the scheme-relevant prefix window (14 chars, covering the longest
+   * dangerous scheme with margin). Only bytes inside this prefix window can
+   * influence the scheme verdict, so the benign fast path only needs to prove
+   * this window needs no normalization.
    */
   private val maxDangerousPrefixLength = 14
 
@@ -208,7 +208,7 @@ private[html] object Escape {
   }
 
   private def isDangerousNormalizedUrl(url: String): Boolean = {
-    val trimmed = url.trim
+    val trimmed                          = url.trim
     val (normalized, sawSuspiciousNamed) = normalizeUrlEntities(trimmed)
     sawSuspiciousNamed ||
     isDangerousScheme(normalized.toLowerCase(java.util.Locale.ROOT))
@@ -216,13 +216,13 @@ private[html] object Escape {
 
   /**
    * True when a lowercased URL carries a dangerous scheme: `data:` URLs are
-   * dangerous unless the token after `data:` up to the first `;` or `,`
-   * exactly matches a pinned-safe entry of [[safeDataMediaTypes]]
-   * (surrounding blanks trimmed), so scriptable XML, script types, and empty
-   * or unknown types stay rejected (fail-closed default); every other URL is
-   * dangerous when it starts with a listed [[dangerousUrlSchemes]] prefix.
+   * dangerous unless the token after `data:` up to the first `;` or `,` exactly
+   * matches a pinned-safe entry of [[safeDataMediaTypes]] (surrounding blanks
+   * trimmed), so scriptable XML, script types, and empty or unknown types stay
+   * rejected (fail-closed default); every other URL is dangerous when it starts
+   * with a listed [[dangerousUrlSchemes]] prefix.
    */
-  private def isDangerousScheme(normalized: String): Boolean = {
+  private def isDangerousScheme(normalized: String): Boolean =
     if (normalized.startsWith("data:")) {
       val rest = normalized.substring("data:".length)
       var end  = 0
@@ -242,7 +242,6 @@ private[html] object Escape {
       }
       false
     }
-  }
 
   /**
    * Decodes the numeric character references that can smuggle a URL scheme
@@ -257,19 +256,18 @@ private[html] object Escape {
    *
    * Numeric decimal/hex references decode with or without a trailing semicolon
    * (browsers decode `&#106` as well as `&#106;`, consuming digits greedily,
-   * with unlimited leading zeros). Terminated references starting with `#`
-   * are decoded at any length: capping the span would decode only a prefix
-   * and leave a stray `;` that masks the scheme (`&#000000106;…` must decode
-   * the same `j` browsers see). Terminated named references are decoded only
-   * for the verdict-flipping set (`colon`, `Tab`, `NewLine`): a named
-   * reference beyond the scheme window can still change the verdict when it
-   * decodes to `:` or to a stripped control
-   * (`&#x6A;avascript&colon;…` executes as `javascript:`), while references
-   * decoding to any other character cannot forge a scheme. All other named
-   * references are copied literally: in-window ones are already rejected via
-   * the returned flag, and beyond-window ones cannot affect the scheme verdict.
-   * Unknown or malformed references are left as-is. Index scans only; no
-   * substrings.
+   * with unlimited leading zeros). Terminated references starting with `#` are
+   * decoded at any length: capping the span would decode only a prefix and
+   * leave a stray `;` that masks the scheme (`&#000000106;…` must decode the
+   * same `j` browsers see). Terminated named references are decoded only for
+   * the verdict-flipping set (`colon`, `Tab`, `NewLine`): a named reference
+   * beyond the scheme window can still change the verdict when it decodes to
+   * `:` or to a stripped control (`&#x6A;avascript&colon;…` executes as
+   * `javascript:`), while references decoding to any other character cannot
+   * forge a scheme. All other named references are copied literally: in-window
+   * ones are already rejected via the returned flag, and beyond-window ones
+   * cannot affect the scheme verdict. Unknown or malformed references are left
+   * as-is. Index scans only; no substrings.
    *
    * Also returns the fail-closed guard for the scheme-position window: true
    * when the raw input holds `&` followed by an ASCII letter before
@@ -302,7 +300,7 @@ private[html] object Escape {
       }
       return (s, false)
     }
-    val sb  = new java.lang.StringBuilder(len)
+    val sb    = new java.lang.StringBuilder(len)
     val bound =
       if (len < maxDangerousPrefixLength) len else maxDangerousPrefixLength
     var sawSuspiciousNamed = false

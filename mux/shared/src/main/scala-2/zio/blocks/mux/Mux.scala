@@ -50,7 +50,10 @@ object Mux {
    *   [[MuxError.QueueFull]] instead of blocking (non-blocking contract) —
    *   callers should retry, shed load, or open fewer streams rather than spin.
    */
-  def apply[Id, In, Out](capacity: Int, streamQueueCapacity: Int = DefaultStreamQueueCapacity): Mux[Id, In, Out] = {
+  def apply[Id, In, Out](capacity: Int): Mux[Id, In, Out] =
+    apply(capacity, DefaultStreamQueueCapacity)
+
+  def apply[Id, In, Out](capacity: Int, streamQueueCapacity: Int): Mux[Id, In, Out] = {
     require(capacity > 0, s"Mux capacity must be positive, got $capacity")
     require(
       streamQueueCapacity > 0 && (streamQueueCapacity & (streamQueueCapacity - 1)) == 0,
