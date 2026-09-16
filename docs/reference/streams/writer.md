@@ -598,7 +598,7 @@ For typical stream usage, you'll see Writer indirectly when writing to files, ne
 
 Understanding `Writer`'s design decisions helps you use it correctly and avoid common pitfalls:
 
-### Push vs Pull
+### Push Vs Pull
 
 `Writer` is push-based (producer-driven), contrasting with `Reader` which is pull-based (consumer-driven):
 

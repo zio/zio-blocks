@@ -101,7 +101,7 @@ The streaming intuition is different: instead of pulling all data at once, what 
 
 `Reader` shines when you're processing large, unbounded, or expensive-to-produce data sources: database result sets, network streams, log files, sensor data, or any pipeline where memory or time efficiency matters. Instead of hoping your data fits in memory, you pay a constant, predictable cost per element.
 
-## The reader union
+## The Reader Union
 
 `Reader[+Elem]` is the root of two kinds. It declares composition and one piece of metadata, and nothing that pulls, queries, or closes:
 
@@ -140,7 +140,7 @@ Which kind a stream materializes as is decided once, when the graph compiles: a 
 
 One caveat about the root: `Reader` is declared `abstract class Reader[+Elem]`, not `sealed`. Every reader the library hands you is a `SyncReader` or an `AsyncReader`, and code may rely on that in practice — what it cannot rely on is the compiler proving a `match` over the two kinds exhaustive, so write such a match with a fallback case.
 
-### Mixed-kind composition
+### Mixed-kind Composition
 
 Concatenation keeps both kinds usable through the same `++` and `concat` names. `SyncReader` adds a pair of overloads that are narrowed to synchronous arguments and disambiguated from the inherited ones by a `DummyImplicit` parameter:
 
@@ -180,7 +180,7 @@ abstract class Reader[+Elem] {
 }
 ```
 
-### Converting between kinds
+### Converting Between Kinds
 
 Two adapters move a reader across the split:
 
@@ -795,7 +795,7 @@ r.read(-1)
 println(r.readable())      // false
 ```
 
-## Asynchronous reading
+## Asynchronous Reading
 
 `Reader.AsyncReader[Elem]` is the kind a stream materializes as whenever its graph contains an asynchronous node. It is not a second API: it is the surface described above with every result moved inside `Async`. What follows is that member list, and the handful of behaviours that are specific to the asynchronous kind.
 
@@ -887,7 +887,7 @@ abstract class Reader.AsyncReader[+Elem] extends Reader[Elem] {
 
 `skip` has a real default that discards elements through the reader's own lane. The pushdown operations do not: on the base class `reset()` fails with an `UnsupportedOperationException`, and `setLimit`, `setRepeat`, and `setSkip` each succeed with `false`. Those defaults are the honest answer for a reader that cannot rewind or bound itself natively, and callers already handle them — a `false` simply means the interpreter wraps the reader instead of pushing the operation down. Override them only when your reader can genuinely do the work in O(1).
 
-### One active operation at a time
+### One Active Operation at a Time
 
 An `AsyncReader` is a single-consumer cursor with one position and one lifecycle. **At most one operation may be in flight at a time.** Await the `Async` returned by a pull, a transfer, a control operation, or `close()` before beginning the next one.
 
@@ -895,7 +895,7 @@ For an implementor this is a contract you may rely on and must not weaken: your 
 
 Readers are not thread-safe either. Driving one reader from two threads without external synchronization is outside the contract, and the result is not specified. [Asynchronous Stream Execution](./async-execution.md#one-active-operation-per-reader) states the same rule from the consumer's side.
 
-### Close ownership
+### Close Ownership
 
 Every asynchronous reader has exactly one owner, and the owner is responsible for awaiting `close()`. Ownership is never ambiguous, because each entry point states which side holds it:
 

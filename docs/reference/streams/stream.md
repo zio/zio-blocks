@@ -38,11 +38,11 @@ abstract class Stream[+E, +A] {
 - **Typed errors**: distinguish recoverable errors (`E`) from untyped defects (`Throwable`)
 - **Resource-safe**: RAII semantics ensure resources are released in all cases
 
-### Asynchronous source constructors
+### Asynchronous Source Constructors
 
 The companion constructors whose names end in `Async` — `attemptAsync`, `attemptEvalAsync`, `deferAsync`, `evalAsync`, `fromAcquireReleaseAsync`, `fromIteratorAsync`, `fromReaderAsync`, and `unfoldAsync` — defer their `Async` thunk until the first reader operation is driven, and `Stream.unwrap` flattens an `Async[Stream[E, A]]` so that ordinary operators such as `flatMap`, `catchAll`, and `flatMapPar` compose with asynchronously produced streams. [Async Source Constructors](./async-execution.md#async-source-constructors) documents each of them, along with the laziness and error conventions they share; this page does not repeat them.
 
-### Migration and source compatibility
+### Migration and Source Compatibility
 
 The reader split is a deliberate source-level API change for custom integrations. `Reader` is an ordinary `abstract class`, not a sealed one, but every reader the library hands you is a `Reader.SyncReader[A]` or a `Reader.AsyncReader[A]`, so code that previously implemented or accepted an undifferentiated `Reader[A]` must choose one kind or match both with a fallback case. Custom sinks cannot be written by subclassing `Sink`, whose two abstract drains are `private[streams]`; use `Sink.createAsync`, `Sink.createBoth`, or the JVM-only `Sink.create`. Plain terminals, `start`, `AsyncReader#toSync`, and `Sink.create` are JVM-only, so shared sources should migrate to `run*Async`, `startAsync`/`useReaderAsync`, and `createAsync`. The [Migration Guide](./migration.md#at-a-glance) pairs each of these changes with the compile error it produces and the code that replaces it.
 
@@ -1244,7 +1244,7 @@ val result = logged.runCollect
 
 Streams distinguish between recoverable business errors and unexpected exceptions, providing separate recovery mechanisms for each:
 
-### Typed Error vs Untyped Defect
+### Typed Error Vs Untyped Defect
 
 ZIO Blocks distinguishes two error channels:
 
@@ -1260,7 +1260,7 @@ This separation allows you to:
 
 Streams distinguish between recoverable domain errors and fatal defects, with flexible recovery patterns:
 
-### Recovering from Typed Errors
+### Recovering From Typed Errors
 
 These operations handle typed errors gracefully by recovering with alternative streams:
 
@@ -1307,7 +1307,7 @@ val fallback = Stream.succeed(42)
 val result = (primary || fallback).runCollect
 ```
 
-### Recovering from Defects
+### Recovering From Defects
 
 `catchDefect[E1, A1]` — Catches untyped defects (exceptions not wrapped as typed errors) using a partial function.:
 
@@ -1878,7 +1878,7 @@ if (jvmType eq JvmType.Int) {
 
 This optimization is transparent: you write normal, high-level code, and the compiler and runtime automatically use the fast path for primitives.
 
-### Dual Compilation: Recursive vs Interpreter
+### Dual Compilation: Recursive Vs Interpreter
 
 Each stream node compiles in two ways:
 
@@ -2001,7 +2001,7 @@ Run this example:
 sbt "streams-examples/runMain stream.StreamAsyncStatefulExample"
 ```
 
-## Native asynchronous byte readers
+## Native Asynchronous Byte Readers
 
 Each platform ships adapters that turn a native byte source into a `Reader.AsyncReader[Byte]`, which `Stream.fromReader` then lifts into a stream: `AsyncNioReaders.fromChannel` and `fromSocket` on the JVM, `ReadableStreamReaders.fromReadableStream` on Scala.js, each with an `Unmanaged` variant that leaves the native source caller-owned. [Asynchronous I/O](./async-io.md) documents them, together with their chunking and EOF rules and the way source failures reach the typed error channel.
 

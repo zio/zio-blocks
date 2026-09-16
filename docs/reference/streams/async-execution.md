@@ -31,7 +31,7 @@ The asynchronous surface is five things: constructors that produce a stream from
 
 Every asynchronous addition follows one naming convention: the synchronous name with `Async` appended. There is no `fromAsync` and no `asyncPush`.
 
-## Dependency and imports
+## Dependency and Imports
 
 The streams module carries the asynchronous effect type with it — `zio-blocks-streams` depends on `zio-blocks-async`, so one coordinate is all you add:
 
@@ -80,7 +80,7 @@ The central claim of this page is short: the type that decides between synchrono
 └────────────────────────┘   └──────────────────────────────────┘
 ```
 
-### Classification happens at compile time
+### Classification Happens at Compile Time
 
 `Stream.compile` first attempts a synchronous compilation of the whole graph. Nine node types cannot be represented synchronously — the asynchronous source boundary and the asynchronous operator nodes among them — and each of them aborts that attempt. When the attempt aborts, the graph is recompiled on the asynchronous path and the result is an `AsyncReader`.
 
@@ -88,7 +88,7 @@ This decision is made **once, at materialization**. It is never made per element
 
 The same description can be materialized more than once, and each materialization classifies independently. Classification is a property of the graph, not of the value's type.
 
-### The Reader union
+### The Reader Union
 
 `Reader[+Elem]` is the root over two kinds:
 
@@ -106,7 +106,7 @@ The root carries only kind-independent composition and one piece of metadata. Ev
 
 A synchronous graph materializes as the former; a graph containing any asynchronous node materializes as the latter. See [Reader](./reader.md) for the full member list of both kinds, for how to implement a custom reader, and for `SyncReader#toAsync` and the JVM-only `AsyncReader#toSync`.
 
-### Mixing synchronous and asynchronous stages
+### Mixing Synchronous and Asynchronous Stages
 
 When a synchronous source meets an asynchronous operator, the asynchronous node aborts the synchronous compilation, the whole graph recompiles on the asynchronous path, and the synchronous source is adapted in place by `SyncReader#toAsync`. Nothing in user code needs annotating, and no static type changes.
 
@@ -141,13 +141,13 @@ val mixed: Stream[Nothing, Int] =
 
 On the JVM a blocking terminal still accepts `mixed`: the asynchronous reader is converted back at the final boundary. On Scala.js, use an `*Async` terminal.
 
-### Why two engines
+### Why Two Engines
 
 The synchronous engine keeps its lane registers as stack locals inside a single loop. Stack locals cannot survive a suspension — the moment a callback returns a value that is not yet ready, the loop's frame has to unwind and there is nowhere for those registers to live. The asynchronous path is therefore a separate, heap-allocated engine that keeps the equivalent state in an object it can park and resume.
 
 That is the whole reason classification exists. It is also the reason a purely synchronous stream pays nothing for the library's asynchronous support: a graph with no asynchronous node never touches the heap-allocated engine.
 
-### There is no mode annotation, and no lane diagnostic
+### There Is No Mode Annotation, and No Lane Diagnostic
 
 Two things readers look for here, and will not find:
 
@@ -274,7 +274,7 @@ def fromReader[E, A](mkReader: => Reader.AsyncReader[A])(implicit dummy: DummyIm
 
 Each overload lazily obtains one reader per materialization and closes it when the stream closes; reader-thunk failures are defects. The `Reader[A]` overload is documented as advanced: it is the union-preserving escape hatch, and it preserves whether the returned reader is synchronous or asynchronous. The `AsyncReader` overload awaits the reader's close.
 
-### Laziness and error conventions
+### Laziness and Error Conventions
 
 Two rules govern this whole family, and they are worth stating on their own because they are the two things most often assumed backwards.
 
@@ -376,7 +376,7 @@ For the one *concurrent* asynchronous operator, `mapParAsync`, see [Concurrent O
 
 A terminal is what drives a stream. The cross-platform family all ends in `Async` and all shares one return shape.
 
-### The `Async[Either[E, Z]]` convention
+### The `Async[Either[E, Z]]` Convention
 
 Every cross-platform terminal returns `Async[Either[E, Z]]`, never `Async[Z]`. The two channels are kept apart deliberately:
 
@@ -402,7 +402,7 @@ val described: Async[String] = collected.map(result =>
 )
 ```
 
-### Collecting and running
+### Collecting and Running
 
 ```scala
 def runAsync[ES, E3, Z](sink: Sink[ES, A, Z])(implicit
@@ -454,13 +454,13 @@ The query terminals are one-liners over `runAsync`. Knowing which `Sink` each de
 
 `existsAsync`, `findAsync`, and `forallAsync` take an `A => Async[Boolean]` predicate; `foreachAsync` is an alias for `runForeachAsync`. `countAsync`, `headAsync`, and `lastAsync` take no callback and therefore reuse the ordinary synchronous sinks.
 
-### Blocking twins are JVM-only
+### Blocking Twins Are JVM-only
 
 Thirteen blocking members — `count`, `exists`, `find`, `forall`, `foreach`, `head`, `last`, `run`, `runCollect`, `runDrain`, `runFold`, `runForeach`, and `start` — live on the JVM only. Shared, cross-compiled sources cannot call them; they must use the `*Async` family, `startAsync`, and `useReaderAsync` instead.
 
 For the full platform matrix, including which reader conversions and sink constructors exist on which platform, see [Platform Differences](./platform-differences.md). For converting an existing blocking codebase, see [Migration](./migration.md).
 
-### Driving an `Async` from a JVM `main`
+### Driving an `Async` From a JVM `main`
 
 An `Async[Either[E, Z]]` is a value. Something has to drive it, and on the JVM that something is `.block`:
 
@@ -506,13 +506,13 @@ The scoped alternative. Ownership is **retained** by the library: the reader is 
 
 Note the return type: `Async[Z]`, not `Async[Either[E, Z]]`. `useReaderAsync` hands you the reader, so whatever `f` produces is what you get back; stream errors surface through the reader's own pulls.
 
-### One active operation per reader
+### One Active Operation Per Reader
 
 An `AsyncReader` is a single-consumer cursor, not a concurrent work queue. **At most one operation may be in flight at a time**: await the `Async` returned by a `read`, `readAll`, `skip`, or `close` before beginning the next one.
 
 Readers are not thread-safe either. Overlapping pulls, or driving one reader from two threads without external synchronization, is outside the contract — the reader's internal position and lifecycle state are not defended against it, and the result is not specified.
 
-### Cleanup failures
+### Cleanup Failures
 
 When cleanup fails on a path that has already failed, the cleanup failure is **attached to** the primary failure rather than replacing it. The original cause is what propagates; the cleanup cause is recorded as a suppressed exception on it.
 
@@ -564,7 +564,7 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks
 ```
 
-### Async terminals and `.block`
+### Async Terminals and `.block`
 
 Three terminals on one description, the `Either` unwrapped on both branches, and `.block` used exactly once, at the edge of `main`:
 
@@ -580,7 +580,7 @@ Run it with:
 sbt "streams-examples/runMain stream.StreamAsyncTerminalsExample"
 ```
 
-### Ownership: `startAsync` versus `useReaderAsync`
+### Ownership: `startAsync` Versus `useReaderAsync`
 
 A finalizer that counts its own runs, proving that `useReaderAsync` closes on success *and* on failure, while `startAsync` closes only because the caller does it:
 
@@ -596,7 +596,7 @@ Run it with:
 sbt "streams-examples/runMain stream.StreamAsyncOwnershipExample"
 ```
 
-### A mixed synchronous and asynchronous pipeline
+### A Mixed Synchronous and Asynchronous Pipeline
 
 A synchronous source, one asynchronous operator, and no change to any annotation:
 
@@ -612,7 +612,7 @@ Run it with:
 sbt "streams-examples/runMain stream.StreamMixedKindExample"
 ```
 
-### A composed asynchronous pipeline
+### A Composed Asynchronous Pipeline
 
 Real suspension through a `Completer`, `Stream.unwrap` feeding `filterAsync`, `mapAsync`, and `ensuringAsync`, 33,000 nested stages to demonstrate that the asynchronous path is stack-safe, and an assertion that the finalizer runs exactly once:
 

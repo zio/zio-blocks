@@ -17,7 +17,7 @@ This document explains the design of Scala 2.13 support for `zio.blocks.streams`
 
 HTTP data types in `zio-blocks` depend on streams. `zio-http` 4 depends on those HTTP data types. Without Scala 2 stream support, `zio-http` cannot offer Scala 2 support. That dependency chain makes Scala 2.13 support for streams a hard requirement, not an optional nicety.
 
-## Non-negotiable constraint: Scala 3 performance
+## Non-negotiable Constraint: Scala 3 Performance
 
 When Scala 2 support was first proposed, the streams implementation used Scala 3 features on hot combinator paths, especially in `Stream` and `Sink` methods that participate in specialization, error-channel elimination, and zero-boxing-friendly code generation. The `inline` keyword on performance-sensitive helpers was not cosmetic; it directly affected what the JVM saw.
 
@@ -29,7 +29,7 @@ A Scala 2 compatibility layer is only acceptable if it leaves the Scala 3 hot pa
 
 Adapting surface syntax from Scala 3 `using` to Scala 2 `implicit` is fine where it does not touch the hot path. The risk is not the spelling of contextual parameters; the risk is changing the runtime shape of `Stream` and `Sink` under Scala 3.
 
-## Rejected approach: version-specific trait extraction
+## Rejected Approach: Version-specific Trait Extraction
 
 An early draft extracted several instance methods into `StreamVersionSpecific` and `SinkVersionSpecific` traits under `scala-2/` and `scala-3/`, with the shared classes extending those traits. The methods moved or routed through these traits included:
 
@@ -47,7 +47,7 @@ This shape localized the syntax differences neatly, but changed the structure of
 
 The `flatMap` result is the clearest signal. Dropping from roughly 14.9k ops/s to 1.18k ops/s is not an acceptable tradeoff for any compatibility layer. The approach was rejected.
 
-## Current structure: one shared source set
+## Current Structure: One Shared Source Set
 
 Streams compiles from a single shared source set. `Stream`, `Sink`, `Reader`, `Writer`, and `Pipeline` each have exactly one implementation, under `streams/shared/src/main/scala/`, and the same bytes compile for Scala 2.13 and Scala 3.
 
@@ -72,7 +72,7 @@ Each pair is currently byte-identical, so the surviving split is directory-only:
 
 There is no public-API difference between Scala 2.13 and Scala 3 in streams, as [Platform Differences](./platform-differences.md#scala-2-versus-scala-3) records. What differs for you is surface syntax you write anyway — a wildcard import is `_` rather than `*`, and a contextual parameter is `implicit` rather than `using`. The axis that actually changes which members exist is JVM versus Scala.js, covered by the [availability matrix](./platform-differences.md#availability-matrix).
 
-## Maintenance notes
+## Maintenance Notes
 
 Any change to the behavior or public API of `Stream`, `Sink`, `Reader`, `Writer`, or `Pipeline` goes to the shared source under `streams/shared/src/main/scala/`. There is no second tree to mirror it into.
 

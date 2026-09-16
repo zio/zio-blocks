@@ -329,7 +329,7 @@ val flattened = Stream
 
 Again `Right(499500)`: the same 1000 integers, reached through 50 inner streams instead of 10.
 
-### A worked `mapParAsync`
+### A Worked `mapParAsync`
 
 The two runnable files below live in the `streams-examples` module. This one makes arrival order visible rather than asserting it: every callback hands back an unresolved `Completer`, and a driver thread then settles the four of them in reverse. The collected chunk comes back reversed with respect to the input.
 
@@ -352,7 +352,7 @@ input order:   Chunk(10,20,30,40)
 arrival order: Right(Chunk(40,30,20,10))
 ```
 
-### Async children and slot accounting
+### Async Children and Slot Accounting
 
 `flatMapPar(n)(a => Stream.unwrap(f(a)))` is the idiom for asynchronously produced children, and this example pins down what a slot covers. A gauge is incremented when child construction starts and decremented by the child's finalizer, so it counts exactly the elements occupying a slot; a `CyclicBarrier(2)` forces each construction to wait for a partner, so the program can only finish if two really are in flight at once.
 

@@ -159,7 +159,7 @@ val strings = Stream("a", "b", "c").map(_.toUpperCase)
 
 You don't need to do anything special — the compiler and runtime handle it automatically.
 
-## How a lane is chosen
+## How a Lane Is Chosen
 
 The decision is hybrid and asymmetric: half of it is made when your code compiles, half when the stream runs.
 
@@ -204,7 +204,7 @@ One implicit, and it is about `B`. Implicit resolution finds one of the eight pr
 
 **Dispatch happens once per drain, never per element.** A synchronous fold matches on `reader.jvmType` one time, enters the loop belonging to that lane, and stays in it; the asynchronous puller goes further and resolves its per-element pull function once, when it is constructed. Inside the loop no lane test remains — one exact pull, one callback.
 
-### There is no lane diagnostic for a stream
+### There Is No Lane Diagnostic for a Stream
 
 Readers reach this section wanting a way to confirm that a pipeline stayed on a primitive lane. Nothing on `Stream` answers that, and it is worth being explicit about why each apparent candidate is not it either.
 
@@ -214,7 +214,7 @@ Readers reach this section wanting a way to confirm that a pipeline stayed on a 
 
 For the end-to-end question, allocation profiling is the real diagnostic. Measure the workload under an allocation profiler and read the normalized allocation rate; a throughput number on its own cannot tell you whether a lane was held.
 
-## Generalized specialization
+## Generalized Specialization
 
 Before this release, four primitive lanes were specialized — `Int`, `Long`, `Float`, and `Double`, described at the time as five-lane dispatch once the reference fallback is counted. `Boolean`, `Byte`, `Char`, and `Short` were pulled generically. All eight are specialized now, across `Stream`, `Sink`, `Pipeline`, and `Reader`, in both the synchronous and the asynchronous interpreter, on the JVM and on Scala.js.
 
@@ -228,7 +228,7 @@ The audit is careful about what it does and does not assert, and this page shoul
 
 All eleven are recorded as remediated, each marked complete only after its specialized owner was removed or the operation was generalized without a semantic or performance regression. The user-visible result is narrow and concrete: the fast path is no longer reserved for `Int → Long`. A `Short` stream folded into a `Double`, a `Char` stream merged across workers, a `Boolean` stream collected — each now reaches the same shared drivers, the same selector lifecycle, and the same buffer policy that the `Int`/`Long` product used to have to itself. [Migration Guide](./migration.md#specialization-changes) covers the source-compatibility breaks this generalization introduced.
 
-## EOF signalling per lane
+## EOF Signalling Per Lane
 
 A pull has to be able to say "there are no more elements" without allocating an `Option` to say it in, so every lane reports exhaustion out of band. The schemes differ because the lanes differ. The authority is the nine-branch dispatch in `Sink.foldSyncReader`; the library's other drain loops — `Reader#readAll`, `Sink.exists`, `Sink.find`, the asynchronous puller — use the same scheme for each lane.
 
@@ -258,7 +258,7 @@ Any value you reserve as an end marker on those two lanes is also a value the st
 
 [Reader](./reader.md#sentinel-protocol) states the same contract from the implementor's side, and [Migration Guide](./migration.md#longdouble-bulk-eof-moved-out-of-band) shows the before-and-after for code written under the old restriction.
 
-## Comparison: @specialized vs JvmType Dispatch
+## Comparison: @specialized Vs JvmType Dispatch
 
 ZIO Blocks Streams' approach differs fundamentally from Scala's traditional `@specialized` annotation. Here's how they compare:
 
@@ -347,7 +347,7 @@ Do not infer a universal multiplier from these categories. Results depend on JDK
 
 Repository JMH results measure throughput for named benchmark methods and configurations, and a suite is evidence only about the contract it actually measures — a ready-effect suite measures ready effects, not asynchronous stream performance in general, and results for unlike contracts must not be aggregated into one ranking. Unless a run also records an allocation profiler (for example `gc.alloc.rate.norm`), it is **not** evidence of zero allocations; a near-zero figure from a throughput run is profiler noise, not a promise. The lane layout and primitive reader signatures establish where boxing is avoided by construction; claims about callback invocation, complete pipelines, async carriers, or parity with handwritten loops remain unproven until measured with allocation profiling for that exact workload.
 
-## Async and boxing
+## Async and Boxing
 
 The claims above are about the synchronous interpreter, and the asynchronous one has an honest limit that belongs right next to them: **asynchronous execution is lane-aware, not end-to-end zero-boxing.**
 

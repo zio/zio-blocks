@@ -424,7 +424,7 @@ val countNormalized   = normalize.andThenSink(Sink.count)
 val result = Stream("  Hello ", " WORLD  ").run(collectNormalized)
 ```
 
-### When to Use `andThenSink` vs `via`
+### When to Use `andThenSink` Vs `via`
 
 Both achieve the same result. Choose based on which side you want to reuse:
 

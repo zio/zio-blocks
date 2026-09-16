@@ -57,7 +57,7 @@ A blocking terminal parks the calling thread until another thread completes the 
 
 Three more members relocated the same way and produce the same class of error: `Sink.create`, `Reader.AsyncReader#toSync`, and — with a run-time failure rather than a compile error — `Async#block`.
 
-### The replacement mapping
+### The Replacement Mapping
 
 Every blocking terminal has a cross-platform twin whose name ends in `Async`:
 
@@ -105,7 +105,7 @@ val firstEven: Async[Either[Nothing, Option[Int]]] =
 
 The asynchronous fold family is one overload wider than the blocking one: `runFoldAsync(z: Float)` has no blocking twin, so a `Float` accumulator is reachable only through the cross-platform API. [Async Terminals](./async-execution.md#async-terminals) documents the whole family, and [The `Async[Either[E, Z]]` Convention](./async-execution.md#the-asynceithere-z-convention) explains how a typed error and a defect differ inside that result.
 
-### `.block` is the adapter of last resort
+### `.block` Is the Adapter of Last Resort
 
 A JVM `main`, a test harness, or a synchronous interface you do not own still needs a plain value. `Async#block` parks the calling thread and produces one:
 

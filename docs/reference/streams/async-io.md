@@ -98,7 +98,7 @@ object AsyncNioReaders {
 
 There is no behavioural difference to learn: `AsyncNioReaders.fromSocket` delegates to `AsyncNioReaders.fromChannel` and `AsyncNioReaders.fromSocketUnmanaged` to `AsyncNioReaders.fromChannelUnmanaged`, with the same buffer and the same ownership rule. They exist so a socket-shaped call site reads as one.
 
-### Managed versus Unmanaged Ownership
+### Managed Versus Unmanaged Ownership
 
 Ownership is the whole of the difference between the two variants, and it is decided when you pick the factory, not later.
 
@@ -172,7 +172,7 @@ object ReadableStreamReaders {
 
 Both take the *stream*, not a reader. Each factory calls `stream.getReader()` itself and keeps the acquired reader for its own lifetime, which is what makes the lock release on close well defined. Acquiring a reader yourself and passing it in is not part of the API.
 
-### Managed versus Unmanaged
+### Managed Versus Unmanaged
 
 The managed factory owns the acquired reader: closing it cancels the JavaScript stream, awaits the read that was in flight, and then releases the lock. The unmanaged factory releases the lock and never cancels, so the underlying stream remains usable by the code that created it. As on the JVM, either kind settles a pending pull with end of stream instead of leaving it outstanding, and drops whatever it had buffered.
 

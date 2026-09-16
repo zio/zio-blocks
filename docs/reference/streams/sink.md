@@ -65,7 +65,7 @@ Whichever kind arrives, a sink discovers its input representation from the mater
 
 The reader owns this physical representation. Consequently, widening a specialized stream (for example, from `Stream[Nothing, Int]` to `Stream[Nothing, AnyVal]`) does not erase its `Int` lane before it reaches a sink. A sink adapter preserves the wrapped reader's lane and forwards every exact pull method. It also preserves ownership: the run terminal owns and closes the materialized reader; a sink or sink adapter does not independently close it. External destinations supplied to I/O sinks remain caller-owned unless a constructor explicitly says otherwise.
 
-## Consuming asynchronous readers
+## Consuming Asynchronous Readers
 
 Every sink carries two drains, one per reader kind:
 
@@ -97,7 +97,7 @@ The asynchronous drain is a native one, not an adapter: `Stream#runAsync` hands 
 
 Every built-in sink implements both drains, so nothing on this page is available on only one path. A third member, `drainAsync(reader: Reader.SyncReader[_]): Async[Z]`, is likewise `private[streams]`; it presents a synchronous reader through the asynchronous contract by calling `reader.toAsync`, and exists for internal stages that must expose an asynchronous face over synchronous input.
 
-### Choosing a factory
+### Choosing a Factory
 
 Because a `Sink` has two abstract drains and both are `private[streams]`, code outside `zio.blocks.streams` cannot implement them — subclassing `Sink` directly is not a supported route, and the compiler will not let you complete the class. Build custom sinks from one of the three factories instead:
 
@@ -208,7 +208,7 @@ Sinks are created using factory methods on the companion object. These methods f
 
 Gather elements into collections:
 
-#### `Sink.collectAll[A]` — Collect into a Chunk
+#### `Sink.collectAll[A]` — Collect Into a Chunk
 
 Collects all elements into a `Chunk[A]`:
 
@@ -384,7 +384,7 @@ import zio.blocks.streams._
 val result = Stream(1, 2, 3).run(Sink.foreach[Int](x => println(s"Got: $x")))
 ```
 
-### Async aggregation and search
+### Async Aggregation and Search
 
 Five of the aggregation, search, and effectful sinks have an `*Async` twin whose callback returns `Async` instead of a value. The twin consumes the same input and returns the same result type; only the callback's shape differs:
 
@@ -520,7 +520,7 @@ Like `Sink.fromOutputStream`, this sink intentionally does not close the writer.
 
 Advanced low-level use cases with direct reader protocol access:
 
-#### Custom sink factories
+#### Custom Sink Factories
 
 `createAsync` is the cross-platform escape hatch for a native asynchronous drain. `createBoth` supplies independent native synchronous and asynchronous drains. The plain `create` factory is JVM-only because its callback consumes a blocking `SyncReader`:
 

@@ -101,7 +101,7 @@ If you are evaluating Scala 2 compatibility work, read the [Scala 2 compatibilit
 
 These historical JVM results illustrate the scalar CPU and mixed-pipeline category on the listed benchmark setup; they are not a universal ranking. Async I/O, bounded concurrency, bulk memory transfer, different JDK/Scala versions, and application-specific callbacks have different cost profiles. Re-run the repository JMH benchmarks on the target environment before drawing performance conclusions.
 
-## Core mental model
+## Core Mental Model
 
 To understand ZIO Blocks Streams fully, it's helpful to see how the three primitives fit together and how data flows through a pipeline from source to sink. This section walks through the architecture and explains each component in depth.
 
@@ -145,7 +145,7 @@ by the terminal you call. See [Async Execution](./async-execution.md) for how th
 works.
 
 
-### 1) `Stream[E, A]` -- a lazy sequence
+### 1) `Stream[E, A]` -- a Lazy Sequence
 
 A `Stream[+E, +A]` is a **description** of a potentially infinite sequence of elements of type `A` that may fail with an error of type `E`. It is covariant in both type parameters.
 
@@ -181,7 +181,7 @@ This makes debugging and logging straightforward -- you can see exactly what tra
 
 ---
 
-### 2) `Sink[E, A, Z]` -- a consumer
+### 2) `Sink[E, A, Z]` -- a Consumer
 
 A `Sink[+E, -A, +Z]` consumes elements of type `A` from a stream and produces a final result of type `Z`. Sinks are passed to `Stream.run`:
 
@@ -218,7 +218,7 @@ val doubled: Sink[Nothing, Int, Long] =
 
 ---
 
-### 3) `Pipeline[In, Out]` -- reusable transformation
+### 3) `Pipeline[In, Out]` -- Reusable Transformation
 
 A `Pipeline[-In, +Out]` is a reusable stream transformation. It decouples the transformation logic from any specific stream, so you can define it once and apply it many times.
 
@@ -254,7 +254,7 @@ val countLong: Sink[Nothing, String, Long] =
     .andThenSink(Sink.sumInt)
 ```
 
-## Synchronous and asynchronous execution
+## Synchronous and Asynchronous Execution
 
 There is one `Stream` type. It serves both execution modes, and there is no mode type parameter, no
 `AsyncStream`, and no annotation to write.
@@ -349,11 +349,11 @@ This matters most for numeric workloads — data processing, statistics, encodin
 - **`suspend`** is your friend for recursive or self-referential stream definitions, preventing stack overflow during construction.
 - **Typed errors vs. defects**: use `Stream.fail` for expected domain errors and `Stream.die` for programmer errors. Use `catchAll` for the former, `catchDefect` for the latter.
 
-## Usage examples
+## Usage Examples
 
 This section shows practical examples of using streams in real-world scenarios. Each subsection demonstrates a different aspect of the API with runnable code examples.
 
-### Creating streams
+### Creating Streams
 
 Here are the most common ways to construct a stream. Choose the constructor that best fits your data source:
 
@@ -424,13 +424,13 @@ Stream.fromJavaReaderUnmanaged(javaReader)      // Stream[IOException, Char] (do
 
 ---
 
-### Transforming streams
+### Transforming Streams
 
 Streams support many transformation operations. Use `map` for element-wise changes, `filter` for selection, and `flatMap` for expanding elements into sub-streams. See the [Stream reference](./stream.md) page for comprehensive examples of all transformation methods including `map`, `filter`, `flatMap`, `collect`, `scan`, `mapAccum`, `distinct`, `intersperse`, and more.
 
 ---
 
-### Zipping streams with `&&`
+### Zipping Streams with `&&`
 
 The `&&` operator zips two streams element-by-element into tuples. The resulting stream ends when either input is exhausted.
 
@@ -464,7 +464,7 @@ val s2: Stream[OtherError, Int] = Stream.fromIterable(List(4, 5, 6))
 
 ---
 
-### Primitive specialization
+### Primitive Specialization
 
 All nine logical lanes are specialized, not only `Int`, `Long`, `Float`, and `Double`. Every intermediate step uses the identity-specific read (`readInt`, `readByte`, `readChar`, and so on), so no `java.lang.Integer` wrappers are allocated between stages.
 
@@ -485,7 +485,7 @@ This matters most for numeric workloads -- data processing, statistics, encoding
 
 ---
 
-### Consuming streams
+### Consuming Streams
 
 Terminal operations run the stream and produce a final result. Use `runCollect` to gather all elements, `runDrain` to discard them, or specialized operations like `head`, `count`, and `foldLeft`:
 
@@ -522,7 +522,7 @@ s.run(Sink.take(3))       // Right(Chunk(1, 2, 3))
 
 ---
 
-### Async execution
+### Async Execution
 
 `runCollectAsync` is the cross-platform twin of `runCollect`. It returns `Async[Either[E, Chunk[A]]]`
 rather than `Either[E, Chunk[A]]`, so it never blocks and compiles on both the JVM and Scala.js:
@@ -565,7 +565,7 @@ Scala.js code keeps the `Async` and hands it to the host runtime instead. See
 
 ---
 
-### Error handling patterns
+### Error Handling Patterns
 
 Streams support two types of failures: typed errors that you can handle explicitly, and defects (exceptions) that propagate. Here are common patterns for dealing with both:
 
@@ -605,7 +605,7 @@ val handled = risky.catchDefect {
 
 ---
 
-### Resource safety patterns
+### Resource Safety Patterns
 
 When working with files, network connections, or other resources, use the resource-safe constructors to guarantee cleanup. Here are the most common patterns:
 
@@ -645,11 +645,11 @@ val withDefer =
 
 ---
 
-### NIO integration (JVM only)
+### NIO Integration (JVM Only)
 
 On the JVM, `NioStreams` and `NioSinks` provide zero-copy integration with `java.nio` buffers and channels.
 
-#### `NioStreams` -- creating streams from NIO sources
+#### `NioStreams` -- Creating Streams From NIO Sources
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
@@ -680,7 +680,7 @@ val bytes2 = NioStreams.fromChannelUnmanaged(ch2, bufSize = 4096).runCollect
 ch2.close() // caller is responsible for closing
 ```
 
-#### `NioSinks` -- writing to NIO targets
+#### `NioSinks` -- Writing to NIO Targets
 
 ```scala mdoc:silent
 import zio.blocks.streams.*
@@ -710,7 +710,7 @@ finally {
 
 ---
 
-### Pipeline composition
+### Pipeline Composition
 
 Pipelines are composable transformations that can be reused across different streams. Build complex transformations by chaining pipelines together with `andThen`:
 
