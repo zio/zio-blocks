@@ -216,17 +216,11 @@ For the end-to-end question, allocation profiling is the real diagnostic. Measur
 
 ## Generalized Specialization
 
-Before this release, four primitive lanes were specialized — `Int`, `Long`, `Float`, and `Double`, described at the time as five-lane dispatch once the reference fallback is counted. `Boolean`, `Byte`, `Char`, and `Short` were pulled generically. All eight are specialized now, across `Stream`, `Sink`, `Pipeline`, and `Reader`, in both the synchronous and the asynchronous interpreter, on the JVM and on Scala.js.
+All eight primitive lanes are specialized — `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, and `Double` — across `Stream`, `Sink`, `Pipeline`, and `Reader`, in both the synchronous and the asynchronous interpreter, on the JVM and on Scala.js. Counting the reference fallback, that is nine-lane dispatch.
 
-That generalization was remediation rather than a speed campaign. A static audit of the library found eleven production fast paths, `BS-1` through `BS-11`, whose implemented coverage matched the shape of the benchmark harness rather than the shape of the API — typically `Int` elements reduced by a `Long` checksum. Three of the eleven:
+The specialized path is not reserved for any one element and accumulator pairing. A `Short` stream folded into a `Double`, a `Char` stream merged across workers, a `Boolean` stream collected — each reaches the same shared drivers, the same selector lifecycle, and the same buffer policy as an `Int` stream reduced by a `Long` checksum.
 
-- **BS-1** — a state machine dedicated to `Int => Async[Int] => Long`, with the asynchronous run recognizing the concrete `Sink.FoldLeftLong` before reaching the ordinary sink path. Other element and accumulator types fell back to a materially different route.
-- **BS-2** — an `Int`-only linear-chain recognizer paired with a hand-unrolled evaluator for zero to ten operations, against a benchmark whose `filterMapChain` has exactly ten alternating operations.
-- **BS-10** — an `Int`-only JVM worker pool behind `mergeAll` and `flatMapPar`, with a hidden 1,024-element buffer, consumed by an `Int`/`Long` fold.
-
-The audit is careful about what it does and does not assert, and this page should be too. "Confirmed coupling" there means the production branch recognized a benchmark shape and was introduced during the benchmark optimization campaign; it "does not establish improper intent or incorrect behavior", and no benchmark constants were found in production code.
-
-All eleven are recorded as remediated, each marked complete only after its specialized owner was removed or the operation was generalized without a semantic or performance regression. The user-visible result is narrow and concrete: the fast path is no longer reserved for `Int → Long`. A `Short` stream folded into a `Double`, a `Char` stream merged across workers, a `Boolean` stream collected — each now reaches the same shared drivers, the same selector lifecycle, and the same buffer policy that the `Int`/`Long` product used to have to itself. [Migration Guide](./migration.md#specialization-changes) covers the source-compatibility breaks this generalization introduced.
+Specialization is about where boxing is avoided by construction, not a throughput promise: it says which lane a pull travels on, not what a given workload will measure. [Migration Guide](./migration.md#specialization-changes) covers the source-compatibility consequences of carrying specialization evidence.
 
 ## EOF Signalling Per Lane
 
@@ -343,7 +337,7 @@ Performance falls into distinct categories:
 - **Native asynchronous I/O** is governed mainly by source latency, chunk size, and cancellation/ownership costs; zero-boxing is usually secondary.
 - **Writer `*Async` adapters** defer synchronous work and may still block, so they should not be benchmarked as native async I/O.
 
-Do not infer a universal multiplier from these categories. Results depend on JDK, Scala version, platform, element type, pipeline shape, buffer size, and terminal; use the repository JMH benchmarks with a workload representative of the application. This page publishes no speedup figure for generalized specialization, and earlier throughput multipliers that once appeared here were retracted rather than restated: they were drawn from a narrower set of benchmark shapes than the claim they were used to support.
+Do not infer a universal multiplier from these categories. Results depend on JDK, Scala version, platform, element type, pipeline shape, buffer size, and terminal; use the repository JMH benchmarks with a workload representative of the application. This page publishes no speedup figure for generalized specialization: any single multiplier would be drawn from a narrower set of benchmark shapes than the claim it was used to support.
 
 Repository JMH results measure throughput for named benchmark methods and configurations, and a suite is evidence only about the contract it actually measures — a ready-effect suite measures ready effects, not asynchronous stream performance in general, and results for unlike contracts must not be aggregated into one ranking. Unless a run also records an allocation profiler (for example `gc.alloc.rate.norm`), it is **not** evidence of zero allocations; a near-zero figure from a throughput run is profiler noise, not a promise. The lane layout and primitive reader signatures establish where boxing is avoided by construction; claims about callback invocation, complete pipelines, async carriers, or parity with handwritten loops remain unproven until measured with allocation profiling for that exact workload.
 

@@ -44,7 +44,7 @@ The companion constructors whose names end in `Async` — `attemptAsync`, `attem
 
 ### Migration and Source Compatibility
 
-The reader split is a deliberate source-level API change for custom integrations. `Reader` is an ordinary `abstract class`, not a sealed one, but every reader the library hands you is a `Reader.SyncReader[A]` or a `Reader.AsyncReader[A]`, so code that previously implemented or accepted an undifferentiated `Reader[A]` must choose one kind or match both with a fallback case. Custom sinks cannot be written by subclassing `Sink`, whose two abstract drains are `private[streams]`; use `Sink.createAsync`, `Sink.createBoth`, or the JVM-only `Sink.create`. Plain terminals, `start`, `AsyncReader#toSync`, and `Sink.create` are JVM-only, so shared sources should migrate to `run*Async`, `startAsync`/`useReaderAsync`, and `createAsync`. The [Migration Guide](./migration.md#at-a-glance) pairs each of these changes with the compile error it produces and the code that replaces it.
+`Reader` is an ordinary `abstract class`, not a sealed one, but every reader the library hands you is a `Reader.SyncReader[A]` or a `Reader.AsyncReader[A]`, so code that implements or accepts a reader must choose one kind or match both with a fallback case. Custom sinks cannot be written by subclassing `Sink`, whose two abstract drains are `private[streams]`; use `Sink.createAsync`, `Sink.createBoth`, or the JVM-only `Sink.create`. Plain terminals, `start`, `AsyncReader#toSync`, and `Sink.create` are JVM-only, so shared sources should migrate to `run*Async`, `startAsync`/`useReaderAsync`, and `createAsync`. If you are upgrading, the [Migration Guide](./migration.md#at-a-glance) pairs each of these points with the compile error it produces and the code that replaces it.
 
 Async constructor callbacks remain lazy until the first drive, and managed/unmanaged names encode ownership. Do not compensate by eagerly opening a resource before constructing the stream. Cancellation closes an acquired reader and awaits its finalizer; `startAsync` is the exception because it explicitly transfers that responsibility to its caller.
 
@@ -1821,7 +1821,7 @@ trait Stream[+E, +A] {
 }
 ```
 
-`start` is JVM only, and its result type is now `Reader.SyncReader[A]` rather than an undifferentiated `Reader[A]`: a pipeline with asynchronous stages still works under it, because the JVM runtime bridges those boundaries by blocking. Shared code has no such member and must use `startAsync` or `useReaderAsync` instead, both of which hand back a `Reader.AsyncReader[A]`. [Manual Pull Across Platforms](./platform-differences.md#manual-pull-across-platforms) compares the three, and [`Stream#startAsync`](./async-execution.md#streamstartasync) covers the ownership rules that come with the asynchronous form.
+`start` is JVM only, and its result type is `Reader.SyncReader[A]` rather than an undifferentiated `Reader[A]`: a pipeline with asynchronous stages still works under it, because the JVM runtime bridges those boundaries by blocking. Shared code has no such member and must use `startAsync` or `useReaderAsync` instead, both of which hand back a `Reader.AsyncReader[A]`. [Manual Pull Across Platforms](./platform-differences.md#manual-pull-across-platforms) compares the three, and [`Stream#startAsync`](./async-execution.md#streamstartasync) covers the ownership rules that come with the asynchronous form.
 
 Use `start` to manually pull elements within a resource scope:
 
@@ -2011,7 +2011,7 @@ Each platform ships adapters that turn a native byte source into a `Reader.Async
 
 - [Asynchronous Stream Execution](./async-execution.md) — the full asynchronous constructor, operator, and terminal API, and how one `Stream` type describes both execution modes
 - [Platform Differences](./platform-differences.md) — which members exist on the JVM, which exist on Scala.js, and why the blocking family is JVM-only
-- [Migration Guide](./migration.md) — every source-breaking change in this release, the compile error it produces, and the code that replaces it
+- [Migration Guide](./migration.md) — each source-breaking change, the compile error it produces, and the code that replaces it
 - [Concurrent Operators](./concurrent-operators.md) — `mapPar`, `mapParAsync`, `flatMapPar`, and `mergeAll`, the bounded-concurrency counterparts to the sequential operators on this page
 - [Asynchronous I/O](./async-io.md) — the JVM NIO and Scala.js `ReadableStream` adapters behind the native asynchronous byte readers
 - [Async Reference](../async.md) — `Async.promise` and `Completer` bridge callback-based APIs into async values that can feed stream sources; `Async.Running` carries a synchronous cancellation handle that complements stream resource management

@@ -153,7 +153,7 @@ object NioReaders {
 }
 ```
 
-Narrowing `Reader[Byte]` to `Reader.SyncReader[Byte]` is source-breaking for code that ascribed a result as `Reader[A]`, because pulling and closing no longer live on the root type. [The `Reader` Split](./migration.md#the-reader-split) covers that change and the mechanical fix. Two details of this object are worth noting at a call site: its channel factory names the buffer parameter `bufSize`, where the asynchronous one names it `bufferSize`, and there is no public unmanaged channel variant here — `NioReaders.fromChannel` always owns the channel it wraps.
+These factories return `Reader.SyncReader[Byte]` rather than the root `Reader[Byte]`, which is what makes pulling and closing available on the result: those members belong to the reader kinds, not to the root type. [The `Reader` Split](./migration.md#the-reader-split) has the details. Two details of this object are worth noting at a call site: its channel factory names the buffer parameter `bufSize`, where the asynchronous one names it `bufferSize`, and there is no public unmanaged channel variant here — `NioReaders.fromChannel` always owns the channel it wraps.
 
 ## Scala.js: `ReadableStreamReaders`
 
@@ -249,7 +249,7 @@ What the asynchronous drain removes is the thread parked waiting for stream *inp
 
 `Body` in `http-model` is the clearest in-repo illustration of what adopting this API looks like for a cross-platform consumer, because a body is exactly a `Stream[Nothing, Byte]` that someone eventually wants as bytes or as text.
 
-Each blocking accessor has an asynchronous twin under the library-wide naming convention, five in all: `Body#toChunkAsync`, `Body#toArrayAsync`, `Body#asStringAsync`, `Body#asStringFromContentTypeAsync`, and `Body#textAsync`. The twins are the cross-platform API. The original accessors block, so they compile on Scala.js but throw `IllegalStateException` the moment the stream actually has to suspend — see [Why Blocking Terminals Are JVM-Only](./platform-differences.md#why-blocking-terminals-are-jvm-only). `Body#toChunk` is now implemented in terms of the asynchronous one, taking a known-chunk fast path first and otherwise running `runCollectAsync` and blocking on the result.
+Each blocking accessor has an asynchronous twin under the library-wide naming convention, five in all: `Body#toChunkAsync`, `Body#toArrayAsync`, `Body#asStringAsync`, `Body#asStringFromContentTypeAsync`, and `Body#textAsync`. The twins are the cross-platform API. The original accessors block, so they compile on Scala.js but throw `IllegalStateException` the moment the stream actually has to suspend — see [Why Blocking Terminals Are JVM-Only](./platform-differences.md#why-blocking-terminals-are-jvm-only). `Body#toChunk` is implemented in terms of the asynchronous one, taking a known-chunk fast path first and otherwise running `runCollectAsync` and blocking on the result.
 
 Porting a call site is the rename plus a change of result type that the rest of the migration is:
 

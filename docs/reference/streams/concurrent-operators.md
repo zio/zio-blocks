@@ -11,18 +11,18 @@ keywords:
   - "Stream"
 ---
 
-Three of the four operators on this page are not new. `Stream#mapPar`, `Stream#flatMapPar`, and `Stream.mergeAll` arrived in PR #1451, "concurrent stream operators + primitive SPSC ring buffers", as synchronous operators backed by worker threads. What the asynchronous execution work added is narrower and worth separating out: an asynchronous execution path for those three, one genuinely new operator in `Stream#mapParAsync`, and a documented `n = 1` degradation guarantee. A changelog entry that reads "adds `mapPar`" is describing the wrong release.
+Four operators bound the concurrency of a stream. `Stream#mapPar`, `Stream#flatMapPar`, and `Stream.mergeAll` take synchronous callbacks; `Stream#mapParAsync` takes a callback that returns an `Async`. All four run on either of two execution paths — a synchronous one backed by worker threads, or an asynchronous one — and all four carry an `n = 1` degradation guarantee.
 
-The distinction matters for more than provenance. The two execution paths are different engines with different bounds, and which one a program gets is decided by the kind of reader its pipeline compiles to — not by which operator it called.
+The two execution paths are different engines with different bounds, and which one a program gets is decided by the kind of reader its pipeline compiles to — not by which operator it called.
 
 ## The Operators
 
-| Operator                            | Element callback                               | What `n` bounds                | Arrived in |
-|-------------------------------------|------------------------------------------------|--------------------------------|------------|
-| `Stream#mapPar(n)(f)`               | `A => B`                                       | concurrent applications of `f` | PR #1451   |
-| `Stream#mapParAsync(n)(f)`          | `A => Async[B]`                                | callbacks in flight            | PR #1672   |
-| `Stream#flatMapPar(n)(f)`           | `A => Stream[E1, B]`                           | open inner streams             | PR #1451   |
-| `Stream.mergeAll(maxOpen)(streams)` | none; `streams` is a `Stream[E, Stream[E, A]]` | open inner streams             | PR #1451   |
+| Operator                            | Element callback                               | What `n` bounds                |
+|-------------------------------------|------------------------------------------------|--------------------------------|
+| `Stream#mapPar(n)(f)`               | `A => B`                                       | concurrent applications of `f` |
+| `Stream#mapParAsync(n)(f)`          | `A => Async[B]`                                | callbacks in flight            |
+| `Stream#flatMapPar(n)(f)`           | `A => Stream[E1, B]`                           | open inner streams             |
+| `Stream.mergeAll(maxOpen)(streams)` | none; `streams` is a `Stream[E, Stream[E, A]]` | open inner streams             |
 
 Each of the four begins with `require` on its parallelism argument, so passing zero or a negative number raises `IllegalArgumentException` at description time rather than producing an empty or sequential stream.
 
@@ -40,7 +40,7 @@ Applies `f` to each element with up to `n` applications active. Output is unorde
 def mapParAsync[B](n: Int)(f: A => Async[B])(implicit jtB: JvmType.Infer[B]): Stream[E, B]
 ```
 
-Keeps at most `n` `Async` callbacks in flight and emits each result in completion order. This is the one genuinely new operator, and it is the only member of the family whose callback can suspend: `f` returns a description, so the engine holds `n` unfinished effects rather than `n` busy threads. A failure inside the callback is a defect, not a typed error, and it fails the outer terminal effect.
+Keeps at most `n` `Async` callbacks in flight and emits each result in completion order. It is the only member of the family whose callback can suspend: `f` returns a description, so the engine holds `n` unfinished effects rather than `n` busy threads. A failure inside the callback is a defect, not a typed error, and it fails the outer terminal effect.
 
 Unlike `mapPar`, this operator has no synchronous materialization at all. It compiles to the shared asynchronous concurrent reader on both platforms, which is why its `n` counts suspended callbacks rather than workers.
 

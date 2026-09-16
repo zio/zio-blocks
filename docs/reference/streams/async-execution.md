@@ -11,7 +11,7 @@ keywords:
   - "Stream"
 ---
 
-One `Stream[E, A]` describes both synchronous and asynchronous pipelines. There is no asynchronous stream type to convert to, no mode parameter to thread through your signatures, and no annotation that marks a description as one or the other. The pull request that introduced this API states the goal directly: it supports mixed synchronous and asynchronous stream composition "without a second stream type or mode parameter, including dynamic inner streams and platform-specific materialization."
+One `Stream[E, A]` describes both synchronous and asynchronous pipelines. There is no asynchronous stream type to convert to, no mode parameter to thread through your signatures, and no annotation that marks a description as one or the other. The API supports mixed synchronous and asynchronous stream composition without a second stream type or mode parameter, including dynamic inner streams and platform-specific materialization.
 
 The terminals ending in `Async` are the cross-platform ones. They compile and run on the JVM and on Scala.js, and they are the family shared code should be written against. The blocking terminals (`run`, `runCollect`, `head`, `start`, and their siblings) still exist, but only on the JVM.
 
@@ -526,7 +526,7 @@ Cancellation in this library is **cooperative, never preemptive**. Cancelling si
 
 Two pieces of the API matter here:
 
-- **`Pollable#cancel()`** signals cancellation of the currently pending operation, and now reaches the active leaf operation. Before this change, cancellation was driver-level only and explicitly did not reach the leaf. Implementations that own cancellable work override `cancel()` with an idempotent, non-blocking signal; implementations without such work inherit the no-op. A running driver invokes it only when cancellation wins the race against completion.
+- **`Pollable#cancel()`** signals cancellation of the currently pending operation, and reaches the active leaf operation rather than stopping at the driver. Implementations that own cancellable work override `cancel()` with an idempotent, non-blocking signal; implementations without such work inherit the no-op. A running driver invokes it only when cancellation wins the race against completion.
 - **`Async.Running#cancel(onCleanupFailure: Throwable => Unit)`** cancels a run and reports a failure from its asynchronous cleanup. The reporter is retained only when this cancellation wins completion, and it is invoked at most once. Use it when a cleanup failure during cancellation must not be lost.
 
 Cancellation closes an acquired reader and awaits its finalizer. `startAsync` is the deliberate exception, because it has already transferred that responsibility to its caller.

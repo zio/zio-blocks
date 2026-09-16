@@ -555,7 +555,7 @@ sbt "streams-examples/runMain pipeline.PipelineAsyncExample"
 ## See Also
 
 - [Asynchronous Stream Execution](./async-execution.md#async-operators) — the stream-level `*Async` operators the three asynchronous factories delegate to, and how a mixed graph compiles
-- [Migration Guide](./migration.md#specialization-changes) — where evidence moved in this release, and the [Both Pipeline Routes](./migration.md#both-pipeline-routes) rule that every such edit obeys
+- [Migration Guide](./migration.md#specialization-changes) — where specialization evidence sits on each signature, and the [Both Pipeline Routes](./migration.md#both-pipeline-routes) rule that every such edit obeys
 - [Stream](./stream.md#integration-with-pipeline-and-sink) — the producer side of `via`
 - [Sink](./sink.md) — the consumer a pipeline can be attached to instead
 - [Zero-Boxing Streams](./zero-boxing.md) — the lanes `JvmType.Infer` selects between, and why transforming factories need the evidence
