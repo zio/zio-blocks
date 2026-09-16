@@ -1024,14 +1024,19 @@ There is no separate `choice` operator anymore. Use `++` / `concat` for all sequ
 
 ### Zipping
 
-Zips two streams together as tuples (an extension method, not an instance method):
+Zips two streams together as tuples:
 
 ```scala
-extension [E, A](stream: Stream[E, A])
-  def &&[E2, B, C](that: Stream[E2, B])(
-    using Tuples[A, B] { Out = C }
-  ): Stream[E | E2, C]
+trait Stream[+E, +A] {
+  def &&[E2, E3, B, C](that: Stream[E2, B])(implicit
+    errorConcat: Concat.WithOut[E, E2, E3],
+    zip: Stream.Zip[A, B, C],
+    jtC: JvmType.Infer[C]
+  ): Stream[E3, C]
+}
 ```
+
+The error type `E3` is the `Concat` of the two error types, and the element type `C` is chosen by the `Stream.Zip` evidence, which flattens nested pairs so that `a && b && c` produces a `Stream` of `(A, B, C)`.
 
 The result streams have the same length as the shorter input:
 
@@ -1648,13 +1653,16 @@ Streams distinguish between recoverable domain errors and fatal defects, with fl
 
 These operations handle typed errors gracefully by recovering with alternative streams:
 
-#### `Stream#catchAll[E2, A1]`
+#### `Stream#catchAll[E2, A2, A3]`
 
 Recovers from any typed error by switching to a recovery stream:
 
 ```scala
 trait Stream[+E, +A] {
-  def catchAll[E2, A1](f: E => Stream[E2, A1]): Stream[E2, A | A1]
+  def catchAll[E2, A2, A3](f: E => Stream[E2, A2])(implicit
+    valueConcat: Concat.WithOut[A, A2, A3],
+    jtA3: JvmType.Infer[A3]
+  ): Stream[E2, A3]
 }
 ```
 
@@ -1671,13 +1679,16 @@ val recovered = mayFail.catchAll(_ => Stream.succeed("default"))
 val result = recovered.runCollect
 ```
 
-#### `Stream#orElse[E2, A1]`
+#### `Stream#orElse[E2, A2, A3]`
 
 If this stream fails, tries the fallback stream. The fallback is evaluated lazily, only on error:
 
 ```scala
 trait Stream[+E, +A] {
-  def orElse[E2, A1](that: => Stream[E2, A1]): Stream[E2, A | A1]
+  def orElse[E2, A2, A3](that: => Stream[E2, A2])(implicit
+    valueConcat: Concat.WithOut[A, A2, A3],
+    jtA3: JvmType.Infer[A3]
+  ): Stream[E2, A3]
 }
 ```
 
@@ -1693,13 +1704,17 @@ val result = (primary || fallback).runCollect
 
 ### Recovering From Defects
 
-`catchDefect[E1, A1]` — Catches untyped defects (exceptions not wrapped as typed errors) using a partial function.:
+`catchDefect[E2, E3, A2, A3]` — Catches untyped defects (exceptions not wrapped as typed errors) using a partial function.:
 
 ```scala
 trait Stream[+E, +A] {
-  def catchDefect[E1, A1](
-    f: PartialFunction[Throwable, Stream[E1, A1]]
-  ): Stream[E | E1, A | A1]
+  def catchDefect[E2, E3, A2, A3](
+    f: PartialFunction[Throwable, Stream[E2, A2]]
+  )(implicit
+    errorConcat: Concat.WithOut[E, E2, E3],
+    valueConcat: Concat.WithOut[A, A2, A3],
+    jtA3: JvmType.Infer[A3]
+  ): Stream[E3, A3]
 }
 ```
 
