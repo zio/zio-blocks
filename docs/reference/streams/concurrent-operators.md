@@ -169,7 +169,7 @@ The practical consequence is that `n` can be a configuration value that is allow
 
 ## Buffer Sizing
 
-Concurrent readers on the synchronous lane use ring-buffer queues sized by the enclosing buffer-size region. The default is `Stream.DefaultBufferSize`, which is 64.
+Concurrent readers on the synchronous lane use ring-buffer queues sized by the enclosing buffer-size region. The default is 64 (the library-internal `Stream.DefaultBufferSize`, which is not part of the public API).
 
 ```scala mdoc:compile-only
 import zio.blocks.streams._
@@ -188,7 +188,7 @@ val sized: Stream[Nothing, Int] =
 require(n >= 1 && (n & (n - 1)) == 0, s"bufferSize must be a positive power of 2, got $n")
 ```
 
-Nested regions use the innermost size. Larger buffers absorb bursty producers; smaller ones cut memory when many slots are open at once. The default suits most workloads, and raising it does nothing for the asynchronous lane, where the bound is the slot count rather than a ring.
+Nested regions use the innermost size. Larger buffers absorb bursty producers; smaller ones cut memory when many slots are open at once. The default suits most workloads. On the asynchronous lane its reach is narrower: `mapPar` and `mapParAsync` ignore it entirely, because each slot holds exactly one unfinished effect and the bound is the slot count, while `mergeAll` and `flatMapPar` still pass it down, where it sizes the buffered stages inside each compiled inner stream.
 
 `Pipeline.buffer(n)` is a different tool for a different job: it inserts a bounded buffer between two stages rather than resizing the queues inside one concurrent reader, and it participates in the asynchronous reader graph on both platforms.
 
@@ -220,7 +220,7 @@ Both of those collect to a `Left`. Elements that were already emitted stay emitt
 Once a failure is committed, cleanup runs and every sibling is torn down. A failure *during* that cleanup is attached to the primary failure rather than substituted for it: the engine calls `StreamError.attachCleanupReplay(primary, secondary)`, so the error a caller sees is still the one that caused the termination, with the cleanup problem carried alongside it. The same rule holds on the successful path, where a cleanup failure with no primary becomes the failure via `StreamError.attachCleanup(null, cleanupFailure)`.
 
 :::note[What the tests actually prove]
-`MergeInnerErrorSpec` asserts `result.isLeft` under a ten-second timeout, across the generic, `Int`, `Long`, `Float`, and `Double` lanes, and again with four coordinated simultaneous failures. That establishes the general shape — a failing inner terminates the merge promptly and does not hang — but it does not pin down *which* failure wins when several race at `n > 1`. Do not write code that depends on a particular one of several concurrent errors being the one reported.
+`MergeInnerErrorSpec` asserts `result.isLeft` across the generic, `Int`, `Long`, `Float`, and `Double` lanes under a ten-second timeout, and again with four coordinated simultaneous failures per lane under a thirty-second one. That establishes the general shape — a failing inner terminates the merge promptly and does not hang — but it does not pin down *which* failure wins when several race at `n > 1`. Do not write code that depends on a particular one of several concurrent errors being the one reported.
 :::
 
 A defect is different from a typed error. The `mapParAsync` callback failing, or an `ensuring` finalizer throwing, is a defect and fails the outer terminal effect rather than appearing in the `E` channel.
@@ -255,7 +255,7 @@ Read the second row before choosing an operator. Once the upstream compiles to a
 
 Workers on the synchronous lane run on virtual threads where the runtime provides them. `Platform.startVirtualThread` obtains `Thread.ofVirtual()` reflectively, so the module builds and runs on any supported JDK and uses virtual threads on JDK 21 and later; if the reflective lookup fails for any reason it starts a named daemon platform thread instead.
 
-The threads are named, which makes them identifiable in a thread dump. `mapPar` names its workers `zio-blocks-mappar-worker-<n>-<index>` and its dispatcher `zio-blocks-mappar-coordinator-<n>`, where `<n>` counts reader instances and `<index>` identifies the worker within one reader; merge uses `zio-blocks-merge-drainer-<n>-<index>` and `zio-blocks-merge-coordinator-<n>` on the same scheme.
+The threads are named, which makes them identifiable in a thread dump. `mapPar` names its workers `zio-blocks-mappar-worker-<n>-<index>` and its dispatcher `zio-blocks-mappar-coordinator-<n>`, where `<n>` counts reader instances and `<index>` identifies the worker within one reader; merge uses `zio-blocks-merge-drainer-<n>-<index>` and `zio-blocks-merge-coordinator-<n>` on the same scheme. Those strings are prefixes rather than final names: the virtual-thread builder is created with `Thread.ofVirtual().name(prefix, 0L)`, whose two-argument form appends a counter, so a virtual worker appears in a dump as `zio-blocks-mappar-worker-<n>-<index>0`. Only the platform-thread fallback, which calls `setName` directly, uses the name verbatim.
 
 ### Scala.js
 

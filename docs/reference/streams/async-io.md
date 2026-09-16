@@ -54,7 +54,7 @@ object AsyncNioReaders {
 }
 ```
 
-`bufferSize` is the capacity of the single `ByteBuffer` the reader refills from the channel, and it is validated eagerly: a value of zero or less throws `IllegalArgumentException` with the message `bufferSize must be positive` from the factory call itself, not from the first pull.
+`bufferSize` is the capacity of the single `ByteBuffer` the reader refills from the channel, and it is validated eagerly: a value of zero or less throws `IllegalArgumentException` with the message `requirement failed: bufferSize must be positive` from the factory call itself, not from the first pull.
 
 To lift a channel into a stream and run it with a cross-platform terminal:
 

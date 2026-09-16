@@ -65,24 +65,26 @@ The central claim of this page is short: the type that decides between synchrono
        │  a terminal is driven
        ▼
 ┌───────────────────────────────────────────────────────────────┐
-│ Stream.compile  -  attempt the synchronous compilation        │
+│ Stream.compile  -  compile the graph structurally             │
 │ once, at materialization; never per element                   │
 └───────────────────────────────────────────────────────────────┘
        │                            │
-       │ every node compiles        │ any of nine node types
-       │ synchronously              │ cannot: recompile the
-       │                            │ whole graph async
+       │ every node compiles        │ any asynchronous node
+       │ synchronously              │ is present
+       │                            │
        ▼                            ▼
 ┌────────────────────────┐   ┌──────────────────────────────────┐
 │ Reader.SyncReader[A]   │   │ Reader.AsyncReader[A]            │
 │ read and close         │   │ read and close return Async;     │
-│ return directly        │   │ sync stages adapted by toAsync   │
+│ return directly        │   │ sync stages lifted in place      │
 └────────────────────────┘   └──────────────────────────────────┘
 ```
 
 ### Classification Happens at Compile Time
 
-`Stream.compile` first attempts a synchronous compilation of the whole graph. Nine node types cannot be represented synchronously — the asynchronous source boundary and the asynchronous operator nodes among them — and each of them aborts that attempt. When the attempt aborts, the graph is recompiled on the asynchronous path and the result is an `AsyncReader`.
+Compilation is structural and single-pass. `Stream#compile` is an abstract per-node method: each node compiles its upstream and returns a `Reader` directly, so a graph whose every node compiles synchronously yields a `SyncReader`, and a graph containing any asynchronous node yields an `AsyncReader`. Asynchronous operator nodes accept either upstream kind — an already-asynchronous upstream is extended through `AsyncInterpreter.transform`, and a synchronous one is lifted through `AsyncInterpreter.transformSync` — so a synchronous source needs no annotation to sit beneath an asynchronous stage.
+
+Separately, and only on the JVM, a blocking terminal first tries to fuse the whole graph into the flat-array `SyncInterpreter`. Nine node types cannot be represented in that form and throw `AsyncBoundaryRequired`; the fallback then compiles the graph the ordinary way and converts the result back to a `SyncReader` at the terminal. That fusion is a performance path for blocking terminals, not the mechanism that decides between the two execution modes.
 
 This decision is made **once, at materialization**. It is never made per element, and it is never made per pull. A stream that turns out to be entirely synchronous runs through the synchronous engine with no asynchronous machinery in the loop at all.
 
@@ -108,7 +110,7 @@ A synchronous graph materializes as the former; a graph containing any asynchron
 
 ### Mixing Synchronous and Asynchronous Stages
 
-When a synchronous source meets an asynchronous operator, the asynchronous node aborts the synchronous compilation, the whole graph recompiles on the asynchronous path, and the synchronous source is adapted in place by `SyncReader#toAsync`. Nothing in user code needs annotating, and no static type changes.
+When a synchronous source meets an asynchronous operator, the asynchronous node compiles to an `AsyncReader` and lifts its synchronous upstream through `AsyncInterpreter.transformSync`. Nothing in user code needs annotating, and no static type changes.
 
 Composition widens. Two synchronous participants stay synchronous; a single asynchronous participant makes the result asynchronous:
 
@@ -452,7 +454,7 @@ The query terminals are one-liners over `runAsync`. Knowing which `Sink` each de
 | `headAsync`         | `Async[Either[E, Option[A]]]` | `Sink.head`              |
 | `lastAsync`         | `Async[Either[E, Option[A]]]` | `Sink.last`              |
 
-`existsAsync`, `findAsync`, and `forallAsync` take an `A => Async[Boolean]` predicate; `foreachAsync` is an alias for `runForeachAsync`. `countAsync`, `headAsync`, and `lastAsync` take no callback and therefore reuse the ordinary synchronous sinks.
+`existsAsync`, `findAsync`, and `forallAsync` take an `A => Async[Boolean]` predicate; `foreachAsync` is an alias for `runForeachAsync`. `countAsync`, `headAsync`, and `lastAsync` take no callback and therefore reuse the ordinary callback-free sinks, which drain a synchronous or an asynchronous reader alike.
 
 ### Blocking Twins Are JVM-only
 
@@ -480,7 +482,7 @@ val result: Either[String, Chunk[Int]] = stream.runCollectAsync.block
 This is the edge-of-the-world idiom, and it is JVM-only. Two rules keep it honest:
 
 1. **`.block` belongs in `main`, or in a test, and nowhere else.** Never call it inside a stream callback or inside a `poll` — blocking the driver from within the loop it is driving deadlocks it.
-2. **Scala.js code must not use it at all.** JavaScript cannot block, so `.block` throws an `IllegalStateException` there. Cross-platform code should keep the `Async` and hand it to the host: convert it at the boundary (for example with `toFuture`) and let the runtime drive it.
+2. **Scala.js code must not use it at all.** JavaScript cannot block, so unless the effect has already completed synchronously, `.block` throws an `IllegalStateException` there. Cross-platform code should keep the `Async` and hand it to the host: convert it at the boundary (for example with `toFuture`) and let the runtime drive it.
 
 Inside an `Async.async { ... }` block, use the direct-style `.await` instead, which extracts the value without blocking. See [Async](../async.md) for both.
 
@@ -566,7 +568,7 @@ cd zio-blocks
 
 ### Async Terminals and `.block`
 
-Three terminals on one description, the `Either` unwrapped on both branches, and `.block` used exactly once, at the edge of `main`:
+Three terminals on one description, a fourth on a stream that fails with a typed error, the `Either` unwrapped on both branches, and `.block` confined to the edge of `main`:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -598,7 +600,7 @@ sbt "streams-examples/runMain stream.StreamAsyncOwnershipExample"
 
 ### A Mixed Synchronous and Asynchronous Pipeline
 
-A synchronous source, one asynchronous operator, and no change to any annotation:
+A synchronous source, two asynchronous operators, and no change to any annotation:
 
 ```scala mdoc:passthrough
 import docs.SourceFile

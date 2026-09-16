@@ -27,11 +27,11 @@ Every source-visible break in the release, the message that reports it, and what
 | `Reader[A]` split into `Reader.SyncReader` and `Reader.AsyncReader`         | `value read is not a member of zio.blocks.streams.io.Reader[A]`                                   | Name the kind you mean in the signature; four members remain on the root            |
 | `Reader.AsyncReader#toSync` is JVM-only                                     | `value toSync is not a member of zio.blocks.streams.io.Reader.AsyncReader[A]`                     | Drive the `AsyncReader` directly instead of converting it                           |
 | `Async#block` compiles everywhere but only works on the JVM                 | No compile error; `IllegalStateException` when a suspension actually waits                        | Keep the `Async` and compose with `map` / `flatMap`                                 |
-| The preserving `catchAll` / `catchDefect` overloads were deleted            | `type mismatch: found Stream[E, Any], required Stream[E, Int]`                                    | Make both branches agree on an element type, or widen the annotation                |
+| `catchAll` / `catchDefect` gained result-type evidence                      | `no implicit argument of type zio.blocks.streams.JvmType.Infer[A3] was found`                     | Let it infer, or thread `JvmType.Infer` for the recovered element type              |
 | Element-preserving operators stopped asking for input-side evidence         | `method filter does not take more parameters`                                                     | Delete the explicit `JvmType.Infer` argument                                        |
 | `JvmType.Infer` is invariant, so evidence for a supertype no longer fits    | `no implicit argument of type JvmType.Infer[B] was found`                                         | Thread evidence for the *result* type, not the source element type                  |
 | `Stream.succeed(a: Byte)` is genuinely `Stream[Nothing, Byte]`              | `type mismatch: found Stream[Nothing, Byte], required Stream[Nothing, Int]`                       | Add the widening you were relying on: `.map(_ & 0xff)`                              |
-| `Sink#contramap` evidence describes `A0`, not the new input `A2`            | `no implicit argument of type JvmType.Infer[A0] was found`                                        | Drop explicit evidence and let it infer from the callback's result                  |
+| `Sink#contramap` takes two type parameters and describes `A0`, not `A2`     | `wrong number of type arguments for method contramap, should be 2`                                | Name both type parameters; drop explicit evidence and let `A0` infer                |
 | `Reader.range` was removed from the companion                               | `value range is not a member of object zio.blocks.streams.io.Reader`                              | `Reader.fromRange`                                                                  |
 | `internal.StreamError` is module-internal machinery, not an API             | Nothing — it still compiles, but its parent changed from `ControlThrowable` to `Exception`        | Throw the cause itself and build the stream with `Stream.attempt`                   |
 | Long/Double bulk reads no longer reserve a data value for EOF               | Nothing — a restriction was lifted, not added                                                     | Stop reserving a sentinel; read the returned count from `readLongs` / `readDoubles` |
@@ -131,7 +131,7 @@ A helper that ends in `.block` compiles on both platforms and then fails at run 
 value read is not a member of zio.blocks.streams.io.Reader[Int]
 ```
 
-`Reader` became a root over two kinds, `Reader.SyncReader[Elem]` and `Reader.AsyncReader[Elem]`, and everything that pulls or closes moved down into one of them. A synchronous reader's `read` and `close` return directly; an asynchronous reader's return `Async`. Only four members are left on the root, all of them kind-independent composition:
+`Reader` became a root over two kinds, `Reader.SyncReader[Elem]` and `Reader.AsyncReader[Elem]`, and everything that pulls or closes moved down into one of them. A synchronous reader's `read` and `close` return directly; an asynchronous reader's return `Async`. Five members are left on the root: four kind-independent composition operators, plus the `jvmType` lane tag:
 
 ```scala
 abstract class Reader[+Elem] {
@@ -165,7 +165,7 @@ A caller holding a `SyncReader` reaches the asynchronous signature through `Sync
 
 Three smaller changes travel with the split:
 
-- **`Stream#start` narrowed its result** from `scope.$[Reader[A]]` to `scope.$[Reader.SyncReader[A]]`. An explicit `Reader[A]` ascription on a `start` result is now a type mismatch on the JVM as well as a missing member on Scala.js. In practice this is the whole of the change for most codebases: the in-repo example diffs for the reader split were type ascriptions on `start` and nothing else.
+- **`Stream#start` narrowed its result** from `scope.$[Reader[A]]` to `scope.$[Reader.SyncReader[A]]`. An explicit `Reader[A]` ascription on a `start` result is now a type mismatch on the JVM as well as a missing member on Scala.js. In practice this is the whole of the change for most codebases: every in-repo example diff for the reader split was a widened type annotation — three on `start` results and one on a function returning a composed reader — and nothing else.
 - **`Reader.range` was removed** from the companion. `Reader.fromRange(range: Range): SyncReader[Int]` replaces it.
 - **Every `object Reader` constructor now states its kind** in the return type — `fromChunk`, `fromIterable`, `single`, `repeat` and the rest return `SyncReader`, and the one native asynchronous constructor, `unfoldAsync`, returns `AsyncReader`.
 
@@ -181,7 +181,7 @@ value create is not a member of object zio.blocks.streams.Sink
 
 `Sink.create` did not disappear; it moved from the shared companion into `SinkCompanionPlatformSpecific`, whose JVM copy declares it and whose Scala.js copy does not. Its parameter narrowed at the same time, from `Reader[A] => Z` to `Reader.SyncReader[A] => Z`, so even on the JVM a callback annotated `Reader[A] => Z` no longer conforms.
 
-Underneath the factory, a `Sink` now carries two drains, one per reader kind, and the terminal selects exactly one of them. Subclassing `Sink` therefore means implementing both — which is why the three factories, not the abstract class, are the supported route:
+Underneath the factory, a `Sink` now carries two drains, one per reader kind, and the terminal selects exactly one of them. Both drains are `private[streams]` and abstract, so `Sink` cannot be extended from outside the module at all — the three factories are the only route:
 
 ```scala
 object Sink {
@@ -306,19 +306,13 @@ val raw: Stream[Nothing, Byte]     = Stream.succeed(0xff.toByte)
 val unsigned: Stream[Nothing, Int] = raw.map(_ & 0xff)
 ```
 
-### Concat, Zip, and Recovery Signatures
+### Zip, Intersperse, and Recovery Signatures
 
-This is the sharpest break in the group, because it changes what *infers* rather than what exists.
+These operators changed what *infers* rather than what exists.
 
-`concat` and `++`, tuple zip `&&`, `intersperse`, and the recovery operators all gained a separate result type parameter with its own evidence, so that a widened result reaches the correct lane rather than inheriting the left-hand one:
+Tuple zip `&&`, `intersperse`, and the recovery operators `catchAll` and `catchDefect` gained `JvmType.Infer` evidence for their result type, so that a widened result reaches the correct lane rather than inheriting the left-hand one. `&&` also changed its zip witness: the implicit is now `Stream.Zip[A, B, C]`, where it used to be `Tuples.Tuples[A, B] { type Out = C }`, so a call site that named the old witness explicitly no longer compiles. `concat` and `++` are unchanged — they already carried an independent result type parameter and its evidence.
 
 ```scala
-def concat[E2, E3, A2, A3](that: Stream[E2, A2])(implicit
-  errorConcat: Concat.WithOut[E @uncheckedVariance, E2, E3],
-  valueConcat: Concat.WithOut[A @uncheckedVariance, A2, A3],
-  jtA3: JvmType.Infer[A3]
-): Stream[E3, A3]
-
 def &&[E2, E3, B, C](that: Stream[E2, B])(implicit
   errorConcat: Concat.WithOut[E @uncheckedVariance, E2, E3],
   zip: Stream.Zip[A, B, C],
@@ -333,31 +327,20 @@ def catchAll[E2, A2, A3](f: E => Stream[E2, A2])(implicit
 
 The `@uncheckedVariance` annotations on the left inputs are how variance is kept sound here; the older notes described this as a lower bound on the left element type, which is not what the implementation does.
 
-Let these infer. Casts, invariant wrappers, and input-side evidence added to compensate for the older signatures should come out.
-
-The break that costs real work is the deletion of the **preserving overloads of `catchAll` and `catchDefect`**. One widening form of each now remains. That is deliberate: once a stream has been widened, a recovery branch can legally change its element type from `Int` to `Double`, and preserving the original lane would be unsound. The consequence is that a call which used to resolve to the preserving overload now resolves to the widening one, and its inferred element type can differ from what a surrounding annotation expects:
+`catchAll` and `catchDefect` each still have the single widening overload they always had, and each now also requires `JvmType.Infer[A3]` for the recovered element type. Concrete call sites are unaffected — resolution never fails for a named type. A helper that abstracts over the recovery element type must thread the evidence through:
 
 ```
-type mismatch: found Stream[Nothing, Any], required Stream[Nothing, Int]
+no implicit argument of type zio.blocks.streams.JvmType.Infer[A3] was found
 ```
-
-Pre-migration, a recovery branch with a different element type under a pinned annotation:
-
-```scala
-val parsed: Stream[Nothing, Int] =
-  Stream.attempt(Integer.parseInt("not a number")).catchAll(_ => Stream.succeed(0.0))
-```
-
-After migration there are two honest resolutions, and which one is right is a domain question rather than a mechanical one. Either make both branches agree on an element type, which keeps the primitive lane:
 
 ```scala mdoc:compile-only
 import zio.blocks.streams._
 
-val parsed: Stream[Nothing, Int] =
-  Stream.attempt(Integer.parseInt("not a number")).catchAll(_ => Stream.succeed(0))
+def recoverWith[E, E2, A](stream: Stream[E, A])(f: E => Stream[E2, A])(implicit
+  jtA: JvmType.Infer[A]
+): Stream[E2, A] =
+  stream.catchAll(f)
 ```
-
-or widen the annotation to the type the two branches actually produce, accepting that the result is boxed.
 
 ### `Sink#contramap` Evidence Targets `A0`
 
@@ -368,18 +351,23 @@ def contramap[A0 <: A, A2](g: A2 => A0)(implicit jtA0: JvmType.Infer[A0]): Sink[
 def contramapAsync[A0 <: A, A2](g: A2 => Async[A0])(implicit jtA0: JvmType.Infer[A0]): Sink[E, A2, Z]
 ```
 
-Evidence supplied explicitly for the external type is rejected:
-
-```
-no implicit argument of type zio.blocks.streams.JvmType.Infer[A0] was found
-```
-
-Pre-migration, the evidence aimed at the wrong type:
+Genuine pre-migration code names one type parameter, because the old signature was `def contramap[A2](g: A2 => A): Sink[E, A2, Z]`:
 
 ```scala
 val totalLength: Sink[Nothing, String, Long] =
-  Sink.foldLeft[Int, Long](0L)((acc, n) => acc + n)
-    .contramap[Int, String](_.length)(JvmType.Infer.boxed[String])
+  Sink.foldLeft[Int, Long](0L)((acc, n) => acc + n).contramap[String](_.length)
+```
+
+Against the current signature that is an arity error on the type arguments:
+
+```
+wrong number of type arguments for method contramap, should be 2
+```
+
+Evidence aimed at the external type is rejected as well, because `JvmType.Infer` is invariant: `contramap[Int, String]` expects evidence for `Int`, not `String`.
+
+```
+type mismatch: found zio.blocks.streams.JvmType.Infer[String], required zio.blocks.streams.JvmType.Infer[Int]
 ```
 
 After migration, nothing is passed and the `Int` lane is inferred from the callback's result:
@@ -491,7 +479,7 @@ The parent change is the one consequence that reaches code which never names the
 Naming the non-breaks is worth a paragraph, because it saves an audit:
 
 - **`Writer[-Elem]` lost nothing.** Sixteen `*Async` names were added as a mechanical mirror of the existing methods; no member was removed, relocated, or narrowed.
-- **`Pipeline[-In, +Out]` lost nothing.** It gained three asynchronous factories — `collectAsync`, `filterAsync`, `mapAsync` — and `andThen`, `andThenSink`, `applyToSink`, and `applyToStream` are unchanged.
+- **`Pipeline[-In, +Out]` lost no members.** It gained three asynchronous factories — `collectAsync`, `filterAsync`, `mapAsync` — and `andThen`, `andThenSink`, `applyToSink`, and `applyToStream` are unchanged. Its factories did follow the evidence rule, though: `collect`, `filter`, `identity` and `map` no longer take input-side `JvmType.Infer[A]`, so a call site passing evidence explicitly is now an arity error. `collect` and `map` still require result-side `JvmType.Infer[B]`; delete only the input argument.
 - **No `@deprecated` annotations were added anywhere.** That is not an oversight. These are relocations and splits, and a deprecation cycle cannot express "this member exists on one platform and not the other" — the compiler either finds the member or does not.
 - **There is no Scala 2 versus Scala 3 difference in any of this.** The streams module's two version-specific source trees contain only `private[streams]` traits, and every signature on this page is identical on both. The axis that changes what compiles is JVM versus Scala.js.
 - **`Stream[E, A]` itself is unchanged as a type.** There is no second stream type, no mode parameter, and no annotation distinguishing a synchronous description from an asynchronous one. A migrated pipeline keeps the same type in the same signatures.

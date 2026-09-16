@@ -513,11 +513,11 @@ For primitive types, specialized methods avoid boxing by widening the return typ
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readInt(sentinel: Long)(implicit ev: Elem <:< Int): Long
+  def readInt(_sentinel: Long)(implicit _ev: Elem <:< Int): Long
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readInt(sentinel: Long)(implicit ev: Elem <:< Int): Async[Long]
+  def readInt(_sentinel: Long)(implicit _ev: Elem <:< Int): Async[Long]
 }
 ```
 
@@ -527,11 +527,11 @@ Why widen to `Long`? If `Reader#readInt` returned `Int`, you couldn't distinguis
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readLong(sentinel: Long)(implicit ev: Elem <:< Long): Long
+  def readLong(_sentinel: Long)(implicit _ev: Elem <:< Long): Long
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readLong(sentinel: Long)(implicit ev: Elem <:< Long): Async[Long]
+  def readLong(_sentinel: Long)(implicit _ev: Elem <:< Long): Async[Long]
 }
 ```
 
@@ -541,11 +541,11 @@ The scalar API necessarily permits a collision with the caller's sentinel. Colli
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readFloat(sentinel: Double)(implicit ev: Elem <:< Float): Double
+  def readFloat(_sentinel: Double)(implicit _ev: Elem <:< Float): Double
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readFloat(sentinel: Double)(implicit ev: Elem <:< Float): Async[Double]
+  def readFloat(_sentinel: Double)(implicit _ev: Elem <:< Float): Async[Double]
 }
 ```
 
@@ -555,11 +555,11 @@ Like `Reader#readInt`, widening to `Double` allows the sentinel to lie safely ou
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readDouble(sentinel: Double)(implicit ev: Elem <:< Double): Double
+  def readDouble(_sentinel: Double)(implicit _ev: Elem <:< Double): Double
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readDouble(sentinel: Double)(implicit ev: Elem <:< Double): Async[Double]
+  def readDouble(_sentinel: Double)(implicit _ev: Elem <:< Double): Async[Double]
 }
 ```
 
@@ -632,7 +632,7 @@ abstract class Reader.SyncReader[+Elem] {
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Elem <:< Byte): Async[Int]
+  def readBytes(dest: Array[Byte], offset: Int, length: Int)(implicit ev: Elem <:< Byte): Async[Int]
 }
 ```
 
@@ -668,11 +668,11 @@ drainBulk()
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readChar(sentinel: Int)(implicit ev: Elem <:< Char): Int
+  def readChar(_sentinel: Int)(implicit _ev: Elem <:< Char): Int
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readChar(sentinel: Int)(implicit ev: Elem <:< Char): Async[Int]
+  def readChar(_sentinel: Int)(implicit _ev: Elem <:< Char): Async[Int]
 }
 ```
 
@@ -680,11 +680,11 @@ abstract class Reader.AsyncReader[+Elem] {
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readShort(sentinel: Int)(implicit ev: Elem <:< Short): Int
+  def readShort(_sentinel: Int)(implicit _ev: Elem <:< Short): Int
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readShort(sentinel: Int)(implicit ev: Elem <:< Short): Async[Int]
+  def readShort(_sentinel: Int)(implicit _ev: Elem <:< Short): Async[Int]
 }
 ```
 
@@ -692,11 +692,11 @@ abstract class Reader.AsyncReader[+Elem] {
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
-  def readBoolean(sentinel: Int)(implicit ev: Elem <:< Boolean): Int
+  def readBoolean(_sentinel: Int)(implicit _ev: Elem <:< Boolean): Int
 }
 
 abstract class Reader.AsyncReader[+Elem] {
-  def readBoolean(sentinel: Int)(implicit ev: Elem <:< Boolean): Async[Int]
+  def readBoolean(_sentinel: Int)(implicit _ev: Elem <:< Boolean): Async[Int]
 }
 ```
 
@@ -740,7 +740,7 @@ abstract class Reader.AsyncReader[+Elem] {
 ```
 
 :::caution[Bound `n` yourself]
-`n` is a request, and some readers size a buffer from it before knowing how much data will arrive. The JVM channel-backed byte reader allocates `new Array[Byte](n)` up front in `readUpToN`, and the only guard on that allocation is `n <= 0` — there is no upper bound. Passing `Int.MaxValue` therefore asks for a 2 GB array rather than "whatever is ready". Choose a bound that reflects how much you are prepared to hold in memory, such as a page or buffer size.
+`n` is a request, and some readers size a buffer from it before knowing how much data will arrive. The JVM channel-backed byte reader allocates `new Array[Byte](n)` up front in `readUpToN`, and the only guards on that allocation are `n <= 0` and an already-closed reader — there is no upper bound. Passing `Int.MaxValue` therefore asks for a 2 GB array rather than "whatever is ready". Choose a bound that reflects how much you are prepared to hold in memory, such as a page or buffer size.
 :::
 
 `Reader#skip` — Eagerly discards the first `n` elements. Dispatches on `Reader#jvmType` for zero-boxing when possible:
@@ -1225,7 +1225,7 @@ The contract has three parts, and it is the same on both reader kinds:
 2. **The sentinel travels in the widened carrier.** A primitive pull returns the lane's widened type, not the element type, precisely so a value outside the element's domain is available to spend as the sentinel. `readInt` takes and returns `Long`; `readChar`, `readShort`, and `readBoolean` take and return `Int`; `readFloat` takes and returns `Double`. `readByte()` is the exception that proves the rule: it takes no sentinel parameter because it yields unsigned bytes in `0..255` and can reserve `-1` permanently.
 3. **Getting the sentinel back means exhausted, and nothing else.** It is not an error signal. Failures arrive as thrown exceptions on a `SyncReader` and as failed `Async` values on an `AsyncReader`.
 
-Two lanes sit outside that arrangement. There is no `Long` value and no `Double` bit pattern left over to reserve — the carrier is the element type itself, so every candidate sentinel is also legitimate data. **The `Long` and `Double` lanes therefore use no sentinel.** `readLong` and `readDouble` still take a sentinel parameter, for symmetry with the other six, but nothing can safely fill it; the library never relies on it. Instead those lanes detect end-of-stream by count: a length-one `readLongs` or `readDoubles` whose returned count is negative. That is what makes those two lanes fully lossless — every `Long` value and every `Double` bit pattern stays readable as data.
+Two lanes sit outside that arrangement. There is no `Long` value and no `Double` bit pattern left over to reserve — the carrier is the element type itself, so every candidate sentinel is also legitimate data. **The `Long` and `Double` lanes therefore use no sentinel.** `readLong` and `readDouble` still take a sentinel parameter, for symmetry with the five other sentinel-taking pulls, but nothing can safely fill it; the library never relies on it. Instead those lanes detect end-of-stream by count: a length-one `readLongs` or `readDoubles` whose returned count is negative. That is what makes those two lanes fully lossless — every `Long` value and every `Double` bit pattern stays readable as data.
 
 For the per-lane end-of-stream detail, including which carrier each lane widens to, see [Zero-Boxing Streams](./zero-boxing.md), which owns that table.
 

@@ -1475,7 +1475,7 @@ val summary: Async[String] =
 val text: String = summary.block
 ```
 
-`.block` is the edge-of-the-world move described under [Driving](#driving), and the same two limits hold: never inside a stream callback or a `poll`, and never on Scala.js, where it throws. Cross-platform stream code keeps the `Async` and hands it to the host — `toFuture`, `toJsPromise` — or stays inside `Async.async { … }` and uses `await`.
+`.block` is the edge-of-the-world move described under [Driving](#driving), and the same two limits hold: never inside a stream callback or a `poll`, and never on a value that may still be pending when you are on Scala.js, where it throws. Cross-platform stream code keeps the `Async` and hands it to the host — `toFuture`, `toJsPromise` — or stays inside `Async.async { … }` and uses `await`.
 
 Cancellation carries across too: cancelling a running stream is the [`Cancelable`](#cancelable) contract on this page, applied to a reader rather than a single leaf.
 

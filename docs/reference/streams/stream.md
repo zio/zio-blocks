@@ -1532,7 +1532,9 @@ Runs the stream with a custom sink, producing result `Z`:
 
 ```scala
 trait Stream[+E, +A] {
-  def run[E2 >: E, Z](sink: Sink[E2, A, Z]): Either[E2, Z]
+  def run[ES, E3, Z](sink: Sink[ES, A, Z])(implicit
+    errorConcat: Concat.WithOut[E, ES, E3]
+  ): Either[E3, Z]
 }
 ```
 
