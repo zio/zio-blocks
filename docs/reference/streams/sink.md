@@ -57,7 +57,7 @@ When you call `stream.run(sink)`:
 
 ### Physical Input Lanes and Ownership
 
-A sink consumes either kind of reader. `Reader` is not one type with a mode flag: it splits into `Reader.SyncReader[A]`, whose pulls return values, and `Reader.AsyncReader[A]`, whose pulls return `Async` values. [The reader union](./reader.md#the-reader-union) describes the split from the reader's side. From the sink's side, the consequence is that every sink is drained through one of two entry points, and the terminal decides which — the next section covers that choice.
+A sink consumes either kind of reader. `Reader` is not one type with a mode flag: it splits into `Reader.SyncReader[A]`, whose pulls return values, and `Reader.AsyncReader[A]`, whose pulls return [`Async`](../async.md) values. [The reader union](./reader.md#the-reader-union) describes the split from the reader's side. From the sink's side, the consequence is that every sink is drained through one of two entry points, and the terminal decides which — the next section covers that choice.
 
 Whichever kind arrives, a sink discovers its input representation from the materialized reader's `jvmType`, not from the sink's contravariant static input type. Generic sinks dispatch once per drain and then pull `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, and `Double` through `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLongs`, `readFloat`, and `readDoubles`, respectively. Reference inputs use generic `read`. In particular, the four small primitive lanes do not share the `Int` pull.
 
@@ -210,7 +210,7 @@ Gather elements into collections:
 
 #### `Sink.collectAll[A]` — Collect Into a Chunk
 
-Collects all elements into a `Chunk[A]`:
+Collects all elements into a [`Chunk[A]`](../chunk.md):
 
 ```scala
 object Sink {

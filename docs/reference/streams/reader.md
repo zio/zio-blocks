@@ -230,7 +230,7 @@ println(r.read(-1))        // -1 (the sentinel)
 
 ### From Collections
 
-`Reader.fromChunk` — Creates a reader backed by a `Chunk`. Dispatches on the element type to use specialized, unboxed reads for primitives:
+`Reader.fromChunk` — Creates a reader backed by a [`Chunk`](../chunk.md). Dispatches on the element type to use specialized, unboxed reads for primitives:
 
 ```scala
 object Reader {
@@ -1193,7 +1193,7 @@ Scope.global.scoped { scope =>
 ```
 
 :::caution
-Avoid holding references to a `SyncReader` obtained via `Stream#start` outside its `Scope`. The scope guarantees cleanup; escaping the reader defeats that guarantee.
+Avoid holding references to a `SyncReader` obtained via `Stream#start` outside its [`Scope`](../resource-management/scope.md). The scope guarantees cleanup; escaping the reader defeats that guarantee.
 :::
 
 ## Integration with Sink

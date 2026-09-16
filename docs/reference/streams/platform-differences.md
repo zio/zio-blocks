@@ -177,7 +177,7 @@ trait StreamPlatformSpecific[+E, +A] { self: Stream[E, A] =>
 }
 ```
 
-The reader is allocated into the enclosing `Scope` as an acquire-release resource, so closing the scope closes the reader, and the dependent result type `scope.$[Reader.SyncReader[A]]` keeps it from escaping that scope. The return type narrowed to `Reader.SyncReader[A]` in the process: `Stream#start` never hands back the `Reader` union, because asynchronous boundaries inside the pipeline are bridged by the JVM runtime before you see it.
+The reader is allocated into the enclosing [`Scope`](../resource-management/scope.md) as an acquire-release resource, so closing the scope closes the reader, and the dependent result type `scope.$[Reader.SyncReader[A]]` keeps it from escaping that scope. The return type narrowed to `Reader.SyncReader[A]` in the process: `Stream#start` never hands back the `Reader` union, because asynchronous boundaries inside the pipeline are bridged by the JVM runtime before you see it.
 
 The cross-platform pair is `Stream#startAsync` and `Stream#useReaderAsync`, and they differ from `Stream#start` and from each other in who closes the reader:
 

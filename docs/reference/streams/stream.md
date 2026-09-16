@@ -294,7 +294,7 @@ val dieStream = Stream.die(new Exception("System failure"))
 
 ### From Collections
 
-Streams can be created from existing collections and iterables, making it easy to convert `List`, `Array`, `Chunk`, or custom iterables into lazy streams:
+Streams can be created from existing collections and iterables, making it easy to convert `List`, `Array`, [`Chunk`](../chunk.md), or custom iterables into lazy streams:
 
 #### `Stream.apply[A]`
 
@@ -1804,7 +1804,7 @@ When you call `stream.run(sink)`, the stream is compiled to a `Reader` and the s
 
 ## Low-Level Pull with Reader
 
-`Reader[+Elem]` is the low-level, pull-based source that backs every stream at execution time. Use cross-platform `startAsync` for a caller-owned `Reader.AsyncReader`, or `useReaderAsync` for bracketed access that awaits close on every outcome. The JVM additionally provides blocking `start` with a `Scope`.
+`Reader[+Elem]` is the low-level, pull-based source that backs every stream at execution time. Use cross-platform `startAsync` for a caller-owned `Reader.AsyncReader`, or `useReaderAsync` for bracketed access that awaits close on every outcome. The JVM additionally provides blocking `start` with a [`Scope`](../resource-management/scope.md).
 
 ### Manual Pull via `start`
 

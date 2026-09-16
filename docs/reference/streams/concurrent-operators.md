@@ -104,7 +104,7 @@ Whether a slot corresponds to a thread depends entirely on which engine material
 
 All four operators are unordered with respect to input position. An element leaves when its work finishes, so output is in arrival order. The property tests compare results with `.toSet` for exactly this reason: there is no input-order assertion available to make.
 
-The single exception is `n = 1`, which is exactly sequential — and the `n = 1` tests do assert exact `Chunk` equality, because at that value the operator is not the concurrent engine at all. See [The `n = 1` Guarantee](#the-n-1-guarantee).
+The single exception is `n = 1`, which is exactly sequential — and the `n = 1` tests do assert exact [`Chunk`](../chunk.md) equality, because at that value the operator is not the concurrent engine at all. See [The `n = 1` Guarantee](#the-n-1-guarantee).
 
 :::warning[Unordered means unordered on Scala.js too]
 Single-threaded execution does not restore input order. The concurrent engine runs on Scala.js with immediately-ready effects, and its arrival-order semantics are retained there. Code that depends on Scala.js emitting source order is a bug that will not reproduce on the JVM.

@@ -298,7 +298,7 @@ recovered.runCollect  // Right(Chunk(1, 2, 3, 99))
 
 ## Resource Management
 
-Streams integrate with `zio.blocks.scope.Scope` for deterministic resource cleanup. The `fromAcquireRelease` constructor guarantees that a resource is acquired lazily (when the stream runs), used to produce elements, and then released — even if the stream is short-circuited early via `take()`, fails with an error, or succeeds normally. The release function is wired into a finally block, ensuring cleanup always happens.
+Streams integrate with [`zio.blocks.scope.Scope`](../resource-management/scope.md) for deterministic resource cleanup. The `fromAcquireRelease` constructor guarantees that a resource is acquired lazily (when the stream runs), used to produce elements, and then released — even if the stream is short-circuited early via `take()`, fails with an error, or succeeds normally. The release function is wired into a finally block, ensuring cleanup always happens.
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
