@@ -453,7 +453,7 @@ Prefer `andThenSink` for readability.
 
 Type-preserving factories such as `filter`, `filterAsync`, `identity`, `take`, and `drop` do not require `JvmType.Infer`: they preserve the representation supplied when the pipeline is applied.
 
-The rules hold identically through both application routes. On the stream route, result evidence is stored on the transformed stream node. On the sink route, mapping passes the same result evidence to the sink's contramap machinery, and structural pipelines use the generic run-via-sink route. So `stream.via(pipe)`, `pipe.andThenSink(sink)`, and `pipe.applyToSink(sink)` preserve the same specialization information as well as the same semantics — which means a migration edit that fixes one route must be applied to the other. See [Both Pipeline Routes](./migration.md#both-pipeline-routes) for the edits this affects.
+The rules hold identically through both application routes. On the stream route, result evidence is stored on the transformed stream node. On the sink route, mapping passes the same result evidence to the sink's contramap machinery, and structural pipelines use the generic run-via-sink route. So `stream.via(pipe)`, `pipe.andThenSink(sink)`, and `pipe.applyToSink(sink)` preserve the same specialization information as well as the same semantics.
 
 ## Integration
 
@@ -555,7 +555,6 @@ sbt "streams-examples/runMain pipeline.PipelineAsyncExample"
 ## See Also
 
 - [Asynchronous Stream Execution](./async-execution.md#async-operators) — the stream-level `*Async` operators the three asynchronous factories delegate to, and how a mixed graph compiles
-- [Migration Guide](./migration.md#specialization-changes) — where specialization evidence sits on each signature, and the [Both Pipeline Routes](./migration.md#both-pipeline-routes) rule that every such edit obeys
 - [Stream](./stream.md#integration-with-pipeline-and-sink) — the producer side of `via`
 - [Sink](./sink.md) — the consumer a pipeline can be attached to instead
 - [Zero-Boxing Streams](./zero-boxing.md) — the lanes `JvmType.Infer` selects between, and why transforming factories need the evidence

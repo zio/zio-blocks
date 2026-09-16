@@ -126,7 +126,7 @@ Each factory fills in the drain you did not write:
 `Sink.createAsync` writes the synchronous drain for you by awaiting the asynchronous one at a JVM blocking terminal. `Sink.create` writes the asynchronous drain for you by running the blocking callback on the blocking executor, where cancellation closes the reader. `Sink.createBoth` writes neither: it takes two independent callbacks and the terminal runs exactly one, so the two must agree on how much input they consume and what they produce — nothing compares their results.
 
 :::warning[`Sink.create` does not exist on Scala.js]
-It is declared in the JVM copy of `SinkCompanionPlatformSpecific` and simply absent from the Scala.js copy, so cross-built code that calls it fails to compile for the JS target rather than failing at runtime. [`Sink.create` and Custom Sinks](./platform-differences.md#sinkcreate-and-custom-sinks) states the platform rule; [Custom Sinks Now Have Two Drains](./migration.md#custom-sinks-now-have-two-drains) has the compile error and the edit that resolves it.
+It is declared in the JVM copy of `SinkCompanionPlatformSpecific` and simply absent from the Scala.js copy, so cross-built code that calls it fails to compile for the JS target rather than failing at runtime. [`Sink.create` and Custom Sinks](./platform-differences.md#sinkcreate-and-custom-sinks) states the platform rule.
 :::
 
 [Custom sink factories](#custom-sink-factories) shows a worked callback against the reader protocol.
@@ -643,7 +643,7 @@ abstract class Sink[+E, -A, +Z] {
 }
 ```
 
-The evidence is the same as `Sink#contramap`'s and targets the callback's **result** type `A0`, not the new sink input `A2`. The migration guide's [Specialization Changes](./migration.md#specialization-changes) covers the signature change that introduced this rule, and this page does not restate it. `g` runs sequentially, one effect at a time, as the wrapped sink requests elements, so short-circuiting is unchanged and `g` is never started for input the sink does not pull. A failed or cancelled `g` fails or cancels the run as a defect and stops pulling input; it does not appear in the sink's typed error channel.
+The evidence is the same as `Sink#contramap`'s and targets the callback's **result** type `A0`, not the new sink input `A2`. `g` runs sequentially, one effect at a time, as the wrapped sink requests elements, so short-circuiting is unchanged and `g` is never started for input the sink does not pull. A failed or cancelled `g` fails or cancels the run as a defect and stops pulling input; it does not appear in the sink's typed error channel.
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -924,7 +924,6 @@ sbt "streams-examples/runMain sink.SinkAsyncExample"
 
 - [Asynchronous Stream Execution](./async-execution.md#async-terminals) — the terminals that select a sink's asynchronous drain, and the `Async[Either[E, Z]]` convention
 - [Platform Differences](./platform-differences.md#sinkcreate-and-custom-sinks) — why `Sink.create` is JVM-only and what replaces it in shared source
-- [Migration Guide](./migration.md#custom-sinks-now-have-two-drains) — the compile errors a custom sink hits after the drain split, and the edits that resolve them
 - [Reader](./reader.md#the-reader-union) — the two reader kinds a sink drains, from the reader's side
 - [Zero-Boxing Streams](./zero-boxing.md) — how a primitive lane is chosen, and the per-lane end-of-stream table
 - [Stream](./stream.md) — the producer a sink consumes

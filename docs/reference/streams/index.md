@@ -59,8 +59,6 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "@VERSION@"
 
 Supported Scala versions: 2.13.x and 3.x.
 
-When updating code written against an earlier release -- the specialization API, the blocking terminals, or a custom `Sink` -- see the [Migration Guide](./migration.md).
-
 ## Why Streams?
 
 Streaming libraries in the Scala ecosystem typically require an effect system. fs2 needs `cats.effect.IO`, Kyo Streams needs the Kyo runtime, and Pekko (formerly Akka) Streams needs the actor runtime. When your code is synchronous and you want streaming without pulling in an effect monad, the options narrow considerably.
@@ -278,8 +276,6 @@ Scala.js, and cross-compiled sources cannot call them.
   union, the async source constructors, operators, and terminals.
 - [Platform Differences](./platform-differences.md) -- the availability matrix of every member that
   differs between the JVM and Scala.js.
-- [Migration Guide](./migration.md) -- what changed for existing blocking code, and the edit for
-  each break.
 
 ## Error Handling
 
@@ -318,7 +314,7 @@ This eliminates the need for manual try/finally when working with resources — 
 
 ZB Streams carries the JVM representation of the element type through the whole pipeline, so a stream of primitives is not boxed at each stage boundary. Specialization is not limited to `Int`, `Long`, `Float`, and `Double`: there are **nine logical lanes** -- the eight primitive pull identities `Boolean`, `Byte`, `Short`, `Char`, `Int`, `Long`, `Float`, and `Double`, plus the reference fallback -- and the synchronous interpreter compacts them into **five storage lanes**: int-like (`Boolean`/`Byte`/`Short`/`Char`/`Int`), `Long`, `Float`, `Double`, and reference. Nine logical lanes therefore does not mean nine interpreter arrays; the operator tag selects the identity-specific reads over the shared storage.
 
-[Zero-Boxing Streams](./zero-boxing.md) explains how a lane is chosen and what the specialization evidence is for. [Migration Guide](./migration.md) covers the source-compatibility breaks this generalization introduced.
+[Zero-Boxing Streams](./zero-boxing.md) explains how a lane is chosen and what the specialization evidence is for.
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
@@ -754,7 +750,6 @@ Stream.fromIterable(List("10", "abc", "-3", "7", "0", "25"))
 
 - [Async Execution](./async-execution.md) -- the synchronous/asynchronous execution model, the `Reader` union, and the `*Async` terminal family
 - [Platform Differences](./platform-differences.md) -- which members exist on the JVM, on Scala.js, and on both
-- [Migration Guide](./migration.md) -- upgrading code written against the blocking terminals or the earlier specialization API
 - [Zero-Boxing Streams](./zero-boxing.md) -- the primitive lanes and how one is chosen
 - [Async](../async.md) -- the `Async` effect type the cross-platform terminals return
 - [Mux](../mux.md) -- coordinating many keyed streams over one shared transport

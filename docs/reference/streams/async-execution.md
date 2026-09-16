@@ -460,7 +460,7 @@ The query terminals are one-liners over `runAsync`. Knowing which `Sink` each de
 
 Thirteen blocking members — `count`, `exists`, `find`, `forall`, `foreach`, `head`, `last`, `run`, `runCollect`, `runDrain`, `runFold`, `runForeach`, and `start` — live on the JVM only. Shared, cross-compiled sources cannot call them; they must use the `*Async` family, `startAsync`, and `useReaderAsync` instead.
 
-For the full platform matrix, including which reader conversions and sink constructors exist on which platform, see [Platform Differences](./platform-differences.md). For converting an existing blocking codebase, see [Migration](./migration.md).
+For the full platform matrix, including which reader conversions and sink constructors exist on which platform, see [Platform Differences](./platform-differences.md).
 
 ### Driving an `Async` From a JVM `main`
 
@@ -636,6 +636,5 @@ sbt "streams-examples/runMain stream.StreamAsyncOrderPipelineExample"
 - [Bounded Concurrency](./stream.md#bounded-concurrency) — `mapPar`, `mapParAsync`, `mergeAll`, and `flatMapPar`
 - [Asynchronous I/O](./async-io.md) — JVM NIO channels and Scala.js readable streams as asynchronous sources
 - [Platform Differences](./platform-differences.md) — what exists on the JVM, what exists on Scala.js, and what throws
-- [Migration](./migration.md) — moving an existing blocking codebase onto the `*Async` family
 - [Async](../async.md) — `Async[A]`, `Pollable`, `Completer`, `Async.Running`, and cancellation
 - [Zero-Boxing Optimization](./zero-boxing.md) — primitive lanes, and why async is lane-aware rather than end-to-end allocation-free

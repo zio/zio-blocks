@@ -44,7 +44,7 @@ The companion constructors whose names end in `Async` — `attemptAsync`, `attem
 
 ### Migration and Source Compatibility
 
-`Reader` is an ordinary `abstract class`, not a sealed one, but every reader the library hands you is a `Reader.SyncReader[A]` or a `Reader.AsyncReader[A]`, so code that implements or accepts a reader must choose one kind or match both with a fallback case. Custom sinks cannot be written by subclassing `Sink`, whose two abstract drains are `private[streams]`; use `Sink.createAsync`, `Sink.createBoth`, or the JVM-only `Sink.create`. Plain terminals, `start`, `AsyncReader#toSync`, and `Sink.create` are JVM-only, so shared sources should migrate to `run*Async`, `startAsync`/`useReaderAsync`, and `createAsync`. If you are upgrading, the [Migration Guide](./migration.md#at-a-glance) pairs each of these points with the compile error it produces and the code that replaces it.
+`Reader` is an ordinary `abstract class`, not a sealed one, but every reader the library hands you is a `Reader.SyncReader[A]` or a `Reader.AsyncReader[A]`, so code that implements or accepts a reader must choose one kind or match both with a fallback case. Custom sinks cannot be written by subclassing `Sink`, whose two abstract drains are `private[streams]`; use `Sink.createAsync`, `Sink.createBoth`, or the JVM-only `Sink.create`. Plain terminals, `start`, `AsyncReader#toSync`, and `Sink.create` are JVM-only, so shared sources should migrate to `run*Async`, `startAsync`/`useReaderAsync`, and `createAsync`.
 
 Async constructor callbacks remain lazy until the first drive, and managed/unmanaged names encode ownership. Do not compensate by eagerly opening a resource before constructing the stream. Cancellation closes an acquired reader and awaits its finalizer; `startAsync` is the exception because it explicitly transfers that responsibility to its caller.
 
@@ -1327,7 +1327,7 @@ The third law is also a statement about the implementation rather than a coincid
 
 #### `mapPar`, `mergeAll`, and `flatMapPar` on the JVM
 
-The three snippets below use blocking terminals, which exist only on the JVM. In cross-platform code, swap the terminal for its `*Async` twin — `runCollectAsync`, `runFoldAsync` — and the operator itself is unchanged. [Migration](./migration.md#blocking-terminals-are-now-jvm-only) has the full replacement mapping.
+The three snippets below use blocking terminals, which exist only on the JVM. In cross-platform code, swap the terminal for its `*Async` twin — `runCollectAsync`, `runFoldAsync` — and the operator itself is unchanged.
 
 Expensive per-element work across eight slots:
 
@@ -1893,7 +1893,7 @@ There are two terminal families, and which one you reach for is a platform decis
 
 The **cross-platform** family is the one whose names end in `Async`: `runAsync`, `runCollectAsync`, `runDrainAsync`, `runFoldAsync`, `runForeachAsync`/`foreachAsync`, `countAsync`, `existsAsync`, `findAsync`, `forallAsync`, `headAsync`, and `lastAsync`. Each returns `Async[Either[E, Z]]`, stays lazy until driven, and awaits reader cleanup on success, failure, or cancellation. It drives a synchronous and an asynchronous pipeline alike, and it is the only family that compiles for both targets. [Async Terminals](./async-execution.md#async-terminals) documents the family and the `Async[Either[E, Z]]` convention it follows.
 
-The **JVM-only** family is everything documented in the rest of this section — `run`, `runCollect`, `runDrain`, `runFold`, `runForeach`/`foreach`, `count`, `exists`, `find`, `forall`, `head`, and `last` — together with `start`, covered under [Manual Pull via `start`](#manual-pull-via-start). Those sixteen members, counting `runFold`'s four overloads, are the entire JVM-only surface of `Stream`: the terminals among them park a thread and return a plain `Either[E, Z]`, and `start` hands back a blocking `Reader.SyncReader[A]`. They live in `StreamPlatformSpecific`, whose Scala.js copy has an empty body, so calling one from shared code fails to compile for the JavaScript target rather than failing at runtime. The [availability matrix](./platform-differences.md#availability-matrix) lists them member by member, and [Blocking Terminals Are Now JVM-Only](./migration.md#blocking-terminals-are-now-jvm-only) gives the replacement for each.
+The **JVM-only** family is everything documented in the rest of this section — `run`, `runCollect`, `runDrain`, `runFold`, `runForeach`/`foreach`, `count`, `exists`, `find`, `forall`, `head`, and `last` — together with `start`, covered under [Manual Pull via `start`](#manual-pull-via-start). Those sixteen members, counting `runFold`'s four overloads, are the entire JVM-only surface of `Stream`: the terminals among them park a thread and return a plain `Either[E, Z]`, and `start` hands back a blocking `Reader.SyncReader[A]`. They live in `StreamPlatformSpecific`, whose Scala.js copy has an empty body, so calling one from shared code fails to compile for the JavaScript target rather than failing at runtime. The [availability matrix](./platform-differences.md#availability-matrix) lists them member by member.
 
 Each heading below therefore carries a one-line note naming its cross-platform form.
 
@@ -2410,7 +2410,6 @@ Each platform ships adapters that turn a native byte source into a `Reader.Async
 
 - [Asynchronous Stream Execution](./async-execution.md) — the full asynchronous constructor, operator, and terminal API, and how one `Stream` type describes both execution modes
 - [Platform Differences](./platform-differences.md) — which members exist on the JVM, which exist on Scala.js, and why the blocking family is JVM-only
-- [Migration Guide](./migration.md) — each source-breaking change, the compile error it produces, and the code that replaces it
 - [Reader](./reader.md) — the `SyncReader` / `AsyncReader` union that decides which engine materializes behind the bounded-concurrency operators
 - [Asynchronous I/O](./async-io.md) — the JVM NIO and Scala.js `ReadableStream` adapters behind the native asynchronous byte readers
 - [Async Reference](../async.md) — `Async.promise` and `Completer` bridge callback-based APIs into async values that can feed stream sources; `Async.Running` carries a synchronous cancellation handle that complements stream resource management

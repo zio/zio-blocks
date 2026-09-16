@@ -153,7 +153,7 @@ object NioReaders {
 }
 ```
 
-These factories return `Reader.SyncReader[Byte]` rather than the root `Reader[Byte]`, which is what makes pulling and closing available on the result: those members belong to the reader kinds, not to the root type. [The `Reader` Split](./migration.md#the-reader-split) has the details. Two details of this object are worth noting at a call site: its channel factory names the buffer parameter `bufSize`, where the asynchronous one names it `bufferSize`, and there is no public unmanaged channel variant here — `NioReaders.fromChannel` always owns the channel it wraps.
+These factories return `Reader.SyncReader[Byte]` rather than the root `Reader[Byte]`, which is what makes pulling and closing available on the result: those members belong to the reader kinds, not to the root type. Two details of this object are worth noting at a call site: its channel factory names the buffer parameter `bufSize`, where the asynchronous one names it `bufferSize`, and there is no public unmanaged channel variant here — `NioReaders.fromChannel` always owns the channel it wraps.
 
 ## Scala.js: `ReadableStreamReaders`
 
@@ -297,4 +297,3 @@ sbt "streams-examples/runMain nio.AsyncChannelReaderExample"
 - [Asynchronous Stream Execution](./async-execution.md) — the `*Async` constructor, operator, and terminal families that drive these readers
 - [Platform Differences](./platform-differences.md) — what exists on the JVM, what exists on Scala.js, and what throws
 - [Sink](./sink.md) — the sink side, including the NIO sinks and their two drains
-- [Migration](./migration.md) — moving an existing blocking codebase onto the `*Async` family

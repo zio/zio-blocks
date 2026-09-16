@@ -248,7 +248,6 @@ const sidebars = {
               "reference/streams/async-io",
               "reference/streams/platform-differences",
               "reference/streams/zero-boxing",
-              "reference/streams/migration",
               "reference/streams/scala-2-compatibility",
             ]
           },

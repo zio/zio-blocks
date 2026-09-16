@@ -86,4 +86,3 @@ When making changes that touch hot combinators, re-run `streams-benchmark` and v
 
 - [Platform Differences](./platform-differences.md) — the JVM versus Scala.js availability matrix, and the Scala 2 versus Scala 3 summary
 - [Zero-Boxing](./zero-boxing.md) — `JvmType.Infer` and the primitive lanes that `LowPriorityJvmTypeInferPlatform` backs
-- [Migration](./migration.md#at-a-glance) — the source-breaking changes and the code that replaces them

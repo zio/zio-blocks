@@ -220,7 +220,7 @@ All eight primitive lanes are specialized — `Boolean`, `Byte`, `Char`, `Short`
 
 The specialized path is not reserved for any one element and accumulator pairing. A `Short` stream folded into a `Double`, a `Char` stream merged across workers, a `Boolean` stream collected — each reaches the same shared drivers, the same selector lifecycle, and the same buffer policy as an `Int` stream reduced by a `Long` checksum.
 
-Specialization is about where boxing is avoided by construction, not a throughput promise: it says which lane a pull travels on, not what a given workload will measure. [Migration Guide](./migration.md#specialization-changes) covers the source-compatibility consequences of carrying specialization evidence.
+Specialization is about where boxing is avoided by construction, not a throughput promise: it says which lane a pull travels on, not what a given workload will measure.
 
 ## EOF Signalling Per Lane
 
@@ -250,7 +250,7 @@ Three things are worth reading off that table.
 Any value you reserve as an end marker on those two lanes is also a value the stream may carry, and the truncation is silent. Use `readLongs(scratch, 0, 1)` or `readDoubles(scratch, 0, 1)` and branch on the returned count.
 :::
 
-[Reader](./reader.md#sentinel-protocol) states the same contract from the implementor's side, and [Migration Guide](./migration.md#longdouble-bulk-eof-moved-out-of-band) shows the before-and-after for code written under the old restriction.
+[Reader](./reader.md#sentinel-protocol) states the same contract from the implementor's side.
 
 ## Comparison: @specialized Vs JvmType Dispatch
 
@@ -390,5 +390,4 @@ The result is specialized hot paths without `@specialized` class proliferation, 
 - [Sink](./sink.md) — the typed sinks that drain through these lanes
 - [Pipeline](./pipeline.md) — why the transforming factories ask for `JvmType.Infer` on their result type
 - [Asynchronous Stream Execution](./async-execution.md#one-stream-type-two-execution-modes) — how a graph becomes synchronous or asynchronous, and why there is no mode annotation either
-- [Migration Guide](./migration.md#specialization-changes) — the source-compatibility breaks generalized specialization introduced
 - [Platform Differences](./platform-differences.md) — what changes on Scala.js, where the same lanes apply

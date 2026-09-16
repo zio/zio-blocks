@@ -1313,7 +1313,6 @@ sbt "streams-examples/runMain reader.ReaderCompositionExample"
 - [Asynchronous Stream Execution](./async-execution.md) — how a graph picks its engine, the `*Async` surface, and close ownership from the stream's side
 - [Asynchronous I/O](./async-io.md) — asynchronous sources, and the full hazards of bridging kinds with `toSync`
 - [Platform Differences](./platform-differences.md#availability-matrix) — which reader operations exist on the JVM, on Scala.js, and on both
-- [Migration](./migration.md#the-reader-split) — moving code that accepted an undifferentiated `Reader` onto the two kinds
 - [Zero-Boxing Streams](./zero-boxing.md) — how a primitive lane is chosen, and the per-lane end-of-stream table
 - [Stream](./stream.md) — the operator and terminal reference for the type that compiles to a `Reader`
 - [Sink](./sink.md) — the consumer that drains a `Reader`
