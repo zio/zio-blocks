@@ -294,5 +294,5 @@ The axis that changes what you can call is JVM versus Scala.js, which is what th
 - [Migration](./migration.md) — porting existing code across the blocking-to-asynchronous split
 - [Asynchronous Stream Execution](./async-execution.md) — the full cross-platform `*Async` API
 - [Asynchronous I/O](./async-io.md) — the JVM NIO and Scala.js `ReadableStream` adapters
-- [Concurrent Operators](./concurrent-operators.md) — `Stream#mapPar`, `Stream#flatMapPar`, `Stream.mergeAll`, and `Stream#mapParAsync`
+- [Bounded Concurrency](./stream.md#bounded-concurrency) — `Stream#mapPar`, `Stream#flatMapPar`, `Stream.mergeAll`, and `Stream#mapParAsync`
 - [Async](../async.md) — the effect type and both execution models

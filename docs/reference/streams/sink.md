@@ -408,7 +408,7 @@ Each stops where its synchronous twin stops:
 | `Sink.forallAsync`   | `Sink.forall`   | `Boolean`   | the first `false`; otherwise end-of-stream, returning `true` |
 | `Sink.foreachAsync`  | `Sink.foreach`  | `Unit`      | end-of-stream                                                |
 
-Three properties hold across all five. At most one callback effect runs at a time, in encounter order, so these are sequential and back-pressured rather than concurrent — for concurrency, put it in the stream with [`Stream#mapParAsync`](./concurrent-operators.md#streammapparasync) before the sink. No effect is started for input the sink never pulls, so short-circuiting still costs nothing after the decisive element. And a callback that fails or is cancelled fails or cancels the run as a *defect*, not as a value in the sink's typed error channel `E` — all five have `E = Nothing`.
+Three properties hold across all five. At most one callback effect runs at a time, in encounter order, so these are sequential and back-pressured rather than concurrent — for concurrency, put it in the stream with [`Stream#mapParAsync`](./stream.md#streammapparasync) before the sink. No effect is started for input the sink never pulls, so short-circuiting still costs nothing after the decisive element. And a callback that fails or is cancelled fails or cancels the run as a *defect*, not as a value in the sink's typed error channel `E` — all five have `E = Nothing`.
 
 `Sink.foldLeftAsync` carries the same `JvmType.Infer[Z]` evidence as `Sink.foldLeft`. It keeps the asynchronous fold aligned with the specialized synchronous one; the semantics are identical.
 

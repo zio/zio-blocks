@@ -25,7 +25,7 @@ The asynchronous surface is five things: constructors that produce a stream from
 | Sequential async operators | 10 names                | [Async Operators](#async-operators)                     |
 | Async terminals            | 12 names / 16 overloads | [Async Terminals](#async-terminals)                     |
 | Manual-pull terminals      | 2 names                 | [Manual Pull and Ownership](#manual-pull-and-ownership) |
-| Bounded concurrency        | 1 name (`mapParAsync`)  | [Concurrent Operators](./concurrent-operators.md)       |
+| Bounded concurrency        | 1 name (`mapParAsync`)  | [Bounded Concurrency](./stream.md#bounded-concurrency)  |
 | The `Reader` union         | 2 subtypes              | [Reader](./reader.md)                                   |
 | Platform I/O adapters      | JVM NIO and JS streams  | [Asynchronous I/O](./async-io.md)                       |
 
@@ -372,7 +372,7 @@ def ensuringAsync(finalizer: => Async[Unit]): Stream[E, A]
 
 Registers an asynchronous finalizer lazily and awaits it exactly once when the materialized stream closes, including normal completion, failure, early termination, and cancellation. Finalizer failure is a defect. Synchronous twin: [`ensuring`](./stream.md#streamensuring).
 
-For the one *concurrent* asynchronous operator, `mapParAsync`, see [Concurrent Operators](./concurrent-operators.md).
+For the one *concurrent* asynchronous operator, `mapParAsync`, see [Bounded Concurrency](./stream.md#bounded-concurrency).
 
 ## Async Terminals
 
@@ -633,7 +633,7 @@ sbt "streams-examples/runMain stream.StreamAsyncOrderPipelineExample"
 ## See Also
 
 - [Reader](./reader.md) — the `SyncReader` / `AsyncReader` union, custom reader implementations, and mixed-kind composition
-- [Concurrent Operators](./concurrent-operators.md) — `mapPar`, `mapParAsync`, `mergeAll`, and `flatMapPar`
+- [Bounded Concurrency](./stream.md#bounded-concurrency) — `mapPar`, `mapParAsync`, `mergeAll`, and `flatMapPar`
 - [Asynchronous I/O](./async-io.md) — JVM NIO channels and Scala.js readable streams as asynchronous sources
 - [Platform Differences](./platform-differences.md) — what exists on the JVM, what exists on Scala.js, and what throws
 - [Migration](./migration.md) — moving an existing blocking codebase onto the `*Async` family
