@@ -136,13 +136,10 @@ pending   -> read=hi, cancelledRead=-1, channelOpen=true, closes=0
 
 Four properties hold for every reader these factories produce, and each one is a rule a hand-written channel wrapper commonly gets wrong.
 
-A zero-byte completion is not end of stream. When the channel completes a read having transferred nothing, the adapter clears its buffer and resubmits the read; only a negative completion count ends the stream. A channel that yields `0` under backpressure therefore stalls the pull, it does not truncate the stream.
-
-`IOException`s are trusted source failures. A failure reported by the channel is wrapped as a source failure and surfaces in the typed error channel of the stream built from the reader, not as a defect, and every later pull replays it rather than pretending the source recovered.
-
-Pulls are inert until driven. Every read method returns a deferred `Async`; building `reader.readByte()` submits nothing to the channel, and the read is issued when the effect is driven. `readable()` follows the same rule — it reports whether bytes are already buffered and never initiates I/O to find out.
-
-One operation may be in flight at a time. A second pull started while another is active fails with `IllegalStateException`; [One Active Operation per Reader](./async-execution.md#one-active-operation-per-reader) covers the rule and the way to sequence pulls instead.
+1. **A zero-byte completion is not end of stream.** When the channel completes a read having transferred nothing, the adapter clears its buffer and resubmits the read; only a negative completion count ends the stream. A channel that yields `0` under backpressure therefore stalls the pull, it does not truncate the stream.
+2. **`IOException`s are trusted source failures.** A failure reported by the channel is wrapped as a source failure and surfaces in the typed error channel of the stream built from the reader, not as a defect, and every later pull replays it rather than pretending the source recovered.
+3. **Pulls are inert until driven.** Every read method returns a deferred `Async`; building `reader.readByte()` submits nothing to the channel, and the read is issued when the effect is driven. `readable()` follows the same rule — it reports whether bytes are already buffered and never initiates I/O to find out.
+4. **One operation may be in flight at a time.** A second pull started while another is active fails with `IllegalStateException`; [One Active Operation per Reader](./async-execution.md#one-active-operation-per-reader) covers the rule and the way to sequence pulls instead.
 
 ### Limitations
 
@@ -196,15 +193,12 @@ The managed factory owns the acquired reader: closing it cancels the JavaScript 
 
 ### Invariants
 
-The four rules the JVM adapter follows hold here too, restated in terms of `read()`, its promise, and the `done`/`value` result it yields.
+The JVM adapter's four rules hold here too — pulls are inert until driven, one operation may be in flight at a time, a source failure is trusted and replayed, and an empty read is not end of stream. The four properties below are a different four, chosen because the `read()` promise and its `done`/`value` result are where this adapter's behaviour is easiest to get wrong.
 
-An empty chunk is skipped, never treated as end of stream. A result with `done = false` and a zero-length value causes the adapter to reissue `read()`; only `done = true` ends the stream.
-
-Buffered bytes are preserved across pulls. A chunk delivered by the stream is consumed byte by byte from the adapter's own index, so a pull that the buffer can satisfy issues no `read()` at all, and a partially consumed chunk survives until it is drained.
-
-End of stream is observed without prefetch. The adapter never calls `read()` merely to discover whether the stream has finished; it learns that from the read that a pull actually needed.
-
-A rejected promise is a trusted source failure. The rejection is wrapped as a source failure, surfaces in the typed error channel, and is replayed by every later pull.
+1. **An empty chunk is skipped, never treated as end of stream.** A result with `done = false` and a zero-length value causes the adapter to reissue `read()`; only `done = true` ends the stream.
+2. **Buffered bytes are preserved across pulls.** A chunk delivered by the stream is consumed byte by byte from the adapter's own index, so a pull that the buffer can satisfy issues no `read()` at all, and a partially consumed chunk survives until it is drained.
+3. **End of stream is observed without prefetch.** The adapter never calls `read()` merely to discover whether the stream has finished; it learns that from the read that a pull actually needed.
+4. **A rejected promise is a trusted source failure.** The rejection is wrapped as a source failure, surfaces in the typed error channel, and is replayed by every later pull.
 
 ### Limitations
 
