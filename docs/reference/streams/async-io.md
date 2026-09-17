@@ -104,9 +104,30 @@ Ownership is the whole of the difference between the two variants, and it is dec
 
 A managed reader — `AsyncNioReaders.fromChannel` or `AsyncNioReaders.fromSocket` — closes the underlying channel when the reader closes, and only if the channel is still open. If that channel close fails, the failure surfaces from the reader's own `close()` rather than being swallowed. An unmanaged reader releases the reader and nothing else: the channel stays open for whoever owns it, and a reader close is invisible to the rest of the program apart from the read it cancels.
 
+Wrapping two channels of the same kind, one with each factory, makes the contrast visible in the channel's own `isOpen`. This is JVM-only code: `.block` drives the reader's `close()` to a value, which is something only the JVM can do.
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import zio.blocks.streams.AsyncNioReaders
+
+import java.nio.channels.AsynchronousByteChannel
+
+def ownership(owned: AsynchronousByteChannel, borrowed: AsynchronousByteChannel): Unit = {
+  val managed   = AsyncNioReaders.fromChannel(owned, bufferSize = 16)
+  val unmanaged = AsyncNioReaders.fromChannelUnmanaged(borrowed, bufferSize = 16)
+
+  managed.close().block
+  unmanaged.close().block
+  unmanaged.close().block // memoized: the second close repeats no work
+
+  println(s"managed   -> channelOpen=${owned.isOpen}")    // false: the reader closed it
+  println(s"unmanaged -> channelOpen=${borrowed.isOpen}") // true: the channel is untouched
+}
+```
+
 Closing either kind cancels a read that is still in flight. The reader marks itself closed, cancels the underlying channel operation, and settles the pending pull with its end-of-stream answer — `readByte()` returns `-1`, `read(sentinel)` returns the sentinel — so a consumer parked on a pull is released rather than left waiting for a channel that will never answer.
 
-`close()` is idempotent. The first caller performs the work; every later caller awaits the same memoized outcome, and the channel is closed at most once. The companion example prints all three facts, counting the channel's own `close()` calls:
+`close()` is idempotent. The first caller performs the work; every later caller awaits the same memoized outcome, and the channel is closed at most once. The full companion example under [Running the Example](#running-the-example) shows all three facts against a channel that counts its own `close()` calls, and adds the cancelled in-flight read that the snippet above does not exercise. Its output is:
 
 ```
 managed   -> read=async, channelOpen=false, closes=1
