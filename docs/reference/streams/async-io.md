@@ -13,10 +13,6 @@ keywords:
 
 Each platform ships a small set of factories that turn a native asynchronous byte source into a `Reader.AsyncReader[Byte]`. On the JVM that source is a `java.nio.channels.AsynchronousByteChannel`; on Scala.js it is a Web Streams API `ReadableStream`. Once wrapped, the result is an ordinary asynchronous reader: pull from it by hand, or hand it to `Stream.fromReader` and run the pipeline with a `*Async` terminal.
 
-:::note[What counts as a native asynchronous byte source]
-It is *native* in that the platform or its host hands it to you — it is a handle you already hold before any of this API is involved, not something this library constructs. It is *asynchronous* in that it signals when bytes have arrived instead of blocking a thread while it waits for them: a completion handler on the JVM, a promise on Scala.js. And it is a *byte source* in that what it yields is bytes, which is why every factory here lands on `Reader.AsyncReader[Byte]` on the `JvmType.Byte` lane.
-:::
-
 This page is a lookup table for those factories — what each one wraps, who owns the native source afterwards, what each adapter guarantees, and what it does not support. The limits are as load-bearing as the features: there is no factory for a file channel, and the Scala.js adapter reads bytes only, with no BYOB reader and no buffer-size knob.
 
 ## Overview
