@@ -1560,7 +1560,7 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
  *   - '''Advanced''': `Stream.fromReader`, [[Stream.suspend suspend]],
  *     [[Stream.flattenAll flattenAll]]
  */
-object Stream {
+object Stream extends StreamCompanionPlatformSpecific {
 
   private[streams] def widenErrorLeft[E, E2, E3, A](
     stream: Stream[E, A],
