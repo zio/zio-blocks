@@ -33,29 +33,24 @@ final case class RoutePattern[A](
 ) {
 
   /**
-   * Ordered, purely phantom registry of [[PathVar]] markers contributed by
-   * `pathCodec` - a pass-through of `pathCodec.PathVars` (see
-   * [[PathCodec.PathVars]]). Like `PathCodec`'s own `Segment`/`Transform`
-   * cases, this class-body declaration is a best-effort placeholder: the REAL,
-   * precisely-computed value is carried by
-   * [[RoutePattern.RoutePatternOps]]`.`/`'s own refined return type, which is
-   * what every acceptance test asserts against.
+   * Expands `orElse` branches and multi-method patterns into one pattern per
+   * (method, path) pair for routing-trie insertion. The fan-out is intentional
+   * — the trie is keyed by method first, so each method needs its own copy —
+   * and identical copies (for example a method listed twice) are removed.
    */
-  type PathVars = pathCodec.PathVars
-
   def alternatives: List[RoutePattern[A]] =
-    pathCodec.alternatives.flatMap { codec =>
+    (pathCodec.alternatives.flatMap { codec =>
       method match {
         case Method.ANY         => Method.standardMethods.toList.map(single => copy(method = single, pathCodec = codec))
         case Method.Methods(ms) => ms.toList.map(single => copy(method = single, pathCodec = codec))
         case _                  => List(copy(pathCodec = codec))
       }
-    }
+    }).distinct
 
   def decode(actual: Method, path: Path): Either[String, A] =
     if (!method.matches(actual) && !(method == Method.GET && actual == Method.HEAD))
       Left(s"Expected HTTP method ${Method.render(method)} but found ${Method.render(actual)}")
-    else pathCodec.decode(path)
+    else pathCodec.decode(path).left.map(error => s"Route $render: $error")
 
   def encode(value: A): Either[String, (Method, Path)] =
     format(value).map(method -> _)
@@ -63,8 +58,14 @@ final case class RoutePattern[A](
   def format(value: A): Either[String, Path] =
     pathCodec.format(value)
 
+  /**
+   * Boolean fast path: equivalent to `decode(actual, path).isRight` without
+   * building any decoded values or candidate lists (see
+   * `PathCodecRuntime.matchesCodec`).
+   */
   def matches(actual: Method, path: Path): Boolean =
-    decode(actual, path).isRight
+    (method.matches(actual) || (method == Method.GET && actual == Method.HEAD)) &&
+      PathCodecRuntime.matchesCodec(pathCodec, path.segments)
 
   def nest(prefix: PathCodec[Unit]): RoutePattern[A] =
     copy(pathCodec = PathCodec.combineUnrefined(prefix, pathCodec))
@@ -98,44 +99,32 @@ object RoutePattern {
       )
     )
 
+  /**
+   * Builds a literal-only route from a raw path string. Same encoding trio as
+   * `PathCodec.apply(String)` (see that member): no percent-decoding, and
+   * literals requiring URL encoding are rejected rather than encoded.
+   */
   def apply(method: Method, pathString: String): RoutePattern[Unit] =
     apply(method, Path(pathString))
 
   def fromMethod(method: Method): RoutePattern[Unit] =
     RoutePattern(method, PathCodec.empty)
 
-  def any: RoutePattern[Path] { type PathVars = SegmentCodec.NoPathVars } =
+  def any: RoutePattern[Path] =
     RoutePattern(Method.ANY, PathCodec.trailing)
-      .asInstanceOf[RoutePattern[Path] { type PathVars = SegmentCodec.NoPathVars }]
 
-  def any(method: Method): RoutePattern[Path] { type PathVars = SegmentCodec.NoPathVars } =
+  def any(method: Method): RoutePattern[Path] =
     RoutePattern(method, PathCodec.trailing)
-      .asInstanceOf[RoutePattern[Path] { type PathVars = SegmentCodec.NoPathVars }]
 
   implicit final class MethodSyntax(private val method: Method) extends AnyVal {
-    def /[A, PV](path: PathCodec[A] { type PathVars = PV }): RoutePattern[A] { type PathVars = PV } =
-      RoutePattern(method, path).asInstanceOf[RoutePattern[A] { type PathVars = PV }]
+    def /[A](path: PathCodec[A]): RoutePattern[A] =
+      RoutePattern(method, path)
   }
 
-  /**
-   * Carries the precise, ordered `PathVars` combine through `/` via
-   * refinement-typed receiver capture (the same pattern
-   * `PathCodec.PathCodecOps` uses, and the same pattern
-   * `SegmentCodecPlatformSpecific`'s `~` extension uses on Scala 3/2) -
-   * `RoutePattern[A]`'s own class-body `PathVars` (a plain pass-through of
-   * `pathCodec.PathVars`) cannot be more precise on its own, since
-   * dependent-type capture requires a refinement on the METHOD RECEIVER, not a
-   * case-class-body declaration.
-   */
-  implicit final class RoutePatternOps[A, PV](private val self: RoutePattern[A] { type PathVars = PV }) extends AnyVal {
-    def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
-      combiner: Tuples.Tuples.WithOut[A, B, C],
-      _pathVarsCombiner: PathCodec.RoutePathVarsCombiner[PV, PV2, PVC]
-    ): RoutePattern[C] { type PathVars = PVC } = {
-      val _ = _pathVarsCombiner
-      self
-        .copy(pathCodec = PathCodec.combineUnrefined(self.pathCodec, that)(combiner))
-        .asInstanceOf[RoutePattern[C] { type PathVars = PVC }]
-    }
+  implicit final class RoutePatternOps[A](private val self: RoutePattern[A]) extends AnyVal {
+    def /[B, C](that: PathCodec[B])(implicit
+      combiner: Tuples.Tuples.WithOut[A, B, C]
+    ): RoutePattern[C] =
+      self.copy(pathCodec = PathCodec.combineUnrefined(self.pathCodec, that)(combiner))
   }
 }
