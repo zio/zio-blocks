@@ -20,6 +20,14 @@ import zio.blocks.sql.{Frag, SqlDialect, SqlIdentifier, Table}
 
 object QueryRenderer {
 
+  /**
+   * Renders a typed query IR to an executable [[Frag]].
+   *
+   * `dialect` is currently informational: both dialects render `?` placeholders
+   * (see `Frag.renderSql`), so rendering is dialect-identical today. The
+   * parameter is kept (rather than removed) so a future `$N`-style dialect can
+   * thread through without an API break; revisit if such a dialect lands.
+   */
   def render[A](query: SqlQuery[A], @scala.annotation.unused dialect: SqlDialect): Frag = {
     // SELECT clause: t0."col", t1."col", ...
     val allTables: Vector[(Table[_], String)] =
