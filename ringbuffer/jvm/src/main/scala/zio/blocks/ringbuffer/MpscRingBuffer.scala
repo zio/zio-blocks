@@ -216,7 +216,9 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
    * @return
    *   the number of elements actually drained (0 if the buffer is empty)
    * @note
-   *   Must be called from the consumer thread only.
+   *   Must be called from the consumer thread only. If `consumer` throws, the
+   *   already-advanced consumer index is still published before the exception
+   *   propagates, so the drained slots are freed and the queue stays usable.
    */
   def drain(consumer: A => Unit, limit: Int): Int = {
     if (limit < 0) throw new IllegalArgumentException(s"limit is negative: $limit")
@@ -225,17 +227,23 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
     var cIdx  = consumerIndex
     var count = 0
 
-    while (count < limit) {
-      val offset = (cIdx & m).toInt
-      val e      = ARRAY_HANDLE.getAcquire(buf, offset).asInstanceOf[A]
-      if (e eq null) {
-        CONSUMER_INDEX.setRelease(this, cIdx)
-        return count
+    try {
+      while (count < limit) {
+        val offset = (cIdx & m).toInt
+        val e      = ARRAY_HANDLE.getAcquire(buf, offset).asInstanceOf[A]
+        if (e eq null) {
+          CONSUMER_INDEX.setRelease(this, cIdx)
+          return count
+        }
+        ARRAY_HANDLE.setRelease(buf, offset, null.asInstanceOf[AnyRef])
+        cIdx += 1L
+        count += 1
+        consumer(e)
       }
-      ARRAY_HANDLE.setRelease(buf, offset, null.asInstanceOf[AnyRef])
-      cIdx += 1L
-      count += 1
-      consumer(e)
+    } catch {
+      case throwable: Throwable =>
+        CONSUMER_INDEX.setRelease(this, cIdx)
+        throw throwable
     }
     CONSUMER_INDEX.setRelease(this, cIdx)
     count

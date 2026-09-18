@@ -291,7 +291,7 @@ val sendResult = stream.send("fail")
 
 **Backpressure and Queue Management**
 
-Each stream has separate inbound and outbound queues (capacity 256 per queue). If the protocol producer is faster than the consumer, the queue fills and `offerInbound` or `send` returns `QueueFull`:
+Each stream has separate inbound and outbound queues (default depth `Mux.DefaultStreamQueueCapacity`, 256 per queue; tunable via `streamQueueCapacity`, see [Mux](#mux)). If the protocol producer is faster than the consumer, the queue fills and `offerInbound` or `send` returns `QueueFull`:
 
 ```scala
 import zio.blocks.mux._
@@ -396,7 +396,7 @@ object MuxError {
 
 **`CapacityExceeded(limit: Int)`** — Returned by `open` when the number of active streams has reached the mux's capacity limit. The `limit` field shows the configured capacity. Close or cancel other streams to free capacity.
 
-**`QueueFull(queueCapacity: Int)`** — Returned by `send` (outbound queue full) or `offerInbound` (inbound queue full) when the per-stream message queue has exhausted its capacity (typically 256). Drain the queue (by calling `takeOutbound()` or `receive()`) to resume sending/receiving.
+**`QueueFull(queueCapacity: Int)`** — Returned by `send` (outbound queue full) or `offerInbound` (inbound queue full) when the per-stream message queue has exhausted its capacity (the configured `streamQueueCapacity`, 256 by default). Drain the queue (by calling `takeOutbound()` or `receive()`) to resume sending/receiving.
 
 **`Cancelled(id: Any, reason: String)`** — Returned when a stream gets cancelled via `mux.cancel(id, reason)`. The `reason` field explains why the stream gets cancelled. Pending `receive()` calls return this error.
 
@@ -421,6 +421,18 @@ val mux = Mux[Int, String, String](100)
 ```
 
 The capacity must be positive; zero or negative capacity throws `IllegalArgumentException`. Capacity is fixed at construction and never changes.
+
+**Stream queue capacity (optional)**
+
+Each stream carries an inbound and an outbound queue. Their depth is set once per multiplexer with the optional `streamQueueCapacity` argument (omit it to use the default `Mux.DefaultStreamQueueCapacity`, 256):
+
+```scala
+import zio.blocks.mux._
+
+val mux = Mux[Int, String, String](capacity = 100, streamQueueCapacity = 512)
+```
+
+The depth must be a positive power of two — the backend stores each queue in a fixed ring buffer — otherwise construction throws `IllegalArgumentException`. Sizing guidance: worst-case retained memory per stream is roughly twice `streamQueueCapacity` message references, so size it at or above the maximum number of messages you expect to be in flight on one stream between polls. When a queue is full, `send`/`offerInbound` return `MuxError.QueueFull` instead of blocking (non-blocking contract): retry, shed load, or open fewer streams rather than spinning.
 
 **Core Operations**
 

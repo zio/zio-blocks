@@ -143,6 +143,29 @@ object DatastarEvent {
     sb.append(value, start, length).append('\n')
   }
 
+  /**
+   * Builder for a `datastar-patch-elements` event.
+   *
+   * Obtained from [[DatastarEvent.patchElements]] (or
+   * [[DatastarEvent.executeScript]], which targets a script element). Each
+   * setter returns a transformed copy, so chaining never mutates the receiver;
+   * call [[renderSSE]] to produce the SSE wire format.
+   *
+   * @param elements
+   *   the `Dom` rendered into the `elements` data field
+   * @param selector
+   *   CSS selector naming the elements to patch (absent patches by id)
+   * @param mode
+   *   how the elements are merged (`Outer` is omitted on the wire)
+   * @param useViewTransition
+   *   enables view transitions when true (omitted otherwise)
+   * @param namespace
+   *   Datastar namespace for the patch (omitted when absent)
+   * @param eventId
+   *   SSE `id` field for `Last-Event-ID` resumption (omitted when absent)
+   * @param retryMillis
+   *   SSE `retry` field controlling reconnection delay (omitted when absent)
+   */
   final case class PatchElementsBuilder private[DatastarEvent] (
     private val elements: Dom,
     private val selector: Maybe[CssSelector],
@@ -175,6 +198,23 @@ object DatastarEvent {
       PatchElements(elements, selector, mode, useViewTransition, namespace, eventId, retryMillis).renderSSE
   }
 
+  /**
+   * Builder for a `datastar-patch-signals` event.
+   *
+   * Obtained from [[DatastarEvent.patchSignals]] or
+   * [[DatastarEvent.patchSignalsRaw]]. Each setter returns a transformed copy,
+   * so chaining never mutates the receiver; call [[renderSSE]] to produce the
+   * SSE wire format.
+   *
+   * @param signalsJson
+   *   the JSON object rendered into the `signals` data field
+   * @param emitOnlyIfMissing
+   *   emits `onlyIfMissing true` when set, patching only absent signals
+   * @param eventId
+   *   SSE `id` field for `Last-Event-ID` resumption (omitted when absent)
+   * @param retryMillis
+   *   SSE `retry` field controlling reconnection delay (omitted when absent)
+   */
   final case class PatchSignalsBuilder private[DatastarEvent] (
     private val signalsJson: String,
     private val emitOnlyIfMissing: Boolean,
@@ -226,6 +266,17 @@ object DatastarEvent {
   def patchSignalsRaw(json: String): PatchSignalsBuilder =
     new PatchSignalsBuilder(json, false, Maybe.absent, Maybe.absent)
 
+  /**
+   * Builder for a `datastar-patch-elements` event in `Remove` mode.
+   *
+   * Obtained from [[DatastarEvent.removeElements]]. Each setter returns a
+   * transformed copy, so chaining never mutates the receiver; call
+   * [[renderSSE]] to produce the SSE wire format.
+   *
+   * @param inner
+   *   the underlying element-patch builder carrying the selector, namespace,
+   *   event id, and retry settings
+   */
   final case class RemoveElementsBuilder private[DatastarEvent] (
     private val inner: PatchElementsBuilder
   ) {

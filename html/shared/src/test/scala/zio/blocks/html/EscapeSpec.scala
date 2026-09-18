@@ -174,6 +174,13 @@ object EscapeSpec extends ZIOSpecDefault {
       test("blocks javascript: with leading whitespace") {
         assertTrue(Escape.sanitizeUrl("  javascript:alert(1)") == "unsafe:  javascript:alert(1)")
       },
+      test("blocks entity-decoded leading whitespace scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("&#32;javascript:alert(1)") == "unsafe:&#32;javascript:alert(1)",
+          Escape.sanitizeUrl("&#x20;javascript:alert(1)") == "unsafe:&#x20;javascript:alert(1)",
+          Escape.sanitizeUrl("&#32javascript:alert(1)") == "unsafe:&#32javascript:alert(1)"
+        )
+      },
       test("allows https: scheme") {
         assertTrue(Escape.sanitizeUrl("https://example.com") == "https://example.com")
       },

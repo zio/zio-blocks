@@ -408,6 +408,12 @@ object Dom {
      *   attribute key-value pairs
      * @param children
      *   child DOM nodes
+     * @throws java.lang.IllegalArgumentException
+     *   if `tag` is a void element (`br`, `img`, `input`, ...) and `children`
+     *   is non-empty. Void tags cannot carry children — their content would be
+     *   discarded by HTML parsers at render — so construct them with
+     *   `voidElement(tag)` (a [[Dom.Element.Void]]) or the typed void factories
+     *   (`br`, `img`, ...) instead.
      */
     final case class Generic(
       tag: String,

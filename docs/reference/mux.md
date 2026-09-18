@@ -89,11 +89,14 @@ The semantics are the same on both versions; only the surface return types diffe
 
 ```scala
 object Mux {
+  val DefaultStreamQueueCapacity: Int = 256
   def apply[Id, In, Out](capacity: Int): Mux[Id, In, Out]
+  def apply[Id, In, Out](capacity: Int, streamQueueCapacity: Int): Mux[Id, In, Out]
 }
 ```
 
 ### Core Operations
+`capacity` is the maximum number of concurrent streams (must be positive). `streamQueueCapacity` is the optional depth of each stream's inbound and outbound queues: omit it via the one-argument overload to use the default 256. It must be a positive power of two, since the backend stores each queue in a fixed ring buffer. Size it at or above the maximum number of messages you expect to be in flight on one stream between polls — worst-case retained memory per stream is roughly twice `streamQueueCapacity` message references. When a queue is full, `send`/`offerInbound` return `MuxError.QueueFull` instead of blocking.
 
 - `open(id)` opens a new stream
 - `get(id)` looks up an active stream
