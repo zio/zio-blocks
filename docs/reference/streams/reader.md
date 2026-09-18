@@ -9,6 +9,8 @@ keywords:
   - "Asynchronous Reading"
   - "Sentinel Protocol"
   - "Reader"
+  - "AsyncNioReaders"
+  - "ReadableStreamReaders"
 ---
 
 `Reader[+Elem]` is the **pull-based source that powers ZIO Blocks streams**. When you call a terminal operation like `stream.run(sink)`, the stream compiles into a `Reader`, which yields values one at a time on demand until closed.
@@ -200,7 +202,38 @@ Both adapters are lifecycle-preserving views rather than copies. The adapter wra
 
 Both also unwrap a round trip instead of stacking. Calling `toAsync` on a reader that is itself the synchronous view of an `AsyncReader` returns that original asynchronous reader, and `toSync` on a synchronous reader's asynchronous view returns the original synchronous one. Converting back and forth therefore costs nothing and never builds a tower of adapters.
 
-`toSync` blocks the calling thread while the underlying asynchronous work completes, which carries the hazards a bridging API always has — a single consumer, and a `close()` that interrupts a blocked pull. [Asynchronous I/O](./async-io.md) covers them in full; the rule to carry away here is that `toSync` belongs at JVM edges, not in shared code.
+`toAsync` is the adapter to reach for when a helper is written against `Reader.AsyncReader` — the kind that compiles on both platforms — and the reader at the call site happens to be synchronous:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import zio.blocks.streams.io.Reader
+
+def firstByte(reader: Reader.AsyncReader[Byte]): Async[Int] = reader.readByte()
+
+def firstByteOfSync(reader: Reader.SyncReader[Byte]): Async[Int] = firstByte(reader.toAsync)
+```
+
+What it does not do is make blocking work non-blocking. Driving the view still runs the synchronous reader's pulls on the driving thread.
+
+`toSync` runs the other way. Use it at a JVM edge — an `InputStream`-shaped API, a legacy protocol loop — and not in code that cross-builds:
+
+```scala mdoc:compile-only
+import zio.blocks.streams.io.Reader
+
+def firstByteBlocking(reader: Reader.AsyncReader[Byte]): Int = {
+  val sync = reader.toSync
+  try sync.readByte()
+  finally sync.close()
+}
+```
+
+Unlike `toAsync`, it has hazards that belong at the call site:
+
+:::warning[`toSync` blocks, serializes, and interrupts]
+Every pull blocks the calling thread until the asynchronous work settles. Only one pull runs at a time: a second thread entering the view waits until the first pull completes, so the view is a serialization point, not a way to share a reader. Calling `close()` from another thread interrupts the thread parked in a pull — that pull then returns its closed value (`-1`, the sentinel, or an empty chunk) instead of the value it was waiting for. Closing the view also closes the underlying asynchronous reader. After a close, the control operations — `reset()`, `setLimit`, `setRepeat`, `setSkip`, and `skip` — throw `IOException("Reader is closed")`.
+:::
+
+The rule to carry away is that `toSync` belongs at JVM edges, not in shared code.
 
 ## Construction
 
@@ -328,6 +361,193 @@ object Reader {
   def fromReader(r: java.io.Reader): Reader.SyncReader[Char]
 }
 ```
+
+`NioReaders` is the `java.nio` counterpart, and it is synchronous throughout. It has no asynchronous twins, and the reason is in the type it wraps: `ReadableByteChannel#read` blocks the calling thread. No wrapper can make it non-blocking, so presenting its result as an `AsyncReader` would have promised something the channel cannot deliver. The two objects split by capability — `AsyncNioReaders` for channels that implement the JDK's asynchronous read protocol, `NioReaders` for the blocking ones and for `ByteBuffer`s.
+
+Every `NioReaders` factory states its kind in its return type:
+
+```scala
+object NioReaders {
+  def fromByteBuffer(buf: ByteBuffer): Reader.SyncReader[Byte]
+  def fromByteBufferDouble(buf: ByteBuffer): Reader.SyncReader[Double]
+  def fromByteBufferFloat(buf: ByteBuffer): Reader.SyncReader[Float]
+  def fromByteBufferInt(buf: ByteBuffer): Reader.SyncReader[Int]
+  def fromByteBufferLong(buf: ByteBuffer): Reader.SyncReader[Long]
+  def fromChannel(ch: ReadableByteChannel, bufSize: Int = 8192): Reader.SyncReader[Byte]
+}
+```
+
+These factories return `Reader.SyncReader[Byte]` rather than the root `Reader[Byte]`, which is what makes pulling and closing available on the result: those members belong to the reader kinds, not to the root type. Two details of this object are worth noting at a call site: its channel factory names the buffer parameter `bufSize`, where the asynchronous one names it `bufferSize`, and there is no public unmanaged channel variant here — `NioReaders.fromChannel` always owns the channel it wraps.
+
+File bytes are reachable only through this synchronous side: a `java.nio.channels.FileChannel` is a `ReadableByteChannel`, so `NioReaders.fromChannel` accepts it. That reader blocks, and `SyncReader#toAsync` does not change it — the resulting asynchronous reader still blocks the thread that drives it.
+
+### From Native Asynchronous Sources
+
+Each platform ships a small set of factories that turn a native asynchronous byte source into a `Reader.AsyncReader[Byte]`. On the JVM that source is a `java.nio.channels.AsynchronousByteChannel`; on Scala.js it is a Web Streams API `ReadableStream`. Once wrapped, the result is an ordinary asynchronous reader: pull from it by hand, or hand it to `Stream.fromReader` and run the pipeline with a `*Async` terminal.
+
+Six factories exist across the two platforms, all of them returning `Reader.AsyncReader[Byte]` on the `JvmType.Byte` lane. They differ in what they wrap and in who owns the native source once the reader closes:
+
+| Factory                                             | Platform | Native source               | On reader `close()`                        |
+|-----------------------------------------------------|----------|-----------------------------|--------------------------------------------|
+| `AsyncNioReaders.fromChannel`                       | JVM      | `AsynchronousByteChannel`   | Closes the channel                         |
+| `AsyncNioReaders.fromChannelUnmanaged`              | JVM      | `AsynchronousByteChannel`   | Leaves the channel open                    |
+| `AsyncNioReaders.fromSocket`                        | JVM      | `AsynchronousSocketChannel` | Closes the socket                          |
+| `AsyncNioReaders.fromSocketUnmanaged`               | JVM      | `AsynchronousSocketChannel` | Leaves the socket open                     |
+| `ReadableStreamReaders.fromReadableStream`          | Scala.js | `ReadableStream`            | Cancels the stream, then releases the lock |
+| `ReadableStreamReaders.fromReadableStreamUnmanaged` | Scala.js | `ReadableStream`            | Releases the lock, never cancels           |
+
+The two adapters follow the same rules, so a cross-platform consumer sees the same behaviour from either one:
+
+| Situation                   | JVM `AsyncNioReaders`                          | Scala.js `ReadableStreamReaders`           |
+|-----------------------------|------------------------------------------------|--------------------------------------------|
+| A delivery carries no bytes | The buffer is cleared and the read resubmitted | The chunk is skipped and `read()` reissued |
+| End of stream               | A negative completion count                    | `done = true` on the read result           |
+| A source failure            | `IOException`, trusted                         | A rejected promise, trusted                |
+| Read buffer size            | `bufferSize`, default 8192                     | Not configurable                           |
+
+Neither module is a general native-I/O layer. `AsyncNioReaders` reads from channels that implement the JDK's asynchronous read protocol, and `ReadableStreamReaders` reads from a browser or Node byte stream. Everything else — files on the JVM, non-byte sources on Scala.js — is outside what these factories accept.
+
+#### JVM: `AsyncNioReaders`
+
+`AsyncNioReaders` is the JVM factory object for genuinely non-blocking reads. Its four factories divide along two axes: the type of the native source, and whether the reader owns it.
+
+Both channel factories wrap an `AsynchronousByteChannel` and take the read buffer size as a defaulted second parameter:
+
+```scala
+object AsyncNioReaders {
+  def fromChannel(channel: AsynchronousByteChannel, bufferSize: Int = 8192): Reader.AsyncReader[Byte]
+  def fromChannelUnmanaged(channel: AsynchronousByteChannel, bufferSize: Int = 8192): Reader.AsyncReader[Byte]
+}
+```
+
+`bufferSize` is the capacity of the single `ByteBuffer` the reader refills from the channel, and it is validated eagerly: a value of zero or less throws `IllegalArgumentException` with the message `requirement failed: bufferSize must be positive` from the factory call itself, not from the first pull.
+
+To lift a channel into a stream and run it with a cross-platform terminal:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import zio.blocks.chunk.Chunk
+import zio.blocks.streams._
+
+import java.nio.channels.AsynchronousByteChannel
+
+def collect(channel: AsynchronousByteChannel): Async[Either[Nothing, Chunk[Byte]]] =
+  Stream.fromReader[Nothing, Byte](AsyncNioReaders.fromChannel(channel, bufferSize = 4096)).runCollectAsync
+```
+
+Driving the reader by hand works the same way, and is what you want when the protocol is framed rather than streamed:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import zio.blocks.chunk.Chunk
+import zio.blocks.streams.AsyncNioReaders
+import zio.blocks.streams.io.Reader
+
+import java.nio.channels.AsynchronousByteChannel
+
+def header(channel: AsynchronousByteChannel): Async[Chunk[Byte]] = {
+  val reader: Reader.AsyncReader[Byte] = AsyncNioReaders.fromChannelUnmanaged(channel, bufferSize = 512)
+  reader.readN[Byte](16).flatMap(bytes => reader.close().map(_ => bytes))
+}
+```
+
+The socket pair narrows the parameter type to `AsynchronousSocketChannel`, which is the `AsynchronousByteChannel` most callers actually hold:
+
+```scala
+object AsyncNioReaders {
+  def fromSocket(socket: AsynchronousSocketChannel, bufferSize: Int = 8192): Reader.AsyncReader[Byte]
+  def fromSocketUnmanaged(socket: AsynchronousSocketChannel, bufferSize: Int = 8192): Reader.AsyncReader[Byte]
+}
+```
+
+There is no behavioural difference to learn: `AsyncNioReaders.fromSocket` delegates to `AsyncNioReaders.fromChannel` and `AsyncNioReaders.fromSocketUnmanaged` to `AsyncNioReaders.fromChannelUnmanaged`, with the same buffer and the same ownership rule. They exist so a socket-shaped call site reads as one.
+
+#### Managed Versus Unmanaged Ownership
+
+Ownership is the whole of the difference between the two variants, and it is decided when you pick the factory, not later.
+
+A managed reader — `AsyncNioReaders.fromChannel` or `AsyncNioReaders.fromSocket` — closes the underlying channel when the reader closes, and only if the channel is still open. If that channel close fails, the failure surfaces from the reader's own `close()` rather than being swallowed. An unmanaged reader releases the reader and nothing else: the channel stays open for whoever owns it, and a reader close is invisible to the rest of the program apart from the read it cancels.
+
+Closing either kind cancels a read that is still in flight. The reader marks itself closed, cancels the underlying channel operation, and settles the pending pull with its end-of-stream answer — `readByte()` returns `-1`, `read(sentinel)` returns the sentinel — so a consumer parked on a pull is released rather than left waiting for a channel that will never answer.
+
+`close()` is idempotent. The first caller performs the work; every later caller awaits the same memoized outcome, and the channel is closed at most once.
+
+All three facts are observable rather than asserted. The example below is a runnable file in the JVM-only `streams-examples` module of the [zio-blocks repository](https://github.com/zio/zio-blocks). It drives a scripted `AsynchronousByteChannel` — one that counts its own `close()` calls and parks a read it cannot serve — through both ownership modes, so the managed close, the untouched unmanaged channel, the memoized second close, and the cancelled pending read are all printed:
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("streams-examples/src/main/scala/nio/AsyncChannelReaderExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/streams-examples/src/main/scala/nio/AsyncChannelReaderExample.scala))
+
+Run it with:
+
+```bash
+sbt "streams-examples/runMain nio.AsyncChannelReaderExample"
+```
+
+It prints:
+
+```
+managed   -> read=async, channelOpen=false, closes=1
+unmanaged -> read=async, channelOpen=true, closes=0
+pending   -> read=hi, cancelledRead=-1, channelOpen=true, closes=0
+```
+
+#### JVM Invariants
+
+Four properties hold for every reader the `AsyncNioReaders` factories produce, and each one is a rule a hand-written channel wrapper commonly gets wrong.
+
+1. **A zero-byte completion is not end of stream.** When the channel completes a read having transferred nothing, the adapter clears its buffer and resubmits the read; only a negative completion count ends the stream. A channel that yields `0` under backpressure therefore stalls the pull, it does not truncate the stream.
+2. **`IOException`s are trusted source failures.** A failure reported by the channel is wrapped as a source failure and surfaces in the typed error channel of the stream built from the reader, not as a defect, and every later pull replays it rather than pretending the source recovered.
+3. **Pulls are inert until driven.** Every read method returns a deferred `Async`; building `reader.readByte()` submits nothing to the channel, and the read is issued when the effect is driven. `readable()` follows the same rule — it reports whether bytes are already buffered and never initiates I/O to find out.
+4. **One operation may be in flight at a time.** A second pull started while another is active fails with `IllegalStateException`; [One Active Operation at a Time](#one-active-operation-at-a-time) covers the rule and the way to sequence pulls instead.
+
+#### JVM Limitations
+
+The asynchronous NIO surface is exactly the four factories above, and file input is not among them.
+
+:::warning[`AsynchronousFileChannel` is not supported]
+No factory accepts an `AsynchronousFileChannel`, and it is not an `AsynchronousByteChannel`, so it cannot be passed to `AsyncNioReaders.fromChannel` either. There is no asynchronous file reader in this module.
+:::
+
+File bytes go through the synchronous `NioReaders.fromChannel` instead, as [From I/O](#from-io) describes.
+
+#### Scala.js: `ReadableStreamReaders`
+
+`ReadableStreamReaders` is the Scala.js counterpart, wrapping the byte-reading side of the Web Streams API. The module declares minimal `@js.native` facades for `ReadableStream`, its reader, and a read result, so using it does not pull a DOM library into your build.
+
+Two factories mirror the managed and unmanaged pair on the JVM:
+
+```scala
+object ReadableStreamReaders {
+  def fromReadableStream(stream: ReadableStream): Reader.AsyncReader[Byte]
+  def fromReadableStreamUnmanaged(stream: ReadableStream): Reader.AsyncReader[Byte]
+}
+```
+
+Both take the *stream*, not a reader. Each factory calls `stream.getReader()` itself and keeps the acquired reader for its own lifetime, which is what makes the lock release on close well defined. Acquiring a reader yourself and passing it in is not part of the API.
+
+The managed factory owns the acquired reader: closing it cancels the JavaScript stream, awaits the read that was in flight, and then releases the lock. The unmanaged factory releases the lock and never cancels, so the underlying stream remains usable by the code that created it. As on the JVM, either kind settles a pending pull with end of stream instead of leaving it outstanding, and drops whatever it had buffered.
+
+#### Scala.js Invariants
+
+The JVM adapter's four rules hold here too — pulls are inert until driven, one operation may be in flight at a time, a source failure is trusted and replayed, and an empty read is not end of stream. The four properties below are a different four, chosen because the `read()` promise and its `done`/`value` result are where this adapter's behaviour is easiest to get wrong.
+
+1. **An empty chunk is skipped, never treated as end of stream.** A result with `done = false` and a zero-length value causes the adapter to reissue `read()`; only `done = true` ends the stream.
+2. **Buffered bytes are preserved across pulls.** A chunk delivered by the stream is consumed byte by byte from the adapter's own index, so a pull that the buffer can satisfy issues no `read()` at all, and a partially consumed chunk survives until it is drained.
+3. **End of stream is observed without prefetch.** The adapter never calls `read()` merely to discover whether the stream has finished; it learns that from the read that a pull actually needed.
+4. **A rejected promise is a trusted source failure.** The rejection is wrapped as a source failure, surfaces in the typed error channel, and is replayed by every later pull.
+
+#### Scala.js Limitations
+
+Two of the JVM adapter's affordances have no Scala.js equivalent, and one of them cannot be worked around from user code.
+
+:::warning[Byte-only, no BYOB, no buffer size]
+Both factories produce `Reader.AsyncReader[Byte]` on the `JvmType.Byte` lane and read `Uint8Array` chunks; there is no factory for another element type. Neither factory offers BYOB support — `getReader()` is called with no arguments, so the adapter never acquires a bring-your-own-buffer reader and cannot read into a caller-supplied `ArrayBuffer`. Neither takes a buffer-size parameter: chunk sizes are whatever the underlying stream produces.
+:::
 
 ### Single Element
 
@@ -1311,7 +1531,6 @@ sbt "streams-examples/runMain reader.ReaderCompositionExample"
 ## See Also
 
 - [Asynchronous Stream Execution](./async-execution.md) — how a graph picks its engine, the `*Async` surface, and close ownership from the stream's side
-- [Asynchronous I/O](./async-io.md) — asynchronous sources, and the full hazards of bridging kinds with `toSync`
 - [Platform Differences](./platform-differences.md#availability-matrix) — which reader operations exist on the JVM, on Scala.js, and on both
 - [Zero-Boxing Streams](./zero-boxing.md) — how a primitive lane is chosen, and the per-lane end-of-stream table
 - [Stream](./stream.md) — the operator and terminal reference for the type that compiles to a `Reader`

@@ -27,7 +27,7 @@ The asynchronous surface is five things: constructors that produce a stream from
 | Manual-pull terminals      | 2 names                 | [Manual Pull and Ownership](#manual-pull-and-ownership) |
 | Bounded concurrency        | 1 name (`mapParAsync`)  | [Bounded Concurrency](./stream.md#bounded-concurrency)  |
 | The `Reader` union         | 2 subtypes              | [Reader](./reader.md)                                   |
-| Platform I/O adapters      | JVM NIO and JS streams  | [Asynchronous I/O](./async-io.md)                       |
+| Platform I/O adapters      | JVM NIO and JS streams  | [Reader](./reader.md#from-native-asynchronous-sources)  |
 
 Every asynchronous addition follows one naming convention: the synchronous name with `Async` appended. There is no `fromAsync` and no `asyncPush`.
 
@@ -486,6 +486,29 @@ This is the edge-of-the-world idiom, and it is JVM-only. Two rules keep it hones
 
 Inside an `Async.async { ... }` block, use the direct-style `.await` instead, which extracts the value without blocking. See [Async](../async.md) for both.
 
+### A Downstream Adopter: `Body`
+
+`Body` in `http-model` is the clearest in-repo illustration of what the `*Async` convention looks like for a cross-platform consumer, because a body is exactly a `Stream[Nothing, Byte]` that someone eventually wants as bytes or as text.
+
+Each blocking accessor has an asynchronous twin under the library-wide naming convention, five in all: `Body#toChunkAsync`, `Body#toArrayAsync`, `Body#asStringAsync`, `Body#asStringFromContentTypeAsync`, and `Body#textAsync`. The twins are the cross-platform API. The original accessors block, so they compile on Scala.js but throw `IllegalStateException` the moment the stream actually has to suspend — see [Why Blocking Terminals Are JVM-Only](./platform-differences.md#why-blocking-terminals-are-jvm-only). `Body#toChunk` is implemented in terms of the asynchronous one, taking a known-chunk fast path first and otherwise running `runCollectAsync` and blocking on the result.
+
+Writing a cross-platform call site is the rename plus a change of result type:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import zio.blocks.chunk.Chunk
+import zio.http.Body
+
+// Blocking: works on the JVM; on Scala.js this throws once the stream suspends
+def bytesBlocking(body: Body): Chunk[Byte] = body.toChunk
+
+// JVM and Scala.js
+def bytes(body: Body): Async[Chunk[Byte]] = body.toChunkAsync
+def text(body: Body): Async[String]       = body.textAsync
+```
+
+[Body](../http-model/model.md#body) documents the type itself, its constructors, and the rest of its accessors.
+
 ## Manual Pull and Ownership
 
 Sometimes you want the reader rather than a result — to interleave pulls with other work, or to hand the source to a protocol loop. Two terminals give you one, and they differ in exactly one respect: who is responsible for closing it.
@@ -632,9 +655,8 @@ sbt "streams-examples/runMain stream.StreamAsyncOrderPipelineExample"
 
 ## See Also
 
-- [Reader](./reader.md) — the `SyncReader` / `AsyncReader` union, custom reader implementations, and mixed-kind composition
+- [Reader](./reader.md) — the `SyncReader` / `AsyncReader` union, custom reader implementations, mixed-kind composition, and the JVM NIO and Scala.js `ReadableStream` adapters
 - [Bounded Concurrency](./stream.md#bounded-concurrency) — `mapPar`, `mapParAsync`, `mergeAll`, and `flatMapPar`
-- [Asynchronous I/O](./async-io.md) — JVM NIO channels and Scala.js readable streams as asynchronous sources
 - [Platform Differences](./platform-differences.md) — what exists on the JVM, what exists on Scala.js, and what throws
 - [Async](../async.md) — `Async[A]`, `Pollable`, `Completer`, `Async.Running`, and cancellation
 - [Zero-Boxing Optimization](./zero-boxing.md) — primitive lanes, and why async is lane-aware rather than end-to-end allocation-free

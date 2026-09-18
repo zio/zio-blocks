@@ -751,7 +751,7 @@ Traditional Java I/O (`OutputStream`, `Writer`) blocks threads and requires manu
 
 Choose `NioSinks.fromChannel` when blocking channel output is acceptable and you want automatic buffering for network sockets or files. Choose typed variants when you control buffer allocation and are streaming millions of primitives where boxing would degrade performance.
 
-Each of these sinks implements both drains, so NIO output works under the blocking `Stream#run` and under `Stream#runAsync` alike. What the asynchronous drain removes is the thread parked waiting for stream *input*; the destination writes are the same blocking `java.nio` calls on either path. `NioSinks.fromChannel` does budget its asynchronous flush loop: when a channel write makes no progress it yields instead of spinning, so a stalled channel does not monopolise the caller. [Asynchronous I/O](./async-io.md) covers the NIO adapters on the source side in full, and this page does not duplicate them.
+Each of these sinks implements both drains, so NIO output works under the blocking `Stream#run` and under `Stream#runAsync` alike. What the asynchronous drain removes is the thread parked waiting for stream *input*; the destination writes are the same blocking `java.nio` calls on either path. `NioSinks.fromChannel` does budget its asynchronous flush loop: when a channel write makes no progress it yields instead of spinning, so a stalled channel does not monopolise the caller. [Reader](./reader.md#from-native-asynchronous-sources) covers the NIO adapters on the source side in full, and this page does not duplicate them.
 
 Here are the available NIO sinks:
 

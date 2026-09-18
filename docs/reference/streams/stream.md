@@ -2404,14 +2404,13 @@ sbt "streams-examples/runMain stream.StreamAsyncStatefulExample"
 
 ## Native Asynchronous Byte Readers
 
-Each platform ships adapters that turn a native byte source into a `Reader.AsyncReader[Byte]`, which `Stream.fromReader` then lifts into a stream: `AsyncNioReaders.fromChannel` and `fromSocket` on the JVM, `ReadableStreamReaders.fromReadableStream` on Scala.js, each with an `Unmanaged` variant that leaves the native source caller-owned. [Asynchronous I/O](./async-io.md) documents them, together with their chunking and EOF rules and the way source failures reach the typed error channel.
+Each platform ships adapters that turn a native byte source into a `Reader.AsyncReader[Byte]`, which `Stream.fromReader` then lifts into a stream: `AsyncNioReaders.fromChannel` and `fromSocket` on the JVM, `ReadableStreamReaders.fromReadableStream` on Scala.js, each with an `Unmanaged` variant that leaves the native source caller-owned. [Reader](./reader.md#from-native-asynchronous-sources) documents them, together with their chunking and EOF rules and the way source failures reach the typed error channel.
 
 ## See Also
 
 - [Asynchronous Stream Execution](./async-execution.md) — the full asynchronous constructor, operator, and terminal API, and how one `Stream` type describes both execution modes
 - [Platform Differences](./platform-differences.md) — which members exist on the JVM, which exist on Scala.js, and why the blocking family is JVM-only
-- [Reader](./reader.md) — the `SyncReader` / `AsyncReader` union that decides which engine materializes behind the bounded-concurrency operators
-- [Asynchronous I/O](./async-io.md) — the JVM NIO and Scala.js `ReadableStream` adapters behind the native asynchronous byte readers
+- [Reader](./reader.md) — the `SyncReader` / `AsyncReader` union that decides which engine materializes behind the bounded-concurrency operators, and the adapters behind the native asynchronous byte readers
 - [Async Reference](../async.md) — `Async.promise` and `Completer` bridge callback-based APIs into async values that can feed stream sources; `Async.Running` carries a synchronous cancellation handle that complements stream resource management
 - [Async](../async.md#asyncselector) — `AsyncSelector`, the primitive the bounded-concurrency slot machinery is built from
 - [Scope Reference](../resource-management/scope.md) — compile-time resource safety for stream acquisition and release; `fromAcquireRelease` follows the same ownership rules as Scope-managed resources

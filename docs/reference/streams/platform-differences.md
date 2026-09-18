@@ -292,6 +292,6 @@ The axis that changes what you can call is JVM versus Scala.js, which is what th
 ## See Also
 
 - [Asynchronous Stream Execution](./async-execution.md) — the full cross-platform `*Async` API
-- [Asynchronous I/O](./async-io.md) — the JVM NIO and Scala.js `ReadableStream` adapters
+- [Reader](./reader.md#from-native-asynchronous-sources) — the JVM NIO and Scala.js `ReadableStream` adapters
 - [Bounded Concurrency](./stream.md#bounded-concurrency) — `Stream#mapPar`, `Stream#flatMapPar`, `Stream.mergeAll`, and `Stream#mapParAsync`
 - [Async](../async.md) — the effect type and both execution models
