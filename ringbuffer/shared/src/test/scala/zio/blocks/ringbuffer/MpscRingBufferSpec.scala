@@ -235,6 +235,39 @@ object MpscRingBufferSpec extends ZIOSpecDefault {
           second.toVector == Vector("c", "d"),
           rb.isEmpty
         )
+      },
+      test("drain publishes the consumer index when the consumer throws") {
+        val rb = new MpscRingBuffer[String](8)
+        List("a", "b", "c").foreach(rb.offer)
+        val seen   = scala.collection.mutable.ArrayBuffer.empty[String]
+        val thrown = try {
+          rb.drain(
+            e => {
+              if (e == "b") throw new RuntimeException("boom")
+              seen += e
+              ()
+            },
+            10
+          )
+          false
+        } catch {
+          case _: RuntimeException => true
+        }
+        val rest    = scala.collection.mutable.ArrayBuffer.empty[String]
+        val n       = rb.drain(e => { rest += e; () }, 10)
+        val resumed = rb.offer("d") && rb.offer("e")
+        val tail    = scala.collection.mutable.ArrayBuffer.empty[String]
+        val m       = rb.drain(e => { tail += e; () }, 10)
+        assertTrue(
+          thrown,
+          seen.toVector == Vector("a"),
+          n == 1,
+          rest.toVector == Vector("c"),
+          resumed,
+          m == 2,
+          tail.toVector == Vector("d", "e"),
+          rb.isEmpty
+        )
       }
     )
   )

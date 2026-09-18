@@ -34,7 +34,7 @@ data: elements <li>Widget</li>
 
 Three things make that easy to get wrong by hand. The event name must match the protocol exactly. The `data:` lines are a small keyed format, not free text, and the keys differ per event kind. And the terminating blank line is required — omit it and the browser waits indefinitely for an event it already has.
 
-`DatastarEvent` removes all three concerns. Each constructor knows its event name, each builder method maps to one protocol field, and `DatastarEvent#renderSSE` delegates the SSE envelope to `ServerSentEvent`, which supplies the terminator.
+`DatastarEvent` removes all three concerns. Each constructor knows its event name, each builder method maps to one protocol field, and `DatastarEvent#renderSSE` writes the SSE envelope directly in a single `StringBuilder` pass — event line, `id:`/`retry:` lines, one `data:` line per payload line, and the terminating blank line.
 
 ## Quick Showcase
 
@@ -226,10 +226,10 @@ Each event is self-delimiting, so concatenating what `DatastarEvent#renderSSE` r
 stream
 ```
 
-Set `PatchElementsBuilder#eventId` when the client should be able to resume with `Last-Event-ID`, and `PatchElementsBuilder#retry` to control the reconnection delay — both are ordinary SSE fields handled by `ServerSentEvent`.
+Set `PatchElementsBuilder#eventId` when the client should be able to resume with `Last-Event-ID`, and `PatchElementsBuilder#retry` to control the reconnection delay — both are ordinary SSE fields written directly by `renderSSE`: `id` must not contain CR or LF and `retry` must be non-negative, otherwise `renderSSE` throws `IllegalArgumentException`.
 
 ## Integration Points
 
-`DatastarEvent#renderSSE` delegates to `ServerSentEvent` from `zio-http-model`, which supplies the SSE envelope, the field ordering, and the terminating blank line — see [ServerSentEvent](../http-model/server-sent-event.md). The Datastar-specific part is the event name and the keyed `data:` body.
+`DatastarEvent#renderSSE` writes the SSE envelope directly in field order — `event:`, then `id:`/`retry:`, then the keyed `data:` lines — ending with the terminating blank line, so each returned string is one complete self-delimiting event. The Datastar-specific part is the event name and the keyed `data:` body.
 
 Element patches carry `Dom` values and `CssSelector` targets from [HTML](../html.md), and signal patches carry [SignalUpdate](./signals.md) values whose JSON comes from the type's `Schema`. What the patched page does with the result is determined by the [Attributes](./attributes.md) and [Event Handlers](./events.md) rendered into it.

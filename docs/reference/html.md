@@ -491,6 +491,22 @@ val voidElements = div(
 )
 ```
 
+### Generic element factories
+
+When the tag is only known at runtime, `element(tag)` builds a generic element for non-void tags and `voidElement(tag)` builds a generic void element. Both validate the tag at runtime: `element` throws `IllegalArgumentException` for void tags (`br`, `img`, `input`, ...) because their children would be silently discarded by HTML parsers at render, and `voidElement` throws for non-void tags (`div`, `span`, ...) because they must carry a closing tag instead of rendering self-closed:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val generic = element("div")       // <div></div>
+val line    = voidElement("br")    // <br/>
+
+element("br")     // throws IllegalArgumentException — use voidElement("br")
+voidElement("div") // throws IllegalArgumentException — use element("div")
+```
+
+The same guard lives on `Dom.Element.Generic` itself: constructing `Generic` with a void tag and non-empty children throws `IllegalArgumentException` pointing at `voidElement`, so direct construction and `withChildren` fail loudly rather than dropping children.
+
 ## Typed Content Models
 
 Several container elements enforce the HTML content model of their children at
@@ -1141,16 +1157,23 @@ println(code.value)
 
 ### URL Sanitization
 
-Attributes named `href`, `src`, `action`, or `formaction` are checked for dangerous schemes at render time:
-- `javascript:`, `vbscript:`, `data:text/html` → prefixed with `unsafe:`
-
-Dangerous URLs are automatically sanitized in HTML output:
+URL-valued attributes (`href`, `src`, `action`, `formaction`, plus the HTMX URL attributes `hx-get`, `hx-post`, `hx-put`, `hx-patch`, `hx-delete`, `hx-push-url`, `hx-replace-url`) are checked at render time. A URL whose normalized scheme is dangerous is prefixed with `unsafe:`, which browsers treat as an unknown (inert) scheme:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
 
 val dangerous = a(href := "javascript:alert('XSS')", "Click me")
 ```
+
+Rejected schemes are `javascript:` and `vbscript:`, matched case-insensitively. Browsers decode HTML character references in attribute values and strip ASCII tab/LF/FF/CR before comparing the scheme, so the check runs on a normalized copy:
+
+- Decimal/hex numeric references (`&#106;`, `&#x6A;`) decode with or without a trailing semicolon, consuming digits greedily with unlimited leading zeros — `&#106avascript:` and `&#000000106;avascript:` are both caught.
+- Terminated `colon`, `Tab`, and `NewLine` references decode anywhere (they forge `:` or a stripped control from beyond the scheme window); any other `&` followed by an ASCII letter inside the 14-character scheme window is conservatively rejected instead of decoded.
+- Tab/LF/FF/CR are stripped anywhere in the URL, and the normalized value is trimmed again after decoding (`&#32;javascript:` would otherwise pass), then lowercased before the prefix check.
+
+`data:` URLs are allowed only for a pinned-safe media-type list — `image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, and `text/plain`. Scriptable types (`data:image/svg+xml`, `data:application/xhtml+xml`, `data:application/javascript`), unknown types, and empty types are rejected, since embedded SVG/XML can carry `<script>` content.
+
+Remaining caveats: exotic or double-encoded payloads are the caller's responsibility. For untrusted input, prefer an allowlist of `http`/`https`/`mailto`/`tel`/relative URLs on top of this sanitizer.
 
 ### No Raw HTML Escape Hatch
 

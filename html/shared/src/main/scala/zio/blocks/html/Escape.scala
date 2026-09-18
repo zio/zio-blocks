@@ -142,15 +142,17 @@ private[html] object Escape {
    * the scheme is matched against a normalized copy: numeric decimal/hex
    * references with or without a trailing semicolon are decoded first (single
    * pass, no re-decoding of produced text, matching browsers), then
-   * tab/LF/FF/CR are removed, and only then is the result lowercased and
-   * prefix-checked. Terminated `colon`/`Tab`/`NewLine` references are decoded
-   * anywhere (they are the only named decodes that can forge `:` or a stripped
-   * control from beyond the scheme window); any other `&` followed by an ASCII
-   * letter inside the scheme-position window is conservatively rejected as
-   * dangerous instead (fail-closed, no browser named-entity table to keep in
-   * sync). Exotic or double-encoded payloads remain the caller's responsibility
-   * — prefer an allowlist of `http`/`https`/`mailto`/`tel`/ relative URLs for
-   * untrusted input.
+   * tab/LF/FF/CR are removed, the result is trimmed again (a decoded reference
+   * such as `&#32;` can introduce leading whitespace that browsers strip before
+   * the scheme check), and only then is it lowercased and prefix-checked.
+   * Terminated `colon`/`Tab`/`NewLine` references are decoded anywhere (they
+   * are the only named decodes that can forge `:` or a stripped control from
+   * beyond the scheme window); any other `&` followed by an ASCII letter inside
+   * the scheme-position window is conservatively rejected as dangerous instead
+   * (fail-closed, no browser named-entity table to keep in sync). Exotic or
+   * double-encoded payloads remain the caller's responsibility — prefer an
+   * allowlist of `http`/`https`/`mailto`/`tel`/ relative URLs for untrusted
+   * input.
    *
    * `data:` URLs are allowed only for a pinned-safe media-type list (bitmap
    * images, plain text); scriptable types such as `application/xhtml+xml` and
@@ -210,8 +212,11 @@ private[html] object Escape {
   private def isDangerousNormalizedUrl(url: String): Boolean = {
     val trimmed                          = url.trim
     val (normalized, sawSuspiciousNamed) = normalizeUrlEntities(trimmed)
+    // Trim again after decoding: a reference such as `&#32;` decodes to a
+    // space that browsers strip before the scheme check, so without this the
+    // normalized `&#32;javascript:` would pass as safe.
     sawSuspiciousNamed ||
-    isDangerousScheme(normalized.toLowerCase(java.util.Locale.ROOT))
+    isDangerousScheme(normalized.trim.toLowerCase(java.util.Locale.ROOT))
   }
 
   /**
