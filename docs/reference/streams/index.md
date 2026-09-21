@@ -61,19 +61,21 @@ Supported Scala versions: 2.13.x and 3.x.
 
 ## Why Streams?
 
-Streaming libraries in the Scala ecosystem typically require an effect system. fs2 needs `cats.effect.IO`, Kyo Streams needs the Kyo runtime, and Pekko (formerly Akka) Streams needs the actor runtime. When your code is synchronous and you want streaming without pulling in an effect monad, the options narrow considerably.
+Streaming libraries in the Scala ecosystem typically require an effect system. fs2 runs in a `cats.effect`-compatible `F[_]`, Kyo Streams needs the Kyo runtime, and Pekko (formerly Akka) Streams needs the actor runtime. When your code is synchronous and you want streaming without pulling in an effect monad, the options narrow considerably.
 
 `zio.blocks.streams` fills that gap:
 
 | Feature                   | ZB Streams              | fs2                  | Kyo           | Ox                      | Pekko           |
 |---------------------------|-------------------------|----------------------|---------------|-------------------------|-----------------|
-| Effect system required    | No                      | Yes (cats-effect)    | Yes (Kyo)     | No (virtual threads)    | Yes (Akka)      |
+| Effect system required    | No                      | Yes (cats-effect)    | Yes (Kyo)     | No (virtual threads)    | Yes (Pekko)     |
 | Execution model           | Sync/async, pull-based  | Async, pull-based    | Async, chunk  | Synchronous, pull-based | Async, push     |
-| Typed errors              | `Either[E, Z]`          | ApplicativeError     | Kyo effects   | Exceptions              | No              |
-| Primitive specialization  | Yes (zero boxing)       | No                   | No            | No                      | No              |
+| Typed errors              | `Either[E, Z]`          | Not verified here    | Not verified here | Not verified here   | Not verified here |
+| Primitive specialization  | Yes (zero boxing)       | Not verified here    | Not verified here | Not verified here   | Not verified here |
 | Stack-safe deep pipelines | Yes (trampolined)       | Not verified here     | Not verified here | Not verified here       | Not verified here |
 | Resource safety           | Scope integration       | Resource/bracket     | Kyo resources | try/finally             | Graph lifecycle |
-| Dependencies              | scope, chunk, combinators, ringbuffer, async | cats-effect + scodec | Kyo core      | Ox core                 | Akka actor      |
+| Dependencies              | scope, chunk, combinators, ringbuffer, async | fs2-core     | kyo-prelude, kyo-core | ox core         | pekko-stream    |
+
+The provider columns name the artifacts and versions this repository pins for benchmarking — fs2 3.14.0, Pekko 1.7.0, Kyo 1.0.0-RC6, Ox 1.0.6 (`build.sbt`, `streams-benchmark/benchmark-manifest.json`). Nothing outside the ZB Streams column is measured or verified in this repository.
 
 ## Benchmarks
 
@@ -327,7 +329,7 @@ This matters most for numeric workloads — data processing, statistics, encodin
 - **Leverage primitive specialization** for numeric workloads. Streams of any primitive element type avoid boxing automatically on the synchronous path; use `Sink.sumInt`, `runFold(0)(_ + _)`, etc. for allocation-free folds.
 - **Use `scan` for running accumulators**, `grouped` for batching, and `sliding` for windowed computations.
 - **Use `render`/`toString`** to inspect pipeline structure during debugging — it shows each transformation stage without executing the stream.
-- **Use `Sink.create`** as an escape hatch when none of the built-in sinks fit.
+- **Use `Sink.create`** (JVM only) as an escape hatch when none of the built-in sinks fit; on Scala.js and in cross-compiled code use `Sink.createAsync` or `Sink.createBoth`.
 - **`suspend`** is your friend for recursive or self-referential stream definitions, preventing stack overflow during construction.
 - **Typed errors vs. defects**: use `Stream.fail` for expected domain errors and `Stream.die` for programmer errors. Use `catchAll` for the former, `catchDefect` for the latter.
 
@@ -430,7 +432,7 @@ val triples = names && ages && ids
 triples.runCollect // Right(Chunk(("Alice", 30, 1L), ("Bob", 25, 2L), ("Charlie", 35, 3L)))
 ```
 
-When the error types differ, they widen via union:
+When the error types differ, they widen through `Concat` — to a union `E1 | E2` on Scala 3, and to a meaningful least upper bound (or `Either[E1, E2]` for disjoint types) on Scala 2.13:
 
 ```scala mdoc:silent
 import zio.blocks.streams.*

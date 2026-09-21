@@ -210,7 +210,7 @@ Underneath the availability split sits a capability split: the JVM has threads a
 
 Concurrent stream operators run their workers on virtual threads when the runtime provides them. `Platform.startVirtualThread` obtains `Thread.ofVirtual()` reflectively, so the module compiles and runs against any supported JDK and uses virtual threads on JDK 21 and later; when the reflective lookup fails for any reason — an older JDK, a security restriction, a linkage error — it falls back to starting a named daemon platform thread rather than failing class initialization.
 
-Workers are named, which makes them identifiable in a thread dump or profiler. The `Stream#mapPar` family names its workers `zio-blocks-mappar-worker-<n>-<index>`, where `<n>` counts reader instances and `<index>` identifies the worker within one reader.
+Workers are named, which makes them identifiable in a thread dump or profiler. The `Stream#mapPar` family names its workers `zio-blocks-mappar-worker-<n>-<index>` and its coordinator `zio-blocks-mappar-coordinator-<n>`, where `<n>` is drawn from a counter shared by every thread that lane's reader class starts and `<index>` identifies the worker within one reader.
 
 ### Scala.js
 

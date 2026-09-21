@@ -569,7 +569,7 @@ object Reader {
 
 When you use `Reader.single`, behavior differs between reference types and primitives. The `JvmType.Infer[A]` implicit parameter enables compile-time type detection, automatically selecting the appropriate implementation (specialized primitive or reference-type generic).
 
-For reference types like String, `Reader.single("hello")` stores the element directly and uses an internal sentinel object (`EndOfStream`) to signal end-of-stream. You read via the generic `SyncReader#read[A](sentinel)` method, passing your own sentinel value. On the first call, you get your string; on subsequent calls, you receive the sentinel you provided, allowing you to detect stream closure.
+For reference types like String, `Reader.single("hello")` stores the element directly and tracks a taken/not-taken flag internally. You read via the generic `SyncReader#read[A](sentinel)` method, passing your own sentinel value. On the first call, you get your string; on subsequent calls, you receive the sentinel you provided, allowing you to detect stream closure.
 
 For primitive types, `Reader.single(42)` could naively box the integer, but the library avoids this penalty entirely via `SingletonPrim`—a zero-boxing specialization that stores the primitive unboxed in memory. The `JvmType.Infer` implicit detects this at compile time and routes you through specialized factory methods (`Reader.singleInt`, `Reader.singleLong`, etc.) and specialized read methods (`Reader#readInt`, `Reader#readLong`, etc.). Both storage and retrieval stay unboxed, maintaining zero-copy efficiency.
 
@@ -771,7 +771,7 @@ abstract class Reader.AsyncReader[+Elem] {
 
 Like `Reader#readInt`, widening to `Double` allows the sentinel to lie safely outside the float domain. A float value will always fit in the lower precision bits of the double result, and the sentinel (typically `Double.MaxValue`) occupies the upper range. This ensures you can reliably distinguish real float elements from end-of-stream. Cast back to `Float` if needed: `r.readFloat(Double.MaxValue).toFloat`.
 
-`Reader#readDouble` — Sentinel-return `Double` pull. Returns the element, or `sentinel` when closed. The sentinel must be a value outside the domain (typically `Double.MaxValue`):
+`Reader#readDouble` — Sentinel-return `Double` pull. Returns the element, or `sentinel` when closed. No `Double` bit pattern can be reserved as a collision-free sentinel, so the parameter is kept for symmetry with the other sentinel-taking pulls and for callers who can prove that a particular value lies outside their own data domain:
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
@@ -1454,7 +1454,7 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`JvmType` has nine lanes: the eight JVM primitives — `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, `Double` — and `AnyRef` for everything else. The eight primitive tags map exactly to `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`; `AnyRef` is the ninth, and it is the only lane on which all eight of those methods work, because it satisfies them by pulling boxed and converting. For example, a `SyncReader[Int]` backed by a `Chunk[Int]` reports `JvmType.Int`, so consumers may use `readInt` and no other primitive pull.
+`JvmType` has nine lanes: the eight JVM primitives — `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, `Double` — and `AnyRef` for everything else. The eight primitive tags map exactly to `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`; `AnyRef` is the ninth, and it is the only lane on which all eight of those methods work, because it satisfies them by pulling boxed and converting. For example, a `SyncReader[Int]` backed by a `Chunk[Int]` reports `JvmType.Int`, so consumers may use `readInt`; a pull belonging to another lane throws `UnsupportedOperationException` unless that particular reader happens to implement it too.
 
 The lane is a property of the reader, not of the kind. A `SyncReader` and the `AsyncReader` it becomes under `toAsync` report the same `jvmType`, and asynchronous readers expose the corresponding values through `Async`.
 
