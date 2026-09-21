@@ -71,7 +71,7 @@ Streaming libraries in the Scala ecosystem typically require an effect system. f
 | Execution model           | Sync/async, pull-based  | Async, pull-based    | Async, chunk  | Synchronous, pull-based | Async, push     |
 | Typed errors              | `Either[E, Z]`          | ApplicativeError     | Kyo effects   | Exceptions              | No              |
 | Primitive specialization  | Yes (zero boxing)       | No                   | No            | No                      | No              |
-| Stack-safe deep pipelines | Yes (trampolined)       | Yes (Pull)           | Yes           | Not verified here       | Not verified here |
+| Stack-safe deep pipelines | Yes (trampolined)       | Not verified here     | Not verified here | Not verified here       | Not verified here |
 | Resource safety           | Scope integration       | Resource/bracket     | Kyo resources | try/finally             | Graph lifecycle |
 | Dependencies              | scope, chunk, combinators, ringbuffer, async | cats-effect + scodec | Kyo core      | Ox core                 | Akka actor      |
 

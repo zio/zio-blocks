@@ -182,7 +182,7 @@ The reader is allocated into the enclosing [`Scope`](../resource-management/scop
 The cross-platform pair is `Stream#startAsync` and `Stream#useReaderAsync`, and they differ from `Stream#start` and from each other in who closes the reader:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def startAsync: Async[Reader.AsyncReader[A]]
   def useReaderAsync[Z](f: Reader.AsyncReader[A] => Async[Z]): Async[Z]
 }

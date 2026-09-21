@@ -164,7 +164,7 @@ The default `writeable()` method returns `!isClosed`—it only tells you if the 
 - **`writeable()` returns `false`**: the writer is closed (permanent state)
 - **`writeable()` returns `true` but `write()` would block**: the buffer is full but not closed. What happens next is implementation-defined: a writer backed by a bounded buffer may block the calling thread until space becomes available, while the writers in this library instead auto-close and return `false`.
 
-The writers behind `NioWriters.fromByteBuffer` and its typed variants auto-close when the buffer fills, turning the full state into closure. Others may block indefinitely waiting for space.
+The writers behind `NioWriters.fromByteBuffer` and its typed variants auto-close when the buffer fills, turning the full state into closure. A writer you implement yourself may instead block indefinitely waiting for space.
 
 ## Error Handling
 

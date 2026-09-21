@@ -675,7 +675,7 @@ These operations apply functions to stream elements one-by-one, applying the tra
 Applies a function to each element:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def map[B](f: A => B): Stream[E, B]
 }
 ```
@@ -699,7 +699,7 @@ For bounded concurrency, [`Stream#mapPar`](#streammappar) applies a synchronous 
 Transforms typed errors without affecting elements:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def mapError[E2](f: E => E2): Stream[E2, A]
 }
 ```
@@ -722,7 +722,7 @@ val mapped = mayFail.mapError(e => ServerError("Connection failed"))
 Emits only elements that satisfy a predicate:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def filter(pred: A => Boolean): Stream[E, A]
 }
 ```
@@ -742,7 +742,7 @@ val result = evens.runCollect
 Applies a partial function, emitting only defined results:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def collect[B](pf: PartialFunction[A, B]): Stream[E, B]
 }
 ```
@@ -766,7 +766,7 @@ These operations maintain internal state while processing elements, allowing you
 Maintains state while transforming each element:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def mapAccum[S, B](init: S)(f: (S, A) => (S, B))(implicit jtB: JvmType.Infer[B]): Stream[E, B]
 }
 ```
@@ -786,7 +786,7 @@ val result = indexed.runCollect
 The asynchronous twin of `mapAccum`: the step returns an `Async`, and the state is still threaded strictly in order.
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def mapAccumAsync[S, B](init: S)(f: (S, A) => Async[(S, B)])(implicit
     jtB: JvmType.Infer[B]
   ): Stream[E, B]
@@ -810,7 +810,7 @@ This operator is also catalogued with the rest of the sequential asynchronous fa
 Like `mapAccum`, but emits the accumulator rather than a mapped value, starting with `init` — so the output stream has one more element than the input:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def scan[S](init: S)(f: (S, A) => S)(implicit jtS: JvmType.Infer[S]): Stream[E, S]
 }
 ```
@@ -830,7 +830,7 @@ val result = cumsum.runCollect
 The asynchronous twin of `scan`: the fold step returns an `Async`, and the accumulator is still emitted at each step.
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def scanAsync[S](init: S)(f: (S, A) => Async[S])(implicit jtS: JvmType.Infer[S]): Stream[E, S]
 }
 ```
@@ -852,7 +852,7 @@ val balances = amounts.scanAsync(0L)((balance, amount) => Async.succeed(balance 
 `flatMap[E2, E3, B]` — Maps each element to a stream and flattens the results.:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def flatMap[E2, E3, B](f: A => Stream[E2, B])(implicit
     errorConcat: Concat.WithOut[E, E2, E3],
     jtB: JvmType.Infer[B]
@@ -906,7 +906,7 @@ Streams can be grouped, sliced, and scanned to process data in temporal windows.
 Collects elements into fixed-size chunks:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def grouped(n: Int): Stream[E, Chunk[A]]
 }
 ```
@@ -926,7 +926,7 @@ val result = groups.runCollect
 Creates a sliding window of size `n`, optionally stepping by `step` elements:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def sliding(n: Int, step: Int = 1): Stream[E, Chunk[A]]
 }
 ```
@@ -950,7 +950,7 @@ Streams can be sequentially concatenated, zipped together, or merged:
 `++[E2, E3, A2, A3]` or `concat[E2, E3, A2, A3]` — Emits all elements of the first stream, then all elements of the second stream:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   final def ++[E2, E3, A2, A3](that: Stream[E2, A2])(implicit
     errorConcat: Concat.WithOut[E, E2, E3],
     valueConcat: Concat.WithOut[A, A2, A3],
@@ -1034,7 +1034,7 @@ There is no separate `choice` operator anymore. Use `++` / `concat` for all sequ
 Zips two streams together as tuples:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def &&[E2, E3, B, C](that: Stream[E2, B])(implicit
     errorConcat: Concat.WithOut[E, E2, E3],
     zip: Stream.Zip[A, B, C],
@@ -1447,7 +1447,7 @@ These operations remove duplicate elements, useful for deduplicating streams bef
 Emits only unique elements (using a mutable `HashSet` internally):
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def distinct: Stream[E, A]
 }
 ```
@@ -1467,7 +1467,7 @@ val result = unique.runCollect
 Emits only elements whose key (computed by `f`) has not been seen before:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def distinctBy[K](f: A => K): Stream[E, A]
 }
 ```
@@ -1499,7 +1499,7 @@ These operations skip or limit elements, allowing you to keep or drop unwanted p
 Skips the first `n` elements:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def drop(n: Long): Stream[E, A]
 }
 ```
@@ -1519,7 +1519,7 @@ val result = remaining.runCollect
 Emits at most the first `n` elements, then stops:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def take(n: Long): Stream[E, A]
 }
 ```
@@ -1539,7 +1539,7 @@ val result = first10.runCollect
 Emits elements while a predicate is true, then stops:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def takeWhile(pred: A => Boolean): Stream[E, A]
 }
 ```
@@ -1559,7 +1559,7 @@ val result = firstFive.runCollect
 The asynchronous twin of `takeWhile`, for a predicate that has to await something before it can answer:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def takeWhileAsync(pred: A => Async[Boolean]): Stream[E, A]
 }
 ```
@@ -1581,7 +1581,7 @@ The same entry appears in [Async Operators](./async-execution.md#streamtakewhile
 `intersperse[A2, A3]` — Inserts a separator value between every two elements.:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def intersperse[A2, A3](sep: A2)(implicit
     valueConcat: Concat.WithOut[A, A2, A3],
     jtA3: JvmType.Infer[A3]
@@ -1604,7 +1604,7 @@ val result = separated.runCollect
 `repeated` — Rematerializes the stream after each clean completion, emitting the whole sequence again indefinitely. A typed error or a defect terminates the repetition.:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def repeated: Stream[E, A]
 }
 ```
@@ -1624,7 +1624,7 @@ val result = repeated.runCollect
 `tapEach` — Applies a function to each element for side effects, passing the element through unchanged.:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def tapEach(f: A => Unit): Stream[E, A]
 }
 ```
@@ -1668,7 +1668,7 @@ These operations handle typed errors gracefully by recovering with alternative s
 Recovers from any typed error by switching to a recovery stream:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def catchAll[E2, A2, A3](f: E => Stream[E2, A2])(implicit
     valueConcat: Concat.WithOut[A, A2, A3],
     jtA3: JvmType.Infer[A3]
@@ -1694,7 +1694,7 @@ val result = recovered.runCollect
 If this stream fails, tries the fallback stream. The fallback is evaluated lazily, only on error:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def orElse[E2, A2, A3](that: => Stream[E2, A2])(implicit
     valueConcat: Concat.WithOut[A, A2, A3],
     jtA3: JvmType.Infer[A3]
@@ -1717,7 +1717,7 @@ val result = (primary || fallback).runCollect
 `catchDefect[E2, E3, A2, A3]` — Catches untyped defects (exceptions not wrapped as typed errors) using a partial function.:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def catchDefect[E2, E3, A2, A3](
     f: PartialFunction[Throwable, Stream[E2, A2]]
   )(implicit
@@ -1844,7 +1844,7 @@ val result = stream.runCollect
 Adds a **cleanup action to any stream**, regardless of how it is created. The finalizer runs in a `finally` block:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def ensuring(finalizer: => Unit): Stream[E, A]
 }
 ```
@@ -1878,7 +1878,7 @@ val result = managed.runCollect
 The asynchronous twin of `ensuring`, for cleanup that is itself an `Async` — closing a socket, flushing a remote session, releasing a lease:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def ensuringAsync(finalizer: => Async[Unit]): Stream[E, A]
 }
 ```
@@ -1918,7 +1918,7 @@ JVM only. The cross-platform form is `runCollectAsync`.
 Collects all elements into a `Chunk[A]`:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def runCollect: Either[E, Chunk[A]]
 }
 ```
@@ -1940,7 +1940,7 @@ JVM only. The cross-platform form is `runAsync`.
 Runs the stream with a custom sink, producing result `Z`:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def run[ES, E3, Z](sink: Sink[ES, A, Z])(implicit
     errorConcat: Concat.WithOut[E, ES, E3]
   ): Either[E3, Z]
@@ -1968,7 +1968,7 @@ JVM only. The cross-platform form is `runDrainAsync`.
 Consumes all elements and discards them, returning `Unit`:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def runDrain: Either[E, Unit]
 }
 ```
@@ -1990,7 +1990,7 @@ JVM only. The cross-platform forms are `runForeachAsync` and its alias `foreachA
 Applies a function to each element for side effects:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def runForeach(f: A => Unit): Either[E, Unit]
 }
 ```
@@ -2015,7 +2015,7 @@ JVM only. The cross-platform form is `runFoldAsync`.
 Folds all elements using an accumulator, returning the final result:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def runFold[Z](z: Z)(f: (Z, A) => Z)(implicit jtZ: JvmType.Infer[Z]): Either[E, Z]
 }
 ```
@@ -2044,7 +2044,7 @@ JVM only. The cross-platform form is `countAsync`.
 Returns the number of elements:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def count: Either[E, Long]
 }
 ```
@@ -2065,7 +2065,7 @@ JVM only. The cross-platform form is `headAsync`.
 Returns the first element (or `None` if empty):
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def head: Either[E, Option[A]]
 }
 ```
@@ -2086,7 +2086,7 @@ JVM only. The cross-platform form is `lastAsync`.
 Returns the last element (or `None` if empty):
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def last: Either[E, Option[A]]
 }
 ```
@@ -2107,7 +2107,7 @@ JVM only. The cross-platform form is `findAsync`.
 Returns the first element satisfying a predicate:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def find(pred: A => Boolean): Either[E, Option[A]]
 }
 ```
@@ -2128,7 +2128,7 @@ JVM only. The cross-platform form is `existsAsync`.
 Returns `true` if any element satisfies a predicate, short-circuiting:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def exists(pred: A => Boolean): Either[E, Boolean]
 }
 ```
@@ -2149,7 +2149,7 @@ JVM only. The cross-platform form is `forallAsync`.
 Returns `true` if all elements satisfy a predicate, short-circuiting:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def forall(pred: A => Boolean): Either[E, Boolean]
 }
 ```
@@ -2172,7 +2172,7 @@ Streams compose with pipelines and sinks to form complete data processing flows:
 `via[B]` — Applies a `Pipeline[A, B]` transformation to the stream.:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   final def via[B](pipe: Pipeline[A, B]): Stream[E, B]
 }
 ```
@@ -2222,7 +2222,7 @@ When you call `stream.run(sink)`, the stream is compiled to a `Reader` and the s
 `startAsync` transfers ownership to its caller, which must await `close()`. Prefer `useReaderAsync` when ownership need not escape. On the JVM, `start` opens a blocking reader within a `Scope`, which closes it when the scope exits:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def startAsync: Async[Reader.AsyncReader[A]]
   def useReaderAsync[Z](f: Reader.AsyncReader[A] => Async[Z]): Async[Z]
   // JVM only
