@@ -165,7 +165,7 @@ val average: Sink[Nothing, Int, Double] =
   }
 ```
 
-`Sink.createBoth` is the option to reach for when the synchronous drain is worth keeping: it takes both callbacks, and the terminal selects exactly one of them, so the JVM keeps its allocation-free loop while Scala.js gets a working implementation. Both callbacks must agree on how much input they consume and what they produce. [Sink](./sink.md) documents the reader protocol these callbacks drive.
+`Sink.createBoth` is the option to reach for when the synchronous drain is worth keeping: it takes both callbacks, and the terminal selects exactly one of them, so the JVM keeps its direct blocking loop — with no per-pull `Async` to allocate and resume — while Scala.js gets a working implementation. Both callbacks must agree on how much input they consume and what they produce. [Sink](./sink.md) documents the reader protocol these callbacks drive.
 
 ## Manual Pull Across Platforms
 

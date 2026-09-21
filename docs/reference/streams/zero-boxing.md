@@ -224,12 +224,12 @@ Specialization is about where boxing is avoided by construction, not a throughpu
 
 ## EOF Signalling Per Lane
 
-A pull has to be able to say "there are no more elements" without allocating an `Option` to say it in, so every lane reports exhaustion out of band. The schemes differ because the lanes differ. The authority is the nine-branch dispatch in `Sink.foldSyncReader`; the library's other drain loops — `Reader#readAll`, `Sink.exists`, `Sink.find`, the asynchronous puller — use the same scheme for each lane.
+A pull has to be able to say "there are no more elements" without allocating an `Option` to say it in, so every lane reports exhaustion out of band. The schemes differ because the lanes differ. The authority is the nine-branch dispatch in `Sink.foldSyncReader`; the library's other synchronous drain loops — `Reader#readAll`, `Sink.exists`, `Sink.find` — use the same scheme for each lane. The asynchronous puller differs on two lanes: it detects end of stream on `Byte` and `Float` by a negative count from `readBytes` and `readFloats`, rather than by the scalar sentinel.
 
 | Lane      | Public pull for this lane    | Carrier          | End of stream                       |
 |-----------|------------------------------|------------------|-------------------------------------|
 | `Boolean` | `readBoolean(-1)`            | `Int`            | any negative value                  |
-| `Byte`    | `readByte()`                 | `Int`            | `-1`; takes no sentinel parameter   |
+| `Byte`    | `readByte()`                 | `Int`            | `-1` (any negative value); takes no sentinel parameter |
 | `Char`    | `readChar(-1)`               | `Int`            | any negative value                  |
 | `Short`   | `readShort(Int.MinValue)`    | `Int`            | `Int.MinValue`                      |
 | `Int`     | `readInt(Long.MinValue)`     | `Long`           | `Long.MinValue`                     |

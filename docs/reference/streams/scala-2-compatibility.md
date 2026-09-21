@@ -37,7 +37,7 @@ An early draft extracted several instance methods into `StreamVersionSpecific` a
 - `Stream.flatMap`, `Stream.mapError`, `Stream.orElse`, `Stream.&&`
 - `Sink.mapError`
 
-This shape localized the syntax differences neatly, but changed the structure of the Scala 3 hot path enough to produce measurable regressions. Benchmarks run with `streams-benchmark` on Scala 3.8.3 and JDK 25:
+This shape localized the syntax differences neatly, but changed the structure of the Scala 3 hot path enough to produce measurable regressions. Benchmarks run with `streams-benchmark` on JDK 25 (recorded against Scala 3.8.3, before the project was pinned to Scala 3.9.0):
 
 | Benchmark | Baseline (`main`) | Trait-extraction draft | Change |
 |---|---:|---:|---|
