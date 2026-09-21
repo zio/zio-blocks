@@ -239,15 +239,36 @@ const sidebars = {
             label: "Streams",
             link: { type: "doc", id: "reference/streams/index" },
             items: [
-              "reference/streams/stream",
-              "reference/streams/pipeline",
-              "reference/streams/sink",
-              "reference/streams/reader",
-              "reference/streams/writer",
-              "reference/streams/async-execution",
-              "reference/streams/platform-differences",
-              "reference/streams/zero-boxing",
-              "reference/streams/scala-2-compatibility",
+              {
+                type: "category",
+                label: "Core Types",
+                collapsed: false,
+                items: [
+                  "reference/streams/stream",
+                  "reference/streams/pipeline",
+                  "reference/streams/sink",
+                ]
+              },
+              {
+                type: "category",
+                label: "Readers and Writers",
+                collapsed: false,
+                items: [
+                  "reference/streams/reader",
+                  "reference/streams/writer",
+                ]
+              },
+              {
+                type: "category",
+                label: "Execution and Compatibility",
+                collapsed: false,
+                items: [
+                  "reference/streams/async-execution",
+                  "reference/streams/platform-differences",
+                  "reference/streams/zero-boxing",
+                  "reference/streams/scala-2-compatibility",
+                ]
+              },
             ]
           },
           {
