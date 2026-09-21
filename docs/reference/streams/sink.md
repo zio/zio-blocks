@@ -53,7 +53,7 @@ When you call `stream.run(sink)`:
 2. The sink's internal `Sink#drain` method pulls elements in a tight loop until end-of-stream
 3. On success, the result wraps in `Right(z)`
 4. Typed errors (`E`) surface as `Left(e)`, while untyped defects propagate as exceptions
-5. The reader's `close()` runs in a `finally` block, ensuring resource safety
+5. The reader's `close()` runs after the drain whether it succeeded or threw, and a failure from `close()` is attached to the drain's own error rather than replacing it, ensuring resource safety
 
 ### Physical Input Lanes and Ownership
 
@@ -745,7 +745,7 @@ See [Pipeline — Applying to a Sink](./pipeline.md#applying-to-a-sink) for more
 
 ## JVM NIO Sinks
 
-The `NioSinks` object (JVM-only) provides sinks for Java NIO (`java.nio`) buffers and channels. NIO offers efficient buffers and both blocking and selector-based channel APIs, but these sinks use blocking channel writes; they do not expose selector-based non-blocking output. When you're writing to network sockets, files, or other NIO-based resources, these sinks give you a convenient way to drain streams directly into NIO data structures without intermediate allocation or copying.
+The `NioSinks` object (JVM-only) provides sinks for Java NIO (`java.nio`) buffers and channels. NIO offers efficient buffers and both blocking and selector-based channel APIs, but these sinks use blocking channel writes; they do not expose selector-based non-blocking output. When you're writing to network sockets, files, or other NIO-based resources, these sinks give you a convenient way to drain streams directly into NIO data structures.
 
 Traditional Java I/O (`OutputStream`, `Writer`) blocks threads and requires manual buffering for efficiency. `NioSinks.fromChannel` also blocks, but handles buffer allocation, position management, and flushing automatically (default 8KB), while typed variants like `NioSinks.fromByteBufferInt` and `NioSinks.fromByteBufferLong` eliminate boxing overhead by writing primitives directly to buffers you provide.
 
@@ -798,7 +798,7 @@ val readBack = List(
 
 This example allocates a 32-byte buffer (4 Longs × 8 bytes each), writes four `Long` values using `NioSinks.fromByteBufferLong` (which calls `putLong` on each element), then rewinds and reads them back to verify. The typed variant writes one 8-byte buffer operation per element, where the byte variant would require the stream to carry each byte separately.
 
-The following example shows streaming voltage sensor readings through a calibration curve and buffering them for downstream computation. When processing sensor arrays or scientific measurements, pre-allocated buffers with typed sinks enable zero-copy batch processing.
+The following example shows streaming voltage sensor readings through a calibration curve and buffering them for downstream computation. When processing sensor arrays or scientific measurements, pre-allocated buffers with typed sinks let each element be written through its exact primitive lane without boxing.
 
 Here is the complete example:
 
