@@ -1117,11 +1117,7 @@ Readers are not thread-safe either. Driving one reader from two threads without 
 
 ### Close Ownership
 
-Every asynchronous reader has exactly one owner, and the owner is responsible for awaiting `close()`. Ownership is never ambiguous, because each entry point states which side holds it:
-
-- Terminals — `run`, `runAsync`, and their siblings — own the reader they compile and close it on success, typed failure, defect, and cancellation. You do nothing.
-- `Stream#startAsync` **transfers ownership to you**. It returns `Async[Reader.AsyncReader[A]]`, and from that point the reader is yours: you must run and await `close()` on every exit path, including the ones you take because something failed.
-- `Stream#useReaderAsync` **retains ownership**. It takes `Reader.AsyncReader[A] => Async[Z]`, and awaits the reader's close on every outcome of your function. Prefer it whenever the reader's lifetime fits inside a single scope.
+Every asynchronous reader has exactly one owner, and the owner is responsible for awaiting `close()`. Which side holds it is never ambiguous, because the entry point that handed you the reader decides: terminals own and close the reader they compile, `Stream#startAsync` transfers ownership to you, and `Stream#useReaderAsync` retains it. [Manual Pull and Ownership](./async-execution.md#manual-pull-and-ownership) gives each case in full from the consumer's side, including what a forgotten `close()` costs. The rest of this section is what ownership means for the reader itself.
 
 `close()` is itself an asynchronous operation: it participates in the one-active-operation rule, it cancels or joins work already in flight, and its result must be awaited rather than discarded. Library readers tolerate a repeated close, but the owner should still close exactly once.
 
