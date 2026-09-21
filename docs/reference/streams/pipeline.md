@@ -104,7 +104,7 @@ These laws guarantee that pipelines compose predictably, regardless of how you p
 
 ## Construction
 
-Pipelines are built using factory methods on the `Pipeline` companion object. Each factory creates a pipeline that performs a specific transformation: mapping elements, filtering, collecting, or controlling flow. A factory that changes the element type asks for `JvmType.Infer` evidence for the **result** type. The input representation already belongs to the stream or sink at application time; callers do not supply redundant input evidence. Type-preserving factories retain that representation directly.
+Pipelines are built using factory methods on the `Pipeline` companion object. Each factory creates a pipeline that performs a specific transformation: mapping elements, filtering, collecting, or controlling flow. A factory that applies a user-supplied function to produce a new element type asks for `JvmType.Infer` evidence for the **result** type. The input representation already belongs to the stream or sink at application time; callers do not supply redundant input evidence. Type-preserving factories, and the structural factories `buffer` and `chunked`, retain or rebuild that representation without call-site evidence.
 
 Three of those factories have asynchronous twins, and exactly three: `mapAsync`, `filterAsync`, and `collectAsync`. They are cross-platform, their callbacks return [`Async`](../async.md), they are evaluated sequentially as the downstream pulls, and they work through both application routes. Other `*Async` operators such as `tapEachAsync` and `distinctByAsync` exist on `Stream` rather than on `Pipeline`; see [Asynchronous Stream Execution](./async-execution.md#async-operators) for the full stream-level list. `Writer`'s similarly named deferred methods are something else again — adaptation wrappers around its synchronous operations, described in [Writer — Asynchronous Writes](./writer.md#asynchronous-writes).
 
@@ -308,7 +308,7 @@ Pipelines compose into larger, more complex transformations using `andThen`. Bec
 Composes two pipelines into one, applying `this` first and `that` second. Here is the signature:
 
 ```scala
-trait Pipeline[-In, +Out] {
+abstract class Pipeline[-In, +Out] {
   def andThen[C](that: Pipeline[Out, C]): Pipeline[In, C]
 }
 ```
@@ -358,7 +358,7 @@ Applying an asynchronous pipeline stage to a synchronous stream makes the result
 The primary way to use a pipeline is through `Stream.via`. Here is the signature:
 
 ```scala
-trait Stream[+E, +A] {
+abstract class Stream[+E, +A] {
   def via[B](pipe: Pipeline[A, B]): Stream[E, B]
 }
 ```
@@ -388,7 +388,7 @@ val sensor2Result = sensorStream2.via(cleanSensorData).runCollect
 You can also call `applyToStream` directly. This is equivalent to `via` but reads left-to-right from the pipeline's perspective. Here is the signature:
 
 ```scala
-trait Pipeline[-In, +Out] {
+abstract class Pipeline[-In, +Out] {
   def applyToStream[E](stream: Stream[E, In]): Stream[E, Out]
 }
 ```
@@ -404,7 +404,7 @@ Apply a pipeline to a sink using `andThenSink` to pre-process the sink's input e
 The dual of `via`: instead of transforming a stream's output, you pre-process a sink's input. Here is the signature:
 
 ```scala
-trait Pipeline[-In, +Out] {
+abstract class Pipeline[-In, +Out] {
   def andThenSink[E, Z](sink: Sink[E, Out, Z]): Sink[E, In, Z]
 }
 ```
@@ -440,7 +440,7 @@ The laws guarantee equivalence: `stream.via(pipe).run(sink) == stream.run(pipe.a
 `andThenSink` is an alias for `applyToSink`. Here is the signature:
 
 ```scala
-trait Pipeline[-In, +Out] {
+abstract class Pipeline[-In, +Out] {
   def applyToSink[E, Z](sink: Sink[E, Out, Z]): Sink[E, In, Z]
 }
 ```
@@ -451,7 +451,7 @@ Prefer `andThenSink` for readability.
 
 `Pipeline.map`, `Pipeline.collect`, and their asynchronous counterparts `mapAsync` and `collectAsync` require `JvmType.Infer` for the transformed result type. It is resolved automatically and records which of the nine logical lanes that result belongs to: the eight JVM primitives, or the reference fallback. Those nine logical lanes compact into five interpreter storage lanes — int-like (`Boolean`, `Byte`, `Short`, `Char`, `Int`), `Long`, `Float`, `Double`, and reference — with operator tags selecting the identity-specific reads over them. Nine lanes therefore does not mean nine interpreter arrays; see [Zero-Boxing Streams](./zero-boxing.md) for how one is chosen. None of these factories request call-site evidence for the input type.
 
-Type-preserving factories such as `filter`, `filterAsync`, `identity`, `take`, and `drop` do not require `JvmType.Infer`: they preserve the representation supplied when the pipeline is applied.
+Type-preserving factories such as `filter`, `filterAsync`, `identity`, `take`, `drop`, and `buffer` do not require `JvmType.Infer`: they preserve the representation supplied when the pipeline is applied.
 
 The rules hold identically through both application routes. On the stream route, result evidence is stored on the transformed stream node. On the sink route, mapping passes the same result evidence to the sink's contramap machinery, and structural pipelines use the generic run-via-sink route. So `stream.via(pipe)`, `pipe.andThenSink(sink)`, and `pipe.applyToSink(sink)` preserve the same specialization information as well as the same semantics.
 

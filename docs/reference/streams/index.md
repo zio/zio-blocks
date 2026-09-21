@@ -71,33 +71,19 @@ Streaming libraries in the Scala ecosystem typically require an effect system. f
 | Execution model           | Sync/async, pull-based  | Async, pull-based    | Async, chunk  | Synchronous, pull-based | Async, push     |
 | Typed errors              | `Either[E, Z]`          | ApplicativeError     | Kyo effects   | Exceptions              | No              |
 | Primitive specialization  | Yes (zero boxing)       | No                   | No            | No                      | No              |
-| Stack-safe deep pipelines | Yes (trampolined)       | Yes (Pull)           | Yes           | No (SO on deep flatMap) | N/A             |
+| Stack-safe deep pipelines | Yes (trampolined)       | Yes (Pull)           | Yes           | Not verified here       | Not verified here |
 | Resource safety           | Scope integration       | Resource/bracket     | Kyo resources | try/finally             | Graph lifecycle |
-| Dependencies              | chunk + scope           | cats-effect + scodec | Kyo core      | Ox core                 | Akka actor      |
+| Dependencies              | scope, chunk, combinators, ringbuffer, async | cats-effect + scodec | Kyo core      | Ox core                 | Akka actor      |
 
 ## Benchmarks
 
-All benchmarks use 10,000 elements, measured in operations per second (higher is better). Run on Apple M-series, JDK 25, Scala 3.7.4.
+The repository carries a JMH benchmark suite under `streams-benchmark`. Provider comparisons are
+governed by the allowlist and provider versions recorded in
+`streams-benchmark/benchmark-manifest.json`; results are only comparable within a single benchmark
+class and contract, and are not aggregated into a ranking here. Re-run the benchmarks on your target
+environment before drawing any performance conclusion.
 
 If you are evaluating Scala 2 compatibility work, read the [Scala 2 compatibility design note](./scala-2-compatibility.md) before moving any `Stream` or `Sink` hot-path combinators behind version-specific seams.
-
-| Benchmark            | ZB Streams | Ox     | Kyo    | fs2    | Pekko |
-|----------------------|------------|--------|--------|--------|-------|
-| drain                | 179,872    | 54,512 | 31,777 | 20,795 | 4,381 |
-| map                  | 161,920    | 42,007 | 12,012 | 13,295 | 2,259 |
-| filter               | 168,541    | 47,933 | 19,962 | 14,977 | 2,901 |
-| flatMap              | 49,165     | 30,506 | 28,303 | 748    | 742   |
-| take/drop            | 322,470    | 28,708 | 64,640 | 28,836 | 2,379 |
-| map+filter+flatMap   | 980        | 508    | 602    | 19     | 16    |
-| mixed depth 1        | 47,459     | 19,449 | 13,427 | 257    | 639   |
-| mixed depth 2        | 33,859     | 15,336 | 7,328  | 208    | 459   |
-| mixed depth 3        | 23,610     | 11,878 | 3,174  | 139    | 256   |
-| nested flatMap (10K) | 8,161      | --     | --     | 937    | --    |
-| nested concat (10K)  | 6,140      | --     | 3      | 1,065  | 1     |
-
-"--" indicates the benchmark was not run or the library crashed.
-
-These historical JVM results illustrate the scalar CPU and mixed-pipeline category on the listed benchmark setup; they are not a universal ranking. Async I/O, bounded concurrency, bulk memory transfer, different JDK/Scala versions, and application-specific callbacks have different cost profiles. Re-run the repository JMH benchmarks on the target environment before drawing performance conclusions.
 
 ## Core Mental Model
 
@@ -395,8 +381,6 @@ Stream.fail("error")                         // Stream[String, Nothing]
 
 // Generators
 Stream.repeat(1)                             // infinite stream of 1s
-// Stream.iterate(1)(_ * 2)                   // 1, 2, 4, 8, 16, ...
-// Stream.repeatThunk(scala.util.Random.nextInt(100))  // infinite random ints
 Stream.unfold(0)(n =>                        // 0, 1, 2, ..., 9
   if n < 10 then Some((n, n + 1)) else None
 )
@@ -410,11 +394,11 @@ Stream.attemptEval(riskyEffect())               // same, for Unit-returning effe
 Stream.suspend(expensiveStreamBuilder())
 
 // I/O sources (auto-closing) - JVM only
-Stream.fromInputStream(inputStream)             // Stream[IOException, Int] (bytes as 0-255, auto-closes)
+Stream.fromInputStream(inputStream)             // Stream[IOException, Byte] (auto-closes)
 Stream.fromJavaReader(javaReader)               // Stream[IOException, Char] (auto-closes)
 
 // I/O sources (borrowing -- caller manages lifetime) - JVM only
-Stream.fromInputStreamUnmanaged(inputStream)    // Stream[IOException, Int] (does NOT close)
+Stream.fromInputStreamUnmanaged(inputStream)    // Stream[IOException, Byte] (does NOT close)
 Stream.fromJavaReaderUnmanaged(javaReader)      // Stream[IOException, Char] (does NOT close)
 ```
 
