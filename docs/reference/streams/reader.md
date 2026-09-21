@@ -534,7 +534,7 @@ The managed factory owns the acquired reader: closing it cancels the JavaScript 
 
 #### Scala.js Invariants
 
-The JVM adapter's four rules hold here too — pulls are inert until driven, one operation may be in flight at a time, a source failure is trusted and replayed, and an empty read is not end of stream. The four properties below are a different four, chosen because the `read()` promise and its `done`/`value` result are where this adapter's behaviour is easiest to get wrong.
+The JVM adapter's rules about deferral and exclusivity hold here too — pulls are inert until driven, and one operation may be in flight at a time. The four properties below restate the adapter's end-of-stream, buffering and failure behaviour in the terms of the Web Streams `read()` promise and its `done`/`value` result, which is where this adapter is easiest to get wrong.
 
 1. **An empty chunk is skipped, never treated as end of stream.** A result with `done = false` and a zero-length value causes the adapter to reissue `read()`; only `done = true` ends the stream.
 2. **Buffered bytes are preserved across pulls.** A chunk delivered by the stream is consumed byte by byte from the adapter's own index, so a pull that the buffer can satisfy issues no `read()` at all, and a partially consumed chunk survives until it is drained.
@@ -942,7 +942,7 @@ import zio.blocks.chunk.Chunk
 
 val r = Reader.fromChunk(Chunk(10, 20, 30))
 val all = r.readAll()
-println(all)  // Chunk(10, 20, 30)
+println(all)  // Chunk(10,20,30)
 ```
 
 `Reader#readN` and `Reader#readUpToN` — Bounded drains. `readN` gathers up to `n` elements, returning early only when the reader is exhausted; `readUpToN` gathers at most `n` elements and stops as soon as the next element is not already available, so it never waits for a slow producer to fill the request. Both produce an empty chunk when `n <= 0` or the reader is at end-of-stream:
@@ -1326,18 +1326,17 @@ abstract class Reader.AsyncReader[+Elem] {
 }
 ```
 
-Set repeat mode to emit elements multiple times:
+Set repeat mode so a reader restarts instead of closing. Not every reader can do this natively — the chunk-, iterable- and range-backed readers cannot, and return `false`; the single-element readers can:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Reader
-import zio.blocks.chunk.Chunk
 
-val r = Reader.fromChunk(Chunk(1, 2))
+val r = Reader.single(1)
 val handled = r.setRepeat()
 println(s"Repeat handled natively: $handled")
 
 def drain(count: Int): Unit = {
-  if (count < 6) {
+  if (count < 4) {
     val v = r.read(-1)
     println(v)
     drain(count + 1)
@@ -1347,12 +1346,12 @@ drain(0)
 // Output:
 // Repeat handled natively: true
 // 1
-// 2
 // 1
-// 2
 // 1
-// 2
+// 1
 ```
+
+`Reader.fromChunk(Chunk(1, 2)).setRepeat()` returns `false` instead: chunk-backed readers do not implement repeat, so the caller wraps the reader rather than pushing the operation down.
 
 `Reader#reset` — Rewinds this reader to its initial state, as if freshly constructed. After `Reader#reset()`, all elements are available again from the beginning. Not all readers support this; readers backed by one-shot resources (InputStreams, `java.io.Reader`s) throw `UnsupportedOperationException`:
 
