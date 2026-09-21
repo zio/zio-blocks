@@ -302,7 +302,7 @@ Wraps a variable number of arguments into a stream:
 
 ```scala
 object Stream {
-  def apply[A](as: A*): Stream[Nothing, A]
+  def apply[A](as: A*)(implicit jt: JvmType.Infer[A]): Stream[Nothing, A]
 }
 ```
 
@@ -321,7 +321,7 @@ Converts a `Chunk` into a stream. Chunks are immutable, indexed sequences optimi
 
 ```scala
 object Stream {
-  def fromChunk[A](chunk: Chunk[A]): Stream[Nothing, A]
+  def fromChunk[A](chunk: Chunk[A])(implicit jt: JvmType.Infer[A]): Stream[Nothing, A]
 }
 ```
 
@@ -342,7 +342,7 @@ Converts any `Iterable[A]` (List, Set, Vector, etc.) into a stream:
 
 ```scala
 object Stream {
-  def fromIterable[A](it: Iterable[A]): Stream[Nothing, A]
+  def fromIterable[A](it: Iterable[A])(implicit jtA: JvmType.Infer[A]): Stream[Nothing, A]
 }
 ```
 
@@ -362,7 +362,7 @@ Converts an `Iterator[A]` into a stream. The iterator is consumed lazily:
 
 ```scala
 object Stream {
-  def fromIterator[A](it: => Iterator[A]): Stream[Nothing, A]
+  def fromIterator[A](it: => Iterator[A])(implicit jtA: JvmType.Infer[A]): Stream[Nothing, A]
 }
 ```
 
@@ -429,7 +429,7 @@ Emits the same value infinitely:
 
 ```scala
 object Stream {
-  def repeat[A](a: A): Stream[Nothing, A]
+  def repeat[A](a: A)(implicit jt: JvmType.Infer[A]): Stream[Nothing, A]
 }
 ```
 
@@ -449,7 +449,7 @@ A stateful generator that emits elements based on a fold-like transition functio
 
 ```scala
 object Stream {
-  def unfold[S, A](s: S)(f: S => Option[(A, S)]): Stream[Nothing, A]
+  def unfold[S, A](s: S)(f: S => Option[(A, S)])(implicit jtA: JvmType.Infer[A]): Stream[Nothing, A]
 }
 ```
 
@@ -494,7 +494,7 @@ Wraps a potentially throwing computation, converting non-fatal `Throwable`s into
 
 ```scala
 object Stream {
-  def attempt[A](f: => A): Stream[Throwable, A]
+  def attempt[A](f: => A)(implicit jtA: JvmType.Infer[A]): Stream[Throwable, A]
 }
 ```
 
@@ -676,7 +676,7 @@ Applies a function to each element:
 
 ```scala
 abstract class Stream[+E, +A] {
-  def map[B](f: A => B): Stream[E, B]
+  def map[B](f: A => B)(implicit jtB: JvmType.Infer[B]): Stream[E, B]
 }
 ```
 
@@ -743,7 +743,7 @@ Applies a partial function, emitting only defined results:
 
 ```scala
 abstract class Stream[+E, +A] {
-  def collect[B](pf: PartialFunction[A, B]): Stream[E, B]
+  def collect[B](pf: PartialFunction[A, B])(implicit jtB: JvmType.Infer[B]): Stream[E, B]
 }
 ```
 
@@ -878,7 +878,7 @@ Flattens a stream of streams into a single stream, processing them sequentially:
 
 ```scala
 object Stream {
-  def flattenAll[E, A](streams: Stream[E, Stream[E, A]]): Stream[E, A]
+  def flattenAll[E, A](streams: Stream[E, Stream[E, A]])(implicit jtA: JvmType.Infer[A]): Stream[E, A]
 }
 ```
 
@@ -2279,7 +2279,7 @@ For example, an `Int` pipeline uses `readInt(Long.MinValue)` instead of boxing. 
 
 ```scala
 if (jvmType eq JvmType.Int) {
-  val i = source.readInt(Long.MinValue)(using unsafeEvidence)
+  val i = source.readInt(Long.MinValue)
   // ... unboxed, fast path
 } else {
   val o = reader.read(EndOfStream)  // generic boxed path
