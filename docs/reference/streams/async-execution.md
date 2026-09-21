@@ -574,7 +574,7 @@ A failure inside a finalizer is a defect, and if the stream had already failed, 
 
 ## How This Is Verified
 
-The asynchronous execution path is covered by three-way differential equivalence: for each generated program, the *ready* execution, the *suspended* execution, and an independent reference model must agree. The three-way agreement check itself compares the result and the materialized reader kind; every run additionally records failure provenance, throwable order, demand, callbacks, ownership, outstanding resources, and suppressed exceptions as observations, which hand-written scenarios assert against directly. Duplicate, late, and reentrant callbacks are injected deliberately as faults, so the properties above are checked against a source that misbehaves on purpose.
+The asynchronous execution path is covered by three-way differential equivalence: for each generated program, the *ready* execution, the *suspended* execution, and an independent reference model must agree on the result and on the materialized reader kind. The generated campaign is frozen at a fixed seed, and a separate sweep runs every physical lane against every logical terminal. A production run records only demand and callback counts; failure provenance, throwable order, ownership transitions, outstanding resources, epoch, and suppressed exceptions are computed by the reference model, and a hand-written scenario asserts them against it — that scenario is also the only one carrying a non-empty fault script, injecting a throw and a late close.
 
 :::note[On allocation figures]
 Near-zero allocation numbers observed for this path are profiler noise, not a promise. An allocation profiler is required before claiming that any particular stream program allocates nothing.

@@ -39,7 +39,7 @@ Imagine you're building a data pipeline where a producer feeds items to a bounde
 
 With Java's `OutputStream`, you call `write()` and either it succeeds (void return) or throws an exception. This leaves ambiguity: Was the exception transient (try again later) or permanent (the stream is done)? If the buffer fills, the thread blocks—but you don't know how long, or even that it will block beforehand. There's no way to check capacity upfront, so you're forced to either over-allocate buffers (wasting memory) or catch exceptions and guess the right strategy.
 
-`Writer` makes the state explicit and non-throwing. You check readiness with `writeable()`, then push with `write()`, which returns a `Boolean` indicating success or closure. The protocol is clear and exception-free: when `write()` returns `false`, the sink is permanently closed and you should stop.
+`Writer` makes the state explicit and non-throwing. You check readiness with `writeable()`, then push with `write()`, which returns a `Boolean` indicating success or closure. The protocol is explicit: when `write()` returns `false`, the sink is permanently closed and you should stop. It is not exception-free, though — a writer closed with `fail` may throw the stored error on a subsequent `write()`.
 
 ## Quick Showcase
 
@@ -94,7 +94,7 @@ println(s"Third write: ${w.write(77)}")      // false (still closed)
 
 ## Asynchronous Writes
 
-Every effectful member of `Writer` has a deferred mirror whose name ends in `Async` and whose result is an `Async`. There are sixteen of them, one per synchronous member, and together they are the entire asynchronous surface of the type.
+Every effectful member of `Writer` has a deferred mirror whose name ends in `Async` and whose result is an `Async`. There are sixteen of them, and together they are the entire asynchronous surface of the type; the structural combinators `concat` and `contramap` are deliberately outside it.
 
 A mirror does one thing. It wraps a single synchronous call in an effect that has not happened yet: constructing `writer.writeAsync(42)` performs no write at all, and driving the returned effect performs `write(42)` exactly once and yields its `Boolean`. All sixteen are `final` and delegate to one private helper, which builds them on the library's internal cancellable-defer primitive `Async.deferCancelable` (`Writer.scala:57`).
 
@@ -162,7 +162,7 @@ The structural combinators `concat` and `contramap` have no mirrors, and that is
 The default `writeable()` method returns `!isClosed`—it only tells you if the writer is closed, not whether the buffer has space. Bounded implementations can override `writeable()` to reflect remaining capacity, but this is not guaranteed by the interface. The important distinction:
 
 - **`writeable()` returns `false`**: the writer is closed (permanent state)
-- **`writeable()` returns `true` but `write()` would block**: the buffer is full but not closed. What happens next is implementation-defined: a writer backed by a bounded buffer may block the calling thread until space becomes available, while the writers in this library instead auto-close and return `false`.
+- **`writeable()` returns `true` but `write()` would block**: the buffer is full but not closed. What happens next is implementation-defined: a writer backed by a bounded buffer may block the calling thread until space becomes available, while the buffer-backed writers in this library instead auto-close and return `false`.
 
 The writers behind `NioWriters.fromByteBuffer` and its typed variants auto-close when the buffer fills, turning the full state into closure. A writer you implement yourself may instead block indefinitely waiting for space.
 
@@ -350,7 +350,7 @@ println(s"Remaining: $remaining")  // Chunk(2, 3)
 
 ### Specialized Writes
 
-For primitive types, specialized write methods avoid boxing by using subtype witnesses.
+For primitive types, specialized write methods take a subtype witness so that a writer backed by that primitive can override them and write the value without going through the generic `write`. The default bodies delegate to `write(value.asInstanceOf[Elem])`, so a writer that does not override them gains nothing.
 
 `writeInt` — Specialized `Int` write. Requires implicit evidence that `Int` is a subtype of `Elem`:
 
@@ -436,7 +436,7 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`writeable` — Returns `true` if the next `write()` would accept a value without blocking (space is available and the writer is not closed). Default returns `!isClosed`. Buffered writers override for accuracy. Note the spelling: it is `writeable()`, not `writable()`; `Reader`'s counterpart is `readable()`.
+`writeable` — Returns `true` if the next `write()` would accept a value without blocking (space is available and the writer is not closed). Default returns `!isClosed`. A writer backed by a bounded buffer can override it for accuracy; none of the writers in this library does. Note the spelling: it is `writeable()`, not `writable()`; `Reader`'s counterpart is `readable()`.
 
 ```scala
 abstract class Writer[-Elem] {
