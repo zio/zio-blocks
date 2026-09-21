@@ -16,7 +16,7 @@ keywords:
 `Sink`:
 - Is covariant in `E` (error) and `Z` (result) — these are outputs
 - Is contravariant in `A` (input) — a `Sink[_, Any, _]` accepts any element type
-- Participates in JVM primitive specialization for zero-boxing overhead
+- Dispatches on the reader's physical primitive lane, so element pulls avoid boxing
 - Provides `Sink#contramap`, `Sink#map`, and `Sink#mapError` for composable transformations
 
 Built-in sinks implement both drain paths. Asynchronous constructors include `existsAsync`, `findAsync`, `forallAsync`, `foreachAsync`, and `foldLeftAsync`; callbacks are sequential and back-pressured. The result/error combinators `contramapAsync`, `mapAsync`, and `mapErrorAsync` likewise select the native async drain when used by `runAsync`. On the JVM, driving such a sink through a plain blocking terminal blocks while awaiting its async drain; Scala.js has no blocking terminal.
@@ -59,9 +59,9 @@ When you call `stream.run(sink)`:
 
 A sink consumes either kind of reader. `Reader` is not one type with a mode flag: it splits into `Reader.SyncReader[A]`, whose pulls return values, and `Reader.AsyncReader[A]`, whose pulls return [`Async`](../async.md) values. [The reader union](./reader.md#the-reader-union) describes the split from the reader's side. From the sink's side, the consequence is that every sink is drained through one of two entry points, and the terminal decides which — the next section covers that choice.
 
-Whichever kind arrives, a sink discovers its input representation from the materialized reader's `jvmType`, not from the sink's contravariant static input type. Generic sinks dispatch once per drain and then pull `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, and `Double` through `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLongs`, `readFloat`, and `readDoubles`, respectively. Reference inputs use generic `read`. In particular, the four small primitive lanes do not share the `Int` pull.
+Whichever kind arrives, a sink discovers its input representation from the materialized reader's `jvmType`, not from the sink's contravariant static input type. Generic sinks dispatch once per drain and then pull `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, and `Double` through the library-internal physical pulls `readBooleanPhysical`, `readBytePhysical`, `readCharPhysical`, `readShortPhysical`, `readIntPhysical`, `readLongsPhysical`, `readFloatPhysical`, and `readDoublesPhysical`, respectively — the internal counterparts of the public `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLongs`, `readFloat`, and `readDoubles`, which a generic sink cannot call because they demand `Elem <:< X` evidence it has no way to supply. Reference inputs use generic `read`. In particular, the four small primitive lanes do not share the `Int` pull.
 
-`Long` and `Double` use one-element primitive arrays with `readLongs(..., length = 1)` and `readDoubles(..., length = 1)`. The returned count carries end-of-stream status out of band, so every `Long` value and every raw `Double` bit pattern—including NaN payloads—remains valid data. The scratch storage is allocated once per drain, not once per element.
+`Long` and `Double` use one-element primitive arrays with `readLongsPhysical(one, 0, 1)` and `readDoublesPhysical(one, 0, 1)`. The returned count carries end-of-stream status out of band, so every `Long` value and every raw `Double` bit pattern—including NaN payloads—remains valid data. The scratch storage is allocated once per drain, not once per element.
 
 The reader owns this physical representation. Consequently, widening a specialized stream (for example, from `Stream[Nothing, Int]` to `Stream[Nothing, AnyVal]`) does not erase its `Int` lane before it reaches a sink. A sink adapter preserves the wrapped reader's lane and forwards every exact pull method. It also preserves ownership: the run terminal owns and closes the materialized reader; a sink or sink adapter does not independently close it. External destinations supplied to I/O sinks remain caller-owned unless a constructor explicitly says otherwise.
 
@@ -123,7 +123,7 @@ Each factory fills in the drain you did not write:
 | `Sink.createBoth`  | one synchronous, one asynchronous | JVM and Scala.js | the synchronous path can be cheaper than the asynchronous one        |
 | `Sink.create`      | one synchronous                   | JVM only         | the sink is JVM-only anyway and its callback wants a blocking reader |
 
-`Sink.createAsync` writes the synchronous drain for you by awaiting the asynchronous one at a JVM blocking terminal. `Sink.create` writes the asynchronous drain for you by running the blocking callback on the blocking executor, where cancellation closes the reader. `Sink.createBoth` writes neither: it takes two independent callbacks and the terminal runs exactly one, so the two must agree on how much input they consume and what they produce — nothing compares their results.
+`Sink.createAsync` writes the synchronous drain for you by awaiting the asynchronous one at a JVM blocking terminal. `Sink.create` writes the asynchronous drain for you by deferring the blocking callback into a cancellable effect, where cancellation closes the reader — the callback still runs inline on whichever thread drives that effect, so an asynchronous terminal driving a `Sink.create` sink blocks that thread for the duration of the callback. `Sink.createBoth` writes neither: it takes two independent callbacks and the terminal runs exactly one, so the two must agree on how much input they consume and what they produce — nothing compares their results.
 
 :::warning[`Sink.create` does not exist on Scala.js]
 It is declared in the JVM copy of `SinkCompanionPlatformSpecific` and simply absent from the Scala.js copy, so cross-built code that calls it fails to compile for the JS target rather than failing at runtime. [`Sink.create` and Custom Sinks](./platform-differences.md#sinkcreate-and-custom-sinks) states the platform rule.
@@ -770,7 +770,7 @@ object NioSinks {
 
 **`NioSinks.fromByteBuffer` and typed variants** — Write primitive streams directly into a pre-allocated NIO ByteBuffer:
 - `NioSinks.fromByteBuffer` — writes individual `Byte` elements.
-- `NioSinks.fromByteBufferInt`, `NioSinks.fromByteBufferLong`, `NioSinks.fromByteBufferFloat`, `NioSinks.fromByteBufferDouble` — write primitives directly using the buffer's native methods (`putInt`, `putLong`, etc.). These avoid boxing and are faster than the byte variant.
+- `NioSinks.fromByteBufferInt`, `NioSinks.fromByteBufferLong`, `NioSinks.fromByteBufferFloat`, `NioSinks.fromByteBufferDouble` — write primitives directly using the buffer's native methods (`putInt`, `putLong`, etc.), one buffer write per element rather than one per byte.
 
 Here's an example using ByteBuffer with typed primitive writes:
 
@@ -796,7 +796,7 @@ val readBack = List(
 )
 ```
 
-This example allocates a 32-byte buffer (4 Longs × 8 bytes each), writes four `Long` values using `NioSinks.fromByteBufferLong` (which efficiently calls `putLong` on each element), then rewinds and reads them back to verify. The typed variant is significantly faster than `NioSinks.fromByteBuffer` because it operates at the primitive level — no boxing, no element-by-element byte writing.
+This example allocates a 32-byte buffer (4 Longs × 8 bytes each), writes four `Long` values using `NioSinks.fromByteBufferLong` (which calls `putLong` on each element), then rewinds and reads them back to verify. The typed variant writes one 8-byte buffer operation per element, where the byte variant would require the stream to carry each byte separately.
 
 The following example shows streaming voltage sensor readings through a calibration curve and buffering them for downstream computation. When processing sensor arrays or scientific measurements, pre-allocated buffers with typed sinks enable zero-copy batch processing.
 

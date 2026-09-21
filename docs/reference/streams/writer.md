@@ -162,9 +162,9 @@ The structural combinators `concat` and `contramap` have no mirrors, and that is
 The default `writeable()` method returns `!isClosed`—it only tells you if the writer is closed, not whether the buffer has space. Bounded implementations can override `writeable()` to reflect remaining capacity, but this is not guaranteed by the interface. The important distinction:
 
 - **`writeable()` returns `false`**: the writer is closed (permanent state)
-- **`writeable()` returns `true` but `write()` would block**: the buffer is full but not closed; bounded implementations block the calling thread until space becomes available (they don't return `false`)
+- **`writeable()` returns `true` but `write()` would block**: the buffer is full but not closed. What happens next is implementation-defined: a writer backed by a bounded buffer may block the calling thread until space becomes available, while the writers in this library instead auto-close and return `false`.
 
-Implementations like `ByteBufferWriter` auto-close when the buffer fills, turning the full state into closure. Others may block indefinitely waiting for space.
+The writers behind `NioWriters.fromByteBuffer` and its typed variants auto-close when the buffer fills, turning the full state into closure. Others may block indefinitely waiting for space.
 
 ## Error Handling
 
@@ -436,7 +436,7 @@ abstract class Writer[-Elem] {
 }
 ```
 
-`writeable` — Returns `true` if the next `write()` would accept a value without blocking (space is available and the writer is not closed). Default returns `!isClosed`. Buffered writers override for accuracy. Note: the analogous method on `Reader` is named `readable()`, not `writable()`.
+`writeable` — Returns `true` if the next `write()` would accept a value without blocking (space is available and the writer is not closed). Default returns `!isClosed`. Buffered writers override for accuracy. Note the spelling: it is `writeable()`, not `writable()`; `Reader`'s counterpart is `readable()`.
 
 ```scala
 abstract class Writer[-Elem] {
@@ -607,7 +607,7 @@ Understanding `Writer`'s design decisions helps you use it correctly and avoid c
 | **Direction**  | Source → Consumer (pull)   | Producer → Sink (push)  |
 | **Variance**   | Covariant (`+Elem`)        | Contravariant (`−Elem`) |
 | **Blocking**   | `read()` may block         | `write()` may block     |
-| **Signal end** | Returns sentinel or `null` | `close()` or `fail()`   |
+| **Signal end** | Caller-supplied sentinel, or a negative count from a bulk read | `close()` or `fail()`   |
 | **Dual**       | Sink drains Reader         | Producer feeds Writer   |
 
 ### Thread Safety
