@@ -1413,7 +1413,7 @@ Avoid holding references to a `SyncReader` obtained via `Stream#start` outside i
 
 ## Integration with Sink
 
-`Reader` and `Sink` are dual: `Reader` is the source, and `Sink` is the consumer. A terminal compiles the stream to the reader kind required by the graph and gives ownership of that reader to the sink. On the JVM, plain terminals such as `run` use the blocking `SyncReader` path when the graph is synchronous and bridge genuine asynchronous boundaries at the final edge. Cross-platform `runAsync` drains an `AsyncReader` without blocking. Both terminal families close the owned reader on success, typed failure, defect, or cancellation.
+`Reader` and `Sink` are dual: `Reader` is the source, and `Sink` is the consumer. A terminal compiles the stream to the reader kind required by the graph, hands that reader to the sink's drain, and retains ownership of it. On the JVM, plain terminals such as `run` use the blocking `SyncReader` path when the graph is synchronous and bridge genuine asynchronous boundaries at the final edge. Cross-platform `runAsync` drains an `AsyncReader` without blocking. Both terminal families close the owned reader on success, typed failure, defect, or cancellation.
 
 The sink repeatedly pulls from its reader until end-of-stream, transforming the sequence of elements into a result of type `Z`. This kind-selected drain is an implementation detail; callers choose it through `run` or `runAsync` rather than invoking a sink drain method directly.
 
