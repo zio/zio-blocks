@@ -533,7 +533,7 @@ val result = effect.runDrain
 
 #### `Stream.defer[A]`
 
-Defers the execution of a side effect until the stream is run:
+Creates an empty stream that lazily registers `f` as a release action. `f` runs exactly once when each materialization closes, including after failure, early termination, or cancellation; exceptions are defects:
 
 ```scala
 object Stream {
@@ -541,12 +541,12 @@ object Stream {
 }
 ```
 
-Defer side effects until the stream executes:
+Register a release action that runs when the stream closes:
 
 ```scala mdoc:reset
 import zio.blocks.streams.*
 
-val deferred = Stream.defer(println("Effect runs when stream executes"))
+val deferred = Stream.defer(println("Release action runs when the stream closes"))
 val result = deferred.runDrain
 ```
 
