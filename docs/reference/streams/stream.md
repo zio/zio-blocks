@@ -582,7 +582,7 @@ Reads bytes from a Java `InputStream`, managing the resource:
 
 ```scala
 object Stream {
-  def fromInputStream(is: java.io.InputStream): Stream[java.io.IOException, Int]
+  def fromInputStream(is: java.io.InputStream): Stream[java.io.IOException, Byte]
 }
 ```
 
@@ -624,7 +624,7 @@ Reads bytes from a Java `InputStream` without automatic resource management. The
 
 ```scala
 object Stream {
-  def fromInputStreamUnmanaged(is: java.io.InputStream): Stream[java.io.IOException, Int]
+  def fromInputStreamUnmanaged(is: java.io.InputStream): Stream[java.io.IOException, Byte]
 }
 ```
 
@@ -700,7 +700,7 @@ Transforms typed errors without affecting elements:
 
 ```scala
 trait Stream[+E, +A] {
-  inline def mapError[E2](f: E => E2): Stream[E2, A]
+  def mapError[E2](f: E => E2): Stream[E2, A]
 }
 ```
 
@@ -807,7 +807,7 @@ This operator is also catalogued with the rest of the sequential asynchronous fa
 
 #### `Stream#scan[S]`
 
-Like `mapAccum`, but also emits the state at each step (not the mapped value):
+Like `mapAccum`, but emits the accumulator rather than a mapped value, starting with `init` — so the output stream has one more element than the input:
 
 ```scala
 trait Stream[+E, +A] {
@@ -849,11 +849,14 @@ val balances = amounts.scanAsync(0L)((balance, amount) => Async.succeed(balance 
 
 ### Flat-Mapping (Nested Streams)
 
-`flatMap[E2, B]` — Maps each element to a stream and flattens the results.:
+`flatMap[E2, E3, B]` — Maps each element to a stream and flattens the results.:
 
 ```scala
 trait Stream[+E, +A] {
-  def flatMap[E2, B](f: A => Stream[E2, B]): Stream[E | E2, B]
+  def flatMap[E2, E3, B](f: A => Stream[E2, B])(implicit
+    errorConcat: Concat.WithOut[E, E2, E3],
+    jtB: JvmType.Infer[B]
+  ): Stream[E3, B]
 }
 ```
 
@@ -944,11 +947,15 @@ Streams can be sequentially concatenated, zipped together, or merged:
 
 ### Sequential Concatenation
 
-`++[E2, A2]` or `concat[E2, A2]` — Emits all elements of the first stream, then all elements of the second stream:
+`++[E2, E3, A2, A3]` or `concat[E2, E3, A2, A3]` — Emits all elements of the first stream, then all elements of the second stream:
 
 ```scala
 trait Stream[+E, +A] {
-  def ++[E2, A2](that: Stream[E2, A2]): Stream[E | E2, A | A2] = concat(that)
+  final def ++[E2, E3, A2, A3](that: Stream[E2, A2])(implicit
+    errorConcat: Concat.WithOut[E, E2, E3],
+    valueConcat: Concat.WithOut[A, A2, A3],
+    jtA3: JvmType.Infer[A3]
+  ): Stream[E3, A3] = concat(that)
 }
 ```
 
@@ -1441,7 +1448,7 @@ Emits only unique elements (using a mutable `HashSet` internally):
 
 ```scala
 trait Stream[+E, +A] {
-  def distinct(implicit jtA: JvmType.Infer[A]): Stream[E, A]
+  def distinct: Stream[E, A]
 }
 ```
 
@@ -1461,7 +1468,7 @@ Emits only elements whose key (computed by `f`) has not been seen before:
 
 ```scala
 trait Stream[+E, +A] {
-  def distinctBy[K](f: A => K)(implicit jtA: JvmType.Infer[A]): Stream[E, A]
+  def distinctBy[K](f: A => K): Stream[E, A]
 }
 ```
 
@@ -1571,11 +1578,14 @@ The same entry appears in [Async Operators](./async-execution.md#streamtakewhile
 
 ### Interspersing
 
-`intersperse[A1 >: A]` — Inserts a separator value between every two elements.:
+`intersperse[A2, A3]` — Inserts a separator value between every two elements.:
 
 ```scala
 trait Stream[+E, +A] {
-  def intersperse[A1 >: A](sep: A1): Stream[E, A1]
+  def intersperse[A2, A3](sep: A2)(implicit
+    valueConcat: Concat.WithOut[A, A2, A3],
+    jtA3: JvmType.Infer[A3]
+  ): Stream[E, A3]
 }
 ```
 
@@ -1591,7 +1601,7 @@ val result = separated.runCollect
 
 ### Repeating
 
-`repeated` — Repeats each element once, then emits the entire stream again, repeatedly.:
+`repeated` — Rematerializes the stream after each clean completion, emitting the whole sequence again indefinitely. A typed error or a defect terminates the repetition.:
 
 ```scala
 trait Stream[+E, +A] {
@@ -1615,7 +1625,7 @@ val result = repeated.runCollect
 
 ```scala
 trait Stream[+E, +A] {
-  def tapEach(f: A => Unit)(implicit jtA: JvmType.Infer[A]): Stream[E, A]
+  def tapEach(f: A => Unit): Stream[E, A]
 }
 ```
 
@@ -2195,7 +2205,7 @@ val result = positives.runCollect
 A `Sink[+E, -A, +Z]` is a consumer of elements of type `A` that produces a result `Z` or fails with `E`. Sinks are contravariant in `A` (they can accept a supertype of what they expect). Common sinks include:
 
 - `Sink.collectAll: Sink[Nothing, A, Chunk[A]]` — collects all elements
-- `Sink.drain: Sink[Nothing, A, Unit]` — discards all elements
+- `Sink.drain: Sink[Nothing, Any, Unit]` — discards all elements
 - `Sink.count: Sink[Nothing, Any, Long]` — counts elements
 - `Sink.foldLeft: Sink[Nothing, A, Z]` — folds elements with an accumulator
 - `Sink.head: Sink[Nothing, A, Option[A]]` — takes the first element
