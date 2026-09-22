@@ -14,7 +14,7 @@ sbt --client shutdown 2>/dev/null; pkill -f sbt 2>/dev/null; rm -rf .bsp project
 
 ### Documentation Skills
 
-Write docs with the ZIO documentation skills, never by hand. Install:
+Write docs with the ZIO documentation skills. Install:
 
 ```bash
 BASE=https://github.com/zio/zio-skills/tree/main/plugins/documentation/skills
