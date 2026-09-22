@@ -162,7 +162,7 @@ const sidebars = {
          },
           {
             type: "category",
-            label: "ZIO Blocks HTTP Model",
+            label: "HTTP Model",
             link: { type: "doc", id: "reference/http-model/index" },
             items: [
               "reference/http-model/model",
@@ -174,7 +174,7 @@ const sidebars = {
           },
           {
             type: "category",
-            label: "ZIO Blocks Endpoint",
+            label: "Endpoint",
             link: { type: "doc", id: "reference/endpoint/index" },
             items: [
               "reference/endpoint/endpoint",
