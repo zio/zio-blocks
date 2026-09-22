@@ -93,7 +93,7 @@ object Mux {
 }
 ```
 
-### Core operations
+### Core Operations
 
 - `open(id)` opens a new stream
 - `get(id)` looks up an active stream
@@ -101,7 +101,7 @@ object Mux {
 - `closeAll(reason)` closes every active stream
 - `activeCount` reports how many streams are open
 
-### Per-stream operations
+### Per-stream Operations
 
 - `send(msg)` queues outbound data for the protocol layer
 - `receive()` reads inbound data for user code
@@ -124,7 +124,7 @@ Error cases:
 
 ## Examples
 
-### Basic usage
+### Basic Usage
 
 Scala 3:
 
@@ -162,7 +162,7 @@ mux.open(1) match {
 }
 ```
 
-### HTTP/2-style multiplexing
+### HTTP/2-style Multiplexing
 
 ```scala
 import zio.blocks.mux.*
@@ -192,7 +192,7 @@ mux.open(7) match {
 
 In Scala 2, pattern match on `Right(stream)` / `Left(err)` instead.
 
-### Half-close lifecycle
+### Half-close Lifecycle
 
 ```scala
 import zio.blocks.mux.*
@@ -216,7 +216,7 @@ mux.open(1) match {
 
 Scala 2 returns `Left(MuxError.StreamClosed(1))` for the final `send`.
 
-### Graceful shutdown
+### Graceful Shutdown
 
 ```scala
 import zio.blocks.mux.*
@@ -247,3 +247,8 @@ Half-close models the usual protocol lifecycle:
 - JVM: `VarHandle` CAS for stream state transitions
 - JS: `ArrayDeque` fallback
 - No `synchronized`, so it stays friendly to virtual threads
+
+## See Also
+
+- [Streams](streams/index.md) -- the pull-based `Stream`, `Reader`, `Sink`, and `Writer` module. `Mux` is not built on it, but the two are the same concurrency-infrastructure family, and a stream per multiplexed channel is the natural pairing when you are coordinating many keyed streams over one transport.
+- [Async Execution](streams/execution-and-compatibility/async-execution.md) -- how a stream runs without blocking, which is what you want on each side of a `Mux` channel.

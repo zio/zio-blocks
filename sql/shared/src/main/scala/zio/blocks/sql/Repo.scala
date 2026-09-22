@@ -54,10 +54,11 @@ import zio.blocks.maybe.Maybe
  * ==Identifier quoting==
  * Every identifier this repository renders — table and column names in
  * `SELECT`/`INSERT`/`UPDATE`/`DELETE` and in the `IN`-list prefixes — is
-  * validated and wrapped in standard double quotes, matching
-  * `zio.blocks.sql.query.QueryRenderer` and the query IR (`zio.blocks.sql.query.SqlQuery`). Both
-  * dialects (`PostgreSQL`, `SQLite`) accept double-quoted identifiers, so there
-  * is no per-dialect quoting exception anywhere on these paths.
+ * validated and wrapped in standard double quotes, matching
+ * `zio.blocks.sql.query.QueryRenderer` and the query IR
+ * (`zio.blocks.sql.query.SqlQuery`). Both dialects (`PostgreSQL`, `SQLite`)
+ * accept double-quoted identifiers, so there is no per-dialect quoting
+ * exception anywhere on these paths.
  */
 abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
 
