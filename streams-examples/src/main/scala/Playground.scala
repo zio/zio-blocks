@@ -1,3 +1,1 @@
-object Playground {
-
-}
+object Playground {}
