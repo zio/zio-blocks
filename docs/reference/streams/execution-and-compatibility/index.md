@@ -10,26 +10,26 @@ keywords:
 sidebar_label: "Execution and Compatibility"
 ---
 
-[Core Types](../core/index.md) documents the descriptions you write — `Stream`, `Pipeline`, `Sink` — and [Low-Level Primitives](../primitives/index.md) documents the `Reader` and `Writer` machinery those descriptions compile into. This section is about neither: it's the four cross-cutting concerns that apply once a description starts running — how a stream actually executes on a callback or by blocking, how it represents its elements at runtime, and what differs depending on which platform or Scala version compiles it. None of the four adds a new type to compose with; each explains a dimension that cuts across every `Stream`, `Pipeline`, and `Sink` you already have.
+[Core Types](../core/index.md) covers the descriptions you write and [Low-Level Primitives](../primitives/index.md) the machinery they compile into. This section covers neither: four concerns that cut across every `Stream`, `Pipeline`, and `Sink` once one starts running. None adds a type to compose with.
 
 ## Asynchronous Stream Execution
 
-[Asynchronous Stream Execution](./async-execution.md) answers how one `Stream[E, A]` type describes both synchronous and asynchronous pipelines, with no second stream type, mode parameter, or annotation to track which one you're building. Read it when you need the async source constructors, the element-level async operators, the `*Async` terminal family, or the rules around cancellation and resource ownership for an asynchronously-driven stream.
+[Asynchronous Stream Execution](./async-execution.md) — how one `Stream[E, A]` describes both synchronous and asynchronous pipelines, with no second type or mode parameter to track. Covers the async constructors, operators, and `*Async` terminals, plus cancellation and resource ownership.
 
 ## Zero-Boxing Optimization
 
-[Zero-Boxing Optimization](./zero-boxing.md) answers how the library dispatches on a primitive element type to select a physical lane for synchronous interpretation, and how each lane signals end of stream. Read it when you're working with streams of `Int`, `Long`, `Double`, or the other primitive types and want to understand how lane selection works and where it does and doesn't apply — not as a benchmark, but as a structural explanation of the dispatch mechanism.
+[Zero-Boxing Optimization](./zero-boxing.md) — how the library dispatches on a primitive element type to select a physical lane, and how each lane signals end of stream. A structural account of the dispatch mechanism, not a benchmark.
 
 ## Platform Differences: JVM and Scala.js
 
-[Platform Differences](./platform-differences.md) answers which members exist only on the JVM, which are cross-platform, and what to write instead when a blocking terminal isn't available on Scala.js. Read it before cross-building code against streams, or when a Scala.js compile fails on a member that works fine on the JVM.
+[Platform Differences](./platform-differences.md) — which members are JVM-only, which are cross-platform, and what to write instead when a blocking terminal is unavailable on Scala.js. Read it before cross-building.
 
 ## Scala 2 Compatibility Design Note
 
-[Scala 2 Compatibility Design Note](./scala-2-compatibility.md) answers why streams supports Scala 2.13 at all, the hot-path constraint that ruled out an obvious compatibility approach, and why the Scala 2 and Scala 3 sources are shared rather than split. Read it if you're touching version-specific code in `Stream` or `Sink`, or want to understand the trade-offs behind the current source layout.
+[Scala 2 Compatibility Design Note](./scala-2-compatibility.md) — why streams supports Scala 2.13, the hot-path constraint that shaped the approach, and why the two versions share sources rather than splitting them.
 
 ## See Also
 
-- [Streams Reference](../index.md) — module overview and how all three sections fit together
-- [Core Types](../core/index.md) — `Stream`, `Pipeline`, and `Sink`, the descriptions this section explains the execution of
-- [Low-Level Primitives](../primitives/index.md) — `Reader` and `Writer`, the cursors those descriptions compile into
+- [Streams Reference](../index.md) — module overview
+- [Core Types](../core/index.md) — `Stream`, `Pipeline`, and `Sink`
+- [Low-Level Primitives](../primitives/index.md) — `Reader` and `Writer`
