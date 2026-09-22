@@ -14,20 +14,36 @@ sbt --client shutdown 2>/dev/null; pkill -f sbt 2>/dev/null; rm -rf .bsp project
 
 ### Documentation Skills
 
-Documentation is written with the shared ZIO documentation skills, not ad hoc. Install them once:
+Documentation is written with the shared ZIO documentation skills from [zio/zio-skills](https://github.com/zio/zio-skills), not ad hoc. That repo publishes two plugins — `zio-skills` (building ZIO/ZIO HTTP apps) and `documentation` (writing docs). **This repo needs `documentation`.**
 
 ```bash
-# Claude Code
+# Claude Code — marketplace first, then the documentation plugin
 claude plugin marketplace add zio/zio-skills
 claude plugin install documentation@ziogenetics
 ```
 
+Other agents install the repo as a whole (both plugins; use the documentation skills from it):
+
 ```bash
-# Other agents
-npx skills add zio/zio-skills
+# Gemini CLI
+gemini extensions install https://github.com/zio/zio-skills
+
+# Codex — Skill Installer, or clone into the skills directory
+$skill-installer zio/zio-skills
+git clone https://github.com/zio/zio-skills.git ~/.agents/skills/zio-skills
 ```
 
-That pulls in the whole documentation skill set — research, planning, drafting, runnable examples, review, and site integration. Reach for it whenever a change needs docs; it encodes the page structure, fact-checking discipline, and mdoc conventions this repo expects, which a hand-rolled page will not.
+```bash
+# Cursor
+/add-plugin zio-skills
+```
+
+```json
+// OpenCode — opencode.json
+{ "plugin": ["zio-skills@git://github.com/zio/zio-skills.git"] }
+```
+
+The skills cover research, planning, drafting, runnable examples, review, and site integration — `/docs-data-type-ref`, `/docs-how-to-guide`, and friends. Reach for them whenever a change needs docs; they encode the page structure, fact-checking discipline, and mdoc conventions this repo expects, which a hand-rolled page will not. Check [the upstream README](https://github.com/zio/zio-skills#installation) for the current install matrix.
 
 ## Policies
 
