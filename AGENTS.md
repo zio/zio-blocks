@@ -12,6 +12,23 @@ If `sbt --client` is causing trouble, try:
 sbt --client shutdown 2>/dev/null; pkill -f sbt 2>/dev/null; rm -rf .bsp project/target/active.json project/target/.sbt-server-connection.json
 ```
 
+### Documentation Skills
+
+Documentation is written with the shared ZIO documentation skills, not ad hoc. Install them once:
+
+```bash
+# Claude Code
+claude plugin marketplace add zio/zio-skills
+claude plugin install documentation@ziogenetics
+```
+
+```bash
+# Other agents
+npx skills add zio/zio-skills
+```
+
+That pulls in the whole documentation skill set — research, planning, drafting, runnable examples, review, and site integration. Reach for it whenever a change needs docs; it encodes the page structure, fact-checking discipline, and mdoc conventions this repo expects, which a hand-rolled page will not.
+
 ## Policies
 
 - [Symbolic Operator Policy](SYMBOLIC_OPS_POLICY.md) — Rules for when symbolic operators are allowed in APIs. Consult before adding or reviewing any symbolic method.
@@ -134,6 +151,7 @@ When waiting on PR checks, suppress watch output to avoid context bloat:
 - Update AGENTS.md if you find errors or gaps
 - In the middle of executing a skill, if you discover a deviation from the skill's instructions, encounter missing information or unclear guidance, or discover a better approach than what was written, update that skill file to reflect what you learned.
 - Treat docs as part of the change: new data type, new feature, API change, or API removal isn't done until its `docs/` page(s) match
+- Write those docs with the [documentation skills](#documentation-skills) from the `zio/zio-skills` marketplace. Every feature and bugfix PR that touches `docs/` goes through them — install them if they are missing rather than drafting a page by hand
 - **README.md is auto-generated.** Never edit `README.md` directly. Edit `docs/index.md` instead, then run `sbt --client docs/generateReadme` to regenerate `README.md`. (The `generateReadme` task is provided by `WebsitePlugin` on the `docs` project; running it unscoped at the root fails with "Not a valid command".)
   - **Caveat — manually-maintained sections.** `generateReadme` runs mdoc and only emits sections whose code can compile against the `docs` project's `dependsOn` classpath. Modules **not** in `docs`' `dependsOn` (e.g. `config` and its adapters) cannot be mdoc-generated, so their README section is maintained by hand (raw-pasted into README, see the Config section added in #1426). A fresh `generateReadme` will silently **drop** such sections. After regenerating, diff against `origin/main` and re-insert any manually-maintained section (currently only `## Config`, which sits between `## The Blocks` and `## Core Principles`) so you don't regress it.
 
