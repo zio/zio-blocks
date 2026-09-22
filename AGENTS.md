@@ -14,31 +14,12 @@ sbt --client shutdown 2>/dev/null; pkill -f sbt 2>/dev/null; rm -rf .bsp project
 
 ### Documentation Skills
 
-Documentation is written with the shared ZIO documentation skills, not ad hoc. Install these six — not the whole plugin:
-
-| Skill | Use it for |
-|---|---|
-| `docs-document-pr` | Documenting the change a PR makes |
-| `docs-data-type-ref` | A reference page for one data type |
-| `docs-module-ref` | A reference page for a whole module |
-| `docs-companion-examples` | The runnable example files a page embeds |
-| `docs-writing-style` | Prose, headings, and structure conventions |
-| `docs-mdoc-conventions` | `mdoc` fence modifiers and compiled snippets |
+Write docs with the ZIO documentation skills, never by hand. Install:
 
 ```bash
 BASE=https://github.com/zio/zio-skills/tree/main/plugins/documentation/skills
-npx skills add \
-  $BASE/docs-document-pr \
-  $BASE/docs-data-type-ref \
-  $BASE/docs-module-ref \
-  $BASE/docs-companion-examples \
-  $BASE/docs-writing-style \
-  $BASE/docs-mdoc-conventions
+npx skills add $BASE/docs-{document-pr,data-type-ref,module-ref,companion-examples,writing-style,mdoc-conventions}
 ```
-
-Claude Code can use the same command. `claude plugin marketplace add zio/zio-skills` followed by `claude plugin install documentation@ziogenetics` also works, but installs the entire documentation plugin rather than this subset.
-
-Reach for these whenever a change needs docs; they encode the page structure, fact-checking discipline, and mdoc conventions this repo expects, which a hand-rolled page will not.
 
 ## Policies
 
@@ -162,7 +143,7 @@ When waiting on PR checks, suppress watch output to avoid context bloat:
 - Update AGENTS.md if you find errors or gaps
 - In the middle of executing a skill, if you discover a deviation from the skill's instructions, encounter missing information or unclear guidance, or discover a better approach than what was written, update that skill file to reflect what you learned.
 - Treat docs as part of the change: new data type, new feature, API change, or API removal isn't done until its `docs/` page(s) match
-- Write those docs with the [documentation skills](#documentation-skills) from `zio/zio-skills`. Every feature and bugfix PR that touches `docs/` goes through them — install them if they are missing rather than drafting a page by hand
+- Use the [documentation skills](#documentation-skills) for every docs change
 - **README.md is auto-generated.** Never edit `README.md` directly. Edit `docs/index.md` instead, then run `sbt --client docs/generateReadme` to regenerate `README.md`. (The `generateReadme` task is provided by `WebsitePlugin` on the `docs` project; running it unscoped at the root fails with "Not a valid command".)
   - **Caveat — manually-maintained sections.** `generateReadme` runs mdoc and only emits sections whose code can compile against the `docs` project's `dependsOn` classpath. Modules **not** in `docs`' `dependsOn` (e.g. `config` and its adapters) cannot be mdoc-generated, so their README section is maintained by hand (raw-pasted into README, see the Config section added in #1426). A fresh `generateReadme` will silently **drop** such sections. After regenerating, diff against `origin/main` and re-insert any manually-maintained section (currently only `## Config`, which sits between `## The Blocks` and `## Core Principles`) so you don't regress it.
 
