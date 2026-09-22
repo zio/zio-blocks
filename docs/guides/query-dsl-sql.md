@@ -754,7 +754,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 val table: Table[User] = Table.derived[User]
 val user = User(42, "Alice", "alice@example.com")
 
-// INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING
+// INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING
 val frag: Frag = Upsert.insertDoNothing(table, user, conflictColumn = "id")
 ```
 
@@ -771,7 +771,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 val table: Table[User] = Table.derived[User]
 val user = User(42, "Alice", "alice@example.com")
 
-// INSERT INTO user (id, name, email) VALUES (?, ?, ?)
+// INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?)
 //   ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?
 val frag: Frag = Upsert.insertDoUpdate(table, user, conflictColumn = "id")
 ```
@@ -879,7 +879,7 @@ val totalAffected: Int = repo.insertOrUpdateBatch(users)
 These generate SQL like:
 
 ```sql
-INSERT INTO user (id, name, email) VALUES (?, ?, ?)
+INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?)
   ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?
 ```
 
@@ -914,7 +914,7 @@ val nextPage: List[User]   = repo.pageAfter(cursorId = firstPage.last.id, limit 
 It renders as:
 
 ```sql
-SELECT id, name, email FROM user WHERE id > ? ORDER BY id ASC LIMIT 20
+SELECT "id", "name", "email" FROM "user" WHERE "id" > ? ORDER BY "id" ASC LIMIT 20
 ```
 
 where `?` is bound via `idCodec.toDbValues(cursorId)`. `limit` must be `> 0`.
@@ -966,7 +966,7 @@ val sql: String = pageFrag.sql(SqlDialect.SQLite) // SELECT id, name, email FROM
 
 ## Inspecting SQL
 
-The custom interpreter above produces raw strings useful for debugging. When you work with the `sql` module's built-in query builder (`zio.blocks.sql.SqlQuery`) or the query IR (`zio.blocks.sql.query.SqlQuery`), you get richer inspection APIs.
+The custom interpreter above produces raw strings useful for debugging. The `sql` module's query IR (`zio.blocks.sql.query.SqlQuery`) provides richer inspection APIs.
 
 ### explain(dialect): String
 
@@ -974,58 +974,50 @@ The `explain` method renders the full SQL text with numbered parameter placehold
 
 ```scala
 import zio.blocks.sql._
+import zio.blocks.sql.query.{Rel, SqlQuery => Select}
 
 val userTable = Table.derived[User]
 val repoTable = Table.derived[Repo]
 
-val q = SqlQuery
+val q = Select
   .from(userTable)
-  .join(repoTable, "id", "owner_id")
-  .where(userTable, "name", DbValue.DbString("alice"))
+  .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
+  .filter(Frag(IndexedSeq("""t0."name" = """, ""), IndexedSeq(DbValue.DbString("alice"))))
 
 println(q.explain(SqlDialect.PostgreSQL))
-// SELECT t0.id, t0.name, t1.id, t1.owner_id, t1.name FROM user t0 INNER JOIN repo t1 ON t0.id = t1.owner_id WHERE t0.name = ?1
+// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t1."owner_id" = t0."id" WHERE t0."name" = ?1
 // -- params: 1:String
 ```
 
-`explain` renders a single-line SQL string with numbered `?N` placeholders (backed by `SqlQuery.build`). The `?N`
+`explain` renders a single-line SQL string with numbered `?N` placeholders. The `?N`
 placeholders correspond one-to-one with the parameter list you can obtain separately via
-`statement(dialect).frag.params`. This makes `explain` useful for logging and visual debugging without touching a
+`toFrag(dialect).params`. This makes `explain` useful for logging and visual debugging without touching a
 database.
 
-### statement(dialect): SqlStatement
+### Inspecting the query IR
 
-The `statement` method returns a structured `SqlStatement` that decomposes the query into its constituent parts:
+The query itself is a case class, so every part is available programmatically:
 
 ```scala
-val st = q.statement(SqlDialect.PostgreSQL)
-
-st.source      // Source(table = "user", alias = "t0")
-st.joins       // Vector(Join(Inner, "repo", "t1", ColumnRef("t0","id"), ColumnRef("t1","owner_id")))
-st.filters     // Vector(Filter(ColumnRef("t0","name"), "=", DbValue.DbString("alice")))
-st.groupBy     // None
-st.orderBy     // Vector.empty
-st.limit       // None
-st.offset      // None
-st.toFrag      // Frag (re-renderable to SQL)
+q.source       // Table[User] for "user"
+q.joins        // Vector(JoinNode(repoTable, "t1", Inner, <on-frag>))
+q.filters      // Vector(Frag(t0."name" = ?, DbString(alice)))
+q.groupBy      // Vector.empty
+q.orderBy      // Vector.empty
+q.limit        // None
+q.offset       // None
+q.toFrag       // Frag (re-renderable to SQL via frag.sql(dialect))
 ```
 
-`SqlStatement` lets you inspect joins, filters, ordering, and limits programmatically. This is useful for building monitoring dashboards, query analyzers, or dynamic query modification layers.
+Inspecting the IR directly lets you examine joins, filters, ordering, and limits programmatically. This is useful for building monitoring dashboards, query analyzers, or dynamic query modification layers.
 
-### sql(dialect): String (Query IR)
+### sql(dialect): String
 
-The newer query IR (`zio.blocks.sql.query.SqlQuery`) provides a simpler `sql` method:
+The query IR also provides a simpler `sql` method that renders `?` placeholders for execution:
 
 ```scala
-import zio.blocks.sql.query._
-
-val q = SqlQuery
-  .from(userTable)
-  .innerJoin(userToRepo)
-  .filter(frag"""t0."name" = ${DbValue.DbString("alice")}""")
-
 println(q.sql(SqlDialect.PostgreSQL))
-// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t0."id" = t1."owner_id" WHERE t0."name" = $1
+// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t1."owner_id" = t0."id" WHERE t0."name" = ?
 ```
 
 ### previewSql() for Migrations
@@ -1060,7 +1052,7 @@ This gives you a dry run of the migration SQL before any schema changes are appl
 
 ## Compile-time SQL Dumps
 
-The `Dump` object emits SQL files at compile time. When the JVM property `zib.sql.dumpDir` is set, inline macro calls to `Dump.dumpTable`, `Dump.dump`, or `Dump.dumpQuery` write `.sql` files to that directory. When the property is absent, the calls become no-ops with zero runtime cost.
+The `Dump` object emits SQL files at compile time. When the JVM property `zib.sql.dumpDir` is set, inline macro calls to `Dump.dumpTable` or `Dump.dumpQuery` write `.sql` files to that directory. When the property is absent, the calls become no-ops with zero runtime cost.
 
 ### Enabling Dumps
 
@@ -1082,16 +1074,13 @@ Both approaches set the property on the sbt process, which is the same JVM that 
 
 ### Entry Points
 
-There are three inline macro entry points, all in `zio.blocks.sql.Dump`:
+There are two inline macro entry points, all in `zio.blocks.sql.Dump`:
 
 ```scala
 import zio.blocks.sql._
 
 // Dump a Table's CREATE TABLE DDL (both PostgreSQL and SQLite)
 Dump.dumpTable(userTable)
-
-// Dump a SqlQuery's SELECT (legacy builder)
-Dump.dump(userQuery)
 
 // Dump a query IR's SELECT
 Dump.dumpQuery(queryIr)
@@ -1111,7 +1100,7 @@ target/sql-dumps/
   repo-sqlite.sql
 ```
 
-For `dumpTable`, the owner comes from the `Table`'s type name. For `dump` and `dumpQuery`, the macro walks the call site to extract the enclosing method, val name, or argument name. If the macro cannot determine a meaningful name, it falls back to `query`.
+For `dumpTable`, the owner comes from the `Table`'s type name. For `dumpQuery`, the macro walks the call site to extract the enclosing method, val name, or argument name. If the macro cannot determine a meaningful name, it falls back to `query`.
 
 ### Content-hash Skip
 
