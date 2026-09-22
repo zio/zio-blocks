@@ -151,7 +151,7 @@ What a mirror does not do:
 A `Writer` whose `write` blocks still blocks when you drive its `*Async` mirror. The mirrors buy you deferral and a cancellation hook; they do not buy you a nonblocking writer. If you need writes that genuinely suspend rather than block, that is a different writer, not a different method on this one.
 :::
 
-Cancellation is cooperative and interrupts no thread, so the hook cannot abort a call already inside a blocking `write`. It calls `close()`, and that helps exactly when closing the writer is what releases the blocked call — which is true of a writer whose blocking wait is woken by closure, and false of one that ignores its own closed flag while parked. See [Running#cancel](../async.md#runningcancel) for what a cancelled run does and does not stop.
+Cancellation is cooperative and interrupts no thread, so the hook cannot abort a call already inside a blocking `write`. It calls `close()`, and that helps exactly when closing the writer is what releases the blocked call — which is true of a writer whose blocking wait is woken by closure, and false of one that ignores its own closed flag while parked. See [Running#cancel](../../async.md#runningcancel) for what a cancelled run does and does not stop.
 
 ### Why There Is No `concatAsync` or `contramapAsync`
 
@@ -715,8 +715,8 @@ sbt "streams-examples/runMain writer.WriterAsyncExample"
 
 ## See Also
 
-- [Asynchronous Stream Execution](./async-execution.md#cancellation) — how cancellation reaches a stream's resources, and the asynchronous stream API the deferred mirrors sit beside
-- [Async Reference](../async.md#runningcancel) — what `Running#cancel` stops, why a cancelled run never delivers, and why the cancel hook cannot interrupt a blocked thread
+- [Asynchronous Stream Execution](../execution-and-compatibility/async-execution.md#cancellation) — how cancellation reaches a stream's resources, and the asynchronous stream API the deferred mirrors sit beside
+- [Async Reference](../../async.md#runningcancel) — what `Running#cancel` stops, why a cancelled run never delivers, and why the cancel hook cannot interrupt a blocked thread
 - [Reader](./reader.md) — the pull-based dual of this type, and the reader kinds a sink drains
-- [Sink](./sink.md) — the consumer side of a stream, which drains a `Reader` rather than feeding a `Writer`
-- [Zero-Boxing Streams](./zero-boxing.md) — why the specialized write family exists and how a primitive lane is chosen
+- [Sink](../core/sink.md) — the consumer side of a stream, which drains a `Reader` rather than feeding a `Writer`
+- [Zero-Boxing Streams](../execution-and-compatibility/zero-boxing.md) — why the specialized write family exists and how a primitive lane is chosen

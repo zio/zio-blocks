@@ -243,30 +243,33 @@ const sidebars = {
                 type: "category",
                 label: "Core Types",
                 collapsed: false,
+                link: { type: "doc", id: "reference/streams/core/index" },
                 items: [
-                  "reference/streams/stream",
-                  "reference/streams/pipeline",
-                  "reference/streams/sink",
+                  "reference/streams/core/stream",
+                  "reference/streams/core/pipeline",
+                  "reference/streams/core/sink",
                 ]
               },
               {
                 type: "category",
-                label: "Readers and Writers",
+                label: "Low-Level Primitives",
                 collapsed: false,
+                link: { type: "doc", id: "reference/streams/primitives/index" },
                 items: [
-                  "reference/streams/reader",
-                  "reference/streams/writer",
+                  "reference/streams/primitives/reader",
+                  "reference/streams/primitives/writer",
                 ]
               },
               {
                 type: "category",
                 label: "Execution and Compatibility",
                 collapsed: false,
+                link: { type: "doc", id: "reference/streams/execution-and-compatibility/index" },
                 items: [
-                  "reference/streams/async-execution",
-                  "reference/streams/zero-boxing",
-                  "reference/streams/platform-differences",
-                  "reference/streams/scala-2-compatibility",
+                  "reference/streams/execution-and-compatibility/async-execution",
+                  "reference/streams/execution-and-compatibility/zero-boxing",
+                  "reference/streams/execution-and-compatibility/platform-differences",
+                  "reference/streams/execution-and-compatibility/scala-2-compatibility",
                 ]
               },
             ]

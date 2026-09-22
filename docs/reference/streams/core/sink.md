@@ -57,7 +57,7 @@ When you call `stream.run(sink)`:
 
 ### Physical Input Lanes and Ownership
 
-A sink consumes either kind of reader. `Reader` is not one type with a mode flag: it splits into `Reader.SyncReader[A]`, whose pulls return values, and `Reader.AsyncReader[A]`, whose pulls return [`Async`](../async.md) values. [The reader union](./reader.md#the-reader-union) describes the split from the reader's side. From the sink's side, the consequence is that every sink is drained through one of two entry points, and the terminal decides which — the next section covers that choice.
+A sink consumes either kind of reader. `Reader` is not one type with a mode flag: it splits into `Reader.SyncReader[A]`, whose pulls return values, and `Reader.AsyncReader[A]`, whose pulls return [`Async`](../../async.md) values. [The reader union](../primitives/reader.md#the-reader-union) describes the split from the reader's side. From the sink's side, the consequence is that every sink is drained through one of two entry points, and the terminal decides which — the next section covers that choice.
 
 Whichever kind arrives, a sink discovers its input representation from the materialized reader's `jvmType`, not from the sink's contravariant static input type. Generic sinks dispatch once per drain and then pull `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, and `Double` through library-internal physical pulls. The synchronous drain uses `readBooleanPhysical`, `readBytePhysical`, `readCharPhysical`, `readShortPhysical`, `readIntPhysical`, `readLongsPhysical`, `readFloatPhysical`, and `readDoublesPhysical`, respectively; the asynchronous drain differs on two lanes, pulling `Byte` through `readBytesPhysical` and `Float` through `readFloatsPhysical`. These are the internal counterparts of the public `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLongs`, `readFloat`, and `readDoubles`, which a generic sink cannot call because all but `readByte` demand `Elem <:< X` evidence it has no way to supply. Reference inputs use generic `read`. In particular, the four small primitive lanes do not share the `Int` pull.
 
@@ -93,7 +93,7 @@ They are an overload on the argument type, not a runtime branch inside one metho
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-The asynchronous drain is a native one, not an adapter: `Stream#runAsync` hands the sink a `Reader.AsyncReader` and never converts it to a blocking reader first, so no thread is parked waiting for a pull. [Async Terminals](./async-execution.md#async-terminals) covers the terminal family that takes this path, and [The `Async[Either[E, Z]]` convention](./async-execution.md#the-asynceithere-z-convention) explains why the typed error stays inside the `Either`.
+The asynchronous drain is a native one, not an adapter: `Stream#runAsync` hands the sink a `Reader.AsyncReader` and never converts it to a blocking reader first, so no thread is parked waiting for a pull. [Async Terminals](../execution-and-compatibility/async-execution.md#async-terminals) covers the terminal family that takes this path, and [The `Async[Either[E, Z]]` convention](../execution-and-compatibility/async-execution.md#the-asynceithere-z-convention) explains why the typed error stays inside the `Either`.
 
 Every built-in sink implements both drains, so nothing on this page is available on only one path. A third member, `drainAsync(reader: Reader.SyncReader[_]): Async[Z]`, is likewise `private[streams]`; it presents a synchronous reader through the asynchronous contract by calling `reader.toAsync`, and exists for internal stages that must expose an asynchronous face over synchronous input.
 
@@ -126,7 +126,7 @@ Each factory fills in the drain you did not write:
 `Sink.createAsync` writes the synchronous drain for you by awaiting the asynchronous one at a JVM blocking terminal. `Sink.create` writes the asynchronous drain for you by deferring the blocking callback into a cancellable effect, where cancellation closes the reader — the callback still runs inline on whichever thread drives that effect, so an asynchronous terminal driving a `Sink.create` sink blocks that thread for the duration of the callback. `Sink.createBoth` writes neither: it takes two independent callbacks and the terminal runs exactly one, so the two must agree on how much input they consume and what they produce — nothing compares their results.
 
 :::warning[`Sink.create` does not exist on Scala.js]
-It is declared in the JVM copy of `SinkCompanionPlatformSpecific` and simply absent from the Scala.js copy, so cross-built code that calls it fails to compile for the JS target rather than failing at runtime. [`Sink.create` and Custom Sinks](./platform-differences.md#sinkcreate-and-custom-sinks) states the platform rule.
+It is declared in the JVM copy of `SinkCompanionPlatformSpecific` and simply absent from the Scala.js copy, so cross-built code that calls it fails to compile for the JS target rather than failing at runtime. [`Sink.create` and Custom Sinks](../execution-and-compatibility/platform-differences.md#sinkcreate-and-custom-sinks) states the platform rule.
 :::
 
 [Custom sink factories](#custom-sink-factories) shows a worked callback against the reader protocol.
@@ -210,7 +210,7 @@ Gather elements into collections:
 
 #### `Sink.collectAll[A]` — Collect Into a Chunk
 
-Collects all elements into a [`Chunk[A]`](../chunk.md):
+Collects all elements into a [`Chunk[A]`](../../chunk.md):
 
 ```scala
 object Sink {
@@ -559,7 +559,7 @@ val average = Sink.create[Nothing, Int, Double] { reader =>
 }
 ```
 
-This example shows how `Sink.create` works. `readInt` widens an `Int` to `Long`, leaving `Long.MinValue` available as an out-of-domain end marker. For full-domain `Long` and `Double` inputs, do not choose a data sentinel: allocate a reusable one-element primitive array and use `readLongs` or `readDoubles`, whose returned count reports data or end-of-stream without collisions. You'd use `Sink.create` when no built-in sink provides the exact aggregation or transformation logic you need — it is powerful but requires understanding the low-level [Reader protocol](./reader.md).
+This example shows how `Sink.create` works. `readInt` widens an `Int` to `Long`, leaving `Long.MinValue` available as an out-of-domain end marker. For full-domain `Long` and `Double` inputs, do not choose a data sentinel: allocate a reusable one-element primitive array and use `readLongs` or `readDoubles`, whose returned count reports data or end-of-stream without collisions. You'd use `Sink.create` when no built-in sink provides the exact aggregation or transformation logic you need — it is powerful but requires understanding the low-level [Reader protocol](../primitives/reader.md).
 
 ## Transforming Sinks
 
@@ -751,7 +751,7 @@ Traditional Java I/O (`OutputStream`, `Writer`) blocks threads and requires manu
 
 Choose `NioSinks.fromChannel` when blocking channel output is acceptable and you want automatic buffering for network sockets or files. Choose typed variants when you control buffer allocation and are streaming millions of primitives where boxing would degrade performance.
 
-Each of these sinks implements both drains, so NIO output works under the blocking `Stream#run` and under `Stream#runAsync` alike. What the asynchronous drain removes is the thread parked waiting for stream *input*; the destination writes are the same blocking `java.nio` calls on either path. `NioSinks.fromChannel` does budget its asynchronous flush loop: when a channel write makes no progress it yields instead of spinning, so a stalled channel does not monopolise the caller. [Reader](./reader.md#from-native-asynchronous-sources) covers the NIO adapters on the source side in full, and this page does not duplicate them.
+Each of these sinks implements both drains, so NIO output works under the blocking `Stream#run` and under `Stream#runAsync` alike. What the asynchronous drain removes is the thread parked waiting for stream *input*; the destination writes are the same blocking `java.nio` calls on either path. `NioSinks.fromChannel` does budget its asynchronous flush loop: when a channel write makes no progress it yields instead of spinning, so a stalled channel does not monopolise the caller. [Reader](../primitives/reader.md#from-native-asynchronous-sources) covers the NIO adapters on the source side in full, and this page does not duplicate them.
 
 Here are the available NIO sinks:
 
@@ -816,7 +816,7 @@ sbt "streams-examples/runMain sink.SinkScientificComputingExample"
 
 This use case is typical in scientific instrumentation, machine learning data preprocessing, and signal processing pipelines where you need to efficiently batch-process numerical streams into memory-efficient structures for downstream computation.
 
-The typed sinks dispatch through their exact primitive lanes. `Long` and `Double` use collision-free bulk-count status, so `Long.MinValue`, `Long.MaxValue`, every finite or infinite `Double`, signed zero, and every raw NaN payload are written as ordinary data. There is no sentinel-value truncation restriction. The supplied buffer remains caller-owned and is not flipped, rewound, or closed by the sink. [Zero-Boxing Streams](./zero-boxing.md) carries the per-lane end-of-stream table this rests on.
+The typed sinks dispatch through their exact primitive lanes. `Long` and `Double` use collision-free bulk-count status, so `Long.MinValue`, `Long.MaxValue`, every finite or infinite `Double`, signed zero, and every raw NaN payload are written as ordinary data. There is no sentinel-value truncation restriction. The supplied buffer remains caller-owned and is not flipped, rewound, or closed by the sink. [Zero-Boxing Streams](../execution-and-compatibility/zero-boxing.md) carries the per-lane end-of-stream table this rests on.
 
 ### From Channel Sink
 
@@ -922,9 +922,9 @@ sbt "streams-examples/runMain sink.SinkAsyncExample"
 
 ## See Also
 
-- [Asynchronous Stream Execution](./async-execution.md#async-terminals) — the terminals that select a sink's asynchronous drain, and the `Async[Either[E, Z]]` convention
-- [Platform Differences](./platform-differences.md#sinkcreate-and-custom-sinks) — why `Sink.create` is JVM-only and what replaces it in shared source
-- [Reader](./reader.md#the-reader-union) — the two reader kinds a sink drains, from the reader's side
-- [Zero-Boxing Streams](./zero-boxing.md) — how a primitive lane is chosen, and the per-lane end-of-stream table
+- [Asynchronous Stream Execution](../execution-and-compatibility/async-execution.md#async-terminals) — the terminals that select a sink's asynchronous drain, and the `Async[Either[E, Z]]` convention
+- [Platform Differences](../execution-and-compatibility/platform-differences.md#sinkcreate-and-custom-sinks) — why `Sink.create` is JVM-only and what replaces it in shared source
+- [Reader](../primitives/reader.md#the-reader-union) — the two reader kinds a sink drains, from the reader's side
+- [Zero-Boxing Streams](../execution-and-compatibility/zero-boxing.md) — how a primitive lane is chosen, and the per-lane end-of-stream table
 - [Stream](./stream.md) — the producer a sink consumes
 - [Pipeline](./pipeline.md) — transformations that can be attached to a sink's input

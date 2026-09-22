@@ -9,9 +9,9 @@ ZIO Blocks Streams is built on three composable primitives:
 
 | Type                                   | Description                                                          | Key operation         |
 |----------------------------------------|----------------------------------------------------------------------|-----------------------|
-| [`Stream[+E, +A]`](./stream.md)        | A lazy, pull-based sequence of elements that may fail with error `E` | `stream.via(pipe)`    |
-| [`Pipeline[-In, +Out]`](./pipeline.md) | A reusable, composable stream-to-stream transformation               | `pipe.andThen(other)` |
-| [`Sink[+E, -A, +Z]`](./sink.md)        | A stream consumer that produces a typed result `Z`                   | `stream.run(sink)`    |
+| [`Stream[+E, +A]`](./core/stream.md)        | A lazy, pull-based sequence of elements that may fail with error `E` | `stream.via(pipe)`    |
+| [`Pipeline[-In, +Out]`](./core/pipeline.md) | A reusable, composable stream-to-stream transformation               | `pipe.andThen(other)` |
+| [`Sink[+E, -A, +Z]`](./core/sink.md)        | A stream consumer that produces a typed result `Z`                   | `stream.run(sink)`    |
 
 ## Overview
 
@@ -85,7 +85,7 @@ governed by the allowlist and provider versions recorded in
 class and contract, and are not aggregated into a ranking here. Re-run the benchmarks on your target
 environment before drawing any performance conclusion.
 
-If you are evaluating Scala 2 compatibility work, read the [Scala 2 compatibility design note](./scala-2-compatibility.md) before moving any `Stream` or `Sink` hot-path combinators behind version-specific seams.
+If you are evaluating Scala 2 compatibility work, read the [Scala 2 compatibility design note](./execution-and-compatibility/scala-2-compatibility.md) before moving any `Stream` or `Sink` hot-path combinators behind version-specific seams.
 
 ## Core Mental Model
 
@@ -127,7 +127,7 @@ The last box is where the flow forks. The same `Stream` description is materiali
 synchronous reader, drained on the calling thread by a blocking terminal such as `run` or
 `runCollect`, or as an asynchronous reader, driven without blocking by the matching `*Async`
 terminal. Which engine runs is decided by the source and operators the pipeline is built from, not
-by the terminal you call. See [Async Execution](./async-execution.md) for how that classification
+by the terminal you call. See [Async Execution](./execution-and-compatibility/async-execution.md) for how that classification
 works.
 
 
@@ -245,7 +245,7 @@ val countLong: Sink[Nothing, String, Long] =
 There is one `Stream` type. It serves both execution modes, and there is no mode type parameter, no
 `AsyncStream`, and no annotation to write.
 
-The type that decides is [`Reader`](./reader.md), not `Stream`. Materializing a stream yields either
+The type that decides is [`Reader`](./primitives/reader.md), not `Stream`. Materializing a stream yields either
 a `Reader.SyncReader[A]`, whose pulls return values directly, or a `Reader.AsyncReader[A]`, whose
 pulls return `Async` values. A pipeline that is synchronous end to end materializes as the former; a
 single asynchronous source or operator anywhere in it makes the whole pipeline asynchronous.
@@ -260,9 +260,9 @@ The blocking terminals -- `run`, `runCollect`, `runDrain`, `runFold`, `count`, `
 peers -- are **JVM-only** compatibility twins returning a bare `Either[E, Z]`. They do not exist on
 Scala.js, and cross-compiled sources cannot call them.
 
-- [Async Execution](./async-execution.md) -- the full execution model: classification, the `Reader`
+- [Async Execution](./execution-and-compatibility/async-execution.md) -- the full execution model: classification, the `Reader`
   union, the async source constructors, operators, and terminals.
-- [Platform Differences](./platform-differences.md) -- the availability matrix of every member that
+- [Platform Differences](./execution-and-compatibility/platform-differences.md) -- the availability matrix of every member that
   differs between the JVM and Scala.js.
 
 ## Error Handling
@@ -302,7 +302,7 @@ This eliminates the need for manual try/finally when working with resources — 
 
 ZB Streams carries the JVM representation of the element type through the whole pipeline, so a stream of primitives is not boxed at each stage boundary. Specialization is not limited to `Int`, `Long`, `Float`, and `Double`: there are **nine logical lanes** -- the eight primitive pull identities `Boolean`, `Byte`, `Short`, `Char`, `Int`, `Long`, `Float`, and `Double`, plus the reference fallback -- and the synchronous interpreter compacts them into **five storage lanes**: int-like (`Boolean`/`Byte`/`Short`/`Char`/`Int`), `Long`, `Float`, `Double`, and reference. Nine logical lanes therefore does not mean nine interpreter arrays; the operator tag selects the identity-specific reads over the shared storage.
 
-[Zero-Boxing Streams](./zero-boxing.md) explains how a lane is chosen and what the specialization evidence is for.
+[Zero-Boxing Streams](./execution-and-compatibility/zero-boxing.md) explains how a lane is chosen and what the specialization evidence is for.
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
@@ -408,7 +408,7 @@ Stream.fromJavaReaderUnmanaged(javaReader)      // Stream[IOException, Char] (do
 
 ### Transforming Streams
 
-Streams support many transformation operations. Use `map` for element-wise changes, `filter` for selection, and `flatMap` for expanding elements into sub-streams. See the [Stream reference](./stream.md) page for comprehensive examples of all transformation methods including `map`, `filter`, `flatMap`, `collect`, `scan`, `mapAccum`, `distinct`, `intersperse`, and more.
+Streams support many transformation operations. Use `map` for element-wise changes, `filter` for selection, and `flatMap` for expanding elements into sub-streams. See the [Stream reference](./core/stream.md) page for comprehensive examples of all transformation methods including `map`, `filter`, `flatMap`, `collect`, `scan`, `mapAccum`, `distinct`, `intersperse`, and more.
 
 ---
 
@@ -542,8 +542,8 @@ val result: Either[Nothing, Chunk[Int]] =
 ```
 
 Scala.js code keeps the `Async` and hands it to the host runtime instead. See
-[Async Execution](./async-execution.md) for the full terminal family and
-[Platform Differences](./platform-differences.md) for what is available where.
+[Async Execution](./execution-and-compatibility/async-execution.md) for the full terminal family and
+[Platform Differences](./execution-and-compatibility/platform-differences.md) for what is available where.
 
 ---
 
@@ -734,8 +734,8 @@ Stream.fromIterable(List("10", "abc", "-3", "7", "0", "25"))
 
 ## See Also
 
-- [Async Execution](./async-execution.md) -- the synchronous/asynchronous execution model, the `Reader` union, and the `*Async` terminal family
-- [Platform Differences](./platform-differences.md) -- which members exist on the JVM, on Scala.js, and on both
-- [Zero-Boxing Streams](./zero-boxing.md) -- the primitive lanes and how one is chosen
+- [Async Execution](./execution-and-compatibility/async-execution.md) -- the synchronous/asynchronous execution model, the `Reader` union, and the `*Async` terminal family
+- [Platform Differences](./execution-and-compatibility/platform-differences.md) -- which members exist on the JVM, on Scala.js, and on both
+- [Zero-Boxing Streams](./execution-and-compatibility/zero-boxing.md) -- the primitive lanes and how one is chosen
 - [Async](../async.md) -- the `Async` effect type the cross-platform terminals return
 - [Mux](../mux.md) -- coordinating many keyed streams over one shared transport

@@ -930,7 +930,7 @@ Using(Async.start(pollForUpdates())) { running =>
 
 The [Scope reference](resource-management/scope.md) covers the wider resource-management model.
 
-**Feeding [streams](streams/stream.md).** A callback-based source can be turned into a stream with `Async.promise` and a `Completer`. Because a stream pulls values as it is ready for them, a source that produces faster than the consumer can handle will not overwhelm it.
+**Feeding [streams](streams/core/stream.md).** A callback-based source can be turned into a stream with `Async.promise` and a `Completer`. Because a stream pulls values as it is ready for them, a source that produces faster than the consumer can handle will not overwhelm it.
 
 ## Custom Suspension
 
@@ -1331,7 +1331,7 @@ c.close()   // no-op; delegates to cancel()
 
 ## AsyncSelector
 
-`AsyncSelector[A]` is a low-level building block, and that is worth saying before anything else: most code should not reach for it. If what you want is "run N of these at a time and give me results as they land", the streams module already provides it — [`mapPar`](streams/stream.md#streammappar), [`mergeAll`](streams/stream.md#streammergeall), and `mapParAsync` — with backpressure, ordering rules, and resource cleanup you would otherwise write yourself. The selector exists because those operators needed a primitive underneath them, and the streams concurrency engine is its only production consumer.
+`AsyncSelector[A]` is a low-level building block, and that is worth saying before anything else: most code should not reach for it. If what you want is "run N of these at a time and give me results as they land", the streams module already provides it — [`mapPar`](streams/core/stream.md#streammappar), [`mergeAll`](streams/core/stream.md#streammergeall), and `mapParAsync` — with backpressure, ordering rules, and resource cleanup you would otherwise write yourself. The selector exists because those operators needed a primitive underneath them, and the streams concurrency engine is its only production consumer.
 
 What it gives you is a **repeatable** multi-way wait. You hand it a fixed number of slots, each holding an independently-pending computation. `select` waits until one of them completes, hands you the winning slot index along with its value, and disarms that slot. `replace` arms the same slot with its next computation, and you select again. That loop is the whole point: a fan-in that runs for the life of a connection, a worker pool that keeps N requests in flight, anything where the same slot is re-used thousands of times.
 
@@ -1479,7 +1479,7 @@ val text: String = summary.block
 
 Cancellation carries across too: cancelling a running stream is the [`Cancelable`](#cancelable) contract on this page, applied to a reader rather than a single leaf.
 
-[Asynchronous Stream Execution](streams/async-execution.md) is the reference for all of it — the terminal family, the async source constructors and operators, manual pull and reader ownership, and what cancelling a stream cleans up.
+[Asynchronous Stream Execution](streams/execution-and-compatibility/async-execution.md) is the reference for all of it — the terminal family, the async source constructors and operators, manual pull and reader ownership, and what cancelling a stream cleans up.
 
 ## Running the Examples
 
@@ -1493,7 +1493,7 @@ sbt "async-examples/run"
 
 ## See Also
 
-- [Asynchronous Stream Execution](streams/async-execution.md) — the `Async` terminal family, async source constructors and operators, reader ownership, and stream cancellation
-- [Stream Reference](streams/stream.md) — pull-based streaming with resource safety; use `Async.promise` and `Completer` to bridge callback-based push sources into the pull-based stream model
+- [Asynchronous Stream Execution](streams/execution-and-compatibility/async-execution.md) — the `Async` terminal family, async source constructors and operators, reader ownership, and stream cancellation
+- [Stream Reference](streams/core/stream.md) — pull-based streaming with resource safety; use `Async.promise` and `Completer` to bridge callback-based push sources into the pull-based stream model
 - [Scope Reference](resource-management/scope.md) — compile-time resource safety; `Async.Running` extends `AutoCloseable` and can be used inside `scala.util.Using` or any Scope-managed context for structured cancellation
 - [Compile-Time Resource Safety with Scope](../guides/compile-time-resource-safety-with-scope.md) — step-by-step tutorial on resource ownership that applies equally to `Async.Running` handles

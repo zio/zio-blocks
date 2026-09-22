@@ -165,7 +165,7 @@ val average: Sink[Nothing, Int, Double] =
   }
 ```
 
-`Sink.createBoth` is the option to reach for when the synchronous drain is worth keeping: it takes both callbacks, and the terminal selects exactly one of them, so the JVM keeps its direct blocking loop — with no per-pull `Async` to allocate and resume — while Scala.js gets a working implementation. Both callbacks must agree on how much input they consume and what they produce. [Sink](./sink.md) documents the reader protocol these callbacks drive.
+`Sink.createBoth` is the option to reach for when the synchronous drain is worth keeping: it takes both callbacks, and the terminal selects exactly one of them, so the JVM keeps its direct blocking loop — with no per-pull `Async` to allocate and resume — while Scala.js gets a working implementation. Both callbacks must agree on how much input they consume and what they produce. [Sink](../core/sink.md) documents the reader protocol these callbacks drive.
 
 ## Manual Pull Across Platforms
 
@@ -177,7 +177,7 @@ trait StreamPlatformSpecific[+E, +A] { self: Stream[E, A] =>
 }
 ```
 
-The reader is allocated into the enclosing [`Scope`](../resource-management/scope.md) as an acquire-release resource, so closing the scope closes the reader, and the dependent result type `scope.$[Reader.SyncReader[A]]` keeps it from escaping that scope. The return type is `Reader.SyncReader[A]`: `Stream#start` never hands back the `Reader` union, because asynchronous boundaries inside the pipeline are bridged by the JVM runtime before you see it.
+The reader is allocated into the enclosing [`Scope`](../../resource-management/scope.md) as an acquire-release resource, so closing the scope closes the reader, and the dependent result type `scope.$[Reader.SyncReader[A]]` keeps it from escaping that scope. The return type is `Reader.SyncReader[A]`: `Stream#start` never hands back the `Reader` union, because asynchronous boundaries inside the pipeline are bridged by the JVM runtime before you see it.
 
 The cross-platform pair is `Stream#startAsync` and `Stream#useReaderAsync`, and they differ from `Stream#start` and from each other in who closes the reader:
 
@@ -236,7 +236,7 @@ Under the streams layer, the `async` module resumes suspended computations diffe
 
 On Scala.js, resumptions are queued as microtasks with a `setTimeout(0)` macrotask escape hatch and a ready-resumption limit of 1024, so a long chain of already-complete steps yields to the event loop instead of starving it. `Async#block` throws, as described above. There is no blocking-operations API in the `async` module on either platform — nothing corresponding to a `blocking` executor or an `attemptBlocking` wrapper exists to be looked for.
 
-[Async](../async.md) documents both execution models in detail; this page states only the part that decides what compiles where.
+[Async](../../async.md) documents both execution models in detail; this page states only the part that decides what compiles where.
 
 ## Platform Capabilities
 
@@ -292,6 +292,6 @@ The axis that changes what you can call is JVM versus Scala.js, which is what th
 ## See Also
 
 - [Asynchronous Stream Execution](./async-execution.md) — the full cross-platform `*Async` API
-- [Reader](./reader.md#from-native-asynchronous-sources) — the JVM NIO and Scala.js `ReadableStream` adapters
-- [Bounded Concurrency](./stream.md#bounded-concurrency) — `Stream#mapPar`, `Stream#flatMapPar`, `Stream.mergeAll`, and `Stream#mapParAsync`
-- [Async](../async.md) — the effect type and both execution models
+- [Reader](../primitives/reader.md#from-native-asynchronous-sources) — the JVM NIO and Scala.js `ReadableStream` adapters
+- [Bounded Concurrency](../core/stream.md#bounded-concurrency) — `Stream#mapPar`, `Stream#flatMapPar`, `Stream.mergeAll`, and `Stream#mapParAsync`
+- [Async](../../async.md) — the effect type and both execution models

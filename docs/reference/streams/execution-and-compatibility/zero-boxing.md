@@ -250,7 +250,7 @@ Three things are worth reading off that table.
 Any value you reserve as an end marker on those two lanes is also a value the stream may carry, and the truncation is silent. Use `readLongs(scratch, 0, 1)` or `readDoubles(scratch, 0, 1)` and branch on the returned count.
 :::
 
-[Reader](./reader.md#sentinel-protocol) states the same contract from the implementor's side.
+[Reader](../primitives/reader.md#sentinel-protocol) states the same contract from the implementor's side.
 
 ## Comparison: @specialized Vs JvmType Dispatch
 
@@ -386,8 +386,8 @@ The result is specialized hot paths without `@specialized` class proliferation, 
 
 ## See Also
 
-- [Reader](./reader.md#the-reader-union) — the two reader kinds, and the sentinel protocol from the implementor's side
-- [Sink](./sink.md) — the typed sinks that drain through these lanes
-- [Pipeline](./pipeline.md) — why the transforming factories ask for `JvmType.Infer` on their result type
+- [Reader](../primitives/reader.md#the-reader-union) — the two reader kinds, and the sentinel protocol from the implementor's side
+- [Sink](../core/sink.md) — the typed sinks that drain through these lanes
+- [Pipeline](../core/pipeline.md) — why the transforming factories ask for `JvmType.Infer` on their result type
 - [Asynchronous Stream Execution](./async-execution.md#one-stream-type-two-execution-modes) — how a graph becomes synchronous or asynchronous, and why there is no mode annotation either
 - [Platform Differences](./platform-differences.md) — what changes on Scala.js, where the same lanes apply

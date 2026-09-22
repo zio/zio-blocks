@@ -40,7 +40,7 @@ abstract class Stream[+E, +A] {
 
 ### Asynchronous Source Constructors
 
-The companion constructors whose names end in `Async` — `attemptAsync`, `attemptEvalAsync`, `deferAsync`, `evalAsync`, `fromAcquireReleaseAsync`, `fromIteratorAsync`, `fromReaderAsync`, and `unfoldAsync` — defer their `Async` thunk until the first reader operation is driven, and `Stream.unwrap` flattens an `Async[Stream[E, A]]` so that ordinary operators such as `flatMap`, `catchAll`, and `flatMapPar` compose with asynchronously produced streams. [Async Source Constructors](./async-execution.md#async-source-constructors) documents each of them, along with the laziness and error conventions they share; this page does not repeat them.
+The companion constructors whose names end in `Async` — `attemptAsync`, `attemptEvalAsync`, `deferAsync`, `evalAsync`, `fromAcquireReleaseAsync`, `fromIteratorAsync`, `fromReaderAsync`, and `unfoldAsync` — defer their `Async` thunk until the first reader operation is driven, and `Stream.unwrap` flattens an `Async[Stream[E, A]]` so that ordinary operators such as `flatMap`, `catchAll`, and `flatMapPar` compose with asynchronously produced streams. [Async Source Constructors](../execution-and-compatibility/async-execution.md#async-source-constructors) documents each of them, along with the laziness and error conventions they share; this page does not repeat them.
 
 ### Source Compatibility
 
@@ -294,7 +294,7 @@ val dieStream = Stream.die(new Exception("System failure"))
 
 ### From Collections
 
-Streams can be created from existing collections and iterables, making it easy to convert `List`, `Array`, [`Chunk`](../chunk.md), or custom iterables into lazy streams:
+Streams can be created from existing collections and iterables, making it easy to convert `List`, `Array`, [`Chunk`](../../chunk.md), or custom iterables into lazy streams:
 
 #### `Stream.apply[A]`
 
@@ -803,7 +803,7 @@ val events   = Stream("open", "write", "close")
 val numbered = events.mapAccumAsync(0L)((seq, event) => Async.succeed((seq + 1, s"$seq:$event")))
 ```
 
-This operator is also catalogued with the rest of the sequential asynchronous family in [Async Operators](./async-execution.md#streammapaccumasync), and [Stateful Asynchronous Operators](#stateful-asynchronous-operators) runs it end to end alongside `scanAsync`, `takeWhileAsync`, and `ensuringAsync`.
+This operator is also catalogued with the rest of the sequential asynchronous family in [Async Operators](../execution-and-compatibility/async-execution.md#streammapaccumasync), and [Stateful Asynchronous Operators](#stateful-asynchronous-operators) runs it end to end alongside `scanAsync`, `takeWhileAsync`, and `ensuringAsync`.
 
 #### `Stream#scan[S]`
 
@@ -845,7 +845,7 @@ val amounts  = Stream(120, -40, 75)
 val balances = amounts.scanAsync(0L)((balance, amount) => Async.succeed(balance + amount))
 ```
 
-`balances` emits `0`, `120`, `80`, `155`. See [Async Operators](./async-execution.md#streamscanasync) for the same entry alongside the rest of the asynchronous family.
+`balances` emits `0`, `120`, `80`, `155`. See [Async Operators](../execution-and-compatibility/async-execution.md#streamscanasync) for the same entry alongside the rest of the asynchronous family.
 
 ### Flat-Mapping (Nested Streams)
 
@@ -1151,7 +1151,7 @@ Whether a slot corresponds to a thread depends entirely on which engine material
 
 All four operators are unordered with respect to input position. An element leaves when its work finishes, so output is in arrival order. The property tests compare results with `.toSet` for exactly this reason: there is no input-order assertion available to make.
 
-The single exception is `n = 1`, which is exactly sequential — and the `n = 1` tests do assert exact [`Chunk`](../chunk.md) equality, because at that value the operator is not the concurrent engine at all. See [The `n = 1` Guarantee](#the-n-1-guarantee).
+The single exception is `n = 1`, which is exactly sequential — and the `n = 1` tests do assert exact [`Chunk`](../../chunk.md) equality, because at that value the operator is not the concurrent engine at all. See [The `n = 1` Guarantee](#the-n-1-guarantee).
 
 :::warning[Unordered means unordered on Scala.js too]
 Single-threaded execution does not restore input order. The concurrent engine runs on Scala.js with immediately-ready effects, and its arrival-order semantics are retained there. Code that depends on Scala.js emitting source order is a bug that will not reproduce on the JVM.
@@ -1282,7 +1282,7 @@ Cancellation goes through the `Async` cancellation protocol rather than thread i
 
 Closing is idempotent and it waits. The reader will not report closed until the cleanup it owns has finished, which is the property the slot lifecycle above depends on — a slot's successor cannot start while the predecessor's finalizers are still running.
 
-[Cancellation](./async-execution.md#cancellation) covers the protocol these readers participate in, and [Async.Running#cancel](../async.md#runningcancel) documents the primitive underneath it.
+[Cancellation](../execution-and-compatibility/async-execution.md#cancellation) covers the protocol these readers participate in, and [Async.Running#cancel](../../async.md#runningcancel) documents the primitive underneath it.
 
 ### Threading and Platform Behaviour
 
@@ -1316,7 +1316,7 @@ When the pipeline is on the asynchronous lane, the concurrent engine runs, with 
 The scaladoc on `Stream#mapPar`, `Stream#flatMapPar`, and `Stream.mergeAll` says that on Scala.js each "degrades to sequential `map`" or "sequential `flatMap`". That describes the synchronous-lane case as though it were the whole story. Never read it as a promise about element order.
 :::
 
-[Platform Differences](./platform-differences.md#concurrency-and-threading) states the same split from the platform side, including the full capability surface of `Platform`.
+[Platform Differences](../execution-and-compatibility/platform-differences.md#concurrency-and-threading) states the same split from the platform side, including the full capability surface of `Platform`.
 
 ### Laws
 
@@ -1574,7 +1574,7 @@ val feed      = Stream(120, -40, 75, 0, 999)
 val untilZero = feed.takeWhileAsync(amount => Async.succeed(amount != 0))
 ```
 
-The same entry appears in [Async Operators](./async-execution.md#streamtakewhileasync).
+The same entry appears in [Async Operators](../execution-and-compatibility/async-execution.md#streamtakewhileasync).
 
 ### Interspersing
 
@@ -1895,15 +1895,15 @@ val session = Stream(1, 2, 3)
 val closed = session.runCollectAsync
 ```
 
-What drives that close is the terminal. Under `runCollectAsync` and every other terminal the library closes the reader for you, and so does `useReaderAsync`; under `startAsync` you own the reader, and the finalizer has not run until you await `close()`. [Resource Management](./async-execution.md#resource-management) works through the three cases.
+What drives that close is the terminal. Under `runCollectAsync` and every other terminal the library closes the reader for you, and so does `useReaderAsync`; under `startAsync` you own the reader, and the finalizer has not run until you await `close()`. [Resource Management](../execution-and-compatibility/async-execution.md#resource-management) works through the three cases.
 
 ## Running Streams
 
 There are two terminal families, and which one you reach for is a platform decision rather than a stylistic one.
 
-The **cross-platform** family is the one whose names end in `Async`: `runAsync`, `runCollectAsync`, `runDrainAsync`, `runFoldAsync`, `runForeachAsync`/`foreachAsync`, `countAsync`, `existsAsync`, `findAsync`, `forallAsync`, `headAsync`, and `lastAsync`. Each returns `Async[Either[E, Z]]`, stays lazy until driven, and awaits reader cleanup on success, failure, or cancellation. It drives a synchronous and an asynchronous pipeline alike, and it is the only family that compiles for both targets. [Async Terminals](./async-execution.md#async-terminals) documents the family and the `Async[Either[E, Z]]` convention it follows.
+The **cross-platform** family is the one whose names end in `Async`: `runAsync`, `runCollectAsync`, `runDrainAsync`, `runFoldAsync`, `runForeachAsync`/`foreachAsync`, `countAsync`, `existsAsync`, `findAsync`, `forallAsync`, `headAsync`, and `lastAsync`. Each returns `Async[Either[E, Z]]`, stays lazy until driven, and awaits reader cleanup on success, failure, or cancellation. It drives a synchronous and an asynchronous pipeline alike, and it is the only family that compiles for both targets. [Async Terminals](../execution-and-compatibility/async-execution.md#async-terminals) documents the family and the `Async[Either[E, Z]]` convention it follows.
 
-The **JVM-only** family is everything documented in the rest of this section — `run`, `runCollect`, `runDrain`, `runFold`, `runForeach`/`foreach`, `count`, `exists`, `find`, `forall`, `head`, and `last` — together with `start`, covered under [Manual Pull via `start`](#manual-pull-via-start). Those sixteen members, counting `runFold`'s four overloads, are the entire JVM-only surface of `Stream`: the terminals among them park a thread and return a plain `Either[E, Z]`, and `start` hands back a blocking `Reader.SyncReader[A]`. They live in `StreamPlatformSpecific`, whose Scala.js copy has an empty body, so calling one from shared code fails to compile for the JavaScript target rather than failing at runtime. The [availability matrix](./platform-differences.md#availability-matrix) lists them member by member.
+The **JVM-only** family is everything documented in the rest of this section — `run`, `runCollect`, `runDrain`, `runFold`, `runForeach`/`foreach`, `count`, `exists`, `find`, `forall`, `head`, and `last` — together with `start`, covered under [Manual Pull via `start`](#manual-pull-via-start). Those sixteen members, counting `runFold`'s four overloads, are the entire JVM-only surface of `Stream`: the terminals among them park a thread and return a plain `Either[E, Z]`, and `start` hands back a blocking `Reader.SyncReader[A]`. They live in `StreamPlatformSpecific`, whose Scala.js copy has an empty body, so calling one from shared code fails to compile for the JavaScript target rather than failing at runtime. The [availability matrix](../execution-and-compatibility/platform-differences.md#availability-matrix) lists them member by member.
 
 Each heading below therefore carries a one-line note naming its cross-platform form.
 
@@ -2215,7 +2215,7 @@ When you call `stream.run(sink)`, the stream is compiled to a `Reader` and the s
 
 ## Low-Level Pull with Reader
 
-`Reader[+Elem]` is the low-level, pull-based source that backs every stream at execution time. Use cross-platform `startAsync` for a caller-owned `Reader.AsyncReader`, or `useReaderAsync` for bracketed access that awaits close on every outcome. The JVM additionally provides blocking `start` with a [`Scope`](../resource-management/scope.md).
+`Reader[+Elem]` is the low-level, pull-based source that backs every stream at execution time. Use cross-platform `startAsync` for a caller-owned `Reader.AsyncReader`, or `useReaderAsync` for bracketed access that awaits close on every outcome. The JVM additionally provides blocking `start` with a [`Scope`](../../resource-management/scope.md).
 
 ### Manual Pull via `start`
 
@@ -2230,7 +2230,7 @@ abstract class Stream[+E, +A] {
 }
 ```
 
-`start` is JVM only, and its result type is `Reader.SyncReader[A]` rather than an undifferentiated `Reader[A]`: a pipeline with asynchronous stages still works under it, because the JVM runtime bridges those boundaries by blocking. Shared code has no such member and must use `startAsync` or `useReaderAsync` instead, both of which hand back a `Reader.AsyncReader[A]`. [Manual Pull Across Platforms](./platform-differences.md#manual-pull-across-platforms) compares the three, and [`Stream#startAsync`](./async-execution.md#streamstartasync) covers the ownership rules that come with the asynchronous form.
+`start` is JVM only, and its result type is `Reader.SyncReader[A]` rather than an undifferentiated `Reader[A]`: a pipeline with asynchronous stages still works under it, because the JVM runtime bridges those boundaries by blocking. Shared code has no such member and must use `startAsync` or `useReaderAsync` instead, both of which hand back a `Reader.AsyncReader[A]`. [Manual Pull Across Platforms](../execution-and-compatibility/platform-differences.md#manual-pull-across-platforms) compares the three, and [`Stream#startAsync`](../execution-and-compatibility/async-execution.md#streamstartasync) covers the ownership rules that come with the asynchronous form.
 
 Use `start` to manually pull elements within a resource scope:
 
@@ -2299,7 +2299,7 @@ Each stream node compiles in two ways:
 
 The switch happens at `DepthCutoff = 100`. You should never see this in normal use, but it ensures that pipelines of any depth are safe.
 
-A second split sits alongside this one: a graph made only of synchronous nodes compiles to the synchronous engine, and a graph containing any asynchronous node compiles to a separate, heap-allocated asynchronous engine. That choice is made once per materialization, never per element, and never from an annotation you write. [Why two engines](./async-execution.md#why-two-engines) explains what it buys, and why a purely synchronous stream pays nothing for it.
+A second split sits alongside this one: a graph made only of synchronous nodes compiles to the synchronous engine, and a graph containing any asynchronous node compiles to a separate, heap-allocated asynchronous engine. That choice is made once per materialization, never per element, and never from an annotation you write. [Why two engines](../execution-and-compatibility/async-execution.md#why-two-engines) explains what it buys, and why a purely synchronous stream pays nothing for it.
 
 ## Running the Examples
 
@@ -2414,13 +2414,13 @@ sbt "streams-examples/runMain stream.StreamAsyncStatefulExample"
 
 ## Native Asynchronous Byte Readers
 
-Each platform ships adapters that turn a native byte source into a `Reader.AsyncReader[Byte]`, which `Stream.fromReader` then lifts into a stream: `AsyncNioReaders.fromChannel` and `fromSocket` on the JVM, `ReadableStreamReaders.fromReadableStream` on Scala.js, each with an `Unmanaged` variant that leaves the native source caller-owned. [Reader](./reader.md#from-native-asynchronous-sources) documents them, together with their chunking and EOF rules and the way source failures reach the typed error channel.
+Each platform ships adapters that turn a native byte source into a `Reader.AsyncReader[Byte]`, which `Stream.fromReader` then lifts into a stream: `AsyncNioReaders.fromChannel` and `fromSocket` on the JVM, `ReadableStreamReaders.fromReadableStream` on Scala.js, each with an `Unmanaged` variant that leaves the native source caller-owned. [Reader](../primitives/reader.md#from-native-asynchronous-sources) documents them, together with their chunking and EOF rules and the way source failures reach the typed error channel.
 
 ## See Also
 
-- [Asynchronous Stream Execution](./async-execution.md) — the full asynchronous constructor, operator, and terminal API, and how one `Stream` type describes both execution modes
-- [Platform Differences](./platform-differences.md) — which members exist on the JVM, which exist on Scala.js, and why the blocking family is JVM-only
-- [Reader](./reader.md) — the `SyncReader` / `AsyncReader` union that decides which engine materializes behind the bounded-concurrency operators, and the adapters behind the native asynchronous byte readers
-- [Async Reference](../async.md) — `Async.promise` and `Completer` bridge callback-based APIs into async values that can feed stream sources; `Async.Running` carries a synchronous cancellation handle that complements stream resource management
-- [Async](../async.md#asyncselector) — `AsyncSelector`, the primitive the bounded-concurrency slot machinery is built from
-- [Scope Reference](../resource-management/scope.md) — compile-time resource safety for stream acquisition and release; `fromAcquireRelease` follows the same ownership rules as Scope-managed resources
+- [Asynchronous Stream Execution](../execution-and-compatibility/async-execution.md) — the full asynchronous constructor, operator, and terminal API, and how one `Stream` type describes both execution modes
+- [Platform Differences](../execution-and-compatibility/platform-differences.md) — which members exist on the JVM, which exist on Scala.js, and why the blocking family is JVM-only
+- [Reader](../primitives/reader.md) — the `SyncReader` / `AsyncReader` union that decides which engine materializes behind the bounded-concurrency operators, and the adapters behind the native asynchronous byte readers
+- [Async Reference](../../async.md) — `Async.promise` and `Completer` bridge callback-based APIs into async values that can feed stream sources; `Async.Running` carries a synchronous cancellation handle that complements stream resource management
+- [Async](../../async.md#asyncselector) — `AsyncSelector`, the primitive the bounded-concurrency slot machinery is built from
+- [Scope Reference](../../resource-management/scope.md) — compile-time resource safety for stream acquisition and release; `fromAcquireRelease` follows the same ownership rules as Scope-managed resources

@@ -138,7 +138,7 @@ The two kinds line up one to one, so a signature written against one translates 
 | `reset()`                                  | `Unit`              | `Async[Unit]`        |
 | `setLimit(n)`, `setRepeat()`, `setSkip(n)` | `Boolean`           | `Async[Boolean]`     |
 
-Which kind a stream materializes as is decided once, when the graph compiles: a fully synchronous graph produces a `SyncReader`, and a graph with any asynchronous node produces an `AsyncReader`. See [Asynchronous Stream Execution](./async-execution.md#one-stream-type-two-execution-modes) for that decision.
+Which kind a stream materializes as is decided once, when the graph compiles: a fully synchronous graph produces a `SyncReader`, and a graph with any asynchronous node produces an `AsyncReader`. See [Asynchronous Stream Execution](../execution-and-compatibility/async-execution.md#one-stream-type-two-execution-modes) for that decision.
 
 One caveat about the root: `Reader` is declared `abstract class Reader[+Elem]`, not `sealed`. Every reader the library hands you is a `SyncReader` or an `AsyncReader`, and code may rely on that in practice — what it cannot rely on is the compiler proving a `match` over the two kinds exhaustive, so write such a match with a fallback case.
 
@@ -196,7 +196,7 @@ abstract class Reader.AsyncReader[+Elem] extends Reader[Elem] {
 }
 ```
 
-`toAsync` is available on every platform. `toSync` is supplied by a JVM-only platform trait; on Scala.js that trait is empty, so the method does not exist and shared code cannot call it. [Platform Differences](./platform-differences.md#availability-matrix) has the full capability split.
+`toAsync` is available on every platform. `toSync` is supplied by a JVM-only platform trait; on Scala.js that trait is empty, so the method does not exist and shared code cannot call it. [Platform Differences](../execution-and-compatibility/platform-differences.md#availability-matrix) has the full capability split.
 
 Both adapters are lifecycle-preserving views rather than copies. The adapter wraps the original reader, so the two sides share one position and one lifecycle: closing either one closes the underlying source, and consuming through both interleaves pulls on the same cursor. Pick one view and drive the reader through it.
 
@@ -263,7 +263,7 @@ println(r.read(-1))        // -1 (the sentinel)
 
 ### From Collections
 
-`Reader.fromChunk` — Creates a reader backed by a [`Chunk`](../chunk.md). Dispatches on the element type to use specialized, unboxed reads for primitives:
+`Reader.fromChunk` — Creates a reader backed by a [`Chunk`](../../chunk.md). Dispatches on the element type to use specialized, unboxed reads for primitives:
 
 ```scala
 object Reader {
@@ -1113,11 +1113,11 @@ An `AsyncReader` is a single-consumer cursor with one position and one lifecycle
 
 For an implementor this is a contract you may rely on and must not weaken: your `read` will not be re-entered while a previous `read` is still pending, so internal position and buffer state need no defence against overlap. It is also a contract you inherit — a reader you wrap gets the same guarantee only if you preserve it, so never fan a single downstream pull out into concurrent pulls on your source.
 
-Readers are not thread-safe either. Driving one reader from two threads without external synchronization is outside the contract, and the result is not specified. [Asynchronous Stream Execution](./async-execution.md#one-active-operation-per-reader) states the same rule from the consumer's side.
+Readers are not thread-safe either. Driving one reader from two threads without external synchronization is outside the contract, and the result is not specified. [Asynchronous Stream Execution](../execution-and-compatibility/async-execution.md#one-active-operation-per-reader) states the same rule from the consumer's side.
 
 ### Close Ownership
 
-Every asynchronous reader has exactly one owner, and the owner is responsible for awaiting `close()`. Which side holds it is never ambiguous, because the entry point that handed you the reader decides: terminals own and close the reader they compile, `Stream#startAsync` transfers ownership to you, and `Stream#useReaderAsync` retains it. [Manual Pull and Ownership](./async-execution.md#manual-pull-and-ownership) gives each case in full from the consumer's side, including what a forgotten `close()` costs. The rest of this section is what ownership means for the reader itself.
+Every asynchronous reader has exactly one owner, and the owner is responsible for awaiting `close()`. Which side holds it is never ambiguous, because the entry point that handed you the reader decides: terminals own and close the reader they compile, `Stream#startAsync` transfers ownership to you, and `Stream#useReaderAsync` retains it. [Manual Pull and Ownership](../execution-and-compatibility/async-execution.md#manual-pull-and-ownership) gives each case in full from the consumer's side, including what a forgotten `close()` costs. The rest of this section is what ownership means for the reader itself.
 
 `close()` is itself an asynchronous operation: it participates in the one-active-operation rule, it cancels or joins work already in flight, and its result must be awaited rather than discarded. Library readers tolerate a repeated close, but the owner should still close exactly once.
 
@@ -1408,7 +1408,7 @@ Scope.global.scoped { scope =>
 ```
 
 :::caution
-Avoid holding references to a `SyncReader` obtained via `Stream#start` outside its [`Scope`](../resource-management/scope.md). The scope guarantees cleanup; escaping the reader defeats that guarantee.
+Avoid holding references to a `SyncReader` obtained via `Stream#start` outside its [`Scope`](../../resource-management/scope.md). The scope guarantees cleanup; escaping the reader defeats that guarantee.
 :::
 
 ## Integration with Sink
@@ -1442,7 +1442,7 @@ The contract has three parts, and it is the same on both reader kinds:
 
 Two lanes sit outside that arrangement. There is no `Long` value and no `Double` bit pattern left over to reserve — the carrier is the element type itself, so every candidate sentinel is also legitimate data. **The `Long` and `Double` lanes therefore use no sentinel.** `readLong` and `readDouble` still take a sentinel parameter, for symmetry with the five other sentinel-taking pulls, but nothing can safely fill it; the library never relies on it. Instead those lanes detect end-of-stream by count: a length-one `readLongs` or `readDoubles` whose returned count is negative. That is what makes those two lanes fully lossless — every `Long` value and every `Double` bit pattern stays readable as data.
 
-For the per-lane end-of-stream detail, including which carrier each lane widens to, see [Zero-Boxing Streams](./zero-boxing.md), which owns that table.
+For the per-lane end-of-stream detail, including which carrier each lane widens to, see [Zero-Boxing Streams](../execution-and-compatibility/zero-boxing.md), which owns that table.
 
 ### JVM Type Dispatch
 
@@ -1525,9 +1525,9 @@ sbt "streams-examples/runMain reader.ReaderCompositionExample"
 
 ## See Also
 
-- [Asynchronous Stream Execution](./async-execution.md) — how a graph picks its engine, the `*Async` surface, and close ownership from the stream's side
-- [Platform Differences](./platform-differences.md#availability-matrix) — which reader operations exist on the JVM, on Scala.js, and on both
-- [Zero-Boxing Streams](./zero-boxing.md) — how a primitive lane is chosen, and the per-lane end-of-stream table
-- [Stream](./stream.md) — the operator and terminal reference for the type that compiles to a `Reader`
-- [Sink](./sink.md) — the consumer that drains a `Reader`
-- [Async](../async.md#the-pollable-protocol) — `Async[A]`, `Pollable`, and what awaiting an asynchronous result means
+- [Asynchronous Stream Execution](../execution-and-compatibility/async-execution.md) — how a graph picks its engine, the `*Async` surface, and close ownership from the stream's side
+- [Platform Differences](../execution-and-compatibility/platform-differences.md#availability-matrix) — which reader operations exist on the JVM, on Scala.js, and on both
+- [Zero-Boxing Streams](../execution-and-compatibility/zero-boxing.md) — how a primitive lane is chosen, and the per-lane end-of-stream table
+- [Stream](../core/stream.md) — the operator and terminal reference for the type that compiles to a `Reader`
+- [Sink](../core/sink.md) — the consumer that drains a `Reader`
+- [Async](../../async.md#the-pollable-protocol) — `Async[A]`, `Pollable`, and what awaiting an asynchronous result means

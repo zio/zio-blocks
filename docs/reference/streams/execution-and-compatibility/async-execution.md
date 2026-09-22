@@ -25,9 +25,9 @@ The asynchronous surface is five things: constructors that produce a stream from
 | Sequential async operators | 10 names                | [Async Operators](#async-operators)                     |
 | Async terminals            | 12 names / 16 overloads | [Async Terminals](#async-terminals)                     |
 | Manual-pull terminals      | 2 names                 | [Manual Pull and Ownership](#manual-pull-and-ownership) |
-| Bounded concurrency        | 1 name (`mapParAsync`)  | [Bounded Concurrency](./stream.md#bounded-concurrency)  |
-| The `Reader` union         | 2 subtypes              | [Reader](./reader.md)                                   |
-| Platform I/O adapters      | JVM NIO and JS streams  | [Reader](./reader.md#from-native-asynchronous-sources)  |
+| Bounded concurrency        | 1 name (`mapParAsync`)  | [Bounded Concurrency](../core/stream.md#bounded-concurrency)  |
+| The `Reader` union         | 2 subtypes              | [Reader](../primitives/reader.md)                                   |
+| Platform I/O adapters      | JVM NIO and JS streams  | [Reader](../primitives/reader.md#from-native-asynchronous-sources)  |
 
 Every asynchronous addition follows one naming convention: the synchronous name with `Async` appended. There is no `fromAsync` and no `asyncPush`.
 
@@ -106,7 +106,7 @@ abstract class Reader[+Elem] {
 
 The root carries only kind-independent composition and one piece of metadata. Everything that actually pulls or closes lives on one of the two subtypes: `Reader.SyncReader[Elem]`, whose `read` and `close` return directly, and `Reader.AsyncReader[Elem]`, whose pull and lifecycle operations return `Async`.
 
-A synchronous graph materializes as the former; a graph containing any asynchronous node materializes as the latter. See [Reader](./reader.md) for the full member list of both kinds, for how to implement a custom reader, and for `SyncReader#toAsync` and the JVM-only `AsyncReader#toSync`.
+A synchronous graph materializes as the former; a graph containing any asynchronous node materializes as the latter. See [Reader](../primitives/reader.md) for the full member list of both kinds, for how to implement a custom reader, and for `SyncReader#toAsync` and the JVM-only `AsyncReader#toSync`.
 
 ### Mixing Synchronous and Asynchronous Stages
 
@@ -298,7 +298,7 @@ These are the sequential, element-level twins of the synchronous operators. Each
 def mapAsync[B](f: A => Async[B])(implicit jtB: JvmType.Infer[B]): Stream[E, B]
 ```
 
-Asynchronously transforms each element. Synchronous twin: [`map`](./stream.md#streammapb).
+Asynchronously transforms each element. Synchronous twin: [`map`](../core/stream.md#streammapb).
 
 ### `Stream#mapErrorAsync`
 
@@ -306,7 +306,7 @@ Asynchronously transforms each element. Synchronous twin: [`map`](./stream.md#st
 def mapErrorAsync[E2](f: E => Async[E2]): Stream[E2, A]
 ```
 
-Asynchronously transforms the typed error channel. It runs only when the source fails with a typed error; callback failure is a defect. It genuinely changes the error type, so a `Stream[String, A]` can become a `Stream[Long, A]`. Synchronous twin: [`mapError`](./stream.md#streammaperrore2).
+Asynchronously transforms the typed error channel. It runs only when the source fails with a typed error; callback failure is a defect. It genuinely changes the error type, so a `Stream[String, A]` can become a `Stream[Long, A]`. Synchronous twin: [`mapError`](../core/stream.md#streammaperrore2).
 
 ### `Stream#filterAsync`
 
@@ -314,7 +314,7 @@ Asynchronously transforms the typed error channel. It runs only when the source 
 def filterAsync(pred: A => Async[Boolean]): Stream[E, A]
 ```
 
-Tests elements sequentially and emits those satisfying the asynchronous predicate, preserving order. Predicate failure is a defect. Synchronous twin: [`filter`](./stream.md#streamfilter).
+Tests elements sequentially and emits those satisfying the asynchronous predicate, preserving order. Predicate failure is a defect. Synchronous twin: [`filter`](../core/stream.md#streamfilter).
 
 ### `Stream#collectAsync`
 
@@ -322,7 +322,7 @@ Tests elements sequentially and emits those satisfying the asynchronous predicat
 def collectAsync[B](f: A => Async[Option[B]])(implicit jtB: JvmType.Infer[B]): Stream[E, B]
 ```
 
-Asynchronously transforms defined elements, dropping `None` results. Synchronous twin: [`collect`](./stream.md#streamcollectb).
+Asynchronously transforms defined elements, dropping `None` results. Synchronous twin: [`collect`](../core/stream.md#streamcollectb).
 
 ### `Stream#mapAccumAsync`
 
@@ -330,7 +330,7 @@ Asynchronously transforms defined elements, dropping `None` results. Synchronous
 def mapAccumAsync[S, B](init: S)(f: (S, A) => Async[(S, B)])(implicit jtB: JvmType.Infer[B]): Stream[E, B]
 ```
 
-Asynchronously transforms elements while threading state sequentially. At most one invocation of `f` is active at a time. Synchronous twin: [`mapAccum`](./stream.md#stateful-transformations).
+Asynchronously transforms elements while threading state sequentially. At most one invocation of `f` is active at a time. Synchronous twin: [`mapAccum`](../core/stream.md#stateful-transformations).
 
 ### `Stream#scanAsync`
 
@@ -338,7 +338,7 @@ Asynchronously transforms elements while threading state sequentially. At most o
 def scanAsync[S](init: S)(f: (S, A) => Async[S])(implicit jtS: JvmType.Infer[S]): Stream[E, S]
 ```
 
-Asynchronously emits the accumulator at each step, starting with `init`. The output stream has one more element than the input. Synchronous twin: [`scan`](./stream.md#stateful-transformations).
+Asynchronously emits the accumulator at each step, starting with `init`. The output stream has one more element than the input. Synchronous twin: [`scan`](../core/stream.md#stateful-transformations).
 
 ### `Stream#takeWhileAsync`
 
@@ -346,7 +346,7 @@ Asynchronously emits the accumulator at each step, starting with `init`. The out
 def takeWhileAsync(pred: A => Async[Boolean]): Stream[E, A]
 ```
 
-Tests elements sequentially and emits them while the asynchronous predicate holds, then closes upstream at the first `false`. Predicate failure is a defect. Synchronous twin: [`takeWhile`](./stream.md#skipping-and-taking).
+Tests elements sequentially and emits them while the asynchronous predicate holds, then closes upstream at the first `false`. Predicate failure is a defect. Synchronous twin: [`takeWhile`](../core/stream.md#skipping-and-taking).
 
 ### `Stream#distinctByAsync`
 
@@ -354,7 +354,7 @@ Tests elements sequentially and emits them while the asynchronous predicate hold
 def distinctByAsync[K](f: A => Async[K]): Stream[E, A]
 ```
 
-Sequentially computes keys and emits the first element for each key, preserving order. Key state is per materialization and may grow without bound; asynchronous failures are defects. Synchronous twin: [`distinctBy`](./stream.md#streamdistinctbyk).
+Sequentially computes keys and emits the first element for each key, preserving order. Key state is per materialization and may grow without bound; asynchronous failures are defects. Synchronous twin: [`distinctBy`](../core/stream.md#streamdistinctbyk).
 
 ### `Stream#tapEachAsync`
 
@@ -362,7 +362,7 @@ Sequentially computes keys and emits the first element for each key, preserving 
 def tapEachAsync(f: A => Async[Unit]): Stream[E, A]
 ```
 
-Runs an asynchronous effect for each element and passes it through. Synchronous twin: [`tapEach`](./stream.md#other-operations).
+Runs an asynchronous effect for each element and passes it through. Synchronous twin: [`tapEach`](../core/stream.md#other-operations).
 
 ### `Stream#ensuringAsync`
 
@@ -370,9 +370,9 @@ Runs an asynchronous effect for each element and passes it through. Synchronous 
 def ensuringAsync(finalizer: => Async[Unit]): Stream[E, A]
 ```
 
-Registers an asynchronous finalizer lazily and awaits it exactly once when the materialized stream closes, including normal completion, failure, early termination, and cancellation. Finalizer failure is a defect. Synchronous twin: [`ensuring`](./stream.md#streamensuring).
+Registers an asynchronous finalizer lazily and awaits it exactly once when the materialized stream closes, including normal completion, failure, early termination, and cancellation. Finalizer failure is a defect. Synchronous twin: [`ensuring`](../core/stream.md#streamensuring).
 
-For the one *concurrent* asynchronous operator, `mapParAsync`, see [Bounded Concurrency](./stream.md#bounded-concurrency).
+For the one *concurrent* asynchronous operator, `mapParAsync`, see [Bounded Concurrency](../core/stream.md#bounded-concurrency).
 
 ## Async Terminals
 
@@ -484,7 +484,7 @@ This is the edge-of-the-world idiom, and it is JVM-only. Two rules keep it hones
 1. **`.block` belongs in `main`, or in a test, and nowhere else.** Never call it inside a stream callback or inside a `poll` — blocking the driver from within the loop it is driving deadlocks it.
 2. **Scala.js code must not use it at all.** JavaScript cannot block, so unless the effect has already completed synchronously, `.block` throws an `IllegalStateException` there. Cross-platform code should keep the `Async` and hand it to the host: convert it at the boundary (for example with `toFuture`) and let the runtime drive it.
 
-Inside an `Async.async { ... }` block, use the direct-style `.await` instead, which extracts the value without blocking. See [Async](../async.md) for both.
+Inside an `Async.async { ... }` block, use the direct-style `.await` instead, which extracts the value without blocking. See [Async](../../async.md) for both.
 
 ### A Downstream Adopter: `Body`
 
@@ -507,7 +507,7 @@ def bytes(body: Body): Async[Chunk[Byte]] = body.toChunkAsync
 def text(body: Body): Async[String]       = body.textAsync
 ```
 
-[Body](../http-model/model.md#body) documents the type itself, its constructors, and the rest of its accessors.
+[Body](../../http-model/model.md#body) documents the type itself, its constructors, and the rest of its accessors.
 
 ## Manual Pull and Ownership
 
@@ -554,7 +554,7 @@ Two pieces of the API matter here:
 
 Cancellation closes an acquired reader and awaits its finalizer. `startAsync` is the deliberate exception, because it has already transferred that responsibility to its caller.
 
-See [Async](../async.md) for `Pollable`, `Cancelable`, and `Async.Running` themselves.
+See [Async](../../async.md) for `Pollable`, `Cancelable`, and `Async.Running` themselves.
 
 ## Resource Management
 
@@ -655,8 +655,8 @@ sbt "streams-examples/runMain stream.StreamAsyncOrderPipelineExample"
 
 ## See Also
 
-- [Reader](./reader.md) — the `SyncReader` / `AsyncReader` union, custom reader implementations, mixed-kind composition, and the JVM NIO and Scala.js `ReadableStream` adapters
-- [Bounded Concurrency](./stream.md#bounded-concurrency) — `mapPar`, `mapParAsync`, `mergeAll`, and `flatMapPar`
+- [Reader](../primitives/reader.md) — the `SyncReader` / `AsyncReader` union, custom reader implementations, mixed-kind composition, and the JVM NIO and Scala.js `ReadableStream` adapters
+- [Bounded Concurrency](../core/stream.md#bounded-concurrency) — `mapPar`, `mapParAsync`, `mergeAll`, and `flatMapPar`
 - [Platform Differences](./platform-differences.md) — what exists on the JVM, what exists on Scala.js, and what throws
-- [Async](../async.md) — `Async[A]`, `Pollable`, `Completer`, `Async.Running`, and cancellation
+- [Async](../../async.md) — `Async[A]`, `Pollable`, `Completer`, `Async.Running`, and cancellation
 - [Zero-Boxing Optimization](./zero-boxing.md) — primitive lanes, and why async is lane-aware rather than end-to-end allocation-free

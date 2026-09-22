@@ -251,4 +251,4 @@ Half-close models the usual protocol lifecycle:
 ## See Also
 
 - [Streams](streams/index.md) -- the pull-based `Stream`, `Reader`, `Sink`, and `Writer` module. `Mux` is not built on it, but the two are the same concurrency-infrastructure family, and a stream per multiplexed channel is the natural pairing when you are coordinating many keyed streams over one transport.
-- [Async Execution](streams/async-execution.md) -- how a stream runs without blocking, which is what you want on each side of a `Mux` channel.
+- [Async Execution](streams/execution-and-compatibility/async-execution.md) -- how a stream runs without blocking, which is what you want on each side of a `Mux` channel.
