@@ -45,7 +45,7 @@ package zio.blocks.endpoint
 transparent inline def endpoints(inline body: Any): Any =
   ${ EndpointGroupMacro.build('body) }
 
-extension [A, PV](codec: PathCodec[A] { type PathVars = PV }) {
+extension [A](codec: PathCodec[A]) {
 
   /**
    * Prefix a bulk group with a capturing path codec — named alias for `/`.
@@ -63,26 +63,4 @@ extension [A, PV](codec: PathCodec[A] { type PathVars = PV }) {
   /** Symbolic alias for [[nest]] — `codec / endpoints { ... }`. */
   transparent inline def /[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V]): Any =
     nest(nt)
-
-  /**
-   * Delegate for ordinary `PathCodec` composition. When
-   * `import zio.blocks.endpoint.*` brings the grouping `/` into lexical scope,
-   * it would otherwise shadow `PathCodec.PathCodecOps./` and break
-   * `PathCodec.int("a") / PathCodec.int("b")`. Providing the same operator here
-   * preserves that composition byte-for-byte.
-   */
-  def concat[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
-    combiner: zio.blocks.combinators.Tuples.Tuples.WithOut[A, B, C],
-    _pathVarsCombiner: PathCodec.PathVarsCombiner[PV, PV2, PVC]
-  ): PathCodec[C] { type PathVars = PVC } = {
-    val _ = _pathVarsCombiner
-    PathCodec.combineUnrefined(codec, that)(combiner).asInstanceOf[PathCodec[C] { type PathVars = PVC }]
-  }
-
-  /** Symbolic alias for [[concat]] — `codec / codec`. */
-  def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
-    combiner: zio.blocks.combinators.Tuples.Tuples.WithOut[A, B, C],
-    _pathVarsCombiner: PathCodec.PathVarsCombiner[PV, PV2, PVC]
-  ): PathCodec[C] { type PathVars = PVC } =
-    concat(that)(combiner, _pathVarsCombiner)
 }
