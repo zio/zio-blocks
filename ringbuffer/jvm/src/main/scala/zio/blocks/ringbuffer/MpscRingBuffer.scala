@@ -101,7 +101,7 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
    *   full
    */
   def offer(a: A): Boolean = {
-    if (a == null) throw new NullPointerException("offer(null) is not permitted")
+    if (a eq null) throw new NullPointerException("offer(null) is not permitted")
     val buf = buffer
     val m   = mask
     val cap = m + 1L
@@ -202,6 +202,11 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
    * Elements are consumed in FIFO order. Uses relaxed poll semantics: stops at
    * the first `null` slot (either empty or producer mid-write).
    *
+   * The consumer index is published once, with a single release write after the
+   * loop (and on the early empty exit), instead of once per element: producers
+   * may briefly observe a stale index mid-drain and report full, which is
+   * benign — they refresh their cached limit on the next offer.
+   *
    * @param consumer
    *   the callback invoked for each drained element
    * @param limit
@@ -211,7 +216,9 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
    * @return
    *   the number of elements actually drained (0 if the buffer is empty)
    * @note
-   *   Must be called from the consumer thread only.
+   *   Must be called from the consumer thread only. If `consumer` throws, the
+   *   already-advanced consumer index is still published before the exception
+   *   propagates, so the drained slots are freed and the queue stays usable.
    */
   def drain(consumer: A => Unit, limit: Int): Int = {
     if (limit < 0) throw new IllegalArgumentException(s"limit is negative: $limit")
@@ -220,16 +227,25 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
     var cIdx  = consumerIndex
     var count = 0
 
-    while (count < limit) {
-      val offset = (cIdx & m).toInt
-      val e      = ARRAY_HANDLE.getAcquire(buf, offset).asInstanceOf[A]
-      if (e eq null) return count
-      ARRAY_HANDLE.setRelease(buf, offset, null.asInstanceOf[AnyRef])
-      cIdx += 1L
-      CONSUMER_INDEX.setRelease(this, cIdx)
-      count += 1
-      consumer(e)
+    try {
+      while (count < limit) {
+        val offset = (cIdx & m).toInt
+        val e      = ARRAY_HANDLE.getAcquire(buf, offset).asInstanceOf[A]
+        if (e eq null) {
+          CONSUMER_INDEX.setRelease(this, cIdx)
+          return count
+        }
+        ARRAY_HANDLE.setRelease(buf, offset, null.asInstanceOf[AnyRef])
+        cIdx += 1L
+        count += 1
+        consumer(e)
+      }
+    } catch {
+      case throwable: Throwable =>
+        CONSUMER_INDEX.setRelease(this, cIdx)
+        throw throwable
     }
+    CONSUMER_INDEX.setRelease(this, cIdx)
     count
   }
 }

@@ -20,12 +20,10 @@ import scala.collection.mutable
 
 private[mux] object PlatformMux {
 
-  private val StreamQueueCapacity = 256
+  def create[Id, In, Out](capacity: Int, streamQueueCapacity: Int = Mux.DefaultStreamQueueCapacity): Mux[Id, In, Out] =
+    new JsMux[Id, In, Out](capacity, streamQueueCapacity)
 
-  def create[Id, In, Out](capacity: Int): Mux[Id, In, Out] =
-    new JsMux[Id, In, Out](capacity)
-
-  private final class JsMux[Id, In, Out](capacity: Int) extends Mux[Id, In, Out] {
+  private final class JsMux[Id, In, Out](capacity: Int, streamQueueCapacity: Int) extends Mux[Id, In, Out] {
     private val streams         = mutable.HashMap.empty[Id, JsMuxStream[Id, In, Out]]
     private var closed: Boolean = false
 
@@ -33,7 +31,7 @@ private[mux] object PlatformMux {
       if (closed) return MuxError.MuxClosed
       if (streams.contains(id)) return MuxError.ProtocolError(s"Stream $id already exists")
       if (streams.size >= capacity) return MuxError.CapacityExceeded(capacity)
-      val stream = new JsMuxStream[Id, In, Out](id, this)
+      val stream = new JsMuxStream[Id, In, Out](id, this, streamQueueCapacity)
       streams.put(id, stream)
       stream
     }
@@ -68,7 +66,8 @@ private[mux] object PlatformMux {
 
   private final class JsMuxStream[Id, In, Out](
     streamId: Id,
-    mux: JsMux[Id, In, Out]
+    mux: JsMux[Id, In, Out],
+    streamQueueCapacity: Int
   ) extends MuxStream[Id, In, Out] {
     private var state: StreamState                    = StreamState.Open
     private val inboundQueue: mutable.ArrayDeque[Out] = mutable.ArrayDeque.empty
@@ -82,8 +81,8 @@ private[mux] object PlatformMux {
         MuxError.ProtocolError("null message")
       else if (state == StreamState.Closed || state == StreamState.HalfClosedLocal)
         MuxError.StreamClosed(streamId)
-      else if (outboundQueue.size >= StreamQueueCapacity)
-        MuxError.QueueFull(StreamQueueCapacity)
+      else if (outboundQueue.size >= streamQueueCapacity)
+        MuxError.QueueFull(streamQueueCapacity)
       else {
         outboundQueue.append(msg)
         ()
@@ -100,8 +99,8 @@ private[mux] object PlatformMux {
         MuxError.ProtocolError("null message")
       else if (state == StreamState.Closed || state == StreamState.HalfClosedRemote)
         MuxError.StreamClosed(streamId)
-      else if (inboundQueue.size >= StreamQueueCapacity)
-        MuxError.QueueFull(StreamQueueCapacity)
+      else if (inboundQueue.size >= streamQueueCapacity)
+        MuxError.QueueFull(streamQueueCapacity)
       else {
         inboundQueue.append(msg)
         ()

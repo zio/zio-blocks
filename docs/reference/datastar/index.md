@@ -121,8 +121,10 @@ SERVER SIDE (rendered into an SSE stream)
         ├─ executeScript(js) ──────> PatchElementsBuilder
         └─ removeElements(sel) ────> RemoveElementsBuilder
 
-  renderSSE delegates to zio.http.ServerSentEvent, so the result is
-  standard SSE with a Datastar-specific event name and data body.
+  renderSSE writes the frame directly in one StringBuilder pass
+  (event line, optional id:/retry: lines, one data: line per payload
+  line, terminating blank line), so the result is standard SSE with
+  a Datastar-specific event name and data body.
 ```
 
 ## Common Patterns
@@ -230,11 +232,11 @@ event
 
 ## Integration Points
 
-The module is a thin typed layer over three other blocks, and adds no dependency of its own:
+The module is a thin typed layer over two other blocks, frames its own SSE, and adds no dependency of its own:
 
 - **`zio-blocks-html`** supplies `Dom`, `Dom.Attribute`, `Js`, `CssSelector`, and the `ToJs` type class. Every attribute helper returns a `Dom.Attribute`, so Datastar attributes compose with the HTML DSL exactly like `id` or `class` — see [HTML](../html.md).
 - **`zio-blocks-schema`** supplies the JSON codec behind `Signal#:=`. A signal of type `A` needs a `Schema[A]`, and the serialized form is whatever that schema's JSON codec produces — see [Schema](../schema/index.md).
-- **`zio-http-model`** supplies `ServerSentEvent`, which `DatastarEvent#renderSSE` delegates to for the wire format. The Datastar-specific part is the event name and the structured `data:` body — see [ServerSentEvent](../http-model/server-sent-event.md).
+- **SSE framing** is written directly by `DatastarEvent#renderSSE` in a single `StringBuilder` pass: the `event:` line, optional `id:`/`retry:` lines (validated as the envelope requires — `id` must not contain CR or LF, `retry` must be non-negative), one `data:` line per payload line with multi-line values split on `\r\n`/`\r`/`\n`, and the terminating blank line. The Datastar-specific part is the event name and the structured `data:` body.
 
 Within the module, the dependency direction is one-way: attributes and events both consume `Signal`, and neither knows about the other. Nothing in the SSE layer reads the attribute DSL.
 
