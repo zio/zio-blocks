@@ -162,7 +162,7 @@ const sidebars = {
          },
           {
             type: "category",
-            label: "ZIO Blocks HTTP Model",
+            label: "HTTP Model",
             link: { type: "doc", id: "reference/http-model/index" },
             items: [
               "reference/http-model/model",
@@ -174,7 +174,7 @@ const sidebars = {
           },
           {
             type: "category",
-            label: "ZIO Blocks Endpoint",
+            label: "Endpoint",
             link: { type: "doc", id: "reference/endpoint/index" },
             items: [
               "reference/endpoint/endpoint",
@@ -239,14 +239,39 @@ const sidebars = {
             label: "Streams",
             link: { type: "doc", id: "reference/streams/index" },
             items: [
-              "reference/streams/stream",
-              "reference/streams/pipeline",
-              "reference/streams/sink",
-              "reference/streams/reader",
-              "reference/streams/writer",
-              "reference/streams/concurrent-operators",
-              "reference/streams/zero-boxing",
-              "reference/streams/scala-2-compatibility",
+              {
+                type: "category",
+                label: "Core Types",
+                collapsed: false,
+                link: { type: "doc", id: "reference/streams/core/index" },
+                items: [
+                  "reference/streams/core/stream",
+                  "reference/streams/core/pipeline",
+                  "reference/streams/core/sink",
+                ]
+              },
+              {
+                type: "category",
+                label: "Low-Level Primitives",
+                collapsed: false,
+                link: { type: "doc", id: "reference/streams/primitives/index" },
+                items: [
+                  "reference/streams/primitives/reader",
+                  "reference/streams/primitives/writer",
+                ]
+              },
+              {
+                type: "category",
+                label: "Execution and Compatibility",
+                collapsed: false,
+                link: { type: "doc", id: "reference/streams/execution-and-compatibility/index" },
+                items: [
+                  "reference/streams/execution-and-compatibility/async-execution",
+                  "reference/streams/execution-and-compatibility/zero-boxing",
+                  "reference/streams/execution-and-compatibility/platform-differences",
+                  "reference/streams/execution-and-compatibility/scala-2-compatibility",
+                ]
+              },
             ]
           },
           {
