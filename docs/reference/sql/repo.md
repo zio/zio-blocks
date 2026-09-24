@@ -214,7 +214,7 @@ The read operations query the database without modifying it. `Repo#all`, `Repo#f
 
 #### `all` — Retrieve all rows
 
-`Repo#all` executes `SELECT <columns> FROM <table>` and decodes every result-set row into an `E` using the entity's `DbCodec`, returning all rows as a `List[E]` in database-native order.
+`Repo#all` executes `SELECT "<columns>" FROM "<table>"` and decodes every result-set row into an `E` using the entity's `DbCodec`, returning all rows as a `List[E]` in database-native order.
 
 ```scala
 class Repo[E, ID] {
@@ -244,7 +244,7 @@ val users: List[User] = repo.all
 
 #### `findAll` — Retrieve rows by a set of primary keys
 
-`Repo#findAll` executes `SELECT <columns> FROM <table> WHERE <idColumn> IN (...)` for the given IDs and decodes every matching row into an `E`. It returns an empty `List` immediately, without executing any SQL, when `ids` is empty.
+`Repo#findAll` executes `SELECT "<columns>" FROM "<table>" WHERE "<idColumn>" IN (...)` for the given IDs and decodes every matching row into an `E`. It returns an empty `List` immediately, without executing any SQL, when `ids` is empty.
 
 ```scala
 class Repo[E, ID] {
@@ -269,7 +269,7 @@ val users: List[User] = repo.findAll(List(1, 2, 3))
 
 #### `find` — Find a row by primary key
 
-`Repo#find` executes `SELECT <columns> FROM <table> WHERE <idColumn> = ?`, binding the ID through `idCodec`. It returns `Maybe.absent` if no row with the given key exists, or `Maybe(entity)` if a row is found.
+`Repo#find` executes `SELECT "<columns>" FROM "<table>" WHERE "<idColumn>" = ?`, binding the ID through `idCodec`. It returns `Maybe.absent` if no row with the given key exists, or `Maybe(entity)` if a row is found.
 
 ```scala
 class Repo[E, ID] {
@@ -320,7 +320,7 @@ val exists: Boolean = repo.exists(99)
 
 #### `count` — Count all rows
 
-`Repo#count` executes `SELECT COUNT(*) FROM <table>` and returns the row count as a `Long`. The result is `0L` when the table is empty.
+`Repo#count` executes `SELECT COUNT(*) FROM "<table>"` and returns the row count as a `Long`. The result is `0L` when the table is empty.
 
 ```scala
 class Repo[E, ID] {
@@ -349,7 +349,7 @@ The write operations insert, update, or delete rows in the database. `Repo#inser
 
 #### `insert` — Insert a single entity
 
-`Repo#insert` encodes the entity with `DbCodec[E]` and executes `INSERT INTO <table> (<columns>) VALUES (?, …, ?)`, returning the number of affected rows — normally 1 on success.
+`Repo#insert` encodes the entity with `DbCodec[E]` and executes `INSERT INTO "<table>" ("<columns>") VALUES (?, …, ?)`, returning the number of affected rows — normally 1 on success.
 
 ```scala
 class Repo[E, ID] {
@@ -436,7 +436,7 @@ val rowsAffected: Int = repo.insertBatch(users)
 
 #### `insertAll` — Multi-row insert returning primary keys
 
-`Repo#insertAll` assembles a single `INSERT INTO <table> (<columns>) VALUES (?, …, ?), …, (?, …, ?)` statement covering all rows and executes it in one database round-trip. It then extracts the primary keys from the input entities via `getId` and returns them in input order.
+`Repo#insertAll` assembles a single `INSERT INTO "<table>" ("<columns>") VALUES (?, …, ?), …, (?, …, ?)` statement covering all rows and executes it in one database round-trip. It then extracts the primary keys from the input entities via `getId` and returns them in input order.
 
 ```scala
 class Repo[E, ID] {
@@ -470,7 +470,7 @@ val ids: Seq[Int] = repo.insertAll(newUsers)
 
 #### `update` — Update an entity's non-ID columns
 
-`Repo#update` executes `UPDATE <table> SET <col1> = ?, …, <colN> = ? WHERE <idColumn> = ?` for all non-ID columns of the entity, identifying the target row by its primary key. It returns the number of affected rows — 0 when no row with that ID exists.
+`Repo#update` executes `UPDATE "<table>" SET "<col1>" = ?, …, "<colN>" = ? WHERE "<idColumn>" = ?` for all non-ID columns of the entity, identifying the target row by its primary key. It returns the number of affected rows — 0 when no row with that ID exists.
 
 ```scala
 class Repo[E, ID] {
@@ -499,7 +499,7 @@ val rowsAffected: Int = repo.update(User(1, "Alice Smith", "alice.smith@example.
 
 #### `delete` — Delete by primary key
 
-`Repo#delete` executes `DELETE FROM <table> WHERE <idColumn> = ?`, binding the ID through `idCodec`. It returns the number of deleted rows — 0 if no row with the given ID exists.
+`Repo#delete` executes `DELETE FROM "<table>" WHERE "<idColumn>" = ?`, binding the ID through `idCodec`. It returns the number of deleted rows — 0 if no row with the given ID exists.
 
 ```scala
 class Repo[E, ID] {
@@ -526,7 +526,7 @@ To delete by an entity value rather than a bare ID, extract the key with `getId`
 
 #### `deleteAll` — Delete rows by a set of primary keys
 
-`Repo#deleteAll` executes `DELETE FROM <table> WHERE <idColumn> IN (...)` for the given IDs in a single round-trip and returns the total number of deleted rows. It returns `0` immediately, without executing any SQL, when `ids` is empty.
+`Repo#deleteAll` executes `DELETE FROM "<table>" WHERE "<idColumn>" IN (...)` for the given IDs in a single round-trip and returns the total number of deleted rows. It returns `0` immediately, without executing any SQL, when `ids` is empty.
 
 ```scala
 class Repo[E, ID] {
@@ -551,7 +551,7 @@ val rowsAffected: Int = repo.deleteAll(List(1, 2, 3))
 
 #### `clear` — Remove all rows
 
-`Repo#clear` executes `DELETE FROM <table>` without a `WHERE` clause and returns the number of deleted rows.
+`Repo#clear` executes `DELETE FROM "<table>"` without a `WHERE` clause and returns the number of deleted rows.
 
 ```scala
 class Repo[E, ID] {
