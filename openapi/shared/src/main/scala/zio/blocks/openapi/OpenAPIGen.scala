@@ -20,6 +20,17 @@ import zio.blocks.schema.Schema
 
 object OpenAPIGen {
 
+  /**
+   * Builds the OpenAPI schema for `A` as a symbolic reference plus its
+   * component definitions.
+   *
+   * ==Refs in / refs out==
+   *   - References are preserved symbolically: the returned schema is always a
+   *     `ReferenceOr.Ref` pointing at `#/components/schemas/<name>`, and the
+   *     definitions map holds the inline `SchemaObject`. No resolution or
+   *     dereferencing pass runs here; resolving refs against a document is
+   *     downstream work outside this entry point.
+   */
   def schema[A](implicit s: Schema[A]): (ReferenceOr[SchemaObject], Map[String, SchemaObject]) = {
     val name = s.reflect.typeId.name
     val obj  = s.toOpenAPISchema

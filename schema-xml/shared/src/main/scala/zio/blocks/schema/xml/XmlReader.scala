@@ -19,6 +19,33 @@ package zio.blocks.schema.xml
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 object XmlReader {
+
+  /**
+   * Reads an XML document into an [[Xml]] AST.
+   *
+   * ==Closed entity set==
+   *   - Only the five predefined entities (`&amp;` `&lt;` `&gt;` `&quot;`
+   *     `&apos;`) and numeric character references (`&#...;` unsigned decimal,
+   *     `&#x...;` unsigned hexadecimal) are recognized. Explicit `+`/`-` signs
+   *     are rejected: the XML spec allows only digits and hex digits here.
+   *     Every other entity (custom, external, parameter) fails closed with a
+   *     [[XmlCodecError]] carrying line/column position; there is deliberately
+   *     no DTD, `DOCTYPE`, or external-entity branch, so external entities can
+   *     never be expanded.
+   *   - Entities resolve in a single pass (no recursive re-expansion), so
+   *     nested inputs such as `&amp;lt;` decode to the literal text `&lt;` and
+   *     cannot blow up exponentially. Element nesting is additionally bounded
+   *     by `config.maxDepth`.
+   *
+   * @param input
+   *   the XML document text
+   * @param config
+   *   reader limits (defaults to `ReaderConfig.default`)
+   * @throws XmlCodecError
+   *   always thrown (instead of returning) on malformed input, with line/column
+   *   position in the message; [[XmlCodec]] converts these into positioned
+   *   codec errors with traversal spans downstream
+   */
   def read(input: String, config: ReaderConfig = ReaderConfig.default): Xml =
     new XmlReaderImpl(input, config).parse()
 
@@ -234,14 +261,47 @@ object XmlReader {
       advance()
       val entity = sb.toString
       entity match {
-        case "amp"  => "&"
-        case "lt"   => "<"
-        case "gt"   => ">"
-        case "quot" => "\""
-        case "apos" => "'"
-        case _      => error(s"Unknown entity reference: &$entity;")
+        case "amp"                       => "&"
+        case "lt"                        => "<"
+        case "gt"                        => ">"
+        case "quot"                      => "\""
+        case "apos"                      => "'"
+        case _ if entity.startsWith("#") => parseNumericEntity(entity)
+        case _                           => error(s"Unknown entity reference: &$entity;")
       }
     }
+
+    private[this] def parseNumericEntity(entity: String): String = {
+      // The XML spec allows only digits (decimal) or hex digits (hexadecimal)
+      // after `#`/`#x`: validate the charset explicitly instead of relying on
+      // `Integer.parseInt`, which would silently accept `+`/`-` signs.
+      val digits         = entity.substring(1)
+      val codePoint: Int =
+        if (digits.startsWith("x") || digits.startsWith("X")) {
+          val hex = digits.substring(1)
+          if (hex.isEmpty || !hex.forall(isHexDigit)) error(s"Invalid entity reference: &$entity;")
+          else
+            try Integer.parseInt(hex, 16)
+            catch { case _: NumberFormatException => error(s"Invalid entity reference: &$entity;") }
+        } else if (digits.isEmpty || !digits.forall(isDecimalDigit)) error(s"Invalid entity reference: &$entity;")
+        else
+          try Integer.parseInt(digits, 10)
+          catch { case _: NumberFormatException => error(s"Invalid entity reference: &$entity;") }
+      if (!isValidXmlChar(codePoint)) error(s"Invalid entity reference: &$entity;")
+      else new String(Character.toChars(codePoint))
+    }
+
+    private[this] def isDecimalDigit(c: Char): Boolean =
+      c >= '0' && c <= '9'
+
+    private[this] def isHexDigit(c: Char): Boolean =
+      isDecimalDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+
+    private[this] def isValidXmlChar(codePoint: Int): Boolean =
+      codePoint == 0x9 || codePoint == 0xa || codePoint == 0xd ||
+        (codePoint >= 0x20 && codePoint <= 0xd7ff) ||
+        (codePoint >= 0xe000 && codePoint <= 0xfffd) ||
+        (codePoint >= 0x10000 && codePoint <= 0x10ffff)
 
     private[this] def parseCommentAfterOpenMarker(): Xml.Comment = {
       advance()
