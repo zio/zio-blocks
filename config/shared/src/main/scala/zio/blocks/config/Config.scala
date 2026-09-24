@@ -21,6 +21,24 @@ import zio.blocks.scope.Wire
 
 /**
  * Entry point for loading typed configuration from a `ConfigSource`.
+ *
+ * ==Two configuration systems==
+ *
+ * This module offers two parallel systems — pick one per use case:
+ *
+ * {{{
+ *                        Schema-derived (`Config.load`)   Flag objects (`DynamicFlag`/`StaticFlag`)
+ *                        ------------------------------   ------------------------------------------
+ * Shape                  Whole typed document `A`         One named value (boolean, int, string, ...)
+ * Typing                 `Schema[A]`-derived decoder      `Flag.Reader[A]` instance
+ * Source                 Any `ConfigSource`               `FlagSource` → system property → env → default
+ * Reloads                Re-`load` on demand              `DynamicFlag` re-reads rollout expressions live
+ * Provenance             `loadWithProvenance`             Flag dump/registry APIs
+ * Use when               Startup/service config           Feature flags, rollouts, kill switches
+ * }}}
+ *
+ * Neither replaces the other: service config belongs in `Config.load`,
+ * per-request switches belong in flags.
  */
 object Config {
 
