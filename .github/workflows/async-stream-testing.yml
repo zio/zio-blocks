@@ -23,7 +23,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
       - uses: coursier/setup-action@v3
         with: { jvm: 'temurin:25', apps: sbt }
       - uses: coursier/cache-action@v8
@@ -49,7 +49,7 @@ jobs:
           - { scala: '2.13.18', platform: JS, java: '17' }
           - { scala: '3.3.7', platform: JS, java: '17' }
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
       - uses: coursier/setup-action@v3
         with: { jvm: 'temurin:${{ matrix.java }}', apps: sbt }
       - uses: coursier/cache-action@v8
@@ -65,7 +65,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
       - uses: coursier/setup-action@v3
         with: { jvm: 'temurin:25', apps: sbt }
       - uses: coursier/cache-action@v8
@@ -86,7 +86,7 @@ jobs:
           - { scala: '2.13.18', platform: JS, java: '17' }
           - { scala: '3.3.7', platform: JS, java: '17' }
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
       - uses: coursier/setup-action@v3
         with: { jvm: 'temurin:${{ matrix.java }}', apps: sbt }
       - run: python3 streams/testing/tool.py evidence --command "sbt '++${{ matrix.scala }}; streams${{ matrix.platform }}/test'" --out target/async-nightly-evidence.json
@@ -101,7 +101,7 @@ jobs:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
       - uses: coursier/setup-action@v3
         with: { jvm: 'temurin:25', apps: sbt }
       - uses: coursier/cache-action@v8
@@ -132,7 +132,7 @@ jobs:
           - { scala: '2.13.18', platform: JS, java: '17' }
           - { scala: '3.3.7', platform: JS, java: '17' }
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
       - uses: coursier/setup-action@v3
         with: { jvm: 'temurin:${{ matrix.java }}', apps: sbt }
       - run: python3 streams/testing/tool.py evidence --command "sbt '++${{ matrix.scala }}; streams${{ matrix.platform }}/test'" --out target/async-soak-evidence.json
@@ -150,7 +150,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.replay != ''
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v7.0.1
       - uses: coursier/setup-action@v3
         with: { jvm: 'temurin:25', apps: sbt }
       - run: python3 streams/testing/tool.py replay "$ASYNC_REPLAY" && sbt "++3.8.3; asyncReplay"
