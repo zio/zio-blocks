@@ -17,7 +17,6 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
-import scala.annotation.tailrec
 
 /**
  * Provides matching logic for SchemaRepr patterns against DynamicValue
@@ -44,13 +43,17 @@ import scala.annotation.tailrec
  *     key and value types (empty map always matches)
  *   - '''Optional(inner)''': Matches DynamicValue.Null always, otherwise checks
  *     inner pattern
- *   - '''Nominal(name)''': Returns false (requires schema context not available
- *     in DynamicValue)
+ *   - '''Nominal(name)''': never matches — a nominal reference needs schema
+ *     context that is not available in `DynamicValue`, so it is treated as
+ *     `false`
  */
 object SchemaMatch {
 
   /**
    * Tests whether a DynamicValue matches a SchemaRepr pattern.
+   *
+   * A `Nominal` pattern (or a pattern containing one nested inside) cannot be
+   * decided from the `DynamicValue` alone and is treated as `false`.
    *
    * @param pattern
    *   the schema pattern to match against
@@ -59,7 +62,6 @@ object SchemaMatch {
    * @return
    *   true if the value matches the pattern, false otherwise
    */
-  @tailrec
   def matches(pattern: SchemaRepr, value: DynamicValue): Boolean = pattern match {
     case _: SchemaRepr.Wildcard.type => true
     case p: SchemaRepr.Primitive     =>
@@ -88,8 +90,7 @@ object SchemaMatch {
         case _                    => false
       }
     case o: SchemaRepr.Optional =>
-      if (value eq DynamicValue.Null) true
-      else matches(o.inner, value)
+      (value eq DynamicValue.Null) || matches(o.inner, value)
     case _ => false
   }
 
@@ -139,12 +140,21 @@ object SchemaMatch {
   private[this] def recordMatches(
     patternFields: IndexedSeq[(String, SchemaRepr)],
     actualFields: Chunk[(String, DynamicValue)]
-  ): Boolean =
-    patternFields.forall { case (patternName, patternRepr) =>
-      actualFields.exists { case (actualName, actualValue) =>
-        actualName == patternName && matches(patternRepr, actualValue)
+  ): Boolean = {
+    var result = true
+    val it     = patternFields.iterator
+    while (result && it.hasNext) {
+      val (patternName, patternRepr) = it.next()
+      var found                      = false
+      val jt                         = actualFields.iterator
+      while (!found && jt.hasNext) {
+        val (actualName, actualValue) = jt.next()
+        if (actualName == patternName) found = matches(patternRepr, actualValue)
       }
+      if (!found) result = false
     }
+    result
+  }
 
   /**
    * Tests whether a DynamicValue.Variant matches a Variant pattern. The
@@ -155,18 +165,30 @@ object SchemaMatch {
     patternCases: IndexedSeq[(String, SchemaRepr)],
     caseName: String,
     payload: DynamicValue
-  ): Boolean =
-    patternCases.exists { case (patternCaseName, patternRepr) =>
-      patternCaseName == caseName && matches(patternRepr, payload)
+  ): Boolean = {
+    var result = false
+    val it     = patternCases.iterator
+    while (!result && it.hasNext) {
+      val (patternCaseName, patternRepr) = it.next()
+      if (patternCaseName == caseName) result = matches(patternRepr, payload)
     }
+    result
+  }
 
   /**
    * Tests whether a DynamicValue.Sequence matches a Sequence pattern. Empty
    * sequences always match. For non-empty sequences, all elements must match
    * the element pattern.
    */
-  private[this] def sequenceMatches(elemPattern: SchemaRepr, elements: Chunk[DynamicValue]): Boolean =
-    elements.forall(elem => matches(elemPattern, elem))
+  private[this] def sequenceMatches(
+    elemPattern: SchemaRepr,
+    elements: Chunk[DynamicValue]
+  ): Boolean = {
+    var result = true
+    val it     = elements.iterator
+    while (result && it.hasNext) result = matches(elemPattern, it.next())
+    result
+  }
 
   /**
    * Tests whether a DynamicValue.Map matches a Map pattern. Empty maps always
@@ -177,5 +199,13 @@ object SchemaMatch {
     keyPattern: SchemaRepr,
     valuePattern: SchemaRepr,
     entries: Chunk[(DynamicValue, DynamicValue)]
-  ): Boolean = entries.forall { case (k, v) => matches(keyPattern, k) && matches(valuePattern, v) }
+  ): Boolean = {
+    var result = true
+    val it     = entries.iterator
+    while (result && it.hasNext) {
+      val (k, v) = it.next()
+      result = matches(keyPattern, k) && matches(valuePattern, v)
+    }
+    result
+  }
 }
