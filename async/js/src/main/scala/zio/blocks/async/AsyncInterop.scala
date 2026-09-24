@@ -20,6 +20,7 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.scalajs.js
 import scala.scalajs.js.JSConverters._
 import scala.util.{Failure => SFailure, Success => SSuccess}
+import zio.blocks.async.internal.PlatformAsync
 
 /**
  * Scala.js-only interop between [[Async]] and the standard async types: Scala's
@@ -126,9 +127,32 @@ private[async] object AsyncInterop {
       // `Promise.resolve().then(...)`), instead of allocating a
       // Promise + Future + `Try` bridge per wakeup. `step` already guards on
       // `settled`, so a redundant resumption stays idempotent.
-      lazy val resume: Runnable     = new Runnable { def run(): Unit = step() }
+      var signalled                                     = false
+      var polling                                       = false
+      var wakePending                                   = false
+      var readyResumptions                              = 0
+      var yieldScheduled                                = false
+      def requestStep(freshWake: Boolean = false): Unit =
+        if (!settled && !signalled) {
+          if (freshWake) readyResumptions = 0
+          signalled = true
+          readyResumptions += 1
+          yieldScheduled = readyResumptions >= PlatformAsync.ReadyResumptionLimit
+          if (yieldScheduled) PlatformAsync.schedule(resume, forceMacrotask = true)
+          else ec.execute(resume)
+        }
+      lazy val resume: Runnable = new Runnable {
+        def run(): Unit = {
+          if (yieldScheduled) readyResumptions = 0
+          yieldScheduled = false
+          signalled = false
+          step()
+        }
+      }
       lazy val onComplete: Runnable = new Runnable {
-        def run(): Unit = ec.execute(resume)
+        def run(): Unit =
+          if (polling) wakePending = true
+          else requestStep(freshWake = true)
       }
       def step(): Unit =
         if (!settled) {
@@ -136,15 +160,30 @@ private[async] object AsyncInterop {
           // surface as a failed `Promise`, not be thrown to the caller / orphan
           // the future — matching the JVM driver and the JS `start` runner
           // runner, both of which funnel a thrown `poll` into the failure path.
+          polling = true
+          wakePending = false
           val next =
             try current.poll(onComplete)
-            catch { case t: Throwable => settled = true; failPromise(p, Failure.unwindCause(t)); return }
+            catch {
+              case t: Throwable =>
+                polling = false
+                settled = true
+                failPromise(p, Failure.unwindCause(t))
+                return
+            }
+          polling = false
           val nany = next.asInstanceOf[Any]
           if (nany.isInstanceOf[Failure]) { settled = true; failPromise(p, nany.asInstanceOf[Failure].cause) }
           else if (nany.isInstanceOf[Pollable[_]]) {
-            current = nany.asInstanceOf[Pollable[A]]; ()
-          } // advance; wait for waker
-          else { settled = true; p.success(AsyncEncoding.deliverSuccess[A](nany)); () }
+            val replacement = nany.asInstanceOf[Pollable[A]]
+            if (replacement ne current) {
+              current = replacement
+              // A distinct replacement is synchronous driver progress. It has
+              // not necessarily registered this callback, so schedule its
+              // first poll rather than waiting for a wake it never promised.
+              requestStep()
+            } else if (wakePending) requestStep()
+          } else { settled = true; p.success(AsyncEncoding.deliverSuccess[A](nany)); () }
         }
       step()
     } else

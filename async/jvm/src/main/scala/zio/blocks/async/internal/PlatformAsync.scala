@@ -16,6 +16,7 @@
 
 package zio.blocks.async.internal
 
+import java.util.concurrent.{ForkJoinPool, ForkJoinWorkerThread}
 import java.util.concurrent.locks.LockSupport
 
 /**
@@ -29,6 +30,93 @@ import java.util.concurrent.locks.LockSupport
  * on the genuinely-suspended (off-thread completion) path.
  */
 private[async] object PlatformAsync {
+
+  private val executionOwner           = new ThreadLocal[AnyRef]
+  private val cancellationBatch        = new ThreadLocal[AnyRef]
+  private val continuationScratch1     = new ThreadLocal[AnyRef]
+  private val continuationScratch2     = new ThreadLocal[AnyRef]
+  private val bracketCancellationDepth = new ThreadLocal[BracketCancellationDepth]
+  private val bracketPollDepth         = new ThreadLocal[BracketPollDepth]
+
+  def currentExecutionOwner: AnyRef    = executionOwner.get()
+  def currentCancellationBatch: AnyRef = cancellationBatch.get()
+
+  def enterBracketCancellation(): Int = {
+    var depth = bracketCancellationDepth.get()
+    if (depth eq null) {
+      depth = new BracketCancellationDepth
+      bracketCancellationDepth.set(depth)
+    }
+    depth.value += 1
+    depth.value
+  }
+
+  def enterBracketPoll(): Int = {
+    var depth = bracketPollDepth.get()
+    if (depth eq null) {
+      depth = new BracketPollDepth
+      bracketPollDepth.set(depth)
+    }
+    depth.value += 1
+    depth.value
+  }
+
+  def exitBracketCancellation(): Unit = bracketCancellationDepth.get().value -= 1
+
+  def exitBracketPoll(): Unit = bracketPollDepth.get().value -= 1
+
+  def takeContinuationScratch(): AnyRef = {
+    val first = continuationScratch1.get()
+    if (first ne null) {
+      continuationScratch1.set(null)
+      first
+    } else {
+      val second = continuationScratch2.get()
+      if (second ne null) continuationScratch2.set(null)
+      second
+    }
+  }
+
+  def releaseContinuationScratch(scratch: AnyRef): Unit =
+    if (continuationScratch1.get() eq null) continuationScratch1.set(scratch)
+    else if (continuationScratch2.get() eq null) continuationScratch2.set(scratch)
+
+  def withCancellationBatch[A](batch: AnyRef)(body: => A): A = {
+    val previous = cancellationBatch.get()
+    cancellationBatch.set(batch)
+    try body
+    finally cancellationBatch.set(previous)
+  }
+
+  def withExecutionOwner[A](owner: AnyRef)(body: => A): A = {
+    val previous = executionOwner.get()
+    executionOwner.set(owner)
+    try body
+    finally executionOwner.set(previous)
+  }
+
+  def schedule(runnable: Runnable, forceMacrotask: Boolean): Unit = {
+    val _     = forceMacrotask
+    val owner = currentExecutionOwner
+    val batch = currentCancellationBatch
+    ForkJoinPool
+      .commonPool()
+      .execute(
+        if ((owner eq null) && (batch eq null)) runnable
+        else
+          new Runnable {
+            def run(): Unit = withExecutionOwner(owner)(withCancellationBatch(batch)(runnable.run()))
+          }
+      )
+  }
+
+  def isSchedulerThread: Boolean = Thread.currentThread() match {
+    case worker: ForkJoinWorkerThread => worker.getPool eq ForkJoinPool.commonPool()
+    case _                            => false
+  }
+
+  /** Schedule runtime-owned work without inheriting the caller's contexts. */
+  def scheduleRaw(runnable: Runnable): Unit = ForkJoinPool.commonPool().execute(runnable)
 
   // One parker is cached per awaiting thread and reused across `await` calls,
   // so a steady stream of (non-nested) `.block` calls on the same thread
@@ -55,6 +143,14 @@ private[async] object PlatformAsync {
       if (p eq null) pooled.set(fresh) // pool only the FIRST parker per thread
       fresh
     }
+  }
+
+  private final class BracketCancellationDepth {
+    var value: Int = 0
+  }
+
+  private final class BracketPollDepth {
+    var value: Int = 0
   }
 
   // One object that IS the parker AND its own waker (`onComplete = this`). The

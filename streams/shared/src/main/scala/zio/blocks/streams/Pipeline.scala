@@ -16,8 +16,9 @@
 
 package zio.blocks.streams
 
+import zio.blocks.async.{Async, _}
 import zio.blocks.chunk.Chunk
-import zio.blocks.streams.internal.cleanupWithPrimary
+import zio.blocks.streams.internal.{AsyncInterpreter, StreamError}
 import zio.blocks.streams.io.Reader
 
 /**
@@ -33,22 +34,43 @@ import zio.blocks.streams.io.Reader
  */
 abstract class Pipeline[-In, +Out] {
 
-  /** Composes this pipeline with `that`, applying `this` first, then `that`. */
+  /**
+   * Composes this pipeline with `that`, applying `this` first and `that` to its
+   * output. Composition builds a lazy pipeline value; it does not run either
+   * pipeline or share per-run state. [[Pipeline.identity]] is the left and
+   * right identity.
+   */
   def andThen[C](that: Pipeline[Out, C]): Pipeline[In, C] =
     new Pipeline.Composed(this, that)
 
-  /** Alias for `applyToSink`. Composes this pipeline with a downstream sink. */
+  /**
+   * Pre-composes this pipeline with `sink`. Running the returned sink is
+   * equivalent to transforming the input with this pipeline and then running
+   * `sink`; the sink's typed error and result types are unchanged. Derived
+   * readers are closed on completion, failure, or cancellation.
+   *
+   * This is an alias for [[applyToSink]].
+   */
   def andThenSink[E, Z](sink: Sink[E, Out, Z]): Sink[E, In, Z] =
     applyToSink(sink)
 
   /**
-   * Applies this pipeline to a sink, producing a sink that pre-processes
-   * elements through this pipeline.
+   * Returns a sink that transforms its input with this pipeline before passing
+   * it to `sink`. Construction is lazy and preserves `sink`'s typed error and
+   * result types. Implementations must release the transformed reader, and
+   * therefore its upstream resources, on every exit.
    */
   def applyToSink[E, Z](sink: Sink[E, Out, Z]): Sink[E, In, Z]
 
-  /** Applies this pipeline to a stream, producing a transformed stream. */
+  /**
+   * Returns the lazy stream obtained by applying this transformation to
+   * `stream`. The stream's typed error type is preserved; transformation
+   * callbacks cannot add typed errors. Resources and cancellation remain
+   * governed by the returned stream and its source.
+   */
   def applyToStream[E](stream: Stream[E, In]): Stream[E, Out]
+
+  private[streams] def fuseAsyncReader(reader: Reader.AsyncReader[_]): Reader.AsyncReader[Out] = null
 }
 
 /**
@@ -58,62 +80,151 @@ abstract class Pipeline[-In, +Out] {
 object Pipeline {
 
   /**
-   * A pipeline that applies a partial function, emitting only defined results.
+   * Inserts a bounded buffer of `n` elements between upstream production and
+   * downstream consumption. This is a materialization/asynchronous boundary: it
+   * preserves elements and order while decoupling producer and consumer.
+   * Closing or cancelling downstream closes the buffer and upstream.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `n < 1`
    */
-  def collect[A, B](
-    pf: PartialFunction[A, B]
-  )(implicit jtA: JvmType.Infer[A], jtB: JvmType.Infer[B]): Pipeline[A, B] = new CollectPipeline(pf, jtA, jtB)
-
-  /**
-   * A pipeline that skips the first `n` elements, then passes through the rest.
-   */
-  def drop[A](n: Long): Pipeline[A, A] = new DropPipeline(n)
-
-  /** A pipeline that emits only elements satisfying `pred`. */
-  def filter[A](pred: A => Boolean)(implicit jtA: JvmType.Infer[A]): Pipeline[A, A] =
-    new FilterPipeline(pred, jtA)
-
-  /** The identity pipeline that passes all elements through unchanged. */
-  def identity[A](implicit jtA: JvmType.Infer[A]): Pipeline[A, A] =
-    new MapPipeline[A, A](x => x, jtA, jtA)
-
-  /** A pipeline that transforms each element with `f`. */
-  def map[A, B](f: A => B)(implicit jtA: JvmType.Infer[A], jtB: JvmType.Infer[B]): Pipeline[A, B] =
-    new MapPipeline(f, jtA, jtB)
-
-  /** A pipeline that passes through at most the first `n` elements. */
-  def take[A](n: Long): Pipeline[A, A] = new TakePipeline(n)
-
-  /** A pipeline that buffers up to `n` elements from the upstream. */
   def buffer[A](n: Int): Pipeline[A, A] = {
     require(n >= 1, s"buffer requires n >= 1, got n=$n")
     new BufferPipeline(n)
   }
 
-  /** A pipeline that groups elements into fixed-size [[Chunk]]s. */
+  /**
+   * Groups consecutive elements into non-empty `Chunk`s of at most `n`
+   * elements. Full chunks have size `n`; on normal exhaustion the final chunk
+   * may be smaller. Grouping spans upstream read boundaries, preserves order,
+   * and uses fresh accumulation state for each materialization.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `n < 1`
+   */
   def chunked[A](n: Int): Pipeline[A, Chunk[A]] = {
     require(n >= 1, s"chunked requires n >= 1, got n=$n")
     new ChunkedPipeline(n)
   }
 
-  private[streams] def runViaSink[A, B, E, Z](
-    pipe: Pipeline[A, B],
-    sink: Sink[E, B, Z]
-  ): Sink[E, A, Z] =
-    new RunViaSink(pipe, sink)
+  /**
+   * Applies `pf` once per input via `applyOrElse`, emitting only defined
+   * results while preserving order. Exceptions thrown while testing or applying
+   * `pf` are defects, not typed stream errors. Runtime type evidence selects
+   * specialized primitive reader paths.
+   */
+  def collect[A, B](
+    pf: PartialFunction[A, B]
+  )(implicit
+    jtB: JvmType.Infer[B]
+  ): Pipeline[A, B] = new CollectPipeline(pf, jtB)
+
+  /**
+   * Asynchronously evaluates each element, sequentially and in input order,
+   * emitting the value of `Some` and dropping `None`. A failed or defective
+   * `Async` becomes a stream defect, and cancellation of a suspended callback
+   * is propagated. Runtime type evidence selects specialized reader paths.
+   */
+  def collectAsync[A, B](f: A => Async[Option[B]])(implicit
+    jtB: JvmType.Infer[B]
+  ): Pipeline[A, B] = new Pipeline[A, B] {
+    def applyToSink[E, Z](sink: Sink[E, B, Z]): Sink[E, A, Z] = runViaSink(this, sink)
+    def applyToStream[E](stream: Stream[E, A]): Stream[E, B]  = stream.collectAsync(f)
+  }
+
+  /**
+   * Skips the first `n` elements of each run, then emits the rest unchanged.
+   * Non-positive values skip nothing. Counting state is fresh for every stream
+   * or sink materialization.
+   */
+  def drop[A](n: Long): Pipeline[A, A] = new DropPipeline(n)
+
+  /**
+   * Emits elements satisfying `pred`, in input order. The predicate is
+   * evaluated once per element; thrown exceptions are defects rather than typed
+   * stream errors. Runtime type evidence preserves primitive specialization.
+   */
+  def filter[A](pred: A => Boolean): Pipeline[A, A] =
+    new FilterPipeline(pred)
+
+  /**
+   * Asynchronously tests each element, sequentially and in input order,
+   * emitting it only when `f` yields `true`. A failed or defective `Async`
+   * becomes a stream defect, and cancellation of a suspended predicate is
+   * propagated. Runtime type evidence preserves primitive specialization.
+   */
+  def filterAsync[A](f: A => Async[Boolean]): Pipeline[A, A] =
+    new Pipeline[A, A] {
+      def applyToSink[E, Z](sink: Sink[E, A, Z]): Sink[E, A, Z] = runViaSink(this, sink)
+      def applyToStream[E](stream: Stream[E, A]): Stream[E, A]  = stream.filterAsync(f)
+    }
+
+  /**
+   * Passes every element through unchanged, preserving order, errors, and
+   * resource behavior. It is the identity for [[Pipeline.andThen]] and returns
+   * its input stream or sink unchanged, preserving any specialized reader path.
+   */
+  def identity[A]: Pipeline[A, A] = new Pipeline[A, A] {
+    def applyToSink[E, Z](sink: Sink[E, A, Z]): Sink[E, A, Z] = sink
+    def applyToStream[E](stream: Stream[E, A]): Stream[E, A]  = stream
+  }
+
+  /**
+   * Maps each element lazily with a function whose result is `Nothing`. This
+   * overload preserves bottom-type inference and uses a boxed output lane.
+   * Thrown exceptions are defects rather than typed stream errors.
+   */
+  def map[A](f: A => Nothing)(implicit
+    dummy: DummyImplicit
+  ): Pipeline[A, Nothing] = {
+    val _ = dummy
+    new MapPipeline[A, Nothing](f, JvmType.Infer.boxed[Nothing])
+  }
+
+  /**
+   * Lazily transforms each element with `f`, preserving input order and
+   * cardinality. Thrown exceptions are defects rather than typed stream errors.
+   * Runtime type evidence selects specialized primitive input and output reader
+   * paths.
+   */
+  def map[A, B](f: A => B)(implicit
+    jtB: JvmType.Infer[B]
+  ): Pipeline[A, B] =
+    new MapPipeline(f, jtB)
+
+  /**
+   * Asynchronously transforms each element, sequentially and in input order.
+   * Each callback is awaited before the next element is processed. A failed or
+   * defective `Async` fails the stream as a defect rather than through its
+   * typed error channel; cancellation of a suspended callback is propagated.
+   * Runtime type evidence selects specialized primitive reader paths.
+   */
+  def mapAsync[A, B](f: A => Async[B])(implicit
+    jtB: JvmType.Infer[B]
+  ): Pipeline[A, B] =
+    new Pipeline[A, B] {
+      def applyToSink[E, Z](sink: Sink[E, B, Z]): Sink[E, A, Z] = sink.contramapAsync[B, A](f)(jtB)
+      def applyToStream[E](stream: Stream[E, A]): Stream[E, B]  = stream.mapAsync(f)
+    }
+
+  /**
+   * Emits at most the first `n` elements of each run and then closes upstream
+   * early. Non-positive values produce an empty stream. Counting state is fresh
+   * for every stream or sink materialization.
+   */
+  def take[A](n: Long): Pipeline[A, A] = new TakePipeline(n)
 
   /**
    * Pipeline that applies a partial function, emitting only defined results.
    */
   private[streams] final class CollectPipeline[A, B](
     pf: PartialFunction[A, B],
-    jtA: JvmType.Infer[A],
     jtB: JvmType.Infer[B]
   ) extends Pipeline[A, B] {
-    def applyToStream[E](stream: Stream[E, A]): Stream[E, B] =
-      new Stream.Collected(stream, pf, jtA, jtB)
     def applyToSink[E, Z](sink: Sink[E, B, Z]): Sink[E, A, Z] =
       Pipeline.runViaSink[A, B, E, Z](this, sink)
+    def applyToStream[E](stream: Stream[E, A]): Stream[E, B] =
+      new Stream.Collected(stream, pf, jtB)
   }
 
   /** Composed pipeline: applies `self` then `that`. */
@@ -121,53 +232,60 @@ object Pipeline {
     self: Pipeline[A, B],
     that: Pipeline[B, C]
   ) extends Pipeline[A, C] {
-    def applyToStream[E](stream: Stream[E, A]): Stream[E, C] =
-      that.applyToStream[E](self.applyToStream[E](stream))
     def applyToSink[E, Z](sink: Sink[E, C, Z]): Sink[E, A, Z] = {
       val midSink: Sink[E, B, Z] = that.applyToSink[E, Z](sink)
       self.applyToSink[E, Z](midSink)
+    }
+    def applyToStream[E](stream: Stream[E, A]): Stream[E, C] =
+      that.applyToStream[E](self.applyToStream[E](stream))
+    override private[streams] def fuseAsyncReader(reader: Reader.AsyncReader[_]): Reader.AsyncReader[C] = {
+      val first = self.fuseAsyncReader(reader)
+      if (first eq null) null else that.fuseAsyncReader(first)
     }
   }
 
   /** Pipeline that skips the first `n` elements. */
   private[streams] final class DropPipeline[A](n: Long) extends Pipeline[A, A] {
-    def applyToStream[E](stream: Stream[E, A]): Stream[E, A] =
-      new Stream.Dropped(stream, n)
     def applyToSink[E, Z](sink: Sink[E, A, Z]): Sink[E, A, Z] =
       Pipeline.runViaSink[A, A, E, Z](this, sink)
+    def applyToStream[E](stream: Stream[E, A]): Stream[E, A] =
+      new Stream.Dropped(stream, n)
   }
 
   /** Pipeline that buffers up to `n` elements. */
   private[streams] final class BufferPipeline[A](n: Int) extends Pipeline[A, A] {
-    def applyToStream[E](stream: Stream[E, A]): Stream[E, A] =
-      new Stream.Buffered(stream, n)
     def applyToSink[E, Z](sink: Sink[E, A, Z]): Sink[E, A, Z] =
       Pipeline.runViaSink[A, A, E, Z](this, sink)
+    def applyToStream[E](stream: Stream[E, A]): Stream[E, A] =
+      new Stream.Buffered(stream, n)
   }
 
   /** Pipeline that groups elements into fixed-size chunks. */
   private[streams] final class ChunkedPipeline[A](n: Int) extends Pipeline[A, Chunk[A]] {
-    def applyToStream[E](stream: Stream[E, A]): Stream[E, Chunk[A]] =
-      stream.chunked(n)
     def applyToSink[E, Z](sink: Sink[E, Chunk[A], Z]): Sink[E, A, Z] =
       Pipeline.runViaSink[A, Chunk[A], E, Z](this, sink)
+    def applyToStream[E](stream: Stream[E, A]): Stream[E, Chunk[A]] =
+      stream.chunked(n)
   }
 
   /** Pipeline that emits only elements satisfying `pred`. */
-  private[streams] final class FilterPipeline[A](pred: A => Boolean, jtA: JvmType.Infer[A]) extends Pipeline[A, A] {
-    def applyToStream[E](stream: Stream[E, A]): Stream[E, A] =
-      new Stream.Filtered(stream, pred, jtA)
+  private[streams] final class FilterPipeline[A](pred: A => Boolean) extends Pipeline[A, A] {
     def applyToSink[E, Z](sink: Sink[E, A, Z]): Sink[E, A, Z] =
       Pipeline.runViaSink[A, A, E, Z](this, sink)
+    def applyToStream[E](stream: Stream[E, A]): Stream[E, A] =
+      new Stream.Filtered(stream, pred)
+    override private[streams] def fuseAsyncReader(reader: Reader.AsyncReader[_]): Reader.AsyncReader[A] =
+      AsyncInterpreter.fuseFilter[A](reader, reader.jvmType, pred)
   }
 
   /** Pipeline that transforms each element with `f`. */
-  private[streams] final class MapPipeline[A, B](f: A => B, jtA: JvmType.Infer[A], jtB: JvmType.Infer[B])
-      extends Pipeline[A, B] {
-    def applyToStream[E](stream: Stream[E, A]): Stream[E, B] =
-      new Stream.Mapped(stream, f, jtA, jtB)
+  private[streams] final class MapPipeline[A, B](f: A => B, jtB: JvmType.Infer[B]) extends Pipeline[A, B] {
     def applyToSink[E, Z](sink: Sink[E, B, Z]): Sink[E, A, Z] =
-      sink.contramap[A](f)
+      sink.contramap[B, A](f)(jtB)
+    def applyToStream[E](stream: Stream[E, A]): Stream[E, B] =
+      Stream.mapped(stream, f, jtB)
+    override private[streams] def fuseAsyncReader(reader: Reader.AsyncReader[_]): Reader.AsyncReader[B] =
+      AsyncInterpreter.fuseMap[A, B](reader, reader.jvmType, jtB.jvmType, f)
   }
 
   /**
@@ -178,51 +296,109 @@ object Pipeline {
     pipe: Pipeline[A, B],
     sink: Sink[E, B, Z]
   ) extends Sink[E, A, Z] {
-    private[streams] def drain(reader: Reader[_]): Z = {
-      // The incoming `reader` is borrowed: its owner (`Stream.run`) closes it.
-      // The pipe builds a transforming reader chain whose leaf is this reader
-      // and whose `close()` would propagate down to it; shielding the borrowed
-      // reader with a no-op close keeps it from being finalized twice (double
-      // finalization). The shield delegates every other operation unchanged.
-      val borrowed            = new RunViaSink.NonClosing[A](reader.asInstanceOf[Reader[A]])
-      val synthStream         = Stream.fromReader[E, A](borrowed)
+    private[streams] def drain(reader: Reader.SyncReader[_]): Z = {
+      val input               = Reader.borrowed(reader.asInstanceOf[Reader.SyncReader[A]])
+      val synthStream         = Stream.fromReader[E, A](input)
       val piped: Stream[E, B] = pipe.applyToStream[E](synthStream)
-      val pipedReader         = Stream.compileToReader(piped)
-      // try-with-resources suppression: a `close()` failure never discards an
-      // in-flight `drain` failure, and is surfaced when nothing else is in
-      // flight (Principle 4).
-      var primary: Throwable = null
-      val z                  =
-        try sink.drain(pipedReader)
-        catch {
-          case t: Throwable =>
-            primary = t
-            null.asInstanceOf[Z]
-        }
-      val toThrow = cleanupWithPrimary(primary)(pipedReader.close())
-      if (toThrow ne null) throw toThrow
-      z
+      val pipedReader         = Sink.toSyncReader(Stream.compileToReader(piped))
+      var result: Z           = null.asInstanceOf[Z]
+      var failure: Throwable  = null
+      try result = sink.drain(pipedReader)
+      catch { case cause: Throwable => failure = cause }
+      try pipedReader.close()
+      catch {
+        case closeFailure: Throwable =>
+          failure = StreamError.attachCleanupReplay(failure, closeFailure)
+      }
+      if (failure ne null) throw failure
+      result
     }
-  }
 
-  private[streams] object RunViaSink {
+    private[streams] override def drain(reader: Reader.AsyncReader[_]): Async[Z] = {
+      var useFailure: Throwable                                     = null
+      def drainDerived(acquire: => Reader.AsyncReader[B]): Async[Z] =
+        Async.bracketSync[Reader.AsyncReader[B], Z](
+          () => acquire,
+          async => {
+            val effect =
+              try sink.drain(async)
+              catch { case cause: Throwable => Async.fail(cause) }
+            effect.catchAll { cause =>
+              useFailure = cause
+              cause match {
+                case error: StreamError if error.isTrusted => Async.failTrusted(error)
+                case _                                     => Async.fail(cause)
+              }
+            }
+          },
+          async =>
+            async.close().catchAll { closeFailure =>
+              if (useFailure eq null) Async.fail(StreamError.attachCleanup(null, closeFailure))
+              else {
+                StreamError.attachCleanupReplay(useFailure, closeFailure)
+                Async.succeed(())
+              }
+            }
+        )
 
-    /**
-     * A borrowing view of a reader whose `close()` is a no-op: the underlying
-     * reader is owned and closed by `Stream.run`, so the pipe must not close it
-     * (doing so would finalize the source twice). Every other operation
-     * delegates unchanged.
-     */
-    private[streams] final class NonClosing[A](inner: Reader[A]) extends Reader.DelegatingReader[A](inner) {
-      override def close(): Unit = ()
+      val syncInput = Reader.borrowedSync(reader.asInstanceOf[Reader.AsyncReader[A]])
+      if (syncInput ne null) {
+        val synthStream         = Stream.fromReader[E, A](syncInput)
+        val piped: Stream[E, B] = pipe.applyToStream[E](synthStream)
+        return drainDerived(
+          Stream.compileToReader(piped) match {
+            case sync: Reader.SyncReader[B @unchecked]   => sync.toAsync
+            case async: Reader.AsyncReader[B @unchecked] => async
+          }
+        )
+      }
+      val fused = pipe.fuseAsyncReader(reader)
+      if (fused ne null) return drainDerived(fused)
+      val input               = Reader.borrowed(reader.asInstanceOf[Reader.AsyncReader[A]])
+      val synthStream         = Stream.fromReader[E, A](input)
+      val piped: Stream[E, B] = pipe.applyToStream[E](synthStream)
+      drainDerived(
+        Stream.compileToReader(piped) match {
+          case sync: Reader.SyncReader[B @unchecked]   => sync.toAsync
+          case async: Reader.AsyncReader[B @unchecked] => async
+        }
+      )
+    }
+
+    private[streams] override def drainAsync(reader: Reader.SyncReader[_]): Async[Z] = {
+      val input               = Reader.borrowed(reader.asInstanceOf[Reader.SyncReader[A]])
+      val synthStream         = Stream.fromReader[E, A](input)
+      val piped: Stream[E, B] = pipe.applyToStream[E](synthStream)
+      Stream.compileToReader(piped) match {
+        case pipedReader: Reader.SyncReader[B @unchecked] =>
+          Async.bracketSync[Reader.SyncReader[B], Z](
+            () => pipedReader,
+            derived => sink.drainAsync(derived),
+            derived =>
+              try { derived.close(); Async.succeed(()) }
+              catch { case cause: Throwable => Async.fail(cause) }
+          )
+        case pipedReader: Reader.AsyncReader[B @unchecked] =>
+          Async.bracketSync[Reader.AsyncReader[B], Z](
+            () => pipedReader,
+            derived => sink.drain(derived),
+            derived => derived.close()
+          )
+      }
     }
   }
 
   /** Pipeline that passes through at most `n` elements. */
   private[streams] final class TakePipeline[A](n: Long) extends Pipeline[A, A] {
-    def applyToStream[E](stream: Stream[E, A]): Stream[E, A] =
-      new Stream.Taken(stream, n)
     def applyToSink[E, Z](sink: Sink[E, A, Z]): Sink[E, A, Z] =
       Pipeline.runViaSink[A, A, E, Z](this, sink)
+    def applyToStream[E](stream: Stream[E, A]): Stream[E, A] =
+      new Stream.Taken(stream, n)
   }
+
+  private[streams] def runViaSink[A, B, E, Z](
+    pipe: Pipeline[A, B],
+    sink: Sink[E, B, Z]
+  ): Sink[E, A, Z] =
+    new RunViaSink(pipe, sink)
 }

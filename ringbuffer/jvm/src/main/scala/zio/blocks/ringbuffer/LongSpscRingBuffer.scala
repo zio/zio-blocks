@@ -78,21 +78,10 @@ final class LongSpscRingBuffer(val capacity: Int) extends LongSpscPad2 {
   private val lookAheadStep: Long = Math.max(1, Math.min(capacity / 4, 4096)).toLong
 
   def offer(a: Long): Boolean = {
-    if (isReserved(a))
+    if (a == EMPTY || a == DONE)
       throw new IllegalArgumentException(
         s"offer($a) is not permitted: Long.MinValue and Long.MinValue + 1L are reserved sentinels"
       )
-    offerNonReserved(a)
-  }
-
-  /**
-   * Unchecked insert for a value the caller has already proven is not a
-   * reserved sentinel (i.e. `a > DONE`). This skips the `isReserved` guard so
-   * callers on a hot path pay for the check exactly once. Callers that may hold
-   * reserved values must route them out-of-band (see the escape protocol used
-   * by the concurrent merge / mapPar readers) and never pass them here.
-   */
-  private[blocks] def offerNonReserved(a: Long): Boolean = {
     val pIdx = producerIndex
     if (pIdx >= producerLimit) {
       if (!offerSlowPath(pIdx)) return false
@@ -221,13 +210,6 @@ object LongSpscRingBuffer {
 
   /** Reserved sentinel: in-band end-of-stream marker. */
   final val DONE: Long = Long.MinValue + 1L
-
-  /**
-   * True iff `a` is one of the two reserved sentinels (`EMPTY` or `DONE`).
-   * Since `EMPTY == Long.MinValue` and `DONE == Long.MinValue + 1L` are the two
-   * smallest `Long` values, this is a single signed comparison.
-   */
-  @inline private[blocks] def isReserved(a: Long): Boolean = a <= DONE
 
   private val PRODUCER_INDEX: VarHandle =
     MethodHandles

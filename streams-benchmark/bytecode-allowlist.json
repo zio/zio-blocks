@@ -1,0 +1,9 @@
+{
+  "oldToNew": [
+    {"old":"zio/blocks/streams/internal/Interpreter", "new":"zio/blocks/streams/internal/SyncInterpreter"},
+    {"old":"zio.blocks.streams.internal.Interpreter", "new":"zio.blocks.streams.internal.SyncInterpreter"},
+    {"old":"zio/blocks/streams/io/Reader", "new":"zio/blocks/streams/io/Reader$SyncReader"},
+    {"old":"zio.blocks.streams.io.Reader", "new":"zio.blocks.streams.io.Reader$SyncReader"}
+  ],
+  "allowedPatterns": []
+}

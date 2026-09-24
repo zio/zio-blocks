@@ -59,8 +59,6 @@ object NioStreams {
    *   Internal buffer size in bytes (default 8192).
    */
   def fromChannel(ch: ReadableByteChannel, bufSize: Int = 8192): Stream[java.io.IOException, Byte] =
-    // Let a close IOException propagate (with suppression) rather than
-    // swallowing it (Principle 4) — mirroring `Stream.fromInputStream`.
     Stream.fromAcquireRelease(ch, (c: ReadableByteChannel) => c.close())(c => fromChannelUnmanaged(c, bufSize))
 
   /**
@@ -74,5 +72,5 @@ object NioStreams {
    *   Internal buffer size in bytes (default 8192).
    */
   def fromChannelUnmanaged(ch: ReadableByteChannel, bufSize: Int = 8192): Stream[java.io.IOException, Byte] =
-    Stream.fromReader(NioReaders.fromChannel(ch, bufSize))
+    Stream.fromReader(NioReaders.fromChannelUnmanaged(ch, bufSize))
 }

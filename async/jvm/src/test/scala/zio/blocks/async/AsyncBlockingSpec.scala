@@ -133,30 +133,14 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           assertTrue(v == 1 || v == 2)
         }
       },
-      test("iterative flatMap accumulation is depth-safe over a READY source but overflows over a PENDING source") {
-        // docs/reference/async.md "Combinator chain depth" lists
-        // `var fa = …; while (…) fa = fa.flatMap(g)` under "Iterative /
-        // right-associated accumulation is depth-safe" — "consume constant stack
-        // regardless of length". That holds ONLY over a READY source: each poll
-        // resolves a layer synchronously without retaining a frame, so even 1M
-        // deep blocks fine. Over a PENDING source (settled later, then driven)
-        // the same accumulation shape is a left-nested tower whose single
-        // resolving poll cascade recurses one frame per layer and overflows the
-        // default JVM stack — exactly like the "NOT depth-safe left-nested
-        // recursion over a pending value" the section warns about. The true
-        // determinant is ready-vs-pending source, not iterative-vs-recursive
-        // syntax; this locks the actual behavior so the doc claim can be
-        // corrected to match.
-        def overflows(thunk: => Boolean): Boolean =
-          try { val _ = thunk; false }
-          catch { case _: StackOverflowError => true }
-        val readySafe = !overflows {
+      test("iterative flatMap accumulation is depth-safe over ready and pending sources") {
+        val readySafe = {
           var fa: Async[Int] = Async.succeed(0)
           var i              = 0
           while (i < 1000000) { fa = fa.flatMap(x => Async.succeed(x + 1)); i += 1 }
           fa.block == 1000000
         }
-        val pendingOverflows = overflows {
+        val pendingSafe = {
           val (c, p)         = AsyncTestSupport.pending[Int]
           var fa: Async[Int] = p
           var i              = 0
@@ -164,13 +148,10 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           c.succeed(0)
           fa.block == 200000
         }
-        assertTrue(readySafe, pendingOverflows)
+        assertTrue(readySafe, pendingSafe)
       },
-      test("iterative map accumulation likewise overflows over a PENDING source (depth-safe claim names map too)") {
-        def overflows(thunk: => Boolean): Boolean =
-          try { val _ = thunk; false }
-          catch { case _: StackOverflowError => true }
-        val pendingOverflows = overflows {
+      test("iterative map and alternating accumulation are depth-safe over a pending source") {
+        val mapSafe = {
           val (c, p)         = AsyncTestSupport.pending[Int]
           var fa: Async[Int] = p
           var i              = 0
@@ -178,20 +159,36 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           c.succeed(0)
           fa.block == 200000
         }
-        // Differential control: the direct-style `Async.async` while loop the
-        // same section lists as depth-safe genuinely IS — it does not overflow
-        // at the same depth, isolating the defect to the combinator-accumulation
-        // claim rather than the runtime as a whole.
-        val directStyleSafe = !overflows {
-          val fa: Async[Int] = Async.async {
-            var sum = 0
-            var i   = 0
-            while (i < 200000) { sum += Async.succeed(1).await; i += 1 }
-            sum
+        val alternatingSafe = {
+          val (c, p)         = AsyncTestSupport.pending[Int]
+          var fa: Async[Int] = p
+          var i              = 0
+          while (i < 100000) {
+            fa = fa.map(_ + 1).flatMap(value => Async.succeed(value + 1))
+            i += 1
           }
+          c.succeed(0)
           fa.block == 200000
         }
-        assertTrue(pendingOverflows, directStyleSafe)
+        assertTrue(mapSafe, alternatingSafe)
+      },
+      test("cancelling a deep pending continuation chain is depth-safe") {
+        val cancellations = new AtomicInteger(0)
+        val leaf          = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int]                   = this
+          override private[async] def cancelWithCleanup(): Async[Unit] = {
+            cancellations.incrementAndGet()
+            Async.succeed(())
+          }
+        }
+        var fa: Async[Int] = AsyncTestSupport.fromPollable(leaf)
+        var i              = 0
+        while (i < 200000) {
+          fa = if ((i & 1) == 0) fa.map(_ + 1) else fa.flatMap(value => Async.succeed(value + 1))
+          i += 1
+        }
+        fa.asInstanceOf[Pollable[Int]].cancelWithCleanup().block
+        assertTrue(cancellations.get() == 1)
       },
       test("two threads blocking the same promise-backed Async both observe the settled value") {
         ZIO.attemptBlocking {
@@ -2115,33 +2112,55 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           assertTrue(returnedWhileInnerStillPending)
         }
       },
-      test("cancel interrupts a parked worker, killing the thread and suppressing the callback") {
+      test("deferCancelable wakes a blocked thunk and discards its stale result when cancel wins") {
+        ZIO.attemptBlocking {
+          val entered   = new CountDownLatch(1)
+          val release   = new CountDownLatch(1)
+          val cancelled = new AtomicInteger(0)
+          val deferred  = Async.deferCancelable(
+            () => {
+              entered.countDown()
+              release.await()
+              42
+            },
+            () => {
+              cancelled.incrementAndGet()
+              release.countDown()
+            }
+          )
+          val running = deferred.start
+          val started = entered.await(5, TimeUnit.SECONDS)
+          running.cancel()
+          running.cancel()
+          val released = release.await(5, TimeUnit.SECONDS)
+          Thread.sleep(20)
+          assertTrue(
+            started,
+            released,
+            cancelled.get() == 1,
+            AsyncTestSupport.isPending(running.poll(AsyncTestSupport.noopRunnable))
+          )
+        }
+      },
+      test("cancel stops a suspended driver and suppresses the callback") {
         ZIO.attemptBlocking {
           val fired = new AtomicBoolean(false)
-          // A Completer that never completes: the worker parks indefinitely.
+          // A Completer that never completes: the driver remains suspended.
           val c       = new Completer[Int]
           val running = AsyncTestSupport.startTap(c.peek)(_ => fired.set(true))
 
-          def runnerThread(): Option[Thread] =
-            Thread.getAllStackTraces
-              .keySet()
-              .toArray
-              .collect { case t: Thread => t }
-              .find(t => t.getName == "zio-blocks-async-runner" && t.isAlive)
-
-          // Wait for the worker to start and park.
+          // Wait for the driver to start and suspend.
           var waited = 0
-          while (runnerThread().isEmpty && waited < 100) { Thread.sleep(10); waited += 1 }
-          val parkedBefore = runnerThread().isDefined
+          while (!running.isDriverAlive && waited < 100) { Thread.sleep(10); waited += 1 }
+          val parkedBefore = running.isDriverAlive
 
-          // cancel() must interrupt the parked worker; its `park` throws
-          // InterruptedException, drive() unwinds, and the thread dies.
+          // cancel() must claim the pending leaf and stop the driver.
           running.cancel()
 
           var stillAlive = true
           var checks     = 0
           while (stillAlive && checks < 100) {
-            stillAlive = runnerThread().isDefined
+            stillAlive = running.isDriverAlive
             if (stillAlive) Thread.sleep(10)
             checks += 1
           }

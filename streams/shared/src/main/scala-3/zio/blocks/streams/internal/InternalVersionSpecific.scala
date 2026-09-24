@@ -16,17 +16,30 @@
 
 package zio.blocks.streams.internal
 
+import zio.blocks.streams.JvmType
 import zio.blocks.streams.io.Reader
 
 private[streams] trait InternalVersionSpecific {
-  private[streams] inline def unsafeEvidence[A, B]: (A <:< B) = <:<.refl.asInstanceOf[A <:< B]
-
-  private[streams] def pullInt[A](reader: Reader[A], sentinel: Long): Long =
-    reader.readInt(sentinel)(using unsafeEvidence)
-  private[streams] def pullLong[A](reader: Reader[A], sentinel: Long): Long =
-    reader.readLong(sentinel)(using unsafeEvidence)
-  private[streams] def pullFloat[A](reader: Reader[A], sentinel: Double): Double =
-    reader.readFloat(sentinel)(using unsafeEvidence)
-  private[streams] def pullDouble[A](reader: Reader[A], sentinel: Double): Double =
-    reader.readDouble(sentinel)(using unsafeEvidence)
+  private[streams] def pullInt[A](reader: Reader.SyncReader[A], sentinel: Long): Long =
+    reader.jvmType match {
+      case JvmType.Boolean =>
+        val value = reader.readBooleanPhysical(-1)
+        if (value < 0) sentinel else value.toLong
+      case JvmType.Byte =>
+        val value = reader.readBytePhysical()
+        if (value < 0) sentinel else value.toLong
+      case JvmType.Char =>
+        val value = reader.readCharPhysical(Int.MinValue)
+        if (value == Int.MinValue) sentinel else value.toLong
+      case JvmType.Short =>
+        val value = reader.readShortPhysical(Int.MinValue)
+        if (value == Int.MinValue) sentinel else value.toLong
+      case _ => reader.readIntPhysical(sentinel)
+    }
+  private[streams] def pullLong[A](reader: Reader.SyncReader[A], sentinel: Long): Long =
+    reader.readLongPhysical(sentinel)
+  private[streams] def pullFloat[A](reader: Reader.SyncReader[A], sentinel: Double): Double =
+    reader.readFloatPhysical(sentinel)
+  private[streams] def pullDouble[A](reader: Reader.SyncReader[A], sentinel: Double): Double =
+    reader.readDoublePhysical(sentinel)
 }

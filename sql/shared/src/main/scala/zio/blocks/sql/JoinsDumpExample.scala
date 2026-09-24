@@ -17,9 +17,13 @@
 package zio.blocks.sql
 
 import zio.blocks.schema.Schema
+import zio.blocks.sql.query.{Rel, SqlQuery => Qry}
 
 /**
- * Canonical User/Repo/Star example for task-4 compile-time dump verification.
+ * Canonical User/Repo/Star example for compile-time dump verification.
+ *
+ * Builds the two-join query on the typed query IR
+ * (`zio.blocks.sql.query.SqlQuery`) and dumps it with [[Dump.dumpQuery]].
  */
 object JoinsDumpExample {
 
@@ -36,25 +40,27 @@ object JoinsDumpExample {
   val repoTable: Table[Repo] = Table.derived[Repo]
   val starTable: Table[Star] = Table.derived[Star]
 
-  inline def joins: SqlQuery[User] = SqlQuery
+  // Rels stay inline in each dumped chain below so the dump macro can peel
+  // the join tree; keep them as the canonical two-join shape.
+  inline def joins: Qry[User] = Qry
     .from(userTable)
-    .join(repoTable, leftColumn = "id", rightColumn = "owner_id")
-    .join(starTable, leftColumn = "id", rightColumn = "repo_id")
-    .where(userTable, "name", DbValue.DbString("alice"))
-    .where(repoTable, "name", DbValue.DbString("my-repo"))
+    .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
+    .innerJoin(Rel(starTable, "repo_id", repoTable, "id"))
+    .filter(Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("alice"))))
+    .filter(Frag(IndexedSeq("t1.\"name\" = ", ""), IndexedSeq(DbValue.DbString("my-repo"))))
 
   // Wire dump for inline query value — direct inlining ensures macro sees the IR
-  Dump.dump(
-    SqlQuery
+  Dump.dumpQuery(
+    Qry
       .from(userTable)
-      .join(repoTable, leftColumn = "id", rightColumn = "owner_id")
-      .join(starTable, leftColumn = "id", rightColumn = "repo_id")
-      .where(userTable, "name", DbValue.DbString("alice"))
-      .where(repoTable, "name", DbValue.DbString("my-repo"))
+      .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
+      .innerJoin(Rel(starTable, "repo_id", repoTable, "id"))
+      .filter(Frag(IndexedSeq("""t0."name" = """, ""), IndexedSeq(DbValue.DbString("alice"))))
+      .filter(Frag(IndexedSeq("""t1."name" = """, ""), IndexedSeq(DbValue.DbString("my-repo"))))
   )
 
   // Also keep the named inline def variant for name-derived file coverage
-  Dump.dump(joins)
+  Dump.dumpQuery(joins)
 
   // Hook dumpTable
   Dump.dumpTable(userTable)
@@ -68,19 +74,4 @@ object JoinsDumpExample {
 
   val pg: SqlDialect     = SqlDialect.PostgreSQL
   val sqlite: SqlDialect = SqlDialect.SQLite
-
-  object QueryLayerExample {
-    import zio.blocks.sql.query.{SqlQuery => Qry}
-
-    val userTable2: Table[User] = Table.derived[User]
-    val repoTable2: Table[Repo] = Table.derived[Repo]
-
-    inline def joinsQ: Qry[User] = {
-      val base = Qry.from(userTable2)
-      val rel  = zio.blocks.sql.query.Rel.manyToOne(userTable2, "id", repoTable2, "id")
-      base.innerJoin(rel)
-    }
-
-    Dump.dumpQuery(joinsQ)
-  }
 }

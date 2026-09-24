@@ -16,17 +16,10 @@
 
 package zio.blocks.streams.internal
 
-import zio.blocks.ringbuffer.{
-  DoubleSpscRingBuffer,
-  FloatSpscRingBuffer,
-  IntSpscRingBuffer,
-  LongSpscRingBuffer,
-  SpscRingBuffer
-}
+import zio.blocks.ringbuffer.{FloatSpscRingBuffer, IntSpscRingBuffer, SpscRingBuffer}
 import zio.blocks.streams.{JvmType, Platform}
 import zio.blocks.streams.io.Reader
 
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.{AtomicReference, AtomicReferenceArray}
 import java.util.concurrent.locks.LockSupport
 
@@ -39,9 +32,9 @@ import java.util.concurrent.locks.LockSupport
  * The per-worker output queue is selected at construction time based on
  * `outType`:
  *   - `JvmType.Int` → `IntSpscRingBuffer`
- *   - `JvmType.Long` → `LongSpscRingBuffer`
+ *   - `JvmType.Long` → a full-domain raw 64-bit SPSC queue
  *   - `JvmType.Float` → `FloatSpscRingBuffer`
- *   - `JvmType.Double` → `DoubleSpscRingBuffer`
+ *   - `JvmType.Double` → a full-domain raw 64-bit SPSC queue
  *   - everything else → `SpscRingBuffer[AnyRef]` (boxed fallback for reference
  *     types and unspecialized primitives like `Byte`/`Short`/etc.)
  *
@@ -49,27 +42,27 @@ import java.util.concurrent.locks.LockSupport
  * worker-to-consumer hot path. End-of-stream is signalled with the in-band DONE
  * sentinel of each output queue; the consumer counts DONE markers and
  * terminates once all `n` workers have signalled.
- *
- * For the `Long` output specialization, `Long.MinValue` (EMPTY) and
- * `Long.MinValue + 1L` (DONE) are reserved ring sentinels but are nonetheless
- * valid, observable `Long` values. A mapping function returning either is
- * carried losslessly: the value is routed out-of-band through `outLongEscapes`
- * and signalled with a `DONE` token (a `DONE` with a non-null escape payload is
- * the escaped value; with no payload it is the real worker-done marker).
  */
 private[streams] final class IntConcurrentMapParReader[B](
-  upstream: Reader[Int],
+  upstream: Reader.SyncReader[_],
   n: Int,
   f: Int => B,
   bufferSize: Int,
-  outType: JvmType
-) extends Reader[B] {
+  outType: JvmType,
+  inType: JvmType
+) extends Reader.SyncReader[B] {
   import ConcurrentMapParReader._
 
   require(n >= 1, s"IntConcurrentMapParReader requires n >= 1, got $n")
 
   // Concrete primitive function types let the JVM use `Function1` specialization
   // (e.g. `apply$mcII$sp`) on the worker hot path.
+  private val intToBooleanFn: (Int => Boolean) =
+    if (outType eq JvmType.Boolean) f.asInstanceOf[Int => Boolean] else null
+  private val intToByteFn: (Int => Byte) =
+    if (outType eq JvmType.Byte) f.asInstanceOf[Int => Byte] else null
+  private val intToCharFn: (Int => Char) =
+    if (outType eq JvmType.Char) f.asInstanceOf[Int => Char] else null
   private val intToIntFn: (Int => Int) =
     if (outType eq JvmType.Int) f.asInstanceOf[Int => Int] else null
   private val intToLongFn: (Int => Long) =
@@ -78,40 +71,42 @@ private[streams] final class IntConcurrentMapParReader[B](
     if (outType eq JvmType.Double) f.asInstanceOf[Int => Double] else null
   private val intToFloatFn: (Int => Float) =
     if (outType eq JvmType.Float) f.asInstanceOf[Int => Float] else null
+  private val intToShortFn: (Int => Short) =
+    if (outType eq JvmType.Short) f.asInstanceOf[Int => Short] else null
 
-  // Output queues: exactly one of these is non-null per instance. The queue
-  // fields (and `inputQueues`) are reassigned on `reset()` so `mapPar` can
-  // replay a resettable upstream (e.g. under `repeated`); their null/non-null
-  // pattern never changes after construction. All such reassignment happens on
-  // the consumer thread only after the previous run's threads have fully
-  // terminated (see `reset()`), so single-threaded mutation is safe there.
-  private var outIntQs: Array[IntSpscRingBuffer] =
-    if (outType eq JvmType.Int) Array.tabulate(n)(_ => new IntSpscRingBuffer(bufferSize)) else null
-  private var outLongQs: Array[LongSpscRingBuffer] =
-    if (outType eq JvmType.Long) Array.tabulate(n)(_ => new LongSpscRingBuffer(bufferSize)) else null
-  // Out-of-band escape channel for reserved Long OUTPUT values (only when outputting Long).
-  private var outLongEscapes: Array[ConcurrentLinkedQueue[java.lang.Long]] =
-    if (outType eq JvmType.Long) Array.tabulate(n)(_ => new ConcurrentLinkedQueue[java.lang.Long]()) else null
-  private var outFloatQs: Array[FloatSpscRingBuffer] =
+  // Output queues: exactly one of these is non-null per instance.
+  private val outIntQs: Array[IntSpscRingBuffer] =
+    if (
+      (outType eq JvmType.Boolean) || (outType eq JvmType.Byte) || (outType eq JvmType.Char) ||
+      (outType eq JvmType.Short) || (outType eq JvmType.Int)
+    ) Array.tabulate(n)(_ => new IntSpscRingBuffer(bufferSize))
+    else null
+  private val outLongQs: Array[FullDomainSpscRingBuffer] =
+    if (outType eq JvmType.Long) Array.tabulate(n)(_ => new FullDomainSpscRingBuffer(bufferSize)) else null
+  private val outFloatQs: Array[FloatSpscRingBuffer] =
     if (outType eq JvmType.Float) Array.tabulate(n)(_ => new FloatSpscRingBuffer(bufferSize)) else null
-  private var outDoubleQs: Array[DoubleSpscRingBuffer] =
-    if (outType eq JvmType.Double) Array.tabulate(n)(_ => new DoubleSpscRingBuffer(bufferSize)) else null
-  private var outRefQs: Array[SpscRingBuffer[AnyRef]] =
+  private val outDoubleQs: Array[FullDomainSpscRingBuffer] =
+    if (outType eq JvmType.Double) Array.tabulate(n)(_ => new FullDomainSpscRingBuffer(bufferSize)) else null
+  private val outRefQs: Array[SpscRingBuffer[AnyRef]] =
     if ((outIntQs eq null) && (outLongQs eq null) && (outFloatQs eq null) && (outDoubleQs eq null))
       Array.tabulate(n)(_ => new SpscRingBuffer[AnyRef](bufferSize))
     else null
 
   @volatile private var consumerWaiter: Thread = null
 
-  private var inputQueues: Array[IntSpscRingBuffer] =
+  private val inputQueues: Array[IntSpscRingBuffer] =
     Array.tabulate(n)(_ => new IntSpscRingBuffer(bufferSize))
   private val workerWaiters = new AtomicReferenceArray[Thread](n)
   private val workerThreads = new AtomicReferenceArray[Thread](n)
 
   private val errorRef                            = new AtomicReference[Throwable](null)
-  @volatile private var errorDelivered: Boolean   = false
   @volatile private var consumerClosed: Boolean   = false
   @volatile private var coordinatorThread: Thread = null.asInstanceOf[Thread]
+  private val upstreamClose                       = new ConcurrentShutdown.CloseOnce(upstream)
+  private val closeLock                           = new AnyRef
+  @volatile private var closeDone: Boolean        = false
+  private var closeStarted: Boolean               = false
+  private var closeLeader: Thread                 = null
 
   private val workerTasks: Array[Runnable] = Array.tabulate(n) { idx =>
     new Runnable {
@@ -119,15 +114,23 @@ private[streams] final class IntConcurrentMapParReader[B](
     }
   }
 
+  Array.tabulate(n) { idx =>
+    Platform.startVirtualThread(
+      s"zio-blocks-mappar-worker-${counter.getAndIncrement()}-$idx",
+      workerTasks(idx)
+    )
+  }
+
   private val coordinatorTask: Runnable = new Runnable {
-    def run(): Unit =
+    def run(): Unit = {
+      var coordinatorFailure: Throwable = null
       try {
         val coordBuf = new Array[Int](bufferSize)
         var scanIdx  = 0
         var running  = true
 
         while (running && !consumerClosed && !Thread.currentThread().isInterrupted) {
-          val count = upstream.readInts(coordBuf, 0, bufferSize)(unsafeEvidence)
+          val count = readInputBatch(coordBuf)
           if (count <= 0) {
             running = false
           } else {
@@ -158,33 +161,22 @@ private[streams] final class IntConcurrentMapParReader[B](
         }
       } catch {
         case t: Throwable =>
-          recordError(t)
+          coordinatorFailure = t
       } finally {
+        upstreamClose.close { closeFailure =>
+          if (coordinatorFailure eq null) coordinatorFailure = closeFailure
+          else if (coordinatorFailure ne closeFailure) coordinatorFailure.addSuppressed(closeFailure)
+        }
+        if (coordinatorFailure ne null) recordError(coordinatorFailure)
         signalWorkersToStop()
-        // A close failure must surface (Principle 4): record it so the
-        // consumer rethrows it from read() or close().
-        try upstream.close()
-        catch { case t: Throwable => recordError(t) }
       }
-  }
-
-  // Spawns the worker pool and the coordinator. Called from the constructor
-  // and from `reset()` after all per-run fields have been reinitialized (the
-  // `Runnable`s read instance fields, so they are reusable across runs).
-  private def startThreads(): Unit = {
-    Array.tabulate(n) { idx =>
-      Platform.startVirtualThread(
-        s"zio-blocks-mappar-worker-${counter.getAndIncrement()}-$idx",
-        workerTasks(idx)
-      )
     }
-    coordinatorThread = Platform.startVirtualThread(
-      s"zio-blocks-mappar-coordinator-${counter.getAndIncrement()}",
-      coordinatorTask
-    )
   }
 
-  startThreads()
+  coordinatorThread = Platform.startVirtualThread(
+    s"zio-blocks-mappar-coordinator-${counter.getAndIncrement()}",
+    coordinatorTask
+  )
 
   def isClosed: Boolean = eofReturned || consumerClosed
 
@@ -192,6 +184,7 @@ private[streams] final class IntConcurrentMapParReader[B](
   private var scanStart: Int        = 0
   private var workersDoneCount: Int = 0
   private var eofReturned: Boolean  = false
+  private val rawScratch            = new Array[Long](1)
 
   override def jvmType: JvmType = outType
 
@@ -203,22 +196,29 @@ private[streams] final class IntConcurrentMapParReader[B](
     if (outIntQs ne null) {
       val v = pollIntOnce(IntSpscRingBuffer.EMPTY_PACKED)
       if (v == IntSpscRingBuffer.EMPTY_PACKED) sentinel
-      else Int.box(v.toInt).asInstanceOf[B1]
+      else boxIntLike(v.toInt).asInstanceOf[B1]
     } else if (outLongQs ne null) {
-      val v = pollLongOnce(LongSpscRingBuffer.EMPTY)
-      if (lastReadWasEOF) sentinel
-      else Long.box(v).asInstanceOf[B1]
+      if (pollFullDomain(outLongQs, rawScratch, 0, wait = true) < 0) sentinel
+      else Long.box(rawScratch(0)).asInstanceOf[B1]
     } else if (outFloatQs ne null) {
       val packed = pollFloatPacked()
       if (packed == FloatSpscRingBuffer.EMPTY_PACKED) sentinel
       else Float.box(java.lang.Float.intBitsToFloat(packed.toInt)).asInstanceOf[B1]
     } else if (outDoubleQs ne null) {
-      val packed = pollDoublePacked()
-      if (packed == DoubleSpscRingBuffer.EMPTY_BITS) sentinel
-      else Double.box(java.lang.Double.longBitsToDouble(packed)).asInstanceOf[B1]
+      if (pollFullDomain(outDoubleQs, rawScratch, 0, wait = true) < 0) sentinel
+      else Double.box(java.lang.Double.longBitsToDouble(rawScratch(0))).asInstanceOf[B1]
     } else {
       readRef(sentinel)
     }
+
+  override def readBoolean(sentinel: Int)(implicit ev: B <:< Boolean): Int =
+    if (outIntQs ne null) pollIntLike(sentinel) else readBooleanFromRef(sentinel)
+
+  override def readByte(): Int =
+    if (outIntQs ne null) pollIntLike(-1) else readByteFromRef()
+
+  override def readChar(sentinel: Int)(implicit ev: B <:< Char): Int =
+    if (outIntQs ne null) pollIntLike(sentinel) else readCharFromRef(sentinel)
 
   override def readInt(sentinel: Long)(implicit ev: B <:< Int): Long =
     if (outIntQs ne null) {
@@ -229,11 +229,11 @@ private[streams] final class IntConcurrentMapParReader[B](
 
   override def readLong(sentinel: Long)(implicit ev: B <:< Long): Long =
     if (outLongQs ne null) {
-      // pollLongOnce sets lastReadWasEOF authoritatively (a real value may equal
-      // the EMPTY marker once reserved values are escaped).
-      val v = pollLongOnce(LongSpscRingBuffer.EMPTY)
-      if (lastReadWasEOF) sentinel else v
+      if (readLongs(rawScratch, 0, 1) < 0) sentinel else rawScratch(0)
     } else readLongFromRef(sentinel)
+
+  override def readShort(sentinel: Int)(implicit ev: B <:< Short): Int =
+    if (outIntQs ne null) pollIntLike(sentinel) else readShortFromRef(sentinel)
 
   override def readFloat(sentinel: Double)(implicit ev: B <:< Float): Double =
     if (outFloatQs ne null) {
@@ -244,10 +244,40 @@ private[streams] final class IntConcurrentMapParReader[B](
 
   override def readDouble(sentinel: Double)(implicit ev: B <:< Double): Double =
     if (outDoubleQs ne null) {
-      val packed = pollDoublePacked()
-      if (packed == DoubleSpscRingBuffer.EMPTY_BITS) { markReadEOF(); sentinel }
-      else { markReadValue(); java.lang.Double.longBitsToDouble(packed) }
+      if (pollFullDomain(outDoubleQs, rawScratch, 0, wait = true) < 0) sentinel
+      else java.lang.Double.longBitsToDouble(rawScratch(0))
     } else readDoubleFromRef(sentinel)
+
+  override def readLongs(dest: Array[Long], offset: Int, length: Int)(implicit ev: B <:< Long): Int = {
+    Reader.validateArrayRange(dest, offset, length)
+    if (length == 0) 0
+    else if (outLongQs eq null) {
+      val value = readRef[Any](EndOfStream)
+      if (value.asInstanceOf[AnyRef] eq EndOfStream) -1 else { dest(offset) = value.asInstanceOf[Long]; 1 }
+    } else readFullDomain(outLongQs, dest, offset, length)
+  }
+
+  override def readDoubles(dest: Array[Double], offset: Int, length: Int)(implicit ev: B <:< Double): Int = {
+    Reader.validateArrayRange(dest, offset, length)
+    if (length == 0) 0
+    else if (outDoubleQs eq null) {
+      val value = readRef[Any](EndOfStream)
+      if (value.asInstanceOf[AnyRef] eq EndOfStream) -1 else { dest(offset) = value.asInstanceOf[Double]; 1 }
+    } else {
+      val first = pollFullDomain(outDoubleQs, rawScratch, 0, wait = true)
+      if (first < 0) -1
+      else {
+        dest(offset) = java.lang.Double.longBitsToDouble(rawScratch(0))
+        var count = 1
+        var next  = 1
+        while (count < length && next > 0) {
+          next = pollFullDomain(outDoubleQs, rawScratch, 0, wait = false)
+          if (next > 0) { dest(offset + count) = java.lang.Double.longBitsToDouble(rawScratch(0)); count += 1 }
+        }
+        count
+      }
+    }
+  }
 
   // ============================================================
   //  PRIMITIVE OUTPUT POLLERS (zero-allocation hot paths)
@@ -285,62 +315,13 @@ private[streams] final class IntConcurrentMapParReader[B](
         }
         val err = errorRef.get()
         if (err ne null) rethrow(err)
-        if (workersDoneCount >= n) { eofReturned = true; return emptyMarker }
+        if (consumerClosed) { eofReturned = true; return emptyMarker }
+        if (workersDoneCount >= n) { finishEof(); return emptyMarker }
         if (!sawAny && errorRef.get() == null) LockSupport.park(this)
       } finally {
         consumerWaiter = null
       }
     }
-    emptyMarker
-  }
-
-  // A real Long output value can equal `emptyMarker` (Long.MinValue) once
-  // reserved values are escaped, so EOF cannot be inferred from the return value
-  // alone. This poller sets the reader's `lastReadWasEOF` flag authoritatively
-  // (`markReadValue` on data, `markReadEOF` on EOF); callers must consult that
-  // flag rather than comparing the returned value to `emptyMarker`.
-  private def pollLongOnce(emptyMarker: Long): Long = {
-    val self = Thread.currentThread()
-    while (true) {
-      consumerWaiter = self
-      try {
-        var i      = 0
-        var sawAny = false
-        while (i < n) {
-          val qIdx   = (scanStart + i) % n
-          val packed = outLongQs(qIdx).pollPacked()
-          if (packed == LongSpscRingBuffer.DONE) {
-            val esc = outLongEscapes(qIdx).poll()
-            if (esc ne null) {
-              sawAny = true
-              scanStart = (qIdx + 1) % n
-              val err = errorRef.get()
-              if (err ne null) rethrow(err)
-              markReadValue()
-              return esc.longValue()
-            } else {
-              workersDoneCount += 1
-              sawAny = true
-            }
-          } else if (packed != LongSpscRingBuffer.EMPTY) {
-            sawAny = true
-            scanStart = (qIdx + 1) % n
-            val err = errorRef.get()
-            if (err ne null) rethrow(err)
-            markReadValue()
-            return packed
-          }
-          i += 1
-        }
-        val err = errorRef.get()
-        if (err ne null) rethrow(err)
-        if (workersDoneCount >= n) { eofReturned = true; markReadEOF(); return emptyMarker }
-        if (!sawAny && errorRef.get() == null) LockSupport.park(this)
-      } finally {
-        consumerWaiter = null
-      }
-    }
-    markReadEOF()
     emptyMarker
   }
 
@@ -369,47 +350,14 @@ private[streams] final class IntConcurrentMapParReader[B](
         }
         val err = errorRef.get()
         if (err ne null) rethrow(err)
-        if (workersDoneCount >= n) { eofReturned = true; return FloatSpscRingBuffer.EMPTY_PACKED }
+        if (consumerClosed) { eofReturned = true; return FloatSpscRingBuffer.EMPTY_PACKED }
+        if (workersDoneCount >= n) { finishEof(); return FloatSpscRingBuffer.EMPTY_PACKED }
         if (!sawAny && errorRef.get() == null) LockSupport.park(this)
       } finally {
         consumerWaiter = null
       }
     }
     FloatSpscRingBuffer.EMPTY_PACKED
-  }
-
-  /** Returns `DoubleSpscRingBuffer.EMPTY_BITS` on real EOS. */
-  private def pollDoublePacked(): Long = {
-    val self = Thread.currentThread()
-    while (true) {
-      consumerWaiter = self
-      try {
-        var i      = 0
-        var sawAny = false
-        while (i < n) {
-          val qIdx   = (scanStart + i) % n
-          val packed = outDoubleQs(qIdx).pollPacked()
-          if (packed == DoubleSpscRingBuffer.DONE_BITS) {
-            workersDoneCount += 1
-            sawAny = true
-          } else if (packed != DoubleSpscRingBuffer.EMPTY_BITS) {
-            sawAny = true
-            scanStart = (qIdx + 1) % n
-            val err = errorRef.get()
-            if (err ne null) rethrow(err)
-            return packed
-          }
-          i += 1
-        }
-        val err = errorRef.get()
-        if (err ne null) rethrow(err)
-        if (workersDoneCount >= n) { eofReturned = true; return DoubleSpscRingBuffer.EMPTY_BITS }
-        if (!sawAny && errorRef.get() == null) LockSupport.park(this)
-      } finally {
-        consumerWaiter = null
-      }
-    }
-    DoubleSpscRingBuffer.EMPTY_BITS
   }
 
   // ============================================================
@@ -439,7 +387,8 @@ private[streams] final class IntConcurrentMapParReader[B](
         }
         val err = errorRef.get()
         if (err ne null) rethrow(err)
-        if (workersDoneCount >= n) { eofReturned = true; return sentinel }
+        if (consumerClosed) { eofReturned = true; return sentinel }
+        if (workersDoneCount >= n) { finishEof(); return sentinel }
         if (!sawAny && errorRef.get() == null) LockSupport.park(this)
       } finally {
         consumerWaiter = null
@@ -455,8 +404,8 @@ private[streams] final class IntConcurrentMapParReader[B](
   }
   private def readLongFromRef(sentinel: Long): Long = {
     val v = readRef[Any](EndOfStream)
-    if (v.asInstanceOf[AnyRef] eq EndOfStream) { markReadEOF(); sentinel }
-    else { markReadValue(); v.asInstanceOf[java.lang.Number].longValue() }
+    if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel
+    else v.asInstanceOf[java.lang.Number].longValue()
   }
   private def readFloatFromRef(sentinel: Double): Double = {
     val v = readRef[Any](EndOfStream)
@@ -465,8 +414,24 @@ private[streams] final class IntConcurrentMapParReader[B](
   }
   private def readDoubleFromRef(sentinel: Double): Double = {
     val v = readRef[Any](EndOfStream)
-    if (v.asInstanceOf[AnyRef] eq EndOfStream) { markReadEOF(); sentinel }
-    else { markReadValue(); v.asInstanceOf[java.lang.Number].doubleValue() }
+    if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel
+    else v.asInstanceOf[java.lang.Number].doubleValue()
+  }
+  private def readBooleanFromRef(sentinel: Int): Int = {
+    val v = readRef[Any](EndOfStream)
+    if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel else if (v.asInstanceOf[Boolean]) 1 else 0
+  }
+  private def readByteFromRef(): Int = {
+    val v = readRef[Any](EndOfStream)
+    if (v.asInstanceOf[AnyRef] eq EndOfStream) -1 else v.asInstanceOf[Byte].toInt & 0xff
+  }
+  private def readCharFromRef(sentinel: Int): Int = {
+    val v = readRef[Any](EndOfStream)
+    if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel else v.asInstanceOf[Char].toInt
+  }
+  private def readShortFromRef(sentinel: Int): Int = {
+    val v = readRef[Any](EndOfStream)
+    if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel else v.asInstanceOf[Short].toInt
   }
 
   // ============================================================
@@ -474,101 +439,45 @@ private[streams] final class IntConcurrentMapParReader[B](
   // ============================================================
 
   def close(): Unit = {
-    consumerClosed = true
-    val cw = consumerWaiter
-    if (cw ne null) LockSupport.unpark(cw)
-    var i = 0
-    while (i < n) {
-      val ww = workerWaiters.get(i)
-      if (ww ne null) LockSupport.unpark(ww)
-      i += 1
+    val self   = Thread.currentThread()
+    val leader = closeLock.synchronized {
+      if (!closeStarted) { closeStarted = true; closeLeader = self; consumerClosed = true; true }
+      else false
     }
-
-    val ct = coordinatorThread
-    if (ct ne null) {
-      ct.interrupt()
-      ct.join(5000)
-    }
-
-    i = 0
-    while (i < n) {
-      val t = workerThreads.get(i)
-      if (t ne null) {
-        t.interrupt()
-        t.join(5000)
+    var interrupted: InterruptedException = null
+    if (leader) try {
+      val cw = consumerWaiter
+      if (cw ne null) LockSupport.unpark(cw)
+      var i = 0
+      while (i < n) {
+        val ww = workerWaiters.get(i)
+        if (ww ne null) LockSupport.unpark(ww)
+        i += 1
       }
-      i += 1
-    }
 
-    // A recorded error the consumer never observed via a read (e.g. an
-    // upstream close failure after the last element) must still surface
-    // (Principle 4): rethrow it exactly once at teardown.
-    val err = errorRef.get()
-    if ((err ne null) && !errorDelivered) { errorDelivered = true; rethrow(err) }
-  }
-
-  override def reset(): Unit = {
-    // `mapPar` is a pure decoupling transform: it must not weaken
-    // replayability.
-    // 1) Fully terminate the current run, exactly as close() does — but discard
-    //    any recorded error instead of rethrowing it (reset starts a fresh
-    //    run). `Thread.join` establishes happens-before with the coordinator's
-    //    and workers' termination, making the subsequent single-threaded
-    //    mutation of the per-run fields safe.
-    consumerClosed = true
-    val cw = consumerWaiter
-    if (cw ne null) LockSupport.unpark(cw)
-    var i = 0
-    while (i < n) {
-      val ww = workerWaiters.get(i)
-      if (ww ne null) LockSupport.unpark(ww)
-      i += 1
-    }
-    val ct = coordinatorThread
-    if (ct ne null) {
-      ct.interrupt()
-      ct.join(5000)
-    }
-    i = 0
-    while (i < n) {
-      val t = workerThreads.get(i)
-      if (t ne null) {
-        t.interrupt()
-        t.join(5000)
+      val ct = coordinatorThread
+      if (ct ne null) {
+        upstreamClose.close(recordError)
+        ct.interrupt()
+        interrupted = ConcurrentShutdown.join(ct, interrupted)
       }
-      i += 1
+
+      i = 0
+      while (i < n) {
+        val t = workerThreads.get(i)
+        if (t ne null) {
+          t.interrupt()
+          interrupted = ConcurrentShutdown.join(t, interrupted)
+        }
+        i += 1
+      }
+    } finally closeLock.synchronized { closeDone = true; closeLeader = null; closeLock.notifyAll() }
+    else if (closeLeader ne self) closeLock.synchronized {
+      while (!closeDone)
+        try closeLock.wait()
+        catch { case cause: InterruptedException => if (interrupted eq null) interrupted = cause }
     }
-    // 2) Replay the upstream. A genuine one-shot source throws
-    //    UnsupportedOperationException here, which correctly propagates: a
-    //    mapPar over a one-shot source is itself one-shot. (The coordinator
-    //    already closed `upstream` in its finally block; resettable readers
-    //    re-enable reads.)
-    upstream.reset()
-    // 3) Reinstate fresh per-run state (preserving the output-queue null/
-    //    non-null pattern selected at construction) and respawn the threads.
-    if (outIntQs ne null) outIntQs = Array.tabulate(n)(_ => new IntSpscRingBuffer(bufferSize))
-    if (outLongQs ne null) {
-      outLongQs = Array.tabulate(n)(_ => new LongSpscRingBuffer(bufferSize))
-      outLongEscapes = Array.tabulate(n)(_ => new ConcurrentLinkedQueue[java.lang.Long]())
-    }
-    if (outFloatQs ne null) outFloatQs = Array.tabulate(n)(_ => new FloatSpscRingBuffer(bufferSize))
-    if (outDoubleQs ne null) outDoubleQs = Array.tabulate(n)(_ => new DoubleSpscRingBuffer(bufferSize))
-    if (outRefQs ne null) outRefQs = Array.tabulate(n)(_ => new SpscRingBuffer[AnyRef](bufferSize))
-    inputQueues = Array.tabulate(n)(_ => new IntSpscRingBuffer(bufferSize))
-    i = 0
-    while (i < n) {
-      workerWaiters.set(i, null)
-      workerThreads.set(i, null)
-      i += 1
-    }
-    errorRef.set(null)
-    errorDelivered = false
-    consumerClosed = false
-    consumerWaiter = null
-    scanStart = 0
-    workersDoneCount = 0
-    eofReturned = false
-    startThreads()
+    ConcurrentShutdown.replay(errorRef.get(), interrupted)
   }
 
   private def workerLoop(idx: Int): Unit = {
@@ -592,7 +501,16 @@ private[streams] final class IntConcurrentMapParReader[B](
       } else if (packed != IntSpscRingBuffer.EMPTY_PACKED) {
         val input = packed.toInt
         try {
-          if (intToIntFn ne null) {
+          if (intToBooleanFn ne null) {
+            val out = intToBooleanFn(input)
+            offerToIntOutput(idx, if (out) 1 else 0, self) || { keepRunning = false; true }; ()
+          } else if (intToByteFn ne null) {
+            val out = intToByteFn(input)
+            offerToIntOutput(idx, out.toInt & 0xff, self) || { keepRunning = false; true }; ()
+          } else if (intToCharFn ne null) {
+            val out = intToCharFn(input)
+            offerToIntOutput(idx, out.toInt, self) || { keepRunning = false; true }; ()
+          } else if (intToIntFn ne null) {
             val out = intToIntFn(input)
             offerToIntOutput(idx, out, self) || { keepRunning = false; true }; ()
           } else if (intToLongFn ne null) {
@@ -604,6 +522,9 @@ private[streams] final class IntConcurrentMapParReader[B](
           } else if (intToFloatFn ne null) {
             val out = intToFloatFn(input)
             offerToFloatOutput(idx, out, self) || { keepRunning = false; true }; ()
+          } else if (intToShortFn ne null) {
+            val out = intToShortFn(input)
+            offerToIntOutput(idx, out.toInt, self) || { keepRunning = false; true }; ()
           } else {
             val result          = f(input)
             val wrapped: AnyRef = if (result == null) NullSentinel else result.asInstanceOf[AnyRef]
@@ -638,33 +559,16 @@ private[streams] final class IntConcurrentMapParReader[B](
 
   private def offerToLongOutput(idx: Int, value: Long, self: Thread): Boolean = {
     val q = outLongQs(idx)
-    if (value > LongSpscRingBuffer.DONE) {
-      while (true) {
-        if (consumerClosed || self.isInterrupted) return false
-        if (q.offerNonReserved(value)) {
-          val cw = consumerWaiter
-          if (cw ne null) LockSupport.unpark(cw)
-          return true
-        }
-        LockSupport.parkNanos(this, 1000L)
+    while (true) {
+      if (consumerClosed || self.isInterrupted) return false
+      if (q.offer(value)) {
+        val cw = consumerWaiter
+        if (cw ne null) LockSupport.unpark(cw)
+        return true
       }
-      false
-    } else {
-      // Reserved output value: escape out-of-band via offerDoneAfter, which
-      // enqueues into outLongEscapes only when a slot is available and just
-      // before publishing the DONE token, so it is enqueued at most once and is
-      // never orphaned.
-      while (true) {
-        if (consumerClosed || self.isInterrupted) return false
-        if (q.offerDoneAfter(outLongEscapes(idx).offer(java.lang.Long.valueOf(value)): Unit)) {
-          val cw = consumerWaiter
-          if (cw ne null) LockSupport.unpark(cw)
-          return true
-        }
-        LockSupport.parkNanos(this, 1000L)
-      }
-      false
+      LockSupport.parkNanos(this, 1000L)
     }
+    false
   }
 
   private def offerToFloatOutput(idx: Int, value: Float, self: Thread): Boolean = {
@@ -685,7 +589,7 @@ private[streams] final class IntConcurrentMapParReader[B](
     val q = outDoubleQs(idx)
     while (true) {
       if (consumerClosed || self.isInterrupted) return false
-      if (q.offer(value)) {
+      if (q.offer(java.lang.Double.doubleToRawLongBits(value))) {
         val cw = consumerWaiter
         if (cw ne null) LockSupport.unpark(cw)
         return true
@@ -716,17 +620,13 @@ private[streams] final class IntConcurrentMapParReader[B](
         LockSupport.parkNanos(this, 1000L)
       }
     } else if (outLongQs ne null) {
-      while (!outLongQs(idx).offerDone() && !consumerClosed && !self.isInterrupted) {
-        LockSupport.parkNanos(this, 1000L)
-      }
+      outLongQs(idx).offerDone()
     } else if (outFloatQs ne null) {
       while (!outFloatQs(idx).offerDone() && !consumerClosed && !self.isInterrupted) {
         LockSupport.parkNanos(this, 1000L)
       }
     } else if (outDoubleQs ne null) {
-      while (!outDoubleQs(idx).offerDone() && !consumerClosed && !self.isInterrupted) {
-        LockSupport.parkNanos(this, 1000L)
-      }
+      outDoubleQs(idx).offerDone()
     } else {
       while (!outRefQs(idx).offer(AllWorkersDone) && !consumerClosed && !self.isInterrupted) {
         LockSupport.parkNanos(this, 1000L)
@@ -741,7 +641,7 @@ private[streams] final class IntConcurrentMapParReader[B](
     while (i < n) {
       // In-band: write the DONE sentinel directly into the worker's input queue
       // so it is naturally ordered after every prior data offer to that queue.
-      while (!inputQueues(i).offerDone() && !consumerClosed && !Thread.currentThread().isInterrupted) {
+      while (!inputQueues(i).offerDone() && !consumerClosed) {
         LockSupport.parkNanos(this, 1000L)
       }
       val ww = workerWaiters.get(i)
@@ -771,13 +671,104 @@ private[streams] final class IntConcurrentMapParReader[B](
         if (wt ne null) wt.interrupt()
         i += 1
       }
+    } else {
+      val primary = errorRef.get()
+      if ((primary ne null) && (primary ne t)) primary.addSuppressed(t)
     }
 
-  private def rethrow(t: Throwable): Nothing = {
-    errorDelivered = true
-    t match {
-      case se: StreamError => throw se
-      case _               => throw t
+  private def readInputBatch(dest: Array[Int]): Int =
+    if (inType eq JvmType.Int) upstream.readIntsPhysical(dest, 0, dest.length)
+    else {
+      var count   = 0
+      var running = true
+      while (count < dest.length && running) {
+        val value =
+          if (inType eq JvmType.Boolean) upstream.readBooleanPhysical(-1)
+          else if (inType eq JvmType.Byte) upstream.readBytePhysical()
+          else if (inType eq JvmType.Char) upstream.readCharPhysical(-1)
+          else upstream.readShortPhysical(Int.MinValue)
+        val eof = if (inType eq JvmType.Short) value == Int.MinValue else value < 0
+        if (eof) running = false
+        else {
+          dest(count) = value
+          count += 1
+          if (!upstream.readable()) running = false
+        }
+      }
+      if (count == 0) -1 else count
     }
+
+  private def boxIntLike(value: Int): AnyRef =
+    if (outType eq JvmType.Boolean) Boolean.box(value != 0)
+    else if (outType eq JvmType.Byte) Byte.box(value.toByte)
+    else if (outType eq JvmType.Char) Char.box(value.toChar)
+    else if (outType eq JvmType.Short) Short.box(value.toShort)
+    else Int.box(value)
+
+  private def pollIntLike(sentinel: Int): Int = {
+    val value = pollIntOnce(IntSpscRingBuffer.EMPTY_PACKED)
+    if (value == IntSpscRingBuffer.EMPTY_PACKED) sentinel else value.toInt
+  }
+
+  private def pollFullDomain(
+    queues: Array[FullDomainSpscRingBuffer],
+    dest: Array[Long],
+    offset: Int,
+    wait: Boolean
+  ): Int = {
+    while (true) {
+      var i = 0
+      while (i < n) {
+        val qIdx   = (scanStart + i) % n
+        val status = queues(qIdx).poll(dest, offset)
+        if (status == FullDomainSpscRingBuffer.Done) workersDoneCount += 1
+        else if (status == FullDomainSpscRingBuffer.Data) {
+          scanStart = (qIdx + 1) % n
+          val error = errorRef.get()
+          if (error ne null) rethrow(error)
+          return 1
+        }
+        i += 1
+      }
+      val error = errorRef.get()
+      if (error ne null) rethrow(error)
+      if (consumerClosed) { eofReturned = true; return -1 }
+      if (workersDoneCount >= n) { finishEof(); return -1 }
+      if (!wait) return 0
+      consumerWaiter = Thread.currentThread()
+      try LockSupport.parkNanos(this, 1000L)
+      finally consumerWaiter = null
+    }
+    -1
+  }
+
+  private def finishEof(): Unit = {
+    val interrupted = ConcurrentShutdown.join(coordinatorThread, null)
+    ConcurrentShutdown.replay(errorRef.get(), interrupted)
+    eofReturned = true
+  }
+
+  private def readFullDomain(
+    queues: Array[FullDomainSpscRingBuffer],
+    dest: Array[Long],
+    offset: Int,
+    length: Int
+  ): Int = {
+    val first = pollFullDomain(queues, dest, offset, wait = true)
+    if (first < 0) -1
+    else {
+      var count = 1
+      var next  = 1
+      while (count < length && next > 0) {
+        next = pollFullDomain(queues, dest, offset + count, wait = false)
+        if (next > 0) count += 1
+      }
+      count
+    }
+  }
+
+  private def rethrow(t: Throwable): Nothing = t match {
+    case se: StreamError => throw se
+    case _               => throw t
   }
 }

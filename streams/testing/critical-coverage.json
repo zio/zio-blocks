@@ -1,0 +1,46 @@
+{
+  "schema": 3,
+  "statementMinimum": 62,
+  "branchMinimum": 55,
+  "enforceCandidateMapping": false,
+  "sources": [
+    {
+      "source": "streams/shared/src/main/scala/zio/blocks/streams/internal/AsyncInterpreter.scala",
+      "explicitOnly": true,
+      "helpers": ["BulkYield", "InterpreterReader", "RootClose", "OwnedClose", "FinalizerReader", "RecoveryOwnerClose", "RejectedMaterializationReader", "ScanInitial"]
+    },
+    {
+      "source": "streams/shared/src/main/scala/zio/blocks/streams/internal/AsyncConcurrentReaders.scala",
+      "explicitOnly": true,
+      "helpers": ["LanePuller", "OwnedReader", "AcquiredReader"]
+    },
+    {
+      "source": "streams/shared/src/main/scala/zio/blocks/streams/internal/AsyncStatefulReader.scala",
+      "explicitOnly": true,
+      "helpers": ["PrimitiveBuffered"]
+    },
+    {
+      "source": "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala",
+      "explicitOnly": true,
+      "helpers": ["MemoizedClose", "AsyncReleaseReader", "MappedAsyncEffectIntInt", "MappedAsyncIntInt", "MappedAsyncIntRef", "AsyncRepeated"]
+    },
+    {
+      "source": "streams/shared/src/main/scala/zio/blocks/streams/io/Writer.scala",
+      "explicitOnly": true,
+      "helpers": ["deferred", "closeAsync", "failAsync", "isClosedAsync", "jvmTypeAsync", "writeAsync", "writeAllAsync", "writeBooleanAsync", "writeByteAsync", "writeBytesAsync", "writeCharAsync", "writeDoubleAsync", "writeFloatAsync", "writeIntAsync", "writeLongAsync", "writeShortAsync"]
+    },
+    {
+      "source": "streams/shared/src/main/scala/zio/blocks/streams/Stream.scala",
+      "explicitOnly": true,
+      "helpers": ["AsyncFlatMapIntLongUse", "AsyncSourceFoldIntLongUse", "AsyncSourceIntFilteredTakeCollectUse", "AsyncMappedIntLongUse", "AsyncSource"]
+    },
+    {
+      "source": "streams/shared/src/main/scala/zio/blocks/streams/Sink.scala",
+      "explicitOnly": true,
+      "helpers": ["AsyncPuller", "NativeAsyncIntDrain", "NativeAsyncIntForeach", "NativeAsyncIntLongFold", "MappedNativeAsyncIntLongFold"]
+    }
+  ],
+  "classifications": [],
+  "recordClassifications": [],
+  "exclusions": []
+}

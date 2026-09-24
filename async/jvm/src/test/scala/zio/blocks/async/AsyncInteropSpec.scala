@@ -122,6 +122,28 @@ object AsyncInteropSpec extends ZIOSpecDefault {
             case Left(t)  => assertTrue(t eq boom)
             case Right(_) => assertTrue(false)
           }
+      },
+      test("toFuture does not starve completion scheduled on the same single-thread executor") {
+        val executor     = Executors.newSingleThreadExecutor()
+        val singleThread = ExecutionContext.fromExecutor(executor)
+        val completion   = new Completer[Int]
+        val future       = AsyncInterop.toFuture(completion)(singleThread)
+        executor.execute(new Runnable { def run(): Unit = completion.succeed(42) })
+        ZIO
+          .fromFuture(_ => future)
+          .map(value => assertTrue(value == 42))
+          .ensuring(ZIO.succeed(executor.shutdownNow()).unit)
+      },
+      test("toFuture reports executor rejection instead of stranding the future") {
+        val rejected  = new RuntimeException("rejected")
+        val rejecting = new ExecutionContext {
+          def execute(runnable: Runnable): Unit     = throw rejected
+          def reportFailure(cause: Throwable): Unit = ()
+        }
+        ZIO
+          .fromFuture(_ => AsyncInterop.toFuture(new Completer[Int])(rejecting))
+          .either
+          .map(result => assertTrue(result == Left(rejected)))
       }
     ),
     suite("CompletionStage")(

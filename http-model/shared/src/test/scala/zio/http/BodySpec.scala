@@ -48,11 +48,10 @@ object BodySpec extends HttpModelBaseSpec {
         val body  = Body.fromChunk(chunk)
         assertTrue(body.toChunk == chunk)
       },
-      test("toStream.runCollect returns Right(chunk)") {
-        val chunk  = Chunk[Byte](10, 20, 30)
-        val body   = Body.fromChunk(chunk)
-        val result = body.toStream.runCollect
-        assertTrue(result == Right(chunk))
+      test("toStream preserves the known chunk") {
+        val chunk = Chunk[Byte](10, 20, 30)
+        val body  = Body.fromChunk(chunk)
+        assertTrue(body.toStream.knownChunk == Some(chunk))
       },
       test("length returns Some(chunk.length.toLong)") {
         val chunk = Chunk[Byte](1, 2, 3, 4, 5)
@@ -164,7 +163,7 @@ object BodySpec extends HttpModelBaseSpec {
       test("toStream returns Stream[Nothing, Byte]") {
         val body: Body                    = Body.fromChunk(Chunk[Byte](1, 2))
         val stream: Stream[Nothing, Byte] = body.toStream
-        assertTrue(stream.runCollect == Right(Chunk[Byte](1, 2)))
+        assertTrue(stream.knownChunk == Some(Chunk[Byte](1, 2)))
       },
       test("toChunk returns Chunk[Byte]") {
         val body: Body         = Body.fromChunk(Chunk[Byte](1, 2))

@@ -151,8 +151,12 @@ private[async] trait AsyncSyntaxVersionSpecific {
       if (r.isInstanceOf[Pollable[_]])
         Async.slowPath.ensuringAsync[A](r, finalizer)
       else {
-        val a = AsyncEncoding.deliverSuccess[A](r)
-        Async.slowPath.runThenValue[A](finalizer, a, suppressFailure = true)
+        val a        = AsyncEncoding.deliverSuccess[A](r)
+        val fin: Any = finalizer
+        if (fin.isInstanceOf[Failure]) Async.succeed(a)
+        else if (fin.isInstanceOf[Pollable[_]])
+          Async.slowPath.ensuringReady[A](a, fin.asInstanceOf[Pollable[Any]])
+        else Async.succeed(a)
       }
     }
 
@@ -202,9 +206,9 @@ private[async] trait AsyncSyntaxVersionSpecific {
         // onFailure is reified as the failure, never thrown at the call site.
         try Async.succeed(onFailure(r.asInstanceOf[Failure].cause))
         catch { case t: Throwable => Async.fail(t) }
-      else if (r.isInstanceOf[Pollable[_]])
-        map(onSuccess).catchAll((t: Throwable) => Async.succeed(onFailure(t)))
-      else {
+      else if (r.isInstanceOf[Pollable[_]]) {
+        Async.slowPath.foldCauseAsync[A, B](r, onFailure, onSuccess)
+      } else {
         val a = AsyncEncoding.deliverSuccess[A](r)
         Async.succeed(onSuccess(a))
       }
@@ -214,9 +218,13 @@ private[async] trait AsyncSyntaxVersionSpecific {
     def either: Async[Either[Throwable, A]] = {
       val r: Any = fa
       if (r.isInstanceOf[Failure]) Async.succeed(Left(r.asInstanceOf[Failure].cause))
-      else if (r.isInstanceOf[Pollable[_]])
-        foldCause((t: Throwable) => Left(t): Either[Throwable, A])((a: A) => Right(a): Either[Throwable, A])
-      else {
+      else if (r.isInstanceOf[Pollable[_]]) {
+        val mapped = Async.slowPath.mapAsync[A, Either[Throwable, A]](r, (a: A) => Right(a))
+        Async.slowPath.catchAllAsync[Either[Throwable, A], Either[Throwable, A]](
+          mapped,
+          (t: Throwable) => Async.succeed(Left(t))
+        )
+      } else {
         val a = AsyncEncoding.deliverSuccess[A](r)
         Async.succeed(Right(a): Either[Throwable, A])
       }
@@ -244,7 +252,11 @@ private[async] trait AsyncSyntaxVersionSpecific {
   implicit class AsyncFlattenOps[A](private val ffa: Async[Async[A]]) {
 
     /** Flatten an `Async[Async[A]]` one level. */
-    def flatten: Async[A] = ffa.flatMap((inner: Async[A]) => inner)
+    def flatten: Async[A] = {
+      val any = ffa.asInstanceOf[Any]
+      if (any.isInstanceOf[Pollable[_]]) Async.slowPath.flattenAsync[A](any)
+      else AsyncEncoding.deliverSuccess[Async[A]](any)
+    }
   }
 
   // The callback-to-Async bridge is `Async.promise` (defined on the companion

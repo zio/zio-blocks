@@ -37,37 +37,47 @@ import java.util.concurrent.locks.LockSupport
  * `java.lang.Float.intBitsToFloat(packed.toInt)`.
  *
  * Each drainer writes one in-band DONE to its data queue when it has finished
- * all assigned inner streams. The consumer counts DONE sentinels and terminates
- * once it has seen `maxOpen` of them — no separate `coordinatorDone` volatile
- * flag is needed on the hot path.
+ * all assigned inner streams. The consumer counts DONE sentinels, then waits
+ * for the coordinator to close the outer reader before terminating.
  */
-private[streams] final class FloatConcurrentMergeReader(outerReader: Reader[?], maxOpen: Int, bufferSize: Int)
-    extends Reader[Float] {
+private[streams] final class FloatConcurrentMergeReader(
+  outerReader: Reader.SyncReader[?],
+  maxOpen: Int,
+  bufferSize: Int
+) extends Reader.SyncReader[Float] {
   import ConcurrentMergeReader._
   import FloatConcurrentMergeReader._
 
   require(maxOpen >= 1, s"FloatConcurrentMergeReader requires maxOpen >= 1, got $maxOpen")
 
-  private val outer: Reader[Any] = outerReader.asInstanceOf[Reader[Any]]
+  private val outer: Reader.SyncReader[Any] = outerReader.asInstanceOf[Reader.SyncReader[Any]]
 
-  // `dataQueues`, `workQueue` and `drainerLatch` are reassigned on `reset()`
-  // so the merge can replay a resettable outer reader (e.g. under `repeated`).
-  // All such reassignment happens on the consumer thread only after the
-  // previous run's threads have fully terminated (see `reset()`), so
-  // single-threaded mutation is safe there.
-  private var dataQueues: Array[FloatSpscRingBuffer] =
+  private val dataQueues: Array[FloatSpscRingBuffer] =
     Array.tabulate(maxOpen)(_ => new FloatSpscRingBuffer(bufferSize))
   @volatile private var consumerWaiter: Thread = null
 
   private val errorRef                          = new AtomicReference[Throwable](null)
-  @volatile private var errorDelivered: Boolean = false
   @volatile private var consumerClosed: Boolean = false
+  private val outerClose                        = new ConcurrentShutdown.CloseOnce(outer)
+  private val activeReaders                     = new AtomicReferenceArray[ConcurrentShutdown.CloseOnce](maxOpen)
+  private val closeLock                         = new AnyRef
+  @volatile private var closeDone: Boolean      = false
+  private var closeStarted: Boolean             = false
+  private var closeLeader: Thread               = null
 
-  private var workQueue      = new BlockingMpmcQueue[AnyRef](Math.max(maxOpen, 16))
-  private var drainerLatch   = new CountDownLatch(maxOpen)
+  private val workQueue      = new BlockingMpmcQueue[AnyRef](Math.max(maxOpen, 16))
+  private val drainerLatch   = new CountDownLatch(maxOpen)
   private val drainerThreads = new AtomicReferenceArray[Thread](maxOpen)
 
   @volatile private var coordinatorThread: Thread = null.asInstanceOf[Thread]
+  @volatile private var coordinatorDone: Boolean  = false
+
+  Array.tabulate(maxOpen) { idx =>
+    Platform.startVirtualThread(
+      s"zio-blocks-merge-drainer-${counter.getAndIncrement()}-$idx",
+      new Runnable { def run(): Unit = drainerLoop(idx) }
+    )
+  }
 
   private val coordinatorTask: Runnable = new Runnable {
     def run(): Unit =
@@ -96,31 +106,18 @@ private[streams] final class FloatConcurrentMergeReader(outerReader: Reader[?], 
         } catch {
           case t: Throwable => recordError(t)
         } finally {
-          // A close failure must surface (Principle 4): record it so the
-          // consumer rethrows it from read() or close().
-          try outer.close()
-          catch { case t: Throwable => recordError(t) }
+          outerClose.close(recordError)
+          coordinatorDone = true
+          val cw = consumerWaiter
+          if (cw ne null) LockSupport.unpark(cw)
         }
       }
   }
 
-  // Spawns the drainer pool and the coordinator. Called from the constructor
-  // and from `reset()` after all per-run fields have been reinitialized (the
-  // `Runnable`s read instance fields, so they are reusable across runs).
-  private def startThreads(): Unit = {
-    Array.tabulate(maxOpen) { idx =>
-      Platform.startVirtualThread(
-        s"zio-blocks-merge-drainer-${counter.getAndIncrement()}-$idx",
-        new Runnable { def run(): Unit = drainerLoop(idx) }
-      )
-    }
-    coordinatorThread = Platform.startVirtualThread(
-      s"zio-blocks-merge-coordinator-${counter.getAndIncrement()}",
-      coordinatorTask
-    )
-  }
-
-  startThreads()
+  coordinatorThread = Platform.startVirtualThread(
+    s"zio-blocks-merge-coordinator-${counter.getAndIncrement()}",
+    coordinatorTask
+  )
 
   override def jvmType: JvmType = JvmType.Float
 
@@ -151,8 +148,16 @@ private[streams] final class FloatConcurrentMergeReader(outerReader: Reader[?], 
 
       val err = errorRef.get()
       if (err ne null) rethrow(err)
+      if (consumerClosed) {
+        val closeError = errorRef.get()
+        if (closeError ne null) rethrow(closeError)
+        eofReturned = true
+        return sentinel
+      }
 
-      if (drainersDone >= maxOpen) {
+      if (coordinatorDone && drainersDone >= maxOpen) {
+        val terminalError = errorRef.get()
+        if (terminalError ne null) rethrow(terminalError)
         eofReturned = true
         return sentinel
       }
@@ -181,7 +186,7 @@ private[streams] final class FloatConcurrentMergeReader(outerReader: Reader[?], 
           if (err2 ne null) rethrow(err2)
           return datum.toDouble
         }
-        if (drainersDone < maxOpen && errorRef.get() == null && !consumerClosed) {
+        if ((!coordinatorDone || drainersDone < maxOpen) && errorRef.get() == null && !consumerClosed) {
           LockSupport.park(this)
         }
       } finally {
@@ -192,14 +197,14 @@ private[streams] final class FloatConcurrentMergeReader(outerReader: Reader[?], 
   }
 
   def read[A1 >: Float](sentinel: A1): A1 = {
-    val v = readFloat(Double.MaxValue)(unsafeEvidence)
+    val v = readFloat(Double.MaxValue)
     if (v == Double.MaxValue) sentinel
     else Float.box(v.toFloat).asInstanceOf[A1]
   }
 
   override def readUpToN[A1 >: Float](n: Int): Chunk[A1] = {
     if (n <= 0) return Chunk.empty
-    val first = readFloat(Double.MaxValue)(unsafeEvidence)
+    val first = readFloat(Double.MaxValue)
     if (first == Double.MaxValue) return Chunk.empty
     if (n == 1) return Chunk.single(first.toFloat.asInstanceOf[A1])
 
@@ -230,76 +235,40 @@ private[streams] final class FloatConcurrentMergeReader(outerReader: Reader[?], 
   }
 
   def close(): Unit = {
-    consumerClosed = true
-    val cw = consumerWaiter
-    if (cw ne null) LockSupport.unpark(cw)
-    workQueue.close()
-
-    coordinatorThread.interrupt()
-    coordinatorThread.join(5000)
-
-    var i = 0
-    while (i < maxOpen) {
-      val t = drainerThreads.get(i)
-      if (t ne null) {
-        t.interrupt()
-        t.join(5000)
+    val self   = Thread.currentThread()
+    val leader = closeLock.synchronized {
+      if (!closeStarted) { closeStarted = true; closeLeader = self; consumerClosed = true; true }
+      else false
+    }
+    var interrupted: InterruptedException = null
+    if (leader) try {
+      val cw = consumerWaiter
+      if (cw ne null) LockSupport.unpark(cw)
+      workQueue.close()
+      coordinatorThread.interrupt()
+      var i = 0
+      while (i < maxOpen) {
+        val t = drainerThreads.get(i)
+        if (t ne null) t.interrupt()
+        i += 1
       }
-      i += 1
-    }
+      outerClose.close(recordError)
+      i = 0
+      while (i < maxOpen) { val active = activeReaders.get(i); if (active ne null) active.close(recordError); i += 1 }
+      interrupted = ConcurrentShutdown.join(coordinatorThread, interrupted)
 
-    // A recorded error the consumer never observed via a read (e.g. an inner/
-    // outer close failure after the last element) must still surface
-    // (Principle 4): rethrow it exactly once at teardown.
-    val err = errorRef.get()
-    if ((err ne null) && !errorDelivered) { errorDelivered = true; rethrow(err) }
-  }
-
-  override def reset(): Unit = {
-    // `mergeAll` is a pure fan-in transform: it must not weaken replayability.
-    // 1) Fully terminate the current run, exactly as close() does — but discard
-    //    any recorded error instead of rethrowing it (reset starts a fresh
-    //    run). `Thread.join` establishes happens-before with the coordinator's
-    //    and drainers' termination, making the subsequent single-threaded
-    //    mutation of the per-run fields safe.
-    consumerClosed = true
-    val cw = consumerWaiter
-    if (cw ne null) LockSupport.unpark(cw)
-    workQueue.close()
-    coordinatorThread.interrupt()
-    coordinatorThread.join(5000)
-    var i = 0
-    while (i < maxOpen) {
-      val t = drainerThreads.get(i)
-      if (t ne null) {
-        t.interrupt()
-        t.join(5000)
+      i = 0
+      while (i < maxOpen) {
+        interrupted = ConcurrentShutdown.join(drainerThreads.get(i), interrupted)
+        i += 1
       }
-      i += 1
+    } finally closeLock.synchronized { closeDone = true; closeLeader = null; closeLock.notifyAll() }
+    else if (closeLeader ne self) closeLock.synchronized {
+      while (!closeDone)
+        try closeLock.wait()
+        catch { case cause: InterruptedException => if (interrupted eq null) interrupted = cause }
     }
-    // 2) Replay the outer reader. A genuine one-shot source throws
-    //    UnsupportedOperationException here, which correctly propagates: a
-    //    merge over a one-shot source is itself one-shot. (The coordinator
-    //    already closed `outer` in its finally block; resettable readers
-    //    re-enable reads.)
-    outer.reset()
-    // 3) Reinstate fresh per-run state and respawn the threads.
-    dataQueues = Array.tabulate(maxOpen)(_ => new FloatSpscRingBuffer(bufferSize))
-    workQueue = new BlockingMpmcQueue[AnyRef](Math.max(maxOpen, 16))
-    drainerLatch = new CountDownLatch(maxOpen)
-    i = 0
-    while (i < maxOpen) {
-      drainerThreads.set(i, null)
-      i += 1
-    }
-    errorRef.set(null)
-    errorDelivered = false
-    consumerClosed = false
-    consumerWaiter = null
-    scanStart = 0
-    drainersDone = 0
-    eofReturned = false
-    startThreads()
+    ConcurrentShutdown.replay(errorRef.get(), interrupted)
   }
 
   private def drainerLoop(idx: Int): Unit = {
@@ -330,12 +299,16 @@ private[streams] final class FloatConcurrentMergeReader(outerReader: Reader[?], 
   }
 
   private def drainInner(innerStream: Stream[Any, Float], drainerIdx: Int): Unit = {
-    var innerReader: Reader[Float] = null
+    var innerReader: Reader.SyncReader[Float] = null
     try {
-      innerReader = innerStream.compile(0, bufferSize)
+      innerReader = innerStream.compile(0, bufferSize) match {
+        case sync: Reader.SyncReader[Float @unchecked]   => sync
+        case async: Reader.AsyncReader[Float @unchecked] => async.toSync
+      }
+      activeReaders.set(drainerIdx, new ConcurrentShutdown.CloseOnce(innerReader))
       var running = true
       while (running && !consumerClosed && !Thread.currentThread().isInterrupted) {
-        val v = innerReader.readFloat(Double.MaxValue)(unsafeEvidence)
+        val v = innerReader.readFloatPhysical(Double.MaxValue)
         if (v == Double.MaxValue) {
           running = false
         } else {
@@ -360,10 +333,8 @@ private[streams] final class FloatConcurrentMergeReader(outerReader: Reader[?], 
         recordError(t)
     } finally {
       if (innerReader ne null) {
-        // A close failure must surface (Principle 4): record it so the
-        // consumer rethrows it from read() or close().
-        try innerReader.close()
-        catch { case t: Throwable => recordError(t) }
+        val active = activeReaders.getAndSet(drainerIdx, null)
+        if (active ne null) active.close(recordError)
       }
     }
   }
@@ -382,14 +353,15 @@ private[streams] final class FloatConcurrentMergeReader(outerReader: Reader[?], 
         if (dt ne null) dt.interrupt()
         i += 1
       }
+    } else {
+      val primary = errorRef.get()
+      if ((primary ne null) && (primary ne t)) primary.addSuppressed(t)
     }
 
-  private def rethrow(t: Throwable): Nothing = {
-    errorDelivered = true
-    t match {
-      case se: StreamError => throw se
-      case _               => throw t
-    }
+  private def rethrow(t: Throwable): Nothing = t match {
+    case _ if !closeDone => close(); throw t
+    case se: StreamError => throw se
+    case _               => throw t
   }
 }
 

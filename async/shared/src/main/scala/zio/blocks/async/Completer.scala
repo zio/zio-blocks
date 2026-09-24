@@ -53,6 +53,9 @@ final class Completer[A] extends Pollable[A] {
    */
   def fail(cause: Throwable): Unit = settle(new Failure(cause))
 
+  /** Completes with a trusted internal failure while preserving provenance. */
+  private[blocks] def failTrusted(cause: Throwable): Unit = settle(Failure.trusted(cause))
+
   @tailrec
   private def settle(value: AnyRef): Unit = {
     val s = state.get

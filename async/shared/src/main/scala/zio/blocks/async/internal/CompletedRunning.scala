@@ -23,7 +23,14 @@ import zio.blocks.async.Async
  */
 private[async] final class CompletedRunning[A](private val terminal: Any) extends Async.Running[A] {
 
-  def cancel(): Unit = ()
+  private[blocks] def isDriverThread: Boolean = false
+  private[async] def isDriverAlive: Boolean   = false
+
+  override def cancel(): Unit = ()
+
+  def cancel(onCleanupFailure: Throwable => Unit): Unit = ()
+
+  override private[async] def cancelWithCleanup(): Async[Unit] = Async.succeed(())
 
   def poll(onComplete: Runnable): Async[A] = terminal.asInstanceOf[Async[A]]
 }

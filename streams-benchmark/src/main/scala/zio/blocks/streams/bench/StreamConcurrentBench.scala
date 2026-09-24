@@ -25,11 +25,10 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import fs2.{Stream => Fs2Stream}
 
-import org.apache.pekko.actor.ActorSystem
-import org.apache.pekko.stream.scaladsl.{Sink => PekkaSink, Source}
-import org.apache.pekko.stream.{Materializer, SystemMaterializer}
-import scala.concurrent.{Await, ExecutionContext, Future}
-import scala.concurrent.duration.Duration as ScalaDuration
+import kyo.{KyoApp, Stream as KyoStream, Sync as KyoSync, *}
+import kyo.AllowUnsafe.embrace.danger
+import org.apache.pekko.stream.scaladsl.Source
+import scala.concurrent.{ExecutionContext, Future}
 
 import ox.channels.BufferCapacity
 import ox.flow.Flow
@@ -39,9 +38,9 @@ import ox.flow.Flow
  * flatMapPar.
  *
  * ==Purpose==
- * Measures sustained throughput for parallel stream operations across four
- * streaming libraries: ZIO Blocks (zb), fs2, Apache Pekko Streams (pekko), and
- * Ox. Each operator uses the library's idiomatic API for unordered parallelism.
+ * Measures sustained throughput for parallel stream operations across ZIO
+ * Blocks, fs2, Kyo, Apache Pekko Streams, and Ox. Each operator uses the
+ * library's idiomatic API for unordered parallelism.
  *
  * ==Why Unordered?==
  * All benchmarks use unordered parallel variants (`mapParUnordered`,
@@ -50,11 +49,11 @@ import ox.flow.Flow
  * order, adding overhead not intrinsic to parallelism.
  *
  * ==Kyo==
- * Kyo 1.0-RC1 is included for mapPar using `mapParUnordered` which forks a
- * fiber per element via Channel + Fiber + Semaphore. Kyo is excluded from
- * mergeAll and flatMapPar because `Stream.collectAll` with pure `.map(fn)`
- * inner streams runs all work on a single scheduler thread (verified
- * empirically: fibers never yield during synchronous computation).
+ * Kyo 1.0.0-RC6 participates in `mapPar` through `mapParUnordered`. Its public
+ * `collectAll` and binary `merge` APIs do not expose this benchmark's bounded
+ * dynamic fan-in contract, so Kyo is N/A for `mergeAll` and `flatMapPar`. Kyo's
+ * `mapParUnordered` buffer size is fixed at 16 and is distinct from
+ * `parallelism`.
  *
  * ==Operators==
  *   - `mapPar` — transform each element independently in parallel (1M elements)
@@ -65,15 +64,22 @@ import ox.flow.Flow
  *
  * ==Workloads (`workload` param)==
  *   - `light` — `x + 1` (trivial; isolates infrastructure overhead)
- *   - `heavy` — 100-iteration arithmetic loop (measures parallelism scaling)
+ *   - `heavy` — 100-iteration arithmetic loop. In `mapPar` it exercises
+ *     callback scheduling; in fan-in cells it measures fan-in under inner work,
+ *     not equivalent CPU scheduler scaling.
  *
  * ==Parallelism (`parallelism` param)==
  * `1`, `8`, `16` — sequential baseline, typical CPU count, oversubscribed.
  *
  * ==Effect Wrappers==
- * fs2 `parEvalMapUnordered` requires `A => IO[B]`; Pekko `mapAsyncUnordered`
- * requires `A => Future[B]`. ZIO Blocks, Ox, and the underlying work function
- * are pure.
+ * fs2 `parEvalMapUnordered` requires `A => IO[B]`; Kyo `mapParUnordered`
+ * requires an effectful callback; Pekko `mapAsyncUnordered` requires
+ * `A => Future[B]`. ZIO Blocks and Ox accept direct callbacks. `mapPar`
+ * measures scheduled callback work; `mergeAll` and `flatMapPar` measure bounded
+ * active-stream fan-in, not a promise that pure callbacks run on equivalent
+ * scheduler threads. Native documented buffering defaults are used without
+ * provider-specific extra buffers. Ox uses `BufferCapacity.default`; no
+ * explicit source buffer is inserted.
  */
 @BenchmarkMode(Array(Mode.Throughput))
 @OutputTimeUnit(TimeUnit.SECONDS)
@@ -89,27 +95,24 @@ import ox.flow.Flow
 @State(org.openjdk.jmh.annotations.Scope.Benchmark)
 class StreamConcurrentBench {
 
+  @Param(Array("1000000"))
+  var N: Int = uninitialized
+
   @Param(Array("1", "8", "16"))
   var parallelism: Int = uninitialized
 
   @Param(Array("light", "heavy"))
   var workload: String = uninitialized
 
-  private val N         = 1_000_000
   private val outerN    = 100
-  private val innerN    = 10_000
   private val fmpOuterN = 1_000
-  private val fmpInnerN = 1_000
 
   private var workFn: Int => Int = uninitialized
-
-  implicit private var pekkoSystem: ActorSystem = uninitialized
-  implicit private var pekkoMat: Materializer   = uninitialized
-  implicit private var ec: ExecutionContext     = uninitialized
+  private val kyoBufferSize      = 16
 
   private given BufferCapacity = BufferCapacity.default
   @Setup(Level.Trial)
-  def setup(): Unit = {
+  def setup(): Unit =
     workFn = workload match {
       case "heavy" => { x =>
         var s = x.toLong
@@ -120,16 +123,6 @@ class StreamConcurrentBench {
       case _ => x => x + 1
     }
 
-    pekkoSystem = ActorSystem("concurrent-bench")
-    pekkoMat = SystemMaterializer(pekkoSystem).materializer
-    ec = pekkoSystem.dispatcher
-  }
-
-  @TearDown(Level.Trial)
-  def teardown(): Unit =
-    if (pekkoSystem != null)
-      Await.result(pekkoSystem.terminate(), ScalaDuration(30, "s"))
-
   private def zbFold(s: ZbStream[Nothing, Int]): Long =
     s.runFold(0L)((acc, i) => acc + i) match {
       case Right(v) => v
@@ -139,15 +132,8 @@ class StreamConcurrentBench {
   private def fs2Fold(s: Fs2Stream[IO, Int]): Long =
     s.compile.fold(0L)(_ + _).unsafeRunSync()
 
-  private def pekkoFold(src: Source[Int, ?]): Long =
-    Await.result(src.runWith(PekkaSink.fold(0L)(_ + _)), ScalaDuration.Inf)
-
   private def oxFold(f: Flow[Int]): Long =
     f.runFold(0L)((acc, i) => acc + i)
-
-  // kyo_mapPar removed: mapParUnordered forks 1M fibers (1 per element),
-  // consuming 1-10GB of memory per iteration and causing OOM on the host.
-  // Measured at 0.004 ops/s before removal.
 
   @Benchmark
   def zb_mapPar(): Long =
@@ -163,10 +149,19 @@ class StreamConcurrentBench {
     )
 
   @Benchmark
-  def pekko_mapPar(): Long =
-    pekkoFold(
+  def kyo_mapPar(): Long = {
+    val source: KyoStream[Int, Any] = KyoStream.range(0, N)
+    val stream                      = source.mapParUnordered(parallelism, kyoBufferSize)(value => KyoSync.defer(workFn(value)))
+    KyoApp.Unsafe.runAndBlock(kyo.Duration.Infinity)(stream.foldPure(0L)(_ + _)).getOrThrow
+  }
+
+  @Benchmark
+  def pekko_mapPar(runtime: PekkoBenchmarkRuntime): Long = {
+    given ExecutionContext = runtime.executionContext
+    runtime.fold(
       Source(0 until N).mapAsyncUnordered(parallelism)(a => Future(workFn(a)))
     )
+  }
 
   @Benchmark
   def ox_mapPar(): Long =
@@ -177,6 +172,7 @@ class StreamConcurrentBench {
   @Benchmark
   def zb_mergeAll(): Long = {
     val fn      = workFn
+    val innerN  = N / outerN
     val streams = ZbStream.range(0, outerN).map(i => ZbStream.range(i * innerN, (i + 1) * innerN).map(fn))
     zbFold(ZbStream.mergeAll(parallelism)(streams))
   }
@@ -184,6 +180,7 @@ class StreamConcurrentBench {
   @Benchmark
   def fs2_mergeAll(): Long = {
     val fn                                         = workFn
+    val innerN                                     = N / outerN
     val streams: Fs2Stream[IO, Fs2Stream[IO, Int]] =
       Fs2Stream
         .range(0, outerN)
@@ -193,9 +190,10 @@ class StreamConcurrentBench {
   }
 
   @Benchmark
-  def pekko_mergeAll(): Long = {
-    val fn = workFn
-    pekkoFold(
+  def pekko_mergeAll(runtime: PekkoBenchmarkRuntime): Long = {
+    val fn     = workFn
+    val innerN = N / outerN
+    runtime.fold(
       Source(0 until outerN)
         .flatMapMerge(parallelism, i => Source(i * innerN until (i + 1) * innerN).map(fn))
     )
@@ -204,6 +202,7 @@ class StreamConcurrentBench {
   @Benchmark
   def ox_mergeAll(): Long = {
     val fn                     = workFn
+    val innerN                 = N / outerN
     val flows: Flow[Flow[Int]] =
       Flow
         .fromIterable(0 until outerN)
@@ -213,7 +212,8 @@ class StreamConcurrentBench {
 
   @Benchmark
   def zb_flatMapPar(): Long = {
-    val fn = workFn
+    val fn        = workFn
+    val fmpInnerN = N / fmpOuterN
     zbFold(
       ZbStream
         .range(0, fmpOuterN)
@@ -223,7 +223,8 @@ class StreamConcurrentBench {
 
   @Benchmark
   def fs2_flatMapPar(): Long = {
-    val fn = workFn
+    val fn        = workFn
+    val fmpInnerN = N / fmpOuterN
     fs2Fold(
       Fs2Stream
         .range(0, fmpOuterN)
@@ -234,9 +235,10 @@ class StreamConcurrentBench {
   }
 
   @Benchmark
-  def pekko_flatMapPar(): Long = {
-    val fn = workFn
-    pekkoFold(
+  def pekko_flatMapPar(runtime: PekkoBenchmarkRuntime): Long = {
+    val fn        = workFn
+    val fmpInnerN = N / fmpOuterN
+    runtime.fold(
       Source(0 until fmpOuterN)
         .flatMapMerge(parallelism, i => Source(0 until fmpInnerN).map(j => fn(i * fmpInnerN + j)))
     )
@@ -244,7 +246,8 @@ class StreamConcurrentBench {
 
   @Benchmark
   def ox_flatMapPar(): Long = {
-    val fn = workFn
+    val fn        = workFn
+    val fmpInnerN = N / fmpOuterN
     oxFold(
       Flow
         .fromIterable(0 until fmpOuterN)

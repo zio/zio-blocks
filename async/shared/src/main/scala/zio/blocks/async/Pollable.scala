@@ -41,6 +41,14 @@ abstract class Pollable[+A] {
    * combinator follow this, so a conforming `poll` may hand back a new pollable
    * at any suspension.
    *
+   * Returning the same identity means the caller may wait for the registered
+   * callback. Returning a distinct identity is synchronous progress: the caller
+   * must poll that replacement without waiting. An identity change is not a
+   * readiness event, so a caller or wrapper must not synthesize `onComplete`
+   * for it. Real callbacks may be stale, reentrant, or duplicated and are
+   * therefore coalescible wake permits rather than proof that a particular
+   * generation has completed.
+   *
    * Polling is a '''one-shot driver protocol''': a driver should keep polling
    * only while `poll` returns a still-pending `Pollable`, and must stop as soon
    * as it returns a terminal result — a raw value or a failed [[Async]]. The
@@ -54,4 +62,23 @@ abstract class Pollable[+A] {
    * protocol yourself, in which case honor the stop-at-terminal rule.
    */
   def poll(onComplete: Runnable): Async[A]
+
+  /**
+   * Signal cancellation of the currently pending operation. Implementations
+   * that own cancellable work override this with an idempotent, non-blocking
+   * signal; computations without such work inherit the no-op. A running driver
+   * invokes this only when cancellation wins against completion.
+   */
+  def cancel(): Unit = ()
+
+  /**
+   * Internal cancellation traversal used by drivers and built-in combinators.
+   * The synchronous [[cancel]] signal happens before this method returns; the
+   * returned effect represents any cleanup that must still be driven.
+   */
+  private[async] def cancelWithCleanup(): Async[Unit] =
+    try {
+      cancel()
+      Async.succeed(())
+    } catch { case t: Throwable => Async.fail(t) }
 }

@@ -57,7 +57,7 @@ object ReaderCompositionExample extends App {
     import scope.*
 
     // Create a stream and open it for manual pulling
-    val reader: scope.$[Reader[Int]] = Stream.range(1, 6).start(using scope)
+    val reader: scope.$[Reader.SyncReader[Int]] = Stream.range(1, 6).start(using scope)
 
     $(reader) { r =>
       var streamV      = r.read(-1)

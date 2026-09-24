@@ -33,23 +33,23 @@ object NioReaders {
    * position to its limit. Supports `reset()` to rewind to the original
    * position.
    */
-  def fromByteBuffer(buf: ByteBuffer): Reader[Byte] =
+  def fromByteBuffer(buf: ByteBuffer): Reader.SyncReader[Byte] =
     new ByteBufferReader(buf)
 
   /** Wraps a `ByteBuffer` as a `Reader[Double]` (8 bytes per element). */
-  def fromByteBufferDouble(buf: ByteBuffer): Reader[Double] =
+  def fromByteBufferDouble(buf: ByteBuffer): Reader.SyncReader[Double] =
     new ByteBufferDoubleReader(buf)
 
   /** Wraps a `ByteBuffer` as a `Reader[Float]` (4 bytes per element). */
-  def fromByteBufferFloat(buf: ByteBuffer): Reader[Float] =
+  def fromByteBufferFloat(buf: ByteBuffer): Reader.SyncReader[Float] =
     new ByteBufferFloatReader(buf)
 
   /** Wraps a `ByteBuffer` as a `Reader[Int]` (4 bytes per element). */
-  def fromByteBufferInt(buf: ByteBuffer): Reader[Int] =
+  def fromByteBufferInt(buf: ByteBuffer): Reader.SyncReader[Int] =
     new ByteBufferIntReader(buf)
 
   /** Wraps a `ByteBuffer` as a `Reader[Long]` (8 bytes per element). */
-  def fromByteBufferLong(buf: ByteBuffer): Reader[Long] =
+  def fromByteBufferLong(buf: ByteBuffer): Reader.SyncReader[Long] =
     new ByteBufferLongReader(buf)
 
   /**
@@ -58,6 +58,9 @@ object NioReaders {
    * @param bufSize
    *   Internal read buffer size in bytes (default 8192).
    */
-  def fromChannel(ch: ReadableByteChannel, bufSize: Int = 8192): Reader[Byte] =
+  def fromChannel(ch: ReadableByteChannel, bufSize: Int = 8192): Reader.SyncReader[Byte] =
     new ChannelReader(ch, bufSize)
+
+  private[streams] def fromChannelUnmanaged(ch: ReadableByteChannel, bufSize: Int): Reader.SyncReader[Byte] =
+    new ChannelReader(ch, bufSize, closeChannel = false)
 }

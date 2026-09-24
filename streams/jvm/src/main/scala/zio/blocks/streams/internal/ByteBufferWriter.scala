@@ -17,7 +17,7 @@
 package zio.blocks.streams.internal
 
 import zio.blocks.streams.JvmType
-import zio.blocks.streams.io.Writer
+import zio.blocks.streams.io.{Reader, Writer}
 
 import java.nio.ByteBuffer
 
@@ -32,8 +32,7 @@ private[streams] final class ByteBufferWriter(buffer: ByteBuffer) extends Writer
 
   def isClosed: Boolean = closed
 
-  // Bounded-buffer accuracy per the Writer.writeable contract (BUG-R8-04).
-  override def writeable(): Boolean = !closed && buffer.hasRemaining
+  override def jvmType: JvmType = JvmType.Byte
 
   def write(a: Byte): Boolean = writeByte(a)
 
@@ -44,6 +43,7 @@ private[streams] final class ByteBufferWriter(buffer: ByteBuffer) extends Writer
   }
 
   override def writeBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Byte): Int = {
+    Reader.validateArrayRange(buf, offset, len)
     if (closed) return 0
     if (len == 0) return 0
     val rem = buffer.remaining()
@@ -65,9 +65,6 @@ private[streams] final class ByteBufferIntWriter(buffer: ByteBuffer) extends Wri
   def close(): Unit = closed = true
 
   def isClosed: Boolean = closed
-
-  // Bounded-buffer accuracy per the Writer.writeable contract (BUG-R8-04).
-  override def writeable(): Boolean = !closed && buffer.remaining() >= 4
 
   override def jvmType: JvmType = JvmType.Int
 
@@ -92,9 +89,6 @@ private[streams] final class ByteBufferLongWriter(buffer: ByteBuffer) extends Wr
 
   def isClosed: Boolean = closed
 
-  // Bounded-buffer accuracy per the Writer.writeable contract (BUG-R8-04).
-  override def writeable(): Boolean = !closed && buffer.remaining() >= 8
-
   override def jvmType: JvmType = JvmType.Long
 
   def write(a: Long): Boolean = writeLong(a)
@@ -118,9 +112,6 @@ private[streams] final class ByteBufferDoubleWriter(buffer: ByteBuffer) extends 
 
   def isClosed: Boolean = closed
 
-  // Bounded-buffer accuracy per the Writer.writeable contract (BUG-R8-04).
-  override def writeable(): Boolean = !closed && buffer.remaining() >= 8
-
   override def jvmType: JvmType = JvmType.Double
 
   def write(a: Double): Boolean = writeDouble(a)
@@ -143,9 +134,6 @@ private[streams] final class ByteBufferFloatWriter(buffer: ByteBuffer) extends W
   def close(): Unit = closed = true
 
   def isClosed: Boolean = closed
-
-  // Bounded-buffer accuracy per the Writer.writeable contract (BUG-R8-04).
-  override def writeable(): Boolean = !closed && buffer.remaining() >= 4
 
   override def jvmType: JvmType = JvmType.Float
 

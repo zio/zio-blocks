@@ -89,7 +89,7 @@ JSON support is built into `zio-blocks-schema`; the modules below add further fo
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
 | [Async](./reference/async.md) | `zio-blocks-async` | JVM · JS | 2.13 · 3.x | Zero-allocation asynchronous effect type with direct-style `await` |
-| [Streams](./reference/streams/index.md) | `zio-blocks-streams` | JVM · JS | 2.13 · 3.x | Synchronous pull-based streaming with typed errors and zero boxing |
+| [Streams](./reference/streams/index.md) | `zio-blocks-streams` | JVM · JS | 2.13 · 3.x | Pull-based streaming with typed errors, zero boxing, and synchronous or asynchronous execution |
 | [Ring Buffer](./reference/ringbuffer/index.mdx) | `zio-blocks-ringbuffer` | JVM · JS | 2.13 · 3.x | Lock-free bounded ring buffers (SPSC, SPMC, MPSC, MPMC) |
 | [Mux](./reference/mux.mdx) | `zio-blocks-mux` | JVM · JS | 2.13 · 3.x | Thread-safe multiplexer for HTTP/2, QUIC, and WebSocket-style protocols |
 

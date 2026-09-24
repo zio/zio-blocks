@@ -3,7 +3,7 @@ id: model
 title: "HTTP Model"
 ---
 
-`zio-http-model` is a **pure, zero-dependency HTTP data model** for building HTTP clients and servers. It provides immutable types representing all HTTP concepts: requests, responses, headers, URLs, paths, query parameters, methods, status codes, versions, cookies, and forms.
+`zio-http-model` is a **runtime-independent HTTP data model** for building HTTP clients and servers. It provides immutable types representing all HTTP concepts: requests, responses, headers, URLs, paths, query parameters, methods, status codes, versions, cookies, and forms.
 
 Core types: `Request`, `Response`, `URL`, `Headers`, `Body`, `Method`, `Status`, `Version`, `Scheme`, `Path`, `QueryParams`, `ContentType`, `RequestCookie`, `ResponseCookie`, `Form`.
 
@@ -42,19 +42,19 @@ Imagine building a distributed system where you need an HTTP client to call exte
 This creates a coupling problem:
 
 **Scenario 1: Sharing Types Across Layers**
-You want your client request logic (building a request to send) to use the same types as your server request handling (receiving and parsing a request). But your HTTP library makes this difficult — the `Request` type is tied to async effects, file streams, or a specific Scala version's IO model. Sharing becomes messy.
+You want your client request logic (building a request to send) to use the same types as your server request handling (receiving and parsing a request). But your HTTP library makes this difficult — the `Request` type is tied to a particular runtime, file-stream implementation, or async framework. Sharing becomes messy.
 
-**Scenario 2: Testing Without Effects**
-You're writing unit tests for your request-building logic. You want to serialize a request to JSON for snapshots, or cache requests for debugging. But your `Request` type requires pulling in async runtimes, streaming libraries, or other baggage you don't need in tests. A simple unit test becomes a production-grade effect setup.
+**Scenario 2: Testing Without an HTTP Runtime**
+You're writing unit tests for your request-building logic. You want to serialize a request to JSON for snapshots, or cache requests for debugging. But your `Request` type requires pulling in an HTTP runtime or other baggage you don't need in tests. A simple unit test becomes a production-grade setup.
 
 **Scenario 3: Lock-In**
 You've built your entire API client around ZIO's HTTP library, but your team decides to use Akka for one microservice. Now your request/response types aren't portable — they're coupled to ZIO. Refactoring is painful.
 
-### The Solution: Pure HTTP Data
+### The Solution: Runtime-Independent HTTP Data
 
 `zio-http-model` separates **protocol concerns** (representing HTTP messages) from **effect concerns** (actually sending/receiving them). It provides:
 
-- **Pure immutable data types** — `Request`, `Response`, `URL`, `Headers`, and chunk-backed `Body` values are just data. Stream-backed bodies are still effect-free, but collecting them may consume the underlying stream.
+- **Immutable message values** — `Request`, `Response`, `URL`, and `Headers` are immutable data. `Body` wraps a pull-based byte stream; materializing the complete body is represented by the lightweight `Async` abstraction.
 
 - **No dependency on an HTTP runtime** — Not coupled to ZIO HTTP, Akka, or a server/client implementation. The module depends on ZIO Blocks primitives such as Chunk, MediaType, and Stream.
 
@@ -782,13 +782,36 @@ val body = Body.fromString("Hello!", Charset.UTF8)
 body.length           // Some(6)
 body.isEmpty          // false
 body.nonEmpty         // true
-body.asString()       // "Hello!" (UTF-8 default)
-body.asString(Charset.ASCII)  // "Hello!" (explicit charset)
-body.toChunk          // Chunk[Byte](72, 101, 108, 108, 111, 33)
 body.toStream         // Stream[Nothing, Byte]
-body.toArray          // Array[Byte](72, 101, 108, 108, 111, 33)
 body.contentType      // ContentType(text/plain; charset=UTF-8)
+
+val utf8: zio.blocks.async.Async[String] = body.asStringAsync()
+val ascii: zio.blocks.async.Async[String] = body.asStringAsync(Charset.ASCII)
+val bytes: zio.blocks.async.Async[Array[Byte]] = body.toArrayAsync
+val chunk: zio.blocks.async.Async[zio.blocks.chunk.Chunk[Byte]] = body.toChunkAsync
+val fromContentType: zio.blocks.async.Async[String] = body.asStringFromContentTypeAsync
+val text: zio.blocks.async.Async[String] = body.textAsync
 ```
+
+The five asynchronous materializers—`toChunkAsync`, `toArrayAsync`, `asStringAsync`, `asStringFromContentTypeAsync`, and the `textAsync` alias—are defined in shared sources and are available on both JVM and Scala.js. `asStringFromContentTypeAsync` and `textAsync` use the charset declared by the content type, falling back to UTF-8.
+
+`Body` retains synchronous twins with the corresponding result types:
+
+```scala mdoc:compile-only
+import zio.http.{Body, Charset}
+import zio.blocks.chunk.Chunk
+
+val body = Body.fromString("Hello!", Charset.UTF8)
+
+val chunk: Chunk[Byte] = body.toChunk
+val bytes: Array[Byte] = body.toArray
+val utf8: String = body.asString()
+val ascii: String = body.asString(Charset.ASCII)
+val fromContentType: String = body.asStringFromContentType
+val text: String = body.text
+```
+
+The synchronous methods remain available on both platforms for compatibility and for streams that complete synchronously. Prefer the asynchronous methods whenever a body can suspend; Scala.js cannot block while waiting for pending asynchronous work.
 
 ---
 
@@ -1362,69 +1385,36 @@ This design shines in three ways:
 
 **Simplicity**: Your code is clean — you just ask for headers by name, and http-model handles parsing transparently. No manual string manipulation or error handling on your end.
 
-### No Streaming
+### Stream-Backed Bodies
 
 Let's say you're downloading a 500MB video file over HTTP. Should your `Body` object represent that as:
 
 **Option A: A single `Chunk[Byte]` with all 500MB in memory?**
 
 ```scala
-val body = Body(data = Chunk[Byte](/* 500MB of bytes */))
+val body = Body.fromChunk(Chunk[Byte](/* 500MB of bytes */))
 // Everything loaded into RAM at once
 ```
 
 **Option B: A Stream that yields bytes incrementally as they arrive?**
 
 ```scala
-val body = Body(data = Stream[Byte]) // Yields chunks as they download
+val byteStream: Stream[Nothing, Byte] = /* yields bytes as they download */
+val body = Body.fromStream(byteStream)
 // Only a small buffer in RAM; the rest comes from the network
 ```
 
 Most HTTP libraries choose Option B for large files — streaming makes sense when you want to process data *as it arrives* without loading everything into memory first.
 
-**http-model chooses an effect-free stream-backed body.** Here's why.
+**http-model chooses a stream-backed body with runtime-independent asynchronous materialization.**
 
 #### The Streaming Trade-off
 
-Streaming sounds great on paper — save memory, start processing immediately — but it brings complexity:
-
-**Streaming requires effects:**
-
-```scala
-// With streaming, reading a body becomes an effect:
-val body: Body = request.body
-val bytes: IO[Chunk[Byte]] = body.stream.runCollect()
-// Reading the body is now an IO operation, not a pure value!
-```
-
-This couples `Body` to a specific effect system (ZIO, Cats Effect, Scala Futures, etc.). Different effect systems have different streaming abstractions, and your `Body` type would need to know about all of them — or you'd lock users into one.
-
-**Streaming requires error handling:**
-```scala
-// With streaming, errors can happen mid-stream:
-body.stream.fold(
-  error => handleNetworkFailure(error),      // Network cut out!
-  chunk => processChunk(chunk),
-  () => done()
-)
-// You must handle errors at every chunk boundary
-```
-
-**Streaming complicates testing:**
-
-```scala
-// Testing code that consumes streams is verbose:
-val testStream = Stream(
-  Chunk(1, 2, 3),
-  Chunk(4, 5, 6),
-  Chunk(7, 8, 9)
-).flatMap(_.stream)
-// vs. just: Chunk(1, 2, 3, 4, 5, 6, 7, 8, 9)
-```
+Streaming saves memory and allows processing to begin before the complete payload arrives, but collecting the complete body may need to wait for asynchronous input. `Body` exposes that operation as `Async`, rather than coupling the HTTP model to ZIO, Cats Effect, Scala Futures, or a particular HTTP runtime.
 
 #### http-model's Choice: Stream-Backed Bodies
 
-http-model wraps a `Stream[Nothing, Byte]` — a synchronous, pull-based stream with no effect system:
+http-model wraps a `Stream[Nothing, Byte]` — a pull-based stream with cross-platform asynchronous materialization and no required effect runtime:
 
 ```scala
 final class Body private (
@@ -1441,13 +1431,17 @@ val body = Body.fromChunk(
   ContentType.`application/json`
 )
 
-// Accessing the data:
-val bytes: Chunk[Byte] = body.toChunk       // Materializes the stream (O(1) for chunk-backed bodies)
-val len: Option[Long]  = body.length        // Known length without materializing, if available
-val raw: Stream[Nothing, Byte] = body.toStream  // Access the underlying stream directly
+// Accessing the data on JVM and Scala.js:
+val chunk: Async[Chunk[Byte]] = body.toChunkAsync
+val bytes: Async[Array[Byte]] = body.toArrayAsync
+val decoded: Async[String] = body.asStringAsync(Charset.UTF8)
+val decodedFromContentType: Async[String] = body.asStringFromContentTypeAsync
+val text: Async[String] = body.textAsync
+val len: Option[Long] = body.length
+val raw: Stream[Nothing, Byte] = body.toStream
 ```
 
-For chunk-backed bodies, `toChunk` is O(1) and `length` returns `Some(n)`. For stream-backed bodies, `toChunk` runs the stream to collect all bytes and `length` returns `None`.
+For chunk-backed bodies, materialization reuses the known chunk and `length` returns `Some(n)`. For a stream without known metadata, materialization consumes the stream and `length` returns `None`. The shared `Body.scala` defines both the five `Async` methods and their synchronous compatibility twins.
 
 ```
 Your Application Code
@@ -1462,12 +1456,12 @@ Your Application Code
     (wraps/unwraps)
         ↓
 ┌─────────────────────┐
-│  http-model Body    │ (stream-backed, synchronous, no effects)
+│  http-model Body    │ (stream-backed, async materialization)
 │  (pull-based I/O)   │
 └─────────────────────┘
 ```
 
-Body is synchronous and effect-free — it uses ZIO Blocks' pull-based `Stream`, not an effectful stream type. When the body wraps a known `Chunk`, access is pure and immediate. When it wraps an opaque stream, `toChunk` pulls all bytes on demand.
+Body remains independent of any HTTP or effect runtime, but materializing an opaque stream can be asynchronous. Prefer `toChunkAsync`, `toArrayAsync`, `asStringAsync`, `asStringFromContentTypeAsync`, or `textAsync` for streams that can suspend. The synchronous twins remain available on both platforms for compatibility and synchronously completing streams.
 
 ## Running the Examples
 

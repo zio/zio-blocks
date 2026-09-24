@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "pr": {"graphDepth": 8, "finiteDepth": 4, "samplesPerCell": 10000, "scheduleSeeds": 0, "actors": 4, "events": 8, "preemptions": 6, "repeats": 1, "minimumHours": 0, "minimumOperations": 0, "watchdogSeconds": 60, "tags": ["pr", "fixed-replay", "bounded-model", "bounded-schedule"]},
+  "nightly": {"graphDepth": 12, "finiteDepth": 4, "samplesPerCell": 100000, "scheduleSeeds": 1000, "actors": 8, "events": 20, "preemptions": 16, "repeats": 100, "minimumHours": 0, "minimumOperations": 0, "watchdogSeconds": 60, "tags": ["nightly", "recorded-schedule", "stress", "leak"]},
+  "soak": {"graphDepth": 12, "finiteDepth": 4, "samplesPerCell": 100000, "scheduleSeeds": 1000, "actors": 8, "events": 20, "preemptions": 16, "repeats": 100, "minimumHours": 12, "minimumOperations": 10000000, "watchdogSeconds": 60, "tags": ["soak", "native-adapter", "resource-churn", "backpressure"]},
+  "cells": ["jvm-2.13.18", "jvm-3.3.7", "jvm-3.8.3", "js-2.13.18", "js-3.3.7"]
+}

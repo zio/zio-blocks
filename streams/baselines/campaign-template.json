@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "comparison": "sync-regression",
+  "kind": "throughput",
+  "baselineCommit": "2b3896cc1e740a7929056abbc66fbb6119655492",
+  "candidateCommit": "REPLACE_WITH_FROZEN_CANDIDATE_SHA",
+  "baselineWorktree": "/absolute/path/to/sync-baseline-overlay",
+  "candidateWorktree": "/absolute/path/to/sync-candidate-overlay",
+  "harnessHash": "REPLACE_WITH_IDENTICAL_OVERLAY_HASH",
+  "seed": 20260818,
+  "pairs": 6,
+  "warmupSeconds": 1,
+  "measurementSeconds": 1,
+  "warmupIterations": 10,
+  "measurementIterations": 10,
+  "jvmArgs": [],
+  "host": {
+    "REPLACE": "run campaign.py freeze-host host.json, then paste that complete object here"
+  },
+  "command": ["sbt", "--client", "-Dsbt.color=false", "++3.8.3; project streams-benchmark; Jmh/run -wi 10 -i 10 -f {fork} -w {warmupTime}s -r {measurementTime}s -rf json -rff {output} {params} {benchmark}"],
+  "cells": [
+    {"id":"eval.drain","baseline":"zio.blocks.streams.bench.StreamEvalBench.zb_drain","candidate":"zio.blocks.streams.bench.StreamEvalBench.zb_drain",
+     "baselineMetadata":{"benchmark":"StreamEvalBench.zb_drain","params":{"N":10000},"mode":"Throughput","warmup":"10x1s","measurement":"10x1s","jvmArgs":[],"scala":"3.8.3","jdk":"PINNED","harnessHash":"REPLACE","work":"range(0,N), fold sum","checksum":"49995000","boundary":"prebuilt stream, timed evaluation"},
+     "candidateMetadata":{"benchmark":"StreamEvalBench.zb_drain","params":{"N":10000},"mode":"Throughput","warmup":"10x1s","measurement":"10x1s","jvmArgs":[],"scala":"3.8.3","jdk":"PINNED","harnessHash":"REPLACE","work":"range(0,N), fold sum","checksum":"49995000","boundary":"prebuilt stream, timed evaluation"}}
+  ],
+  "escalation": {"initialPairs":6,"extendedPairs":10,"replacementPairs":10,"replacementWarmupSeconds":3,"replacementMeasurementSeconds":3,"pooling":"forbidden"}
+}

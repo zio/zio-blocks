@@ -55,21 +55,36 @@ trait Platform {
    * separate virtual thread (concurrent). On JS, the reader prefetches elements
    * synchronously.
    */
-  def createBufferedReader[A](upstream: Reader[A], bufferSize: Int): Reader[A]
+  def createBufferedReaderFromReader[A](upstream: Reader[A], bufferSize: Int): Reader[A]
+
+  final def createBufferedReader[A](upstream: Reader.SyncReader[A], bufferSize: Int): Reader.SyncReader[A] =
+    createBufferedReaderFromReader(upstream, bufferSize).asInstanceOf[Reader.SyncReader[A]]
 
   /**
    * Returns a [[Reader]] that merges elements from N inner streams produced by
    * `outerReader`, up to `maxOpen` concurrent inner streams at a time. On JVM,
    * producers run on virtual threads. On JS, degrades to sequential flatMap.
    */
-  def createMergeReader[A](outerReader: Reader[?], maxOpen: Int, bufferSize: Int, elemType: JvmType): Reader[A]
+  def createMergeReaderFromReader[A](
+    outerReader: Reader[?],
+    maxOpen: Int,
+    bufferSize: Int,
+    elemType: JvmType
+  ): Reader[A]
+
+  private[streams] def createMergeReader[A](
+    outerReader: Reader.SyncReader[?],
+    maxOpen: Int,
+    bufferSize: Int,
+    elemType: JvmType
+  ): Reader.SyncReader[A]
 
   /**
    * Returns a [[Reader]] that applies `f` to each element of `upstream` using
    * `n` concurrent workers. On JVM, workers run on virtual threads. On JS,
    * degrades to sequential map.
    */
-  def createMapParReader[A, B](
+  def createMapParReaderFromReader[A, B](
     upstream: Reader[A],
     n: Int,
     f: A => B,
@@ -77,6 +92,16 @@ trait Platform {
     inType: JvmType,
     outType: JvmType
   ): Reader[B]
+
+  final def createMapParReader[A, B](
+    upstream: Reader.SyncReader[A],
+    n: Int,
+    f: A => B,
+    bufferSize: Int,
+    inType: JvmType,
+    outType: JvmType
+  ): Reader.SyncReader[B] =
+    createMapParReaderFromReader(upstream, n, f, bufferSize, inType, outType).asInstanceOf[Reader.SyncReader[B]]
 }
 
 object Platform extends PlatformSpecific

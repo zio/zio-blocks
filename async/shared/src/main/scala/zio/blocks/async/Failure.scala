@@ -30,11 +30,20 @@ package zio.blocks.async
  * site before any later `.catchAll` runs. To convert thrown exceptions into a
  * Failure, wrap the work in [[Async.attempt]].
  */
-final class Failure(val cause: Throwable) extends Pollable[Nothing] {
+final class Failure private (val cause: Throwable, private[async] val trusted: Boolean) extends Pollable[Nothing] {
+
+  /** Public construction is deliberately an ordinary, untrusted failure. */
+  def this(cause: Throwable) = this(cause, false)
+
   def poll(onComplete: Runnable): Async[Nothing] = this
 }
 
 private[async] object Failure {
+
+  /**
+   * Internal typed failures can only enter through Async's blocks-private API.
+   */
+  def trusted(cause: Throwable): Failure = new Failure(cause, true)
 
   /**
    * Thrown by [[throwCause]] when the logical failure cause is `null`. The JVM

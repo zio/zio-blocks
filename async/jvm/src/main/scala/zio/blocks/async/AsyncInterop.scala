@@ -81,22 +81,16 @@ private[async] object AsyncInterop {
 
   /**
    * Convert `fa` into a [[scala.concurrent.Future]] that completes with the
-   * same value or error. If `fa` is not yet complete, it is driven on `ec`, so
-   * this call returns immediately and the future completes when `fa` does.
+   * same value or error. If `fa` is not yet complete, a non-blocking driver is
+   * started and its completion is observed on `ec`, so this call returns
+   * immediately without occupying an executor thread while `fa` is pending.
    */
   def toFuture[A](fa: Async[A])(implicit ec: ExecutionContext): Future[A] = {
     val any = fa.asInstanceOf[Any]
     if (any.isInstanceOf[Failure]) failFuture(any.asInstanceOf[Failure].cause)
-    // `requiresDriver` also routes a depth-1 pollable-as-value carrier through
-    // the executor: delivering it drives the user pollable for effects, which
-    // may suspend — the caller must not be parked for that.
     else if (AsyncEncoding.requiresDriver(any)) {
       val p = Promise[A]()
-      ec.execute(new Runnable {
-        def run(): Unit =
-          try p.success(Async.slowPath.block[A](fa))
-          catch { case t: Throwable => failPromise(p, Failure.unwindCause(t)) }
-      })
+      drive(fa, (value: A) => { p.success(value); () }, (cause: Throwable) => failPromise(p, cause))
       p.future
     } else
       try Future.successful(Async.slowPath.block[A](fa))
@@ -106,8 +100,8 @@ private[async] object AsyncInterop {
   /**
    * Convert `fa` into a [[CompletableFuture]] that completes with the same
    * value or error, for consumers in Java-shaped APIs. Behaves like
-   * [[toFuture]]: a not-yet-complete `fa` is driven on `ec` and the returned
-   * future completes when `fa` does.
+   * [[toFuture]]: a not-yet-complete `fa` is driven without blocking `ec`, and
+   * the returned future completes when `fa` does.
    */
   def toCompletableFuture[A](fa: Async[A])(implicit ec: ExecutionContext): CompletableFuture[A] = {
     val any = fa.asInstanceOf[Any]
@@ -116,19 +110,56 @@ private[async] object AsyncInterop {
       completeCfExceptionally(cf, any.asInstanceOf[Failure].cause)
       cf
     } else if (AsyncEncoding.requiresDriver(any)) { // see toFuture: includes depth-1 carriers
-      ec.execute(new Runnable {
-        def run(): Unit =
-          try { cf.complete(Async.slowPath.block[A](fa)); () }
-          catch {
-            case t: Throwable => completeCfExceptionally(cf, t); ()
-          }
-      })
+      drive(fa, (value: A) => { cf.complete(value); () }, (cause: Throwable) => completeCfExceptionally(cf, cause))
       cf
     } else
       try { cf.complete(Async.slowPath.block[A](fa)); cf }
       catch {
         case t: Throwable => completeCfExceptionally(cf, t); cf
       }
+  }
+
+  /** `CompletableFuture` rejects `null` exceptional completions on the JVM. */
+  private def completeCfExceptionally[A](cf: CompletableFuture[A], t: Throwable): Unit = {
+    val cause = Failure.unwindCause(t)
+    if (cause eq null) cf.completeExceptionally(Failure.NullCauseMarker)
+    else cf.completeExceptionally(cause)
+  }
+
+  private def drive[A](
+    fa: Async[A],
+    succeed: A => Unit,
+    fail: Throwable => Unit
+  )(implicit ec: ExecutionContext): Unit = {
+    val running             = Async.startRegistered(fa)(_ => ())
+    lazy val step: Runnable = new Runnable {
+      def run(): Unit =
+        try
+          Async.foldStep(running.poll(wake))(new Async.StepFold[A, Unit] {
+            def success(value: A): Unit           = succeed(value)
+            def failure(cause: Throwable): Unit   = fail(cause)
+            def pending(value: Pollable[A]): Unit = ()
+          })
+        catch { case cause: Throwable => fail(Failure.unwindCause(cause)) }
+    }
+    lazy val wake: Runnable = new Runnable {
+      def run(): Unit =
+        try ec.execute(step)
+        catch { case cause: Throwable => fail(Failure.unwindCause(cause)) }
+    }
+    wake.run()
+  }
+
+  /** Scala `Future.failed` rejects a `null` exception on the JVM. */
+  private def failFuture[A](cause: Throwable): Future[A] =
+    if (cause eq null) Future.failed(Failure.NullCauseMarker)
+    else Future.failed(cause)
+
+  /** `Promise.failure` likewise rejects a `null` exception. */
+  private def failPromise[A](p: Promise[A], cause: Throwable): Unit = {
+    if (cause eq null) p.failure(Failure.NullCauseMarker)
+    else p.failure(cause)
+    ()
   }
 
   /**
@@ -144,24 +175,5 @@ private[async] object AsyncInterop {
       case other                                                               => other
     }
     Failure.unwindCause(raw)
-  }
-
-  /** `CompletableFuture` rejects `null` exceptional completions on the JVM. */
-  private def completeCfExceptionally[A](cf: CompletableFuture[A], t: Throwable): Unit = {
-    val cause = Failure.unwindCause(t)
-    if (cause eq null) cf.completeExceptionally(Failure.NullCauseMarker)
-    else cf.completeExceptionally(cause)
-  }
-
-  /** Scala `Future.failed` rejects a `null` exception on the JVM. */
-  private def failFuture[A](cause: Throwable): Future[A] =
-    if (cause eq null) Future.failed(Failure.NullCauseMarker)
-    else Future.failed(cause)
-
-  /** `Promise.failure` likewise rejects a `null` exception. */
-  private def failPromise[A](p: Promise[A], cause: Throwable): Unit = {
-    if (cause eq null) p.failure(Failure.NullCauseMarker)
-    else p.failure(cause)
-    ()
   }
 }

@@ -3,21 +3,21 @@ id: index
 title: "Streams"
 ---
 
-`zio.blocks.streams` is a **synchronous, pull-based** streaming library for **Scala 3** (and Scala 2.13) with typed errors, resource safety, and primitive specialization. Streams are lazy descriptions -- nothing executes until a terminal operation is called. All results are returned as `Either[E, Z]`, keeping error handling explicit and typed. The library has zero runtime dependencies beyond `zio.blocks.chunk` and `zio.blocks.scope`, and achieves zero-boxing on primitive element types (`Int`, `Long`, `Float`, `Double`) through JVM-type-specialized internal readers.
+`zio.blocks.streams` is a **pull-based** streaming library for **Scala 3** (and Scala 2.13) with synchronous and asynchronous readers, typed errors, resource safety, and primitive specialization. Streams are lazy descriptions -- nothing executes until a terminal operation is driven. Cross-platform terminals ending in `Async` return `Async[Either[E, Z]]`; the JVM also provides blocking terminals returning `Either[E, Z]`. The library has zero runtime dependencies beyond ZIO Blocks modules, and avoids boxing on primitive element types through JVM-type-specialized internal readers.
 
 ZIO Blocks Streams is built on three composable primitives:
 
 | Type                                   | Description                                                          | Key operation         |
 |----------------------------------------|----------------------------------------------------------------------|-----------------------|
-| [`Stream[+E, +A]`](./stream.md)        | A lazy, pull-based sequence of elements that may fail with error `E` | `stream.via(pipe)`    |
-| [`Pipeline[-In, +Out]`](./pipeline.md) | A reusable, composable stream-to-stream transformation               | `pipe.andThen(other)` |
-| [`Sink[+E, -A, +Z]`](./sink.md)        | A stream consumer that produces a typed result `Z`                   | `stream.run(sink)`    |
+| [`Stream[+E, +A]`](./core/stream.md)        | A lazy, pull-based sequence of elements that may fail with error `E` | `stream.via(pipe)`    |
+| [`Pipeline[-In, +Out]`](./core/pipeline.md) | A reusable, composable stream-to-stream transformation               | `pipe.andThen(other)` |
+| [`Sink[+E, -A, +Z]`](./core/sink.md)        | A stream consumer that produces a typed result `Z`                   | `stream.run(sink)`    |
 
 ## Overview
 
 ZIO Blocks Streams is designed around three core principles:
 
-**Synchronous execution.** All terminal operations (`run`, `runCollect`, `head`, etc.) return `Either[E, Z]` directly — no async effects, no ZIO runtime required. This makes streams easy to embed in any Scala or Java code.
+**Dual execution.** Cross-platform `*Async` terminals drive either synchronous or asynchronous sources without blocking and require no ZIO runtime. On the JVM, plain terminals such as `run`, `runCollect`, and `head` are blocking compatibility twins.
 
 **Pull-based evaluation.** Execution is driven from the consumer (Sink) backward through the pipeline to the source (Stream). This enables natural short-circuiting: if a sink only needs the first three elements, the stream stops producing after three elements — no work is wasted.
 
@@ -25,7 +25,9 @@ ZIO Blocks Streams is designed around three core principles:
 
 ## Quick Start
 
-Here's a minimal example. Streams are lazy descriptions — nothing executes until you call a terminal operation like `runCollect`. The result is always `Either[E, Z]`, keeping errors explicit and typed.
+Here's a minimal JVM example. Streams are lazy descriptions — nothing executes until you call a terminal operation like `runCollect`. Use `runCollectAsync` for the cross-platform form.
+
+Unless a section says otherwise, examples using plain terminals (`run`, `runCollect`, `head`, and their peers) are JVM-only shorthand. Replace them with the matching `*Async` terminal in shared JVM/Scala.js code.
 
 ```scala mdoc:silent
 import zio.blocks.streams.*
@@ -59,45 +61,33 @@ Supported Scala versions: 2.13.x and 3.x.
 
 ## Why Streams?
 
-Streaming libraries in the Scala ecosystem typically require an effect system. fs2 needs `cats.effect.IO`, Kyo Streams needs the Kyo runtime, and Pekko (formerly Akka) Streams needs the actor runtime. When your code is synchronous and you want streaming without pulling in an effect monad, the options narrow considerably.
+Streaming libraries in the Scala ecosystem typically require an effect system. fs2 runs in a `cats.effect`-compatible `F[_]`, Kyo Streams needs the Kyo runtime, and Pekko (formerly Akka) Streams needs the actor runtime. When your code is synchronous and you want streaming without pulling in an effect monad, the options narrow considerably.
 
 `zio.blocks.streams` fills that gap:
 
 | Feature                   | ZB Streams              | fs2                  | Kyo           | Ox                      | Pekko           |
 |---------------------------|-------------------------|----------------------|---------------|-------------------------|-----------------|
-| Effect system required    | No                      | Yes (cats-effect)    | Yes (Kyo)     | No (virtual threads)    | Yes (Akka)      |
-| Execution model           | Synchronous, pull-based | Async, pull-based    | Async, chunk  | Synchronous, pull-based | Async, push     |
-| Typed errors              | `Either[E, Z]`          | ApplicativeError     | Kyo effects   | Exceptions              | No              |
-| Primitive specialization  | Yes (zero boxing)       | No                   | No            | No                      | No              |
-| Stack-safe deep pipelines | Yes (trampolined)       | Yes (Pull)           | Yes           | No (SO on deep flatMap) | N/A             |
+| Effect system required    | No                      | Yes (cats-effect)    | Yes (Kyo)     | No (virtual threads)    | Yes (Pekko)     |
+| Execution model           | Sync/async, pull-based  | Async, pull-based    | Async, chunk  | Synchronous, pull-based | Async, push     |
+| Typed errors              | `Either[E, Z]`          | Not verified here    | Not verified here | Not verified here   | Not verified here |
+| Primitive specialization  | Yes (zero boxing)       | Not verified here    | Not verified here | Not verified here   | Not verified here |
+| Stack-safe deep pipelines | Yes (trampolined)       | Not verified here     | Not verified here | Not verified here       | Not verified here |
 | Resource safety           | Scope integration       | Resource/bracket     | Kyo resources | try/finally             | Graph lifecycle |
-| Dependencies              | chunk + scope           | cats-effect + scodec | Kyo core      | Ox core                 | Akka actor      |
+| Dependencies              | scope, chunk, combinators, ringbuffer, async | fs2-core     | kyo-prelude, kyo-core | ox core         | pekko-stream    |
+
+The provider columns name the artifacts and versions this repository pins for benchmarking — fs2 3.14.0, Pekko 1.7.0, Kyo 1.0.0-RC6, Ox 1.0.6 (`build.sbt`, `streams-benchmark/benchmark-manifest.json`). Nothing outside the ZB Streams column is measured or verified in this repository.
 
 ## Benchmarks
 
-All benchmarks use 10,000 elements, measured in operations per second (higher is better). Run on Apple M-series, JDK 25, Scala 3.7.4.
+The repository carries a JMH benchmark suite under `streams-benchmark`. Provider comparisons are
+governed by the allowlist and provider versions recorded in
+`streams-benchmark/benchmark-manifest.json`; results are only comparable within a single benchmark
+class and contract, and are not aggregated into a ranking here. Re-run the benchmarks on your target
+environment before drawing any performance conclusion.
 
-If you are evaluating Scala 2 compatibility work, read the [Scala 2 compatibility design note](./scala-2-compatibility.md) before moving any `Stream` or `Sink` hot-path combinators behind version-specific seams.
+If you are evaluating Scala 2 compatibility work, read the [Scala 2 compatibility design note](./execution-and-compatibility/scala-2-compatibility.md) before moving any `Stream` or `Sink` hot-path combinators behind version-specific seams.
 
-| Benchmark            | ZB Streams | Ox     | Kyo    | fs2    | Pekko |
-|----------------------|------------|--------|--------|--------|-------|
-| drain                | 179,872    | 54,512 | 31,777 | 20,795 | 4,381 |
-| map                  | 161,920    | 42,007 | 12,012 | 13,295 | 2,259 |
-| filter               | 168,541    | 47,933 | 19,962 | 14,977 | 2,901 |
-| flatMap              | 49,165     | 30,506 | 28,303 | 748    | 742   |
-| take/drop            | 322,470    | 28,708 | 64,640 | 28,836 | 2,379 |
-| map+filter+flatMap   | 980        | 508    | 602    | 19     | 16    |
-| mixed depth 1        | 47,459     | 19,449 | 13,427 | 257    | 639   |
-| mixed depth 2        | 33,859     | 15,336 | 7,328  | 208    | 459   |
-| mixed depth 3        | 23,610     | 11,878 | 3,174  | 139    | 256   |
-| nested flatMap (10K) | 8,161      | --     | --     | 937    | --    |
-| nested concat (10K)  | 6,140      | --     | 3      | 1,065  | 1     |
-
-"--" indicates the benchmark was not run or the library crashed.
-
-ZB Streams leads in every single-operator benchmark and maintains its advantage as pipeline depth increases. The "mixed depth" rows show cascading `map`/`filter`/`flatMap` stages — ZB Streams degrades gracefully thanks to its trampolined execution model, while libraries without stack-safety (Ox) or with high per-element overhead (fs2, Pekko) fall off sharply.
-
-## Core mental model
+## Core Mental Model
 
 To understand ZIO Blocks Streams fully, it's helpful to see how the three primitives fit together and how data flows through a pipeline from source to sink. This section walks through the architecture and explains each component in depth.
 
@@ -128,17 +118,24 @@ Operations on streams transform the pipeline and ultimately run it against a sin
          .run(sink)
                    │
 ┌──────────────────▼───────────────┐
-│ Either[E, Z]                     │
-│ (synchronous result)             │
+│ Async[Either[E, Z]]              │
+│ (or blocking Either on JVM)      │
 └──────────────────────────────────┘
 ```
 
+The last box is where the flow forks. The same `Stream` description is materialized either as a
+synchronous reader, drained on the calling thread by a blocking terminal such as `run` or
+`runCollect`, or as an asynchronous reader, driven without blocking by the matching `*Async`
+terminal. Which engine runs is decided by the source and operators the pipeline is built from, not
+by the terminal you call. See [Async Execution](./execution-and-compatibility/async-execution.md) for how that classification
+works.
 
-### 1) `Stream[E, A]` -- a lazy sequence
+
+### 1) `Stream[E, A]` -- a Lazy Sequence
 
 A `Stream[+E, +A]` is a **description** of a potentially infinite sequence of elements of type `A` that may fail with an error of type `E`. It is covariant in both type parameters.
 
-Nothing happens when you construct a stream or chain transformations. Execution only begins when you call a terminal operation (`run`, `runCollect`, `runDrain`, `head`, `count`, etc.). Terminal operations return `Either[E, Z]`:
+Nothing happens when you construct a stream or chain transformations. Execution only begins when you drive a terminal operation. Cross-platform terminals (`runAsync`, `runCollectAsync`, `headAsync`, `countAsync`, etc.) return `Async[Either[E, Z]]`; plain blocking terminals return `Either[E, Z]` on the JVM:
 
 - `Left(e)` -- a typed stream error
 - `Right(z)` -- the successful result
@@ -170,7 +167,7 @@ This makes debugging and logging straightforward -- you can see exactly what tra
 
 ---
 
-### 2) `Sink[E, A, Z]` -- a consumer
+### 2) `Sink[E, A, Z]` -- a Consumer
 
 A `Sink[+E, -A, +Z]` consumes elements of type `A` from a stream and produces a final result of type `Z`. Sinks are passed to `Stream.run`:
 
@@ -199,7 +196,7 @@ Sinks compose with `contramap` (pre-process input) and `map` (post-process resul
 
 ```scala mdoc:compile-only
 val lengthSink: Sink[Nothing, String, Long] =
-  Sink.sumInt.contramap[String](_.length)
+  Sink.sumInt.contramap[Int, String](_.length)
 
 val doubled: Sink[Nothing, Int, Long] =
   Sink.sumInt.map(_ * 2)
@@ -207,7 +204,7 @@ val doubled: Sink[Nothing, Int, Long] =
 
 ---
 
-### 3) `Pipeline[In, Out]` -- reusable transformation
+### 3) `Pipeline[In, Out]` -- Reusable Transformation
 
 A `Pipeline[-In, +Out]` is a reusable stream transformation. It decouples the transformation logic from any specific stream, so you can define it once and apply it many times.
 
@@ -243,6 +240,31 @@ val countLong: Sink[Nothing, String, Long] =
     .andThenSink(Sink.sumInt)
 ```
 
+## Synchronous and Asynchronous Execution
+
+There is one `Stream` type. It serves both execution modes, and there is no mode type parameter, no
+`AsyncStream`, and no annotation to write.
+
+The type that decides is [`Reader`](./primitives/reader.md), not `Stream`. Materializing a stream yields either
+a `Reader.SyncReader[A]`, whose pulls return values directly, or a `Reader.AsyncReader[A]`, whose
+pulls return `Async` values. A pipeline that is synchronous end to end materializes as the former; a
+single asynchronous source or operator anywhere in it makes the whole pipeline asynchronous.
+
+The `*Async` terminals -- `runAsync`, `runCollectAsync`, `runDrainAsync`, `runFoldAsync`,
+`countAsync`, `headAsync`, and their peers -- are the cross-platform API. They all return
+`Async[Either[E, Z]]`: the typed error `E` stays inside the `Either`, while the outer `Async` fails
+only on a defect. They drive a synchronous pipeline just as correctly as an asynchronous one, so
+shared JVM/Scala.js code can use them unconditionally.
+
+The blocking terminals -- `run`, `runCollect`, `runDrain`, `runFold`, `count`, `head`, and their
+peers -- are **JVM-only** compatibility twins returning a bare `Either[E, Z]`. They do not exist on
+Scala.js, and cross-compiled sources cannot call them.
+
+- [Async Execution](./execution-and-compatibility/async-execution.md) -- the full execution model: classification, the `Reader`
+  union, the async source constructors, operators, and terminals.
+- [Platform Differences](./execution-and-compatibility/platform-differences.md) -- the availability matrix of every member that
+  differs between the JVM and Scala.js.
+
 ## Error Handling
 
 Streams distinguish between two kinds of failures:
@@ -260,7 +282,7 @@ recovered.runCollect  // Right(Chunk(1, 2, 3, 99))
 
 ## Resource Management
 
-Streams integrate with `zio.blocks.scope.Scope` for deterministic resource cleanup. The `fromAcquireRelease` constructor guarantees that a resource is acquired lazily (when the stream runs), used to produce elements, and then released — even if the stream is short-circuited early via `take()`, fails with an error, or succeeds normally. The release function is wired into a finally block, ensuring cleanup always happens.
+Streams integrate with [`zio.blocks.scope.Scope`](../resource-management/scope.md) for deterministic resource cleanup. The `fromAcquireRelease` constructor guarantees that a resource is acquired lazily (when the stream runs), used to produce elements, and then released — even if the stream is short-circuited early via `take()`, fails with an error, or succeeds normally. The release function is wired into a finally block, ensuring cleanup always happens.
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
@@ -278,7 +300,9 @@ This eliminates the need for manual try/finally when working with resources — 
 
 ## Primitive Specialization
 
-ZB Streams eliminates boxing for `Int`, `Long`, `Float`, and `Double` elements throughout the entire pipeline. Every intermediate step uses specialized `readInt`/`readLong`/`readFloat`/`readDouble` methods, so no `java.lang.Integer` wrappers are allocated.
+ZB Streams carries the JVM representation of the element type through the whole pipeline, so a stream of primitives is not boxed at each stage boundary. Specialization is not limited to `Int`, `Long`, `Float`, and `Double`: there are **nine logical lanes** -- the eight primitive pull identities `Boolean`, `Byte`, `Short`, `Char`, `Int`, `Long`, `Float`, and `Double`, plus the reference fallback -- and the synchronous interpreter compacts them into **five storage lanes**: int-like (`Boolean`/`Byte`/`Short`/`Char`/`Int`), `Long`, `Float`, `Double`, and reference. Nine logical lanes therefore does not mean nine interpreter arrays; the operator tag selects the identity-specific reads over the shared storage.
+
+[Zero-Boxing Streams](./execution-and-compatibility/zero-boxing.md) explains how a lane is chosen and what the specialization evidence is for.
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
@@ -302,18 +326,18 @@ This matters most for numeric workloads — data processing, statistics, encodin
 - **Use the auto-closing I/O constructors** (`fromInputStream`, `fromJavaReader`, `NioStreams.fromChannel`) by default. Only use the `Unmanaged` variants when you need to borrow a resource whose lifetime is managed elsewhere.
 - **Use `Pipeline`** when you have a transformation you want to reuse across multiple streams or apply to sinks.
 - **Use `&&` for zipping** instead of manual zip calls. Tuples flatten automatically: `a && b && c` produces `(A, B, C)` not `((A, B), C)`.
-- **Leverage primitive specialization** for numeric workloads. Streams of `Int`, `Long`, `Float`, and `Double` avoid boxing automatically; use `Sink.sumInt`, `runFold(0)(_ + _)`, etc. for zero-allocation folds.
+- **Leverage primitive specialization** for numeric workloads. Streams of any primitive element type avoid boxing automatically on the synchronous path; use `Sink.sumInt`, `runFold(0)(_ + _)`, etc. for allocation-free folds.
 - **Use `scan` for running accumulators**, `grouped` for batching, and `sliding` for windowed computations.
 - **Use `render`/`toString`** to inspect pipeline structure during debugging — it shows each transformation stage without executing the stream.
-- **Use `Sink.create`** as an escape hatch when none of the built-in sinks fit.
+- **Use `Sink.create`** (JVM only) as an escape hatch when none of the built-in sinks fit; on Scala.js and in cross-compiled code use `Sink.createAsync` or `Sink.createBoth`.
 - **`suspend`** is your friend for recursive or self-referential stream definitions, preventing stack overflow during construction.
 - **Typed errors vs. defects**: use `Stream.fail` for expected domain errors and `Stream.die` for programmer errors. Use `catchAll` for the former, `catchDefect` for the latter.
 
-## Usage examples
+## Usage Examples
 
 This section shows practical examples of using streams in real-world scenarios. Each subsection demonstrates a different aspect of the API with runnable code examples.
 
-### Creating streams
+### Creating Streams
 
 Here are the most common ways to construct a stream. Choose the constructor that best fits your data source:
 
@@ -359,8 +383,6 @@ Stream.fail("error")                         // Stream[String, Nothing]
 
 // Generators
 Stream.repeat(1)                             // infinite stream of 1s
-// Stream.iterate(1)(_ * 2)                   // 1, 2, 4, 8, 16, ...
-// Stream.repeatThunk(scala.util.Random.nextInt(100))  // infinite random ints
 Stream.unfold(0)(n =>                        // 0, 1, 2, ..., 9
   if n < 10 then Some((n, n + 1)) else None
 )
@@ -374,23 +396,23 @@ Stream.attemptEval(riskyEffect())               // same, for Unit-returning effe
 Stream.suspend(expensiveStreamBuilder())
 
 // I/O sources (auto-closing) - JVM only
-Stream.fromInputStream(inputStream)             // Stream[IOException, Int] (bytes as 0-255, auto-closes)
+Stream.fromInputStream(inputStream)             // Stream[IOException, Byte] (auto-closes)
 Stream.fromJavaReader(javaReader)               // Stream[IOException, Char] (auto-closes)
 
 // I/O sources (borrowing -- caller manages lifetime) - JVM only
-Stream.fromInputStreamUnmanaged(inputStream)    // Stream[IOException, Int] (does NOT close)
+Stream.fromInputStreamUnmanaged(inputStream)    // Stream[IOException, Byte] (does NOT close)
 Stream.fromJavaReaderUnmanaged(javaReader)      // Stream[IOException, Char] (does NOT close)
 ```
 
 ---
 
-### Transforming streams
+### Transforming Streams
 
-Streams support many transformation operations. Use `map` for element-wise changes, `filter` for selection, and `flatMap` for expanding elements into sub-streams. See the [Stream reference](./stream.md) page for comprehensive examples of all transformation methods including `map`, `filter`, `flatMap`, `collect`, `scan`, `mapAccum`, `distinct`, `intersperse`, and more.
+Streams support many transformation operations. Use `map` for element-wise changes, `filter` for selection, and `flatMap` for expanding elements into sub-streams. See the [Stream reference](./core/stream.md) page for comprehensive examples of all transformation methods including `map`, `filter`, `flatMap`, `collect`, `scan`, `mapAccum`, `distinct`, `intersperse`, and more.
 
 ---
 
-### Zipping streams with `&&`
+### Zipping Streams with `&&`
 
 The `&&` operator zips two streams element-by-element into tuples. The resulting stream ends when either input is exhausted.
 
@@ -410,7 +432,7 @@ val triples = names && ages && ids
 triples.runCollect // Right(Chunk(("Alice", 30, 1L), ("Bob", 25, 2L), ("Charlie", 35, 3L)))
 ```
 
-When the error types differ, they widen via union:
+When the error types differ, they widen through `Concat` — to a union `E1 | E2` on Scala 3, and to a meaningful least upper bound (or `Either[E1, E2]` for disjoint types) on Scala 2.13:
 
 ```scala mdoc:silent
 import zio.blocks.streams.*
@@ -424,9 +446,9 @@ val s2: Stream[OtherError, Int] = Stream.fromIterable(List(4, 5, 6))
 
 ---
 
-### Primitive specialization
+### Primitive Specialization
 
-ZB Streams eliminates boxing for `Int`, `Long`, `Float`, and `Double` elements throughout the entire pipeline. Every intermediate step uses specialized `readInt`/`writeInt` (or the corresponding type) methods, so no `java.lang.Integer` wrappers are allocated.
+All nine logical lanes are specialized, not only `Int`, `Long`, `Float`, and `Double`. Every intermediate step uses the identity-specific read (`readInt`, `readByte`, `readChar`, and so on), so no `java.lang.Integer` wrappers are allocated between stages.
 
 ```scala mdoc:compile-only
 // This entire pipeline runs with ZERO boxing of the Int elements.
@@ -441,11 +463,11 @@ val sum: Either[Nothing, Long] =
 // at each pipeline stage boundary.
 ```
 
-This matters most for numeric workloads -- data processing, statistics, encoding/decoding -- where millions of elements flow through multi-stage pipelines. The benchmark results above reflect this advantage directly.
+This matters most for numeric workloads -- data processing, statistics, encoding/decoding -- where millions of elements flow through multi-stage pipelines.
 
 ---
 
-### Consuming streams
+### Consuming Streams
 
 Terminal operations run the stream and produce a final result. Use `runCollect` to gather all elements, `runDrain` to discard them, or specialized operations like `head`, `count`, and `foldLeft`:
 
@@ -482,7 +504,50 @@ s.run(Sink.take(3))       // Right(Chunk(1, 2, 3))
 
 ---
 
-### Error handling patterns
+### Async Execution
+
+`runCollectAsync` is the cross-platform twin of `runCollect`. It returns `Async[Either[E, Chunk[A]]]`
+rather than `Either[E, Chunk[A]]`, so it never blocks and compiles on both the JVM and Scala.js:
+
+```scala mdoc:compile-only
+import zio.blocks.streams._
+import zio.blocks.chunk.Chunk
+import zio.blocks.async._
+
+val evens: Stream[Nothing, Int] =
+  Stream.range(1, 100).filter(_ % 2 == 0).map(_ * 3)
+
+// Still a description -- nothing has run.
+val pending: Async[Either[Nothing, Chunk[Int]]] = evens.take(5).runCollectAsync
+
+// Stay in Async: map the result rather than extracting it.
+val described: Async[String] = pending.map {
+  case Right(values) => s"collected ${values.length} elements"
+  case Left(error)   => s"failed: $error"
+}
+```
+
+Something has to drive the `Async` at the edge of the world. On the JVM that is `.block`, which
+belongs in `main` or a test and nowhere else:
+
+```scala mdoc:compile-only
+import zio.blocks.streams._
+import zio.blocks.chunk.Chunk
+import zio.blocks.async._
+
+// JVM only: Async#block throws on Scala.js.
+val result: Either[Nothing, Chunk[Int]] =
+  Stream.range(1, 100).filter(_ % 2 == 0).take(5).runCollectAsync.block
+// Right(Chunk(2, 4, 6, 8, 10))
+```
+
+Scala.js code keeps the `Async` and hands it to the host runtime instead. See
+[Async Execution](./execution-and-compatibility/async-execution.md) for the full terminal family and
+[Platform Differences](./execution-and-compatibility/platform-differences.md) for what is available where.
+
+---
+
+### Error Handling Patterns
 
 Streams support two types of failures: typed errors that you can handle explicitly, and defects (exceptions) that propagate. Here are common patterns for dealing with both:
 
@@ -522,7 +587,7 @@ val handled = risky.catchDefect {
 
 ---
 
-### Resource safety patterns
+### Resource Safety Patterns
 
 When working with files, network connections, or other resources, use the resource-safe constructors to guarantee cleanup. Here are the most common patterns:
 
@@ -562,11 +627,11 @@ val withDefer =
 
 ---
 
-### NIO integration (JVM only)
+### NIO Integration (JVM Only)
 
 On the JVM, `NioStreams` and `NioSinks` provide zero-copy integration with `java.nio` buffers and channels.
 
-#### `NioStreams` -- creating streams from NIO sources
+#### `NioStreams` -- Creating Streams From NIO Sources
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
@@ -597,7 +662,7 @@ val bytes2 = NioStreams.fromChannelUnmanaged(ch2, bufSize = 4096).runCollect
 ch2.close() // caller is responsible for closing
 ```
 
-#### `NioSinks` -- writing to NIO targets
+#### `NioSinks` -- Writing to NIO Targets
 
 ```scala mdoc:silent
 import zio.blocks.streams.*
@@ -627,7 +692,7 @@ finally {
 
 ---
 
-### Pipeline composition
+### Pipeline Composition
 
 Pipelines are composable transformations that can be reused across different streams. Build complex transformations by chaining pipelines together with `andThen`:
 
@@ -666,3 +731,11 @@ Stream.fromIterable(List("10", "abc", "-3", "7", "0", "25"))
   .run(sumPositiveDoubled)
 // Right(84L)
 ```
+
+## See Also
+
+- [Async Execution](./execution-and-compatibility/async-execution.md) -- the synchronous/asynchronous execution model, the `Reader` union, and the `*Async` terminal family
+- [Platform Differences](./execution-and-compatibility/platform-differences.md) -- which members exist on the JVM, on Scala.js, and on both
+- [Zero-Boxing Streams](./execution-and-compatibility/zero-boxing.md) -- the primitive lanes and how one is chosen
+- [Async](../async.md) -- the `Async` effect type the cross-platform terminals return
+- [Mux](../mux.md) -- coordinating many keyed streams over one shared transport

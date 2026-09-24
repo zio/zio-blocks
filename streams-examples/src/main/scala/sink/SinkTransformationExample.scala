@@ -9,14 +9,14 @@ object SinkTransformationExample extends App {
   // 1. contramap — pre-process input
   println("1. Sink.contramap — pre-process input elements:")
   val stringLengthSum: Sink[Nothing, String, Long] =
-    Sink.sumInt.contramap[String](_.length)
+    Sink.sumInt.contramap[Int, String](_.length)
 
   show(Stream("hello", "world").run(stringLengthSum))
 
   // 2. contramap — change element type
   println("\n2. contramap to convert types:")
   val parseInts: Sink[Nothing, String, Long] =
-    Sink.sumInt.contramap[String](_.toInt)
+    Sink.sumInt.contramap[Int, String](_.toInt)
 
   show(Stream("10", "20", "30").run(parseInts))
 
@@ -30,7 +30,7 @@ object SinkTransformationExample extends App {
   // 4. Chaining contramap + map
   println("\n4. Chaining contramap + map:")
   val pipeline = Sink.sumInt
-    .contramap[String](_.length)
+    .contramap[Int, String](_.length)
     .map(total => s"Total chars: $total")
 
   show(Stream("hi", "hello").run(pipeline))
