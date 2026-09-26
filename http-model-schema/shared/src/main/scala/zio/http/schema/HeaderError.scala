@@ -16,6 +16,13 @@
 
 package zio.http.schema
 
+/**
+ * Single-value header failures.
+ *
+ * These string bags describe one bad lookup; whole-record decoding instead
+ * reports [[zio.blocks.schema.SchemaError]], which accumulates every bad field
+ * and composes paths with [[zio.blocks.schema.SchemaError.atField]].
+ */
 sealed trait HeaderError extends Product with Serializable {
   def message: String
 }
