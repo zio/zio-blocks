@@ -18,6 +18,7 @@ package zio.http
 
 import _root_.zio.test._
 import zio.blocks.chunk.Chunk
+import zio.blocks.maybe.Maybe
 
 object HeadersSpec extends HttpModelBaseSpec {
   private object TraceIdHeader extends Header.Codec[String] {
@@ -32,6 +33,13 @@ object HeadersSpec extends HttpModelBaseSpec {
     def parse(value: String): Either[String, Int] =
       if (value.startsWith("trace-")) Right(value.length) else Left("trace id must start with trace-")
     def render(value: Int): String = "trace-" + value.toString
+  }
+
+  private object IntHeader extends Header.Codec[Int] {
+    def name: String                              = "x-n"
+    def parse(value: String): Either[String, Int] =
+      value.toIntOption.toRight(s"not an int: $value")
+    def render(value: Int): String = value.toString
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("Headers")(
@@ -59,7 +67,7 @@ object HeadersSpec extends HttpModelBaseSpec {
       },
       test("stores names lowercased") {
         val h = Headers("Content-Type" -> "text/html")
-        assertTrue(h.rawGet("content-type") == Some("text/html"))
+        assertTrue(h.rawGet("content-type") == Maybe.present("text/html"))
       },
       test("multiple entries with same name") {
         val h = Headers("Set-Cookie" -> "a=1", "Set-Cookie" -> "b=2")
@@ -69,19 +77,19 @@ object HeadersSpec extends HttpModelBaseSpec {
     suite("rawGet")(
       test("returns Some for existing header") {
         val h = Headers("content-type" -> "text/html")
-        assertTrue(h.rawGet("content-type") == Some("text/html"))
+        assertTrue(h.rawGet("content-type") == Maybe.present("text/html"))
       },
       test("returns None for missing header") {
         val h = Headers("content-type" -> "text/html")
-        assertTrue(h.rawGet("accept") == None)
+        assertTrue(h.rawGet("accept") == Maybe.absent)
       },
       test("returns first matching value") {
         val h = Headers("set-cookie" -> "a=1", "set-cookie" -> "b=2")
-        assertTrue(h.rawGet("set-cookie") == Some("a=1"))
+        assertTrue(h.rawGet("set-cookie") == Maybe.present("a=1"))
       },
       test("case-insensitive matching via lowercased storage") {
         val h = Headers("Content-Type" -> "text/html")
-        assertTrue(h.rawGet("content-type") == Some("text/html"))
+        assertTrue(h.rawGet("content-type") == Maybe.present("text/html"))
       }
     ),
     suite("rawGetAll")(
@@ -124,34 +132,34 @@ object HeadersSpec extends HttpModelBaseSpec {
       test("parses ContentLength header") {
         val h      = Headers("Content-Length" -> "42")
         val result = h.get(Header.ContentLength)
-        assertTrue(result == Some(Header.ContentLength(42L)))
+        assertTrue(result == Maybe.present(Header.ContentLength(42L)))
       },
       test("parses Host header") {
         val h      = Headers("Host" -> "example.com:8080")
         val result = h.get(Header.Host)
-        assertTrue(result == Some(Header.Host("example.com", Some(8080))))
+        assertTrue(result == Maybe.present(Header.Host("example.com", Some(8080))))
       },
       test("returns None for missing header type") {
         val h = Headers("accept" -> "text/html")
-        assertTrue(h.get(Header.ContentLength) == None)
+        assertTrue(h.get(Header.ContentLength) == Maybe.absent)
       },
       test("returns None when parse fails") {
         val h = Headers("content-length" -> "not-a-number")
-        assertTrue(h.get(Header.ContentLength) == None)
+        assertTrue(h.get(Header.ContentLength) == Maybe.absent)
       },
       test("caches parsed result on second call") {
         val h      = Headers("Content-Length" -> "42")
         val first  = h.get(Header.ContentLength)
         val second = h.get(Header.ContentLength)
         assertTrue(
-          first == Some(Header.ContentLength(42L)),
-          second == Some(Header.ContentLength(42L))
+          first == Maybe.present(Header.ContentLength(42L)),
+          second == Maybe.present(Header.ContentLength(42L))
         )
       },
       test("parses custom header codec without Header subtype") {
         val h      = Headers("X-Trace-Id" -> "trace-123")
         val result = h.get(TraceIdHeader)
-        assertTrue(result == Some("trace-123"))
+        assertTrue(result == Maybe.present("trace-123"))
       },
       test("keeps built-in convenience header values working through Header.Codec") {
         val h = Headers(
@@ -159,8 +167,8 @@ object HeadersSpec extends HttpModelBaseSpec {
           "Access-Control-Allow-Credentials" -> "true"
         )
         assertTrue(
-          h.get(Header.AccessControlAllowHeaders) == Some(Header.AccessControlAllowHeaders.All),
-          h.get(Header.AccessControlAllowCredentials) == Some(Header.AccessControlAllowCredentials.Allow)
+          h.get(Header.AccessControlAllowHeaders) == Maybe.present(Header.AccessControlAllowHeaders.All),
+          h.get(Header.AccessControlAllowCredentials) == Maybe.present(Header.AccessControlAllowCredentials.Allow)
         )
       },
       test("does not reuse cached value across codecs with the same header name") {
@@ -169,9 +177,9 @@ object HeadersSpec extends HttpModelBaseSpec {
         val second = h.get(TraceIdLengthHeader)
         val third  = h.get(TraceIdHeader)
         assertTrue(
-          first == Some("trace-123"),
-          second == Some(9),
-          third == Some("trace-123")
+          first == Maybe.present("trace-123"),
+          second == Maybe.present(9),
+          third == Maybe.present("trace-123")
         )
       }
     ),
@@ -213,23 +221,100 @@ object HeadersSpec extends HttpModelBaseSpec {
           lengths == Chunk(7, 8),
           again == Chunk("trace-1", "trace-22")
         )
+      },
+      test("reuses cached values on a repeated read with the same codec") {
+        val h      = Headers("X-Trace-Id" -> "trace-1", "X-Trace-Id" -> "trace-2")
+        val first  = h.getAll(TraceIdHeader)
+        val second = h.getAll(TraceIdHeader)
+        assertTrue(
+          first == Chunk("trace-1", "trace-2"),
+          second == Chunk("trace-1", "trace-2")
+        )
+      }
+    ),
+    suite("getStrict")(
+      test("reports an absent header as Right(absent)") {
+        assertTrue(Headers.empty.getStrict(IntHeader) == Right(Maybe.absent))
+      },
+      test("parses on a cold cache without a prior lenient read") {
+        val h = Headers("x-n" -> "7")
+        assertTrue(h.getStrict(IntHeader) == Right(Maybe.present(7)))
+      },
+      test("reports a present-but-unparseable header as Left where get reads None") {
+        val h = Headers("x-n" -> "abc")
+        assertTrue(
+          h.get(IntHeader) == Maybe.absent,
+          h.getStrict(IntHeader) == Left("not an int: abc")
+        )
+      },
+      test("keeps scanning past bad entries for a later good one") {
+        val h = Headers("x-n" -> "abc", "x-n" -> "42")
+        assertTrue(
+          h.get(IntHeader) == Maybe.present(42),
+          h.getStrict(IntHeader) == Right(Maybe.present(42))
+        )
+      },
+      test("reports the first error when no entry parses") {
+        val h = Headers("x-n" -> "abc", "x-n" -> "def")
+        assertTrue(h.getStrict(IntHeader) == Left("not an int: abc"))
+      },
+      test("reuses values cached by the same codec") {
+        val h     = Headers("x-n" -> "7")
+        val first = h.get(IntHeader)
+        assertTrue(
+          first == Maybe.present(7),
+          h.getStrict(IntHeader) == Right(Maybe.present(7))
+        )
+      }
+    ),
+    suite("getAllStrict")(
+      test("collects every matching entry") {
+        val h = Headers("x-n" -> "1", "x-n" -> "2")
+        assertTrue(h.getAllStrict(IntHeader) == Right(Chunk(1, 2)))
+      },
+      test("returns Right(empty) when no header matches") {
+        assertTrue(Headers.empty.getAllStrict(IntHeader) == Right(Chunk.empty))
+      },
+      test("fails fast on the first bad entry where getAll skips it") {
+        val h = Headers("x-n" -> "1", "x-n" -> "abc", "x-n" -> "3")
+        assertTrue(
+          h.getAll(IntHeader) == Chunk(1, 3),
+          h.getAllStrict(IntHeader) == Left("not an int: abc")
+        )
+      },
+      test("ignores entries with other names") {
+        val h = Headers("x-n" -> "1", "other" -> "z", "x-n" -> "2")
+        assertTrue(h.getAllStrict(IntHeader) == Right(Chunk(1, 2)))
       }
     ),
     suite("getLast")(
       test("returns the last matching typed header") {
         val h      = Headers("Set-Cookie" -> "a=1", "Set-Cookie" -> "b=2")
         val cookie = h.getLast(Header.SetCookieHeader)
-        assertTrue(cookie == Some(Header.SetCookieHeader("b=2")))
+        assertTrue(cookie == Maybe.present(Header.SetCookieHeader("b=2")))
       },
-      test("returns None when no matching typed header exists") {
+      test("returns absent when no matching typed header exists") {
         val h = Headers("content-type" -> "text/html")
-        assertTrue(h.getLast(Header.SetCookieHeader).isEmpty)
+        assertTrue(h.getLast(Header.SetCookieHeader).isAbsent)
+      },
+      test("skips unparseable entries scanning backwards") {
+        val h = Headers("content-length" -> "42", "content-length" -> "abc")
+        assertTrue(h.getLast(Header.ContentLength) == Maybe.present(Header.ContentLength(42L)))
+      },
+      test("reuses the cached value on a repeated read") {
+        val h      = Headers("content-length" -> "7")
+        val first  = h.getLast(Header.ContentLength)
+        val second = h.getLast(Header.ContentLength)
+        assertTrue(
+          first == Maybe.present(Header.ContentLength(7L)),
+          second == Maybe.present(Header.ContentLength(7L))
+        )
       }
     ),
     suite("rawGetLast")(
       test("returns the last raw header value") {
         val h = Headers("Set-Cookie" -> "a=1", "Set-Cookie" -> "b=2")
-        assertTrue(h.rawGetLast("set-cookie") == Some("b=2"))
+        assertTrue(h.rawGetLast("set-cookie") == Maybe.present("b=2"))
       },
       test("returns None when header is missing") {
         val h = Headers("content-type" -> "text/html")
@@ -241,19 +326,19 @@ object HeadersSpec extends HttpModelBaseSpec {
         val h = Headers("content-type" -> "text/html").add("accept", "application/json")
         assertTrue(
           h.size == 2,
-          h.rawGet("accept") == Some("application/json")
+          h.rawGet("accept") == Maybe.present("application/json")
         )
       },
       test("appends duplicate name") {
         val h = Headers("set-cookie" -> "a=1").add("set-cookie", "b=2")
         assertTrue(
           h.size == 2,
-          h.rawGet("set-cookie") == Some("a=1")
+          h.rawGet("set-cookie") == Maybe.present("a=1")
         )
       },
       test("stores name lowercased") {
         val h = Headers.empty.add("Content-Type", "text/html")
-        assertTrue(h.rawGet("content-type") == Some("text/html"))
+        assertTrue(h.rawGet("content-type") == Maybe.present("text/html"))
       },
       test("does not carry parsed cache") {
         val h  = Headers("Content-Length" -> "42")
@@ -261,18 +346,18 @@ object HeadersSpec extends HttpModelBaseSpec {
         val h2 = h.add("accept", "text/html")
         // h2 is a fresh Headers, its parsed cache is all-null
         // but get should still work after re-parsing
-        assertTrue(h2.get(Header.ContentLength) == Some(Header.ContentLength(42L)))
+        assertTrue(h2.get(Header.ContentLength) == Maybe.present(Header.ContentLength(42L)))
       }
     ),
     suite("typed add/set")(
       test("add accepts a typed header") {
         val h = Headers.empty.add(Header.Host("example.com", Some(8080)))
-        assertTrue(h.get(Header.Host) == Some(Header.Host("example.com", Some(8080))))
+        assertTrue(h.get(Header.Host) == Maybe.present(Header.Host("example.com", Some(8080))))
       },
       test("set accepts a typed header") {
         val h = Headers("host" -> "old.example.com").set(Header.Host("example.com", Some(8080)))
         assertTrue(
-          h.get(Header.Host) == Some(Header.Host("example.com", Some(8080))),
+          h.get(Header.Host) == Maybe.present(Header.Host("example.com", Some(8080))),
           h.size == 1
         )
       }
@@ -282,15 +367,15 @@ object HeadersSpec extends HttpModelBaseSpec {
         val h = Headers("set-cookie" -> "a=1", "host" -> "example.com", "set-cookie" -> "b=2")
           .set("set-cookie", "c=3")
         assertTrue(
-          h.rawGet("set-cookie") == Some("c=3"),
-          h.rawGet("host") == Some("example.com")
+          h.rawGet("set-cookie") == Maybe.present("c=3"),
+          h.rawGet("host") == Maybe.present("example.com")
         )
       },
       test("adds entry if name not present") {
         val h = Headers("content-type" -> "text/html").set("accept", "application/json")
         assertTrue(
           h.size == 2,
-          h.rawGet("accept") == Some("application/json")
+          h.rawGet("accept") == Maybe.present("application/json")
         )
       },
       test("resulting Headers has exactly one entry for the set name") {
@@ -301,7 +386,7 @@ object HeadersSpec extends HttpModelBaseSpec {
       test("case-insensitive replacement") {
         val h = Headers("Content-Type" -> "text/html").set("CONTENT-TYPE", "application/json")
         assertTrue(
-          h.rawGet("content-type") == Some("application/json"),
+          h.rawGet("content-type") == Maybe.present("application/json"),
           h.size == 1
         )
       }
@@ -377,6 +462,11 @@ object HeadersSpec extends HttpModelBaseSpec {
         val h2 = Headers("a" -> "2")
         assertTrue(h1 != h2)
       },
+      test("headers of different sizes are not equal") {
+        val h1 = Headers("a" -> "1")
+        val h2 = Headers("a" -> "1", "b" -> "2")
+        assertTrue(h1 != h2)
+      },
       test("order matters") {
         val h1 = Headers("a" -> "1", "b" -> "2")
         val h2 = Headers("b" -> "2", "a" -> "1")
@@ -399,6 +489,29 @@ object HeadersSpec extends HttpModelBaseSpec {
         )
       }
     ),
+    suite("validateName / validateValue")(
+      test("accepts valid names and values") {
+        assertTrue(
+          Headers.validateName("content-type") == Right(()),
+          Headers.validateName("X-TRACE-ID") == Right(()),
+          Headers.validateValue("text/html") == Right(()),
+          Headers.validateValue("") == Right(())
+        )
+      },
+      test("rejects empty and non-token names") {
+        assertTrue(
+          Headers.validateName("") == Left("Header name cannot be empty"),
+          Headers.validateName("bad name").isLeft,
+          Headers.validateName("bad@name").isLeft
+        )
+      },
+      test("rejects values containing CR or LF") {
+        assertTrue(
+          Headers.validateValue("a\rb").isLeft,
+          Headers.validateValue("a\nb").isLeft
+        )
+      }
+    ),
     suite("HeadersBuilder")(
       test("builds from scratch") {
         val builder = HeadersBuilder.make()
@@ -407,8 +520,8 @@ object HeadersSpec extends HttpModelBaseSpec {
         val h = builder.build()
         assertTrue(
           h.size == 2,
-          h.rawGet("content-type") == Some("text/html"),
-          h.rawGet("accept") == Some("application/json")
+          h.rawGet("content-type") == Maybe.present("text/html"),
+          h.rawGet("accept") == Maybe.present("application/json")
         )
       },
       test("allows duplicate names") {
@@ -434,7 +547,7 @@ object HeadersSpec extends HttpModelBaseSpec {
         val builder = HeadersBuilder.make()
         builder.add("Content-Type", "text/html")
         val h = builder.build()
-        assertTrue(h.rawGet("content-type") == Some("text/html"))
+        assertTrue(h.rawGet("content-type") == Maybe.present("text/html"))
       },
       test("rejects invalid header names") {
         assertTrue(
@@ -472,8 +585,8 @@ object HeadersSpec extends HttpModelBaseSpec {
         val h = builder.build()
         assertTrue(
           h.size == 9,
-          h.rawGet("a") == Some("1"),
-          h.rawGet("i") == Some("9")
+          h.rawGet("a") == Maybe.present("1"),
+          h.rawGet("i") == Maybe.present("9")
         )
       },
       test("builds empty headers from builder") {
@@ -508,14 +621,14 @@ object HeadersSpec extends HttpModelBaseSpec {
         val combined = h1 ++ h2
         assertTrue(
           combined.size == 2,
-          combined.rawGet("a") == Some("1"),
-          combined.rawGet("b") == Some("2")
+          combined.rawGet("a") == Maybe.present("1"),
+          combined.rawGet("b") == Maybe.present("2")
         )
       },
       test("combining with empty returns same entries") {
         val h        = Headers("a" -> "1")
         val combined = h ++ Headers.empty
-        assertTrue(combined.size == 1, combined.rawGet("a") == Some("1"))
+        assertTrue(combined.size == 1, combined.rawGet("a") == Maybe.present("1"))
       },
       test("preserves order") {
         val h1       = Headers("a" -> "1")
