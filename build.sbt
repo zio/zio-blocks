@@ -1460,7 +1460,7 @@ lazy val benchmarks = project
   .settings(
     libraryDependencies ++= Seq(
       "com.vitthalmirji"                      %% "toon4s-core"           % "0.9.1",
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.41.0",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.41.1",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
       "dev.zio"                               %% "zio-json"              % "0.10.0",
       "dev.zio"                               %% "zio-schema-avro"       % "1.8.6",
