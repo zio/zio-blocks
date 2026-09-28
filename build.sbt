@@ -104,6 +104,23 @@ addCommandAlias(
 addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
+  "golemStreamsAsyncVersion",
+  // streams/async don't declare Scala3Golem (3.8.3) in their own crossScalaVersions.
+  // If they did, `sbt ci-release` (a `+publish` cross-build over the whole ~100-project
+  // aggregate) would hit a 3.8.3 pass where streams/async compile fresh at 3.8.3 while
+  // every module that doesn't support 3.8.3 (http-model, sql, ...) falls back to an
+  // older version in that same session, still pointed at the newer streams/async
+  // classes. Scala 3's compiled-code format (TASTy) is forwards-incompatible: an older
+  // compiler can't read code a newer one produced, so this crashes with "TASTy
+  // signature has wrong version" cascading into an internal compiler assertion. This
+  // alias turns 3.8.3 on for streamsJVM/asyncJVM for just the current sbt session
+  // instead, so the async-stream-testing.yml workflow (the only thing that needs
+  // streams/async built at 3.8.3) can still test them there without ever exposing
+  // that version to the release process.
+  "; set LocalProject(\"streamsJVM\") / crossScalaVersions += \"3.8.3\"" +
+    "; set LocalProject(\"asyncJVM\") / crossScalaVersions += \"3.8.3\""
+)
+addCommandAlias(
   "asyncTestPr",
   "++2.13.18; streamsJVM/test; streamsJS/test; ++3.3.7; streamsJVM/test; streamsJS/test; ++3.9.0; streamsJVM/test"
 )
@@ -838,7 +855,7 @@ lazy val telemetryBenchmarks = project
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(scope, chunk, combinators, ringbuffer, async)
-  .settings(stdSettings("zio-blocks-streams", Seq(Scala3, Scala3Golem, Scala33, Scala213)))
+  .settings(stdSettings("zio-blocks-streams", Seq(Scala3, Scala33, Scala213)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.streams"))
   .enablePlugins(BuildInfoPlugin)
@@ -2095,7 +2112,6 @@ lazy val datastar = crossProject(JSPlatform, JVMPlatform)
 lazy val async = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-async"))
-  .settings(crossScalaVersions += Scala3Golem)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.async"))
   .enablePlugins(BuildInfoPlugin)
