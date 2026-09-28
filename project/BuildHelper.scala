@@ -262,11 +262,17 @@ object BuildHelper {
       // Scala 3's scaladoc intermittently crashes with a JDK-25-flavored NPE in
       // dotty.tools.scaladoc.translators.SignatureBuilder (scala/scala3#24183, fixed
       // symptomatically in 3.9.0 but still recurring; see zio/zio-blocks#1609). Snapshot
-      // publishes happen on every push to main and gain little from javadoc jars, so skip
-      // packaging them (both main and test) for snapshots; tagged releases still get real
-      // javadoc jars.
+      // publishes happen on every push to main and gain little from a javadoc jar, so skip
+      // packaging one for them; tagged releases still get a real javadoc jar.
       Compile / packageDoc / publishArtifact := !isSnapshot.value,
-      Test / packageDoc / publishArtifact    := !isSnapshot.value,
+      // Test/packageBin and Test/packageSrc are never published (sbt's own defaults leave
+      // them off), so a Test/packageDoc jar has no corresponding binary to document — it's
+      // a dangling artifact sbt otherwise builds by default for every config with a `doc`
+      // task, Test included. Disabling it unconditionally (not just on snapshots) is what
+      // actually keeps `Test / doc` from ever running during release/publish, which is what
+      // hit the scaladoc crash above for `streamsJS` / `streamsJVM` on a real (non-snapshot)
+      // release: `Compile / doc` for streams succeeds fine, only `Test / doc` crashes.
+      Test / packageDoc / publishArtifact := false,
       testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
       Test / parallelExecution := true,
       Compile / fork           := false,
