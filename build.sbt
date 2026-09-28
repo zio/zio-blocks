@@ -2167,7 +2167,7 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     // compatibility.
     libraryDependencies ++= {
       CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((3, _)) => Seq("io.github.dotty-cps-async" %%% "dotty-cps-async" % "1.3.4")
+        case Some((3, _)) => Seq("io.github.dotty-cps-async" %%% "dotty-cps-async" % "1.4.0")
         case _            => Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       }
     },
