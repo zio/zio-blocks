@@ -262,9 +262,11 @@ object BuildHelper {
       // Scala 3's scaladoc intermittently crashes with a JDK-25-flavored NPE in
       // dotty.tools.scaladoc.translators.SignatureBuilder (scala/scala3#24183, fixed
       // symptomatically in 3.9.0 but still recurring; see zio/zio-blocks#1609). Snapshot
-      // publishes happen on every push to main and gain little from a javadoc jar, so skip
-      // packaging one for them; tagged releases still get a real javadoc jar.
+      // publishes happen on every push to main and gain little from javadoc jars, so skip
+      // packaging them (both main and test) for snapshots; tagged releases still get real
+      // javadoc jars.
       Compile / packageDoc / publishArtifact := !isSnapshot.value,
+      Test / packageDoc / publishArtifact    := !isSnapshot.value,
       testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
       Test / parallelExecution := true,
       Compile / fork           := false,
