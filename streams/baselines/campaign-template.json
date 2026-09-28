@@ -17,7 +17,7 @@
   "host": {
     "REPLACE": "run campaign.py freeze-host host.json, then paste that complete object here"
   },
-  "command": ["sbt", "--client", "-Dsbt.color=false", "++3.8.3; project streams-benchmark; Jmh/run -wi 10 -i 10 -f {fork} -w {warmupTime}s -r {measurementTime}s -rf json -rff {output} {params} {benchmark}"],
+  "command": ["sbt", "--client", "-Dsbt.color=false", "golemStreamsAsyncVersion; ++3.8.3; project streams-benchmark; Jmh/run -wi 10 -i 10 -f {fork} -w {warmupTime}s -r {measurementTime}s -rf json -rff {output} {params} {benchmark}"],
   "cells": [
     {"id":"eval.drain","baseline":"zio.blocks.streams.bench.StreamEvalBench.zb_drain","candidate":"zio.blocks.streams.bench.StreamEvalBench.zb_drain",
      "baselineMetadata":{"benchmark":"StreamEvalBench.zb_drain","params":{"N":10000},"mode":"Throughput","warmup":"10x1s","measurement":"10x1s","jvmArgs":[],"scala":"3.8.3","jdk":"PINNED","harnessHash":"REPLACE","work":"range(0,N), fold sum","checksum":"49995000","boundary":"prebuilt stream, timed evaluation"},
