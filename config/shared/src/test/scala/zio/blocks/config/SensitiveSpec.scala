@@ -60,6 +60,18 @@ object SensitiveSpec extends ZIOSpecDefault {
         error.message.contains("<secret>"),
         !error.message.contains("hunter2")
       )
+    },
+    test("redacts under Turkish default locale (Locale.ROOT normalization)") {
+      val previous = java.util.Locale.getDefault
+      java.util.Locale.setDefault(new java.util.Locale("tr", "TR"))
+      try {
+        assertTrue(
+          Sensitive.isSensitive("DB.PRIVATE_KEY"),
+          Sensitive.isSensitive("APIKEY"),
+          Sensitive.isSensitive("db.private-key"),
+          Sensitive.isSensitive("SERVICE.AUTH_TOKEN")
+        )
+      } finally java.util.Locale.setDefault(previous)
     }
   )
 }
