@@ -177,6 +177,10 @@ object MigrationAction {
   /**
    * Rename an enum case.
    *
+   * A value carrying a different case passes through unchanged, so sequential
+   * renames over distinct cases compose. A non-Variant value at the path is
+   * still a type mismatch error.
+   *
    * @param at
    *   The path to the enum value
    * @param from

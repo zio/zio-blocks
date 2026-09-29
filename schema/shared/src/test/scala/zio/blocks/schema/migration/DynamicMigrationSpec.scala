@@ -147,15 +147,35 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
         assertTrue(migration(input) == Right(DynamicValue.Variant("Enabled", DynamicValue.Record())))
       },
-      test("fails on non-matching case instead of passing through") {
+      test("passes through non-matching case unchanged") {
         val input     = DynamicValue.Variant("Inactive", DynamicValue.Record())
         val migration = DynamicMigration.single(
           MigrationAction.RenameCase(root, "Active", "Enabled")
         )
-        val result = migration(input)
+        assertTrue(migration(input) == Right(input))
+      },
+      test("sequential renames on distinct cases each apply to their own input") {
+        val migration = DynamicMigration(
+          MigrationAction.RenameCase(root, "Pending", "Enabled"),
+          MigrationAction.RenameCase(root, "Active", "ActiveV2")
+        )
+        assertTrue(
+          migration(DynamicValue.Variant("Pending", DynamicValue.Record())) == Right(
+            DynamicValue.Variant("Enabled", DynamicValue.Record())
+          ),
+          migration(DynamicValue.Variant("Active", DynamicValue.Record())) == Right(
+            DynamicValue.Variant("ActiveV2", DynamicValue.Record())
+          )
+        )
+      },
+      test("fails on empty case names") {
+        val migration = DynamicMigration.single(
+          MigrationAction.RenameCase(root, "", "Enabled")
+        )
+        val result = migration(DynamicValue.Variant("Active", DynamicValue.Record()))
         assertTrue(
           result.isLeft &&
-            result.fold(_.message.contains("Case 'Active' not found"), _ => false)
+            result.fold(_.message.contains("non-empty case names"), _ => false)
         )
       },
       test("fails on non-Variant value") {

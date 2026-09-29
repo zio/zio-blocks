@@ -466,10 +466,12 @@ private[migration] object ActionExecutor {
     modifyAt(at, value) {
       case DynamicValue.Variant(caseName, inner) if caseName == from =>
         Right(DynamicValue.Variant(to, inner))
-      case DynamicValue.Variant(_, _) =>
-        // A different case means this migration targets the wrong variant
-        // version: fail loudly instead of passing through silently.
-        Left(SchemaError.caseNotFound(at, from))
+      case v: DynamicValue.Variant =>
+        // A different case is renamed by another action (e.g. a later
+        // RenameCase in a multi-case migration) or already carries the new
+        // name (e.g. the EventStore fallback passes an already-renamed
+        // discriminator): pass through unchanged, mirroring TransformCase.
+        Right(v)
       case other =>
         Left(SchemaError.typeMismatch(at, "Variant", other.getClass.getSimpleName))
     }
