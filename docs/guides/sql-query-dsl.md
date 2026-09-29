@@ -313,7 +313,6 @@ FROM "users" AS t0
 
 - Typed `Expr` filters, groupings, havings, and orderings are **not** dumped — the macro emits a warning explaining the limitation and writes no file. Inspect typed queries at runtime with `.toFrag(dialect)` / `.explain(dialect)` instead.
 - Anything the macro cannot decode faithfully (shared `Frag`/`Rel` member values referenced by name, non-literal columns or limits, unknown relations, invalid identifiers) also warns and writes no file — never a placeholder or truncated statement.
-- Member-`val` query values are opaque to the macro (only `inline val`/`def` chains and directly constructed chains are visible); they warn and write no file.
 
 ## Execution
 
@@ -473,7 +472,7 @@ This is v1 of the typed query layer. The following are not supported yet:
 
 ## What the Production Renderer Does
 
-The query IR renders to SQL through `QueryRenderer` — the sole query renderer — which builds every clause via `Frag.literal` and `Frag.++` composition. Each column is quoted as `alias."column_name"` and validated through `SqlIdentifier`. Parameters appear as `?` placeholders in the rendered SQL, with actual values carried in `Frag.params`. The former `zio.blocks.sql.SqlQuery` string-based builder has been removed; all inspection (`explain`, `Dump`) now derives from this typed IR without a second builder.
+The query IR renders to SQL through `QueryRenderer` — the sole query renderer — which builds every clause via `Frag.literal` and `Frag.++` composition. Each column is quoted as `alias."column_name"` and validated through `SqlIdentifier`. Parameters appear as `?` placeholders in the rendered SQL, with actual values carried in `Frag.params`. The only query type is `query.SqlQuery` (the typed IR); the former root-level `zio.blocks.sql.SqlQuery` string builder was removed, but the legacy public `Frag`/string clause overloads (`where(Frag)`, `groupBy(String*)`, `orderBy(String, …)`) remain for dynamic queries — typed `Expr` clauses are preferred for static code.
 
 If you need to build SQL from `SchemaExpr` expression trees instead of the typed `Expr` API, see [Query DSL with Reified Optics, Part 2: SQL Generation](./query-dsl-sql.md) for the `SchemaExpr`-based approach.
 
