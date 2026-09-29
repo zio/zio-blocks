@@ -45,6 +45,7 @@ object RepoSpec extends ZIOSpecDefault {
     def setInstant(index: Int, value: java.time.Instant): Unit                     = record(index, DbValue.DbInstant(value))
     def setDuration(index: Int, value: java.time.Duration): Unit                   = record(index, DbValue.DbDuration(value))
     def setUUID(index: Int, value: java.util.UUID): Unit                           = record(index, DbValue.DbUUID(value))
+    override def setJsonb(index: Int, value: String): Unit                         = record(index, DbValue.DbJsonb(value))
     def setNull(index: Int, sqlType: Int): Unit                                    = record(index, DbValue.DbNull)
     def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit =
       record(index, DbValue.DbArray(elementType, elements))

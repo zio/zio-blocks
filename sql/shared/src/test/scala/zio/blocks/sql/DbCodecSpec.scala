@@ -17,6 +17,7 @@
 package zio.blocks.sql
 
 import zio.test._
+import zio.blocks.chunk.Chunk
 import zio.blocks.maybe.Maybe
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonCodec
@@ -149,6 +150,16 @@ object DbCodecSpec extends ZIOSpecDefault {
   case class WithCustomLines(id: Int, lines: List[CartLine])
   object WithCustomLines {
     implicit val schema: Schema[WithCustomLines] = Schema.derived
+  }
+
+  case class WithArrayBytes(data: Array[Byte])
+  object WithArrayBytes {
+    implicit val schema: Schema[WithArrayBytes] = Schema.derived
+  }
+
+  case class WithChunkBytes(data: Chunk[Byte])
+  object WithChunkBytes {
+    implicit val schema: Schema[WithChunkBytes] = Schema.derived
   }
 
   case class WithChar(c: Char)
@@ -507,22 +518,26 @@ object DbCodecSpec extends ZIOSpecDefault {
   private val tagsJsonCodec = Tags.schema.deriving(JsonCodecDeriver).derive
 
   private val tagsStringCodec: DbCodec[Tags] =
-    DbCodec[String].transform(json =>
-      tagsJsonCodec.decode(json) match {
-        case Right(value) => value
-        case Left(err)    => throw new IllegalArgumentException(err.toString)
-      }
-    )(value => tagsJsonCodec.encodeToString(value))
+    DbCodec.jsonb[Tags](
+      value => tagsJsonCodec.encodeToString(value),
+      json =>
+        tagsJsonCodec.decode(json) match {
+          case Right(value) => value
+          case Left(err)    => throw new IllegalArgumentException(err.toString)
+        }
+    )
 
   private val cartLinesJsonCodec = Schema[List[CartLine]].deriving(JsonCodecDeriver).derive
 
   private val linesStringCodec: DbCodec[List[CartLine]] =
-    DbCodec[String].transform(json =>
-      cartLinesJsonCodec.decode(json) match {
-        case Right(value) => value
-        case Left(err)    => throw new IllegalArgumentException(err.toString)
-      }
-    )(value => cartLinesJsonCodec.encodeToString(value))
+    DbCodec.jsonb[List[CartLine]](
+      value => cartLinesJsonCodec.encodeToString(value),
+      json =>
+        cartLinesJsonCodec.decode(json) match {
+          case Right(value) => value
+          case Left(err)    => throw new IllegalArgumentException(err.toString)
+        }
+    )
 
   def spec: Spec[TestEnvironment, Any] = suite("DbCodecSpec")(
     suite("primitive derivation")(
@@ -695,7 +710,7 @@ object DbCodecSpec extends ZIOSpecDefault {
         assertTrue(
           value == WithCustomTags(1, Tags(List("Organic", "Vegan"))),
           codec.toDbValues(WithCustomTags(2, Tags(List("Regional")))) ==
-            IndexedSeq(DbValue.DbInt(2), DbValue.DbString("{\"values\":[\"Regional\"]}"))
+            IndexedSeq(DbValue.DbInt(2), DbValue.DbJsonb("{\"values\":[\"Regional\"]}"))
         )
       },
       test("derivedWith honors field-level DbCodec override for sequence-backed JSON column") {
@@ -713,7 +728,7 @@ object DbCodecSpec extends ZIOSpecDefault {
         assertTrue(
           value == WithCustomLines(7, List(CartLine("apple", 2))),
           codec.toDbValues(WithCustomLines(8, List(CartLine("pear", 3)))) ==
-            IndexedSeq(DbValue.DbInt(8), DbValue.DbString("[{\"title\":\"pear\",\"quantity\":3}]"))
+            IndexedSeq(DbValue.DbInt(8), DbValue.DbJsonb("[{\"title\":\"pear\",\"quantity\":3}]"))
         )
       }
     ),
@@ -888,7 +903,7 @@ object DbCodecSpec extends ZIOSpecDefault {
       test("List[Int] serializes as JSON string") {
         val codec  = deriveCodec[List[Int]]
         val values = codec.toDbValues(List(1, 2, 3))
-        assertTrue(values == IndexedSeq(DbValue.DbString("[1,2,3]")))
+        assertTrue(values == IndexedSeq(DbValue.DbJsonb("[1,2,3]")))
       },
       test("record with List field derives successfully") {
         val codec = deriveCodec[WithListField]
@@ -901,7 +916,7 @@ object DbCodecSpec extends ZIOSpecDefault {
         val codec  = deriveCodec[WithListField]
         val values = codec.toDbValues(WithListField(1, List("a", "b")))
         assertTrue(
-          values == IndexedSeq(DbValue.DbInt(1), DbValue.DbString("[\"a\",\"b\"]"))
+          values == IndexedSeq(DbValue.DbInt(1), DbValue.DbJsonb("[\"a\",\"b\"]"))
         )
       },
       test("record with nested List[Record] serializes as JSONB") {
@@ -909,7 +924,7 @@ object DbCodecSpec extends ZIOSpecDefault {
         val values = codec.toDbValues(WithNestedList("test", List(JsonPayload("hi", 1))))
         assertTrue(
           values(0) == DbValue.DbString("test"),
-          values(1).isInstanceOf[DbValue.DbString]
+          values(1).isInstanceOf[DbValue.DbJsonb]
         )
       },
       test("record with List[SimpleRecord] field round-trips JSON array through JSONB fallback") {
@@ -919,14 +934,14 @@ object DbCodecSpec extends ZIOSpecDefault {
         val reader  = new RecordReader(
           Map(
             "id"    -> 1,
-            "items" -> values(1).asInstanceOf[DbValue.DbString].value
+            "items" -> values(1).asInstanceOf[DbValue.DbJsonb].value
           )
         )
 
         assertTrue(
           values == IndexedSeq(
             DbValue.DbInt(1),
-            DbValue.DbString("""[{"name":"apple","age":1},{"name":"pear","age":2}]""")
+            DbValue.DbJsonb("""[{"name":"apple","age":1},{"name":"pear","age":2}]""")
           ),
           codec.readValue(reader, IndexedSeq("id", "items")) == payload
         )
@@ -948,16 +963,36 @@ object DbCodecSpec extends ZIOSpecDefault {
       test("complex sealed trait toDbValues produces JSON") {
         val codec  = deriveCodec[Shape]
         val values = codec.toDbValues(Shape.Circle(5.0))
-        assertTrue(values.size == 1, values(0).isInstanceOf[DbValue.DbString])
+        assertTrue(values.size == 1, values(0).isInstanceOf[DbValue.DbJsonb])
+      },
+      test("Array[Byte] uses BYTEA bytes codec, not JSON") {
+        val codec  = deriveCodec[WithArrayBytes]
+        val bytes  = Array[Byte](1, 2, 3)
+        val values = codec.toDbValues(WithArrayBytes(bytes))
+        assertTrue(
+          values.size == 1,
+          values.head.isInstanceOf[DbValue.DbBytes],
+          values.head.asInstanceOf[DbValue.DbBytes].value.sameElements(bytes)
+        )
+      },
+      test("Chunk[Byte] uses BLOB bytes codec, not JSON") {
+        val codec  = deriveCodec[WithChunkBytes]
+        val chunk  = Chunk.fromArray(Array[Byte](4, 5, 6))
+        val values = codec.toDbValues(WithChunkBytes(chunk))
+        assertTrue(
+          values.size == 1,
+          values.head.isInstanceOf[DbValue.DbBytes],
+          values.head.asInstanceOf[DbValue.DbBytes].value.sameElements(Array[Byte](4, 5, 6))
+        )
       }
     ),
     suite("jsonb helpers")(
-      test("jsonb writes JSON strings via DbString") {
+      test("jsonb writes JSON strings via DbJsonb") {
         val codec = DbCodec.jsonb[JsonPayload]
         assertTrue(
           codec.columns == IndexedSeq("value"),
           codec.toDbValues(JsonPayload("hello", 2)) == IndexedSeq(
-            DbValue.DbString("{\"message\":\"hello\",\"count\":2}")
+            DbValue.DbJsonb("{\"message\":\"hello\",\"count\":2}")
           )
         )
       },
@@ -971,14 +1006,14 @@ object DbCodecSpec extends ZIOSpecDefault {
             }
         )
         assertTrue(
-          codec.toDbValues(JsonPayload("hello", 2)) == IndexedSeq(DbValue.DbString("hello:2"))
+          codec.toDbValues(JsonPayload("hello", 2)) == IndexedSeq(DbValue.DbJsonb("hello:2"))
         )
       },
       test("jsonbOption encodes Some and None") {
         val codec = DbCodec.jsonbOption[JsonPayload]
         assertTrue(
           codec.toDbValues(Some(JsonPayload("hello", 2))) == IndexedSeq(
-            DbValue.DbString("{\"message\":\"hello\",\"count\":2}")
+            DbValue.DbJsonb("{\"message\":\"hello\",\"count\":2}")
           ),
           codec.toDbValues(None) == IndexedSeq(DbValue.DbNull)
         )
@@ -993,7 +1028,7 @@ object DbCodecSpec extends ZIOSpecDefault {
             }
         )
         assertTrue(
-          codec.toDbValues(Some(JsonPayload("hello", 2))) == IndexedSeq(DbValue.DbString("hello:2")),
+          codec.toDbValues(Some(JsonPayload("hello", 2))) == IndexedSeq(DbValue.DbJsonb("hello:2")),
           codec.toDbValues(None) == IndexedSeq(DbValue.DbNull)
         )
       },
@@ -1071,7 +1106,7 @@ object DbCodecSpec extends ZIOSpecDefault {
         val values = codec.toDbValues(PersonWithoutInline(InlineAddress("Main St", "NYC"), "Alice"))
         assertTrue(
           values.size == 2,
-          values(0).isInstanceOf[DbValue.DbString],
+          values(0).isInstanceOf[DbValue.DbJsonb],
           values(1) == DbValue.DbString("Alice")
         )
       },
@@ -1088,7 +1123,7 @@ object DbCodecSpec extends ZIOSpecDefault {
         assertTrue(
           values(0) == DbValue.DbString("Elm St"),
           values(1) == DbValue.DbString("LA"),
-          values(2).isInstanceOf[DbValue.DbString],
+          values(2).isInstanceOf[DbValue.DbJsonb],
           values(3) == DbValue.DbString("Bob")
         )
       },
