@@ -98,6 +98,48 @@ private object LegacyMemberFragDumpFixture {
   Dump.dumpQuery(queryGroup)
 }
 
+// Unsupported `++` composition of Frag literals: `++` merges the adjacent
+// literal boundary at runtime, but the compile-time tree cannot recover
+// parts/params cardinality, so the dumper must skip emission rather than
+// invent `?` separators (e.g. `a?b` / `a.b?c.d` with zero bound params).
+// Separate fixture objects ensure distinct dump fileBase per query.
+private object ConcatPlainDumpFixture {
+  case class WconcatPlainUser(id: Int, name: String)
+  object WconcatPlainUser { implicit val schema: Schema[WconcatPlainUser] = Schema.derived }
+  val wtable = Table.derived[WconcatPlainUser]
+
+  inline def query = Qry.from(wtable).filter(Frag.literal("a") ++ Frag.literal("b"))
+  Dump.dumpQuery(query)
+}
+private object ConcatDottedDumpFixture {
+  case class WconcatDottedUser(id: Int, name: String)
+  object WconcatDottedUser { implicit val schema: Schema[WconcatDottedUser] = Schema.derived }
+  val wtable = Table.derived[WconcatDottedUser]
+
+  inline def query = Qry.from(wtable).filter(Frag.literal("a.b") ++ Frag.literal("c.d"))
+  Dump.dumpQuery(query)
+}
+
+// Supported compile-time Frag shapes (positive control): a parameter-free
+// literal and a literal-parts/bound-params pair must dump exactly like runtime.
+private object SupportedLitDumpFixture {
+  case class WsupLitUser(id: Int, name: String)
+  object WsupLitUser { implicit val schema: Schema[WsupLitUser] = Schema.derived }
+  val wtable = Table.derived[WsupLitUser]
+
+  inline def query = Qry.from(wtable).filter(Frag.literal("t0.\"name\" IS NOT NULL"))
+  Dump.dumpQuery(query)
+}
+private object SupportedBoundDumpFixture {
+  case class WsupBoundUser(id: Int, name: String)
+  object WsupBoundUser { implicit val schema: Schema[WsupBoundUser] = Schema.derived }
+  val wtable = Table.derived[WsupBoundUser]
+
+  inline def query =
+    Qry.from(wtable).filter(Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("alice"))))
+  Dump.dumpQuery(query)
+}
+
 // Chained self-join via legacy string Rels: the dumper MUST emit (not skip)
 // with ON aliases identical to runtime (t1->t2, never t0->t2).
 private object ChainedSelfJoinDumpFixture {
@@ -184,6 +226,40 @@ object TypedDumpFailClosedSpec extends ZIOSpecDefault {
             assertTrue(offenders.isEmpty)
           } finally stream.close()
       }
+    },
+    test("unsupported Frag.literal ++ composition emits no file — never invents ? separators") {
+      // Touch the queries to ensure macro expansion happened
+      val _ = (ConcatPlainDumpFixture.query, ConcatDottedDumpFixture.query)
+      dumpDirOpt match {
+        case None    => assertTrue(true) // skipped — run with -Dzib.sql.dumpDir=<fresh-dir> after clean
+        case Some(_) =>
+          // Neither the plain (`a`/`b`) nor the dotted (`a.b`/`c.d`) composition
+          // may emit: the old generic fallback manufactured `a.b?c.d` with an
+          // invented param. Absence by table content proves fail-closed skipping.
+          assertTrue(findDumpContaining("wconcat_plain_user").isEmpty) &&
+          assertTrue(findDumpContaining("wconcat_dotted_user").isEmpty) &&
+          assertTrue(findDumpContaining("a?b").isEmpty) &&
+          assertTrue(findDumpContaining("a.b?c.d").isEmpty)
+      }
+    },
+    test("supported Frag literal and bound-param filters dump equals runtime SQL") {
+      val litPg   = SupportedLitDumpFixture.query.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+      val boundPg = SupportedBoundDumpFixture.query.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+      assertTrue(
+        normalizeSql(litPg).contains("IS NOT NULL"),
+        normalizeSql(boundPg).contains("="),
+        !boundPg.contains("alice")
+      ) &&
+      (dumpDirOpt match {
+        case None    => assertTrue(true) // macro file verified only with dumpDir
+        case Some(_) =>
+          val litFound   = findDumpContaining(normalizeSql(litPg))
+          val boundFound = findDumpContaining(normalizeSql(boundPg))
+          assertTrue(litFound.isDefined) &&
+          assertTrue(normalizeSql(litFound.get) == normalizeSql(litPg)) &&
+          assertTrue(boundFound.isDefined) &&
+          assertTrue(normalizeSql(boundFound.get) == normalizeSql(boundPg))
+      })
     },
     test("chained self-join dump equals runtime SQL with t1->t2 binding") {
       val q      = ChainedSelfJoinDumpFixture.query

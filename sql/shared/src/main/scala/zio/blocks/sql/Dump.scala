@@ -427,19 +427,30 @@ object Dump {
       case Block(_, inner)      => unwrap(inner)
       case _                    => t
     }
+    // `IndexedSeq("a", "b")` arrives as `apply` with either one `Repeated`
+    // vararg or one arg per element — expand both, mirroring
+    // `irCountIndexedSeqSizeOpt`, so cardinality stays exact.
+    def expandedArgs(args: List[Term]): List[Term] = args.flatMap(a =>
+      unwrap(a) match {
+        case Repeated(elems, _) => elems.map(unwrap)
+        case u                  => List(u)
+      }
+    )
     def extractIndexedSeqStrings(t: Term): Option[List[String]] = {
       val u = unwrap(t)
       u match {
         case Apply(Select(_, "apply"), args) =>
-          // Could be IndexedSeq.apply or Seq.apply
-          val lits = args.flatMap(a => stringLiteral(a).toList)
-          if (lits.size == args.size && args.nonEmpty) Some(lits)
-          else if (lits.nonEmpty) Some(lits)
+          // Could be IndexedSeq.apply or Seq.apply. Every element must be a
+          // static string literal — a partially known parts list cannot
+          // recover `?` boundaries, so anything else fails closed.
+          val elems = expandedArgs(args)
+          val lits  = elems.flatMap(a => stringLiteral(a).toList)
+          if (lits.size == elems.size && elems.nonEmpty) Some(lits)
           else None
         case Apply(TypeApply(Select(_, "apply"), _), args) =>
-          val lits = args.flatMap(a => stringLiteral(a).toList)
-          if (lits.size == args.size && args.nonEmpty) Some(lits)
-          else if (lits.nonEmpty) Some(lits)
+          val elems = expandedArgs(args)
+          val lits  = elems.flatMap(a => stringLiteral(a).toList)
+          if (lits.size == elems.size && elems.nonEmpty) Some(lits)
           else None
         case Typed(inner, _)      => extractIndexedSeqStrings(inner)
         case Inlined(_, _, inner) => extractIndexedSeqStrings(inner)
@@ -461,85 +472,55 @@ object Dump {
       catch { case _: Throwable => () }
       count
     }
-    def collectStringLits(t: Term): List[String] = {
-      var buf = List.empty[String]
-      object trav extends TreeTraverser {
-        override def traverseTree(tree: Tree)(owner: Symbol): Unit = tree match {
-          case Literal(StringConstant(s)) =>
-            buf = buf :+ s
-            super.traverseTree(tree)(owner)
-          case _ => super.traverseTree(tree)(owner)
+    def paramCountOf(paramsTerm: Term): Int = {
+      val paramCount = countParams(paramsTerm)
+      // params count fallback to IndexedSeq size if dbValue counting fails
+      val sizeFromSeq = {
+        val ut = unwrap(paramsTerm)
+        ut match {
+          case Apply(Select(_, "apply"), args) =>
+            expandedArgs(args).size
+          case Apply(TypeApply(Select(_, "apply"), _), args) =>
+            expandedArgs(args).size
+          case _ => paramCount
         }
       }
-      try trav.traverseTree(t)(Symbol.spliceOwner)
-      catch { case _: Throwable => () }
-      buf
+      if (paramCount > 0) paramCount else sizeFromSeq
     }
+    // A decoded Frag is faithful only when the static parts/params honour
+    // the Frag invariant `parts.length == params.length + 1`. Anything else
+    // (unknown or inconsistent cardinality) fails closed: joining parts with
+    // `?` would invent separators and param counts.
+    def checkCardinality(parts: List[String], cnt: Int): Option[(String, Int)] =
+      if (parts.size == cnt + 1) Some((parts.mkString("?"), cnt))
+      else None
     val u = unwrap(term)
     // Try direct Frag constructor
     u match {
       case Apply(Select(New(tpt), "<init>"), List(partsTerm, paramsTerm)) if tpt.tpe.typeSymbol.name == "Frag" =>
         extractIndexedSeqStrings(partsTerm) match {
-          case Some(parts) =>
-            val paramCount = countParams(paramsTerm)
-            // params count fallback to IndexedSeq size if dbValue counting fails
-            val sizeFromSeq = {
-              val ut = unwrap(paramsTerm)
-              ut match {
-                case Apply(Select(_, "apply"), args)               => args.size
-                case Apply(TypeApply(Select(_, "apply"), _), args) => args.size
-                case _                                             => paramCount
-              }
-            }
-            val cnt = if (paramCount > 0) paramCount else sizeFromSeq
-            val sql = if (parts.isEmpty) "" else parts.mkString("?")
-            Some((sql, cnt))
-          case None =>
-            // fallback to literal collection
-            val lits = collectStringLits(partsTerm)
-            if (lits.nonEmpty) Some((lits.mkString("?"), countParams(paramsTerm)))
-            else None
+          case Some(parts) => checkCardinality(parts, paramCountOf(paramsTerm))
+          case None        => None
         }
       case Apply(Select(_, "literal"), List(Literal(StringConstant(s)))) =>
         Some((s, 0))
       case Apply(Select(_, "apply"), List(partsTerm, paramsTerm)) =>
         // check if qualifier is Frag
         extractIndexedSeqStrings(partsTerm) match {
-          case Some(parts) =>
-            val cnt = countParams(paramsTerm)
-            Some((parts.mkString("?"), cnt))
-          case None =>
-            val lits = collectStringLits(partsTerm)
-            if (lits.nonEmpty) Some((lits.mkString("?"), countParams(paramsTerm)))
-            else None
+          case Some(parts) => checkCardinality(parts, paramCountOf(paramsTerm))
+          case None        => None
         }
       case Apply(TypeApply(Select(_, "apply"), _), List(partsTerm, paramsTerm)) =>
         extractIndexedSeqStrings(partsTerm) match {
-          case Some(parts) =>
-            val cnt = countParams(paramsTerm)
-            Some((parts.mkString("?"), cnt))
-          case None =>
-            val lits = collectStringLits(partsTerm)
-            if (lits.nonEmpty) Some((lits.mkString("?"), countParams(paramsTerm)))
-            else None
+          case Some(parts) => checkCardinality(parts, paramCountOf(paramsTerm))
+          case None        => None
         }
       case _ =>
-        // generic fallback: collect string lits containing SQL-ish content and count ?
-        val lits = collectStringLits(u)
-        // Filter lits that look like SQL fragments (contain . or " or = or space)
-        val sqlLits = lits.filter(s =>
-          s.contains(".") || s.contains("\"") || s.contains("=") || s.contains("SELECT") || s.contains("WHERE")
-        )
-        if (sqlLits.nonEmpty) {
-          // For single filter, parts joined with ? would be sqlLits.mkString("?"), but we don't know parts boundaries.
-          // Use first lit as SQL if single
-          val sql = if (sqlLits.size == 1) sqlLits.head else sqlLits.mkString("?")
-          val cnt = countParams(u)
-          Some((sql, if (cnt == 0 && sql.contains("?")) 1 else cnt))
-        } else if (lits.nonEmpty) {
-          // maybe simple where with column?
-          None
-        } else None
+        // Fail closed: an undecodable shape (e.g. `Frag.literal("a") ++
+        // Frag.literal("b")`, whose `++` merges the literal boundary at
+        // runtime) must skip emission rather than guess `?` separators from
+        // general string literals.
+        None
     }
   }
 
