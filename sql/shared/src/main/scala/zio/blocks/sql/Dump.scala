@@ -556,7 +556,7 @@ object Dump {
    * and emit no file (skips emit) instead of an incomplete source-only
    * fallback.
    */
-  inline def dumpQuery[A](inline query: zio.blocks.sql.query.SqlQuery[A]): Unit =
+  inline def dumpQuery[A](inline query: zio.blocks.sql.query.SqlQuery[A, ?]): Unit =
     ${ dumpQueryIrImpl[A]('query) }
 
   def dumpTableImpl[A: Type](table: Expr[Table[A]])(using Quotes): Expr[Unit] = {
@@ -586,7 +586,7 @@ object Dump {
     }
   }
 
-  def dumpQueryIrImpl[A: Type](query: Expr[zio.blocks.sql.query.SqlQuery[A]])(using Quotes): Expr[Unit] = {
+  def dumpQueryIrImpl[A: Type](query: Expr[zio.blocks.sql.query.SqlQuery[A, ?]])(using Quotes): Expr[Unit] = {
     import quotes.reflect._
     val dirProp = System.getProperty("zib.sql.dumpDir")
     if (dirProp == null) '{ () }
