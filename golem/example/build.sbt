@@ -1,6 +1,6 @@
 import org.scalajs.linker.interface.ModuleKind
 
-ThisBuild / scalaVersion := "3.8.2"
+ThisBuild / scalaVersion := "3.9.0"
 
 lazy val root = project
   .in(file("."))
