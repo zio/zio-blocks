@@ -55,7 +55,7 @@ private[config] object Sensitive {
   )
 
   def isSensitive(path: String): Boolean = {
-    val normalized = path.toLowerCase.replace('-', '_')
+    val normalized = path.toLowerCase(java.util.Locale.ROOT).replace('-', '_')
     markers.exists(normalized.contains)
   }
 }
