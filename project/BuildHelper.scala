@@ -7,9 +7,9 @@ import sbtcrossproject.CrossPlugin.autoImport.*
 import scoverage.ScoverageKeys._
 
 object BuildHelper {
-  val Scala213: String    = "2.13.18"
-  val Scala33: String     = "3.3.7" // LTS
-  val Scala3: String      = "3.9.0"
+  val Scala213: String = "2.13.18"
+  val Scala33: String  = "3.3.7" // LTS
+  val Scala3: String   = "3.9.0"
   // The Scala version pinned by the external golemcloud/golem Scala SDK (which depends on this
   // repo's schema/streams). Used only to cross-test streams/async against it (see
   // `golemStreamsAsyncVersion` in build.sbt) — zio-blocks itself has no Golem-specific code.
