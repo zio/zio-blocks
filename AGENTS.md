@@ -76,12 +76,12 @@ sbt --client -Dsbt.color=false <command> >"$LOG" 2>&1; echo "Exit: $? | Log: $LO
 `<scala2>` = the 2.13.x version from `show crossScalaVersions`.
 
 Not every project supports every version — check `show <project>/crossScalaVersions` if
-`++3.9.0` doesn't apply. Two exceptions worth knowing: Golem's modules
-(`zioGolem*`) are pinned to `3.8.3` instead of `3.9.0`; `streamsJVM`/`streamsJS`/
+`++3.9.0` doesn't apply. One exception worth knowing: `streamsJVM`/`streamsJS`/
 `asyncJVM`/`asyncJS` don't support `3.8.3` by default (it's deliberately excluded
 so `sbt ci-release` never mixes it with modules that don't — see
 `golemStreamsAsyncVersion`'s doc comment in `build.sbt`), so testing them at
-`3.8.3` requires prefixing with the `golemStreamsAsyncVersion` command alias.
+`3.8.3` (the Scala version the external `golemcloud/golem` Scala SDK is pinned to)
+requires prefixing with the `golemStreamsAsyncVersion` command alias.
 
 ## Workflow
 

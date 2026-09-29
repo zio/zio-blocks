@@ -323,44 +323,6 @@ object CiWorkflow {
     )
   )
 
-  /**
-   * Golem spans four Scala versions, including 2.12 for the sbt plugin, so it
-   * gets its own job rather than another axis on testJVM.
-   */
-  lazy val testGolem: Def.Initialize[Job] = Def.setting(
-    Job(
-      id = "testGolem",
-      name = "Test Golem (Scala 3.8.x / 2.13.x)",
-      jobTimeout = Some(25),
-      strategy = Some(Strategy(matrix = Map("java" -> List("17")), failFast = false)),
-      steps = Seq(
-        CheckoutCurrentBranch,
-        SetupCoursier("${{ matrix.java }}"),
-        CacheScalaDependencies,
-        SingleStep(
-          name = "Run Golem tests (Scala 3.8)",
-          run = Some(
-            """sbt "++3.8.2; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS""""
-          )
-        ),
-        SingleStep(
-          name = "Run Golem tests (Scala 2.13)",
-          run = Some(
-            """sbt "++2.13.18; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS""""
-          )
-        ),
-        SingleStep(
-          name = "Test Golem build codegen (Scala 3.3)",
-          run = Some("""sbt "++3.3.7; zioGolemBuildCodegen/test"""")
-        ),
-        SingleStep(
-          name = "Compile Golem sbt plugin (Scala 2.12)",
-          run = Some("""sbt "++2.12.21!; zioGolemSbt/compile"""")
-        )
-      )
-    )
-  )
-
   // ---------------------------------------------------------------------------------------------
   // Release
   // ---------------------------------------------------------------------------------------------

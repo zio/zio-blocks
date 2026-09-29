@@ -10,7 +10,10 @@ object BuildHelper {
   val Scala213: String    = "2.13.18"
   val Scala33: String     = "3.3.7" // LTS
   val Scala3: String      = "3.9.0"
-  val Scala3Golem: String = "3.8.3" // Golem macros use experimental APIs (Symbol.newClass etc.)
+  // The Scala version pinned by the external golemcloud/golem Scala SDK (which depends on this
+  // repo's schema/streams). Used only to cross-test streams/async against it (see
+  // `golemStreamsAsyncVersion` in build.sbt) — zio-blocks itself has no Golem-specific code.
+  val Scala3Golem: String = "3.8.3"
 
   def removeOptionWithValue(options: Seq[String], option: String): Seq[String] =
     options
