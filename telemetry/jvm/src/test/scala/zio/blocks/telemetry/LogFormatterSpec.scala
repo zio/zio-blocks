@@ -627,6 +627,66 @@ object LogFormatterSpec extends ZIOSpecDefault {
         )
       }
     ),
+    suite("text log-forging resistance")(
+      test("newline, quote, and equals in attr key plus multi-line body stay on one physical line") {
+        val timestamp = 1719792614123000000L
+        val evilKey   = "evil\nkey\"with=sign"
+        val body      = "line1\nline2\r\nline3"
+        val builder   = Attributes.builder
+          .put("code.filepath", "Forge.scala")
+          .put("code.namespace", "Forge")
+          .put("code.function", "go")
+          .put("code.lineno", 1L)
+          .put(evilKey, "v")
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", body, builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", body, builder.build))
+
+        assertTrue(
+          viaBuilder == viaRecord,
+          !viaBuilder.contains("\n"),
+          !viaBuilder.contains("\r"),
+          viaBuilder.contains("evil\\nkey\\\"with\\=sign=\"v\""),
+          viaBuilder.contains("line1\\nline2\\r\\nline3")
+        )
+      },
+      test("String-typed code.lineno feeds the location prefix on both paths") {
+        val timestamp = 1719792614323000000L
+        val builder   = Attributes.builder
+          .put("code.filepath", "WrongType.scala")
+          .put("code.namespace", "WrongType")
+          .put("code.function", "go")
+          .put("code.lineno", "42")
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+
+        assertTrue(
+          viaBuilder == viaRecord,
+          viaBuilder.contains("[WrongType.go:42] hello"),
+          !viaBuilder.contains("code.lineno=")
+        )
+      },
+      test("unparseable String-typed code.lineno stays visible instead of being dropped") {
+        val timestamp = 1719792614523000000L
+        val builder   = Attributes.builder
+          .put("code.namespace", "WrongType")
+          .put("code.function", "go")
+          .put("code.lineno", "not-a-number")
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+
+        assertTrue(
+          viaBuilder == viaRecord,
+          viaBuilder.contains("[WrongType.go] hello"),
+          viaBuilder.contains("code.lineno=\"not-a-number\"")
+        )
+      }
+    ),
     suite("JsonLogFormatter.writeJsonStringContent")(
       test("escapes quotes, slashes, control chars, surrogates, and preserves normal text") {
         val input = "\"\\\n\r\t\b\f" + 1.toChar + 31.toChar + "\ud83d\ude00plain"

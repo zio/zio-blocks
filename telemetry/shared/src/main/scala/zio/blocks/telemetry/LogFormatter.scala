@@ -64,6 +64,28 @@ object TextLogFormatter extends LogFormatter {
     key == "code.filepath" || key == "code.namespace" ||
       key == "code.function" || key == "code.lineno"
 
+  /**
+   * Builder-path visibility: canonical code.* keys are consumed into the
+   * location prefix and hidden — except a String-typed `code.lineno` that did
+   * not parse as a number, which stays visible instead of being silently
+   * dropped (same rule as the record path below).
+   */
+  private def showAsUserAttr(key: String, tpe: Byte, str: String): Boolean =
+    if (!isCodeKey(key)) true
+    else
+      key == "code.lineno" && tpe == 0 &&
+      (str == null || str.toLongOption.isEmpty)
+
+  /**
+   * Record-path visibility for String attributes: mirrors `showAsUserAttr` for
+   * the `code.lineno`-as-String case handled in `formatRecord`.
+   */
+  private def showRecordStringAsUserAttr(key: String, value: String): Boolean =
+    if (!isCodeKey(key)) true
+    else
+      key == "code.lineno" &&
+      (value == null || value.toLongOption.isEmpty)
+
   override def format(
     sb: StringBuilder,
     timestampNanos: Long,
@@ -83,6 +105,7 @@ object TextLogFormatter extends LogFormatter {
     // writes the four code.* attributes first, but direct Logger calls never
     // write them, so position-based matching would misread user attributes.
     val keys    = builder.builderKeys
+    val types   = builder.builderTypes
     val longs   = builder.builderLongs
     val strings = builder.builderStrings
     val len     = builder.builderLen
@@ -95,27 +118,30 @@ object TextLogFormatter extends LogFormatter {
       keys(i) match {
         case "code.namespace" => if (strings(i) != null) namespace = strings(i)
         case "code.function"  => if (strings(i) != null) method = strings(i)
-        case "code.lineno"    => lineNo = longs(i)
-        case _                => ()
+        case "code.lineno"    =>
+          if (types(i) == 1) lineNo = longs(i)
+          else if (types(i) == 0 && strings(i) != null)
+            strings(i).toLongOption.foreach(v => lineNo = v)
+        case _ => ()
       }
       i += 1
     }
     renderLocation(sb, namespace, method, lineNo)
 
-    // Body
-    sb.append(body)
+    // Body — CR/LF escaped so a multi-line message cannot forge extra lines.
+    appendBodyEscaped(sb, body)
 
     // User attributes — everything that is not a code.* attribute, in slot
-    // order (same rule as formatRecord).
-    val types        = builder.builderTypes
+    // order (same rule as formatRecord). A wrong-typed code.lineno that could
+    // not feed the location prefix stays visible instead of being dropped.
     val seqs         = builder.builderSeqs
     var hasUserAttrs = false
     i = 0
     while (i < len) {
-      if (!isCodeKey(keys(i))) {
+      if (showAsUserAttr(keys(i), types(i), strings(i))) {
         if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
         else sb.append(", ")
-        sb.append(keys(i)); sb.append('=')
+        appendTextKeyEscaped(sb, keys(i)); sb.append('=')
         val tpe = types(i)
         renderTextAttrValue(sb, tpe, longs(i), strings(i), if (tpe >= 4) seqValueAt(seqs, i) else null)
       }
@@ -138,7 +164,11 @@ object TextLogFormatter extends LogFormatter {
         key match {
           case "code.namespace" => namespace = value
           case "code.function"  => method = value
-          case _                => ()
+          case "code.lineno"    =>
+            // Wrong-typed lineno (String): feed the location prefix when numeric,
+            // mirroring the builder path above.
+            if (value != null) value.toLongOption.foreach(v => lineNo = v)
+          case _ => ()
         }
 
       override def visitLong(key: String, value: Long): Unit =
@@ -153,20 +183,22 @@ object TextLogFormatter extends LogFormatter {
     })
     renderLocation(sb, namespace, method, lineNo)
 
-    // Body
-    sb.append(record.body.value)
+    // Body — CR/LF escaped so a multi-line message cannot forge extra lines.
+    appendBodyEscaped(sb, record.body.value)
 
-    // User attributes (skip code.* attributes)
+    // User attributes (skip code.* attributes, except a wrong-typed
+    // code.lineno that could not feed the location prefix).
     var hasUserAttrs = false
     record.attributes.accept(new AttributeVisitor {
       private def nextAttr(key: String): Unit = {
         if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
         else sb.append(", ")
-        sb.append(key).append('=')
+        appendTextKeyEscaped(sb, key)
+        sb.append('=')
       }
 
       override def visitString(key: String, value: String): Unit =
-        if (!isCodeKey(key)) {
+        if (showRecordStringAsUserAttr(key, value)) {
           nextAttr(key)
           renderTextAttrValue(sb, 0, 0L, value, null)
         }
@@ -287,6 +319,51 @@ object TextLogFormatter extends LogFormatter {
           case '\n' => sb.append("\\n")
           case '\r' => sb.append("\\r")
           case '\t' => sb.append("\\t")
+          case _    => sb.append(c)
+        }
+        i += 1
+      }
+    }
+
+  /**
+   * Appends a text attribute key with `"`, `\`, line breaks, and `=` escaped so
+   * a user-controlled key cannot forge extra lines or fake `key=value` pairs.
+   * Ordinary keys (no special characters) render unchanged.
+   */
+  private def appendTextKeyEscaped(sb: StringBuilder, s: String): Unit =
+    if (s == null) sb.append(s)
+    else {
+      var i = 0
+      while (i < s.length) {
+        val c = s.charAt(i)
+        c match {
+          case '"'  => sb.append("\\\"")
+          case '\\' => sb.append("\\\\")
+          case '\n' => sb.append("\\n")
+          case '\r' => sb.append("\\r")
+          case '\t' => sb.append("\\t")
+          case '='  => sb.append("\\=")
+          case _    => sb.append(c)
+        }
+        i += 1
+      }
+    }
+
+  /**
+   * Appends a log body with `\`, CR, and LF escaped so a multi-line message
+   * cannot forge extra physical lines. Ordinary single-line bodies render
+   * unchanged.
+   */
+  private def appendBodyEscaped(sb: StringBuilder, s: String): Unit =
+    if (s == null) sb.append(s)
+    else {
+      var i = 0
+      while (i < s.length) {
+        val c = s.charAt(i)
+        c match {
+          case '\\' => sb.append("\\\\")
+          case '\n' => sb.append("\\n")
+          case '\r' => sb.append("\\r")
           case _    => sb.append(c)
         }
         i += 1
