@@ -1500,8 +1500,8 @@ lazy val `sql-benchmarks` = project
       // zio-blocks via JDBC vs kyo-sql's native wire-protocol driver, plus a
       // hand-rolled raw-JDBC floor.
       "org.postgresql" % "postgresql"       % "42.7.13",
-      "io.getkyo"     %% "kyo-sql"          % "1.0.0-RC6",
-      "io.getkyo"     %% "kyo-sql-postgres" % "1.0.0-RC6"
+      "io.getkyo"     %% "kyo-sql"          % "1.0.0-RC7",
+      "io.getkyo"     %% "kyo-sql-postgres" % "1.0.0-RC7"
     ),
     assembly / assemblyJarName       := "sql-benchmarks.jar",
     assembly / assemblyMergeStrategy := {
@@ -1795,8 +1795,8 @@ lazy val `streams-benchmark` = project
       // Apache Pekko Streams (Apache-2.0 fork of Akka Streams)
       "org.apache.pekko" %% "pekko-stream" % "1.7.0",
       // Kyo — algebraic effect streams (Scala 3 only)
-      "io.getkyo" %% "kyo-prelude" % "1.0.0-RC6",
-      "io.getkyo" %% "kyo-core"    % "1.0.0-RC6",
+      "io.getkyo" %% "kyo-prelude" % "1.0.0-RC7",
+      "io.getkyo" %% "kyo-core"    % "1.0.0-RC7",
       // Ox — direct-style streaming (SoftwareMill, Scala 3 only)
       "com.softwaremill.ox" %% "core" % "1.0.8"
     ),
