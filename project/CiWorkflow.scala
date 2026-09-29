@@ -330,7 +330,7 @@ object CiWorkflow {
   lazy val testGolem: Def.Initialize[Job] = Def.setting(
     Job(
       id = "testGolem",
-      name = "Test Golem (Scala 3.8.x / 2.13.x)",
+      name = "Test Golem (Scala 3.9.x / 2.13.x)",
       jobTimeout = Some(25),
       strategy = Some(Strategy(matrix = Map("java" -> List("17")), failFast = false)),
       steps = Seq(
@@ -338,9 +338,9 @@ object CiWorkflow {
         SetupCoursier("${{ matrix.java }}"),
         CacheScalaDependencies,
         SingleStep(
-          name = "Run Golem tests (Scala 3.8)",
+          name = "Run Golem tests (Scala 3.9)",
           run = Some(
-            """sbt "++3.8.2; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS""""
+            """sbt "++3.9.0!; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS""""
           )
         ),
         SingleStep(
