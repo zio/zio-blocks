@@ -1784,6 +1784,12 @@ lazy val `streams-benchmark` = project
   .dependsOn(streams.jvm)
   .enablePlugins(JmhPlugin)
   .settings(
+    // Third-party benchmark deps (kyo, …) track the newest Scala 3 TASTy, which a
+    // session-wide 3.8.3 (Golem) compiler cannot read: without this pin the module
+    // inherits 3.8.3 from ThisBuild even though it only lists 3.9.0, and the build
+    // crashes with "TASTy signature has wrong version". Keep the benchmark module
+    // on its own listed head; scoped here only, never the project baseline.
+    scalaVersion := Scala3,
     // Requires JDK 21+ for Thread.ofVirtual() (Project Loom)
     scalacOptions ~= { opts =>
       opts.zipWithIndex.flatMap { case (o, i) => if (o == "-release") None else Some((o, i)) }
