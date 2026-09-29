@@ -1157,7 +1157,7 @@ println(code.value)
 
 ### URL Sanitization
 
-URL-valued attributes (`href`, `src`, `action`, `formaction`, plus the HTMX URL attributes `hx-get`, `hx-post`, `hx-put`, `hx-patch`, `hx-delete`, `hx-push-url`, `hx-replace-url`) are checked at render time. A URL whose normalized scheme is dangerous is prefixed with `unsafe:`, which browsers treat as an unknown (inert) scheme:
+URL-valued attributes (`href`, `src`, `action`, `data` on `<object>`, `formaction`, plus the HTMX URL attributes `hx-get`, `hx-post`, `hx-put`, `hx-patch`, `hx-delete`, `hx-push-url`, `hx-replace-url`) are checked at render time. Attribute names match ASCII case-insensitively (`HREF`, `Hx-Get`, ... follow the same sanitizer, matching browser normalization); `data-*` custom attributes are not URL-checked. A URL whose normalized scheme is dangerous is prefixed with `unsafe:`, which browsers treat as an unknown (inert) scheme:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -1171,7 +1171,7 @@ Rejected schemes are `javascript:` and `vbscript:`, matched case-insensitively. 
 - Terminated `colon`, `Tab`, and `NewLine` references decode anywhere (they forge `:` or a stripped control from beyond the scheme window); any other `&` followed by an ASCII letter inside the 14-character scheme window is conservatively rejected instead of decoded.
 - Tab/LF/FF/CR are stripped anywhere in the URL, and the normalized value is trimmed again after decoding (`&#32;javascript:` would otherwise pass), then lowercased before the prefix check.
 
-`data:` URLs are allowed only for a pinned-safe media-type list — `image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, and `text/plain`. Scriptable types (`data:image/svg+xml`, `data:application/xhtml+xml`, `data:application/javascript`), unknown types, and empty types are rejected, since embedded SVG/XML can carry `<script>` content.
+`data:` URLs — including `<object data>` — are allowed only for a pinned-safe media-type list — `image/png`, `image/jpeg`, `image/jpg`, `image/gif`, `image/webp`, and `text/plain`. Scriptable types (`data:image/svg+xml`, `data:application/xhtml+xml`, `data:application/javascript`), unknown types, and empty types are rejected, since embedded SVG/XML can carry `<script>` content.
 
 Remaining caveats: exotic or double-encoded payloads are the caller's responsibility. For untrusted input, prefer an allowlist of `http`/`https`/`mailto`/`tel`/relative URLs on top of this sanitizer.
 

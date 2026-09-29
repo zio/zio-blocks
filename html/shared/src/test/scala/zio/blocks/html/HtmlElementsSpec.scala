@@ -279,6 +279,18 @@ object HtmlElementsSpec extends ZIOSpecDefault {
           scala.util.Try(voidElement("span")).isFailure
         )
       },
+      test("element rejects uppercase void tags") {
+        assertTrue(
+          scala.util.Try(element("BR")).isFailure,
+          scala.util.Try(element("IMG")).isFailure
+        )
+      },
+      test("voidElement accepts uppercase void tags") {
+        assertTrue(
+          voidElement("BR").render == "<BR/>",
+          voidElement("IMG").render == "<IMG/>"
+        )
+      },
       test("voidElement accepts attributes") {
         val result = voidElement("img")(src := "a.png").render
         assertTrue(result == """<img src="a.png"/>""")
