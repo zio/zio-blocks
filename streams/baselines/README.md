@@ -69,7 +69,7 @@ Reproduce from the repository root:
 
 ```bash
 sbt --client -Dsbt.color=false \
-  '++3.8.3; streams-benchmark/Jmh/run -wi 2 -i 4 -f 1 -w 1s -r 1s -prof gc -rf json -rff <absolute-output-path> "zio.blocks.streams.bench.StreamEvalBench.zb_(drain|map_1|filter_1|mapFilterFlatMap)"'
+  'golemStreamsAsyncVersion; ++3.8.3; streams-benchmark/Jmh/run -wi 2 -i 4 -f 1 -w 1s -r 1s -prof gc -rf json -rff <absolute-output-path> "zio.blocks.streams.bench.StreamEvalBench.zb_(drain|map_1|filter_1|mapFilterFlatMap)"'
 ```
 
 The near-zero allocation measurements are profiler noise rather than a promise

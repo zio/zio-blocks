@@ -27,7 +27,7 @@ jobs:
       - uses: coursier/setup-action@v3
         with: { jvm: 'temurin:25', apps: sbt }
       - uses: coursier/cache-action@v8
-      - run: sbt 'set Global / concurrentRestrictions := Seq(Tags.limitAll(1)); ++3.8.3; project streamsJVM; coverage; clean; test; coverageReport'
+      - run: sbt 'golemStreamsAsyncVersion; set Global / concurrentRestrictions := Seq(Tags.limitAll(1)); ++3.8.3; project streamsJVM; coverage; clean; test; coverageReport'
         env:
           ASYNC_TEST_SAMPLES: '10000'
           ASYNC_TEST_DEPTH: '8'
@@ -53,7 +53,7 @@ jobs:
       - uses: coursier/setup-action@v3
         with: { jvm: 'temurin:${{ matrix.java }}', apps: sbt }
       - uses: coursier/cache-action@v8
-      - run: python3 streams/testing/tool.py inventory && python3 streams/testing/tool.py check-campaigns && python3 streams/testing/tool.py check-replays && sbt "++${{ matrix.scala }}; streams${{ matrix.platform }}/test"
+      - run: python3 streams/testing/tool.py inventory && python3 streams/testing/tool.py check-campaigns && python3 streams/testing/tool.py check-replays && sbt "golemStreamsAsyncVersion; ++${{ matrix.scala }}; streams${{ matrix.platform }}/test"
         env:
           ASYNC_TEST_SAMPLES: '10000'
           ASYNC_TEST_DEPTH: '8'
@@ -71,7 +71,7 @@ jobs:
       - uses: coursier/cache-action@v8
       - run: python3 streams-benchmark/tools/validate_matrix.py
       - run: python3 streams-benchmark/tools/test_campaign.py
-      - run: sbt '++3.8.3; streams-benchmark/Jmh/compile; streams-benchmark/runMain zio.blocks.streams.bench.StreamAsyncBenchmarkCorrectness'
+      - run: sbt 'golemStreamsAsyncVersion; ++3.8.3; streams-benchmark/Jmh/compile; streams-benchmark/runMain zio.blocks.streams.bench.StreamAsyncBenchmarkCorrectness'
 
   nightly:
     if: github.event_name == 'schedule'
@@ -89,7 +89,7 @@ jobs:
       - uses: actions/checkout@v6.0.2
       - uses: coursier/setup-action@v3
         with: { jvm: 'temurin:${{ matrix.java }}', apps: sbt }
-      - run: python3 streams/testing/tool.py evidence --command "sbt '++${{ matrix.scala }}; streams${{ matrix.platform }}/test'" --out target/async-nightly-evidence.json
+      - run: python3 streams/testing/tool.py evidence --command "sbt 'golemStreamsAsyncVersion; ++${{ matrix.scala }}; streams${{ matrix.platform }}/test'" --out target/async-nightly-evidence.json
         env:
           ASYNC_TEST_SAMPLES: '100000'
           ASYNC_TEST_DEPTH: '12'
@@ -107,7 +107,7 @@ jobs:
       - uses: coursier/cache-action@v8
       - run: >-
           python3 streams/testing/tool.py mutation
-          --command "sbt --client -Dsbt.color=false '++3.8.3; asyncJVM/testOnly zio.blocks.async.AsyncSpec; streamsJVM/testOnly zio.blocks.streams.AsyncReaderSpec zio.blocks.streams.SyncInterpreterSpec zio.blocks.streams.ReadNSpec zio.blocks.streams.SinkLawsSpec'"
+          --command "sbt --client -Dsbt.color=false 'golemStreamsAsyncVersion; ++3.8.3; asyncJVM/testOnly zio.blocks.async.AsyncSpec; streamsJVM/testOnly zio.blocks.streams.AsyncReaderSpec zio.blocks.streams.SyncInterpreterSpec zio.blocks.streams.ReadNSpec zio.blocks.streams.SinkLawsSpec'"
           --out target/async-mutation-evidence.json
       - if: always()
         uses: actions/upload-artifact@v7
@@ -135,7 +135,7 @@ jobs:
       - uses: actions/checkout@v6.0.2
       - uses: coursier/setup-action@v3
         with: { jvm: 'temurin:${{ matrix.java }}', apps: sbt }
-      - run: python3 streams/testing/tool.py evidence --command "sbt '++${{ matrix.scala }}; streams${{ matrix.platform }}/test'" --out target/async-soak-evidence.json
+      - run: python3 streams/testing/tool.py evidence --command "sbt 'golemStreamsAsyncVersion; ++${{ matrix.scala }}; streams${{ matrix.platform }}/test'" --out target/async-soak-evidence.json
         env:
           ASYNC_TEST_SAMPLES: '100000'
           ASYNC_TEST_DEPTH: '12'
@@ -153,6 +153,6 @@ jobs:
       - uses: actions/checkout@v6.0.2
       - uses: coursier/setup-action@v3
         with: { jvm: 'temurin:25', apps: sbt }
-      - run: python3 streams/testing/tool.py replay "$ASYNC_REPLAY" && sbt "++3.8.3; asyncReplay"
+      - run: python3 streams/testing/tool.py replay "$ASYNC_REPLAY" && sbt "golemStreamsAsyncVersion; ++3.8.3; asyncReplay"
         env:
           ASYNC_REPLAY: '${{ inputs.replay }}'

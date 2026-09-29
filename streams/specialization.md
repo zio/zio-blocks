@@ -355,13 +355,13 @@ If chunk-specialized builders must be added, treat that edit as part of batch E 
 
 Use the repository's logged `sbt --client` command template and explicit Scala version on every invocation. Discover the exact Scala 2.13 version first; at the time of this plan it is 2.13.18.
 
-1. Fast loop after each batch: `++3.8.3; streamsJVM/test` (or the narrowest named streams test suite while iterating, followed by `streamsJVM/test`).
-2. Coverage after the fast loop is green: `++3.8.3; project streamsJVM; coverage; test; coverageReport`. Coverage must remain 100% for the async streams target and cover every new branch.
+1. Fast loop after each batch: `golemStreamsAsyncVersion; ++3.8.3; streamsJVM/test` (or the narrowest named streams test suite while iterating, followed by `streamsJVM/test`).
+2. Coverage after the fast loop is green: `golemStreamsAsyncVersion; ++3.8.3; project streamsJVM; coverage; test; coverageReport`. Coverage must remain 100% for the async streams target and cover every new branch.
 3. Cross-Scala: `++2.13.18; streamsJVM/test`.
-4. Cross-platform: `++3.8.3; streamsJS/test; ++2.13.18; streamsJS/test`.
+4. Cross-platform: `golemStreamsAsyncVersion; ++3.8.3; streamsJS/test; ++2.13.18; streamsJS/test`.
 5. Downstream projects identified from `dependsOn` in `build.sbt`, including streams examples and benchmarks, plus chunk/schema dependents if chunk builders change.
 6. JMH baseline and candidate commands for package J, with `-prof gc`, repeated forks, and retained raw logs.
-7. Final format only after all verification is green: `++3.8.3; project streamsJVM; fmtDirty`, then any required `scalafmtSbt` for edited build files. Do not retest solely because formatting ran.
+7. Final format only after all verification is green: `golemStreamsAsyncVersion; ++3.8.3; project streamsJVM; fmtDirty`, then any required `scalafmtSbt` for edited build files. Do not retest solely because formatting ran.
 8. Final static searches, conformance-matrix completeness check, `git diff --check`, and review of the complete diff.
 
 ## Review record

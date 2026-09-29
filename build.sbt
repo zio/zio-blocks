@@ -104,6 +104,30 @@ addCommandAlias(
 addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
 addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 addCommandAlias(
+  "golemStreamsAsyncVersion",
+  // streams/async don't declare Scala3Golem (3.8.3) in their own crossScalaVersions.
+  // If they did, `sbt ci-release` (a `+publish` cross-build over the whole ~100-project
+  // aggregate) would hit a 3.8.3 pass where streams/async compile fresh at 3.8.3 while
+  // every module that doesn't support 3.8.3 (http-model, sql, ...) falls back to an
+  // older version in that same session, still pointed at the newer streams/async
+  // classes. Scala 3's compiled-code format (TASTy) is forwards-incompatible: an older
+  // compiler can't read code a newer one produced, so this crashes with "TASTy
+  // signature has wrong version" cascading into an internal compiler assertion. This
+  // alias turns 3.8.3 on for streams/async (both platforms) for just the current sbt
+  // session instead, so the async-stream-testing.yml workflow (the only thing that
+  // needs streams/async built at 3.8.3) can still test them there without ever
+  // exposing that version to the release process. One combined `set` (not one per
+  // project) to pay sbt's settings-reload cost once instead of four times; references
+  // the shared `Scala3Golem` constant so a future version bump only has to change one
+  // place — `set`'s own expression compiler doesn't see build.sbt's `import
+  // BuildHelper.*`, so the reference has to be fully qualified here.
+  "; set Seq(" +
+    "LocalProject(\"streamsJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"streamsJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"asyncJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"asyncJS\") / crossScalaVersions += BuildHelper.Scala3Golem)"
+)
+addCommandAlias(
   "asyncTestPr",
   "++2.13.18; streamsJVM/test; streamsJS/test; ++3.3.7; streamsJVM/test; streamsJS/test; ++3.9.0; streamsJVM/test"
 )
@@ -838,7 +862,7 @@ lazy val telemetryBenchmarks = project
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(scope, chunk, combinators, ringbuffer, async)
-  .settings(stdSettings("zio-blocks-streams", Seq(Scala3, Scala3Golem, Scala33, Scala213)))
+  .settings(stdSettings("zio-blocks-streams"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.streams"))
   .enablePlugins(BuildInfoPlugin)
@@ -2095,7 +2119,6 @@ lazy val datastar = crossProject(JSPlatform, JVMPlatform)
 lazy val async = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-async"))
-  .settings(crossScalaVersions += Scala3Golem)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.async"))
   .enablePlugins(BuildInfoPlugin)
@@ -2230,8 +2253,10 @@ lazy val `async-benchmarks-scala2` = project
 // JS-native benchmark gate. JMH is JVM-only, so this is a Scala.js main that
 // runs hand-rolled throughput + Node heap-delta allocation measurements (see
 // `AsyncJsBench`). It depends on `async.js`, so selecting the Scala version
-// chooses the cell under test: `++3.8.3; async-benchmarks-js/run` exercises the
-// native `js.async`/`js.await` backend; `++3.3.7; async-benchmarks-js/run`
+// chooses the cell under test: `golemStreamsAsyncVersion; ++3.8.3; async-benchmarks-js/run`
+// exercises the native `js.async`/`js.await` backend (the alias is required so
+// `async.js` itself actually rebuilds at 3.8.3 instead of falling back — see
+// `golemStreamsAsyncVersion`'s own doc comment); `++3.3.7; async-benchmarks-js/run`
 // exercises the dotty-cps-async backend. The `jsEnv` passes Node `--expose-gc`
 // so the harness can force a GC between heap reads. No Kyo / Cats Effect deps:
 // JMH-grade cross-runtime throughput comparison is JVM-only (see
