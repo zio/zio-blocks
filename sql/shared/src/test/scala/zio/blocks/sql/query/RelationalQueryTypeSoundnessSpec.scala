@@ -843,6 +843,46 @@ object RelationalQueryTypeSoundnessSpec extends ZIOSpecDefault {
         val ok        = q.where(q.col[Repo](_.id).inOpt(Seq(Some(1), Some(2))) === lit(true))
         assertTrue(ok.toFrag(zio.blocks.sql.SqlDialect.SQLite).sql(zio.blocks.sql.SqlDialect.SQLite).contains("IN"))
       }
+    ),
+    suite("dynamic JoinKind overload removed")(
+      test("join(rel, JoinKind.Left) no longer compiles — callers must use static leftJoin") {
+        val errors: List[scala.compiletime.testing.Error] = scala.compiletime.testing.typeCheckErrors(
+          """{
+            import zio.blocks.sql.query.*
+            import zio.blocks.schema.Schema
+            import zio.blocks.sql.Table
+            case class User(id: Int, name: String)
+            object User { given Schema[User] = Schema.derived }
+            case class Repo(id: Int, ownerId: Int, name: String)
+            object Repo { given Schema[Repo] = Schema.derived }
+            val userTable: Table[User] = Table.derived[User]
+            val repoTable: Table[Repo] = Table.derived[Repo]
+            val rel = Rel.manyToOne(repoTable, _.ownerId, userTable, _.id)
+            val q = SqlQuery.from(userTable).join(rel, JoinKind.Left)
+          }"""
+        )
+        assertTrue(
+          errors.nonEmpty,
+          errors.exists(_.message.contains("Found:")),
+          // positive control: static leftJoin admits Option[To] correctly
+          scala.compiletime.testing.typeChecks(
+            """{
+              import zio.blocks.sql.query.*
+              import zio.blocks.schema.Schema
+              import zio.blocks.sql.Table
+              case class User(id: Int, name: String)
+              object User { given Schema[User] = Schema.derived }
+              case class Repo(id: Int, ownerId: Int, name: String)
+              object Repo { given Schema[Repo] = Schema.derived }
+              val userTable: Table[User] = Table.derived[User]
+              val repoTable: Table[Repo] = Table.derived[Repo]
+              val rel = Rel.manyToOne(repoTable, _.ownerId, userTable, _.id)
+              val q = SqlQuery.from(userTable).leftJoin(rel)
+              q.select[Option[Int]](q.col[Repo](_.id))
+            }"""
+          )
+        )
+      }
     )
   )
 

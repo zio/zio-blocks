@@ -75,9 +75,6 @@ final case class SqlQuery[A, S <: Tuple] private[query] (
     addJoin(rel, JoinKind.Left)
       .asInstanceOf[SqlQuery[A, Tuple.Append[S, Option[SqlQuery.JoinTarget[From, To, A]]]] { type Scope = self.Scope }]
 
-  def join[From, To](rel: Rel[From, To], kind: JoinKind): SqlQuery[A, S] { type Scope = self.Scope } =
-    addJoin(rel, kind).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
-
   /** Alias for `innerJoin` — satisfies the `SqlQuery.join(rel)` contract. */
   def join[From, To](rel: Rel[From, To]): SqlQuery[A, Tuple.Append[S, SqlQuery.JoinTarget[From, To, A]]] {
     type Scope = self.Scope
