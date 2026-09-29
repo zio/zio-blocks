@@ -210,7 +210,7 @@ object Dom {
     def attributes: Chunk[Attribute]
     def children: Chunk[Dom]
     val selector: CssSelector         = CssSelector.Element(tag)
-    private[html] def isVoid: Boolean = Dom.voidElements.contains(tag)
+    private[html] def isVoid: Boolean = Dom.isVoidTag(tag)
     def withAttributes(attrs: Chunk[Attribute]): Element
     def withChildren(kids: Chunk[Dom]): Element
 
@@ -421,7 +421,7 @@ object Dom {
       children: Chunk[Dom]
     ) extends Element {
       require(
-        !Dom.voidElements.contains(tag) || children.isEmpty,
+        !Dom.isVoidTag(tag) || children.isEmpty,
         s"Void element <$tag> cannot have children. Use voidElement(\"$tag\") for void tags."
       )
       private[html] def escapeText: Boolean                = true
@@ -1204,6 +1204,7 @@ object Dom {
     "href",
     "src",
     "action",
+    "data",
     "formaction",
     "hx-get",
     "hx-post",
@@ -1214,7 +1215,57 @@ object Dom {
     "hx-replace-url"
   )
 
-  private def isUrlAttribute(name: String): Boolean = urlAttributes.contains(name)
+  /**
+   * True when `name` is a URL-valued attribute. HTML attribute names are ASCII
+   * case-insensitive (browsers lowercase them before interpretation), so the
+   * check is case-insensitive over ASCII: the already-lowercase hot path is a
+   * single exact set membership with no allocation, and only a name containing
+   * an ASCII uppercase letter pays for one lowered copy on the miss path.
+   * `data` matches exactly (the `<object data>` resource address); `data-*`
+   * custom attributes never match.
+   */
+  private def isUrlAttribute(name: String): Boolean =
+    urlAttributes.contains(name) || {
+      val lowered = asciiLoweredOrNull(name)
+      (lowered ne null) && urlAttributes.contains(lowered)
+    }
+
+  /**
+   * True when `tag` is a void element. Tag names are ASCII case-insensitive in
+   * HTML, so the check mirrors [[isUrlAttribute]]: exact set membership first
+   * (no allocation for lowercase tags), ASCII-lowered retry only on miss.
+   */
+  private[html] def isVoidTag(tag: String): Boolean =
+    voidElements.contains(tag) || {
+      val lowered = asciiLoweredOrNull(tag)
+      (lowered ne null) && voidElements.contains(lowered)
+    }
+
+  /**
+   * ASCII-lowercased copy of `s`, or `null` when `s` holds no ASCII uppercase
+   * letter (so callers skip the second set lookup without allocating).
+   * Non-ASCII characters are left untouched: HTML matches names and tags ASCII
+   * case-insensitively only.
+   */
+  private def asciiLoweredOrNull(s: String): String = {
+    val len = s.length
+    var i   = 0
+    while (i < len) {
+      val c = s.charAt(i)
+      if (c >= 'A' && c <= 'Z') {
+        val chars = s.toCharArray
+        var j     = i
+        while (j < len) {
+          val d = chars(j)
+          if (d >= 'A' && d <= 'Z') chars(j) = (d + 32).toChar
+          j += 1
+        }
+        return new String(chars)
+      }
+      i += 1
+    }
+    null
+  }
 
   private[html] val voidElements: Set[String] = Set(
     "area",

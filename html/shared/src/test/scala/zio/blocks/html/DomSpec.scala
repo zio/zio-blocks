@@ -216,6 +216,15 @@ object DomSpec extends ZIOSpecDefault {
       test("withChildren rejects children on void tags") {
         val el = Dom.Element.Generic("br", Chunk.empty, Chunk.empty)
         assertTrue(scala.util.Try(el.withChildren(Chunk(Dom.Text("x")))).isFailure)
+      },
+      test("Generic rejects children on uppercase void tags") {
+        assertTrue(
+          scala.util.Try(Dom.Element.Generic("BR", Chunk.empty, Chunk(Dom.Text("x")))).isFailure,
+          scala.util.Try(Dom.Element.Generic("IMG", Chunk.empty, Chunk(Dom.Text("x")))).isFailure
+        )
+      },
+      test("uppercase void tag self-closes") {
+        assertTrue(Dom.Element.Generic("BR", Chunk.empty, Chunk.empty).render == "<BR/>")
       }
     ),
     suite("renderMinified")(
@@ -1081,6 +1090,84 @@ object DomSpec extends ZIOSpecDefault {
         val attr = Dom.Attribute.KeyValue("formaction", Dom.AttributeValue.StringValue("javascript:void(0)"))
         val el   = Dom.Element.Generic("button", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<button formaction="unsafe:javascript:void(0)"></button>""")
+      },
+      test("uppercase HREF attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("HREF", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a HREF="unsafe:javascript:alert(1)">click</a>""")
+      },
+      test("uppercase SRC attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("SRC", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("iframe", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<iframe SRC="unsafe:javascript:alert(1)"></iframe>""")
+      },
+      test("uppercase ACTION attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("ACTION", Dom.AttributeValue.StringValue("javascript:void(0)"))
+        val el   = Dom.Element.Generic("form", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<form ACTION="unsafe:javascript:void(0)"></form>""")
+      },
+      test("mixed-case HX-GET attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("Hx-Get", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<div Hx-Get="unsafe:javascript:alert(1)"></div>""")
+      },
+      test("safe URL keeps same output under uppercase HREF") {
+        val attr = Dom.Attribute.KeyValue("HREF", Dom.AttributeValue.StringValue("https://example.com"))
+        val el   = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a HREF="https://example.com">click</a>""")
+      },
+      test("multi-value uppercase HREF is blocked") {
+        val attr = Dom.Attribute.KeyValue(
+          "HREF",
+          Dom.AttributeValue.MultiValue(Chunk("javascript:alert(1)"), Dom.AttributeSeparator.Space)
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a HREF="unsafe:javascript:alert(1)">x</a>""")
+      },
+      test("append-resolved uppercase HREF is blocked") {
+        val attrs = Chunk(
+          Dom.Attribute.KeyValue("HREF", Dom.AttributeValue.StringValue("java")),
+          Dom.Attribute
+            .AppendValue("HREF", Dom.AttributeValue.StringValue("script:alert(1)"), Dom.AttributeSeparator.Custom(""))
+        )
+        val el = Dom.Element.Generic("a", attrs, Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a HREF="unsafe:javascript:alert(1)">x</a>""")
+      },
+      test("object data attribute blocks data:text/html URI") {
+        val attr =
+          Dom.Attribute.KeyValue("data", Dom.AttributeValue.StringValue("data:text/html,<script>alert(1)</script>"))
+        val el = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(
+          el.render == """<object data="unsafe:data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;"></object>"""
+        )
+      },
+      test("object data attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("data", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<object data="unsafe:javascript:alert(1)"></object>""")
+      },
+      test("object data attribute allows safe data:image/png URI") {
+        val attr = Dom.Attribute.KeyValue("data", Dom.AttributeValue.StringValue("data:image/png;base64,abc"))
+        val el   = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<object data="data:image/png;base64,abc"></object>""")
+      },
+      test("multi-value object data is blocked") {
+        val attr = Dom.Attribute.KeyValue(
+          "data",
+          Dom.AttributeValue.MultiValue(Chunk("data:text/html,x"), Dom.AttributeSeparator.Space)
+        )
+        val el = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<object data="unsafe:data:text/html,x"></object>""")
+      },
+      test("uppercase DATA attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("DATA", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<object DATA="unsafe:javascript:alert(1)"></object>""")
+      },
+      test("data-* attributes are not URL-checked") {
+        val attr = Dom.Attribute.KeyValue("data-foo", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<div data-foo="javascript:alert(1)"></div>""")
       },
       test("multi-value safe href renders unchanged") {
         val attr = Dom.Attribute.KeyValue(

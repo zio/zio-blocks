@@ -224,7 +224,7 @@ trait HtmlElements {
    */
   def element(tag: String): Dom.Element = {
     require(
-      !Dom.voidElements.contains(tag),
+      !Dom.isVoidTag(tag),
       s"Void element <$tag> cannot have children. Use voidElement(\"$tag\") for void tags."
     )
     Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
@@ -241,7 +241,7 @@ trait HtmlElements {
    */
   def voidElement(tag: String): Dom.Element.Void = {
     require(
-      Dom.voidElements.contains(tag),
+      Dom.isVoidTag(tag),
       s"Non-void element <$tag> cannot be void. Use element(\"$tag\") for non-void tags."
     )
     Dom.Element.VoidGeneric(tag, Chunk.empty)
