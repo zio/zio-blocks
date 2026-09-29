@@ -16,7 +16,7 @@ import scala.concurrent.{Await, Future}
  * Run with:
  *
  * {{{
- *   sbt "++3.8.3; async-examples/run"
+ *   sbt "++3.9.0; async-examples/run"
  * }}}
  */
 object AsyncShowcaseExample extends App {

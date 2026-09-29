@@ -41,12 +41,12 @@ import zio.blocks.sql._
  *
  * Full run (per-row allocation counts):
  * {{{
- * sbt --client -Dsbt.color=false "++3.8.3; sql-benchmarks/Jmh/run -prof gc -f 1 -wi 3 -i 3 -r 1s zio.blocks.sql.bench.SqlDecodeBenchmark"
+ * sbt --client -Dsbt.color=false "++3.9.0; sql-benchmarks/Jmh/run -prof gc -f 1 -wi 3 -i 3 -r 1s zio.blocks.sql.bench.SqlDecodeBenchmark"
  * }}}
  *
  * Smoke run (throughput sanity, no profiler):
  * {{{
- * sbt --client -Dsbt.color=false "++3.8.3; sql-benchmarks/Jmh/run -f 1 -wi 1 -i 1 -r 1s zio.blocks.sql.bench.SqlDecodeBenchmark"
+ * sbt --client -Dsbt.color=false "++3.9.0; sql-benchmarks/Jmh/run -f 1 -wi 1 -i 1 -r 1s zio.blocks.sql.bench.SqlDecodeBenchmark"
  * }}}
  */
 @BenchmarkMode(Array(Mode.SampleTime))
