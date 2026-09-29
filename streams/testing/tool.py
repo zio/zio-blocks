@@ -63,7 +63,7 @@ def validate_replay(value):
     if not isinstance(value.get("schedule"), list): errors.append("schedule must be an array")
     return errors
 
-REQUIRED_CELLS = {"jvm-2.13.18", "jvm-3.3.7", "jvm-3.8.3", "js-2.13.18", "js-3.3.7"}
+REQUIRED_CELLS = {"jvm-2.13.18", "jvm-3.3.7", "jvm-3.9.0", "js-2.13.18", "js-3.3.7"}
 def validate_campaigns(value):
     errors=[]
     floors={
