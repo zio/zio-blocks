@@ -405,6 +405,20 @@ object Dump {
     }
   }
 
+  /**
+   * True when a clause argument is a typed `Expr` (query-bound predicate,
+   * grouping, having, or ordering) rather than a legacy `Frag`/`String`. Typed
+   * trees are shaped like macro-expanded `Column`/`Relational`/... nodes and
+   * must never reach the `Frag` decoders: they are undecodable here (column
+   * aliasing needs runtime table state) and decoding them as `Frag` fabricates
+   * SQL, so callers skip emission instead.
+   */
+  private def isTypedExprArg(using quotes: Quotes)(term: quotes.reflect.Term): Boolean = {
+    import quotes.reflect._
+    try term.tpe.widen <:< TypeRepr.of[zio.blocks.sql.query.Expr[?, ?]]
+    catch { case _: Throwable => false }
+  }
+
   private def decodeFrag(using quotes: Quotes)(term: quotes.reflect.Term): Option[(String, Int)] = {
     import quotes.reflect._
     def unwrap(t: Term): Term = t match {
@@ -549,12 +563,20 @@ object Dump {
    * name). No-op otherwise.
    *
    * '''Inline-value requirement:''' the `query` argument must be an
-   * inline-constructible tree (e.g. inline val/def or a direct
-   * `SqlQuery.from(...).innerJoin(...).filter(...)` chain). A preconstructed
-   * non-inline val cannot expose its join/filter tree and will trigger
+   * inline-constructible tree (e.g. inline val/def, a member val/def whose
+   * definition tree is visible, or a direct
+   * `SqlQuery.from(...).innerJoin(...).filter(...)` chain). A genuinely
+   * preconstructed value (parameter, runtime-built query) cannot expose its
+   * join/filter tree and will trigger
    * `report.warning("Dump requires inline query value; preconstructed value will emit no file; use inline val/def or Dump.dumpTable")`
    * and emit no file (skips emit) instead of an incomplete source-only
    * fallback.
+   *
+   * '''Fail-closed decoding:''' only legacy string/`Frag` clauses are dumped.
+   * Typed `Expr` filters/grouping/having/ordering, undecodable relations or
+   * literals, and invalid identifiers each emit a precise warning and skip
+   * emission — the dumper never writes placeholder (`WHERE ?`), truncated, or
+   * invented SQL. Use runtime `toFrag`/`explain` to inspect typed queries.
    */
   inline def dumpQuery[A](inline query: zio.blocks.sql.query.SqlQuery[A, ?]): Unit =
     ${ dumpQueryIrImpl[A]('query) }
@@ -621,6 +643,10 @@ object Dump {
       val fileBase       = if (candidate == "query" || candidate.isEmpty) s"$baseName-query" else s"$candidate-query"
 
       var indeterminateIr = false
+      // Fail-closed skip: set when any required clause cannot be decoded
+      // faithfully (typed Expr syntax, unknown relations, invalid identifiers,
+      // undecodable literals). Emission is skipped rather than invented.
+      var unsupportedClause = false
 
       def irUnwrap(t: quotes.reflect.Term): quotes.reflect.Term = {
         import quotes.reflect._
@@ -788,58 +814,112 @@ object Dump {
                   case Some((fromTerm, fk, toTerm, pk)) =>
                     val (fromName, _)    = tableInfoFromTerm(fromTerm)
                     val (toName, toCols) = tableInfoFromTerm(toTerm)
-                    // validate column identifiers
-                    try SqlIdentifier.validate("column", fk)
-                    catch { case _: Throwable => report.warning(s"Invalid fk column '$fk'", Position.ofMacroExpansion) }
-                    try SqlIdentifier.validate("column", pk)
-                    catch { case _: Throwable => report.warning(s"Invalid pk column '$pk'", Position.ofMacroExpansion) }
-                    val kindStr = method match {
-                      case "leftJoin" | "joinLeft" => "LEFT JOIN"
-                      case "innerJoin"             => "INNER JOIN"
-                      case "join"                  =>
-                        if (args.size >= 2) {
-                          val s = args(1).toString.toLowerCase
-                          if (s.contains("left")) "LEFT JOIN" else "INNER JOIN"
-                        } else "INNER JOIN"
-                      case _ => "INNER JOIN"
-                    }
-                    val alias = s"t$aliasCounter"
-                    aliasCounter += 1
-                    // determine ON clause aliases
-                    val fkAliasOpt                                 = aliasForTableName(fromName)
-                    val pkAliasOpt                                 = aliasForTableName(toName)
-                    val (fkAlias, pkAlias, targetName, targetCols) = (fkAliasOpt, pkAliasOpt) match {
-                      case (Some(fa), None) =>
-                        (fa, alias, toName, toCols)
-                      case (None, Some(ta)) =>
-                        (alias, ta, fromName, tableInfoFromTerm(fromTerm)._2)
-                      case (None, None) =>
-                        if (sourceName == fromName) ("t0", alias, toName, toCols)
-                        else if (sourceName == toName) (alias, "t0", fromName, tableInfoFromTerm(fromTerm)._2)
-                        else if (joins.nonEmpty && joins.last.table == fromName)
-                          (joins.last.alias, alias, toName, toCols)
-                        else if (joins.nonEmpty && joins.last.table == toName)
-                          (alias, joins.last.alias, fromName, tableInfoFromTerm(fromTerm)._2)
-                        else ("t0", alias, toName, toCols)
-                      case (Some(_), Some(_)) =>
-                        // both present, create new alias for target as toTable duplicate
-                        (fkAliasOpt.get, alias, toName, toCols)
-                    }
-                    // self-join handling
-                    val isSelfJoin = fromName == toName
-                    val onStr      = if (isSelfJoin) {
-                      s"""t0."$fk" = $alias."$pk""""
+                    // validate column identifiers — runtime throws on invalid
+                    // names, so the dump must skip instead of emitting them.
+                    val fkValid =
+                      try { SqlIdentifier.validate("column", fk); true }
+                      catch {
+                        case _: Throwable =>
+                          report.warning(s"Invalid fk column '$fk'; skipping dump emission", Position.ofMacroExpansion)
+                          false
+                      }
+                    val pkValid =
+                      try { SqlIdentifier.validate("column", pk); true }
+                      catch {
+                        case _: Throwable =>
+                          report.warning(s"Invalid pk column '$pk'; skipping dump emission", Position.ofMacroExpansion)
+                          false
+                      }
+                    if (!fkValid || !pkValid) {
+                      unsupportedClause = true
                     } else {
-                      s"""$fkAlias."$fk" = $pkAlias."$pk""""
+                      val kindStr = method match {
+                        case "leftJoin" | "joinLeft" => "LEFT JOIN"
+                        case "innerJoin"             => "INNER JOIN"
+                        case "join"                  =>
+                          if (args.size >= 2) {
+                            val s = args(1).toString.toLowerCase
+                            if (s.contains("left")) "LEFT JOIN" else "INNER JOIN"
+                          } else "INNER JOIN"
+                        case _ => "INNER JOIN"
+                      }
+                      val alias = s"t$aliasCounter"
+                      aliasCounter += 1
+                      // determine ON clause aliases
+                      val fkAliasOpt = aliasForTableName(fromName)
+                      val pkAliasOpt = aliasForTableName(toName)
+                      // Fail closed: runtime SqlQuery.addJoin rejects a
+                      // relation with neither side present instead of
+                      // defaulting to t0, so the dump must skip as well.
+                      val sidesOk = (fkAliasOpt, pkAliasOpt) match {
+                        case (None, None) =>
+                          report.warning(
+                            s"Dump.dumpQuery: neither side of relation $fromName.$fk = $toName.$pk is present in query; skipping dump emission",
+                            Position.ofMacroExpansion
+                          )
+                          false
+                        case _ => true
+                      }
+                      if (!sidesOk) {
+                        unsupportedClause = true
+                      } else {
+                        val (fkAlias, pkAlias, targetName, targetCols) = (fkAliasOpt, pkAliasOpt) match {
+                          case (Some(fa), None) =>
+                            (fa, alias, toName, toCols)
+                          case (None, Some(ta)) =>
+                            (alias, ta, fromName, tableInfoFromTerm(fromTerm)._2)
+                          case (None, None) =>
+                            // Unreachable: guarded by sidesOk above.
+                            ("t0", alias, toName, toCols)
+                          case (Some(_), Some(_)) =>
+                            // both present, create new alias for target as toTable duplicate
+                            (fkAliasOpt.get, alias, toName, toCols)
+                        }
+                        // self-join handling mirrors runtime SqlQuery.addJoin:
+                        // bind the fk side to the latest alias whose table
+                        // matches, so chained self-joins yield t0->t1, t1->t2.
+                        val isSelfJoin = fromName == toName
+                        if (isSelfJoin) {
+                          val existing: Vector[(String, String)] =
+                            Vector((sourceName, "t0")) ++ joins.map(j => (j.table, j.alias))
+                          existing.reverse.find(_._1 == fromName) match {
+                            case Some((_, fkA)) =>
+                              val onStr = s"""$fkA."$fk" = $alias."$pk""""
+                              colsByAlias(alias) = targetCols
+                              joins = joins :+ IrJoin(targetName, alias, kindStr, onStr)
+                            case None =>
+                              report.warning(
+                                s"Dump.dumpQuery: self-join table '$fromName' not present in query; skipping dump emission",
+                                Position.ofMacroExpansion
+                              )
+                              unsupportedClause = true
+                          }
+                        } else {
+                          val onStr = s"""$fkAlias."$fk" = $pkAlias."$pk""""
+                          colsByAlias(alias) = targetCols
+                          joins = joins :+ IrJoin(targetName, alias, kindStr, onStr)
+                        }
+                      }
                     }
-                    colsByAlias(alias) = targetCols
-                    joins = joins :+ IrJoin(targetName, alias, kindStr, onStr)
                   case None =>
-                    report.warning(s"Dump.dumpQuery: could not decode Rel for $method", Position.ofMacroExpansion)
+                    // Fail closed: dropping the join would emit truncated SQL.
+                    report.warning(
+                      s"Dump.dumpQuery: could not decode Rel for $method; skipping dump emission",
+                      Position.ofMacroExpansion
+                    )
+                    unsupportedClause = true
                 }
               case "filter" | "where" =>
                 if (args.nonEmpty) {
-                  if (irHasIndeterminate(args(0))) {
+                  if (isTypedExprArg(args(0))) {
+                    // Typed Expr predicates need runtime alias state and are
+                    // undecodable here — skip instead of fabricating SQL.
+                    report.warning(
+                      s"Dump.dumpQuery: typed Expr filter is not supported by compile-time dump; skipping dump emission - use runtime toFrag/explain for inspection",
+                      Position.ofMacroExpansion
+                    )
+                    unsupportedClause = true
+                  } else if (irHasIndeterminate(args(0))) {
                     report.warning(
                       s"IN placeholder: compile-time DbArray cardinality is indeterminate for IR filter ${args(0).show.take(200)}; skipping dump emission - use an inline literal/static array (e.g. IndexedSeq(...)) or runtime inspection for dynamic collections",
                       Position.ofMacroExpansion
@@ -853,79 +933,145 @@ object Dump {
                         val normalized = if (sql.contains("?")) sql else if (cnt > 0) sql + " ?" else sql
                         filters = filters :+ IrFilter(normalized, cnt)
                       case None =>
-                        // fallback: treat as generic filter with ?
+                        // Fail closed: never emit a placeholder predicate.
                         report.warning(
-                          s"Dump.dumpQuery: could not decode filter Frag, using placeholder",
+                          s"Dump.dumpQuery: could not decode filter Frag; skipping dump emission",
                           Position.ofMacroExpansion
                         )
-                        filters = filters :+ IrFilter("?", 1)
+                        unsupportedClause = true
                     }
                   }
                 }
               case "groupBy" =>
                 if (args.nonEmpty) {
-                  val cols = args.flatMap(a => stringLiteral(a))
-                  if (cols.nonEmpty) {
-                    val validated = cols.map(c =>
-                      try SqlIdentifier.validate("column", c)
-                      catch { case _: Throwable => c }
+                  if (args.exists(isTypedExprArg)) {
+                    // Typed Expr grouping is undecodable here — skip.
+                    report.warning(
+                      s"Dump.dumpQuery: typed Expr groupBy is not supported by compile-time dump; skipping dump emission - use runtime toFrag/explain for inspection",
+                      Position.ofMacroExpansion
                     )
-                    // Render with quoted identifiers to match QueryRenderer
-                    groupBy = Some(validated.map(c => s"""t0."$c"""").mkString(", "))
+                    unsupportedClause = true
+                  } else {
+                    val cols = args.flatMap(a => stringLiteral(a))
+                    if (cols.size != args.size) {
+                      // A non-literal column cannot be decoded — emitting the
+                      // rest would truncate the GROUP BY.
+                      report.warning(
+                        s"Dump.dumpQuery: groupBy expects string literal columns; skipping dump emission",
+                        Position.ofMacroExpansion
+                      )
+                      unsupportedClause = true
+                    } else {
+                      try {
+                        val validated = cols.map(c => SqlIdentifier.validate("column", c))
+                        // Render with quoted identifiers to match QueryRenderer
+                        groupBy = Some(validated.map(c => s"""t0."$c"""").mkString(", "))
+                      } catch {
+                        case _: Throwable =>
+                          // Runtime rejects invalid identifiers — skip.
+                          report.warning(
+                            s"Dump.dumpQuery: invalid groupBy column; skipping dump emission",
+                            Position.ofMacroExpansion
+                          )
+                          unsupportedClause = true
+                      }
+                    }
                   }
                 }
               case "having" =>
                 if (args.nonEmpty) {
-                  decodeFrag(args(0)) match {
-                    case Some((sql, _)) => having = Some(sql)
-                    case None           =>
-                      report.warning("Dump.dumpQuery: could not decode having Frag", Position.ofMacroExpansion)
+                  if (isTypedExprArg(args(0))) {
+                    report.warning(
+                      s"Dump.dumpQuery: typed Expr having is not supported by compile-time dump; skipping dump emission - use runtime toFrag/explain for inspection",
+                      Position.ofMacroExpansion
+                    )
+                    unsupportedClause = true
+                  } else {
+                    decodeFrag(args(0)) match {
+                      case Some((sql, _)) => having = Some(sql)
+                      case None           =>
+                        // Fail closed: emitting without HAVING would truncate.
+                        report.warning(
+                          "Dump.dumpQuery: could not decode having Frag; skipping dump emission",
+                          Position.ofMacroExpansion
+                        )
+                        unsupportedClause = true
+                    }
                   }
                 }
               case "orderBy" =>
                 if (args.nonEmpty) {
-                  stringLiteral(args(0)) match {
-                    case Some(col) =>
-                      val dir = if (args.size >= 2) decodeDirection(args(1)) else "ASC"
-                      try SqlIdentifier.validate("column", col)
-                      catch {
-                        case _: Throwable => report.warning(s"Invalid orderBy column '$col'", Position.ofMacroExpansion)
-                      }
-                      orderByList = orderByList :+ s"""t0."$col" $dir"""
-                    case None =>
-                      report.warning("Dump.dumpQuery: orderBy expects string literal column", Position.ofMacroExpansion)
+                  if (isTypedExprArg(args(0))) {
+                    report.warning(
+                      s"Dump.dumpQuery: typed Expr orderBy is not supported by compile-time dump; skipping dump emission - use runtime toFrag/explain for inspection",
+                      Position.ofMacroExpansion
+                    )
+                    unsupportedClause = true
+                  } else {
+                    stringLiteral(args(0)) match {
+                      case Some(col) =>
+                        val dir = if (args.size >= 2) decodeDirection(args(1)) else "ASC"
+                        try {
+                          SqlIdentifier.validate("column", col)
+                          orderByList = orderByList :+ s"""t0."$col" $dir"""
+                        } catch {
+                          case _: Throwable =>
+                            // Runtime rejects invalid identifiers — skip.
+                            report.warning(
+                              s"Invalid orderBy column '$col'; skipping dump emission",
+                              Position.ofMacroExpansion
+                            )
+                            unsupportedClause = true
+                        }
+                      case None =>
+                        report.warning(
+                          "Dump.dumpQuery: orderBy expects string literal column; skipping dump emission",
+                          Position.ofMacroExpansion
+                        )
+                        unsupportedClause = true
+                    }
                   }
                 }
               case "orderByMany" =>
-                // varargs OrderBy objects: each OrderBy is case class OrderBy(column, direction)
-                for (obTerm <- args) {
-                  // try to decode OrderBy(col, dir)
-                  obTerm match {
-                    case Apply(Select(New(_), "<init>"), List(Literal(StringConstant(col)), dirTerm)) =>
-                      val dir = decodeDirection(dirTerm)
-                      orderByList = orderByList :+ s"""t0."$col" $dir"""
-                    case Apply(Select(_, "apply"), List(Literal(StringConstant(col)), dirTerm)) =>
-                      val dir = decodeDirection(dirTerm)
-                      orderByList = orderByList :+ s"""t0."$col" $dir"""
-                    case _ =>
-                      // fallback via string literal collection
-                      stringLiteral(obTerm).foreach { col =>
-                        orderByList = orderByList :+ s"""t0."$col" ASC"""
-                      }
-                  }
+                // The legacy OrderBy-object overload no longer exists; the
+                // only overload takes typed (Expr, SortOrder) pairs, which are
+                // undecodable here. Empty calls are a no-op.
+                if (args.nonEmpty) {
+                  report.warning(
+                    s"Dump.dumpQuery: typed orderByMany expressions are not supported by compile-time dump; skipping dump emission - use runtime toFrag/explain for inspection",
+                    Position.ofMacroExpansion
+                  )
+                  unsupportedClause = true
                 }
               case "limit" =>
                 args.headOption.flatMap(intLiteral) match {
                   case Some(n) => limitVal = Some(n)
-                  case None    => report.warning("Dump.dumpQuery: limit expects int literal", Position.ofMacroExpansion)
+                  case None    =>
+                    // A non-literal limit changes result semantics — skip.
+                    report.warning(
+                      "Dump.dumpQuery: limit expects int literal; skipping dump emission",
+                      Position.ofMacroExpansion
+                    )
+                    unsupportedClause = true
                 }
               case "offset" =>
                 args.headOption.flatMap(intLiteral) match {
                   case Some(n) => offsetVal = Some(n)
-                  case None    => report.warning("Dump.dumpQuery: offset expects int literal", Position.ofMacroExpansion)
+                  case None    =>
+                    report.warning(
+                      "Dump.dumpQuery: offset expects int literal; skipping dump emission",
+                      Position.ofMacroExpansion
+                    )
+                    unsupportedClause = true
                 }
               case other =>
-                report.warning(s"Dump.dumpQuery: unsupported method '$other' in query IR", Position.ofMacroExpansion)
+                // Fail closed: an unrecognized clause (e.g. whereAll) means
+                // the emitted SQL would silently drop semantics.
+                report.warning(
+                  s"Dump.dumpQuery: unsupported method '$other' in query IR; skipping dump emission",
+                  Position.ofMacroExpansion
+                )
+                unsupportedClause = true
             }
           }
           Some(
@@ -951,8 +1097,9 @@ object Dump {
 
       val decodedOpt = tryDecodeIr()
 
-      if (indeterminateIr) {
-        // warning already emitted; skip emission
+      if (indeterminateIr || unsupportedClause) {
+        // A warning was already emitted for the specific cause; skip emission
+        // rather than writing partial or invented SQL.
         ()
       } else {
         decodedOpt match {

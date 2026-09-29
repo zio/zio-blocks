@@ -307,6 +307,14 @@ FROM "users" AS t0
 
 `qRender.sql(SqlDialect.SQLite)` returns the SQL string. `qRender.toFrag(SqlDialect.SQLite).params` returns any bound parameters.
 
+### Compile-time dumps (`Dump.dumpQuery`)
+
+`Dump.dumpQuery` emits `.sql` files at compile time only for legacy string/`Frag` query chains whose structure is fully visible in the source (inline chains with literal identifiers, inline `Rel` values, literal limits). It is intentionally fail-closed:
+
+- Typed `Expr` filters, groupings, havings, and orderings are **not** dumped — the macro emits a warning explaining the limitation and writes no file. Inspect typed queries at runtime with `.toFrag(dialect)` / `.explain(dialect)` instead.
+- Anything the macro cannot decode faithfully (shared `Frag`/`Rel` member values referenced by name, non-literal columns or limits, unknown relations, invalid identifiers) also warns and writes no file — never a placeholder or truncated statement.
+- Member-`val` query values are opaque to the macro (only `inline val`/`def` chains and directly constructed chains are visible); they warn and write no file.
+
 ## Execution
 
 `TypedQuery` wraps the query IR plus its projection. Once built, call an execution method. All methods require an ambient `DbCon` or `DbTx` in scope, provided by `Transactor.connect` or `Transactor.transact`.
