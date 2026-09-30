@@ -299,7 +299,6 @@ object BuildHelper {
     }
 
   def jsSettings: Seq[Def.Setting[?]] = Seq(
-    crossScalaVersions       := crossScalaVersions.value.filterNot(_ == Scala3),
     coverageEnabled          := false,
     Test / parallelExecution := false,
     Test / fork              := false
