@@ -1982,9 +1982,6 @@ lazy val `async-benchmarks-js` = project
     // Benchmark in production mode (Closure full optimization) so the measured
     // allocation/throughput reflects what ships, not the dev `fastLinkJS` output.
     scalaJSStage := FullOptStage,
-    // jsSettings pins JS Scala 3 to 3.3.7; allow the native 3.8.x cell too.
-    scalaVersion       := (ThisBuild / scalaVersion).value,
-    crossScalaVersions := Seq(BuildHelper.Scala3, BuildHelper.Scala33),
     // ES2017 so the native `js.async`/`js.await` in `async.js` (Scala 3.8+) links.
     scalaJSLinkerConfig ~= {
       _.withESFeatures(_.withESVersion(org.scalajs.linker.interface.ESVersion.ES2017))
