@@ -149,10 +149,6 @@ Three behaviours the source made non-obvious, now stated with worked output:
 - **The parse cache is keyed by codec identity, compared by reference.** A codec constructed inline per request never reuses its cached values, and `Headers#add` drops the cache entirely.
 - **`Headers#toString` prints credentials verbatim.** There is no redaction, so anything logging a `Request` logs its `authorization` and `cookie` values.
 
-Writing the catalog also surfaced a genuine defect, documented in a warning admonition and worth fixing in the source:
-
-- [ ] `Header.AcceptEncoding.parseSingle` ends with `case _ => GZip(weight)` (`Header.scala:1250`), so any unrecognized encoding name silently parses as `GZip` — `accept-encoding: bogus` reads as a gzip request. `Header.AcceptEncoding.parse` rejects only values with no non-empty comma-separated part, so `""`, `","`, and `"   "` are the only failing inputs. The sibling ADTs handle the same situation correctly: `Authorization` has an `Unparsed` case and `Connection` has `Other`. `AcceptEncoding` should either gain an equivalent case or return `Left`. Tracked as [zio/zio-blocks#1618](https://github.com/zio/zio-blocks/issues/1618).
-
 What remains is the report's own items 4 and 5 rather than anything new:
 
 - [ ] Document `PercentEncoder`, `QueryKey`, `QueryValue`, and `QueryParamsBuilder` in the URL and query sections of `model.md`
