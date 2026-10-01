@@ -352,7 +352,7 @@ lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.ringbuffer"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings, crossScalaVersions += Scala3)
+  .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
@@ -370,7 +370,7 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.typeid"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings, crossScalaVersions += Scala3)
+  .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
@@ -422,7 +422,7 @@ lazy val combinators = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.combinators"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings, crossScalaVersions += Scala3)
+  .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
@@ -448,7 +448,7 @@ lazy val context = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.context"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings, crossScalaVersions += Scala3)
+  .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
@@ -473,7 +473,7 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.scope"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings, crossScalaVersions += Scala3)
+  .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
@@ -859,10 +859,6 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
   )
   .jsSettings(
     jsSettings,
-    // Streams depends on Async, whose Scala 3.9 JS backend opts into the latest
-    // compiler. Keep the two projects on the same Scala version so Streams
-    // never consumes TASTy emitted by a different compiler release.
-    crossScalaVersions += Scala3,
     scalacOptions ++= Seq(
       // scope.leak is used intentionally throughout Streams internals
       "-Wconf:msg=being leaked from scope:s",
@@ -886,7 +882,7 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.chunk"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings, crossScalaVersions += Scala3)
+  .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
@@ -1856,11 +1852,6 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     // Target ES2017 so Scala.js can emit native async/await (`js.async`/
     // `js.await`), used by the Scala 3.8+ direct-style implementation.
     scalaJSLinkerConfig ~= { _.withESFeatures(_.withESVersion(org.scalajs.linker.interface.ESVersion.ES2017)) },
-    // The repo-wide `jsSettings` drops the latest Scala (3.8.x) from JS cross
-    // builds; async opts back in because its native `js.async`/`js.await`
-    // backend exists only on 3.8+ and would otherwise never be compiled or
-    // tested.
-    crossScalaVersions += Scala3,
     // Direct-style implementation selection on JS:
     //   - Scala 3.8+ → native `js.async`/`js.await` for direct-position
     //     awaits (faster than DCA on JS), with the shared DCA transform as
@@ -1991,9 +1982,6 @@ lazy val `async-benchmarks-js` = project
     // Benchmark in production mode (Closure full optimization) so the measured
     // allocation/throughput reflects what ships, not the dev `fastLinkJS` output.
     scalaJSStage := FullOptStage,
-    // jsSettings pins JS Scala 3 to 3.3.7; allow the native 3.8.x cell too.
-    scalaVersion       := (ThisBuild / scalaVersion).value,
-    crossScalaVersions := Seq(BuildHelper.Scala3, BuildHelper.Scala33),
     // ES2017 so the native `js.async`/`js.await` in `async.js` (Scala 3.8+) links.
     scalaJSLinkerConfig ~= {
       _.withESFeatures(_.withESVersion(org.scalajs.linker.interface.ESVersion.ES2017))
