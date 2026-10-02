@@ -218,6 +218,56 @@ object MpscRingBufferSpec extends ZIOSpecDefault {
         rb.offer("a")
         val n = rb.drain(_ => (), 0)
         assertTrue(n == 0, rb.size == 1)
+      },
+      test("drain stops at the limit and advances the consumer index exactly") {
+        val rb = new MpscRingBuffer[String](8)
+        List("a", "b", "c", "d").foreach(rb.offer)
+        val first   = scala.collection.mutable.ArrayBuffer.empty[String]
+        val n1      = rb.drain(e => { first += e; () }, 2)
+        val midSize = rb.size
+        val second  = scala.collection.mutable.ArrayBuffer.empty[String]
+        val n2      = rb.drain(e => { second += e; () }, 10)
+        assertTrue(
+          n1 == 2,
+          first.toVector == Vector("a", "b"),
+          midSize == 2,
+          n2 == 2,
+          second.toVector == Vector("c", "d"),
+          rb.isEmpty
+        )
+      },
+      test("drain publishes the consumer index when the consumer throws") {
+        val rb = new MpscRingBuffer[String](8)
+        List("a", "b", "c").foreach(rb.offer)
+        val seen   = scala.collection.mutable.ArrayBuffer.empty[String]
+        val thrown = try {
+          rb.drain(
+            e => {
+              if (e == "b") throw new RuntimeException("boom")
+              seen += e
+              ()
+            },
+            10
+          )
+          false
+        } catch {
+          case _: RuntimeException => true
+        }
+        val rest    = scala.collection.mutable.ArrayBuffer.empty[String]
+        val n       = rb.drain(e => { rest += e; () }, 10)
+        val resumed = rb.offer("d") && rb.offer("e")
+        val tail    = scala.collection.mutable.ArrayBuffer.empty[String]
+        val m       = rb.drain(e => { tail += e; () }, 10)
+        assertTrue(
+          thrown,
+          seen.toVector == Vector("a"),
+          n == 1,
+          rest.toVector == Vector("c"),
+          resumed,
+          m == 2,
+          tail.toVector == Vector("d", "e"),
+          rb.isEmpty
+        )
       }
     )
   )

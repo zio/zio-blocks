@@ -299,6 +299,134 @@ object DatastarEventSpec extends ZIOSpecDefault {
             "\n"
         )
       }
+    ),
+    suite("fused SSE framing")(
+      test("elements containing newlines split into multiple data lines") {
+        val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("a\nb")))
+        val result = DatastarEvent.patchElements(dom).renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-elements\n" +
+            "data: elements <div>a\n" +
+            "data: b</div>\n" +
+            "\n"
+        )
+      },
+      test("builder setters preserve all other fields") {
+        val dom    = Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("Hi")))
+        val result = DatastarEvent
+          .patchElements(dom)
+          .selector(CssSelector.`class`("container"))
+          .mode(ElementPatchMode.Prepend)
+          .viewTransition
+          .namespace("custom")
+          .eventId("evt-1")
+          .retry(5000L)
+          .renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-elements\n" +
+            "id: evt-1\n" +
+            "retry: 5000\n" +
+            "data: selector .container\n" +
+            "data: mode prepend\n" +
+            "data: useViewTransition true\n" +
+            "data: namespace custom\n" +
+            "data: elements <span>Hi</span>\n" +
+            "\n"
+        )
+      },
+      test("eventId with newline is rejected") {
+        val dom = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        assertTrue(scala.util.Try(DatastarEvent.patchElements(dom).eventId("a\nb").renderSSE).isFailure)
+      },
+      test("negative retry is rejected") {
+        val dom = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        assertTrue(scala.util.Try(DatastarEvent.patchElements(dom).retry(-1L).renderSSE).isFailure)
+      }
+    ),
+    suite("multi-line SSE framing boundaries")(
+      test("empty value emits one blank data line") {
+        val result = DatastarEvent.patchSignalsRaw("").renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-signals\n" +
+            "data: signals \n" +
+            "\n"
+        )
+      },
+      test("three-line value splits into three data lines") {
+        val result = DatastarEvent.patchSignalsRaw("a\nb\nc").renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-signals\n" +
+            "data: signals a\n" +
+            "data: b\n" +
+            "data: c\n" +
+            "\n"
+        )
+      },
+      test("CRLF splits once") {
+        val result = DatastarEvent.patchSignalsRaw("a\r\nb").renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-signals\n" +
+            "data: signals a\n" +
+            "data: b\n" +
+            "\n"
+        )
+      },
+      test("lone CR splits") {
+        val result = DatastarEvent.patchSignalsRaw("a\rb").renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-signals\n" +
+            "data: signals a\n" +
+            "data: b\n" +
+            "\n"
+        )
+      },
+      test("terminal newline emits trailing empty data line") {
+        val result = DatastarEvent.patchSignalsRaw("a\n").renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-signals\n" +
+            "data: signals a\n" +
+            "data: \n" +
+            "\n"
+        )
+      },
+      test("terminal CRLF emits trailing empty data line") {
+        val result = DatastarEvent.patchSignalsRaw("a\r\n").renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-signals\n" +
+            "data: signals a\n" +
+            "data: \n" +
+            "\n"
+        )
+      },
+      test("unicode multiline splits") {
+        val result = DatastarEvent.patchSignalsRaw("héllo\nwörld").renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-signals\n" +
+            "data: signals héllo\n" +
+            "data: wörld\n" +
+            "\n"
+        )
+      },
+      test("elements with CRLF split once") {
+        val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("a\r\nb")))
+        val result = DatastarEvent.patchElements(dom).renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-elements\n" +
+            "data: elements <div>a\n" +
+            "data: b</div>\n" +
+            "\n"
+        )
+      }
     )
   )
 }
