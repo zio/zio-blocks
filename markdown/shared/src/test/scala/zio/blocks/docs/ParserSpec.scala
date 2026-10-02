@@ -228,6 +228,76 @@ object ParserSpec extends MarkdownBaseSpec {
           )
         )
       },
+      test("distinguishes sibling and nested bullet items at the content indentation boundary") {
+        val sibling = Parser.parse("- parent\n * sibling")
+        val nested  = Parser.parse("- parent\n  * child")
+        assertTrue(
+          sibling == Right(
+            Doc(
+              Chunk(
+                BulletList(
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("parent")))), None),
+                    ListItem(Chunk(Paragraph(Chunk(Text("sibling")))), None)
+                  ),
+                  tight = true
+                )
+              )
+            )
+          ),
+          nested == Right(
+            Doc(
+              Chunk(
+                BulletList(
+                  Chunk(
+                    ListItem(
+                      Chunk(
+                        Paragraph(Chunk(Text("parent"))),
+                        BulletList(
+                          Chunk(ListItem(Chunk(Paragraph(Chunk(Text("child")))), None)),
+                          tight = true
+                        )
+                      ),
+                      None
+                    )
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
+        )
+      },
+      test("parses indented nested bullet list") {
+        val input  = "- First item\n- Second item\n- Third item\n   * Indented item\n- Fourth item"
+        val result = Parser.parse(input)
+        assertTrue(
+          result == Right(
+            Doc(
+              Chunk(
+                BulletList(
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("First item")))), None),
+                    ListItem(Chunk(Paragraph(Chunk(Text("Second item")))), None),
+                    ListItem(
+                      Chunk(
+                        Paragraph(Chunk(Text("Third item"))),
+                        BulletList(
+                          Chunk(ListItem(Chunk(Paragraph(Chunk(Text("Indented item")))), None)),
+                          tight = true
+                        )
+                      ),
+                      None
+                    ),
+                    ListItem(Chunk(Paragraph(Chunk(Text("Fourth item")))), None)
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
+        )
+      },
       test("parses bullet list with asterisk") {
         val input  = "* item 1\n* item 2"
         val result = Parser.parse(input)
@@ -323,6 +393,48 @@ object ParserSpec extends MarkdownBaseSpec {
       }
     ),
     suite("Ordered lists")(
+      test("distinguishes sibling and nested items using the ordered marker width") {
+        val sibling = Parser.parse("10. parent\n   11. sibling")
+        val nested  = Parser.parse("10. parent\n    * child")
+        assertTrue(
+          sibling == Right(
+            Doc(
+              Chunk(
+                OrderedList(
+                  10,
+                  Chunk(
+                    ListItem(Chunk(Paragraph(Chunk(Text("parent")))), None),
+                    ListItem(Chunk(Paragraph(Chunk(Text("sibling")))), None)
+                  ),
+                  tight = true
+                )
+              )
+            )
+          ),
+          nested == Right(
+            Doc(
+              Chunk(
+                OrderedList(
+                  10,
+                  Chunk(
+                    ListItem(
+                      Chunk(
+                        Paragraph(Chunk(Text("parent"))),
+                        BulletList(
+                          Chunk(ListItem(Chunk(Paragraph(Chunk(Text("child")))), None)),
+                          tight = true
+                        )
+                      ),
+                      None
+                    )
+                  ),
+                  tight = true
+                )
+              )
+            )
+          )
+        )
+      },
       test("parses ordered list") {
         val input  = "1. first\n2. second"
         val result = Parser.parse(input)
