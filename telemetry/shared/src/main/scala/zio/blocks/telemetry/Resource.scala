@@ -23,6 +23,12 @@ package zio.blocks.telemetry
  * application/service generating the telemetry data. A Resource typically
  * includes semantic attributes like service.name, service.version, and
  * deployment environment.
+ *
+ * Note: this is the OpenTelemetry resource (data identity: ''what produced this
+ * telemetry''). It is not the same as `zio.blocks.scope.Resource` (lifecycle:
+ * ''how a value is acquired and released in a scope''). The names collide
+ * across modules (which cannot link to each other here); they share nothing
+ * else.
  */
 final case class Resource(attributes: Attributes)
 

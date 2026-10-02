@@ -873,6 +873,35 @@ object ScopeSpec extends ZIOSpecDefault {
         child.defer { finalizerRan = true }
         assertTrue(child.isClosed, !finalizerRan)
       },
+      test("closed-scope trio behaves as documented in one scope") {
+        val child = new Scope.Child[Scope.global.type](
+          Scope.global,
+          new zio.blocks.scope.internal.Finalizers,
+          PlatformScope.captureOwner()
+        )
+        child.close()
+        var finalizerRan   = false
+        val handle         = child.defer { finalizerRan = true }
+        val allocateThrows = try {
+          child.allocate(Resource(new Database))
+          false
+        } catch {
+          case _: IllegalStateException => true
+        }
+        val openThrows = try {
+          child.open()
+          false
+        } catch {
+          case _: IllegalStateException => true
+        }
+        assertTrue(
+          child.isClosed,
+          handle == DeferHandle.Noop,
+          !finalizerRan,
+          allocateThrows,
+          openThrows
+        )
+      },
       test("global scope isClosed is always false") {
         assertTrue(!Scope.global.isClosed)
       }

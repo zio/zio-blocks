@@ -170,6 +170,22 @@ object B3PropagatorSpec extends ZIOSpecDefault {
       val headers = Map("b3" -> "   ")
       val result  = B3Propagator.single.extract(headers, getter)
       assertTrue(result.isEmpty)
+    },
+    test("parses unknown sampling marker as unsampled") {
+      val headers = Map("b3" -> s"$traceIdHex-$spanIdHex-2")
+      val result  = B3Propagator.single.extract(headers, getter)
+      assertTrue(
+        result.isDefined &&
+          !result.get.traceFlags.isSampled
+      )
+    },
+    test("ignores a trailing empty segment") {
+      val headers = Map("b3" -> s"$traceIdHex-$spanIdHex-1-")
+      val result  = B3Propagator.single.extract(headers, getter)
+      assertTrue(
+        result.isDefined &&
+          result.get.traceFlags.isSampled
+      )
     }
   )
 
@@ -400,6 +416,42 @@ object B3PropagatorSpec extends ZIOSpecDefault {
       )
       val result = B3Propagator.multi.extract(headers, getter)
       assertTrue(result.isEmpty)
+    },
+    test("accepts the true form of X-B3-Sampled") {
+      val headers = Map(
+        "X-B3-TraceId" -> traceIdHex,
+        "X-B3-SpanId"  -> spanIdHex,
+        "X-B3-Sampled" -> "true"
+      )
+      val result = B3Propagator.multi.extract(headers, getter)
+      assertTrue(
+        result.isDefined &&
+          result.get.traceFlags.isSampled
+      )
+    },
+    test("accepts case-insensitive True for X-B3-Sampled") {
+      val headers = Map(
+        "X-B3-TraceId" -> traceIdHex,
+        "X-B3-SpanId"  -> spanIdHex,
+        "X-B3-Sampled" -> "True"
+      )
+      val result = B3Propagator.multi.extract(headers, getter)
+      assertTrue(
+        result.isDefined &&
+          result.get.traceFlags.isSampled
+      )
+    },
+    test("debug X-B3-Flags implies sampled") {
+      val headers = Map(
+        "X-B3-TraceId" -> traceIdHex,
+        "X-B3-SpanId"  -> spanIdHex,
+        "X-B3-Flags"   -> "1"
+      )
+      val result = B3Propagator.multi.extract(headers, getter)
+      assertTrue(
+        result.isDefined &&
+          result.get.traceFlags.isSampled
+      )
     }
   )
 
