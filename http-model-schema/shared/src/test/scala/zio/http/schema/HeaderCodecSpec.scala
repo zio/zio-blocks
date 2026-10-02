@@ -97,21 +97,21 @@ object HeaderCodecSpec extends ZIOSpecDefault {
       val wrapperCodec = Schema[UserId].derive(DefaultHeaderFormat)
 
       assertTrue(
-        intCodec.encodeToHeaders(42).rawGet("Value").contains("42"),
+        intCodec.encodeToHeaders(42).rawGet("value").contains("42"),
         intCodec.decode(Headers("value" -> "42")) == Right(42),
-        listCodec.encodeToHeaders(List(1, 2)).rawGetAll("Value") == zio.blocks.chunk.Chunk("1", "2"),
+        listCodec.encodeToHeaders(List(1, 2)).rawGetAll("value") == zio.blocks.chunk.Chunk("1", "2"),
         listCodec.decode(Headers("value" -> "1", "value" -> "2")) == Right(List(1, 2)),
-        wrapperCodec.encodeToHeaders(UserId("wrapped")).rawGet("Value").contains("wrapped"),
+        wrapperCodec.encodeToHeaders(UserId("wrapped")).rawGet("value").contains("wrapped"),
         wrapperCodec.decode(Headers("value" -> "wrapped")) == Right(UserId("wrapped"))
       )
     },
     test("respects BindingInstance override for primitive codec") {
       val customIntCodec = new HeaderCodec[Int] {
         def encode(value: Int, output: HeadersBuilder): Unit =
-          output.add("Value", s"custom-$value")
+          output.add("value", s"custom-$value")
 
         def decode(input: Headers): Either[SchemaError, Int] = {
-          val raw = input.rawGet("Value")
+          val raw = input.rawGet("value")
           raw match {
             case Some(s) if s.startsWith("custom-") =>
               Right(s.stripPrefix("custom-").toInt)
@@ -125,7 +125,7 @@ object HeaderCodecSpec extends ZIOSpecDefault {
       val encoded = codec.encodeToHeaders(42)
 
       assertTrue(
-        encoded.rawGet("Value").contains("custom-42"),
+        encoded.rawGet("value").contains("custom-42"),
         codec.decode(encoded) == Right(42)
       )
     },
