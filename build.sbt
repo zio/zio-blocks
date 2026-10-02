@@ -1533,7 +1533,7 @@ lazy val `streams-benchmark` = project
       "io.getkyo" %% "kyo-prelude" % "1.0.0-RC7",
       "io.getkyo" %% "kyo-core"    % "1.0.0-RC7",
       // Ox — direct-style streaming (SoftwareMill, Scala 3 only)
-      "com.softwaremill.ox" %% "core" % "1.0.8"
+      "com.softwaremill.ox" %% "core" % "1.0.9"
     ),
     assembly / assemblyJarName       := "streams-benchmark.jar",
     assembly / assemblyMergeStrategy := {
