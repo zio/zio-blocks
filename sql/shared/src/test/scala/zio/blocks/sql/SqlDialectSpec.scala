@@ -109,6 +109,11 @@ object SqlDialectSpec extends ZIOSpecDefault {
           SqlDialect.PostgreSQL.typeName(DbValue.DbArray("varchar", IndexedSeq("a"))) == "TEXT[]"
         )
       },
+      test("DbJsonb -> JSONB") {
+        assertTrue(
+          SqlDialect.PostgreSQL.typeName(DbValue.DbJsonb("""{"a":1}""")) == "JSONB"
+        )
+      },
       test("paramPlaceholder(1) -> ?") {
         assertTrue(SqlDialect.PostgreSQL.paramPlaceholder(1) == "?")
       },
@@ -196,6 +201,11 @@ object SqlDialectSpec extends ZIOSpecDefault {
       test("DbArray renders as TEXT instead of throwing") {
         assertTrue(
           SqlDialect.SQLite.typeName(DbValue.DbArray("varchar", IndexedSeq("a"))) == "TEXT"
+        )
+      },
+      test("DbJsonb -> TEXT") {
+        assertTrue(
+          SqlDialect.SQLite.typeName(DbValue.DbJsonb("""{"a":1}""")) == "TEXT"
         )
       },
       test("paramPlaceholder(1) -> ?") {
