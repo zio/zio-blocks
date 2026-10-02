@@ -283,7 +283,7 @@ object CiWorkflow {
             """rm -rf target/sql-dumps
               |sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.9.0; sqlJVM/Test/clean; sqlJVM/Test/compile"
               |test -d target/sql-dumps && ls -R target/sql-dumps
-              |sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.9.0; sqlJVM/testOnly zio.blocks.sql.ExplainDumpGoldenSpec"""".stripMargin
+              |sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.9.0; sqlJVM/testOnly zio.blocks.sql.ExplainDumpGoldenSpec zio.blocks.sql.TypedDumpFailClosedSpec"""".stripMargin
           )
         ),
         SingleStep(

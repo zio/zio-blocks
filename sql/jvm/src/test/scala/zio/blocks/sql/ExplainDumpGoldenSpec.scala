@@ -31,10 +31,10 @@ private object Ir2JoinFixture {
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
   case class Star(userId: Int, repoId: Int)
   object Star { implicit val schema: Schema[Star] = Schema.derived }
-  val userTable               = Table.derived[User]
-  val repoTable               = Table.derived[Repo]
-  val starTable               = Table.derived[Star]
-  inline def query: Qry[User] =
+  val userTable                  = Table.derived[User]
+  val repoTable                  = Table.derived[Repo]
+  val starTable                  = Table.derived[Star]
+  inline def query: Qry[User, ?] =
     Qry
       .from(userTable)
       .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
@@ -48,9 +48,9 @@ private object IrFullFixture {
   object User { implicit val schema: Schema[User] = Schema.derived }
   case class Repo(id: Int, ownerId: Int, name: String)
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
-  val userTable               = Table.derived[User]
-  val repoTable               = Table.derived[Repo]
-  inline def query: Qry[User] =
+  val userTable                  = Table.derived[User]
+  val repoTable                  = Table.derived[Repo]
+  inline def query: Qry[User, ?] =
     Qry
       .from(userTable)
       .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
@@ -65,16 +65,16 @@ private object IrFullFixture {
 private object IrWhereFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable               = Table.derived[User]
-  inline def query: Qry[User] =
+  val userTable                  = Table.derived[User]
+  inline def query: Qry[User, ?] =
     Qry.from(userTable).filter(Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("alice"))))
   Dump.dumpQuery(query)
 }
 private object IrIn3Fixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable               = Table.derived[User]
-  inline def query: Qry[User] =
+  val userTable                  = Table.derived[User]
+  inline def query: Qry[User, ?] =
     Qry
       .from(userTable)
       .filter(
@@ -88,8 +88,8 @@ private object IrIn3Fixture {
 private object IrIn1Fixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable               = Table.derived[User]
-  inline def query: Qry[User] =
+  val userTable                  = Table.derived[User]
+  inline def query: Qry[User, ?] =
     Qry
       .from(userTable)
       .filter(
@@ -100,8 +100,8 @@ private object IrIn1Fixture {
 private object IrIn2Fixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable               = Table.derived[User]
-  inline def query: Qry[User] =
+  val userTable                  = Table.derived[User]
+  inline def query: Qry[User, ?] =
     Qry
       .from(userTable)
       .filter(
@@ -112,8 +112,8 @@ private object IrIn2Fixture {
 private object IrIn5Fixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable               = Table.derived[User]
-  inline def query: Qry[User] =
+  val userTable                  = Table.derived[User]
+  inline def query: Qry[User, ?] =
     Qry
       .from(userTable)
       .filter(
@@ -127,17 +127,17 @@ private object IrIn5Fixture {
 private object IrInEmptyFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable               = Table.derived[User]
-  inline def query: Qry[User] =
+  val userTable                  = Table.derived[User]
+  inline def query: Qry[User, ?] =
     Qry.from(userTable).filter(Frag.literal("t0.\"id\" IN (NULL)"))
   Dump.dumpQuery(query)
 }
 private object IrDynamicFixture {
   case class DynUser(id: Int, name: String)
   object DynUser { implicit val schema: Schema[DynUser] = Schema.derived }
-  val dynTable                   = Table.derived[DynUser]
-  def dynIds: IndexedSeq[Int]    = scala.util.Random.shuffle(Seq(1, 2, 3)).toIndexedSeq
-  inline def query: Qry[DynUser] =
+  val dynTable                      = Table.derived[DynUser]
+  def dynIds: IndexedSeq[Int]       = scala.util.Random.shuffle(Seq(1, 2, 3)).toIndexedSeq
+  inline def query: Qry[DynUser, ?] =
     Qry
       .from(dynTable)
       .filter(
@@ -152,10 +152,10 @@ private object IrJoinFixture {
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
   case class Star(userId: Int, repoId: Int)
   object Star { implicit val schema: Schema[Star] = Schema.derived }
-  val userTable               = Table.derived[User]
-  val repoTable               = Table.derived[Repo]
-  val starTable               = Table.derived[Star]
-  inline def query: Qry[User] =
+  val userTable                  = Table.derived[User]
+  val repoTable                  = Table.derived[Repo]
+  val starTable                  = Table.derived[Star]
+  inline def query: Qry[User, ?] =
     Qry
       .from(userTable)
       .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))

@@ -1122,6 +1122,7 @@ Pair `Dump.dumpTable` with `previewSql()` for a fuller picture: `dumpTable` capt
 
 ## Going Further
 
+- **[Typed Relational Query Layer](./sql-query-dsl.md)** -- Production query API: relations, joins, scoped expressions, typed projections, and execution
 - **[Part 1: Expressions](./query-dsl-reified-optics.md)** -- Building query expressions with reified optics
 - **[Part 3: Extending the Expression Language](./query-dsl-extending.md)** -- Adding custom operators (IN, BETWEEN, aggregates) beyond SchemaExpr
 - **[Part 4: A Fluent SQL Builder](./query-dsl-fluent-builder.md)** -- Type-safe SELECT, UPDATE, INSERT, DELETE with seamless condition mixing

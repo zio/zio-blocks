@@ -1614,6 +1614,11 @@ lazy val docs = project
   .in(file("zio-blocks-docs"))
   .settings(
     moduleName := "zio-blocks-docs",
+    // Docs must compile with the same Scala 3 feature release as its dependsOn
+    // modules (async/streams at 3.9.0). The website plugin defaults docs to
+    // 3.8.3, whose compiler cannot read 3.9.0 TASTy (28.9 > 28.8 max).
+    scalaVersion       := Scala3,
+    crossScalaVersions := Seq(Scala3, Scala33, Scala213),
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
     scalacOptions += "-experimental",
