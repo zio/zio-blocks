@@ -19,6 +19,15 @@ package zio.blocks.schema.csv
 /**
  * Configuration for CSV parsing and generation.
  *
+ * ==Unquoted whitespace policy==
+ *   - Unquoted fields preserve leading and trailing spaces exactly as written
+ *     (RFC 4180: spaces are part of the field, no trimming is performed). For
+ *     example the row `{{{"  a  ",b}}}` parses to the fields `"  a  "` and
+ *     `"b"`.
+ *   - Quoted fields preserve their exact content, including spaces, delimiters
+ *     and embedded newlines; a quote character inside a quoted field is written
+ *     doubled per RFC 4180.
+ *
  * @param delimiter
  *   The character used to separate fields (default: ',')
  * @param quoteChar
