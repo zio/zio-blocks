@@ -142,7 +142,7 @@ Jwt.sign(claims, key, Algorithm.HS256, hdr)
 | ES512     | ✓   | ✓            | —         | P-521 (`secp521r1`, 66-byte components) |
 | EdDSA     | ✓   | —            | —         | Ed25519 |
 
-Keys shorter than the HWA minima are rejected with `InvalidKey` (not `UnsupportedAlgorithm` or `InvalidToken`). RSA <2048 bits and EC curve mismatches (e.g. `ES256` with `secp384r1`) are also rejected with `InvalidKey`.
+Keys shorter than the HWA minima are rejected with `InvalidKey` (not `UnsupportedAlgorithm` or `InvalidToken`). RSA &lt;2048 bits and EC curve mismatches (e.g. `ES256` with `secp384r1`) are also rejected with `InvalidKey`.
 
 Query what a backend supports at runtime:
 
