@@ -1,5 +1,6 @@
 ---
 id: endpoint
+slug: /reference/endpoint/endpoint
 title: "Endpoint"
 ---
 

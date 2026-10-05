@@ -11,6 +11,7 @@ const config = {
   url: 'https://localhost:3000',
   baseUrl: '/',
   onBrokenLinks: 'throw',
+  onDuplicateRoutes: 'throw',
   markdown: {
     hooks: {
       onBrokenMarkdownLinks: 'throw',

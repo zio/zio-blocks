@@ -1189,7 +1189,7 @@ lazy val `schema-thrift` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.apache.thrift"  % "libthrift"              % "0.24.0",
+      "org.apache.thrift"  % "libthrift"              % "0.25.0",
       "jakarta.annotation" % "jakarta.annotation-api" % "3.0.0",
       "dev.zio"           %% "zio-test"               % "2.1.26" % Test,
       "dev.zio"           %% "zio-test-sbt"           % "2.1.26" % Test
@@ -1533,7 +1533,7 @@ lazy val `streams-benchmark` = project
       "io.getkyo" %% "kyo-prelude" % "1.0.0-RC7",
       "io.getkyo" %% "kyo-core"    % "1.0.0-RC7",
       // Ox — direct-style streaming (SoftwareMill, Scala 3 only)
-      "com.softwaremill.ox" %% "core" % "1.0.8"
+      "com.softwaremill.ox" %% "core" % "1.0.9"
     ),
     assembly / assemblyJarName       := "streams-benchmark.jar",
     assembly / assemblyMergeStrategy := {
@@ -1559,7 +1559,7 @@ lazy val `schema-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.8.0"
+      "dev.zio"     %% "zio-sbt-source" % "0.8.5"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1587,7 +1587,7 @@ lazy val `streams-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.8.0"
+      "dev.zio"     %% "zio-sbt-source" % "0.8.5"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1635,7 +1635,7 @@ lazy val docs = project
     publish / skip                             := true,
     libraryDependencies ++= Seq(
       "dev.zio"   %% "zio-prelude"    % "1.0.0-RC48",
-      "dev.zio"   %% "zio-sbt-source" % "0.8.0",
+      "dev.zio"   %% "zio-sbt-source" % "0.8.5",
       "org.xerial" % "sqlite-jdbc"    % "3.53.2.0"
     ),
     // Override @PROJECT_BADGES@ to exclude the javadoc badge and to anchor the Maven Central /
