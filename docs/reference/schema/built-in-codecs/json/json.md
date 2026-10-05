@@ -1,5 +1,6 @@
 ---
 id: json
+slug: /reference/schema/built-in-codecs/json/json
 title: "Json"
 ---
 
