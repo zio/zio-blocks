@@ -1,6 +1,6 @@
 ---
 id: index
-title: "Resource Management & Dependency Injection"
+title: "Resource Management"
 ---
 
 ## Introduction

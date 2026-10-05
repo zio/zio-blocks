@@ -1,7 +1,7 @@
 ---
 id: index
-title: "Config"
-sidebar_label: "Config"
+title: "Configuration & Feature Flags"
+sidebar_label: "Configuration & Feature Flags"
 ---
 
 `zio.blocks.config` loads typed configuration from string-keyed sources, tracks where every resolved value came from, and evaluates feature flags with percentage-based rollouts. The module is synchronous and zero-dependency. Core types: `ConfigSource`, `ConfigDecoder`, `ConfigError`, `Provenance`, `FlagSource`, `StaticFlag`, `DynamicFlag`, `Rollout`. The shapes at the center of the module:

@@ -8,131 +8,141 @@ const sidebars = {
       items: [
          {
            type: "category",
-           label: "Schema",
-           link: { type: "doc", id: "reference/schema/index" },
+           label: "Meta Programming",
            items: [
              {
                type: "category",
-               label: "Core Type System",
-               collapsed: false,
-               items: [
-                 "reference/schema/schema",
-                 "reference/schema/reflect",
-                 "reference/schema/binding",
-                 "reference/schema/registers",
-                 "reference/schema/binding-resolver",
-                 "reference/schema/reflect-transformer",
-                 "reference/schema/modifier",
-                 "reference/schema/structural-types",
-               ]
-             },
-             {
-               type: "category",
-               label: "Dynamic Values",
-               collapsed: false,
-               items: [
-                 "reference/schema/dynamic-value",
-                 "reference/schema/dynamic-schema",
-               ]
-             },
-             {
-               type: "category",
-               label: "Reflective Optics",
-               collapsed: false,
-               items: [
-                 "reference/schema/optics",
-                 "reference/schema/dynamic-optic",
-                 "reference/schema/path-interpolator",
-                 "reference/schema/schema-search",
-                 "reference/schema/schema-expr",
-                 "reference/schema/patch",
-               ]
-             },
-             {
-               type: "category",
-               label: "Serialization",
-               collapsed: false,
-               items: [
-                 "reference/schema/type-class-derivation",
-                 "reference/schema/codec",
-                 "reference/schema/format",
-                 "reference/schema/lazy",
-               ]
-             },
-             {
-               type: "category",
-               label: "Built-in Formats and Codecs",
-               link: { type: "doc", id: "reference/schema/built-in-codecs/index" },
-               collapsed: false,
+               label: "Schema",
+               link: { type: "doc", id: "reference/schema/index" },
                items: [
                  {
                    type: "category",
-                   label: "JSON Codec",
-                   link: { type: "doc", id: "reference/schema/built-in-codecs/json/index" },
+                   label: "Core Type System",
                    collapsed: false,
                    items: [
-                     "reference/schema/built-in-codecs/json/json",
-                     "reference/schema/built-in-codecs/json/json-config",
-                     "reference/schema/built-in-codecs/json/json-patch",
-                     "reference/schema/built-in-codecs/json/json-differ",
-                     "reference/schema/built-in-codecs/json/json-selection",
-                     "reference/schema/built-in-codecs/json/json-schema",
+                     "reference/schema/schema",
+                     "reference/schema/reflect",
+                     "reference/schema/binding",
+                     "reference/schema/registers",
+                     "reference/schema/binding-resolver",
+                     "reference/schema/reflect-transformer",
+                     "reference/schema/modifier",
+                     "reference/schema/structural-types",
                    ]
                  },
-                 "reference/schema/built-in-codecs/avro",
-                 "reference/schema/built-in-codecs/bson",
-                 "reference/schema/built-in-codecs/csv",
-                 "reference/schema/built-in-codecs/messagepack",
-                 "reference/schema/built-in-codecs/thrift",
-                 "reference/schema/built-in-codecs/toon",
-                 "reference/schema/built-in-codecs/xml",
-                 "reference/schema/built-in-codecs/yaml",
+                 {
+                   type: "category",
+                   label: "Dynamic Values",
+                   collapsed: false,
+                   items: [
+                     "reference/schema/dynamic-value",
+                     "reference/schema/dynamic-schema",
+                   ]
+                 },
+                 {
+                   type: "category",
+                   label: "Reflective Optics",
+                   collapsed: false,
+                   items: [
+                     "reference/schema/optics",
+                     "reference/schema/dynamic-optic",
+                     "reference/schema/path-interpolator",
+                     "reference/schema/schema-search",
+                     "reference/schema/schema-expr",
+                     "reference/schema/patch",
+                   ]
+                 },
+                 {
+                   type: "category",
+                   label: "Serialization",
+                   collapsed: false,
+                   items: [
+                     "reference/schema/type-class-derivation",
+                     "reference/schema/codec",
+                     "reference/schema/format",
+                     "reference/schema/lazy",
+                   ]
+                 },
+                 {
+                   type: "category",
+                   label: "Built-in Formats and Codecs",
+                   link: { type: "doc", id: "reference/schema/built-in-codecs/index" },
+                   collapsed: false,
+                   items: [
+                     {
+                       type: "category",
+                       label: "JSON Codec",
+                       link: { type: "doc", id: "reference/schema/built-in-codecs/json/index" },
+                       collapsed: false,
+                       items: [
+                         "reference/schema/built-in-codecs/json/json",
+                         "reference/schema/built-in-codecs/json/json-config",
+                         "reference/schema/built-in-codecs/json/json-patch",
+                         "reference/schema/built-in-codecs/json/json-differ",
+                         "reference/schema/built-in-codecs/json/json-selection",
+                         "reference/schema/built-in-codecs/json/json-schema",
+                       ]
+                     },
+                     "reference/schema/built-in-codecs/avro",
+                     "reference/schema/built-in-codecs/bson",
+                     "reference/schema/built-in-codecs/csv",
+                     "reference/schema/built-in-codecs/messagepack",
+                     "reference/schema/built-in-codecs/thrift",
+                     "reference/schema/built-in-codecs/toon",
+                     "reference/schema/built-in-codecs/xml",
+                     "reference/schema/built-in-codecs/yaml",
+                   ]
+                 },
+                 {
+                   type: "category",
+                   label: "Validation & Errors",
+                   collapsed: false,
+                   items: [
+                     "reference/schema/validation",
+                     "reference/schema/schema-error",
+                     "reference/schema/allows",
+                   ]
+                 },
+                  {
+                    type: "category",
+                    label: "Schema Evolution",
+                    link: { type: "doc", id: "reference/schema/schema-evolution/index" },
+                    items: [
+                      "reference/schema/schema-evolution/into",
+                      "reference/schema/schema-evolution/as",
+                      "reference/schema/migration",
+                    ]
+                  },
+                 "reference/schema/syntax",
                ]
              },
-             {
-               type: "category",
-               label: "Validation & Errors",
-               collapsed: false,
-               items: [
-                 "reference/schema/validation",
-                 "reference/schema/schema-error",
-                 "reference/schema/allows",
-               ]
-             },
-              {
-                type: "category",
-                label: "Schema Evolution",
-                link: { type: "doc", id: "reference/schema/schema-evolution/index" },
-                items: [
-                  "reference/schema/schema-evolution/into",
-                  "reference/schema/schema-evolution/as",
-                  "reference/schema/migration",
-                ]
-              },
-             "reference/schema/syntax",
+             "reference/typeid",
            ]
          },
-         "reference/typeid",
-         "reference/context",
          {
            type: "category",
-           label: "Resource Management & DI",
+           label: "Resource Management",
            link: { type: "doc", id: "reference/resource-management/index" },
            items: [
              "reference/resource-management/scope",
              "reference/resource-management/resource",
-             "reference/resource-management/wire",
              "reference/resource-management/unscoped",
              "reference/resource-management/defer-handle",
              "reference/resource-management/finalizer",
              "reference/resource-management/finalization",
            ]
-          },
-          "reference/combinators",
-          "reference/docs",
+         },
          {
            type: "category",
-           label: "Config",
+           label: "Dependency Injection",
+           items: [
+             "reference/resource-management/wire",
+             "reference/context",
+           ]
+         },
+         {
+           type: "category",
+           label: "Configuration & Feature Flags",
            link: { type: "doc", id: "reference/config/index" },
            items: [
              "reference/config/config-source",
@@ -143,96 +153,98 @@ const sidebars = {
              "reference/config/formats",
            ]
          },
-          "reference/media-type",
-         {
-           type: "category",
-           label: "Code Generation",
-           link: { type: "doc", id: "reference/codegen/index" },
-           items: [
-             "reference/codegen/scala-file",
-             "reference/codegen/type-definition",
-             "reference/codegen/case-class",
-             "reference/codegen/sealed-trait",
-             "reference/codegen/field",
-             "reference/codegen/type-ref",
-             "reference/codegen/scala-emitter",
-             "reference/codegen/emitter-config",
-             "reference/codegen/examples",
-           ]
-         },
           {
             type: "category",
-            label: "HTTP Model",
-            link: { type: "doc", id: "reference/http-model/index" },
+            label: "Web & HTTP",
             items: [
-              "reference/http-model/model",
-              "reference/http-model/headers",
-              "reference/http-model/server-sent-event",
-              "reference/http-model/schema",
-              "reference/http-model/schema-codecs",
+              "reference/media-type",
+              {
+                type: "category",
+                label: "HTTP Model",
+                link: { type: "doc", id: "reference/http-model/index" },
+                items: [
+                  "reference/http-model/model",
+                  "reference/http-model/headers",
+                  "reference/http-model/server-sent-event",
+                  "reference/http-model/schema",
+                  "reference/http-model/schema-codecs",
+                ]
+              },
+              {
+                type: "category",
+                label: "Endpoint",
+                link: { type: "doc", id: "reference/endpoint/index" },
+                items: [
+                  "reference/endpoint/endpoint",
+                  "reference/endpoint/bulk-creation",
+                  "reference/endpoint/http-codec",
+                  "reference/endpoint/route-pattern",
+                  "reference/endpoint/path-codec",
+                  "reference/endpoint/segment-codec",
+                  "reference/endpoint/auth-type",
+                  "reference/endpoint/route-tree",
+                ]
+              },
+              "reference/openapi",
+              "reference/jwt",
+              "reference/html",
+             {
+                type: "category",
+                label: "Datastar",
+               link: { type: "doc", id: "reference/datastar/index" },
+               items: [
+                 "reference/datastar/signals",
+                 "reference/datastar/attributes",
+                 "reference/datastar/events",
+                 "reference/datastar/sse",
+               ]
+             },
+              {
+                type: "category",
+                label: "HTMX",
+                link: { type: "doc", id: "reference/htmx/index" },
+                items: [
+                  "reference/htmx/hx-swap",
+                  "reference/htmx/hx-trigger",
+                  "reference/htmx/hx-target",
+                  "reference/htmx/hx-params",
+                  "reference/htmx/hx-url-update",
+                  "reference/htmx/hx-encoding",
+                  "reference/htmx/hx-sync",
+                  "reference/htmx/attribute-values",
+                  "reference/htmx/response-headers",
+                ]
+              },
+            ],
+          },
+          {
+            type: "category",
+            label: "Data Types",
+            items: [
+              "reference/chunk",
+              "reference/maybe",
+              "reference/combinators",
             ]
           },
           {
             type: "category",
-            label: "Endpoint",
-            link: { type: "doc", id: "reference/endpoint/index" },
+            label: "Concurrency",
             items: [
-              "reference/endpoint/endpoint",
-              "reference/endpoint/bulk-creation",
-              "reference/endpoint/http-codec",
-              "reference/endpoint/route-pattern",
-              "reference/endpoint/path-codec",
-              "reference/endpoint/segment-codec",
-              "reference/endpoint/auth-type",
-              "reference/endpoint/route-tree",
-            ]
-          },
-          "reference/chunk",
-          "reference/maybe",
-          "reference/async",
-          "reference/mux",
-          {
-            type: "category",
-            label: "RingBuffer",
-            link: { type: "doc", id: "reference/ringbuffer/index" },
-            items: [
-              "reference/ringbuffer/spsc",
-              "reference/ringbuffer/spmc",
-              "reference/ringbuffer/mpsc",
-              "reference/ringbuffer/mpmc",
-              "reference/ringbuffer/advanced",
-            ]
-          },
-          "reference/html",
-          "reference/smithy",
-          "reference/openapi",
-          "reference/jwt",
-         {
-            type: "category",
-            label: "Datastar",
-           link: { type: "doc", id: "reference/datastar/index" },
-           items: [
-             "reference/datastar/signals",
-             "reference/datastar/attributes",
-             "reference/datastar/events",
-             "reference/datastar/sse",
-           ]
-         },
-          {
-            type: "category",
-            label: "HTMX",
-            link: { type: "doc", id: "reference/htmx/index" },
-            items: [
-              "reference/htmx/hx-swap",
-              "reference/htmx/hx-trigger",
-              "reference/htmx/hx-target",
-              "reference/htmx/hx-params",
-              "reference/htmx/hx-url-update",
-              "reference/htmx/hx-encoding",
-              "reference/htmx/hx-sync",
-              "reference/htmx/attribute-values",
-              "reference/htmx/response-headers",
-            ]
+              "reference/async",
+              "reference/mux",
+              {
+                type: "category",
+                label: "RingBuffer",
+                link: { type: "doc", id: "reference/ringbuffer/index" },
+                items: [
+                  "reference/ringbuffer/spsc",
+                  "reference/ringbuffer/spmc",
+                  "reference/ringbuffer/mpsc",
+                  "reference/ringbuffer/mpmc",
+                  "reference/ringbuffer/advanced",
+                ]
+              },
+            ],
           },
           {
             type: "category",
@@ -274,49 +286,6 @@ const sidebars = {
               },
             ]
           },
-          {
-            type: "category",
-            label: "SQL",
-            link: { type: "doc", id: "reference/sql/index" },
-            items: [
-              {
-                type: "category",
-                label: "Core Types",
-                collapsed: false,
-                items: [
-                  "reference/sql/db-codec",
-                  "reference/sql/frag",
-                  "reference/sql/table",
-                  "reference/sql/repo",
-                  "reference/sql/transactor",
-                  "reference/sql/db-con",
-                  "reference/sql/db-tx",
-                ],
-              },
-              {
-                type: "category",
-                label: "Supporting Types",
-                collapsed: false,
-                items: [
-                  "reference/sql/db-value",
-                  "reference/sql/db-param",
-                  "reference/sql/sql-dialect",
-                  "reference/sql/sql-logger",
-                  "reference/sql/sql-name-mapper",
-                  "reference/sql/table-metadata",
-                  "reference/sql/ddl",
-                  "reference/sql/db-connection",
-                  "reference/sql/db-result-reader",
-                  "reference/sql/db-param-writer",
-                  "reference/sql/db-codec-deriver",
-                  "reference/sql/transactor-zio",
-                ],
-              },
-            ],
-          },
-          "reference/sql-zio",
-          "reference/data-migration",
-          "reference/projection",
           {
             type: "category",
             label: "Telemetry",
@@ -391,6 +360,79 @@ const sidebars = {
                   "reference/telemetry/otel/custom-exporter",
                 ]
               },
+            ]
+          },
+          {
+            type: "category",
+            label: "Persistence",
+            items: [
+            {
+              type: "category",
+              label: "SQL Module",
+              link: { type: "doc", id: "reference/sql/index" },
+              items: [
+                {
+                  type: "category",
+                  label: "Core Types",
+                  collapsed: false,
+                  items: [
+                    "reference/sql/db-codec",
+                    "reference/sql/frag",
+                    "reference/sql/table",
+                    "reference/sql/repo",
+                    "reference/sql/transactor",
+                    "reference/sql/db-con",
+                    "reference/sql/db-tx",
+                  ],
+                },
+                {
+                  type: "category",
+                  label: "Supporting Types",
+                  collapsed: false,
+                  items: [
+                    "reference/sql/db-value",
+                    "reference/sql/db-param",
+                    "reference/sql/sql-dialect",
+                    "reference/sql/sql-logger",
+                    "reference/sql/sql-name-mapper",
+                    "reference/sql/table-metadata",
+                    "reference/sql/ddl",
+                    "reference/sql/db-connection",
+                    "reference/sql/db-result-reader",
+                    "reference/sql/db-param-writer",
+                    "reference/sql/db-codec-deriver",
+                    "reference/sql/transactor-zio",
+                  ],
+                },
+              ],
+            },
+                "reference/sql-zio",
+                "reference/data-migration",
+                "reference/projection",
+            ],
+          },
+          {
+            type: "category",
+            label: "Tooling & Codegen",
+            items: [
+              {
+                type: "category",
+                label: "Code Generation",
+                link: { type: "doc", id: "reference/codegen/index" },
+                items: [
+                  "reference/codegen/scala-file",
+                  "reference/codegen/type-definition",
+                  "reference/codegen/case-class",
+                  "reference/codegen/sealed-trait",
+                  "reference/codegen/field",
+                  "reference/codegen/type-ref",
+                  "reference/codegen/scala-emitter",
+                  "reference/codegen/emitter-config",
+                  "reference/codegen/examples",
+                ]
+              },
+              "reference/docs",
+              "reference/smithy",
             ]
           },
         ]
