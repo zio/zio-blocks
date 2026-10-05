@@ -10,6 +10,7 @@ const config = {
   url: 'https://localhost:3000',
   baseUrl: '/',
   onBrokenLinks: 'throw',
+  onDuplicateRoutes: 'throw',
   onBrokenMarkdownLinks: 'throw',
   favicon: 'img/favicon.png',
 

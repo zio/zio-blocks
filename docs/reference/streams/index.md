@@ -738,4 +738,4 @@ Stream.fromIterable(List("10", "abc", "-3", "7", "0", "25"))
 - [Platform Differences](./execution-and-compatibility/platform-differences.md) -- which members exist on the JVM, on Scala.js, and on both
 - [Zero-Boxing Streams](./execution-and-compatibility/zero-boxing.md) -- the primitive lanes and how one is chosen
 - [Async](../async.md) -- the `Async` effect type the cross-platform terminals return
-- [Mux](../mux.md) -- coordinating many keyed streams over one shared transport
+- [Mux](../mux.mdx) -- coordinating many keyed streams over one shared transport
