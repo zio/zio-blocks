@@ -1,6 +1,9 @@
-addSbtPlugin("dev.zio" % "zio-sbt-website" % "0.8.5")
+// Snapshot carrying `docs/checkDocsOnFreshWebsite` (zio/zio-sbt#825); switch to the release once it is out.
+resolvers += "Sonatype Central Snapshots" at "https://central.sonatype.com/repository/maven-snapshots/"
 
-addSbtPlugin("dev.zio"            % "zio-sbt-ci"               % "0.8.5")
+addSbtPlugin("dev.zio" % "zio-sbt-website" % "0.8.5+5-36595aff-SNAPSHOT")
+
+addSbtPlugin("dev.zio"            % "zio-sbt-ci"               % "0.8.5+5-36595aff-SNAPSHOT")
 addSbtPlugin("com.timushev.sbt"   % "sbt-updates"              % "0.7.0")
 addSbtPlugin("pl.project13.scala" % "sbt-jmh"                  % "0.4.8")
 addSbtPlugin("com.eed3si9n"       % "sbt-assembly"             % "2.5.0")

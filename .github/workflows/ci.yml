@@ -57,6 +57,9 @@ jobs:
     - name: Check website build process
       if: ${{ hashFiles('website/yarn.lock') != '' }}
       run: yarn --cwd website build
+    - name: Check docs build on a fresh ZIO website
+      if: ${{ hashFiles('website/yarn.lock') != '' }}
+      run: sbt docs/checkDocsOnFreshWebsite
     - name: Upload website build artifact
       uses: actions/upload-artifact@v7
       if: ${{ (hashFiles('website/yarn.lock') != '') && (github.event_name == 'pull_request') }}

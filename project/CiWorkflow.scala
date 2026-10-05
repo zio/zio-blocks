@@ -129,6 +129,13 @@ object CiWorkflow {
           condition = Some(HasWebsite),
           run = Some("yarn --cwd website build")
         ),
+        // The committed website is on Docusaurus 2, which only warns about things the ZIO website's
+        // Docusaurus 3 rejects (duplicate doc ids, say). Build the same docs on a fresh scaffold.
+        SingleStep(
+          name = "Check docs build on a fresh ZIO website",
+          condition = Some(HasWebsite),
+          run = Some("sbt docs/checkDocsOnFreshWebsite")
+        ),
         SingleStep(
           name = "Upload website build artifact",
           uses = Some(ActionRef("actions/upload-artifact@v7")),
