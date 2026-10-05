@@ -1,6 +1,6 @@
 ---
 id: data-migration
-title: "SQL Data Migration"
+title: "Data Migration"
 ---
 
 The `zio.blocks.data.migration` module provides three execution models for evolving database schemas online. It builds on [`Migration[A, B]`](./schema/migration.md) for the typed row transformation and [`Repo[E, ID]`](./sql/index.md) for database access. No hand-written SQL, no XML, no Liquibase-style migration files.

@@ -1,6 +1,6 @@
 ---
 id: sql-zio
-title: "SQL — ZIO Integration"
+title: "ZIO Integration"
 ---
 
 `zio-blocks-sql-zio` is the ZIO adapter for `zio-blocks-sql`. It wraps the
