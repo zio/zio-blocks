@@ -3,10 +3,27 @@ id: projection
 title: "Projection"
 ---
 
-`zio-blocks-projection` provides event-sourced projections backed by per-entity
-SQLite files. Each projection type gets its own isolated `.db` file, giving you
-WAL-mode writes, offline queryability, and zero contention between unrelated
-entities.
+`zio-blocks-projection` provides event-sourced projections backed by per-entity SQLite files. Each projection type gets its own isolated `.db` file, giving you WAL-mode writes, offline queryability, and zero contention between unrelated entities.
+
+## Motivation
+
+An event store is a good record of what happened, but a poor place to ask what is true right now. Answering "what is Alice's current email?" or "how many orders were placed today?" from raw events means replaying history on every query. The usual fix is a read model: a table kept up to date as events arrive. Hand-written, that code tends to go wrong in the same few ways:
+
+- **Routing is scattered.** The knowledge that an `OrderPlaced` event must update the order, the customer's totals, and a daily counter lives in several handlers, so it is easy to miss one.
+- **Restarts are fragile.** The code has to catch up on events it missed while it was down, then switch to live events, without skipping or double-applying any.
+- **Event shapes change.** Once an event or a read model gains a field, old data no longer matches the code, and the read model has to be rebuilt by hand.
+- **Tests need infrastructure.** Verifying a handler usually means standing up a database and a stream.
+
+ZIO Blocks Projection addresses these by making a projection a declaration rather than a hand-rolled consumer. You state which event types a projection listens to, which entity each event belongs to, and how an event changes that entity. The engine then does the rest:
+
+- it reads historical events to catch up, then follows live events;
+- it routes each event to the entity (or entities) that should see it;
+- it detects a changed schema and rebuilds the read model lazily, with migrations available to map old event tags to new ones;
+- it stores each projection in its own SQLite file, so read models are isolated, individually backed up, and queryable offline.
+
+Because the same declaration runs against an in-memory store, you can test a projection by appending events and querying the result, with no database. The [Quick Start](#quick-start) shows the whole loop in about twenty lines.
+
+Projection is a good fit when you already treat events as the source of truth and want fast, local, query-friendly views of them. It is not a general query engine over arbitrary data, and the read models it maintains are derived state: they can always be discarded and rebuilt from the events.
 
 ## Installation
 
@@ -23,48 +40,32 @@ libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
 libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 ```
 
-`sqlite-jdbc` is `% Test` by default in `zio-blocks-projection`; consumers that
-want SQLite persistence at runtime must add the dependency above explicitly.
-If it is not present the engine falls back to `InMemoryProjectionStore`.
+`sqlite-jdbc` is `% Test` by default in `zio-blocks-projection`; consumers that want SQLite persistence at runtime must add the dependency above explicitly. If it is not present the engine falls back to `InMemoryProjectionStore`.
 
 ## Overview
 
-Projections turn an event stream into queryable read models. Instead of
-querying the event store directly, you define how events map to entities, and
-the engine materializes those entities into SQLite files you can read
-anytime.
+Projections turn an event stream into queryable read models. Instead of querying the event store directly, you define how events map to entities, and the engine materializes those entities into SQLite files you can read anytime.
 
 **Why per-entity SQLite?**
 
-A single shared database means every projection contends on the same locks,
-the same WAL, and the same file. With per-entity files, each projection type
-gets isolated storage:
+A single shared database means every projection contends on the same locks, the same WAL, and the same file. With per-entity files, each projection type gets isolated storage:
 
 | Approach | Contention | WAL contention | Offline access | Backup granularity |
-|----------|-----------|---------------|----------------|-------------------|
+| --- | --- | --- | --- | --- |
 | Single DB | High | High | Yes | Full DB |
 | Per-entity SQLite | Zero | Zero | Yes | Per projection |
 
-Each projection store lives at `<basePath>/<specName>.db`. Global
-aggregates go to `global/<specName>.db`. The `TransactorCache` reuses
-connections via an LRU cache so you don't open hundreds of file handles.
+Each projection store lives at `<basePath>/<specName>.db`. Global aggregates go to `global/<specName>.db`. The `TransactorCache` reuses connections via an LRU cache so you don't open hundreds of file handles.
 
 **Three projection scopes:**
 
-- **PerEntity** (default): one row per entity ID. Events routed by
-  `ctx.entityId`. Good for user profiles, order state, anything keyed by
-  a single ID.
-- **CrossEntity**: events routed by an arbitrary key extracted from the
-  event. Multiple event types converge on the same projection. Good for
-  "all repos owned by user X" views.
-- **Global**: a single shared row (or a few rows keyed by a grouping
-  string). Events from all sources funnel into atomic counter updates.
-  Good for dashboards, daily aggregates, live counters.
+- **PerEntity** (default): one row per entity ID. Events routed by `ctx.entityId`. Good for user profiles, order state, anything keyed by a single ID.
+- **CrossEntity**: events routed by an arbitrary key extracted from the event. Multiple event types converge on the same projection. Good for "all repos owned by user X" views.
+- **Global**: a single shared row (or a few rows keyed by a grouping string). Events from all sources funnel into atomic counter updates. Good for dashboards, daily aggregates, live counters.
 
 ## Quick Start
 
-Define your events, your projection entity, wire up a spec, and start the
-engine:
+Define your events, your projection entity, wire up a spec, and start the engine:
 
 ```scala mdoc:compile-only
 import zio.*
@@ -104,16 +105,11 @@ val program: ZIO[Scope, Throwable, Unit] = for {
 } yield ()
 ```
 
-The engine starts a catch-up fiber that reads all historical events, then
-switches to live mode via the Hub subscription. Query results appear once
-the engine processes the relevant events.
+The engine starts a catch-up fiber that reads all historical events, then switches to live mode via the Hub subscription. Query results appear once the engine processes the relevant events.
 
 ## Entity Path Conventions
 
-`EntityPath[A]` tells the engine two things: which folder stores the SQLite
-file, and which field holds the entity ID. The ID field is identified via
-`@Modifier.id` (from `zio.blocks.schema.Modifier`) or, for ergonomics, a
-field named `id`.
+`EntityPath[A]` tells the engine two things: which folder stores the SQLite file, and which field holds the entity ID. The ID field is identified via `@Modifier.id` (from `zio.blocks.schema.Modifier`) or, for ergonomics, a field named `id`.
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
@@ -142,8 +138,7 @@ object UserProfile {
 
 **Derivation rules** (`EntityPath.derived[A]`):
 
-1. Look for a field annotated with `@Modifier.id`. If found, use it as
-   the entity ID field.
+1. Look for a field annotated with `@Modifier.id`. If found, use it as the entity ID field.
 2. Otherwise, find the field named `id`.
 3. If neither is found, fail with `Entity must have @Modifier.id field`.
 4. Derive the folder name from the ID field name:
@@ -184,8 +179,7 @@ object MyEntity {
 
 ## Multi-Source Projections
 
-Cross-entity projections receive events from multiple sources and route them
-by a key extracted from the event:
+Cross-entity projections receive events from multiple sources and route them by a key extracted from the event:
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
@@ -211,23 +205,19 @@ val spec = Projection[RepoListEntry]("repoListEntries")
 // spec.scope == ProjectionScope.CrossEntity(extractor)
 ```
 
-The `routedBy` call tells the engine to extract a routing key from each
-event. Events with the same key go to the same shard store, so querying
-`engine.query(spec, "alice")` searches Alice's shard first.
+The `routedBy` call tells the engine to extract a routing key from each event. Events with the same key go to the same shard store, so querying `engine.query(spec, "alice")` searches Alice's shard first.
 
 **Routing modes:**
 
 | Mode | Behavior | Scope derived |
-|------|----------|---------------|
+| --- | --- | --- |
 | `.routeToSelf` | Uses `ctx.entityId` as key | `PerEntity` |
 | `.routedBy[E](_.field)` | Extracts key from event | `CrossEntity` |
 | `.routeToAll` | All events go to same store | `Global` (if `isGlobal`) |
 
 ## Aggregate Projections
 
-Global projections aggregate events from multiple sources into a single
-row (or a few rows keyed by a grouping string). The engine applies atomic
-counter updates:
+Global projections aggregate events from multiple sources into a single row (or a few rows keyed by a grouping string). The engine applies atomic counter updates:
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
@@ -263,31 +253,24 @@ val spec = Projection
 **FieldUpdate operations:**
 
 | Operation | SQL translation | Description |
-|-----------|----------------|-------------|
+| --- | --- | --- |
 | `Set(field, value)` | `SET col = ?` | Replace field value |
 | `Increment(field, by)` | `SET col = COALESCE(col,0) + ?` | Atomic increment |
 | `Decrement(field, by)` | `SET col = COALESCE(col,0) - ?` | Atomic decrement |
 | `Max(field, value)` | `SET col = MAX(COALESCE(col, ?), ?)` | Keep highest value |
 | `Min(field, value)` | `SET col = MIN(COALESCE(col, ?), ?)` | Keep lowest value |
 
-The `COALESCE` handles missing rows. The engine runs `INSERT OR IGNORE`
-before any `UPDATE`, so incrementing a counter that doesn't exist yet
-creates the row with value `1` (not `0 + 1`).
+The `COALESCE` handles missing rows. The engine runs `INSERT OR IGNORE` before any `UPDATE`, so incrementing a counter that doesn't exist yet creates the row with value `1` (not `0 + 1`).
 
-**Concurrent safety:** Counter operations are atomic at the SQL level. Ten
-fibers each incrementing the same counter produce the correct total without
-lost updates.
+**Concurrent safety:** Counter operations are atomic at the SQL level. Ten fibers each incrementing the same counter produce the correct total without lost updates.
 
 ## Schema Evolution
 
-When you change a projection entity's schema (add a field, rename a column),
-the engine detects the mismatch and rebuilds the projection from events.
+When you change a projection entity's schema (add a field, rename a column), the engine detects the mismatch and rebuilds the projection from events.
 
 ### How it works
 
-1. On startup, `ProjectionEngine` computes `SchemaHash.compute[A]` for
-   each spec's entity type. This is a SHA-256 hash of the schema structure
-   (field names, types, order).
+1. On startup, `ProjectionEngine` computes `SchemaHash.compute[A]` for each spec's entity type. This is a SHA-256 hash of the schema structure (field names, types, order).
 2. The hash is stored in `_projection_meta.schema_hash`.
 3. If the stored hash doesn't match the current hash, the engine rebuilds:
    - Truncate the projection store
@@ -315,9 +298,7 @@ val hashV2 = SchemaHash.compute[UserProfileV2]
 
 ### Lazy rebuild
 
-Set `lazyRebuild = true` in `ProjectionEngineConfig` to defer rebuilds.
-The engine marks specs needing rebuild but doesn't block startup. The first
-query to a spec triggers its rebuild:
+Set `lazyRebuild = true` in `ProjectionEngineConfig` to defer rebuilds. The engine marks specs needing rebuild but doesn't block startup. The first query to a spec triggers its rebuild:
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.ProjectionEngineConfig
@@ -333,9 +314,7 @@ val config = ProjectionEngineConfig(
 
 ### Migration shortcut
 
-For simple `AddField` migrations (adding columns with defaults), the engine
-uses `ALTER TABLE ADD COLUMN` instead of a full rebuild. This is much faster
-for large projections:
+For simple `AddField` migrations (adding columns with defaults), the engine uses `ALTER TABLE ADD COLUMN` instead of a full rebuild. This is much faster for large projections:
 
 ```scala
 import zio.blocks.schema.migration.Migration
@@ -352,14 +331,11 @@ val migration = Migration
 
 ## Event Tagging and Migration
 
-Event tags identify variant cases for serialization. By default, the tag is
-the case class name (e.g., `"UserCreated"`). You can override with numeric
-tags or rename cases across versions.
+Event tags identify variant cases for serialization. By default, the tag is the case class name (e.g., `"UserCreated"`). You can override with numeric tags or rename cases across versions.
 
 ### String tags (default)
 
-For a sealed trait `UserEvent` with cases `UserCreated` and `UserDeleted`,
-the tags are `"UserCreated"` and `"UserDeleted"`.
+For a sealed trait `UserEvent` with cases `UserCreated` and `UserDeleted`, the tags are `"UserCreated"` and `"UserDeleted"`.
 
 ### Numeric tags
 
@@ -389,8 +365,7 @@ object UserEvent {
 
 ### Tag aliases via Migration
 
-When you rename a case, old events in the database still have the old tag.
-Use `Migration.renameCase` to create an alias:
+When you rename a case, old events in the database still have the old tag. Use `Migration.renameCase` to create an alias:
 
 ```scala
 import zio.blocks.schema.migration.Migration
@@ -422,34 +397,26 @@ val tagInfo = TagResolver.resolve[LoginEvent](migration)
 
 The `TagInfo` object provides:
 
-- `expandRequested(tags)` — returns the union of requested tags plus all
-  their old aliases, so selective reads fetch both old and new events
+- `expandRequested(tags)` — returns the union of requested tags plus all their old aliases, so selective reads fetch both old and new events
 - `isOldTag(tag)` — true if the tag was renamed
 - `currentTagFor(oldTag)` — returns the current tag for an old tag
 - `normalize(tag)` — maps old tags to current tags
 
 ### Transitive chains
 
-If you rename `A → B` then `B → C`, the resolver collapses this to `A → C`.
-All three tags are queryable.
+If you rename `A → B` then `B → C`, the resolver collapses this to `A → C`. All three tags are queryable.
 
 ### Startup warning
 
-On startup, the `SQLiteEventStore` checks all distinct tags in the database
-against the known tag set. Unknown tags produce a warning log, not an error.
-This catches typos or events from a different schema version without crashing
-the application.
+On startup, the `SQLiteEventStore` checks all distinct tags in the database against the known tag set. Unknown tags produce a warning log, not an error. This catches typos or events from a different schema version without crashing the application.
 
 ## Testing
 
-The projection module ships with in-memory implementations for unit tests.
-No SQLite required.
+The projection module ships with in-memory implementations for unit tests. No SQLite required.
 
 ### InMemoryProjectionStore
 
-A `ProjectionStore[A]` backed by `Ref[Map[String, A]]`. Supports all
-operations: insert, upsert, updateFields, delete, truncate, schema hash
-tracking.
+A `ProjectionStore[A]` backed by `Ref[Map[String, A]]`. Supports all operations: insert, upsert, updateFields, delete, truncate, schema hash tracking.
 
 ```scala mdoc:compile-only
 import zio.*
@@ -473,8 +440,7 @@ val test: ZIO[Any, Throwable, Unit] = for {
 
 ### TestEngine
 
-A simple test helper that auto-creates `InMemoryProjectionStore` per
-projection and `Hub` per source. No manual `makeWithStores` wiring:
+A simple test helper that auto-creates `InMemoryProjectionStore` per projection and `Hub` per source. No manual `makeWithStores` wiring:
 
 ```scala mdoc:compile-only
 import zio.*
@@ -527,8 +493,7 @@ val ctx3 = TestContext.withSeq(entityId = "user-1", seq = 42L)
 
 ### ProjectionEngineConfig
 
-Controls batching, ring buffer size, rebuild behavior, and schema
-evolution:
+Controls batching, ring buffer size, rebuild behavior, and schema evolution:
 
 ```scala mdoc:compile-only
 import zio.*
@@ -544,7 +509,7 @@ val config = ProjectionEngineConfig(
 ```
 
 | Parameter | Default | Description |
-|-----------|---------|-------------|
+| --- | --- | --- |
 | `batchSize` | 100 | Number of events processed per batch during catch-up |
 | `batchTimeout` | 50ms | Maximum wait before flushing a partial batch |
 | `ringCapacity` | 4096 | Capacity of the Hub ring buffer for live events |
@@ -562,19 +527,15 @@ import zio.blocks.projection.TransactorCacheConfig
 val cacheConfig = TransactorCacheConfig(maxSize = 256)
 ```
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `maxSize` | 256 | Maximum number of cached SQLite connections |
+| Parameter | Default | Description                                 |
+| --------- | ------- | ------------------------------------------- |
+| `maxSize` | 256     | Maximum number of cached SQLite connections |
 
-The cache uses LRU eviction. Each cached transactor sets `PRAGMA journal_mode=WAL`
-and `PRAGMA synchronous=NORMAL` on first open. The cache is `Scope`-managed:
-all transactors close when the scope exits.
+The cache uses LRU eviction. Each cached transactor sets `PRAGMA journal_mode=WAL` and `PRAGMA synchronous=NORMAL` on first open. The cache is `Scope`-managed: all transactors close when the scope exits.
 
 ### Scope lifecycle
 
-The `ProjectionEngine.make` and `TransactorCache.make` methods require
-`ZIO[Scope, ...]`. This ensures resources are cleaned up when your
-application shuts down:
+The `ProjectionEngine.make` and `TransactorCache.make` methods require `ZIO[Scope, ...]`. This ensures resources are cleaned up when your application shuts down:
 
 ```scala mdoc:compile-only
 import zio.*
@@ -594,7 +555,7 @@ val app: ZIO[Scope, Throwable, Unit] = for {
 ## API Reference
 
 | Type | Package | Description |
-|------|---------|-------------|
+| --- | --- | --- |
 | `@Modifier.id` | `zio.blocks.schema.Modifier` | Annotation marking the entity ID field |
 | `EntityPath[A]` | `zio.blocks.projection` | Folder name + ID field for a projection entity |
 | `@path(name)` | `zio.blocks.projection` | Annotation to override the derived folder name |
@@ -625,7 +586,7 @@ val app: ZIO[Scope, Throwable, Unit] = for {
 ### Projection methods
 
 | Method | Description |
-|--------|-------------|
+| --- | --- |
 | `Projection[A](name)` | Create a per-entity spec (requires `Schema[A]` + `EntityPath[A]`) |
 | `Projection.global[A](name)` | Create a global spec (requires `Schema[A]`) |
 | `.from(sourceName)` | Bind to a named event source |
@@ -644,7 +605,7 @@ val app: ZIO[Scope, Throwable, Unit] = for {
 ### ProjectionEngine methods
 
 | Method | Description |
-|--------|-------------|
+| --- | --- |
 | `ProjectionEngine.make(specs*)` | Create engine with default config (requires `Scope`) |
 | `ProjectionEngine.makeWithConfig(config, specs*)` | Create engine with custom config |
 | `engine.start` | Start catch-up + live processing (requires `Scope`) |
