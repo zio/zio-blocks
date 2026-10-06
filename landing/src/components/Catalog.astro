@@ -47,7 +47,10 @@ for (const c of site.categories) {
 <style>
   .sub { max-width: 40rem; color: var(--fg-soft); }
   /* Categories that share a row use the same columns as the tile grid below them, so their tiles line up */
-  .row[data-shared] { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0 var(--seam); align-items: start; }
+  .row[data-shared] { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0 var(--seam); align-items: stretch; }
+  /* Sections in a shared row are equally tall, and each tile fills its section */
+  .row[data-shared] .cat { display: flex; flex-direction: column; }
+  .row[data-shared] .grid { flex: 1; }
   .cat { margin-top: 2.5rem; }
   .cat h3 { margin: 0 0 0.25rem; font-size: 1.125rem; font-weight: 800; }
   .note { margin: 0 0 0.75rem; color: var(--fg-soft); font-size: 0.9375rem; }
