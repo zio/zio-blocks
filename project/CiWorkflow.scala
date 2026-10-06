@@ -174,9 +174,10 @@ object CiWorkflow {
   // ---------------------------------------------------------------------------------------------
 
   /**
-   * Builds and checks the landing page in `landing/`: unit tests, static-output assertions, external link
-   * check, and Lighthouse. zio-sbt-ci triggers are workflow-wide, so this runs on every pull request.
-   * `SingleStep` has no working directory, hence the `cd landing &&` prefixes.
+   * Builds and checks the landing page in `landing/`: unit tests, static-output
+   * assertions, external link check, and Lighthouse. zio-sbt-ci triggers are
+   * workflow-wide, so this runs on every pull request. `SingleStep` has no
+   * working directory, hence the `cd landing &&` prefixes.
    */
   lazy val landing: Def.Initialize[Job] = Def.setting(
     Job(
