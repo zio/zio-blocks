@@ -121,6 +121,19 @@ test('catalog renders every block as a visible tile with its artifact and docs l
   });
 });
 
+test('consecutive single-tile categories share a row; every other category has its own row', () => {
+  const s = sec('catalog');
+  // Split at each row start, then read the category headings (h3) inside each row.
+  const rows = s.split('<div class="row"').slice(1).map((chunk) => [...chunk.matchAll(/<h3[^>]*>([\s\S]*?)<\/h3>/g)].map((h) => text(h[1])));
+  // Resource Management (Scope) and Dependency Injection (Context) are one row.
+  assert.deepEqual(rows.find((r) => r.includes('Resource Management')), ['Resource Management', 'Dependency Injection']);
+  // Rows keep the document order of the categories and together contain every category exactly once.
+  assert.deepEqual(rows.flat(), site.categories.map((c) => titleCase(c.name)));
+  // A row has several categories only when each of them has exactly one block.
+  const size = new Map(site.categories.map((c) => [titleCase(c.name), c.blocks.length]));
+  for (const r of rows) if (r.length > 1) assert.deepEqual(r.map((n) => size.get(n)), r.map(() => 1));
+});
+
 test('catalog has no filter controls, counter, empty-state message or buttons', () => {
   const s = sec('catalog');
   assert.equal(/data-filter|aria-pressed|data-status|data-empty|data-catalog/.test(s), false);

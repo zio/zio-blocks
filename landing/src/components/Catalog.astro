@@ -2,6 +2,14 @@
 import { titleCase } from '../lib/title-case.mjs';
 import site from '../data/site.json';
 import { renderInline } from '../lib/inline.mjs';
+
+// Consecutive categories that each have a single block share a row; every other category has its own row.
+const rows = [];
+for (const c of site.categories) {
+  const last = rows[rows.length - 1];
+  if (c.blocks.length === 1 && last && last.every((x) => x.blocks.length === 1)) last.push(c);
+  else rows.push([c]);
+}
 ---
 
 <section id="catalog" class="section" aria-labelledby="catalog-title">
@@ -10,7 +18,9 @@ import { renderInline } from '../lib/inline.mjs';
     <h2 id="catalog-title">Take Only What You Need</h2>
     <p class="sub">Each block is a separate artifact under <code>dev.zio</code>. Copy the artifact name, add it to your build, and use it.</p>
 
-    {site.categories.map((c) => (
+    {rows.map((row) => (
+      <div class="row" {...(row.length > 1 ? { 'data-shared': '' } : {})}>
+      {row.map((c) => (
       <section class="cat">
         <h3>{titleCase(c.name)}</h3>
         {c.note && <p class="note" set:html={renderInline(c.note)} />}
@@ -28,12 +38,16 @@ import { renderInline } from '../lib/inline.mjs';
           ))}
         </ul>
       </section>
+      ))}
+      </div>
     ))}
   </div>
 </section>
 
 <style>
   .sub { max-width: 40rem; color: var(--fg-soft); }
+  /* Categories that share a row use the same columns as the tile grid below them, so their tiles line up */
+  .row[data-shared] { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0 var(--seam); align-items: start; }
   .cat { margin-top: 2.5rem; }
   .cat h3 { margin: 0 0 0.25rem; font-size: 1.125rem; font-weight: 800; }
   .note { margin: 0 0 0.75rem; color: var(--fg-soft); font-size: 0.9375rem; }
