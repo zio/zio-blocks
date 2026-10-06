@@ -204,10 +204,10 @@ object CiWorkflow {
         SingleStep(name = "Check landing external links", run = Some("cd landing && npm run check:links")),
         SingleStep(
           name = "Landing Lighthouse (95+)",
-          run = Some("cd landing && npx --yes @lhci/cli@0.15.x autorun")
+          run = Some("cd landing && npx --yes @lhci/cli@0.15.1 autorun")
         )
       )
-    )
+    ).withPermissions("contents" -> "read")
   )
 
   // ---------------------------------------------------------------------------------------------
