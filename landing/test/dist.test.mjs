@@ -141,7 +141,8 @@ test('page order, anchors, images, and leftovers', () => {
 });
 
 test('exactly one polite live region announces copy results', () => {
-  assert.equal(html.match(/data-copy-status/g).length, 1);
+  // Count the element, not the text: Astro may inline copy.js, whose source also mentions the attribute name.
+  assert.equal(html.match(/<p [^>]*data-copy-status/g).length, 1);
   assert.match(html, /<p class="sr-only" role="status" aria-live="polite" data-copy-status/);
 });
 
