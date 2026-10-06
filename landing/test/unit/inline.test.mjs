@@ -26,3 +26,45 @@ test('renderInline maps link targets through linkFor', () => {
     '<a href="https://zio.dev/reference/a.md">ref</a>',
   );
 });
+
+test('renderInline protects URLs from emphasis/code processing', () => {
+  assert.equal(
+    renderInline('[a](https://x/*a*/b)'),
+    '<a href="https://x/*a*/b">a</a>',
+  );
+});
+
+test('renderInline protects URLs containing backticks', () => {
+  assert.equal(
+    renderInline('[a](https://x/`code`)'),
+    '<a href="https://x/`code`">a</a>',
+  );
+});
+
+test('renderInline escapes linkFor return value in href attribute', () => {
+  assert.equal(
+    renderInline('[x](http://example.com)', (u) => 'a" onmouseover="x'),
+    '<a href="a&quot; onmouseover=&quot;x">x</a>',
+  );
+});
+
+test('renderInline passes raw URL to linkFor and escapes special chars in href', () => {
+  assert.equal(
+    renderInline('[x](http://a.b?foo=1&bar=2)', (u) => u),
+    '<a href="http://a.b?foo=1&amp;bar=2">x</a>',
+  );
+});
+
+test('renderInline rejects javascript: URLs', () => {
+  assert.equal(
+    renderInline('[click me](javascript:alert)'),
+    'click me',
+  );
+});
+
+test('renderInline allows safe URL schemes', () => {
+  assert.equal(
+    renderInline('[http](http://x) [https](https://x) [mailto](mailto:x@y) [relative](./x) [hash](#x)'),
+    '<a href="http://x">http</a> <a href="https://x">https</a> <a href="mailto:x@y">mailto</a> <a href="./x">relative</a> <a href="#x">hash</a>',
+  );
+});
