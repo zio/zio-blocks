@@ -21,7 +21,7 @@ const snippet = `${site.hero.install}\n\n${site.hero.jsonCode}   // ${site.hero.
       </nav>
     </header>
 
-    <div class="copy-col">
+    <div class="copy-col" id="content" tabindex="-1">
       <h1 id="hero-title">
         {head.trim()}{tail && <> —<br /><span>{tail.trim()}</span></>}
       </h1>
@@ -69,6 +69,7 @@ const snippet = `${site.hero.install}\n\n${site.hero.jsonCode}   // ${site.hero.
   nav a { color: var(--paper-ink); text-decoration: none; padding-block: 0.25rem; }
   nav a:hover { text-decoration: underline; }
 
+  .copy-col:focus { outline: none; }
   .copy-col { max-width: 40rem; padding-top: clamp(2.5rem, 7vw, 5rem); }
   h1 {
     margin: 0 0 1rem;

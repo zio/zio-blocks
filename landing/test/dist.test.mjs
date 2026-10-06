@@ -24,7 +24,7 @@ test('document head', () => {
   );
   assert.equal(meta('color-scheme'), 'light dark');
   assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="\/brand\/zio-blocks-mark-favicon\.svg"/);
-  assert.match(html, /<a class="skip[^"]*" href="#main"/);
+  assert.match(html, /<a class="skip[^"]*" href="#content"/);
 });
 
 import site from '../src/data/site.json' with { type: 'json' };
