@@ -45,8 +45,10 @@ const sec = (id) => {
 test('hero', () => {
   const hero = sec('hero');
   // The headline is the tagline up to the first em dash; the "— no effect system required" tail is not shown.
-  const headline = site.tagline.split('—')[0].trim();
-  assert.equal(text(/<h1[^>]*>([\s\S]*?)<\/h1>/.exec(hero)[1]), headline);
+  // "building blocks" is joined by a non-breaking space (U+00A0) so the phrase never wraps across lines. `text()` collapses
+  // whitespace (including U+00A0), so compare the raw inner HTML of the h1.
+  const headline = site.tagline.split('—')[0].trim().replace('building blocks', 'building blocks');
+  assert.equal(/<h1[^>]*>([\s\S]*?)<\/h1>/.exec(hero)[1], headline);
   assert.equal(text(/<p class="lead[^"]*"[^>]*>([\s\S]*?)<\/p>/.exec(hero)[1]), text(site.lead.replace(/\*+|`/g, '')));
   assert.equal(
     text(/<pre[\s\S]*?<\/pre>/.exec(hero)[0]),
