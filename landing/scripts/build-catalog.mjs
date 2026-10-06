@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
+import { collapseSameArtifact } from './lib/collapse.mjs';
 import { parseIndex } from './lib/parse-index.mjs';
 import { resolveVersion } from './lib/version.mjs';
 
@@ -22,11 +23,13 @@ export async function build({ repoRoot = REPO_ROOT, outDir = LANDING_ROOT, versi
   });
   const resolved = version ?? (await resolveVersion());
 
+  const categories = collapseSameArtifact(parsed.categories);
   const site = {
     version: resolved,
     ...parsed,
+    categories,
     hero: { ...parsed.hero, install: parsed.hero.install.replaceAll('@VERSION@', resolved) },
-    blockCount: parsed.categories.reduce((n, c) => n + c.blocks.length, 0),
+    blockCount: categories.reduce((n, c) => n + c.blocks.length, 0),
   };
 
   await mkdir(join(outDir, 'src/data'), { recursive: true });

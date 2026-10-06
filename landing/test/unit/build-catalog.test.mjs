@@ -14,6 +14,10 @@ test('build writes site.json with the version substituted and copies brand asset
   assert.equal(site.hero.install, 'libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "9.9.9"');
   assert.equal(site.blockCount, site.categories.flatMap((c) => c.blocks).length);
   assert.ok(site.blockCount >= 40);
+  // One tile per artifact within a category (blocks that ship in the same artifact are collapsed).
+  for (const c of site.categories) {
+    assert.equal(new Set(c.blocks.map((b) => b.artifact)).size, c.blocks.length, c.name);
+  }
   assert.equal(JSON.stringify(site).includes('@VERSION@'), false);
   for (const file of BRAND_ASSETS) assert.ok(existsSync(join(out, 'public/brand', file)), file);
 });
