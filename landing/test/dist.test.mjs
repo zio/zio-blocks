@@ -61,7 +61,6 @@ test('hero', () => {
     text(/<pre[\s\S]*?<\/pre>/.exec(hero)[0]),
     `${site.hero.install} ${site.hero.jsonCode} // ${site.hero.jsonResult}`,
   );
-  assert.equal(decode(/data-copy="([^"]*)"/.exec(hero)[1]), site.hero.install);
   assert.equal(text(/<p class="stack[^"]*"[^>]*>([\s\S]*?)<\/p>/.exec(hero)[1]), `Works with ${site.compatibility.join(' · ')}`);
   assert.match(hero, /<img[^>]*src="\/brand\/zio-blocks-logo-on-dark\.svg"[^>]*alt="ZIO Blocks"/);
   assert.match(hero, /href="https:\/\/github\.com\/zio\/zio-blocks"/);
@@ -110,14 +109,13 @@ test('catalog renders every block as a visible tile with its artifact and docs l
     assert.equal(text(/<h4[^>]*>([\s\S]*?)<\/h4>/.exec(t[1])[1]), b.name);
     assert.equal(/<h4[^>]*><a href="([^"]*)"/.exec(t[1])[1], b.docsUrl);
     assert.equal(text(/<code class="artifact"[^>]*>([\s\S]*?)<\/code>/.exec(t[1])[1]), b.artifact);
-    assert.equal(decode(/data-copy="([^"]*)"/.exec(t[1])[1]), b.artifact);
   });
 });
 
-test('catalog has no filter controls, counter or empty-state message', () => {
+test('catalog has no filter controls, counter, empty-state message or buttons', () => {
   const s = sec('catalog');
   assert.equal(/data-filter|aria-pressed|data-status|data-empty|data-catalog/.test(s), false);
-  assert.equal(/<button[^>]*>(?!\s*Copy\s*<)/.test(s), false);
+  assert.equal(/<button/.test(s), false);
 });
 
 test('footer is the logo and links only: no call to action, no install box', () => {
@@ -140,10 +138,8 @@ test('page order, anchors, images, and leftovers', () => {
   for (const [, href] of html.matchAll(/href="(https?:[^"]+)"/g)) assert.match(href, /^https:/);
 });
 
-test('exactly one polite live region announces copy results', () => {
-  // Count the element, not the text: Astro may inline copy.js, whose source also mentions the attribute name.
-  assert.equal(html.match(/<p [^>]*data-copy-status/g).length, 1);
-  assert.match(html, /<p class="sr-only" role="status" aria-live="polite" data-copy-status/);
+test('there are no copy buttons, copy script or copy live region anywhere', () => {
+  assert.equal(/data-copy|class="copy"|role="status"|sr-only|navigator\.clipboard/.test(html), false);
 });
 
 test('every title, heading and label on the page is in title case', () => {

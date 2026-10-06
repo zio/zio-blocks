@@ -31,7 +31,6 @@ const snippet = `${site.hero.install}\n\n${site.hero.jsonCode}   // ${site.hero.
 
       <div class="codecard">
         <Code code={snippet} lang="scala" theme="github-dark" />
-        <button class="copy" type="button" data-copy={site.hero.install} aria-label="Copy the install line">Copy</button>
       </div>
 
       <p class="cta">
@@ -43,10 +42,6 @@ const snippet = `${site.hero.install}\n\n${site.hero.jsonCode}   // ${site.hero.
     </div>
   </div>
 </section>
-
-<script>
-  import '../scripts/copy.js';
-</script>
 
 <style>
   .hero {
@@ -84,10 +79,8 @@ const snippet = `${site.hero.install}\n\n${site.hero.jsonCode}   // ${site.hero.
   }
   .lead { margin: 0 0 1.75rem; max-width: 34rem; color: var(--ink-soft); font-size: 1.0625rem; }
   .lead :global(strong) { color: var(--paper-ink); }
-  /* Button sits beside the code (not over it); the code scrolls inside its own column */
-  .codecard { display: flex; align-items: flex-start; gap: 0.5rem; max-width: 40rem; padding-right: 0.6rem; }
-  .codecard :global(pre) { flex: 1; min-width: 0; }
-  .codecard .copy { flex: none; margin-top: 0.6rem; }
+  /* The code scrolls inside its own box at narrow widths */
+  .codecard { max-width: 40rem; }
   .cta { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.5rem 0 0; }
   .stack { margin: 2rem 0 0; color: var(--muted); font-size: 0.8125rem; letter-spacing: 0.04em; }
 </style>

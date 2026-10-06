@@ -19,10 +19,7 @@ import { renderInline } from '../lib/inline.mjs';
             <li class="tile">
               <h4><a href={b.docsUrl}>{titleCase(b.name)}</a></h4>
               <p class="desc" set:html={renderInline(b.description)} />
-              <div class="meta">
-                <code class="artifact">{b.artifact}</code>
-                <button class="copy" type="button" data-copy={b.artifact} aria-label={`Copy artifact name ${b.artifact}`}>Copy</button>
-              </div>
+              <code class="artifact">{b.artifact}</code>
               <p class="badges">{b.platforms.join(' · ')} &nbsp;/&nbsp; Scala {b.scala.join(' · ')}</p>
             </li>
           ))}
@@ -41,9 +38,6 @@ import { renderInline } from '../lib/inline.mjs';
   .tile { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; background: var(--surface); border: 1px solid var(--rule); min-width: 0; }
   .tile h4 { margin: 0; font-size: 1rem; font-weight: 800; }
   .desc { margin: 0; color: var(--fg-soft); font-size: 0.875rem; flex: 1; }
-  .meta { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-width: 0; }
   .artifact { overflow-wrap: anywhere; font-size: 0.75rem; }
-  .tile .copy { color: var(--fg); border-color: var(--accent); }
-  .tile .copy:hover { color: #fff; background: var(--accent); }
   .badges { margin: 0; color: var(--label); font-size: 0.75rem; letter-spacing: 0.04em; }
 </style>

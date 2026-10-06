@@ -131,34 +131,6 @@ code { font-family: var(--mono); font-size: 0.9em; }
 /* Shiki github-dark comments (#6A737D) are too dim on the ink code card; #7C859E is allowed on ink surfaces */
 .astro-code span[style*='#6A737D' i] { color: #7C859E !important; }
 
-/* Copy buttons exist only when JavaScript can make them work */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-}
-
-.copy {
-  display: none;
-  min-height: 2rem;
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--lifted);
-  background: transparent;
-  color: var(--paper-ink);
-  font: 600 0.6875rem/1.4 var(--font);
-  letter-spacing: 0.04em;
-  cursor: pointer;
-}
-.js .copy { display: inline-block; }
-.copy:hover { background: var(--lifted); }
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;
