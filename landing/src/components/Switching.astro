@@ -1,5 +1,6 @@
 ---
 import site from '../data/site.json';
+import { renderInline } from '../lib/inline.mjs';
 
 const feature = site.guides.find((g) => /migrat/i.test(g.title));
 const rest = site.guides.filter((g) => g !== feature);
@@ -14,13 +15,13 @@ const rest = site.guides.filter((g) => g !== feature);
     {feature && (
       <a class="feature" href={feature.url}>
         <strong>{feature.title}</strong>
-        <span class="d">{feature.description}</span>
+        <span class="d" set:html={renderInline(feature.description)} />
       </a>
     )}
 
     <p class="label more">More guides</p>
     <ul class="guides">
-      {rest.map((g) => <li><a href={g.url}>{g.title}</a> <span>&mdash; {g.description}</span></li>)}
+      {rest.map((g) => <li><a href={g.url}>{g.title}</a> <span>— <Fragment set:html={renderInline(g.description)} /></span></li>)}
     </ul>
   </div>
 </section>
@@ -44,4 +45,5 @@ const rest = site.guides.filter((g) => g !== feature);
   .guides { margin: 0; padding: 0; list-style: none; }
   .guides li { padding-block: 0.4rem; border-bottom: 1px solid var(--rule); }
   .guides span { color: var(--fg-soft); }
+  .d :global(code), .guides span :global(code) { color: inherit; }
 </style>

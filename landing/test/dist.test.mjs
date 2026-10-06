@@ -141,9 +141,12 @@ test('switching cost features the migration guide and lists the rest', () => {
   const migration = site.guides.find((g) => /migrat/i.test(g.title));
   const feature = /<a class="feature" href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/.exec(s);
   assert.equal(feature[1], migration.url);
-  assert.equal(text(feature[2]), `${migration.title} ${migration.description}`);
+  const strip = (t) => t.replace(/`/g, '');
+  assert.equal(text(feature[2]), strip(`${migration.title} ${migration.description}`));
   const others = [...s.matchAll(/<li[^>]*><a href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => [m[1], text(m[2])]);
   assert.deepEqual(others, site.guides.filter((g) => g !== migration).map((g) => [g.url, g.title]));
+  const descs = [...s.matchAll(/<li[^>]*><a [^>]*>[\s\S]*?<\/a>\s*<span[^>]*>([\s\S]*?)<\/span>\s*<\/li>/g)].map((m) => text(m[1]));
+  assert.deepEqual(descs, site.guides.filter((g) => g !== migration).map((g) => `\u2014 ${strip(g.description)}`));
 });
 
 test('footer repeats the install line and links out', () => {
