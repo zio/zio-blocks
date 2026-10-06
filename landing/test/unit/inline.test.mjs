@@ -68,3 +68,73 @@ test('renderInline allows safe URL schemes', () => {
     '<a href="http://x">http</a> <a href="https://x">https</a> <a href="mailto:x@y">mailto</a> <a href="./x">relative</a> <a href="#x">hash</a>',
   );
 });
+
+test('renderInline rejects uppercase JavaScript: URLs', () => {
+  assert.equal(
+    renderInline('[click](JavaScript:alert)'),
+    'click',
+  );
+});
+
+test('renderInline rejects all-caps JAVASCRIPT: URLs', () => {
+  assert.equal(
+    renderInline('[click](JAVASCRIPT:alert)'),
+    'click',
+  );
+});
+
+test('renderInline rejects uppercase DATA: URLs', () => {
+  assert.equal(
+    renderInline('[click](DATA:text/html,x)'),
+    'click',
+  );
+});
+
+test('renderInline rejects lowercase data: URLs', () => {
+  assert.equal(
+    renderInline('[click](data:text/html,x)'),
+    'click',
+  );
+});
+
+test('renderInline rejects vbscript: URLs', () => {
+  assert.equal(
+    renderInline('[click](vbscript:x)'),
+    'click',
+  );
+});
+
+test('renderInline rejects protocol-relative URLs', () => {
+  assert.equal(
+    renderInline('[click](//evil.com)'),
+    'click',
+  );
+});
+
+test('renderInline allows case-insensitive HTTPS', () => {
+  assert.equal(
+    renderInline('[link](HTTPS://x.dev/a)'),
+    '<a href="HTTPS://x.dev/a">link</a>',
+  );
+});
+
+test('renderInline allows absolute paths', () => {
+  assert.equal(
+    renderInline('[abs](/path/to/page)'),
+    '<a href="/path/to/page">abs</a>',
+  );
+});
+
+test('renderInline allows relative paths with ./ or ../', () => {
+  assert.equal(
+    renderInline('[rel1](./rel) [rel2](../up) [rel3](../../way/up)'),
+    '<a href="./rel">rel1</a> <a href="../up">rel2</a> <a href="../../way/up">rel3</a>',
+  );
+});
+
+test('renderInline rejects bare relative paths', () => {
+  assert.equal(
+    renderInline('[bare](reference/a.md)'),
+    'bare',
+  );
+});

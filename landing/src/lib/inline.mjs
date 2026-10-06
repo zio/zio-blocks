@@ -12,11 +12,8 @@ export function renderInline(text, linkFor = (url) => url) {
   const codes = [];
   const links = [];
 
-  const isSafeUrl = (url) => {
-    const scheme = /^([a-z]+):/.exec(url);
-    if (!scheme) return true; // Relative URLs and fragments are safe
-    return ['http', 'https', 'mailto'].includes(scheme[1]);
-  };
+  // Allowlist: http(s), mailto, ./, ../, /, # (but not //, bare relative paths, or other schemes)
+  const isSafeUrl = (url) => /^(https?:|mailto:|\.{1,2}\/|\/(?!\/)|#)/i.test(url);
 
   // Extract links first (validate schemes, apply linkFor, escape output; protects URLs from code/emphasis processing)
   const withLinkSlots = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, url) => {
