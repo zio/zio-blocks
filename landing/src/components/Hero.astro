@@ -8,10 +8,10 @@ const [head, tail] = site.tagline.split('—');
 const snippet = `${site.hero.install}\n\n${site.hero.jsonCode}   // ${site.hero.jsonResult}`;
 ---
 
-<section id="hero" class="hero" aria-labelledby="hero-title">
+<section id="hero" class="hero">
   <ModuleField />
   <div class="wrap inner">
-    <header class="nav">
+    <header class="nav" role="banner">
       <a href="/" class="logo"><img src="/brand/zio-blocks-logo-on-dark.svg" alt="ZIO Blocks" width="190" height="44" /></a>
       <nav aria-label="Primary">
         <a href="https://zio.dev/zio-blocks/">Docs</a>
@@ -81,8 +81,10 @@ const snippet = `${site.hero.install}\n\n${site.hero.jsonCode}   // ${site.hero.
   h1 span { color: #fff; }
   .lead { margin: 0 0 1.75rem; max-width: 34rem; color: var(--ink-soft); font-size: 1.0625rem; }
   .lead :global(strong) { color: var(--paper-ink); }
-  .codecard :global(pre) { padding-right: 4.5rem; }
-  .codecard .copy { position: absolute; top: 0.6rem; right: 0.6rem; }
+  /* Button sits beside the code (not over it); the code scrolls inside its own column */
+  .codecard { display: flex; align-items: flex-start; gap: 0.5rem; padding-right: 0.6rem; }
+  .codecard :global(pre) { flex: 1; min-width: 0; }
+  .codecard .copy { flex: none; margin-top: 0.6rem; }
   .cta { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.5rem 0 0; }
   .stack { margin: 2rem 0 0; color: var(--muted); font-size: 0.8125rem; letter-spacing: 0.04em; }
 </style>

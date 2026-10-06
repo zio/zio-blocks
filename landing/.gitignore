@@ -3,3 +3,4 @@ dist
 .astro
 src/data/site.json
 public/brand
+.lighthouseci

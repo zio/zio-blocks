@@ -1,6 +1,6 @@
 {
   "ci": {
-    "collect": { "staticDistDir": "./dist", "numberOfRuns": 3 },
+    "collect": { "staticDistDir": "./dist", "numberOfRuns": 3, "settings": { "chromeFlags": "--no-sandbox --headless=new" } },
     "assert": {
       "assertions": {
         "categories:performance": ["error", { "minScore": 0.95 }],
