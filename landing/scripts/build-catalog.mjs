@@ -19,7 +19,7 @@ export const CATEGORY_SPLITS = [
 
 /** Principle texts shown instead of the (first sentence of the) text in docs/index.md. */
 export const PRINCIPLE_TEXT = {
-  'Cross-Platform': 'Most blocks cross-build for JVM and Scala.js on Scala 2.13 and 3.x, source-compatible. Adopt Scala 3 on your timeline.',
+  'Cross-Platform': 'Most blocks cross-build for JVM and Scala.js on Scala 2.13 and 3.x. Adopt Scala 3 on your timeline.',
 };
 
 /** Category headings shown under a different name than the `###` heading in docs/index.md. */
