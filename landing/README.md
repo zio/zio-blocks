@@ -23,7 +23,9 @@ with `### The Problem`, `### The Solution`, `### Learn More`), `## Compatibility
 Links in prose (descriptions, notes, deep-dive text) must be `https://` URLs or `./` docs paths; docs paths are
 rewritten to zio.dev URLs and checked against `docs/` at build time. Platforms are `JVM`/`JS`; Scala versions are `2.13`/`3.x`. On the page there is one tile per artifact: rows that share an
 artifact (Scope, Resource, Unscoped, ... and Wire all live in `zio-blocks-scope`) are collapsed into the first row, a
-category that lost rows loses its note, and a category left empty is dropped (`scripts/lib/collapse.mjs`). A new value needs a one-line change in
+category that lost rows loses its note, and a category left empty is dropped (`scripts/lib/collapse.mjs`). A category can be shown under a different name
+than its `###` heading through `CATEGORY_RENAMES` in `scripts/build-catalog.mjs` (currently `Streams` -> `Streaming`); a rename
+for a heading that no longer exists fails the build. A new value needs a one-line change in
 `scripts/lib/parse-index.mjs`.
 
 ## Netlify setup (once, by a maintainer)

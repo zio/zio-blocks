@@ -17,6 +17,9 @@ test('build writes site.json with the version substituted and copies brand asset
   // One tile per artifact across the whole page (blocks that ship in the same artifact are collapsed).
   const artifacts = site.categories.flatMap((c) => c.blocks.map((b) => b.artifact));
   assert.equal(new Set(artifacts).size, artifacts.length);
+  // The Streams category is shown as "Streaming"; the block inside it keeps its own name.
+  assert.deepEqual(site.categories.map((c) => c.name).filter((n) => /^Stream/.test(n)), ['Streaming']);
+  assert.deepEqual(site.categories.find((c) => c.name === 'Streaming').blocks.map((x) => x.name), ['Streams']);
   assert.equal(JSON.stringify(site).includes('@VERSION@'), false);
   for (const file of BRAND_ASSETS) assert.ok(existsSync(join(out, 'public/brand', file)), file);
 });

@@ -4,10 +4,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { collapseSameArtifact } from './lib/collapse.mjs';
 import { parseIndex } from './lib/parse-index.mjs';
+import { renameCategories } from './lib/rename.mjs';
 import { resolveVersion } from './lib/version.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const LANDING_ROOT = fileURLToPath(new URL('../', import.meta.url));
+
+/** Category headings shown under a different name than the `###` heading in docs/index.md. */
+export const CATEGORY_RENAMES = { Streams: 'Streaming' };
 
 /** Brand files the site references, copied from assets/logo at build time (never committed twice). */
 export const BRAND_ASSETS = [
@@ -23,7 +27,7 @@ export async function build({ repoRoot = REPO_ROOT, outDir = LANDING_ROOT, versi
   });
   const resolved = version ?? (await resolveVersion());
 
-  const categories = collapseSameArtifact(parsed.categories);
+  const categories = renameCategories(collapseSameArtifact(parsed.categories), CATEGORY_RENAMES);
   const site = {
     version: resolved,
     ...parsed,
