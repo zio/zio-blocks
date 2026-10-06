@@ -155,6 +155,7 @@ When waiting on PR checks, suppress watch output to avoid context bloat:
 - **README.md is auto-generated.** Never edit `README.md` directly. Edit `docs/index.md` (or the `readme*` settings on the `docs` project in `build.sbt`) instead, then regenerate with `sbt --client 'set ThisBuild / version := "<latest release>"; ++3.9.0; docs/mdoc --include index.md; docs/generateReadme'`. (`generateReadme` lives on the `docs` project; running it unscoped at the root fails with "Not a valid command".)
   - `docs/generateReadme` is overridden in `build.sbt` to render the logo banner without a duplicate `# ZIO Blocks` heading. It uses the mdoc output of `docs/index.md` when it is fresh (keeps evaluated `// res: ...` lines), otherwise falls back to the source page with `@VERSION@` substituted. Pin `version` to the latest release tag locally, or the README gets a snapshot version.
   - There are no hand-maintained README sections any more: everything, including Config, comes from `docs/index.md`. The `update-readme` CI job runs `docs/generateReadme` after each release and opens an auto-merged PR.
+- **Landing page lives in `landing/`.** It is generated from `docs/index.md` (table shapes, section titles, and the `@VERSION@` placeholder are a contract; see `landing/README.md`). After touching `docs/index.md`, run `cd landing && npm test && npm run check`. Never hand-edit `landing/src/data/site.json` or `landing/public/brand/` (generated, gitignored).
 
 ### Ask First
 - Adding dependencies (even test-only)

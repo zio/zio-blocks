@@ -1,0 +1,25 @@
+# Netlify site settings: base directory "landing", build command and publish dir come from here.
+[build]
+  command = "npm run build"
+  publish = "dist"
+  # Skip the build when nothing the site depends on changed (exit 0 = skip).
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ../docs/index.md ../assets/logo"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/_astro/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

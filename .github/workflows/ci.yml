@@ -80,6 +80,34 @@ jobs:
         overwrite: true
     - name: Print All Generated Files
       run: find ./website/build -print
+  landing:
+    name: Landing
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: false
+    steps:
+    - name: Git Checkout
+      uses: actions/checkout@v7.0.1
+      with:
+        fetch-depth: '0'
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: 24.12.0
+        cache: npm
+        cache-dependency-path: landing/package-lock.json
+    - name: Install landing dependencies
+      run: cd landing && npm ci
+    - name: Landing unit tests
+      run: cd landing && npm test
+    - name: Build landing and check the static output
+      run: cd landing && npm run check
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Check landing external links
+      run: cd landing && npm run check:links
+    - name: Landing Lighthouse (95+)
+      run: cd landing && npx --yes @lhci/cli@0.15.x autorun
   lint:
     name: lint
     runs-on: ubuntu-latest
