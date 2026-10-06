@@ -48,7 +48,7 @@ Ink hero, light editorial body with hairlines and numbered tracked labels, ink f
 | 00 | Hero | Is this for me? Can I try it now? | Tagline, module field, install line, one-line JSON result, Get started / GitHub, stack strip (ZIO · Cats Effect · Kyo · Ox · Akka · plain Scala) |
 | 01 | Principles | What's the catch? | Zero lock-in, Modular, Cross-platform, High performance, Type safety, as a numbered row from the `docs/index.md` principles |
 | 02 | Deep dives | Show me real code | Tabs: Schema, Scope, Async, SQL. Each shows the problem (old way) then the solution, plus a link to the reference. Schema tab includes the format chips. Scope tab shows the compile-time escape error |
-| 03 | Block catalog | Does it cover my use case? | 11 category tabs, JVM/JS and Scala 2.13/3 filters, square tiles with the artifact name and a copy button, each linking to its reference page |
+| 03 | Block catalog | Does it cover my use case? | Tiles grouped under the 11 category headings, each with the artifact name, platform and Scala badges and a copy button, linking to its reference page. (The category / JVM-JS / Scala-version filter controls in the original design were removed on request.) |
 | 04 | Switching cost | How painful is adoption? | Migration-from-zio-schema guide featured, plus a short list of the other guides |
 | 05 | Close and footer | What do I do now? | Install line repeated, then Docs, Reference, GitHub, and the stacked logo |
 
@@ -70,7 +70,7 @@ landing/
     Catalog.astro
     Switching.astro
     Footer.astro
-  src/scripts/                      tabs, filter, copy, assemble (each small)
+  src/scripts/                      tabs, copy (each small)
   public/fonts/                     Manrope, self-hosted
 ```
 
@@ -81,7 +81,7 @@ Each component has one job and receives data as props. Brand SVGs are copied fro
 1. `build-catalog.mjs` reads `docs/index.md` and parses the category tables into `blocks.json`: name, artifact, platform, Scala versions, description, docs URL. It also extracts the code samples for the four deep dives.
 2. The latest release version comes from the GitHub releases API, with a pinned fallback when the request fails, and replaces `@VERSION@` in the install lines.
 3. Astro renders static HTML. Shiki highlights Scala at build time; there is no runtime highlighter.
-4. Client scripts only attach behavior (tabs, filters, copy, the hero animation) to HTML that is already present.
+4. Client scripts only attach behavior (tabs, copy, the hero animation) to HTML that is already present.
 
 Docs links map from repo-relative paths (`./reference/schema/index.md`) to zio.dev URLs (`https://zio.dev/zio-blocks/reference/schema`). The exact mapping rules, including `.md`/`.mdx` and `index` handling, must be verified against zio.dev's live URLs before implementation.
 

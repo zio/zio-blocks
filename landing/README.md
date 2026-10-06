@@ -10,7 +10,7 @@ zio.dev; this site only links to them.
 | --- | --- |
 | `npm run dev` | Regenerate `src/data/site.json`, then start the dev server |
 | `npm run build` | Regenerate data, then build `dist/` |
-| `npm test` | Unit tests (parser, versions, filters, brand rules) |
+| `npm test` | Unit tests (parser, versions, brand rules) |
 | `npm run check` | Build, then assert the static output |
 | `npm run check:links` | Check external links in `dist/index.html` (needs network) |
 

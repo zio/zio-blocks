@@ -99,7 +99,7 @@ test('schema panel lists the format chips derived from the catalog', () => {
 
 test('catalog renders every block as a visible tile with its artifact and docs link', () => {
   const s = sec('catalog');
-  const tiles = [...s.matchAll(/<li class="tile"[^>]*data-tile[^>]*>([\s\S]*?)<\/li>/g)];
+  const tiles = [...s.matchAll(/<li class="tile"[^>]*>([\s\S]*?)<\/li>/g)];
   const blocks = site.categories.flatMap((c) => c.blocks);
   assert.equal(tiles.length, blocks.length);
   assert.equal(blocks.length, site.blockCount);
@@ -113,36 +113,10 @@ test('catalog renders every block as a visible tile with its artifact and docs l
   });
 });
 
-test('catalog tiles carry filterable data attributes', () => {
+test('catalog has no filter controls, counter or empty-state message', () => {
   const s = sec('catalog');
-  const first = site.categories[0].blocks[0];
-  assert.match(
-    s,
-    new RegExp(`data-category="${site.categories[0].name.replace(/&/g, '&amp;')}" data-platforms="${first.platforms.join(' ')}" data-scala="${first.scala.join(' ')}"`),
-  );
-});
-
-test('catalog filter controls list each category, platform and Scala version once', () => {
-  const s = sec('catalog');
-  const group = (name) => {
-    const g = new RegExp(`data-filter="${name}"[^>]*>([\\s\\S]*?)</div>`).exec(s)[1];
-    return [...g.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((m) => text(m[1]));
-  };
-  assert.deepEqual(group('category'), ['All', ...site.categories.map((c) => c.name)]);
-  assert.deepEqual(group('platform'), ['Any', 'JVM', 'JS']);
-  assert.deepEqual(group('scala'), ['Any', '2.13', '3.x']);
-  assert.equal(text(/data-status[^>]*>([\s\S]*?)<\//.exec(s)[1]), `${site.blockCount} of ${site.blockCount} blocks`);
-});
-
-test('catalog filter containers are named groups', () => {
-  const s = sec('catalog');
-  const open = (name) => /^<div[^>]*>/.exec(/<div[^>]*data-filter="NAME"[^>]*>/.source && new RegExp(`<div[^>]*data-filter="${name}"[^>]*>`).exec(s)[0])[0];
-  const attr = (tag, a) => new RegExp(`\\b${a}="([^"]*)"`).exec(tag)?.[1];
-  for (const [name, label] of [['category', 'Category'], ['platform', 'Platform'], ['scala', 'Scala version']]) {
-    const tag = open(name);
-    assert.equal(attr(tag, 'role'), 'group');
-    assert.equal(attr(tag, 'aria-label'), label);
-  }
+  assert.equal(/data-filter|aria-pressed|data-status|data-empty|data-catalog/.test(s), false);
+  assert.equal(/<button[^>]*>(?!\s*Copy\s*<)/.test(s), false);
 });
 
 test('switching cost features the migration guide and lists the rest', () => {
