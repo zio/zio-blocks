@@ -13,7 +13,7 @@ const LANDING_ROOT = fileURLToPath(new URL('../', import.meta.url));
 
 /** Categories shown as two on the page: the blocks matching `where` move to a new category after the original. */
 export const CATEGORY_SPLITS = [
-  { from: 'Meta Programming', into: 'Codecs and Serializations', where: (block) => / Codec$/.test(block.name) },
+  { from: 'Meta Programming', into: 'Codecs', where: (block) => / Codec$/.test(block.name) },
 ];
 
 /** Category headings shown under a different name than the `###` heading in docs/index.md. */

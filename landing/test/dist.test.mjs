@@ -91,7 +91,7 @@ test('schema panel lists the format chips derived from the catalog', () => {
   const s = sec('deep-dives');
   const chips = [...s.matchAll(/<li class="chip"[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
   const codecs = site.categories
-    .find((c) => c.name === 'Codecs and Serializations')
+    .find((c) => c.name === 'Codecs')
     .blocks.map((b) => b.name.replace(/ Codec$/, ''));
   assert.deepEqual(chips, ['JSON', ...codecs]);
 });
