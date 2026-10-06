@@ -1,0 +1,147 @@
+@font-face {
+  font-family: 'Manrope';
+  src: url('/fonts/manrope-latin-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light dark;
+
+  /* Brand palette (assets/logo/README.md) */
+  --ultramarine: #2d3f8f;
+  --ink: #141a2e;
+  --lifted: #4b5fc4;
+  --paper-ink: #f3f5fc;
+  --hairline: #e4e7f0;
+  --muted: #7c859e;
+
+  /* Ink-surface helpers */
+  --field: #1c2547;
+  --code-bg: #0d1224;
+  --ink-rule: #232b4a;
+  --ink-soft: #a9b1ce;
+
+  /* Semantic tokens, light */
+  --bg: #ffffff;
+  --fg: var(--ink);
+  --fg-soft: #4a5470;
+  --label: #5b6580;
+  --rule: var(--hairline);
+  --accent: var(--ultramarine);
+  --link: var(--ultramarine);
+  --surface: var(--paper-ink);
+
+  --font: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --gutter: clamp(1rem, 4vw, 2.5rem);
+  --measure: 72rem;
+  --seam: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--ink);
+    --fg: var(--paper-ink);
+    --fg-soft: var(--ink-soft);
+    --label: #9aa3c0;
+    --rule: var(--ink-rule);
+    --accent: var(--lifted);
+    --link: var(--paper-ink);
+    --surface: #1a2140;
+  }
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+img, svg { display: block; max-width: 100%; }
+a { color: var(--link); text-underline-offset: 0.2em; }
+code { font-family: var(--mono); font-size: 0.9em; }
+:focus-visible { outline: 2px solid var(--lifted); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.wrap { max-width: var(--measure); margin-inline: auto; padding-inline: var(--gutter); }
+.label {
+  margin: 0 0 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.section { border-top: 1px solid var(--rule); padding-block: clamp(3rem, 7vw, 5.5rem); }
+.section h2 {
+  margin: 0 0 1rem;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.skip { position: absolute; left: -999px; top: 0; z-index: 10; }
+.skip:focus { left: 1rem; top: 1rem; padding: 0.5rem 1rem; background: #fff; color: var(--ink); }
+
+.btn {
+  display: inline-block;
+  padding: 0.7rem 1.1rem;
+  border: 2px solid transparent;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
+.btn-primary { background: var(--lifted); color: #fff; }
+.btn-primary:hover { background: #fff; color: var(--ink); }
+.btn-ghost { border-color: var(--lifted); color: var(--paper-ink); }
+.btn-ghost:hover { border-color: #fff; }
+
+/* Code surfaces: always ink, in both themes */
+.codecard {
+  position: relative;
+  background: var(--code-bg);
+  color: var(--paper-ink);
+  border: 1px solid var(--ink-rule);
+}
+.codecard pre {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+.astro-code { background-color: transparent !important; }
+
+/* Copy buttons exist only when JavaScript can make them work */
+.copy {
+  display: none;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--lifted);
+  background: transparent;
+  color: var(--paper-ink);
+  font: 600 0.6875rem/1.4 var(--font);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.js .copy { display: inline-block; }
+.copy:hover { background: var(--lifted); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

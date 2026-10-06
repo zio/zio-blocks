@@ -1,0 +1,21 @@
+{
+  "name": "zio-blocks-landing",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "catalog": "node scripts/build-catalog.mjs",
+    "dev": "npm run catalog && astro dev",
+    "build": "npm run catalog && astro build",
+    "preview": "astro preview",
+    "test": "node --test \"test/unit/*.test.mjs\"",
+    "check": "npm run build && node --test test/dist.test.mjs",
+    "check:links": "node scripts/check-links.mjs"
+  },
+  "dependencies": {
+    "astro": "^7.3.5"
+  }
+}
