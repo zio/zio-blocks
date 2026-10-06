@@ -87,3 +87,40 @@ test('schema panel lists the format chips derived from the catalog', () => {
     .map((b) => b.name.replace(/ Codec$/, ''));
   assert.deepEqual(chips, ['JSON', ...codecs]);
 });
+
+test('catalog renders every block as a visible tile with its artifact and docs link', () => {
+  const s = sec('catalog');
+  const tiles = [...s.matchAll(/<li class="tile"[^>]*data-tile[^>]*>([\s\S]*?)<\/li>/g)];
+  const blocks = site.categories.flatMap((c) => c.blocks);
+  assert.equal(tiles.length, blocks.length);
+  assert.equal(blocks.length, site.blockCount);
+  tiles.forEach((t, i) => {
+    const b = blocks[i];
+    assert.doesNotMatch(t[0], /^<li[^>]*\bhidden\b/);
+    assert.equal(text(/<h4[^>]*>([\s\S]*?)<\/h4>/.exec(t[1])[1]), b.name);
+    assert.equal(/<h4[^>]*><a href="([^"]*)"/.exec(t[1])[1], b.docsUrl);
+    assert.equal(text(/<code class="artifact"[^>]*>([\s\S]*?)<\/code>/.exec(t[1])[1]), b.artifact);
+    assert.equal(decode(/data-copy="([^"]*)"/.exec(t[1])[1]), b.artifact);
+  });
+});
+
+test('catalog tiles carry filterable data attributes', () => {
+  const s = sec('catalog');
+  const first = site.categories[0].blocks[0];
+  assert.match(
+    s,
+    new RegExp(`data-category="${site.categories[0].name.replace(/&/g, '&amp;')}" data-platforms="${first.platforms.join(' ')}" data-scala="${first.scala.join(' ')}"`),
+  );
+});
+
+test('catalog filter controls list each category, platform and Scala version once', () => {
+  const s = sec('catalog');
+  const group = (name) => {
+    const g = new RegExp(`data-filter="${name}"[^>]*>([\\s\\S]*?)</div>`).exec(s)[1];
+    return [...g.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((m) => text(m[1]));
+  };
+  assert.deepEqual(group('category'), ['All', ...site.categories.map((c) => c.name)]);
+  assert.deepEqual(group('platform'), ['Any', 'JVM', 'JS']);
+  assert.deepEqual(group('scala'), ['Any', '2.13', '3.x']);
+  assert.equal(text(/data-status[^>]*>([\s\S]*?)<\//.exec(s)[1]), `${site.blockCount} of ${site.blockCount} blocks`);
+});

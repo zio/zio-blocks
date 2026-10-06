@@ -1,0 +1,89 @@
+---
+import site from '../data/site.json';
+import { renderInline } from '../lib/inline.mjs';
+
+const blocks = site.categories.flatMap((c) => c.blocks);
+const platforms = [...new Set(blocks.flatMap((b) => b.platforms))];
+const scalaVersions = [...new Set(blocks.flatMap((b) => b.scala))];
+---
+
+<section id="catalog" class="section" aria-labelledby="catalog-title">
+  <div class="wrap" data-catalog>
+    <p class="label">03 &nbsp; Block catalog</p>
+    <h2 id="catalog-title">{site.blockCount} blocks, take only what you need</h2>
+    <p class="sub">Each block is a separate artifact under <code>dev.zio</code>. Copy the artifact name, add it to your build, and use it.</p>
+
+    <div class="filters">
+      <div class="group" data-filter="category" aria-label="Category">
+        <button type="button" data-value="" aria-pressed="true">All</button>
+        {site.categories.map((c) => <button type="button" data-value={c.name} aria-pressed="false">{c.name}</button>)}
+      </div>
+      <div class="group" data-filter="platform" aria-label="Platform">
+        <button type="button" data-value="" aria-pressed="true">Any</button>
+        {platforms.map((p) => <button type="button" data-value={p} aria-pressed="false">{p}</button>)}
+      </div>
+      <div class="group" data-filter="scala" aria-label="Scala version">
+        <button type="button" data-value="" aria-pressed="true">Any</button>
+        {scalaVersions.map((v) => <button type="button" data-value={v} aria-pressed="false">{v}</button>)}
+      </div>
+      <p class="status" data-status aria-live="polite">{site.blockCount} of {site.blockCount} blocks</p>
+    </div>
+
+    {site.categories.map((c) => (
+      <section class="cat" data-category-section>
+        <h3>{c.name}</h3>
+        {c.note && <p class="note" set:html={renderInline(c.note)} />}
+        <ul class="grid">
+          {c.blocks.map((b) => (
+            <li class="tile" data-tile data-category={c.name} data-platforms={b.platforms.join(' ')} data-scala={b.scala.join(' ')}>
+              <h4><a href={b.docsUrl}>{b.name}</a></h4>
+              <p class="desc" set:html={renderInline(b.description)} />
+              <div class="meta">
+                <code class="artifact">{b.artifact}</code>
+                <button class="copy" type="button" data-copy={b.artifact} aria-label={`Copy artifact name ${b.artifact}`}>Copy</button>
+              </div>
+              <p class="badges">{b.platforms.join(' · ')} &nbsp;/&nbsp; Scala {b.scala.join(' · ')}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))}
+
+    <p class="none" data-empty hidden>No blocks match these filters.</p>
+  </div>
+</section>
+
+<script>
+  import '../scripts/catalog.js';
+</script>
+
+<style>
+  .sub { max-width: 40rem; color: var(--fg-soft); }
+  .filters { display: grid; gap: 0.75rem; margin: 2rem 0; }
+  .group { display: none; flex-wrap: nowrap; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem; }
+  :global(.js) .group { display: flex; }
+  .group button {
+    flex: none;
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--rule);
+    background: transparent;
+    color: var(--fg);
+    font: 600 0.8125rem/1.2 var(--font);
+    cursor: pointer;
+  }
+  .group button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .status { margin: 0; color: var(--label); font-size: 0.8125rem; }
+  .cat { margin-top: 2.5rem; }
+  .cat h3 { margin: 0 0 0.25rem; font-size: 1.125rem; font-weight: 800; }
+  .note { margin: 0 0 0.75rem; color: var(--fg-soft); font-size: 0.9375rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--seam); margin: 1rem 0 0; padding: 0; list-style: none; }
+  .tile { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; background: var(--surface); border: 1px solid var(--rule); min-width: 0; }
+  .tile h4 { margin: 0; font-size: 1rem; font-weight: 800; }
+  .desc { margin: 0; color: var(--fg-soft); font-size: 0.875rem; flex: 1; }
+  .meta { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-width: 0; }
+  .artifact { overflow-wrap: anywhere; font-size: 0.75rem; }
+  .tile .copy { color: var(--fg); border-color: var(--accent); }
+  .tile .copy:hover { color: #fff; background: var(--accent); }
+  .badges { margin: 0; color: var(--label); font-size: 0.75rem; letter-spacing: 0.04em; }
+  .none { color: var(--fg-soft); }
+</style>
