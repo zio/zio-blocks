@@ -208,6 +208,14 @@ test('parseIndex fails loudly, naming the offender', () => {
     'Schema: "The Solution" has no code block');
 });
 
+test('parseIndex fails when a category has no table or no rows', () => {
+  const head = '| Block | Artifact | Platform | Scala | Description |\n|-------|----------|----------|-------|-------------|\n';
+  const row = '| [Mux](./reference/mux.mdx) | `zio-blocks-mux` | JVM · JS | 3.x | Multiplexer |\n';
+  assert.ok(GOOD.includes(head + row));
+  failsWith(GOOD.replace(head + row, ''), 'category "Web & HTTP" has no block table');
+  failsWith(GOOD.replace(head + row, head), 'category "Web & HTTP" has no blocks');
+});
+
 test('parseIndex accepts the real docs/index.md', () => {
   const real = parseIndex(readFileSync(new URL('../../../docs/index.md', import.meta.url), 'utf8'));
   assert.deepEqual(real.deepDives.map((d) => d.id), ['schema', 'scope', 'async', 'sql']);

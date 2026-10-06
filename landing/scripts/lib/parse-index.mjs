@@ -66,10 +66,11 @@ function parseCategories(body) {
   const categories = [];
   for (const { title, body: catBody } of splitSections(body, 3).sections) {
     const table = parseTable(catBody);
-    if (!table) continue;
+    if (!table) throw new CatalogError(`category "${title}" has no block table`);
     if (table.header.join(' | ') !== BLOCK_COLUMNS.join(' | ')) {
       throw new CatalogError(`category "${title}": expected columns ${BLOCK_COLUMNS.join(' | ')}`);
     }
+    if (table.rows.length === 0) throw new CatalogError(`category "${title}" has no blocks`);
     const note = paragraphs(catBody.split('\n').filter((l) => !l.trim().startsWith('|')).join('\n'));
     const blocks = table.rows.map((cells) => {
       const block = parseBlock(cells);
