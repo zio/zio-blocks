@@ -120,9 +120,9 @@ test('catalog has no filter controls, counter or empty-state message', () => {
   assert.equal(/<button[^>]*>(?!\s*Copy\s*<)/.test(s), false);
 });
 
-test('footer repeats the install line and links out', () => {
+test('footer is the logo and links only: no call to action, no install box', () => {
   const f = between('<footer id="footer"', '</footer>');
-  assert.equal(decode(/data-copy="([^"]*)"/.exec(f)[1]), site.hero.install);
+  assert.equal(/data-copy|class="install"|class="cta"|Add a Block/.test(f), false);
   assert.match(f, /src="\/brand\/zio-blocks-logo-mono-white\.svg"[^>]*alt="ZIO Blocks"/);
   for (const href of ['https://zio.dev/zio-blocks/', 'https://github.com/zio/zio-blocks']) {
     assert.match(f, new RegExp(`href="${href.replace(/[./]/g, '\\$&')}"`));
@@ -167,7 +167,6 @@ test('every title, heading and label on the page is in title case', () => {
   const blocks = site.categories.flatMap((c) => c.blocks);
   assert.deepEqual(all(/<h4[^>]*>([\s\S]*?)<\/h4>/g), blocks.map((b) => titleCase(b.name)));
   assert.deepEqual(all(/<strong[^>]*>([\s\S]*?)<\/strong>/g, sec('principles')), site.principles.map((p) => titleCase(p.name)));
-  assert.deepEqual(all(/<p class="cta"[^>]*>(Add[\s\S]*?)<\/p>/g), ['Add a Block and Use It.']);
 });
 
 test('there is no switching-cost section and nothing links to one', () => {
