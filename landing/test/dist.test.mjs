@@ -109,6 +109,13 @@ test('catalog renders every block as a visible tile with its artifact and docs l
     assert.equal(text(/<h4[^>]*>([\s\S]*?)<\/h4>/.exec(t[1])[1]), b.name);
     assert.equal(/<h4[^>]*><a href="([^"]*)"/.exec(t[1])[1], b.docsUrl);
     assert.equal(text(/<code class="artifact"[^>]*>([\s\S]*?)<\/code>/.exec(t[1])[1]), b.artifact);
+    // One "Learn More" button per tile, linking to the block's docs page; its accessible name includes the visible text.
+    const learn = /<a class="learn" href="([^"]*)" aria-label="([^"]*)"[^>]*>([\s\S]*?)<\/a>/.exec(t[1]);
+    assert.deepEqual(
+      [learn[1], decode(learn[2]), text(learn[3])],
+      [b.docsUrl, `Learn More about ${titleCase(b.name)}`, 'Learn More'],
+    );
+    assert.equal((t[1].match(/class="learn"/g) ?? []).length, 1);
   });
 });
 
