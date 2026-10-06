@@ -44,8 +44,9 @@ const sec = (id) => {
 
 test('hero', () => {
   const hero = sec('hero');
-  const [head, tail] = site.tagline.split('—');
-  assert.equal(text(/<h1[^>]*>([\s\S]*?)<\/h1>/.exec(hero)[1]), `${head.trim()} — ${tail.trim()}`);
+  // The headline is the tagline up to the first em dash; the "— no effect system required" tail is not shown.
+  const headline = site.tagline.split('—')[0].trim();
+  assert.equal(text(/<h1[^>]*>([\s\S]*?)<\/h1>/.exec(hero)[1]), headline);
   assert.equal(text(/<p class="lead[^"]*"[^>]*>([\s\S]*?)<\/p>/.exec(hero)[1]), text(site.lead.replace(/\*+|`/g, '')));
   assert.equal(
     text(/<pre[\s\S]*?<\/pre>/.exec(hero)[0]),
