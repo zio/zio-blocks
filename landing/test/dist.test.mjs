@@ -26,3 +26,34 @@ test('document head', () => {
   assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="\/brand\/zio-blocks-mark-favicon\.svg"/);
   assert.match(html, /<a class="skip[^"]*" href="#main"/);
 });
+
+import site from '../src/data/site.json' with { type: 'json' };
+
+const between = (open, close) => {
+  const start = html.indexOf(open);
+  assert.notEqual(start, -1, `missing ${open}`);
+  return html.slice(start, html.indexOf(close, start));
+};
+/** HTML of a top-level section: from its opening tag to the next top-level section or footer. */
+const sec = (id) => {
+  const start = html.indexOf(`<section id="${id}"`);
+  assert.notEqual(start, -1, `missing <section id="${id}"`);
+  const next = html.slice(start + 1).search(/<(?:section|footer) id="/);
+  return next === -1 ? html.slice(start) : html.slice(start, start + 1 + next);
+};
+
+test('hero', () => {
+  const hero = sec('hero');
+  const [head, tail] = site.tagline.split('—');
+  assert.equal(text(/<h1[^>]*>([\s\S]*?)<\/h1>/.exec(hero)[1]), `${head.trim()} — ${tail.trim()}`);
+  assert.equal(text(/<p class="lead[^"]*"[^>]*>([\s\S]*?)<\/p>/.exec(hero)[1]), text(site.lead.replace(/\*+|`/g, '')));
+  assert.equal(
+    text(/<pre[\s\S]*?<\/pre>/.exec(hero)[0]),
+    `${site.hero.install} ${site.hero.jsonCode} // ${site.hero.jsonResult}`,
+  );
+  assert.equal(decode(/data-copy="([^"]*)"/.exec(hero)[1]), site.hero.install);
+  assert.equal(text(/<p class="stack[^"]*"[^>]*>([\s\S]*?)<\/p>/.exec(hero)[1]), `Works with ${site.compatibility.join(' · ')}`);
+  assert.match(hero, /<img[^>]*src="\/brand\/zio-blocks-logo-on-dark\.svg"[^>]*alt="ZIO Blocks"/);
+  assert.match(hero, /href="https:\/\/github\.com\/zio\/zio-blocks"/);
+  assert.match(hero, /href="https:\/\/zio\.dev\/zio-blocks\/"/);
+});
