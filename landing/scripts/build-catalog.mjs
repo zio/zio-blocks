@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
@@ -16,7 +17,9 @@ export const BRAND_ASSETS = [
 ];
 
 export async function build({ repoRoot = REPO_ROOT, outDir = LANDING_ROOT, version } = {}) {
-  const parsed = parseIndex(await readFile(join(repoRoot, 'docs/index.md'), 'utf8'));
+  const parsed = parseIndex(await readFile(join(repoRoot, 'docs/index.md'), 'utf8'), {
+    exists: (rel) => existsSync(join(repoRoot, 'docs', rel)),
+  });
   const resolved = version ?? (await resolveVersion());
 
   const site = {
@@ -36,7 +39,7 @@ export async function build({ repoRoot = REPO_ROOT, outDir = LANDING_ROOT, versi
   return site;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const site = await build();
     console.log(`landing: ${site.blockCount} blocks in ${site.categories.length} categories, version ${site.version}`);

@@ -82,11 +82,18 @@ export function proseBeforeFence(body) {
   return lines.join('\n').trim();
 }
 
-/** The first pipe table in `body`, or null. Rows must match the header's cell count. */
+/** The first pipe table in unfenced `body`, or null. Rows must match the header's cell count. */
 export function parseTable(body) {
-  const rows = body.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('|'));
+  const lines = annotate(body).filter((l) => !l.fenced).map((l) => l.text.trim());
+  const start = lines.findIndex((l) => l.startsWith('|'));
+  if (start === -1) return null;
+  let end = start;
+  while (end < lines.length && lines[end].startsWith('|')) end += 1;
+  if (lines.slice(end).some((l) => l.startsWith('|'))) throw new CatalogError('body has more than one table');
+  const rows = lines.slice(start, end);
   if (rows.length < 2) return null;
-  const cells = (line) => line.replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+  const cells = (line) =>
+    line.replace(/^\|/, '').replace(/(?<!\\)\|$/, '').split(/(?<!\\)\|/).map((c) => c.trim().replaceAll('\\|', '|'));
   const header = cells(rows[0]);
   if (!cells(rows[1]).every((c) => /^:?-+:?$/.test(c))) {
     throw new CatalogError(`table after header "${rows[0]}" has no separator row`);
@@ -101,7 +108,9 @@ export function parseTable(body) {
   return { header, rows: parsed };
 }
 
-/** Top-level `- ` list items (nested items are ignored). */
+/** Top-level `- ` or `* ` list items outside fenced code (nested items are ignored). */
 export function bullets(body) {
-  return body.split('\n').filter((l) => l.startsWith('- ')).map((l) => l.slice(2).trim());
+  return annotate(body)
+    .filter((l) => !l.fenced && /^[-*] /.test(l.text))
+    .map((l) => l.text.slice(2).trim());
 }

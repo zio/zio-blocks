@@ -63,3 +63,25 @@ test('parseTable rejects a row with the wrong number of cells', () => {
 test('bullets returns only top-level dash items', () => {
   assert.deepEqual(bullets('intro\n- one\n- two\n  - nested\nend'), ['one', 'two']);
 });
+
+test('bullets treats * like - and skips fenced lines', () => {
+  assert.deepEqual(bullets('* a\n- b\n```\n- fenced\n* fenced\n```\n- c'), ['a', 'b', 'c']);
+});
+
+test('parseTable ignores pipe lines inside fences', () => {
+  const body = '```\n| X | Y |\n|---|---|\n| 1 | 2 |\n```\n\n| A | B |\n|---|---|\n| 3 | 4 |';
+  assert.deepEqual(parseTable(body), { header: ['A', 'B'], rows: [['3', '4']] });
+  assert.equal(parseTable('```\n| X | Y |\n|---|---|\n```'), null);
+});
+
+test('parseTable stops at the first non-pipe line and rejects a second table', () => {
+  assert.deepEqual(parseTable('| A |\n|---|\n| 1 |\ntext\n'), { header: ['A'], rows: [['1']] });
+  assert.throws(
+    () => parseTable('| A |\n|---|\n| 1 |\n\n| B |\n|---|\n| 2 |'),
+    (e) => e instanceof CatalogError && e.message === 'body has more than one table',
+  );
+});
+
+test('parseTable treats \\| in a cell as a literal pipe', () => {
+  assert.deepEqual(parseTable('| A | B |\n|---|---|\n| a \\| b | `x\\|y` |'), { header: ['A', 'B'], rows: [['a | b', '`x|y`']] });
+});
