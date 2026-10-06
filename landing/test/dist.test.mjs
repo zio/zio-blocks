@@ -116,6 +116,8 @@ test('catalog renders every block as a visible tile with its artifact and docs l
       [b.docsUrl, `Learn More about ${titleCase(b.name)}`, 'Learn More'],
     );
     assert.equal((t[1].match(/class="learn"/g) ?? []).length, 1);
+    // The button shares one row with the platform / Scala badges: both are children of the same footer row.
+    assert.equal(/<div class="foot"[^>]*>\s*<p class="badges"[^>]*>[\s\S]*?<\/p>\s*<a class="learn"/.test(t[1]), true);
   });
 });
 

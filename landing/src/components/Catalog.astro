@@ -20,8 +20,10 @@ import { renderInline } from '../lib/inline.mjs';
               <h4><a href={b.docsUrl}>{titleCase(b.name)}</a></h4>
               <p class="desc" set:html={renderInline(b.description)} />
               <code class="artifact">{b.artifact}</code>
-              <p class="badges">{b.platforms.join(' · ')} &nbsp;/&nbsp; Scala {b.scala.join(' · ')}</p>
-              <a class="learn" href={b.docsUrl} aria-label={`Learn More about ${titleCase(b.name)}`}>Learn More</a>
+              <div class="foot">
+                <p class="badges">{b.platforms.join(' · ')} &nbsp;/&nbsp; Scala {b.scala.join(' · ')}</p>
+                <a class="learn" href={b.docsUrl} aria-label={`Learn More about ${titleCase(b.name)}`}>Learn More</a>
+              </div>
             </li>
           ))}
         </ul>
@@ -40,9 +42,10 @@ import { renderInline } from '../lib/inline.mjs';
   .tile h4 { margin: 0; font-size: 1rem; font-weight: 800; }
   .desc { margin: 0; color: var(--fg-soft); font-size: 0.875rem; flex: 1; }
   .artifact { overflow-wrap: anywhere; font-size: 0.75rem; }
+  /* Badges on the left, the button on the right of one row; the button wraps to its own right-aligned line only if the tile is very narrow */
+  .foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 0.75rem; margin-top: 0.25rem; }
   .learn {
-    align-self: flex-end;
-    margin-top: 0.25rem;
+    margin-left: auto;
     padding: 0.5rem 0.9rem;
     border: 1px solid var(--accent);
     color: var(--fg);
