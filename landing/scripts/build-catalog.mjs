@@ -17,7 +17,7 @@ export const CATEGORY_SPLITS = [
 ];
 
 /** Category headings shown under a different name than the `###` heading in docs/index.md. */
-export const CATEGORY_RENAMES = { Streams: 'Streaming' };
+export const CATEGORY_RENAMES = { Streams: 'Streaming', 'Configuration & Feature Flags': 'Configuration' };
 
 /** Brand files the site references, copied from assets/logo at build time (never committed twice). */
 export const BRAND_ASSETS = [
