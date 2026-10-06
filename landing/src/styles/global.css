@@ -123,6 +123,8 @@ code { font-family: var(--mono); font-size: 0.9em; }
   line-height: 1.65;
 }
 .astro-code { background-color: transparent !important; }
+/* Shiki github-dark comments (#6A737D) are too dim on the ink code card; #7C859E is allowed on ink surfaces */
+.astro-code span[style*='#6A737D' i] { color: #7C859E !important; }
 
 /* Copy buttons exist only when JavaScript can make them work */
 .copy {

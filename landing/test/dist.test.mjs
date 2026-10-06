@@ -57,3 +57,33 @@ test('hero', () => {
   assert.match(hero, /href="https:\/\/github\.com\/zio\/zio-blocks"/);
   assert.match(hero, /href="https:\/\/zio\.dev\/zio-blocks\/"/);
 });
+
+test('principles', () => {
+  const s = sec('principles');
+  const items = [...s.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
+  assert.deepEqual(items, site.principles.map((p, i) => `0${i + 1} ${p.name} ${p.text}`));
+});
+
+test('deep dives render every panel visible without JavaScript', () => {
+  const s = sec('deep-dives');
+  const tabs = [...s.matchAll(/role="tab"[^>]*>([\s\S]*?)<\/button>/g)].map((m) => text(m[1]));
+  assert.deepEqual(tabs, site.deepDives.map((d) => d.title));
+  const panels = [...s.matchAll(/<div[^>]*role="tabpanel"[^>]*>/g)].map((m) => m[0]);
+  assert.equal(panels.length, site.deepDives.length);
+  for (const p of panels) assert.doesNotMatch(p, /\bhidden\b/);
+  for (const d of site.deepDives) {
+    assert.match(s, new RegExp(`id="panel-${d.id}"`));
+    assert.match(text(s), new RegExp(d.title));
+  }
+  assert.match(s, /aria-selected="true"/);
+});
+
+test('schema panel lists the format chips derived from the catalog', () => {
+  const s = sec('deep-dives');
+  const chips = [...s.matchAll(/<li class="chip"[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
+  const codecs = site.categories
+    .find((c) => c.name === 'Meta Programming')
+    .blocks.filter((b) => b.name.endsWith(' Codec'))
+    .map((b) => b.name.replace(/ Codec$/, ''));
+  assert.deepEqual(chips, ['JSON', ...codecs]);
+});
