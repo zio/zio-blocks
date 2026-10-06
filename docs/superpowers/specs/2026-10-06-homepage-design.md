@@ -49,10 +49,9 @@ Ink hero, light editorial body with hairlines and numbered tracked labels, ink f
 | 01 | Principles | What's the catch? | Zero lock-in, Modular, Cross-platform, High performance, Type safety, as a numbered row from the `docs/index.md` principles |
 | 02 | Deep dives | Show me real code | Tabs: Schema, Scope, Async, SQL. Each shows the problem (old way) then the solution, plus a link to the reference. Schema tab includes the format chips. Scope tab shows the compile-time escape error |
 | 03 | Block catalog | Does it cover my use case? | Tiles grouped under the 11 category headings, each with the artifact name, platform and Scala badges and a copy button, linking to its reference page. (The category / JVM-JS / Scala-version filter controls in the original design were removed on request.) |
-| 04 | Switching cost | How painful is adoption? | Migration-from-zio-schema guide featured, plus a short list of the other guides |
-| 05 | Close and footer | What do I do now? | Install line repeated, then Docs, Reference, GitHub, and the stacked logo |
+| 04 | Close and footer | What do I do now? | Install line repeated, then Docs, Reference, GitHub, and the stacked logo |
 
-Deliberately absent: testimonials, star counts, logo walls, benchmark numbers (until a real JMH result is cited), hero illustration.
+Deliberately absent: testimonials, star counts, logo walls, benchmark numbers (until a real JMH result is cited), hero illustration, and (removed on request) a switching-cost section for the migration guide and other guides; the docs parser still reads `## Guides`.
 
 ## Architecture
 
@@ -68,7 +67,6 @@ landing/
     Principles.astro
     DeepDives.astro
     Catalog.astro
-    Switching.astro
     Footer.astro
   src/scripts/                      tabs, copy (each small)
   public/fonts/                     Manrope, self-hosted

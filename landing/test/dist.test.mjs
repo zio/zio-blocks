@@ -120,19 +120,6 @@ test('catalog has no filter controls, counter or empty-state message', () => {
   assert.equal(/<button[^>]*>(?!\s*Copy\s*<)/.test(s), false);
 });
 
-test('switching cost features the migration guide and lists the rest', () => {
-  const s = sec('switching');
-  const migration = site.guides.find((g) => /migrat/i.test(g.title));
-  const feature = /<a class="feature" href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/.exec(s);
-  assert.equal(feature[1], migration.url);
-  const strip = (t) => t.replace(/`/g, '');
-  assert.equal(text(feature[2]), strip(`${titleCase(migration.title)} ${migration.description}`));
-  const others = [...s.matchAll(/<li[^>]*><a href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => [m[1], text(m[2])]);
-  assert.deepEqual(others, site.guides.filter((g) => g !== migration).map((g) => [g.url, titleCase(g.title)]));
-  const descs = [...s.matchAll(/<li[^>]*><a [^>]*>[\s\S]*?<\/a>\s*<span[^>]*>([\s\S]*?)<\/span>\s*<\/li>/g)].map((m) => text(m[1]));
-  assert.deepEqual(descs, site.guides.filter((g) => g !== migration).map((g) => `\u2014 ${strip(g.description)}`));
-});
-
 test('footer repeats the install line and links out', () => {
   const f = between('<footer id="footer"', '</footer>');
   assert.equal(decode(/data-copy="([^"]*)"/.exec(f)[1]), site.hero.install);
@@ -144,7 +131,7 @@ test('footer repeats the install line and links out', () => {
 
 test('page order, anchors, images, and leftovers', () => {
   const ids = [...html.matchAll(/<(?:section|footer) id="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(ids, ['hero', 'principles', 'deep-dives', 'catalog', 'switching', 'footer']);
+  assert.deepEqual(ids, ['hero', 'principles', 'deep-dives', 'catalog', 'footer']);
   const allIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
   for (const [, target] of html.matchAll(/href="#([^"]+)"/g)) assert.ok(allIds.has(target), `dangling #${target}`);
   for (const img of html.matchAll(/<img\b[^>]*>/g)) assert.match(img[0], /\balt="[^"]+"/);
@@ -165,13 +152,12 @@ test('every title, heading and label on the page is in title case', () => {
     'Use What You Need, Nothing More',
     'Four Blocks, in Code',
     `${site.blockCount} Blocks, Take Only What You Need`,
-    'Adopt It on Your Timeline',
   ]);
   assert.deepEqual(
     all(/<p class="label[^"]*"[^>]*>([\s\S]*?)<\/p>/g)
       .map((l) => l.replace(' &nbsp; ', ' ')) // the numbered labels separate number and name with an HTML space
       .filter((l) => !l.startsWith('The ')),
-    ['01 Principles', '02 Deep Dives', 'One Schema, Many Formats', '03 Block Catalog', '04 Switching Cost', 'More Guides'],
+    ['01 Principles', '02 Deep Dives', 'One Schema, Many Formats', '03 Block Catalog'],
   );
   assert.deepEqual(all(/<p class="label[^"]*"[^>]*>(The [\s\S]*?)<\/p>/g), site.deepDives.flatMap(() => ['The Problem', 'The Solution']));
   assert.deepEqual(all(/<h3[^>]*>([\s\S]*?)<\/h3>/g), [
@@ -181,6 +167,9 @@ test('every title, heading and label on the page is in title case', () => {
   const blocks = site.categories.flatMap((c) => c.blocks);
   assert.deepEqual(all(/<h4[^>]*>([\s\S]*?)<\/h4>/g), blocks.map((b) => titleCase(b.name)));
   assert.deepEqual(all(/<strong[^>]*>([\s\S]*?)<\/strong>/g, sec('principles')), site.principles.map((p) => titleCase(p.name)));
-  assert.deepEqual(all(/<p class="k"[^>]*>([\s\S]*?)<\/p>/g), ['Coming From ZIO Schema?']);
   assert.deepEqual(all(/<p class="cta"[^>]*>(Add[\s\S]*?)<\/p>/g), ['Add a Block and Use It.']);
+});
+
+test('there is no switching-cost section and nothing links to one', () => {
+  assert.equal(/switching/i.test(html), false);
 });
