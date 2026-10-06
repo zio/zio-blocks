@@ -1,18 +1,20 @@
 /**
- * Within each category, keeps only the first block of every artifact. docs/index.md lists the types that ship in one
- * artifact (for example Scope, Resource, Unscoped, ... in `zio-blocks-scope`) as separate rows; on the landing page
- * one artifact is one tile. The same artifact in different categories is kept in each. A category that lost blocks
- * also loses its note, because that note described the collapsed rows ("All of these ship in ..."). The input is not
- * mutated.
+ * One tile per artifact across the whole page: the first block of every artifact wins, later rows that share it are
+ * dropped. docs/index.md lists the types that ship in one artifact (Scope, Resource, Unscoped, ... and Wire all live
+ * in `zio-blocks-scope`) as separate rows, and Wire sits in a different category; on the landing page one artifact is
+ * one block. A category that lost blocks also loses its note, because that note described the collapsed rows ("All of
+ * these ship in ..."), and a category left with no blocks is dropped. The input is not mutated.
  */
 export function collapseSameArtifact(categories) {
-  return categories.map((category) => {
-    const seen = new Set();
-    const blocks = category.blocks.filter((block) => {
-      if (seen.has(block.artifact)) return false;
-      seen.add(block.artifact);
-      return true;
-    });
-    return blocks.length === category.blocks.length ? category : { ...category, blocks, note: null };
-  });
+  const seen = new Set();
+  return categories
+    .map((category) => {
+      const blocks = category.blocks.filter((block) => {
+        if (seen.has(block.artifact)) return false;
+        seen.add(block.artifact);
+        return true;
+      });
+      return blocks.length === category.blocks.length ? category : { ...category, blocks, note: null };
+    })
+    .filter((category) => category.blocks.length > 0);
 }

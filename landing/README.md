@@ -21,9 +21,9 @@ The parser fails the build, naming the row, if the page changes shape. It relies
 a five-column table `Block | Artifact | Platform | Scala | Description`), `## Schema`/`Scope`/`Async`/`SQL` (each
 with `### The Problem`, `### The Solution`, `### Learn More`), `## Compatibility`, and `## Guides` sections.
 Links in prose (descriptions, notes, deep-dive text) must be `https://` URLs or `./` docs paths; docs paths are
-rewritten to zio.dev URLs and checked against `docs/` at build time. Platforms are `JVM`/`JS`; Scala versions are `2.13`/`3.x`. On the page, rows of one category that share an artifact
-(for example Scope, Resource, Unscoped, ... in `zio-blocks-scope`) are collapsed into one tile, the first row, and that
-category's note is dropped (`scripts/lib/collapse.mjs`). A new value needs a one-line change in
+rewritten to zio.dev URLs and checked against `docs/` at build time. Platforms are `JVM`/`JS`; Scala versions are `2.13`/`3.x`. On the page there is one tile per artifact: rows that share an
+artifact (Scope, Resource, Unscoped, ... and Wire all live in `zio-blocks-scope`) are collapsed into the first row, a
+category that lost rows loses its note, and a category left empty is dropped (`scripts/lib/collapse.mjs`). A new value needs a one-line change in
 `scripts/lib/parse-index.mjs`.
 
 ## Netlify setup (once, by a maintainer)
