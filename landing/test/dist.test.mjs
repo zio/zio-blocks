@@ -152,7 +152,7 @@ test('every title, heading and label on the page is in title case', () => {
   assert.deepEqual(all(/<h2[^>]*>([\s\S]*?)<\/h2>/g), [
     'Use What You Need, Nothing More',
     'Four Blocks, in Code',
-    `${site.blockCount} Blocks, Take Only What You Need`,
+    'Take Only What You Need',
   ]);
   assert.deepEqual(
     all(/<p class="label[^"]*"[^>]*>([\s\S]*?)<\/p>/g)
