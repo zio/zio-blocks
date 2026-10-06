@@ -3,11 +3,14 @@ import { Code } from 'astro:components';
 import ModuleField from './ModuleField.astro';
 import site from '../data/site.json';
 import { renderInline } from '../lib/inline.mjs';
+import { titleCase } from '../lib/title-case.mjs';
 
 // The docs tagline is "<headline>—no effect system required."; the headline is the part before the first em dash.
 const dash = site.tagline.indexOf('—');
-// "building blocks" is the product's name for the idea: a non-breaking space (U+00A0) keeps the pair on one line.
-const headline = (dash === -1 ? site.tagline : site.tagline.slice(0, dash)).trim().replace('building blocks', 'building blocks');
+const base = (dash === -1 ? site.tagline : site.tagline.slice(0, dash)).trim().replace(/^Modular\s+/, '');
+// The leading "Modular " is dropped and the rest is title-cased. A non-breaking space (U+00A0) keeps "Building Blocks"
+// on one line.
+const headline = titleCase(base).replace('Building Blocks', 'Building Blocks');
 const snippet = `${site.hero.install}\n\n${site.hero.jsonCode}   // ${site.hero.jsonResult}`;
 ---
 
