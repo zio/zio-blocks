@@ -1,0 +1,47 @@
+---
+import site from '../data/site.json';
+
+const feature = site.guides.find((g) => /migrat/i.test(g.title));
+const rest = site.guides.filter((g) => g !== feature);
+---
+
+<section id="switching" class="section" aria-labelledby="switching-title">
+  <div class="wrap">
+    <p class="label">04 &nbsp; Switching cost</p>
+    <h2 id="switching-title">Adopt it on your timeline</h2>
+
+    {feature && <p class="k">Coming from ZIO Schema?</p>}
+    {feature && (
+      <a class="feature" href={feature.url}>
+        <strong>{feature.title}</strong>
+        <span class="d">{feature.description}</span>
+      </a>
+    )}
+
+    <p class="label more">More guides</p>
+    <ul class="guides">
+      {rest.map((g) => <li><a href={g.url}>{g.title}</a> <span>&mdash; {g.description}</span></li>)}
+    </ul>
+  </div>
+</section>
+
+<style>
+  .feature {
+    display: grid;
+    gap: 0.25rem;
+    max-width: 44rem;
+    margin-top: 0.5rem;
+    padding: 1.25rem 1.5rem;
+    border: 2px solid var(--accent);
+    color: var(--fg);
+    text-decoration: none;
+  }
+  .feature:hover { background: var(--surface); }
+  .k { margin: 1.5rem 0 0; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--label); }
+  .feature strong { font-size: 1.25rem; font-weight: 800; }
+  .d { color: var(--fg-soft); }
+  .more { margin-top: 2.5rem; }
+  .guides { margin: 0; padding: 0; list-style: none; }
+  .guides li { padding-block: 0.4rem; border-bottom: 1px solid var(--rule); }
+  .guides span { color: var(--fg-soft); }
+</style>

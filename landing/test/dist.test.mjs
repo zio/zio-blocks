@@ -135,3 +135,33 @@ test('catalog filter containers are named groups', () => {
     assert.equal(attr(tag, 'aria-label'), label);
   }
 });
+
+test('switching cost features the migration guide and lists the rest', () => {
+  const s = sec('switching');
+  const migration = site.guides.find((g) => /migrat/i.test(g.title));
+  const feature = /<a class="feature" href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/.exec(s);
+  assert.equal(feature[1], migration.url);
+  assert.equal(text(feature[2]), `${migration.title} ${migration.description}`);
+  const others = [...s.matchAll(/<li[^>]*><a href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => [m[1], text(m[2])]);
+  assert.deepEqual(others, site.guides.filter((g) => g !== migration).map((g) => [g.url, g.title]));
+});
+
+test('footer repeats the install line and links out', () => {
+  const f = between('<footer id="footer"', '</footer>');
+  assert.equal(decode(/data-copy="([^"]*)"/.exec(f)[1]), site.hero.install);
+  assert.match(f, /src="\/brand\/zio-blocks-logo-mono-white\.svg"[^>]*alt="ZIO Blocks"/);
+  for (const href of ['https://zio.dev/zio-blocks/', 'https://github.com/zio/zio-blocks']) {
+    assert.match(f, new RegExp(`href="${href.replace(/[./]/g, '\\$&')}"`));
+  }
+});
+
+test('page order, anchors, images, and leftovers', () => {
+  const ids = [...html.matchAll(/<(?:section|footer) id="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(ids, ['hero', 'principles', 'deep-dives', 'catalog', 'switching', 'footer']);
+  const allIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+  for (const [, target] of html.matchAll(/href="#([^"]+)"/g)) assert.ok(allIds.has(target), `dangling #${target}`);
+  for (const img of html.matchAll(/<img\b[^>]*>/g)) assert.match(img[0], /\balt="[^"]+"/);
+  assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
+  assert.equal(html.includes('@VERSION@'), false);
+  for (const [, href] of html.matchAll(/href="(https?:[^"]+)"/g)) assert.match(href, /^https:/);
+});

@@ -1,0 +1,56 @@
+---
+import site from '../data/site.json';
+---
+
+<footer id="footer" class="footer">
+  <div class="wrap">
+    <p class="cta">Add a block and use it.</p>
+    <div class="install">
+      <code>{site.hero.install}</code>
+      <button class="copy" type="button" data-copy={site.hero.install} aria-label="Copy the install line">Copy</button>
+    </div>
+    <div class="bottom">
+      <img src="/brand/zio-blocks-logo-mono-white.svg" alt="ZIO Blocks" width="160" height="37" />
+      <nav aria-label="Footer">
+        <a href="https://zio.dev/zio-blocks/">Docs</a>
+        <a href="https://zio.dev/zio-blocks/reference/schema/">Reference</a>
+        <a href="#switching">Guides</a>
+        <a href="https://github.com/zio/zio-blocks">GitHub</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+
+<script>
+  import '../scripts/copy.js';
+</script>
+
+<style>
+  .footer { background: var(--ink); color: var(--paper-ink); border-top: 1px solid var(--ink-rule); padding-block: clamp(3rem, 7vw, 5rem) 2rem; }
+  .cta { margin: 0 0 1.25rem; font-size: clamp(1.5rem, 3vw, 2.25rem); font-weight: 800; letter-spacing: -0.01em; }
+  .install {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    max-width: 44rem;
+    padding: 0.9rem 1.1rem;
+    background: var(--code-bg);
+    border: 1px solid var(--ink-rule);
+  }
+  .install code { overflow-x: auto; white-space: nowrap; font-size: 0.8125rem; }
+  .bottom {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--ink-rule);
+  }
+  .bottom img { width: 160px; height: auto; }
+  nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; font-weight: 600; font-size: 0.9375rem; }
+  nav a { color: var(--paper-ink); text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+</style>
