@@ -4,11 +4,11 @@ import { Code } from 'astro:components';
 import site from '../data/site.json';
 import { renderCode, renderInline } from '../lib/inline.mjs';
 
+// JSON is built into the Schema block; every block in the "Codecs and Serializations" category adds one more format.
 const codecs =
   site.categories
-    .find((c) => c.name === 'Meta Programming')
-    ?.blocks.filter((b) => b.name.endsWith(' Codec'))
-    .map((b) => b.name.replace(/ Codec$/, '')) ?? [];
+    .find((c) => c.name === 'Codecs and Serializations')
+    ?.blocks.map((b) => b.name.replace(/ Codec$/, '')) ?? [];
 const formats = ['JSON', ...codecs];
 ---
 

@@ -25,7 +25,9 @@ rewritten to zio.dev URLs and checked against `docs/` at build time. Platforms a
 artifact (Scope, Resource, Unscoped, ... and Wire all live in `zio-blocks-scope`) are collapsed into the first row, a
 category that lost rows loses its note, and a category left empty is dropped (`scripts/lib/collapse.mjs`). A category can be shown under a different name
 than its `###` heading through `CATEGORY_RENAMES` in `scripts/build-catalog.mjs` (currently `Streams` -> `Streaming`); a rename
-for a heading that no longer exists fails the build. A new value needs a one-line change in
+for a heading that no longer exists fails the build. `CATEGORY_SPLITS` shows one docs category as two (currently `Meta Programming` -> `Meta Programming` plus
+`Codecs and Serializations`, the rows whose name ends in ` Codec`), moving the docs note with the moved rows
+(`scripts/lib/split.mjs`). A new value needs a one-line change in
 `scripts/lib/parse-index.mjs`.
 
 ## Netlify setup (once, by a maintainer)

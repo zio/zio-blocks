@@ -18,6 +18,13 @@ test('build writes site.json with the version substituted and copies brand asset
   const artifacts = site.categories.flatMap((c) => c.blocks.map((b) => b.artifact));
   assert.equal(new Set(artifacts).size, artifacts.length);
   // The Streams category is shown as "Streaming"; the block inside it keeps its own name.
+  // Meta Programming is split: Schema and TypeId stay, the format codecs move to "Codecs and Serializations" right after it.
+  const names = site.categories.map((c) => c.name);
+  assert.equal(names[names.indexOf('Meta Programming') + 1], 'Codecs and Serializations');
+  assert.deepEqual(site.categories.find((c) => c.name === 'Meta Programming').blocks.map((x) => x.name), ['Schema', 'TypeId']);
+  const codecs = site.categories.find((c) => c.name === 'Codecs and Serializations');
+  assert.deepEqual(codecs.blocks.map((x) => x.name), ['Avro Codec', 'BSON Codec', 'CSV Codec', 'MessagePack Codec', 'Thrift Codec', 'TOON Codec', 'XML Codec', 'YAML Codec']);
+  assert.equal(typeof codecs.note, 'string'); // the docs note about the format modules moved with them
   assert.deepEqual(site.categories.map((c) => c.name).filter((n) => /^Stream/.test(n)), ['Streaming']);
   assert.deepEqual(site.categories.find((c) => c.name === 'Streaming').blocks.map((x) => x.name), ['Streams']);
   assert.equal(JSON.stringify(site).includes('@VERSION@'), false);

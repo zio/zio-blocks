@@ -5,10 +5,16 @@ import { join } from 'node:path';
 import { collapseSameArtifact } from './lib/collapse.mjs';
 import { parseIndex } from './lib/parse-index.mjs';
 import { renameCategories } from './lib/rename.mjs';
+import { splitCategories } from './lib/split.mjs';
 import { resolveVersion } from './lib/version.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const LANDING_ROOT = fileURLToPath(new URL('../', import.meta.url));
+
+/** Categories shown as two on the page: the blocks matching `where` move to a new category after the original. */
+export const CATEGORY_SPLITS = [
+  { from: 'Meta Programming', into: 'Codecs and Serializations', where: (block) => / Codec$/.test(block.name) },
+];
 
 /** Category headings shown under a different name than the `###` heading in docs/index.md. */
 export const CATEGORY_RENAMES = { Streams: 'Streaming' };
@@ -27,7 +33,10 @@ export async function build({ repoRoot = REPO_ROOT, outDir = LANDING_ROOT, versi
   });
   const resolved = version ?? (await resolveVersion());
 
-  const categories = renameCategories(collapseSameArtifact(parsed.categories), CATEGORY_RENAMES);
+  const categories = renameCategories(
+    splitCategories(collapseSameArtifact(parsed.categories), CATEGORY_SPLITS),
+    CATEGORY_RENAMES,
+  );
   const site = {
     version: resolved,
     ...parsed,
