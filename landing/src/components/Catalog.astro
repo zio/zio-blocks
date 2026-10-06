@@ -1,22 +1,23 @@
 ---
+import { titleCase } from '../lib/title-case.mjs';
 import site from '../data/site.json';
 import { renderInline } from '../lib/inline.mjs';
 ---
 
 <section id="catalog" class="section" aria-labelledby="catalog-title">
   <div class="wrap">
-    <p class="label">03 &nbsp; Block catalog</p>
-    <h2 id="catalog-title">{site.blockCount} blocks, take only what you need</h2>
+    <p class="label">03 &nbsp; Block Catalog</p>
+    <h2 id="catalog-title">{site.blockCount} Blocks, Take Only What You Need</h2>
     <p class="sub">Each block is a separate artifact under <code>dev.zio</code>. Copy the artifact name, add it to your build, and use it.</p>
 
     {site.categories.map((c) => (
       <section class="cat">
-        <h3>{c.name}</h3>
+        <h3>{titleCase(c.name)}</h3>
         {c.note && <p class="note" set:html={renderInline(c.note)} />}
         <ul class="grid">
           {c.blocks.map((b) => (
             <li class="tile">
-              <h4><a href={b.docsUrl}>{b.name}</a></h4>
+              <h4><a href={b.docsUrl}>{titleCase(b.name)}</a></h4>
               <p class="desc" set:html={renderInline(b.description)} />
               <div class="meta">
                 <code class="artifact">{b.artifact}</code>

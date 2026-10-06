@@ -16,7 +16,7 @@ test('document head', () => {
   assert.match(html, /<html lang="en"/);
   assert.equal(
     text(/<title>([\s\S]*?)<\/title>/.exec(html)[1]),
-    'ZIO Blocks — Type-safe, modular building blocks for Scala',
+    'ZIO Blocks — Type-Safe, Modular Building Blocks for Scala',
   );
   assert.equal(
     decode(meta('description')),
@@ -28,6 +28,7 @@ test('document head', () => {
 });
 
 import site from '../src/data/site.json' with { type: 'json' };
+import { titleCase } from '../src/lib/title-case.mjs';
 
 const between = (open, close) => {
   const start = html.indexOf(open);
@@ -125,9 +126,9 @@ test('switching cost features the migration guide and lists the rest', () => {
   const feature = /<a class="feature" href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/.exec(s);
   assert.equal(feature[1], migration.url);
   const strip = (t) => t.replace(/`/g, '');
-  assert.equal(text(feature[2]), strip(`${migration.title} ${migration.description}`));
+  assert.equal(text(feature[2]), strip(`${titleCase(migration.title)} ${migration.description}`));
   const others = [...s.matchAll(/<li[^>]*><a href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => [m[1], text(m[2])]);
-  assert.deepEqual(others, site.guides.filter((g) => g !== migration).map((g) => [g.url, g.title]));
+  assert.deepEqual(others, site.guides.filter((g) => g !== migration).map((g) => [g.url, titleCase(g.title)]));
   const descs = [...s.matchAll(/<li[^>]*><a [^>]*>[\s\S]*?<\/a>\s*<span[^>]*>([\s\S]*?)<\/span>\s*<\/li>/g)].map((m) => text(m[1]));
   assert.deepEqual(descs, site.guides.filter((g) => g !== migration).map((g) => `\u2014 ${strip(g.description)}`));
 });
@@ -155,4 +156,31 @@ test('page order, anchors, images, and leftovers', () => {
 test('exactly one polite live region announces copy results', () => {
   assert.equal(html.match(/data-copy-status/g).length, 1);
   assert.match(html, /<p class="sr-only" role="status" aria-live="polite" data-copy-status/);
+});
+
+test('every title, heading and label on the page is in title case', () => {
+  const all = (re, scope = html) => [...scope.matchAll(re)].map((m) => text(m[1]));
+  assert.equal(text(/<title>([\s\S]*?)<\/title>/.exec(html)[1]), 'ZIO Blocks — Type-Safe, Modular Building Blocks for Scala');
+  assert.deepEqual(all(/<h2[^>]*>([\s\S]*?)<\/h2>/g), [
+    'Use What You Need, Nothing More',
+    'Four Blocks, in Code',
+    `${site.blockCount} Blocks, Take Only What You Need`,
+    'Adopt It on Your Timeline',
+  ]);
+  assert.deepEqual(
+    all(/<p class="label[^"]*"[^>]*>([\s\S]*?)<\/p>/g)
+      .map((l) => l.replace(' &nbsp; ', ' ')) // the numbered labels separate number and name with an HTML space
+      .filter((l) => !l.startsWith('The ')),
+    ['01 Principles', '02 Deep Dives', 'One Schema, Many Formats', '03 Block Catalog', '04 Switching Cost', 'More Guides'],
+  );
+  assert.deepEqual(all(/<p class="label[^"]*"[^>]*>(The [\s\S]*?)<\/p>/g), site.deepDives.flatMap(() => ['The Problem', 'The Solution']));
+  assert.deepEqual(all(/<h3[^>]*>([\s\S]*?)<\/h3>/g), [
+    ...site.deepDives.map((d) => titleCase(d.title)),
+    ...site.categories.map((c) => titleCase(c.name)),
+  ]);
+  const blocks = site.categories.flatMap((c) => c.blocks);
+  assert.deepEqual(all(/<h4[^>]*>([\s\S]*?)<\/h4>/g), blocks.map((b) => titleCase(b.name)));
+  assert.deepEqual(all(/<strong[^>]*>([\s\S]*?)<\/strong>/g, sec('principles')), site.principles.map((p) => titleCase(p.name)));
+  assert.deepEqual(all(/<p class="k"[^>]*>([\s\S]*?)<\/p>/g), ['Coming From ZIO Schema?']);
+  assert.deepEqual(all(/<p class="cta"[^>]*>(Add[\s\S]*?)<\/p>/g), ['Add a Block and Use It.']);
 });

@@ -1,4 +1,5 @@
 ---
+import { titleCase } from '../lib/title-case.mjs';
 import site from '../data/site.json';
 import { renderInline } from '../lib/inline.mjs';
 
@@ -8,20 +9,20 @@ const rest = site.guides.filter((g) => g !== feature);
 
 <section id="switching" class="section" aria-labelledby="switching-title">
   <div class="wrap">
-    <p class="label">04 &nbsp; Switching cost</p>
-    <h2 id="switching-title">Adopt it on your timeline</h2>
+    <p class="label">04 &nbsp; Switching Cost</p>
+    <h2 id="switching-title">Adopt It on Your Timeline</h2>
 
-    {feature && <p class="k">Coming from ZIO Schema?</p>}
+    {feature && <p class="k">Coming From ZIO Schema?</p>}
     {feature && (
       <a class="feature" href={feature.url}>
-        <strong>{feature.title}</strong>
+        <strong>{titleCase(feature.title)}</strong>
         <span class="d" set:html={renderInline(feature.description)} />
       </a>
     )}
 
-    <p class="label more">More guides</p>
+    <p class="label more">More Guides</p>
     <ul class="guides">
-      {rest.map((g) => <li><a href={g.url}>{g.title}</a> <span>— <Fragment set:html={renderInline(g.description)} /></span></li>)}
+      {rest.map((g) => <li><a href={g.url}>{titleCase(g.title)}</a> <span>— <Fragment set:html={renderInline(g.description)} /></span></li>)}
     </ul>
   </div>
 </section>

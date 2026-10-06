@@ -1,4 +1,5 @@
 ---
+import { titleCase } from '../lib/title-case.mjs';
 import { Code } from 'astro:components';
 import site from '../data/site.json';
 import { renderCode, renderInline } from '../lib/inline.mjs';
@@ -13,8 +14,8 @@ const formats = ['JSON', ...codecs];
 
 <section id="deep-dives" class="section" aria-labelledby="deep-dives-title">
   <div class="wrap">
-    <p class="label">02 &nbsp; Deep dives</p>
-    <h2 id="deep-dives-title">Four blocks, in code</h2>
+    <p class="label">02 &nbsp; Deep Dives</p>
+    <h2 id="deep-dives-title">Four Blocks, in Code</h2>
 
     <div class="tablist" role="tablist" aria-label="Deep dives">
       {site.deepDives.map((d, i) => (
@@ -24,23 +25,23 @@ const formats = ['JSON', ...codecs];
 
     {site.deepDives.map((d) => (
       <div class="panel" role="tabpanel" id={`panel-${d.id}`} aria-labelledby={`tab-${d.id}`}>
-        <h3>{d.title}</h3>
+        <h3>{titleCase(d.title)}</h3>
         <p class="intro" set:html={renderInline(d.intro)} />
         <div class="cols">
           <div class="col">
-            <p class="label">The problem</p>
+            <p class="label">The Problem</p>
             {d.problem.paragraphs.map((p) => <p set:html={renderInline(p)} />)}
             {d.problem.code && <div class="codecard"><Code code={d.problem.code.source} lang={d.problem.code.lang} theme="github-dark" /></div>}
           </div>
           <div class="col">
-            <p class="label">The solution</p>
+            <p class="label">The Solution</p>
             {d.solution.paragraphs.map((p) => <p set:html={renderInline(p)} />)}
             <div class="codecard"><Code code={d.solution.code.source} lang={d.solution.code.lang} theme="github-dark" /></div>
           </div>
         </div>
         {d.id === 'schema' && formats.length > 1 && (
           <div class="formats">
-            <p class="label">One schema, many formats</p>
+            <p class="label">One Schema, Many Formats</p>
             <ul>{formats.map((f) => <li class="chip">{f}</li>)}</ul>
           </div>
         )}

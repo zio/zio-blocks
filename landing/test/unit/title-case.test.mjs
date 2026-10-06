@@ -20,3 +20,15 @@ test('titleCase handles empty and single-word input and repeated spaces', () => 
   assert.equal(titleCase('for'), 'For');
   assert.equal(titleCase('a  b'), 'A  B');
 });
+
+test('titleCase capitalises the part after a hyphen', () => {
+  assert.equal(titleCase('type-safe, modular building blocks for Scala'), 'Type-Safe, Modular Building Blocks for Scala');
+  assert.equal(titleCase('zero lock-in and built-in codecs'), 'Zero Lock-In and Built-In Codecs');
+  assert.equal(titleCase('Compile-Time Resource Safety with Scope'), 'Compile-Time Resource Safety With Scope');
+});
+
+test('titleCase leaves punctuation-led tokens and numbers alone', () => {
+  assert.equal(titleCase('47 blocks, take only what you need'), '47 Blocks, Take Only What You Need');
+  assert.equal(titleCase('web & http'), 'Web & Http');
+  assert.equal(titleCase('coming from zio schema?'), 'Coming From Zio Schema?');
+});
