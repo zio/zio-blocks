@@ -14,15 +14,15 @@ const scalaVersions = [...new Set(blocks.flatMap((b) => b.scala))];
     <p class="sub">Each block is a separate artifact under <code>dev.zio</code>. Copy the artifact name, add it to your build, and use it.</p>
 
     <div class="filters">
-      <div class="group" data-filter="category" aria-label="Category">
+      <div class="group" role="group" data-filter="category" aria-label="Category">
         <button type="button" data-value="" aria-pressed="true">All</button>
         {site.categories.map((c) => <button type="button" data-value={c.name} aria-pressed="false">{c.name}</button>)}
       </div>
-      <div class="group" data-filter="platform" aria-label="Platform">
+      <div class="group" role="group" data-filter="platform" aria-label="Platform">
         <button type="button" data-value="" aria-pressed="true">Any</button>
         {platforms.map((p) => <button type="button" data-value={p} aria-pressed="false">{p}</button>)}
       </div>
-      <div class="group" data-filter="scala" aria-label="Scala version">
+      <div class="group" role="group" data-filter="scala" aria-label="Scala version">
         <button type="button" data-value="" aria-pressed="true">Any</button>
         {scalaVersions.map((v) => <button type="button" data-value={v} aria-pressed="false">{v}</button>)}
       </div>

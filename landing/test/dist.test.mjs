@@ -124,3 +124,14 @@ test('catalog filter controls list each category, platform and Scala version onc
   assert.deepEqual(group('scala'), ['Any', '2.13', '3.x']);
   assert.equal(text(/data-status[^>]*>([\s\S]*?)<\//.exec(s)[1]), `${site.blockCount} of ${site.blockCount} blocks`);
 });
+
+test('catalog filter containers are named groups', () => {
+  const s = sec('catalog');
+  const open = (name) => /^<div[^>]*>/.exec(/<div[^>]*data-filter="NAME"[^>]*>/.source && new RegExp(`<div[^>]*data-filter="${name}"[^>]*>`).exec(s)[0])[0];
+  const attr = (tag, a) => new RegExp(`\\b${a}="([^"]*)"`).exec(tag)?.[1];
+  for (const [name, label] of [['category', 'Category'], ['platform', 'Platform'], ['scala', 'Scala version']]) {
+    const tag = open(name);
+    assert.equal(attr(tag, 'role'), 'group');
+    assert.equal(attr(tag, 'aria-label'), label);
+  }
+});
