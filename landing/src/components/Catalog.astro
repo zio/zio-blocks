@@ -56,16 +56,9 @@ for (const c of site.categories) {
    */
   .row[data-shared] .cat { display: flex; flex-direction: column; }
   .row[data-shared] .grid { flex: 1; }
-  .row[data-shared] .cat[data-span='1'] .grid { grid-template-columns: 1fr; }
   @media (min-width: 36rem) {
     .row[data-shared] { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 var(--seam); align-items: stretch; }
     .row[data-shared] .cat[data-span='2'], .row[data-shared] .cat[data-span='3'] { grid-column: span 2; }
-    /* A section that spans two columns lays its tiles out in two columns */
-    .row[data-shared] .cat[data-span='2'] .grid { grid-template-columns: repeat(2, 1fr); }
-  }
-  @media (min-width: 36rem) and (max-width: 57.99rem) {
-    /* A span-1 section alone on its line of the two-column grid (it is followed by a wider one) is centred */
-    .row[data-shared] .cat[data-span='1']:has(+ .cat[data-span='2']) { grid-column: 1 / -1; justify-self: center; width: calc(50% - var(--seam) / 2); }
   }
   @media (min-width: 58rem) {
     .row[data-shared] { grid-template-columns: repeat(3, 1fr); }
@@ -74,17 +67,7 @@ for (const c of site.categories) {
   .cat { margin-top: 2.5rem; }
   .cat h3 { margin: 0 0 0.25rem; font-size: 1.125rem; font-weight: 800; }
   .note { margin: 0 0 0.75rem; color: var(--fg-soft); font-size: 0.9375rem; }
-  /* One column on phones, two on tablets, three on wide screens */
-  .grid { display: grid; grid-template-columns: 1fr; gap: var(--seam); margin: 1rem 0 0; padding: 0; list-style: none; }
-  @media (min-width: 36rem) { .grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (min-width: 58rem) { .grid { grid-template-columns: repeat(3, 1fr); } }
-  /* A row with a single tile (the last tile of a grid) is centred */
-  @media (min-width: 36rem) and (max-width: 57.99rem) {
-    .row:not([data-shared]) .tile:last-child:nth-child(2n + 1) { grid-column: 1 / -1; justify-self: center; width: calc(50% - var(--seam) / 2); }
-  }
-  @media (min-width: 58rem) {
-    .row:not([data-shared]) .tile:last-child:nth-child(3n + 1) { grid-column: 2; }
-  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--seam); margin: 1rem 0 0; padding: 0; list-style: none; }
   .tile { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; background: var(--surface); border: 1px solid var(--rule); min-width: 0; }
   .tile h4 { margin: 0; font-size: 1rem; font-weight: 800; }
   .desc { margin: 0; color: var(--fg-soft); font-size: 0.875rem; flex: 1; }
