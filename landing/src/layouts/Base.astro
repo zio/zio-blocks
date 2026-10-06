@@ -30,6 +30,7 @@ const ogImage = new URL('/brand/zio-blocks-social-og.png', Astro.site).href;
   </head>
   <body>
     <a class="skip" href="#content">Skip to content</a>
+    <p class="sr-only" role="status" aria-live="polite" data-copy-status></p>
     <slot />
   </body>
 </html>

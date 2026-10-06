@@ -1,7 +1,7 @@
 ---
 import { Code } from 'astro:components';
 import site from '../data/site.json';
-import { renderInline } from '../lib/inline.mjs';
+import { renderCode, renderInline } from '../lib/inline.mjs';
 
 const codecs =
   site.categories
@@ -46,7 +46,7 @@ const formats = ['JSON', ...codecs];
         )}
         <ul class="more">
           {d.learnMore.map((l) => (
-            <li><a href={l.url}><span set:html={renderInline(l.title)} /></a> &mdash; <span set:html={renderInline(l.description)} /></li>
+            <li><a href={l.url}><span set:html={renderCode(l.title)} /></a> &mdash; <span set:html={renderInline(l.description)} /></li>
           ))}
         </ul>
       </div>

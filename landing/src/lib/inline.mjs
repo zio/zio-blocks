@@ -2,6 +2,14 @@ const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&
 
 export const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ESCAPES[c]);
 
+/** Escapes `text` and turns `code` spans into <code>; no links, bold, or emphasis (safe inside an <a>). */
+export function renderCode(text) {
+  return text
+    .split(/(`[^`]+`)/)
+    .map((part) => (/^`[^`]+`$/.test(part) ? `<code>${escapeHtml(part.slice(1, -1))}</code>` : escapeHtml(part)))
+    .join('');
+}
+
 /**
  * Renders the small markdown subset used in docs/index.md prose: `code`, **bold**, *emphasis*,
  * [links](url). Everything else is escaped. Code spans and links are protected from other rules.
@@ -12,8 +20,8 @@ export function renderInline(text, linkFor = (url) => url) {
   const codes = [];
   const links = [];
 
-  // Allowlist: http(s), mailto, ./, ../, /, # (but not //, bare relative paths, or other schemes)
-  const isSafeUrl = (url) => /^(https?:|mailto:|\.{1,2}\/|\/(?!\/)|#)/i.test(url);
+  // Allowlist: http(s), mailto, ./, ../, /, # (but not // or /\, bare relative paths, or other schemes)
+  const isSafeUrl = (url) => /^(https?:|mailto:|\.{1,2}\/|\/(?![\/\\])|#)/i.test(url);
 
   // Extract links first (validate schemes, apply linkFor, escape output; protects URLs from code/emphasis processing)
   const withLinkSlots = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, url) => {

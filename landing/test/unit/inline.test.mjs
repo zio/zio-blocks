@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, renderInline } from '../../src/lib/inline.mjs';
+import { escapeHtml, renderCode, renderInline } from '../../src/lib/inline.mjs';
 
 test('escapeHtml escapes the five significant characters', () => {
   assert.equal(escapeHtml(`<a href="x">&'</a>`), '&lt;a href=&quot;x&quot;&gt;&amp;&#39;&lt;/a&gt;');
@@ -137,4 +137,17 @@ test('renderInline rejects bare relative paths', () => {
     renderInline('[bare](reference/a.md)'),
     'bare',
   );
+});
+
+test('renderInline rejects /\\host absolute-path tricks', () => {
+  assert.equal(renderInline('[x](/\\evil.com)'), 'x');
+  assert.equal(renderInline('[x](//evil.com)'), 'x');
+});
+
+test('renderCode escapes text and renders only code spans', () => {
+  assert.equal(
+    renderCode('`schema-examples` <b> [l](https://x.dev) **bold** & `a<b`'),
+    '<code>schema-examples</code> &lt;b&gt; [l](https://x.dev) **bold** &amp; <code>a&lt;b</code>',
+  );
+  assert.equal(renderCode('plain'), 'plain');
 });

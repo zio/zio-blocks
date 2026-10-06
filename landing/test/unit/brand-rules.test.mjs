@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const FORBIDDEN = [/gradient\(/, /box-shadow/, /text-shadow/, /border-radius/, /rotate\(/, /drop-shadow/];
+const FORBIDDEN = [/gradient\(/i, /shadow/i, /radius/i, /rotate/i, /skew/i];
 
 function sources(dir) {
   return readdirSync(dir).flatMap((name) => {

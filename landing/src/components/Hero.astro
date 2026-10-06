@@ -4,7 +4,9 @@ import ModuleField from './ModuleField.astro';
 import site from '../data/site.json';
 import { renderInline } from '../lib/inline.mjs';
 
-const [head, tail] = site.tagline.split('—');
+const dash = site.tagline.indexOf('—');
+const head = dash === -1 ? site.tagline : site.tagline.slice(0, dash);
+const tail = dash === -1 ? '' : site.tagline.slice(dash + 1);
 const snippet = `${site.hero.install}\n\n${site.hero.jsonCode}   // ${site.hero.jsonResult}`;
 ---
 

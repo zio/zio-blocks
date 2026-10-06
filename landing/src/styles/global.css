@@ -17,8 +17,13 @@
   --hairline: #e4e7f0;
   --muted: #7c859e;
 
-  /* Ink-surface helpers */
-  --field: #1c2547;
+  /* Module-square fill of the brand social card (assets/logo/zio-blocks-social-og.svg) */
+  --field: #1e2647;
+
+  /*
+   * UI tints derived from the palette for code cards, rules, secondary text, labels, and surfaces.
+   * They are not brand marks.
+   */
   --code-bg: #0d1224;
   --ink-rule: #232b4a;
   --ink-soft: #a9b1ce;
@@ -127,9 +132,23 @@ code { font-family: var(--mono); font-size: 0.9em; }
 .astro-code span[style*='#6A737D' i] { color: #7C859E !important; }
 
 /* Copy buttons exist only when JavaScript can make them work */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 .copy {
   display: none;
-  padding: 0.2rem 0.55rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
   border: 1px solid var(--lifted);
   background: transparent;
   color: var(--paper-ink);

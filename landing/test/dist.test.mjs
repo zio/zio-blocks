@@ -168,3 +168,8 @@ test('page order, anchors, images, and leftovers', () => {
   assert.equal(html.includes('@VERSION@'), false);
   for (const [, href] of html.matchAll(/href="(https?:[^"]+)"/g)) assert.match(href, /^https:/);
 });
+
+test('exactly one polite live region announces copy results', () => {
+  assert.equal(html.match(/data-copy-status/g).length, 1);
+  assert.match(html, /<p class="sr-only" role="status" aria-live="polite" data-copy-status/);
+});
