@@ -25,7 +25,8 @@ rewritten to zio.dev URLs and checked against `docs/` at build time. Platforms a
 artifact (Scope, Resource, Unscoped, ... and Wire all live in `zio-blocks-scope`) are collapsed into the first row, a
 category that lost rows loses its note, and a category left empty is dropped (`scripts/lib/collapse.mjs`). A category can be shown under a different name
 than its `###` heading through `CATEGORY_RENAMES` in `scripts/build-catalog.mjs` (currently `Streams` -> `Streaming` and `Configuration & Feature Flags` -> `Configuration`); a rename
-for a heading that no longer exists fails the build. `CATEGORY_SPLITS` shows one docs category as two (currently `Meta Programming` -> `Meta Programming` plus
+for a heading that no longer exists fails the build. `PRINCIPLE_TEXT` shows a principle with different text than the docs (currently `Cross-Platform`, tightened); a name
+that no longer exists fails the build (`scripts/lib/override.mjs`). `CATEGORY_SPLITS` shows one docs category as two (currently `Meta Programming` -> `Meta Programming` plus
 `Codecs`, the rows whose name ends in ` Codec`), moving the docs note with the moved rows
 (`scripts/lib/split.mjs`). On wide screens the tile grid has three columns, and consecutive categories share a row while
 their tiles together fit in them (today Resource Management + Dependency Injection, and Streaming + Telemetry); the

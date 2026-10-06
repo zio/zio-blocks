@@ -3,6 +3,7 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { collapseSameArtifact } from './lib/collapse.mjs';
+import { overridePrincipleText } from './lib/override.mjs';
 import { parseIndex } from './lib/parse-index.mjs';
 import { renameCategories } from './lib/rename.mjs';
 import { splitCategories } from './lib/split.mjs';
@@ -15,6 +16,11 @@ const LANDING_ROOT = fileURLToPath(new URL('../', import.meta.url));
 export const CATEGORY_SPLITS = [
   { from: 'Meta Programming', into: 'Codecs', where: (block) => / Codec$/.test(block.name) },
 ];
+
+/** Principle texts shown instead of the (first sentence of the) text in docs/index.md. */
+export const PRINCIPLE_TEXT = {
+  'Cross-Platform': 'Most blocks cross-build for JVM and Scala.js on Scala 2.13 and 3.x, source-compatible. Adopt Scala 3 on your timeline.',
+};
 
 /** Category headings shown under a different name than the `###` heading in docs/index.md. */
 export const CATEGORY_RENAMES = { Streams: 'Streaming', 'Configuration & Feature Flags': 'Configuration' };
@@ -40,6 +46,7 @@ export async function build({ repoRoot = REPO_ROOT, outDir = LANDING_ROOT, versi
   const site = {
     version: resolved,
     ...parsed,
+    principles: overridePrincipleText(parsed.principles, PRINCIPLE_TEXT),
     categories,
     hero: { ...parsed.hero, install: parsed.hero.install.replaceAll('@VERSION@', resolved) },
     blockCount: categories.reduce((n, c) => n + c.blocks.length, 0),

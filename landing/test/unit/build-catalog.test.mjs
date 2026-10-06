@@ -28,6 +28,11 @@ test('build writes site.json with the version substituted and copies brand asset
   assert.deepEqual(site.categories.map((c) => c.name).filter((n) => /^Stream/.test(n)), ['Streaming']);
   assert.deepEqual(site.categories.find((c) => c.name === 'Streaming').blocks.map((x) => x.name), ['Streams']);
   // "Configuration & Feature Flags" is shown as "Configuration".
+  // The Cross-Platform principle is shown with a shorter text than docs/index.md has.
+  assert.equal(
+    site.principles.find((p) => p.name === 'Cross-Platform').text,
+    'Most blocks cross-build for JVM and Scala.js on Scala 2.13 and 3.x, source-compatible. Adopt Scala 3 on your timeline.',
+  );
   assert.equal(names.includes('Configuration'), true);
   assert.equal(names.some((n) => /Feature Flags/.test(n)), false);
   assert.equal(JSON.stringify(site).includes('@VERSION@'), false);
