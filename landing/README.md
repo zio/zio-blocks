@@ -27,7 +27,9 @@ category that lost rows loses its note, and a category left empty is dropped (`s
 than its `###` heading through `CATEGORY_RENAMES` in `scripts/build-catalog.mjs` (currently `Streams` -> `Streaming`); a rename
 for a heading that no longer exists fails the build. `CATEGORY_SPLITS` shows one docs category as two (currently `Meta Programming` -> `Meta Programming` plus
 `Codecs`, the rows whose name ends in ` Codec`), moving the docs note with the moved rows
-(`scripts/lib/split.mjs`). A new value needs a one-line change in
+(`scripts/lib/split.mjs`). On wide screens the tile grid has three columns, and consecutive categories share a row while
+their tiles together fit in them (today Resource Management + Dependency Injection, and Streaming + Telemetry); the
+rule lives in `src/components/Catalog.astro`. A new value needs a one-line change in
 `scripts/lib/parse-index.mjs`.
 
 ## Netlify setup (once, by a maintainer)

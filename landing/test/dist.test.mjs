@@ -120,17 +120,20 @@ test('catalog renders every block as a visible tile with its artifact and docs l
   });
 });
 
-test('consecutive single-tile categories share a row; every other category has its own row', () => {
+test('consecutive small categories share a row while their tiles fit in three columns', () => {
   const s = sec('catalog');
   // Split at each row start, then read the category headings (h3) inside each row.
   const rows = s.split('<div class="row"').slice(1).map((chunk) => [...chunk.matchAll(/<h3[^>]*>([\s\S]*?)<\/h3>/g)].map((h) => text(h[1])));
-  // Resource Management (Scope) and Dependency Injection (Context) are one row.
+  // Resource Management (1 tile) + Dependency Injection (1 tile); Streaming (1 tile) + Telemetry (2 tiles).
   assert.deepEqual(rows.find((r) => r.includes('Resource Management')), ['Resource Management', 'Dependency Injection']);
+  assert.deepEqual(rows.find((r) => r.includes('Streaming')), ['Streaming', 'Telemetry']);
   // Rows keep the document order of the categories and together contain every category exactly once.
   assert.deepEqual(rows.flat(), site.categories.map((c) => titleCase(c.name)));
-  // A row has several categories only when each of them has exactly one block.
+  // A row has several categories only when their tiles together fit in the three-column grid.
   const size = new Map(site.categories.map((c) => [titleCase(c.name), c.blocks.length]));
-  for (const r of rows) if (r.length > 1) assert.deepEqual(r.map((n) => size.get(n)), r.map(() => 1));
+  for (const r of rows) if (r.length > 1) assert.ok(r.reduce((n, name) => n + size.get(name), 0) <= 3, r.join(' + '));
+  // Exactly these two rows are shared today.
+  assert.equal(rows.filter((r) => r.length > 1).length, 2);
 });
 
 test('catalog has no filter controls, counter, empty-state message or buttons', () => {

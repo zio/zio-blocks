@@ -3,11 +3,14 @@ import { titleCase } from '../lib/title-case.mjs';
 import site from '../data/site.json';
 import { renderInline } from '../lib/inline.mjs';
 
-// Consecutive categories that each have a single block share a row; every other category has its own row.
+// On wide screens the tile grid has three columns. Consecutive categories share a row while their tiles together fit
+// in those columns (for example 1 + 1, or 1 + 2); every other category has its own row.
+const COLUMNS = 3;
 const rows = [];
 for (const c of site.categories) {
   const last = rows[rows.length - 1];
-  if (c.blocks.length === 1 && last && last.every((x) => x.blocks.length === 1)) last.push(c);
+  const used = last ? last.reduce((n, x) => n + x.blocks.length, 0) : 0;
+  if (last && used + c.blocks.length <= COLUMNS) last.push(c);
   else rows.push([c]);
 }
 ---
@@ -21,7 +24,7 @@ for (const c of site.categories) {
     {rows.map((row) => (
       <div class="row" {...(row.length > 1 ? { 'data-shared': '' } : {})}>
       {row.map((c) => (
-      <section class="cat">
+      <section class="cat" data-span={Math.min(c.blocks.length, COLUMNS)}>
         <h3>{titleCase(c.name)}</h3>
         {c.note && <p class="note" set:html={renderInline(c.note)} />}
         <ul class="grid">
@@ -46,11 +49,21 @@ for (const c of site.categories) {
 
 <style>
   .sub { max-width: 40rem; color: var(--fg-soft); }
-  /* Categories that share a row use the same columns as the tile grid below them, so their tiles line up */
-  .row[data-shared] { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0 var(--seam); align-items: stretch; }
-  /* Sections in a shared row are equally tall, and each tile fills its section */
+  /*
+   * Categories that share a row sit side by side on the same columns as the tile grid below (three columns wide,
+   * two on tablets); a category with several tiles spans that many columns. On phones everything stacks. Sections
+   * in a shared row are equally tall and each tile fills its section.
+   */
   .row[data-shared] .cat { display: flex; flex-direction: column; }
   .row[data-shared] .grid { flex: 1; }
+  @media (min-width: 36rem) {
+    .row[data-shared] { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 var(--seam); align-items: stretch; }
+    .row[data-shared] .cat[data-span='2'], .row[data-shared] .cat[data-span='3'] { grid-column: span 2; }
+  }
+  @media (min-width: 58rem) {
+    .row[data-shared] { grid-template-columns: repeat(3, 1fr); }
+    .row[data-shared] .cat[data-span='3'] { grid-column: span 3; }
+  }
   .cat { margin-top: 2.5rem; }
   .cat h3 { margin: 0 0 0.25rem; font-size: 1.125rem; font-weight: 800; }
   .note { margin: 0 0 0.75rem; color: var(--fg-soft); font-size: 0.9375rem; }
