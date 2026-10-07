@@ -337,12 +337,26 @@ object DatastarEventSpec extends ZIOSpecDefault {
         )
       },
       test("eventId with newline is rejected") {
-        val dom = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
-        assertTrue(scala.util.Try(DatastarEvent.patchElements(dom).eventId("a\nb").renderSSE).isFailure)
+        val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val thrown = scala.util.Try(DatastarEvent.patchElements(dom).eventId("a\nb").renderSSE)
+        assertTrue(
+          thrown match {
+            case scala.util.Failure(e: IllegalArgumentException) =>
+              e.getMessage == "SSE id must not contain CR or LF characters"
+            case _ => false
+          }
+        )
       },
       test("negative retry is rejected") {
-        val dom = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
-        assertTrue(scala.util.Try(DatastarEvent.patchElements(dom).retry(-1L).renderSSE).isFailure)
+        val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val thrown = scala.util.Try(DatastarEvent.patchElements(dom).retry(-1L).renderSSE)
+        assertTrue(
+          thrown match {
+            case scala.util.Failure(e: IllegalArgumentException) =>
+              e.getMessage == "SSE retry must be non-negative"
+            case _ => false
+          }
+        )
       }
     ),
     suite("multi-line SSE framing boundaries")(
