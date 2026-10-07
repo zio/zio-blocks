@@ -29,7 +29,7 @@ object Header {
 
 An HTTP message is a bag of strings, and treating it that way pushes the same three mistakes into every handler. `headers.rawGet("content-length").map(_.toInt)` throws on a malformed value. `headers.rawGet("Content-Length")` works only because someone remembered the casing rules. `cache-control: max-age=600, no-store` has to be split, trimmed, and matched by hand at each call site.
 
-A typed header replaces all three with one lookup. `Header.ContentLength` knows its wire name is `content-length`, that the value is a `Long`, and that a non-numeric value is a parse failure rather than an exception. Reading it is `headers.get(Header.ContentLength)`, and the result is an `Option[ContentLength]` with a `length: Long` inside.
+A typed header replaces all three with one lookup. `Header.ContentLength` knows its wire name is `content-length`, that the value is a `Long`, and that a non-numeric value is a parse failure rather than an exception. Reading it is `headers.get(Header.ContentLength)`, and the result is a `Maybe[ContentLength]` with a `length: Long` inside — `Maybe` is the zero-allocation sibling of `Option` used across ZIO Blocks, so a middleware checking a header on every request pays no wrapper allocation for the hit.
 
 Parsing stays lazy because most handlers read two or three headers out of fifteen. `Headers` keeps the raw strings and only parses an entry when a typed read asks for it, caching the parsed value per entry so a header read twice is parsed once.
 
@@ -108,7 +108,7 @@ Header.CacheControl.MaxAge(600).renderedValue
 
 ## Reading Headers
 
-Six methods read from a `Headers` collection: three typed, three raw. Which you want depends on whether you need the domain value or the exact bytes.
+Eight methods read from a `Headers` collection: five typed, three raw. Which you want depends on whether you need the domain value or the exact bytes — and, for the typed ones, whether a malformed value should read as absent or surface its parse error.
 
 ### `Headers#get` — first parseable match
 
@@ -116,11 +116,11 @@ Six methods read from a `Headers` collection: three typed, three raw. Which you 
 
 ```scala
 final class Headers {
-  def get[A](headerCodec: Header.Codec[A]): Option[A]
+  def get[A](headerCodec: Header.Codec[A]): Maybe[A]
 }
 ```
 
-A present, well-formed header parses; an absent one is `None`:
+A present, well-formed header parses; an absent one is `Maybe.absent`:
 
 ```scala mdoc:silent:reset
 import zio.http.{Header, Headers}
@@ -136,7 +136,7 @@ headers.get(Header.ETag)
 ```
 
 :::warning[Unparseable headers are skipped, not reported]
-`Headers#get` treats a parse failure exactly like a name mismatch: it discards the error and keeps scanning. A malformed header therefore reads as `None` — or as the *next* entry with the same name that does parse. There is no method that surfaces the parse error from a collection read.
+`Headers#get` treats a parse failure exactly like a name mismatch: it discards the error and keeps scanning. A malformed header therefore reads as `Maybe.absent` — or as the *next* entry with the same name that does parse. To surface the parse error instead, use the strict variants below.
 :::
 
 That behaviour is worth seeing, because it is the one place a typed read can mislead you:
@@ -203,11 +203,11 @@ Header.AcceptEncoding.parse("!!!")
 
 ### `Headers#getLast` — last parseable match
 
-`Headers#getLast` is `Headers#getAll` keeping only the final element, which is what you want when a later header is meant to override an earlier one:
+`Headers#getLast` scans backwards for the last entry that parses, which is what you want when a later header is meant to override an earlier one. Scanning from the end means entries after the last parseable one are the only ones ever parsed — unlike `getAll` followed by taking the final element, it never parses the whole list to return a single value:
 
 ```scala
 final class Headers {
-  def getLast[H <: Header](headerType: Header.Typed[H]): Option[H]
+  def getLast[H <: Header](headerType: Header.Typed[H]): Maybe[H]
 }
 ```
 
@@ -226,14 +226,50 @@ overridden.get(Header.ContentLength)
 overridden.getLast(Header.ContentLength)
 ```
 
+### Strict reads — telling "missing" from "malformed"
+
+The lenient reads above conflate absence with corruption: both surface as `Maybe.absent` (or a skipped entry). `Headers#getStrict` and `Headers#getAllStrict` keep the same scanning and caching but report parse failures as `Left` instead of skipping them:
+
+```scala
+final class Headers {
+  def getStrict[A](headerCodec: Header.Codec[A]): Either[String, Maybe[A]]
+  def getAllStrict[A](headerCodec: Header.Codec[A]): Either[String, Chunk[A]]
+}
+```
+
+```scala mdoc:silent:reset
+import zio.http.{Header, Headers}
+
+val bad      = Headers("content-length" -> "huge")
+val mixed    = Headers("content-length" -> "huge", "content-length" -> "512")
+val twoGoods = Headers("content-length" -> "100", "content-length" -> "200")
+```
+
+`Headers#getStrict` keeps scanning past bad entries while a later entry may still parse, and reports the first error only when nothing parseable is found. `Right(Maybe.absent)` means no entry matched at all:
+
+```scala mdoc
+bad.getStrict(Header.ContentLength)
+mixed.getStrict(Header.ContentLength)
+Headers.empty.getStrict(Header.ContentLength)
+```
+
+`Headers#getAllStrict` is the fail-fast counterpart: it collects every match in header order and returns the first parse error immediately instead of skipping it:
+
+```scala mdoc
+twoGoods.getAllStrict(Header.ContentLength)
+bad.getAllStrict(Header.ContentLength)
+```
+
+Reach for the strict variants when a malformed header should be a 400 rather than silent fallback — request validation, strict proxies, and debugging corrupt clients. Stay on the lenient reads for the per-request hot path: the `Either` wrapper allocates on every call, while `Maybe` on the lenient path does not.
+
 ### Raw Access
 
 Three methods bypass parsing entirely and hand back the stored string. Use them for headers with no typed model, for pass-through proxying, and for telling a malformed value from an absent one:
 
 | Method                    | Returns             | Picks                        |
 | ------------------------- | ------------------- | ---------------------------- |
-| `Headers#rawGet`          | `Option[String]`    | First entry with that name    |
-| `Headers#rawGetLast`      | `Option[String]`    | Last entry with that name     |
+| `Headers#rawGet`          | `Maybe[String]`     | First entry with that name    |
+| `Headers#rawGetLast`      | `Maybe[String]`     | Last entry with that name     |
 | `Headers#rawGetAll`       | `Chunk[String]`     | Every entry, in header order  |
 
 All three validate the name before scanning and are case-insensitive:
@@ -261,7 +297,7 @@ headers.contains("x-missing")
 
 ## The Parse Cache
 
-`Headers` stores three parallel arrays: lowercased names, raw values, and a lazily-filled slot for the parsed value of each entry. A typed read fills that slot; a second read of the same header reuses it.
+`Headers` stores four parallel arrays: lowercased names, raw values, the codec instance that parsed each entry, and the parsed value itself. A typed read fills the codec/value slots; a second read of the same header with the same codec instance reuses them with a single reference comparison — no wrapper object is allocated for the cache entry itself.
 
 The cache is keyed by *codec identity*, compared by reference. Two codecs sharing a wire name therefore never read each other's cached values, which is what keeps a custom `Header.Codec[MyType]` named `content-length` from colliding with `Header.ContentLength`.
 
@@ -638,7 +674,7 @@ val headers = Headers("x-tenant-id" -> "acme-42")
 headers.get(tenantIdCodec)
 ```
 
-A rejected value is skipped like any other parse failure, so the collection read is `None` rather than the error message:
+A rejected value is skipped like any other parse failure, so the collection read is `Maybe.absent` rather than the error message (use `getStrict` to surface it):
 
 ```scala mdoc
 Headers("x-tenant-id" -> "").get(tenantIdCodec)

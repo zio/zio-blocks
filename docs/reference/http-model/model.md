@@ -640,8 +640,8 @@ val allIds = params.get("id")         // Some(Chunk("1", "2", "3"))
 ```scala
 final class Headers private[http] (...) {
   def size: Int
-  def get[A](headerCodec: Header.Codec[A]): Option[A]
-  def rawGet(name: String): Option[String]
+  def get[A](headerCodec: Header.Codec[A]): Maybe[A]
+  def rawGet(name: String): Maybe[String]
   def add(header: Header): Headers
   def set(header: Header): Headers
   def remove(name: String): Headers
