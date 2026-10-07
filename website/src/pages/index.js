@@ -3,6 +3,7 @@ import Layout from '@theme/Layout';
 import Hero from '../components/landing/Hero';
 import Principles from '../components/landing/Principles';
 import DeepDives from '../components/landing/DeepDives';
+import Catalog from '../components/landing/Catalog';
 import '../components/landing/landing.css';
 
 const DESCRIPTION =
@@ -15,6 +16,7 @@ export default function Home() {
         <Hero />
         <Principles />
         <DeepDives />
+        <Catalog />
       </main>
     </Layout>
   );

@@ -104,3 +104,43 @@ test('text strips comments without inserting spaces', () => {
   assert.equal(text('<p>Sca<!-- -->la</p>'), 'Scala');
   assert.equal(text('a<!-- -->  b'), 'a b');
 });
+
+test('catalog renders every block as a visible tile with its artifact and docs link', () => {
+  const s = sec('catalog');
+  const tiles = [...s.matchAll(/<li class="lp-tile"[^>]*>([\s\S]*?)<\/li>/g)];
+  const blocks = site.categories.flatMap((c) => c.blocks);
+  assert.equal(tiles.length, blocks.length);
+  assert.equal(blocks.length, site.blockCount);
+  tiles.forEach((t, i) => {
+    const b = blocks[i];
+    assert.doesNotMatch(t[0], /^<li[^>]*\bhidden\b/);
+    assert.equal(text(/<h4[^>]*>([\s\S]*?)<\/h4>/.exec(t[1])[1]), titleCase(b.name));
+    assert.equal(/<h4[^>]*><a[^>]*href="([^"]*)"/.exec(t[1])[1], b.docsUrl);
+    assert.equal(text(/<code class="lp-artifact"[^>]*>([\s\S]*?)<\/code>/.exec(t[1])[1]), b.artifact);
+    // One "Learn More" button per tile, linking to the block's docs page; its accessible name includes the visible text.
+    const learn = /<a class="lp-learn"[^>]*>([\s\S]*?)<\/a>/.exec(t[1]);
+    assert.equal(/href="([^"]*)"/.exec(learn[0])[1], b.docsUrl);
+    assert.equal(decode(/aria-label="([^"]*)"/.exec(learn[0])[1]), `Learn More about ${titleCase(b.name)}`);
+    assert.equal(text(learn[1]), 'Learn More');
+    assert.equal((t[1].match(/class="lp-learn"/g) ?? []).length, 1);
+    // The button shares one row with the platform / Scala badges.
+    assert.equal(/<div class="lp-foot"[^>]*>\s*<p class="lp-badges"[^>]*>[\s\S]*?<\/p>\s*<a class="lp-learn"/.test(t[1]), true);
+  });
+});
+
+test('consecutive small categories share a row while their tiles fit in three columns', () => {
+  const s = sec('catalog');
+  const rows = s.split('<div class="lp-row"').slice(1).map((chunk) => [...chunk.matchAll(/<h3[^>]*>([\s\S]*?)<\/h3>/g)].map((h) => text(h[1])));
+  assert.deepEqual(rows.find((r) => r.includes('Resource Management')), ['Resource Management', 'Dependency Injection']);
+  assert.deepEqual(rows.find((r) => r.includes('Streaming')), ['Streaming', 'Telemetry']);
+  assert.deepEqual(rows.flat(), site.categories.map((c) => titleCase(c.name)));
+  const size = new Map(site.categories.map((c) => [titleCase(c.name), c.blocks.length]));
+  for (const r of rows) if (r.length > 1) assert.ok(r.reduce((n, name) => n + size.get(name), 0) <= 3, r.join(' + '));
+  assert.equal(rows.filter((r) => r.length > 1).length, 2);
+});
+
+test('catalog has no filter controls, counter, empty-state message or buttons', () => {
+  const s = sec('catalog');
+  assert.equal(/data-filter|aria-pressed|data-status|data-empty/.test(s), false);
+  assert.equal(/<button/.test(s), false);
+});

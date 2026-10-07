@@ -142,3 +142,41 @@
 .lp-more { margin: 2rem 0 0; color: var(--fg-soft); }
 .lp-more li { padding-block: 0.25rem; }
 @media (max-width: 800px) { .lp-cols { grid-template-columns: 1fr; } }
+
+/* Catalog */
+.lp-sub { max-width: 40rem; color: var(--fg-soft); }
+/*
+ * Categories that share a row sit side by side on the same columns as the tile grid below (three columns wide, two
+ * on tablets); a category with several tiles spans that many columns. On phones everything stacks. Sections in a
+ * shared row are equally tall and each tile fills its section.
+ */
+.lp-row[data-shared] .lp-cat { display: flex; flex-direction: column; }
+.lp-row[data-shared] .lp-grid { flex: 1; }
+@media (min-width: 36rem) {
+  .lp-row[data-shared] { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 var(--seam); align-items: stretch; }
+  .lp-row[data-shared] .lp-cat[data-span='2'], .lp-row[data-shared] .lp-cat[data-span='3'] { grid-column: span 2; }
+}
+@media (min-width: 58rem) {
+  .lp-row[data-shared] { grid-template-columns: repeat(3, 1fr); }
+  .lp-row[data-shared] .lp-cat[data-span='3'] { grid-column: span 3; }
+}
+.lp-cat { margin-top: 2.5rem; }
+.lp-cat h3 { margin: 0 0 0.25rem; font-size: 1.125rem; font-weight: 800; }
+.lp-note { margin: 0 0 0.75rem; color: var(--fg-soft); font-size: 0.9375rem; }
+.lp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--seam); margin: 1rem 0 0; }
+.lp-tile { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; background: var(--surface); border: 1px solid var(--rule); min-width: 0; }
+.lp-tile h4 { margin: 0; font-size: 1rem; font-weight: 800; }
+.lp-desc { margin: 0; color: var(--fg-soft); font-size: 0.875rem; flex: 1; }
+.lp-artifact { overflow-wrap: anywhere; font-size: 0.75rem; }
+/* Badges on the left, the button on the right of one row; the button wraps to its own right-aligned line only if the tile is very narrow */
+.lp-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 0.75rem; margin-top: 0.25rem; }
+.lp-learn {
+  margin-left: auto;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--accent);
+  color: var(--fg);
+  font: 700 0.8125rem/1.2 var(--ifm-font-family-base);
+  text-decoration: none;
+}
+.lp-learn:hover { background: var(--accent); color: #fff; text-decoration: none; }
+.lp-badges { margin: 0; color: var(--label); font-size: 0.75rem; letter-spacing: 0.04em; }
