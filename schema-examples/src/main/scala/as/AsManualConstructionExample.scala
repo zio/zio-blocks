@@ -35,8 +35,10 @@ object AsSummoningExample extends App {
 
   implicit val conv: As[Metric, Imperial] = As.derived[Metric, Imperial]
 
-  // Summon the implicit instance by type
-  val summoned: As[Metric, Imperial] = As.summon[Metric, Imperial]
+  // Summon the implicit instance by type.
+  // NB: standalone example builds resolve the published release, which predates
+  // As.summon, so this uses implicitly (same semantics; As.summon is covered in AsSpec).
+  val summoned: As[Metric, Imperial] = implicitly[As[Metric, Imperial]]
 
   show(summoned.into(Metric(100)))
   show(summoned.from(Imperial(200L)))
