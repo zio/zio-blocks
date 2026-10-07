@@ -206,8 +206,8 @@ object DomSpec extends ZIOSpecDefault {
       },
       test("Generic rejects children on void tags") {
         assertTrue(
-          scala.util.Try(Dom.Element.Generic("br", Chunk.empty, Chunk(Dom.Text("x")))).isFailure,
-          scala.util.Try(Dom.Element.Generic("img", Chunk.empty, Chunk(Dom.Text("x")))).isFailure
+          isVoidGuardRejection(Dom.Element.Generic("br", Chunk.empty, Chunk(Dom.Text("x"))), "Void element <br>"),
+          isVoidGuardRejection(Dom.Element.Generic("img", Chunk.empty, Chunk(Dom.Text("x"))), "Void element <img>")
         )
       },
       test("Generic allows empty children on void tags") {
@@ -215,12 +215,12 @@ object DomSpec extends ZIOSpecDefault {
       },
       test("withChildren rejects children on void tags") {
         val el = Dom.Element.Generic("br", Chunk.empty, Chunk.empty)
-        assertTrue(scala.util.Try(el.withChildren(Chunk(Dom.Text("x")))).isFailure)
+        assertTrue(isVoidGuardRejection(el.withChildren(Chunk(Dom.Text("x"))), "Void element <br>"))
       },
       test("Generic rejects children on uppercase void tags") {
         assertTrue(
-          scala.util.Try(Dom.Element.Generic("BR", Chunk.empty, Chunk(Dom.Text("x")))).isFailure,
-          scala.util.Try(Dom.Element.Generic("IMG", Chunk.empty, Chunk(Dom.Text("x")))).isFailure
+          isVoidGuardRejection(Dom.Element.Generic("BR", Chunk.empty, Chunk(Dom.Text("x"))), "Void element <BR>"),
+          isVoidGuardRejection(Dom.Element.Generic("IMG", Chunk.empty, Chunk(Dom.Text("x"))), "Void element <IMG>")
         )
       },
       test("uppercase void tag self-closes") {
@@ -503,9 +503,9 @@ object DomSpec extends ZIOSpecDefault {
         }
         assertTrue(found.map(_.render) == Some("<p>first</p>"))
       },
-      test("filter evaluates the predicate once per node") {
-        var evaluations = 0
-        val tree        = Dom.Element.Generic(
+      test("filter visits each node exactly once") {
+        val visits = scala.collection.mutable.Map.empty[String, Int]
+        val tree   = Dom.Element.Generic(
           "div",
           Chunk.empty,
           Chunk(
@@ -513,11 +513,35 @@ object DomSpec extends ZIOSpecDefault {
             Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("b")))
           )
         )
-        val filtered = tree.filter { _ =>
-          evaluations += 1
+        val filtered = tree.filter { node =>
+          val key = node match {
+            case el: Dom.Element => "element-" + el.tag
+            case Dom.Text(c)     => "text-" + c
+            case Dom.Empty       => "empty"
+            case other           => "other-" + other.getClass.getSimpleName
+          }
+          visits.update(key, visits.getOrElse(key, 0) + 1)
           true
         }
-        assertTrue(filtered.render == "<div><p>a</p><span>b</span></div>", evaluations == 5)
+        val expected = Dom.Element.Generic(
+          "div",
+          Chunk.empty,
+          Chunk(
+            Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("a"))),
+            Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("b")))
+          )
+        )
+        assertTrue(
+          filtered.render == "<div><p>a</p><span>b</span></div>",
+          filtered == expected,
+          visits.toMap == Map(
+            "element-div"  -> 1,
+            "element-p"    -> 1,
+            "text-a"       -> 1,
+            "element-span" -> 1,
+            "text-b"       -> 1
+          )
+        )
       },
       test("identity transform preserves the tree") {
         val tree = Dom.Element.Generic(
@@ -1202,6 +1226,48 @@ object DomSpec extends ZIOSpecDefault {
         val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
         assertTrue(el.render == """<a href="unsafe:&amp;#106;avascript:alert(1)">x</a>""")
       },
+      test("entity-decoded leading whitespace href renders blocked") {
+        val attr = Dom.Attribute.KeyValue("href", Dom.AttributeValue.StringValue("&#32;javascript:alert(1)"))
+        val el   = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a href="unsafe:&amp;#32;javascript:alert(1)">click</a>""")
+      },
+      test("hex entity and colon entity href renders blocked") {
+        val attr =
+          Dom.Attribute.KeyValue("href", Dom.AttributeValue.StringValue("&#x6A;avascript&colon;alert(1)"))
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a href="unsafe:&amp;#x6A;avascript&amp;colon;alert(1)">click</a>""")
+      },
+      test("object data attribute blocks data:image/svg+xml carrying script") {
+        val attr = Dom.Attribute.KeyValue(
+          "data",
+          Dom.AttributeValue.StringValue("data:image/svg+xml,<svg><script>alert(1)</script></svg>")
+        )
+        val el = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(
+          el.render == """<object data="unsafe:data:image/svg+xml,&lt;svg&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;/svg&gt;"></object>"""
+        )
+      },
+      test("object data attribute blocks data:application/xhtml+xml") {
+        val attr = Dom.Attribute.KeyValue(
+          "data",
+          Dom.AttributeValue.StringValue("data:application/xhtml+xml,<p>hi</p>")
+        )
+        val el = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(
+          el.render == """<object data="unsafe:data:application/xhtml+xml,&lt;p&gt;hi&lt;/p&gt;"></object>"""
+        )
+      },
+      test("multi-value entity split across values is blocked at the sink") {
+        val attr = Dom.Attribute.KeyValue(
+          "href",
+          Dom.AttributeValue.MultiValue(
+            Chunk("&#106", ";avascript:alert(1)"),
+            Dom.AttributeSeparator.Custom("")
+          )
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a href="unsafe:&amp;#106;avascript:alert(1)">x</a>""")
+      },
       test("repeated multi-value safe URL renders are stable") {
         val mv = Dom.AttributeValue.MultiValue(
           Chunk("https://example.com/a", "https://example.com/b"),
@@ -1344,4 +1410,14 @@ object DomSpec extends ZIOSpecDefault {
       }
     )
   )
+
+  private def isVoidGuardRejection(thunk: => Any, expectedMessageSnippet: String): Boolean =
+    try {
+      thunk
+      false
+    } catch {
+      case e: IllegalArgumentException =>
+        e.getMessage != null && e.getMessage.contains(expectedMessageSnippet)
+      case _: Throwable => false
+    }
 }

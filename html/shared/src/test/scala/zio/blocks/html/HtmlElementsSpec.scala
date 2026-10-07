@@ -262,9 +262,9 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     suite("void element guard")(
       test("element rejects void tags") {
         assertTrue(
-          scala.util.Try(element("br")).isFailure,
-          scala.util.Try(element("img")).isFailure,
-          scala.util.Try(element("input")).isFailure
+          isVoidGuardRejection(element("br"), "Void element <br>"),
+          isVoidGuardRejection(element("img"), "Void element <img>"),
+          isVoidGuardRejection(element("input"), "Void element <input>")
         )
       },
       test("voidElement creates self-closing void elements") {
@@ -275,14 +275,14 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       },
       test("voidElement rejects non-void tags") {
         assertTrue(
-          scala.util.Try(voidElement("div")).isFailure,
-          scala.util.Try(voidElement("span")).isFailure
+          isNonVoidGuardRejection(voidElement("div"), "Non-void element <div>"),
+          isNonVoidGuardRejection(voidElement("span"), "Non-void element <span>")
         )
       },
       test("element rejects uppercase void tags") {
         assertTrue(
-          scala.util.Try(element("BR")).isFailure,
-          scala.util.Try(element("IMG")).isFailure
+          isVoidGuardRejection(element("BR"), "Void element <BR>"),
+          isVoidGuardRejection(element("IMG"), "Void element <IMG>")
         )
       },
       test("voidElement accepts uppercase void tags") {
@@ -919,4 +919,24 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       }
     )
   )
+
+  private def isVoidGuardRejection(thunk: => Any, expectedMessageSnippet: String): Boolean =
+    try {
+      thunk
+      false
+    } catch {
+      case e: IllegalArgumentException =>
+        e.getMessage != null && e.getMessage.contains(expectedMessageSnippet)
+      case _: Throwable => false
+    }
+
+  private def isNonVoidGuardRejection(thunk: => Any, expectedMessageSnippet: String): Boolean =
+    try {
+      thunk
+      false
+    } catch {
+      case e: IllegalArgumentException =>
+        e.getMessage != null && e.getMessage.contains(expectedMessageSnippet)
+      case _: Throwable => false
+    }
 }
