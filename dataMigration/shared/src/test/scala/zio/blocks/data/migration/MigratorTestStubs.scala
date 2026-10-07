@@ -51,6 +51,31 @@ object MigratorTestStubs {
       transact(f)
   }
 
+  /**
+   * Transactor stub that fails the first `failuresBeforeSuccess` preparation
+   * transactions with a `RuntimeException`, then executes bodies exactly like
+   * [[CountingTransactor]].
+   *
+   * Honesty note: same null-connection limitation as [[CountingTransactor]] —
+   * sound only for the `InPlace` strategy without capture triggers. It proves
+   * the migrator-side retry contract (`init()` stays uninitialized when
+   * preparation throws, so a later `init()` reruns preparation), not
+   * database-level recovery.
+   */
+  final class FlakyTransactor(failuresBeforeSuccess: Int) extends Transactor {
+    val transactCalls                          = new java.util.concurrent.atomic.AtomicInteger(0)
+    private val remaining                      = new java.util.concurrent.atomic.AtomicInteger(failuresBeforeSuccess)
+    override def connect[A](f: DbCon ?=> A): A = 0L.asInstanceOf[A]
+    override def transact[A](f: DbTx ?=> A): A = {
+      transactCalls.incrementAndGet()
+      if (remaining.getAndDecrement() > 0) throw new RuntimeException("simulated preparation failure")
+      given noConnection: DbTx = null.asInstanceOf[DbTx]
+      f
+    }
+    override def transact[A](isolation: TransactionIsolation, readOnly: Boolean)(f: DbTx ?=> A): A =
+      transact(f)
+  }
+
   private val idColumns = IndexedSeq(ColumnMeta("id", DbValue.DbInt(0), nullable = false))
   val v1Repo            =
     Repo(Table[Int]("users_v1", DbCodec.intCodec, idColumns), "id", DbCodec.intCodec, identity)

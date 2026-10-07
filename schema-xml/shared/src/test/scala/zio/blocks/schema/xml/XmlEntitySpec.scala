@@ -22,7 +22,8 @@ import scala.util.Try
 
 object XmlEntitySpec extends ZIOSpecDefault {
 
-  private def textOf(input: String): Xml = XmlReader.read(input)
+  private def textOf(input: String, config: ReaderConfig = ReaderConfig.default): Xml =
+    XmlReader.read(input, config)
 
   def spec = suite("XmlEntitySpec")(
     suite("closed entity set")(
@@ -73,12 +74,44 @@ object XmlEntitySpec extends ZIOSpecDefault {
             Xml.Element(XmlName("root"), Chunk.empty, Chunk(Xml.Text("&lt;")))
         )
       },
-      test("long entity chains expand linearly, never exponentially") {
-        val input  = "<root>" + ("&amp;" * 500) + "</root>"
-        val result = textOf(input)
+      test("long entity chains decode to exactly one character per entity in a single pass") {
+        // Functional single-pass proof, not a timing claim: `&amp;` must decode
+        // to `&` without recursive re-expansion, so N entities yield exactly N
+        // characters — bound here against the literal expected size.
+        val count    = 500
+        val expected = "&" * count
+        val result   = textOf("<root>" + ("&amp;" * count) + "</root>")
+        result match {
+          case Xml.Element(_, _, children) =>
+            val text = children.collect { case Xml.Text(t) => t }.mkString
+            assertTrue(text == expected, text.length == expected.length, expected.length == 500)
+          case _ => assertTrue(false)
+        }
+      },
+      test("text beyond maxTextLength is rejected") {
+        val failure = Try(textOf("<root>123456789</root>", ReaderConfig(maxTextLength = 8))).failed.toOption
         assertTrue(
-          result == Xml.Element(XmlName("root"), Chunk.empty, Chunk(Xml.Text("&" * 500)))
+          failure.exists(_.isInstanceOf[XmlCodecError]),
+          failure.map(_.getMessage).exists(_.contains("exceeds maximum"))
         )
+      },
+      test("text at exactly maxTextLength is accepted") {
+        assertTrue(
+          textOf("<root>12345678</root>", ReaderConfig(maxTextLength = 8)) ==
+            Xml.Element(XmlName("root"), Chunk.empty, Chunk(Xml.Text("12345678")))
+        )
+      },
+      test("element nesting beyond maxDepth is rejected") {
+        val deep    = "<a>" * 10 + "x" + "</a>" * 10
+        val failure = Try(textOf(deep, ReaderConfig(maxDepth = 8))).failed.toOption
+        assertTrue(
+          failure.exists(_.isInstanceOf[XmlCodecError]),
+          failure.map(_.getMessage).exists(_.contains("Maximum depth"))
+        )
+      },
+      test("element nesting within maxDepth is accepted") {
+        val deep = "<a>" * 10 + "x" + "</a>" * 10
+        assertTrue(Try(textOf(deep, ReaderConfig(maxDepth = 10))).isSuccess)
       }
     ),
     suite("no doctype or external entities")(

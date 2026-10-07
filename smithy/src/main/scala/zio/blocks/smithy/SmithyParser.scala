@@ -27,8 +27,10 @@ import scala.util.control.NonFatal
  * service), trait applications, documentation comments, and apply statements.
  *
  * Errors (including lexer-level throws from `expectChar`/`expectString`) are
- * funneled through the outer `NonFatal` catch in `parseModel`, so `parse`
- * always returns a `Left` and never throws.
+ * funneled through the outer `NonFatal` catch in `parseModel`, so documented
+ * parse failures always surface as a `Left` rather than throwing. JVM fatal
+ * errors (`VirtualMachineError` including `StackOverflowError`, `ThreadDeath`,
+ * and other `ControlThrowable`s) are deliberately never caught.
  */
 private[smithy] object SmithyParser {
 

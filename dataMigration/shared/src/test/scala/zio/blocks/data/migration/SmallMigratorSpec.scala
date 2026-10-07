@@ -83,6 +83,19 @@ object SmallMigratorSpec extends ZIOSpecDefault {
       m.init()
       m.init()
       assertTrue(tx.transactCalls.get() == 1)
+    },
+    test("init() propagates a preparation failure without marking initialized, so retry succeeds") {
+      val tx    = new MigratorTestStubs.FlakyTransactor(failuresBeforeSuccess = 1)
+      val m     = newMigrator(tx)
+      val first = scala.util.Try(m.init())
+      assertTrue(
+        first.isFailure,
+        first.failed.get.getMessage.contains("simulated preparation failure"),
+        tx.transactCalls.get() == 1
+      )
+      m.init() // retry must rerun the real preparation body
+      m.init() // third call is a no-op behind the initialized gate
+      assertTrue(tx.transactCalls.get() == 2)
     }
   )
 }

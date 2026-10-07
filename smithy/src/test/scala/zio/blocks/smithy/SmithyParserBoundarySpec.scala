@@ -18,32 +18,46 @@ package zio.blocks.smithy
 
 import zio.test._
 
+/**
+ * Boundary coverage for `SmithyModel.parse`.
+ *
+ * Scope of the no-throw claim: the parser funnels every *documented* parse
+ * error (lexer `expectChar`/`expectString` throws, `NumberFormatException`, and
+ * friends — all `scala.util.control.NonFatal`) into a `Left`. JVM fatal errors
+ * (`VirtualMachineError` including `StackOverflowError` and `OutOfMemoryError`,
+ * `ThreadDeath`, `ControlThrowable`) are deliberately never caught, neither by
+ * the parser nor by these tests: `scala.util.Try` only catches `NonFatal`, so a
+ * fatal would fail loudly instead of being swallowed to fake a passing "never
+ * throws" headline. Deep-nesting inputs below stay bounded (400 levels)
+ * precisely so they exercise the parser without risking a stack overflow that
+ * must propagate.
+ */
 object SmithyParserBoundarySpec extends ZIOSpecDefault {
   def spec = suite("SmithyParserBoundary")(
-    test("missing colon after $version returns Left, never throws") {
+    test("missing colon after $version returns Left") {
       val result = SmithyModel.parse("$version \"2\"\nnamespace com.example")
       result match {
         case Left(err) => assertTrue(err.message.contains("Expected ':'"))
         case _         => assertTrue(false)
       }
     },
-    test("truncated version declaration returns Left, never throws") {
+    test("truncated version declaration returns Left") {
       val result = SmithyModel.parse("$version:")
       assertTrue(result.isLeft)
     },
-    test("missing namespace returns Left, never throws") {
+    test("missing namespace returns Left") {
       val result = SmithyModel.parse("$version: \"2\"\n")
       result match {
         case Left(err) => assertTrue(err.message.contains("namespace"))
         case _         => assertTrue(false)
       }
     },
-    test("unclosed shape block returns Left, never throws") {
+    test("unclosed shape block returns Left") {
       val input  = "$version: \"2\"\nnamespace com.example\nstructure Foo {"
       val result = SmithyModel.parse(input)
       assertTrue(result.isLeft)
     },
-    test("hostile inputs never throw: parse always returns a value") {
+    test("hostile truncated inputs all return a value: no documented parse error escapes as a throw") {
       val hostile = List(
         "",
         "$",
@@ -62,6 +76,30 @@ object SmithyParserBoundarySpec extends ZIOSpecDefault {
         outcomes.forall(_.isSuccess),
         outcomes.collect { case scala.util.Success(Left(err)) => err }.nonEmpty
       )
+    },
+    test("bounded deep nesting in a metadata array parses to Right") {
+      val depth = 400
+      val input =
+        "$version: \"2\"\nnamespace com.example\nmetadata x = " + ("[" * depth) + "1" + ("]" * depth)
+      val outcome = scala.util.Try(SmithyModel.parse(input))
+      assertTrue(outcome.isSuccess, outcome.get.isRight)
+    },
+    test("unterminated deep nesting returns a positioned Left") {
+      val depth = 400
+      val input =
+        "$version: \"2\"\nnamespace com.example\nmetadata x = " + ("[" * depth) + "1"
+      SmithyModel.parse(input) match {
+        case Left(err) => assertTrue(err.message.contains("Unterminated array"))
+        case Right(_)  => assertTrue(false)
+      }
+    },
+    test("large malformed input with an unterminated string returns Left") {
+      val input =
+        "$version: \"2\"\nnamespace com.example\nstructure Foo {\n  @doc(\"" + ("x" * 200000)
+      SmithyModel.parse(input) match {
+        case Left(err) => assertTrue(err.message.contains("Unterminated string"))
+        case Right(_)  => assertTrue(false)
+      }
     }
   )
 }

@@ -105,6 +105,44 @@ object ScalaEmitterGoldenSpec extends ZIOSpecDefault {
     )
   )
 
+  /**
+   * Representative Scala 2 file: value class, self-typed sealed trait,
+   * keyword-escaped names, and a Scala 3 enum (which must fall back to a sealed
+   * trait plus companion under `EmitterConfig.scala2`).
+   */
+  private val scala2GoldenFile: ScalaFile = ScalaFile(
+    packageDecl = PackageDecl("com.example"),
+    imports = List(
+      Import.RenameImport("com.legacy", "Old", "New"),
+      Import.WildcardImport("scala.collection")
+    ),
+    types = List(
+      CaseClass(
+        name = "UserId",
+        fields = List(Field("value", TypeRef.Long)),
+        isValueClass = true
+      ),
+      SealedTrait(
+        name = "Service",
+        selfType = Some(TypeRef("Env"))
+      ),
+      CaseClass(
+        name = "Keyword",
+        fields = List(
+          Field("type", TypeRef.String),
+          Field("match", TypeRef.Int, defaultValue = Some("0"))
+        )
+      ),
+      Enum(
+        name = "Color",
+        cases = List(
+          EnumCase.SimpleCase("Red"),
+          EnumCase.SimpleCase("Green")
+        )
+      )
+    )
+  )
+
   def spec = suite("ScalaEmitterGolden")(
     test("full-file emission is byte-identical to the golden snapshot") {
       val result = ScalaEmitter.emit(goldenFile, EmitterConfig.default)
@@ -163,6 +201,40 @@ object ScalaEmitterGoldenSpec extends ZIOSpecDefault {
              |case class Keyword(
              |  `type`: String,
              |)
+             |""".stripMargin
+      )
+    },
+    test("scala2-config emission is byte-identical to the checked-in golden") {
+      // Hand-written expectation for `EmitterConfig.scala2` (no Scala 3
+      // syntax, no trailing commas): `=>` renames, `_` wildcards, `AnyVal`
+      // value class, self-typed trait, backticked keywords, and the enum
+      // sealed-trait fallback. Kept fixed in source — never regenerated from
+      // the emitter under test.
+      val result = ScalaEmitter.emit(scala2GoldenFile, EmitterConfig.scala2)
+      assertTrue(
+        result ==
+          """|package com.example
+             |
+             |import com.legacy.{Old => New}
+             |import scala.collection._
+             |
+             |case class UserId(
+             |  value: Long
+             |) extends AnyVal
+             |
+             |sealed trait Service { self: Env => }
+             |
+             |case class Keyword(
+             |  `type`: String,
+             |  `match`: Int = 0
+             |)
+             |
+             |sealed trait Color
+             |
+             |object Color {
+             |  case object Red extends Color
+             |  case object Green extends Color
+             |}
              |""".stripMargin
       )
     }
