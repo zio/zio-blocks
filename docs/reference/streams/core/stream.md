@@ -1389,7 +1389,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/MapParAsyncExample.scal
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain stream.MapParAsyncExample"
+cd streams-examples && sbt "runMain stream.MapParAsyncExample"
 ```
 
 It prints the two orders side by side:
@@ -1412,7 +1412,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/FlatMapParAsyncChildren
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain stream.FlatMapParAsyncChildrenExample"
+cd streams-examples && sbt "runMain stream.FlatMapParAsyncChildrenExample"
 ```
 
 ```
@@ -2329,7 +2329,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamBasicUsageExample
 To run this example:
 
 ```bash
-sbt "streams-examples/runMain stream.StreamBasicUsageExample"
+cd streams-examples && sbt "runMain stream.StreamBasicUsageExample"
 ```
 
 ### Flat-Mapping Nested Streams
@@ -2345,7 +2345,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamFlatMapExample.sc
 Run this example:
 
 ```bash
-sbt "streams-examples/runMain stream.StreamFlatMapExample"
+cd streams-examples && sbt "runMain stream.StreamFlatMapExample"
 ```
 
 ### Error Handling
@@ -2361,7 +2361,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamErrorHandlingExam
 Run this example:
 
 ```bash
-sbt "streams-examples/runMain stream.StreamErrorHandlingExample"
+cd streams-examples && sbt "runMain stream.StreamErrorHandlingExample"
 ```
 
 ### Resource Management
@@ -2377,7 +2377,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamResourceExample.s
 Run this example:
 
 ```bash
-sbt "streams-examples/runMain stream.StreamResourceExample"
+cd streams-examples && sbt "runMain stream.StreamResourceExample"
 ```
 
 ### Windowing and Scanning
@@ -2393,7 +2393,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamWindowingExample.
 Run this example:
 
 ```bash
-sbt "streams-examples/runMain stream.StreamWindowingExample"
+cd streams-examples && sbt "runMain stream.StreamWindowingExample"
 ```
 
 ### Stateful Asynchronous Operators
@@ -2409,7 +2409,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamAsyncStatefulExam
 Run this example:
 
 ```bash
-sbt "streams-examples/runMain stream.StreamAsyncStatefulExample"
+cd streams-examples && sbt "runMain stream.StreamAsyncStatefulExample"
 ```
 
 ## Native Asynchronous Byte Readers

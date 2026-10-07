@@ -485,7 +485,7 @@ SourceFile.print("streams-examples/src/main/scala/nio/AsyncChannelReaderExample.
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain nio.AsyncChannelReaderExample"
+cd streams-examples && sbt "runMain nio.AsyncChannelReaderExample"
 ```
 
 It prints:
@@ -1488,7 +1488,7 @@ SourceFile.print("streams-examples/src/main/scala/reader/ReaderBasicConstruction
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain reader.ReaderBasicConstructionExample"
+cd streams-examples && sbt "runMain reader.ReaderBasicConstructionExample"
 ```
 
 ### Primitive Specialization and Bulk Operations
@@ -1504,7 +1504,7 @@ SourceFile.print("streams-examples/src/main/scala/reader/ReaderPrimitiveSpeciali
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain reader.ReaderPrimitiveSpecializationExample"
+cd streams-examples && sbt "runMain reader.ReaderPrimitiveSpecializationExample"
 ```
 
 ### Composition and Resource Management
@@ -1520,7 +1520,7 @@ SourceFile.print("streams-examples/src/main/scala/reader/ReaderCompositionExampl
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain reader.ReaderCompositionExample"
+cd streams-examples && sbt "runMain reader.ReaderCompositionExample"
 ```
 
 ## See Also

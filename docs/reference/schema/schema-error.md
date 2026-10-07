@@ -525,7 +525,7 @@ When `make` throws a `SchemaError`, the codec catches it, preserves the full err
 A runnable version of this example, including composite types and error aggregation, is available in the `schema-examples` module:
 
 ```bash
-sbt "schema-examples/runMain schemaerror.SchemaErrorExample"
+cd schema-examples && sbt "runMain schemaerror.SchemaErrorExample"
 ```
 
 ### With Validation

@@ -641,7 +641,7 @@ This example creates a mux and opens your first stream, demonstrating the basic 
 Observe the output: the stream is successfully created and its initial state (not closed, not half-closed) is displayed.
 
 ```bash
-sbt "mux-examples/runMain mux.example1CreatingAMux"
+cd mux-examples && sbt "runMain mux.example1CreatingAMux"
 ```
 
 ### Understanding Streams and Message Queues
@@ -659,7 +659,7 @@ This example demonstrates the two-perspective communication model where applicat
 Observe the output: messages sent by the application are extracted by the protocol, and responses delivered by the protocol are received by the application.
 
 ```bash
-sbt "mux-examples/runMain mux.example2UnderstandingStreamsAndMessageQueues"
+cd mux-examples && sbt "runMain mux.example2UnderstandingStreamsAndMessageQueues"
 ```
 
 ### The Stream Lifecycle
@@ -677,7 +677,7 @@ This example shows all three ways to close a stream: graceful two-phase closure 
 Observe the output: state transitions from OPEN → HALF_CLOSED → CLOSED in graceful shutdown, instant transition in immediate closure, and the final closed state after external cancellation.
 
 ```bash
-sbt "mux-examples/runMain mux.example3StreamLifecycle"
+cd mux-examples && sbt "runMain mux.example3StreamLifecycle"
 ```
 
 ### Working with Multiple Streams
@@ -695,7 +695,7 @@ This example opens three independent streams and exchanges messages on each one,
 Observe the output: messages sent on stream 1 appear only in stream 1's outbound queue, never in streams 2 or 3, proving complete independence.
 
 ```bash
-sbt "mux-examples/runMain mux.example4WorkingWithMultipleStreams"
+cd mux-examples && sbt "runMain mux.example4WorkingWithMultipleStreams"
 ```
 
 ### Managing Capacity
@@ -713,7 +713,7 @@ This example demonstrates both mux-level capacity (controlling concurrent stream
 Observe the output: the mux rejects stream 4 and 5 with CapacityExceeded, messages 257+ fail with QueueFull, and after draining one message, sending resumes successfully.
 
 ```bash
-sbt "mux-examples/runMain mux.example5ManagingCapacity"
+cd mux-examples && sbt "runMain mux.example5ManagingCapacity"
 ```
 
 ### Thread Safety
@@ -731,7 +731,7 @@ This example documents which operations are thread-safe (mux-level and send/offe
 Observe the output: mux.open and mux.cancel are declared thread-safe, while receive() and takeOutbound() must use single threads, and the pattern shows multiple threads safely offering inbound messages.
 
 ```bash
-sbt "mux-examples/runMain mux.example6ThreadSafety"
+cd mux-examples && sbt "runMain mux.example6ThreadSafety"
 ```
 
 ### Putting It All Together
@@ -749,7 +749,7 @@ This comprehensive example demonstrates a complete request-response system that 
 Observe the output: three streams are opened, messages flow through send/receive and takeOutbound/offerInbound, graceful shutdown completes with halfClose/signalRemoteClose, and other streams remain unaffected.
 
 ```bash
-sbt "mux-examples/runMain mux.completeExample"
+cd mux-examples && sbt "runMain mux.completeExample"
 ```
 
 ## Where to Go Next

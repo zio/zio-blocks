@@ -728,5 +728,5 @@ Runnable examples are in `schema-examples/src/main/scala/jsonpatch/`:
 Run any example with:
 
 ```bash
-sbt "schema-examples/runMain jsonpatch.CompleteJsonPatchExample"
+cd schema-examples && sbt "runMain jsonpatch.CompleteJsonPatchExample"
 ```

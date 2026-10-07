@@ -1161,31 +1161,31 @@ cd zio-blocks
 
 ```bash
 # Step 1: Schema derivation, primitives, and DynamicValue roundtrip
-sbt "schema-examples/runMain ziosschemamigration.Step1SchemaDerivedAndPrimitives"
+cd schema-examples && sbt "runMain ziosschemamigration.Step1SchemaDerivedAndPrimitives"
 
 # Step 2: Modifiers and transform (annotations, newtypes)
-sbt "schema-examples/runMain ziosschemamigration.Step2ModifiersAndTransform"
+cd schema-examples && sbt "runMain ziosschemamigration.Step2ModifiersAndTransform"
 
 # Step 3: Optics (Lens, Prism) and DynamicSchema validation
-sbt "schema-examples/runMain ziosschemamigration.Step3OpticsAndDynamicSchema"
+cd schema-examples && sbt "runMain ziosschemamigration.Step3OpticsAndDynamicSchema"
 
 # Step 4: Diff and patch
-sbt "schema-examples/runMain ziosschemamigration.Step4DiffAndPatch"
+cd schema-examples && sbt "runMain ziosschemamigration.Step4DiffAndPatch"
 
 # Complete example: end-to-end e-commerce domain
-sbt "schema-examples/runMain ziosschemamigration.CompleteMigrationExample"
+cd schema-examples && sbt "runMain ziosschemamigration.CompleteMigrationExample"
 
 # Type class derivation — deriving Show from a Schema
-sbt "schema-examples/runMain typeclassderivation.DeriveShowExample"
+cd schema-examples && sbt "runMain typeclassderivation.DeriveShowExample"
 
 # Type class derivation — deriving a random generator from a Schema
-sbt "schema-examples/runMain typeclassderivation.DeriveGenExample"
+cd schema-examples && sbt "runMain typeclassderivation.DeriveGenExample"
 ```
 
 **3. Or compile all examples at once:**
 
 ```bash
-sbt "schema-examples/compile"
+cd schema-examples && sbt "compile"
 ```
 
 ---
