@@ -132,6 +132,7 @@ object Dump {
     else if (tpe =:= TypeRepr.of[Char]) DbValue.DbChar(' ')
     else if (tpe =:= TypeRepr.of[BigDecimal]) DbValue.DbBigDecimal(BigDecimal(0))
     else if (tpe =:= TypeRepr.of[Array[Byte]]) DbValue.DbBytes(Array.emptyByteArray)
+    else if (tpe =:= TypeRepr.of[zio.blocks.chunk.Chunk[Byte]]) DbValue.DbBytes(Array.emptyByteArray)
     else if (tpe =:= TypeRepr.of[java.time.LocalDate]) DbValue.DbLocalDate(java.time.LocalDate.ofEpochDay(0))
     else if (tpe =:= TypeRepr.of[java.time.LocalDateTime])
       DbValue.DbLocalDateTime(java.time.LocalDateTime.ofEpochSecond(0, 0, java.time.ZoneOffset.UTC))
@@ -161,7 +162,7 @@ object Dump {
         case "java.time.Duration"                                    => DbValue.DbDuration(java.time.Duration.ZERO)
         case "java.util.UUID"                                        => DbValue.DbUUID(new java.util.UUID(0L, 0L))
         case _ if tpe.typeSymbol.flags.is(quotes.reflect.Flags.Enum) => DbValue.DbString("")
-        case _                                                       => DbValue.DbString("")
+        case _                                                       => DbValue.DbJsonb("")
       }
     }
   }

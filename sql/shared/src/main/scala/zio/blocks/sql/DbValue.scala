@@ -40,5 +40,6 @@ object DbValue {
   final case class DbInstant(value: Instant)                               extends DbValue
   final case class DbDuration(value: Duration)                             extends DbValue
   final case class DbUUID(value: UUID)                                     extends DbValue
+  final case class DbJsonb(value: String)                                  extends DbValue
   final case class DbArray(elementType: String, elements: IndexedSeq[Any]) extends DbValue
 }
