@@ -1,4 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
+import Link from '@docusaurus/Link';
 import {Highlight} from 'prism-react-renderer';
 import site from '../../data/site.json';
 import {renderCode, renderInline} from '../../lib/inline.mjs';
@@ -106,7 +107,7 @@ export default function DeepDives() {
             <ul className="lp-more">
               {d.learnMore.map((l) => (
                 <li key={l.url}>
-                  <a href={l.url} dangerouslySetInnerHTML={html(renderCode(l.title))} /> — <span dangerouslySetInnerHTML={html(renderInline(l.description))} />
+                  <Link to={l.url} dangerouslySetInnerHTML={html(renderCode(l.title))} /> — <span dangerouslySetInnerHTML={html(renderInline(l.description))} />
                 </li>
               ))}
             </ul>

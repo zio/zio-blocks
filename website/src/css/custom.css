@@ -134,7 +134,6 @@ html[data-theme='dark'] {
   --ifm-color-emphasis-600: var(--paper-ink);
 }
 .navbar-sidebar__back { color: var(--paper-ink); }
-.navbar__brand { margin-right: auto; }
 .navbar__logo img { height: 2.25rem; width: auto; }
 
 /* Docs: editorial links, hairline rules, flat code */

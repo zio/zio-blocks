@@ -66,14 +66,14 @@ Defaults chosen by the author where the maintainer did not answer; each is a one
 website/
   docusaurus.config.js          brand navbar and footer, colour-mode toggle, docs at /docs, Scala for Prism, env switches
   src/pages/index.js            the landing page
-  src/components/landing/       Hero, ModuleField, Principles, DeepDives, Catalog, BlockTile (+ CSS modules)
+  src/components/landing/       Hero, ModuleField, Principles, DeepDives, Catalog (+ one global landing.css)
   src/lib/                      pure helpers: titleCase, inlineMarkdown (renderInline), rows packing
   src/css/custom.css            brand tokens mapped onto Infima; Manrope @font-face
   src/data/site.json            GENERATED, gitignored
   scripts/                      parse-index, markdown, collapse, split, rename, override, version, build-catalog, check-links
   test/unit/*.test.mjs          unit tests (moved from landing/)
   test/dist.test.mjs            static-output tests against build/index.html
-  static/fonts/ static/img/     Manrope (+OFL), brand SVGs, social card, favicon; static/_headers (cache headers)
+  static/fonts/ static/brand/  Manrope (+OFL), brand SVGs, social card, favicon (brand/ is copied by build-catalog); static/_headers (cache headers)
   lighthouserc.json
 docs/                           unchanged
 landing/                        deleted
@@ -98,13 +98,13 @@ Environment switches in `docusaurus.config.js`:
 2. Docs links in the data become site-relative: `./reference/schema/index.md` -> `/docs/reference/schema/`. The offline
    "docs file exists" check stays, so a typo fails the build early.
 3. React components import `site.json`; they hold no content of their own.
-4. The brand SVGs are copied from `assets/logo/` into `static/img/` at build time (not duplicated in git).
+4. The brand SVGs are copied from `assets/logo/` into `static/brand/` at build time (not duplicated in git).
 
 All parser failures keep naming the row, as in the Astro version.
 
 ## Components and theming
 
-Landing page (React function components, CSS modules for layout):
+Landing page (React function components, one global stylesheet `src/components/landing/landing.css` for layout; the catalog tiles are rendered inside `Catalog.js`, there is no separate BlockTile component):
 
 - `Hero`: ink band under the navbar; headline `titleCase(tagline up to the dash)` with "Building Blocks" joined by a
   non-breaking space; lead; the install line and one-line JSON result highlighted with `prism-react-renderer` directly
@@ -130,7 +130,7 @@ Chrome and docs (configuration, no swizzling):
 ## Quality gates
 
 - Unit tests (`node:test`): parser, collapse, split, rename, override, version, title case, inline markdown, row
-  packing, link checker, brand-rule guard (scans `src/**`, including `custom.css` and CSS modules).
+  packing, link checker, brand-rule guard (scans `src/**`, including `custom.css` and `landing.css`).
 - Static-output tests (about 13, ported): head and meta, hero headline, install snippet, principles, deep-dive panels
   visible without JavaScript, catalog tiles and Learn More buttons, row grouping, title case everywhere, page order,
   anchors, images with alt text, no copy buttons or filter controls. They read `website/build/index.html` from a

@@ -48,6 +48,10 @@ Netlify site. The `landing` job runs `yarn test`, `yarn check:landing`, `yarn ch
 (`@lhci/cli`, pinned to an exact version, config in `lighthouserc.json`). A 404 on a `https://zio.dev/zio-blocks/` URL
 is only a warning in `check:links`, since a page may not be published until the next release.
 
+The external link check only warns in CI (it is outage-prone and outside PR control). Unit tests, the static-output
+tests and Lighthouse (95+) fail the `landing` job. Because `deploy-preview.yml` runs only when the whole CI run
+succeeds, a failing `landing` job also suppresses the Netlify preview.
+
 Required configuration (a maintainer sets these once):
 
 | Name | Kind | Purpose |

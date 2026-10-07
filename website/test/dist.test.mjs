@@ -16,7 +16,9 @@ export const text = (fragment) =>
 const main = (() => {
   const start = html.indexOf('<main id="landing"');
   assert.notEqual(start, -1, 'missing <main id="landing"');
-  return html.slice(start, html.indexOf('</main>', start));
+  const end = html.indexOf('</main>', start);
+  assert.notEqual(end, -1, 'missing </main> for the landing content');
+  return html.slice(start, end);
 })();
 
 /** HTML of one landing section: from its opening tag to the next section (or the end of the landing content). */
@@ -49,7 +51,7 @@ test('hero', () => {
   assert.equal(site.tagline.split('—')[0], 'Modular building blocks for modern Scala applications');
   assert.equal(
     /<h1[^>]*>([\s\S]*?)<\/h1>/.exec(hero)[1],
-    'Modular Building Blocks for Modern Scala Applications',
+    'Modular Building\u00a0Blocks for Modern Scala Applications',
   );
   assert.equal(text(/<p class="lp-lead"[^>]*>([\s\S]*?)<\/p>/.exec(hero)[1]), text(site.lead.replace(/\*+|`/g, '')));
   assert.equal(
@@ -169,7 +171,7 @@ test('every title, heading and label on the landing page is in title case', () =
   ]);
   assert.deepEqual(
     all(/<p class="lp-label"[^>]*>([\s\S]*?)<\/p>/g)
-      .map((l) => l.replace(/ /g, ' ').replace(/\s+/g, ' '))
+      .map((l) => l.replace(/\u00a0/g, ' ').replace(/\s+/g, ' '))
       .filter((l) => !l.startsWith('The ')),
     ['01 Principles', '02 Deep Dives', 'One Schema, Many Formats', '03 Block Catalog'],
   );

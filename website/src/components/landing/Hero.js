@@ -11,7 +11,7 @@ import ModuleField from './ModuleField';
 const dash = site.tagline.indexOf('—');
 const base = (dash === -1 ? site.tagline : site.tagline.slice(0, dash)).trim();
 // The headline is title-cased. A non-breaking space (U+00A0) keeps "Building Blocks" on one line.
-const headline = titleCase(base).replace('Building Blocks', 'Building Blocks');
+const headline = titleCase(base).replace('Building Blocks', 'Building\u00a0Blocks');
 const snippet = `${site.hero.install}\n\n${site.hero.jsonCode}   // ${site.hero.jsonResult}`;
 
 export default function Hero() {
