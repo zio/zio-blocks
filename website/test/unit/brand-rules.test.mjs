@@ -9,7 +9,7 @@ function sources(dir) {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return name === 'data' ? [] : sources(path);
-    return /\.(css|js|mjs)$/.test(name) ? [path] : [];
+    return /\.(css|[cm]?[jt]sx?)$/.test(name) ? [path] : [];
   });
 }
 

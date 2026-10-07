@@ -27,3 +27,29 @@ test('inline style objects in JavaScript are checked too', () => {
   ]);
   assert.deepEqual(findViolations("const s = { boxShadow: 'none', borderRadius: 0 };"), []);
 });
+
+test('comments and strings are not scanned', () => {
+  assert.deepEqual(findViolations('/* shadow: none */ .a{color:red}'), []);
+  assert.deepEqual(findViolations('/* no shadow: here */\n.a { color: red; }'), []);
+  assert.deepEqual(findViolations('/*\n multi-line\n box-shadow: 0 1px #000;\n*/ .a { color: red; }'), []);
+  assert.deepEqual(findViolations('// shadow: none\nconst a = 1;'), []);
+  assert.deepEqual(findViolations('const a = 1; // border-radius: 8px'), []);
+  assert.deepEqual(findViolations('.a { font-family: "Rotated"; }'), []);
+  assert.deepEqual(findViolations('.a { background: url(https://x.dev/a.png); }'), []);
+});
+
+test('zero with a unit is flat; inherit and var() stay flagged', () => {
+  assert.deepEqual(findViolations('.a { border-radius: 0px; }'), []);
+  assert.deepEqual(findViolations('.a { border-radius: inherit; }'), ['border-radius: inherit']);
+});
+
+test('every real rotation or skew form is flagged', () => {
+  for (const css of [
+    '.a { transform: rotateX(3deg); }',
+    '.a { transform: rotate3d(1,1,1,3deg); }',
+    '.a { transform: skewY(2deg); }',
+    '.a { rotate: 3deg; }',
+  ]) {
+    assert.deepEqual(findViolations(css), ['rotation or skew'], css);
+  }
+});
