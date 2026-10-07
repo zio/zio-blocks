@@ -29,8 +29,16 @@ import zio.blocks.maybe.Maybe
  * multi-value and strict variants.
  *
  * The target entry sits at the END of the collection (worst-case scan) with
- * `size` filler entries before it. Results are returned (not sunk into a
- * `Blackhole`) to defeat dead-code elimination.
+ * `size` filler entries before it. Hit and miss benchmarks share the same
+ * populated collection shape: a miss scans the same entries for an absent key
+ * rather than an empty collection, so hit/miss numbers are comparable and no
+ * speed claim follows from changing the workload. Results are returned (not
+ * sunk into a `Blackhole`) to defeat dead-code elimination.
+ *
+ * Scope honesty: the state is `Level.Trial`, shared across the iterations of a
+ * trial, so typed reads parse on the first iteration and hit the parsed-value
+ * cache afterwards (steady-state cached reads). No cold-parse (per-invocation)
+ * behaviour is measured or claimed here.
  *
  * Run with:
  * {{{
@@ -94,22 +102,22 @@ class HeadersBenchmark {
   }
 
   @Benchmark
-  def rawGetHit: Maybe[String] = headers.rawGet("content-length")
+  def rawGetHit: Maybe[String] = headers.rawGet("Content-Length")
 
   @Benchmark
-  def rawGetMiss: Maybe[String] = headers.rawGet("x-missing")
+  def rawGetMiss: Maybe[String] = headers.rawGet("X-Missing")
 
   @Benchmark
   def getHit: Maybe[Header.ContentLength] = headers.get(Header.ContentLength)
 
   @Benchmark
-  def getMiss: Maybe[Header.ContentLength] = Headers.empty.get(Header.ContentLength)
+  def getMiss: Maybe[Header.Host] = headers.get(Header.Host)
 
   @Benchmark
   def getStrictHit: Either[String, Maybe[Header.ContentLength]] = headers.getStrict(Header.ContentLength)
 
   @Benchmark
-  def hasHit: Boolean = headers.has("content-length")
+  def hasHit: Boolean = headers.has("Content-Length")
 
   @Benchmark
   def getLastHit: Maybe[Header.SetCookieHeader] = multi.getLast(Header.SetCookieHeader)

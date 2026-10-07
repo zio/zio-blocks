@@ -42,6 +42,12 @@ object HeadersSpec extends HttpModelBaseSpec {
     def render(value: Int): String = value.toString
   }
 
+  private object NStringHeader extends Header.Codec[String] {
+    def name: String                                 = "x-n"
+    def parse(value: String): Either[String, String] = Right(value)
+    def render(value: String): String                = value
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("Headers")(
     suite("empty")(
       test("is empty") {
@@ -181,6 +187,30 @@ object HeadersSpec extends HttpModelBaseSpec {
           second == Maybe.present(9),
           third == Maybe.present("trace-123")
         )
+      },
+      test("strict and lenient readers do not share cached values across codec identities") {
+        val h            = Headers("X-Trace-Id" -> "trace-123")
+        val lenientFirst = h.get(TraceIdHeader)
+        val strictSecond = h.getStrict(TraceIdLengthHeader)
+        val strictThird  = h.getStrict(TraceIdHeader)
+        val lenientLast  = h.get(TraceIdLengthHeader)
+        assertTrue(
+          lenientFirst == Maybe.present("trace-123"),
+          strictSecond == Right(Maybe.present(9)),
+          strictThird == Right(Maybe.present("trace-123")),
+          lenientLast == Maybe.present(9)
+        )
+      },
+      test("strict miss on one codec does not poison a later read with another codec") {
+        val h            = Headers("x-n" -> "abc")
+        val strictFirst  = h.getStrict(IntHeader)
+        val lenient      = h.get(NStringHeader)
+        val strictSecond = h.getStrict(NStringHeader)
+        assertTrue(
+          strictFirst == Left("not an int: abc"),
+          lenient == Maybe.present("abc"),
+          strictSecond == Right(Maybe.present("abc"))
+        )
       }
     ),
     suite("getAll")(
@@ -285,6 +315,56 @@ object HeadersSpec extends HttpModelBaseSpec {
       test("ignores entries with other names") {
         val h = Headers("x-n" -> "1", "other" -> "z", "x-n" -> "2")
         assertTrue(h.getAllStrict(IntHeader) == Right(Chunk(1, 2)))
+      },
+      test("getAll then getAllStrict twice reports the first error with cached good entries") {
+        var parses   = 0
+        val counting = new Header.Codec[Int] {
+          def name: String                              = "x-n"
+          def parse(value: String): Either[String, Int] = {
+            parses += 1
+            value.toIntOption.toRight(s"not an int: $value")
+          }
+          def render(value: Int): String = value.toString
+        }
+        val h                = Headers("x-n" -> "1", "x-n" -> "abc", "x-n" -> "3")
+        val all              = h.getAll(counting)
+        val afterGetAll      = parses
+        val strictFirst      = h.getAllStrict(counting)
+        val afterStrictFirst = parses
+        val strictSecond     = h.getAllStrict(counting)
+        val afterStrictBoth  = parses
+        assertTrue(
+          all == Chunk(1, 3),
+          afterGetAll == 3,
+          strictFirst == Left("not an int: abc"),
+          afterStrictFirst == 4,
+          strictSecond == Left("not an int: abc"),
+          afterStrictBoth == 5
+        )
+      },
+      test("does not share cached values across getAllStrict codecs with the same header name") {
+        val h             = Headers("X-Trace-Id" -> "trace-1", "X-Trace-Id" -> "trace-22")
+        val strings       = h.getAll(TraceIdHeader)
+        val strictLengths = h.getAllStrict(TraceIdLengthHeader)
+        val strictAgain   = h.getAllStrict(TraceIdHeader)
+        assertTrue(
+          strings == Chunk("trace-1", "trace-22"),
+          strictLengths == Right(Chunk(7, 8)),
+          strictAgain == Right(Chunk("trace-1", "trace-22"))
+        )
+      },
+      test("reports the first error when every entry is unparseable") {
+        val h = Headers("x-n" -> "abc", "x-n" -> "def")
+        assertTrue(h.getAllStrict(IntHeader) == Left("not an int: abc"))
+      },
+      test("failed strict entry is not cached as a hit for another codec") {
+        val h           = Headers("x-n" -> "abc")
+        val strictFirst = h.getAllStrict(IntHeader)
+        val strings     = h.getAllStrict(NStringHeader)
+        assertTrue(
+          strictFirst == Left("not an int: abc"),
+          strings == Right(Chunk("abc"))
+        )
       }
     ),
     suite("getLast")(
@@ -300,6 +380,20 @@ object HeadersSpec extends HttpModelBaseSpec {
       test("skips unparseable entries scanning backwards") {
         val h = Headers("content-length" -> "42", "content-length" -> "abc")
         assertTrue(h.getLast(Header.ContentLength) == Maybe.present(Header.ContentLength(42L)))
+      },
+      test("returns the last parseable value where get returns the first") {
+        val h = Headers("content-length" -> "1", "content-length" -> "2")
+        assertTrue(
+          h.get(Header.ContentLength) == Maybe.present(Header.ContentLength(1L)),
+          h.getLast(Header.ContentLength) == Maybe.present(Header.ContentLength(2L))
+        )
+      },
+      test("returns absent when every entry is unparseable") {
+        val h = Headers("content-length" -> "abc", "content-length" -> "def")
+        assertTrue(
+          h.get(Header.ContentLength) == Maybe.absent,
+          h.getLast(Header.ContentLength) == Maybe.absent
+        )
       },
       test("reuses the cached value on a repeated read") {
         val h      = Headers("content-length" -> "7")

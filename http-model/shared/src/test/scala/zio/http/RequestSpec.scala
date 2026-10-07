@@ -115,6 +115,14 @@ object RequestSpec extends HttpModelBaseSpec {
       test("falls back to body content type when no content-type header is present") {
         val request = Request.get(URL.fromPath(Path.root))
         assertTrue(request.contentType == ContentType.`application/octet-stream`)
+      },
+      test("falls back to body content type when the content-type header is present but malformed") {
+        val headers = Headers("content-type" -> "not-a-content-type")
+        val request = Request(Method.POST, URL.fromPath(Path.root), headers, Body.empty, Version.`HTTP/1.1`)
+        assertTrue(
+          request.contentType == ContentType.`application/octet-stream`,
+          request.contentType == request.body.contentType
+        )
       }
     ),
     suite("path")(
