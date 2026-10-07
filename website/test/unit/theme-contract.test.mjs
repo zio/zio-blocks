@@ -5,13 +5,21 @@ import { fileURLToPath } from 'node:url';
 
 const css = readFileSync(fileURLToPath(new URL('../../src/css/custom.css', import.meta.url)), 'utf8');
 
-// The body of the first `[data-theme='dark'] { ... }` block.
-const dark = /\[data-theme='dark'\]\s*\{([^}]*)\}/.exec(css)[1];
+// The body of the `html[data-theme='dark'] { ... }` token block. It must be anchored on `html`: Infima declares its dark
+// variables on `html[data-theme='dark']`, so a bare `[data-theme='dark']` rule would lose on specificity.
+const darkMatch = /^html\[data-theme='dark'\]\s*\{([^}]*)\}/m.exec(css);
+assert.ok(darkMatch, "custom.css must declare the dark tokens in a rule whose selector is exactly `html[data-theme='dark']`");
+const dark = darkMatch[1];
 
 function variable(block, name) {
   const m = new RegExp(`${name}\\s*:\\s*([^;]+);`).exec(block);
   return m && m[1].trim();
 }
+
+test('dark mode page background and base text use the brand ink and paper', () => {
+  assert.equal(variable(dark, '--ifm-background-color'), 'var(--ink)');
+  assert.equal(variable(dark, '--ifm-font-color-base'), 'var(--paper-ink)');
+});
 
 test('dark mode text variables never use the lifted blue', () => {
   for (const name of [

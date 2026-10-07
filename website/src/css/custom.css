@@ -78,6 +78,7 @@
   --docusaurus-highlighted-code-line-bg: rgba(45, 63, 143, 0.12);
 }
 
+/* Infima declares its dark variables on html[data-theme='dark'], so a bare [data-theme='dark'] rule of ours would lose on specificity. */
 html[data-theme='dark'] {
   --fg: var(--paper-ink);
   --fg-soft: var(--ink-soft);
