@@ -73,9 +73,11 @@ jobs:
         retention-days: 30
     - name: Deploy to Netlify (production)
       uses: nwtgck/actions-netlify@v4.0
-      if: ${{ (hashFiles('website/yarn.lock') != '') && ((github.event_name == 'push') || (github.event_name == 'release')) }}
+      if: ${{ ((hashFiles('website/yarn.lock') != '') && ((github.event_name == 'push') || (github.event_name == 'release'))) && (vars.SITE_URL != '') }}
       with:
         production-deploy: true
+        enable-commit-status: false
+        enable-github-deployment: false
         github-token: ${{ secrets.GITHUB_TOKEN }}
         publish-dir: ./website/build
         enable-pull-request-comment: false
@@ -122,7 +124,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Check external links
-      run: yarn --cwd website check:links
+      run: yarn --cwd website check:links || echo "::warning::External link check failed (outside links may be down)"
     - name: Landing Lighthouse (95+)
       run: cd website && npx --yes @lhci/cli@0.15.1 autorun
   lint:
