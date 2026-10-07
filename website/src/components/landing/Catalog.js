@@ -33,7 +33,7 @@ export default function Catalog() {
                       <code className="lp-artifact">{b.artifact}</code>
                       <div className="lp-foot">
                         <p className="lp-badges">{`${b.platforms.join(' · ')} / Scala ${b.scala.join(' · ')}`}</p>
-                        <Link className="lp-learn" to={b.docsUrl} aria-label={`Learn More about ${titleCase(b.name)}`}>Learn More</Link>
+                        <Link className="lp-learn" to={b.docsUrl}>Learn More<span className="lp-sr"> about {titleCase(b.name)}</span></Link>
                       </div>
                     </li>
                   ))}

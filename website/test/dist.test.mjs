@@ -117,11 +117,11 @@ test('catalog renders every block as a visible tile with its artifact and docs l
     assert.equal(text(/<h4[^>]*>([\s\S]*?)<\/h4>/.exec(t[1])[1]), titleCase(b.name));
     assert.equal(/<h4[^>]*><a[^>]*href="([^"]*)"/.exec(t[1])[1], b.docsUrl);
     assert.equal(text(/<code class="lp-artifact"[^>]*>([\s\S]*?)<\/code>/.exec(t[1])[1]), b.artifact);
-    // One "Learn More" button per tile, linking to the block's docs page; its accessible name includes the visible text.
+    // One "Learn More" button per tile, linking to the block's docs page; the visible text is "Learn More" and a visually hidden suffix names the block (descriptive link text for SEO).
     const learn = /<a class="lp-learn"[^>]*>([\s\S]*?)<\/a>/.exec(t[1]);
     assert.equal(/href="([^"]*)"/.exec(learn[0])[1], b.docsUrl);
-    assert.equal(decode(/aria-label="([^"]*)"/.exec(learn[0])[1]), `Learn More about ${titleCase(b.name)}`);
-    assert.equal(text(learn[1]), 'Learn More');
+    assert.equal(text(learn[1]), `Learn More about ${titleCase(b.name)}`);
+    assert.match(learn[1], /^Learn More<span class="lp-sr"> about /);
     assert.equal((t[1].match(/class="lp-learn"/g) ?? []).length, 1);
     // The button shares one row with the platform / Scala badges.
     assert.equal(/<div class="lp-foot"[^>]*>\s*<p class="lp-badges"[^>]*>[\s\S]*?<\/p>\s*<a class="lp-learn"/.test(t[1]), true);

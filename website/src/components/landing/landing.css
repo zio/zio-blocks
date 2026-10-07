@@ -141,6 +141,8 @@
 .lp-chip { padding: 0.25rem 0.75rem; border: 1px solid var(--accent); font-size: 0.875rem; font-weight: 600; }
 .lp-more { margin: 2rem 0 0; color: var(--fg-soft); }
 .lp-more li { padding-block: 0.25rem; }
+.lp-more a { text-decoration: underline; text-underline-offset: 0.2em; }
+.lp-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 @media (max-width: 800px) { .lp-cols { grid-template-columns: 1fr; } }
 
 /* Catalog */
