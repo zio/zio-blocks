@@ -311,7 +311,7 @@ Each concept's standalone example is shown below. Expand a section to see the so
 Run it with:
 
 ```bash
-sbt "async-examples/runMain zio.blocks.async.gettingstarted.ReadyValuesExample"
+cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.ReadyValuesExample"
 ```
 
 </details>
@@ -325,7 +325,7 @@ sbt "async-examples/runMain zio.blocks.async.gettingstarted.ReadyValuesExample"
 Run it with:
 
 ```bash
-sbt "async-examples/runMain zio.blocks.async.gettingstarted.ErrorHandlingExample"
+cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.ErrorHandlingExample"
 ```
 
 </details>
@@ -339,7 +339,7 @@ sbt "async-examples/runMain zio.blocks.async.gettingstarted.ErrorHandlingExample
 Run it with:
 
 ```bash
-sbt "async-examples/runMain zio.blocks.async.gettingstarted.DirectStyleExample"
+cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.DirectStyleExample"
 ```
 
 </details>
@@ -353,7 +353,7 @@ sbt "async-examples/runMain zio.blocks.async.gettingstarted.DirectStyleExample"
 Run it with:
 
 ```bash
-sbt "async-examples/runMain zio.blocks.async.gettingstarted.AttemptExample"
+cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.AttemptExample"
 ```
 
 </details>
@@ -367,7 +367,7 @@ sbt "async-examples/runMain zio.blocks.async.gettingstarted.AttemptExample"
 Run it with:
 
 ```bash
-sbt "async-examples/runMain zio.blocks.async.gettingstarted.CallbackBridgeExample"
+cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.CallbackBridgeExample"
 ```
 
 </details>
@@ -381,7 +381,7 @@ sbt "async-examples/runMain zio.blocks.async.gettingstarted.CallbackBridgeExampl
 Run it with:
 
 ```bash
-sbt "async-examples/runMain zio.blocks.async.gettingstarted.ForkingExample"
+cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.ForkingExample"
 ```
 
 </details>
@@ -395,7 +395,7 @@ sbt "async-examples/runMain zio.blocks.async.gettingstarted.ForkingExample"
 Run it with:
 
 ```bash
-sbt "async-examples/runMain zio.blocks.async.gettingstarted.CompleteExample"
+cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.CompleteExample"
 ```
 
 </details>

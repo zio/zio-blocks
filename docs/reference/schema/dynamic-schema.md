@@ -483,27 +483,27 @@ cd zio-blocks
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/dynamicschema/DynamicSchemaValidationExample.scala))
 
 ```bash
-sbt "schema-examples/runMain dynamicschema.DynamicSchemaValidationExample"
+cd schema-examples && sbt "runMain dynamicschema.DynamicSchemaValidationExample"
 ```
 
 **Serialize and deserialize a DynamicSchema**
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/dynamicschema/DynamicSchemaSerializationExample.scala))
 
 ```bash
-sbt "schema-examples/runMain dynamicschema.DynamicSchemaSerializationExample"
+cd schema-examples && sbt "runMain dynamicschema.DynamicSchemaSerializationExample"
 ```
 
 **Rebind a restored DynamicSchema to a typed Schema**
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/dynamicschema/DynamicSchemaRebindExample.scala))
 
 ```bash
-sbt "schema-examples/runMain dynamicschema.DynamicSchemaRebindExample"
+cd schema-examples && sbt "runMain dynamicschema.DynamicSchemaRebindExample"
 ```
 
 **Complete schema registry pipeline**
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/dynamicschema/DynamicSchemaRegistryExample.scala))
 
 ```bash
-sbt "schema-examples/runMain dynamicschema.DynamicSchemaRegistryExample"
+cd schema-examples && sbt "runMain dynamicschema.DynamicSchemaRegistryExample"
 ```
 

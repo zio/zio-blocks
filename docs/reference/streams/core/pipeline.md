@@ -495,7 +495,7 @@ SourceFile.print("streams-examples/src/main/scala/pipeline/PipelineBasicUsageExa
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain pipeline.PipelineBasicUsageExample"
+cd streams-examples && sbt "runMain pipeline.PipelineBasicUsageExample"
 ```
 
 ### Pipeline Composition
@@ -513,7 +513,7 @@ SourceFile.print("streams-examples/src/main/scala/pipeline/PipelineCompositionEx
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain pipeline.PipelineCompositionExample"
+cd streams-examples && sbt "runMain pipeline.PipelineCompositionExample"
 ```
 
 ### Sink Integration
@@ -531,7 +531,7 @@ SourceFile.print("streams-examples/src/main/scala/pipeline/PipelineSinkIntegrati
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain pipeline.PipelineSinkIntegrationExample"
+cd streams-examples && sbt "runMain pipeline.PipelineSinkIntegrationExample"
 ```
 
 ### Asynchronous Stages Through Both Routes
@@ -549,7 +549,7 @@ SourceFile.print("streams-examples/src/main/scala/pipeline/PipelineAsyncExample.
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain pipeline.PipelineAsyncExample"
+cd streams-examples && sbt "runMain pipeline.PipelineAsyncExample"
 ```
 
 ## See Also

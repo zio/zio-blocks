@@ -262,7 +262,7 @@ SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/BasicUsa
 Run this example with the following command:
 
 ```bash
-sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.BasicUsage"
+cd zio-blocks-htmx-examples && sbt "runMain zioBlocksHtmx.BasicUsage"
 ```
 
 ### Advanced Patterns
@@ -280,7 +280,7 @@ SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/Advanced
 Run this example with the following command:
 
 ```bash
-sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.AdvancedPatterns"
+cd zio-blocks-htmx-examples && sbt "runMain zioBlocksHtmx.AdvancedPatterns"
 ```
 
 ### Complete Example
@@ -298,7 +298,7 @@ SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/Complete
 Run this example with the following command:
 
 ```bash
-sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.CompleteExample"
+cd zio-blocks-htmx-examples && sbt "runMain zioBlocksHtmx.CompleteExample"
 ```
 
 **3. Or compile all examples at once:**
@@ -306,5 +306,5 @@ sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.CompleteExample"
 To compile all example sources without running them, use:
 
 ```bash
-sbt "zio-blocks-htmx-examples/compile"
+cd zio-blocks-htmx-examples && sbt "compile"
 ```

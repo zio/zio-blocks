@@ -646,7 +646,7 @@ SourceFile.print("streams-examples/src/main/scala/writer/WriterBasicConstruction
 Run this example with:
 
 ```bash
-sbt "streams-examples/runMain writer.WriterBasicConstructionExample"
+cd streams-examples && sbt "runMain writer.WriterBasicConstructionExample"
 ```
 
 ### Composition and Transformation
@@ -662,7 +662,7 @@ SourceFile.print("streams-examples/src/main/scala/writer/WriterCompositionExampl
 Run this example with:
 
 ```bash
-sbt "streams-examples/runMain writer.WriterCompositionExample"
+cd streams-examples && sbt "runMain writer.WriterCompositionExample"
 ```
 
 ### I/O Adapters
@@ -678,7 +678,7 @@ SourceFile.print("streams-examples/src/main/scala/writer/WriterIOAdapterExample.
 Run this example with:
 
 ```bash
-sbt "streams-examples/runMain writer.WriterIOAdapterExample"
+cd streams-examples && sbt "runMain writer.WriterIOAdapterExample"
 ```
 
 ### Bounded Implementation
@@ -694,7 +694,7 @@ SourceFile.print("streams-examples/src/main/scala/writer/WriterBoundedImplementa
 Run this example with:
 
 ```bash
-sbt "streams-examples/runMain writer.WriterBoundedImplementationExample"
+cd streams-examples && sbt "runMain writer.WriterBoundedImplementationExample"
 ```
 
 ### Deferred and Cancellable Writes
@@ -710,7 +710,7 @@ SourceFile.print("streams-examples/src/main/scala/writer/WriterAsyncExample.scal
 Run this example with:
 
 ```bash
-sbt "streams-examples/runMain writer.WriterAsyncExample"
+cd streams-examples && sbt "runMain writer.WriterAsyncExample"
 ```
 
 ## See Also

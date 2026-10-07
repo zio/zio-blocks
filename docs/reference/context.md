@@ -516,7 +516,7 @@ SourceFile.print("schema-examples/src/main/scala/context/ContextConstructionExam
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextConstructionExample.scala))
 
 ```bash
-sbt "schema-examples/runMain context.ContextConstructionExample"
+cd schema-examples && sbt "runMain context.ContextConstructionExample"
 ```
 
 **Context retrieval: using get, supertype lookups, and getOption for safe access**
@@ -530,7 +530,7 @@ SourceFile.print("schema-examples/src/main/scala/context/ContextRetrievalExample
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextRetrievalExample.scala))
 
 ```bash
-sbt "schema-examples/runMain context.ContextRetrievalExample"
+cd schema-examples && sbt "runMain context.ContextRetrievalExample"
 ```
 
 **Context modification: adding values, updating existing ones, merging contexts, and pruning types**
@@ -544,7 +544,7 @@ SourceFile.print("schema-examples/src/main/scala/context/ContextModificationExam
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextModificationExample.scala))
 
 ```bash
-sbt "schema-examples/runMain context.ContextModificationExample"
+cd schema-examples && sbt "runMain context.ContextModificationExample"
 ```
 
 ## See Also

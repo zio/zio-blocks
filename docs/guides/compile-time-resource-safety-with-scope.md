@@ -958,15 +958,15 @@ sbt "docs/mdoc --in docs/guides/compile-time-resource-safety-with-scope.md"
 The repository also includes additional companion examples in `scope-examples/`. For example:
 
 ```bash
-sbt "scope-examples/runMain runDatabaseExample"
-sbt "scope-examples/runMain runCachingExample"
-sbt "scope-examples/runMain runThreadOwnershipExample"
+cd scope-examples && sbt "runMain runDatabaseExample"
+cd scope-examples && sbt "runMain runCachingExample"
+cd scope-examples && sbt "runMain runThreadOwnershipExample"
 ```
 
 To compile all examples:
 
 ```bash
-sbt "scope-examples/compile"
+cd scope-examples && sbt "compile"
 ```
 
 ---

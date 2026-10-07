@@ -847,7 +847,7 @@ cd zio-blocks
 Parse Smithy IDL text, find shapes by name, and access their structure and metadata:
 
 ```bash
-sbt "smithy-examples/runMain smithyexample.BasicParsingAndQuerying"
+cd smithy-examples && sbt "runMain smithyexample.BasicParsingAndQuerying"
 ```
 
 ### Step 2: Building Models Programmatically
@@ -855,7 +855,7 @@ sbt "smithy-examples/runMain smithyexample.BasicParsingAndQuerying"
 Construct Smithy models in code by creating shapes, adding traits, and assembling them into a complete model:
 
 ```bash
-sbt "smithy-examples/runMain smithyexample.BuildingModelsAndTraits"
+cd smithy-examples && sbt "runMain smithyexample.BuildingModelsAndTraits"
 ```
 
 ### Step 3: Validation and Analysis
@@ -863,7 +863,7 @@ sbt "smithy-examples/runMain smithyexample.BuildingModelsAndTraits"
 Analyze Smithy models for completeness, find deprecated shapes, check for documentation, and validate API contracts:
 
 ```bash
-sbt "smithy-examples/runMain smithyexample.ValidationAndAnalysis"
+cd smithy-examples && sbt "runMain smithyexample.ValidationAndAnalysis"
 ```
 
 ### Step 4: Complete Example — Book Store API
@@ -871,11 +871,11 @@ sbt "smithy-examples/runMain smithyexample.ValidationAndAnalysis"
 A comprehensive end-to-end workflow showing a complete book store API model with parsing, entity analysis, error handling, code generation, and statistics:
 
 ```bash
-sbt "smithy-examples/runMain smithyexample.BookStoreAPI"
+cd smithy-examples && sbt "runMain smithyexample.BookStoreAPI"
 ```
 
 **3. Or compile all examples at once:**
 
 ```bash
-sbt "smithy-examples/compile"
+cd smithy-examples && sbt "compile"
 ```
