@@ -91,7 +91,9 @@ object BatchProcessorSpec extends ZIOSpecDefault {
         (1 to 10).foreach(processor.enqueue)
         processor.forceFlush()
         val items = captured.get().flatten
-        assertTrue(items.size <= 5)
+        // Bounded eviction drops the oldest: 1..5 are discarded, 6..10 are
+        // kept in FIFO order in a single batch.
+        assertTrue(items == List(6, 7, 8, 9, 10))
       } finally {
         processor.shutdown()
         pe.shutdown()
