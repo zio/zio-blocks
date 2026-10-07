@@ -1428,7 +1428,7 @@ lazy val `streams-benchmark` = project
       "co.fs2"        %% "fs2-core"    % "3.14.0",
       "org.typelevel" %% "cats-effect" % "3.7.1",
       // Apache Pekko Streams (Apache-2.0 fork of Akka Streams)
-      "org.apache.pekko" %% "pekko-stream" % "1.7.0",
+      "org.apache.pekko" %% "pekko-stream" % "1.7.1",
       // Kyo — algebraic effect streams (Scala 3 only)
       "io.getkyo" %% "kyo-prelude" % "1.0.0-RC7",
       "io.getkyo" %% "kyo-core"    % "1.0.0-RC7",
