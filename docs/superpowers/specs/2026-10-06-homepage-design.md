@@ -1,5 +1,7 @@
 # ZIO Blocks Homepage — Design
 
+> **Superseded in part:** hosting, framework and deployment (Astro in `landing/`, Netlify Git builds) were replaced by the unified Docusaurus site; see `2026-10-07-docusaurus-migration-design.md`. Audience, page structure, brand and copy rules still apply.
+
 Date: 2026-10-06
 Status: Draft, awaiting review
 

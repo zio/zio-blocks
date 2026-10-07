@@ -13,7 +13,7 @@ const DIVES = [
   ['sql', 'SQL'],
 ];
 
-/** `./reference/schema/index.md` -> `https://zio.dev/zio-blocks/reference/schema/`. */
+/** `./reference/schema/index.md` -> `/docs/reference/schema/` (site-relative). */
 export function docsUrl(link) {
   const bad = !/^\.\/[\w\-./]+\.mdx?$/.test(link) || link.includes('//') || link.split('/').includes('..');
   if (bad) throw new CatalogError(`unmapped docs link "${link}"`);
@@ -29,7 +29,7 @@ export function firstSentence(text) {
   return m ? m[1] : text;
 }
 
-/** Maps a `./x.md` link to its zio.dev URL; when `exists` is given the page must exist under docs/. */
+/** Maps a `./x.md` link to its site-relative `/docs/...` URL; when `exists` is given the page must exist under docs/. */
 function docsLink(link, where, exists) {
   const url = docsUrl(link);
   if (exists && !exists(link.slice(2))) throw new CatalogError(`${where}: docs page "${link.slice(2)}" does not exist`);
@@ -39,8 +39,8 @@ function docsLink(link, where, exists) {
 const linkTarget = (url, where, exists) => (/^https?:\/\//.test(url) ? url : docsLink(url, where, exists));
 
 /**
- * Rewrites every markdown link target in `text` (outside backtick code spans) to an absolute URL:
- * https passes through, `./x.md` maps to zio.dev, anything else throws naming `where`.
+ * Rewrites every markdown link target in `text` (outside backtick code spans) to a URL:
+ * https passes through, `./x.md` maps to a site-relative `/docs/...` path, anything else throws naming `where`.
  */
 export function resolveProseLinks(text, where, exists) {
   return text.replace(/`[^`]+`|\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, target) => {
