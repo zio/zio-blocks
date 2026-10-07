@@ -57,6 +57,9 @@ jobs:
     - name: Check website build process
       if: ${{ hashFiles('website/yarn.lock') != '' }}
       run: yarn --cwd website build
+      env:
+        SITE_URL: ${{ vars.SITE_URL }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Check docs build on a fresh ZIO website
       if: ${{ hashFiles('website/yarn.lock') != '' }}
       run: sbt docs/checkDocsOnFreshWebsite
@@ -68,6 +71,18 @@ jobs:
         path: ./website/build
         overwrite: true
         retention-days: 30
+    - name: Deploy to Netlify (production)
+      uses: nwtgck/actions-netlify@v4.0
+      if: ${{ (hashFiles('website/yarn.lock') != '') && ((github.event_name == 'push') || (github.event_name == 'release')) }}
+      with:
+        production-deploy: true
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        publish-dir: ./website/build
+        enable-pull-request-comment: false
+        enable-commit-comment: false
+      env:
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_PRODUCTION_SITE_ID }}
     - name: Upload PR Metadata
       if: ${{ github.event_name == 'pull_request' }}
       run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
@@ -96,20 +111,20 @@ jobs:
       uses: actions/setup-node@v7
       with:
         node-version: 24.12.0
-        cache: npm
-        cache-dependency-path: landing/package-lock.json
-    - name: Install landing dependencies
-      run: cd landing && npm ci
-    - name: Landing unit tests
-      run: cd landing && npm test
-    - name: Build landing and check the static output
-      run: cd landing && npm run check
+    - name: Install yarn
+      run: npm install -g yarn
+    - name: Install website dependencies
+      run: yarn install --cwd website --frozen-lockfile
+    - name: Website unit tests
+      run: yarn --cwd website test
+    - name: Build the landing page and check the static output
+      run: yarn --cwd website check:landing
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    - name: Check landing external links
-      run: cd landing && npm run check:links
+    - name: Check external links
+      run: yarn --cwd website check:links
     - name: Landing Lighthouse (95+)
-      run: cd landing && npx --yes @lhci/cli@0.15.1 autorun
+      run: cd website && npx --yes @lhci/cli@0.15.1 autorun
   lint:
     name: lint
     runs-on: ubuntu-latest

@@ -129,7 +129,11 @@ object CiWorkflow {
         SingleStep(
           name = "Check website build process",
           condition = Some(HasWebsite),
-          run = Some("yarn --cwd website build")
+          run = Some("yarn --cwd website build"),
+          env = Map(
+            "SITE_URL"     -> "${{ vars.SITE_URL }}",
+            "GITHUB_TOKEN" -> "${{ secrets.GITHUB_TOKEN }}"
+          )
         ),
         // The committed website is on Docusaurus 2, which only warns about things the ZIO website's
         // Docusaurus 3 rejects (duplicate doc ids, say). Build the same docs on a fresh scaffold.
@@ -147,6 +151,25 @@ object CiWorkflow {
             "path"           -> Json.Str("./website/build"),
             "overwrite"      -> Json.Bool(true),
             "retention-days" -> Json.Num(30)
+          )
+        ),
+        // Production deploy: only for pushes to main and for releases. A release rebuilds the site, so the install line
+        // shows the new version right away. Netlify is only the host; the site is built here (it needs mdoc and sbt).
+        SingleStep(
+          name = "Deploy to Netlify (production)",
+          uses = Some(ActionRef("nwtgck/actions-netlify@v4.0")),
+          condition =
+            Some(HasWebsite && (expr("github.event_name == 'push'") || expr("github.event_name == 'release'"))),
+          parameters = Map(
+            "publish-dir"                 -> Json.Str("./website/build"),
+            "production-deploy"           -> Json.Bool(true),
+            "github-token"                -> Json.Str("${{ secrets.GITHUB_TOKEN }}"),
+            "enable-pull-request-comment" -> Json.Bool(false),
+            "enable-commit-comment"       -> Json.Bool(false)
+          ),
+          env = Map(
+            "NETLIFY_AUTH_TOKEN" -> "${{ secrets.NETLIFY_AUTH_TOKEN }}",
+            "NETLIFY_SITE_ID"    -> "${{ secrets.NETLIFY_PRODUCTION_SITE_ID }}"
           )
         ),
         SingleStep(
@@ -174,10 +197,11 @@ object CiWorkflow {
   // ---------------------------------------------------------------------------------------------
 
   /**
-   * Builds and checks the landing page in `landing/`: unit tests, static-output
-   * assertions, external link check, and Lighthouse. zio-sbt-ci triggers are
-   * workflow-wide, so this runs on every pull request. `SingleStep` has no
-   * working directory, hence the `cd landing &&` prefixes.
+   * Builds and checks the landing page in `website/` on Node only (no sbt):
+   * unit tests, a `LANDING_ONLY` build, static-output assertions, external link
+   * check, and Lighthouse. zio-sbt-ci triggers are workflow-wide, so this runs
+   * on every pull request. `SingleStep` has no working directory, hence the
+   * `--cwd` and `cd` forms.
    */
   lazy val landing: Def.Initialize[Job] = Def.setting(
     Job(
@@ -189,23 +213,20 @@ object CiWorkflow {
         SingleStep(
           name = "Setup Node.js",
           uses = Some(ActionRef("actions/setup-node@v7")),
-          parameters = Map(
-            "node-version"          -> Json.Str("24.12.0"),
-            "cache"                 -> Json.Str("npm"),
-            "cache-dependency-path" -> Json.Str("landing/package-lock.json")
-          )
+          parameters = Map("node-version" -> Json.Str("24.12.0"))
         ),
-        SingleStep(name = "Install landing dependencies", run = Some("cd landing && npm ci")),
-        SingleStep(name = "Landing unit tests", run = Some("cd landing && npm test")),
+        SingleStep(name = "Install yarn", run = Some("npm install -g yarn")),
+        SingleStep(name = "Install website dependencies", run = Some("yarn install --cwd website --frozen-lockfile")),
+        SingleStep(name = "Website unit tests", run = Some("yarn --cwd website test")),
         SingleStep(
-          name = "Build landing and check the static output",
-          run = Some("cd landing && npm run check"),
+          name = "Build the landing page and check the static output",
+          run = Some("yarn --cwd website check:landing"),
           env = Map("GITHUB_TOKEN" -> "${{ secrets.GITHUB_TOKEN }}")
         ),
-        SingleStep(name = "Check landing external links", run = Some("cd landing && npm run check:links")),
+        SingleStep(name = "Check external links", run = Some("yarn --cwd website check:links")),
         SingleStep(
           name = "Landing Lighthouse (95+)",
-          run = Some("cd landing && npx --yes @lhci/cli@0.15.1 autorun")
+          run = Some("cd website && npx --yes @lhci/cli@0.15.1 autorun")
         )
       )
     ).withPermissions("contents" -> "read")
