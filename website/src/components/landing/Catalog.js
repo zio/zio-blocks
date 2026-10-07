@@ -13,7 +13,7 @@ export default function Catalog() {
   return (
     <section id="catalog" className="lp-section" aria-labelledby="catalog-title">
       <div className="lp-wrap">
-        <p className="lp-label">{'03   Block Catalog'}</p>
+        <p className="lp-label">03 &nbsp; Block Catalog</p>
         <h2 id="catalog-title">Take Only What You Need</h2>
         <p className="lp-sub">
           Each block is a separate artifact under <code>dev.zio</code>. Copy the artifact name, add it to your build, and use it.

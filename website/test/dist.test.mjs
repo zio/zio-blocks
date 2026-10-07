@@ -144,3 +144,45 @@ test('catalog has no filter controls, counter, empty-state message or buttons', 
   assert.equal(/data-filter|aria-pressed|data-status|data-empty/.test(s), false);
   assert.equal(/<button/.test(s), false);
 });
+
+test('page order, anchors, images, and leftovers', () => {
+  const ids = [...main.matchAll(/<section id="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(ids, ['hero', 'principles', 'deep-dives', 'catalog']);
+  const allIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+  for (const [, target] of html.matchAll(/href="#([^"]+)"/g)) assert.ok(allIds.has(target), `dangling #${target}`);
+  for (const img of html.matchAll(/<img\b[^>]*>/g)) assert.match(img[0], /\balt="[^"]+"/);
+  assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
+  assert.equal(html.includes('@VERSION@'), false);
+  for (const [, href] of main.matchAll(/href="(https?:[^"]+)"/g)) assert.match(href, /^https:/);
+});
+
+test('there are no copy buttons, copy script or copy live region on the landing page', () => {
+  assert.equal(/data-copy|class="copy"|navigator\.clipboard|clean-btn/.test(main), false);
+});
+
+test('every title, heading and label on the landing page is in title case', () => {
+  const all = (re, scope = main) => [...scope.matchAll(re)].map((m) => text(m[1]));
+  assert.deepEqual(all(/<h2[^>]*>([\s\S]*?)<\/h2>/g), [
+    'Use What You Need, Nothing More',
+    'Four Blocks, in Code',
+    'Take Only What You Need',
+  ]);
+  assert.deepEqual(
+    all(/<p class="lp-label"[^>]*>([\s\S]*?)<\/p>/g)
+      .map((l) => l.replace(/ /g, ' ').replace(/\s+/g, ' '))
+      .filter((l) => !l.startsWith('The ')),
+    ['01 Principles', '02 Deep Dives', 'One Schema, Many Formats', '03 Block Catalog'],
+  );
+  assert.deepEqual(all(/<p class="lp-label"[^>]*>(The [\s\S]*?)<\/p>/g), site.deepDives.flatMap(() => ['The Problem', 'The Solution']));
+  assert.deepEqual(all(/<h3[^>]*>([\s\S]*?)<\/h3>/g), [
+    ...site.deepDives.map((d) => titleCase(d.title)),
+    ...site.categories.map((c) => titleCase(c.name)),
+  ]);
+  const blocks = site.categories.flatMap((c) => c.blocks);
+  assert.deepEqual(all(/<h4[^>]*>([\s\S]*?)<\/h4>/g), blocks.map((b) => titleCase(b.name)));
+  assert.deepEqual(all(/<strong[^>]*>([\s\S]*?)<\/strong>/g, sec('principles')), site.principles.map((p) => titleCase(p.name)));
+});
+
+test('there is no switching-cost section and no guides list on the landing page', () => {
+  assert.equal(/switching/i.test(main), false);
+});
