@@ -253,14 +253,20 @@ object MpscRingBufferSpec extends ZIOSpecDefault {
         } catch {
           case _: RuntimeException => true
         }
-        val rest    = scala.collection.mutable.ArrayBuffer.empty[String]
-        val n       = rb.drain(e => { rest += e; () }, 10)
-        val resumed = rb.offer("d") && rb.offer("e")
-        val tail    = scala.collection.mutable.ArrayBuffer.empty[String]
-        val m       = rb.drain(e => { tail += e; () }, 10)
+        // Discriminating instant: the failing element's slot is already freed and
+        // the consumer index published, so exactly the two consumed slots are
+        // gone even though the exception propagated. A revert that drops the
+        // publish-on-throw leaves size at 3 here.
+        val sizeImmediatelyAfterThrow = rb.size
+        val rest                      = scala.collection.mutable.ArrayBuffer.empty[String]
+        val n                         = rb.drain(e => { rest += e; () }, 10)
+        val resumed                   = rb.offer("d") && rb.offer("e")
+        val tail                      = scala.collection.mutable.ArrayBuffer.empty[String]
+        val m                         = rb.drain(e => { tail += e; () }, 10)
         assertTrue(
           thrown,
           seen.toVector == Vector("a"),
+          sizeImmediatelyAfterThrow == 1,
           n == 1,
           rest.toVector == Vector("c"),
           resumed,
