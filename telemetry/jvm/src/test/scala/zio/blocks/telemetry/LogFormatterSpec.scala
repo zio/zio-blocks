@@ -625,6 +625,38 @@ object LogFormatterSpec extends ZIOSpecDefault {
           viaBuilder.contains("\"key\":\"code.reviewer\""),
           viaRecord.contains("\"key\":\"code.reviewer\"")
         )
+      },
+      test("json format and formatRecord agree byte-for-byte on hostile keys and values") {
+        val timestamp = 1719792613223000000L
+        // Malicious key AND value: quotes, backslash, CR, LF, tab, C0
+        // control, and surrogate halves (lone in the key, paired in the value).
+        val evilKey   = "ke\"y\\with\n\r" + 1.toChar + 0xdfff.toChar + "end"
+        val evilValue = "va\"l\\ue\n\r\t" + 1.toChar + 0xd83d.toChar + 0xde00.toChar + "tail"
+        val builder   = Attributes.builder
+          .put(evilKey, evilValue)
+          .put("plain", 7L)
+
+        val viaBuilder =
+          renderJson(timestamp, Severity.Warn, "WARN", "msg \"hi\"\nbye\\done", builder)
+        val viaRecord =
+          renderJsonRecord(logRecord(timestamp, Severity.Warn, "WARN", "msg \"hi\"\nbye\\done", builder.build))
+
+        // Independently specified full rendering: field order, escaping, and
+        // attribute order/multiplicity pinned, not just path equality.
+        val expected =
+          "{\"timeUnixNano\":\"1719792613223000000\",\"severityNumber\":13,\"severityText\":\"WARN\"," +
+            "\"body\":{\"stringValue\":\"msg \\\"hi\\\"\\nbye\\\\done\"}," +
+            "\"attributes\":[{\"key\":\"ke\\\"y\\\\with\\n\\r\\u0001\\udfffend\"," +
+            "\"value\":{\"stringValue\":\"va\\\"l\\\\ue\\n\\r\\t\\u0001\\ud83d\\ude00tail\"}}," +
+            "{\"key\":\"plain\",\"value\":{\"intValue\":\"7\"}}]}"
+
+        assertTrue(
+          viaBuilder == viaRecord,
+          viaBuilder == expected,
+          viaRecord == expected,
+          countOccurrences(viaBuilder, "\"attributes\":") == 1,
+          countOccurrences(viaBuilder, "\"key\":") == 2
+        )
       }
     ),
     suite("text log-forging resistance")(
