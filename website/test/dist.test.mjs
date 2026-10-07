@@ -175,6 +175,18 @@ test('the onboard button is the only copy button on the landing page', () => {
   assert.ok(classes.includes('rounded-none'));
 });
 
+test('the navbar has the compact copy-prompt icon button before the colour-mode toggle', () => {
+  const nav = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'));
+  const title = 'title="Copy the prompt to onboard your coding agent to ZIO Blocks"';
+  const label = 'aria-label="Copy the ZIO Blocks agent onboarding prompt to the clipboard"';
+  const button = nav.match(/<button\b[^>]*title="Copy the prompt[^>]*>[\s\S]*?<\/button>/)?.[0];
+  assert.ok(button, 'missing the navbar onboard button');
+  assert.ok(button.includes(title) && button.includes(label));
+  assert.match(button, /<svg\b[^>]*aria-hidden="true"/);
+  assert.equal(/rounded/.test(button), false);
+  assert.ok(nav.indexOf(button) < nav.indexOf('toggleButton'), 'the icon comes before the colour-mode toggle');
+});
+
 test('start.md is served with the zio-knowledge skill', () => {
   const md = readFileSync(new URL('../build/start.md', import.meta.url), 'utf8');
   assert.ok(md.includes('zio-knowledge'));
