@@ -209,6 +209,22 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           MigrationAction.TransformCase(root, "User", zio.blocks.chunk.Chunk.empty)
         )
         assertTrue(migration(DynamicValue.Primitive(PrimitiveValue.Int(1))).isLeft)
+      },
+      test("passes through non-matching case unchanged without running inner actions") {
+        val input = DynamicValue.Variant(
+          "System",
+          DynamicValue.Record("code" -> DynamicValue.Primitive(PrimitiveValue.Int(7)))
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformCase(
+            root,
+            "User",
+            zio.blocks.chunk.Chunk(
+              MigrationAction.AddField(DynamicOptic.root.field("age"), dynamicLiteral(0))
+            )
+          )
+        )
+        assertTrue(migration(input) == Right(input))
       }
     ),
     suite("TransformCase at nested case paths")(
