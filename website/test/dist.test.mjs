@@ -158,8 +158,27 @@ test('page order, anchors, images, and leftovers', () => {
   for (const [, href] of main.matchAll(/href="(https?:[^"]+)"/g)) assert.match(href, /^https:/);
 });
 
-test('there are no copy buttons, copy script or copy live region on the landing page', () => {
-  assert.equal(/data-copy|class="copy"|navigator\.clipboard|clean-btn/.test(main), false);
+test('the onboard button is the only copy button on the landing page', () => {
+  // No per-snippet copy buttons, copy script or code-block clean-btn.
+  assert.equal(/data-copy|class="copy"|clean-btn/.test(main), false);
+  // The one sanctioned copy-prompt button: the hero's "Onboard your agent" button (its handler is bundled JS, not inline).
+  const buttons = [...main.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map((m) => m[0]).filter((b) => !/role="tab"/.test(b));
+  assert.equal(buttons.length, 1);
+  const [button] = buttons;
+  assert.ok(sec('hero').includes(button), 'the onboard button is in the hero');
+  assert.ok(button.includes('Onboard your agent to ZIO Blocks'));
+  assert.ok(button.includes('Works with Claude, Codex, Cursor, and OpenCode'));
+  assert.ok(button.includes('aria-label="Copy the ZIO Blocks agent onboarding prompt to the clipboard"'));
+  assert.equal((button.match(/<svg\b[^>]*aria-hidden="true"/g) ?? []).length, 4);
+  const classes = button.match(/<button\b[^>]*\bclass="([^"]*)"/)[1].split(/\s+/);
+  assert.equal(classes.includes('rounded-full'), false);
+  assert.ok(classes.includes('rounded-none'));
+});
+
+test('start.md is served with the zio-knowledge skill', () => {
+  const md = readFileSync(new URL('../build/start.md', import.meta.url), 'utf8');
+  assert.ok(md.includes('zio-knowledge'));
+  assert.equal(md, readFileSync(new URL('../static/start.md', import.meta.url), 'utf8'));
 });
 
 test('every title, heading and label on the landing page is in title case', () => {

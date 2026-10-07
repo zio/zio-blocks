@@ -39,6 +39,21 @@ their tiles together fit in them (today Resource Management + Dependency Injecti
 rule lives in `src/components/landing/Catalog.js`. A new value needs a one-line change in
 `scripts/lib/parse-index.mjs`.
 
+## Onboard your agent button
+
+The hero and the navbar (an icon next to the colour-mode toggle) have an "Onboard your agent to ZIO Blocks" button
+that copies a prompt (`Fetch <SITE_URL>/start.md and follow the instructions ...`, built by `promptFor` in
+`src/lib/prompt.mjs` from the configured `SITE_URL`) for the user's coding agent. The components in
+`src/components/OnboardAgentButton/` and the navbar swizzle in `src/theme/Navbar/ColorModeToggle/` are ported from
+zio/zio-http (originally zio/zio). The one deliberate difference is a square `rounded-none` button instead of a pill.
+
+- Tailwind is used only by this component: `tailwind.config.js` has `important: true` utilities, and
+  `src/css/custom.css` imports the theme and utilities layers but not preflight, so Infima is untouched.
+- `docusaurus-plugin-llms` generates `llms.txt`, `llms-full.txt` and per-page markdown from `docs/` in the full build
+  (it is not registered for `LANDING_ONLY`).
+- `static/start.md` is what the prompt points the agent at. Update it when the skills change (today ZIO Blocks has no
+  skill or MCP server of its own, only `zio-knowledge`).
+
 ## CI and deployment
 
 GitHub Actions (`.github/workflows/ci.yml`, generated from `project/CiWorkflow.scala`) builds the site: it runs

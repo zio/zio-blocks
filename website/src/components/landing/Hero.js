@@ -5,6 +5,7 @@ import site from '../../data/site.json';
 import {renderInline} from '../../lib/inline.mjs';
 import {titleCase} from '../../lib/title-case.mjs';
 import prismThemes from '../../prism-themes';
+import OnboardAgentButton from '../OnboardAgentButton';
 import ModuleField from './ModuleField';
 
 // The docs tagline is "<headline>—no effect system required."; the headline is the part before the first em dash.
@@ -37,6 +38,10 @@ export default function Hero() {
                 </pre>
               )}
             </Highlight>
+          </div>
+
+          <div className="lp-onboard">
+            <OnboardAgentButton tone="onDark" />
           </div>
 
           <p className="lp-cta">

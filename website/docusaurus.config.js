@@ -47,6 +47,41 @@ const config = {
       },
     ],
   ],
+  plugins: [
+    // Tailwind (utilities only, see src/css/custom.css) for the Onboard Agent button.
+    async function tailwindPlugin() {
+      return {
+        name: 'docusaurus-tailwindcss',
+        configurePostCss(postcssOptions) {
+          postcssOptions.plugins.push(require('@tailwindcss/postcss'));
+          return postcssOptions;
+        },
+      };
+    },
+    // llms.txt, llms-full.txt and per-page markdown for coding agents. It reads website/docs, which the landing-only
+    // build does not have, so it is registered only for the full build.
+    ...(LANDING_ONLY
+      ? []
+      : [
+          [
+            'docusaurus-plugin-llms',
+            /** @type {import('docusaurus-plugin-llms').PluginOptions} */
+            ({
+              generateLLMsTxt: true,
+              generateLLMsFullTxt: true,
+              generateMarkdownFiles: true,
+              docsDir: 'docs',
+              includeBlog: false,
+              // Docs are served under /docs (routeBasePath), so keep the docs/ directory in the generated markdown
+              // paths: the links in llms.txt are then /docs/<page>.md, next to the pages they describe.
+              preserveDirectoryStructure: true,
+              excludeImports: true,
+              removeDuplicateHeadings: true,
+              includeUnmatchedLast: true,
+            }),
+          ],
+        ]),
+  ],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({

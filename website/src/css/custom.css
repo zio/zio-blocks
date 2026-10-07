@@ -1,3 +1,11 @@
+/* Tailwind is used only by the Onboard Agent button (src/components/OnboardAgentButton): theme tokens and utilities, no
+   preflight, so Infima and the rules below are untouched. Utilities are `important` (tailwind.config.js) and layered. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@config '../../tailwind.config.js';
+
 @font-face {
   font-family: 'Manrope';
   src: url('/fonts/manrope-latin-wght-normal.woff2') format('woff2');
@@ -173,3 +181,6 @@ button[class*='backToTopButton_'] { border-radius: 0; }
     scroll-behavior: auto !important;
   }
 }
+
+/* The navbar is ink in both colour modes: the onboard icon button hovers to white, not the (dark) primary. */
+.navbar button[title^='Copy the prompt']:hover { color: #ffffff; }
