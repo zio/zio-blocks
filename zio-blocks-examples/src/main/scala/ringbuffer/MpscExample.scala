@@ -1,7 +1,7 @@
 package ringbuffer
 
 import zio.blocks.ringbuffer.MpscRingBuffer
-import java.util.concurrent.{CountDownLatch, Thread}
+import java.util.concurrent.CountDownLatch
 
 object MpscExample extends App {
   val buffer = MpscRingBuffer[java.lang.Integer](16)
