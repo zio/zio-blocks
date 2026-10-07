@@ -10,7 +10,7 @@ const decode = (s) =>
   s.replace(/&#34;|&quot;/g, '"').replace(/&#39;|&#x27;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 /** Text content of an HTML fragment: inline tags dropped, other tags become spaces, entities decoded, whitespace collapsed. */
 export const text = (fragment) =>
-  decode(fragment.replace(/<\/?(?:span|code|strong|em|a)\b[^>]*>/g, '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+  decode(fragment.replace(/<!--[\s\S]*?-->/g, '').replace(/<\/?(?:span|code|strong|em|a)\b[^>]*>/g, '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 
 /** The landing page content: from `<main id="landing"` to its closing tag. */
 const main = (() => {
@@ -98,4 +98,9 @@ test('schema panel lists the format chips derived from the catalog', () => {
   const chips = [...s.matchAll(/<li class="lp-chip"[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
   const codecs = site.categories.find((c) => c.name === 'Codecs').blocks.map((b) => b.name.replace(/ Codec$/, ''));
   assert.deepEqual(chips, ['JSON', ...codecs]);
+});
+
+test('text strips comments without inserting spaces', () => {
+  assert.equal(text('<p>Sca<!-- -->la</p>'), 'Scala');
+  assert.equal(text('a<!-- -->  b'), 'a b');
 });

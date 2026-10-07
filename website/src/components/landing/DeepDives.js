@@ -61,7 +61,7 @@ export default function DeepDives() {
           {site.deepDives.map((d, i) => (
             <button
               key={d.id}
-              ref={(el) => (tabs.current[i] = el)}
+              ref={(el) => { tabs.current[i] = el; }}
               role="tab"
               type="button"
               id={`tab-${d.id}`}
