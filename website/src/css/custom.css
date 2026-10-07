@@ -144,6 +144,29 @@ html[data-theme='dark'] {
 .menu__link--active:not(.menu__link--sublist) { font-weight: 700; }
 :focus-visible { outline: 2px solid var(--lifted); outline-offset: 2px; }
 
+/* Navbar controls sit on ink in both colour modes: Infima draws them in the page text colour, which vanishes on ink in light mode */
+.navbar { --ifm-color-emphasis-600: var(--paper-ink); }
+.navbar__toggle,
+.navbar .clean-btn,
+.navbar .navbar__toggle svg { color: var(--paper-ink); }
+
+/* Squares: Infima hardcodes radii on menus, breadcrumbs and round buttons instead of reading --ifm-global-radius */
+.menu__link,
+.menu__list-item-collapsible,
+.menu__caret,
+.breadcrumbs__link,
+.clean-btn,
+.theme-back-to-top-button,
+.pagination-nav__link,
+.pills__item,
+.tabs__item,
+.table-of-contents__link { border-radius: 0; }
+.menu__caret:before, .menu__link--sublist-caret:after { border-radius: 0; }
+button[class*='toggleButton_'],
+button[class*='backToTopButton_'] { border-radius: 0; }
+/* Authored diagram components under docs/ set inline radii; keep them on the flat system */
+.markdown [style*='border-radius'] { border-radius: 0 !important; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;

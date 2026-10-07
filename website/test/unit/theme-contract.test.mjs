@@ -50,3 +50,21 @@ test('the navbar active link is white', () => {
   const root = /:root\s*\{([^}]*)\}/.exec(css)[1];
   assert.equal(variable(root, '--ifm-navbar-link-active-color'), '#ffffff');
 });
+
+// The navbar is ink in both modes, so its controls (theme toggle, mobile hamburger) must be paper-ink in both modes.
+// Infima draws them in the page text colour, which is invisible on ink in light mode.
+test('navbar controls are drawn in paper-ink so they show on the ink navbar in light mode', () => {
+  const rule = /\.navbar__toggle,\s*\.navbar \.clean-btn,[^{]*\{([^}]*)\}/.exec(css);
+  assert.ok(rule, 'custom.css must colour .navbar__toggle and .navbar .clean-btn');
+  assert.equal(variable(rule[1], 'color'), 'var(--paper-ink)');
+});
+
+// Infima hardcodes radii on these components instead of reading --ifm-global-radius, so each needs an explicit reset.
+test('hardcoded Infima radii are squared', () => {
+  for (const selector of ['.menu__link', '.breadcrumbs__link', '.menu__caret', '.clean-btn', '.theme-back-to-top-button']) {
+    const re = new RegExp(`(^|[\\s,])${selector.replace(/\./g, '\\.')}\\s*[,{]`, 'm');
+    const rule = css.split('}').find((r) => re.test(r) && /border-radius:\s*0\s*[;}]?/.test(r));
+    assert.ok(rule, `${selector} must be reset to border-radius: 0`);
+  }
+  assert.match(css, /button\[class\*='toggleButton_'\][^{]*\{\s*border-radius:\s*0;/);
+});
