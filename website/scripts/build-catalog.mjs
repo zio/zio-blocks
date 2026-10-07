@@ -55,9 +55,9 @@ export async function build({ repoRoot = REPO_ROOT, outDir = LANDING_ROOT, versi
   await mkdir(join(outDir, 'src/data'), { recursive: true });
   await writeFile(join(outDir, 'src/data/site.json'), JSON.stringify(site, null, 2) + '\n');
 
-  await mkdir(join(outDir, 'public/brand'), { recursive: true });
+  await mkdir(join(outDir, 'static/brand'), { recursive: true });
   for (const file of BRAND_ASSETS) {
-    await copyFile(join(repoRoot, 'assets/logo', file), join(outDir, 'public/brand', file));
+    await copyFile(join(repoRoot, 'assets/logo', file), join(outDir, 'static/brand', file));
   }
   return site;
 }

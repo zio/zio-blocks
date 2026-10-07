@@ -2,7 +2,7 @@ import {
   CatalogError, splitSections, fences, paragraphs, proseBeforeFence, parseTable, bullets,
 } from './markdown.mjs';
 
-const DOCS_BASE = 'https://zio.dev/zio-blocks/';
+const DOCS_BASE = '/docs/';
 const PLATFORMS = ['JVM', 'JS'];
 const SCALA_VERSIONS = ['2.13', '3.x'];
 const BLOCK_COLUMNS = ['Block', 'Artifact', 'Platform', 'Scala', 'Description'];

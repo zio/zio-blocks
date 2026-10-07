@@ -36,5 +36,5 @@ test('build writes site.json with the version substituted and copies brand asset
   assert.equal(names.includes('Configuration'), true);
   assert.equal(names.some((n) => /Feature Flags/.test(n)), false);
   assert.equal(JSON.stringify(site).includes('@VERSION@'), false);
-  for (const file of BRAND_ASSETS) assert.ok(existsSync(join(out, 'public/brand', file)), file);
+  for (const file of BRAND_ASSETS) assert.ok(existsSync(join(out, 'static/brand', file)), file);
 });

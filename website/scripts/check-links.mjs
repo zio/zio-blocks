@@ -41,10 +41,10 @@ async function check(url) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   let html;
   try {
-    html = await readFile(new URL('../dist/index.html', import.meta.url), 'utf8');
+    html = await readFile(new URL('../build/index.html', import.meta.url), 'utf8');
   } catch (e) {
     if (e.code !== 'ENOENT') throw e;
-    console.error('landing: dist/index.html not found; run npm run build first');
+    console.error('landing: build/index.html not found; run yarn build first');
     process.exit(1);
   }
   // The canonical link points at the site's own (not yet deployed) origin; `localhost` when URL is unset.

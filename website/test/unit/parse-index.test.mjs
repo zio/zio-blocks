@@ -98,12 +98,12 @@ ${dive('SQL', '')}
 - [Migrating from ZIO Schema](./guides/zio-schema-migration.md) - Step-by-step port
 `;
 
-test('docsUrl maps repo-relative links to zio.dev URLs', () => {
-  assert.equal(docsUrl('./reference/schema/index.md'), 'https://zio.dev/zio-blocks/reference/schema/');
-  assert.equal(docsUrl('./reference/mux.mdx'), 'https://zio.dev/zio-blocks/reference/mux');
-  assert.equal(docsUrl('./reference/ringbuffer/index.mdx'), 'https://zio.dev/zio-blocks/reference/ringbuffer/');
-  assert.equal(docsUrl('./guides/zio-schema-migration.md'), 'https://zio.dev/zio-blocks/guides/zio-schema-migration');
-  assert.equal(docsUrl('./reference/schema/built-in-codecs/avro.md'), 'https://zio.dev/zio-blocks/reference/schema/built-in-codecs/avro');
+test('docsUrl maps repo-relative links to site-relative docs URLs', () => {
+  assert.equal(docsUrl('./reference/schema/index.md'), '/docs/reference/schema/');
+  assert.equal(docsUrl('./reference/mux.mdx'), '/docs/reference/mux');
+  assert.equal(docsUrl('./reference/ringbuffer/index.mdx'), '/docs/reference/ringbuffer/');
+  assert.equal(docsUrl('./guides/zio-schema-migration.md'), '/docs/guides/zio-schema-migration');
+  assert.equal(docsUrl('./reference/schema/built-in-codecs/avro.md'), '/docs/reference/schema/built-in-codecs/avro');
 });
 
 test('docsUrl rejects anything that is not a ./ markdown path', () => {
@@ -143,11 +143,11 @@ test('parseIndex extracts the catalog with exact platform and Scala arrays', () 
       note: 'JSON is built in.',
       blocks: [
         {
-          name: 'Schema', docsUrl: 'https://zio.dev/zio-blocks/reference/schema/', artifact: 'zio-blocks-schema',
+          name: 'Schema', docsUrl: '/docs/reference/schema/', artifact: 'zio-blocks-schema',
           platforms: ['JVM', 'JS'], scala: ['2.13', '3.x'], description: 'Type-safe schemas with `derive` & <codecs>',
         },
         {
-          name: 'Avro Codec', docsUrl: 'https://zio.dev/zio-blocks/reference/schema/built-in-codecs/avro',
+          name: 'Avro Codec', docsUrl: '/docs/reference/schema/built-in-codecs/avro',
           artifact: 'zio-blocks-schema-avro', platforms: ['JVM'], scala: ['2.13', '3.x'], description: 'Avro binary',
         },
       ],
@@ -157,7 +157,7 @@ test('parseIndex extracts the catalog with exact platform and Scala arrays', () 
       note: null,
       blocks: [
         {
-          name: 'Mux', docsUrl: 'https://zio.dev/zio-blocks/reference/mux', artifact: 'zio-blocks-mux',
+          name: 'Mux', docsUrl: '/docs/reference/mux', artifact: 'zio-blocks-mux',
           platforms: ['JVM', 'JS'], scala: ['3.x'], description: 'Multiplexer',
         },
       ],
@@ -173,7 +173,7 @@ test('parseIndex extracts the four deep dives', () => {
     problem: { paragraphs: ['Schema problem prose:'], code: { info: 'javascript', lang: 'javascript', source: 'const data = await res.json();' } },
     solution: { paragraphs: ['Schema solution prose.'], code: { info: 'scala mdoc', lang: 'scala', source: 'val schema = 1  // comment' } },
     learnMore: [
-      { title: 'Schema reference', url: 'https://zio.dev/zio-blocks/reference/schema', description: 'the full API' },
+      { title: 'Schema reference', url: '/docs/reference/schema', description: 'the full API' },
       { title: '`schema-examples`', url: 'https://github.com/zio/zio-blocks/blob/main/x.scala', description: 'a demo' },
     ],
   });
@@ -182,8 +182,8 @@ test('parseIndex extracts the four deep dives', () => {
 
 test('parseIndex extracts guides', () => {
   assert.deepEqual(parseIndex(GOOD).guides, [
-    { title: 'Getting Started with Async', url: 'https://zio.dev/zio-blocks/guides/async-getting-started', description: 'Create and compose' },
-    { title: 'Migrating from ZIO Schema', url: 'https://zio.dev/zio-blocks/guides/zio-schema-migration', description: 'Step-by-step port' },
+    { title: 'Getting Started with Async', url: '/docs/guides/async-getting-started', description: 'Create and compose' },
+    { title: 'Migrating from ZIO Schema', url: '/docs/guides/zio-schema-migration', description: 'Step-by-step port' },
   ]);
 });
 
@@ -216,7 +216,7 @@ test('parseIndex fails when a category has no table or no rows', () => {
   failsWith(GOOD.replace(head + row, head), 'category "Web & HTTP" has no blocks');
 });
 
-test('prose links are rewritten to zio.dev URLs at build time', () => {
+test('prose links are rewritten to site-relative docs URLs at build time', () => {
   const p = parseIndex(GOOD.replace('| Avro binary |', '| See [Chunk](./reference/chunk.md) and [GH](https://github.com/zio) |')
     .replace('JSON is built in.', 'JSON is built in, see [Schema](./reference/schema/index.md).')
     .replace('The philosophy is simple. Use what you need.', 'The philosophy is simple, see [Chunk](./reference/chunk.md). Use what you need.')
@@ -226,20 +226,20 @@ test('prose links are rewritten to zio.dev URLs at build time', () => {
     .replace('- Step-by-step port', '- Step-by-step port')
     .replace('Create and compose', 'Create [a](./reference/a.md) and compose')
     .replace('the full API', 'the [full](./reference/full.md) API'));
-  assert.equal(p.categories[0].blocks[1].description, 'See [Chunk](https://zio.dev/zio-blocks/reference/chunk) and [GH](https://github.com/zio)');
-  assert.equal(p.categories[0].note, 'JSON is built in, see [Schema](https://zio.dev/zio-blocks/reference/schema/).');
-  assert.equal(p.lead, 'The philosophy is simple, see [Chunk](https://zio.dev/zio-blocks/reference/chunk). Use what you need.');
-  assert.equal(p.deepDives[0].intro, 'Schema intro [x](https://zio.dev/zio-blocks/reference/x) sentence. More words.');
-  assert.deepEqual(p.deepDives[0].solution.paragraphs, ['Schema solution [y](https://zio.dev/zio-blocks/reference/y).']);
-  assert.equal(p.principles[1].text, 'See [Z](https://zio.dev/zio-blocks/reference/z) block is a separate artifact.');
-  assert.equal(p.guides[0].description, 'Create [a](https://zio.dev/zio-blocks/reference/a) and compose');
-  assert.equal(p.deepDives[0].learnMore[0].description, 'the [full](https://zio.dev/zio-blocks/reference/full) API');
+  assert.equal(p.categories[0].blocks[1].description, 'See [Chunk](/docs/reference/chunk) and [GH](https://github.com/zio)');
+  assert.equal(p.categories[0].note, 'JSON is built in, see [Schema](/docs/reference/schema/).');
+  assert.equal(p.lead, 'The philosophy is simple, see [Chunk](/docs/reference/chunk). Use what you need.');
+  assert.equal(p.deepDives[0].intro, 'Schema intro [x](/docs/reference/x) sentence. More words.');
+  assert.deepEqual(p.deepDives[0].solution.paragraphs, ['Schema solution [y](/docs/reference/y).']);
+  assert.equal(p.principles[1].text, 'See [Z](/docs/reference/z) block is a separate artifact.');
+  assert.equal(p.guides[0].description, 'Create [a](/docs/reference/a) and compose');
+  assert.equal(p.deepDives[0].learnMore[0].description, 'the [full](/docs/reference/full) API');
 });
 
 test('resolveProseLinks rewrites links, leaves code spans alone, and rejects unmappable targets', () => {
   assert.equal(
     resolveProseLinks('a `[x](foo)` b [Chunk](./reference/chunk.md) [`C`](./reference/c.md) [e](https://e.com/x)', 'T: description'),
-    'a `[x](foo)` b [Chunk](https://zio.dev/zio-blocks/reference/chunk) [`C`](https://zio.dev/zio-blocks/reference/c) [e](https://e.com/x)',
+    'a `[x](foo)` b [Chunk](/docs/reference/chunk) [`C`](/docs/reference/c) [e](https://e.com/x)',
   );
   for (const bad of ['foo', '#anchor', './a.md#frag', '../a.md', 'mailto:a@b.c']) {
     assert.throws(
@@ -294,7 +294,7 @@ test('parseIndex accepts the real docs/index.md', () => {
   assert.ok(real.categories.length > 0);
   for (const b of real.categories.flatMap((c) => c.blocks)) {
     assert.match(b.artifact, /^zio-blocks-[a-z0-9-]+$/);
-    assert.match(b.docsUrl, /^https:\/\/zio\.dev\/zio-blocks\//);
+    assert.match(b.docsUrl, /^\/docs\//);
     assert.ok(b.platforms.length > 0 && b.scala.length > 0 && b.description !== '');
   }
   assert.ok(real.hero.install.includes('@VERSION@'));
