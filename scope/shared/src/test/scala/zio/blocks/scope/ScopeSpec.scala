@@ -342,6 +342,16 @@ object ScopeSpec extends ZIOSpecDefault {
         )
       }
     ),
+    // Compile-rejection assertions below are version-aware by necessity, not by
+    // laxity. Each test pins one exact diagnostic per compiler family:
+    // - Scala 2: the whitebox macro aborts with the full domain sentence
+    //   ("Parameter N ... Scoped values may only be used as a method receiver").
+    // - Scala 3: the N=1 `$` is a `transparent inline` method, so the rejected
+    //   lambda's signature goes cyclic before the macro check runs; dotty
+    //   reports "Cyclic reference involving method $anonfun ... compute the
+    //   signature of method $anonfun" instead of the domain sentence.
+    // Full-message equality is deliberately avoided: dotty duplicates the
+    // cyclic error (once or twice), so only the stable diagnostic core is pinned.
     suite("use macro rejects unsafe patterns")(
       test("passing param as argument is rejected") {
         assertZIO(typeCheck("""
@@ -361,10 +371,12 @@ object ScopeSpec extends ZIOSpecDefault {
           }
         """))(
           isLeft(
-            containsString("cannot") ||
-              containsString("Cyclic reference") ||
-              containsString("Parameter") ||
-              containsString("Unsafe use")
+            containsString(
+              "Parameter 1 ('a') cannot be passed as an argument to a function or method. " +
+                "Scoped values may only be used as a method receiver (e.g., a.method())."
+            ) ||
+              (containsString("Cyclic reference involving method $anonfun") &&
+                containsString("compute the signature of method $anonfun"))
           )
         )
       },
@@ -385,11 +397,14 @@ object ScopeSpec extends ZIOSpecDefault {
             ()
           }
         """))(
+          // Scala 2 and Scala 3 macros word the tail of this diagnostic
+          // differently ("nested lambda or closure" vs "nested lambda, def, or
+          // anonymous class"); the shared precise core pins parameter identity,
+          // category (capture), and construct (nested lambda) on both.
           isLeft(
-            containsString("cannot") ||
-              containsString("Cyclic reference") ||
-              containsString("Parameter") ||
-              containsString("Unsafe use")
+            containsString("Parameter 1 ('a') cannot be captured in a nested lambda") ||
+              (containsString("Cyclic reference involving method $anonfun") &&
+                containsString("compute the signature of method $anonfun"))
           )
         )
       },
@@ -413,10 +428,12 @@ object ScopeSpec extends ZIOSpecDefault {
           }
         """))(
           isLeft(
-            containsString("cannot") ||
-              containsString("Cyclic reference") ||
-              containsString("Parameter") ||
-              containsString("Unsafe use")
+            containsString(
+              "Parameter 1 ('a') cannot be assigned to a variable. " +
+                "Scoped values may only be used as a method receiver (e.g., a.method())."
+            ) ||
+              (containsString("Cyclic reference involving method $anonfun") &&
+                containsString("compute the signature of method $anonfun"))
           )
         )
       },
@@ -438,10 +455,13 @@ object ScopeSpec extends ZIOSpecDefault {
           }
         """))(
           isLeft(
-            containsString("cannot") ||
-              containsString("Cyclic reference") ||
-              containsString("Parameter") ||
-              containsString("Unsafe use")
+            containsString(
+              "Parameter 1 ('a') must only be used as a method receiver. " +
+                "It cannot be returned, stored, passed as an argument, or captured. " +
+                "Scoped values may only be used as a method receiver (e.g., a.method())."
+            ) ||
+              (containsString("Cyclic reference involving method $anonfun") &&
+                containsString("compute the signature of method $anonfun"))
           )
         )
       },
@@ -463,10 +483,12 @@ object ScopeSpec extends ZIOSpecDefault {
           }
         """))(
           isLeft(
-            containsString("cannot") ||
-              containsString("Cyclic reference") ||
-              containsString("Parameter") ||
-              containsString("Unsafe use")
+            containsString(
+              "Parameter 1 ('a') cannot be passed as an argument to a function or method. " +
+                "Scoped values may only be used as a method receiver (e.g., a.method())."
+            ) ||
+              (containsString("Cyclic reference involving method $anonfun") &&
+                containsString("compute the signature of method $anonfun"))
           )
         )
       },
@@ -490,10 +512,12 @@ object ScopeSpec extends ZIOSpecDefault {
           }
         """))(
           isLeft(
-            containsString("cannot") ||
-              containsString("Cyclic reference") ||
-              containsString("Parameter") ||
-              containsString("Unsafe use")
+            containsString(
+              "Parameter 1 ('a') cannot be passed as an argument to a function or method. " +
+                "Scoped values may only be used as a method receiver (e.g., a.method())."
+            ) ||
+              (containsString("Cyclic reference involving method $anonfun") &&
+                containsString("compute the signature of method $anonfun"))
           )
         )
       },
@@ -515,10 +539,13 @@ object ScopeSpec extends ZIOSpecDefault {
           }
         """))(
           isLeft(
-            containsString("cannot") ||
-              containsString("Cyclic reference") ||
-              containsString("Parameter") ||
-              containsString("Unsafe use")
+            containsString(
+              "Parameter 1 ('d') must only be used as a method receiver. " +
+                "It cannot be returned, stored, passed as an argument, or captured. " +
+                "Scoped values may only be used as a method receiver (e.g., d.method())."
+            ) ||
+              (containsString("Cyclic reference involving method $anonfun") &&
+                containsString("compute the signature of method $anonfun"))
           )
         )
       },
@@ -540,10 +567,13 @@ object ScopeSpec extends ZIOSpecDefault {
           }
         """))(
           isLeft(
-            containsString("cannot") ||
-              containsString("Cyclic reference") ||
-              containsString("Parameter") ||
-              containsString("Unsafe use")
+            containsString(
+              "Parameter 1 ('d') must only be used as a method receiver. " +
+                "It cannot be returned, stored, passed as an argument, or captured. " +
+                "Scoped values may only be used as a method receiver (e.g., d.method())."
+            ) ||
+              (containsString("Cyclic reference involving method $anonfun") &&
+                containsString("compute the signature of method $anonfun"))
           )
         )
       }
@@ -615,7 +645,14 @@ object ScopeSpec extends ZIOSpecDefault {
             db.query("test")
             ()
           }
-        """))(isLeft(containsString("is not a member") || containsString("Recursive value")))
+        """))(
+          isLeft(
+            // Scala 2 reports the member access; Scala 3 reports the recursive
+            // value. Both name the offending member/value precisely.
+            containsString("query is not a member") ||
+              containsString("Recursive value db needs type")
+          )
+        )
       },
       test("closure cannot be returned from scoped block") {
         assertZIO(typeCheck("""
@@ -642,7 +679,36 @@ object ScopeSpec extends ZIOSpecDefault {
             val db = allocate(Resource.from[Database])
             db
           }
-        """))(isLeft(containsString("Unscoped") || containsString("type mismatch")))
+        """))(
+          isLeft(
+            // Scala 3 reports the missing Unscoped instance; Scala 2 reports
+            // the exact type mismatch instead. Both arms pin the escaping
+            // type precisely.
+            containsString("Unscoped") ||
+              (containsString("type mismatch") &&
+                containsString("scope.$[Database]") &&
+                containsString("required: Database"))
+          )
+        )
+      },
+      test("typeCheck accepts valid code (positive control)") {
+        // Guards the negative tests above: if typeCheck itself were broken
+        // (always-Left, e.g. a parse failure), every rejection test would pass
+        // vacuously. Both controls must typecheck on every Scala version.
+        // NOTE: no `$` call appears here on purpose — on Scala 3 the N=1 `$`
+        // `transparent inline` trips a cyclic-signature error inside
+        // `typeCheck` even for safe lambdas (see the suite comment above), so
+        // a `$`-shaped control cannot stay green across versions.
+        typeCheck("val x: Int = 42").map(result => assertTrue(result.isRight))
+      },
+      test("typeCheck accepts a plain scoped block (positive control)") {
+        typeCheck("""
+          import zio.blocks.scope._
+
+          Scope.global.scoped { _ =>
+            42
+          }
+        """).map(result => assertTrue(result.isRight))
       }
     ),
     suite("Unscoped constraint")(
