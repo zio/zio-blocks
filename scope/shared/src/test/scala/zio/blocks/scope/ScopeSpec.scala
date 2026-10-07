@@ -17,7 +17,7 @@
 package zio.blocks.scope
 
 import zio.test._
-import zio.test.Assertion.{containsString, isLeft}
+import zio.test.Assertion.{containsString, isLeft, isRight}
 
 /**
  * Cross-platform tests for Scope.
@@ -40,6 +40,36 @@ object ScopeSpec extends ZIOSpecDefault {
     var closed: Boolean = false
     def close(): Unit   = closed = true
   }
+
+  /**
+   * Whether the running compiler reports a spurious `$anonfun` cyclic error for
+   * every N=1 `$` call inside a `typeCheck` string — including legal ones.
+   *
+   * Verified boundary: Scala 2.13 and Scala 3.3 (LTS) typecheck `$` string
+   * snippets faithfully (legal code passes, illegal code fails with the exact
+   * macro domain sentence). On newer Scala 3 (verified 3.8.3 and 3.9.0) the
+   * `transparent inline` N=1 `$` trips signature computation inside the
+   * `typeCheck` string harness, so legal and illegal snippets fail identically
+   * with "Cyclic reference involving method $anonfun". Direct compilation of
+   * the same code is unaffected on every version (see the "use macro allows
+   * safe patterns" runtime suite, which compiles the legal shapes directly).
+   */
+  private val newInlineHarness: Boolean = {
+    // BuildInfo.scalaVersion is the compiling compiler's version (also valid
+    // on Scala.js, unlike scala.util.Properties).
+    val v = BuildInfo.scalaVersion
+    v.startsWith("3.") && !v.startsWith("3.3.")
+  }
+
+  /**
+   * Runs the test only where `typeCheck` strings exercise the real `$` macro.
+   */
+  private val onlyFaithfulInlineHarness =
+    if (newInlineHarness) TestAspect.ignore else TestAspect.identity
+
+  /** Runs the test only where `typeCheck` strings hit the cyclic artifact. */
+  private val onlyNewInlineHarness =
+    if (newInlineHarness) TestAspect.identity else TestAspect.ignore
 
   def spec = suite("Scope")(
     suite("global")(
@@ -342,17 +372,13 @@ object ScopeSpec extends ZIOSpecDefault {
         )
       }
     ),
-    // Compile-rejection assertions below are version-aware by necessity, not by
-    // laxity. Each test pins one exact diagnostic per compiler family:
-    // - Scala 2: the whitebox macro aborts with the full domain sentence
-    //   ("Parameter N ... Scoped values may only be used as a method receiver").
-    // - Scala 3: the N=1 `$` is a `transparent inline` method, so the rejected
-    //   lambda's signature goes cyclic before the macro check runs; dotty
-    //   reports "Cyclic reference involving method $anonfun ... compute the
-    //   signature of method $anonfun" instead of the domain sentence.
-    // Full-message equality is deliberately avoided: dotty duplicates the
-    // cyclic error (once or twice), so only the stable diagnostic core is pinned.
-    suite("use macro rejects unsafe patterns")(
+    // The N=1 `$` domain guards below are asserted exactly, but only where the
+    // `typeCheck` string harness exercises the real macro: Scala 2.13 and Scala
+    // 3.3. On newer Scala 3 the harness reports a spurious `$anonfun` cyclic
+    // error for legal and illegal `$` calls alike (see `newInlineHarness`),
+    // so a cyclic failure there proves nothing about the guard and is
+    // characterized separately instead of being counted as guard proof.
+    suite("N=1 $ domain guards")(
       test("passing param as argument is rejected") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
@@ -374,12 +400,10 @@ object ScopeSpec extends ZIOSpecDefault {
             containsString(
               "Parameter 1 ('a') cannot be passed as an argument to a function or method. " +
                 "Scoped values may only be used as a method receiver (e.g., a.method())."
-            ) ||
-              (containsString("Cyclic reference involving method $anonfun") &&
-                containsString("compute the signature of method $anonfun"))
+            )
           )
         )
-      },
+      } @@ onlyFaithfulInlineHarness,
       test("capturing in nested lambda is rejected") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
@@ -397,17 +421,19 @@ object ScopeSpec extends ZIOSpecDefault {
             ()
           }
         """))(
-          // Scala 2 and Scala 3 macros word the tail of this diagnostic
-          // differently ("nested lambda or closure" vs "nested lambda, def, or
-          // anonymous class"); the shared precise core pins parameter identity,
-          // category (capture), and construct (nested lambda) on both.
+          // The capture diagnostic names its context precisely and differs by
+          // compiler: Scala 2.13 ends at "closure.", Scala 3.3 enumerates
+          // "nested lambda, def, or anonymous class". Both arms are complete
+          // exact diagnostics, not lax alternatives.
           isLeft(
-            containsString("Parameter 1 ('a') cannot be captured in a nested lambda") ||
-              (containsString("Cyclic reference involving method $anonfun") &&
-                containsString("compute the signature of method $anonfun"))
+            containsString("Parameter 1 ('a') cannot be captured in a nested lambda or closure.") ||
+              containsString(
+                "Parameter 1 ('a') cannot be captured in a nested lambda, def, or anonymous class. " +
+                  "Scoped values may only be used as a method receiver (e.g., a.method())."
+              )
           )
         )
-      },
+      } @@ onlyFaithfulInlineHarness,
       test("storing param in var is rejected") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
@@ -431,12 +457,10 @@ object ScopeSpec extends ZIOSpecDefault {
             containsString(
               "Parameter 1 ('a') cannot be assigned to a variable. " +
                 "Scoped values may only be used as a method receiver (e.g., a.method())."
-            ) ||
-              (containsString("Cyclic reference involving method $anonfun") &&
-                containsString("compute the signature of method $anonfun"))
+            )
           )
         )
-      },
+      } @@ onlyFaithfulInlineHarness,
       test("returning param directly (identity) is rejected") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
@@ -459,12 +483,10 @@ object ScopeSpec extends ZIOSpecDefault {
               "Parameter 1 ('a') must only be used as a method receiver. " +
                 "It cannot be returned, stored, passed as an argument, or captured. " +
                 "Scoped values may only be used as a method receiver (e.g., a.method())."
-            ) ||
-              (containsString("Cyclic reference involving method $anonfun") &&
-                containsString("compute the signature of method $anonfun"))
+            )
           )
         )
-      },
+      } @@ onlyFaithfulInlineHarness,
       test("tuple construction with param is rejected") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
@@ -486,12 +508,10 @@ object ScopeSpec extends ZIOSpecDefault {
             containsString(
               "Parameter 1 ('a') cannot be passed as an argument to a function or method. " +
                 "Scoped values may only be used as a method receiver (e.g., a.method())."
-            ) ||
-              (containsString("Cyclic reference involving method $anonfun") &&
-                containsString("compute the signature of method $anonfun"))
+            )
           )
         )
-      },
+      } @@ onlyFaithfulInlineHarness,
       test("constructor argument with param is rejected") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
@@ -515,12 +535,10 @@ object ScopeSpec extends ZIOSpecDefault {
             containsString(
               "Parameter 1 ('a') cannot be passed as an argument to a function or method. " +
                 "Scoped values may only be used as a method receiver (e.g., a.method())."
-            ) ||
-              (containsString("Cyclic reference involving method $anonfun") &&
-                containsString("compute the signature of method $anonfun"))
+            )
           )
         )
-      },
+      } @@ onlyFaithfulInlineHarness,
       test("match expression where param could escape via pattern binding is rejected") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
@@ -543,12 +561,10 @@ object ScopeSpec extends ZIOSpecDefault {
               "Parameter 1 ('d') must only be used as a method receiver. " +
                 "It cannot be returned, stored, passed as an argument, or captured. " +
                 "Scoped values may only be used as a method receiver (e.g., d.method())."
-            ) ||
-              (containsString("Cyclic reference involving method $anonfun") &&
-                containsString("compute the signature of method $anonfun"))
+            )
           )
         )
-      },
+      } @@ onlyFaithfulInlineHarness,
       test("if-expression where param is branch result is rejected") {
         assertZIO(typeCheck("""
           import zio.blocks.scope._
@@ -571,12 +587,256 @@ object ScopeSpec extends ZIOSpecDefault {
               "Parameter 1 ('d') must only be used as a method receiver. " +
                 "It cannot be returned, stored, passed as an argument, or captured. " +
                 "Scoped values may only be used as a method receiver (e.g., d.method())."
-            ) ||
-              (containsString("Cyclic reference involving method $anonfun") &&
-                containsString("compute the signature of method $anonfun"))
+            )
           )
         )
-      }
+      } @@ onlyFaithfulInlineHarness,
+      test("legal receiver-only use typechecks (positive control)") {
+        // Near-identical twin of the rejected shapes above (same Database,
+        // same allocate, same scope.$(db) call): only the lambda body is the
+        // legal receiver-only use. Guards against a vacuously always-Left
+        // harness, which would otherwise let every rejection test above pass.
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { scope =>
+            import scope._
+            val db: $[Database] = allocate(Resource.from[Database])
+            scope.$(db)(a => a.query("test"))
+            ()
+          }
+        """))(isRight)
+      } @@ onlyFaithfulInlineHarness
+    ),
+    // Characterization of the newer-Scala-3 `typeCheck` string-harness
+    // limitation (see `newInlineHarness`). On those compilers EVERY N=1 `$`
+    // call inside a `typeCheck` string — legal or not — fails with the same
+    // `$anonfun` cyclic error before the macro domain check runs. These tests
+    // therefore document the observed rejection WITHOUT claiming the macro
+    // guard fired; the legal-shape test below is the proof: it must not
+    // compile in-string here, yet the identical code compiles and runs
+    // directly (see "use macro allows safe patterns"). Domain-guard proof
+    // lives in the "N=1 $ domain guards" suite on the Scala 2.13 / 3.3 legs.
+    // If a future compiler fixes the regression, these tests will fail: that
+    // failure is the signal to retire this suite and un-gate the guards.
+    suite("N=1 $ typeCheck-harness limitation (newer Scala 3)")(
+      test("legal receiver-only use is also rejected in-string (cyclic artifact)") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { scope =>
+            import scope._
+            val db: $[Database] = allocate(Resource.from[Database])
+            scope.$(db)(a => a.query("test"))
+            ()
+          }
+        """))(
+          isLeft(
+            containsString("Cyclic reference involving method $anonfun") &&
+              containsString("compute the signature of method $anonfun")
+          )
+        )
+      } @@ onlyNewInlineHarness,
+      test("passing param as argument is rejected in-string (cyclic artifact)") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { scope =>
+            import scope._
+            val db: $[Database] = allocate(Resource.from[Database])
+            scope.$(db)(a => println(a))
+            ()
+          }
+        """))(
+          isLeft(
+            containsString("Cyclic reference involving method $anonfun") &&
+              containsString("compute the signature of method $anonfun")
+          )
+        )
+      } @@ onlyNewInlineHarness,
+      test("capturing in nested lambda is rejected in-string (cyclic artifact)") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { scope =>
+            import scope._
+            val db: $[Database] = allocate(Resource.from[Database])
+            scope.$(db)(a => () => a.query("test"))
+            ()
+          }
+        """))(
+          isLeft(
+            containsString("Cyclic reference involving method $anonfun") &&
+              containsString("compute the signature of method $anonfun")
+          )
+        )
+      } @@ onlyNewInlineHarness,
+      test("storing param in var is rejected in-string (cyclic artifact)") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            var stash: Any = null
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { scope =>
+            import scope._
+            var someVar: Any = null
+            val db: $[Database] = allocate(Resource.from[Database])
+            scope.$(db)(a => { someVar = a; 42 })
+            ()
+          }
+        """))(
+          isLeft(
+            containsString("Cyclic reference involving method $anonfun") &&
+              containsString("compute the signature of method $anonfun")
+          )
+        )
+      } @@ onlyNewInlineHarness,
+      test("returning param directly (identity) is rejected in-string (cyclic artifact)") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { scope =>
+            import scope._
+            val db: $[Database] = allocate(Resource.from[Database])
+            scope.$(db)(a => a)
+            ()
+          }
+        """))(
+          isLeft(
+            containsString("Cyclic reference involving method $anonfun") &&
+              containsString("compute the signature of method $anonfun")
+          )
+        )
+      } @@ onlyNewInlineHarness,
+      test("tuple construction with param is rejected in-string (cyclic artifact)") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { scope =>
+            import scope._
+            val db: $[Database] = allocate(Resource.from[Database])
+            scope.$(db)(a => (a, 1))
+            ()
+          }
+        """))(
+          isLeft(
+            containsString("Cyclic reference involving method $anonfun") &&
+              containsString("compute the signature of method $anonfun")
+          )
+        )
+      } @@ onlyNewInlineHarness,
+      test("constructor argument with param is rejected in-string (cyclic artifact)") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          case class Wrapper(value: Any)
+
+          Scope.global.scoped { scope =>
+            import scope._
+            val db: $[Database] = allocate(Resource.from[Database])
+            scope.$(db)(a => new Wrapper(a))
+            ()
+          }
+        """))(
+          isLeft(
+            containsString("Cyclic reference involving method $anonfun") &&
+              containsString("compute the signature of method $anonfun")
+          )
+        )
+      } @@ onlyNewInlineHarness,
+      test("match expression where param could escape is rejected in-string (cyclic artifact)") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { scope =>
+            import scope._
+            val db: $[Database] = allocate(Resource.from[Database])
+            scope.$(db)(d => d match { case x => x })
+            ()
+          }
+        """))(
+          isLeft(
+            containsString("Cyclic reference involving method $anonfun") &&
+              containsString("compute the signature of method $anonfun")
+          )
+        )
+      } @@ onlyNewInlineHarness,
+      test("if-expression where param is branch result is rejected in-string (cyclic artifact)") {
+        assertZIO(typeCheck("""
+          import zio.blocks.scope._
+
+          class Database extends AutoCloseable {
+            var closed = false
+            def query(sql: String): String = s"res: $sql"
+            def close(): Unit = closed = true
+          }
+
+          Scope.global.scoped { scope =>
+            import scope._
+            val db: $[Database] = allocate(Resource.from[Database])
+            scope.$(db)(d => if (true) d else null)
+            ()
+          }
+        """))(
+          isLeft(
+            containsString("Cyclic reference involving method $anonfun") &&
+              containsString("compute the signature of method $anonfun")
+          )
+        )
+      } @@ onlyNewInlineHarness
     ),
     suite("use macro allows safe patterns")(
       test("simple method call is allowed") {
@@ -647,9 +907,11 @@ object ScopeSpec extends ZIOSpecDefault {
           }
         """))(
           isLeft(
-            // Scala 2 reports the member access; Scala 3 reports the recursive
-            // value. Both name the offending member/value precisely.
-            containsString("query is not a member") ||
+            // Each arm is the genuine diagnostic on its compiler, verified by
+            // probe: Scala 2.13 / 3.3 reject the member access on the scoped
+            // type; newer Scala 3 stops earlier at the untyped `val db`
+            // (recursive value). Both name the offending member/value exactly.
+            containsString("value query is not a member of scope.$[Database]") ||
               containsString("Recursive value db needs type")
           )
         )
@@ -662,7 +924,7 @@ object ScopeSpec extends ZIOSpecDefault {
             import scope._
             () => "captured"
           }
-        """))(isLeft(containsString("Unscoped")))
+        """))(isLeft(containsString("Unscoped[() => String]")))
       },
       test("resourceful value cannot escape scoped block") {
         assertZIO(typeCheck("""
@@ -681,34 +943,16 @@ object ScopeSpec extends ZIOSpecDefault {
           }
         """))(
           isLeft(
-            // Scala 3 reports the missing Unscoped instance; Scala 2 reports
-            // the exact type mismatch instead. Both arms pin the escaping
-            // type precisely.
-            containsString("Unscoped") ||
+            // Each arm is the genuine diagnostic on its compiler, verified by
+            // probe: Scala 3 reports the missing Unscoped instance naming the
+            // escaping type; Scala 2.13 reports the exact type mismatch
+            // instead. Both arms pin the escaping type precisely.
+            containsString("No given instance of type zio.blocks.scope.Unscoped[Database]") ||
               (containsString("type mismatch") &&
                 containsString("scope.$[Database]") &&
                 containsString("required: Database"))
           )
         )
-      },
-      test("typeCheck accepts valid code (positive control)") {
-        // Guards the negative tests above: if typeCheck itself were broken
-        // (always-Left, e.g. a parse failure), every rejection test would pass
-        // vacuously. Both controls must typecheck on every Scala version.
-        // NOTE: no `$` call appears here on purpose — on Scala 3 the N=1 `$`
-        // `transparent inline` trips a cyclic-signature error inside
-        // `typeCheck` even for safe lambdas (see the suite comment above), so
-        // a `$`-shaped control cannot stay green across versions.
-        typeCheck("val x: Int = 42").map(result => assertTrue(result.isRight))
-      },
-      test("typeCheck accepts a plain scoped block (positive control)") {
-        typeCheck("""
-          import zio.blocks.scope._
-
-          Scope.global.scoped { _ =>
-            42
-          }
-        """).map(result => assertTrue(result.isRight))
       }
     ),
     suite("Unscoped constraint")(
