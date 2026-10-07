@@ -7,7 +7,7 @@ import { titleCase } from '../src/lib/title-case.mjs';
 const html = readFileSync(new URL('../build/index.html', import.meta.url), 'utf8');
 
 const decode = (s) =>
-  s.replace(/&#34;|&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  s.replace(/&#34;|&quot;/g, '"').replace(/&#39;|&#x27;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 /** Text content of an HTML fragment: inline tags dropped, other tags become spaces, entities decoded, whitespace collapsed. */
 export const text = (fragment) =>
   decode(fragment.replace(/<\/?(?:span|code|strong|em|a)\b[^>]*>/g, '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
@@ -68,4 +68,34 @@ test('the navbar and footer carry the brand lockups and the main links', () => {
   for (const href of ['/docs/', '/docs/reference/schema/', 'https://github.com/zio/zio-blocks']) {
     assert.match(footer, new RegExp(`href="${href.replace(/[./]/g, '\\$&')}"`));
   }
+});
+
+test('principles', () => {
+  const s = sec('principles');
+  const items = [...s.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
+  assert.deepEqual(items, site.principles.map((p, i) => `0${i + 1} ${titleCase(p.name)} ${p.text}`));
+});
+
+test('deep dives render every panel visible without JavaScript', () => {
+  const s = sec('deep-dives');
+  const tabs = [...s.matchAll(/role="tab"[^>]*>([\s\S]*?)<\/button>/g)].map((m) => text(m[1]));
+  assert.deepEqual(tabs, site.deepDives.map((d) => titleCase(d.title)));
+  const panels = [...s.matchAll(/<div[^>]*role="tabpanel"[^>]*>/g)].map((m) => m[0]);
+  assert.equal(panels.length, site.deepDives.length);
+  for (const p of panels) assert.doesNotMatch(p, /\bhidden\b/);
+  // The tablist itself is hidden until the page hydrates, so a visitor without JavaScript sees stacked panels only.
+  assert.match(s, /<div[^>]*role="tablist"[^>]*\bhidden\b/);
+  for (const d of site.deepDives) assert.match(s, new RegExp(`id="panel-${d.id}"[^>]*aria-labelledby="tab-${d.id}"|aria-labelledby="tab-${d.id}"[^>]*id="panel-${d.id}"`));
+  // The first tab is the selected one and the only one in the tab order; each tab controls its own panel.
+  const tabTags = [...s.matchAll(/<button[^>]*role="tab"[^>]*>/g)].map((m) => m[0]);
+  assert.deepEqual(tabTags.map((t) => /aria-selected="(true|false)"/.exec(t)[1]), ['true', 'false', 'false', 'false']);
+  assert.deepEqual(tabTags.map((t) => /tabindex="(-?\d)"/.exec(t)[1]), ['0', '-1', '-1', '-1']);
+  assert.deepEqual(tabTags.map((t) => /aria-controls="([^"]*)"/.exec(t)[1]), site.deepDives.map((d) => `panel-${d.id}`));
+});
+
+test('schema panel lists the format chips derived from the catalog', () => {
+  const s = sec('deep-dives');
+  const chips = [...s.matchAll(/<li class="lp-chip"[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
+  const codecs = site.categories.find((c) => c.name === 'Codecs').blocks.map((b) => b.name.replace(/ Codec$/, ''));
+  assert.deepEqual(chips, ['JSON', ...codecs]);
 });
