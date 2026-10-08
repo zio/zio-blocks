@@ -326,8 +326,11 @@ lazy val root = project
     otel,
     dataMigration.jvm,
     dataMigration.js,
-    projection.jvm
+    projection.jvm,
+    projectionExamples
   )
+
+lazy val projectionExamples = RootProject(file("projection-examples"))
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
