@@ -26,12 +26,13 @@
  *
  * It shows:
  *   - `routedBy`, which makes the projection's scope `CrossEntity`
- *   - `custom`, to return a `ProjectionAction.Upsert` instead of a plain insert
+ *   - `insert`, with a row ID that is unique for each repository
  *   - querying a shard by its routing key
  *
- * Note that the row's ID here is the owner, so a later repository replaces an
- * earlier one from the same owner: alice ends up with only `zio-http`. Give each
- * row its own ID, such as "owner/repo", to keep every repository.
+ * The routing key only chooses the shard. Each row still needs its own ID, so
+ * here it is "owner/repo". If the owner were the row ID, a second repository from
+ * the same owner would clash with the first row, since `insert` fails when the ID
+ * already exists.
  *
  * Run it from this directory with:
  *   sbt "runMain projection.examples.Example2CrossEntity"
@@ -62,7 +63,7 @@ object Example2CrossEntity extends ZIOAppDefault {
                          .from("repos")
                          .routedBy[RepoCreated](_.ownerId)
                          .on[RepoCreated]
-                         .custom((e, _) => ProjectionAction.Upsert(RepoListEntry(e.ownerId, e.ownerId, e.repoName)))
+                         .insert((e, _) => RepoListEntry(s"${e.ownerId}/${e.repoName}", e.ownerId, e.repoName))
 
           _ <- Console.printLine(s"  Scope: ${projection.scope}").orDie
 
@@ -73,13 +74,13 @@ object Example2CrossEntity extends ZIOAppDefault {
           _ <- engine.append("repo-3", RepoCreated("bob", "zio-kafka"))
           _ <- engine.append("repo-4", RepoCreated("charlie", "zio-schema"))
 
-          alice   <- pollUntil(engine.query(projection, "alice"))
-          bob     <- pollUntil(engine.query(projection, "bob"))
-          charlie <- pollUntil(engine.query(projection, "charlie"))
+          alice   <- ZIO.foreach(List("zio-blocks", "zio-http"))(r => pollUntil(engine.query(projection, s"alice/$r")))
+          bob     <- ZIO.foreach(List("zio-kafka"))(r => pollUntil(engine.query(projection, s"bob/$r")))
+          charlie <- ZIO.foreach(List("zio-schema"))(r => pollUntil(engine.query(projection, s"charlie/$r")))
 
-          _ <- Console.printLine(s"  alice's repos:   ${alice.map(_.repoName).getOrElse("none")}").orDie
-          _ <- Console.printLine(s"  bob's repos:     ${bob.map(_.repoName).getOrElse("none")}").orDie
-          _ <- Console.printLine(s"  charlie's repos: ${charlie.map(_.repoName).getOrElse("none")}").orDie
+          _ <- Console.printLine(s"  alice's repos:   ${alice.flatten.map(_.repoName).mkString(", ")}").orDie
+          _ <- Console.printLine(s"  bob's repos:     ${bob.flatten.map(_.repoName).mkString(", ")}").orDie
+          _ <- Console.printLine(s"  charlie's repos: ${charlie.flatten.map(_.repoName).mkString(", ")}").orDie
           _ <- Console.printLine("  ✓ CrossEntity: repos routed by ownerId to separate shards").orDie
         } yield ()
       }
