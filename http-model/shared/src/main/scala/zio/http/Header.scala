@@ -1202,12 +1202,13 @@ object Header {
   object AcceptEncoding extends Typed[AcceptEncoding] {
     val name: String = "accept-encoding"
 
-    final case class GZip(weight: Option[Double] = None)     extends AcceptEncoding
-    final case class Deflate(weight: Option[Double] = None)  extends AcceptEncoding
-    final case class Br(weight: Option[Double] = None)       extends AcceptEncoding
-    final case class Compress(weight: Option[Double] = None) extends AcceptEncoding
-    final case class Identity(weight: Option[Double] = None) extends AcceptEncoding
-    final case class Any(weight: Option[Double] = None)      extends AcceptEncoding
+    final case class GZip(weight: Option[Double] = None)                   extends AcceptEncoding
+    final case class Deflate(weight: Option[Double] = None)                extends AcceptEncoding
+    final case class Br(weight: Option[Double] = None)                     extends AcceptEncoding
+    final case class Compress(weight: Option[Double] = None)               extends AcceptEncoding
+    final case class Identity(weight: Option[Double] = None)               extends AcceptEncoding
+    final case class Any(weight: Option[Double] = None)                    extends AcceptEncoding
+    final case class Unparsed(name: String, weight: Option[Double] = None) extends AcceptEncoding
 
     final case class Multiple(values: Chunk[AcceptEncoding]) extends AcceptEncoding
 
@@ -1221,24 +1222,31 @@ object Header {
     }
 
     def render(h: AcceptEncoding): String = h match {
-      case GZip(w)     => renderWithWeight("gzip", w)
-      case Deflate(w)  => renderWithWeight("deflate", w)
-      case Br(w)       => renderWithWeight("br", w)
-      case Compress(w) => renderWithWeight("compress", w)
-      case Identity(w) => renderWithWeight("identity", w)
-      case Any(w)      => renderWithWeight("*", w)
-      case Multiple(v) => v.map(render).mkString(", ")
+      case GZip(w)        => renderWithWeight("gzip", w)
+      case Deflate(w)     => renderWithWeight("deflate", w)
+      case Br(w)          => renderWithWeight("br", w)
+      case Compress(w)    => renderWithWeight("compress", w)
+      case Identity(w)    => renderWithWeight("identity", w)
+      case Any(w)         => renderWithWeight("*", w)
+      case Unparsed(n, w) => renderWithWeight(n, w)
+      case Multiple(v)    => v.map(render).mkString(", ")
     }
 
     private def parseSingle(s: String): AcceptEncoding = {
-      val qIdx          = s.indexOf(";q=")
-      val (raw, weight) =
-        if (qIdx >= 0) {
-          val w =
-            try Some(s.substring(qIdx + 3).trim.toDouble)
+      val semi = s.indexOf(';')
+      val raw  = if (semi < 0) s else s.substring(0, semi).trim
+
+      var weight: Option[Double] = None
+      var from                   = semi
+      while (from >= 0 && weight.isEmpty) {
+        val next  = s.indexOf(';', from + 1)
+        val param = (if (next < 0) s.substring(from + 1) else s.substring(from + 1, next)).trim
+        if (param.length > 2 && param.regionMatches(true, 0, "q=", 0, 2))
+          weight =
+            try Some(param.substring(2).trim.toDouble)
             catch { case _: NumberFormatException => None }
-          (s.substring(0, qIdx).trim, w)
-        } else (s.trim, None)
+        from = next
+      }
 
       raw.toLowerCase match {
         case "gzip"     => GZip(weight)
@@ -1247,7 +1255,7 @@ object Header {
         case "compress" => Compress(weight)
         case "identity" => Identity(weight)
         case "*"        => Any(weight)
-        case _          => GZip(weight)
+        case _          => Unparsed(raw, weight)
       }
     }
 
