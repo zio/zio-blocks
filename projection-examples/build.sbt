@@ -6,6 +6,9 @@ crossScalaVersions := Seq("3.9.0", "3.3.7")
 publish / skip := true
 run / fork     := true
 
+// Several examples are runnable on their own, so `sbt run` needs to know which one to start.
+Compile / mainClass := Some("projection.examples.ProjectionExampleApp")
+
 scalacOptions ++= Seq("-deprecation", "-encoding", "UTF-8", "-feature", "-unchecked")
 
 // Scala 3.8+ artifacts are published with `@experimental` APIs, which consumers must opt into.
