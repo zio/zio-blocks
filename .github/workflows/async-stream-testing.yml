@@ -71,7 +71,7 @@ jobs:
       - uses: coursier/cache-action@v8
       - run: python3 streams-benchmark/tools/validate_matrix.py
       - run: python3 streams-benchmark/tools/test_campaign.py
-      - run: sbt 'golemStreamsAsyncVersion; ++3.8.3; streams-benchmark/Jmh/compile; streams-benchmark/runMain zio.blocks.streams.bench.StreamAsyncBenchmarkCorrectness'
+      - run: sbt 'golemStreamsAsyncVersion; ++3.9.0; streams-benchmark/Jmh/compile; streams-benchmark/runMain zio.blocks.streams.bench.StreamAsyncBenchmarkCorrectness'
 
   nightly:
     if: github.event_name == 'schedule'
