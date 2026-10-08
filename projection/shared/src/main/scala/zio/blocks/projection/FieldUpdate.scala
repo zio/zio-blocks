@@ -42,18 +42,40 @@ object FieldUpdate {
   // Selector-based macro factory methods
   // ---------------------------------------------------------------------------
 
+  /**
+   * Replaces the value of the selected field. The field is chosen with a
+   * selector such as `_.userCount`, checked at compile time, and mapped to its
+   * `snake_case` column name.
+   *
+   * {{{
+   * FieldUpdate.setValue[Stats](_.peak, 10L)   // Set("peak", 10L)
+   * }}}
+   */
   inline def setValue[A](inline selector: A => Any, value: Any): FieldUpdate.Set =
     ${ FieldSelectorMacros.setValueImpl[A]('selector, 'value) }
 
+  /**
+   * Adds `by` to the selected field, atomically in the store. A missing row is
+   * created first, so incrementing a counter that does not exist yet gives
+   * `by`.
+   *
+   * {{{
+   * FieldUpdate.increment[Stats](_.userCount)       // Increment("user_count", 1)
+   * FieldUpdate.increment[Stats](_.userCount, 5L)   // Increment("user_count", 5)
+   * }}}
+   */
   inline def increment[A](inline selector: A => Any, by: Long = 1L): FieldUpdate.Increment =
     ${ FieldSelectorMacros.incrementImpl[A]('selector, 'by) }
 
+  /** Subtracts `by` from the selected field, atomically in the store. */
   inline def decrement[A](inline selector: A => Any, by: Long = 1L): FieldUpdate.Decrement =
     ${ FieldSelectorMacros.decrementImpl[A]('selector, 'by) }
 
+  /** Keeps the larger of the stored value and `value` for the selected field. */
   inline def maxValue[A](inline selector: A => Any, value: Long): FieldUpdate.Max =
     ${ FieldSelectorMacros.maxValueImpl[A]('selector, 'value) }
 
+  /** Keeps the smaller of the stored value and `value` for the selected field. */
   inline def minValue[A](inline selector: A => Any, value: Long): FieldUpdate.Min =
     ${ FieldSelectorMacros.minValueImpl[A]('selector, 'value) }
 
@@ -61,6 +83,7 @@ object FieldUpdate {
   // Raw field-name helpers (no macro, for runtime use)
   // ---------------------------------------------------------------------------
 
+  /** Same as `Set(field, value)`, using a column name written out in full. */
   def apply(field: String, value: Any): FieldUpdate.Set =
     FieldUpdate.Set(field, value)
 

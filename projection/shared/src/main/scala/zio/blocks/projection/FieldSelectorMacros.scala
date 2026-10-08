@@ -21,8 +21,21 @@ import scala.quoted.*
 import zio.blocks.sql.SqlNameMapper
 
 /**
- * Scala 3 macros for extracting field names from selector expressions and
- * mapping them to SQL snake_case column names.
+ * Scala 3 macro implementations that turn a field selector such as
+ * `_.userCount` into the name of the field, checked at compile time.
+ *
+ * They back the selector-based methods of [[FieldUpdate]] (`increment`,
+ * `decrement`, `setValue`, `maxValue`, `minValue`) and the
+ * `HandlerBuilder.update` macro, so that a misspelled field is a compile error
+ * and not a runtime failure. The selector must be a lambda that reads a field,
+ * such as `_.userCount`. Only the last field name of the selector is used, so
+ * `_.stats.userCount` gives `userCount`. A selector that is not a lambda, or
+ * that reads no field, such as `x => x`, is rejected with a compile error.
+ *
+ * Field names are mapped to SQL `snake_case` column names with
+ * `SqlNameMapper.SnakeCase`, for example `userCount` becomes `user_count`.
+ * The name is worked out at compile time and appears as a string literal in the
+ * expanded code, so no reflection happens at runtime.
  */
 object FieldSelectorMacros {
 
