@@ -327,10 +327,32 @@ lazy val root = project
     dataMigration.jvm,
     dataMigration.js,
     projection.jvm,
+    asyncExamples,
+    endpointExamples,
+    httpModelExamples,
+    muxExamples,
+    schemaExamples,
+    scopeExamples,
+    smithyExamples,
+    streamsExamples,
+    zioBlocksExamples,
+    zioBlocksHtmxExamples,
     projectionExamples
   )
 
-lazy val projectionExamples = RootProject(file("projection-examples"))
+// Example projects are standalone builds (see AGENTS.md) that depend on published artifacts, so the
+// root build only references them, the way zio-http does, instead of defining them as subprojects.
+lazy val asyncExamples         = RootProject(file("async-examples"))
+lazy val endpointExamples      = RootProject(file("endpoint-examples"))
+lazy val httpModelExamples     = RootProject(file("http-model-examples"))
+lazy val muxExamples           = RootProject(file("mux-examples"))
+lazy val schemaExamples        = RootProject(file("schema-examples"))
+lazy val scopeExamples         = RootProject(file("scope-examples"))
+lazy val smithyExamples        = RootProject(file("smithy-examples"))
+lazy val streamsExamples       = RootProject(file("streams-examples"))
+lazy val zioBlocksExamples     = RootProject(file("zio-blocks-examples"))
+lazy val zioBlocksHtmxExamples = RootProject(file("zio-blocks-htmx-examples"))
+lazy val projectionExamples    = RootProject(file("projection-examples"))
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
