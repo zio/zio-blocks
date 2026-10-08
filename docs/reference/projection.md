@@ -207,6 +207,8 @@ val spec = Projection[RepoListEntry]("repoListEntries")
 
 The `routedBy` call tells the engine to extract a routing key from each event. Events with the same key go to the same shard store. The key only chooses the shard, so each row still needs its own ID, here `"owner/repo"`. If the owner were the row ID, a second repository from the same owner would clash with the first row, because `insert` fails when the ID already exists. Querying `engine.query(spec, "alice/zio-http")` looks in the primary store and then in the shards, and returns the row from whichever shard holds it.
 
+A shard is a separate store. With SQLite each routing key gets its own file next to the main one, such as `repos/repoListEntries_shard_alice.db`. The engine has no call that lists the rows of a shard, so a view such as "all of Alice's repositories" is read from her shard file with SQL. `Example2CrossEntity` in `projection-examples` does this.
+
 **Routing modes:**
 
 | Mode | Behavior | Scope derived |
