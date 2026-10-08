@@ -15,7 +15,9 @@
  */
 
 /*
- * Example: a per-entity projection.
+ * Example 1 of 5: a per-entity projection.
+ *
+ * Start here. Next: Example2CrossEntity.
  *
  * A per-entity projection keeps one row for each entity ID. Here every
  * `UserCreated` event, appended under an ID such as "user-1", becomes a
@@ -27,7 +29,7 @@
  *   - running it in memory with `TestEngine`, appending events and querying rows
  *
  * Run it from this directory with:
- *   sbt "runMain projection.examples.PerEntityExample"
+ *   sbt "runMain projection.examples.Example1PerEntity"
  */
 
 package projection.examples
@@ -39,7 +41,7 @@ import zio.blocks.schema.{Modifier, Schema}
 
 import Polling.pollUntil
 
-object PerEntityExample extends ZIOAppDefault {
+object Example1PerEntity extends ZIOAppDefault {
 
   case class UserProfile(@Modifier.id id: String, name: String, email: String)
   object UserProfile {
@@ -48,7 +50,7 @@ object PerEntityExample extends ZIOAppDefault {
   }
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Demo 1: PerEntity Projection (UserProfile) ---").orDie *>
+    Console.printLine("\n--- Example 1: PerEntity Projection (UserProfile) ---").orDie *>
       ZIO.scoped {
         for {
           projection = Projection[UserProfile]("userProfiles")

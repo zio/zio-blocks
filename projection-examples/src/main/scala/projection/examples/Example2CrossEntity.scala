@@ -15,7 +15,9 @@
  */
 
 /*
- * Example: a cross-entity projection.
+ * Example 2 of 5: a cross-entity projection.
+ *
+ * Read Example1PerEntity first. Next: Example3GlobalAggregate.
  *
  * A cross-entity projection groups events by a key read from the event itself,
  * instead of by the ID the event was recorded under. Here `RepoCreated` events
@@ -32,7 +34,7 @@
  * row its own ID, such as "owner/repo", to keep every repository.
  *
  * Run it from this directory with:
- *   sbt "runMain projection.examples.CrossEntityExample"
+ *   sbt "runMain projection.examples.Example2CrossEntity"
  */
 
 package projection.examples
@@ -44,7 +46,7 @@ import zio.blocks.schema.{Modifier, Schema}
 
 import Polling.pollUntil
 
-object CrossEntityExample extends ZIOAppDefault {
+object Example2CrossEntity extends ZIOAppDefault {
 
   case class RepoListEntry(@Modifier.id id: String, ownerId: String, repoName: String)
   object RepoListEntry {
@@ -53,7 +55,7 @@ object CrossEntityExample extends ZIOAppDefault {
   }
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Demo 2: CrossEntity Projection (RepoListEntry routed by ownerId) ---").orDie *>
+    Console.printLine("\n--- Example 2: CrossEntity Projection (RepoListEntry routed by ownerId) ---").orDie *>
       ZIO.scoped {
         for {
           projection = Projection[RepoListEntry]("repoListEntries")

@@ -15,7 +15,9 @@
  */
 
 /*
- * Example: schema evolution.
+ * Example 4 of 5: schema evolution.
+ *
+ * Builds on Example1PerEntity. Next: Example5TagRename.
  *
  * When the read model's class changes, such as `UserProfileV1` gaining an
  * `email` field to become `UserProfileV2`, the data already stored no longer
@@ -29,7 +31,7 @@
  *     store, using a small hand-written `DemoEventStore`
  *
  * Run it from this directory with:
- *   sbt "runMain projection.examples.SchemaEvolutionExample"
+ *   sbt "runMain projection.examples.Example4SchemaEvolution"
  */
 
 package projection.examples
@@ -44,7 +46,7 @@ import java.time.Instant
 
 import Polling.pollUntil
 
-object SchemaEvolutionExample extends ZIOAppDefault {
+object Example4SchemaEvolution extends ZIOAppDefault {
 
   case class UserProfileV1(@Modifier.id id: String, name: String)
   object UserProfileV1 {
@@ -92,7 +94,7 @@ object SchemaEvolutionExample extends ZIOAppDefault {
   }
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Demo 4: Schema Evolution (UserProfileV1 -> UserProfileV2) ---").orDie *>
+    Console.printLine("\n--- Example 4: Schema Evolution (UserProfileV1 -> UserProfileV2) ---").orDie *>
       ZIO.scoped {
         for {
           hashV1 = SchemaHash.compute[UserProfileV1]

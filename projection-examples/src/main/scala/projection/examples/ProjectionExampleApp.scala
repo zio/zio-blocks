@@ -15,9 +15,16 @@
  */
 
 /*
- * Runs every projection example in turn: per-entity, cross-entity, global,
- * schema evolution and tag rename. Each example can also be run on its own, see
- * the comment at the top of its file.
+ * Runs every projection example in turn, in the order they are meant to be
+ * read:
+ *   1. Example1PerEntity
+ *   2. Example2CrossEntity
+ *   3. Example3GlobalAggregate
+ *   4. Example4SchemaEvolution
+ *   5. Example5TagRename
+ *
+ * Each example can also be run on its own, see the comment at the top of its
+ * file.
  *
  * Run it from this directory with:
  *   sbt run
@@ -32,11 +39,11 @@ object ProjectionExampleApp extends ZIOAppDefault {
   def run: ZIO[Any, Throwable, Unit] =
     for {
       _ <- Console.printLine("=== ZIO Blocks Projection Examples ===").orDie
-      _ <- PerEntityExample.demo
-      _ <- CrossEntityExample.demo
-      _ <- GlobalAggregateExample.demo
-      _ <- SchemaEvolutionExample.demo
-      _ <- TagRenameExample.demo
+      _ <- Example1PerEntity.demo
+      _ <- Example2CrossEntity.demo
+      _ <- Example3GlobalAggregate.demo
+      _ <- Example4SchemaEvolution.demo
+      _ <- Example5TagRename.demo
       _ <- Console.printLine("\n=== All demos completed successfully ===").orDie
     } yield ()
 }

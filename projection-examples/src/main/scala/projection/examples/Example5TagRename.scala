@@ -15,7 +15,9 @@
  */
 
 /*
- * Example: renaming an event.
+ * Example 5 of 5: renaming an event.
+ *
+ * Builds on Example4SchemaEvolution. This is the last example.
  *
  * Event tags are stored as strings, so renaming a case, here `UserLoggedIn` to
  * `UserAuthenticated`, leaves old events in the store under the old tag. A
@@ -31,7 +33,7 @@
  * It does not need an engine, so it prints the results of the calls directly.
  *
  * Run it from this directory with:
- *   sbt "runMain projection.examples.TagRenameExample"
+ *   sbt "runMain projection.examples.Example5TagRename"
  */
 
 package projection.examples
@@ -41,7 +43,7 @@ import zio.blocks.projection.*
 import zio.blocks.schema.Schema
 import zio.blocks.schema.migration.Migration
 
-object TagRenameExample extends ZIOAppDefault {
+object Example5TagRename extends ZIOAppDefault {
 
   sealed trait LoginEvent
   object LoginEvent {
@@ -57,7 +59,7 @@ object TagRenameExample extends ZIOAppDefault {
   }
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Demo 5: Tag Rename (UserLoggedIn -> UserAuthenticated) ---").orDie *>
+    Console.printLine("\n--- Example 5: Tag Rename (UserLoggedIn -> UserAuthenticated) ---").orDie *>
       ZIO.scoped {
         for {
           migration = Migration

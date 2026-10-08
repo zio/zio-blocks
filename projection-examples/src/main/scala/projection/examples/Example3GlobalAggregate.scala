@@ -15,7 +15,9 @@
  */
 
 /*
- * Example: a global aggregate projection.
+ * Example 3 of 5: a global aggregate projection.
+ *
+ * Read Examples 1 and 2 first. Next: Example4SchemaEvolution.
  *
  * A global projection keeps one shared store for the whole projection, which is
  * the place for totals and counters. Here `UserCreated` events from the "users"
@@ -29,7 +31,7 @@
  *   - one projection listening to more than one source
  *
  * Run it from this directory with:
- *   sbt "runMain projection.examples.GlobalAggregateExample"
+ *   sbt "runMain projection.examples.Example3GlobalAggregate"
  */
 
 package projection.examples
@@ -41,7 +43,7 @@ import zio.blocks.schema.{Modifier, Schema}
 
 import Polling.pollUntil
 
-object GlobalAggregateExample extends ZIOAppDefault {
+object Example3GlobalAggregate extends ZIOAppDefault {
 
   case class DailyStats(@Modifier.id date: String, userCount: Int, repoCount: Int)
   object DailyStats {
@@ -50,7 +52,7 @@ object GlobalAggregateExample extends ZIOAppDefault {
   }
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Demo 3: Global Aggregate (DailyStats from users + repos) ---").orDie *>
+    Console.printLine("\n--- Example 3: Global Aggregate (DailyStats from users + repos) ---").orDie *>
       ZIO.scoped {
         for {
           dateKey = "2025-08-26"
