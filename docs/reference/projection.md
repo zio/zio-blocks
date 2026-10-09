@@ -3,7 +3,7 @@ id: projection
 title: "Projection"
 ---
 
-`zio-blocks-projection` provides event-sourced projections backed by per-entity SQLite files. Each projection type gets its own isolated `.db` file, giving you WAL-mode writes, offline queryability, and zero contention between unrelated entities.
+`zio-blocks-projection` provides event-sourced projections backed by per-entity SQLite files. Each projection gets its own isolated `.db` file, plus one more for each shard of a cross-entity projection, giving you WAL-mode writes, offline queryability, and zero contention between unrelated entities.
 
 ## Event Sourcing Basics
 
@@ -152,9 +152,9 @@ A single shared database means every projection contends on the same locks, the 
 | Single DB | High | High | Yes | Full DB |
 | Per-entity SQLite | Zero | Zero | Yes | Per projection |
 
-Each projection store lives at `<basePath>/<specName>.db`. Global aggregates go to `global/<specName>.db`. The `TransactorCache` reuses connections via an LRU cache so you don't open hundreds of file handles.
+The main store of a projection lives at `<basePath>/<specName>.db`, and each shard of a cross-entity projection at `<basePath>/<specName>_shard_<key>.db`. Global aggregates go to `global/<specName>.db`. The `TransactorCache` reuses connections via an LRU cache so you don't open hundreds of file handles.
 
-**Three projection scopes:**
+**Three projection scopes** (see [Projection Scopes](#projection-scopes) for the details):
 
 - **PerEntity** (default): one row per entity ID. Events routed by `ctx.entityId`. Good for user profiles, order state, anything keyed by a single ID.
 - **CrossEntity**: events routed by an arbitrary key extracted from the event. Multiple event types converge on the same projection. Good for "all repos owned by user X" views.
@@ -206,7 +206,7 @@ The engine starts a catch-up fiber that reads all historical events, then switch
 
 ## Entity Path Conventions
 
-`EntityPath[A]` tells the engine two things: which folder stores the SQLite file, and which field holds the entity ID. The ID field is identified via `@Modifier.id` (from `zio.blocks.schema.Modifier`) or, for ergonomics, a field named `id`.
+`EntityPath[A]` tells the engine two things: which folder stores the SQLite file, and which field holds the entity ID. The ID field is identified via `@Modifier.id` (from `zio.blocks.schema.Modifier`) or, for ergonomics, a field named `id`. The folder applies to `PerEntity` and `CrossEntity` projections. A `Global` projection has no `EntityPath` and keeps its store in `global/`; see [Projection Scopes](#projection-scopes).
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
@@ -260,6 +260,8 @@ object UserProfile {
 }
 // basePath = "custom_users", entityIdField = "id"
 ```
+
+The same override can be given without an annotation: `EntityPath.derived[UserProfile]("custom_users")` also gives `basePath = "custom_users"`. The path can have several folders, such as `"example2/orders"`.
 
 **Manual construction:**
 
