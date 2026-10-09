@@ -63,7 +63,7 @@ object Example3GlobalAggregate extends ZIOAppDefault {
     Console.printLine("\n--- Example 3: Global Aggregate (DailyStats from users + repos) ---").orDie *>
       ZIO.scoped {
         for {
-          _ <- Sqlite.folders("global", Sqlite.path("example3/events"))
+          _ <- Sqlite.globalFolder("dailyStats") *> Sqlite.folders(Sqlite.path("example3/events"))
 
           dateKey = "2025-08-26"
 
