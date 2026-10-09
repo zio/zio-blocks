@@ -56,12 +56,19 @@ zio/zio-http (originally zio/zio). The one deliberate difference is a square `ro
 
 ## CI and deployment
 
-GitHub Actions (`.github/workflows/ci.yml`, generated from `project/CiWorkflow.scala`) builds the site: it runs
-`sbt docs/mdoc` and then `yarn build`. Pull requests upload the build as an artifact and get a Netlify deploy preview
-showing both the landing page and the docs. A push to `main` and a release deploy `website/build` to the production
-Netlify site. The `landing` job runs `yarn test`, `yarn check:landing`, `yarn check:links` and Lighthouse
-(`@lhci/cli`, pinned to an exact version, config in `lighthouserc.json`). A 404 on a `https://zio.dev/zio-blocks/` URL
-is only a warning in `check:links`, since a page may not be published until the next release.
+This follows zio/zio-http: the production site is a Netlify site connected to this Git repository. Netlify builds it
+itself with `netlify.toml` and `build.sh` (which installs Java and sbt through SDKMAN, runs `sbt docs/mdoc`, then
+`yarn build`) and publishes `website/build`. A push to `main` rebuilds it through the Git integration, and a release
+rebuilds it through a build hook that `.github/workflows/site.yml` calls, so the install line on the landing page shows
+the new version. `netlify.toml` skips every Netlify build that is not the `production` context, because previews come
+from the CI workflow.
+
+GitHub Actions (`.github/workflows/ci.yml`, generated from `project/CiWorkflow.scala`) checks the site on every pull
+request: it runs `sbt docs/mdoc` and `yarn build`, uploads the build as an artifact, and `deploy-preview.yml` publishes a
+Netlify deploy preview showing both the landing page and the docs. The `landing` job runs `yarn test`,
+`yarn check:landing`, `yarn check:links` and Lighthouse (`@lhci/cli`, pinned to an exact version, config in
+`lighthouserc.json`). A 404 on a `https://zio.dev/zio-blocks/` URL is only a warning in `check:links`, since a page may
+not be published until the next release.
 
 The external link check only warns in CI (it is outage-prone and outside PR control). Unit tests, the static-output
 tests and Lighthouse (95+) fail the `landing` job. Because `deploy-preview.yml` runs only when the whole CI run
@@ -69,36 +76,35 @@ succeeds, a failing `landing` job also suppresses the Netlify preview.
 
 Required configuration (a maintainer sets these once):
 
-| Name | Kind | Purpose |
+| Name | Where | Purpose |
 | --- | --- | --- |
-| `NETLIFY_AUTH_TOKEN` | secret | Netlify API token, shared by previews and production deploys |
-| `NETLIFY_PRODUCTION_SITE_ID` | secret | The production Netlify site |
-| `SITE_URL` | repository variable (optional) | Overrides the canonical site URL used by the build; defaults to `https://zioblocks.com` |
+| `NETLIFY_DEPLOY_WEBHOOK` | GitHub secret | The Netlify build hook URL that `site.yml` calls on a release (as in zio-http) |
+| `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID` | GitHub secrets | Used only by the existing PR preview workflow (`deploy-preview.yml`) |
+| `GITHUB_TOKEN` | Netlify environment variable (optional) | Avoids the unauthenticated GitHub API rate limit when the build looks up the latest release |
+| `SITE_URL` | environment variable (optional) | Overrides the canonical site URL; defaults to `https://zioblocks.com` |
 
 The install line shows the latest release version, read from the GitHub API at build time (`GITHUB_TOKEN` avoids the
 unauthenticated rate limit) and falling back to the pinned `FALLBACK_VERSION` in `scripts/lib/version.mjs`.
 
 ### Custom domain: zioblocks.com on Netlify
 
-This mirrors ziohttp.com (zio/zio-http), whose DNS stays at GoDaddy and points at Netlify: an apex `A` record to
-`75.2.60.5`, `www` as a `CNAME` to `zio-http.netlify.app`, `www` redirecting to the apex, and a `_redirects` rule sending
-the `*.netlify.app` host to the custom domain so there is one canonical origin. The differences: zio-http lets Netlify
-build the site from Git (`netlify.toml` and a release webhook), but this site needs `sbt docs/mdoc`, which Netlify
-cannot run, so GitHub Actions builds it and uploads `website/build` to a Netlify site that has no Git integration.
+This mirrors ziohttp.com (zio/zio-http): the domain's DNS stays at GoDaddy and points at Netlify (an apex `A` record to
+`75.2.60.5`, `www` as a `CNAME` to the `*.netlify.app` host), `www` redirects to the apex, and `static/_redirects` sends
+the `*.netlify.app` host to the custom domain so there is one canonical origin.
 
-The build's canonical origin defaults to `https://zioblocks.com` (`url` in `docusaurus.config.js`; `SITE_URL`
-overrides it), so canonical links, the sitemap, `robots.txt`, `llms.txt` and the onboard-agent prompt all use it.
-`static/_redirects` assumes the Netlify site is named `zio-blocks` (`zio-blocks.netlify.app`); change both lines if the
-name differs.
+The build's canonical origin defaults to `https://zioblocks.com` (`url` in `docusaurus.config.js`), so canonical links,
+the sitemap, `robots.txt`, `llms.txt` and the onboard-agent prompt all use it. `static/_redirects` assumes the Netlify
+site is named `zio-blocks` (`zio-blocks.netlify.app`); change both lines if the name differs.
 
 One-time setup, in this order:
 
-1. Netlify: **Add new project > Deploy manually**, name the site `zio-blocks`, and copy its Project ID
-   (**Project configuration > General**) into the repository secret `NETLIFY_PRODUCTION_SITE_ID`;
-   `NETLIFY_AUTH_TOKEN` is already shared with the preview workflow.
-2. Netlify: **Domain management > Add a domain** `zioblocks.com`, and make it the primary domain (Netlify then redirects
+1. Netlify: **Add new project > Import an existing project**, pick GitHub and `zio/zio-blocks`, production branch
+   `main`. Name the site `zio-blocks`. The build settings come from `netlify.toml`, so leave the defaults.
+2. Netlify: **Project configuration > Build & deploy > Build hooks > Add build hook** (name it `release`, branch `main`),
+   and add its URL as the GitHub repository secret `NETLIFY_DEPLOY_WEBHOOK`.
+3. Netlify: **Domain management > Add a domain** `zioblocks.com`, and make it the primary domain (Netlify then redirects
    `www.zioblocks.com` to it).
-3. GoDaddy: **DNS > Manage records**. Delete the parked default `A` record (and any `www` forwarding), then add:
+4. GoDaddy: **DNS > Manage records**. Delete the parked default `A` record (and any `www` forwarding), then add:
 
    | Type | Name | Value |
    | --- | --- | --- |
@@ -107,11 +113,14 @@ One-time setup, in this order:
 
    GoDaddy has no ALIAS/ANAME record, so the apex uses Netlify's fallback `A` record. If Netlify's **Pending DNS
    verification** dialog shows different values, they win over this table.
-4. Netlify: after DNS propagates (up to a day), **Domain management > HTTPS**: verify DNS, provision the certificate and
+5. Netlify: after DNS propagates (up to a day), **Domain management > HTTPS**: verify DNS, provision the certificate and
    enable Force HTTPS.
-5. Push to `main` (or publish a release): the `Deploy to Netlify (production)` step publishes `website/build`.
-   Do this after step 3: the `_redirects` rule sends `zio-blocks.netlify.app` to `zioblocks.com`, which must resolve first.
-6. Optional: set the GitHub repository's website field to `https://zioblocks.com`, as zio/zio-http does.
+6. Netlify (optional): add the environment variable `GITHUB_TOKEN`.
+7. Optional: set the GitHub repository's website field to `https://zioblocks.com`, as zio/zio-http does.
+
+The first Netlify build runs the whole `sbt docs/mdoc` (Java and sbt are installed by `build.sh`), so it takes a while;
+read its log if it fails. `.jvmopts` asks for a 12 GB heap, which may exceed what the Netlify build container has; if the
+build is killed for memory, lower it for that build.
 
 Alternative: point the domain's GoDaddy nameservers at Netlify DNS (Netlify shows them in Domain management) and let
 Netlify manage every record and renew certificates itself.

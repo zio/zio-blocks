@@ -154,27 +154,6 @@ object CiWorkflow {
             "retention-days" -> Json.Num(30)
           )
         ),
-        // Production deploy: only for pushes to main and for releases. A release rebuilds the site, so the install line
-        // shows the new version right away. Netlify is only the host; the site is built here (it needs mdoc and sbt).
-        SingleStep(
-          name = "Deploy to Netlify (production)",
-          uses = Some(ActionRef("nwtgck/actions-netlify@v4.0")),
-          condition =
-            Some(HasWebsite && (expr("github.event_name == 'push'") || expr("github.event_name == 'release'"))),
-          parameters = Map(
-            "publish-dir"                 -> Json.Str("./website/build"),
-            "production-deploy"           -> Json.Bool(true),
-            "github-token"                -> Json.Str("${{ secrets.GITHUB_TOKEN }}"),
-            "enable-pull-request-comment" -> Json.Bool(false),
-            "enable-commit-comment"       -> Json.Bool(false),
-            "enable-github-deployment"    -> Json.Bool(false),
-            "enable-commit-status"        -> Json.Bool(false)
-          ),
-          env = Map(
-            "NETLIFY_AUTH_TOKEN" -> "${{ secrets.NETLIFY_AUTH_TOKEN }}",
-            "NETLIFY_SITE_ID"    -> "${{ secrets.NETLIFY_PRODUCTION_SITE_ID }}"
-          )
-        ),
         SingleStep(
           name = "Upload PR Metadata",
           condition = Some(IsPullRequest),
