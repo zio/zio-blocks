@@ -5,9 +5,51 @@ title: "Projection"
 
 `zio-blocks-projection` provides event-sourced projections backed by per-entity SQLite files. Each projection type gets its own isolated `.db` file, giving you WAL-mode writes, offline queryability, and zero contention between unrelated entities.
 
+## Event Sourcing Basics
+
+Most applications store the **current state** of things: a row in a table that is updated in place. When an order is shipped, the `status` column changes from `placed` to `shipped`, and the earlier value is gone.
+
+**Event sourcing** stores something else: the **sequence of facts that happened**. Nothing is updated in place. Each fact is an **event**, and it is appended to a log:
+
+```text
+1. OrderPlaced   order-1, alice, keyboard, 80
+2. OrderPlaced   order-2, alice, monitor, 250
+3. OrderShipped  order-1
+```
+
+The current state is not stored. It is worked out by replaying the events in order: after event 3, `order-1` is shipped and `order-2` is still placed.
+
+A few properties follow from this:
+
+- **Events are facts about the past.** They are only ever appended, never edited or deleted, and their order is kept. The log is the source of truth.
+- **State can be recomputed.** Replaying the same events always gives the same state, so a view of the data can be thrown away and rebuilt, or built in a different shape later.
+- **History comes for free.** You can answer "how did we get here?", not only "where are we now?".
+- **Events are permanent.** Once written they stay as they are, so renaming an event or changing its shape needs care. The [Event Tagging and Migration](#event-tagging-and-migration) section covers this.
+
+### Reading the current state
+
+Replaying the whole log to answer every question would be slow. Event sourcing therefore usually separates the two sides of an application, often called **CQRS** (command query responsibility segregation):
+
+- the **write side** appends events to the log;
+- the **read side** answers queries from **read models**, which are tables or documents shaped for the questions you ask, such as "all orders of a customer" or "how many orders are pending".
+
+A **projection** is what keeps a read model up to date. It listens to the events as they are appended and applies each one to the read model:
+
+```text
+append events  -->  event log  -->  projection  -->  read model  -->  queries
+  (write side)                                                         (read side)
+```
+
+Two consequences are worth knowing up front:
+
+- **Reads can lag a little.** A read model is updated after an event is appended, not at the same instant, so a query right after a write may not see it yet. This is called eventual consistency.
+- **A read model is disposable.** If its shape changes, or it is lost, it is rebuilt by replaying the log through the projection.
+
+This library is the projection part: you declare how events turn into read models, and an engine runs the declaration and keeps SQLite files up to date.
+
 ## Motivation
 
-An event store is a good record of what happened, but a poor place to ask what is true right now. Answering "what is Alice's current email?" or "how many orders were placed today?" from raw events means replaying history on every query. The usual fix is a read model: a table kept up to date as events arrive. Hand-written, that code tends to go wrong in the same few ways:
+A projection keeps a read model up to date as events arrive, so queries such as "what is Alice's current email?" or "how many orders were placed today?" never replay history. Written by hand, that code tends to go wrong in the same few ways:
 
 - **Routing is scattered.** The knowledge that an `OrderPlaced` event must update the order, the customer's totals, and a daily counter lives in several handlers, so it is easy to miss one.
 - **Restarts are fragile.** The code has to catch up on events it missed while it was down, then switch to live events, without skipping or double-applying any.
@@ -24,6 +66,61 @@ ZIO Blocks Projection addresses these by making a projection a declaration rathe
 Because the same declaration runs against an in-memory store, you can test a projection by appending events and querying the result, with no database. The [Quick Start](#quick-start) shows the whole loop in about twenty lines.
 
 Projection is a good fit when you already treat events as the source of truth and want fast, local, query-friendly views of them. It is not a general query engine over arbitrary data, and the read models it maintains are derived state: they can always be discarded and rebuilt from the events.
+
+## Glossary
+
+The terms below are used throughout this page. The first list gives the general event sourcing terms, which apply to any event-sourced system. The lists after it name the types of this library. Most of them are explained in more detail in the sections that follow.
+
+### Event-sourcing Terms
+
+- **Event**: A fact that happened, such as `OrderPlaced`. Events are only appended to the log and are never changed.
+- **Event log (event store)**: The append-only record of all events, in order. It is the source of truth.
+- **Entity (aggregate)**: The thing events are about, such as a user, an order or a repository. Events are recorded under the ID of an entity.
+- **Sequence number**: The position of an event in the log. A consumer saves the last one it processed, so it can resume after it.
+- **Replay**: Applying the events of the log in order, to work out a state or to rebuild a view.
+- **Read model**: A table or document shaped for queries, such as "all orders of a customer". It is derived from the events and can be rebuilt.
+- **Projection**: The rules, and the process running them, that keep a read model up to date by applying each event as it arrives.
+- **CQRS**: Command query responsibility segregation: the write side appends events, and the read side answers queries from read models.
+- **Eventual consistency**: A read model is updated shortly after an event is appended, so a query made right after a write may not see it yet.
+- **Event versioning (schema evolution)**: Changing the name or shape of an event or a read model after data exists. Old events stay as they are, so a migration maps them to the new shape, and a read model is rebuilt.
+
+```text
+event store  --(engine reads events and runs handlers)-->  projection store
+(the log)                                                  (the finished rows)
+```
+
+### Events in this library
+
+- `EventStore`: The event log, as a trait. It appends events, reads the history, and lets a consumer follow new events.
+- `SQLiteEventStore`: An `EventStore` kept in a SQLite file.
+- `EventEnvelope`: An event together with the metadata the store records about it: its sequence number, its tag, its timestamp and the entity ID it was recorded under.
+- `eventTag`: The annotation `@eventTag(n)`, which gives an event case a stable numeric tag. See [Event Tagging and Migration](#event-tagging-and-migration).
+
+### Projections in this library
+
+- `Projection[A]`: The declaration of how events become the read model `A`: which sources to listen to, how to route their events, and what each event does. It does nothing until an engine runs it.
+- `ProjectionStore[A]`: Where the rows of a read model are kept.
+- `SQLiteProjectionStore`: A `ProjectionStore` kept in a SQLite file.
+- `InMemoryProjectionStore`: A `ProjectionStore` kept in an in-memory map, used for tests.
+- `ProjectionEngine`: The runtime that reads events from `EventStore`s, runs the handlers and writes the results to `ProjectionStore`s.
+- `TestEngine`: A `ProjectionEngine` with in-memory stores, for tests and examples.
+- `Handler[E, A]`: The function that turns an event `E` into a `ProjectionAction[A]`. It only describes the change.
+- `ProjectionContext`: The metadata a handler receives together with an event, such as the entity ID.
+- `ProjectionAction`: What a handler returns: an insert, an upsert, an update, a delete, a truncate or nothing.
+- `FieldUpdate`: A change to one field of a row, used by an update action, such as setting a value or incrementing a counter. See [Aggregate Projections](#aggregate-projections).
+- `ProjectionScope`: How the data of a `Projection` is split across `ProjectionStore`s. It is worked out from how the projection is built and is not set directly. It is one of three: one row for each entity ID (the default), one store for each routing key, called a shard, or one shared store for the whole projection. See [Multi-Source Projections](#multi-source-projections).
+
+### Sources and routing
+
+- `SourceBinding`: A named source of events, given to `Projection.from`, together with its routing and its handlers. The name must match the key of an `EventStore` given to the engine.
+- `RoutingMode`: How the events of a source are directed: to the entity they were recorded under, to one shared store, or to a store chosen by a key that is read from the event.
+
+### Schemas
+
+- `EntityPath`: Says which folder the files of a projection go in and which field of the row is its ID. See [Entity Path Conventions](#entity-path-conventions).
+- `SchemaHash`: A fingerprint of a read model's schema. When it changes, the engine rebuilds the `ProjectionStore`.
+- `SchemaEvolution`: Rebuilds a `ProjectionStore` by replaying the events. See [Schema Evolution](#schema-evolution).
+- `TagResolver` and `TagInfo`: Work out the current tags of an event type, and the aliases from old tags to current ones after a case was renamed.
 
 ## Installation
 
