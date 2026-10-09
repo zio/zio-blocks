@@ -58,10 +58,11 @@ zio/zio-http (originally zio/zio). The one deliberate difference is a square `ro
 
 This follows zio/zio-http: the production site is a Netlify site connected to this Git repository. Netlify builds it
 itself with `netlify.toml` and `build.sh` (which installs Java and sbt through SDKMAN, runs `sbt docs/mdoc`, then
-`yarn build`) and publishes `website/build`. A push to `main` rebuilds it through the Git integration, and a release
-rebuilds it through a build hook that `.github/workflows/site.yml` calls, so the install line on the landing page shows
-the new version. `netlify.toml` skips every Netlify build that is not the `production` context, because previews come
-from the CI workflow.
+`yarn build`) and publishes `website/build`. The site is rebuilt only on a library release or when someone runs the
+**Deploy Website** workflow by hand (Actions > Deploy Website > Run workflow); both call a Netlify build hook from
+`.github/workflows/site.yml`, so the install line on the landing page shows the new version. A push to `main` does not
+rebuild it: `netlify.toml` sets `ignore = "exit 0"`, which skips every Git-triggered build, and Netlify never cancels a
+build-hook build because of that command. Previews come from the CI workflow.
 
 GitHub Actions (`.github/workflows/ci.yml`, generated from `project/CiWorkflow.scala`) checks the site on every pull
 request: it runs `sbt docs/mdoc` and `yarn build`, uploads the build as an artifact, and `deploy-preview.yml` publishes a
@@ -118,8 +119,8 @@ One-time setup, in this order:
 6. Netlify (optional): add the environment variable `GITHUB_TOKEN`.
 7. Optional: set the GitHub repository's website field to `https://zioblocks.com`, as zio/zio-http does.
 
-The first Netlify build runs the whole `sbt docs/mdoc` (Java and sbt are installed by `build.sh`), so it takes a while;
-read its log if it fails. `.jvmopts` asks for a 12 GB heap, which may exceed what the Netlify build container has; if the
+The first build is started with Actions > Deploy Website > Run workflow (a push does not build). It runs the whole
+`sbt docs/mdoc` (Java and sbt are installed by `build.sh`), so it takes a while; read its log if it fails. `.jvmopts` asks for a 12 GB heap, which may exceed what the Netlify build container has; if the
 build is killed for memory, lower it for that build.
 
 Alternative: point the domain's GoDaddy nameservers at Netlify DNS (Netlify shows them in Domain management) and let
