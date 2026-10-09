@@ -80,29 +80,38 @@ unauthenticated rate limit) and falling back to the pinned `FALLBACK_VERSION` in
 
 ### Custom domain: zioblocks.com on Netlify
 
-The production site is a Netlify site that only hosts the artifact built by GitHub Actions (it has no Git integration and
-no build command). The build's canonical origin defaults to `https://zioblocks.com` (`url` in `docusaurus.config.js`), so
-canonical links, the sitemap, `llms.txt` and the onboard-agent prompt all use it.
+This mirrors ziohttp.com (zio/zio-http), whose DNS stays at GoDaddy and points at Netlify: an apex `A` record to
+`75.2.60.5`, `www` as a `CNAME` to `zio-http.netlify.app`, `www` redirecting to the apex, and a `_redirects` rule sending
+the `*.netlify.app` host to the custom domain so there is one canonical origin. The differences: zio-http lets Netlify
+build the site from Git (`netlify.toml` and a release webhook), but this site needs `sbt docs/mdoc`, which Netlify
+cannot run, so GitHub Actions builds it and uploads `website/build` to a Netlify site that has no Git integration.
+
+The build's canonical origin defaults to `https://zioblocks.com` (`url` in `docusaurus.config.js`; `SITE_URL`
+overrides it), so canonical links, the sitemap, `robots.txt`, `llms.txt` and the onboard-agent prompt all use it.
+`static/_redirects` assumes the Netlify site is named `zio-blocks` (`zio-blocks.netlify.app`); change both lines if the
+name differs.
 
 One-time setup, in this order:
 
-1. Netlify: **Add new project > Deploy manually**, name it (for example `zio-blocks`), and note the site ID
-   (**Project configuration > General > Project ID**). Add it as the repository secret `NETLIFY_PRODUCTION_SITE_ID`;
+1. Netlify: **Add new project > Deploy manually**, name the site `zio-blocks`, and copy its Project ID
+   (**Project configuration > General**) into the repository secret `NETLIFY_PRODUCTION_SITE_ID`;
    `NETLIFY_AUTH_TOKEN` is already shared with the preview workflow.
-2. Netlify: **Domain management > Add a domain** `zioblocks.com`, then make `zioblocks.com` the primary domain (Netlify
-   redirects `www.zioblocks.com` to it).
-3. GoDaddy: **DNS > Manage records**, delete the default parked `A` record and the `www` forwarding, then add:
+2. Netlify: **Domain management > Add a domain** `zioblocks.com`, and make it the primary domain (Netlify then redirects
+   `www.zioblocks.com` to it).
+3. GoDaddy: **DNS > Manage records**. Delete the parked default `A` record (and any `www` forwarding), then add:
 
    | Type | Name | Value |
    | --- | --- | --- |
    | `A` | `@` | `75.2.60.5` |
-   | `CNAME` | `www` | `<your-netlify-site>.netlify.app` |
+   | `CNAME` | `www` | `zio-blocks.netlify.app` |
 
-   GoDaddy has no ALIAS/ANAME record, so the apex uses Netlify's fallback `A` record. Check the exact values in the
-   **Pending DNS verification** dialog of Netlify's Domain management page; they win over this table.
-4. Netlify: after DNS propagates (up to a day), **Domain management > HTTPS > Verify DNS configuration**, then
-   **Provision certificate** (Let's Encrypt), and turn on **Force HTTPS**.
+   GoDaddy has no ALIAS/ANAME record, so the apex uses Netlify's fallback `A` record. If Netlify's **Pending DNS
+   verification** dialog shows different values, they win over this table.
+4. Netlify: after DNS propagates (up to a day), **Domain management > HTTPS**: verify DNS, provision the certificate and
+   enable Force HTTPS.
 5. Push to `main` (or publish a release): the `Deploy to Netlify (production)` step publishes `website/build`.
+   Do this after step 3: the `_redirects` rule sends `zio-blocks.netlify.app` to `zioblocks.com`, which must resolve first.
+6. Optional: set the GitHub repository's website field to `https://zioblocks.com`, as zio/zio-http does.
 
-Alternative: switch the domain's nameservers at GoDaddy to Netlify DNS (Netlify shows four `dnsimple` nameservers in
-Domain management). Then Netlify manages every record and renews certificates without further DNS edits.
+Alternative: point the domain's GoDaddy nameservers at Netlify DNS (Netlify shows them in Domain management) and let
+Netlify manage every record and renew certificates itself.
