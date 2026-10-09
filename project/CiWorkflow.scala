@@ -299,9 +299,9 @@ object CiWorkflow {
           run = Some("sbt ++3.9.0 scalaNextTests${{ matrix.platform }}/test benchmarks/test")
         ),
         SingleStep(
-          name = "Compile example project",
+          name = "Compile example projects",
           condition = Some(expr("matrix.scala == '3.9.x'")),
-          run = Some("sbt ++${{ matrix.scala }} schema-examples/compile")
+          run = Some("""for dir in *-examples; do (cd "$dir" && sbt compile) || exit 1; done""")
         )
       )
     )

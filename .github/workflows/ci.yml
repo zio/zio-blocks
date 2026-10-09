@@ -174,9 +174,9 @@ jobs:
     - name: Run Scala Next tests
       if: ${{ matrix.scala == '3.9.x' }}
       run: sbt ++3.9.0 scalaNextTests${{ matrix.platform }}/test benchmarks/test
-    - name: Compile example project
+    - name: Compile example projects
       if: ${{ matrix.scala == '3.9.x' }}
-      run: sbt ++${{ matrix.scala }} schema-examples/compile
+      run: for dir in *-examples; do (cd "$dir" && sbt compile) || exit 1; done
   testJS:
     name: testJS
     runs-on: ubuntu-latest

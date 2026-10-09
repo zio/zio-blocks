@@ -235,7 +235,7 @@ SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/BasicEndpoin
 ([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/BasicEndpointDefinition.scala))
 
 ```bash
-sbt "endpoint-examples/runMain endpointexamples.BasicEndpointDefinition"
+cd endpoint-examples && sbt "runMain endpointexamples.BasicEndpointDefinition"
 ```
 
 ### HttpCodec Smart Constructors and Composition
@@ -251,7 +251,7 @@ SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/HttpCodecCon
 ([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/HttpCodecConstruction.scala))
 
 ```bash
-sbt "endpoint-examples/runMain endpointexamples.HttpCodecConstruction"
+cd endpoint-examples && sbt "runMain endpointexamples.HttpCodecConstruction"
 ```
 
 ### PathCodec and SegmentCodec
@@ -267,7 +267,7 @@ SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/PathAndSegme
 ([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/PathAndSegmentCodecs.scala))
 
 ```bash
-sbt "endpoint-examples/runMain endpointexamples.PathAndSegmentCodecs"
+cd endpoint-examples && sbt "runMain endpointexamples.PathAndSegmentCodecs"
 ```
 
 ### AuthType Patterns
@@ -283,7 +283,7 @@ SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/AuthTypePatt
 ([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/AuthTypePatterns.scala))
 
 ```bash
-sbt "endpoint-examples/runMain endpointexamples.AuthTypePatterns"
+cd endpoint-examples && sbt "runMain endpointexamples.AuthTypePatterns"
 ```
 
 ### Complete REST API
@@ -299,11 +299,11 @@ SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/CompleteApiD
 ([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/CompleteApiDefinition.scala))
 
 ```bash
-sbt "endpoint-examples/runMain endpointexamples.CompleteApiDefinition"
+cd endpoint-examples && sbt "runMain endpointexamples.CompleteApiDefinition"
 ```
 
 **3. Or compile all examples at once:**
 
 ```bash
-sbt "endpoint-examples/compile"
+cd endpoint-examples && sbt "compile"
 ```

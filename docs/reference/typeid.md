@@ -2072,7 +2072,7 @@ SourceFile.print("schema-examples/src/main/scala/typeid/TypeIdBasicExample.scala
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/typeid/TypeIdBasicExample.scala))
 
 ```bash
-sbt "schema-examples/runMain typeid.TypeIdBasicExample"
+cd schema-examples && sbt "runMain typeid.TypeIdBasicExample"
 ```
 
 ### Subtype Relationships
@@ -2088,7 +2088,7 @@ SourceFile.print("schema-examples/src/main/scala/typeid/TypeIdSubtypingExample.s
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/typeid/TypeIdSubtypingExample.scala))
 
 ```bash
-sbt "schema-examples/runMain typeid.TypeIdSubtypingExample"
+cd schema-examples && sbt "runMain typeid.TypeIdSubtypingExample"
 ```
 
 ### Normalization and Registries
@@ -2104,7 +2104,7 @@ SourceFile.print("schema-examples/src/main/scala/typeid/TypeIdNormalizationExamp
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/typeid/TypeIdNormalizationExample.scala))
 
 ```bash
-sbt "schema-examples/runMain typeid.TypeIdNormalizationExample"
+cd schema-examples && sbt "runMain typeid.TypeIdNormalizationExample"
 ```
 
 ### Opaque Types
@@ -2120,5 +2120,5 @@ SourceFile.print("schema-examples/src/main/scala/typeid/OpaqueTypesExample.scala
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/typeid/OpaqueTypesExample.scala))
 
 ```bash
-sbt "schema-examples/runMain typeid.OpaqueTypesExample"
+cd schema-examples && sbt "runMain typeid.OpaqueTypesExample"
 ```

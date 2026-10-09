@@ -740,7 +740,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TempFileHandlingE
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain scope.examples.tempFileHandlingExample"
+cd scope-examples && sbt "runMain scope.examples.tempFileHandlingExample"
 ```
 
 ### Acquiring and Releasing Database Connections
@@ -758,7 +758,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/DatabaseConnectio
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain scope.examples.runDatabaseExample"
+cd scope-examples && sbt "runMain scope.examples.runDatabaseExample"
 ```
 
 ### Shared Resources with Memoization and Reference Counting
@@ -776,7 +776,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/CachingSharedLogg
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain scope.examples.runCachingExample"
+cd scope-examples && sbt "runMain scope.examples.runCachingExample"
 ```
 
 ### Managing Shared Expensive Resources
@@ -794,7 +794,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ConnectionPoolExa
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain scope.examples.connectionPoolExample"
+cd scope-examples && sbt "runMain scope.examples.connectionPoolExample"
 ```
 
 ### Transactional Resource Management
@@ -812,7 +812,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TransactionBounda
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain scope.examples.runTransactionBoundaryExample"
+cd scope-examples && sbt "runMain scope.examples.runTransactionBoundaryExample"
 ```
 
 ### Multi-Layer Service Construction
@@ -828,5 +828,5 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/LayeredWebService
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/LayeredWebServiceExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.layeredWebServiceExample"
+cd scope-examples && sbt "runMain scope.examples.layeredWebServiceExample"
 ```

@@ -811,7 +811,7 @@ SourceFile.print("streams-examples/src/main/scala/sink/SinkScientificComputingEx
 Run this example with:
 
 ```bash
-sbt "streams-examples/runMain sink.SinkScientificComputingExample"
+cd streams-examples && sbt "runMain sink.SinkScientificComputingExample"
 ```
 
 This use case is typical in scientific instrumentation, machine learning data preprocessing, and signal processing pipelines where you need to efficiently batch-process numerical streams into memory-efficient structures for downstream computation.
@@ -838,7 +838,7 @@ SourceFile.print("streams-examples/src/main/scala/sink/SinkTelemetryExample.scal
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain sink.SinkTelemetryExample"
+cd streams-examples && sbt "runMain sink.SinkTelemetryExample"
 ```
 
 This pattern is common in high-throughput logging systems, time-series databases, and IoT platforms where you need to write streams of telemetry data to persistent storage without blocking or allocating excessively.
@@ -869,7 +869,7 @@ SourceFile.print("streams-examples/src/main/scala/sink/SinkBasicUsageExample.sca
 Run this example with:
 
 ```bash
-sbt "streams-examples/runMain sink.SinkBasicUsageExample"
+cd streams-examples && sbt "runMain sink.SinkBasicUsageExample"
 ```
 
 ### Aggregation and Search
@@ -885,7 +885,7 @@ SourceFile.print("streams-examples/src/main/scala/sink/SinkAggregationExample.sc
 Run this example with:
 
 ```bash
-sbt "streams-examples/runMain sink.SinkAggregationExample"
+cd streams-examples && sbt "runMain sink.SinkAggregationExample"
 ```
 
 ### Transformations and Composition
@@ -901,7 +901,7 @@ SourceFile.print("streams-examples/src/main/scala/sink/SinkTransformationExample
 Run this example with:
 
 ```bash
-sbt "streams-examples/runMain sink.SinkTransformationExample"
+cd streams-examples && sbt "runMain sink.SinkTransformationExample"
 ```
 
 ### Async Sinks End to End
@@ -917,7 +917,7 @@ SourceFile.print("streams-examples/src/main/scala/sink/SinkAsyncExample.scala")
 Run this example with:
 
 ```bash
-sbt "streams-examples/runMain sink.SinkAsyncExample"
+cd streams-examples && sbt "runMain sink.SinkAsyncExample"
 ```
 
 ## See Also

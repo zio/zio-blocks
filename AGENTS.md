@@ -102,7 +102,6 @@ Enter only when fast loop is green. Run in order:
 4. **Downstream** — all projects that depend on what you changed:
     - `chunk*` → `schema*`, `benchmarks`
     - `schema*` → `schema-avro`, `schema-bson`, `schema-thrift`, `schema-messagepack*`, `schema-toon*`, `scalaNextTests*`, `benchmarks`, `docs`
-    - `scope*` → `scope-examples`
 
     If unsure, check `dependsOn` in `build.sbt` / `project/*.scala`.
 
@@ -111,6 +110,10 @@ If any step fails: return to phase 1, fix, get green in phase 2, rerun the faili
 ### 4. Format
 
 Run once after verify passes.
+
+## Example Projects
+
+Every `*-examples/` directory is a **standalone sbt build** (own `build.sbt` and `project/build.properties`), not part of the root build. Each depends on the *published* `zio-blocks` artifacts (`zioBlocksVersion` in its `build.sbt`), so it works as a copy-paste template. Run from inside the directory: `cd schema-examples && sbt "runMain ..."`. Root `sbt` commands (`++3.9.0; ...`, coverage, `fmtDirty`) do not touch them. When an API change should show up in an example, bump `zioBlocksVersion` after the release.
 
 ## Cross-Version Code Structure
 

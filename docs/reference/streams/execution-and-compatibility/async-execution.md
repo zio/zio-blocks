@@ -602,7 +602,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamAsyncTerminalsExa
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain stream.StreamAsyncTerminalsExample"
+cd streams-examples && sbt "runMain stream.StreamAsyncTerminalsExample"
 ```
 
 ### Ownership: `startAsync` Versus `useReaderAsync`
@@ -618,7 +618,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamAsyncOwnershipExa
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain stream.StreamAsyncOwnershipExample"
+cd streams-examples && sbt "runMain stream.StreamAsyncOwnershipExample"
 ```
 
 ### A Mixed Synchronous and Asynchronous Pipeline
@@ -634,7 +634,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamMixedKindExample.
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain stream.StreamMixedKindExample"
+cd streams-examples && sbt "runMain stream.StreamMixedKindExample"
 ```
 
 ### A Composed Asynchronous Pipeline
@@ -650,7 +650,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/StreamAsyncOrderPipelin
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain stream.StreamAsyncOrderPipelineExample"
+cd streams-examples && sbt "runMain stream.StreamAsyncOrderPipelineExample"
 ```
 
 ## See Also

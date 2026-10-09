@@ -1481,7 +1481,7 @@ cd zio-blocks
 Demonstrates creating HTTP requests and responses with URLs, methods, headers, and bodies. Shows how `Request`, `Response`, `Method`, `URL`, `Headers`, and `Body` types work together.
 
 ```bash
-sbt "http-model-examples/runMain httpmodel.BasicHttpRequest"
+cd http-model-examples && sbt "runMain httpmodel.BasicHttpRequest"
 ```
 
 ### Headers and Query Parameters
@@ -1489,7 +1489,7 @@ sbt "http-model-examples/runMain httpmodel.BasicHttpRequest"
 Shows how to work with headers and query parameters in URLs and requests. Demonstrates how `Headers`, `QueryParams`, and `URL` types compose for extracting and manipulating HTTP metadata.
 
 ```bash
-sbt "http-model-examples/runMain httpmodel.HeadersAndQueryParams"
+cd http-model-examples && sbt "runMain httpmodel.HeadersAndQueryParams"
 ```
 
 ### Form Submission and Cookies
@@ -1497,7 +1497,7 @@ sbt "http-model-examples/runMain httpmodel.HeadersAndQueryParams"
 Demonstrates handling form data and cookies using `Request`, `Response`, `Form`, and cookie types. Shows realistic form submission scenarios with proper content-type headers and cookie management.
 
 ```bash
-sbt "http-model-examples/runMain httpmodel.FormAndCookies"
+cd http-model-examples && sbt "runMain httpmodel.FormAndCookies"
 ```
 
 ### Complete HTTP Exchange
@@ -1505,5 +1505,5 @@ sbt "http-model-examples/runMain httpmodel.FormAndCookies"
 Shows a realistic HTTP exchange scenario: creating a request with multiple headers and query parameters, sending it, and receiving a response with status codes and headers. Demonstrates all core types working together in a practical scenario.
 
 ```bash
-sbt "http-model-examples/runMain httpmodel.CompleteHttpExchange"
+cd http-model-examples && sbt "runMain httpmodel.CompleteHttpExchange"
 ```

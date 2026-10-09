@@ -303,17 +303,17 @@ cd zio-blocks
 These examples demonstrate how `JsonDiffer.diff` computes minimal patches through the public `JsonPatch.diff` API:
 
 ```bash
-sbt "schema-examples/runMain jsonpatch.JsonPatchDiffAndApplyExample"
+cd schema-examples && sbt "runMain jsonpatch.JsonPatchDiffAndApplyExample"
 ```
 
 ```bash
-sbt "schema-examples/runMain jsonpatch.JsonPatchOperationsExample"
+cd schema-examples && sbt "runMain jsonpatch.JsonPatchOperationsExample"
 ```
 
 ```bash
-sbt "schema-examples/runMain jsonpatch.JsonPatchCompositionExample"
+cd schema-examples && sbt "runMain jsonpatch.JsonPatchCompositionExample"
 ```
 
 ```bash
-sbt "schema-examples/runMain jsonpatch.CompleteJsonPatchExample"
+cd schema-examples && sbt "runMain jsonpatch.CompleteJsonPatchExample"
 ```

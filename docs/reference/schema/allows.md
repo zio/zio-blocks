@@ -581,7 +581,7 @@ cd zio-blocks
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/AllowsCsvExample.scala))
 
 ```bash
-sbt "schema-examples/runMain comptime.AllowsCsvExample"
+cd schema-examples && sbt "runMain comptime.AllowsCsvExample"
 ```
 
 ```scala mdoc:passthrough
@@ -594,7 +594,7 @@ SourceFile.print("schema-examples/src/main/scala/comptime/AllowsCsvExample.scala
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/AllowsEventBusExample.scala))
 
 ```bash
-sbt "schema-examples/runMain comptime.AllowsEventBusExample"
+cd schema-examples && sbt "runMain comptime.AllowsEventBusExample"
 ```
 
 ```scala mdoc:passthrough
@@ -607,7 +607,7 @@ SourceFile.print("schema-examples/src/main/scala/comptime/AllowsEventBusExample.
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/AllowsGraphQLTreeExample.scala))
 
 ```bash
-sbt "schema-examples/runMain comptime.AllowsGraphQLTreeExample"
+cd schema-examples && sbt "runMain comptime.AllowsGraphQLTreeExample"
 ```
 
 ```scala mdoc:passthrough
@@ -620,7 +620,7 @@ SourceFile.print("schema-examples/src/main/scala/comptime/AllowsGraphQLTreeExamp
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/comptime/AllowsSealedTraitExample.scala))
 
 ```bash
-sbt "schema-examples/runMain comptime.AllowsSealedTraitExample"
+cd schema-examples && sbt "runMain comptime.AllowsSealedTraitExample"
 ```
 
 ```scala mdoc:passthrough

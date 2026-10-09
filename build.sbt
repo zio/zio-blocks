@@ -252,7 +252,6 @@ lazy val root = project
     context.js,
     scope.jvm,
     scope.js,
-    `scope-examples`,
     sql.jvm,
     sql.js,
     `sql-zio`,
@@ -292,10 +291,8 @@ lazy val root = project
     `http-model`.js,
     `http-model-schema`.jvm,
     `http-model-schema`.js,
-    `http-model-examples`,
     endpoint.jvm,
     endpoint.js,
-    `endpoint-examples`,
     markdown.jvm,
     markdown.js,
     html.jvm,
@@ -311,7 +308,6 @@ lazy val root = project
     `async-benchmarks`,
     `async-benchmarks-scala2`,
     `async-benchmarks-js`,
-    `zio-blocks-htmx-examples`,
     scalaNextTests.jvm,
     scalaNextTests.js,
     benchmarks,
@@ -319,24 +315,18 @@ lazy val root = project
     `sql-benchmarks`,
     `streams-benchmark`,
     docs,
-    `schema-examples`,
-    `streams-examples`,
-    `async-examples`,
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
     mux.jvm,
     mux.js,
-    `mux-examples`,
     smithy,
-    `smithy-examples`,
     telemetry.jvm,
     telemetry.js,
     otel,
     dataMigration.jvm,
     dataMigration.js,
-    projection.jvm,
-    `projection-examples`
+    projection.jvm
   )
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
@@ -510,7 +500,7 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
   .jvmSettings(
     libraryDependencies ++= Seq(
       "org.xerial"     % "sqlite-jdbc" % "3.53.4.0" % Test,
-      "org.postgresql" % "postgresql"  % "42.7.13"  % Test
+      "org.postgresql" % "postgresql"  % "42.7.14"  % Test
     )
   )
 
@@ -526,7 +516,7 @@ lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
   .jvmSettings(
     libraryDependencies ++= Seq(
       "org.xerial"     % "sqlite-jdbc" % "3.53.2.0" % Test,
-      "org.postgresql" % "postgresql"  % "42.7.13"  % Test
+      "org.postgresql" % "postgresql"  % "42.7.14"  % Test
     )
   )
   .jsSettings(jsSettings)
@@ -563,18 +553,6 @@ lazy val projection = crossProject(JVMPlatform)
     )
   )
 
-lazy val `projection-examples` = project
-  .in(file("projection-examples"))
-  .settings(stdSettings("zio-blocks-projection-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
-  .dependsOn(projection.jvm)
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0,
-    scalacOptions -= "-Werror"
-  )
-
 lazy val `sql-zio` = project
   .settings(stdSettings("zio-blocks-sql-zio", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
   .dependsOn(sql.jvm)
@@ -586,16 +564,6 @@ lazy val `sql-zio` = project
       "dev.zio" %% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
     ),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
-  )
-
-lazy val `scope-examples` = project
-  .settings(stdSettings("zio-blocks-scope-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
-  .dependsOn(scope.jvm)
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
   )
@@ -628,19 +596,6 @@ lazy val mux = crossProject(JSPlatform, JVMPlatform)
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
-  )
-
-lazy val `mux-examples` = project
-  .in(file("mux-examples"))
-  .settings(stdSettings("zio-blocks-mux-examples", Seq(BuildHelper.Scala3)))
-  .dependsOn(mux.jvm)
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0,
-    scalacOptions -= "-Werror",
-    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform)
@@ -1058,28 +1013,6 @@ lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumBranchTotal := 51
   )
 
-lazy val `http-model-examples` = project
-  .in(file("http-model-examples"))
-  .settings(stdSettings("zio-blocks-http-model-examples", Seq(BuildHelper.Scala3)))
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
-  )
-  .dependsOn(`http-model`.jvm)
-
-lazy val `zio-blocks-htmx-examples` = project
-  .in(file("zio-blocks-htmx-examples"))
-  .settings(stdSettings("zio-blocks-htmx-examples", Seq(BuildHelper.Scala3)))
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
-  )
-  .dependsOn(htmx.jvm, html.jvm)
-
 lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-endpoint"))
@@ -1101,23 +1034,6 @@ lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
   )
-
-lazy val `endpoint-examples` = project
-  .in(file("endpoint-examples"))
-  .settings(stdSettings("zio-blocks-endpoint-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0,
-    Compile / unmanagedSourceDirectories ++= {
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((3, n)) if n >= 7 => Seq(baseDirectory.value / "src" / "main" / "scala-3.7")
-        case _                      => Seq.empty
-      }
-    }
-  )
-  .dependsOn(endpoint.jvm)
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
@@ -1225,16 +1141,6 @@ lazy val smithy = project
     ),
     coverageMinimumStmtTotal   := 85,
     coverageMinimumBranchTotal := 76
-  )
-
-lazy val `smithy-examples` = project
-  .settings(stdSettings("zio-blocks-smithy-examples", Seq(BuildHelper.Scala3)))
-  .dependsOn(smithy)
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
   )
 
 lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
@@ -1461,7 +1367,7 @@ lazy val `sql-benchmarks` = project
       // Real-world cross-library comparison: same Postgres server, same data —
       // zio-blocks via JDBC vs kyo-sql's native wire-protocol driver, plus a
       // hand-rolled raw-JDBC floor.
-      "org.postgresql" % "postgresql"       % "42.7.13",
+      "org.postgresql" % "postgresql"       % "42.7.14",
       "io.getkyo"     %% "kyo-sql"          % "1.0.0-RC7",
       "io.getkyo"     %% "kyo-sql-postgres" % "1.0.0-RC7"
     ),
@@ -1542,67 +1448,6 @@ lazy val `streams-benchmark` = project
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
   )
-
-lazy val `schema-examples` = project
-  .in(file("schema-examples"))
-  .settings(stdSettings("zio-blocks-schema-examples", Seq(BuildHelper.Scala3)))
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0,
-    libraryDependencies ++= Seq(
-      "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.8.6"
-    ),
-    scalacOptions -= "-Werror",
-    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
-  )
-  .dependsOn(
-    schema.jvm,
-    markdown.jvm,
-    streams.jvm,
-    chunk.jvm,
-    context.jvm,
-    `schema-toon`.jvm,
-    `schema-messagepack`.jvm,
-    `schema-avro`,
-    `schema-thrift`,
-    `schema-bson`
-  )
-
-lazy val `streams-examples` = project
-  .in(file("streams-examples"))
-  .settings(stdSettings("zio-blocks-streams-examples", Seq(BuildHelper.Scala3)))
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0,
-    libraryDependencies ++= Seq(
-      "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.8.6"
-    ),
-    scalacOptions -= "-Werror",
-    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
-  )
-  .dependsOn(
-    streams.jvm,
-    chunk.jvm
-  )
-
-lazy val `async-examples` = project
-  .in(file("async-examples"))
-  .settings(stdSettings("zio-blocks-async-examples", Seq(BuildHelper.Scala3)))
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0,
-    scalacOptions -= "-Werror",
-    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
-  )
-  .dependsOn(async.jvm)
 
 lazy val docs = project
   .in(file("zio-blocks-docs"))

@@ -1488,7 +1488,7 @@ The `async-examples` module ships `AsyncShowcaseExample`, a single runnable pipe
 To run the full example, clone the repository and execute:
 
 ```
-sbt "async-examples/run"
+cd async-examples && sbt "run"
 ```
 
 ## See Also
