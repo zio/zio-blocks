@@ -9,7 +9,9 @@ const LANDING_ONLY = process.env.LANDING_ONLY === '1';
 const config = {
   title: 'ZIO Blocks',
   tagline: 'Type-safe, modular building blocks for Scala',
-  url: process.env.SITE_URL || 'http://localhost:3000',
+  // The production domain. SITE_URL overrides it (previews, demos, local experiments); canonical links, the sitemap, llms.txt
+  // and the onboard-agent prompt are all built from it.
+  url: process.env.SITE_URL || 'https://zioblocks.com',
   baseUrl: '/',
   onBrokenLinks: LANDING_ONLY ? 'warn' : 'throw',
   onDuplicateRoutes: 'throw',

@@ -47,8 +47,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.error('landing: build/index.html not found; run yarn build first');
     process.exit(1);
   }
-  // The canonical link points at the site's own (not yet deployed) origin; `localhost` when URL is unset.
-  const urls = extractExternalLinks(html).filter((u) => new URL(u).hostname !== 'localhost');
+  // The canonical link points at the site's own origin, which may not serve this build yet; skip it.
+  const own = new URL(process.env.SITE_URL || 'https://zioblocks.com').hostname;
+  const urls = extractExternalLinks(html).filter((u) => ![own, 'localhost'].includes(new URL(u).hostname));
   const results = [];
   for (let i = 0; i < urls.length; i += 6) results.push(...(await Promise.all(urls.slice(i, i + 6).map(check))));
   for (const r of results.filter((r) => r.warn)) console.warn(`warn ${r.warn} ${r.url}${r.note}`);

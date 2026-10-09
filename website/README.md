@@ -73,7 +73,36 @@ Required configuration (a maintainer sets these once):
 | --- | --- | --- |
 | `NETLIFY_AUTH_TOKEN` | secret | Netlify API token, shared by previews and production deploys |
 | `NETLIFY_PRODUCTION_SITE_ID` | secret | The production Netlify site |
-| `SITE_URL` | repository variable | The canonical site URL used by the build |
+| `SITE_URL` | repository variable (optional) | Overrides the canonical site URL used by the build; defaults to `https://zioblocks.com` |
 
 The install line shows the latest release version, read from the GitHub API at build time (`GITHUB_TOKEN` avoids the
 unauthenticated rate limit) and falling back to the pinned `FALLBACK_VERSION` in `scripts/lib/version.mjs`.
+
+### Custom domain: zioblocks.com on Netlify
+
+The production site is a Netlify site that only hosts the artifact built by GitHub Actions (it has no Git integration and
+no build command). The build's canonical origin defaults to `https://zioblocks.com` (`url` in `docusaurus.config.js`), so
+canonical links, the sitemap, `llms.txt` and the onboard-agent prompt all use it.
+
+One-time setup, in this order:
+
+1. Netlify: **Add new project > Deploy manually**, name it (for example `zio-blocks`), and note the site ID
+   (**Project configuration > General > Project ID**). Add it as the repository secret `NETLIFY_PRODUCTION_SITE_ID`;
+   `NETLIFY_AUTH_TOKEN` is already shared with the preview workflow.
+2. Netlify: **Domain management > Add a domain** `zioblocks.com`, then make `zioblocks.com` the primary domain (Netlify
+   redirects `www.zioblocks.com` to it).
+3. GoDaddy: **DNS > Manage records**, delete the default parked `A` record and the `www` forwarding, then add:
+
+   | Type | Name | Value |
+   | --- | --- | --- |
+   | `A` | `@` | `75.2.60.5` |
+   | `CNAME` | `www` | `<your-netlify-site>.netlify.app` |
+
+   GoDaddy has no ALIAS/ANAME record, so the apex uses Netlify's fallback `A` record. Check the exact values in the
+   **Pending DNS verification** dialog of Netlify's Domain management page; they win over this table.
+4. Netlify: after DNS propagates (up to a day), **Domain management > HTTPS > Verify DNS configuration**, then
+   **Provision certificate** (Let's Encrypt), and turn on **Force HTTPS**.
+5. Push to `main` (or publish a release): the `Deploy to Netlify (production)` step publishes `website/build`.
+
+Alternative: switch the domain's nameservers at GoDaddy to Netlify DNS (Netlify shows four `dnsimple` nameservers in
+Domain management). Then Netlify manages every record and renews certificates without further DNS edits.
