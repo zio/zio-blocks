@@ -24,16 +24,24 @@
  * `Migration` that renames the case lets `TagResolver` work out the alias, so old
  * events can still be recognised and read.
  *
+ * This example runs on a real SQLite event store,
+ * `.projection-examples/example5/events/logins.db`, with two versions of the event type in
+ * a row. Both are called `LoginEvent`, so they use the same table.
+ *   1. `V1.LoginEvent` has the case `UserLoggedIn`. An event is appended with it.
+ *   2. `V2.LoginEvent` has the case `UserAuthenticated`. The store is opened again
+ *      with a migration that renames the case, and the old event is read back
+ *      under its new name.
+ *
  * It shows:
- *   - `TagResolver.resolve` building a `TagInfo` from a migration
- *   - `TagInfo` helpers: `currentTags`, `aliases`, `allTags`, `expandRequested`,
- *     `isOldTag` and `currentTagFor`
+ *   - `TagResolver.resolve` building a `TagInfo` from a migration, and its
+ *     helpers: `currentTags`, `aliases`, `allTags`, `expandRequested`, `isOldTag`
+ *     and `currentTagFor`
  *   - a chain of renames (A to B to C), which resolves straight to the final name
+ *   - `SQLiteEventStore.make` with a migration, so that `readAll` returns an old
+ *     event with the current tag and decoded as the new case
  *
- * It does not need an engine, so it prints the results of the calls directly.
- *
- * Run it from this directory with:
- *   sbt "runMain projection.examples.Example5TagRename"
+ * Run it from the repository root with:
+ *   sbt "projection-examples/runMain projection.examples.Example5TagRename"
  */
 
 package projection.examples
@@ -45,29 +53,40 @@ import zio.blocks.schema.migration.Migration
 
 object Example5TagRename extends ZIOAppDefault {
 
-  sealed trait LoginEvent
-  object LoginEvent {
-    case class UserLoggedIn(userId: String, timestamp: String) extends LoginEvent
-    object UserLoggedIn {
-      implicit val schema: Schema[UserLoggedIn] = Schema.derived[UserLoggedIn]
+  object V1 {
+    sealed trait LoginEvent
+    object LoginEvent {
+      case class UserLoggedIn(userId: String, timestamp: String) extends LoginEvent
+      object UserLoggedIn {
+        implicit val schema: Schema[UserLoggedIn] = Schema.derived[UserLoggedIn]
+      }
+      implicit val schema: Schema[LoginEvent] = Schema.derived[LoginEvent]
     }
-    case class UserAuthenticated(userId: String, timestamp: String) extends LoginEvent
-    object UserAuthenticated {
-      implicit val schema: Schema[UserAuthenticated] = Schema.derived[UserAuthenticated]
+  }
+
+  object V2 {
+    sealed trait LoginEvent
+    object LoginEvent {
+      case class UserAuthenticated(userId: String, timestamp: String) extends LoginEvent
+      object UserAuthenticated {
+        implicit val schema: Schema[UserAuthenticated] = Schema.derived[UserAuthenticated]
+      }
+      implicit val schema: Schema[LoginEvent] = Schema.derived[LoginEvent]
     }
-    implicit val schema: Schema[LoginEvent] = Schema.derived[LoginEvent]
   }
 
   def demo: ZIO[Any, Throwable, Unit] =
     Console.printLine("\n--- Example 5: Tag Rename (UserLoggedIn -> UserAuthenticated) ---").orDie *>
       ZIO.scoped {
         for {
+          _ <- Sqlite.folders(Sqlite.path("example5/events"))
+
           migration = Migration
-                        .newBuilder[LoginEvent, LoginEvent]
+                        .newBuilder[V2.LoginEvent, V2.LoginEvent]
                         .renameCase("UserLoggedIn", "UserAuthenticated")
                         .build
 
-          tagInfo = TagResolver.resolve[LoginEvent](migration)
+          tagInfo = TagResolver.resolve[V2.LoginEvent](migration)
 
           _ <- Console.printLine(s"  Current tags: ${tagInfo.currentTags.mkString(", ")}").orDie
           _ <- Console.printLine(s"  Aliases:      ${tagInfo.aliases}").orDie
@@ -81,14 +100,38 @@ object Example5TagRename extends ZIOAppDefault {
           _ <- Console.printLine(s"  currentTagFor('UserLoggedIn'): ${tagInfo.currentTagFor("UserLoggedIn")}").orDie
 
           migration2 = Migration
-                         .newBuilder[LoginEvent, LoginEvent]
+                         .newBuilder[V2.LoginEvent, V2.LoginEvent]
                          .renameCase("UserLoggedIn", "UserSignedIn")
                          .renameCase("UserSignedIn", "UserAuthenticated")
                          .build
-          tagInfo2 = TagResolver.resolve[LoginEvent](migration2)
+          tagInfo2 = TagResolver.resolve[V2.LoginEvent](migration2)
           _       <- Console.printLine(s"  Transitive chain: ${tagInfo2.aliases}").orDie
-          _       <- Console.printLine(s"  isOldTag('UserLoggedIn'):      ${tagInfo2.isOldTag("UserLoggedIn")}").orDie
-          _       <- Console.printLine(s"  currentTagFor('UserLoggedIn'): ${tagInfo2.currentTagFor("UserLoggedIn")}").orDie
+
+          // 1. The first version writes an event under the tag `UserLoggedIn`.
+          _ <- ZIO.scoped {
+                 for {
+                   cache  <- TransactorCache.make()
+                   tx     <- cache.get(Sqlite.path("example5/events/logins.db"))
+                   events <- SQLiteEventStore.make[V1.LoginEvent](tx)
+                   _      <- events.append("user-1", V1.LoginEvent.UserLoggedIn("user-1", "10:00"))
+                 } yield ()
+               }
+
+          // 2. The second version opens the same file with the migration, and also appends an event.
+          _ <- ZIO.scoped {
+                 for {
+                   cache  <- TransactorCache.make()
+                   tx     <- cache.get(Sqlite.path("example5/events/logins.db"))
+                   events <- SQLiteEventStore.make[V2.LoginEvent](tx, migration)
+                   _      <- events.append("user-2", V2.LoginEvent.UserAuthenticated("user-2", "11:00"))
+                   all    <- events.readAll().runCollect
+                   _ <- ZIO.foreachDiscard(all) { env =>
+                          Console.printLine(s"  seq ${env.seq}: tag ${env.tag}, ${env.entityId}, ${env.event}").orDie
+                        }
+                   byNewTag <- events.readAll(Set("UserAuthenticated")).runCollect
+                   _        <- Console.printLine(s"  readAll(UserAuthenticated) returns ${byNewTag.size} events").orDie
+                 } yield ()
+               }
 
           _ <- Console.printLine("  ✓ Tag Rename: migration aliases ensure old events are readable").orDie
         } yield ()

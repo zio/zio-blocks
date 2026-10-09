@@ -19,121 +19,132 @@
  *
  * Builds on Example1PerEntity. Next: Example5TagRename.
  *
- * When the read model's class changes, such as `UserProfileV1` gaining an
- * `email` field to become `UserProfileV2`, the data already stored no longer
- * matches. The engine notices this by comparing a hash of the schema, and
- * rebuilds the store by replaying the events.
+ * When the read model's class changes, such as `UserProfile` gaining an `email`
+ * field, the data already stored no longer matches. The engine notices this when
+ * it starts, by comparing a hash of the schema with the one saved in the store,
+ * and rebuilds the store by replaying the events.
+ *
+ * This example runs on real SQLite files and uses two engines in a row, like an
+ * application that is stopped and started again with a newer version. The events
+ * stay in `.projection-examples/example4/events/users.db`, and the read model in
+ * `.projection-examples/example4/profiles/userProfiles.db`.
+ *   1. The first engine runs the projection with `V1.UserProfile` (id, name).
+ *   2. The second engine runs it with `V2.UserProfile` (id, name, email). Both
+ *      classes are called `UserProfile`, so they use the same table, and the
+ *      projection keeps its name.
  *
  * It shows:
  *   - `SchemaHash.compute`, and that two versions of a type hash differently
- *   - running the changed projection (`UserProfileV2`) in memory
- *   - `SchemaEvolution.rebuildWithHash`, which rebuilds a store from an event
- *     store, using a small hand-written `DemoEventStore`
+ *   - the second engine detecting the changed schema in `start` and rebuilding
+ *     the table from the stored events, so the old rows gain their `email`
+ *   - that the rebuilt projection keeps processing new events
  *
- * Run it from this directory with:
- *   sbt "runMain projection.examples.Example4SchemaEvolution"
+ * Run it from the repository root with:
+ *   sbt "projection-examples/runMain projection.examples.Example4SchemaEvolution"
  */
 
 package projection.examples
 
 import zio.*
 import zio.blocks.projection.*
-import zio.blocks.projection.testing.{InMemoryProjectionStore, TestEngine}
 import zio.blocks.schema.{Modifier, Schema}
-import zio.stream.ZStream
-
-import java.time.Instant
 
 import Polling.pollUntil
 
 object Example4SchemaEvolution extends ZIOAppDefault {
 
-  case class UserProfileV1(@Modifier.id id: String, name: String)
-  object UserProfileV1 {
-    implicit val schema: Schema[UserProfileV1]         = Schema.derived[UserProfileV1]
-    implicit val entityPath: EntityPath[UserProfileV1] = EntityPath.derived[UserProfileV1]
+  private val profilesFolder: String = Sqlite.path("example4/profiles")
+
+  object V1 {
+    case class UserProfile(@Modifier.id id: String, name: String)
+    object UserProfile {
+      implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
+      implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile](profilesFolder)
+    }
   }
 
-  case class UserProfileV2(@Modifier.id id: String, name: String, email: String)
-  object UserProfileV2 {
-    implicit val schema: Schema[UserProfileV2]         = Schema.derived[UserProfileV2]
-    implicit val entityPath: EntityPath[UserProfileV2] = EntityPath.derived[UserProfileV2]
+  object V2 {
+    case class UserProfile(@Modifier.id id: String, name: String, email: String)
+    object UserProfile {
+      implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
+      implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile](profilesFolder)
+    }
   }
 
-  // Simple standalone EventStore stub for schema-evolution rebuild demo
-  final class DemoEventStore[E](
-    hub: Hub[EventEnvelope[E]],
-    buffer: Ref[List[EventEnvelope[E]]],
-    counter: Ref[Long]
-  ) extends EventStore[E] {
-    def subscribe: Hub[EventEnvelope[E]]               = hub
-    def append(entityId: String, event: E): Task[Long] =
-      for {
-        seq <- counter.updateAndGet(_ + 1)
-        env  = EventEnvelope(seq, event.getClass.getSimpleName.stripSuffix("$"), event, Instant.now(), entityId)
-        _   <- buffer.update(_ :+ env)
-        _   <- hub.publish(env).unit
-      } yield seq
-    def readFrom(afterSeq: Long, tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]] =
-      ZStream.unwrap {
-        buffer.get.map { list =>
-          val filtered = list.filter(_.seq > afterSeq).filter(e => tags.isEmpty || tags.contains(e.tag))
-          ZStream.fromIterable(filtered)
-        }
-      }
-    def readAll(tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]] =
-      readFrom(0L, tags)
-  }
-  object DemoEventStore {
-    def make[E]: ZIO[Any, Nothing, DemoEventStore[E]] =
-      for {
-        hub     <- Hub.unbounded[EventEnvelope[E]]
-        buffer  <- Ref.make(List.empty[EventEnvelope[E]])
-        counter <- Ref.make(0L)
-      } yield new DemoEventStore[E](hub, buffer, counter)
-  }
+  private def show(profile: Option[V2.UserProfile]): String =
+    profile.map(u => s"${u.name} <${u.email}>").getOrElse("not found")
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Example 4: Schema Evolution (UserProfileV1 -> UserProfileV2) ---").orDie *>
+    Console.printLine("\n--- Example 4: Schema Evolution (UserProfile V1 -> V2) ---").orDie *>
       ZIO.scoped {
         for {
-          hashV1 = SchemaHash.compute[UserProfileV1]
-          hashV2 = SchemaHash.compute[UserProfileV2]
+          _ <- Sqlite.folders(profilesFolder, Sqlite.path("example4/events"))
+
+          hashV1 = SchemaHash.compute[V1.UserProfile]
+          hashV2 = SchemaHash.compute[V2.UserProfile]
           _     <- Console.printLine(s"  SchemaHash V1: ${hashV1.take(16)}...").orDie
           _     <- Console.printLine(s"  SchemaHash V2: ${hashV2.take(16)}...").orDie
           _     <- Console.printLine(s"  Hashes differ: ${hashV1 != hashV2}").orDie
 
-          projection = Projection[UserProfileV2]("userProfilesV2")
-                         .from("users")
-                         .routeToSelf
-                         .on[UserCreated]
-                         .insert((e, ctx) => UserProfileV2(ctx.entityId, e.name, e.email))
+          projectionV1 = Projection[V1.UserProfile]("userProfiles")
+                           .from("users")
+                           .routeToSelf
+                           .on[UserCreated]
+                           .insert((e, ctx) => V1.UserProfile(ctx.entityId, e.name))
 
-          engine <- TestEngine.make(projection)
+          projectionV2 = Projection[V2.UserProfile]("userProfiles")
+                           .from("users")
+                           .routeToSelf
+                           .on[UserCreated]
+                           .insert((e, ctx) => V2.UserProfile(ctx.entityId, e.name, e.email))
 
-          _ <- engine.append("user-1", UserCreated("Alice", "alice@example.com"))
-          _ <- engine.append("user-2", UserCreated("Bob", "bob@example.com"))
+          // 1. The first version of the application.
+          _ <- ZIO.scoped {
+                 for {
+                   cache  <- TransactorCache.make()
+                   users  <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example4/events/users.db"))
+                   engine <- ProjectionEngine.makeWithStoresVarargs(
+                               cache,
+                               Map[String, EventStore[?]]("users" -> users)
+                             )(projectionV1)
+                   _      <- engine.start
 
-          u1 <- pollUntil(engine.query(projection, "user-1"))
-          u2 <- pollUntil(engine.query(projection, "user-2"))
+                   _ <- users.append("user-1", UserCreated("Alice", "alice@example.com"))
+                   _ <- users.append("user-2", UserCreated("Bob", "bob@example.com"))
 
-          _ <- Console.printLine(s"  V2 user-1: ${u1.map(u => s"${u.name} <${u.email}>").getOrElse("not found")}").orDie
-          _ <- Console.printLine(s"  V2 user-2: ${u2.map(u => s"${u.name} <${u.email}>").getOrElse("not found")}").orDie
+                   u2 <- pollUntil(engine.query(projectionV1, "user-2"))
+                   u1 <- engine.query(projectionV1, "user-1")
+                   _  <- Console.printLine(s"  V1 user-1: ${u1.map(_.name).getOrElse("not found")}").orDie
+                   _  <- Console.printLine(s"  V1 user-2: ${u2.map(_.name).getOrElse("not found")}").orDie
+                 } yield ()
+               }
 
-          _ <- Console.printLine("  --- SchemaEvolution.rebuild demo ---").orDie
-          // Standalone rebuild demo using direct store/hub (without TestEngine wiring)
-          store   <- InMemoryProjectionStore.make[UserProfileV2]
-          hub     <- DemoEventStore.make[Any]
-          _       <- hub.append("user-1", UserCreated("Alice", "alice@example.com"))
-          _       <- hub.append("user-2", UserCreated("Bob", "bob@example.com"))
-          _       <- SchemaEvolution.rebuildWithHash(store, hub, projection)
-          u1After <- store.findById("user-1")
-          _       <- Console
-                 .printLine(
-                   s"  After rebuild, user-1: ${u1After.map(u => s"${u.name} <${u.email}>").getOrElse("not found")}"
-                 )
-                 .orDie
-          _ <- Console.printLine("  ✓ Schema Evolution: hash detection + rebuild preserves data").orDie
+          _ <- Console.printLine("  --- restart with V2 ---").orDie
+
+          // 2. The second version of the application, on the same files.
+          _ <- ZIO.scoped {
+                 for {
+                   cache  <- TransactorCache.make()
+                   users  <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example4/events/users.db"))
+                   engine <- ProjectionEngine.makeWithStoresVarargs(
+                               cache,
+                               Map[String, EventStore[?]]("users" -> users)
+                             )(projectionV2)
+                   // `start` finds the changed schema hash and rebuilds the table from the stored events.
+                   _ <- engine.start
+
+                   u1 <- engine.query(projectionV2, "user-1")
+                   u2 <- engine.query(projectionV2, "user-2")
+                   _  <- Console.printLine(s"  After rebuild, user-1: ${show(u1)}").orDie
+                   _  <- Console.printLine(s"  After rebuild, user-2: ${show(u2)}").orDie
+
+                   _  <- users.append("user-3", UserCreated("Carol", "carol@example.com"))
+                   u3 <- pollUntil(engine.query(projectionV2, "user-3"))
+                   _  <- Console.printLine(s"  New event, user-3:    ${show(u3)}").orDie
+                 } yield ()
+               }
+
+          _ <- Console.printLine("  ✓ Schema Evolution: hash check + rebuild from stored events keeps the data").orDie
         } yield ()
       }
 

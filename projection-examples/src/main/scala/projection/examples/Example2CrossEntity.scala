@@ -19,68 +19,119 @@
  *
  * Read Example1PerEntity first. Next: Example3GlobalAggregate.
  *
- * A cross-entity projection groups events by a key read from the event itself,
- * instead of by the ID the event was recorded under. Here `RepoCreated` events
- * are routed by their `ownerId`, so all of one owner's repositories go to the
- * same shard.
+ * In Example 1 every event belongs to the entity it was recorded under. Here the
+ * events are recorded per order (`order-1`, `order-2`, ...), but they are viewed
+ * per customer, and the customer is a field inside the event. `routedBy` tells the
+ * projection to read that key from each event and send the event to the store for
+ * that key, called a shard. So one customer's orders are kept together, apart from
+ * everyone else's.
+ *
+ * Two kinds of event are involved, `OrderPlaced` and `OrderShipped`. Both carry the
+ * `customerId`, so both are routed to the same shard. That is what lets
+ * `OrderShipped` update a row that `OrderPlaced` created earlier: the row has the
+ * ID of the order, and it is in the shard of its customer.
+ *
+ * This example runs on real SQLite files: the events are kept in
+ * `.projection-examples/example2/events/orders.db`, and the projection in
+ * `.projection-examples/example2/orders/`, where each customer gets their own file next to
+ * the main one, for example `ordersByCustomer_shard_alice.db`.
  *
  * It shows:
  *   - `routedBy`, which makes the projection's scope `CrossEntity`
- *   - `custom`, to return a `ProjectionAction.Upsert` instead of a plain insert
- *   - querying a shard by its routing key
+ *   - the routing key chooses the shard, while the row keeps the ID of the order
+ *   - several event types converging on the same projection
+ *   - an update landing on the right row, because routing is the same for every
+ *     event of a customer
+ *   - an engine on SQLite files, and the shard files that appear
+ *   - reading a row back by ID, which looks in the main store and then in the
+ *     shards. The engine has no call that lists the rows of a shard
  *
- * Note that the row's ID here is the owner, so a later repository replaces an
- * earlier one from the same owner: alice ends up with only `zio-http`. Give each
- * row its own ID, such as "owner/repo", to keep every repository.
- *
- * Run it from this directory with:
- *   sbt "runMain projection.examples.Example2CrossEntity"
+ * Run it from the repository root with:
+ *   sbt "projection-examples/runMain projection.examples.Example2CrossEntity"
  */
 
 package projection.examples
 
 import zio.*
 import zio.blocks.projection.*
-import zio.blocks.projection.testing.TestEngine
 import zio.blocks.schema.{Modifier, Schema}
 
 import Polling.pollUntil
 
 object Example2CrossEntity extends ZIOAppDefault {
 
-  case class RepoListEntry(@Modifier.id id: String, ownerId: String, repoName: String)
-  object RepoListEntry {
-    implicit val schema: Schema[RepoListEntry]         = Schema.derived[RepoListEntry]
-    implicit val entityPath: EntityPath[RepoListEntry] = EntityPath.derived[RepoListEntry]
+  sealed trait OrderEvent { def customerId: String }
+  object OrderEvent {
+    case class OrderPlaced(customerId: String, product: String, total: Long) extends OrderEvent
+    object OrderPlaced {
+      implicit val schema: Schema[OrderPlaced] = Schema.derived[OrderPlaced]
+    }
+    case class OrderShipped(customerId: String) extends OrderEvent
+    object OrderShipped {
+      implicit val schema: Schema[OrderShipped] = Schema.derived[OrderShipped]
+    }
+    implicit val schema: Schema[OrderEvent] = Schema.derived[OrderEvent]
+  }
+  import OrderEvent.*
+
+  private val ordersFolder: String = Sqlite.path("example2/orders")
+
+  // Not called `Order`: the table is named after the class, and `order` is an SQL keyword.
+  case class CustomerOrder(@Modifier.id id: String, customerId: String, product: String, total: Long, status: String)
+  object CustomerOrder {
+    implicit val schema: Schema[CustomerOrder]         = Schema.derived[CustomerOrder]
+    // The folder is chosen explicitly. Derived from the `id` field, it would be "ids".
+    implicit val entityPath: EntityPath[CustomerOrder] = EntityPath.derived[CustomerOrder](ordersFolder)
   }
 
+  private def show(order: Option[CustomerOrder]): String =
+    order.map(o => s"${o.customerId}, ${o.product}, ${o.total}, ${o.status}").getOrElse("not found")
+
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Example 2: CrossEntity Projection (RepoListEntry routed by ownerId) ---").orDie *>
+    Console.printLine("\n--- Example 2: CrossEntity Projection (orders routed by customerId) ---").orDie *>
       ZIO.scoped {
         for {
-          projection = Projection[RepoListEntry]("repoListEntries")
-                         .from("repos")
-                         .routedBy[RepoCreated](_.ownerId)
-                         .on[RepoCreated]
-                         .custom((e, _) => ProjectionAction.Upsert(RepoListEntry(e.ownerId, e.ownerId, e.repoName)))
+          _ <- Sqlite.folders(ordersFolder, Sqlite.path("example2/events"))
+
+          projection = Projection[CustomerOrder]("customer_orders")
+                         .from("orders")
+                         .routedBy[OrderEvent](_.customerId)
+                         .on[OrderPlaced]
+                         .insert((e, ctx) => CustomerOrder(ctx.entityId, e.customerId, e.product, e.total, "placed"))
+                         .on[OrderShipped]
+                         .updateWithField("status", (_, _) => "shipped")
 
           _ <- Console.printLine(s"  Scope: ${projection.scope}").orDie
 
-          engine <- TestEngine.make(projection)
+          cache <- TransactorCache.make()
+          orders <- Sqlite.eventStore[OrderEvent](cache, Sqlite.path("example2/events/orders.db"))
+          engine <- ProjectionEngine.makeWithStoresVarargs(
+                      cache,
+                      Map[String, EventStore[?]]("orders" -> orders)
+                    )(projection)
+          _ <- engine.start
 
-          _ <- engine.append("repo-1", RepoCreated("alice", "zio-blocks"))
-          _ <- engine.append("repo-2", RepoCreated("alice", "zio-http"))
-          _ <- engine.append("repo-3", RepoCreated("bob", "zio-kafka"))
-          _ <- engine.append("repo-4", RepoCreated("charlie", "zio-schema"))
+          // Events are recorded under the ID of the order, and carry the customer inside.
+          _ <- orders.append("order-1", OrderPlaced("alice", "keyboard", 80))
+          _ <- orders.append("order-2", OrderPlaced("alice", "monitor", 250))
+          _ <- orders.append("order-3", OrderPlaced("bob", "mouse", 25))
+          _ <- orders.append("order-1", OrderShipped("alice"))
+          _ <- orders.append("order-3", OrderShipped("bob"))
+          _ <- orders.append("order-4", OrderPlaced("charlie", "cable", 9))
 
-          alice   <- pollUntil(engine.query(projection, "alice"))
-          bob     <- pollUntil(engine.query(projection, "bob"))
-          charlie <- pollUntil(engine.query(projection, "charlie"))
+          // Events are applied in order, so once order-4 exists every earlier event has been applied.
+          order4 <- pollUntil(engine.query(projection, "order-4"))
+          order1 <- engine.query(projection, "order-1")
+          order2 <- engine.query(projection, "order-2")
+          order3 <- engine.query(projection, "order-3")
 
-          _ <- Console.printLine(s"  alice's repos:   ${alice.map(_.repoName).getOrElse("none")}").orDie
-          _ <- Console.printLine(s"  bob's repos:     ${bob.map(_.repoName).getOrElse("none")}").orDie
-          _ <- Console.printLine(s"  charlie's repos: ${charlie.map(_.repoName).getOrElse("none")}").orDie
-          _ <- Console.printLine("  ✓ CrossEntity: repos routed by ownerId to separate shards").orDie
+          files <- Sqlite.dbFiles(ordersFolder)
+          _     <- Console.printLine(s"  Files in $ordersFolder/: ${files.mkString(", ")}").orDie
+          _     <- Console.printLine(s"  order-1: ${show(order1)}").orDie
+          _     <- Console.printLine(s"  order-2: ${show(order2)}").orDie
+          _     <- Console.printLine(s"  order-3: ${show(order3)}").orDie
+          _     <- Console.printLine(s"  order-4: ${show(order4)}").orDie
+          _ <- Console.printLine("  ✓ CrossEntity: orders recorded per order, kept per customer in a shard").orDie
         } yield ()
       }
 

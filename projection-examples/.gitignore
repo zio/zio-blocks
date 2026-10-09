@@ -1,0 +1,3 @@
+# Files written by the examples that run on SQLite. `global/` is where the engine keeps a global projection.
+/.projection-examples/
+/global/

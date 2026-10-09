@@ -28,8 +28,8 @@
  *   - declaring the projection with `from`, `routeToSelf`, `on` and `insert`
  *   - running it in memory with `TestEngine`, appending events and querying rows
  *
- * Run it from this directory with:
- *   sbt "runMain projection.examples.Example1PerEntity"
+ * Run it from the repository root with:
+ *   sbt "projection-examples/runMain projection.examples.Example1PerEntity"
  */
 
 package projection.examples

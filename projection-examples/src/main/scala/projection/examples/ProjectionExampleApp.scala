@@ -26,8 +26,8 @@
  * Each example can also be run on its own, see the comment at the top of its
  * file.
  *
- * Run it from this directory with:
- *   sbt run
+ * Run it from the repository root with:
+ *   sbt projection-examples/run
  */
 
 package projection.examples

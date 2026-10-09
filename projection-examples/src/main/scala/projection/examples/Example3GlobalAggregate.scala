@@ -24,28 +24,36 @@
  * source and `RepoCreated` events from the "repos" source both feed a single
  * `DailyStats` row.
  *
+ * This example runs on real SQLite files: the events are kept in
+ * `.projection-examples/example3/events/users.db` and `.projection-examples/example3/events/repos.db`,
+ * and the projection in `global/dailyStats.db`. The engine always keeps the store
+ * of a global projection in a folder called `global`, so it is not inside
+ * `.projection-examples`.
+ *
  * It shows:
  *   - `Projection.global`, with `routeToAll` on each source
- *   - `aggregate` with `FieldUpdate.Increment`, which adds to a counter without
- *     reading the row first
- *   - one projection listening to more than one source
+ *   - `aggregate` with `FieldUpdate.Increment`, which adds to a counter in SQL
+ *     without reading the row first
+ *   - one projection listening to more than one source, each with its own
+ *     event store
  *
- * Run it from this directory with:
- *   sbt "runMain projection.examples.Example3GlobalAggregate"
+ * Run it from the repository root with:
+ *   sbt "projection-examples/runMain projection.examples.Example3GlobalAggregate"
  */
 
 package projection.examples
 
 import zio.*
 import zio.blocks.projection.*
-import zio.blocks.projection.testing.TestEngine
 import zio.blocks.schema.{Modifier, Schema}
 
 import Polling.pollUntil
 
 object Example3GlobalAggregate extends ZIOAppDefault {
 
-  case class DailyStats(@Modifier.id date: String, userCount: Int, repoCount: Int)
+  // The key is the date. Its field is called `id` because a global projection has no `EntityPath`, so its
+  // SQLite store looks for a column with that name.
+  case class DailyStats(@Modifier.id id: String, userCount: Int, repoCount: Int)
   object DailyStats {
     implicit val schema: Schema[DailyStats]         = Schema.derived[DailyStats]
     implicit val entityPath: EntityPath[DailyStats] = EntityPath.derived[DailyStats]
@@ -55,6 +63,8 @@ object Example3GlobalAggregate extends ZIOAppDefault {
     Console.printLine("\n--- Example 3: Global Aggregate (DailyStats from users + repos) ---").orDie *>
       ZIO.scoped {
         for {
+          _ <- Sqlite.folders("global", Sqlite.path("example3/events"))
+
           dateKey = "2025-08-26"
 
           projection = Projection
@@ -70,16 +80,25 @@ object Example3GlobalAggregate extends ZIOAppDefault {
 
           _ <- Console.printLine(s"  Scope: ${projection.scope}").orDie
 
-          engine <- TestEngine.make(projection)
+          cache <- TransactorCache.make()
+          users <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example3/events/users.db"))
+          repos <- Sqlite.eventStore[RepoCreated](cache, Sqlite.path("example3/events/repos.db"))
+          engine <- ProjectionEngine.makeWithStoresVarargs(
+                      cache,
+                      Map[String, EventStore[?]]("users" -> users, "repos" -> repos)
+                    )(projection)
+          _ <- engine.start
 
-          _ <- ZIO.foreachDiscard(1 to 5)(i => engine.append(dateKey, UserCreated(s"user-$i", s"u$i@ex.com")))
-          _ <- ZIO.foreachDiscard(1 to 3)(i => engine.append(dateKey, RepoCreated("any", s"repo-$i")))
+          _ <- ZIO.foreachDiscard(1 to 5)(i => users.append(dateKey, UserCreated(s"user-$i", s"u$i@ex.com")))
+          _ <- ZIO.foreachDiscard(1 to 3)(i => repos.append(dateKey, RepoCreated("any", s"repo-$i")))
 
           stats <- pollUntil(
                      engine.query(projection, dateKey).map(_.filter(s => s.userCount == 5 && s.repoCount == 3)),
                      5.seconds
                    )
 
+          files <- Sqlite.dbFiles("global")
+          _     <- Console.printLine(s"  Files in global/: ${files.mkString(", ")}").orDie
           _ <- stats match {
                  case Some(s) =>
                    Console.printLine(s"  Date: $dateKey, Users: ${s.userCount}, Repos: ${s.repoCount}").orDie
