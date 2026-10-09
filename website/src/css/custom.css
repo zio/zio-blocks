@@ -1,30 +1,186 @@
-/**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
- */
+/* Tailwind is used only by the Onboard Agent button (src/components/OnboardAgentButton): theme tokens and utilities, no
+   preflight, so Infima and the rules below are untouched. Utilities are `important` (tailwind.config.js) and layered. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
 
-/* You can override the default Infima variables here. */
+@config '../../tailwind.config.js';
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('/fonts/manrope-latin-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  /* Brand palette (assets/logo/README.md) */
+  --ultramarine: #2d3f8f;
+  --ink: #141a2e;
+  --lifted: #4b5fc4;
+  --paper-ink: #f3f5fc;
+  --hairline: #e4e7f0;
+  --muted: #7c859e;
+
+  /* Module-square fill of the brand social card */
+  --field: #1e2647;
+
+  /* UI tints derived from the palette (code cards, rules, secondary text, labels, surfaces); not brand marks */
+  --code-bg: #0d1224;
+  --ink-rule: #232b4a;
+  --ink-soft: #a9b1ce;
+
+  /* Semantic tokens, light */
+  --fg: var(--ink);
+  --fg-soft: #4a5470;
+  --label: #5b6580;
+  --rule: var(--hairline);
+  --accent: var(--ultramarine);
+  --surface: var(--paper-ink);
+
+  --seam: 6px;
+  --lp-gutter: clamp(1rem, 4vw, 2.5rem);
+  --lp-measure: 72rem;
+
+  /* Infima */
+  --ifm-font-family-base: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --ifm-font-family-monospace: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --ifm-heading-font-weight: 800;
+  --ifm-heading-color: var(--ink);
+  --ifm-font-color-base: var(--ink);
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: var(--paper-ink);
+  --ifm-code-font-size: 90%;
+  --ifm-code-background: var(--paper-ink);
+
+  --ifm-color-primary: #2d3f8f;
+  --ifm-color-primary-dark: #293a81;
+  --ifm-color-primary-darker: #273778;
+  --ifm-color-primary-darkest: #202d63;
+  --ifm-color-primary-light: #3144a0;
+  --ifm-color-primary-lighter: #3347a9;
+  --ifm-color-primary-lightest: #3d53c0;
+  --ifm-link-color: var(--ultramarine);
+
+  /* Flat and square */
+  --ifm-global-radius: 0;
+  --ifm-global-shadow-lw: none;
+  --ifm-global-shadow-md: none;
+  --ifm-global-shadow-tl: none;
+
+  --ifm-navbar-background-color: var(--ink);
+  --ifm-navbar-link-color: var(--paper-ink);
+  --ifm-navbar-link-hover-color: #ffffff;
+  --ifm-navbar-link-active-color: #ffffff;
+  --ifm-navbar-shadow: none;
+  --ifm-footer-background-color: var(--ink);
+  --ifm-footer-color: var(--paper-ink);
+  --ifm-footer-link-color: var(--paper-ink);
+  --ifm-footer-title-color: var(--paper-ink);
+  --ifm-footer-link-hover-color: #ffffff;
+
+  --ifm-toc-border-color: var(--hairline);
+  --ifm-table-border-color: var(--hairline);
+  --ifm-hr-border-color: var(--hairline);
+  --docusaurus-highlighted-code-line-bg: rgba(45, 63, 143, 0.12);
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+/* Infima declares its dark variables on html[data-theme='dark'], so a bare [data-theme='dark'] rule of ours would lose on specificity. */
+html[data-theme='dark'] {
+  --fg: var(--paper-ink);
+  --fg-soft: var(--ink-soft);
+  --label: #9aa3c0;
+  --rule: var(--ink-rule);
+  --accent: var(--lifted);
+  --surface: #1a2140;
+
+  --ifm-heading-color: var(--paper-ink);
+  --ifm-font-color-base: var(--paper-ink);
+  --ifm-background-color: var(--ink);
+  --ifm-background-surface-color: #1a2140;
+  --ifm-code-background: #1a2140;
+
+  --ifm-color-primary: #4b5fc4;
+  --ifm-color-primary-dark: #3e53bf;
+  --ifm-color-primary-darker: #3a4eb5;
+  --ifm-color-primary-darkest: #2f3f93;
+  --ifm-color-primary-light: #5a6dca;
+  --ifm-color-primary-lighter: #6477ce;
+  --ifm-color-primary-lightest: #8393d8;
+  /* Lifted blue is 3:1 on ink: fine for borders and fills, not for link text */
+  --ifm-link-color: var(--paper-ink);
+  --ifm-link-hover-color: #ffffff;
+  --ifm-menu-color-active: var(--paper-ink);
+  /* Text roles that default to the primary colour: keep them readable, lifted blue stays for borders and fills */
+  --ifm-breadcrumb-color-active: var(--paper-ink);
+  --ifm-tabs-color-active: var(--paper-ink);
+  --ifm-pagination-color-active: var(--paper-ink);
+  --ifm-pagination-nav-color-hover: var(--paper-ink);
+  --ifm-pills-color-active: var(--paper-ink);
+
+  --ifm-toc-border-color: var(--ink-rule);
+  --ifm-table-border-color: var(--ink-rule);
+  --ifm-hr-border-color: var(--ink-rule);
+  --docusaurus-highlighted-code-line-bg: rgba(75, 95, 196, 0.25);
 }
+
+[data-theme='dark'] .table-of-contents__link:hover,
+[data-theme='dark'] .table-of-contents__link--active,
+[data-theme='dark'] .text--primary {
+  color: var(--paper-ink);
+}
+
+/* Navbar: ink in both colour modes, hairline underneath */
+.navbar { border-bottom: 1px solid var(--ink-rule); }
+.navbar__link { font-weight: 600; }
+.navbar-sidebar {
+  --ifm-menu-color: var(--paper-ink);
+  --ifm-menu-color-active: #ffffff;
+  --ifm-menu-color-background-hover: var(--ink-rule);
+  --ifm-menu-color-background-active: var(--ink-rule);
+  --ifm-color-emphasis-600: var(--paper-ink);
+}
+.navbar-sidebar__back { color: var(--paper-ink); }
+.navbar__logo img { height: 2.25rem; width: auto; }
+
+/* Docs: editorial links, hairline rules, flat code */
+.markdown a { text-decoration: underline; text-underline-offset: 0.2em; }
+.markdown h1, .markdown h2, .markdown h3 { letter-spacing: -0.01em; }
+.theme-code-block { box-shadow: none; }
+.menu__link--active:not(.menu__link--sublist) { font-weight: 700; }
+:focus-visible { outline: 2px solid var(--lifted); outline-offset: 2px; }
+
+/* Navbar controls sit on ink in both colour modes: Infima draws them in the page text colour, which vanishes on ink in light mode */
+.navbar { --ifm-color-emphasis-600: var(--paper-ink); }
+.navbar__toggle,
+.navbar .clean-btn,
+.navbar .navbar__toggle svg { color: var(--paper-ink); }
+
+/* Squares: Infima hardcodes radii on menus, breadcrumbs and round buttons instead of reading --ifm-global-radius */
+.menu__link,
+.menu__list-item-collapsible,
+.menu__caret,
+.breadcrumbs__link,
+.clean-btn,
+.theme-back-to-top-button,
+.pagination-nav__link,
+.pills__item,
+.tabs__item,
+.table-of-contents__link { border-radius: 0; }
+.menu__caret:before, .menu__link--sublist-caret:after { border-radius: 0; }
+button[class*='toggleButton_'],
+button[class*='backToTopButton_'] { border-radius: 0; }
+/* Authored diagram components under docs/ set inline radii; keep them on the flat system */
+.markdown [style*='border-radius'] { border-radius: 0 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* The navbar is ink in both colour modes: the onboard icon button hovers to white, not the (dark) primary. */
+.navbar button[title^='Copy the prompt']:hover { color: #ffffff; }

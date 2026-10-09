@@ -1,0 +1,188 @@
+.lp-page { background: var(--ifm-background-color); color: var(--fg); }
+.lp-page [hidden] { display: none !important; }
+.lp-page code { background: none; border: 0; padding: 0; font-size: 0.9em; }
+.lp-page ul, .lp-page ol { margin: 0; padding: 0; list-style: none; }
+
+.lp-wrap { max-width: var(--lp-measure); margin-inline: auto; padding-inline: var(--lp-gutter); }
+.lp-label {
+  margin: 0 0 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--label);
+}
+.lp-section { border-top: 1px solid var(--rule); padding-block: clamp(3rem, 7vw, 5.5rem); }
+.lp-section h2 {
+  margin: 0 0 1rem;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.lp-btn {
+  display: inline-block;
+  padding: 0.7rem 1.1rem;
+  border: 2px solid transparent;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
+.lp-btn-primary, .lp-btn-primary:hover { color: #fff; }
+.lp-btn-primary { background: var(--lifted); }
+.lp-btn-primary:hover { background: #fff; color: var(--ink); text-decoration: none; }
+.lp-btn-ghost { border-color: var(--lifted); color: var(--paper-ink); }
+.lp-btn-ghost:hover { border-color: #fff; color: var(--paper-ink); text-decoration: none; }
+
+/* Code surfaces: always ink, in both colour modes */
+.lp-codecard { background: var(--code-bg); color: var(--paper-ink); border: 1px solid var(--ink-rule); max-width: 40rem; }
+.lp-codecard pre {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  background: transparent !important;
+}
+
+/* Hero */
+.lp-hero {
+  position: relative;
+  overflow: hidden;
+  background: var(--ink);
+  color: var(--paper-ink);
+  padding-bottom: clamp(3rem, 8vw, 6rem);
+}
+.lp-hero .lp-inner { position: relative; }
+.lp-copy { max-width: 56rem; padding-top: clamp(2.5rem, 7vw, 5rem); }
+.lp-hero h1 {
+  margin: 0 0 1rem;
+  color: var(--paper-ink);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.lp-lead { margin: 0 0 1.75rem; max-width: 34rem; color: var(--ink-soft); font-size: 1.0625rem; }
+.lp-lead strong { color: var(--paper-ink); }
+.lp-onboard { margin: 1.5rem 0 0; }
+.lp-onboard + .lp-cta { margin-top: 0.75rem; }
+.lp-cta { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.5rem 0 0; }
+.lp-stack { margin: 2rem 0 0; color: var(--muted); font-size: 0.8125rem; letter-spacing: 0.04em; }
+
+/* Module field */
+.lp-field {
+  --m: clamp(64px, 9vw, 132px);
+  position: absolute;
+  inset: 0 calc(var(--m) * -0.4) 0 auto;
+  width: calc(3 * var(--m) + 2 * var(--seam));
+  pointer-events: none;
+}
+.lp-sq {
+  position: absolute;
+  width: var(--m);
+  height: var(--m);
+  left: calc(var(--c) * (var(--m) + var(--seam)));
+  top: calc(var(--r) * (var(--m) + var(--seam)));
+  background: var(--field);
+}
+@media (max-width: 720px) { .lp-field { opacity: 0.5; } }
+@media (prefers-reduced-motion: no-preference) {
+  .lp-sq { animation: lp-rise 0.6s both; animation-delay: calc(var(--i) * 70ms); }
+  @keyframes lp-rise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+/* Principles */
+.lp-principles { margin: 2rem 0 0; border-top: 1px solid var(--rule); }
+.lp-principles li {
+  display: grid;
+  grid-template-columns: 2.5rem 11rem 1fr;
+  gap: 0.25rem 1rem;
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--rule);
+  align-items: baseline;
+}
+.lp-n { font-size: 0.6875rem; letter-spacing: 0.14em; color: var(--label); font-weight: 600; }
+.lp-principles strong { font-weight: 800; }
+.lp-t { color: var(--fg-soft); }
+@media (max-width: 640px) {
+  .lp-principles li { grid-template-columns: 2rem 1fr; }
+  .lp-t { grid-column: 2; }
+}
+
+/* Deep dives */
+.lp-tablist { display: flex; flex-wrap: wrap; margin: 1.5rem 0; border-bottom: 1px solid var(--rule); }
+.lp-tablist[hidden] { display: none; }
+.lp-tablist [role='tab'] {
+  padding: 0.75rem 1.25rem;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--fg-soft);
+  font: 700 1rem/1.2 var(--ifm-font-family-base);
+  cursor: pointer;
+}
+.lp-tablist [role='tab'][aria-selected='true'] { color: var(--fg); border-bottom-color: var(--accent); }
+.lp-panel { margin-top: 2rem; }
+.lp-panel h3 { margin: 0 0 0.5rem; font-size: 1.5rem; font-weight: 800; }
+.lp-vh { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.lp-intro { max-width: 46rem; color: var(--fg-soft); font-size: 1.0625rem; }
+.lp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1.5rem; }
+.lp-col { min-width: 0; }
+.lp-col p { color: var(--fg-soft); }
+.lp-col .lp-label { color: var(--label); }
+.lp-formats { margin-top: 2rem; }
+.lp-formats ul { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0 0; }
+.lp-chip { padding: 0.25rem 0.75rem; border: 1px solid var(--accent); font-size: 0.875rem; font-weight: 600; }
+.lp-more { margin: 2rem 0 0; color: var(--fg-soft); }
+.lp-more li { padding-block: 0.25rem; }
+.lp-more a { text-decoration: underline; text-underline-offset: 0.2em; }
+.lp-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+@media (max-width: 800px) { .lp-cols { grid-template-columns: 1fr; } }
+
+/* Catalog */
+.lp-sub { max-width: 40rem; color: var(--fg-soft); }
+/*
+ * Categories that share a row sit side by side on the same columns as the tile grid below (three columns wide, two
+ * on tablets); a category with several tiles spans that many columns. On phones everything stacks. Sections in a
+ * shared row are equally tall and each tile fills its section.
+ */
+.lp-row[data-shared] .lp-cat { display: flex; flex-direction: column; }
+.lp-row[data-shared] .lp-grid { flex: 1; }
+@media (min-width: 36rem) {
+  .lp-row[data-shared] { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 var(--seam); align-items: stretch; }
+  .lp-row[data-shared] .lp-cat[data-span='2'], .lp-row[data-shared] .lp-cat[data-span='3'] { grid-column: span 2; }
+}
+@media (min-width: 58rem) {
+  .lp-row[data-shared] { grid-template-columns: repeat(3, 1fr); }
+  .lp-row[data-shared] .lp-cat[data-span='3'] { grid-column: span 3; }
+}
+.lp-cat { margin-top: 2.5rem; }
+.lp-cat h3 { margin: 0 0 0.25rem; font-size: 1.125rem; font-weight: 800; }
+.lp-note { margin: 0 0 0.75rem; color: var(--fg-soft); font-size: 0.9375rem; }
+.lp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--seam); margin: 1rem 0 0; }
+.lp-tile { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; background: var(--surface); border: 1px solid var(--rule); min-width: 0; }
+.lp-tile h4 { margin: 0; font-size: 1rem; font-weight: 800; }
+.lp-desc { margin: 0; color: var(--fg-soft); font-size: 0.875rem; flex: 1; }
+.lp-artifact { overflow-wrap: anywhere; font-size: 0.75rem; }
+/* Badges on the left, the button on the right of one row; the button wraps to its own right-aligned line only if the tile is very narrow */
+.lp-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 0.75rem; margin-top: 0.25rem; }
+.lp-learn {
+  margin-left: auto;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--accent);
+  color: var(--fg);
+  font: 700 0.8125rem/1.2 var(--ifm-font-family-base);
+  text-decoration: none;
+}
+.lp-learn:hover { background: var(--accent); color: #fff; text-decoration: none; }
+.lp-badges { margin: 0; color: var(--label); font-size: 0.75rem; letter-spacing: 0.04em; }
+/* The onboard button's hover colour is the brand primary, which is too dark on the ink hero: use the lifted tone. */
+.lp-onboard button:hover { border-color: var(--lifted) !important; color: var(--lifted) !important; }

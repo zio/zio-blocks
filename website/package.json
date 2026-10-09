@@ -3,8 +3,13 @@
   "version": "0.0.1",
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "docusaurus start",
-    "build": "docusaurus build",
+    "catalog": "node scripts/build-catalog.mjs",
+    "start": "node scripts/build-catalog.mjs && docusaurus start",
+    "build": "node scripts/build-catalog.mjs && docusaurus build",
+    "build:landing": "LANDING_ONLY=1 yarn build",
+    "test": "node --test \"test/unit/*.test.mjs\"",
+    "check:landing": "yarn build:landing && node --test test/dist.test.mjs",
+    "check:links": "node scripts/check-links.mjs",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
@@ -16,10 +21,14 @@
     "@docusaurus/core": "3.10.2",
     "@docusaurus/preset-classic": "3.10.2",
     "@mdx-js/react": "^3.1.1",
+    "@tailwindcss/postcss": "4.3.3",
     "clsx": "^2.1.1",
+    "docusaurus-plugin-llms": "0.4.0",
     "prism-react-renderer": "^2.4.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-icons": "^5.5.0",
+    "tailwindcss": "4.3.3"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.10.2"
