@@ -1,8 +1,10 @@
 [build]
   command = "./build.sh"
   publish = "website/build"
-  # Pull request previews come from the CI workflow (deploy-preview.yml); build only the production context here.
-  ignore = "test \"$CONTEXT\" != \"production\""
+  # The site is rebuilt only on a library release or a manual run of the "Deploy Website" workflow (.github/workflows/
+  # site.yml), both of which call the Netlify build hook. Netlify never cancels a build-hook build because of this
+  # command, so exiting 0 skips every Git-triggered build (pushes to main, previews); previews come from the CI workflow.
+  ignore = "exit 0"
 
 [build.environment]
   NODE_VERSION = "24.12.0"
