@@ -31,7 +31,5 @@ def zioBlocks(module: String) = Def.setting {
 }
 
 libraryDependencies ++= Seq(
-  zioBlocks("projection").value,
-  // The projection module only has the SQLite driver as a test dependency, and Example2CrossEntity uses SQLite.
-  "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
+  zioBlocks("projection").value
 )
