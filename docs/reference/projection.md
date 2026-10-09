@@ -200,12 +200,12 @@ val spec = Projection[RepoListEntry]("repoListEntries")
   .from("repos")
   .routedBy[RepoCreated](_.ownerId)
   .on[RepoCreated]
-  .insert((e, _) => RepoListEntry(s"${e.ownerId}/${e.repoName}", e.ownerId, e.repoName))
+  .custom((e, _) => ProjectionAction.Upsert(RepoListEntry(e.ownerId, e.ownerId, e.repoName)))
 
 // spec.scope == ProjectionScope.CrossEntity(extractor)
 ```
 
-The `routedBy` call tells the engine to extract a routing key from each event. Events with the same key go to the same shard store. The key only chooses the shard, so each row still needs its own ID, here `"owner/repo"`. If the owner were the row ID, a second repository from the same owner would clash with the first row, because `insert` fails when the ID already exists. Querying `engine.query(spec, "alice/zio-http")` looks in the primary store and then in the shards, and returns the row from whichever shard holds it.
+The `routedBy` call tells the engine to extract a routing key from each event. Events with the same key go to the same shard store, so querying `engine.query(spec, "alice")` searches Alice's shard first.
 
 **Routing modes:**
 
