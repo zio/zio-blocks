@@ -159,10 +159,8 @@ object CiWorkflow {
         SingleStep(
           name = "Deploy to Netlify (production)",
           uses = Some(ActionRef("nwtgck/actions-netlify@v4.0")),
-          condition = Some(
-            HasWebsite && (expr("github.event_name == 'push'") || expr("github.event_name == 'release'")) &&
-              expr("vars.SITE_URL != ''")
-          ),
+          condition =
+            Some(HasWebsite && (expr("github.event_name == 'push'") || expr("github.event_name == 'release'"))),
           parameters = Map(
             "publish-dir"                 -> Json.Str("./website/build"),
             "production-deploy"           -> Json.Bool(true),

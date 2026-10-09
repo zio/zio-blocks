@@ -73,7 +73,7 @@ jobs:
         retention-days: 30
     - name: Deploy to Netlify (production)
       uses: nwtgck/actions-netlify@v4.0
-      if: ${{ ((hashFiles('website/yarn.lock') != '') && ((github.event_name == 'push') || (github.event_name == 'release'))) && (vars.SITE_URL != '') }}
+      if: ${{ (hashFiles('website/yarn.lock') != '') && ((github.event_name == 'push') || (github.event_name == 'release')) }}
       with:
         production-deploy: true
         enable-commit-status: false
