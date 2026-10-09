@@ -19,7 +19,7 @@ package zio.blocks.projection
 import zio.*
 import zio.test.*
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicValue, Schema}
+import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr, DynamicValue, Schema}
 import zio.blocks.schema.migration.{DynamicMigration, Migration, MigrationAction}
 import zio.blocks.schema.json.JsonCodec
 import zio.blocks.sql.{DbCon, Transactor, SqlDialect, JdbcTransactor}
@@ -203,12 +203,38 @@ object TagResolverSpec extends ZIOSpecDefault {
         )
       )
     },
-    test("migrateValue leaves unrelated case unchanged") {
+    test("migrateValue passes through unrelated case unchanged") {
       val m        = Migration.newBuilder[AppEvent, AppEvent].renameCase("UserLoggedIn", "UserAuthenticated").build
       val info     = TagResolver.resolve[AppEvent](m)
       val dv       = DynamicValue.Variant("OrderCreated", DynamicValue.Record(Chunk("orderId" -> DynamicValue.string("o1"))))
       val migrated = info.migrateValue(dv)
       assertTrue(migrated == Right(dv))
+    },
+    test("EventStore fallback accepts already-new tag and runs shape migration") {
+      val shapeMigration = DynamicMigration(
+        MigrationAction.RenameCase(DynamicOptic.root, "UserLoggedIn", "UserAuthenticated"),
+        MigrationAction.TransformCase(
+          DynamicOptic.root.caseOf("UserAuthenticated"),
+          "UserAuthenticated",
+          Chunk(
+            MigrationAction.AddField(
+              DynamicOptic.root.field("id"),
+              DynamicSchemaExpr.Literal(Schema[String].toDynamicValue("fallback-id"), Schema[String])
+            )
+          )
+        )
+      )
+      val info = TagResolver.resolve[AppEvent](Migration.fromDynamic[AppEvent, AppEvent](shapeMigration))
+      withStoreTmp(info) { (store, tx, _) =>
+        for {
+          _   <- rawInsert(tx, "UserLoggedIn", """{"UserLoggedIn":{}}""", "e1")
+          all <- store.readAll().runCollect
+        } yield assertTrue(
+          all.size == 1,
+          all.head.tag == "UserAuthenticated",
+          all.head.event == AppEvent.UserAuthenticated("fallback-id")
+        )
+      }
     },
     test("multiple RenameCase alias map correct") {
       val m = Migration
