@@ -20,7 +20,20 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import java.nio.charset.StandardCharsets.UTF_8
 
 /**
- * Parser for YAML 1.2 input, converting YAML text into a [[Yaml]] AST.
+ * Parser for the supported YAML subset, converting YAML text into a [[Yaml]]
+ * AST.
+ *
+ * ==Support matrix==
+ *   - Supported: block mappings/sequences (nested), flow mappings/sequences
+ *     (`{...}`/`[...]`), literal/folded blocks (`|`/`>`), plain and
+ *     single/double-quoted scalars, comments, `---` document markers, explicit
+ *     `null`/`~`.
+ *   - Rejected (fail closed with a [[YamlCodecError]] carrying the 1-based line
+ *     number): anchors (`&name`) and aliases (`*name`), merge keys (`<<`), tags
+ *     (`!tag`), tab-indented lines, and duplicate mapping keys. The duplicate
+ *     policy is uniform: block mappings, flow mappings (`{...}` at any depth),
+ *     and sequence-embedded mappings (`- k: v` continuations) all reject a
+ *     repeated key. Full YAML 1.2 support is intentionally out of scope.
  */
 object YamlReader {
   def read(input: String): Yaml =
@@ -34,11 +47,11 @@ object YamlReader {
     private var lineIdx: Int         = 0
 
     def parse(): Yaml = {
+      rejectTabIndentation()
       skipBlanksAndComments()
       if (lineIdx >= lines.length) Yaml.NullValue
       else {
-        val line = lines(lineIdx).trim
-        if (line == "---") {
+        if (isDocMarker(lines(lineIdx))) {
           lineIdx += 1
           skipBlanksAndComments()
         }
@@ -47,13 +60,84 @@ object YamlReader {
       }
     }
 
-    private[this] def skipBlanksAndComments(): Unit =
-      while (
-        lineIdx < lines.length && {
-          val trimmed = lines(lineIdx).trim
-          trimmed.isEmpty || trimmed.startsWith("#")
+    private[this] def fail(message: String, line: Int): Nothing =
+      throw new YamlCodecError(Nil, s"$message (line: $line)")
+
+    /**
+     * Fails closed on tab-indented lines: tabs must never appear in leading
+     * indentation. Runs once up front so the position is always exact.
+     */
+    private[this] def rejectTabIndentation(): Unit = {
+      var idx = 0
+      while (idx < lines.length) {
+        val raw = lines(idx)
+        var j   = 0
+        while (j < raw.length && isBlankChar(raw.charAt(j))) j += 1
+        if (j > 0) {
+          var k      = 0
+          var tabbed = false
+          while (k < j && !tabbed) {
+            if (raw.charAt(k) == '\t') tabbed = true
+            k += 1
+          }
+          if (tabbed) fail("Tab characters must not be used for indentation", idx + 1)
         }
-      ) lineIdx += 1
+        idx += 1
+      }
+    }
+
+    /**
+     * Rejects mapping keys that require unsupported YAML 1.2 features: anchors,
+     * aliases, merge keys, and tags.
+     */
+    private[this] def rejectUnsupportedKey(key: String, line: Int): Unit =
+      if (key == "<<") fail("Merge keys ('<<') are not supported", line)
+      else if (key.startsWith("&")) fail("Anchors are not supported", line)
+      else if (key.startsWith("*")) fail("Aliases are not supported", line)
+      else if (key.startsWith("!")) fail("Tags are not supported", line)
+
+    /**
+     * Shared duplicate-key gate for every mapping scope: block mappings, flow
+     * mappings, and sequence-embedded mappings all funnel repeated keys here so
+     * the policy cannot drift between scopes. Keys are compared after unquoting
+     * (`"a"` and `a` collide).
+     */
+    private[this] def rejectDuplicateKey(
+      seen: scala.collection.mutable.HashSet[String],
+      key: String,
+      line: Int
+    ): Unit =
+      if (!seen.add(key)) fail(s"Duplicate mapping key: '$key'", line)
+
+    /**
+     * Half-open `[start, end)` range of non-blank content within a raw line.
+     */
+    private[this] def contentRange(raw: String): (Int, Int) = {
+      var start = 0
+      while (start < raw.length && isBlankChar(raw.charAt(start))) start += 1
+      var end = raw.length
+      while (end > start && isBlankChar(raw.charAt(end - 1))) end -= 1
+      (start, end)
+    }
+
+    // Blank-boundary predicate matching String.trim (chars <= ' ') so index-range
+    // slicing reproduces trim() content exactly without allocating.
+    private[this] def isBlankChar(c: Char): Boolean = c <= ' '
+
+    /** Content-range check for a `---` document marker without allocating. */
+    private[this] def isDocMarker(raw: String): Boolean = {
+      val (start, end) = contentRange(raw)
+      end - start == 3 && raw.charAt(start) == '-' && raw.charAt(start + 1) == '-' && raw.charAt(start + 2) == '-'
+    }
+
+    private[this] def isBlankOrComment(raw: String): Boolean = {
+      var idx = 0
+      while (idx < raw.length && isBlankChar(raw.charAt(idx))) idx += 1
+      idx >= raw.length || raw.charAt(idx) == '#'
+    }
+
+    private[this] def skipBlanksAndComments(): Unit =
+      while (lineIdx < lines.length && isBlankOrComment(lines(lineIdx))) lineIdx += 1
 
     private[this] def currentIndent: Int =
       if (lineIdx >= lines.length) 0
@@ -69,30 +153,37 @@ object YamlReader {
       skipBlanksAndComments()
       if (lineIdx >= lines.length) Yaml.NullValue
       else {
-        val line = lines(lineIdx).trim
-        if (line.startsWith("{")) parseFlowMapping()
-        else if (line.startsWith("[")) parseFlowSequence()
-        else if (line.startsWith("- ") || line == "-") parseBlockSequence(currentIndent)
-        else if (line.startsWith("|") || line.startsWith(">")) parseLiteralBlock(indent)
+        val raw          = lines(lineIdx)
+        val (start, end) = contentRange(raw)
+        if (start >= end) Yaml.NullValue
         else {
-          val colonIdx = findMappingColon(line)
-          if (colonIdx > 0) parseBlockMapping(currentIndent)
-          else parseScalar(indent)
+          val first = raw.charAt(start)
+          if (first == '{') parseFlowMapping()
+          else if (first == '[') parseFlowSequence()
+          else if (first == '-' && (end - start == 1 || raw.charAt(start + 1) == ' ')) parseBlockSequence(currentIndent)
+          else if (first == '|' || first == '>') parseLiteralBlock(indent)
+          else {
+            val colonIdx = findMappingColon(raw, start, end)
+            if (colonIdx > start) parseBlockMapping(currentIndent)
+            else parseScalar(indent)
+          }
         }
       }
     }
 
-    private[this] def findMappingColon(line: String): Int = {
-      val len      = line.length
-      var idx      = 0
+    private[this] def findMappingColon(line: String): Int =
+      findMappingColon(line, 0, line.length)
+
+    private[this] def findMappingColon(line: String, from: Int, until: Int): Int = {
+      var idx      = from
       var inSingle = false
       var inDouble = false
-      while (idx < len) {
+      while (idx < until) {
         val c = line.charAt(idx)
         if (c == '\'' && !inDouble) inSingle = !inSingle
         else if (c == '"' && !inSingle) inDouble = !inDouble
         else if (!inSingle && !inDouble) {
-          if (c == ':' && (idx + 1 >= len || line.charAt(idx + 1) == ' ')) return idx
+          if (c == ':' && (idx + 1 >= until || line.charAt(idx + 1) == ' ')) return idx
           if (c == '#') return -1
         }
         idx += 1
@@ -102,30 +193,45 @@ object YamlReader {
 
     private[this] def parseBlockMapping(indent: Int): Yaml = {
       val entries = ChunkBuilder.make[(Yaml, Yaml)]()
+      val seen    = scala.collection.mutable.HashSet.empty[String]
       while (lineIdx < lines.length) {
         skipBlanksAndComments()
         if (lineIdx >= lines.length || currentIndent < indent || currentIndent != indent) {
           return new Yaml.Mapping(entries.result())
         }
-        val line     = lines(lineIdx).trim
-        val colonIdx = findMappingColon(line)
-        if (colonIdx <= 0) return new Yaml.Mapping(entries.result())
-        val keyStr     = line.substring(0, colonIdx).trim
-        val key        = new Yaml.Scalar(unquoteScalar(keyStr))
-        val afterColon = line.substring(colonIdx + 1).trim
+        // Slice the key/value out of the raw line by index ranges and trim only
+        // on extraction: no whole-line trimmed copy is allocated.
+        val raw          = lines(lineIdx)
+        val (start, end) = contentRange(raw)
+        val colonIdx     = if (start >= end) -1 else findMappingColon(raw, start, end)
+        if (colonIdx <= start) return new Yaml.Mapping(entries.result())
+        var keyEnd = colonIdx
+        while (keyEnd > start && isBlankChar(raw.charAt(keyEnd - 1))) keyEnd -= 1
+        var valueStart = colonIdx + 1
+        while (valueStart < end && isBlankChar(raw.charAt(valueStart))) valueStart += 1
+        var valueEnd = end
+        while (valueEnd > valueStart && isBlankChar(raw.charAt(valueEnd - 1))) valueEnd -= 1
+        val keyStr = raw.substring(start, keyEnd)
+        rejectUnsupportedKey(keyStr, lineIdx + 1)
+        val key = new Yaml.Scalar(unquoteScalar(keyStr))
+        rejectDuplicateKey(seen, key.value, lineIdx + 1)
+        val hasValue = valueStart < valueEnd
         lineIdx += 1
         entries.addOne(
           (
             key, {
-              if (afterColon.isEmpty) {
+              if (!hasValue) {
                 skipBlanksAndComments()
                 if (lineIdx < lines.length && currentIndent > indent) parseValue(currentIndent)
                 else Yaml.NullValue
-              } else if (
-                afterColon == "|" || afterColon == ">" || afterColon.startsWith("|") || afterColon.startsWith(">")
-              ) {
-                parseLiteralBlockContent(indent, afterColon.charAt(0) == '|')
-              } else parseInlineValue(afterColon)
+              } else {
+                val afterColon = raw.substring(valueStart, valueEnd)
+                if (
+                  afterColon == "|" || afterColon == ">" || afterColon.startsWith("|") || afterColon.startsWith(">")
+                ) {
+                  parseLiteralBlockContent(indent, afterColon.charAt(0) == '|')
+                } else parseInlineValue(afterColon)
+              }
             }
           )
         )
@@ -157,7 +263,8 @@ object YamlReader {
           val colonIdx          = findMappingColon(afterDash)
           if (colonIdx > 0) {
             lineIdx += 1
-            val keyStr     = afterDash.substring(0, colonIdx).trim
+            val keyStr = afterDash.substring(0, colonIdx).trim
+            rejectUnsupportedKey(keyStr, lineIdx)
             val key        = new Yaml.Scalar(unquoteScalar(keyStr))
             val afterColon = afterDash.substring(colonIdx + 1).trim
             val firstValue =
@@ -167,6 +274,8 @@ object YamlReader {
                 else Yaml.NullValue
               } else parseInlineValue(afterColon)
             val mapEntries = ChunkBuilder.make[(Yaml, Yaml)]()
+            val seen       = scala.collection.mutable.HashSet.empty[String]
+            rejectDuplicateKey(seen, key.value, lineIdx)
             mapEntries.addOne((key, firstValue))
             while (lineIdx < lines.length) {
               skipBlanksAndComments()
@@ -185,9 +294,11 @@ object YamlReader {
                 elements.addOne(new Yaml.Mapping(mapEntries.result()))
                 return parseBlockSequenceContinue(indent, elements)
               }
-              val innerKeyStr     = innerLine.substring(0, innerColonIdx).trim
+              val innerKeyStr = innerLine.substring(0, innerColonIdx).trim
+              rejectUnsupportedKey(innerKeyStr, lineIdx + 1)
               val innerKey        = new Yaml.Scalar(unquoteScalar(innerKeyStr))
               val innerAfterColon = innerLine.substring(innerColonIdx + 1).trim
+              rejectDuplicateKey(seen, innerKey.value, lineIdx + 1)
               lineIdx += 1
               mapEntries.addOne(
                 (
@@ -233,14 +344,17 @@ object YamlReader {
           elements.addOne(if (colonIdx > 0) {
             val dashContentIndent = indent + 2
             val keyStr            = afterDash.substring(0, colonIdx).trim
-            val key               = new Yaml.Scalar(unquoteScalar(keyStr))
-            val afterColon        = afterDash.substring(colonIdx + 1).trim
-            val firstValue        = if (afterColon.isEmpty) {
+            rejectUnsupportedKey(keyStr, lineIdx)
+            val key        = new Yaml.Scalar(unquoteScalar(keyStr))
+            val afterColon = afterDash.substring(colonIdx + 1).trim
+            val firstValue = if (afterColon.isEmpty) {
               skipBlanksAndComments()
               if (lineIdx < lines.length && currentIndent > indent) parseValue(currentIndent)
               else Yaml.NullValue
             } else parseInlineValue(afterColon)
             val mapEntries = ChunkBuilder.make[(Yaml, Yaml)]()
+            val seen       = scala.collection.mutable.HashSet.empty[String]
+            rejectDuplicateKey(seen, key.value, lineIdx)
             mapEntries.addOne((key, firstValue))
             while (lineIdx < lines.length) {
               skipBlanksAndComments()
@@ -254,9 +368,11 @@ object YamlReader {
                 elements.addOne(new Yaml.Mapping(mapEntries.result()))
                 return parseBlockSequenceContinue(indent, elements)
               }
-              val innerKeyStr     = innerLine.substring(0, innerColonIdx).trim
+              val innerKeyStr = innerLine.substring(0, innerColonIdx).trim
+              rejectUnsupportedKey(innerKeyStr, lineIdx + 1)
               val innerKey        = new Yaml.Scalar(unquoteScalar(innerKeyStr))
               val innerAfterColon = innerLine.substring(innerColonIdx + 1).trim
+              rejectDuplicateKey(seen, innerKey.value, lineIdx + 1)
               lineIdx += 1
               mapEntries.addOne(
                 (
@@ -334,6 +450,7 @@ object YamlReader {
           if (inner.isEmpty) Yaml.Mapping.empty
           else {
             val entries = ChunkBuilder.make[(Yaml, Yaml)]()
+            val seen    = scala.collection.mutable.HashSet.empty[String]
             val parts   = splitFlowItems(inner)
             var idx     = 0
             while (idx < parts.length) {
@@ -341,6 +458,8 @@ object YamlReader {
               val colonIdx = part.indexOf(':')
               if (colonIdx > 0) {
                 val k = unquoteScalar(part.substring(0, colonIdx).trim)
+                rejectUnsupportedKey(k, lineIdx)
+                rejectDuplicateKey(seen, k, lineIdx)
                 val v = part.substring(colonIdx + 1).trim
                 entries.addOne((new Yaml.Scalar(k), parseInlineValue(v)))
               }
@@ -445,6 +564,9 @@ object YamlReader {
     private[this] def parseInlineValue(s: String): Yaml = {
       val trimmed = stripComment(s).trim
       if (trimmed.isEmpty || trimmed == "null" || trimmed == "~") Yaml.NullValue
+      else if (trimmed.startsWith("&")) fail("Anchors are not supported", lineIdx)
+      else if (trimmed.startsWith("*")) fail("Aliases are not supported", lineIdx)
+      else if (trimmed.startsWith("!")) fail("Tags are not supported", lineIdx)
       else if (trimmed.startsWith("'")) new Yaml.Scalar(unquoteSingle(trimmed))
       else if (trimmed.startsWith("\"")) new Yaml.Scalar(unquoteDouble(trimmed))
       else if (trimmed.startsWith("{")) parseFlowMappingInline(trimmed)
@@ -460,6 +582,7 @@ object YamlReader {
         if (inner.isEmpty) Yaml.Mapping.empty
         else {
           val entries = ChunkBuilder.make[(Yaml, Yaml)]()
+          val seen    = scala.collection.mutable.HashSet.empty[String]
           val parts   = splitFlowItems(inner)
           var idx     = 0
           while (idx < parts.length) {
@@ -467,6 +590,8 @@ object YamlReader {
             val colonIdx = part.indexOf(':')
             if (colonIdx > 0) {
               val k = unquoteScalar(part.substring(0, colonIdx).trim)
+              rejectUnsupportedKey(k, lineIdx)
+              rejectDuplicateKey(seen, k, lineIdx)
               val v = part.substring(colonIdx + 1).trim
               entries.addOne((Yaml.Scalar(k), parseInlineValue(v)))
             }
