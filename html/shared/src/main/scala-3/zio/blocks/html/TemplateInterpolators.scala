@@ -46,89 +46,115 @@ trait TemplateInterpolators {
 
 private[html] object TemplateMacros {
 
-  def cssImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Css] = {
-    import quotes.reflect._
-
-    val argExprs: Seq[Expr[Any]] = args match {
+  private def templateArgs(args: Expr[Seq[Any]])(using Quotes): Seq[Expr[Any]] =
+    args match {
       case Varargs(exprs) => exprs.toSeq
       case _              => Seq.empty
     }
 
-    if (argExprs.isEmpty) {
-      sc match {
-        case '{ StringContext(${ Varargs(Exprs(partLiterals)) }*) } =>
-          val constant = partLiterals.mkString
-          return '{ Css.Raw(${ Expr(constant) }) }
-        case _ => // fall through to runtime
-      }
+  private def templateParts(sc: Expr[StringContext])(using Quotes): Option[Seq[String]] =
+    sc match {
+      case '{ StringContext(${ Varargs(Exprs(partLiterals)) }*) } => Some(partLiterals.toSeq)
+      case _                                                      => None
     }
 
-    val processedArgs: Seq[Expr[String]] = argExprs.map { argExpr =>
-      val argType   = argExpr.asTerm.tpe.widen
-      val toCssTc   = TypeRepr.of[ToCss]
-      val toCssType = toCssTc.appliedTo(argType)
-      Implicits.search(toCssType) match {
-        case success: ImplicitSearchSuccess =>
-          argType.asType match {
-            case '[t] =>
-              val instanceExpr = success.tree.asExprOf[ToCss[t]]
-              val typedArgExpr = argExpr.asExprOf[t]
-              '{ $instanceExpr.toCss($typedArgExpr) }
-          }
-        case _: ImplicitSearchFailure =>
-          report.errorAndAbort(s"No ToCss instance found for type ${argType.show}")
-      }
+  /**
+   * Shared implicit search for the string-producing template typeclasses. The
+   * css/js/selector interpolators differ only in the typeclass searched and the
+   * conversion method applied, so all three route through here.
+   */
+  private def summonStringArg(using
+    Quotes
+  )(
+    argExpr: Expr[Any],
+    tc: quotes.reflect.TypeRepr,
+    method: String,
+    tcName: String
+  ): Expr[String] = {
+    import quotes.reflect._
+    val argType = argExpr.asTerm.tpe.widen
+    Implicits.search(tc.appliedTo(argType)) match {
+      case success: ImplicitSearchSuccess =>
+        Apply(Select.unique(success.tree, method), List(argExpr.asTerm)).asExprOf[String]
+      case _: ImplicitSearchFailure =>
+        report.errorAndAbort(s"No $tcName instance found for type ${argType.show}")
     }
+  }
 
-    val processedArgsExpr: Expr[Seq[String]] = Expr.ofSeq(processedArgs)
-    '{ InterpolatorRuntime.buildCss($sc, $processedArgsExpr) }
+  /**
+   * Shared implicit search returning the raw instance tree, for call sites that
+   * wrap the conversion themselves (the html attr/content branches).
+   */
+  private def summonInstance(using
+    Quotes
+  )(
+    argType: quotes.reflect.TypeRepr,
+    tc: quotes.reflect.TypeRepr,
+    tcName: String
+  ): quotes.reflect.Term = {
+    import quotes.reflect._
+    Implicits.search(tc.appliedTo(argType)) match {
+      case success: ImplicitSearchSuccess => success.tree
+      case _: ImplicitSearchFailure       =>
+        report.errorAndAbort(s"No $tcName instance found for type ${argType.show}")
+    }
+  }
+
+  /**
+   * One generic implementation for the css/js/selector interpolators:
+   * constant-folds empty-arg templates, otherwise converts each argument
+   * through the given typeclass and delegates to the given runtime builder.
+   */
+  private def stringTemplate[R: Type](using
+    Quotes
+  )(
+    sc: Expr[StringContext],
+    args: Expr[Seq[Any]],
+    tc: quotes.reflect.TypeRepr,
+    method: String,
+    tcName: String,
+    const: String => Expr[R],
+    build: (Expr[StringContext], Expr[Seq[String]]) => Expr[R]
+  ): Expr[R] = {
+    val argExprs = templateArgs(args)
+    if (argExprs.isEmpty)
+      templateParts(sc) match {
+        case Some(parts) => return const(parts.mkString)
+        case None        => // fall through to runtime
+      }
+    build(sc, Expr.ofSeq(argExprs.map(a => summonStringArg(a, tc, method, tcName))))
+  }
+
+  def cssImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Css] = {
+    import quotes.reflect._
+    stringTemplate[Css](
+      sc,
+      args,
+      TypeRepr.of[ToCss],
+      "toCss",
+      "ToCss",
+      constant => '{ Css.Raw(${ Expr(constant) }) },
+      (scExpr, argExprs) => '{ InterpolatorRuntime.buildCss($scExpr, $argExprs) }
+    )
   }
 
   def jsImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Js] = {
     import quotes.reflect._
-
-    val argExprs: Seq[Expr[Any]] = args match {
-      case Varargs(exprs) => exprs.toSeq
-      case _              => Seq.empty
-    }
-
-    if (argExprs.isEmpty) {
-      sc match {
-        case '{ StringContext(${ Varargs(Exprs(partLiterals)) }*) } =>
-          val constant = partLiterals.mkString
-          return '{ Js(${ Expr(constant) }) }
-        case _ => // fall through to runtime
-      }
-    }
-
-    val processedArgs: Seq[Expr[String]] = argExprs.map { argExpr =>
-      val argType  = argExpr.asTerm.tpe.widen
-      val toJsTc   = TypeRepr.of[ToJs]
-      val toJsType = toJsTc.appliedTo(argType)
-      Implicits.search(toJsType) match {
-        case success: ImplicitSearchSuccess =>
-          argType.asType match {
-            case '[t] =>
-              val instanceExpr = success.tree.asExprOf[ToJs[t]]
-              val typedArgExpr = argExpr.asExprOf[t]
-              '{ $instanceExpr.toJs($typedArgExpr) }
-          }
-        case _: ImplicitSearchFailure =>
-          report.errorAndAbort(s"No ToJs instance found for type ${argType.show}")
-      }
-    }
-
-    val processedArgsExpr: Expr[Seq[String]] = Expr.ofSeq(processedArgs)
-    '{ InterpolatorRuntime.buildJs($sc, $processedArgsExpr) }
+    stringTemplate[Js](
+      sc,
+      args,
+      TypeRepr.of[ToJs],
+      "toJs",
+      "ToJs",
+      constant => '{ Js(${ Expr(constant) }) },
+      (scExpr, argExprs) => '{ InterpolatorRuntime.buildJs($scExpr, $argExprs) }
+    )
   }
 
   def htmlImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Dom] = {
     import quotes.reflect._
 
-    val argExprs: Seq[Expr[Any]] = args match {
-      case Varargs(exprs) => exprs.toSeq
-      case _              => Seq.empty
-    }
+    val argExprs: Seq[Expr[Any]] = templateArgs(args)
 
     if (argExprs.isEmpty)
       sc match {
@@ -137,10 +163,7 @@ private[html] object TemplateMacros {
         case _ => ()
       }
 
-    val parts: Seq[String] = sc match {
-      case '{ StringContext(${ Varargs(Exprs(partLiterals)) }*) } => partLiterals.toSeq
-      case _                                                      => Seq.empty
-    }
+    val parts: Seq[String] = templateParts(sc).getOrElse(Seq.empty)
 
     val contexts = determineContexts(parts)
 
@@ -150,31 +173,21 @@ private[html] object TemplateMacros {
 
       context match {
         case HtmlContext.AttrValue =>
-          val tc = TypeRepr.of[ToAttrValue].appliedTo(argType)
-          Implicits.search(tc) match {
-            case success: ImplicitSearchSuccess =>
-              argType.asType match {
-                case '[t] =>
-                  val inst = success.tree.asExprOf[ToAttrValue[t]]
-                  val arg  = argExpr.asExprOf[t]
-                  '{ Left($inst.toAttrValue($arg)) }
-              }
-            case _: ImplicitSearchFailure =>
-              report.errorAndAbort(s"No ToAttrValue instance found for type ${argType.show}")
+          val inst = summonInstance(argType, TypeRepr.of[ToAttrValue], "ToAttrValue")
+          argType.asType match {
+            case '[t] =>
+              val instExpr = inst.asExprOf[ToAttrValue[t]]
+              val arg      = argExpr.asExprOf[t]
+              '{ Left($instExpr.toAttrValue($arg)) }
           }
 
         case HtmlContext.Content =>
-          val tc = TypeRepr.of[ToElements].appliedTo(argType)
-          Implicits.search(tc) match {
-            case success: ImplicitSearchSuccess =>
-              argType.asType match {
-                case '[t] =>
-                  val inst = success.tree.asExprOf[ToElements[t]]
-                  val arg  = argExpr.asExprOf[t]
-                  '{ Right($inst.toElements($arg)) }
-              }
-            case _: ImplicitSearchFailure =>
-              report.errorAndAbort(s"No ToElements instance found for type ${argType.show}")
+          val inst = summonInstance(argType, TypeRepr.of[ToElements], "ToElements")
+          argType.asType match {
+            case '[t] =>
+              val instExpr = inst.asExprOf[ToElements[t]]
+              val arg      = argExpr.asExprOf[t]
+              '{ Right($instExpr.toElements($arg)) }
           }
       }
     }
@@ -196,40 +209,15 @@ private[html] object TemplateMacros {
 
   def selectorImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[CssSelector] = {
     import quotes.reflect._
-
-    val argExprs: Seq[Expr[Any]] = args match {
-      case Varargs(exprs) => exprs.toSeq
-      case _              => Seq.empty
-    }
-
-    if (argExprs.isEmpty) {
-      sc match {
-        case '{ StringContext(${ Varargs(Exprs(partLiterals)) }*) } =>
-          val constant = partLiterals.mkString
-          return '{ CssSelector.Raw(${ Expr(constant) }) }
-        case _ => // fall through to runtime
-      }
-    }
-
-    val processedArgs: Seq[Expr[String]] = argExprs.map { argExpr =>
-      val argType   = argExpr.asTerm.tpe.widen
-      val toCssTc   = TypeRepr.of[ToCss]
-      val toCssType = toCssTc.appliedTo(argType)
-      Implicits.search(toCssType) match {
-        case success: ImplicitSearchSuccess =>
-          argType.asType match {
-            case '[t] =>
-              val instanceExpr = success.tree.asExprOf[ToCss[t]]
-              val typedArgExpr = argExpr.asExprOf[t]
-              '{ $instanceExpr.toCss($typedArgExpr) }
-          }
-        case _: ImplicitSearchFailure =>
-          report.errorAndAbort(s"No ToCss instance found for type ${argType.show}")
-      }
-    }
-
-    val processedArgsExpr: Expr[Seq[String]] = Expr.ofSeq(processedArgs)
-    '{ InterpolatorRuntime.buildSelector($sc, $processedArgsExpr) }
+    stringTemplate[CssSelector](
+      sc,
+      args,
+      TypeRepr.of[ToCss],
+      "toCss",
+      "ToCss",
+      constant => '{ CssSelector.Raw(${ Expr(constant) }) },
+      (scExpr, argExprs) => '{ InterpolatorRuntime.buildSelector($scExpr, $argExprs) }
+    )
   }
 
   private sealed trait HtmlContext

@@ -203,6 +203,28 @@ object DomSpec extends ZIOSpecDefault {
       },
       test("input self-closes") {
         assertTrue(Dom.Element.Generic("input", Chunk.empty, Chunk.empty).render == "<input/>")
+      },
+      test("Generic rejects children on void tags") {
+        assertTrue(
+          isVoidGuardRejection(Dom.Element.Generic("br", Chunk.empty, Chunk(Dom.Text("x"))), "Void element <br>"),
+          isVoidGuardRejection(Dom.Element.Generic("img", Chunk.empty, Chunk(Dom.Text("x"))), "Void element <img>")
+        )
+      },
+      test("Generic allows empty children on void tags") {
+        assertTrue(Dom.Element.Generic("br", Chunk.empty, Chunk.empty).render == "<br/>")
+      },
+      test("withChildren rejects children on void tags") {
+        val el = Dom.Element.Generic("br", Chunk.empty, Chunk.empty)
+        assertTrue(isVoidGuardRejection(el.withChildren(Chunk(Dom.Text("x"))), "Void element <br>"))
+      },
+      test("Generic rejects children on uppercase void tags") {
+        assertTrue(
+          isVoidGuardRejection(Dom.Element.Generic("BR", Chunk.empty, Chunk(Dom.Text("x"))), "Void element <BR>"),
+          isVoidGuardRejection(Dom.Element.Generic("IMG", Chunk.empty, Chunk(Dom.Text("x"))), "Void element <IMG>")
+        )
+      },
+      test("uppercase void tag self-closes") {
+        assertTrue(Dom.Element.Generic("BR", Chunk.empty, Chunk.empty).render == "<BR/>")
       }
     ),
     suite("renderMinified")(
@@ -461,6 +483,94 @@ object DomSpec extends ZIOSpecDefault {
           !Dom.Text("hi").isEmpty,
           !Dom.Element.Generic("div", Chunk.empty, Chunk.empty).isEmpty
         )
+      },
+      test("find returns first match in depth-first order") {
+        val tree = Dom.Element.Generic(
+          "div",
+          Chunk.empty,
+          Chunk(
+            Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("first"))),
+            Dom.Element.Generic(
+              "section",
+              Chunk.empty,
+              Chunk(Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("nested"))))
+            )
+          )
+        )
+        val found = tree.find {
+          case el: Dom.Element => el.tag == "p"
+          case _               => false
+        }
+        assertTrue(found.map(_.render) == Some("<p>first</p>"))
+      },
+      test("filter visits each node exactly once") {
+        val visits = scala.collection.mutable.Map.empty[String, Int]
+        val tree   = Dom.Element.Generic(
+          "div",
+          Chunk.empty,
+          Chunk(
+            Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("a"))),
+            Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("b")))
+          )
+        )
+        val filtered = tree.filter { node =>
+          val key = node match {
+            case el: Dom.Element => "element-" + el.tag
+            case Dom.Text(c)     => "text-" + c
+            case Dom.Empty       => "empty"
+            case other           => "other-" + other.getClass.getSimpleName
+          }
+          visits.update(key, visits.getOrElse(key, 0) + 1)
+          true
+        }
+        val expected = Dom.Element.Generic(
+          "div",
+          Chunk.empty,
+          Chunk(
+            Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("a"))),
+            Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("b")))
+          )
+        )
+        assertTrue(
+          filtered.render == "<div><p>a</p><span>b</span></div>",
+          filtered == expected,
+          visits.toMap == Map(
+            "element-div"  -> 1,
+            "element-p"    -> 1,
+            "text-a"       -> 1,
+            "element-span" -> 1,
+            "text-b"       -> 1
+          )
+        )
+      },
+      test("identity transform preserves the tree") {
+        val tree = Dom.Element.Generic(
+          "div",
+          Chunk.empty,
+          Chunk(Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("x"))))
+        )
+        assertTrue(tree.transform(identity) == tree)
+      }
+    ),
+    suite("resolved attribute caching")(
+      test("repeated renders with appends are identical") {
+        val a1     = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("a"), Dom.AttributeSeparator.Space)
+        val a2     = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("b"), Dom.AttributeSeparator.Space)
+        val el     = Dom.Element.Generic("div", Chunk(a1, a2), Chunk(Dom.Text("x")))
+        val first  = el.render
+        val second = el.render
+        assertTrue(first == """<div class="a b">x</div>""", second == first)
+      },
+      test("repeated renders with duplicate names are identical") {
+        val a1 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("one"))
+        val a2 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("two"))
+        val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
+        assertTrue(el.render == """<div id="two"></div>""", el.renderMinified == """<div id="two"></div>""")
+      },
+      test("cached resolution matches indented rendering") {
+        val a1 = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("a"), Dom.AttributeSeparator.Space)
+        val el = Dom.Element.Generic("div", Chunk(a1), Chunk(Dom.Text("x")))
+        assertTrue(el.render(2) == """<div class="a">x</div>""", el.render == """<div class="a">x</div>""")
       }
     ),
     suite("Dom.text and Dom.empty factories")(
@@ -1005,6 +1115,194 @@ object DomSpec extends ZIOSpecDefault {
         val el   = Dom.Element.Generic("button", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<button formaction="unsafe:javascript:void(0)"></button>""")
       },
+      test("uppercase HREF attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("HREF", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a HREF="unsafe:javascript:alert(1)">click</a>""")
+      },
+      test("uppercase SRC attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("SRC", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("iframe", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<iframe SRC="unsafe:javascript:alert(1)"></iframe>""")
+      },
+      test("uppercase ACTION attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("ACTION", Dom.AttributeValue.StringValue("javascript:void(0)"))
+        val el   = Dom.Element.Generic("form", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<form ACTION="unsafe:javascript:void(0)"></form>""")
+      },
+      test("mixed-case HX-GET attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("Hx-Get", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<div Hx-Get="unsafe:javascript:alert(1)"></div>""")
+      },
+      test("safe URL keeps same output under uppercase HREF") {
+        val attr = Dom.Attribute.KeyValue("HREF", Dom.AttributeValue.StringValue("https://example.com"))
+        val el   = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a HREF="https://example.com">click</a>""")
+      },
+      test("multi-value uppercase HREF is blocked") {
+        val attr = Dom.Attribute.KeyValue(
+          "HREF",
+          Dom.AttributeValue.MultiValue(Chunk("javascript:alert(1)"), Dom.AttributeSeparator.Space)
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a HREF="unsafe:javascript:alert(1)">x</a>""")
+      },
+      test("append-resolved uppercase HREF is blocked") {
+        val attrs = Chunk(
+          Dom.Attribute.KeyValue("HREF", Dom.AttributeValue.StringValue("java")),
+          Dom.Attribute
+            .AppendValue("HREF", Dom.AttributeValue.StringValue("script:alert(1)"), Dom.AttributeSeparator.Custom(""))
+        )
+        val el = Dom.Element.Generic("a", attrs, Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a HREF="unsafe:javascript:alert(1)">x</a>""")
+      },
+      test("object data attribute blocks data:text/html URI") {
+        val attr =
+          Dom.Attribute.KeyValue("data", Dom.AttributeValue.StringValue("data:text/html,<script>alert(1)</script>"))
+        val el = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(
+          el.render == """<object data="unsafe:data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;"></object>"""
+        )
+      },
+      test("object data attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("data", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<object data="unsafe:javascript:alert(1)"></object>""")
+      },
+      test("object data attribute allows safe data:image/png URI") {
+        val attr = Dom.Attribute.KeyValue("data", Dom.AttributeValue.StringValue("data:image/png;base64,abc"))
+        val el   = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<object data="data:image/png;base64,abc"></object>""")
+      },
+      test("multi-value object data is blocked") {
+        val attr = Dom.Attribute.KeyValue(
+          "data",
+          Dom.AttributeValue.MultiValue(Chunk("data:text/html,x"), Dom.AttributeSeparator.Space)
+        )
+        val el = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<object data="unsafe:data:text/html,x"></object>""")
+      },
+      test("uppercase DATA attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("DATA", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<object DATA="unsafe:javascript:alert(1)"></object>""")
+      },
+      test("data-* attributes are not URL-checked") {
+        val attr = Dom.Attribute.KeyValue("data-foo", Dom.AttributeValue.StringValue("javascript:alert(1)"))
+        val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<div data-foo="javascript:alert(1)"></div>""")
+      },
+      test("multi-value safe href renders unchanged") {
+        val attr = Dom.Attribute.KeyValue(
+          "href",
+          Dom.AttributeValue
+            .MultiValue(Chunk("https://example.com/a", "https://example.com/b"), Dom.AttributeSeparator.Space)
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a href="https://example.com/a https://example.com/b">x</a>""")
+      },
+      test("multi-value javascript: href is blocked") {
+        val attr = Dom.Attribute.KeyValue(
+          "href",
+          Dom.AttributeValue.MultiValue(Chunk("javascript:alert(1)"), Dom.AttributeSeparator.Space)
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a href="unsafe:javascript:alert(1)">x</a>""")
+      },
+      test("multi-value split scheme is blocked") {
+        val attr = Dom.Attribute.KeyValue(
+          "href",
+          Dom.AttributeValue.MultiValue(Chunk("java", "script:alert(1)"), Dom.AttributeSeparator.Custom(""))
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a href="unsafe:javascript:alert(1)">x</a>""")
+      },
+      test("multi-value entity-encoded href is blocked") {
+        val attr = Dom.Attribute.KeyValue(
+          "href",
+          Dom.AttributeValue.MultiValue(Chunk("&#106;avascript:alert(1)"), Dom.AttributeSeparator.Space)
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a href="unsafe:&amp;#106;avascript:alert(1)">x</a>""")
+      },
+      test("entity-decoded leading whitespace href renders blocked") {
+        val attr = Dom.Attribute.KeyValue("href", Dom.AttributeValue.StringValue("&#32;javascript:alert(1)"))
+        val el   = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a href="unsafe:&amp;#32;javascript:alert(1)">click</a>""")
+      },
+      test("hex entity and colon entity href renders blocked") {
+        val attr =
+          Dom.Attribute.KeyValue("href", Dom.AttributeValue.StringValue("&#x6A;avascript&colon;alert(1)"))
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("click")))
+        assertTrue(el.render == """<a href="unsafe:&amp;#x6A;avascript&amp;colon;alert(1)">click</a>""")
+      },
+      test("object data attribute blocks data:image/svg+xml carrying script") {
+        val attr = Dom.Attribute.KeyValue(
+          "data",
+          Dom.AttributeValue.StringValue("data:image/svg+xml,<svg><script>alert(1)</script></svg>")
+        )
+        val el = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(
+          el.render == """<object data="unsafe:data:image/svg+xml,&lt;svg&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;/svg&gt;"></object>"""
+        )
+      },
+      test("object data attribute blocks data:application/xhtml+xml") {
+        val attr = Dom.Attribute.KeyValue(
+          "data",
+          Dom.AttributeValue.StringValue("data:application/xhtml+xml,<p>hi</p>")
+        )
+        val el = Dom.Element.Generic("object", Chunk(attr), Chunk.empty)
+        assertTrue(
+          el.render == """<object data="unsafe:data:application/xhtml+xml,&lt;p&gt;hi&lt;/p&gt;"></object>"""
+        )
+      },
+      test("multi-value entity split across values is blocked at the sink") {
+        val attr = Dom.Attribute.KeyValue(
+          "href",
+          Dom.AttributeValue.MultiValue(
+            Chunk("&#106", ";avascript:alert(1)"),
+            Dom.AttributeSeparator.Custom("")
+          )
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == """<a href="unsafe:&amp;#106;avascript:alert(1)">x</a>""")
+      },
+      test("repeated multi-value safe URL renders are stable") {
+        val mv = Dom.AttributeValue.MultiValue(
+          Chunk("https://example.com/a", "https://example.com/b"),
+          Dom.AttributeSeparator.Space
+        )
+        val el     = Dom.Element.Generic("a", Chunk(Dom.Attribute.KeyValue("href", mv)), Chunk(Dom.Text("x")))
+        val first  = el.render
+        val second = el.render
+        val third  = el.render
+        assertTrue(first == second) &&
+        assertTrue(second == third) &&
+        assertTrue(first == """<a href="https://example.com/a https://example.com/b">x</a>""")
+      },
+      test("repeated multi-value dangerous URL renders stay blocked") {
+        val mv     = Dom.AttributeValue.MultiValue(Chunk("javascript:alert(1)"), Dom.AttributeSeparator.Space)
+        val el     = Dom.Element.Generic("a", Chunk(Dom.Attribute.KeyValue("href", mv)), Chunk(Dom.Text("x")))
+        val first  = el.render
+        val second = el.render
+        assertTrue(first == second) &&
+        assertTrue(first == """<a href="unsafe:javascript:alert(1)">x</a>""")
+      },
+      test("non-URL multi-value renders joined values") {
+        val mv = Dom.AttributeValue.MultiValue(Chunk("a", "b"), Dom.AttributeSeparator.Space)
+        val el = Dom.Element.Generic("div", Chunk(Dom.Attribute.KeyValue("class", mv)), Chunk.empty)
+        assertTrue(el.render == """<div class="a b"></div>""") &&
+        assertTrue(el.render == """<div class="a b"></div>""")
+      },
+      test("multi-value empty URL attribute omits attribute entirely") {
+        val attr = Dom.Attribute.KeyValue(
+          "href",
+          Dom.AttributeValue.MultiValue(Chunk.empty, Dom.AttributeSeparator.Space)
+        )
+        val el = Dom.Element.Generic("a", Chunk(attr), Chunk(Dom.Text("x")))
+        assertTrue(el.render == "<a>x</a>")
+      },
       test("style child escapes closing style tag in render") {
         val s = Dom.Element.Style(Chunk.empty, Chunk(Dom.Text("</style>")))
         assertTrue(s.render == """<style><\/style></style>""")
@@ -1112,4 +1410,14 @@ object DomSpec extends ZIOSpecDefault {
       }
     )
   )
+
+  private def isVoidGuardRejection(thunk: => Any, expectedMessageSnippet: String): Boolean =
+    try {
+      thunk
+      false
+    } catch {
+      case e: IllegalArgumentException =>
+        e.getMessage != null && e.getMessage.contains(expectedMessageSnippet)
+      case _: Throwable => false
+    }
 }

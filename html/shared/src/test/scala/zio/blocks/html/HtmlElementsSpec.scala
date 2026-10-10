@@ -259,6 +259,46 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(el.render == "<custom></custom>")
       }
     ),
+    suite("void element guard")(
+      test("element rejects void tags") {
+        assertTrue(
+          isVoidGuardRejection(element("br"), "Void element <br>"),
+          isVoidGuardRejection(element("img"), "Void element <img>"),
+          isVoidGuardRejection(element("input"), "Void element <input>")
+        )
+      },
+      test("voidElement creates self-closing void elements") {
+        assertTrue(
+          voidElement("br").render == "<br/>",
+          voidElement("img").render == "<img/>"
+        )
+      },
+      test("voidElement rejects non-void tags") {
+        assertTrue(
+          isNonVoidGuardRejection(voidElement("div"), "Non-void element <div>"),
+          isNonVoidGuardRejection(voidElement("span"), "Non-void element <span>")
+        )
+      },
+      test("element rejects uppercase void tags") {
+        assertTrue(
+          isVoidGuardRejection(element("BR"), "Void element <BR>"),
+          isVoidGuardRejection(element("IMG"), "Void element <IMG>")
+        )
+      },
+      test("voidElement accepts uppercase void tags") {
+        assertTrue(
+          voidElement("BR").render == "<BR/>",
+          voidElement("IMG").render == "<IMG/>"
+        )
+      },
+      test("voidElement accepts attributes") {
+        val result = voidElement("img")(src := "a.png").render
+        assertTrue(result == """<img src="a.png"/>""")
+      },
+      test("element accepts non-void tags with children") {
+        assertTrue(element("section")("content").render == "<section>content</section>")
+      }
+    ),
     suite("empty helper")(
       test("empty renders nothing") {
         assertTrue(empty.render == "")
@@ -879,4 +919,24 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       }
     )
   )
+
+  private def isVoidGuardRejection(thunk: => Any, expectedMessageSnippet: String): Boolean =
+    try {
+      thunk
+      false
+    } catch {
+      case e: IllegalArgumentException =>
+        e.getMessage != null && e.getMessage.contains(expectedMessageSnippet)
+      case _: Throwable => false
+    }
+
+  private def isNonVoidGuardRejection(thunk: => Any, expectedMessageSnippet: String): Boolean =
+    try {
+      thunk
+      false
+    } catch {
+      case e: IllegalArgumentException =>
+        e.getMessage != null && e.getMessage.contains(expectedMessageSnippet)
+      case _: Throwable => false
+    }
 }
