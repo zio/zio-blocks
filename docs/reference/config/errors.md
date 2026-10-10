@@ -83,6 +83,29 @@ The `expectedType` string is derived from the schema's primitive type name. When
 
 `InvalidValue` is also what a failing wrapper type produces: if a newtype's constructor throws while wrapping a successfully-decoded inner value, the thrown exception becomes the `cause`.
 
+`InvalidValue#message` redacts the offending value — printing `<secret>` in its place and dropping the `cause` text — when the key's path looks like it names a secret, using the same name-based check [`ProvenanceMap#dump`](./config-source.md) applies. A field named `db.password` that fails to parse reports the type mismatch without ever printing what was typed:
+
+```scala mdoc:silent:reset
+import zio.blocks.config._
+import zio.blocks.schema.Schema
+
+case class Db(password: Int)
+
+object Db {
+  implicit val schema: Schema[Db] = Schema.derived[Db]
+}
+```
+
+```scala mdoc
+Config.load[Db](ConfigSource.fromMap(Map("password" -> "not-a-number"), "defaults")).left.map(_.head.message)
+```
+
+The error's fields still carry the raw value — `.message` is what redacts, not the constructor:
+
+```scala mdoc
+Config.load[Db](ConfigSource.fromMap(Map("password" -> "not-a-number"), "defaults"))
+```
+
 ### ConfigError.ParseError
 
 The raw value could not be decoded at the format level, as distinct from a type mismatch on a well-formed value. Carries the path, source, expected format, and optional cause. The HOCON adapter produces it when the document itself is malformed, and the JVM file loader produces it for a missing file or a rejected include path.
