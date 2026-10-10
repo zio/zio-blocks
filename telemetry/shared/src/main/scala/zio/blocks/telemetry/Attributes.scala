@@ -38,7 +38,15 @@ final class Attributes private (
   private[telemetry] val len: Int
 ) {
 
-  private val cachedHash: Int = {
+  // Hash is computed lazily: Attributes instances are short-lived (one per
+  // log record) and usually never hashed, so paying string hashes up front on
+  // the standard log path is pure overhead. Benign race is safe — computeHash
+  // is a pure function of the final arrays, and the volatile flag publishes
+  // the cached value.
+  @volatile private var hashComputed: Boolean = false
+  private var cachedHashValue: Int            = 0
+
+  private def computeHash(): Int = {
     var h = 0
     var i = 0
     while (i < len) {
@@ -190,7 +198,13 @@ final class Attributes private (
     map
   }
 
-  override def hashCode(): Int = cachedHash
+  override def hashCode(): Int = {
+    if (!hashComputed) {
+      cachedHashValue = computeHash()
+      hashComputed = true
+    }
+    cachedHashValue
+  }
 
   override def equals(obj: Any): Boolean =
     (this eq obj.asInstanceOf[AnyRef]) || (obj match {

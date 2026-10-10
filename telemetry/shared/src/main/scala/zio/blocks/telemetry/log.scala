@@ -172,8 +172,7 @@ object log extends LogVersionSpecific {
       annotations.foreach { case (k, v) => builder.put(k, v) }
     }
 
-    val attrs = builder.build
-    builder.clear()
+    val attrs    = builder.buildAndReset()
     val state    = GlobalLogState.get()
     val resource = state.logger.resource
 
