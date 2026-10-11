@@ -153,17 +153,16 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val timestamp3 = 1719792601123000000L
         val throwable  = new IllegalArgumentException("boom")
         val builder    = Attributes.builder
-          .put("code.filepath", "Service.scala")
-          .put("code.namespace", "com.example.Service")
-          .put("code.function", "run")
-          .put("code.lineno", 42L)
+          .put("code.file.path", "Service.scala")
+          .put("code.function.name", "com.example.Service.run")
+          .put("code.line.number", 42L)
           .put("user.string", "value")
           .put("user.long", 7L)
           .put("user.double", 3.5)
           .put("user.bool", true)
           .put("user.unknown", "ignored")
 
-        builder.builderTypes(8) = 99.toByte
+        builder.builderTypes(7) = 99.toByte
 
         setTextFormatterCache(Long.MinValue, "stale-prefix-")
 
@@ -179,8 +178,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
 
         assertTrue(
           rendered1.startsWith(s"${expectedTimestamp(timestamp1)} INFO  ["),
-          rendered1.contains("com.example.Service"),
-          rendered1.contains(".run:42] hello {"),
+          rendered1.contains("[Service.run:42] hello {"),
           rendered1.contains("user.string=\"value\""),
           rendered1.contains("user.long=7"),
           rendered1.contains("user.double=3.5"),
@@ -199,29 +197,27 @@ object LogFormatterSpec extends ZIOSpecDefault {
           cachedPrefix3 == expectedTimestamp(timestamp3).dropRight(4)
         )
       },
-      test("handles empty namespace with exact-width severity and no user attributes") {
+      test("handles a dotless function name with exact-width severity and no user attributes") {
         val timestamp = 1719792602123000000L
         val builder   = Attributes.builder
-          .put("code.filepath", "OnlyPath.scala")
-          .put("code.namespace", "")
-          .put("code.function", "go")
-          .put("code.lineno", 7L)
+          .put("code.file.path", "OnlyPath.scala")
+          .put("code.function.name", "go")
+          .put("code.line.number", 7L)
 
         val rendered = renderText(timestamp, Severity.Error, "ERROR", "plain", builder)
 
         assertTrue(
-          rendered.startsWith(s"${expectedTimestamp(timestamp)} ERROR [.go:7] plain"),
+          rendered.startsWith(s"${expectedTimestamp(timestamp)} ERROR [go:7] plain"),
           !rendered.contains("{"),
           !rendered.contains("\njava.")
         )
       },
-      test("handles a namespace without dots") {
+      test("handles a two-segment function name") {
         val timestamp = 1719792602323000000L
         val builder   = Attributes.builder
-          .put("code.filepath", "Root.scala")
-          .put("code.namespace", "RootService")
-          .put("code.function", "go")
-          .put("code.lineno", 3L)
+          .put("code.file.path", "Root.scala")
+          .put("code.function.name", "RootService.go")
+          .put("code.line.number", 3L)
 
         val rendered = renderText(timestamp, Severity.Info, "INFO", "dotless", builder)
 
@@ -230,10 +226,9 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("renders all seq attribute types and an empty seq inline") {
         val timestamp = 1719792602523000000L
         val builder   = Attributes.builder
-          .put("code.filepath", "Seqs.scala")
-          .put("code.namespace", "Seqs")
-          .put("code.function", "go")
-          .put("code.lineno", 1L)
+          .put("code.file.path", "Seqs.scala")
+          .put("code.function.name", "Seqs.go")
+          .put("code.line.number", 1L)
           .put(AttributeKey.stringSeq("tags"), Seq("a", "b"))
           .put(AttributeKey.longSeq("nums"), Seq(1L, 2L))
           .put(AttributeKey.doubleSeq("rates"), Seq(1.5, 2.5))
@@ -253,10 +248,9 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("escapes quotes, backslashes, and line breaks in text string values") {
         val timestamp = 1719792602723000000L
         val builder   = Attributes.builder
-          .put("code.filepath", "Escape.scala")
-          .put("code.namespace", "Escape")
-          .put("code.function", "go")
-          .put("code.lineno", 1L)
+          .put("code.file.path", "Escape.scala")
+          .put("code.function.name", "Escape.go")
+          .put("code.line.number", 1L)
           .put("quote", "say \"hi\"\nbye\\done")
           .put(AttributeKey.stringSeq("tags"), Seq("a\"b", "c\nd"))
 
@@ -274,10 +268,9 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val timestamp2 = 1719792603456000000L
         val throwable  = new RuntimeException("record boom")
         val attrs      = Attributes.builder
-          .put("code.filepath", "Standalone.scala")
-          .put("code.namespace", "Standalone")
-          .put("code.function", "act")
-          .put("code.lineno", 9L)
+          .put("code.file.path", "Standalone.scala")
+          .put("code.function.name", "Standalone.act")
+          .put("code.line.number", 9L)
           .put("user.string", "value")
           .put("user.long", 1L)
           .put("user.double", 2.5)
@@ -295,7 +288,9 @@ object LogFormatterSpec extends ZIOSpecDefault {
           rendered1.contains("user.long=1"),
           rendered1.contains("user.double=2.5"),
           rendered1.contains("user.bool=false"),
-          !rendered1.contains("code.filepath="),
+          !rendered1.contains("code.file.path="),
+          !rendered1.contains("code.function.name="),
+          !rendered1.contains("code.line.number="),
           rendered1.contains("\njava.lang.RuntimeException: record boom"),
           rendered2.startsWith(s"${expectedTimestamp(timestamp2)} WARN  [Standalone.act:9] record message 2 {")
         )
@@ -303,8 +298,8 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("handles empty source data with no throwable and no user attributes") {
         val timestamp = 1719792604123000000L
         val attrs     = Attributes.builder
-          .put("code.namespace", "")
-          .put("code.filepath", "OnlyPath.scala")
+          .put("code.function.name", "")
+          .put("code.file.path", "OnlyPath.scala")
           .build
 
         val rendered = renderTextRecord(logRecord(timestamp, Severity.Error, "ERROR", "bare", attrs))
@@ -315,12 +310,11 @@ object LogFormatterSpec extends ZIOSpecDefault {
           !rendered.contains("\njava.")
         )
       },
-      test("omits the line number when code.lineno is zero") {
+      test("omits the line number when code.line.number is zero") {
         val timestamp = 1719792604323000000L
         val attrs     = Attributes.builder
-          .put("code.namespace", "Standalone")
-          .put("code.function", "act")
-          .put("code.lineno", 0L)
+          .put("code.function.name", "Standalone.act")
+          .put("code.line.number", 0L)
           .build
 
         val rendered = renderTextRecord(logRecord(timestamp, Severity.Warn, "WARN", "no line", attrs))
@@ -330,9 +324,8 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("escapes quotes and line breaks in record string values") {
         val timestamp = 1719792604523000000L
         val attrs     = Attributes.builder
-          .put("code.namespace", "Escape")
-          .put("code.function", "go")
-          .put("code.lineno", 1L)
+          .put("code.function.name", "Escape.go")
+          .put("code.line.number", 1L)
           .put("quote", "say \"hi\"\nbye")
           .build
 
@@ -461,7 +454,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val traceIdLo = 0x5555666677778888L
         val spanId    = 0x9999aaaabbbbccccL
         val attrs     = Attributes.builder
-          .put("code.namespace", "com.example.Record")
+          .put("code.function.name", "com.example.Record")
           .put("user.string", "value")
           .put("user.long", 11L)
           .put("user.double", 4.25)
@@ -484,7 +477,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
           rendered.contains(s"\"timeUnixNano\":\"$timestamp\""),
           rendered.contains("\"severityNumber\":13"),
           rendered.contains("\"severityText\":\"WARN\""),
-          rendered.contains("{\"key\":\"code.namespace\",\"value\":{\"stringValue\":\"com.example.Record\"}}"),
+          rendered.contains("{\"key\":\"code.function.name\",\"value\":{\"stringValue\":\"com.example.Record\"}}"),
           rendered.contains("{\"key\":\"user.string\",\"value\":{\"stringValue\":\"value\"}}"),
           rendered.contains("{\"key\":\"user.long\",\"value\":{\"intValue\":\"11\"}}"),
           rendered.contains("{\"key\":\"user.double\",\"value\":{\"doubleValue\":4.25}}"),
@@ -498,7 +491,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("splices throwable into record attributes when they already exist") {
         val timestamp = 1719792608623000000L
         val attrs     = Attributes.builder
-          .put("code.namespace", "com.example.Record")
+          .put("code.function.name", "com.example.Record")
           .put("user.string", "value")
           .put("user.long", 11L)
           .put("user.double", 4.25)
@@ -516,7 +509,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
         )
 
         assertTrue(
-          rendered.contains("{\"key\":\"code.namespace\",\"value\":{\"stringValue\":\"com.example.Record\"}}"),
+          rendered.contains("{\"key\":\"code.function.name\",\"value\":{\"stringValue\":\"com.example.Record\"}}"),
           rendered.contains("\"key\":\"exception.stacktrace\""),
           rendered.contains("RuntimeException: record stack"),
           countOccurrences(rendered, "\"attributes\":") == 1
@@ -578,10 +571,9 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("text format and formatRecord are byte-identical") {
         val timestamp = 1719792612123000000L
         val builder   = Attributes.builder
-          .put("code.filepath", "Service.scala")
-          .put("code.namespace", "com.example.Service")
-          .put("code.function", "run")
-          .put("code.lineno", 42L)
+          .put("code.file.path", "Service.scala")
+          .put("code.function.name", "com.example.Service.run")
+          .put("code.line.number", 42L)
           .put("code.reviewer", "ada")
           .put("user.string", "value")
           .put("user.long", 7L)
@@ -594,10 +586,15 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val viaRecord  =
           renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
 
+        val expected =
+          s"${expectedTimestamp(timestamp)} INFO  [Service.run:42] hello " +
+            "{code.reviewer=\"ada\", user.string=\"value\", user.long=7, " +
+            "user.double=3.5, user.bool=true, tags=[\"a\", \"b\"], nums=[1, 2]}"
+
         assertTrue(
-          viaBuilder == viaRecord,
-          viaBuilder.contains("code.reviewer=\"ada\""),
-          viaRecord.contains("code.reviewer=\"ada\"")
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord
         )
       },
       test("json format and formatRecord are byte-identical") {
@@ -606,7 +603,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val traceIdLo = 0x5555666677778888L
         val spanId    = 0x9999aaaabbbbccccL
         val builder   = Attributes.builder
-          .put("code.namespace", "com.example.Service")
+          .put("code.function.name", "com.example.Service.run")
           .put("code.reviewer", "ada")
           .put("user.string", "value")
           .put("user.long", 11L)
@@ -622,6 +619,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
 
         assertTrue(
           viaBuilder == viaRecord,
+          viaBuilder.contains("\"key\":\"code.function.name\""),
           viaBuilder.contains("\"key\":\"code.reviewer\""),
           viaRecord.contains("\"key\":\"code.reviewer\"")
         )
@@ -665,10 +663,9 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val evilKey   = "evil\nkey\"with=sign"
         val body      = "line1\nline2\r\nline3"
         val builder   = Attributes.builder
-          .put("code.filepath", "Forge.scala")
-          .put("code.namespace", "Forge")
-          .put("code.function", "go")
-          .put("code.lineno", 1L)
+          .put("code.file.path", "Forge.scala")
+          .put("code.function.name", "Forge.go")
+          .put("code.line.number", 1L)
           .put(evilKey, "v")
 
         val viaBuilder = renderText(timestamp, Severity.Info, "INFO", body, builder)
@@ -683,13 +680,12 @@ object LogFormatterSpec extends ZIOSpecDefault {
           viaBuilder.contains("line1\\nline2\\r\\nline3")
         )
       },
-      test("String-typed code.lineno feeds the location prefix on both paths") {
+      test("String-typed code.line.number feeds the location prefix on both paths") {
         val timestamp = 1719792614323000000L
         val builder   = Attributes.builder
-          .put("code.filepath", "WrongType.scala")
-          .put("code.namespace", "WrongType")
-          .put("code.function", "go")
-          .put("code.lineno", "42")
+          .put("code.file.path", "WrongType.scala")
+          .put("code.function.name", "WrongType.go")
+          .put("code.line.number", "42")
 
         val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
         val viaRecord  =
@@ -698,15 +694,14 @@ object LogFormatterSpec extends ZIOSpecDefault {
         assertTrue(
           viaBuilder == viaRecord,
           viaBuilder.contains("[WrongType.go:42] hello"),
-          !viaBuilder.contains("code.lineno=")
+          !viaBuilder.contains("code.line.number=")
         )
       },
-      test("unparseable String-typed code.lineno stays visible instead of being dropped") {
+      test("unparseable String-typed code.line.number stays visible instead of being dropped") {
         val timestamp = 1719792614523000000L
         val builder   = Attributes.builder
-          .put("code.namespace", "WrongType")
-          .put("code.function", "go")
-          .put("code.lineno", "not-a-number")
+          .put("code.function.name", "WrongType.go")
+          .put("code.line.number", "not-a-number")
 
         val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
         val viaRecord  =
@@ -715,7 +710,34 @@ object LogFormatterSpec extends ZIOSpecDefault {
         assertTrue(
           viaBuilder == viaRecord,
           viaBuilder.contains("[WrongType.go] hello"),
-          viaBuilder.contains("code.lineno=\"not-a-number\"")
+          viaBuilder.contains("code.line.number=\"not-a-number\"")
+        )
+      }
+    ),
+    suite("deprecated code attributes")(
+      test("deprecated keys stay visible as ordinary user attributes on both paths") {
+        val timestamp = 1719792615123000000L
+        val builder   = Attributes.builder
+          .put("code.filepath", "Test.scala")
+          .put("code.namespace", "com.example.MyClass")
+          .put("code.function", "myMethod")
+          .put("code.lineno", 42L)
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+
+        // No canonical location key is present, so the prefix stays empty —
+        // and every deprecated key renders as an ordinary attribute.
+        val expected =
+          s"${expectedTimestamp(timestamp)} INFO  [] hello " +
+            "{code.filepath=\"Test.scala\", code.namespace=\"com.example.MyClass\", " +
+            "code.function=\"myMethod\", code.lineno=42}"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord
         )
       }
     ),
