@@ -41,4 +41,4 @@ object LogRecord {
 }
 ```
 
-Each field mirrors what the emission recorded. The source location the macro captured arrives inside `attributes`, as the `code.filepath`, `code.namespace`, `code.function`, and `code.lineno` keys. The trace and span IDs are what tie this entry back to the request that produced it: they're filled in when the call ran inside an active span, and left as `0` when it didn't — so check `hasTraceId`/`hasSpanId` rather than comparing to zero yourself.
+Each field mirrors what the emission recorded. The source location the macro captured arrives inside `attributes`, as the `code.file.path`, `code.function.name` (fully qualified, e.g. `com.example.PaymentService.handleRequest`), and `code.line.number` keys — the stable OpenTelemetry code attributes. The trace and span IDs are what tie this entry back to the request that produced it: they're filled in when the call ran inside an active span, and left as `0` when it didn't — so check `hasTraceId`/`hasSpanId` rather than comparing to zero yourself.

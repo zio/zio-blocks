@@ -182,10 +182,9 @@ Expands to (pseudocode):
     if (state != null && Severity.Info.number >= state.effectiveLevel(<current class name>)) {
       val now = EpochClock.epochNanos()
       val builder = AttributeBuilderPool.get()
-        .put("code.filepath", "<source file>")
-        .put("code.namespace", "<current package>")
-        .put("code.function", "<current method>")
-        .put("code.lineno", <line number>.toLong)
+        .put("code.file.path", "<source file>")
+        .put("code.function.name", "<fully-qualified enclosing class>.<enclosing method>")
+        .put("code.line.number", <line number>.toLong)
       // for each enrichment argument, the macro calls the right builder method:
       builder.put("user_id", userId)      // resolved as (String, String)
       builder.put("attempt", 3.toLong)    // resolved as (String, Int) -> toLong
@@ -201,7 +200,7 @@ Expands to (pseudocode):
 ```
 
 The important things the macro does:
-- Captures `code.filepath`, `code.namespace`, `code.function`, `code.lineno` at compile time
+- Captures `code.file.path`, `code.function.name` (fully qualified), `code.line.number` at compile time
 - Resolves each enrichment argument type at compile time and calls the specific builder method (no runtime dispatch on the fast path)
 - For rate-limited variants (`infoEvery`, `warnAtMost`), hashes the source position into a `siteId` constant so each call site gets its own rate-limit slot
 
@@ -322,7 +321,7 @@ log.warn("slow query", "table" -> "orders", "duration_ms" -> 450L)
 
 **JsonLogFormatter output:**
 ```json
-{"timeUnixNano":"1747216200123000000","severityNumber":13,"severityText":"WARN","body":{"stringValue":"slow query"},"attributes":[{"key":"code.filepath","value":{"stringValue":"src/main/scala/com/example/PaymentService.scala"}},{"key":"code.namespace","value":{"stringValue":"com.example.PaymentService"}},{"key":"code.function","value":{"stringValue":"handleRequest"}},{"key":"code.lineno","value":{"intValue":"87"}},{"key":"table","value":{"stringValue":"orders"}},{"key":"duration_ms","value":{"intValue":"450"}}]}
+{"timeUnixNano":"1747216200123000000","severityNumber":13,"severityText":"WARN","body":{"stringValue":"slow query"},"attributes":[{"key":"code.file.path","value":{"stringValue":"src/main/scala/com/example/PaymentService.scala"}},{"key":"code.function.name","value":{"stringValue":"com.example.PaymentService.handleRequest"}},{"key":"code.line.number","value":{"intValue":"87"}},{"key":"table","value":{"stringValue":"orders"}},{"key":"duration_ms","value":{"intValue":"450"}}]}
 ```
 
 The JSON format follows the OTLP log data model directly, making it compatible with any OTLP-aware log processor (Grafana Loki, OpenTelemetry Collector, etc.).
