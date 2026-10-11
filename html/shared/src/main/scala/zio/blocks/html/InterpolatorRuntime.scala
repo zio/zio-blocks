@@ -281,9 +281,17 @@ object InterpolatorRuntime {
     val endPos: Int
   )
 
-  private def createElement(tag: String, attrs: Chunk[Dom.Attribute], children: Chunk[Dom]): Dom.Element =
+  /**
+   * Builds the element for a fully parsed tag. Void tags route to `VoidGeneric
+   * (which carries no children) so a `Generic` node is never void-tagged; the
+   * parser structurally guarantees the void branch always arrives with empty
+   * children (void open tags are emitted immediately and never pushed onto the
+   * stack, so they cannot collect children).
+   */
+  private def createElement(tag: String, attrs: Chunk[Dom.Attribute], children: Chunk[Dom]): Dom =
     if (tag == "script") Dom.Element.Script(attrs, children)
     else if (tag == "style") Dom.Element.Style(attrs, children)
+    else if (Dom.isVoidTag(tag)) Dom.Element.VoidGeneric(tag, attrs)
     else Dom.Element.Generic(tag, attrs, children)
 
   private def textChunk(text: String): Chunk[Dom] =

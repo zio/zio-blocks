@@ -215,37 +215,54 @@ trait HtmlElements {
   val wbr: Dom.Element.Void    = Dom.Element.VoidGeneric("wbr", Chunk.empty)
 
   /**
-   * Creates a generic element for a non-void tag.
+   * Creates a generic element for a statically-known non-void tag.
    *
-   * @throws java.lang.IllegalArgumentException
-   *   if `tag` is a void element (`br`, `img`, `input`, ...). Void tags cannot
-   *   carry children, so they are rejected here instead of silently discarding
-   *   them at render; use [[voidElement]] for those tags.
+   * The tag must be a compile-time string literal (a string literal, an
+   * `inline` or `final val` constant, or a value with a concrete string-literal
+   * type such as `"my-widget"`); the void classification is validated at
+   * compile time, ASCII case-insensitively, so `element("br")` and
+   * `element("BR")` do not compile. For tags only known at runtime, use
+   * [[elementDynamic]], which reports the same failure as a [[TagError]].
    */
-  def element(tag: String): Dom.Element = {
-    require(
-      !Dom.isVoidTag(tag),
-      s"Void element <$tag> cannot have children. Use voidElement(\"$tag\") for void tags."
-    )
-    Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
-  }
+  inline def element(inline tag: String): Dom.Element = ${ ElementMacros.elementImpl('tag) }
 
   /**
-   * Creates a generic void element (e.g., `br`, `img`, `input`) that renders
-   * self-closed and rejects children at compile time via [[Dom.Element.Void]].
+   * Creates a generic void element (e.g., `br`, `img`, `input`) for a
+   * statically-known void tag. The result renders self-closed and rejects
+   * children at compile time via [[Dom.Element.Void]].
    *
-   * @throws java.lang.IllegalArgumentException
-   *   if `tag` is not a void element (`div`, `span`, ...). Non-void tags must
-   *   carry a closing tag, so they are rejected here instead of rendering
-   *   self-closed; use [[element]] for those tags.
+   * The tag must be a compile-time string literal (a string literal, an
+   * `inline` or `final val` constant, or a value with a concrete string-literal
+   * type); the void classification is validated at compile time, ASCII
+   * case-insensitively, so `voidElement("div")` does not compile. For tags only
+   * known at runtime, use [[voidElementDynamic]], which reports the same
+   * failure as a [[TagError]].
    */
-  def voidElement(tag: String): Dom.Element.Void = {
-    require(
-      Dom.isVoidTag(tag),
-      s"Non-void element <$tag> cannot be void. Use element(\"$tag\") for non-void tags."
-    )
-    Dom.Element.VoidGeneric(tag, Chunk.empty)
-  }
+  inline def voidElement(inline tag: String): Dom.Element.Void = ${ ElementMacros.voidElementImpl('tag) }
+
+  /**
+   * Creates a generic element for a runtime-known tag.
+   *
+   * Unlike [[element]], this accepts any `String` and reports the void-tag
+   * failure as a [[TagError.VoidTag]] instead of throwing or failing
+   * compilation: void tags (`br`, `img`, `input`, ..., matched ASCII
+   * case-insensitively) must stay childless, so handle the `Left` case
+   * explicitly instead of attaching children.
+   */
+  def elementDynamic(tag: String): Either[TagError, Dom.Element] =
+    Dom.checkElementTag(tag).map(validated => Dom.Element.Generic(validated, Chunk.empty, Chunk.empty))
+
+  /**
+   * Creates a generic void element for a runtime-known tag.
+   *
+   * Unlike [[voidElement]], this accepts any `String` and reports the
+   * non-void-tag failure as a [[TagError.NonVoidTag]] instead of throwing or
+   * failing compilation: non-void tags (`div`, `span`, ..., matched ASCII
+   * case-insensitively) must carry a closing tag instead of rendering
+   * self-closed.
+   */
+  def voidElementDynamic(tag: String): Either[TagError, Dom.Element.Void] =
+    Dom.checkVoidTag(tag).map(validated => Dom.Element.VoidGeneric(validated, Chunk.empty))
 
   /** Creates an empty `<li>` element, returning `Li`. */
   def li(): Dom.Element.Li = Dom.Element.LiElement(Chunk.empty, Chunk.empty)

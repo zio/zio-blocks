@@ -394,7 +394,7 @@ object Dom {
     /**
      * A generic HTML element.
      *
-     * Represents any standard HTML tag (e.g., "div", "p", "span"). Text content
+     * Represents any non-void HTML tag (e.g., "div", "p", "span"). Text content
      * in children is HTML-escaped during rendering.
      *
      * Equality is structural across all `Element` implementations: a `Generic`
@@ -402,34 +402,72 @@ object Dom {
      * text-escaping semantics, regardless of the concrete class (e.g.,
      * `Generic("li", ...)` equals the equivalent `LiElement`).
      *
+     * Construction is deliberately restricted: the constructor and companion
+     * `apply` are visible only inside the `html` package, so external code must
+     * go through the checked factories — the compile-time `element(tag)` macro
+     * for statically-known tags, or `elementDynamic(tag)` (returning
+     * `Either[TagError, Element]`) for runtime-known tags. Every internal
+     * construction site passes a non-void tag (the interpolator parser routes
+     * void tags to [[Dom.Element.VoidGeneric]] instead), so a `Generic` node is
+     * always non-void: [[withChildren]] never fails, and rendering always emits
+     * a closing tag. A regular class is used instead of a case class precisely
+     * so there is no public `copy` that could retarget `tag` (or smuggle
+     * children onto a void tag) without validation; use [[withAttributes]] and
+     * [[withChildren]] to derive modified elements.
+     *
      * @param tag
-     *   the element tag name (e.g., "div", "h1")
+     *   the element tag name, always non-void (e.g., "div", "h1")
      * @param attributes
      *   attribute key-value pairs
      * @param children
      *   child DOM nodes
-     * @throws java.lang.IllegalArgumentException
-     *   if `tag` is a void element (`br`, `img`, `input`, ...) and `children`
-     *   is non-empty. Void tags cannot carry children — their content would be
-     *   discarded by HTML parsers at render — so construct them with
-     *   `voidElement(tag)` (a [[Dom.Element.Void]]) or the typed void factories
-     *   (`br`, `img`, ...) instead.
      */
-    final case class Generic(
-      tag: String,
-      attributes: Chunk[Attribute],
-      children: Chunk[Dom]
+    final class Generic private[html] (
+      val tag: String,
+      val attributes: Chunk[Attribute],
+      val children: Chunk[Dom]
     ) extends Element {
-      require(
-        !Dom.isVoidTag(tag) || children.isEmpty,
-        s"Void element <$tag> cannot have children. Use voidElement(\"$tag\") for void tags."
-      )
-      private[html] def escapeText: Boolean                = true
-      def withAttributes(attrs: Chunk[Attribute]): Generic = copy(attributes = attrs)
-      def withChildren(kids: Chunk[Dom]): Generic          = copy(children = kids)
+      private[html] def escapeText: Boolean = true
+      // Structural backstop for the non-void invariant: a Generic always
+      // renders with a closing tag, so children can never be silently dropped
+      // at render and withChildren can never fail.
+      override private[html] def isVoid: Boolean           = false
+      def withAttributes(attrs: Chunk[Attribute]): Generic = new Generic(tag, attrs, children)
+      def withChildren(kids: Chunk[Dom]): Generic          = new Generic(tag, attributes, kids)
 
       override def equals(other: Any): Boolean = structuralEquals(other)
       override def hashCode: Int               = structuralHashCode
+
+      override def toString: String = s"Generic($tag, $attributes, $children)"
+
+      def productArity: Int           = 3
+      def productElement(n: Int): Any = n match {
+        case 0 => tag
+        case 1 => attributes
+        case 2 => children
+        case _ => throw new IndexOutOfBoundsException(n.toString)
+      }
+      def canEqual(that: Any): Boolean = that.isInstanceOf[Generic]
+    }
+
+    object Generic {
+
+      /**
+       * Builds a `Generic` element from a non-void tag. Visible only inside the
+       * `html` package; external code must use the checked `element` /
+       * `elementDynamic` factories. Callers must pass a non-void tag — every
+       * call site is audited for this — so the node never needs runtime
+       * validation.
+       */
+      private[html] def apply(tag: String, attributes: Chunk[Attribute], children: Chunk[Dom]): Generic =
+        new Generic(tag, attributes, children)
+
+      /**
+       * Extractor supporting `case Generic(tag, attributes, children)`
+       * patterns.
+       */
+      def unapply(generic: Generic): Option[(String, Chunk[Attribute], Chunk[Dom])] =
+        Some((generic.tag, generic.attributes, generic.children))
     }
 
     // --- Typed content model elements (proper OO hierarchy for Scala 2/3 parity) ---
@@ -743,16 +781,26 @@ object Dom {
      * Represents any void HTML tag (e.g., "br", "img", "input"). Only accepts
      * attributes, not children — enforced at compile time.
      *
+     * Construction is deliberately restricted: the constructor and companion
+     * `apply` are visible only inside the `html` package, so external code must
+     * go through the checked factories — the compile-time `voidElement(tag)`
+     * macro for statically-known tags, or `voidElementDynamic(tag)` (returning
+     * `Either[TagError, Void]`) for runtime-known tags. A regular class is used
+     * instead of a case class precisely so there is no public `copy` that could
+     * retarget `tag` to a non-void tag (which would then render self-closed
+     * without a closing tag); use [[withAttributes]] and [[apply]] to derive
+     * modified elements.
+     *
      * @param tag
      *   the element tag name (e.g., "br", "img")
      * @param attributes
      *   attribute key-value pairs
      */
-    final case class VoidGeneric(
-      tag: String,
-      attributes: Chunk[Attribute]
+    final class VoidGeneric private[html] (
+      val tag: String,
+      val attributes: Chunk[Attribute]
     ) extends Void {
-      def withAttributes(attrs: Chunk[Attribute]): VoidGeneric = copy(attributes = attrs)
+      def withAttributes(attrs: Chunk[Attribute]): VoidGeneric = new VoidGeneric(tag, attrs)
 
       def apply(attr: Attribute, attrs: Attribute*): VoidGeneric = {
         val b = Chunk.newBuilder[Attribute]
@@ -763,8 +811,44 @@ object Dom {
           b += attrs(i)
           i += 1
         }
-        copy(attributes = b.result())
+        new VoidGeneric(tag, b.result())
       }
+
+      override def toString: String = s"VoidGeneric($tag, $attributes)"
+
+      /**
+       * Structural equality mirroring the previous case-class semantics: two
+       * voids are equal when they are both `VoidGeneric` with the same tag and
+       * attributes.
+       */
+      override def equals(other: Any): Boolean = other match {
+        case that: VoidGeneric => tag == that.tag && attributes == that.attributes
+        case _                 => false
+      }
+      override def hashCode: Int = (tag, attributes).hashCode
+
+      def productArity: Int           = 2
+      def productElement(n: Int): Any = n match {
+        case 0 => tag
+        case 1 => attributes
+        case _ => throw new IndexOutOfBoundsException(n.toString)
+      }
+      def canEqual(that: Any): Boolean = that.isInstanceOf[VoidGeneric]
+    }
+
+    object VoidGeneric {
+
+      /**
+       * Builds a `VoidGeneric` element. Visible only inside the `html` package;
+       * external code must use the checked `voidElement` / `voidElementDynamic`
+       * factories.
+       */
+      private[html] def apply(tag: String, attributes: Chunk[Attribute]): VoidGeneric =
+        new VoidGeneric(tag, attributes)
+
+      /** Extractor supporting `case VoidGeneric(tag, attributes)` patterns. */
+      def unapply(generic: VoidGeneric): Option[(String, Chunk[Attribute])] =
+        Some((generic.tag, generic.attributes))
     }
   }
 
@@ -1234,12 +1318,37 @@ object Dom {
    * True when `tag` is a void element. Tag names are ASCII case-insensitive in
    * HTML, so the check mirrors [[isUrlAttribute]]: exact set membership first
    * (no allocation for lowercase tags), ASCII-lowered retry only on miss.
+   *
+   * This is the single shared validator for void classification: the
+   * compile-time `element` / `voidElement` macros, the dynamic `elementDynamic`
+   * / `voidElementDynamic` factories, and the interpolator parser (which routes
+   * void tags to `VoidGeneric`) all agree on it. `Generic` nodes are always
+   * non-void by construction and render with a closing tag; `Void` nodes always
+   * render self-closed.
    */
   private[html] def isVoidTag(tag: String): Boolean =
     voidElements.contains(tag) || {
       val lowered = asciiLoweredOrNull(tag)
       (lowered ne null) && voidElements.contains(lowered)
     }
+
+  /**
+   * Validates `tag` for the dynamic (non-void) element factory, backing
+   * `elementDynamic`. The compile-time `element` macro classifies with the same
+   * [[isVoidTag]] predicate but reports its own static diagnostic with a
+   * literal replacement call.
+   */
+  private[html] def checkElementTag(tag: String): Either[TagError, String] =
+    if (isVoidTag(tag)) Left(TagError.VoidTag(tag)) else Right(tag)
+
+  /**
+   * Validates `tag` for the dynamic void element factory, backing
+   * `voidElementDynamic`. The compile-time `voidElement` macro classifies with
+   * the same [[isVoidTag]] predicate but reports its own static diagnostic with
+   * a literal replacement call.
+   */
+  private[html] def checkVoidTag(tag: String): Either[TagError, String] =
+    if (isVoidTag(tag)) Right(tag) else Left(TagError.NonVoidTag(tag))
 
   /**
    * ASCII-lowercased copy of `s`, or `null` when `s` holds no ASCII uppercase
@@ -1267,6 +1376,17 @@ object Dom {
     null
   }
 
+  /**
+   * The fixed set of void element names shared by the compile-time validator,
+   * the dynamic factories, and the runtime renderer.
+   *
+   * The WHATWG HTML standard lists 13 void elements; this set additionally
+   * retains `param`, which is obsolete in HTML5 but still parsed as void by
+   * browsers (it cannot carry content) and is exposed as a typed `Void` factory
+   * by the DSL. Dropping it would make the validator disagree with existing
+   * `param` values and silently change how `Generic("param", ...)` renders, so
+   * it is kept deliberately for consistency.
+   */
   private[html] val voidElements: Set[String] = Set(
     "area",
     "base",
@@ -1282,5 +1402,184 @@ object Dom {
     "source",
     "track",
     "wbr"
+  )
+
+  /**
+   * Replacement DSL factory fragment for a tag with a built-in no-argument
+   * factory, or `None` for custom tags without one. Keys are lowercase tag
+   * names; values are the exact member to recommend (`br`, `` `object` `` for
+   * the keyword-colliding `object` tag, `ul()` for tags whose factory is a
+   * no-argument `def`). `script` and `style` are deliberately absent: their
+   * factories use unescaped content models, so the generic factory (which
+   * escapes) stays the safe recommendation. Lookup is ASCII case-insensitive,
+   * matching [[isVoidTag]].
+   */
+  private[html] def dslFactoryName(tag: String): Option[String] =
+    lookupLowered(dslFactoryNames, tag)
+
+  /**
+   * Example child expression for a tag whose factory restricts children to a
+   * content model (e.g. `li("a")` for `ul`), or `None` for factories accepting
+   * arbitrary modifiers. Lookup is ASCII case-insensitive like
+   * [[dslFactoryName]].
+   */
+  private[html] def contentModelExample(tag: String): Option[String] =
+    lookupLowered(contentModelExamples, tag)
+
+  private def lookupLowered(map: Map[String, String], tag: String): Option[String] =
+    map.get(tag).orElse {
+      val lowered = asciiLoweredOrNull(tag)
+      if (lowered eq null) None else map.get(lowered)
+    }
+
+  /**
+   * Closing guidance line for a void DSL replacement: voids accept attributes
+   * only, so child content moves to a valid parent or sibling position.
+   */
+  private[html] def voidGuidance(dsl: String): String =
+    s"$dsl accepts attributes only. Move any child content outside $dsl,\nfor example: div($dsl, \"text\")."
+
+  /**
+   * Closing guidance line for a non-void DSL replacement, with a content-model
+   * aware example where the factory restricts children.
+   */
+  private[html] def nonVoidGuidance(tag: String, dsl: String): String =
+    contentModelExample(tag) match {
+      case Some(child) =>
+        val base = if (dsl.endsWith("()")) dsl.dropRight(2) else dsl
+        s"$dsl accepts children and attributes, for example: $base(id := \"gap\", $child)."
+      case None =>
+        s"$dsl accepts children and attributes, for example: $dsl(id := \"gap\", \"text\")."
+    }
+
+  private val dslFactoryNames: Map[String, String] = Map(
+    "a"          -> "a",
+    "abbr"       -> "abbr",
+    "address"    -> "address",
+    "area"       -> "area",
+    "article"    -> "article",
+    "aside"      -> "aside",
+    "audio"      -> "audio",
+    "b"          -> "b",
+    "base"       -> "base",
+    "bdi"        -> "bdi",
+    "bdo"        -> "bdo",
+    "blockquote" -> "blockquote",
+    "body"       -> "body",
+    "br"         -> "br",
+    "button"     -> "button",
+    "canvas"     -> "canvas",
+    "caption"    -> "caption",
+    "cite"       -> "cite",
+    "code"       -> "code",
+    "col"        -> "col",
+    "colgroup"   -> "colgroup",
+    "data"       -> "data",
+    "datalist"   -> "datalist",
+    "dd"         -> "dd",
+    "del"        -> "del",
+    "details"    -> "details",
+    "dfn"        -> "dfn",
+    "dialog"     -> "dialog",
+    "div"        -> "div",
+    "dl"         -> "dl",
+    "dt"         -> "dt",
+    "em"         -> "em",
+    "embed"      -> "embed",
+    "fieldset"   -> "fieldset",
+    "figcaption" -> "figcaption",
+    "figure"     -> "figure",
+    "footer"     -> "footer",
+    "form"       -> "form",
+    "h1"         -> "h1",
+    "h2"         -> "h2",
+    "h3"         -> "h3",
+    "h4"         -> "h4",
+    "h5"         -> "h5",
+    "h6"         -> "h6",
+    "head"       -> "head",
+    "header"     -> "header",
+    "hgroup"     -> "hgroup",
+    "hr"         -> "hr",
+    "html"       -> "html",
+    "i"          -> "i",
+    "iframe"     -> "iframe",
+    "img"        -> "img",
+    "input"      -> "input",
+    "ins"        -> "ins",
+    "kbd"        -> "kbd",
+    "label"      -> "label",
+    "legend"     -> "legend",
+    "li"         -> "li()",
+    "link"       -> "link",
+    "main"       -> "main",
+    "map"        -> "map",
+    "mark"       -> "mark",
+    "math"       -> "math",
+    "menu"       -> "menu",
+    "meta"       -> "meta",
+    "meter"      -> "meter",
+    "nav"        -> "nav",
+    "noscript"   -> "noscript",
+    "object"     -> "`object`",
+    "ol"         -> "ol()",
+    "opt"        -> "opt()",
+    "optgroup"   -> "optgroup()",
+    "option"     -> "option()",
+    "output"     -> "output",
+    "p"          -> "p",
+    "param"      -> "param",
+    "picture"    -> "picture",
+    "pre"        -> "pre",
+    "progress"   -> "progress",
+    "q"          -> "q",
+    "rp"         -> "rp",
+    "rt"         -> "rt",
+    "ruby"       -> "ruby",
+    "s"          -> "s",
+    "samp"       -> "samp",
+    "search"     -> "search",
+    "section"    -> "section",
+    "select"     -> "select()",
+    "slot"       -> "slot",
+    "small"      -> "small",
+    "source"     -> "source",
+    "span"       -> "span",
+    "strong"     -> "strong",
+    "sub"        -> "sub",
+    "summary"    -> "summary",
+    "sup"        -> "sup",
+    "svg"        -> "svg",
+    "table"      -> "table()",
+    "tbody"      -> "tbody",
+    "td"         -> "td()",
+    "template"   -> "`template`",
+    "textarea"   -> "textarea",
+    "tfoot"      -> "tfoot",
+    "th"         -> "th()",
+    "thead"      -> "thead",
+    "time"       -> "time",
+    "title"      -> "title",
+    "tr"         -> "tr()",
+    "track"      -> "track",
+    "u"          -> "u",
+    "ul"         -> "ul()",
+    "var"        -> "`var`",
+    "video"      -> "video",
+    "wbr"        -> "wbr"
+  )
+
+  /**
+   * Example child expressions for tags whose factories restrict children to a
+   * content model. Keys are lowercase tag names; values are source fragments
+   * that compile against the corresponding factory (verified by tests).
+   */
+  private val contentModelExamples: Map[String, String] = Map(
+    "ol"       -> """li("a")""",
+    "optgroup" -> """option("a")""",
+    "select"   -> """option("a")""",
+    "table"    -> """tr(td("a"))""",
+    "tr"       -> """td("a")""",
+    "ul"       -> """li("a")"""
   )
 }

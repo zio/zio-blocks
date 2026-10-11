@@ -3,7 +3,7 @@ id: html
 title: "HTML"
 ---
 
-`zio-blocks-html` is a **type-safe HTML templating library** providing immutable data structures and a fluent DSL for building HTML, CSS, and JavaScript. It offers compile-time safety, automatic XSS protection, and zero-dependency simplicity across Scala 2.13, 3.x, and both JVM and Scala.js platforms.
+`zio-blocks-html` is a **type-safe HTML templating library** providing immutable data structures and a fluent DSL for building HTML, CSS, and JavaScript. It offers compile-time safety, automatic XSS protection, and zero-dependency simplicity across Scala 3 (3.3 LTS and later) on both JVM and Scala.js platforms.
 
 Core types: `Dom` (HTML tree), `CssSelector` (CSS queries), `DomSelection` (DOM navigation), `Css` (stylesheets), `Js` (JavaScript expressions).
 
@@ -17,11 +17,15 @@ import zio.blocks.chunk.Chunk
 sealed trait Dom
 case class Dom.Text(content: String) extends Dom
 sealed trait Dom.Element extends Dom
-case class Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
+// Generic is a controlled (non-case) class: build it with element(tag) for
+// statically-known tags or elementDynamic(tag) for runtime tags (Either)
+Dom.Element.Generic // (tag, attributes, children), extractor Generic(tag, attributes, children)
 case class Dom.Element.Script(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
 case class Dom.Element.Style(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
 sealed trait Dom.Element.Void extends Dom // void elements (self-closing, no children)
-case class Dom.Element.VoidGeneric(tag: String, attributes: Chunk[Dom.Attribute]) extends Dom.Element.Void
+// VoidGeneric is a controlled (non-case) class: build it with voidElement(tag)
+// or voidElementDynamic(tag) (Either); extractor VoidGeneric(tag, attributes)
+Dom.Element.VoidGeneric // (tag, attributes)
 
 // Sealed content-model markers (implemented by dedicated element classes)
 sealed trait Dom.Element.Li          extends Dom.Element // <li>, child of ul/ol
@@ -67,7 +71,7 @@ Template engines with runtime parsing add overhead and complexity:
 `zio-blocks-html` provides:
 - **Type-safe construction** via DSL functions (`div(id := "main", p("Hello"))`)
 - **Automatic XSS protection** through position-aware typeclasses and HTML escaping
-- **Scala 3 compile-time optimizations** for string interpolators (constant folding, macro validation)
+- **Compile-time safety** — literal-checked `element`/`voidElement` factories and macro-validated string interpolators (constant folding, static HTML validation)
 - **Zero dependencies** — pure Scala, works with any HTTP framework
 - **Cross-platform** — identical API on JVM and Scala.js
 - **Structured querying** — CSS selectors for DOM navigation and testing
@@ -86,7 +90,7 @@ For Scala.js projects, use `%%%`:
 libraryDependencies += "dev.zio" %%% "zio-blocks-html" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x
+Supported Scala versions: 3.3.x (LTS) and later 3.x
 
 :::note
 The `html` module depends transitively on `zio-blocks-schema` and `zio-blocks-chunk`. The schema dependency enables `ToJs` auto-derivation via JSON encoding — if your type has a `Schema` instance, it automatically becomes usable in `js"..."` expressions.
@@ -265,7 +269,7 @@ import zio.blocks.html._
 
 val tree = div(h3("Old"), p("Content"))
 val upgraded = tree.transform {
-  case el: Dom.Element.Generic if el.tag == "h3" => el.copy(tag = "h2")
+  case el: Dom.Element if el.tag == "h3" => h2.withAttributes(el.attributes).withChildren(el.children)
   case other => other
 }
 ```
@@ -493,19 +497,63 @@ val voidElements = div(
 
 ### Generic element factories
 
-When the tag is only known at runtime, `element(tag)` builds a generic element for non-void tags and `voidElement(tag)` builds a generic void element. Both validate the tag at runtime: `element` throws `IllegalArgumentException` for void tags (`br`, `img`, `input`, ...) because their children would be silently discarded by HTML parsers at render, and `voidElement` throws for non-void tags (`div`, `span`, ...) because they must carry a closing tag instead of rendering self-closed:
+`element(tag)` builds a generic element for non-void tags and `voidElement(tag)` builds a generic void element. The tag must be statically known — a string literal, an `inline` or `final val` constant, or a value with a concrete string-literal type (e.g. `"my-widget"`) — and the void classification is validated **at compile time** (ASCII case-insensitively, matching the renderer):
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
 
-val generic = element("div")       // <div></div>
-val line    = voidElement("br")    // <br/>
-
-element("br")     // throws IllegalArgumentException — use voidElement("br")
-voidElement("div") // throws IllegalArgumentException — use element("div")
+val generic = div                // <div></div> — prefer the built-in def for known tags
+val widget  = element("my-widget") // <my-widget></my-widget> — generic factories cover custom tags
+val line    = br                   // <br/>
 ```
 
-The same guard lives on `Dom.Element.Generic` itself: constructing `Generic` with a void tag and non-empty children throws `IllegalArgumentException` pointing at `voidElement`, so direct construction and `withChildren` fail loudly rather than dropping children.
+Misclassified tags do not compile — the error names the existing typed def preserving the tag spelling, with before/after examples and guidance to move (never delete) child content to a valid parent or sibling position. For example, `element("br")` reports:
+
+```text
+Cannot create <br> with element: <br> is a void HTML tag.
+
+Use the built-in br factory:
+  element("br")              → br
+  element("br")(id := "gap") → br(id := "gap")
+
+br accepts attributes only. Move any child content outside br,
+for example: div(br, "text").
+```
+
+```scala mdoc:fail
+import zio.blocks.html._
+
+element("br")      // ❌ does not compile — use br
+voidElement("div") // ❌ does not compile — use div
+```
+
+When the tag is only known at runtime, `elementDynamic(tag)` and `voidElementDynamic(tag)` accept any `String` and report the same failure as a typed `TagError` instead of throwing. A `TagError` names the actual tag value and recommends the matching dynamic alternative, so handle both outcomes explicitly instead of throwing or calling `.get`:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+elementDynamic("div") // Right(<div></div>)
+elementDynamic("br")  // Left(TagError.VoidTag("br"))
+voidElementDynamic("br")   // Right(<br/>)
+voidElementDynamic("div")  // Left(TagError.NonVoidTag("div"))
+
+def headingFor(tag: String): Dom.Element =
+  elementDynamic(tag) match {
+    case Right(element) => element
+    case Left(error)    => div(error.tag)
+  }
+```
+
+A stable `val` reference whose declared type lost the literal (e.g. `final val tag: String = "div"`) is rejected with recovery guidance instead: give it a literal type (`val tag: "div" = "div"`), use an `inline val`, or forward an inline parameter (`inline def build(inline tag: String) = element(tag)`, called with a literal). The suggested literal always matches the factory's category (`"div"` for `element`, `"br"` for `voidElement`).
+
+`Dom.Element.Generic` nodes are always non-void by construction: every internal construction site passes a validated non-void tag (the `html""` parser routes void tags to `VoidGeneric` instead), so `withChildren` never fails and rendering always emits a closing tag — children can never be silently dropped at render. Direct `Generic(...)` / `VoidGeneric(...)` construction and tag-changing `copy(tag = ...)` are not available outside the module — `Generic` and `VoidGeneric` are controlled classes with extractors (`case Generic(tag, attributes, children)` still matches). To retarget a tag, rebuild through a factory and carry the content over:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val original = h3(id := "title", "Old")
+val upgraded = h2.withAttributes(original.attributes).withChildren(original.children)
+```
 
 ## Typed Content Models
 
@@ -568,10 +616,9 @@ elements also have equal hash codes:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
-import zio.blocks.chunk.Chunk
 
 val fromFactory = li("a")
-val generic = Dom.Element.Generic("li", Chunk.empty, Chunk(Dom.Text("a")))
+val generic = element("li")("a")
 fromFactory == generic  // true — structural equality across classes
 ```
 
@@ -582,7 +629,7 @@ equal elements always render identically.
 
 ## String Interpolators
 
-The module provides four string interpolators: `html""`, `css""`, `js""`, and `selector""`. All offer compile-time safety (on Scala 3) and automatic escaping appropriate to their context.
+The module provides four string interpolators: `html""`, `css""`, `js""`, and `selector""`. All offer compile-time safety and automatic escaping appropriate to their context.
 
 ### `html""` Interpolator
 
@@ -607,7 +654,7 @@ val age = 30
 val elem = html"""<div id="user-$age" class="profile">User: $name</div>"""
 ```
 
-**Single-root requirement**: The `html""` interpolator requires a **single root element**. Multiple top-level nodes cause an exception at runtime (Scala 2) or compile error for static templates (Scala 3):
+**Single-root requirement**: The `html""` interpolator requires a **single root element**. Multiple top-level nodes are a compile error for static templates:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -628,7 +675,7 @@ val safe = html"<p>$userInput</p>"
 ```
 
 :::danger
-The `html""` interpolator requires a **single root element**. On Scala 3, pure-static templates with multiple roots fail at compile time. On Scala 2 or for dynamic templates, the error occurs at evaluation time. Always wrap multiple elements in a container (e.g., `<div>`).
+The `html""` interpolator requires a **single root element**. Pure-static templates with multiple roots fail at compile time; for dynamic templates, the error occurs at evaluation time. Always wrap multiple elements in a container (e.g., `<div>`).
 :::
 
 ### `css""` Interpolator
@@ -865,7 +912,7 @@ val page = div(
 
 // Transform all Element nodes in the selection; non-Element nodes pass through unchanged
 val modifiedSelection = page.select(CssSelector.Element("p")).modifyAll {
-  case el: Dom.Element.Generic if el.tag == "p" => el.copy(tag = "div")
+  case el: Dom.Element if el.tag == "p" => div.withAttributes(el.attributes).withChildren(el.children)
   case other => other
 }
 

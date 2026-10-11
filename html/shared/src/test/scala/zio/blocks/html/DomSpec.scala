@@ -60,7 +60,7 @@ object DomSpec extends ZIOSpecDefault {
       },
       test("renders boolean attribute") {
         val attr = Dom.Attribute.BooleanAttribute("required")
-        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        val el   = Dom.Element.VoidGeneric("input", Chunk(attr))
         assertTrue(el.render == "<input required/>")
       },
       test("renders multi-value attribute") {
@@ -84,12 +84,12 @@ object DomSpec extends ZIOSpecDefault {
       },
       test("BooleanValue(false) omits attribute") {
         val attr = Dom.Attribute.KeyValue("disabled", Dom.AttributeValue.BooleanValue(false))
-        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        val el   = Dom.Element.VoidGeneric("input", Chunk(attr))
         assertTrue(el.render == "<input/>")
       },
       test("BooleanValue(true) renders as boolean attribute") {
         val attr = Dom.Attribute.KeyValue("disabled", Dom.AttributeValue.BooleanValue(true))
-        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        val el   = Dom.Element.VoidGeneric("input", Chunk(attr))
         assertTrue(el.render == "<input disabled/>")
       },
       test("Generic element escapes text content") {
@@ -192,39 +192,41 @@ object DomSpec extends ZIOSpecDefault {
     ),
     suite("Void elements")(
       test("br self-closes") {
-        assertTrue(Dom.Element.Generic("br", Chunk.empty, Chunk.empty).render == "<br/>")
+        assertTrue(Dom.Element.VoidGeneric("br", Chunk.empty).render == "<br/>")
       },
       test("img self-closes with attributes") {
         val attr = Dom.Attribute.KeyValue("src", Dom.AttributeValue.StringValue("a.png"))
-        assertTrue(Dom.Element.Generic("img", Chunk(attr), Chunk.empty).render == """<img src="a.png"/>""")
+        assertTrue(Dom.Element.VoidGeneric("img", Chunk(attr)).render == """<img src="a.png"/>""")
       },
       test("hr self-closes") {
-        assertTrue(Dom.Element.Generic("hr", Chunk.empty, Chunk.empty).render == "<hr/>")
+        assertTrue(Dom.Element.VoidGeneric("hr", Chunk.empty).render == "<hr/>")
       },
       test("input self-closes") {
-        assertTrue(Dom.Element.Generic("input", Chunk.empty, Chunk.empty).render == "<input/>")
+        assertTrue(Dom.Element.VoidGeneric("input", Chunk.empty).render == "<input/>")
       },
-      test("Generic rejects children on void tags") {
-        assertTrue(
-          isVoidGuardRejection(Dom.Element.Generic("br", Chunk.empty, Chunk(Dom.Text("x"))), "Void element <br>"),
-          isVoidGuardRejection(Dom.Element.Generic("img", Chunk.empty, Chunk(Dom.Text("x"))), "Void element <img>")
-        )
+      test("VoidGeneric carries only attributes") {
+        val attr = Dom.Attribute.KeyValue("src", Dom.AttributeValue.StringValue("a.png"))
+        val el   = Dom.Element.VoidGeneric("img", Chunk.empty).withAttributes(Chunk(attr))
+        assertTrue(el.render == """<img src="a.png"/>""")
       },
-      test("Generic allows empty children on void tags") {
-        assertTrue(Dom.Element.Generic("br", Chunk.empty, Chunk.empty).render == "<br/>")
+      test("VoidGeneric applies attribute modifiers") {
+        val attr = Dom.Attribute.KeyValue("src", Dom.AttributeValue.StringValue("a.png"))
+        val el   = Dom.Element.VoidGeneric("img", Chunk.empty)(attr)
+        assertTrue(el.render == """<img src="a.png"/>""")
       },
-      test("withChildren rejects children on void tags") {
-        val el = Dom.Element.Generic("br", Chunk.empty, Chunk.empty)
-        assertTrue(isVoidGuardRejection(el.withChildren(Chunk(Dom.Text("x"))), "Void element <br>"))
+      test("void elements are not Elements") {
+        val el: Dom = Dom.Element.VoidGeneric("br", Chunk.empty)
+        assertTrue(el match {
+          case _: Dom.Element => false
+          case _              => true
+        })
       },
-      test("Generic rejects children on uppercase void tags") {
-        assertTrue(
-          isVoidGuardRejection(Dom.Element.Generic("BR", Chunk.empty, Chunk(Dom.Text("x"))), "Void element <BR>"),
-          isVoidGuardRejection(Dom.Element.Generic("IMG", Chunk.empty, Chunk(Dom.Text("x"))), "Void element <IMG>")
-        )
+      test("Generic nodes are never void") {
+        val el = Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("x")))
+        assertTrue(!el.isVoid, el.render == "<div>x</div>")
       },
       test("uppercase void tag self-closes") {
-        assertTrue(Dom.Element.Generic("BR", Chunk.empty, Chunk.empty).render == "<BR/>")
+        assertTrue(Dom.Element.VoidGeneric("BR", Chunk.empty).render == "<BR/>")
       }
     ),
     suite("renderMinified")(
@@ -244,7 +246,7 @@ object DomSpec extends ZIOSpecDefault {
         assertTrue(Dom.Empty.renderMinified == "")
       },
       test("renderMinified for void element") {
-        assertTrue(Dom.Element.Generic("br", Chunk.empty, Chunk.empty).renderMinified == "<br/>")
+        assertTrue(Dom.Element.VoidGeneric("br", Chunk.empty).renderMinified == "<br/>")
       }
     ),
     suite("indentation rendering")(
@@ -319,8 +321,8 @@ object DomSpec extends ZIOSpecDefault {
           "div",
           Chunk.empty,
           Chunk(
-            Dom.Element.Generic("br", Chunk.empty, Chunk.empty),
-            Dom.Element.Generic("hr", Chunk.empty, Chunk.empty)
+            Dom.Element.VoidGeneric("br", Chunk.empty),
+            Dom.Element.VoidGeneric("hr", Chunk.empty)
           )
         )
         val result = el.render(indent = 2)
@@ -354,12 +356,12 @@ object DomSpec extends ZIOSpecDefault {
     suite("boolAttr")(
       test("enabled=true renders attribute") {
         val attr = Dom.boolAttr("required")
-        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        val el   = Dom.Element.VoidGeneric("input", Chunk(attr))
         assertTrue(el.render == "<input required/>")
       },
       test("enabled=false omits attribute") {
         val attr = Dom.boolAttr("required", enabled = false)
-        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        val el   = Dom.Element.VoidGeneric("input", Chunk(attr))
         assertTrue(el.render == "<input/>")
       }
     ),
@@ -672,7 +674,7 @@ object DomSpec extends ZIOSpecDefault {
           "accept",
           Dom.AttributeValue.MultiValue(Chunk("text/html", "application/json"), Dom.AttributeSeparator.Comma)
         )
-        val el = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        val el = Dom.Element.VoidGeneric("input", Chunk(attr))
         assertTrue(el.render == """<input accept="text/html,application/json"/>""")
       },
       test("Semicolon separator") {
@@ -900,7 +902,7 @@ object DomSpec extends ZIOSpecDefault {
           "accept",
           Dom.AttributeValue.MultiValue(Chunk("text/html", "text/css"), Dom.AttributeSeparator.Comma)
         )
-        val el = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        val el = Dom.Element.VoidGeneric("input", Chunk(attr))
         assertTrue(el.render == """<input accept="text/html,text/css"/>""")
       },
       test("MultiValue with Semicolon separator") {
@@ -939,12 +941,12 @@ object DomSpec extends ZIOSpecDefault {
       },
       test("BooleanValue(true) renders attribute name only") {
         val attr = Dom.Attribute.KeyValue("checked", Dom.AttributeValue.BooleanValue(true))
-        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        val el   = Dom.Element.VoidGeneric("input", Chunk(attr))
         assertTrue(el.render == "<input checked/>")
       },
       test("BooleanValue(false) omits attribute") {
         val attr = Dom.Attribute.KeyValue("checked", Dom.AttributeValue.BooleanValue(false))
-        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        val el   = Dom.Element.VoidGeneric("input", Chunk(attr))
         assertTrue(el.render == "<input/>")
       },
       test("StringValue with special chars is escaped") {
@@ -956,7 +958,7 @@ object DomSpec extends ZIOSpecDefault {
         val a1 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))
         val a2 = Dom.Attribute.BooleanAttribute("disabled")
         val a3 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("y"))
-        val el = Dom.Element.Generic("input", Chunk(a1, a2, a3), Chunk.empty)
+        val el = Dom.Element.VoidGeneric("input", Chunk(a1, a2, a3))
         assertTrue(
           el.render == """<input id="x" disabled class="y"/>"""
         )
@@ -972,13 +974,13 @@ object DomSpec extends ZIOSpecDefault {
       test(":= with Boolean true creates BooleanValue") {
         val pa   = new AttributeKey("disabled")
         val attr = pa := true
-        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        val el   = Dom.Element.VoidGeneric("input", Chunk(attr))
         assertTrue(el.render == "<input disabled/>")
       },
       test(":= with Boolean false omits") {
         val pa   = new AttributeKey("disabled")
         val attr = pa := false
-        val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
+        val el   = Dom.Element.VoidGeneric("input", Chunk(attr))
         assertTrue(el.render == "<input/>")
       },
       test(":= with Chunk[String] creates MultiValue") {
@@ -995,13 +997,13 @@ object DomSpec extends ZIOSpecDefault {
       },
       test("BooleanAttribute as modifier via ToModifier") {
         val ba      = Dom.Attribute.BooleanAttribute("required")
-        val el      = Dom.Element.Generic("input", Chunk.empty, Chunk.empty)
+        val el      = Dom.Element.VoidGeneric("input", Chunk.empty)
         val updated = el(ba)
         assertTrue(updated.render == "<input required/>")
       },
       test("BooleanAttribute disabled=false does not add attribute") {
         val ba      = Dom.Attribute.BooleanAttribute("disabled", enabled = false)
-        val el      = Dom.Element.Generic("input", Chunk.empty, Chunk.empty)
+        val el      = Dom.Element.VoidGeneric("input", Chunk.empty)
         val updated = el(ba)
         assertTrue(updated.render == "<input/>")
       }
@@ -1338,7 +1340,7 @@ object DomSpec extends ZIOSpecDefault {
         val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
         val a2 = Dom.Attribute.BooleanAttribute("disabled")
         val a3 = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("b"), Dom.AttributeSeparator.Space)
-        val el = Dom.Element.Generic("input", Chunk(a1, a2, a3), Chunk.empty)
+        val el = Dom.Element.VoidGeneric("input", Chunk(a1, a2, a3))
         assertTrue(el.render == """<input class="a b" disabled/>""")
       },
       test("appendBaseValue with BooleanValue falls through to toString") {
@@ -1400,24 +1402,14 @@ object DomSpec extends ZIOSpecDefault {
       },
       test(":= with false via BooleanAttribute") {
         val ba = Dom.Attribute.BooleanAttribute("checked") := false
-        val el = Dom.Element.Generic("input", Chunk(ba), Chunk.empty)
+        val el = Dom.Element.VoidGeneric("input", Chunk(ba))
         assertTrue(el.render == "<input/>")
       },
       test(":= with true via BooleanAttribute") {
         val ba = Dom.Attribute.BooleanAttribute("checked") := true
-        val el = Dom.Element.Generic("input", Chunk(ba), Chunk.empty)
+        val el = Dom.Element.VoidGeneric("input", Chunk(ba))
         assertTrue(el.render == "<input checked/>")
       }
     )
   )
-
-  private def isVoidGuardRejection(thunk: => Any, expectedMessageSnippet: String): Boolean =
-    try {
-      thunk
-      false
-    } catch {
-      case e: IllegalArgumentException =>
-        e.getMessage != null && e.getMessage.contains(expectedMessageSnippet)
-      case _: Throwable => false
-    }
 }

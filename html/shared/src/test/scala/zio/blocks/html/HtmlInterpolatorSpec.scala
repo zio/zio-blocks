@@ -316,7 +316,7 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
       },
       test("self-closing with space before />") {
         val result = InterpolatorRuntime.parseHtml("<br />")
-        assertTrue(result == Chunk(Dom.Element.Generic("br", Chunk.empty, Chunk.empty)))
+        assertTrue(result == Chunk(Dom.Element.VoidGeneric("br", Chunk.empty)))
       },
       test("bare < treated as text") {
         val result = InterpolatorRuntime.parseHtml("a < b")
@@ -358,9 +358,9 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         val result = InterpolatorRuntime.parseHtml("""<img src="a.png" alt="photo"/>""")
         assertTrue(
           result.length == 1,
-          result.head.isInstanceOf[Dom.Element],
-          result.head.asInstanceOf[Dom.Element].tag == "img",
-          result.head.asInstanceOf[Dom.Element].attributes.length == 2
+          result.head.isInstanceOf[Dom.Element.Void],
+          result.head.asInstanceOf[Dom.Element.Void].tag == "img",
+          result.head.asInstanceOf[Dom.Element.Void].attributes.length == 2
         )
       },
       test("tag with tab and newline whitespace in attributes") {
@@ -408,11 +408,25 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
       },
       test("slash in attribute area without prior tag close") {
         val result = InterpolatorRuntime.parseHtml("<br/>")
-        assertTrue(result == Chunk(Dom.Element.Generic("br", Chunk.empty, Chunk.empty)))
+        assertTrue(result == Chunk(Dom.Element.VoidGeneric("br", Chunk.empty)))
+      },
+      test("void open tag parses to VoidGeneric") {
+        val result = InterpolatorRuntime.parseHtml("<br>")
+        assertTrue(result == Chunk(Dom.Element.VoidGeneric("br", Chunk.empty)))
+      },
+      test("void tag followed by text keeps text as sibling") {
+        val result = InterpolatorRuntime.parseHtml("<br>text")
+        assertTrue(
+          result == Chunk(Dom.Element.VoidGeneric("br", Chunk.empty), Dom.Text("text"))
+        )
+      },
+      test("stray void closing tag is ignored") {
+        val result = InterpolatorRuntime.parseHtml("<div>x</br></div>")
+        assertTrue(result == Chunk(Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("x")))))
       },
       test("multiple boolean attributes") {
         val result = InterpolatorRuntime.parseHtml("<input disabled required/>")
-        val el     = result.head.asInstanceOf[Dom.Element]
+        val el     = result.head.asInstanceOf[Dom.Element.Void]
         assertTrue(el.attributes.length == 2)
       },
       test("case-insensitive closing tag") {

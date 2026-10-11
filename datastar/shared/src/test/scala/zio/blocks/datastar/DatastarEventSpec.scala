@@ -25,11 +25,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
   def spec = suite("DatastarEvent")(
     suite("PatchElements")(
       test("basic: just Dom with default mode (outer)") {
-        val dom = Dom.Element.Generic(
-          "div",
-          Chunk(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("foo"))),
-          Chunk(Dom.Text("Hello"))
-        )
+        val dom    = element("div")(id := "foo", "Hello")
         val result = DatastarEvent.patchElements(dom).renderSSE
         assertTrue(
           result ==
@@ -39,11 +35,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
         )
       },
       test("with selector and non-default mode") {
-        val dom = Dom.Element.Generic(
-          "div",
-          Chunk(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("foo"))),
-          Chunk(Dom.Text("Hello"))
-        )
+        val dom    = element("div")(id := "foo", "Hello")
         val result = DatastarEvent
           .patchElements(dom)
           .selector(CssSelector.id("foo"))
@@ -59,7 +51,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
         )
       },
       test("with all options: viewTransition, namespace, eventId, retry") {
-        val dom    = Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("Hi")))
+        val dom    = element("span")("Hi")
         val result = DatastarEvent
           .patchElements(dom)
           .selector(CssSelector.`class`("container"))
@@ -83,14 +75,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
         )
       },
       test("multi-line HTML gets separate data: elements lines") {
-        val dom = Dom.Element.Generic(
-          "div",
-          Chunk.empty,
-          Chunk(
-            Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("line1"))),
-            Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("line2")))
-          )
-        )
+        val dom      = element("div")(element("p")("line1"), element("p")("line2"))
         val rendered = dom.renderMinified
         assertTrue(rendered == "<div><p>line1</p><p>line2</p></div>") &&
         assertTrue(
@@ -101,12 +86,12 @@ object DatastarEventSpec extends ZIOSpecDefault {
         )
       },
       test("default mode (outer) is omitted from output") {
-        val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val dom    = element("div")
         val result = DatastarEvent.patchElements(dom).mode(ElementPatchMode.Outer).renderSSE
         assertTrue(!result.contains("data: mode"))
       },
       test("eventId only adds id field") {
-        val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val dom    = element("div")
         val result = DatastarEvent.patchElements(dom).eventId("abc").renderSSE
         assertTrue(
           result ==
@@ -117,7 +102,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
         )
       },
       test("retry only adds retry field") {
-        val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val dom    = element("div")
         val result = DatastarEvent.patchElements(dom).retry(1000L).renderSSE
         assertTrue(
           result ==
@@ -302,7 +287,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
     ),
     suite("fused SSE framing")(
       test("elements containing newlines split into multiple data lines") {
-        val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("a\nb")))
+        val dom    = element("div")("a\nb")
         val result = DatastarEvent.patchElements(dom).renderSSE
         assertTrue(
           result ==
@@ -313,7 +298,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
         )
       },
       test("builder setters preserve all other fields") {
-        val dom    = Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("Hi")))
+        val dom    = element("span")("Hi")
         val result = DatastarEvent
           .patchElements(dom)
           .selector(CssSelector.`class`("container"))
@@ -337,7 +322,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
         )
       },
       test("eventId with newline is rejected") {
-        val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val dom    = element("div")
         val thrown = scala.util.Try(DatastarEvent.patchElements(dom).eventId("a\nb").renderSSE)
         assertTrue(
           thrown match {
@@ -348,7 +333,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
         )
       },
       test("negative retry is rejected") {
-        val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val dom    = element("div")
         val thrown = scala.util.Try(DatastarEvent.patchElements(dom).retry(-1L).renderSSE)
         assertTrue(
           thrown match {
@@ -431,7 +416,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
         )
       },
       test("elements with CRLF split once") {
-        val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("a\r\nb")))
+        val dom    = element("div")("a\r\nb")
         val result = DatastarEvent.patchElements(dom).renderSSE
         assertTrue(
           result ==

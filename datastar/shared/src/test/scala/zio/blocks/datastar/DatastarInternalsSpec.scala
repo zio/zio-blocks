@@ -348,7 +348,7 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
     ),
     suite("DatastarEvent builders")(
       test("patchElements builder methods compose into SSE output") {
-        val dom    = Dom.Element.Generic("section", Chunk.empty, Chunk(Dom.Text("Hi")))
+        val dom    = element("section")("Hi")
         val result = DatastarEvent
           .patchElements(dom)
           .selector(CssSelector.`class`("dashboard"))

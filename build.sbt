@@ -1618,7 +1618,7 @@ lazy val docs = project
 
 lazy val html = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-html"))
+  .settings(stdSettings("zio-blocks-html", Seq(Scala3, Scala33)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.html"))
   .enablePlugins(BuildInfoPlugin)
@@ -1629,13 +1629,10 @@ lazy val html = crossProject(JSPlatform, JVMPlatform)
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
-    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((2, _)) =>
-        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
-      case _ => Seq()
-    }),
+    ),
     coverageExcludedFiles := Seq(
       ".*TemplateInterpolators.*",
+      ".*ElementMacros.*",
       ".*BuildInfo.*"
     ).mkString(";"),
     coverageMinimumStmtTotal   := 90,

@@ -260,35 +260,39 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       }
     ),
     suite("void element guard")(
-      test("element rejects void tags") {
+      test("elementDynamic rejects void tags") {
         assertTrue(
-          isVoidGuardRejection(element("br"), "Void element <br>"),
-          isVoidGuardRejection(element("img"), "Void element <img>"),
-          isVoidGuardRejection(element("input"), "Void element <input>")
+          elementDynamic("br") == Left(TagError.VoidTag("br")),
+          elementDynamic("img") == Left(TagError.VoidTag("img")),
+          elementDynamic("input") == Left(TagError.VoidTag("input"))
         )
       },
       test("voidElement creates self-closing void elements") {
+        val brRender  = voidElement("br").render
+        val imgRender = voidElement("img").render
         assertTrue(
-          voidElement("br").render == "<br/>",
-          voidElement("img").render == "<img/>"
+          brRender == "<br/>",
+          imgRender == "<img/>"
         )
       },
-      test("voidElement rejects non-void tags") {
+      test("voidElementDynamic rejects non-void tags") {
         assertTrue(
-          isNonVoidGuardRejection(voidElement("div"), "Non-void element <div>"),
-          isNonVoidGuardRejection(voidElement("span"), "Non-void element <span>")
+          voidElementDynamic("div") == Left(TagError.NonVoidTag("div")),
+          voidElementDynamic("span") == Left(TagError.NonVoidTag("span"))
         )
       },
-      test("element rejects uppercase void tags") {
+      test("elementDynamic rejects uppercase void tags") {
         assertTrue(
-          isVoidGuardRejection(element("BR"), "Void element <BR>"),
-          isVoidGuardRejection(element("IMG"), "Void element <IMG>")
+          elementDynamic("BR") == Left(TagError.VoidTag("BR")),
+          elementDynamic("IMG") == Left(TagError.VoidTag("IMG"))
         )
       },
       test("voidElement accepts uppercase void tags") {
+        val upperBrRender  = voidElement("BR").render
+        val upperImgRender = voidElement("IMG").render
         assertTrue(
-          voidElement("BR").render == "<BR/>",
-          voidElement("IMG").render == "<IMG/>"
+          upperBrRender == "<BR/>",
+          upperImgRender == "<IMG/>"
         )
       },
       test("voidElement accepts attributes") {
@@ -919,24 +923,4 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       }
     )
   )
-
-  private def isVoidGuardRejection(thunk: => Any, expectedMessageSnippet: String): Boolean =
-    try {
-      thunk
-      false
-    } catch {
-      case e: IllegalArgumentException =>
-        e.getMessage != null && e.getMessage.contains(expectedMessageSnippet)
-      case _: Throwable => false
-    }
-
-  private def isNonVoidGuardRejection(thunk: => Any, expectedMessageSnippet: String): Boolean =
-    try {
-      thunk
-      false
-    } catch {
-      case e: IllegalArgumentException =>
-        e.getMessage != null && e.getMessage.contains(expectedMessageSnippet)
-      case _: Throwable => false
-    }
 }
