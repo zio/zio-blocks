@@ -29,6 +29,15 @@ object LogSpec extends ZIOSpecDefault {
     def forceFlush(): Unit                 = ()
   }
 
+  /**
+   * Named fixture: the `log.info` call sits directly in `emitProbe`'s body, so
+   * both the Scala 2 and Scala 3 macros must report this exact owner and method
+   * — no closures or indirection in between.
+   */
+  object StableCodeFixture {
+    def emitProbe(): Unit = log.info("stable-code-probe")
+  }
+
   private def withLogger(
     minSeverity: Severity = Severity.Trace,
     resource: Resource = Resource.empty
@@ -79,16 +88,60 @@ object LogSpec extends ZIOSpecDefault {
         processor.emitted.head.resource.attributes.get(AttributeKey.string("service.name")).contains("test-service")
       )
     },
-    test("source location attributes are present") {
+    test("macro emits the exact fully qualified code.function.name") {
       val processor = withLogger() { _ =>
-        log.info("located")
+        StableCodeFixture.emitProbe()
       }
       val attrs = processor.emitted.head.attributes
       assertTrue(
-        attrs.get(AttributeKey.string("code.filepath")).isDefined,
-        attrs.get(AttributeKey.string("code.namespace")).isDefined,
-        attrs.get(AttributeKey.string("code.function")).isDefined,
-        attrs.get(AttributeKey.long("code.lineno")).isDefined
+        attrs
+          .get(AttributeKey.string("code.function.name"))
+          .contains(
+            "zio.blocks.telemetry.LogSpec.StableCodeFixture.emitProbe"
+          ),
+        attrs.get(AttributeKey.string("code.file.path")).exists(_.endsWith("LogSpec.scala")),
+        attrs.get(AttributeKey.long("code.line.number")).exists(_ > 0),
+        attrs.get(AttributeKey.string("code.filepath")).isEmpty,
+        attrs.get(AttributeKey.string("code.namespace")).isEmpty,
+        attrs.get(AttributeKey.string("code.function")).isEmpty,
+        attrs.get(AttributeKey.long("code.lineno")).isEmpty
+      )
+    },
+    test("level overrides match the raw module namespace") {
+      // Gating uses the raw enclosing-class identity from a version-specific
+      // constant (no runtime probing): on Scala 3 the `$` prefix is not a
+      // prefix of the normalized emitted name, so a normalized lookup would
+      // drop the probe and fail this test there.
+      val rawPrefix = RawFixtureNamespace.value
+      val processor = withLogger(Severity.Warn) { _ =>
+        log.setMinSeverity(rawPrefix, Severity.Debug)
+        StableCodeFixture.emitProbe()
+      }
+      assertTrue(
+        processor.emitted.size == 1,
+        processor.emitted.head.body.value == "stable-code-probe"
+      )
+    },
+    test("programmatic emit records an explicit source location exactly") {
+      val processor = withLogger() { _ =>
+        log.emit(Severity.Info, "explicit", SourceLocation("src/Svc.scala", "com.example.Svc", "doWork", 7))
+      }
+      val attrs = processor.emitted.head.attributes
+      assertTrue(
+        processor.emitted.head.body.value == "explicit",
+        attrs.get(AttributeKey.string("code.file.path")).contains("src/Svc.scala"),
+        attrs.get(AttributeKey.string("code.function.name")).contains("com.example.Svc.doWork"),
+        attrs.get(AttributeKey.long("code.line.number")).contains(7L)
+      )
+    },
+    test("programmatic records handle empty namespace and method") {
+      def functionNameOf(location: SourceLocation): Option[String] =
+        log.baseRecord(Severity.Info, "m", location).attributes.get(AttributeKey.string("code.function.name"))
+      assertTrue(
+        functionNameOf(SourceLocation("f.scala", "com.example.Svc", "doWork", 7)).contains("com.example.Svc.doWork"),
+        functionNameOf(SourceLocation("f.scala", "", "go", 3)).contains("go"),
+        functionNameOf(SourceLocation("f.scala", "com.example.Svc", "", 3)).contains("com.example.Svc"),
+        functionNameOf(SourceLocation("f.scala", "", "", 0)).contains("")
       )
     },
     test("level filtering skips messages below minSeverity") {
