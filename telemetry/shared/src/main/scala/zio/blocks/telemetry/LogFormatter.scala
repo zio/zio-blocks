@@ -56,34 +56,34 @@ object TextLogFormatter extends LogFormatter {
 
   /**
    * Exact canonical location keys emitted by the logging macros
-   * (`code.filepath`, `code.namespace`, `code.function`, `code.lineno`). Any
-   * other `code.*` key is a user attribute and must stay visible. Prefix
-   * matching would over-delete those.
+   * (`code.file.path`, `code.function.name`, `code.line.number` — the stable
+   * OpenTelemetry code attributes). Any other `code.*` key is a user attribute
+   * and must stay visible. Prefix matching would over-delete those.
    */
   private def isCodeKey(key: String): Boolean =
-    key == "code.filepath" || key == "code.namespace" ||
-      key == "code.function" || key == "code.lineno"
+    key == "code.file.path" || key == "code.function.name" ||
+      key == "code.line.number"
 
   /**
    * Builder-path visibility: canonical code.* keys are consumed into the
-   * location prefix and hidden — except a String-typed `code.lineno` that did
-   * not parse as a number, which stays visible instead of being silently
+   * location prefix and hidden — except a String-typed `code.line.number` that
+   * did not parse as a number, which stays visible instead of being silently
    * dropped (same rule as the record path below).
    */
   private def showAsUserAttr(key: String, tpe: Byte, str: String): Boolean =
     if (!isCodeKey(key)) true
     else
-      key == "code.lineno" && tpe == 0 &&
+      key == "code.line.number" && tpe == 0 &&
       (str == null || str.toLongOption.isEmpty)
 
   /**
    * Record-path visibility for String attributes: mirrors `showAsUserAttr` for
-   * the `code.lineno`-as-String case handled in `formatRecord`.
+   * the `code.line.number`-as-String case handled in `formatRecord`.
    */
   private def showRecordStringAsUserAttr(key: String, value: String): Boolean =
     if (!isCodeKey(key)) true
     else
-      key == "code.lineno" &&
+      key == "code.line.number" &&
       (value == null || value.toLongOption.isEmpty)
 
   override def format(
@@ -102,7 +102,7 @@ object TextLogFormatter extends LogFormatter {
     renderHead(sb, timestampNanos, severityText)
 
     // Source location — matched by key over all slots. The macro path always
-    // writes the four code.* attributes first, but direct Logger calls never
+    // writes the three code.* attributes first, but direct Logger calls never
     // write them, so position-based matching would misread user attributes.
     val keys    = builder.builderKeys
     val types   = builder.builderTypes
@@ -110,15 +110,13 @@ object TextLogFormatter extends LogFormatter {
     val strings = builder.builderStrings
     val len     = builder.builderLen
 
-    var namespace = ""
-    var method    = ""
-    var lineNo    = 0L
-    var i         = 0
+    var functionName = ""
+    var lineNo       = 0L
+    var i            = 0
     while (i < len) {
       keys(i) match {
-        case "code.namespace" => if (strings(i) != null) namespace = strings(i)
-        case "code.function"  => if (strings(i) != null) method = strings(i)
-        case "code.lineno"    =>
+        case "code.function.name" => if (strings(i) != null) functionName = strings(i)
+        case "code.line.number"   =>
           if (types(i) == 1) lineNo = longs(i)
           else if (types(i) == 0 && strings(i) != null)
             strings(i).toLongOption.foreach(v => lineNo = v)
@@ -126,13 +124,13 @@ object TextLogFormatter extends LogFormatter {
       }
       i += 1
     }
-    renderLocation(sb, namespace, method, lineNo)
+    renderLocation(sb, functionName, lineNo)
 
     // Body — CR/LF escaped so a multi-line message cannot forge extra lines.
     appendBodyEscaped(sb, body)
 
     // User attributes — everything that is not a code.* attribute, in slot
-    // order (same rule as formatRecord). A wrong-typed code.lineno that could
+    // order (same rule as formatRecord). A wrong-typed code.line.number that could
     // not feed the location prefix stays visible instead of being dropped.
     val seqs         = builder.builderSeqs
     var hasUserAttrs = false
@@ -156,23 +154,21 @@ object TextLogFormatter extends LogFormatter {
     renderHead(sb, record.timestampNanos, record.severityText)
 
     // Source location from record attributes
-    var namespace = ""
-    var method    = ""
-    var lineNo    = 0L
+    var functionName = ""
+    var lineNo       = 0L
     record.attributes.accept(new AttributeVisitor {
       override def visitString(key: String, value: String): Unit =
         key match {
-          case "code.namespace" => namespace = value
-          case "code.function"  => method = value
-          case "code.lineno"    =>
-            // Wrong-typed lineno (String): feed the location prefix when numeric,
+          case "code.function.name" => functionName = value
+          case "code.line.number"   =>
+            // Wrong-typed line number (String): feed the location prefix when numeric,
             // mirroring the builder path above.
             if (value != null) value.toLongOption.foreach(v => lineNo = v)
           case _ => ()
         }
 
       override def visitLong(key: String, value: Long): Unit =
-        if (key == "code.lineno") lineNo = value
+        if (key == "code.line.number") lineNo = value
 
       override def visitDouble(key: String, value: Double): Unit           = ()
       override def visitBoolean(key: String, value: Boolean): Unit         = ()
@@ -181,13 +177,13 @@ object TextLogFormatter extends LogFormatter {
       override def visitDoubleSeq(key: String, value: Seq[Double]): Unit   = ()
       override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit = ()
     })
-    renderLocation(sb, namespace, method, lineNo)
+    renderLocation(sb, functionName, lineNo)
 
     // Body — CR/LF escaped so a multi-line message cannot forge extra lines.
     appendBodyEscaped(sb, record.body.value)
 
     // User attributes (skip code.* attributes, except a wrong-typed
-    // code.lineno that could not feed the location prefix).
+    // code.line.number that could not feed the location prefix).
     var hasUserAttrs = false
     record.attributes.accept(new AttributeVisitor {
       private def nextAttr(key: String): Unit = {
@@ -271,15 +267,24 @@ object TextLogFormatter extends LogFormatter {
     while (pad > 0) { sb.append(' '); pad -= 1 }
   }
 
-  /** Shared source-location rendering, used by both entry points. */
-  private def renderLocation(sb: StringBuilder, namespace: String, method: String, lineNo: Long): Unit = {
+  /**
+   * Shared source-location rendering, used by both entry points. The stable
+   * `code.function.name` is fully qualified (`com.example.Svc.doWork`), so only
+   * the last two segments render (`Svc.doWork`) — the same compact shape the
+   * split namespace/method pair used to produce. A dotless name renders as-is.
+   * (Uses `substring`: the three-argument `StringBuilder.append` overload does
+   * not slice on this builder type.)
+   */
+  private def renderLocation(sb: StringBuilder, functionName: String, lineNo: Long): Unit = {
     sb.append(" [")
-    if (namespace.nonEmpty) {
-      val lastDot = namespace.lastIndexOf('.')
-      if (lastDot >= 0) sb.append(namespace, lastDot + 1, namespace.length)
-      else sb.append(namespace)
+    if (functionName != null && functionName.nonEmpty) {
+      val lastDot = functionName.lastIndexOf('.')
+      if (lastDot < 0) sb.append(functionName)
+      else {
+        val prevDot = functionName.lastIndexOf('.', lastDot - 1)
+        sb.append(functionName.substring(prevDot + 1))
+      }
     }
-    if (method.nonEmpty) { sb.append('.'); sb.append(method) }
     if (lineNo > 0) { sb.append(':'); sb.append(lineNo) }
     sb.append("] ")
   }

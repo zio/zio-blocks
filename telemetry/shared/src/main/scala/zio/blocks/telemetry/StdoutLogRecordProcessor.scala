@@ -45,28 +45,28 @@ private[telemetry] class StdoutLogRecordProcessor extends LogRecordProcessor {
     var pad = 5 - sevText.length
     while (pad > 0) { sb.append(' '); pad -= 1 }
 
-    // Source location — [Namespace.method:line]
+    // Source location — [Svc.method:line], compacted from the fully
+    // qualified stable `code.function.name` (last two segments).
     sb.append(" [")
-    var namespace = ""
-    var method    = ""
-    var line      = 0L
+    var functionName = ""
+    var line         = 0L
     logRecord.attributes.foreach { (key, value) =>
       key match {
-        case "code.namespace" =>
-          value match { case AttributeValue.StringValue(v) => namespace = v; case _ => }
-        case "code.function" =>
-          value match { case AttributeValue.StringValue(v) => method = v; case _ => }
-        case "code.lineno" =>
+        case "code.function.name" =>
+          value match { case AttributeValue.StringValue(v) => functionName = v; case _ => }
+        case "code.line.number" =>
           value match { case AttributeValue.LongValue(v) => line = v; case _ => }
         case _ => ()
       }
     }
-    if (namespace.nonEmpty) {
-      val lastDot = namespace.lastIndexOf('.')
-      if (lastDot >= 0) sb.append(namespace.substring(lastDot + 1))
-      else sb.append(namespace)
+    if (functionName != null && functionName.nonEmpty) {
+      val lastDot = functionName.lastIndexOf('.')
+      if (lastDot < 0) sb.append(functionName)
+      else {
+        val prevDot = functionName.lastIndexOf('.', lastDot - 1)
+        sb.append(functionName.substring(prevDot + 1))
+      }
     }
-    if (method.nonEmpty) { sb.append('.'); sb.append(method) }
     if (line > 0) { sb.append(':'); sb.append(line) }
     sb.append("] ")
 
@@ -77,8 +77,8 @@ private[telemetry] class StdoutLogRecordProcessor extends LogRecordProcessor {
     var hasUserAttrs = false
     logRecord.attributes.foreach { (key, value) =>
       if (
-        key != "code.filepath" && key != "code.namespace" &&
-        key != "code.function" && key != "code.lineno"
+        key != "code.file.path" && key != "code.function.name" &&
+        key != "code.line.number"
       ) {
         if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
         else sb.append(", ")

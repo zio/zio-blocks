@@ -111,12 +111,17 @@ private[telemetry] object LogMacros {
   ): c.Expr[Unit] = {
     import c.universe._
 
-    val pos        = c.enclosingPosition
-    val filePath   = Literal(Constant(pos.source.path))
-    val lineNo     = Literal(Constant(pos.line))
-    val methodName = Literal(Constant(findEnclosingMethod(c)))
-    val namespace  = Literal(Constant(findEnclosingClass(c)))
-    val self       = c.prefix.tree
+    val pos          = c.enclosingPosition
+    val filePath     = Literal(Constant(pos.source.path))
+    val lineNo       = Literal(Constant(pos.line))
+    val namespaceStr = findEnclosingClass(c)
+    val namespace    = Literal(Constant(namespaceStr))
+    // Fully-qualified function name computed once at macro-expansion time and
+    // spliced as a literal — no per-log concatenation at runtime.
+    val functionName = Literal(
+      Constant(SourceLocation.qualifiedFunctionName(namespaceStr, findEnclosingMethod(c)))
+    )
+    val self = c.prefix.tree
 
     generateDirectBuilderPath(c)(
       self,
@@ -127,7 +132,7 @@ private[telemetry] object LogMacros {
       severityNumber,
       filePath,
       lineNo,
-      methodName,
+      functionName,
       namespace
     )
   }
@@ -185,7 +190,7 @@ private[telemetry] object LogMacros {
     severityNumber: Int,
     filePath: c.universe.Tree,
     lineNo: c.universe.Tree,
-    methodName: c.universe.Tree,
+    functionName: c.universe.Tree,
     namespace: c.universe.Tree
   ): c.Expr[Unit] = {
     import c.universe._
@@ -359,10 +364,9 @@ private[telemetry] object LogMacros {
           if (state != null && $severity.number >= state.effectiveLevel($namespace)) {
             val now = _root_.zio.blocks.telemetry.EpochClock.epochNanos()
             val builder = _root_.zio.blocks.telemetry.AttributeBuilderPool.get()
-            builder.put("code.filepath", $filePath)
-            builder.put("code.namespace", $namespace)
-            builder.put("code.function", $methodName)
-            builder.put("code.lineno", $lineNo.toLong)
+            builder.put("code.file.path", $filePath)
+            builder.put("code.function.name", $functionName)
+            builder.put("code.line.number", $lineNo.toLong)
 
             val annotations = _root_.zio.blocks.telemetry.LogAnnotations.get()
             if (annotations.nonEmpty) annotations.foreach { case (k, v) => builder.put(k, v) }

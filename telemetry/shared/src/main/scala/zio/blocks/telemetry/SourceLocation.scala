@@ -22,3 +22,17 @@ final case class SourceLocation(
   methodName: String,
   lineNumber: Int
 )
+
+object SourceLocation {
+
+  /**
+   * Stable OpenTelemetry `code.function.name`: the fully-qualified function
+   * name without arguments (`namespace.methodName`). Single source of truth,
+   * evaluated at macro-expansion time (spliced as a literal, so hot log calls
+   * pay no concatenation) and reused by the programmatic `log` helpers.
+   */
+  private[telemetry] def qualifiedFunctionName(namespace: String, methodName: String): String =
+    if (namespace == null || namespace.isEmpty) methodName
+    else if (methodName == null || methodName.isEmpty) namespace
+    else namespace + "." + methodName
+}
