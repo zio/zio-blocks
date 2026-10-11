@@ -106,19 +106,16 @@ object LogProcessorSpec extends ZIOSpecDefault {
   }
 
   private def logRecord(
-    namespace: String = "com.example.MyClass",
-    method: Option[String] = Some("myMethod"),
+    functionName: String = "com.example.MyClass.myMethod",
     line: Long = 42L,
     includeUserAttrs: Boolean = true,
     includeOtherAttr: Boolean = true,
     throwable: Option[Throwable] = None
   ): LogRecord = {
     val builder = Attributes.builder
-      .put("code.filepath", "Test.scala")
-      .put("code.namespace", namespace)
-      .put("code.lineno", line)
-
-    method.foreach(builder.put("code.function", _))
+      .put("code.file.path", "Test.scala")
+      .put("code.function.name", functionName)
+      .put("code.line.number", line)
 
     if (includeUserAttrs) {
       builder.put("userId", "abc")
@@ -153,10 +150,9 @@ object LogProcessorSpec extends ZIOSpecDefault {
 
   private def emitterBuilder(): Attributes.AttributesBuilder =
     Attributes.builder
-      .put("code.filepath", "Emitter.scala")
-      .put("code.namespace", "com.example.EmitterClass")
-      .put("code.function", "emitMethod")
-      .put("code.lineno", 7L)
+      .put("code.file.path", "Emitter.scala")
+      .put("code.function.name", "com.example.EmitterClass.emitMethod")
+      .put("code.line.number", 7L)
       .put("userId", "abc")
       .put("count", 5L)
 
@@ -185,20 +181,18 @@ object LogProcessorSpec extends ZIOSpecDefault {
         rendered.contains("nums=[1, 2]"),
         rendered.contains("rates=[1.5, 2.5]"),
         rendered.contains("flags=[true, false]"),
-        !rendered.contains("code.filepath"),
-        !rendered.contains("code.namespace"),
-        !rendered.contains("code.function"),
-        !rendered.contains("code.lineno"),
+        !rendered.contains("code.file.path"),
+        !rendered.contains("code.function.name"),
+        !rendered.contains("code.line.number"),
         rendered.contains("java.lang.IllegalStateException: boom")
       )
     },
-    test("onEmit handles namespace without dot method absent line zero and no throwable") {
+    test("onEmit handles a dotless function name with no line number and no throwable") {
       val processor      = new StdoutLogRecordProcessor()
       val (_, rendered0) = captureStdout(
         processor.onEmit(
           logRecord(
-            namespace = "PlainClass",
-            method = None,
+            functionName = "PlainClass",
             line = 0L,
             includeUserAttrs = false,
             includeOtherAttr = false,
@@ -241,10 +235,9 @@ object LogProcessorSpec extends ZIOSpecDefault {
         rendered.contains("nums=[1, 2]"),
         rendered.contains("rates=[1.5, 2.5]"),
         rendered.contains("flags=[true, false]"),
-        !rendered.contains("code.filepath"),
-        !rendered.contains("code.namespace"),
-        !rendered.contains("code.function"),
-        !rendered.contains("code.lineno"),
+        !rendered.contains("code.file.path"),
+        !rendered.contains("code.function.name"),
+        !rendered.contains("code.line.number"),
         rendered.contains("java.lang.IllegalStateException: boom")
       )
     },
@@ -268,7 +261,7 @@ object LogProcessorSpec extends ZIOSpecDefault {
       val rendered = writer.writes.headOption.getOrElse("")
       assertTrue(
         writer.writes.size == 1,
-        rendered.startsWith("2024-07-01T00:10:00.123Z INFO  [(com.example.MyClass,12,19).myMethod:42] test message"),
+        rendered.startsWith("2024-07-01T00:10:00.123Z INFO  [MyClass.myMethod:42] test message"),
         rendered.contains("userId=\"abc\""),
         rendered.contains("count=5"),
         rendered.contains("ratio=2.5"),
@@ -376,7 +369,7 @@ object LogProcessorSpec extends ZIOSpecDefault {
       assertTrue(
         writer.writes.size == 1,
         rendered.startsWith(
-          "2024-07-01T00:10:00.123Z INFO  [(com.example.EmitterClass,12,24).emitMethod:7] emitted message"
+          "2024-07-01T00:10:00.123Z INFO  [EmitterClass.emitMethod:7] emitted message"
         ),
         rendered.contains("userId=\"abc\""),
         rendered.contains("count=5"),

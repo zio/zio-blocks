@@ -64,7 +64,7 @@ object LoggerDirectSpec extends ZIOSpecDefault {
     test("formatted emit without code attributes still prints every attribute") {
       // emitRaw with a builder that carries no code.* slots exercises the
       // builder-array formatter path directly (the macro path always writes
-      // code.* first, so only this path could drop user attributes).
+      // the stable code.* keys first, so only this path could drop user attributes).
       val logger  = consoleLogger()
       val builder = Attributes.builder
         .put("user", "nabil")
