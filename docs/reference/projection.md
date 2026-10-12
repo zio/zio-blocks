@@ -167,7 +167,7 @@ Each projection has a name, the string you give to `Projection[A]("userProfiles"
 
 **Three projection scopes** (see [Projection Scopes](#projection-scopes) for the details):
 
-- **PerEntity** (default): one row per entity ID. Events routed by `ctx.entityId`. Good for user profiles, order state, anything keyed by a single ID.
+- **PerEntity** (default): one row per entity ID. Events routed by `ProjectionContext#entityId`. Good for user profiles, order state, anything keyed by a single ID.
 - **CrossEntity**: events routed by an arbitrary key extracted from the event. Multiple event types converge on the same projection. Good for "all repos owned by user X" views.
 - **Global**: a single shared row (or a few rows keyed by a grouping string). Events from all sources funnel into atomic counter updates. Good for dashboards, daily aggregates, live counters.
 
@@ -426,7 +426,7 @@ The `routedBy` call tells the engine to extract a routing key from each event. E
 
 | Mode | Behavior | Scope derived |
 | --- | --- | --- |
-| `.routeToSelf` | Uses `ctx.entityId` as key | `PerEntity` |
+| `.routeToSelf` | Uses `ProjectionContext#entityId` as key | `PerEntity` |
 | `.routedBy[E](_.field)` | Extracts key from event | `CrossEntity` |
 | `.routeToAll` | All events go to same store | `Global` (if `isGlobal`) |
 
@@ -890,7 +890,7 @@ val app: ZIO[Scope, Throwable, Unit] = for {
 | `.custom((E, ProjectionContext) => ProjectionAction[A])` | Handler: arbitrary action |
 | `.aggregate(FieldUpdate)` | Handler: atomic counter update |
 | `.routedBy[E](E => String)` | Route events by extracted key |
-| `.routeToSelf` | Route events by `ctx.entityId` |
+| `.routeToSelf` | Route events by `ProjectionContext#entityId` |
 | `.routeToAll` | Send all events to same store |
 | `spec.scope` | Derived scope: `PerEntity`, `CrossEntity`, or `Global` |
 
