@@ -334,12 +334,6 @@ You never set a scope directly. It is worked out from how the projection is buil
 
 Note that `routeToAll` alone does not make a projection global. Only `Projection.global` does.
 
-The three scopes are:
-
-- **PerEntity** (default): one row per entity ID. Events routed by `ProjectionContext#entityId`. Good for user profiles, order state, anything keyed by a single ID.
-- **CrossEntity**: events routed by an arbitrary key extracted from the event. Multiple event types converge on the same projection. Good for "all repos owned by user X" views.
-- **Global**: a single shared row (or a few rows keyed by a grouping string). Events from all sources funnel into atomic counter updates. Good for dashboards, daily aggregates, live counters.
-
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
 import zio.blocks.schema.{Modifier, Schema}
@@ -418,7 +412,7 @@ It is the right scope for views that group things by a related entity, such as t
 
 There is no card for each thing and no drawer for each group. Every note, whoever it is about, changes the numbers on one board: orders so far, shipped, pending. This scope answers the question "how many in total?".
 
-All events go to one shared store, `global/<name>.db`, whichever entity or key they belong to. It is the right scope for totals and counters, such as the number of orders or the revenue of a shop. See [Aggregate Projections](#aggregate-projections).
+All events go to one shared store, `global/<name>.db`, whichever entity or key they belong to. A counter update changes the number inside the store with a single SQL statement, and creates the row first if it is missing. It is the right scope for totals and counters, such as the number of orders or the revenue of a shop. See [Aggregate Projections](#aggregate-projections).
 
 Two details matter in practice:
 
