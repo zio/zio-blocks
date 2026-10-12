@@ -165,12 +165,6 @@ A single shared database means every projection contends on the same locks, the 
 
 Each projection has a name, the string you give to `Projection[A]("userProfiles")`, and a folder, called its `basePath`, which comes from its [`EntityPath`](#entity-path-conventions), for example `users`. The main store of a projection lives at `<basePath>/<name>.db`, so `users/userProfiles.db`. Each shard of a cross-entity projection lives at `<basePath>/<name>_shard_<key>.db`, one file for each routing key. Global aggregates go to `global/<name>.db`. The [`TransactorCache`](#transactorcache) reuses connections via an LRU cache so you don't open hundreds of file handles.
 
-**Three projection scopes** (see [Projection Scopes](#projection-scopes) for the details):
-
-- **PerEntity** (default): one row per entity ID. Events routed by `ProjectionContext#entityId`. Good for user profiles, order state, anything keyed by a single ID.
-- **CrossEntity**: events routed by an arbitrary key extracted from the event. Multiple event types converge on the same projection. Good for "all repos owned by user X" views.
-- **Global**: a single shared row (or a few rows keyed by a grouping string). Events from all sources funnel into atomic counter updates. Good for dashboards, daily aggregates, live counters.
-
 ## Quick Start
 
 Define your events, your projection entity, declare the projection, and start the engine:
@@ -300,6 +294,12 @@ You never set a scope directly. It is worked out from how the projection is buil
 3. Otherwise it has the scope `PerEntity`, which is the default.
 
 Note that `routeToAll` alone does not make a projection global. Only `Projection.global` does.
+
+The three scopes are:
+
+- **PerEntity** (default): one row per entity ID. Events routed by `ProjectionContext#entityId`. Good for user profiles, order state, anything keyed by a single ID.
+- **CrossEntity**: events routed by an arbitrary key extracted from the event. Multiple event types converge on the same projection. Good for "all repos owned by user X" views.
+- **Global**: a single shared row (or a few rows keyed by a grouping string). Events from all sources funnel into atomic counter updates. Good for dashboards, daily aggregates, live counters.
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
