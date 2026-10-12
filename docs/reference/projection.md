@@ -3,7 +3,7 @@ id: projection
 title: "Projection"
 ---
 
-`zio-blocks-projection` provides event-sourced projections backed by per-entity SQLite files. Each projection gets its own isolated `.db` file, plus one more for each shard of a cross-entity projection, giving you WAL-mode writes, offline queryability, and zero contention between unrelated entities.
+`zio-blocks-projection` provides event-sourced projections backed by per-entity SQLite files. Each projection gets its own isolated `.db` file, plus one more for each shard of a cross-entity projection, giving you WAL-mode writes (SQLite's write-ahead log, so queries do not wait for writes), offline queryability, and zero contention between unrelated entities.
 
 ## Event Sourcing Basics
 
@@ -105,6 +105,7 @@ event store  --(engine reads events and runs handlers)-->  projection store
 - `ProjectionEngine`: The runtime that reads events from `EventStore`s, runs the handlers and writes the results to `ProjectionStore`s.
 - `TestEngine`: A `ProjectionEngine` with in-memory stores, for tests and examples.
 - `TransactorCache`: A cache of open SQLite connections, one for each database file, shared by the stores and the engine. See [TransactorCache](#transactorcache).
+- **WAL (write-ahead log)**: A way for SQLite to make writes safe. A write is first appended to a separate `.db-wal` file, and it is copied into the main `.db` file later. Readers can keep reading while a write happens, and a crash does not lose the writes in the log. There is still only one writer at a time for each file. The `TransactorCache` turns it on for every file it opens, so you will see `-wal` and `-shm` files next to the `.db` files.
 - `Handler[E, A]`: The function that turns an event `E` into a `ProjectionAction[A]`. It only describes the change.
 - `ProjectionContext`: The metadata a handler receives together with an event, such as the entity ID.
 - `ProjectionAction`: What a handler returns: an insert, an upsert, an update, a delete, a truncate or nothing.
