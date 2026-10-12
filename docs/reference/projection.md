@@ -163,7 +163,7 @@ A single shared database means every projection contends on the same locks, the 
 | Single DB | High | High | Yes | Full DB |
 | Per-entity SQLite | Zero | Zero | Yes | Per projection |
 
-The main store of a projection lives at `<basePath>/<specName>.db`, and each shard of a cross-entity projection at `<basePath>/<specName>_shard_<key>.db`. Global aggregates go to `global/<specName>.db`. The [`TransactorCache`](#transactorcache) reuses connections via an LRU cache so you don't open hundreds of file handles.
+Each projection has a name, the string you give to `Projection[A]("userProfiles")`, and a folder, called its `basePath`, which comes from its [`EntityPath`](#entity-path-conventions), for example `users`. The main store of a projection lives at `<basePath>/<name>.db`, so `users/userProfiles.db`. Each shard of a cross-entity projection lives at `<basePath>/<name>_shard_<key>.db`, one file for each routing key. Global aggregates go to `global/<name>.db`. The [`TransactorCache`](#transactorcache) reuses connections via an LRU cache so you don't open hundreds of file handles.
 
 **Three projection scopes** (see [Projection Scopes](#projection-scopes) for the details):
 
@@ -173,7 +173,7 @@ The main store of a projection lives at `<basePath>/<specName>.db`, and each sha
 
 ## Quick Start
 
-Define your events, your projection entity, wire up a spec, and start the engine:
+Define your events, your projection entity, declare the projection, and start the engine:
 
 ```scala mdoc:compile-only
 import zio.*
