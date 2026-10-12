@@ -412,7 +412,7 @@ It is the right scope for views that group things by a related entity, such as t
 
 There is no card for each thing and no drawer for each group. Every note, whoever it is about, changes the numbers on one board: orders so far, shipped, pending. This scope answers the question "how many in total?".
 
-All events go to one shared store, `global/<name>.db`, whichever entity or key they belong to. A counter update changes the number inside the store with a single SQL statement, and creates the row first if it is missing. It is the right scope for totals and counters, such as the number of orders or the revenue of a shop. See [Aggregate Projections](#aggregate-projections).
+All events go to one shared store, `global/<name>.db`, whichever entity or key they belong to. It is the right scope for totals and counters, such as the number of orders or the revenue of a shop. See [Aggregate Projections](#aggregate-projections).
 
 Two details matter in practice:
 
@@ -475,7 +475,7 @@ The engine needs an `EventStore` for each name, `"repos"` and `"issues"`, in the
 
 ## Aggregate Projections
 
-Global projections aggregate events from multiple sources into a single row (or a few rows keyed by a grouping string). The engine applies atomic counter updates:
+An aggregate projection turns events into counters and other running totals, such as the number of users created. It uses a `Global` projection, and each event applies a `FieldUpdate` to a row instead of inserting a new one. The next projection counts the events of two sources in one row for each day:
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
@@ -496,7 +496,7 @@ object DailyStats {
   implicit val entityPath: EntityPath[DailyStats] = EntityPath.derived[DailyStats]
 }
 
-val spec = Projection
+val stats = Projection
   .global[DailyStats]("dailyStats")
   .from("users")
   .routeToAll
@@ -518,7 +518,7 @@ val spec = Projection
 | `Max(field, value)` | `SET col = MAX(COALESCE(col, ?), ?)` | Keep highest value |
 | `Min(field, value)` | `SET col = MIN(COALESCE(col, ?), ?)` | Keep lowest value |
 
-The `COALESCE` handles missing rows. The engine runs `INSERT OR IGNORE` before any `UPDATE`, so incrementing a counter that doesn't exist yet creates the row with value `1` (not `0 + 1`).
+Before it applies the updates, the engine runs `INSERT OR IGNORE`, which creates the row with the default value of each column if it is missing. Incrementing a counter of a row that does not exist yet therefore gives `1`, and `COALESCE` treats a missing value as `0`.
 
 **Concurrent safety:** Counter operations are atomic at the SQL level. Ten fibers each incrementing the same counter produce the correct total without lost updates.
 
