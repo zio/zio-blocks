@@ -106,7 +106,7 @@ The types below are the ones you meet when you use the library, grouped by the p
 - `Handler[E, A]`: The function that turns an event `E` into a `ProjectionAction[A]`. It only describes the change.
 - `ProjectionContext`: The metadata a handler receives together with an event, such as the entity ID.
 - `ProjectionAction`: What a handler returns: an insert, an upsert, an update, a delete, a truncate or nothing.
-- `FieldUpdate`: A change to one field of a row, used by an update action, such as setting a value or incrementing a counter. See [Aggregate Projections](#aggregate-projections).
+- `FieldUpdate`: A change to one field of a row, used by an update action, such as setting a value or incrementing a counter. See [Field Updates](#field-updates).
 - `ProjectionScope`: How the data of a `Projection` is split across `ProjectionStore`s. It is worked out from how the projection is built and is not set directly. It is one of three: one row for each entity ID (the default), one store for each routing key, called a shard, or one shared store for the whole projection. See [Multi-Source Projections](#multi-source-projections).
 
 #### Sources and routing
@@ -412,7 +412,7 @@ It is the right scope for views that group things by a related entity, such as t
 
 There is no card for each thing and no drawer for each group. Every note, whoever it is about, changes the numbers on one board: orders so far, shipped, pending. This scope answers the question "how many in total?".
 
-All events go to one shared store, `global/<name>.db`, whichever entity or key they belong to. The routing mode of the source is `routeToAll`, which does not split the events by entity or by key. It does not make a projection global by itself, only `Projection.global` does. It is the right scope for totals and counters, such as the number of orders or the revenue of a shop. See [Aggregate Projections](#aggregate-projections).
+All events go to one shared store, `global/<name>.db`, whichever entity or key they belong to. The routing mode of the source is `routeToAll`, which does not split the events by entity or by key. It does not make a projection global by itself, only `Projection.global` does. It is the right scope for totals and counters, such as the number of orders or the revenue of a shop. See [Field Updates](#field-updates).
 
 Two details matter in practice:
 
@@ -459,13 +459,14 @@ val activity = Projection[OwnerActivity]("ownerActivity")
 
 The engine needs an `EventStore` for each name, `"repos"` and `"issues"`, in the `eventStores` map you give it. Here both sources use `routedBy` with the owner, so a repository and an issue of the same owner go to the same shard store. The routing mode, such as `routedBy` here, is chosen for each source right after its `from`, while the scope belongs to the whole projection.
 
-## Aggregate Projections
+## Field Updates
 
-An aggregate projection turns events into counters and other running totals, such as the number of users created. It uses a `Global` projection, and each event applies a `FieldUpdate` to a row instead of inserting a new one. The next projection counts the events of two sources in one row for each day:
+A handler does not have to insert a whole row. It can apply a `FieldUpdate`, which changes one field of an existing row, for example by incrementing a counter. This is how projections keep counters and running totals, such as the number of users created. It is most common in a `Global` projection, but any projection can do it. The next projection counts the events of two sources in one row for each day:
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
 import zio.blocks.schema.{Modifier, Schema}
+
 
 case class UserCreated(name: String, email: String)
 object UserCreated {
