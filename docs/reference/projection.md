@@ -396,13 +396,13 @@ val stats = Projection
 
 Each order, user or product gets its own card, and a new note about order 7 updates the card of order 7 only. This scope answers the question "what is the state of this one thing?", for example "alice, keyboard, shipped".
 
-Every entity has its own row, and the events recorded under an entity ID update that entity's row. The store is the file `<basePath>/<name>.db`, for example `users/userProfiles.db`. It is the right scope for state that belongs to one thing, such as a user's profile or the status of an order.
+Every entity has its own row, and the events recorded under an entity ID update that entity's row. The routing mode of the source is `routeToSelf`, which files a note under the thing it was recorded under, and a handler reads that ID as `ProjectionContext#entityId`. The store is the file `<basePath>/<name>.db`, for example `users/userProfiles.db`. It is the right scope for state that belongs to one thing, such as a user's profile or the status of an order.
 
 ### CrossEntity: one drawer per group
 
 Here the cabinet has a drawer for each customer. The note says "order 7 placed, customer Alice", so it is filed in Alice's drawer and not in a drawer for order 7. Inside the drawer each order still has its own card. This scope answers the question "what belongs together under this customer?".
 
-Events are grouped by a key that is read from the event, not by the ID they were recorded under. You say which part of the event picks the drawer with `routedBy(_.customerId)`. Each routing key gets its own store, called a shard, next to the main one: `<basePath>/<name>_shard_<key>.db`. With SQLite each shard is its own file, such as `customer_orders_shard_alice.db`. In the file name the key is cut to 64 characters, and any character other than letters, digits, `_` and `-` is replaced by `_`. If the key cannot be read from an event, the engine uses the entity ID.
+Events are grouped by a key that is read from the event, not by the ID they were recorded under. You say which part of the event picks the drawer with the routing mode `routedBy`, for example `routedBy[OrderPlaced](_.customerId)`. Any source that uses `routedBy` makes the projection `CrossEntity`. Each routing key gets its own store, called a shard, next to the main one: `<basePath>/<name>_shard_<key>.db`. With SQLite each shard is its own file, such as `customer_orders_shard_alice.db`. In the file name the key is cut to 64 characters, and any character other than letters, digits, `_` and `-` is replaced by `_`. If the key cannot be read from an event, the engine uses the entity ID.
 
 The routing key only chooses the shard. A row keeps its own ID, so two rows in the same shard still need different IDs. To read a row you give its ID: the engine looks in the main store first, and then in the shards.
 
@@ -412,7 +412,7 @@ It is the right scope for views that group things by a related entity, such as t
 
 There is no card for each thing and no drawer for each group. Every note, whoever it is about, changes the numbers on one board: orders so far, shipped, pending. This scope answers the question "how many in total?".
 
-All events go to one shared store, `global/<name>.db`, whichever entity or key they belong to. It is the right scope for totals and counters, such as the number of orders or the revenue of a shop. See [Aggregate Projections](#aggregate-projections).
+All events go to one shared store, `global/<name>.db`, whichever entity or key they belong to. The routing mode of the source is `routeToAll`, which does not split the events by entity or by key. It does not make a projection global by itself, only `Projection.global` does. It is the right scope for totals and counters, such as the number of orders or the revenue of a shop. See [Aggregate Projections](#aggregate-projections).
 
 Two details matter in practice:
 
@@ -463,15 +463,7 @@ val activity = Projection[OwnerActivity]("ownerActivity")
 // activity.scope       == ProjectionScope.CrossEntity(...)
 ```
 
-The engine needs an `EventStore` for each name, `"repos"` and `"issues"`, in the `eventStores` map you give it. Here both sources use `routedBy` with the owner, so a repository and an issue of the same owner go to the same shard store. The routing is chosen for each source, so one projection can mix them.
-
-**Routing modes:**
-
-| Mode                    | Behavior                                      | Effect on the scope                                        |
-|-------------------------|-----------------------------------------------|------------------------------------------------------------|
-| `.routeToSelf`          | Uses `ProjectionContext#entityId` as key      | None, `PerEntity`                                          |
-| `.routedBy[E](_.field)` | Extracts the key from the event               | `CrossEntity`                                              |
-| `.routeToAll`           | All events of the source go to the same store | None, only `Projection.global` makes a projection `Global` |
+The engine needs an `EventStore` for each name, `"repos"` and `"issues"`, in the `eventStores` map you give it. Here both sources use `routedBy` with the owner, so a repository and an issue of the same owner go to the same shard store. The routing mode, such as `routedBy` here, is chosen for each source right after its `from`, while the scope belongs to the whole projection.
 
 ## Aggregate Projections
 
