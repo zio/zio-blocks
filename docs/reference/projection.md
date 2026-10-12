@@ -427,7 +427,7 @@ Two details matter in practice:
 
 ## Multi-Source Projections
 
-Cross-entity projections receive events from multiple sources and route them by a key extracted from the event:
+A projection can read events from more than one source. Each call to `from` starts a new source binding, with its own routing and its own handlers, and the engine reads every source by the name you pass to `from`. The next projection keeps one activity row for each repository created and each issue opened, and puts both kinds under their owner:
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
@@ -438,30 +438,40 @@ object RepoCreated {
   implicit val schema: Schema[RepoCreated] = Schema.derived[RepoCreated]
 }
 
-case class RepoListEntry(@Modifier.id id: String, ownerId: String, repoName: String)
-object RepoListEntry {
-  implicit val schema: Schema[RepoListEntry]         = Schema.derived[RepoListEntry]
-  implicit val entityPath: EntityPath[RepoListEntry] = EntityPath.derived[RepoListEntry]
+case class IssueOpened(ownerId: String, title: String)
+object IssueOpened {
+  implicit val schema: Schema[IssueOpened] = Schema.derived[IssueOpened]
 }
 
-val spec = Projection[RepoListEntry]("repoListEntries")
-  .from("repos")
+case class OwnerActivity(@Modifier.id id: String, ownerId: String, kind: String, text: String)
+object OwnerActivity {
+  implicit val schema: Schema[OwnerActivity]         = Schema.derived[OwnerActivity]
+  implicit val entityPath: EntityPath[OwnerActivity] = EntityPath.derived[OwnerActivity]
+}
+
+val activity = Projection[OwnerActivity]("ownerActivity")
+  .from("repos")                       // first source
   .routedBy[RepoCreated](_.ownerId)
   .on[RepoCreated]
-  .custom((e, _) => ProjectionAction.Upsert(RepoListEntry(e.ownerId, e.ownerId, e.repoName)))
+  .insert((e, ctx) => OwnerActivity(ctx.entityId, e.ownerId, "repo", e.repoName))
+  .from("issues")                      // second source
+  .routedBy[IssueOpened](_.ownerId)
+  .on[IssueOpened]
+  .insert((e, ctx) => OwnerActivity(ctx.entityId, e.ownerId, "issue", e.title))
 
-// spec.scope == ProjectionScope.CrossEntity(extractor)
+// activity.sourceNames == List("repos", "issues")
+// activity.scope       == ProjectionScope.CrossEntity(...)
 ```
 
-The `routedBy` call tells the engine to extract a routing key from each event. Events with the same key go to the same shard store, so querying `engine.query(spec, "alice")` searches Alice's shard first.
+The engine needs an `EventStore` for each name, `"repos"` and `"issues"`, in the `eventStores` map you give it. Here both sources use `routedBy` with the owner, so a repository and an issue of the same owner go to the same shard store. The routing is chosen for each source, so one projection can mix them.
 
 **Routing modes:**
 
-| Mode | Behavior | Scope derived |
-| --- | --- | --- |
-| `.routeToSelf` | Uses `ProjectionContext#entityId` as key | `PerEntity` |
-| `.routedBy[E](_.field)` | Extracts key from event | `CrossEntity` |
-| `.routeToAll` | All events go to same store | `Global` (if `isGlobal`) |
+| Mode                    | Behavior                                      | Effect on the scope                                        |
+|-------------------------|-----------------------------------------------|------------------------------------------------------------|
+| `.routeToSelf`          | Uses `ProjectionContext#entityId` as key      | None, `PerEntity`                                          |
+| `.routedBy[E](_.field)` | Extracts the key from the event               | `CrossEntity`                                              |
+| `.routeToAll`           | All events of the source go to the same store | None, only `Projection.global` makes a projection `Global` |
 
 ## Aggregate Projections
 
