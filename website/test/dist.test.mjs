@@ -219,3 +219,8 @@ test('every title, heading and label on the landing page is in title case', () =
 test('there is no switching-cost section and no guides list on the landing page', () => {
   assert.equal(/switching/i.test(main), false);
 });
+
+test('version.txt names the commit and the build time', () => {
+  const versionTxt = readFileSync(new URL('../build/version.txt', import.meta.url), 'utf8');
+  assert.match(versionTxt, /^commit: (?:[0-9a-f]{40}|unknown)\nbuilt: \d{4}-\d{2}-\d{2}T[\d:.]+Z\n$/);
+});
