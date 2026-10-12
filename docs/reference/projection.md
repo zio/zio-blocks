@@ -69,7 +69,7 @@ Projection is a good fit when you already treat events as the source of truth an
 
 ## Glossary
 
-The terms below are used throughout this page. The first list gives the general event sourcing terms, which apply to any event-sourced system. The lists after it name the types of this library. Most of them are explained in more detail in the sections that follow.
+The terms below are used throughout this page. The first list gives the general event sourcing terms, which apply to any event-sourced system. The second list names the types of this library. Most of them are explained in more detail in the sections that follow.
 
 ### Event-sourcing Terms
 
@@ -89,16 +89,33 @@ event store  --(engine reads events and runs handlers)-->  projection store
 (the log)                                                  (the finished rows)
 ```
 
-### Events in this library
+### Types in this library
+
+The types below are the ones you meet when you use the library, grouped by the part of the picture above they belong to. Events are written to an event store. A projection says how those events become rows, and its handlers do the work for each event. Sources and routing decide which events reach which rows. The engine runs everything and keeps the rows in stores. Schemas keep the old events and rows working when their shape changes.
+
+#### Events
 
 - `EventStore`: The event log, as a trait. It appends events, reads the history, and lets a consumer follow new events.
 - `SQLiteEventStore`: An `EventStore` kept in a SQLite file.
 - `EventEnvelope`: An event together with the metadata the store records about it: its sequence number, its tag, its timestamp and the entity ID it was recorded under.
 - `eventTag`: The annotation `@eventTag(n)`, which gives an event case a stable numeric tag. See [Event Tagging and Migration](#event-tagging-and-migration).
 
-### Projections in this library
+#### Projections
 
 - `Projection[A]`: The declaration of how events become the read model `A`: which sources to listen to, how to route their events, and what each event does. It does nothing until an engine runs it.
+- `Handler[E, A]`: The function that turns an event `E` into a `ProjectionAction[A]`. It only describes the change.
+- `ProjectionContext`: The metadata a handler receives together with an event, such as the entity ID.
+- `ProjectionAction`: What a handler returns: an insert, an upsert, an update, a delete, a truncate or nothing.
+- `FieldUpdate`: A change to one field of a row, used by an update action, such as setting a value or incrementing a counter. See [Aggregate Projections](#aggregate-projections).
+- `ProjectionScope`: How the data of a `Projection` is split across `ProjectionStore`s. It is worked out from how the projection is built and is not set directly. It is one of three: one row for each entity ID (the default), one store for each routing key, called a shard, or one shared store for the whole projection. See [Multi-Source Projections](#multi-source-projections).
+
+#### Sources and routing
+
+- `SourceBinding`: A named source of events, given to `Projection.from`, together with its routing and its handlers. The name must match the key of an `EventStore` given to the engine.
+- `RoutingMode`: How the events of a source are directed: to the entity they were recorded under, to one shared store, or to a store chosen by a key that is read from the event.
+
+#### Stores and the engine
+
 - `ProjectionStore[A]`: Where the rows of a read model are kept.
 - `SQLiteProjectionStore`: A `ProjectionStore` kept in a SQLite file.
 - `InMemoryProjectionStore`: A `ProjectionStore` kept in an in-memory map, used for tests.
@@ -106,18 +123,8 @@ event store  --(engine reads events and runs handlers)-->  projection store
 - `TestEngine`: A `ProjectionEngine` with in-memory stores, for tests and examples.
 - `TransactorCache`: A cache of open SQLite connections, one for each database file, shared by the stores and the engine. See [TransactorCache](#transactorcache).
 - **WAL (write-ahead log)**: A way for SQLite to make writes safe. A write is first appended to a separate `.db-wal` file, and it is copied into the main `.db` file later. Readers can keep reading while a write happens, and a crash does not lose the writes in the log. There is still only one writer at a time for each file. The `TransactorCache` turns it on for every file it opens, so you will see `-wal` and `-shm` files next to the `.db` files.
-- `Handler[E, A]`: The function that turns an event `E` into a `ProjectionAction[A]`. It only describes the change.
-- `ProjectionContext`: The metadata a handler receives together with an event, such as the entity ID.
-- `ProjectionAction`: What a handler returns: an insert, an upsert, an update, a delete, a truncate or nothing.
-- `FieldUpdate`: A change to one field of a row, used by an update action, such as setting a value or incrementing a counter. See [Aggregate Projections](#aggregate-projections).
-- `ProjectionScope`: How the data of a `Projection` is split across `ProjectionStore`s. It is worked out from how the projection is built and is not set directly. It is one of three: one row for each entity ID (the default), one store for each routing key, called a shard, or one shared store for the whole projection. See [Multi-Source Projections](#multi-source-projections).
 
-### Sources and routing
-
-- `SourceBinding`: A named source of events, given to `Projection.from`, together with its routing and its handlers. The name must match the key of an `EventStore` given to the engine.
-- `RoutingMode`: How the events of a source are directed: to the entity they were recorded under, to one shared store, or to a store chosen by a key that is read from the event.
-
-### Schemas
+#### Schemas
 
 - `EntityPath`: Says which folder the files of a projection go in and which field of the row is its ID. See [Entity Path Conventions](#entity-path-conventions).
 - `SchemaHash`: A fingerprint of a read model's schema. When it changes, the engine rebuilds the `ProjectionStore`.
