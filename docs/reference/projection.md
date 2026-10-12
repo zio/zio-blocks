@@ -163,7 +163,7 @@ A single shared database means every projection contends on the same locks, the 
 | Single DB | High | High | Yes | Full DB |
 | Per-entity SQLite | Zero | Zero | Yes | Per projection |
 
-Each projection has a name, the string you give to `Projection[A]("userProfiles")`, and a folder, called its `basePath`, which comes from its [`EntityPath`](#entity-path-conventions), for example `users`. The main store of a projection lives at `<basePath>/<name>.db`, so `users/userProfiles.db`. Each shard of a cross-entity projection lives at `<basePath>/<name>_shard_<key>.db`, one file for each routing key. Global aggregates go to `global/<name>.db`. The [`TransactorCache`](#transactorcache) reuses connections via an LRU cache so you don't open hundreds of file handles.
+Each projection has a name, the string you give to `Projection[A]("userProfiles")`, and a folder, called its `basePath`, which comes from its [`EntityPath`](#entity-path-conventions), for example `users`. The SQLite files of a projection are named from these two, and which files there are depends on its scope, see [Projection Scopes](#projection-scopes). The [`TransactorCache`](#transactorcache) reuses connections via an LRU cache so you don't open hundreds of file handles.
 
 ## Quick Start
 
@@ -263,20 +263,7 @@ The files stay on disk after the program ends. When a program starts again, the 
 
 ## Entity Path Conventions
 
-`EntityPath[A]` tells the engine two things: which folder stores the SQLite file, and which field holds the entity ID. The ID field is identified via `@Modifier.id` (from `zio.blocks.schema.Modifier`) or, for ergonomics, a field named `id`. The folder applies to `PerEntity` and `CrossEntity` projections. A `Global` projection has no `EntityPath` and keeps its store in `global/`; see [Projection Scopes](#projection-scopes).
-
-```scala mdoc:compile-only
-import zio.blocks.projection.*
-import zio.blocks.schema.{Modifier, Schema}
-
-case class Order(@Modifier.id id: Long, total: BigDecimal)
-object Order {
-  implicit val schema: Schema[Order] = Schema.derived[Order]
-}
-
-val orderId = "42"      // String id
-val raw     = orderId // String = "42"
-```
+`EntityPath[A]` tells the engine two things: which folder stores the SQLite file, and which field holds the entity ID. The ID field is identified via `@Modifier.id` (from `zio.blocks.schema.Modifier`) or, for ergonomics, a field named `id`. Which projections use the folder is explained in [Projection Scopes](#projection-scopes).
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
@@ -415,7 +402,7 @@ val stats = Projection
 
 Each order, user or product gets its own card, and a new note about order 7 updates the card of order 7 only. This scope answers the question "what is the state of this one thing?", for example "alice, keyboard, shipped".
 
-Every entity has its own row, and the events recorded under an entity ID update that entity's row. The store is the file `<basePath>/<name>.db`, where `basePath` comes from the `EntityPath` of the row type. It is the right scope for state that belongs to one thing, such as a user's profile or the status of an order.
+Every entity has its own row, and the events recorded under an entity ID update that entity's row. The store is the file `<basePath>/<name>.db`, for example `users/userProfiles.db`. It is the right scope for state that belongs to one thing, such as a user's profile or the status of an order.
 
 ### CrossEntity: one drawer per group
 
