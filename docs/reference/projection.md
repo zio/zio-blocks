@@ -396,7 +396,7 @@ val stats = Projection
 
 Each order, user or product gets its own card, and a new note about order 7 updates the card of order 7 only. This scope answers the question "what is the state of this one thing?", for example "alice, keyboard, shipped".
 
-Every entity has its own row, and the events recorded under an entity ID update that entity's row. The routing mode of the source is `routeToSelf`, which files a note under the thing it was recorded under, and a handler reads that ID as `ProjectionContext#entityId`. The store is the file `<basePath>/<name>.db`, for example `users/userProfiles.db`. It is the right scope for state that belongs to one thing, such as a user's profile or the status of an order.
+Every entity has its own row, and the events recorded under an entity ID update that entity's row. The routing mode of the source is `routeToSelf`, which files a note under the thing it was recorded under, and a handler reads that ID as `ProjectionContext#entityId`. The store is the file `<basePath>/<name>.db`, for example `users/userProfiles.db`. It is the right scope for state that belongs to one thing and is looked up by its own ID, such as a user's profile or the status of an order.
 
 ### CrossEntity: one drawer per group
 
@@ -418,12 +418,6 @@ Two details matter in practice:
 
 - A counter update is applied to the row whose ID the event was recorded under. To keep one row of totals, record all the events under one fixed ID, for example a date or `"shop"`. Otherwise each event updates a different row.
 - A global projection has no `EntityPath`, so its store looks for an ID column called `id`. Name the ID field of the row `id`.
-
-### Choosing a scope
-
-- Use `PerEntity` when each thing has its own state and you look it up by its own ID.
-- Use `CrossEntity` when you want things grouped by something inside the event, and each group kept in its own file.
-- Use `Global` when you only want totals and counters over all events.
 
 ## Multi-Source Projections
 
