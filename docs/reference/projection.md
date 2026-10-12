@@ -146,7 +146,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
 libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 ```
 
-`sqlite-jdbc` is `% Test` by default in `zio-blocks-projection`; consumers that want SQLite persistence at runtime must add the dependency above explicitly. If it is not present the engine falls back to `InMemoryProjectionStore`.
+The library does not bring `sqlite-jdbc` with it, so add it to your own build if you want SQLite persistence. If it is missing, `ProjectionEngine.make` falls back to `InMemoryProjectionStore`.
 
 A [`TransactorCache`](#transactorcache) loads the SQLite driver by name when it first opens a file, so `sqlite-jdbc` must be on the runtime classpath whenever you use one directly, for example to build a `SQLiteEventStore`. Without it, opening the first file fails with `ClassNotFoundException: org.sqlite.JDBC`.
 
