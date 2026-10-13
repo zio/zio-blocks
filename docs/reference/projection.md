@@ -639,7 +639,15 @@ object UserEvent {
 
 Every event is saved with a tag, the name of its event type, and the tag is how the store finds events again. Suppose your application has recorded `UserLoggedIn` events for a year, and then you rename the case to `UserAuthenticated`. The old events are still in the database with the old tag, so code that asks for `UserAuthenticated` would not find them, and a year of history would seem to be gone.
 
-You fix this by describing the rename with a `Migration`, using `Migration.renameCase`. `TagResolver` turns the migration into a `TagInfo`, a small cheat sheet that says "anything tagged `UserLoggedIn` is now called `UserAuthenticated`". You open the event store with the migration, and the store uses the `TagInfo` to read old events back under the current tag, decoded as the new case.
+You fix this by describing the rename with a `Migration`, using `Migration.renameCase`, and opening the event store with it. Working out which tags an event type can have in the store is harder than it looks, because the answer is spread over several places:
+
+- The tags the type has now come from its cases, or from their `@eventTag` numbers.
+- The tags it had before are not in the type any more. A renamed case leaves nothing behind in the code, and the only record of the old name is the rename step in a `Migration`.
+- A case renamed more than once leaves a chain, such as `UserLoggedIn` to `UserSignedIn` to `UserAuthenticated`, and the oldest name has to lead to the newest.
+
+If every part of the store worked this out for itself, the parts could disagree. The code that decodes an event, the code that filters a read by tag, and the startup check would each need the same rules, and one of them getting a rule wrong would hide old events or report false warnings.
+
+`TagResolver` does this work once. It reads the current tags from the `Schema` of the event type and the old tags from the `renameCase` steps of the `Migration[E, E]`, where `E` is the event type. It follows the chains and returns one `TagInfo`, a small cheat sheet that says "anything tagged `UserLoggedIn` is now called `UserAuthenticated`", which the whole store consults. So you describe a rename in one place, the migration, and you do not rewrite the stored events or change the code that reads them. The event stores call `TagResolver` when they are created, so you normally only pass a migration to the store and never call it yourself. Call it directly when you want to check what a migration does, for example in a test.
 
 The example appends an event with the first version of the event type, then opens the same store with the second version and reads the old event back:
 
@@ -652,6 +660,8 @@ Run it from the repository root:
 ```bash
 sbt "projection-examples/runMain projection.examples.Example5TagRename"
 ```
+
+#### What a TagInfo holds
 
 You do not write a `TagInfo` yourself. `TagResolver.resolve` builds it, and the event store keeps it and uses it when it reads. It holds four things:
 
@@ -679,18 +689,6 @@ final case class TagInfo(
 - `normalize` returns the current tag for an old tag and any other tag unchanged, so you can compare tags without caring whether an event was saved before or after the rename.
 - `expandRequested` widens a request so that nothing is missed: asking for `UserAuthenticated` also asks for `UserLoggedIn`. An empty request means all tags. This is what makes a filtered read return both the old and the new events.
 - `unknownTags` finds the tags in the database that the `TagInfo` does not explain, which is the check behind the startup warning below.
-
-### TagResolver
-
-Knowing which tags an event type can have in the store is harder than it looks, because the answer is spread over several places:
-
-- The tags the type has now come from its cases, or from their `@eventTag` numbers.
-- The tags it had before are not in the type any more. A renamed case leaves nothing behind in the code, and the only record of the old name is the rename step in a `Migration`.
-- A case renamed more than once leaves a chain, such as `UserLoggedIn` to `UserSignedIn` to `UserAuthenticated`, and the oldest name has to lead to the newest.
-
-If every part of the store worked this out for itself, the parts could disagree. The code that decodes an event, the code that filters a read by tag, and the startup check would each need the same rules, and one of them getting a rule wrong would hide old events or report false warnings.
-
-`TagResolver` does this work once. It reads the current tags from the `Schema` of the event type and the old tags from the `renameCase` steps of an optional `Migration[E, E]`, where `E` is the event type. It follows the chains and returns one `TagInfo` that the whole store consults. So you describe a rename in one place, the migration, and you do not rewrite the stored events or change the code that reads them. The event stores call `TagResolver` when they are created, so you normally only pass a migration to the store and never call it yourself. Call it directly when you want to check what a migration does, for example in a test.
 
 #### Building a TagInfo
 
