@@ -15,10 +15,12 @@ test('promptFor drops trailing slashes', () => {
   assert.equal(promptFor('http://localhost:3000//'), expected('http://localhost:3000'));
 });
 
-test('static/start.md names only real skills and has the agent sections', () => {
+test('static/start.md installs the ZIO Blocks skill and MCP server, as ziohttp.com/start.md does', () => {
   const md = readFileSync(new URL('../../static/start.md', import.meta.url), 'utf8');
   assert.match(md, /^# Get your agent ready for ZIO Blocks/);
   assert.ok(md.includes('claude plugin install zio-skills@ziogenetics'));
   assert.ok(md.includes('npx skills add zio/zio-skills --skill zio-knowledge'));
-  assert.equal(/zio-blocks-knowledge|mcp\.zio/.test(md), false);
+  assert.ok(md.includes('npx skills add zio/zio-skills --skill zio-blocks-knowledge'));
+  assert.ok(md.includes('claude mcp add --transport http zio-blocks https://mcp.zioblocks.com/mcp'));
+  assert.ok(md.includes('https://zioblocks.com/llms.txt'));
 });

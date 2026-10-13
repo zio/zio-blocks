@@ -187,9 +187,9 @@ test('the navbar has the compact copy-prompt icon button before the colour-mode 
   assert.ok(nav.indexOf(button) < nav.indexOf('toggleButton'), 'the icon comes before the colour-mode toggle');
 });
 
-test('start.md is served with the zio-knowledge skill', () => {
+test('start.md is served with the zio-blocks-knowledge skill', () => {
   const md = readFileSync(new URL('../build/start.md', import.meta.url), 'utf8');
-  assert.ok(md.includes('zio-knowledge'));
+  assert.ok(md.includes('zio-blocks-knowledge'));
   assert.equal(md, readFileSync(new URL('../static/start.md', import.meta.url), 'utf8'));
 });
 
