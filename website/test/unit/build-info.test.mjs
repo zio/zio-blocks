@@ -25,9 +25,16 @@ test('resolveCommit is "unknown" when no source gives a hash', () => {
   assert.equal(resolveCommit({ env: {}, head: noGit }), 'unknown');
 });
 
-test('versionText has the commit and the build time, one per line', () => {
+test('versionText has the commit, its GitHub link and the build time, one per line', () => {
   assert.equal(
     versionText({ commit: A, builtAt: new Date('2026-10-12T12:00:00.000Z') }),
-    `commit: ${A}\nbuilt: 2026-10-12T12:00:00.000Z\n`,
+    `commit: ${A}\nurl: https://github.com/zio/zio-blocks/commit/${A}\nbuilt: 2026-10-12T12:00:00.000Z\n`,
+  );
+});
+
+test('versionText has no commit link when the commit is unknown', () => {
+  assert.equal(
+    versionText({ commit: 'unknown', builtAt: new Date('2026-10-12T12:00:00.000Z') }),
+    'commit: unknown\nurl: unknown\nbuilt: 2026-10-12T12:00:00.000Z\n',
   );
 });
