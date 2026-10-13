@@ -119,7 +119,7 @@ One-time setup, in this order:
 6. Netlify (optional): add the environment variable `GITHUB_TOKEN`.
 7. Optional: set the GitHub repository's website field to `https://zioblocks.com`, as zio/zio-http does.
 
-To see which commit is live, `curl https://zioblocks.com/version.txt`: it prints `commit: <sha>` (Netlify's `COMMIT_REF`,
+To see which commit is live, `curl https://zioblocks.com/version.txt`: it prints `commit: <sha>`, a `url:` link to that commit on GitHub (the sha is Netlify's `COMMIT_REF`,
 `GITHUB_SHA` in Actions, or `git rev-parse HEAD` locally) and the build time. `yarn build` writes it after Docusaurus
 (`scripts/write-version.mjs`); `static/_headers` keeps it from being cached.
 

@@ -220,7 +220,7 @@ test('there is no switching-cost section and no guides list on the landing page'
   assert.equal(/switching/i.test(main), false);
 });
 
-test('version.txt names the commit and the build time', () => {
+test('version.txt names the commit, links to it and gives the build time', () => {
   const versionTxt = readFileSync(new URL('../build/version.txt', import.meta.url), 'utf8');
-  assert.match(versionTxt, /^commit: (?:[0-9a-f]{40}|unknown)\nbuilt: \d{4}-\d{2}-\d{2}T[\d:.]+Z\n$/);
+  assert.match(versionTxt, /^commit: ([0-9a-f]{40}|unknown)\nurl: (?:https:\/\/github\.com\/zio\/zio-blocks\/commit\/\1|unknown)\nbuilt: \d{4}-\d{2}-\d{2}T[\d:.]+Z\n$/);
 });

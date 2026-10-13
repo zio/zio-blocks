@@ -23,7 +23,10 @@ export function resolveCommit({ env = process.env, head = gitHead } = {}) {
   return 'unknown';
 }
 
-/** Contents of `version.txt`: which commit is deployed, and when it was built. */
+const REPO_URL = 'https://github.com/zio/zio-blocks';
+
+/** Contents of `version.txt`: which commit is deployed, a link to it on GitHub, and when it was built. */
 export function versionText({ commit, builtAt }) {
-  return `commit: ${commit}\nbuilt: ${builtAt.toISOString()}\n`;
+  const url = commit === 'unknown' ? 'unknown' : `${REPO_URL}/commit/${commit}`;
+  return `commit: ${commit}\nurl: ${url}\nbuilt: ${builtAt.toISOString()}\n`;
 }
