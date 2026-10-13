@@ -675,9 +675,106 @@ final case class TagInfo(
 - `expandRequested` widens a request so that nothing is missed: asking for `UserAuthenticated` also asks for `UserLoggedIn`. An empty request means all tags. This is what makes a filtered read return both the old and the new events.
 - `unknownTags` finds the tags in the database that the `TagInfo` does not explain, which is the check behind the startup warning below.
 
-### Transitive chains
+### TagResolver
 
-If you rename `A → B` then `B → C`, the resolver collapses this to `A → C`. All three tags are queryable.
+`TagResolver` works out a `TagInfo` for an event type. It reads the current tags from the `Schema` of the type, and the old tags from the `RenameCase` actions of an optional `Migration[E, E]`, where `E` is the event type. The event stores call it when they are created, so you normally only pass a migration to the store and never call `TagResolver` yourself. Call it directly when you want to check what a migration does, for example in a test.
+
+#### Building a TagInfo
+
+```scala
+object TagResolver {
+  def resolve[E: Schema]: TagInfo
+  def resolve[E: Schema](migration: Migration[E, E]): TagInfo
+  def resolveImplicit[E: Schema](implicit migration: Migration[E, E] = null): TagInfo
+  inline def resolveAuto[E](using schema: Schema[E]): TagInfo
+  def resolveOpt[E](opt: Option[Migration[E, E]])(using schema: Schema[E]): TagInfo
+}
+```
+
+- `resolve[E]` is for an event type that was never renamed, so there are no aliases.
+- `resolve[E](migration)` adds the aliases of the migration. This is the usual form.
+- `resolveImplicit` and `resolveAuto` use a `Migration[E, E]` that is in scope, and no migration if there is none. `resolveImplicit` also works in Scala 2, and `resolveAuto` is Scala 3 only.
+- `resolveOpt` takes the migration as an `Option`. The other four call it.
+
+#### How tags and aliases are worked out
+
+- **Current tags.** For a sealed event type there is one tag for each case: the number from its `@eventTag`, or the name of the case if it has none. For a single event type that is not sealed, the tag is its `@eventTag` number or the name of the type, and there is no tag if that name is empty, `Object` or `Any`.
+- **Aliases.** Only the `renameCase` actions of the migration make aliases. Any other action in it is ignored, and the names are used exactly as written.
+- **Chains.** If you rename `A` to `B` and then `B` to `C`, the alias of `A` is `C`, so every old tag points straight to its final name. A cycle of renames stops instead of looping. If the same old name is renamed twice, the last rename wins.
+- **All tags.** `allTags` is the current tags plus every old name, so an old tag is still found even when it is no longer a case of the type.
+
+```scala mdoc:silent
+import zio.blocks.projection.TagResolver
+import zio.blocks.schema.Schema
+import zio.blocks.schema.migration.Migration
+
+sealed trait LoginEvent
+object LoginEvent {
+  case class UserAuthenticated(userId: String) extends LoginEvent
+  object UserAuthenticated {
+    implicit val schema: Schema[UserAuthenticated] = Schema.derived
+  }
+  implicit val schema: Schema[LoginEvent] = Schema.derived
+}
+
+// UserLoggedIn was renamed to UserSignedIn, which was later renamed to UserAuthenticated
+val migration = Migration
+  .newBuilder[LoginEvent, LoginEvent]
+  .renameCase("UserLoggedIn", "UserSignedIn")
+  .renameCase("UserSignedIn", "UserAuthenticated")
+  .build
+
+val info = TagResolver.resolve[LoginEvent](migration)
+```
+
+```scala mdoc
+info.currentTags
+info.aliases
+info.allTags
+info.expandRequested(Set("UserAuthenticated"))
+TagResolver.resolve[LoginEvent].aliases
+```
+
+#### Looking at the parts
+
+The same results are available one at a time, without building a `TagInfo`:
+
+```scala
+object TagResolver {
+  def currentTags[E](using schema: Schema[E]): Set[String]
+  def allTags[E: Schema](migration: Migration[E, E] = null): Set[String]
+  def aliases[E: Schema](migration: Migration[E, E] = null): Map[String, String]
+  def aliasMap[E](migration: Migration[E, E]): Map[String, String]
+  def aliasMapFromDynamic(dm: DynamicMigration): Map[String, String]
+  def unknownTags(tagInfo: TagInfo, distinctDbTags: Set[String]): Set[String]
+}
+```
+
+- `currentTags` are the tags the type produces now. `allTags` and `aliases` take a migration, and `null`, which is the default, means no migration.
+- `aliasMap` gives the aliases of a migration with chains followed. `aliasMapFromDynamic` reads the same renames from a `DynamicMigration` but does not follow chains, so `A` stays mapped to `B`.
+- `unknownTags` is the same as `TagInfo#unknownTags`: the tags in the database that no current tag or alias explains.
+
+#### The TagResolver trait
+
+```scala
+trait TagResolver[E] {
+  def tagInfo: TagInfo
+  def aliases: Map[String, String]
+  def allTags: Set[String]
+  def currentTags: Set[String]
+}
+```
+
+A `TagResolver[E]` is a view of the `TagInfo` of an event type with its parts as methods. You make one by implementing `tagInfo`, and the other three come from it. Most code uses the functions on the object and gets a `TagInfo` directly.
+
+#### How the event store uses it
+
+An event store is given a `TagInfo` when it is created. `SQLiteEventStore.make[E](transactor)` resolves one with no aliases, `make[E](transactor, migration)` resolves one from a migration, and `makeWithResolver[E](transactor, tagInfo)` takes one you built.
+
+- **Writing.** A new event is saved under its current tag: the `@eventTag` number or the case name.
+- **Reading.** An event saved under an old tag is decoded as the case it was renamed to, and its `EventEnvelope` carries the current tag, so the code that reads it only ever sees the new name.
+- **Filtering.** A read that asks for some tags is widened with `expandRequested`, so a filter on the new tag also returns the old events.
+- **Checking.** When the store starts, it compares the tags in the database with `allTags`, see the warning below.
 
 ### Startup warning
 
