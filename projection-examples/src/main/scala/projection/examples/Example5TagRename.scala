@@ -34,8 +34,8 @@
  *
  * It shows:
  *   - `TagResolver.resolve` building a `TagInfo` from a migration, and its
- *     helpers: `currentTags`, `aliases`, `allTags`, `expandRequested`, `isOldTag`
- *     and `currentTagFor`
+ *     helpers: `currentTags`, `aliases`, `allTags`, `expandRequested`, `isOldTag`,
+ *     `currentTagFor` and `normalize`
  *   - a chain of renames (A to B to C), which resolves straight to the final name
  *   - `SQLiteEventStore.make` with a migration, so that `readAll` returns an old
  *     event with the current tag and decoded as the new case
@@ -98,6 +98,8 @@ object Example5TagRename extends ZIOAppDefault {
           _ <- Console.printLine(s"  isOldTag('UserLoggedIn'):      ${tagInfo.isOldTag("UserLoggedIn")}").orDie
           _ <- Console.printLine(s"  isOldTag('UserAuthenticated'): ${tagInfo.isOldTag("UserAuthenticated")}").orDie
           _ <- Console.printLine(s"  currentTagFor('UserLoggedIn'): ${tagInfo.currentTagFor("UserLoggedIn")}").orDie
+          _ <- Console.printLine(s"  normalize('UserLoggedIn'):      ${tagInfo.normalize("UserLoggedIn")}").orDie
+          _ <- Console.printLine(s"  normalize('UserAuthenticated'): ${tagInfo.normalize("UserAuthenticated")}").orDie
 
           migration2 = Migration
                          .newBuilder[V2.LoginEvent, V2.LoginEvent]
