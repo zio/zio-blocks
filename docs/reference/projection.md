@@ -541,9 +541,23 @@ val hashV2 = SchemaHash.compute[UserProfileV2]
 // hashV1 != hashV2 because V2 has an extra "email" field
 ```
 
+### Full example
+
+This example runs on real SQLite files and starts two engines in a row, like an application that is stopped and started again with a newer version. The first engine runs the projection with `V1.UserProfile` (`id`, `name`), and the second runs it with `V2.UserProfile` (`id`, `name`, `email`). On `start`, the second engine finds that the schema hash has changed and rebuilds the table from the stored events, so the old rows gain their `email`, and the rebuilt projection keeps processing new events.
+
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example4SchemaEvolution.scala
+
+```
+
+It uses the helpers `Sqlite`, `Polling` and the `UserCreated` event of the same folder. Run it from the repository root:
+
+```bash
+sbt "projection-examples/runMain projection.examples.Example4SchemaEvolution"
+```
+
 ### Lazy rebuild
 
-Set `lazyRebuild = true` in `ProjectionEngineConfig` to defer rebuilds. The engine marks specs needing rebuild but doesn't block startup. The first query to a spec triggers its rebuild:
+By default, the engine rebuilds eagerly on startup. If you set `lazyRebuild = true` in `ProjectionEngineConfig`, it marks specs needing rebuild but doesn't block startup. The first query to a spec triggers its rebuild:
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.ProjectionEngineConfig
@@ -559,19 +573,31 @@ val config = ProjectionEngineConfig(
 
 ### Migration shortcut
 
-For simple `AddField` migrations (adding columns with defaults), the engine uses `ALTER TABLE ADD COLUMN` instead of a full rebuild. This is much faster for large projections:
+When a change only adds fields to the read model, the engine can skip the rebuild. You register a `Migration` that describes the change, and the engine adds the new columns with `ALTER TABLE ADD COLUMN` instead of replaying every event. This is much faster for a large projection.
 
 ```scala
-import zio.blocks.schema.migration.Migration
+def registerMigration[Old, New](
+  spec: Projection[New],
+  migration: zio.blocks.schema.migration.Migration[Old, New]
+): Task[Unit]
+```
 
-// Assumes UserProfileV1 and UserProfileV2 are defined as above
-val migration = Migration
-  .newBuilder[UserProfileV1, UserProfileV2]
-  .addField(_.email, "")
-  .build
+Register the migration before `engine.start`, because the changed schema is found in `start`. The engine looks the migration up by the name of the projection. It uses the shortcut only when every action of the migration adds a top-level field. For any other change, such as a rename or a removed field, it replays the events as usual.
 
-// Engine detects this is a simple AddField migration
-// and uses ALTER TABLE instead of full rebuild
+The shortcut does not fill the new column for the rows that already exist. They keep what they had, and the new field is empty (`null`) in them. The default in the migration is not written into them, and a rebuild would have filled the field from the stored events. Use the shortcut when old rows can do without the new value, for example because the field is optional, and let the engine rebuild when they cannot.
+
+The example runs the story of the full example above again, this time with a migration registered for the second engine. The old users come back with an empty `email`, and the new user has its `email`:
+
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example6MigrationShortcut.scala
+
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/projection-examples/src/main/scala/projection/examples/Example6MigrationShortcut.scala))
+
+Run it from the repository root:
+
+```bash
+sbt "projection-examples/runMain projection.examples.Example6MigrationShortcut"
 ```
 
 ## Event Tagging and Migration
