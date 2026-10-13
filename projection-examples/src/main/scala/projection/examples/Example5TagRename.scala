@@ -15,9 +15,9 @@
  */
 
 /*
- * Example 5 of 5: renaming an event.
+ * Example 5 of 6: renaming an event.
  *
- * Builds on Example4SchemaEvolution. This is the last example.
+ * Builds on Example4SchemaEvolution. Next: Example6MigrationShortcut.
  *
  * Event tags are stored as strings, so renaming a case, here `UserLoggedIn` to
  * `UserAuthenticated`, leaves old events in the store under the old tag. A
