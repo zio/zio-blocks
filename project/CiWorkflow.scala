@@ -28,9 +28,10 @@ import zio.sbt.githubactions._
  * Workflows NOT generated from here, because their triggers cannot be expressed
  * by the plugin: scala-steward.yml (schedule), release-drafter.yml and
  * preview-on-demand.yml (issue_comment). The latter replaces the plugin's
- * deploy-preview.yml (`ciEnableDeployPreview := false` in build.sbt); it consumes the `website-artifact` and
- * `pr-metadata` artifacts uploaded by buildDocs, and matches this workflow by
- * its name, "CI"; both are load-bearing.
+ * deploy-preview.yml (`ciEnableDeployPreview := false` in build.sbt); it
+ * consumes the `website-artifact` and `pr-metadata` artifacts uploaded by
+ * buildDocs, and matches this workflow by its name, "CI"; both are
+ * load-bearing.
  */
 object CiWorkflow {
 
