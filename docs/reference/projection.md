@@ -129,7 +129,8 @@ The types below are the ones you meet when you use the library, grouped by the p
 - `EntityPath`: Says which folder the files of a projection go in and which field of the row is its ID. See [Entity Path Conventions](#entity-path-conventions).
 - `SchemaHash`: A fingerprint of a read model's schema. When it changes, the engine rebuilds the `ProjectionStore`.
 - `SchemaEvolution`: Rebuilds a `ProjectionStore` by replaying the events. See [Schema Evolution](#schema-evolution).
-- `TagResolver` and `TagInfo`: Work out the current tags of an event type, and the aliases from old tags to current ones after a case was renamed.
+- `TagInfo`: A cheat sheet of the tags of an event type: which tags are current, and which old tags were renamed to them. It lets an `EventStore` find the events that were saved under an old name. See [Tag aliases via Migration](#tag-aliases-via-migration).
+- `TagResolver`: Builds a `TagInfo` from an event type and, if a case was renamed, a `Migration`.
 
 ## Installation
 
@@ -636,42 +637,43 @@ object UserEvent {
 
 ### Tag aliases via Migration
 
-When you rename a case, old events in the database still have the old tag. Use `Migration.renameCase` to create an alias:
+Every event is saved with a tag, the name of its event type, and the tag is how the store finds events again. Suppose your application has recorded `UserLoggedIn` events for a year, and then you rename the case to `UserAuthenticated`. The old events are still in the database with the old tag, so code that asks for `UserAuthenticated` would not find them, and a year of history would seem to be gone.
 
-```scala
-import zio.blocks.schema.migration.Migration
-import zio.blocks.projection.TagResolver
-import zio.blocks.schema.{Modifier, Schema}
+You fix this by describing the rename with a `Migration`, using `Migration.renameCase`. `TagResolver` turns the migration into a `TagInfo`, a small cheat sheet that says "anything tagged `UserLoggedIn` is now called `UserAuthenticated`". You open the event store with the migration, and the store uses the `TagInfo` to read old events back under the current tag, decoded as the new case.
 
-sealed trait LoginEvent
-object LoginEvent {
-  case class UserLoggedIn(userId: String) extends LoginEvent
-  object UserLoggedIn {
-    implicit val loggedInSchema: Schema[UserLoggedIn] = Schema.derived
-  }
-  case class UserAuthenticated(userId: String) extends LoginEvent
-  object UserAuthenticated {
-    implicit val authSchema: Schema[UserAuthenticated] = Schema.derived
-  }
-  implicit val loginEventSchema: Schema[LoginEvent] = Schema.derived
-}
+The example appends an event with the first version of the event type, then opens the same store with the second version and reads the old event back:
 
-val migration = Migration
-  .newBuilder[LoginEvent, LoginEvent]
-  .renameCase("UserLoggedIn", "UserAuthenticated")
-  .build
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example5TagRename.scala
 
-val tagInfo = TagResolver.resolve[LoginEvent](migration)
-// tagInfo.aliases == Map("UserLoggedIn" -> "UserAuthenticated")
-// tagInfo.allTags == Set("UserLoggedIn", "UserAuthenticated")
 ```
 
-The `TagInfo` object provides:
+Run it from the repository root:
 
-- `expandRequested(tags)` — returns the union of requested tags plus all their old aliases, so selective reads fetch both old and new events
-- `isOldTag(tag)` — true if the tag was renamed
-- `currentTagFor(oldTag)` — returns the current tag for an old tag
-- `normalize(tag)` — maps old tags to current tags
+```bash
+sbt "projection-examples/runMain projection.examples.Example5TagRename"
+```
+
+You do not write a `TagInfo` yourself. `TagResolver.resolve` builds it, and the event store keeps it and uses it when it reads. It holds four things: the `aliases` from each old tag to the current tag it became, the `currentTags` that the event type has now, the `allTags` that may be in the database (the current tags and all the old ones), and the `migration` that turns an old event into the current shape.
+
+```scala
+final case class TagInfo(
+  aliases: Map[String, String],
+  allTags: Set[String],
+  currentTags: Set[String],
+  migration: DynamicMigration
+) {
+  def isOldTag(tag: String): Boolean
+  def currentTagFor(oldTag: String): Option[String]
+  def normalize(tag: String): String
+  def expandRequested(requested: Set[String]): Set[String]
+  def unknownTags(distinctDbTags: Set[String]): Set[String]
+}
+```
+
+- `isOldTag` says whether a tag is an old name that was renamed, and `currentTagFor` gives the tag it became.
+- `normalize` returns the current tag for an old tag and any other tag unchanged, so you can compare tags without caring whether an event was saved before or after the rename.
+- `expandRequested` widens a request so that nothing is missed: asking for `UserAuthenticated` also asks for `UserLoggedIn`. An empty request means all tags. This is what makes a filtered read return both the old and the new events.
+- `unknownTags` finds the tags in the database that the `TagInfo` does not explain, which is the check behind the startup warning below.
 
 ### Transitive chains
 
@@ -679,7 +681,7 @@ If you rename `A → B` then `B → C`, the resolver collapses this to `A → C`
 
 ### Startup warning
 
-On startup, the `SQLiteEventStore` checks all distinct tags in the database against the known tag set. Unknown tags produce a warning log, not an error. This catches typos or events from a different schema version without crashing the application.
+On startup, the `SQLiteEventStore` checks all distinct tags in the database against the known tag set. Unknown tags, found with `TagInfo#unknownTags`, produce a warning log, not an error. This catches typos or events from a different schema version without crashing the application.
 
 ## Testing
 
