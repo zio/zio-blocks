@@ -119,6 +119,10 @@ One-time setup, in this order:
 6. Netlify (optional): add the environment variable `GITHUB_TOKEN`.
 7. Optional: set the GitHub repository's website field to `https://zioblocks.com`, as zio/zio-http does.
 
+To see which commit is live, `curl https://zioblocks.com/version.txt`: it prints `commit: <sha>` (Netlify's `COMMIT_REF`,
+`GITHUB_SHA` in Actions, or `git rev-parse HEAD` locally) and the build time. `yarn build` writes it after Docusaurus
+(`scripts/write-version.mjs`); `static/_headers` keeps it from being cached.
+
 The first build is started with Actions > Deploy Website > Run workflow (a push does not build). It runs the whole
 `sbt docs/mdoc` (Java and sbt are installed by `build.sh`), so it takes a while; read its log if it fails. `.jvmopts` asks for a 12 GB heap, which may exceed what the Netlify build container has; if the
 build is killed for memory, lower it for that build.
