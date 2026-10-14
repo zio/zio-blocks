@@ -164,7 +164,7 @@ A read model is updated shortly after an event is appended, not synchronously. A
 When you change a projection's read model, for example by adding a field to `UserProfile`, the rows already stored no longer match your code. The projection engine detects this automatically and rebuilds or migrates the stored rows without manual intervention. It works like this:
 
 1. On startup, the engine works out a fingerprint of each read model's schema, called its `SchemaHash`. The fingerprint is built from the field names, their types and their order.
-2. The fingerprint is stored next to the rows, in the projection's store.
+2. The fingerprint is stored next to the rows, in the projection's store. In a SQLite store it is the `schema_hash` column of the `_projection_meta` table.
 3. On the next startup, the engine compares the stored fingerprint with the current one. If they are the same, nothing is done.
 4. If they differ, the stored rows are out of date, and the engine brings them up to date: either with a quick migration, if you registered one, or by rebuilding the read model from the stored events.
 

@@ -128,7 +128,7 @@ The types below are the ones you meet when you use the library, grouped by the p
 
 - `EntityPath`: Says which folder the files of a projection go in and which field of the row is its ID. See [Entity Path Conventions](#entity-path-conventions).
 - `SchemaHash`: A fingerprint of a read model's schema. When it changes, the engine rebuilds the `ProjectionStore`.
-- `SchemaEvolution`: Rebuilds a `ProjectionStore` by replaying the events. See [Schema Evolution](#schema-evolution).
+- `SchemaEvolution`: Rebuilds a `ProjectionStore` by replaying the events. See [Schema Evolution](./projection/engine.md#schema-evolution).
 - `TagInfo`: A cheat sheet of the tags of an event type: which tags are current, and which old tags were renamed to them. It lets an `EventStore` find the events that were saved under an old name. See [Tag aliases via Migration](#tag-aliases-via-migration).
 - `TagResolver`: Builds a `TagInfo` from an event type and, if a case was renamed, a `Migration`.
 
@@ -509,97 +509,6 @@ val stats = Projection
 Before it applies the updates, the engine runs `INSERT OR IGNORE`, which creates the row with the default value of each column if it is missing. Incrementing a counter of a row that does not exist yet therefore gives `1`, and `COALESCE` treats a missing value as `0`.
 
 **Concurrent safety:** Counter operations are atomic at the SQL level. Ten fibers each incrementing the same counter produce the correct total without lost updates.
-
-## Schema Evolution
-
-When you change a projection entity's schema (add a field, rename a column), the engine detects the mismatch and rebuilds the projection from events.
-
-### How it works
-
-1. On startup, `ProjectionEngine` computes `SchemaHash.compute[A]` for each spec's entity type. This is a SHA-256 hash of the schema structure (field names, types, order).
-2. The hash is stored in `_projection_meta.schema_hash`.
-3. If the stored hash doesn't match the current hash, the engine rebuilds:
-   - Truncate the projection store
-   - Replay all events from the EventStore through the spec's handlers
-   - Store the new hash
-
-```scala mdoc:compile-only
-import zio.blocks.projection.*
-import zio.blocks.schema.{Modifier, Schema}
-
-case class UserProfileV1(@Modifier.id id: String, name: String)
-object UserProfileV1 {
-  implicit val schema: Schema[UserProfileV1] = Schema.derived[UserProfileV1]
-}
-
-case class UserProfileV2(@Modifier.id id: String, name: String, email: String)
-object UserProfileV2 {
-  implicit val schema: Schema[UserProfileV2] = Schema.derived[UserProfileV2]
-}
-
-val hashV1 = SchemaHash.compute[UserProfileV1]
-val hashV2 = SchemaHash.compute[UserProfileV2]
-// hashV1 != hashV2 because V2 has an extra "email" field
-```
-
-### Full example
-
-This example runs on real SQLite files and starts two engines in a row, like an application that is stopped and started again with a newer version. The first engine runs the projection with `V1.UserProfile` (`id`, `name`), and the second runs it with `V2.UserProfile` (`id`, `name`, `email`). On `start`, the second engine finds that the schema hash has changed and rebuilds the table from the stored events, so the old rows gain their `email`, and the rebuilt projection keeps processing new events.
-
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example4SchemaEvolution.scala
-
-```
-
-It uses the helpers `Sqlite`, `Polling` and the `UserCreated` event of the same folder. Run it from the repository root:
-
-```bash
-sbt "projection-examples/runMain projection.examples.Example4SchemaEvolution"
-```
-
-### Lazy rebuild
-
-By default, the engine rebuilds eagerly on startup. If you set `lazyRebuild = true` in `ProjectionEngineConfig`, it marks specs needing rebuild but doesn't block startup. The first query to a spec triggers its rebuild:
-
-```scala mdoc:compile-only
-import zio.blocks.projection.ProjectionEngineConfig
-
-val config = ProjectionEngineConfig(
-  batchSize = 100,
-  batchTimeout = zio.Duration.fromMillis(50),
-  ringCapacity = 4096,
-  rebuildParallelism = 4,
-  lazyRebuild = true
-)
-```
-
-### Migration shortcut
-
-When a change only adds fields to the read model, the engine can skip the rebuild. You register a `Migration` that describes the change, and the engine adds the new columns with `ALTER TABLE ADD COLUMN` instead of replaying every event. This is much faster for a large projection.
-
-```scala
-def registerMigration[Old, New](
-  spec: Projection[New],
-  migration: zio.blocks.schema.migration.Migration[Old, New]
-): Task[Unit]
-```
-
-Register the migration before `engine.start`, because the changed schema is found in `start`. The engine looks the migration up by the name of the projection. It uses the shortcut only when every action of the migration adds a top-level field. For any other change, such as a rename or a removed field, it replays the events as usual.
-
-The shortcut does not fill the new column for the rows that already exist. They keep what they had, and the new field is empty (`null`) in them. The default in the migration is not written into them, and a rebuild would have filled the field from the stored events. Use the shortcut when old rows can do without the new value, for example because the field is optional, and let the engine rebuild when they cannot.
-
-The example runs the story of the full example above again, this time with a migration registered for the second engine. The old users come back with an empty `email`, and the new user has its `email`:
-
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example6MigrationShortcut.scala
-
-```
-
-([source](https://github.com/zio/zio-blocks/blob/main/projection-examples/src/main/scala/projection/examples/Example6MigrationShortcut.scala))
-
-Run it from the repository root:
-
-```bash
-sbt "projection-examples/runMain projection.examples.Example6MigrationShortcut"
-```
 
 ## Event Tagging and Migration
 
