@@ -260,7 +260,7 @@ Reading the two definitions side by side:
 
 The full example below runs both projections on real SQLite files. It also feeds a second counter that goes up when an order is placed and down when it is shipped, and it records the same events to both sources before reading the rows back:
 
-```scala mdoc:embed:projection-examples.org/src/main/scala/projection/examples/Example2CrossEntity.scala
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example2CrossEntity.scala
 
 ```
 
