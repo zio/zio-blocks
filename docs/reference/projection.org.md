@@ -59,7 +59,7 @@ The types below are the ones you meet when you use the library, grouped by the p
 - `InMemoryProjectionStore`: A `ProjectionStore` kept in an in-memory map, used for tests.
 - `ProjectionEngine`: The runtime that reads events from `EventStore`s, runs the handlers and writes the results to `ProjectionStore`s.
 - `TestEngine`: A `ProjectionEngine` with in-memory stores, for tests and examples.
-- `TransactorCache`: A cache of open SQLite connections, one for each database file, shared by the stores and the engine. See [TransactorCache](#transactorcache).
+- `TransactorCache`: A cache of open SQLite connections, one for each database file, shared by the stores and the engine. See [TransactorCache](./projection/engine.md#connection-management).
 - **WAL (write-ahead log)**: A way for SQLite to make writes safe. A write is first appended to a separate `.db-wal` file, and it is copied into the main `.db` file later. Readers can keep reading while a write happens, and a crash does not lose the writes in the log. There is still only one writer at a time for each file. The `TransactorCache` turns it on for every file it opens, so you will see `-wal` and `-shm` files next to the `.db` files.
 
 #### Schemas
@@ -83,7 +83,7 @@ A single shared database means every projection contends on the same locks, the 
 | Single DB | High | High | Yes | Full DB |
 | Per-entity SQLite | Zero | Zero | Yes | Per projection |
 
-Each projection has a name, the string you give to `Projection[A]("userProfiles")`, and a folder, called its `basePath`, which comes from its [`EntityPath`](./projection/projection.md#entity-paths), for example `users`. The SQLite files of a projection are named from these two, and which files there are depends on its scope, see [Projection Scopes](./projection/projection.md#projection-scope). The [`TransactorCache`](#transactorcache) reuses connections via an LRU cache so you don't open hundreds of file handles.
+Each projection has a name, the string you give to `Projection[A]("userProfiles")`, and a folder, called its `basePath`, which comes from its [`EntityPath`](./projection/projection.md#entity-paths), for example `users`. The SQLite files of a projection are named from these two, and which files there are depends on its scope, see [Projection Scopes](./projection/projection.md#projection-scope). The [`TransactorCache`](./projection/engine.md#connection-management) reuses connections via an LRU cache so you don't open hundreds of file handles.
 
 ## Multi-Source Projections
 
@@ -174,83 +174,6 @@ val stats = Projection
 Before it applies the updates, the engine runs `INSERT OR IGNORE`, which creates the row with the default value of each column if it is missing. Incrementing a counter of a row that does not exist yet therefore gives `1`, and `COALESCE` treats a missing value as `0`.
 
 **Concurrent safety:** Counter operations are atomic at the SQL level. Ten fibers each incrementing the same counter produce the correct total without lost updates.
-
-## TransactorCache
-
-A `TransactorCache` keeps one open SQLite connection (a `Transactor`) for each database file and reuses it, so the engine does not reopen files for every event. It also limits how many files are open at once, which matters for a `CrossEntity` projection with one shard file for each routing key.
-
-You usually do not create one. `ProjectionEngine.make` creates its own and `ProjectionEngine#transactorCache` returns it. Create one yourself when you build the engine with event stores, so the engine and the stores share it. A cache is created and used like this:
-
-```scala
-object TransactorCache {
-  def make(maxSize: Int = 256): ZIO[Scope, Nothing, TransactorCache]
-  def makeUnscoped(maxSize: Int = 256): UIO[TransactorCache]
-}
-
-trait TransactorCache {
-  def get(path: String): Task[Transactor]
-  def evict(path: String): Task[Unit]
-  def close: Task[Unit]
-  def size: Task[Int]
-}
-```
-
-`maxSize` is the most database files the cache keeps open at the same time, 256 by default. Every open file holds a connection, and a process can only have so many files open, so a `CrossEntity` projection with a shard file for each routing key needs a limit. When the cache is full and a new path is asked for, it closes the least recently used file to make room. That file is not lost: its data stays on disk, and the next `get` for it opens it again, which is slower. If your projections have more active shards than `maxSize`, the cache keeps closing and reopening files, so raise it. A `maxSize` of 0 or less means no limit.
-
-The engine takes the cache as an argument:
-
-```scala
-object ProjectionEngine {
-  def makeWithStores(
-    specs: List[Projection[_]],
-    stores: Map[String, ProjectionStore[_]],
-    eventStores: Map[String, EventStore[_]],
-    cache: TransactorCache,
-    config: ProjectionEngineConfig = ProjectionEngineConfig.default
-  ): UIO[ProjectionEngine]
-}
-```
-
-`makeWithStores` is how you give an engine event stores to read from, and the cache to use. `eventStores` maps each source name, the one you pass to `from`, to its `EventStore`. `stores` maps each projection name to its primary store, which you create yourself. If an event store is a `SQLiteEventStore`, get its `Transactor` from the same `cache`, so the engine and the event stores share one limit on open files.
-
-The next example runs the `userProfiles` projection with `makeWithStores`. One cache opens the event store file and the projection store file, and the same cache is given to the engine:
-
-```scala mdoc:compile-only
-import zio.*
-import zio.blocks.projection.*
-import zio.blocks.schema.{Modifier, Schema}
-
-case class UserCreated(name: String, email: String)
-object UserCreated {
-  implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
-}
-
-case class UserProfile(@Modifier.id id: String, name: String, email: String)
-object UserProfile {
-  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
-  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
-}
-
-val projection = Projection[UserProfile]("userProfiles")
-  .from("users")
-  .routeToSelf
-  .on[UserCreated]
-  .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
-
-val program: ZIO[Scope, Throwable, ProjectionEngine] = for {
-  cache    <- TransactorCache.make(maxSize = 64)
-  tx       <- cache.get("events/users.db")                                            // the event store file
-  users    <- SQLiteEventStore.make[UserCreated](tx)
-  profiles <- SQLiteProjectionStore.make[UserProfile]("users/userProfiles.db", cache) // the projection store file
-  engine   <- ProjectionEngine.makeWithStores(
-                List(projection),
-                Map("userProfiles" -> profiles), // projection name -> its store
-                Map("users" -> users),           // source name given to `from` -> its event store
-                cache
-              )
-  _        <- engine.start
-} yield engine
-```
 
 ## Configuration
 
