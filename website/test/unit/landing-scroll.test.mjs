@@ -43,3 +43,28 @@ test('reduced motion turns snap off', () => {
   const reduced = block(css, '@media (prefers-reduced-motion: reduce)');
   assert.match(reduced, /html:has\(\.lp-page\)\s*\{\s*scroll-snap-type:\s*none;\s*\}/);
 });
+
+const SUPPORTS = '@supports (animation-timeline: view())';
+
+test('every scroll-driven declaration lives inside the @supports block, so unsupported browsers see static content', () => {
+  const inside = block(css, SUPPORTS);
+  const outside = css.replace(`${SUPPORTS} {${inside}}`, '');
+  for (const token of ['animation-timeline', 'view-timeline', 'lp-handoff', 'lp-settle']) {
+    assert.equal(outside.includes(token), false, `${token} must only appear inside ${SUPPORTS}`);
+    assert.ok(inside.includes(token), `${SUPPORTS} must use ${token}`);
+  }
+});
+
+test('motion only runs when the visitor has not asked for reduced motion', () => {
+  const inside = block(css, SUPPORTS);
+  const noPref = block(inside, '@media (prefers-reduced-motion: no-preference)');
+  assert.ok(noPref.includes('animation-timeline'));
+  assert.equal(inside.replace(noPref, '').includes('animation-timeline'), false);
+});
+
+test('the hand-off moves the squares wrapper and the settle-in covers principles rows and catalog headings', () => {
+  const noPref = block(block(css, SUPPORTS), '@media (prefers-reduced-motion: no-preference)');
+  assert.match(noPref, /#hero\s*\{\s*view-timeline:\s*--hero-out block;\s*\}/);
+  assert.match(block(noPref, '#hero .lp-field'), /animation-timeline:\s*--hero-out;/);
+  assert.match(noPref, /\.lp-principles li, \.lp-cat h3\s*\{/);
+});
