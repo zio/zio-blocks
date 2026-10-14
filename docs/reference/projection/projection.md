@@ -333,6 +333,17 @@ Projection[UserProfile]("userProfiles")
   // _.firstName resolved to column "first_name" at compile time
 ```
 
+The full example below registers a user and then changes one column at a time, using each of the three ways to name the column. `UserRenamed` uses the `update` macro, `EmailChanged` uses `updateWithField` with the column name as a string, and `UserVerified` uses `updateField`. Each handler changes only its own column:
+
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example8FieldUpdates.scala
+
+```
+
+Running it prints one line for each user:
+
+- `user-1`: `Alicia <alicia@example.com>, verified`. The name, the email and the status were each changed by a separate event.
+- `user-2`: `Robert <bob@example.com>, pending`. Only the name changed, so the email and the status are as they were registered.
+
 ### Aggregating Fields
 
 `aggregate` and `aggregateField` apply one or more `FieldUpdate` operations, producing `ProjectionAction.Update`. This rewrites individual columns rather than the entire row, and numeric operations such as `Increment` are executed in SQL without reading the row first. The available `FieldUpdate` operations are `Set`, `Increment`, `Decrement`, `Max`, and `Min`. `aggregateField` is an alias for the single-update overload of `aggregate`:
