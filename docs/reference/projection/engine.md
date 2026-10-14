@@ -161,7 +161,14 @@ A read model is updated shortly after an event is appended, not synchronously. A
 
 ## Schema Evolution
 
-The projection engine detects schema changes automatically and rebuilds or migrates stores without manual intervention. Three supporting objects — `TagResolver`, `SchemaHash`, and `SchemaEvolution` — implement this internally; `registerMigration` is the only engine method most users interact with.
+When you change a projection's read model, for example by adding a field to `UserProfile`, the rows already stored no longer match your code. The projection engine detects this automatically and rebuilds or migrates the stored rows without manual intervention. It works like this:
+
+1. On startup, the engine works out a fingerprint of each read model's schema, called its `SchemaHash`. The fingerprint is built from the field names, their types and their order.
+2. The fingerprint is stored next to the rows, in the projection's store.
+3. On the next startup, the engine compares the stored fingerprint with the current one. If they are the same, nothing is done.
+4. If they differ, the stored rows are out of date, and the engine brings them up to date: either with a quick migration, if you registered one, or by rebuilding the read model from the stored events.
+
+Three supporting objects — `TagResolver`, `SchemaHash`, and `SchemaEvolution` — implement this internally; `registerMigration` is the only engine method most users interact with.
 
 ### Event Tag Aliases — `TagResolver` and `TagInfo`
 
@@ -216,7 +223,28 @@ object SchemaHash {
 }
 ```
 
-`SchemaHash#compute` produces a stable SHA-256 fingerprint of a schema structure. It recurses into record fields — capturing field names, types, and their order in the declaration — so a field addition, removal, rename, or type change all produce a different hash. Nested records are traversed fully. For variants, case names and their field schemas are included. The engine stores this hash alongside each projection's rows; on the next startup, if the stored hash no longer matches the computed one, the store is stale and needs rebuilding.
+`SchemaHash#compute` produces a stable SHA-256 fingerprint of a schema structure. It recurses into record fields — capturing field names, types, and their order in the declaration — so a field addition, removal, rename, or type change all produce a different hash. Nested records are traversed fully. For variants, case names and their field schemas are included. A hash that differs from the stored one is how the engine knows that the stored rows are out of date.
+
+For example, adding an `email` field to a read model gives it a different hash:
+
+```scala mdoc:compile-only
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
+
+case class UserProfileV1(@Modifier.id id: String, name: String)
+object UserProfileV1 {
+  implicit val schema: Schema[UserProfileV1] = Schema.derived[UserProfileV1]
+}
+
+case class UserProfileV2(@Modifier.id id: String, name: String, email: String)
+object UserProfileV2 {
+  implicit val schema: Schema[UserProfileV2] = Schema.derived[UserProfileV2]
+}
+
+val hashV1 = SchemaHash.compute[UserProfileV1]
+val hashV2 = SchemaHash.compute[UserProfileV2]
+// hashV1 != hashV2 because V2 has an extra "email" field
+```
 
 ### Rebuild Logic — `SchemaEvolution`
 
@@ -277,9 +305,17 @@ final case class SchemaEvolutionConfig(
 - `enableMigrationShortcut` turns the quick route on or off. When it is `false`, every schema change is handled with a full rebuild, even if a migration is registered.
 - `lazyRebuild` and `rebuildParallelism` are for the engine's lazy rebuild, described under `start`: with `lazyRebuild` on, a changed projection is only marked at startup and rebuilt later, and `rebuildParallelism` is how many are rebuilt in each batch, one batch after the other.
 
+When `lazyRebuild` is on, the rebuild does not happen at startup but on the first query of the projection, or in the background. See [Configuration](#configuration) and [Starting and Stopping](#starting-and-stopping).
+
+The full example below runs on real SQLite files and starts two engines in a row, like an application that is stopped and started again with a newer version. The first engine runs the projection with `V1.UserProfile` (`id`, `name`), and the second runs it with `V2.UserProfile` (`id`, `name`, `email`). On `start`, the second engine finds that the schema hash has changed and rebuilds the table from the stored events, so the old rows gain their `email`, and the rebuilt projection keeps processing new events:
+
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example4SchemaEvolution.scala
+
+```
+
 ### Registering a Migration
 
-To give the engine a migration so it can attempt the `ALTER TABLE` shortcut instead of a full rebuild, call `registerMigration` on the running engine before the next schema check triggers:
+When a change only adds fields to the read model, the engine can skip the rebuild. You register a `Migration` that describes the change, and the engine adds the new columns with `ALTER TABLE ADD COLUMN` instead of replaying every event. This is much faster for a large projection. Call `registerMigration` on the engine before `start`, because the changed schema is found in `start`:
 
 ```scala
 final class ProjectionEngine private[projection] (...) {
@@ -290,22 +326,15 @@ final class ProjectionEngine private[projection] (...) {
 }
 ```
 
-The migration is stored in an internal registry keyed by projection name. When the engine detects a schema change for that projection, it retrieves the migration and passes it to `SchemaEvolution.tryMigrationShortcut`. If the migration contains only `AddField` actions targeting top-level fields, the shortcut runs `store.addColumn` for each new column and updates the stored hash — no event replay needed. Any other migration type, or any shortcut failure, causes a full rebuild.
+The migration is stored in an internal registry keyed by projection name. When the engine detects a schema change for that projection, it retrieves the migration and passes it to `SchemaEvolution.tryMigrationShortcut`. The engine uses the shortcut only when every action of the migration adds a top-level field. For any other change, such as a rename or a removed field, it replays the events as usual. If the shortcut itself fails as a whole, the engine also falls back to a full rebuild. A single column that cannot be added is only logged as a warning and skipped.
 
-A typical usage pairs `registerMigration` with a schema change that adds an optional field:
+The shortcut does not fill the new column for the rows that already exist. They keep what they had, and the new field is empty (`null`) in them. The default in the migration is not written into them, and a rebuild would have filled the field from the stored events. Use the shortcut when old rows can do without the new value, for example because the field is optional, and let the engine rebuild when they cannot.
 
-```scala
-val migration = Migration.newBuilder[UserV1, UserV2]
-  .addField(_.age, 0L)
-  .build
+The example below runs the story of the full example above again, this time with a migration registered for the second engine. The old users come back with an empty `email`, and the new user has its `email`:
 
-for {
-  _ <- engine.registerMigration(userSpec, migration)
-  _ <- engine.start
-} yield ()
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example6MigrationShortcut.scala
+
 ```
-
-Registering the migration before calling `start` ensures the shortcut is available during the schema check phase.
 
 ## Connection Management
 
