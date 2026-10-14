@@ -503,6 +503,38 @@ final class Projection[A] {
 - `handle` returns the `ProjectionAction` of the first handler that matches the event, or `None` if no handler matches. With `source = Some(name)` it searches only the handlers of that source. With `None`, which is what the engine uses, it searches all handlers, in the order the sources were added. It does not apply the action to a store, so it is a way to unit-test a handler without an engine.
 - `routingKey` returns the key for an event in the named source: `ctx.entityId` for `routeToSelf`, the extracted key for `routedBy`, and `None` for `routeToAll` or when there is no source with that name. See [Binding Event Sources](#binding-event-sources).
 
+The snippet below shows both methods on a projection with an `"orders"` source that is routed by customer. It is a fragment: `OrderPlaced`, `OrderShipped` and `Refunded` are event case classes, and `ctx` is a `ProjectionContext` for an event recorded under `"order-1"`:
+
+```scala
+val projection: Projection[CustomerOrder] =
+  Projection[CustomerOrder]("customer_orders")
+    .from("orders").routedBy[OrderPlaced](_.customerId)
+    .on[OrderPlaced].insert((e, ctx) => CustomerOrder(ctx.entityId, e.customerId, e.product, "placed"))
+    .on[OrderShipped].updateWithField("status", (_, _) => "shipped")
+
+// Which action would each event produce?
+projection.handle(OrderPlaced("alice", "keyboard"), ctx)
+// Some(Insert(CustomerOrder(order-1,alice,keyboard,placed)))
+
+projection.handle(OrderShipped("alice"), ctx)
+// Some(Update(Chunk(Set(status,shipped))))
+
+projection.handle(Refunded("alice"), ctx)
+// None: no handler matches this event type
+
+projection.handle(OrderShipped("alice"), ctx, Some("other"))
+// None: there is no source named "other"
+
+// Which key picks the shard of the event?
+projection.routingKey(OrderPlaced("alice", "keyboard"), ctx, "orders")
+// Some(alice): the customer id, because the source is routed by customer
+
+projection.routingKey(OrderPlaced("alice", "keyboard"), ctx, "other")
+// None: there is no source named "other"
+```
+
+Nothing was written anywhere by these calls. `handle` only says that the event would insert a row, or set `status`, and `routingKey` says it would go to the shard of `alice`.
+
 ## See Also
 
 - [Projection module overview](./index.md) — module introduction, key concepts, and integration points with `zio-blocks-schema`, `zio-blocks-sql`, and ZIO Streams.
