@@ -220,13 +220,17 @@ object SchemaHash {
 
 ### Rebuild Logic — `SchemaEvolution`
 
-`SchemaEvolution` is the internal object that the engine delegates schema-change handling to. The `checkAndRebuild` path it follows is straightforward:
+When you change the shape of a read model, for example by adding a field to `UserProfile`, the rows already stored on disk no longer match your code. `SchemaEvolution` is the part of the library that fixes this. The engine uses it for you at startup, and you normally never call it yourself.
 
-- **Hash unchanged** → no action.
-- **Hash changed, migration is simple `AddField` only** → attempt `ALTER TABLE ADD COLUMN` via `tryMigrationShortcut`; if that succeeds, update the stored hash without replaying any events.
-- **Hash changed, migration is absent or complex** → call `rebuild`, which drops and recreates the table, resets the watermark to zero, replays all events through the handlers, and saves the new hash.
+It looks at each projection and chooses one of three outcomes:
 
-The relevant method signatures are:
+- **Nothing changed.** The stored fingerprint of the schema is the same as the current one, so nothing needs to be done.
+- **Only new fields were added, and you told the engine about them.** If you registered a migration that only adds fields, the engine adds the matching columns to the existing table and saves the new fingerprint. No event is read again, so this is quick.
+- **Anything else changed, or no migration was registered.** The engine rebuilds the read model from scratch. It empties the table, sets the watermark back to the start, replays every stored event through your handlers, and then saves the new fingerprint.
+
+The rebuild can be done at any time, because the events are the source of truth and the read model is only a view of them. It is slower than the shortcut, because it has to replay the whole history.
+
+The methods behind this are listed below. You can skip them unless you are writing your own runner:
 
 ```scala
 object SchemaEvolution {
@@ -255,7 +259,12 @@ object SchemaEvolution {
 }
 ```
 
-`SchemaEvolutionConfig` controls whether the shortcut is enabled and, when `lazyRebuild` is active, how many rebuilds run in parallel:
+- `needsRebuild` answers whether the stored fingerprint is different from the current one. It answers `false` for a store that has no saved fingerprint yet, such as a brand new one.
+- `rebuild` does the full rebuild described above. If one event cannot be applied while replaying, the error is logged and the replay goes on with the next event.
+- `tryMigrationShortcut` tries the quick route. It returns `true` when it handled the change and `false` when it could not, for example because there is no migration or the migration does more than add top-level fields. For each new field it adds a column, with the type of the field, or with a plain text type when it cannot work the type out. A column that fails to be added is logged as a warning and skipped.
+- `checkAndRebuild` is the one that ties it together. It compares the fingerprints, tries the shortcut first, and falls back to `rebuild`. It returns `true` when it changed the store, either way.
+
+`SchemaEvolutionConfig` holds the settings:
 
 ```scala
 final case class SchemaEvolutionConfig(
@@ -264,6 +273,9 @@ final case class SchemaEvolutionConfig(
   enableMigrationShortcut: Boolean = true
 )
 ```
+
+- `enableMigrationShortcut` turns the quick route on or off. When it is `false`, every schema change is handled with a full rebuild, even if a migration is registered.
+- `lazyRebuild` and `rebuildParallelism` are for the engine's lazy rebuild, described under `start`: with `lazyRebuild` on, a changed projection is only marked at startup and rebuilt later, and `rebuildParallelism` is how many are rebuilt in each batch, one batch after the other.
 
 ### Registering a Migration
 
