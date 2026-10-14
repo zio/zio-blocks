@@ -72,7 +72,7 @@ ZIO Blocks Projection addresses these by making a projection a declaration rathe
 - it reads historical events to catch up, then follows live events. It saves its position after every event it applies, so a restart resumes exactly where it left off;
 - it routes each event to the entity (or entities) that should see it, following the routing declared once on the projection (`routeToSelf`, `routedBy`, `routeToAll`);
 - it detects a changed schema and rebuilds the read model, with a shortcut for added fields and migrations to map old event tags to new ones;
-- it stores each projection in its own SQLite file, so read models are isolated, individually backed up, and queryable offline.
+- it stores each projection in its own SQLite file, so read models are isolated, individually backed up, and queryable offline. Unrelated projections never wait for each other's locks or write-ahead log, as they would with one shared database.
 
 Because the same declaration runs against an in-memory store, you can test a projection by appending events and querying the result, with no database. The [Quick Start](#quick-start) shows the whole loop in about twenty lines.
 
