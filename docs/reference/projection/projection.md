@@ -230,6 +230,46 @@ Projection[CustomerOrder]("customer_orders")
   .on[OrderPlaced].insert((e, ctx) => CustomerOrder(ctx.entityId, e.customerId, e.product))
 ```
 
+### Several Sources
+
+A projection can read events from more than one source. Each call to `from` starts a new source binding, with its own routing and its own handlers, and the engine reads every source by the name you pass to `from`. The next projection keeps one activity row for each repository created and each issue opened, and puts both kinds under their owner:
+
+```scala mdoc:compile-only
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
+
+case class RepoCreated(ownerId: String, repoName: String)
+object RepoCreated {
+  implicit val schema: Schema[RepoCreated] = Schema.derived[RepoCreated]
+}
+
+case class IssueOpened(ownerId: String, title: String)
+object IssueOpened {
+  implicit val schema: Schema[IssueOpened] = Schema.derived[IssueOpened]
+}
+
+case class OwnerActivity(@Modifier.id id: String, ownerId: String, kind: String, text: String)
+object OwnerActivity {
+  implicit val schema: Schema[OwnerActivity]         = Schema.derived[OwnerActivity]
+  implicit val entityPath: EntityPath[OwnerActivity] = EntityPath.derived[OwnerActivity]
+}
+
+val activity = Projection[OwnerActivity]("ownerActivity")
+  .from("repos")                       // first source
+  .routedBy[RepoCreated](_.ownerId)
+  .on[RepoCreated]
+  .insert((e, ctx) => OwnerActivity(ctx.entityId, e.ownerId, "repo", e.repoName))
+  .from("issues")                      // second source
+  .routedBy[IssueOpened](_.ownerId)
+  .on[IssueOpened]
+  .insert((e, ctx) => OwnerActivity(ctx.entityId, e.ownerId, "issue", e.title))
+
+// activity.sourceNames == List("repos", "issues")
+// activity.scope       == ProjectionScope.CrossEntity(...)
+```
+
+The engine needs an `EventStore` for each name, `"repos"` and `"issues"`, in the `eventStores` map you give it. Here both sources use `routedBy` with the owner, so a repository and an issue of the same owner go to the same shard store. The routing mode, such as `routedBy` here, is chosen for each source right after its `from`, while the scope belongs to the whole projection.
+
 ### Putting the Bindings Together
 
 The snippets above show one routing call each. The example below uses them together on one domain: orders are recorded per order (`order-1`, `order-2`, ...), each event carries the `customerId`, and we want two views of the same events. The first view keeps one row per order, grouped by customer, so it binds the `"orders"` source with `routedBy`. The second view is a single row of shop-wide counters, so it binds a `"shop"` source with `routeToAll`:
