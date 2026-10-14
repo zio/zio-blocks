@@ -22,6 +22,25 @@
   text-wrap: balance;
 }
 
+/*
+ * Scroll: soft snap. The page is pulled to a section edge only when scrolling stops near it (`proximity`), and only on
+ * the landing page. Hero and Principles fill one screen under the sticky navbar; `min-height` lets them grow instead
+ * of clipping on short windows or with large text. Deep Dives and Catalog are taller than a screen and snap only at
+ * their top edge.
+ */
+html:has(.lp-page) {
+  scroll-snap-type: y proximity;
+  scroll-padding-top: var(--ifm-navbar-height);
+}
+#hero, #principles, #deep-dives, #catalog { scroll-snap-align: start; }
+.lp-hero, .lp-screen {
+  min-height: calc(100svh - var(--ifm-navbar-height));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.lp-hero > .lp-wrap, .lp-screen > .lp-wrap { width: 100%; }
+
 .lp-btn {
   display: inline-block;
   padding: 0.7rem 1.1rem;
@@ -219,3 +238,7 @@
   pointer-events: none;
 }
 .lp-rail-link:hover::after, .lp-rail-link:focus-visible::after { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.lp-page) { scroll-snap-type: none; }
+}

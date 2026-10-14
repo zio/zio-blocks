@@ -4,7 +4,7 @@ import {titleCase} from '../../lib/title-case.mjs';
 
 export default function Principles() {
   return (
-    <section id="principles" className="lp-section" aria-labelledby="principles-title">
+    <section id="principles" className="lp-section lp-screen" aria-labelledby="principles-title">
       <div className="lp-wrap">
         <p className="lp-label">01 &nbsp; Principles</p>
         <h2 id="principles-title">Use What You Need, Nothing More</h2>
