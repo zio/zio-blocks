@@ -126,7 +126,7 @@ The types below are the ones you meet when you use the library, grouped by the p
 
 #### Schemas
 
-- `EntityPath`: Says which folder the files of a projection go in and which field of the row is its ID. See [Entity Path Conventions](#entity-path-conventions).
+- `EntityPath`: Says which folder the files of a projection go in and which field of the row is its ID. See [Entity Path Conventions](./projection/projection.md#entity-paths).
 - `SchemaHash`: A fingerprint of a read model's schema. When it changes, the engine rebuilds the `ProjectionStore`.
 - `SchemaEvolution`: Rebuilds a `ProjectionStore` by replaying the events. See [Schema Evolution](./projection/engine.md#schema-evolution).
 - `TagInfo`: A cheat sheet of the tags of an event type: which tags are current, and which old tags were renamed to them. It lets an `EventStore` find the events that were saved under an old name. See [Tag aliases via Migration](./projection/projection.md#tag-aliases-via-migration).
@@ -145,7 +145,7 @@ A single shared database means every projection contends on the same locks, the 
 | Single DB | High | High | Yes | Full DB |
 | Per-entity SQLite | Zero | Zero | Yes | Per projection |
 
-Each projection has a name, the string you give to `Projection[A]("userProfiles")`, and a folder, called its `basePath`, which comes from its [`EntityPath`](#entity-path-conventions), for example `users`. The SQLite files of a projection are named from these two, and which files there are depends on its scope, see [Projection Scopes](./projection/projection.md#projection-scope). The [`TransactorCache`](#transactorcache) reuses connections via an LRU cache so you don't open hundreds of file handles.
+Each projection has a name, the string you give to `Projection[A]("userProfiles")`, and a folder, called its `basePath`, which comes from its [`EntityPath`](./projection/projection.md#entity-paths), for example `users`. The SQLite files of a projection are named from these two, and which files there are depends on its scope, see [Projection Scopes](./projection/projection.md#projection-scope). The [`TransactorCache`](#transactorcache) reuses connections via an LRU cache so you don't open hundreds of file handles.
 
 ## Quick Start
 
@@ -242,65 +242,6 @@ val program: ZIO[Scope, Throwable, Option[UserProfile]] = for {
 ```
 
 The files stay on disk after the program ends. When a program starts again, the events are still in `events/users.db`, and the engine continues after the last event it processed, so no event is applied twice. The files are plain SQLite databases, so `sqlite3 users/userProfiles.db` shows the rows while the program is stopped.
-
-## Entity Path Conventions
-
-`EntityPath[A]` tells the engine two things: which folder stores the SQLite file, and which field holds the entity ID. The ID field is identified via `@Modifier.id` (from `zio.blocks.schema.Modifier`) or, for ergonomics, a field named `id`. Which projections use the folder is explained in [Projection Scopes](./projection/projection.md#projection-scope).
-
-```scala mdoc:compile-only
-import zio.blocks.projection.*
-import zio.blocks.schema.{Modifier, Schema}
-
-case class UserProfile(@Modifier.id userId: String, name: String, email: String)
-object UserProfile {
-  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
-  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
-}
-// basePath = "users", entityIdField = "userId"
-```
-
-**Derivation rules** (`EntityPath.derived[A]`):
-
-1. Look for a field annotated with `@Modifier.id`. If found, use it as the entity ID field.
-2. Otherwise, find the field named `id`.
-3. If neither is found, fail with `Entity must have @Modifier.id field`.
-4. Derive the folder name from the ID field name:
-   - Strip trailing `Id` suffix: `userId` → `user`
-   - Convert to snake_case: `userId` → `user_id`
-   - Pluralize: `user` → `users`
-   - Result: `basePath = "users"`, `entityIdField = "userId"`
-
-If the field is exactly `id`, `basePath` is `ids` — prefer `userId` or use `@path` to override.
-
-**Override with `@path`:**
-
-```scala mdoc:compile-only
-import zio.blocks.projection.*
-import zio.blocks.schema.{Modifier, Schema}
-
-@path("custom_users")
-case class UserProfile(@Modifier.id id: String, name: String)
-object UserProfile {
-  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
-  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
-}
-// basePath = "custom_users", entityIdField = "id"
-```
-
-The same override can be given without an annotation: `EntityPath.derived[UserProfile]("custom_users")` also gives `basePath = "custom_users"`. The path can have several folders, such as `"example2/orders"`.
-
-**Manual construction:**
-
-```scala mdoc:compile-only
-import zio.blocks.projection.*
-import zio.blocks.schema.{Modifier, Schema}
-
-case class MyEntity(@Modifier.id id: String, value: Int)
-object MyEntity {
-  implicit val schema: Schema[MyEntity] = Schema.derived[MyEntity]
-  implicit val entityPath: EntityPath[MyEntity] = EntityPath[MyEntity]("my_entities", "id")
-}
-```
 
 ## Multi-Source Projections
 
