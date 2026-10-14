@@ -565,6 +565,8 @@ lazy val `projection-examples` = project
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
     scalacOptions -= "-Werror",
+    // Examples are copy-paste templates and are embedded in the docs, so they carry no licence header.
+    headerLicense := None,
     // The run is forked, so that the examples write their SQLite files into this folder and not the root.
     Compile / fork := true,
     // Several examples are runnable on their own, so `projection-examples/run` needs to know which one to start.
