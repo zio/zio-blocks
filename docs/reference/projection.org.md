@@ -145,7 +145,7 @@ A single shared database means every projection contends on the same locks, the 
 | Single DB | High | High | Yes | Full DB |
 | Per-entity SQLite | Zero | Zero | Yes | Per projection |
 
-Each projection has a name, the string you give to `Projection[A]("userProfiles")`, and a folder, called its `basePath`, which comes from its [`EntityPath`](#entity-path-conventions), for example `users`. The SQLite files of a projection are named from these two, and which files there are depends on its scope, see [Projection Scopes](#projection-scopes). The [`TransactorCache`](#transactorcache) reuses connections via an LRU cache so you don't open hundreds of file handles.
+Each projection has a name, the string you give to `Projection[A]("userProfiles")`, and a folder, called its `basePath`, which comes from its [`EntityPath`](#entity-path-conventions), for example `users`. The SQLite files of a projection are named from these two, and which files there are depends on its scope, see [Projection Scopes](./projection/projection.md#projection-scope). The [`TransactorCache`](#transactorcache) reuses connections via an LRU cache so you don't open hundreds of file handles.
 
 ## Quick Start
 
@@ -245,7 +245,7 @@ The files stay on disk after the program ends. When a program starts again, the 
 
 ## Entity Path Conventions
 
-`EntityPath[A]` tells the engine two things: which folder stores the SQLite file, and which field holds the entity ID. The ID field is identified via `@Modifier.id` (from `zio.blocks.schema.Modifier`) or, for ergonomics, a field named `id`. Which projections use the folder is explained in [Projection Scopes](#projection-scopes).
+`EntityPath[A]` tells the engine two things: which folder stores the SQLite file, and which field holds the entity ID. The ID field is identified via `@Modifier.id` (from `zio.blocks.schema.Modifier`) or, for ergonomics, a field named `id`. Which projections use the folder is explained in [Projection Scopes](./projection/projection.md#projection-scope).
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
@@ -301,105 +301,6 @@ object MyEntity {
   implicit val entityPath: EntityPath[MyEntity] = EntityPath[MyEntity]("my_entities", "id")
 }
 ```
-
-## Projection Scopes
-
-A scope is the way the rows of a projection are organized. To see what that means, picture a shop that writes a note every time something happens: "Alice placed order 7", "order 7 shipped". These notes are the events. To answer questions quickly ("is order 7 shipped?", "how many orders so far?"), someone files each note into a cabinet as it arrives. The filed result is the read model, and the scope is how that cabinet is arranged.
-
-A `ProjectionScope` is the type that describes it. It answers two questions: which `ProjectionStore` an event is applied to, and which file that store lives in. There are three scopes: `ProjectionScope.PerEntity`, `ProjectionScope.CrossEntity` and `ProjectionScope.Global`.
-
-You never set a scope directly. It is worked out from how the projection is built, and `Projection.scope` returns it:
-
-1. A projection made with `Projection.global` has the scope `Global`.
-2. Otherwise, if any source uses `routedBy`, it has the scope `CrossEntity`.
-3. Otherwise it has the scope `PerEntity`, which is the default.
-
-Note that `routeToAll` alone does not make a projection global. Only `Projection.global` does.
-
-```scala mdoc:compile-only
-import zio.blocks.projection.*
-import zio.blocks.schema.{Modifier, Schema}
-
-case class UserRegistered(name: String)
-object UserRegistered {
-  implicit val schema: Schema[UserRegistered] = Schema.derived[UserRegistered]
-}
-
-case class OrderPlaced(customerId: String, total: Long)
-object OrderPlaced {
-  implicit val schema: Schema[OrderPlaced] = Schema.derived[OrderPlaced]
-}
-
-case class UserProfile(@Modifier.id id: String, name: String)
-object UserProfile {
-  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
-  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
-}
-
-case class CustomerOrder(@Modifier.id id: String, customerId: String, total: Long)
-object CustomerOrder {
-  implicit val schema: Schema[CustomerOrder]         = Schema.derived[CustomerOrder]
-  implicit val entityPath: EntityPath[CustomerOrder] = EntityPath.derived[CustomerOrder]
-}
-
-case class OrderStats(@Modifier.id id: String, orders: Long)
-object OrderStats {
-  implicit val schema: Schema[OrderStats] = Schema.derived[OrderStats]
-}
-
-// PerEntity: one row for each entity ID.
-val profiles = Projection[UserProfile]("userProfiles")
-  .from("users")
-  .routeToSelf
-  .on[UserRegistered]
-  .insert((e, ctx) => UserProfile(ctx.entityId, e.name))
-
-// CrossEntity: events are grouped by a key read from the event.
-val ordersByCustomer = Projection[CustomerOrder]("ordersByCustomer")
-  .from("orders")
-  .routedBy[OrderPlaced](_.customerId)
-  .on[OrderPlaced]
-  .insert((e, ctx) => CustomerOrder(ctx.entityId, e.customerId, e.total))
-
-// Global: one shared store, here with a counter.
-val stats = Projection
-  .global[OrderStats]("orderStats")
-  .from("orders")
-  .routeToAll
-  .on[OrderPlaced]
-  .aggregate(FieldUpdate.Increment("orders", 1L))
-
-// profiles.scope         == ProjectionScope.PerEntity
-// ordersByCustomer.scope == ProjectionScope.CrossEntity(...)
-// stats.scope            == ProjectionScope.Global
-```
-
-### PerEntity: one card per thing
-
-Each order, user or product gets its own card, and a new note about order 7 updates the card of order 7 only. This scope answers the question "what is the state of this one thing?", for example "alice, keyboard, shipped".
-
-Every entity has its own row, and the events recorded under an entity ID update that entity's row. The routing mode of the source is `routeToSelf`, which files a note under the thing it was recorded under, and a handler reads that ID as `ProjectionContext#entityId`. The store is the file `<basePath>/<name>.db`, for example `users/userProfiles.db`. It is the right scope for state that belongs to one thing and is looked up by its own ID, such as a user's profile or the status of an order.
-
-### CrossEntity: one drawer per group
-
-Here the cabinet has a drawer for each customer. The note says "order 7 placed, customer Alice", so it is filed in Alice's drawer and not in a drawer for order 7. Inside the drawer each order still has its own card. This scope answers the question "what belongs together under this customer?".
-
-Events are grouped by a key that is read from the event, not by the ID they were recorded under. You say which part of the event picks the drawer with the routing mode `routedBy`, for example `routedBy[OrderPlaced](_.customerId)`. Any source that uses `routedBy` makes the projection `CrossEntity`. Each routing key gets its own store, called a shard, next to the main one: `<basePath>/<name>_shard_<key>.db`. With SQLite each shard is its own file, such as `customer_orders_shard_alice.db`. In the file name the key is cut to 64 characters, and any character other than letters, digits, `_` and `-` is replaced by `_`. If the key cannot be read from an event, the engine uses the entity ID.
-
-The routing key only chooses the shard. A row keeps its own ID, so two rows in the same shard still need different IDs. To read a row you give its ID: the engine looks in the main store first, and then in the shards.
-
-It is the right scope for views that group things by a related entity, such as the orders of a customer or the repositories of an owner. See [Multi-Source Projections](#multi-source-projections).
-
-### Global: one scoreboard on the wall
-
-There is no card for each thing and no drawer for each group. Every note, whoever it is about, changes the numbers on one board: orders so far, shipped, pending. This scope answers the question "how many in total?".
-
-All events go to one shared store, `global/<name>.db`, whichever entity or key they belong to. The routing mode of the source is `routeToAll`, which does not split the events by entity or by key. It does not make a projection global by itself, only `Projection.global` does. It is the right scope for totals and counters, such as the number of orders or the revenue of a shop. See [Field Updates](#field-updates).
-
-Two details matter in practice:
-
-- A counter update is applied to the row whose ID the event was recorded under. To keep one row of totals, record all the events under one fixed ID, for example a date or `"shop"`. Otherwise each event updates a different row.
-- A global projection has no `EntityPath`, so its store looks for an ID column called `id`. Name the ID field of the row `id`.
 
 ## Multi-Source Projections
 
