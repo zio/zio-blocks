@@ -295,27 +295,33 @@ The example below runs the story of the full example above again, this time with
 
 ## Connection Management
 
-`TransactorCache` is the LRU pool of open SQLite connections that backs all SQLite stores. `ProjectionEngine` creates and manages its own cache internally; you do not need to construct one yourself unless you are integrating with `makeWithStores` directly.
+A `TransactorCache` keeps one open SQLite connection (a `Transactor`) for each database file and reuses it, so the engine does not reopen files for every event. It also limits how many files are open at once, which matters for a `CrossEntity` projection with one shard file for each routing key. It is the pool behind every SQLite store.
+
+You usually do not create one. `ProjectionEngine.make` creates its own and `ProjectionEngine#transactorCache` returns it. Create one yourself when you build the engine with event stores, so the engine and the stores share it. A cache is created and used like this:
 
 ```scala
-trait TransactorCache {
-  def get(path: String): Task[Transactor]
-  def evict(path: String): Task[Unit]
-  def close: Task[Unit]
-  def size: Task[Int]
-}
-
-final case class TransactorCacheConfig(maxSize: Int = 256)
-
 object TransactorCache {
   def make(maxSize: Int = 256): ZIO[Scope, Nothing, TransactorCache]
   def makeUnscoped(maxSize: Int = 256): UIO[TransactorCache]
   def live(maxSize: Int = 256): ZLayer[Scope, Nothing, TransactorCache]
   def liveConfig(config: TransactorCacheConfig): ZLayer[Scope, Nothing, TransactorCache]
 }
+
+final case class TransactorCacheConfig(maxSize: Int = 256)
+
+trait TransactorCache {
+  def get(path: String): Task[Transactor]
+  def evict(path: String): Task[Unit]
+  def close: Task[Unit]
+  def size: Task[Int]
+}
 ```
 
-`TransactorCache#get` returns a cached `Transactor` for the given file path, opening a new one if the path has not been seen before. When the cache reaches `maxSize`, the least-recently-used entry is evicted and its connection is closed. `TransactorCache#evict` removes a single entry explicitly — useful if a database file is deleted or replaced. `TransactorCache#close` shuts down all open connections, which `make` arranges automatically through the enclosing `Scope`.
+`maxSize` is the most database files the cache keeps open at the same time, 256 by default. Every open file holds a connection, and a process can only have so many files open, so a `CrossEntity` projection with a shard file for each routing key needs a limit. When the cache is full and a new path is asked for, it closes the least recently used file to make room. That file is not lost: its data stays on disk, and the next `get` for it opens it again, which is slower. If your projections have more active shards than `maxSize`, the cache keeps closing and reopening files, so raise it. A `maxSize` of 0 or less means no limit.
+
+`make` closes every connection when the enclosing `Scope` ends. `makeUnscoped` is for a cache whose lifetime you manage yourself, by calling `close`. `live` and `liveConfig` wrap `make` as a `ZLayer` for dependency injection.
+
+`get` returns the connection for a file path, opening the file if the cache has not seen it before. `evict` closes and forgets one file, which is useful when a database file is deleted or replaced. `size` is the number of files open at the moment.
 
 When a new connection is opened, the cache enables Write-Ahead Logging and configures two additional pragmas:
 
@@ -323,7 +329,46 @@ When a new connection is opened, the cache enables Write-Ahead Logging and confi
 - `PRAGMA synchronous=NORMAL` — writes are durable at WAL checkpoints rather than on every commit, trading a small data-loss window on power failure for meaningfully better write throughput.
 - `PRAGMA busy_timeout=5000` — when the database is locked the connection waits up to five seconds before returning an error, preventing spurious failures under brief write contention.
 
-`makeUnscoped` is available when you need a cache whose lifetime you manage manually. The `live` and `liveConfig` ZLayer constructors wrap `make` for ZIO dependency injection.
+The engine takes the cache as an argument. `makeWithStores`, described under [Creating the Engine](#creating-the-engine), is how you give an engine event stores to read from, and the cache to use. `eventStores` maps each source name, the one you pass to `from`, to its `EventStore`. `stores` maps each projection name to its primary store, which you create yourself. If an event store is a `SQLiteEventStore`, get its `Transactor` from the same `cache`, so the engine and the event stores share one limit on open files.
+
+The next example runs the `userProfiles` projection with `makeWithStores`. One cache opens the event store file and the projection store file, and the same cache is given to the engine:
+
+```scala mdoc:compile-only
+import zio.*
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
+
+case class UserCreated(name: String, email: String)
+object UserCreated {
+  implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
+}
+
+case class UserProfile(@Modifier.id id: String, name: String, email: String)
+object UserProfile {
+  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
+  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
+}
+
+val projection = Projection[UserProfile]("userProfiles")
+  .from("users")
+  .routeToSelf
+  .on[UserCreated]
+  .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
+
+val program: ZIO[Scope, Throwable, ProjectionEngine] = for {
+  cache    <- TransactorCache.make(maxSize = 64)
+  tx       <- cache.get("events/users.db")                                            // the event store file
+  users    <- SQLiteEventStore.make[UserCreated](tx)
+  profiles <- SQLiteProjectionStore.make[UserProfile]("users/userProfiles.db", cache) // the projection store file
+  engine   <- ProjectionEngine.makeWithStores(
+                List(projection),
+                Map("userProfiles" -> profiles), // projection name -> its store
+                Map("users" -> users),           // source name given to `from` -> its event store
+                cache
+              )
+  _        <- engine.start
+} yield engine
+```
 
 ## Introspection
 
