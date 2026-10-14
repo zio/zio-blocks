@@ -1,7 +1,7 @@
 import BuildHelper.*
 import MimaSettings.mimaSettings
 import org.scalajs.linker.interface.ModuleKind
-import zio.sbt.githubactions.{CancelInProgress, Concurrency, Condition}
+import zio.sbt.githubactions.{CancelInProgress, Concurrency, Condition, DeployPreviewMode}
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
@@ -48,10 +48,10 @@ inThisBuild(
         cancelInProgress = CancelInProgress.When(Condition.Expression("github.event_name == 'pull_request'"))
       )
     ),
-    // The on-demand preview workflow (.github/workflows/preview-on-demand.yml) is hand-written:
-    // zio-sbt-ci's generated deploy-preview.yml deploys on every successful PR run, which burns
-    // Netlify credits, and the plugin cannot express the issue_comment trigger.
-    ciEnableDeployPreview     := false,
+    // Deploy the Netlify preview only when a contributor ticks the checkbox in the bot comment,
+    // instead of on every successful PR run, to save Netlify credits.
+    ciEnableDeployPreview     := true,
+    ciDeployPreviewMode       := DeployPreviewMode.OnDemand,
     ciBuildJobs               := Seq(CiWorkflow.buildDocs.value, CiWorkflow.landing.value),
     ciLintJobs                := Seq(CiWorkflow.lint.value),
     ciTestJobs                := Seq(CiWorkflow.testJVM.value, CiWorkflow.testJS.value),
