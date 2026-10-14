@@ -248,21 +248,7 @@ The `seq` field is the resumption position: the engine saves it after each succe
 
 By default, `EventStore[E]` uses the case class simple name as the tag. Renaming a case class therefore changes the tag that new events are stored under, leaving old events unreadable under the new name.
 
-Annotating a case class with `@eventTag(n)` replaces the name-based tag with a stable numeric string:
-
-```scala
-import zio.blocks.projection.eventTag
-
-sealed trait UserEvent
-
-@eventTag(1)
-case class UserCreated(name: String, email: String) extends UserEvent
-
-@eventTag(2)
-case class UserDeleted(userId: String) extends UserEvent
-```
-
-The tag stored in the database becomes `"1"` or `"2"`, regardless of what the case class is later renamed to. `TagResolver` uses these annotations — alongside any registered [`Migration`](../schema/migration.md) — to map old tags to current event types when reading historical data.
+There are two ways to keep old events readable: give each case a stable numeric tag with `@eventTag(n)`, or describe the rename with a `Migration` so that the store knows the old name. Both are explained in [Event Tagging and Migration](./projection.md#event-tagging-and-migration).
 
 ## Projection Persistence
 
