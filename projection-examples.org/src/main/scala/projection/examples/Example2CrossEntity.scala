@@ -120,7 +120,7 @@ object Example2CrossEntity extends ZIOAppDefault {
     Console.printLine("\n--- Example 2: CrossEntity Projection (orders routed by customerId) ---").orDie *>
       ZIO.scoped {
         for {
-          _ <- Sqlite.globalFolder("shopStats") *> Sqlite.folders(ordersFolder, Sqlite.path("example2/events"))
+          _ <- Sqlite.globalFolder("shop_stats") *> Sqlite.folders(ordersFolder, Sqlite.path("example2/events"))
 
           projection = Projection[CustomerOrder]("customer_orders")
                          .from("orders")
@@ -132,7 +132,7 @@ object Example2CrossEntity extends ZIOAppDefault {
 
           // One row for the whole shop. `pending` goes up when an order is placed and down when it is shipped.
           stats = Projection
-                    .global[ShopStats]("shopStats")
+                    .global[ShopStats]("shop_stats")
                     .from("shop")
                     .routeToAll
                     .on[CustomerRegistered]
