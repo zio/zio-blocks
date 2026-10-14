@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import site from '../src/data/site.json' with { type: 'json' };
 import { titleCase } from '../src/lib/title-case.mjs';
+import { RAIL } from '../src/lib/rail.mjs';
 
 const html = readFileSync(new URL('../build/index.html', import.meta.url), 'utf8');
 
@@ -76,6 +77,20 @@ test('principles', () => {
   const s = sec('principles');
   const items = [...s.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
   assert.deepEqual(items, site.principles.map((p, i) => `0${i + 1} ${titleCase(p.name)} ${p.text}`));
+});
+
+test('the section rail links to every landing section and sits outside the landing content', () => {
+  const start = html.indexOf('<nav class="lp-rail"');
+  assert.notEqual(start, -1, 'missing <nav class="lp-rail"');
+  const rail = html.slice(start, html.indexOf('</nav>', start));
+  assert.match(rail.slice(0, rail.indexOf('>')), /aria-label="Sections"/);
+  assert.equal(main.includes('lp-rail'), false, 'the rail must be outside <main id="landing">');
+  const links = [...rail.matchAll(/<a [^>]*>/g)].map((m) => m[0]);
+  assert.deepEqual(links.map((t) => /href="#([^"]+)"/.exec(t)[1]), RAIL.map((s) => s.id));
+  assert.deepEqual(links.map((t) => /aria-label="([^"]+)"/.exec(t)[1]), RAIL.map((s) => s.label));
+  // Server-rendered HTML marks the first section as current; exactly one link is.
+  assert.deepEqual(links.map((t) => /aria-current="true"/.test(t)), [true, false, false, false]);
+  for (const s of RAIL) assert.ok(main.includes(`<section id="${s.id}"`), `no <section id="${s.id}">`);
 });
 
 test('deep dives render every panel visible without JavaScript', () => {

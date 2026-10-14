@@ -5,6 +5,8 @@ import Hero from '../components/landing/Hero';
 import Principles from '../components/landing/Principles';
 import DeepDives from '../components/landing/DeepDives';
 import Catalog from '../components/landing/Catalog';
+import SectionRail from '../components/landing/SectionRail';
+import {RAIL} from '../lib/rail.mjs';
 import '../components/landing/landing.css';
 
 const DESCRIPTION =
@@ -12,7 +14,7 @@ const DESCRIPTION =
 
 // Section ids are plain JSX attributes, which Docusaurus' anchor check cannot see; register them
 // so navbar links such as `/#catalog` validate on every page.
-const ANCHORS = ['hero', 'principles', 'deep-dives', 'catalog'];
+const ANCHORS = RAIL.map((s) => s.id);
 
 export default function Home() {
   const brokenLinks = useBrokenLinks();
@@ -25,6 +27,7 @@ export default function Home() {
         <DeepDives />
         <Catalog />
       </main>
+      <SectionRail />
     </Layout>
   );
 }
