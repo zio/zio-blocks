@@ -91,47 +91,101 @@ The data flow among the types is:
                                engine.query(projection, id)
 ```
 
-The following example wires all steps together in memory using `TestEngine`:
+## Quick Start
+
+A projection is first defined once, then run by an engine. The two steps below use the same events and the same projection. The first runs them in memory with `TestEngine`, which is the quickest way to try one. The second keeps the events and the read model in SQLite files, the way an application does.
+
+### Step 1: Try it in memory with TestEngine
+
+Define your events, your projection entity, declare the projection, and start the engine:
 
 ```scala mdoc:compile-only
-import zio._
-import zio.blocks.projection._
+import zio.*
+import zio.blocks.projection.*
 import zio.blocks.projection.testing.TestEngine
 import zio.blocks.schema.{Modifier, Schema}
 
-// Event type — stored in the EventStore, triggers handlers
-case class AccountOpened(name: String, email: String)
-object AccountOpened {
-  implicit val schema: Schema[AccountOpened] = Schema.derived[AccountOpened]
+// 1. Define events
+case class UserCreated(name: String, email: String)
+object UserCreated {
+  implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
 }
 
-// Read model — @Modifier.id marks the entity-ID field for EntityPath derivation
-case class Account(@Modifier.id id: String, name: String, email: String)
-object Account {
-  implicit val schema: Schema[Account]         = Schema.derived[Account]
-  implicit val entityPath: EntityPath[Account] = EntityPath.derived[Account]
+// 2. Define the projection entity
+case class UserProfile(@Modifier.id id: String, name: String, email: String)
+object UserProfile {
+  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
+  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
 }
 
-// Steps 1–3: declare the projection
-val accounts: Projection[Account] =
-  Projection[Account]("accounts")        // Schema[Account] + EntityPath[Account] from companion
-    .from("banking")                     // listen to the "banking" EventStore
-    .routeToSelf                         // route each event to the entity's own row
-    .on[AccountOpened]                   // handle AccountOpened events
-    .insert((e, ctx) => Account(ctx.entityId, e.name, e.email))
+// 3. Define the projection
+val projection = Projection[UserProfile]("userProfiles")
+  .from("users")
+  .routeToSelf
+  .on[UserCreated]
+  .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
 
-// Steps 4–7: engine creation, event append, and query as a ZIO program
-val program: ZIO[Any, Throwable, Option[Account]] =
-  ZIO.scoped {
-    for {
-      engine <- TestEngine.make(accounts)
-      _      <- engine.append("acct-1", AccountOpened("Alice", "alice@example.com"))
-      result <- engine.query(accounts, "acct-1")
-    } yield result
-  }
+// 4. Create a test engine (auto-creates stores and hubs)
+val program: ZIO[Scope, Throwable, Unit] = for {
+  engine <- TestEngine.make(projection)
+  // Append events
+  _ <- engine.append("user-1", UserCreated("Alice", "alice@example.com"))
+  _ <- engine.append("user-2", UserCreated("Bob", "bob@example.com"))
+  // Query
+  u1 <- engine.query(projection, "user-1")
+  u2 <- engine.query(projection, "user-2")
+} yield ()
 ```
 
-Processing is asynchronous: `append` publishes to the internal `Hub` and returns immediately. In production code, allow the engine a moment to process before querying. `TestEngine` exposes `engine.query` on the same `ProjectionEngine` instance so the test can retry until the row appears.
+The engine starts a catch-up fiber that reads all historical events, then switches to live mode via the Hub subscription. Query results appear once the engine processes the relevant events.
+
+### Step 2: Keep it in SQLite files
+
+`TestEngine` keeps everything in memory, so nothing survives the program. To keep the events and the read model on disk, create the stores yourself and give them to `ProjectionEngine.makeWithStores`. The events and the projection are the same as in step 1, and only the wiring changes. It needs `sqlite-jdbc` on the runtime classpath, see [Installation](#installation):
+
+```scala mdoc:compile-only
+import zio.*
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
+
+// The same events and projection as in step 1
+case class UserCreated(name: String, email: String)
+object UserCreated {
+  implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
+}
+
+case class UserProfile(@Modifier.id id: String, name: String, email: String)
+object UserProfile {
+  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
+  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
+}
+
+val projection = Projection[UserProfile]("userProfiles")
+  .from("users")
+  .routeToSelf
+  .on[UserCreated]
+  .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
+
+// Wire the projection to SQLite files
+val program: ZIO[Scope, Throwable, Option[UserProfile]] = for {
+  cache    <- TransactorCache.make()
+  tx       <- cache.get("events/users.db")
+  users    <- SQLiteEventStore.make[UserCreated](tx)
+  profiles <- SQLiteProjectionStore.make[UserProfile]("users/userProfiles.db", cache)
+  engine   <- ProjectionEngine.makeWithStores(
+                List(projection),
+                Map("userProfiles" -> profiles), // projection name -> its store
+                Map("users" -> users),           // source name given to `from` -> its event store
+                cache
+              )
+  _        <- engine.start
+  _        <- users.append("user-1", UserCreated("Alice", "alice@example.com"))
+  // The engine applies the event in the background, so ask until the row is there
+  alice    <- engine.query(projection, "user-1").repeatUntil(_.isDefined)
+} yield alice
+```
+
+The files stay on disk after the program ends. When a program starts again, the events are still in `events/users.db`, and the engine continues after the last event it processed, so no event is applied twice. The files are plain SQLite databases, so `sqlite3 users/userProfiles.db` shows the rows while the program is stopped.
 
 ## Common Patterns
 
