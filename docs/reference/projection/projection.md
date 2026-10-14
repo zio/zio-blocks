@@ -491,6 +491,10 @@ Running `validate()` before passing a projection to an engine helps catch miscon
 
 ### Looking Up a Handler and a Routing Key
 
+:::note[Advanced]
+You do not need this section to define or run a projection. The engine calls `handle` and `routingKey` for you, so a normal application never calls them. They are described here to show how the engine decides what an event does and where it goes, and for anyone writing a test or a custom runner.
+:::
+
 Two methods show what the projection would do with an event, without an engine. They are what the engine calls for every event: the first finds the handler, and the second finds the key that decides which store gets the event.
 
 ```scala
