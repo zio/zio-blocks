@@ -23,16 +23,12 @@
 }
 
 /*
- * Scroll: soft snap. The page is pulled to a section edge only when scrolling stops near it (`proximity`), and only on
- * the landing page. Hero and Principles fill one screen under the sticky navbar; `min-height` lets them grow instead
- * of clipping on short windows or with large text. Deep Dives and Catalog are taller than a screen and snap only at
- * their top edge.
+ * Scroll: one gesture moves to the next section (useSectionScroll.js). CSS only supplies the geometry: Hero, Principles
+ * and Deep Dives fill one screen under the sticky navbar, and `min-height` lets them grow instead of clipping on short
+ * windows or with large text. Catalog is taller than a screen and scrolls natively until its edge. `scroll-padding-top`
+ * keeps hash links clear of the navbar when JavaScript is off.
  */
-html:has(.lp-page) {
-  scroll-snap-type: y proximity;
-  scroll-padding-top: var(--ifm-navbar-height);
-}
-#hero, #principles, #deep-dives, #catalog { scroll-snap-align: start; }
+html:has(.lp-page) { scroll-padding-top: var(--ifm-navbar-height); }
 .lp-hero, .lp-screen {
   min-height: calc(100svh - var(--ifm-navbar-height));
   display: flex;
@@ -261,8 +257,4 @@ html:has(.lp-page) {
       animation-range: entry 0% entry 60%;
     }
   }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html:has(.lp-page) { scroll-snap-type: none; }
 }

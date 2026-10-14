@@ -18,30 +18,18 @@ function block(source, head) {
   return assert.fail(`unbalanced braces after: ${head}`);
 }
 
-test('snap is soft and scoped to the landing page', () => {
-  const rule = block(css, 'html:has(.lp-page)');
-  assert.match(rule, /scroll-snap-type:\s*y proximity;/);
-  assert.doesNotMatch(css, /mandatory/);
-  // Every snap-type declaration is either inside the landing-scoped rule or switches snap off.
-  const uses = [...css.matchAll(/scroll-snap-type:\s*([^;]+);/g)].map((m) => m[1].trim());
-  assert.deepEqual(uses.sort(), ['none', 'y proximity']);
+test('CSS no longer snaps: JavaScript owns section-to-section moves, so snap would fight it', () => {
+  assert.doesNotMatch(css, /scroll-snap/);
 });
 
-test('hash targets and snap points clear the sticky navbar', () => {
+test('hash targets clear the sticky navbar', () => {
   assert.match(block(css, 'html:has(.lp-page)'), /scroll-padding-top:\s*var\(--ifm-navbar-height\);/);
-  const align = block(css, '#hero, #principles, #deep-dives, #catalog');
-  assert.match(align, /scroll-snap-align:\s*start;/);
 });
 
-test('hero and principles fill the screen with min-height, never a fixed height', () => {
+test('hero, principles and deep dives fill the screen with min-height, never a fixed height', () => {
   const rule = block(css, '.lp-hero, .lp-screen');
   assert.match(rule, /min-height:\s*calc\(100svh - var\(--ifm-navbar-height\)\);/);
   assert.doesNotMatch(rule, /(^|[;\s])height:/);
-});
-
-test('reduced motion turns snap off', () => {
-  const reduced = block(css, '@media (prefers-reduced-motion: reduce)');
-  assert.match(reduced, /html:has\(\.lp-page\)\s*\{\s*scroll-snap-type:\s*none;\s*\}/);
 });
 
 const MOTION = '@media (prefers-reduced-motion: no-preference)';

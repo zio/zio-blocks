@@ -6,6 +6,7 @@ import Principles from '../components/landing/Principles';
 import DeepDives from '../components/landing/DeepDives';
 import Catalog from '../components/landing/Catalog';
 import SectionRail from '../components/landing/SectionRail';
+import useSectionScroll from '../components/landing/useSectionScroll';
 import {RAIL} from '../lib/rail.mjs';
 import '../components/landing/landing.css';
 
@@ -17,6 +18,7 @@ const DESCRIPTION =
 const ANCHORS = RAIL.map((s) => s.id);
 
 export default function Home() {
+  useSectionScroll(ANCHORS);
   const brokenLinks = useBrokenLinks();
   ANCHORS.forEach((id) => brokenLinks.collectAnchor(id));
   return (

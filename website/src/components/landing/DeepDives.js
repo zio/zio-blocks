@@ -53,7 +53,7 @@ export default function DeepDives() {
   };
 
   return (
-    <section id="deep-dives" className="lp-section" aria-labelledby="deep-dives-title">
+    <section id="deep-dives" className="lp-section lp-screen" aria-labelledby="deep-dives-title">
       <div className="lp-wrap">
         <p className="lp-label">02 &nbsp; Deep Dives</p>
         <h2 id="deep-dives-title">Four Blocks, in Code</h2>
