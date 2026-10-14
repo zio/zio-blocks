@@ -127,7 +127,7 @@ The method performs three phases in order:
 
 1. **Schema checks** — for each projection, `start` computes the current `SchemaHash` and compares it with the value stored in the primary store. If the hashes differ and `lazyRebuild` is `false`, the engine immediately attempts a migration shortcut (an `ALTER TABLE ADD COLUMN` for simple field additions) or falls back to a full event replay. If `lazyRebuild` is `true`, the projection is only marked pending; no rebuild happens yet.
 
-2. **Catch-up replay** — for each source binding, a fiber reads from the last saved watermark using `es.readFrom(initialLast).groupedWithin(batchSize, batchTimeout)` and processes all historical events in batches. The fiber completes when the event store's history is exhausted.
+2. **Catch-up replay** — for each source binding, the engine starts a background task that reads the events it has not processed yet. It begins right after the last event it saved a record of, the watermark, and works through the stored events in batches. When it has read to the end of the stored events, the task finishes.
 
 3. **Live streaming** — only after catch-up completes does the engine subscribe to the event store's live hub. This sequencing prevents a race where a live event arrives while catch-up is still processing the same region of history. The live fiber runs until the scope closes.
 
@@ -156,7 +156,7 @@ final class ProjectionEngine private[projection] (...) {
 **`getLastProcessedSeq`** returns the sequence number of the last event the projection has successfully applied. This is the position from which the engine would resume after a restart. A value of `0` means the projection has never processed any event.
 
 :::caution
-A read model is updated shortly after an event is appended, not synchronously. A `query` made immediately after an `append` may not yet reflect the new event. In tests, use `TestEngine` and poll until the expected state appears.
+A read model is updated shortly after an event is appended, not synchronously. A `query` made immediately after an `append` may not yet reflect the new event. 
 :::
 
 ## Schema Evolution
