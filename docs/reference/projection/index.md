@@ -329,63 +329,11 @@ enum FieldUpdate {
 
 ## Testing
 
-`TestEngine` replaces the full JVM wiring for unit and integration tests. It creates an `InMemoryProjectionStore[A]` per projection, an in-memory `EventStore` per source name, starts the underlying `ProjectionEngine`, and manages the whole lifecycle in a single `Scope`:
-
-```scala
-import zio._
-import zio.blocks.projection._
-import zio.blocks.projection.testing.TestEngine
-
-object TestEngine {
-  def make(projections: Projection[_]*): ZIO[Scope, Nothing, TestEngine]
-}
-```
-
-After construction, append events with `TestEngine#append`, which auto-routes each event to every source whose bindings declare a handler for that event's runtime class. Query the resulting rows with `TestEngine#query`:
-
-```scala mdoc:compile-only
-import zio._
-import zio.blocks.projection._
-import zio.blocks.projection.testing.TestEngine
-import zio.blocks.schema.{Modifier, Schema}
-
-case class WidgetCreated(label: String)
-object WidgetCreated {
-  implicit val schema: Schema[WidgetCreated] = Schema.derived[WidgetCreated]
-}
-
-case class Widget(@Modifier.id id: String, label: String)
-object Widget {
-  implicit val schema: Schema[Widget]         = Schema.derived[Widget]
-  implicit val entityPath: EntityPath[Widget] = EntityPath.derived[Widget]
-}
-
-val widgets: Projection[Widget] =
-  Projection[Widget]("widgets")
-    .from("inventory")
-    .routeToSelf
-    .on[WidgetCreated]
-    .insert((e, ctx) => Widget(ctx.entityId, e.label))
-
-val test: ZIO[Any, Throwable, Option[Widget]] =
-  ZIO.scoped {
-    for {
-      engine <- TestEngine.make(widgets)
-      _      <- engine.append("w-1", WidgetCreated("Sprocket"))
-      result <- engine.query(widgets, "w-1")
-    } yield result
-  }
-```
-
-When a projection listens to multiple named sources, use the three-argument `TestEngine#append(entityId, event, source)` to direct the event to a specific source by name. The underlying `ProjectionEngine` is accessible as `engine.engine` when lower-level inspection is needed, and all in-memory stores are available as `engine.stores` keyed by projection name.
-
-:::caution
-Processing is asynchronous. The engine dispatches events on background fibers, so a query issued immediately after `append` may return `None`. In tests, poll with a retry loop until the expected row appears.
-:::
+`TestEngine` replaces the full JVM wiring for unit and integration tests. It creates an `InMemoryProjectionStore[A]` per projection, an in-memory `EventStore` per source name, starts the underlying `ProjectionEngine`, and manages the whole lifecycle in a single `Scope`. The [Testing](./testing.md) page documents it, together with `InMemoryProjectionStore`, `TestContext` and `TestProjectionEngine`.
 
 ## Type Pages
 
-The two core types each have a dedicated reference page with complete API coverage. [`Projection[A]`](./projection.md) documents the descriptor, its builder chain (`from`, `on`, routing methods, handler methods), `ProjectionAction`, `FieldUpdate` factories, `ProjectionScope`, and `EntityPath`. [`ProjectionEngine`](./engine.md) documents the runtime, `ProjectionEngineConfig`, watermark and schema-hash mechanics, schema evolution, `TransactorCache`, and the production store implementations.
+The two core types each have a dedicated reference page with complete API coverage. [`Projection[A]`](./projection.md) documents the descriptor, its builder chain (`from`, `on`, routing methods, handler methods), `ProjectionAction`, `FieldUpdate` factories, `ProjectionScope`, and `EntityPath`. [`ProjectionEngine`](./engine.md) documents the runtime, `ProjectionEngineConfig`, watermark and schema-hash mechanics, schema evolution, `TransactorCache`, and the production store implementations. [Testing](./testing.md) documents the in-memory helpers: `TestEngine`, `InMemoryProjectionStore`, `TestContext`, and `TestProjectionEngine`.
 
 ## See Also
 
