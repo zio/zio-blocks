@@ -1,5 +1,5 @@
 /*
- * Example 7 of 8: custom actions.
+ * Example 7 of 9: custom actions.
  *
  * Builds on Example1PerEntity. Read it first.
  *

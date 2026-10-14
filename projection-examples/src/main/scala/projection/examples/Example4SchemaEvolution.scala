@@ -1,5 +1,5 @@
 /*
- * Example 4 of 8: schema evolution.
+ * Example 4 of 9: schema evolution.
  *
  * Builds on Example1PerEntity. Next: Example5TagRename.
  *

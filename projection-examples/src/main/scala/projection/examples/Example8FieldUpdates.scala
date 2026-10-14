@@ -1,5 +1,5 @@
 /*
- * Example 8 of 8: field updates.
+ * Example 8 of 9: field updates.
  *
  * Builds on Example1PerEntity. Read it first.
  *
