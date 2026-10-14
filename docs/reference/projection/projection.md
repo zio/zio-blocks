@@ -290,6 +290,8 @@ final class HandlerBuilder[E, A] {
 }
 ```
 
+When an event arrives, the projection looks for a handler by the event's class. A handler matches any event that is an instance of its event type, so a handler for a sealed trait also matches each of its cases. If more than one handler matches, the first one added wins. The engine searches the handlers of all the sources together, in the order the sources were added, and it does not narrow the search to the source the event came from. So when two sources have a handler for the same event type, the handler of the source added first handles the events of both.
+
 ### ProjectionContext
 
 Every handler function receives a `ProjectionContext` alongside the event, providing the metadata the engine attached when it processed the event envelope:
@@ -472,24 +474,6 @@ One important subtlety: `routeToAll` alone does not produce `Global` scope. It o
 
 Several read-only members expose a completed projection's internal structure. These are primarily useful for debugging, validation, and building custom runners or middleware layers.
 
-### Structural Accessors
-
-`scope` computes the derived `ProjectionScope` from the current binding configuration, as described in the previous section.
-
-`bindings` (also accessible as `sources`) returns the list of `SourceBinding[?, A]` values in the order they were added. Each binding carries a source name, its routing mode, and its handlers:
-
-```scala
-final case class SourceBinding[E, A](
-  sourceName: String,
-  routing:    RoutingMode,
-  handlers:   List[Handler[?, A]]
-)
-```
-
-`allHandlers` flattens all handlers from every binding into a single list, in binding order. `sourceNames` extracts just the source name from each binding in the same order.
-
-`toString` returns a concise summary: `"Projection(name=<name>, isGlobal=<bool>, bindings=<count>, handlers=<count>)"`.
-
 ### Validation
 
 `validate()` checks the projection for structural problems and returns a list of warning strings, empty when the projection is well-formed:
@@ -505,66 +489,19 @@ val warnings = proj.validate()
 
 Running `validate()` before passing a projection to an engine helps catch misconfigured projections early, before any I/O occurs.
 
-### Handler Structure
+### Looking Up a Handler and a Routing Key
 
-A `Handler[E, A]` is a named, runtime-typed function from event to action. Handlers are created by `HandlerBuilder` and stored inside `SourceBinding`; they are not constructed by hand:
-
-```scala
-final case class Handler[E, A](
-  eventClass: Class[E],
-  schema:     Schema[E],
-  tag:        String,
-  fn:         (E, ProjectionContext) => ProjectionAction[A]
-) {
-  def matches(event: Any): Boolean
-  def runAny(event: Any, ctx: ProjectionContext): ProjectionAction[A]
-}
-```
-
-`matches` tests whether a runtime event is an instance of `eventClass`. `runAny` casts the event and invokes `fn`. Both are used internally by the dispatch algorithm described below.
-
-## Handler Dispatch
-
-The dispatch algorithm finds and invokes the handler for a given event at runtime. `handle` is the primary method; `dispatch` is a binary-compatible alias that delegates to it:
+Two methods show what the projection would do with an event, without an engine. They are what the engine calls for every event: the first finds the handler, and the second finds the key that decides which store gets the event.
 
 ```scala
 final class Projection[A] {
-  def handle(
-    event:  Any,
-    ctx:    ProjectionContext,
-    source: Option[String] = None
-  ): Option[ProjectionAction[A]]
-
-  def dispatch(
-    event:  Any,
-    ctx:    ProjectionContext,
-    source: Option[String] = None
-  ): Option[ProjectionAction[A]]
-
-  def routingKey(
-    event:      Any,
-    ctx:        ProjectionContext,
-    sourceName: String
-  ): Option[String]
-
-  def routingKeyForDefault(
-    event: Any,
-    ctx:   ProjectionContext
-  ): Option[String]
+  def handle(event: Any, ctx: ProjectionContext, source: Option[String] = None): Option[ProjectionAction[A]]
+  def routingKey(event: Any, ctx: ProjectionContext, sourceName: String): Option[String]
 }
 ```
 
-When `source` is `Some(name)`, `handle` locates the first `SourceBinding` whose `sourceName` matches, then searches that binding's handlers in order and returns the result of the first one whose `eventClass.isInstance(event)` is true. When `source` is `None`, `handle` searches all handlers across all bindings in binding order and returns the first match. In both cases, `None` is returned when no handler matches.
-
-`routingKey(event, ctx, sourceName)` determines the routing key for an event in a named source, following that binding's `RoutingMode`:
-
-- `RouteToSelf` → `Some(ctx.entityId)`
-- `RouteToAll` → `None` (no key; all events share one store)
-- `RoutedBy(extractor)` → `Some(extractor(event))` (the extracted key as a string)
-
-If the named source is not found in `bindings`, `routingKey` returns `None`.
-
-`routingKeyForDefault(event, ctx)` applies the same logic to the most recently added binding, falling back to `Some(ctx.entityId)` when there are no bindings yet. The engine calls these methods to determine which store file receives an event before it calls `handle` to produce the action to apply.
+- `handle` returns the `ProjectionAction` of the first handler that matches the event, or `None` if no handler matches. With `source = Some(name)` it searches only the handlers of that source. With `None`, which is what the engine uses, it searches all handlers, in the order the sources were added. It does not apply the action to a store, so it is a way to unit-test a handler without an engine.
+- `routingKey` returns the key for an event in the named source: `ctx.entityId` for `routeToSelf`, the extracted key for `routedBy`, and `None` for `routeToAll` or when there is no source with that name. See [Binding Event Sources](#binding-event-sources).
 
 ## See Also
 
