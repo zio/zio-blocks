@@ -468,18 +468,6 @@ The three cases map to distinct file layouts on disk:
 
 One important subtlety: `routeToAll` alone does not produce `Global` scope. It only routes all events within the source to the same store. To obtain a `Global` scope — and have the store placed in the `global/` folder — use `Projection.global[A]` at construction time. `CrossEntity` takes precedence over `PerEntity` whenever any binding uses `routedBy`; the extractor from the first such binding is stored in the `CrossEntity` case and used by the engine to shard queries.
 
-The example below creates two projections that count page hits. They have the same source, the same `routeToAll` and the same handler, and differ only in how they are created: one with `Projection[A]` and one with `Projection.global[A]`. It prints the scope, the files each one writes, and the rows:
-
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example10RouteToAllAndGlobal.scala
-
-```
-
-Running it shows what changes and what does not:
-
-- **Scope:** the first projection is `PerEntity` and the second is `Global`. `routeToAll` is on both, so it is not what makes a projection global.
-- **Files:** the first writes `hits_per_entity.db` in the folder of its `EntityPath`. The second writes `hits_global.db` in `global/`.
-- **Rows:** both hold `page-1` with 2 hits and `page-2` with 1 hit. `routeToAll` puts every event in the same store, but it does not merge rows: each row keeps the ID its events were recorded under. To count everything in one row, record the events under one ID, as the [aggregate example](#aggregating-fields) does with the date.
-
 ## Inspecting a Projection
 
 Several read-only members expose a completed projection's internal structure. These are primarily useful for debugging, validation, and building custom runners or middleware layers.
