@@ -146,6 +146,10 @@ The annotation takes precedence over the derivation algorithm, but not over an e
 
 ## Binding Event Sources
 
+A **source** is a named feed of events: one `EventStore`. The name is a plain string that you choose, such as `"users"` or `"orders"`, and it stands for the event store that holds those events. A projection does not hold an event store itself; it only says which source names it listens to, and the engine is given the actual event store for each name when it is created. Those are the `Map[String, EventStore[?]]` of `ProjectionEngine.makeWithStores` and the sources behind a `TestEngine`. If the engine has no event store under the name a projection uses, it falls back to the store named `"_default"`, and then to the first store it was given. It only logs "no EventStore for source ..." and skips the binding when it has no event stores at all.
+
+A source is not the same thing as an entity. Many entities can write to one source: the source `"users"` can hold the events of `user-1`, `user-2` and every other user, each recorded under its own entity ID. Several projections can also listen to the same source, and one projection can listen to several sources, one `from` call each. Bindings are how a projection says which sources it reads and, for each one, how its events are routed.
+
 `from(sourceName)` opens a new source binding and returns a `FromBuilder[A]`. One of the four routing methods on `FromBuilder` must be called to close the binding and return a new `Projection[A]`; subsequent `on[E]` handler calls then attach to that binding:
 
 ```scala
