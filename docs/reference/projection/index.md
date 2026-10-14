@@ -41,7 +41,9 @@ For durable SQLite persistence on the JVM, add the JDBC driver:
 libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 ```
 
-Without the JDBC driver the engine silently falls back to `InMemoryProjectionStore`, so data is lost on restart.
+The library does not bring `sqlite-jdbc` with it, so add it to your own build if you want SQLite persistence. Without it, `ProjectionEngine.make` silently falls back to `InMemoryProjectionStore`, so data is lost on restart. The same fallback happens on any other error while opening a SQLite store, not only a missing driver.
+
+A [`TransactorCache`](./engine.md#connection-management) loads the SQLite driver by name when it first opens a file, so `sqlite-jdbc` must be on the runtime classpath whenever you use one directly, for example to build a `SQLiteEventStore`. Without it, opening the first file fails with `ClassNotFoundException: org.sqlite.JDBC`.
 
 ## Overview
 
