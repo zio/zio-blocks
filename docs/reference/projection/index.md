@@ -16,16 +16,67 @@ import TabItem from '@theme/TabItem';
 
 The projection module turns an append-only event log into queryable read models with a purely declarative API. You describe — once, in a builder chain — which events a model listens to, how they route to entity stores, and what each kind of event does to the model. An engine then reads those descriptions and handles replay, watermark tracking, schema-change detection, and live streaming automatically. Core types: [`Projection[A]`](./projection.md), [`ProjectionEngine`](./engine.md), `EventStore[E]`, `EventEnvelope[E]`, `EventTag`, `ProjectionStore[A]`, `ProjectionAction[A]`, and `FieldUpdate`.
 
+## Event Sourcing Basics
+
+Most applications store the **current state** of things: a row in a table that is updated in place. When an order is shipped, the `status` column changes from `placed` to `shipped`, and the earlier value is gone.
+
+**Event sourcing** stores something else: the **sequence of facts that happened**. Nothing is updated in place. Each fact is an **event**, and it is appended to a log:
+
+```text
+1. OrderPlaced   order-1, alice, keyboard, 80
+2. OrderPlaced   order-2, alice, monitor, 250
+3. OrderShipped  order-1
+```
+
+The current state is not stored. It is worked out by replaying the events in order: after event 3, `order-1` is shipped and `order-2` is still placed.
+
+A few properties follow from this:
+
+- **Events are facts about the past.** They are only ever appended, never edited or deleted, and their order is kept. The log is the source of truth.
+- **State can be recomputed.** Replaying the same events always gives the same state, so a view of the data can be thrown away and rebuilt, or built in a different shape later.
+- **History comes for free.** You can answer "how did we get here?", not only "where are we now?".
+- **Events are permanent.** Once written they stay as they are, so renaming an event or changing its shape needs care. The [Event Tagging and Migration](./projection.md#event-tagging-and-migration) section covers this.
+
+### Reading the current state
+
+Replaying the whole log to answer every question would be slow. Event sourcing therefore usually separates the two sides of an application, often called **CQRS** (command query responsibility segregation):
+
+- the **write side** appends events to the log;
+- the **read side** answers queries from **read models**, which are tables or documents shaped for the questions you ask, such as "all orders of a customer" or "how many orders are pending".
+
+A **projection** is what keeps a read model up to date. It listens to the events as they are appended and applies each one to the read model:
+
+```text
+append events  -->  event log  -->  projection  -->  read model  -->  queries
+  (write side)                                                         (read side)
+```
+
+Two consequences are worth knowing up front:
+
+- **Reads can lag a little.** A read model is updated after an event is appended, not at the same instant, so a query right after a write may not see it yet. This is called eventual consistency.
+- **A read model is disposable.** If its shape changes, or it is lost, it is rebuilt by replaying the log through the projection.
+
+This library is the projection part: you declare how events turn into read models, and an engine runs the declaration and keeps SQLite files up to date.
+
 ## Motivation
 
-Hand-written event consumers accumulate accidental complexity in four common ways. Routing logic — deciding which entity a given event belongs to — is scattered across multiple handlers and is easy to duplicate or contradict. Position tracking — knowing which event to resume from after a restart — requires manual bookkeeping that is easy to corrupt under concurrent writes. Schema changes — adding a field to a read model or renaming an event case class — require coordinated updates to consumers, storage, and restart logic. Test infrastructure — wiring up in-memory stores and event hubs just to assert that an event produces the right row — is disproportionately complex for the value it provides.
+A projection keeps a read model up to date as events arrive, so queries such as "what is Alice's current email?" or "how many orders were placed today?" never replay history. Written by hand, that code tends to go wrong in the same few ways:
 
-The projection module addresses all four:
+- **Routing is scattered.** The knowledge that an `OrderPlaced` event must update the order, the customer's totals, and a daily counter lives in several handlers, so it is easy to miss one.
+- **Restarts are fragile.** The code has to catch up on events it missed while it was down, then switch to live events, without skipping or double-applying any.
+- **Event shapes change.** Once an event or a read model gains a field, old data no longer matches the code, and the read model has to be rebuilt by hand.
+- **Tests need infrastructure.** Verifying a handler usually means standing up a database and a stream.
 
-- Routing is declared once on each `Projection[A]` (`routeToSelf`, `routedBy`, `routeToAll`) and the engine enforces it on every event.
-- Watermarks are persisted automatically after every successfully processed event, so restart resumes exactly where it left off.
-- Schema hashes are stored alongside projection rows; on startup, a changed hash triggers a full replay or an `ALTER TABLE ADD COLUMN` shortcut if only a field was added.
-- `TestEngine` wires in-memory stores and hubs in a single `make` call, so a test can append events and query rows without any SQLite files or external setup.
+ZIO Blocks Projection addresses these by making a projection a declaration rather than a hand-rolled consumer. You state which event types a projection listens to, which entity each event belongs to, and how an event changes that entity. The engine then does the rest:
+
+- it reads historical events to catch up, then follows live events. It saves its position after every event it applies, so a restart resumes exactly where it left off;
+- it routes each event to the entity (or entities) that should see it, following the routing declared once on the projection (`routeToSelf`, `routedBy`, `routeToAll`);
+- it detects a changed schema and rebuilds the read model, with a shortcut for added fields and migrations to map old event tags to new ones;
+- it stores each projection in its own SQLite file, so read models are isolated, individually backed up, and queryable offline.
+
+Because the same declaration runs against an in-memory store, you can test a projection by appending events and querying the result, with no database. The [Quick Start](#quick-start) shows the whole loop in about twenty lines.
+
+Projection is a good fit when you already treat events as the source of truth and want fast, local, query-friendly views of them. It is not a general query engine over arbitrary data, and the read models it maintains are derived state: they can always be discarded and rebuilt from the events.
 
 ## Installation
 
@@ -261,7 +312,7 @@ The projection module depends on three sibling modules:
 - **`zio-blocks-sql`** — [`Transactor`](../sql/transactor.md) and [`DbCon`](../sql/db-con.md) back the SQLite implementations of `EventStore[E]` and `ProjectionStore[A]`. [`SqlNameMapper`](../sql/sql-name-mapper.md) maps Scala field names to snake_case column names for both DDL and `FieldUpdate`.
 - **ZIO core and ZIO Streams** — `Task`, `ZIO`, and `Scope` are used throughout the engine lifecycle; `ZStream` and `Hub` carry the event streams.
 
-## Event Sourcing
+## Event Store
 
 `EventStore[E]` is the write side of the module: an append-only log for one event type `E`. It assigns a monotonic sequence number to each event, streams history on demand, and broadcasts live events to a `Hub`:
 
