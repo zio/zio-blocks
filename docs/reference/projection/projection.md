@@ -354,15 +354,67 @@ Projection.global[DailyStats]("dailyStats")
 
 ### Custom Actions
 
-`custom` accepts any `ProjectionAction[A]`, covering cases the other verbs do not — for example, `Upsert` (insert or update), `Noop` (no operation), or `Truncate` (clear all rows):
+`custom` accepts any `ProjectionAction[A]`, covering cases the other verbs do not — for example, `Upsert` (insert or update), `Noop` (no operation), or `Truncate` (clear all rows). Its signature is `custom(f: (E, ProjectionContext) => ProjectionAction[A]): Projection[A]`. Use it when the action depends on the event: the handler looks at the event and returns the action to apply.
+
+The example below handles two events for a user profile, and each handler picks between actions:
+
+- `ProfileImported` carries a `draft` flag. A draft is ignored with `Noop`, so no row is written. Anything else is written with `Upsert`, which creates the row or replaces it if it exists. That makes importing the same user twice safe, where `Insert` would not be.
+- `AccountClosed` carries an `eraseData` flag. When it is set, the row is removed with `Delete`. Otherwise `Update` changes only the `status` column and keeps the rest of the row.
 
 ```scala
-  .on[RareEvent]
-  .custom { (e, ctx) =>
-    if (e.isFirstSeen) ProjectionAction.Upsert(buildRow(e, ctx))
-    else               ProjectionAction.Noop
+import zio.*
+import zio.blocks.chunk.Chunk
+import zio.blocks.projection.*
+import zio.blocks.projection.testing.TestEngine
+import zio.blocks.schema.{Modifier, Schema}
+
+case class ProfileImported(name: String, email: String, draft: Boolean)
+object ProfileImported { implicit val schema: Schema[ProfileImported] = Schema.derived[ProfileImported] }
+
+case class AccountClosed(eraseData: Boolean)
+object AccountClosed { implicit val schema: Schema[AccountClosed] = Schema.derived[AccountClosed] }
+
+case class UserProfile(@Modifier.id id: String, name: String, email: String, status: String)
+object UserProfile {
+  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
+  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
+}
+
+val profiles: Projection[UserProfile] =
+  Projection[UserProfile]("user_profiles")
+    .from("users").routeToSelf
+    .on[ProfileImported].custom { (e, ctx) =>
+      if (e.draft) ProjectionAction.Noop
+      else ProjectionAction.Upsert(UserProfile(ctx.entityId, e.name, e.email, "active"))
+    }
+    .on[AccountClosed].custom { (e, _) =>
+      if (e.eraseData) ProjectionAction.Delete
+      else ProjectionAction.Update(Chunk(FieldUpdate.Set("status", "closed")))
+    }
+
+val program: ZIO[Any, Throwable, List[Option[UserProfile]]] =
+  ZIO.scoped {
+    for {
+      engine <- TestEngine.make(profiles)
+      _      <- engine.append("user-1", ProfileImported("Alice", "alice@example.com", draft = false))
+      _      <- engine.append("user-1", ProfileImported("Alice B.", "alice@example.com", draft = false))
+      _      <- engine.append("user-2", ProfileImported("Bob", "bob@example.com", draft = true))
+      _      <- engine.append("user-3", ProfileImported("Carol", "carol@example.com", draft = false))
+      _      <- engine.append("user-3", AccountClosed(eraseData = false))
+      _      <- engine.append("user-4", ProfileImported("Dave", "dave@example.com", draft = false))
+      _      <- engine.append("user-4", AccountClosed(eraseData = true))
+      _      <- ZIO.sleep(1.second) // the engine applies events asynchronously
+      rows   <- ZIO.foreach(List("user-1", "user-2", "user-3", "user-4"))(id => engine.query(profiles, id))
+    } yield rows
   }
 ```
+
+Running `program` returns these four rows, in order:
+
+- `user-1`: `Some(UserProfile(user-1,Alice B.,alice@example.com,active))`. The second import replaced the first.
+- `user-2`: `None`. The draft was a `Noop`, so no row was ever written.
+- `user-3`: `Some(UserProfile(user-3,Carol,carol@example.com,closed))`. Only `status` changed.
+- `user-4`: `None`. The row was created, then removed by `Delete`.
 
 ### Handlers Are Pure Functions
 
