@@ -8,6 +8,7 @@
  *   5. Example5TagRename
  *   6. Example6MigrationShortcut
  *   7. Example7CustomActions
+ *   8. Example8FieldUpdates
  *
  * Each example can also be run on its own, see the comment at the top of its
  * file.
@@ -32,6 +33,7 @@ object ProjectionExampleApp extends ZIOAppDefault {
       _ <- Example5TagRename.demo
       _ <- Example6MigrationShortcut.demo
       _ <- Example7CustomActions.demo
+      _ <- Example8FieldUpdates.demo
       _ <- Console.printLine("\n=== All demos completed successfully ===").orDie
     } yield ()
 }

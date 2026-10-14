@@ -1,5 +1,5 @@
 /*
- * Example 3 of 7: a global aggregate projection.
+ * Example 3 of 8: a global aggregate projection.
  *
  * Read Examples 1 and 2 first. Next: Example4SchemaEvolution.
  *
