@@ -51,8 +51,9 @@ zio/zio-http (originally zio/zio). The one deliberate difference is a square `ro
   `src/css/custom.css` imports the theme and utilities layers but not preflight, so Infima is untouched.
 - `docusaurus-plugin-llms` generates `llms.txt`, `llms-full.txt` and per-page markdown from `docs/` in the full build
   (it is not registered for `LANDING_ONLY`).
-- `static/start.md` is what the prompt points the agent at. Update it when the skills change (today ZIO Blocks has no
-  skill or MCP server of its own, only `zio-knowledge`).
+- `static/start.md` is what the prompt points the agent at. Update it when the skills change. It mirrors
+  ziohttp.com/start.md: the `zio-blocks-knowledge` and `zio-knowledge` skills (from zio/zio-skills) and the `zio-blocks`
+  MCP server at `https://mcp.zioblocks.com/mcp`.
 
 ## CI and deployment
 
