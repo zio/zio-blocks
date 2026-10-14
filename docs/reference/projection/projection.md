@@ -444,6 +444,20 @@ To change several columns for one event, pass a `Chunk` of updates, as the `Repo
 
 The `FieldUpdate` values are fixed when the projection is declared, so they cannot use data from the event. When an update needs the event's data, for example adding an order's total to `revenue`, build the update inside [`custom`](#custom-actions) with `ProjectionAction.Update`.
 
+Each operation is one change to a column, run as SQL:
+
+| Operation | SQL | Effect |
+| --- | --- | --- |
+| `Set(field, value)` | `SET col = ?` | Replace the value |
+| `Increment(field, by)` | `SET col = COALESCE(col, 0) + ?` | Add to a counter |
+| `Decrement(field, by)` | `SET col = COALESCE(col, 0) - ?` | Subtract from a counter |
+| `Max(field, value)` | `SET col = MAX(COALESCE(col, ?), ?)` | Keep the highest value |
+| `Min(field, value)` | `SET col = MIN(COALESCE(col, ?), ?)` | Keep the lowest value |
+
+Before it applies the updates, the store runs `INSERT OR IGNORE`, which creates the row with the default value of each column if it is missing. Incrementing a counter of a row that does not exist yet therefore gives `1`, and `COALESCE` treats a missing value as `0`. The updates of one event run in one transaction, and the arithmetic happens inside SQL, so several fibers incrementing the same counter produce the correct total without lost updates.
+
+A field can also be named with a selector instead of a string. `FieldUpdate.increment[DailyStats](_.userCount)` picks the field at compile time and maps it to the column `user_count`, as `update` does, so a typo does not compile. The factories are `setValue`, `increment`, `decrement`, `maxValue` and `minValue`.
+
 The full example below counts users and repositories into one `DailyStats` row. Each source is bound with `routeToAll`, so the events of both sources land in the same row, and each handler adds one to its own counter with `FieldUpdate.Increment`. The row is created on the first event, with the other counters at zero:
 
 ```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example3GlobalAggregate.scala
