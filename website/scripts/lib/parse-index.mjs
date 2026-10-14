@@ -3,7 +3,7 @@ import {
 } from './markdown.mjs';
 
 const DOCS_BASE = '/';
-/** docs/index.md is served at /overview: the landing page owns `/` (see `slug` in docs/index.md). */
+/** docs/index.md is served at /overview: the landing page owns `/` (see scripts/set-docs-home.mjs). */
 const DOCS_HOME = '/overview';
 const PLATFORMS = ['JVM', 'JS'];
 const SCALA_VERSIONS = ['2.13', '3.x'];

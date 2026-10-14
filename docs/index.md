@@ -1,6 +1,5 @@
 ---
 id: index
-slug: /overview
 title: "ZIO Blocks"
 ---
 

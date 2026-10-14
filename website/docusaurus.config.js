@@ -39,7 +39,7 @@ const config = {
           : {
               id: 'default',
               path: './docs',
-              // Docs live at the site root (no /docs prefix). The landing page owns `/`, so docs/index.md sets `slug: /overview`.
+              // Docs live at the site root (no /docs prefix). The landing page owns `/`, so scripts/set-docs-home.mjs gives the docs home the slug /overview.
               routeBasePath: '/',
               sidebarPath: require.resolve('../docs/sidebars.js'),
               // docs/plans holds internal planning notes: keep them in the repo but out of the site. This replaces
