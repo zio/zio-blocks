@@ -1,5 +1,5 @@
 /*
- * Example 6 of 10: the migration shortcut.
+ * Example 6 of 9: the migration shortcut.
  *
  * Read Example4SchemaEvolution first. It is the same story, with one change: the
  * second engine is told how the read model changed.

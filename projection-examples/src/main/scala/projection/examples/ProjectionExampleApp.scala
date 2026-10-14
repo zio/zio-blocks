@@ -10,7 +10,6 @@
  *   7. Example7CustomActions
  *   8. Example8FieldUpdates
  *   9. Example9InsertAndDelete
- *   10. Example10RouteToAllAndGlobal
  *
  * Each example can also be run on its own, see the comment at the top of its
  * file.
@@ -37,7 +36,6 @@ object ProjectionExampleApp extends ZIOAppDefault {
       _ <- Example7CustomActions.demo
       _ <- Example8FieldUpdates.demo
       _ <- Example9InsertAndDelete.demo
-      _ <- Example10RouteToAllAndGlobal.demo
       _ <- Console.printLine("\n=== All demos completed successfully ===").orDie
     } yield ()
 }
