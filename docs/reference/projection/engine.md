@@ -168,50 +168,7 @@ When you change a projection's read model, for example by adding a field to `Use
 3. On the next startup, the engine compares the stored fingerprint with the current one. If they are the same, nothing is done.
 4. If they differ, the stored rows are out of date, and the engine brings them up to date: either with a quick migration, if you registered one, or by rebuilding the read model from the stored events.
 
-Three supporting objects — `TagResolver`, `SchemaHash`, and `SchemaEvolution` — implement this internally; `registerMigration` is the only engine method most users interact with.
-
-### Event Tag Aliases — `TagResolver` and `TagInfo`
-
-`TagResolver` and `TagInfo` are used internally by event stores to handle renamed case classes. You do not call them directly; the event store calls them when it is created, using whatever `Migration` you supplied.
-
-```scala
-final case class TagInfo(
-  aliases: Map[String, String],  // old tag → current tag (chains already followed)
-  allTags: Set[String],          // current + all old tags
-  currentTags: Set[String],      // tags the type produces now
-  migration: DynamicMigration    // rewrites old event values
-) {
-  def isOldTag(tag: String): Boolean
-  def currentTagFor(oldTag: String): Option[String]
-  def normalize(tag: String): String
-  def migrateValue(dv: DynamicValue): Either[SchemaError, DynamicValue]
-  def expandRequested(requested: Set[String]): Set[String]
-  def unknownTags(distinctDbTags: Set[String]): Set[String]
-}
-
-trait TagResolver[E] {
-  def tagInfo: TagInfo
-  def aliases: Map[String, String]
-  def allTags: Set[String]
-  def currentTags: Set[String]
-}
-```
-
-`TagInfo` records both the current tags and all old names left behind by renames. When an event store reads old events from a database, it calls `expandRequested` to include aliases in the SQL tag filter and `normalize` to compare tags without caring when the event was written. Rename chains are resolved transitively at construction time: if case `A` was renamed to `B` and `B` to `C`, the `aliases` map maps `A` directly to `C`.
-
-The companion functions build a `TagInfo` from a `Schema[E]` and an optional migration. In Scala 2 use `resolveImplicit`; in Scala 3, `resolveAuto` summons the migration at the call site via `inline`:
-
-```scala
-object TagResolver {
-  def resolveOpt[E](opt: Option[Migration[E, E]])(using Schema[E]): TagInfo
-  def resolve[E: Schema](migration: Migration[E, E]): TagInfo
-  def resolve[E: Schema]: TagInfo
-  // Scala 2:
-  def resolveImplicit[E: Schema](implicit migration: Migration[E, E] = null): TagInfo
-  // Scala 3:
-  inline def resolveAuto[E](using Schema[E]): TagInfo
-}
-```
+Two supporting objects — `SchemaHash` and `SchemaEvolution` — implement this internally; `registerMigration` is the only engine method most users interact with. Renaming an event case is a separate concern, handled by the event store rather than by the engine; see [Event Tagging and Migration](./projection.md#event-tagging-and-migration).
 
 ### Schema Change Detection — `SchemaHash`
 
