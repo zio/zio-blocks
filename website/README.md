@@ -39,6 +39,17 @@ their tiles together fit in them (today Resource Management + Dependency Injecti
 rule lives in `src/components/landing/Catalog.js`. A new value needs a one-line change in
 `scripts/lib/parse-index.mjs`.
 
+## Scroll behaviour
+
+The landing page snaps softly (`scroll-snap-type: y proximity`, scoped by `html:has(.lp-page)` so docs pages are
+unaffected): Hero and Principles fill one screen under the navbar, and all four sections snap at their top edge. Deep
+Dives and Catalog scroll freely. The Hero squares drift away as Principles rises in, and Principles rows and Catalog
+headings fade up once; both use CSS scroll-driven animation inside `@supports (animation-timeline: view())`, so other
+browsers see a static page. `prefers-reduced-motion: reduce` turns snap and motion off. A fixed rail of four squares on the
+right (`src/components/landing/SectionRail.js`, wider than 62.5rem only) links to the sections; the section list lives in
+`src/lib/rail.mjs`. The rules live in `src/components/landing/landing.css` and are pinned by
+`test/unit/landing-scroll.test.mjs`.
+
 ## Onboard your agent button
 
 The hero and the navbar (an icon next to the colour-mode toggle) have an "Onboard your agent to ZIO Blocks" button
