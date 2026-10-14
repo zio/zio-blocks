@@ -335,24 +335,32 @@ Projection[UserProfile]("userProfiles")
 
 ### Aggregating Fields
 
-`aggregate` and `aggregateField` apply one or more `FieldUpdate` operations, producing `ProjectionAction.Update`. This rewrites individual columns rather than the entire row, and numeric operations such as `Increment` are executed in SQL without reading the row first. The available `FieldUpdate` operations are `Set`, `Increment`, `Decrement`, `Max`, and `Min`. `aggregateField` is an alias for the single-update overload of `aggregate`.
+`aggregate` and `aggregateField` apply one or more `FieldUpdate` operations, producing `ProjectionAction.Update`. This rewrites individual columns rather than the entire row, and numeric operations such as `Increment` are executed in SQL without reading the row first. The available `FieldUpdate` operations are `Set`, `Increment`, `Decrement`, `Max`, and `Min`. `aggregateField` is an alias for the single-update overload of `aggregate`:
 
-The example below counts users and repositories into one `DailyStats` row. Each source is bound with `routeToAll`, so the events of both sources land in the same row, and each handler adds one to its own counter with `FieldUpdate.Increment`. The row is created on the first event, with the other counters at zero:
+```scala
+Projection.global[DailyStats]("dailyStats")
+  .from("users").routeToAll
+  .on[UserCreated]
+  .aggregate(FieldUpdate.Increment("user_count", 1L))
+  .from("repos").routeToAll
+  .on[RepoCreated]
+  .aggregate(Chunk(
+    FieldUpdate.Increment("repo_count", 1L),
+    FieldUpdate.Max("peak", 100L)
+  ))
+```
+
+To change several columns for one event, pass a `Chunk` of updates, as the `RepoCreated` handler above does. The SQLite store applies them in one transaction.
+
+The `FieldUpdate` values are fixed when the projection is declared, so they cannot use data from the event. When an update needs the event's data, for example adding an order's total to `revenue`, build the update inside [`custom`](#custom-actions) with `ProjectionAction.Update`.
+
+The full example below counts users and repositories into one `DailyStats` row. Each source is bound with `routeToAll`, so the events of both sources land in the same row, and each handler adds one to its own counter with `FieldUpdate.Increment`. The row is created on the first event, with the other counters at zero:
 
 ```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example3GlobalAggregate.scala
 
 ```
 
 Running it appends five `UserCreated` and three `RepoCreated` events and reads back one row with `Users: 5, Repos: 3`.
-
-To change several columns for one event, pass a `Chunk` of updates. The SQLite store applies them in one transaction, as in an order projection where placing an order raises `pending` and shipping it lowers `pending` while raising `shipped`:
-
-```scala
-.on[OrderShipped]
-.aggregate(Chunk(FieldUpdate.Increment("shipped", 1L), FieldUpdate.Decrement("pending", 1L)))
-```
-
-The `FieldUpdate` values are fixed when the projection is declared, so they cannot use data from the event. When an update needs the event's data, for example adding an order's total to `revenue`, build the update inside [`custom`](#custom-actions) with `ProjectionAction.Update`.
 
 ### Custom Actions
 
