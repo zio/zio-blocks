@@ -75,7 +75,7 @@ val proj       = Projection[Order]("orders", customPath)
 
 ## Entity Paths
 
-`EntityPath[A]` describes where a projection's SQLite files live and which field of `A` holds the entity identifier. It is required for per-entity and cross-entity projections; global projections do not use it.
+`EntityPath[A]` describes where a projection's SQLite files live and which field of `A` holds the entity identifier. The ID field is marked with `@Modifier.id`, from `zio.blocks.schema.Modifier`. An entity path is required for per-entity and cross-entity projections; global projections do not use it, see [Projection Scope](#projection-scope).
 
 ```scala
 trait EntityPath[A] {
@@ -90,18 +90,25 @@ The engine uses `basePath` to construct the path to each SQLite file and `entity
 
 `EntityPath.apply[A]` accepts explicit strings for both fields, giving full control over the folder name and the id field without relying on derivation:
 
-```scala
-val ep = EntityPath[OrderRecord]("orders", "orderId")
+```scala mdoc:compile-only
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
+
+case class MyEntity(@Modifier.id id: String, value: Int)
+object MyEntity {
+  implicit val schema: Schema[MyEntity]         = Schema.derived[MyEntity]
+  implicit val entityPath: EntityPath[MyEntity] = EntityPath[MyEntity]("my_entities", "id")
+}
 ```
 
 ### Derived Construction
 
 `EntityPath.derived[A]` inspects `Schema[A]` and applies a four-step algorithm to produce both values automatically:
 
-1. Find the id field: prefer the field annotated `@Modifier.id`, then fall back to any field named `"id"`.
+1. Find the id field: prefer the field annotated `@Modifier.id`, then fall back to any field named `"id"`. If there is neither, `derived` fails with `Entity <type> must have @Modifier.id field or field named 'id'`. A type that is not a case class fails too.
 2. Use that field's name as `entityIdField`.
-3. Strip the `"Id"` suffix (case-insensitive) from the field name.
-4. Convert the result to `snake_case` and pluralize it to obtain `basePath`.
+3. Strip the `"Id"` suffix (case-insensitive) from the field name, and a `_` left in front of it, so `user_id` gives `user` as well. A field named exactly `id` is left alone.
+4. Convert the result to `snake_case` and pluralize it to obtain `basePath`. The plural follows English for common endings: `box` becomes `boxes` and `category` becomes `categories`.
 
 The table below shows the outcome for three representative types:
 
@@ -111,12 +118,20 @@ The table below shows the outcome for three representative types:
 | `case class OrderRecord(@Modifier.id orderId: String, ...)`     | `orderId`  | `"orders"`         |
 | `case class Item(@Modifier.id itemId: String, ...)`             | `itemId`   | `"items"`          |
 
-A concrete derivation call looks like this:
+If the ID field is exactly `id`, `basePath` is `ids`. Prefer a name such as `userId`, or override the folder as shown in the next two subsections.
 
-```scala
-implicit val ep: EntityPath[OrderRecord] = EntityPath.derived[OrderRecord]
-// basePath      = "orders"
-// entityIdField = "orderId"
+A concrete derivation looks like this:
+
+```scala mdoc:compile-only
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
+
+case class UserProfile(@Modifier.id userId: String, name: String, email: String)
+object UserProfile {
+  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
+  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
+}
+// basePath = "users", entityIdField = "userId"
 ```
 
 ### Overriding the Folder Name
@@ -129,19 +144,23 @@ implicit val ep: EntityPath[OrderRecord] = EntityPath.derived[OrderRecord]("cust
 // entityIdField = "orderId"   (still derived normally)
 ```
 
+The path can have several folders, such as `"example2/orders"`.
+
 ### The `@path` Annotation
 
 Placing `@path("folder")` on a case class type overrides the derived folder name at the declaration site rather than at each call to `derived`:
 
-```scala
-import zio.blocks.projection.path
+```scala mdoc:compile-only
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
 
-@path("inventory")
-case class Stock(@Modifier.id itemId: String, quantity: Int)
-
-implicit val ep: EntityPath[Stock] = EntityPath.derived[Stock]
-// basePath      = "inventory"   (annotation overrides the derived "stocks")
-// entityIdField = "itemId"
+@path("custom_users")
+case class UserProfile(@Modifier.id id: String, name: String)
+object UserProfile {
+  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
+  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
+}
+// basePath = "custom_users" (the annotation overrides the derived "ids"), entityIdField = "id"
 ```
 
 The annotation takes precedence over the derivation algorithm, but not over an explicit `pathOverride` argument — when `pathOverride` is provided to `EntityPath.derived[A](pathOverride)`, it is used unconditionally and the annotation is ignored.
