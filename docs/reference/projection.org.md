@@ -132,25 +132,6 @@ The types below are the ones you meet when you use the library, grouped by the p
 - `TagInfo`: A cheat sheet of the tags of an event type: which tags are current, and which old tags were renamed to them. It lets an `EventStore` find the events that were saved under an old name. See [Tag aliases via Migration](#tag-aliases-via-migration).
 - `TagResolver`: Builds a `TagInfo` from an event type and, if a case was renamed, a `Migration`.
 
-## Installation
-
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-projection" % "@VERSION@"
-
-// JVM only — SQLite-backed stores
-libraryDependencies += "dev.zio" %% "zio-blocks-projection" % "@VERSION@"
-
-// ZIO integration (transactor cache, engine runtime)
-libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
-
-// for SQLite persistence add: libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0" // or InMemory fallback if not present
-libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
-```
-
-The library does not bring `sqlite-jdbc` with it, so add it to your own build if you want SQLite persistence. If it is missing, `ProjectionEngine.make` falls back to `InMemoryProjectionStore`.
-
-A [`TransactorCache`](#transactorcache) loads the SQLite driver by name when it first opens a file, so `sqlite-jdbc` must be on the runtime classpath whenever you use one directly, for example to build a `SQLiteEventStore`. Without it, opening the first file fails with `ClassNotFoundException: org.sqlite.JDBC`.
-
 ## Overview
 
 Projections turn an event stream into queryable read models. Instead of querying the event store directly, you define how events map to entities, and the engine materializes those entities into SQLite files you can read anytime.
@@ -216,7 +197,7 @@ The engine starts a catch-up fiber that reads all historical events, then switch
 
 ### Step 2: Keep it in SQLite files
 
-`TestEngine` keeps everything in memory, so nothing survives the program. To keep the events and the read model on disk, create the stores yourself and give them to `ProjectionEngine.makeWithStores`. The events and the projection are the same as in step 1, and only the wiring changes. It needs `sqlite-jdbc` on the runtime classpath, see [Installation](#installation):
+`TestEngine` keeps everything in memory, so nothing survives the program. To keep the events and the read model on disk, create the stores yourself and give them to `ProjectionEngine.makeWithStores`. The events and the projection are the same as in step 1, and only the wiring changes. It needs `sqlite-jdbc` on the runtime classpath, see [Installation](./projection/index.md#installation):
 
 ```scala mdoc:compile-only
 import zio.*
