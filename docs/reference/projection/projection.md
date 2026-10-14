@@ -197,7 +197,7 @@ The resulting `RoutingMode.RoutedBy[E]` value holds the extractor and exposes `e
 
 ### `routedByField`
 
-`routedByField[E]` is the inline-macro variant of `routedBy`. The selector is resolved to a field name at compile time and automatically converted to its `snake_case` column name; a typo in `_.fieldName` is a compile error:
+`routedByField[E]` is the inline-macro variant of `routedBy`. It takes a selector that returns any type, such as an `Int` or a `UUID`, and uses the field's value, converted with `toString`, as the shard key. `routedByField[E](_.customerId)` is shorthand for `routedBy[E](e => e.customerId.toString)`. A typo in `_.fieldName` is a compile error, because the selector is type-checked. The macro does not read the field's name, so it has no effect on column names:
 
 ```scala
 Projection[CustomerOrder]("customer_orders")
