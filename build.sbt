@@ -339,8 +339,8 @@ lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
@@ -357,8 +357,8 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(
@@ -382,8 +382,8 @@ lazy val maybe = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(
@@ -409,8 +409,8 @@ lazy val combinators = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(
@@ -435,8 +435,8 @@ lazy val context = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(
@@ -460,8 +460,8 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(
@@ -522,8 +522,8 @@ lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
@@ -539,10 +539,10 @@ lazy val projection = crossProject(JVMPlatform)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio"          % "2.1.26",
-      "dev.zio" %%% "zio-streams"  % "2.1.26",
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio"          % "2.1.27",
+      "dev.zio" %%% "zio-streams"  % "2.1.27",
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 75,
     coverageMinimumBranchTotal := 67
@@ -560,7 +560,7 @@ lazy val `sql-zio` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio"          % "2.1.26",
+      "dev.zio" %% "zio"          % "2.1.27",
       "dev.zio" %% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
     ),
@@ -591,8 +591,8 @@ lazy val mux = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
@@ -614,8 +614,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-prelude"  % "1.0.0-RC48" % Test,
-      "dev.zio" %%% "zio-test"     % "2.1.26"     % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26"     % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27"     % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(
@@ -817,8 +817,8 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
   )
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
@@ -834,8 +834,8 @@ lazy val chunk = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 91,
     coverageMinimumBranchTotal := 86
@@ -851,8 +851,8 @@ lazy val mediatype = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
@@ -879,8 +879,8 @@ lazy val config = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 80,
     coverageMinimumBranchTotal := 70
@@ -904,8 +904,8 @@ lazy val `config-yaml` = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     // Skipped in global `coverage` aggregate to avoid OOM via schema
     // instrumentation; `configCoverage` re-enables via `set` and enforces
@@ -932,8 +932,8 @@ lazy val `config-json` = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     // Skipped in global `coverage` aggregate; `configCoverage` re-enables.
     coverageEnabled := false,
@@ -958,8 +958,8 @@ lazy val `config-hocon` = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     // Skipped in global `coverage` aggregate; `configCoverage` re-enables.
     coverageEnabled := false,
@@ -984,8 +984,8 @@ lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(chunk, mediatype, streams, maybe)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 95,
     coverageMinimumBranchTotal := 94
@@ -1006,8 +1006,8 @@ lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(`http-model`, schema)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 67,
     coverageMinimumBranchTotal := 51
@@ -1028,8 +1028,8 @@ lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(`http-model`, schema, combinators, mediatype, markdown)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
@@ -1046,8 +1046,8 @@ lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(chunk)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
@@ -1065,8 +1065,8 @@ lazy val `schema-avro` = project
   .settings(
     libraryDependencies ++= Seq(
       "org.apache.avro" % "avro"         % "1.12.2",
-      "dev.zio"        %% "zio-test"     % "2.1.26" % Test,
-      "dev.zio"        %% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio"        %% "zio-test"     % "2.1.27" % Test,
+      "dev.zio"        %% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq()
@@ -1085,8 +1085,8 @@ lazy val codegen = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 85,
     coverageMinimumBranchTotal := 75
@@ -1101,8 +1101,8 @@ lazy val `schema-thrift` = project
     libraryDependencies ++= Seq(
       "org.apache.thrift"  % "libthrift"              % "0.25.0",
       "jakarta.annotation" % "jakarta.annotation-api" % "3.0.0",
-      "dev.zio"           %% "zio-test"               % "2.1.26" % Test,
-      "dev.zio"           %% "zio-test-sbt"           % "2.1.26" % Test
+      "dev.zio"           %% "zio-test"               % "2.1.27" % Test,
+      "dev.zio"           %% "zio-test-sbt"           % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 86,
     coverageMinimumBranchTotal := 77
@@ -1116,8 +1116,8 @@ lazy val `schema-bson` = project
   .settings(
     libraryDependencies ++= Seq(
       "org.mongodb" % "bson"         % "5.13.0",
-      "dev.zio"    %% "zio-test"     % "2.1.26" % Test,
-      "dev.zio"    %% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio"    %% "zio-test"     % "2.1.27" % Test,
+      "dev.zio"    %% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq()
@@ -1136,8 +1136,8 @@ lazy val smithy = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 85,
     coverageMinimumBranchTotal := 76
@@ -1154,8 +1154,8 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(schema % "compile->compile;test->test")
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 75,
     coverageMinimumBranchTotal := 67
@@ -1180,8 +1180,8 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(schema % "compile->compile;test->test")
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 81,
     coverageMinimumBranchTotal := 73
@@ -1225,8 +1225,8 @@ lazy val `schema-xml` = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(schema % "compile->compile;test->test")
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 79,
     coverageMinimumBranchTotal := 70
@@ -1247,8 +1247,8 @@ lazy val openapi = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(schema % "compile->compile;test->test", markdown)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 81,
     coverageMinimumBranchTotal := 54
@@ -1269,8 +1269,8 @@ lazy val `schema-yaml` = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(schema % "compile->compile;test->test", markdown)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 88,
     coverageMinimumBranchTotal := 83
@@ -1287,8 +1287,8 @@ lazy val `schema-csv` = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(schema)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 80,
     coverageMinimumBranchTotal := 70
@@ -1307,8 +1307,8 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   .settings(crossProjectSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
@@ -1337,8 +1337,8 @@ lazy val benchmarks = project
       "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.15",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",
       "dev.optics"                            %% "monocle-macro"         % "3.3.0",
-      "dev.zio"                               %% "zio-test"              % "2.1.26",
-      "dev.zio"                               %% "zio-test-sbt"          % "2.1.26" % Test
+      "dev.zio"                               %% "zio-test"              % "2.1.27",
+      "dev.zio"                               %% "zio-test-sbt"          % "2.1.27" % Test
     ),
     assembly / assemblyJarName       := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
@@ -1627,8 +1627,8 @@ lazy val html = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(chunk, schema)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
@@ -1657,8 +1657,8 @@ lazy val datastar = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(html, `http-model`)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
@@ -1724,8 +1724,8 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(combinators)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     // dotty-cps-async powers the direct-style `Async.async { ... .await ... }`
     // rewrite on every Scala 3 cell except JS 3.8+ (which uses native
@@ -1851,8 +1851,8 @@ lazy val htmx = crossProject(JSPlatform, JVMPlatform)
   .dependsOn(html, schema, `http-model`)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
@@ -1874,8 +1874,8 @@ lazy val jwt = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     // Measured via `sbt "++3.8.3 jwtCoverage"` (clean): 74.39% stmt / 71.72% branch.
     coverageMinimumStmtTotal   := 72,
