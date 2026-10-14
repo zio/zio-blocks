@@ -2,7 +2,9 @@ import {
   CatalogError, splitSections, fences, paragraphs, proseBeforeFence, parseTable, bullets,
 } from './markdown.mjs';
 
-const DOCS_BASE = '/docs/';
+const DOCS_BASE = '/';
+/** docs/index.md is served at /overview: the landing page owns `/` (see `slug` in docs/index.md). */
+const DOCS_HOME = '/overview';
 const PLATFORMS = ['JVM', 'JS'];
 const SCALA_VERSIONS = ['2.13', '3.x'];
 const BLOCK_COLUMNS = ['Block', 'Artifact', 'Platform', 'Scala', 'Description'];
@@ -13,12 +15,12 @@ const DIVES = [
   ['sql', 'SQL'],
 ];
 
-/** `./reference/schema/index.md` -> `/docs/reference/schema/` (site-relative). */
+/** `./reference/schema/index.md` -> `/reference/schema/` (site-relative). */
 export function docsUrl(link) {
   const bad = !/^\.\/[\w\-./]+\.mdx?$/.test(link) || link.includes('//') || link.split('/').includes('..');
   if (bad) throw new CatalogError(`unmapped docs link "${link}"`);
   let path = link.slice(2).replace(/\.mdx?$/, '');
-  if (path === 'index') path = '';
+  if (path === 'index') return DOCS_HOME;
   else if (path.endsWith('/index')) path = path.slice(0, -'index'.length);
   return DOCS_BASE + path;
 }
@@ -29,7 +31,7 @@ export function firstSentence(text) {
   return m ? m[1] : text;
 }
 
-/** Maps a `./x.md` link to its site-relative `/docs/...` URL; when `exists` is given the page must exist under docs/. */
+/** Maps a `./x.md` link to its site-relative URL; when `exists` is given the page must exist under docs/. */
 function docsLink(link, where, exists) {
   const url = docsUrl(link);
   if (exists && !exists(link.slice(2))) throw new CatalogError(`${where}: docs page "${link.slice(2)}" does not exist`);
@@ -40,7 +42,7 @@ const linkTarget = (url, where, exists) => (/^https?:\/\//.test(url) ? url : doc
 
 /**
  * Rewrites every markdown link target in `text` (outside backtick code spans) to a URL:
- * https passes through, `./x.md` maps to a site-relative `/docs/...` path, anything else throws naming `where`.
+ * https passes through, `./x.md` maps to a site-relative path, anything else throws naming `where`.
  */
 export function resolveProseLinks(text, where, exists) {
   return text.replace(/`[^`]+`|\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, target) => {

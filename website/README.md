@@ -1,6 +1,6 @@
 # ZIO Blocks website
 
-One Docusaurus app serves the whole site: the landing page at `/` and the documentation under `/docs/`. The docs
+One Docusaurus app serves the whole site: the landing page at `/` and the documentation at the site root (`/reference/...`, `/guides/...`; its index page is `/overview`). The docs
 content lives in `../docs/` (rendered through mdoc); the landing page content is generated from
 `../docs/index.md`, and brand SVGs are copied from `../assets/logo/`.
 
@@ -27,7 +27,7 @@ The parser fails the build, naming the row, if the page changes shape. It relies
 a five-column table `Block | Artifact | Platform | Scala | Description`), `## Schema`/`Scope`/`Async`/`SQL` (each
 with `### The Problem`, `### The Solution`, `### Learn More`), `## Compatibility`, and `## Guides` sections.
 Links in prose (descriptions, notes, deep-dive text) must be `https://` URLs or `./` docs paths; docs paths are
-rewritten to site-relative `/docs/...` URLs and checked against `docs/` at build time. Platforms are `JVM`/`JS`; Scala versions are `2.13`/`3.x`. On the page there is one tile per artifact: rows that share an
+rewritten to site-relative URLs (`/reference/...`) and checked against `docs/` at build time. Platforms are `JVM`/`JS`; Scala versions are `2.13`/`3.x`. On the page there is one tile per artifact: rows that share an
 artifact (Scope, Resource, Unscoped, ... and Wire all live in `zio-blocks-scope`) are collapsed into the first row, a
 category that lost rows loses its note, and a category left empty is dropped (`scripts/lib/collapse.mjs`). A category can be shown under a different name
 than its `###` heading through `CATEGORY_RENAMES` in `scripts/build-catalog.mjs` (currently `Streams` -> `Streaming` and `Configuration & Feature Flags` -> `Configuration`); a rename

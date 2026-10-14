@@ -59,7 +59,7 @@ test('hero', () => {
     `${site.hero.install} ${site.hero.jsonCode} // ${site.hero.jsonResult}`,
   );
   assert.equal(text(/<p class="lp-stack"[^>]*>([\s\S]*?)<\/p>/.exec(hero)[1]), `Works with ${site.compatibility.join(' · ')}`);
-  assert.match(hero, /href="\/docs\/"/);
+  assert.match(hero, /href="\/overview"/);
   assert.match(hero, /href="https:\/\/github\.com\/zio\/zio-blocks"/);
 });
 
@@ -67,7 +67,7 @@ test('the navbar and footer carry the brand lockups and the main links', () => {
   assert.match(html, /<img [^>]*src="\/brand\/zio-blocks-logo-on-dark\.svg"[^>]*alt="ZIO Blocks"|<img [^>]*alt="ZIO Blocks"[^>]*src="\/brand\/zio-blocks-logo-on-dark\.svg"/);
   const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
   assert.match(footer, /\/brand\/zio-blocks-logo-mono-white\.svg/);
-  for (const href of ['/docs/', '/docs/reference/schema/', 'https://github.com/zio/zio-blocks']) {
+  for (const href of ['/overview', '/reference/schema/', 'https://github.com/zio/zio-blocks']) {
     assert.match(footer, new RegExp(`href="${href.replace(/[./]/g, '\\$&')}"`));
   }
 });
