@@ -45,7 +45,7 @@ export default function Hero() {
           </div>
 
           <p className="lp-cta">
-            <Link className="lp-btn lp-btn-primary" to="/docs/">Get started</Link>
+            <Link className="lp-btn lp-btn-primary" to="/overview">Get started</Link>
             <a className="lp-btn lp-btn-ghost" href="https://github.com/zio/zio-blocks">GitHub</a>
           </p>
 

@@ -2,7 +2,7 @@
 const prismThemes = require('./src/prism-themes');
 
 // LANDING_ONLY=1 builds just the landing page (no docs plugin, so no mdoc output or sbt is needed); broken links to
-// /docs only warn then. The full build, which CI deploys, never sets it.
+// the docs only warn then. The full build, which CI deploys, never sets it.
 const LANDING_ONLY = process.env.LANDING_ONLY === '1';
 
 /** @type {import('@docusaurus/types').Config} */
@@ -39,7 +39,8 @@ const config = {
           : {
               id: 'default',
               path: './docs',
-              routeBasePath: '/docs',
+              // Docs live at the site root (no /docs prefix). The landing page owns `/`, so scripts/set-docs-home.mjs gives the docs home the slug /overview.
+              routeBasePath: '/',
               sidebarPath: require.resolve('../docs/sidebars.js'),
               // docs/plans holds internal planning notes: keep them in the repo but out of the site. This replaces
               // Docusaurus' default excludes, so they are repeated here.
@@ -79,9 +80,9 @@ const config = {
               includeBlog: false,
               // Keep internal planning notes out of llms.txt and the per-page markdown too.
               ignoreFiles: ['plans/**'],
-              // Docs are served under /docs (routeBasePath), so keep the docs/ directory in the generated markdown
-              // paths: the links in llms.txt are then /docs/<page>.md, next to the pages they describe.
-              preserveDirectoryStructure: true,
+              // Docs are served at the site root, so drop the docs/ directory from the generated markdown paths: the links
+              // in llms.txt are then /<page>.md, next to the pages they describe.
+              preserveDirectoryStructure: false,
               excludeImports: true,
               removeDuplicateHeadings: true,
               includeUnmatchedLast: true,
@@ -105,7 +106,7 @@ const config = {
           height: 37,
         },
         items: [
-          { to: '/docs/', label: 'Docs', position: 'right' },
+          { to: '/overview', label: 'Docs', position: 'right' },
           { to: '/#catalog', label: 'Blocks', position: 'right' },
           { href: 'https://github.com/zio/zio-blocks', label: 'GitHub', position: 'right' },
         ],
@@ -121,8 +122,8 @@ const config = {
         links: [
           {
             items: [
-              { label: 'Docs', to: '/docs/' },
-              { label: 'Reference', to: '/docs/reference/schema/' },
+              { label: 'Docs', to: '/overview' },
+              { label: 'Reference', to: '/reference/schema/' },
               { label: 'GitHub', href: 'https://github.com/zio/zio-blocks' },
             ],
           },
