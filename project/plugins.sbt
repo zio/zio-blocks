@@ -1,6 +1,8 @@
 addSbtPlugin("dev.zio" % "zio-sbt-website" % "0.8.6")
 
-addSbtPlugin("dev.zio"            % "zio-sbt-ci"               % "0.8.6")
+// TODO: switch to the next released zio-sbt-ci before merging; the snapshot has `ciDeployPreviewMode` (zio-sbt#835).
+resolvers += "central-snapshots" at "https://central.sonatype.com/repository/maven-snapshots/"
+addSbtPlugin("dev.zio"            % "zio-sbt-ci"               % "0.8.6+7-605756c0-SNAPSHOT")
 addSbtPlugin("com.timushev.sbt"   % "sbt-updates"              % "0.7.1")
 addSbtPlugin("pl.project13.scala" % "sbt-jmh"                  % "0.4.8")
 addSbtPlugin("com.eed3si9n"       % "sbt-assembly"             % "2.5.0")
