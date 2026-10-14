@@ -205,6 +205,61 @@ Projection[CustomerOrder]("customer_orders")
   .on[OrderPlaced].insert((e, ctx) => CustomerOrder(ctx.entityId, e.customerId, e.product))
 ```
 
+### Putting the Bindings Together
+
+The snippets above show one routing call each. The example below uses them together on one domain: orders are recorded per order (`order-1`, `order-2`, ...), each event carries the `customerId`, and we want two views of the same events. The first view keeps one row per order, grouped by customer, so it binds the `"orders"` source with `routedBy`. The second view is a single row of shop-wide counters, so it binds a `"shop"` source with `routeToAll`:
+
+```scala
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
+
+sealed trait OrderEvent { def customerId: String }
+object OrderEvent {
+  case class OrderPlaced(customerId: String, product: String, total: Long) extends OrderEvent
+  object OrderPlaced { implicit val schema: Schema[OrderPlaced] = Schema.derived[OrderPlaced] }
+
+  case class OrderShipped(customerId: String) extends OrderEvent
+  object OrderShipped { implicit val schema: Schema[OrderShipped] = Schema.derived[OrderShipped] }
+
+  implicit val schema: Schema[OrderEvent] = Schema.derived[OrderEvent]
+}
+import OrderEvent.*
+
+case class CustomerOrder(@Modifier.id id: String, customerId: String, product: String, total: Long, status: String)
+object CustomerOrder {
+  implicit val schema: Schema[CustomerOrder]         = Schema.derived[CustomerOrder]
+  implicit val entityPath: EntityPath[CustomerOrder] = EntityPath.derived[CustomerOrder]("customer_orders")
+}
+
+case class ShopStats(@Modifier.id id: String, orders: Long, shipped: Long, revenue: Long)
+object ShopStats {
+  implicit val schema: Schema[ShopStats]         = Schema.derived[ShopStats]
+  implicit val entityPath: EntityPath[ShopStats] = EntityPath.derived[ShopStats]
+}
+
+// One row per order, kept in the shard of its customer.
+val customerOrders: Projection[CustomerOrder] =
+  Projection[CustomerOrder]("customer_orders")
+    .from("orders").routedBy[OrderEvent](_.customerId)
+    .on[OrderPlaced].insert((e, ctx) => CustomerOrder(ctx.entityId, e.customerId, e.product, e.total, "placed"))
+    .on[OrderShipped].updateWithField("status", (_, _) => "shipped")
+
+// One row for the whole shop: every event goes to the same store, whatever its entity or customer.
+val shopStats: Projection[ShopStats] =
+  Projection.global[ShopStats]("shop_stats")
+    .from("shop").routeToAll
+    .on[OrderPlaced].aggregate(FieldUpdate.Increment("orders", 1L))
+    .on[OrderShipped].aggregate(FieldUpdate.Increment("shipped", 1L))
+```
+
+Reading the two definitions side by side:
+
+- `customerOrders` has one binding, `"orders"`. Both of its handlers sit under that binding's `routedBy`, so `OrderPlaced` and `OrderShipped` for the same customer reach the same shard. That is what lets `OrderShipped` update a row that `OrderPlaced` created earlier.
+- `shopStats` has one binding, `"shop"`, with `routeToAll`. The customer in the event is never looked at.
+- The two bindings name different sources, so the engine is given two event stores, one under each name. See [`ProjectionEngine`](./engine.md) for how sources are connected.
+
+A runnable version of this example, with SQLite stores and a second counter that goes up and down, is `Example2CrossEntity` in the projection examples.
+
 ## Defining Handlers
 
 `on[E]` opens a handler for events of type `E` and returns a `HandlerBuilder[E, A]`. Each handler verb on the builder closes it and returns a new `Projection[A]` with the handler added to the most recent source binding:
