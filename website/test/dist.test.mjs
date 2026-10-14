@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import site from '../src/data/site.json' with { type: 'json' };
 import { titleCase } from '../src/lib/title-case.mjs';
 import { RAIL } from '../src/lib/rail.mjs';
@@ -238,4 +238,30 @@ test('there is no switching-cost section and no guides list on the landing page'
 test('version.txt names the commit, links to it and gives the build time', () => {
   const versionTxt = readFileSync(new URL('../build/version.txt', import.meta.url), 'utf8');
   assert.match(versionTxt, /^commit: ([0-9a-f]{40}|unknown)\nurl: (?:https:\/\/github\.com\/zio\/zio-blocks\/commit\/\1|unknown)\nbuilt: \d{4}-\d{2}-\d{2}T[\d:.]+Z\n$/);
+});
+
+test('the production CSS keeps scroll-driven motion behind @supports (animation-timeline: view())', () => {
+  const dir = new URL('../build/assets/css/', import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith('.css'));
+  assert.ok(files.length > 0, 'build/assets/css has no stylesheets');
+  const guard = /@supports\s*\(animation-timeline:\s*view\(\)\)\s*\{/;
+  let guarded = 0;
+  for (const file of files) {
+    let rest = readFileSync(new URL(file, dir), 'utf8');
+    for (let m = guard.exec(rest); m; m = guard.exec(rest)) {
+      const open = m.index + m[0].length - 1;
+      let depth = 0;
+      let close = -1;
+      for (let i = open; i < rest.length; i++) {
+        if (rest[i] === '{') depth++;
+        if (rest[i] === '}' && --depth === 0) { close = i; break; }
+      }
+      assert.notEqual(close, -1, `${file}: unbalanced braces in the @supports (animation-timeline: view()) block`);
+      if (/animation-timeline|view-timeline/.test(rest.slice(open, close))) guarded++;
+      rest = rest.slice(0, m.index) + rest.slice(close + 1);
+    }
+    const leak = rest.match(/[^{};]*(?:animation-timeline|view-timeline)[^;}]*/);
+    assert.ok(leak === null, `${file}: scroll-driven CSS leaked outside @supports (animation-timeline: view()): ${leak && leak[0].slice(0, 120)}`);
+  }
+  assert.ok(guarded > 0, 'no @supports (animation-timeline: view()) block containing animation-timeline or view-timeline was found in the built CSS');
 });

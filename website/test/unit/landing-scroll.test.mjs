@@ -44,27 +44,32 @@ test('reduced motion turns snap off', () => {
   assert.match(reduced, /html:has\(\.lp-page\)\s*\{\s*scroll-snap-type:\s*none;\s*\}/);
 });
 
+const MOTION = '@media (prefers-reduced-motion: no-preference)';
 const SUPPORTS = '@supports (animation-timeline: view())';
+/** The no-preference media query that encloses the @supports guard (the nearest one before it). */
+const motionBlock = () => block(css.slice(css.lastIndexOf(MOTION, css.indexOf(SUPPORTS))), MOTION);
 
 test('every scroll-driven declaration lives inside the @supports block, so unsupported browsers see static content', () => {
   const inside = block(css, SUPPORTS);
-  const outside = css.replace(`${SUPPORTS} {${inside}}`, '');
+  const outside = css.replace(css.slice(css.indexOf(SUPPORTS), css.indexOf('{', css.indexOf(SUPPORTS)) + 1 + inside.length + 1), '');
   for (const token of ['animation-timeline', 'view-timeline', 'lp-handoff', 'lp-settle']) {
     assert.equal(outside.includes(token), false, `${token} must only appear inside ${SUPPORTS}`);
     assert.ok(inside.includes(token), `${SUPPORTS} must use ${token}`);
   }
 });
 
-test('motion only runs when the visitor has not asked for reduced motion', () => {
-  const inside = block(css, SUPPORTS);
-  const noPref = block(inside, '@media (prefers-reduced-motion: no-preference)');
-  assert.ok(noPref.includes('animation-timeline'));
-  assert.equal(inside.replace(noPref, '').includes('animation-timeline'), false);
+test('motion only runs when the visitor has not asked for reduced motion, and the @supports guard sits inside that media query', () => {
+  const noPref = motionBlock();
+  const inside = block(noPref, SUPPORTS);
+  assert.ok(inside.includes('animation-timeline'));
+  // The media query holds nothing but the guard, and the guard is not found anywhere outside it.
+  assert.equal(noPref.replace(`${SUPPORTS} {${inside}}`, '').trim(), '');
+  assert.equal(css.split(SUPPORTS).length, 2, 'exactly one @supports guard');
 });
 
 test('the hand-off moves the squares wrapper and the settle-in covers principles rows and catalog headings', () => {
-  const noPref = block(block(css, SUPPORTS), '@media (prefers-reduced-motion: no-preference)');
-  assert.match(noPref, /#hero\s*\{\s*view-timeline:\s*--hero-out block;\s*\}/);
-  assert.match(block(noPref, '#hero .lp-field'), /animation-timeline:\s*--hero-out;/);
-  assert.match(noPref, /\.lp-principles li, \.lp-cat h3\s*\{/);
+  const guarded = block(motionBlock(), SUPPORTS);
+  assert.match(guarded, /#hero\s*\{\s*view-timeline:\s*--hero-out block;\s*\}/);
+  assert.match(block(guarded, '#hero .lp-field'), /animation-timeline:\s*--hero-out;/);
+  assert.match(guarded, /\.lp-principles li, \.lp-cat h3\s*\{/);
 });
