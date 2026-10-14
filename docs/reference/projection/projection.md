@@ -56,7 +56,9 @@ val proj = Projection[UserProfile]("userProfiles")
 `Projection.global[A](name)` creates a projection with one shared store for all events — useful for global totals and counters. Only `Schema[A]` is required; no `EntityPath` is needed because the data is not partitioned by entity:
 
 ```scala
-case class DailyStats(@Modifier.id date: String, userCount: Int, repoCount: Int)
+// The key is the date. The field is called `id` because a global projection has no `EntityPath`,
+// so its store looks for an ID column with that name.
+case class DailyStats(@Modifier.id id: String, userCount: Int, repoCount: Int)
 implicit val schema: Schema[DailyStats] = Schema.derived
 
 val proj = Projection.global[DailyStats]("dailyStats")
