@@ -415,13 +415,35 @@ Handlers describe changes as `ProjectionAction` values and cannot perform effect
 
 ### Default Source Binding
 
-Calling `on[E]` without a preceding `from()` automatically creates a source binding named `"_default"` with `RouteToSelf` routing. This shorthand suits projections that listen to a single implicit source and do not need an explicit name:
+Most projections read one event feed and keep each entity's row under its own ID. Writing `.from("some-name").routeToSelf` for that would mean inventing a name for a feed that has only one meaning, so the library lets you skip it. When you add the first handler to a projection that has no source binding yet, with `on[E]` and no `from()` before it, the library creates the binding for you:
+
+- The source is named `"_default"`.
+- The routing is `RouteToSelf`, so each event goes to the row of the entity it was recorded under (`ctx.entityId`).
+- The handler is put in that binding.
 
 ```scala
 Projection[UserProfile]("userProfiles")
   .on[UserCreated]   // implicitly creates "_default" binding with RouteToSelf
   .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
 ```
+
+This is the same projection as the one below, with the binding written out:
+
+```scala
+Projection[UserProfile]("userProfiles")
+  .from("_default").routeToSelf
+  .on[UserCreated]
+  .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
+```
+
+The shortcut is purely a convenience. It gives nothing that `.from("_default").routeToSelf` does not, and nothing requires you to use it.
+
+The engine looks the source name up in the event stores it was given. For `"_default"` it uses the store registered under `"_default"` if there is one, and otherwise the first store it was given. With a single event store, such as the one behind `TestEngine`, the name never matters.
+
+What the shortcut does and does not do:
+- Only the first handler creates the binding. A second `on[E]` attaches to the binding that already exists, whether it is `"_default"` or one made by an earlier `from()`.
+- A `from()` after the handlers adds a second binding. The projection then has two sources, `"_default"` and the new one, and needs an event store for each.
+- It can only give `RouteToSelf`. For any other routing, write `from()` yourself.
 
 ## Projection Scope
 
