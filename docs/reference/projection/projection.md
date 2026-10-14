@@ -316,6 +316,18 @@ Projection[UserProfile]("userProfiles")
 
 `delete` removes the entity's row unconditionally, producing `ProjectionAction.Delete`. It takes no function argument because the target row is always identified by `ctx.entityId`.
 
+The full example below creates three users, deletes one of them, and reads the rows back. `UserCreated` inserts a `UserProfile` and `UserDeleted` removes it:
+
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example9InsertAndDelete.scala
+
+```
+
+Running it prints one line for each user:
+
+- `user-1`: `Alice <alice@example.com>`. The row was inserted and never deleted.
+- `user-2`: `no row`. The row was inserted, then removed by `delete`, so the query returns `None`.
+- `user-3`: `Charlie <charlie@example.com>`. The deletion of `user-2` did not touch it, because each `delete` removes only the row of the entity the event was recorded under.
+
 ### Field Updates
 
 `updateWithField` (and its alias `updateField`) sets a named column to a value computed from the event. The column name is passed as a raw string and must already be in `snake_case` to match the generated schema:
