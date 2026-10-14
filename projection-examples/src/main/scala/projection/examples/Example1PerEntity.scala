@@ -1,5 +1,5 @@
 /*
- * Example 1 of 6: a per-entity projection.
+ * Example 1 of 7: a per-entity projection.
  *
  * Start here. Next: Example2CrossEntity.
  *

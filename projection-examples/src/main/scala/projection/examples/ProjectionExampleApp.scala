@@ -7,6 +7,7 @@
  *   4. Example4SchemaEvolution
  *   5. Example5TagRename
  *   6. Example6MigrationShortcut
+ *   7. Example7CustomActions
  *
  * Each example can also be run on its own, see the comment at the top of its
  * file.
@@ -30,6 +31,7 @@ object ProjectionExampleApp extends ZIOAppDefault {
       _ <- Example4SchemaEvolution.demo
       _ <- Example5TagRename.demo
       _ <- Example6MigrationShortcut.demo
+      _ <- Example7CustomActions.demo
       _ <- Console.printLine("\n=== All demos completed successfully ===").orDie
     } yield ()
 }
