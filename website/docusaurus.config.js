@@ -41,6 +41,9 @@ const config = {
               path: './docs',
               routeBasePath: '/docs',
               sidebarPath: require.resolve('../docs/sidebars.js'),
+              // docs/plans holds internal planning notes: keep them in the repo but out of the site. This replaces
+              // Docusaurus' default excludes, so they are repeated here.
+              exclude: ['**/_*.{js,jsx,ts,tsx,md,mdx}', '**/_*/**', '**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**', 'plans/**'],
             },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -74,6 +77,8 @@ const config = {
               generateMarkdownFiles: true,
               docsDir: 'docs',
               includeBlog: false,
+              // Keep internal planning notes out of llms.txt and the per-page markdown too.
+              ignoreFiles: ['plans/**'],
               // Docs are served under /docs (routeBasePath), so keep the docs/ directory in the generated markdown
               // paths: the links in llms.txt are then /docs/<page>.md, next to the pages they describe.
               preserveDirectoryStructure: true,
