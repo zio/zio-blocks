@@ -100,7 +100,7 @@ event store  --(engine reads events and runs handlers)-->  projection store
 (the log)                                                  (the finished rows)
 ```
 
-### Types in this library
+### Types in This Library
 
 The types below are the ones you meet when you use the library, grouped by the part of the picture above they belong to. Events are written to an event store. A projection says how those events become rows, and its handlers do the work for each event. Sources and routing decide which events reach which rows. The engine runs everything and keeps the rows in stores. Schemas keep the old events and rows working when their shape changes.
 
@@ -163,7 +163,10 @@ A [`TransactorCache`](./engine.md#connection-management) loads the SQLite driver
 
 ## Overview
 
-Two types carry the whole lifecycle. `Projection[A]` is the descriptor — a pure, immutable value that names the read model, lists its sources, and records a handler per event type. `ProjectionEngine` is the runtime — it reads `Projection[A]` values, connects each one to an `EventStore[E]`, and drives events through the right handler into a `ProjectionStore[A]`. Neither type knows about the other's internals; `Projection[A]` holds no fibers and `ProjectionEngine` does not inspect the handler functions.
+Two types carry the whole lifecycle:
+
+- `Projection[A]` is the descriptor: a pure, immutable value that names the read model, lists its sources, and records a handler per event type. It holds no fibers.
+- `ProjectionEngine` is the runtime: it reads `Projection[A]` values, connects each one to an `EventStore[E]`, and drives events through the right handler into a `ProjectionStore[A]`. It does not inspect the handler functions.
 
 Several supporting types fill the gaps. `EventStore[E]` is the write-side contract: append an event and receive a monotonic sequence number; read history with `readFrom`; subscribe to a live `Hub` for new events. `EventEnvelope[E]` wraps each stored event with that sequence number, a string tag (the event class name or a numeric `@eventTag` value), a timestamp, and the entity ID. `ProjectionStore[A]` is the read-side contract: rows keyed by entity ID, a watermark, and a schema hash. `ProjectionAction[A]` is what a handler returns — `Insert`, `Upsert`, `Update` (field-level deltas via `FieldUpdate`), `Delete`, `Truncate`, or `Noop`. `TestEngine` wraps all of this for testing: one `make` call replaces the full JVM wiring.
 
