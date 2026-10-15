@@ -13,18 +13,6 @@ keywords:
 
 `Projection[A]` is the declarative description of a read model `A` built from events. It encodes which event sources to listen to, how to route each event to a specific entity or shard, and what each event type does to the read model's shape. A `Projection` is pure data — it carries no effects and makes no I/O calls; a `ProjectionEngine` reads it and drives the actual event processing.
 
-```scala
-final class Projection[A] private[projection](
-  val name: String,
-  val schema: Schema[A],
-  val entityPath: Option[EntityPath[A]],
-  val isGlobal: Boolean,
-  val bindings: List[SourceBinding[?, A]]
-)
-```
-
-The `name` field doubles as the store file name. `entityPath` is `None` only for global projections created with `Projection.global`. `bindings` is the ordered list of source/routing/handler groups accumulated through the fluent builder API; every builder method returns a new `Projection[A]` rather than mutating the existing one.
-
 ## Creating a Projection
 
 The `Projection` companion object provides three factory methods. Each returns a new projection with no sources yet, ready for the builder chain:
