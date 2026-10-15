@@ -3,7 +3,7 @@
  *
  * It defines the events and the read model, declares a projection, and runs it
  * on SQLite files, the way an application does. The events go to
- * `events/users.db` and the read model to `users/userProfiles.db`, both relative
+ * `events/users.db` and the read model to `users/user_profiles.db`, both relative
  * to the working directory. The stores do not create folders, so the program
  * creates the two folders first.
  *
@@ -37,7 +37,7 @@ object QuickStart extends ZIOAppDefault {
     implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
   }
 
-  val projection: Projection[UserProfile] = Projection[UserProfile]("userProfiles")
+  val projection: Projection[UserProfile] = Projection[UserProfile]("user_profiles")
     .from("users")
     .routeToSelf
     .on[UserCreated]
@@ -49,17 +49,17 @@ object QuickStart extends ZIOAppDefault {
     cache    <- TransactorCache.make()
     tx       <- cache.get("events/users.db")
     users    <- SQLiteEventStore.make[UserCreated](tx)
-    profiles <- SQLiteProjectionStore.make[UserProfile]("users/userProfiles.db", cache)
+    profiles <- SQLiteProjectionStore.make[UserProfile]("users/user_profiles.db", cache)
     engine   <- ProjectionEngine.makeWithStores(
-                  List(projection),
-                  Map("userProfiles" -> profiles), // projection name -> its store
-                  Map("users" -> users),           // source name given to `from` -> its event store
-                  cache
-                )
-    _        <- engine.start
-    _        <- users.append("user-1", UserCreated("Alice", "alice@example.com"))
+                specs = List(projection),
+                stores = Map("user_profiles" -> profiles), // projection name -> its store
+                eventStores = Map("users" -> users), // source name given to `from` -> its event store
+                cache = cache
+              )
+    _ <- engine.start
+    _ <- users.append("user-1", UserCreated("Alice", "alice@example.com"))
     // The engine applies the event in the background, so ask until the row is there
-    alice    <- engine.query(projection, "user-1").repeatUntil(_.isDefined)
+    alice <- engine.query(projection, "user-1").repeatUntil(_.isDefined)
   } yield alice
 
   def run: ZIO[Any, Throwable, Unit] =
