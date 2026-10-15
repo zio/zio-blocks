@@ -167,7 +167,7 @@ Two types carry the whole lifecycle:
 
 ## How They Work Together
 
-A projection goes through eight steps, from the declaration in your code to a row you can query:
+A projection goes through nine steps, from the declaration in your code to a row you can query:
 
 1. **Declare the projection.** Call `Projection[A](name)` for a read model with one row per entity, or `Projection.global[A](name)` for one shared row of totals. The result is an empty, immutable description: it knows the shape of a row and where its files go, and nothing else yet.
 2. **Say where the events come from.** Call `from(sourceName)` to name the event store the projection reads. A projection can read several, one `from` call each: everything that follows a `from` call, the routing and the handlers up to the next `from`, belongs to that source, which is how one read model can combine facts from more than one feed, such as a daily stats row that counts both new users and new repositories (see [Several Sources](./projection.md#several-sources)).
@@ -182,10 +182,11 @@ A projection goes through eight steps, from the declaration in your code to a ro
    - **Field updates:** the event changes one column of an existing row, for example `status` to `"shipped"`. `update(_.field)(...)` picks the column by field, checked by the compiler; `updateWithField("column", ...)` and `updateField("column")(...)` pick it by name.
    - **Aggregation:** the event makes the same change every time, such as adding one to a counter: `aggregate(FieldUpdate.Increment("order_count", 1L))` on `OrderPlaced` adds one to `order_count` for every order. `aggregate(Chunk(...))` makes several changes at once, and `aggregateField(...)` is another name for the single form.
    - **Custom actions:** the handler looks at the event and decides what to do: insert, update, or nothing. `custom(...)` returns that decision as a `ProjectionAction`.
-5. **Create an engine.** Give the projections to a `ProjectionEngine`, together with the event stores they read. 
-6. **Append events.** Call `eventStore.append(entityId, event)`. The store gives the event the next sequence number, wraps it in an `EventEnvelope` with that number, its tag, the time and the entity ID, and publishes it to the engine.
-7. **The engine does the rest.** It first catches up on the events it has not seen yet, then follows new ones as they arrive. For each event it builds a `ProjectionContext` from the envelope, asks the projection for the handler's action with `handle`, applies that action to the store chosen by the routing, and saves the sequence number as its watermark, so that a restart continues from there.
-8. **Query.** Call `engine.query(projection, entityId)` to read the row back from the store.
+5. **Open the event stores.** Each source name given to `from` needs an `EventStore`, which holds the events of one event type. On the JVM, open a SQLite file through a `TransactorCache` and wrap it: `cache.get("events/users.db")` gives a connection to the file, and `SQLiteEventStore.make[E](transactor)` the store for the event type `E`. The [EventStore[E]](./event-store.md) page documents the store.
+6. **Create an engine.** Give the projections to a `ProjectionEngine`, together with the event stores they read. 
+7. **Append events.** Call `eventStore.append(entityId, event)`. The store gives the event the next sequence number, wraps it in an `EventEnvelope` with that number, its tag, the time and the entity ID, and publishes it to the engine.
+8. **The engine does the rest.** It first catches up on the events it has not seen yet, then follows new ones as they arrive. For each event it builds a `ProjectionContext` from the envelope, asks the projection for the handler's action with `handle`, applies that action to the store chosen by the routing, and saves the sequence number as its watermark, so that a restart continues from there.
+9. **Query.** Call `engine.query(projection, entityId)` to read the row back from the store.
 
 The diagram shows how the types hand the data along:
 
