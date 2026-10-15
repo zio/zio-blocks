@@ -177,18 +177,22 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val cachedPrefix3 = cachedTextFormatterPrefix
 
         assertTrue(
-          rendered1.startsWith(s"${expectedTimestamp(timestamp1)} INFO  ["),
-          rendered1.contains("[Service.run:42] hello {"),
+          rendered1.startsWith(s"${expectedTimestamp(timestamp1)} INFO  hello [Service.run] Service.scala:42 {"),
+          rendered1.contains("hello [Service.run] Service.scala:42 {"),
+          // The method stays outside the path:line token: contiguous
+          // `path:line`, never `method:line` inside the path.
+          rendered1.contains("Service.scala:42"),
+          !rendered1.contains("[Service.run:42]"),
           rendered1.contains("user.string=\"value\""),
           rendered1.contains("user.long=7"),
           rendered1.contains("user.double=3.5"),
           rendered1.contains("user.bool=true"),
           rendered1.contains("user.unknown=?"),
           rendered1.contains("\njava.lang.IllegalArgumentException: boom"),
-          rendered2.startsWith(s"${expectedTimestamp(timestamp2)} INFO  ["),
-          rendered2.contains(".run:42] hello-again {"),
-          rendered3.startsWith(s"${expectedTimestamp(timestamp3)} INFO  ["),
-          rendered3.contains(".run:42] next-second {"),
+          rendered2.startsWith(s"${expectedTimestamp(timestamp2)} INFO  hello-again [Service.run] Service.scala:42 {"),
+          rendered2.contains("hello-again [Service.run] Service.scala:42 {"),
+          rendered3.startsWith(s"${expectedTimestamp(timestamp3)} INFO  next-second [Service.run] Service.scala:42 {"),
+          rendered3.contains("next-second [Service.run] Service.scala:42 {"),
           cachedSecond1 == timestamp1 / 1000000000L,
           cachedSecond2 == cachedSecond1,
           cachedSecond3 == timestamp3 / 1000000000L,
@@ -207,7 +211,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val rendered = renderText(timestamp, Severity.Error, "ERROR", "plain", builder)
 
         assertTrue(
-          rendered.startsWith(s"${expectedTimestamp(timestamp)} ERROR [go:7] plain"),
+          rendered.startsWith(s"${expectedTimestamp(timestamp)} ERROR plain [go] OnlyPath.scala:7"),
           !rendered.contains("{"),
           !rendered.contains("\njava.")
         )
@@ -221,7 +225,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
 
         val rendered = renderText(timestamp, Severity.Info, "INFO", "dotless", builder)
 
-        assertTrue(rendered.startsWith(s"${expectedTimestamp(timestamp)} INFO  [RootService.go:3] dotless"))
+        assertTrue(rendered.startsWith(s"${expectedTimestamp(timestamp)} INFO  dotless [RootService.go] Root.scala:3"))
       },
       test("renders all seq attribute types and an empty seq inline") {
         val timestamp = 1719792602523000000L
@@ -238,6 +242,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val rendered = renderText(timestamp, Severity.Info, "INFO", "seqs", builder)
 
         assertTrue(
+          rendered.startsWith(s"${expectedTimestamp(timestamp)} INFO  seqs [Seqs.go] Seqs.scala:1 {"),
           rendered.contains("tags=[\"a\", \"b\"]"),
           rendered.contains("nums=[1, 2]"),
           rendered.contains("rates=[1.5, 2.5]"),
@@ -283,7 +288,12 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val rendered2 = renderTextRecord(logRecord(timestamp2, Severity.Warn, "WARN", "record message 2", attrs))
 
         assertTrue(
-          rendered1.startsWith(s"${expectedTimestamp(timestamp1)} WARN  [Standalone.act:9] record message {"),
+          rendered1.startsWith(
+            s"${expectedTimestamp(timestamp1)} WARN  record message [Standalone.act] Standalone.scala:9 {"
+          ),
+          rendered1.contains("record message [Standalone.act] Standalone.scala:9 {"),
+          rendered1.contains("Standalone.scala:9"),
+          !rendered1.contains("[Standalone.act:9]"),
           rendered1.contains("user.string=\"value\""),
           rendered1.contains("user.long=1"),
           rendered1.contains("user.double=2.5"),
@@ -292,7 +302,9 @@ object LogFormatterSpec extends ZIOSpecDefault {
           !rendered1.contains("code.function.name="),
           !rendered1.contains("code.line.number="),
           rendered1.contains("\njava.lang.RuntimeException: record boom"),
-          rendered2.startsWith(s"${expectedTimestamp(timestamp2)} WARN  [Standalone.act:9] record message 2 {")
+          rendered2.startsWith(
+            s"${expectedTimestamp(timestamp2)} WARN  record message 2 [Standalone.act] Standalone.scala:9 {"
+          )
         )
       },
       test("handles empty source data with no throwable and no user attributes") {
@@ -305,8 +317,9 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val rendered = renderTextRecord(logRecord(timestamp, Severity.Error, "ERROR", "bare", attrs))
 
         assertTrue(
-          rendered.startsWith(s"${expectedTimestamp(timestamp)} ERROR [] bare"),
+          rendered.startsWith(s"${expectedTimestamp(timestamp)} ERROR bare OnlyPath.scala"),
           !rendered.contains("{"),
+          !rendered.contains("["),
           !rendered.contains("\njava.")
         )
       },
@@ -319,7 +332,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
 
         val rendered = renderTextRecord(logRecord(timestamp, Severity.Warn, "WARN", "no line", attrs))
 
-        assertTrue(rendered.startsWith(s"${expectedTimestamp(timestamp)} WARN  [Standalone.act] no line"))
+        assertTrue(rendered.startsWith(s"${expectedTimestamp(timestamp)} WARN  no line [Standalone.act]"))
       },
       test("escapes quotes and line breaks in record string values") {
         val timestamp = 1719792604523000000L
@@ -559,11 +572,10 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val rendered = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
 
         assertTrue(
-          rendered.contains("[] hello {"),
-          rendered.contains("user=\"nabil\""),
-          rendered.contains("tries=3"),
-          rendered.contains("ratio=1.5"),
-          rendered.contains("active=true")
+          rendered == s"${expectedTimestamp(timestamp)} INFO  hello " +
+            "{user=\"nabil\", tries=3, ratio=1.5, active=true}",
+          !rendered.contains("["),
+          !rendered.contains("]")
         )
       }
     ),
@@ -587,7 +599,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
           renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
 
         val expected =
-          s"${expectedTimestamp(timestamp)} INFO  [Service.run:42] hello " +
+          s"${expectedTimestamp(timestamp)} INFO  hello [Service.run] Service.scala:42 " +
             "{code.reviewer=\"ada\", user.string=\"value\", user.long=7, " +
             "user.double=3.5, user.bool=true, tags=[\"a\", \"b\"], nums=[1, 2]}"
 
@@ -677,7 +689,8 @@ object LogFormatterSpec extends ZIOSpecDefault {
           !viaBuilder.contains("\n"),
           !viaBuilder.contains("\r"),
           viaBuilder.contains("evil\\nkey\\\"with\\=sign=\"v\""),
-          viaBuilder.contains("line1\\nline2\\r\\nline3")
+          viaBuilder.contains("line1\\nline2\\r\\nline3"),
+          viaBuilder.contains("line1\\nline2\\r\\nline3 [Forge.go] Forge.scala:1 {")
         )
       },
       test("String-typed code.line.number feeds the location prefix on both paths") {
@@ -693,7 +706,8 @@ object LogFormatterSpec extends ZIOSpecDefault {
 
         assertTrue(
           viaBuilder == viaRecord,
-          viaBuilder.contains("[WrongType.go:42] hello"),
+          viaBuilder.contains("hello [WrongType.go] WrongType.scala:42"),
+          viaBuilder.contains("WrongType.scala:42"),
           !viaBuilder.contains("code.line.number=")
         )
       },
@@ -709,7 +723,7 @@ object LogFormatterSpec extends ZIOSpecDefault {
 
         assertTrue(
           viaBuilder == viaRecord,
-          viaBuilder.contains("[WrongType.go] hello"),
+          viaBuilder.contains("hello [WrongType.go] {"),
           viaBuilder.contains("code.line.number=\"not-a-number\"")
         )
       }
@@ -727,10 +741,10 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val viaRecord  =
           renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
 
-        // No canonical location key is present, so the prefix stays empty —
+        // No canonical location key is present, so no location renders —
         // and every deprecated key renders as an ordinary attribute.
         val expected =
-          s"${expectedTimestamp(timestamp)} INFO  [] hello " +
+          s"${expectedTimestamp(timestamp)} INFO  hello " +
             "{code.filepath=\"Test.scala\", code.namespace=\"com.example.MyClass\", " +
             "code.function=\"myMethod\", code.lineno=42}"
 
@@ -738,6 +752,272 @@ object LogFormatterSpec extends ZIOSpecDefault {
           viaBuilder == expected,
           viaRecord == expected,
           viaBuilder == viaRecord
+        )
+      }
+    ),
+    suite("text source-location layout")(
+      test("renders the approved message-first layout with separate function and contiguous path:line") {
+        val timestamp = 1719792616123000000L
+        val builder   = Attributes.builder
+          .put("code.file.path", "/captured/path/PaymentService.scala")
+          .put("code.function.name", "com.example.PaymentService.handle")
+          .put("code.line.number", 42L)
+          .put("user", "ada")
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "Payment authorized", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "Payment authorized", builder.build))
+
+        val expected =
+          s"${expectedTimestamp(timestamp)} INFO  Payment authorized " +
+            "[PaymentService.handle] /captured/path/PaymentService.scala:42 {user=\"ada\"}"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord,
+          !viaBuilder.contains("[PaymentService.handle:42]")
+        )
+      },
+      test("renders path only when function and line are absent") {
+        val timestamp = 1719792616223000000L
+        val builder   = Attributes.builder
+          .put("code.file.path", "only/Path.scala")
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+
+        val expected = s"${expectedTimestamp(timestamp)} INFO  hello only/Path.scala"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord,
+          !viaBuilder.contains("[")
+        )
+      },
+      test("renders path without a line and keeps the compact function free of a duplicated line") {
+        val timestamp = 1719792616323000000L
+        val builder   = Attributes.builder
+          .put("code.file.path", "svc/Service.scala")
+          .put("code.function.name", "com.example.Svc.go")
+          .put("code.line.number", 0L)
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+
+        val expected = s"${expectedTimestamp(timestamp)} INFO  hello [Svc.go] svc/Service.scala"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord,
+          !viaBuilder.contains("Svc.go:")
+        )
+      },
+      test("renders path:line without a function bracket when the function is absent") {
+        val timestamp = 1719792616423000000L
+        val builder   = Attributes.builder
+          .put("code.file.path", "svc/Job.scala")
+          .put("code.line.number", 9L)
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+
+        val expected = s"${expectedTimestamp(timestamp)} INFO  hello svc/Job.scala:9"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord,
+          !viaBuilder.contains("[")
+        )
+      },
+      test("falls back to compact function:line without a path") {
+        val timestamp = 1719792616523000000L
+        val builder   = Attributes.builder
+          .put("code.function.name", "com.example.Svc.doWork")
+          .put("code.line.number", 42L)
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+
+        val expected = s"${expectedTimestamp(timestamp)} INFO  hello [Svc.doWork:42]"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord
+        )
+      },
+      test("renders the function alone without a line when the line is absent") {
+        val timestamp = 1719792616623000000L
+        val builder   = Attributes.builder
+          .put("code.function.name", "RootService.go")
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+
+        val expected = s"${expectedTimestamp(timestamp)} INFO  hello [RootService.go]"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord
+        )
+      },
+      test("renders a bare line label when only the line is present") {
+        val timestamp = 1719792616723000000L
+        val builder   = Attributes.builder
+          .put("code.line.number", 42L)
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+
+        val expected = s"${expectedTimestamp(timestamp)} INFO  hello [line:42]"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord,
+          !viaBuilder.contains("[:42]")
+        )
+      },
+      test("renders no location clutter when no location fields are present") {
+        val timestamp = 1719792616823000000L
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", Attributes.builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", Attributes.empty))
+
+        val expected = s"${expectedTimestamp(timestamp)} INFO  hello"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord,
+          !viaBuilder.contains("["),
+          !viaBuilder.contains("]")
+        )
+      },
+      test("keeps spacing clean with an empty body and a location") {
+        val timestamp = 1719792616923000000L
+        val builder   = Attributes.builder
+          .put("code.file.path", "a/B.scala")
+          .put("code.function.name", "com.example.Svc.go")
+          .put("code.line.number", 3L)
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "", builder.build))
+
+        val expected = s"${expectedTimestamp(timestamp)} INFO  [Svc.go] a/B.scala:3"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord
+        )
+      },
+      test("hides a Double-typed code.line.number instead of rendering it") {
+        val timestamp = 1719792617023000000L
+        val builder   = Attributes.builder
+          .put("code.file.path", "s/S.scala")
+          .put("code.function.name", "com.example.Svc.go")
+          .put("code.line.number", 42.5)
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+
+        val expected = s"${expectedTimestamp(timestamp)} INFO  hello [Svc.go] s/S.scala"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord,
+          !viaBuilder.contains("code.line.number"),
+          !viaBuilder.contains("42.5")
+        )
+      },
+      test("orders the throwable after body, location, and attributes") {
+        val timestamp = 1719792617123000000L
+        val throwable = new IllegalArgumentException("boom")
+        val builder   = Attributes.builder
+          .put("code.file.path", "Service.scala")
+          .put("code.function.name", "com.example.Service.run")
+          .put("code.line.number", 42L)
+          .put("user", "ada")
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder, Some(throwable))
+        val viaRecord  =
+          renderTextRecord(
+            logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build, throwable = Some(throwable))
+          )
+
+        val prefix =
+          s"${expectedTimestamp(timestamp)} INFO  hello [Service.run] Service.scala:42 " +
+            "{user=\"ada\"}\njava.lang.IllegalArgumentException: boom"
+
+        assertTrue(
+          viaBuilder == viaRecord,
+          viaBuilder.startsWith(prefix),
+          viaBuilder.indexOf("Service.scala:42") < viaBuilder.indexOf("{user="),
+          viaBuilder.indexOf("{user=") < viaBuilder.indexOf("IllegalArgumentException")
+        )
+      },
+      test("preserves Windows backslash separators literally in path:line") {
+        val timestamp = 1719792617323000000L
+        val builder   = Attributes.builder
+          .put("code.file.path", "C:\\work\\src\\PaymentService.scala")
+          .put("code.function.name", "com.example.PaymentService.handle")
+          .put("code.line.number", 42L)
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "Payment authorized", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "Payment authorized", builder.build))
+
+        val expected =
+          s"${expectedTimestamp(timestamp)} INFO  Payment authorized " +
+            "[PaymentService.handle] C:\\work\\src\\PaymentService.scala:42"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord,
+          viaBuilder.contains("C:\\work\\src\\PaymentService.scala:42"),
+          !viaBuilder.contains("\\\\")
+        )
+      },
+      test("keeps a hostile path/function on one physical line via escaping") {
+        // A captured path containing a real newline is intentionally no longer
+        // a navigable path once escaped — this asserts the safe rendering.
+        val timestamp = 1719792617223000000L
+        val builder   = Attributes.builder
+          .put("code.file.path", "a/b\r\nEvil.scala")
+          .put("code.function.name", "com.example.Evil\nMethod")
+          .put("code.line.number", 3L)
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+
+        val expected =
+          s"${expectedTimestamp(timestamp)} INFO  hello " +
+            "[example.Evil\\nMethod] a/b\\r\\nEvil.scala:3"
+
+        assertTrue(
+          viaBuilder == expected,
+          viaRecord == expected,
+          viaBuilder == viaRecord,
+          !viaBuilder.contains("\n"),
+          !viaBuilder.contains("\r")
         )
       }
     ),

@@ -41,13 +41,24 @@ trait LogFormatter {
 }
 
 /**
- * Human-readable text format: "2026-03-31T17:30:00.123Z INFO
- * [MyClass.method:42] message {key=val}"
+ * Human-readable text format: "2026-03-31T17:30:00.123Z INFO message
+ * [MyClass.method] /captured/path/MyClass.scala:42 {key=val}"
+ *
+ * The body comes first so the message reads naturally; the compact function
+ * renders separately in brackets and the captured compile-time file path
+ * follows as a contiguous `path:line` token for terminal navigation. The path
+ * is preserved exactly as captured (never absolutized, never shortened) and the
+ * method never appears inside the `path:line` token. Without a path the compact
+ * `[Class.method:line]` fallback stays informational; a bare line renders as
+ * `[line:42]`; with no location at all nothing renders.
  *
  * String attribute values render double-quoted. A value containing `"`, `\`, or
  * a line break would otherwise blur where the value ends, so those characters
  * are backslash-escaped (`\"`, `\\`, `\n`, `\r`, `\t`) — in both scalar strings
- * and string-seq elements, on both entry points.
+ * and string-seq elements, on both entry points. Location file/function text
+ * escapes CR, LF, tab, and other control characters while leaving everything
+ * else literal — including `\`, so Windows `C:\...` separators survive intact —
+ * and normal path separators and spaces untouched.
  */
 object TextLogFormatter extends LogFormatter {
 
@@ -60,9 +71,9 @@ object TextLogFormatter extends LogFormatter {
    * OpenTelemetry code attributes). Any other `code.*` key is a user attribute
    * and must stay visible. Prefix matching would over-delete those.
    */
-  private def isCodeKey(key: String): Boolean =
-    key == "code.file.path" || key == "code.function.name" ||
-      key == "code.line.number"
+  private[telemetry] def isCodeKey(key: String): Boolean =
+    key == SourceLocation.CodeFilePath || key == SourceLocation.CodeFunctionName ||
+      key == SourceLocation.CodeLineNumber
 
   /**
    * Builder-path visibility: canonical code.* keys are consumed into the
@@ -73,17 +84,17 @@ object TextLogFormatter extends LogFormatter {
   private def showAsUserAttr(key: String, tpe: Byte, str: String): Boolean =
     if (!isCodeKey(key)) true
     else
-      key == "code.line.number" && tpe == 0 &&
+      key == SourceLocation.CodeLineNumber && tpe == 0 &&
       (str == null || str.toLongOption.isEmpty)
 
   /**
    * Record-path visibility for String attributes: mirrors `showAsUserAttr` for
    * the `code.line.number`-as-String case handled in `formatRecord`.
    */
-  private def showRecordStringAsUserAttr(key: String, value: String): Boolean =
+  private[telemetry] def showRecordStringAsUserAttr(key: String, value: String): Boolean =
     if (!isCodeKey(key)) true
     else
-      key == "code.line.number" &&
+      key == SourceLocation.CodeLineNumber &&
       (value == null || value.toLongOption.isEmpty)
 
   override def format(
@@ -104,19 +115,22 @@ object TextLogFormatter extends LogFormatter {
     // Source location — matched by key over all slots. The macro path always
     // writes the three code.* attributes first, but direct Logger calls never
     // write them, so position-based matching would misread user attributes.
+    // The captured file path is preserved exactly as emitted at compile time.
     val keys    = builder.builderKeys
     val types   = builder.builderTypes
     val longs   = builder.builderLongs
     val strings = builder.builderStrings
     val len     = builder.builderLen
 
+    var filePath     = ""
     var functionName = ""
     var lineNo       = 0L
     var i            = 0
     while (i < len) {
       keys(i) match {
-        case "code.function.name" => if (strings(i) != null) functionName = strings(i)
-        case "code.line.number"   =>
+        case SourceLocation.CodeFilePath     => if (strings(i) != null) filePath = strings(i)
+        case SourceLocation.CodeFunctionName => if (strings(i) != null) functionName = strings(i)
+        case SourceLocation.CodeLineNumber   =>
           if (types(i) == 1) lineNo = longs(i)
           else if (types(i) == 0 && strings(i) != null)
             strings(i).toLongOption.foreach(v => lineNo = v)
@@ -124,10 +138,16 @@ object TextLogFormatter extends LogFormatter {
       }
       i += 1
     }
-    renderLocation(sb, functionName, lineNo)
 
-    // Body — CR/LF escaped so a multi-line message cannot forge extra lines.
-    appendBodyEscaped(sb, body)
+    // Body first — CR/LF escaped so a multi-line message cannot forge extra lines.
+    if (body != null && body.nonEmpty) {
+      sb.append(' ')
+      appendBodyEscaped(sb, body)
+    }
+
+    // Location after the body: compact function separately, then the
+    // contiguous captured `path:line` token.
+    TextLogLayout.appendLocation(sb, filePath, functionName, lineNo)
 
     // User attributes — everything that is not a code.* attribute, in slot
     // order (same rule as formatRecord). A wrong-typed code.line.number that could
@@ -154,13 +174,15 @@ object TextLogFormatter extends LogFormatter {
     renderHead(sb, record.timestampNanos, record.severityText)
 
     // Source location from record attributes
+    var filePath     = ""
     var functionName = ""
     var lineNo       = 0L
     record.attributes.accept(new AttributeVisitor {
       override def visitString(key: String, value: String): Unit =
         key match {
-          case "code.function.name" => functionName = value
-          case "code.line.number"   =>
+          case SourceLocation.CodeFilePath     => filePath = value
+          case SourceLocation.CodeFunctionName => functionName = value
+          case SourceLocation.CodeLineNumber   =>
             // Wrong-typed line number (String): feed the location prefix when numeric,
             // mirroring the builder path above.
             if (value != null) value.toLongOption.foreach(v => lineNo = v)
@@ -168,7 +190,7 @@ object TextLogFormatter extends LogFormatter {
         }
 
       override def visitLong(key: String, value: Long): Unit =
-        if (key == "code.line.number") lineNo = value
+        if (key == SourceLocation.CodeLineNumber) lineNo = value
 
       override def visitDouble(key: String, value: Double): Unit           = ()
       override def visitBoolean(key: String, value: Boolean): Unit         = ()
@@ -177,10 +199,17 @@ object TextLogFormatter extends LogFormatter {
       override def visitDoubleSeq(key: String, value: Seq[Double]): Unit   = ()
       override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit = ()
     })
-    renderLocation(sb, functionName, lineNo)
 
-    // Body — CR/LF escaped so a multi-line message cannot forge extra lines.
-    appendBodyEscaped(sb, record.body.value)
+    // Body first — CR/LF escaped so a multi-line message cannot forge extra lines.
+    val body = record.body.value
+    if (body != null && body.nonEmpty) {
+      sb.append(' ')
+      appendBodyEscaped(sb, body)
+    }
+
+    // Location after the body: compact function separately, then the
+    // contiguous captured `path:line` token.
+    TextLogLayout.appendLocation(sb, filePath, functionName, lineNo)
 
     // User attributes (skip code.* attributes, except a wrong-typed
     // code.line.number that could not feed the location prefix).
@@ -268,33 +297,17 @@ object TextLogFormatter extends LogFormatter {
   }
 
   /**
-   * Shared source-location rendering, used by both entry points. The stable
-   * `code.function.name` is fully qualified (`com.example.Svc.doWork`), so only
-   * the last two segments render (`Svc.doWork`) — the same compact shape the
-   * split namespace/method pair used to produce. A dotless name renders as-is.
-   * (Uses `substring`: the three-argument `StringBuilder.append` overload does
-   * not slice on this builder type.)
+   * Shared attribute-value rendering, used by both entry points and the stdout
+   * processor. Scalar slots arrive unboxed (`long`/`str`); `seq` is only
+   * consulted for seq-typed attributes and may be `null` otherwise.
    */
-  private def renderLocation(sb: StringBuilder, functionName: String, lineNo: Long): Unit = {
-    sb.append(" [")
-    if (functionName != null && functionName.nonEmpty) {
-      val lastDot = functionName.lastIndexOf('.')
-      if (lastDot < 0) sb.append(functionName)
-      else {
-        val prevDot = functionName.lastIndexOf('.', lastDot - 1)
-        sb.append(functionName.substring(prevDot + 1))
-      }
-    }
-    if (lineNo > 0) { sb.append(':'); sb.append(lineNo) }
-    sb.append("] ")
-  }
-
-  /**
-   * Shared attribute-value rendering, used by both entry points. Scalar slots
-   * arrive unboxed (`long`/`str`); `seq` is only consulted for seq-typed
-   * attributes and may be `null` otherwise.
-   */
-  private def renderTextAttrValue(sb: StringBuilder, tpe: Byte, long: Long, str: String, seq: Seq[Any]): Unit =
+  private[telemetry] def renderTextAttrValue(
+    sb: StringBuilder,
+    tpe: Byte,
+    long: Long,
+    str: String,
+    seq: Seq[Any]
+  ): Unit =
     (tpe: @scala.annotation.switch) match {
       case 0 /* STRING */      => sb.append('"'); appendTextEscaped(sb, str); sb.append('"')
       case 1 /* LONG */        => sb.append(long)
@@ -310,9 +323,9 @@ object TextLogFormatter extends LogFormatter {
   /**
    * Appends a string attribute value with `"`, `\`, and line-break characters
    * backslash-escaped so quoted values stay unambiguous. A null value keeps the
-   * historical rendering.
+   * historical rendering. Shared with the stdout processor.
    */
-  private def appendTextEscaped(sb: StringBuilder, s: String): Unit =
+  private[telemetry] def appendTextEscaped(sb: StringBuilder, s: String): Unit =
     if (s == null) sb.append(s)
     else {
       var i = 0
@@ -333,9 +346,10 @@ object TextLogFormatter extends LogFormatter {
   /**
    * Appends a text attribute key with `"`, `\`, line breaks, and `=` escaped so
    * a user-controlled key cannot forge extra lines or fake `key=value` pairs.
-   * Ordinary keys (no special characters) render unchanged.
+   * Ordinary keys (no special characters) render unchanged. Shared with the
+   * stdout processor.
    */
-  private def appendTextKeyEscaped(sb: StringBuilder, s: String): Unit =
+  private[telemetry] def appendTextKeyEscaped(sb: StringBuilder, s: String): Unit =
     if (s == null) sb.append(s)
     else {
       var i = 0
@@ -357,9 +371,9 @@ object TextLogFormatter extends LogFormatter {
   /**
    * Appends a log body with `\`, CR, and LF escaped so a multi-line message
    * cannot forge extra physical lines. Ordinary single-line bodies render
-   * unchanged.
+   * unchanged. Shared with the stdout processor.
    */
-  private def appendBodyEscaped(sb: StringBuilder, s: String): Unit =
+  private[telemetry] def appendBodyEscaped(sb: StringBuilder, s: String): Unit =
     if (s == null) sb.append(s)
     else {
       var i = 0

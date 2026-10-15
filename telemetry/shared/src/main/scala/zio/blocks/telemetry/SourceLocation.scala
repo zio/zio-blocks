@@ -26,6 +26,15 @@ final case class SourceLocation(
 object SourceLocation {
 
   /**
+   * Stable OpenTelemetry code attribute keys captured at compile time by the
+   * logging macros. Text rendering scans exactly these named keys — any other
+   * `code.*` key is an ordinary user attribute and must stay visible.
+   */
+  private[telemetry] final val CodeFilePath     = "code.file.path"
+  private[telemetry] final val CodeFunctionName = "code.function.name"
+  private[telemetry] final val CodeLineNumber   = "code.line.number"
+
+  /**
    * Stable OpenTelemetry `code.function.name`: the fully-qualified function
    * name without arguments (`namespace.methodName`). Single source of truth,
    * evaluated at macro-expansion time (spliced as a literal, so hot log calls
