@@ -32,7 +32,20 @@ private[sql] class JdbcParamWriter(val underlying: PreparedStatement) extends Db
 
   def setString(index: Int, value: String): Unit = underlying.setString(index, value)
 
-  def setBigDecimal(index: Int, value: java.math.BigDecimal): Unit = underlying.setBigDecimal(index, value)
+  def setBigDecimal(index: Int, value: java.math.BigDecimal): Unit =
+    // Conservative cross-dialect strategy for BigDecimal parameters:
+    // SQLite has no arbitrary-precision numeric — the xerial JDBC driver binds
+    // setBigDecimal as TEXT, which breaks numeric comparisons (a REAL is
+    // always less than a TEXT under SQLite's type ordering). Binding the value
+    // as a REAL (double) keeps SQLite comparisons truthful; other dialects
+    // keep the exact numeric binding. The driver is detected from the
+    // statement's connection metadata so no constructor threading is needed.
+    if (isSQLite) underlying.setDouble(index, value.doubleValue)
+    else underlying.setBigDecimal(index, value)
+
+  private lazy val isSQLite: Boolean =
+    try underlying.getConnection.getMetaData.getDatabaseProductName.contains("SQLite")
+    catch { case _: Throwable => false }
 
   def setBytes(index: Int, value: Array[Byte]): Unit = underlying.setBytes(index, value)
 

@@ -42,7 +42,7 @@ object JoinsDumpExample {
 
   // Rels stay inline in each dumped chain below so the dump macro can peel
   // the join tree; keep them as the canonical two-join shape.
-  inline def joins: Qry[User] = Qry
+  inline def joins: Qry[User, ?] = Qry
     .from(userTable)
     .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
     .innerJoin(Rel(starTable, "repo_id", repoTable, "id"))

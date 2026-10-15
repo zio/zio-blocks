@@ -137,6 +137,13 @@ object DbCodec extends DbCodecOpaquePriority {
       s"Encountered SQL NULL while decoding non-optional $typeName. Use Option[$typeName] or Maybe[$typeName] for nullable columns."
     )
 
+  /**
+   * Matches the strict-codec null signal so optional wrappers can decode it to
+   * absent.
+   */
+  private def isNullSignal(e: IllegalStateException): Boolean =
+    e.getMessage != null && e.getMessage.startsWith("Encountered SQL NULL")
+
   private def requireSingleColumnNullable[A](wrapperType: String, inner: DbCodec[A]): Unit =
     if (inner.columnCount != 1)
       throw new UnsupportedOperationException(
@@ -201,17 +208,33 @@ object DbCodec extends DbCodecOpaquePriority {
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Option[A] =
       if (reader.isNull(columnLabels.head)) None
       else {
-        val value = inner.readValue(reader, columnLabels)
-        // Post-read fallback: readers without a null bitmap (default isNull)
-        // preserve the historical decode-then-wasNull behavior.
-        if (reader.wasNull) None else Some(value)
+        try {
+          val value = inner.readValue(reader, columnLabels)
+          // Post-read fallback: readers without a null bitmap (default isNull)
+          // preserve the historical decode-then-wasNull behavior.
+          if (reader.wasNull) None else Some(value)
+        } catch {
+          case e: IllegalStateException if isNullSignal(e) =>
+            // Strict single-column codecs (BigDecimal) throw on NULL instead of
+            // returning a dummy; a proven NULL still decodes to None here while
+            // direct (non-optional) reads keep throwing.
+            None
+        }
       }
 
     override def readValue(reader: DbResultReader, startIndex: Int): Option[A] =
       if (reader.isNull(startIndex)) None
       else {
-        val value = inner.readValue(reader, startIndex)
-        if (reader.wasNull) None else Some(value)
+        try {
+          val value = inner.readValue(reader, startIndex)
+          if (reader.wasNull) None else Some(value)
+        } catch {
+          case e: IllegalStateException if isNullSignal(e) =>
+            // Strict single-column codecs (BigDecimal) throw on NULL instead of
+            // returning a dummy; a proven NULL still decodes to None here while
+            // direct (non-optional) reads keep throwing.
+            None
+        }
       }
 
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Option[A]): Unit =
@@ -235,15 +258,31 @@ object DbCodec extends DbCodecOpaquePriority {
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Maybe[A] =
       if (reader.isNull(columnLabels.head)) Maybe.absent
       else {
-        val value = inner.readValue(reader, columnLabels)
-        if (reader.wasNull) Maybe.absent else Maybe.unsafeWrap(value)
+        try {
+          val value = inner.readValue(reader, columnLabels)
+          if (reader.wasNull) Maybe.absent else Maybe.unsafeWrap(value)
+        } catch {
+          case e: IllegalStateException if isNullSignal(e) =>
+            // Strict single-column codecs (BigDecimal) throw on NULL instead of
+            // returning a dummy; a proven NULL still decodes to absent here while
+            // direct (non-optional) reads keep throwing.
+            Maybe.absent
+        }
       }
 
     override def readValue(reader: DbResultReader, startIndex: Int): Maybe[A] =
       if (reader.isNull(startIndex)) Maybe.absent
       else {
-        val value = inner.readValue(reader, startIndex)
-        if (reader.wasNull) Maybe.absent else Maybe.unsafeWrap(value)
+        try {
+          val value = inner.readValue(reader, startIndex)
+          if (reader.wasNull) Maybe.absent else Maybe.unsafeWrap(value)
+        } catch {
+          case e: IllegalStateException if isNullSignal(e) =>
+            // Strict single-column codecs (BigDecimal) throw on NULL instead of
+            // returning a dummy; a proven NULL still decodes to absent here while
+            // direct (non-optional) reads keep throwing.
+            Maybe.absent
+        }
       }
 
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Maybe[A]): Unit = {
