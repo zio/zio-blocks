@@ -74,7 +74,7 @@ ZIO Blocks Projection addresses these by making a projection a declaration rathe
 - it detects a changed schema and rebuilds the read model, with a shortcut for added fields and migrations to map old event tags to new ones;
 - it stores each projection in its own SQLite file, so read models are isolated, individually backed up, and queryable offline. Unrelated projections never wait for each other's locks or write-ahead log, as they would with one shared database.
 
-Because the same declaration runs against an in-memory store, you can test a projection by appending events and querying the result, with no database. The [Quick Start](#quick-start) shows the whole loop in about twenty lines.
+Because the same declaration runs against an in-memory store, you can test a projection by appending events and querying the result, with no database. The [Quick Start](#quick-start) shows the whole loop in one short program.
 
 Projection is a good fit when you already treat events as the source of truth and want fast, local, query-friendly views of them. It is not a general query engine over arbitrary data, and the read models it maintains are derived state: they can always be discarded and rebuilt from the events.
 
@@ -216,62 +216,16 @@ The diagram shows how the types hand the data along:
 
 ## Quick Start
 
-A projection is first defined once, then run by an engine. The two steps below use the same events and the same projection. The first runs them in memory with `TestEngine`, which is the quickest way to try one. The second keeps the events and the read model in SQLite files, the way an application does.
+A projection is defined once, then run by an engine. The example below defines the events and the read model, declares the projection, and runs it on SQLite files, the way an application does.
 
-### Step 1: Try it in memory with TestEngine
-
-Define your events, your projection entity, declare the projection, and start the engine:
-
-```scala mdoc:compile-only
-import zio.*
-import zio.blocks.projection.*
-import zio.blocks.projection.testing.TestEngine
-import zio.blocks.schema.{Modifier, Schema}
-
-// 1. Define events
-case class UserCreated(name: String, email: String)
-object UserCreated {
-  implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
-}
-
-// 2. Define the projection entity
-case class UserProfile(@Modifier.id id: String, name: String, email: String)
-object UserProfile {
-  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
-  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
-}
-
-// 3. Define the projection
-val projection = Projection[UserProfile]("userProfiles")
-  .from("users")
-  .routeToSelf
-  .on[UserCreated]
-  .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
-
-// 4. Create a test engine (auto-creates stores and hubs)
-val program: ZIO[Scope, Throwable, Unit] = for {
-  engine <- TestEngine.make(projection)
-  // Append events
-  _ <- engine.append("user-1", UserCreated("Alice", "alice@example.com"))
-  _ <- engine.append("user-2", UserCreated("Bob", "bob@example.com"))
-  // Query
-  u1 <- engine.query(projection, "user-1")
-  u2 <- engine.query(projection, "user-2")
-} yield ()
-```
-
-The engine starts a catch-up fiber that reads all historical events, then switches to live mode via the Hub subscription. Query results appear once the engine processes the relevant events.
-
-### Step 2: Keep it in SQLite files
-
-`TestEngine` keeps everything in memory, so nothing survives the program. To keep the events and the read model on disk, create the stores yourself and give them to `ProjectionEngine.makeWithStores`. The events and the projection are the same as in step 1, and only the wiring changes. It needs `sqlite-jdbc` on the runtime classpath, see [Installation](#installation):
+Create the stores yourself and give them to `ProjectionEngine.makeWithStores`. It needs `sqlite-jdbc` on the runtime classpath, see [Installation](#installation):
 
 ```scala mdoc:compile-only
 import zio.*
 import zio.blocks.projection.*
 import zio.blocks.schema.{Modifier, Schema}
 
-// The same events and projection as in step 1
+// The events, the read model and the projection
 case class UserCreated(name: String, email: String)
 object UserCreated {
   implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
