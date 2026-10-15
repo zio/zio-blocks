@@ -206,8 +206,8 @@ The diagram shows how the types hand the data along:
                                              │ updateFields / delete
                                              ▼
                                ┌─────────────────────────────┐
-                               │    ProjectionStore[A]        │
-                               │    (SQLite or InMemory)      │
+                               │    ProjectionStore[A]       │
+                               │    (SQLite or InMemory)     │
                                └─────────────────────────────┘
                                              ▲
                                engine.query(projection, id)
