@@ -165,10 +165,8 @@ A [`TransactorCache`](./engine.md#connection-management) loads the SQLite driver
 
 Two types carry the whole lifecycle:
 
-- `Projection[A]` is the descriptor: a pure, immutable value that names the read model, lists its sources, and records a handler per event type. It holds no fibers.
-- `ProjectionEngine` is the runtime: it reads `Projection[A]` values, connects each one to an `EventStore[E]`, and drives events through the right handler into a `ProjectionStore[A]`. It does not inspect the handler functions. `EventStore[E]` is the write-side contract, the log that events are appended to, and `ProjectionStore[A]` is the read-side contract, the rows of a read model, as described under [Event Sourcing Basics](#event-sourcing-basics).
-
-For the complete API reference, see the [`Projection[A]`](./projection.md) subpage (the builder and descriptor) and the [`ProjectionEngine`](./engine.md) subpage (the runtime and its configuration).
+- [`Projection[A]`](./projection.md) is the descriptor: a pure, immutable value that names the read model, lists its sources, and records a handler per event type. It holds no fibers.
+- [`ProjectionEngine`](./engine.md) is the runtime: it reads `Projection[A]` values, connects each one to an `EventStore[E]`, and drives events through the right handler into a `ProjectionStore[A]`. It does not inspect the handler functions. `EventStore[E]` is the write-side contract, the log that events are appended to, and `ProjectionStore[A]` is the read-side contract, the rows of a read model, as described under [Event Sourcing Basics](#event-sourcing-basics).
 
 ## How They Work Together
 
