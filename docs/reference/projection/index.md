@@ -309,10 +309,6 @@ enum FieldUpdate {
 
 `InMemoryProjectionStore[A]` is a `Map`-backed implementation intended for tests. It simulates `FieldUpdate` operations by decoding the stored entity into a [`DynamicValue`](../schema/dynamic-value.md), applying the mutation, and re-encoding. `TestEngine.make` creates one automatically per projection.
 
-## Testing
-
-`TestEngine` replaces the full JVM wiring for unit and integration tests. It creates an `InMemoryProjectionStore[A]` per projection, an in-memory `EventStore` per source name, starts the underlying `ProjectionEngine`, and manages the whole lifecycle in a single `Scope`. The [Testing](./testing.md) page documents it, together with `InMemoryProjectionStore`, `TestContext` and `TestProjectionEngine`.
-
 ## See Also
 
 The [SQL Module](../sql/index.md) supplies the `Transactor`, `DbCon`, and `SqlNameMapper` types that back the SQLite implementations of `EventStore[E]` and `ProjectionStore[A]`. The [Data Migration](../data-migration.md) reference covers typed online schema migrations that pair naturally with projection-backed read models during schema evolution.
