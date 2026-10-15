@@ -168,7 +168,16 @@ Two types carry the whole lifecycle:
 - `Projection[A]` is the descriptor: a pure, immutable value that names the read model, lists its sources, and records a handler per event type. It holds no fibers.
 - `ProjectionEngine` is the runtime: it reads `Projection[A]` values, connects each one to an `EventStore[E]`, and drives events through the right handler into a `ProjectionStore[A]`. It does not inspect the handler functions.
 
-Several supporting types fill the gaps. `EventStore[E]` is the write-side contract: append an event and receive a monotonic sequence number; read history with `readFrom`; subscribe to a live `Hub` for new events. `EventEnvelope[E]` wraps each stored event with that sequence number, a string tag (the event class name or a numeric `@eventTag` value), a timestamp, and the entity ID. `ProjectionStore[A]` is the read-side contract: rows keyed by entity ID, a watermark, and a schema hash. `ProjectionAction[A]` is what a handler returns — `Insert`, `Upsert`, `Update` (field-level deltas via `FieldUpdate`), `Delete`, `Truncate`, or `Noop`. `TestEngine` wraps all of this for testing: one `make` call replaces the full JVM wiring.
+Several supporting types fill the gaps. Two of them are the contracts of the two sides described under [Event Sourcing Basics](#event-sourcing-basics): the write side, where events are appended, and the read side, where queries are answered from read models:
+
+- `EventStore[E]` is the write-side contract: append an event and receive a monotonic sequence number; read history with `readFrom`; subscribe to a live `Hub` for new events.
+- `ProjectionStore[A]` is the read-side contract: rows keyed by entity ID, a watermark, and a schema hash.
+
+The remaining types sit between the two sides:
+
+- `EventEnvelope[E]` wraps each stored event with that sequence number, a string tag (the event class name or a numeric `@eventTag` value), a timestamp, and the entity ID. It is what the event store hands to the engine.
+- `ProjectionAction[A]` is what a handler returns: `Insert`, `Upsert`, `Update` (field-level deltas via `FieldUpdate`), `Delete`, `Truncate`, or `Noop`. It is what the engine applies to the projection store.
+- `TestEngine` wraps all of this for testing: one `make` call replaces the full JVM wiring.
 
 For the complete API reference, see the [`Projection[A]`](./projection.md) subpage (the builder and descriptor) and the [`ProjectionEngine`](./engine.md) subpage (the runtime and its configuration).
 
