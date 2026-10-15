@@ -446,10 +446,14 @@ private[migration] object ActionExecutor {
   ): Either[SchemaError, DynamicValue] = {
     val sourceCaseName = at.nodes.lastOption.collect { case zio.blocks.schema.DynamicOptic.Node.Case(name) => name }
       .getOrElse(targetCaseName)
-    val parentPath = zio.blocks.schema.DynamicOptic(at.nodes.dropRight(1).filter {
-      case _: zio.blocks.schema.DynamicOptic.Node.Case => false
-      case _                                           => true
-    })
+    // Drop only a trailing Case node (the transformed case itself, e.g. builder-emitted
+    // root.caseOf(name)). Intermediate Case nodes are kept so modifyAtPath can navigate
+    // through nested variants to the target case value.
+    val parentNodes = at.nodes.lastOption match {
+      case Some(_: zio.blocks.schema.DynamicOptic.Node.Case) => at.nodes.dropRight(1)
+      case _                                                 => at.nodes
+    }
+    val parentPath = zio.blocks.schema.DynamicOptic(parentNodes)
 
     modifyAt(parentPath, value) {
       case DynamicValue.Variant(name, inner) if name == sourceCaseName =>

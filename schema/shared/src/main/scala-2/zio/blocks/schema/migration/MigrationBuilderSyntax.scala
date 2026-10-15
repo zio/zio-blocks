@@ -52,6 +52,204 @@ object MigrationBuilderMacros {
   private def addToChangeset(c: whitebox.Context)(currentType: c.Type, opType: c.Type): c.Type =
     c.internal.refinedType(List(currentType, opType), c.internal.newScopeWith())
 
+  private def checkCollisionAtCallSite(c: whitebox.Context)(
+    opLabel: String,
+    handledNames: List[String],
+    providedNames: List[String],
+    checkAutoMapped: Boolean,
+    aType: c.Type,
+    bType: c.Type,
+    csType: c.Type
+  ): Unit = {
+    val (priorHandled, priorProvided) = extractHandledAndProvidedCounts(c)(csType)
+
+    def incremented(prior: Map[String, Int], names: List[String]): Map[String, Int] =
+      names.foldLeft(prior)((counts, name) => counts.updated(name, counts.getOrElse(name, 0) + 1))
+
+    val newHandled  = incremented(priorHandled, handledNames)
+    val newProvided = incremented(priorProvided, providedNames)
+
+    def countOf(counts: Map[String, Int], name: String): Int = counts.getOrElse(name, 0)
+
+    (providedNames ++ newProvided.keySet).distinct.collectFirst {
+      case n if countOf(newProvided, n) > 1 && countOf(newHandled, n) != 1 => n
+    }.foreach { n =>
+      c.abort(
+        c.enclosingPosition,
+        s"$opLabel failed: field '$n' is already provided by a previous operation. " +
+          s"Each target field must be provided exactly once."
+      )
+    }
+
+    (handledNames ++ newHandled.keySet).distinct.collectFirst {
+      case n if countOf(newHandled, n) > 1 && countOf(newProvided, n) != 1 => n
+    }.foreach { n =>
+      c.abort(
+        c.enclosingPosition,
+        s"$opLabel failed: field '$n' is already handled/consumed by a previous operation. " +
+          s"Each source field must be handled exactly once."
+      )
+    }
+
+    if (checkAutoMapped) {
+      val autoMapped = computeAutoMappedFields(c)(aType, bType)
+      providedNames.collectFirst { case n if autoMapped.contains(n) && countOf(newHandled, n) != 1 => n }.foreach { n =>
+        c.abort(
+          c.enclosingPosition,
+          s"$opLabel failed: field '$n' collides with an auto-mapped field that is already provided. " +
+            s"Rename targets must not collide with existing fields."
+        )
+      }
+    }
+  }
+
+  private def extractHandledAndProvidedCounts(c: whitebox.Context)(
+    tpe: c.universe.Type
+  ): (Map[String, Int], Map[String, Int]) = {
+    import c.universe._
+
+    var handled  = Map.empty[String, Int]
+    var provided = Map.empty[String, Int]
+
+    def count(m: Map[String, Int], n: String): Map[String, Int] =
+      m.updated(n, m.getOrElse(n, 0) + 1)
+
+    def extractString(t: Type): Option[String] = t.dealias match {
+      case ConstantType(Constant(s: String)) => Some(s)
+      case _                                 => None
+    }
+
+    def extract(t: Type): Unit = t.dealias match {
+      case RefinedType(parents, _) =>
+        parents.foreach(extract)
+      case t if t =:= typeOf[Any] => ()
+      case TypeRef(_, sym, args)  =>
+        sym.name.toString match {
+          case "AddField" =>
+            args.headOption.flatMap(extractString).foreach(n => provided = count(provided, n))
+          case "DropField" =>
+            args.headOption.flatMap(extractString).foreach(n => handled = count(handled, n))
+          case "RenameField" =>
+            args.headOption.flatMap(extractString).foreach(n => handled = count(handled, n))
+            args.lift(1).flatMap(extractString).foreach(n => provided = count(provided, n))
+          case "TransformField" =>
+            args.headOption.flatMap(extractString).foreach(n => handled = count(handled, n))
+            args.lift(1).flatMap(extractString).foreach(n => provided = count(provided, n))
+          case "MandateField" =>
+            args.headOption.flatMap(extractString).foreach(n => handled = count(handled, n))
+            args.lift(1).flatMap(extractString).foreach(n => provided = count(provided, n))
+          case "OptionalizeField" =>
+            args.headOption.flatMap(extractString).foreach(n => handled = count(handled, n))
+            args.lift(1).flatMap(extractString).foreach(n => provided = count(provided, n))
+          case "ChangeFieldType" =>
+            args.headOption.flatMap(extractString).foreach { n =>
+              handled = count(handled, n)
+              provided = count(provided, n)
+            }
+          case "MigrateField" =>
+            args.headOption.flatMap(extractString).foreach { n =>
+              handled = count(handled, n)
+              provided = count(provided, n)
+            }
+          case "FieldName" =>
+            args.headOption.flatMap(extractString).foreach { n =>
+              handled = count(handled, n)
+              provided = count(provided, n)
+            }
+          case "RenameCase" | "TransformCase" | "TransformElements" | "TransformKeys" | "TransformValues" =>
+            ()
+          case _ => ()
+        }
+      case _ => ()
+    }
+
+    extract(tpe)
+    (handled, provided)
+  }
+
+  private def computeAutoMappedFields(c: whitebox.Context)(
+    aType: c.universe.Type,
+    bType: c.universe.Type
+  ): Set[String] = {
+    import c.universe._
+
+    val aSym = aType.typeSymbol
+    val bSym = bType.typeSymbol
+
+    if (aSym.isClass && aSym.asClass.isCaseClass && bSym.isClass && bSym.asClass.isCaseClass) {
+      val aCtor = aType.decl(termNames.CONSTRUCTOR).asMethod
+      val bCtor = bType.decl(termNames.CONSTRUCTOR).asMethod
+
+      val aFields: Map[String, Type] = aCtor.paramLists.headOption
+        .getOrElse(Nil)
+        .map(p => p.name.decodedName.toString -> p.typeSignature.asSeenFrom(aType, aSym))
+        .toMap
+
+      val bFields: Map[String, Type] = bCtor.paramLists.headOption
+        .getOrElse(Nil)
+        .map(p => p.name.decodedName.toString -> p.typeSignature.asSeenFrom(bType, bSym))
+        .toMap
+
+      aFields.keySet
+        .intersect(bFields.keySet)
+        .flatMap { fieldName =>
+          (aFields.get(fieldName), bFields.get(fieldName)) match {
+            case (Some(srcType), Some(tgtType)) if srcType =:= tgtType =>
+              Set(fieldName) ++ computeAutoMappedNested(c)(srcType, tgtType, fieldName)
+            case (Some(srcType), Some(tgtType)) if srcType <:< tgtType || tgtType <:< srcType =>
+              Set(fieldName)
+            case _ => Set.empty[String]
+          }
+        }
+        .toSet
+    } else {
+      Set.empty
+    }
+  }
+
+  private def computeAutoMappedNested(c: whitebox.Context)(
+    srcType: c.universe.Type,
+    tgtType: c.universe.Type,
+    prefix: String
+  ): Set[String] = {
+    import c.universe._
+
+    val srcSym = srcType.typeSymbol
+    val tgtSym = tgtType.typeSymbol
+
+    if (srcSym.isClass && srcSym.asClass.isCaseClass && tgtSym.isClass && tgtSym.asClass.isCaseClass) {
+      val srcCtor = srcType.decl(termNames.CONSTRUCTOR).asMethod
+      val tgtCtor = tgtType.decl(termNames.CONSTRUCTOR).asMethod
+
+      val srcFields: Map[String, Type] = srcCtor.paramLists.headOption
+        .getOrElse(Nil)
+        .map(p => p.name.decodedName.toString -> p.typeSignature.asSeenFrom(srcType, srcSym))
+        .toMap
+
+      val tgtFields: Map[String, Type] = tgtCtor.paramLists.headOption
+        .getOrElse(Nil)
+        .map(p => p.name.decodedName.toString -> p.typeSignature.asSeenFrom(tgtType, tgtSym))
+        .toMap
+
+      srcFields.keySet
+        .intersect(tgtFields.keySet)
+        .flatMap { fieldName =>
+          val fullFieldName = s"$prefix.$fieldName"
+          (srcFields.get(fieldName), tgtFields.get(fieldName)) match {
+            case (Some(srcFieldType), Some(tgtFieldType)) if srcFieldType =:= tgtFieldType =>
+              Set(fullFieldName) ++ computeAutoMappedNested(c)(srcFieldType, tgtFieldType, fullFieldName)
+            case (Some(srcFieldType), Some(tgtFieldType))
+                if srcFieldType <:< tgtFieldType || tgtFieldType <:< srcFieldType =>
+              Set(fullFieldName)
+            case _ => Set.empty[String]
+          }
+        }
+        .toSet
+    } else {
+      Set.empty
+    }
+  }
+
   private def createAddFieldType(c: whitebox.Context)(fieldName: String): c.Type = {
     import c.universe._
     val fieldNameLiteral = c.internal.constantType(Constant(fieldName))
@@ -114,7 +312,8 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val fieldName    = extractFieldPathFromSelector(c)(target.tree)
+    val fieldName = extractFieldPathFromSelector(c)(target.tree)
+    checkCollisionAtCallSite(c)("addField", Nil, List(fieldName), false, aType, bType, csType)
     val addFieldType = createAddFieldType(c)(fieldName)
     val newCSType    = addToChangeset(c)(csType, addFieldType)
 
@@ -143,7 +342,8 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val fieldName     = extractFieldPathFromSelector(c)(source.tree)
+    val fieldName = extractFieldPathFromSelector(c)(source.tree)
+    checkCollisionAtCallSite(c)("dropField", List(fieldName), Nil, false, aType, bType, csType)
     val dropFieldType = createDropFieldType(c)(fieldName)
     val newCSType     = addToChangeset(c)(csType, dropFieldType)
 
@@ -172,8 +372,9 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val fromFieldName   = extractFieldPathFromSelector(c)(from.tree)
-    val toFieldName     = extractFieldPathFromSelector(c)(to.tree)
+    val fromFieldName = extractFieldPathFromSelector(c)(from.tree)
+    val toFieldName   = extractFieldPathFromSelector(c)(to.tree)
+    checkCollisionAtCallSite(c)("renameField", List(fromFieldName), List(toFieldName), true, aType, bType, csType)
     val renameFieldType = createRenameFieldType(c)(fromFieldName, toFieldName)
     val newCSType       = addToChangeset(c)(csType, renameFieldType)
 
@@ -215,6 +416,7 @@ object MigrationBuilderMacros {
           s"got '$fromFieldName' and '$toFieldName'. " +
           s"Use renameField followed by transformField for rename-and-transform."
       )
+    checkCollisionAtCallSite(c)("transformField", List(fromFieldName), List(toFieldName), false, aType, bType, csType)
     val transformFieldType = createTransformFieldType(c)(fromFieldName, toFieldName)
     val newCSType          = addToChangeset(c)(csType, transformFieldType)
 
@@ -256,6 +458,15 @@ object MigrationBuilderMacros {
           s"got '$sourceFieldName' and '$targetFieldName'. " +
           s"Use renameField followed by mandateField for rename-and-mandate."
       )
+    checkCollisionAtCallSite(c)(
+      "mandateField",
+      List(sourceFieldName),
+      List(targetFieldName),
+      false,
+      aType,
+      bType,
+      csType
+    )
     val mandateFieldType = createMandateFieldType(c)(sourceFieldName, targetFieldName)
     val newCSType        = addToChangeset(c)(csType, mandateFieldType)
 
@@ -298,6 +509,42 @@ object MigrationBuilderMacros {
           s"got '$sourceFieldName' and '$targetFieldName'. " +
           s"Use renameField followed by optionalizeField for rename-and-optionalize."
       )
+    // Source-side check: reject already-Option source (Option -> Option would double-wrap at runtime).
+    // Unresolvable member (e.g. structural selector) skips the check.
+    val segments: List[String] = sourceFieldName.split('.').toList
+    var current: Type          = aType.dealias
+    var resolvable             = true
+    var si                     = 0
+    while (si < segments.length && resolvable) {
+      val sym = current.typeSymbol
+      if (sym.isClass && sym.asClass.isCaseClass) {
+        val ctor   = current.decl(termNames.CONSTRUCTOR).asMethod
+        val params = ctor.paramLists.headOption.getOrElse(Nil)
+        params.find(_.name.decodedName.toString == segments(si)) match {
+          case Some(param) => current = param.typeSignature.asSeenFrom(current, sym).dealias
+          case None        => resolvable = false
+        }
+      } else {
+        resolvable = false
+      }
+      si += 1
+    }
+    if (resolvable && (current.dealias <:< typeOf[Option[Any]]))
+      c.abort(
+        c.enclosingPosition,
+        s"optionalizeField requires source field '$sourceFieldName' to be a non-Option type, " +
+          s"but found $current. " +
+          s"optionalizeField wraps the value in Option at runtime."
+      )
+    checkCollisionAtCallSite(c)(
+      "optionalizeField",
+      List(sourceFieldName),
+      List(targetFieldName),
+      false,
+      aType,
+      bType,
+      csType
+    )
     val optionalizeFieldType = createOptionalizeFieldType(c)(sourceFieldName, targetFieldName)
     val newCSType            = addToChangeset(c)(csType, optionalizeFieldType)
 
@@ -328,7 +575,16 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val sourceFieldName     = extractFieldPathFromSelector(c)(source.tree)
+    val sourceFieldName = extractFieldPathFromSelector(c)(source.tree)
+    checkCollisionAtCallSite(c)(
+      "changeFieldType",
+      List(sourceFieldName),
+      List(sourceFieldName),
+      false,
+      aType,
+      bType,
+      csType
+    )
     val changeFieldTypeType = createChangeFieldTypeType(c)(sourceFieldName)
     val newCSType           = addToChangeset(c)(csType, changeFieldTypeType)
 
@@ -457,8 +713,23 @@ object MigrationBuilderMacros {
       newCSType = createRefinedType(c)(newCSType, dotPath)
     }
 
+    // Resolve the target prefix against B by walking B's fields for each selector
+    // segment; abort if any segment is absent in B. The emitted MigrateField keeps
+    // the source path (the runtime navigates the source value).
+    val targetFieldPrefix = resolveTargetPrefix(c)(bType, sourceFieldName)
+
+    checkCollisionAtCallSite(c)(
+      "migrateField",
+      sourceFieldName :: nestedSourceFields.map(nestedField => s"$sourceFieldName.$nestedField"),
+      targetFieldPrefix :: nestedTargetFields.map(nestedField => s"$targetFieldPrefix.$nestedField"),
+      false,
+      aType,
+      bType,
+      csType
+    )
+
     for (nestedField <- nestedTargetFields) {
-      val dotPath = s"$sourceFieldName.$nestedField"
+      val dotPath = s"$targetFieldPrefix.$nestedField"
       newCSType = createRefinedType(c)(newCSType, dotPath)
     }
 
@@ -489,6 +760,31 @@ object MigrationBuilderMacros {
     migration: c.Expr[Migration[F1, F2]]
   ): c.Tree =
     migrateFieldExplicitImpl[A, B, F1, F2, CS](c)(selector, migration)
+
+  // Walks B's case-class fields for each selector segment. When any segment cannot be
+  // resolved (structural/refinement B types, which Scala 2 cannot enumerate), falls back
+  // to the legacy source-prefix behavior instead of aborting.
+  private def resolveTargetPrefix(c: whitebox.Context)(bType: c.universe.Type, sourceFieldPath: String): String = {
+    import c.universe._
+
+    val resolved =
+      sourceFieldPath.split('.').toList.foldLeft((bType, List.empty[String])) { case ((current, prefix), segment) =>
+        val sym  = current.typeSymbol
+        val next =
+          if (sym.isClass && sym.asClass.isCaseClass) {
+            val ctor = current.decl(termNames.CONSTRUCTOR).asMethod
+            ctor.paramLists.headOption
+              .getOrElse(Nil)
+              .find(_.name.decodedName.toString == segment)
+              .map(param => param.typeSignature.asSeenFrom(current, sym))
+          } else None
+        next match {
+          case Some(fieldType) => (fieldType.dealias, prefix :+ segment)
+          case None            => return sourceFieldPath
+        }
+      }
+    resolved._2.mkString(".")
+  }
 
   private def extractCaseClassFields(c: whitebox.Context)(tpe: c.universe.Type): List[String] = {
     import c.universe._
@@ -552,7 +848,9 @@ object MigrationValidationMacros {
     q"_root_.zio.blocks.schema.migration.MigrationComplete.unsafeCreate[$sourceType, $targetType, $csType]"
   }
 
-  private def extractHandledAndProvided(c: whitebox.Context)(tpe: c.universe.Type): (Set[String], Set[String]) = {
+  private def extractHandledAndProvided(c: whitebox.Context)(
+    tpe: c.universe.Type
+  ): (Set[String], Set[String]) = {
     import c.universe._
 
     var handled  = Set.empty[String]

@@ -535,6 +535,34 @@ object MigrationSpec extends ZIOSpecDefault {
         assertTrue(result == Right(OuterV2("test", InnerV2(42, "hello", false))))
       },
 
+      test("migrateField with differing nested leaf names") {
+        case class DetailV1(info: String, count: Int)
+        case class DetailV2(info: String, total: Int, verified: Boolean)
+        case class ReportV1(title: String, detail: DetailV1)
+        case class ReportV2(title: String, detail: DetailV2)
+
+        implicit val detailV1Schema: Schema[DetailV1] = Schema.derived[DetailV1]
+        implicit val detailV2Schema: Schema[DetailV2] = Schema.derived[DetailV2]
+        implicit val reportV1Schema: Schema[ReportV1] = Schema.derived[ReportV1]
+        implicit val reportV2Schema: Schema[ReportV2] = Schema.derived[ReportV2]
+
+        val detailMigration: Migration[DetailV1, DetailV2] = Migration
+          .newBuilder[DetailV1, DetailV2]
+          .renameField(_.count, _.total)
+          .addField(_.verified, literal(true))
+          .build
+
+        val reportMigration = Migration
+          .newBuilder[ReportV1, ReportV2]
+          .migrateField(_.detail, detailMigration)
+          .build
+
+        val input  = ReportV1("r1", DetailV1("ok", 3))
+        val result = reportMigration(input)
+
+        assertTrue(result == Right(ReportV2("r1", DetailV2("ok", 3, true))))
+      },
+
       test("MigrateField action reverse works correctly") {
         val innerMigration = DynamicMigration.single(
           MigrationAction.AddField(
