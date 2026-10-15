@@ -170,17 +170,18 @@ Two types carry the whole lifecycle:
 
 ## How They Work Together
 
-A projection goes through seven steps from declaration to query:
+A projection goes through eight steps, from the declaration in your code to a row you can query:
 
-1. **Declare** — call `Projection[A](name)` (per-entity) or `Projection.global[A](name)` (shared aggregate). This produces an empty, immutable descriptor holding the schema and entity path.
-2. **Bind a source** — call `Projection#from(sourceName)` then one of `FromBuilder#routeToSelf`, `FromBuilder#routedBy[E](_.field)`, or `FromBuilder#routeToAll`. This adds a `SourceBinding` that names the event store to read from and records the routing decision.
-3. **Add handlers** — call `Projection#on[E]` then a `HandlerBuilder` verb such as `insert(...)`, `aggregate(FieldUpdate.Increment(...))`, or `custom(...)`. Each handler is a pure function `(E, ProjectionContext) => ProjectionAction[A]` that describes what to do but performs no effects.
-4. **Create the engine** — call `TestEngine.make(projection)` in tests or `ProjectionEngine.makeWithStores(...)` on the JVM with real SQLite stores.
-5. **Append events** — call `eventStore.append(entityId, event)`. The store assigns a monotonic `seq`, wraps the event in an `EventEnvelope`, and publishes it to its `Hub`.
-6. **Automatic processing** — the engine's catch-up and live fibers dequeue each `EventEnvelope`, build a `ProjectionContext` from the envelope metadata, and call `projection.handle(event, ctx, source)`. The returned `Option[ProjectionAction[A]]` (if non-empty) is applied to the right `ProjectionStore[A]` (chosen by the routing key), and the watermark is advanced to the envelope's `seq`.
-7. **Query** — call `engine.query(projection, entityId)`, which delegates to `ProjectionStore[A].findById(entityId)`.
+1. **Declare the projection.** Call `Projection[A](name)` for a read model with one row per entity, or `Projection.global[A](name)` for one shared row of totals. The result is an empty, immutable description: it knows the shape of a row and where its files go, and nothing else yet.
+2. **Say where the events come from.** Call `from(sourceName)` to name the event store the projection reads. A projection can read several, one `from` call each: everything that follows a `from` call, the routing and the handlers up to the next `from`, belongs to that source, which is how one read model can combine facts from more than one feed, such as a daily stats row that counts both new users and new repositories (see [Several Sources](./projection.md#several-sources)).
+3. **Say how the events are routed.** Right after `from`, choose one of three: `routeToSelf` sends each event to the row of the entity it was recorded under, `routedBy[E](_.field)` groups events by a value read from the event, and `routeToAll` sends them all to one store.
+4. **Say what each event does.** Call `on[E]` for an event type, then a verb such as `insert(...)`, `aggregate(FieldUpdate.Increment(...))` or `custom(...)`. A handler is a plain function from the event and its metadata to a `ProjectionAction`: it describes the change and does not perform it.
+5. **Create an engine.** In a test, `TestEngine.make(projection)` wires everything up in memory. In an application, `ProjectionEngine.makeWithStores(...)` takes the SQLite stores you created.
+6. **Append events.** Call `eventStore.append(entityId, event)`. The store gives the event the next sequence number, wraps it in an `EventEnvelope` with that number, its tag, the time and the entity ID, and publishes it to the engine.
+7. **The engine does the rest.** It first catches up on the events it has not seen yet, then follows new ones as they arrive. For each event it builds a `ProjectionContext` from the envelope, asks the projection for the handler's action with `handle`, applies that action to the store chosen by the routing, and saves the sequence number as its watermark, so that a restart continues from there.
+8. **Query.** Call `engine.query(projection, entityId)` to read the row back from the store.
 
-The data flow among the types is:
+The diagram shows how the types hand the data along:
 
 ```
 ┌─────────────────────┐              ┌──────────────────────┐
