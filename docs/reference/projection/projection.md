@@ -11,7 +11,7 @@ keywords:
   - "Projection Declaration"
 ---
 
-`Projection[A]` is the declarative description of a read model `A` built from events. It encodes which event sources to listen to, how to route each event to a specific entity or shard, and what each event type does to the read model's shape. A `Projection` is pure data — it carries no effects and makes no I/O calls; a `ProjectionEngine` (or `TestEngine` for tests) reads it and drives the actual event processing. See the [projection overview](./index.md) for a guide to how all the module's types work together.
+`Projection[A]` is the declarative description of a read model `A` built from events. It encodes which event sources to listen to, how to route each event to a specific entity or shard, and what each event type does to the read model's shape. A `Projection` is pure data — it carries no effects and makes no I/O calls; a `ProjectionEngine` reads it and drives the actual event processing. See the [projection overview](./index.md) for a guide to how all the module's types work together.
 
 ```scala
 final class Projection[A] private[projection](
