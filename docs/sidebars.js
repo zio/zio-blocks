@@ -416,6 +416,7 @@ const sidebars = {
                     "reference/projection/projection",
                     "reference/projection/engine",
                     "reference/projection/event-store",
+                    "reference/projection/projection-store",
                     "reference/projection/testing",
                   ],
                 },
