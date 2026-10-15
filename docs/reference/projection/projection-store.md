@@ -66,7 +66,7 @@ enum FieldUpdate {
 
 ## Implementations
 
-`SQLiteProjectionStore[A]` is the production implementation on the JVM. The engine creates it automatically when `sqlite-jdbc` is on the classpath, storing each projection in a separate SQLite file under `<entityPath.basePath>/<name>.db`. Each file runs in WAL mode so readers never block writers.
+`SQLiteProjectionStore[A]` is the production implementation on the JVM. `ProjectionEngine.make` creates one for each projection, storing it in a separate SQLite file under `<entityPath.basePath>/<name>.db`; it needs `sqlite-jdbc` on the runtime classpath. Each file runs in WAL mode so readers never block writers.
 
 `InMemoryProjectionStore[A]` is a `Map`-backed implementation intended for tests. It simulates `FieldUpdate` operations by decoding the stored entity into a [`DynamicValue`](../schema/dynamic-value.md), applying the mutation, and re-encoding. `TestEngine.make` creates one automatically per projection.
 

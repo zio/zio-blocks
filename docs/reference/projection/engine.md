@@ -11,7 +11,7 @@ keywords:
   - "SQLite Projections"
 ---
 
-`ProjectionEngine` is the runtime that turns a `Projection[A]` descriptor into a live read model. It reads events from `EventStore` instances, calls each projection's handlers, and writes the resulting state into `ProjectionStore` instances — SQLite files on JVM, or in-memory maps when SQLite is unavailable or during tests. On startup it validates schemas and rebuilds any store whose schema has drifted; once running it maintains one catch-up fiber and one live-streaming fiber per source binding, keeping every read model up to date. See the [overview](./index.md) for how `EventStore`, `ProjectionStore`, and `TestEngine` fit alongside it.
+`ProjectionEngine` is the runtime that turns a `Projection[A]` descriptor into a live read model. It reads events from `EventStore` instances, calls each projection's handlers, and writes the resulting state into `ProjectionStore` instances — SQLite files on the JVM, or in-memory maps in tests. On startup it validates schemas, rebuilds any store whose schema has drifted, and catches up on the history of each source binding; once running it keeps one fiber per source binding that follows new events, keeping every read model up to date. See the [overview](./index.md) for how `EventStore`, `ProjectionStore`, and `TestEngine` fit alongside it.
 
 The structural shape of the class is:
 
@@ -66,7 +66,7 @@ object ProjectionEngine {
 }
 ```
 
-**`make`** validates each projection's name and base path, then creates a primary `ProjectionStore` for each spec: `global/<name>.db` for global projections and `<basePath>/<name>.db` otherwise. If the SQLite JDBC driver is absent or the file cannot be opened, the engine falls back to an `InMemoryProjectionStore` without failing — data is lost on restart in that case. The created engine has no event stores; it cannot process any events until they are supplied. Use `makeWithStores` or `makeWithStoresVarargs` to give it event stores.
+**`make`** validates each projection's name and base path, then creates a primary `ProjectionStore` for each spec: `global/<name>.db` for global projections and `<basePath>/<name>.db` otherwise. A store opens its file only when it is first used, so the engine is created even if the SQLite JDBC driver is missing or a folder does not exist; the failure shows up when the store is first used. The created engine has no event stores, and they cannot be added later, so it cannot process any events. Use `makeWithStores` or `makeWithStoresVarargs` to give it event stores.
 
 **`makeWithConfig`** behaves identically to `make` but accepts a `ProjectionEngineConfig` for batch tuning and rebuild settings.
 
@@ -107,9 +107,9 @@ Each field controls a distinct aspect of engine behavior:
 - **`batchSize`** — the most events gathered into a single batch during catch-up. Larger values reduce per-batch overhead but increase memory usage and the window between a failure and when the watermark is saved.
 - **`batchTimeout`** — how long catch-up waits to fill a batch before processing whatever has arrived. At low event rates this prevents the replay from stalling indefinitely waiting for a full batch.
 - **`ringCapacity`** — the capacity of the bounded `Hub[EventEnvelope[E]]` created when `TestEngine` builds its in-memory event hub. Has no effect when an external `EventStore` already supplies its own hub.
-- **`rebuildParallelism`** — the batch size used by the background pre-warm when `lazyRebuild` is enabled: the pre-warm rebuilds pending projections in sequential batches of this size.
+- **`rebuildParallelism`** — the group size used by the background pre-warm when `lazyRebuild` is enabled. The pre-warm rebuilds the pending projections one after the other, group by group, so the value does not make rebuilds run at the same time.
 - **`lazyRebuild`** — when `false` (the default), any projection whose schema has changed is fully rebuilt during `start`, blocking initialization until the replay completes. When `true`, stale projections are only marked as pending at startup, then rebuilt on their first `query` call or in the background by the pre-warm fiber. Lazy rebuild shortens startup at the cost of a potential brief stall on the first read.
-- **`evolution`** — fine-grained control over the schema-evolution strategy; see the `SchemaEvolutionConfig` signature in the [Schema Evolution](#schema-evolution) section.
+- **`evolution`** — a `SchemaEvolutionConfig`, described under [Schema Evolution](#schema-evolution). The engine does not read it: it always tries the migration shortcut when a migration is registered, and uses its own `lazyRebuild` and `rebuildParallelism` above.
 
 ## Starting and Stopping
 
@@ -127,7 +127,7 @@ The method performs three phases in order:
 
 1. **Schema checks** — for each projection, `start` computes the current `SchemaHash` and compares it with the value stored in the primary store. If the hashes differ and `lazyRebuild` is `false`, the engine immediately attempts a migration shortcut (an `ALTER TABLE ADD COLUMN` for simple field additions) or falls back to a full event replay. If `lazyRebuild` is `true`, the projection is only marked pending; no rebuild happens yet.
 
-2. **Catch-up replay** — for each source binding, the engine starts a background task that reads the events it has not processed yet. It begins right after the last event it saved a record of, the watermark, and works through the stored events in batches. When it has read to the end of the stored events, the task finishes.
+2. **Catch-up replay** — for each source binding, `start` reads the events the projection has not processed yet. It begins right after the last event it saved a record of, the watermark, and works through the stored events in batches. It moves on only when it has read to the end of the stored events, so `start` waits for the catch-up to finish.
 
 3. **Live streaming** — only after catch-up completes does the engine subscribe to the event store's live hub. This sequencing prevents a race where a live event arrives while catch-up is still processing the same region of history. The live fiber runs until the scope closes.
 
@@ -259,8 +259,11 @@ final case class SchemaEvolutionConfig(
 )
 ```
 
-- `enableMigrationShortcut` turns the quick route on or off. When it is `false`, every schema change is handled with a full rebuild, even if a migration is registered.
-- `lazyRebuild` and `rebuildParallelism` are for the engine's lazy rebuild, described under `start`: with `lazyRebuild` on, a changed projection is only marked at startup and rebuilt later, and `rebuildParallelism` is how many are rebuilt in each batch, one batch after the other.
+- `enableMigrationShortcut` turns the quick route on or off for `checkAndRebuild`: when it is `false`, `checkAndRebuild` handles every schema change with a full rebuild.
+- `rebuildParallelism` is how many projections `SchemaEvolution.bulkRebuildPending` rebuilds at the same time.
+- `lazyRebuild` is not read anywhere.
+
+The engine uses none of these settings: it does not call `checkAndRebuild` or `bulkRebuildPending`, and it always tries the shortcut when a migration is registered. Its own lazy rebuild is set with `lazyRebuild` and `rebuildParallelism` on `ProjectionEngineConfig`, see [Configuration](#configuration).
 
 When `lazyRebuild` is on, the rebuild does not happen at startup but on the first query of the projection, or in the background. See [Configuration](#configuration) and [Starting and Stopping](#starting-and-stopping).
 
