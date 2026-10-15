@@ -176,9 +176,51 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
             )
           )
         )
-        val result  = migration(input)
-        val variant = result.toOption.get.asInstanceOf[DynamicValue.Variant]
-        assertTrue(result.isRight && variant.caseNameValue == "User")
+        val result = migration(input)
+        assertTrue(
+          result == Right(
+            DynamicValue.Variant(
+              "User",
+              DynamicValue.Record(
+                "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
+                "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(0))
+              )
+            )
+          )
+        )
+      },
+      test("applies actions through nested case path") {
+        val input = DynamicValue.Variant(
+          "Outer",
+          DynamicValue.Record(
+            "status" -> DynamicValue.Variant(
+              "InnerV1",
+              DynamicValue.Record("old" -> DynamicValue.Primitive(PrimitiveValue.String("x")))
+            )
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformCase(
+            root.caseOf("Outer").field("status"),
+            "InnerV1",
+            zio.blocks.chunk.Chunk(
+              MigrationAction.RenameField(root.field("old"), "new")
+            )
+          )
+        )
+        assertTrue(
+          migration(input) == Right(
+            DynamicValue.Variant(
+              "Outer",
+              DynamicValue.Record(
+                "status" -> DynamicValue.Variant(
+                  "InnerV1",
+                  DynamicValue.Record("new" -> DynamicValue.Primitive(PrimitiveValue.String("x")))
+                )
+              )
+            )
+          )
+        )
       },
       test("fails on non-Variant value") {
         val migration = DynamicMigration.single(
