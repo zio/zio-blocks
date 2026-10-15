@@ -147,7 +147,44 @@ The annotation takes precedence over the derivation algorithm, but not over an e
 
 A **source** is a named feed of events: one `EventStore`. The name is a plain string that you choose, such as `"users"` or `"orders"`, and it stands for the event store that holds those events. A projection does not hold an event store itself; it only says which source names it listens to, and the engine is given the actual event store for each name when it is created. Those are the `Map[String, EventStore[?]]` of `ProjectionEngine.makeWithStores`. If the engine has no event store under the name a projection uses, it falls back to the store named `"_default"`, and then to the first store it was given. It only logs "no EventStore for source ..." and skips the source when it has no event stores at all.
 
-A source is not the same thing as an entity. Many entities can write to one source: the source `"users"` can hold the events of `user-1`, `user-2` and every other user, each recorded under its own entity ID. Several projections can also listen to the same source, and one projection can listen to several sources, one `from` call each. **Each `from` call names a source the projection reads, and the routing call after it says how that source's events are routed.**
+A source is not the same thing as an entity:
+
+- An **entity** is what an event is about: one user, one order, one repository, identified by an ID such as `"user-1"`.
+- A **source** is where events are stored: one event store, named by a string such as `"users"`.
+
+One source holds the events of many entities, each recorded with the ID of the entity it belongs to:
+
+```scala
+users.append("user-1", UserCreated("Alice", "alice@example.com"))
+users.append("user-2", UserCreated("Bob", "bob@example.com"))
+users.append("user-1", EmailChanged("alice@zio.dev"))
+```
+
+The `"users"` source now holds three events about two entities:
+
+- seq 1: `user-1`, `UserCreated`
+- seq 2: `user-2`, `UserCreated`
+- seq 3: `user-1`, `EmailChanged`
+
+So `"users"` is not a user: it is the log where every user's events go.
+
+Several projections can listen to the same source. Here one keeps a row for each user and the other counts the users, and both read `"users"`:
+
+```scala
+// one row per user
+val profiles = Projection[UserProfile]("user_profiles")
+  .from("users").routeToSelf
+  .on[UserCreated].insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
+
+// one row counting all users
+val stats = Projection.global[UserStats]("user_stats")
+  .from("users").routeToAll
+  .on[UserCreated].aggregate(FieldUpdate.Increment("user_count", 1L))
+```
+
+The engine is given one event store under that name, `Map("users" -> users)`, and both projections read it. Each keeps its own position in its own store, so one can be ahead of the other.
+
+One projection can also listen to several sources, one `from` call each, see [Several Sources](#several-sources). **Each `from` call names a source the projection reads, and the routing call after it says how that source's events are routed.**
 
 `from(sourceName)` starts a new source and returns a `FromBuilder[A]`. One of the four routing methods on `FromBuilder` must be called to finish it and return a new `Projection[A]`; the `on[E]` handlers that follow then belong to that source:
 
@@ -246,7 +283,13 @@ val activity = Projection[OwnerActivity]("ownerActivity")
 // activity.scope       == ProjectionScope.CrossEntity(...)
 ```
 
-The engine needs an `EventStore` for each name, `"repos"` and `"issues"`, in the `eventStores` map you give it. Here both sources use `routedBy` with the owner, so a repository and an issue of the same owner go to the same shard store. The routing mode, such as `routedBy` here, is chosen for each source right after its `from`, while the scope belongs to the whole projection.
+Read the chain in groups. Each group starts with a `from` and ends just before the next `from`, and everything in it, the routing call and the `on[E]` handlers, belongs to that source. The routing call applies only to the source just named, while the scope belongs to the whole projection.
+
+The engine needs an `EventStore` for each name, `"repos"` and `"issues"`, in the `eventStores` map you give it. Here both sources use `routedBy` with the owner, so a repository and an issue of the same owner go to the same shard store.
+
+Another common case is one row of totals fed by two logs, such as a daily stats row that counts new users from `"users"` and new repositories from `"repos"`. The full example under [Aggregating Fields](#aggregating-fields) does that.
+
+If two sources have a handler for the same event type, only the handler of the source added first runs, for the events of both sources; see [Defining Handlers](#defining-handlers).
 
 ### Putting Sources and Routing Together
 
