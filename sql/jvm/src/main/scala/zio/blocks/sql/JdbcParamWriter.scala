@@ -55,6 +55,11 @@ private[sql] class JdbcParamWriter(val underlying: PreparedStatement) extends Db
 
   def setUUID(index: Int, value: java.util.UUID): Unit = underlying.setObject(index, value)
 
+  override def setJsonb(index: Int, value: String): Unit =
+    // Types.OTHER lets the PostgreSQL driver infer jsonb without a manual
+    // `::jsonb` cast; other drivers treat it as a string-like object.
+    underlying.setObject(index, value, java.sql.Types.OTHER)
+
   def setNull(index: Int, sqlType: Int): Unit = underlying.setNull(index, sqlType)
 
   def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit = {

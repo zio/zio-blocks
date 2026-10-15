@@ -222,6 +222,7 @@ object SqlQuery {
     case _: DbValue.DbInstant       => "Instant"
     case _: DbValue.DbDuration      => "Duration"
     case _: DbValue.DbUUID          => "UUID"
+    case _: DbValue.DbJsonb         => "Jsonb"
     case _: DbValue.DbArray         => "Array"
   }
 }

@@ -101,6 +101,10 @@ object DbValueSpec extends ZIOSpecDefault {
       val v    = DbValue.DbUUID(uuid)
       assertTrue(v.value == uuid)
     },
+    test("DbJsonb creation and extraction") {
+      val v = DbValue.DbJsonb("""{"a":1}""")
+      assertTrue(v.value == """{"a":1}""")
+    },
     test("all DbValue types are case classes or case objects") {
       assertTrue(
         DbValue.DbNull.isInstanceOf[DbValue] &&

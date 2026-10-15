@@ -558,6 +558,7 @@ object Frag {
         case DbValue.DbInstant(v)       => writer.setInstant(idx, v)
         case DbValue.DbDuration(v)      => writer.setDuration(idx, v)
         case DbValue.DbUUID(v)          => writer.setUUID(idx, v)
+        case DbValue.DbJsonb(v)         => writer.setJsonb(idx, v)
         case DbValue.DbArray(t, elems)  => writer.setArray(idx, t, elems)
       }
       i += 1

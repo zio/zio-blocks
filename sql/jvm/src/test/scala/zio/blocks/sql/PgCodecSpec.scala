@@ -80,7 +80,7 @@ object PgCodecSpec extends ZIOSpecDefault {
         val decoded = codec.readValue(new StringReader(json.print), 1)
 
         assertTrue(
-          encoded == IndexedSeq(DbValue.DbString(json.print)),
+          encoded == IndexedSeq(DbValue.DbJsonb(json.print)),
           decoded == json
         )
       },
