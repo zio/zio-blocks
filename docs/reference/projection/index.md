@@ -11,9 +11,6 @@ keywords:
   - "Declarative Handlers"
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 The projection module turns an append-only event log into queryable read models with a purely declarative API. You describe — once, in a builder chain — which events a model listens to, how they route to entity stores, and what each kind of event does to the model. An engine then reads those descriptions and handles replay, watermark tracking, schema-change detection, and live streaming automatically. 
 
 ## Event Sourcing Basics
@@ -166,7 +163,7 @@ A [`TransactorCache`](./engine.md#connection-management) loads the SQLite driver
 Two types carry the whole lifecycle:
 
 - [`Projection[A]`](./projection.md) is the descriptor: a pure, immutable value that names the read model, lists its sources, and records a handler per event type. It holds no fibers.
-- [`ProjectionEngine`](./engine.md) is the runtime: it reads `Projection[A]` values, connects each one to an `EventStore[E]`, and drives events through the right handler into a `ProjectionStore[A]`. It does not inspect the handler functions. `EventStore[E]` is the write-side contract, the log that events are appended to, and `ProjectionStore[A]` is the read-side contract, the rows of a read model, as described under [Event Sourcing Basics](#event-sourcing-basics).
+- [`ProjectionEngine`](./engine.md) is the runtime: it reads `Projection[A]` values, connects each one to an `EventStore[E]`, and drives events through the right handler into a `ProjectionStore[A]`. It does not inspect the handler functions. `EventStore[E]` is the write-side contract, the log that events are appended to, and [`ProjectionStore[A]`](./projection-store.md) is the read-side contract, the rows of a read model, as described under [Event Sourcing Basics](#event-sourcing-basics).
 
 ## How They Work Together
 
@@ -227,87 +224,6 @@ Open the event store and the projection store yourself, through a `TransactorCac
 ```
 
 The files stay on disk after the program ends. When a program starts again, the events are still in `events/users.db`, and the engine continues after the last event it processed, so no event is applied twice. The files are plain SQLite databases, so `sqlite3 users/user_profiles.db` shows the rows while the program is stopped.
-
-## Event Store
-
-`EventStore[E]` is the write side of the module: an append-only log for one event type `E`. It assigns a monotonic sequence number to each event, streams history on demand, and broadcasts live events to a `Hub`. The [EventStore[E]](./event-store.md) page documents it, together with `EventEnvelope` and event tags.
-
-## Projection Persistence
-
-`ProjectionStore[A]` is the read side of the module: a persistence contract for projection rows. Each `ProjectionStore[A]` also holds the engine's watermark and the schema hash alongside the entity rows:
-
-```scala
-import zio._
-import zio.blocks.projection._
-
-trait ProjectionStore[A] {
-  // Row mutations
-  def insert(a: A): Task[Unit]
-  def upsert(a: A): Task[Unit]
-  def updateFields(entityId: String, updates: Chunk[FieldUpdate]): Task[Unit]
-  def delete(entityId: String): Task[Unit]
-  def truncate: Task[Unit]
-
-  // Row reads
-  def findById(entityId: String): Task[Option[A]]
-
-  // Watermark — last successfully processed event seq
-  def getLastProcessedSeq: Task[Long]
-  def updateLastProcessedSeq(seq: Long): Task[Unit]
-
-  // Schema fingerprint — triggers rebuild when changed
-  def getSchemaHash: Task[Option[String]]
-  def updateSchemaHash(hash: String): Task[Unit]
-}
-```
-
-`ProjectionStore#upsert` uses `INSERT ... ON CONFLICT DO UPDATE` so no read-before-write is needed. `ProjectionStore#updateFields` runs field-level mutations inside a single transaction — it inserts a default row first with `INSERT OR IGNORE`, then applies each `FieldUpdate` in one round trip.
-
-### FieldUpdate
-
-`FieldUpdate` describes a single field-level mutation and is used inside a `ProjectionAction.Update`:
-
-<Tabs groupId="scala-version" defaultValue="scala2">
-<TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.projection._
-
-sealed abstract class FieldUpdate
-object FieldUpdate {
-  final case class Set(field: String, value: Any)     extends FieldUpdate
-  final case class Increment(field: String, by: Long) extends FieldUpdate
-  final case class Decrement(field: String, by: Long) extends FieldUpdate
-  final case class Max(field: String, value: Long)    extends FieldUpdate
-  final case class Min(field: String, value: Long)    extends FieldUpdate
-}
-```
-
-</TabItem>
-<TabItem value="scala3" label="Scala 3">
-
-```scala
-import zio.blocks.projection._
-
-enum FieldUpdate {
-  case Set(field: String, value: Any)     extends FieldUpdate
-  case Increment(field: String, by: Long) extends FieldUpdate
-  case Decrement(field: String, by: Long) extends FieldUpdate
-  case Max(field: String, value: Long)    extends FieldUpdate
-  case Min(field: String, value: Long)    extends FieldUpdate
-}
-```
-
-</TabItem>
-</Tabs>
-
-`Increment`, `Decrement`, `Max`, and `Min` are atomic in SQLite (`COALESCE(col, 0) + ?`, `MAX(col, ?)`, etc.), so no separate read is required. Field names can be given as raw snake_case strings (`FieldUpdate.Increment("user_count", 1L)`) or via a compile-time selector that maps Scala field names automatically (`FieldUpdate.increment[Stats](_.userCount)`).
-
-### Implementations
-
-`SQLiteProjectionStore[A]` is the production implementation on the JVM. The engine creates it automatically when `sqlite-jdbc` is on the classpath, storing each projection in a separate SQLite file under `<entityPath.basePath>/<name>.db`. Each file runs in WAL mode so readers never block writers.
-
-`InMemoryProjectionStore[A]` is a `Map`-backed implementation intended for tests. It simulates `FieldUpdate` operations by decoding the stored entity into a [`DynamicValue`](../schema/dynamic-value.md), applying the mutation, and re-encoding. `TestEngine.make` creates one automatically per projection.
 
 ## See Also
 
