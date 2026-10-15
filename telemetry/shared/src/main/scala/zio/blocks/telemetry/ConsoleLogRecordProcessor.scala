@@ -19,7 +19,8 @@ package zio.blocks.telemetry
 /**
  * Console log processor — triggers the fast ConsoleLogEmitter in Logger. Uses a
  * format that writes directly from raw values, bypassing LogRecord. Format:
- * "2026-03-31T17:30:00.123Z INFO [MyClass.method:42] message {key=val}"
+ * "2026-03-31T17:30:00.123Z INFO message [MyClass.method]
+ * /captured/path/MyClass.scala:42 {key=val}"
  *
  * When a LogRecord is passed via emit() (e.g. via bridges/adapters), delegates
  * to StdoutLogRecordProcessor to ensure full formatting with attributes and
