@@ -218,6 +218,43 @@ Projection[UserProfile]("userProfiles")
   .on[UserCreated].insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
 ```
 
+Here is what that projection keeps in SQLite, with `UserProfile(@Modifier.id userId: String, name: String, email: String)` as the row type, whose derived folder is `users`, after two `UserCreated` events. The events are in the `"users"` source, each recorded under an entity ID:
+
+```text
+events/users.db, table events
+seq | tag         | payload                                      | entityId
+1   | UserCreated | {"name":"Alice","email":"alice@example.com"} | user-1
+2   | UserCreated | {"name":"Bob","email":"bob@example.com"}     | user-2
+```
+
+The projection's store is the file `users/userProfiles.db`. It has a table named after the row type, with one column for each field and a unique index on the ID column:
+
+```sql
+CREATE TABLE user_profile (
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL
+);
+CREATE UNIQUE INDEX idx_user_profile_user_id ON "user_profile" ("user_id");
+```
+
+Each event's `entityId` became the `user_id` of the row it inserted, so there is one row for each entity:
+
+```text
+users/userProfiles.db, table user_profile
+user_id | name  | email
+user-1  | Alice | alice@example.com
+user-2  | Bob   | bob@example.com
+```
+
+The same file also has a `_projection_meta` table, with one row for the projection: `last_seq` is the sequence number of the last event applied, and `schema_hash` is the fingerprint of `UserProfile`:
+
+```text
+users/userProfiles.db, table _projection_meta
+name         | last_seq | schema_hash  | updated_at
+user_profile | 2        | b8a9d291...  | 1792090024817
+```
+
 #### `routeToAll`
 
 `routeToAll` is for a source whose events all feed shared rows, typically in a projection made with `Projection.global[A]`. It does not make the projection global, which only `Projection.global` does, and it does not merge rows: to count everything in one row, record the events under one ID, such as a date:
