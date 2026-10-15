@@ -468,7 +468,7 @@ Running it prints one line for each user:
 
 Handlers describe changes as `ProjectionAction` values and cannot perform effects. The engine applies each returned action to the projection store; the handler only decides which action to produce. This separation makes event replay deterministic: running the same sequence of events through the same handlers always yields the same read-model state.
 
-### Default Source Binding
+### Default Source
 
 Most projections read one event feed and keep each entity's row under its own ID. Writing `.from("some-name").routeToSelf` for that would mean inventing a name for a feed that has only one meaning, so the library lets you skip it. When you add the first handler to a projection that has no source binding yet, with `on[E]` and no `from()` before it, the library creates the binding for you:
 
