@@ -46,8 +46,17 @@ final class SmallMigrator[A, B, ID1, ID2](
    * table via `TargetStrategyApplier.prepare`. When `captureTriggers` is
    * enabled, installs capture triggers on the source table. Safe to call
    * multiple times (idempotent after first success).
+   *
+   * Thread-safe: concurrent `init()` calls are serialized so the target is
+   * prepared and the triggers installed exactly once. Trigger installation runs
+   * inside the same preparation transaction and relies on the documented
+   * idempotence of `QueueTable.installTriggers` (SQLite `CREATE TRIGGER IF NOT
+   * EXISTS`, PostgreSQL `CREATE OR REPLACE TRIGGER`).
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if called after `complete()`; create a new migrator instead
    */
-  def init(): Unit = {
+  def init(): Unit = synchronized {
     require(!completed, "cannot init() after complete(); create a new migrator")
     if (initialized) return
     transactor.transact { (tx: DbTx) ?=>
@@ -67,6 +76,10 @@ final class SmallMigrator[A, B, ID1, ID2](
    * (shadow table replaces the live table). Requires init() first and refuses
    * to run while the queue still has pending items — draining is the caller's
    * responsibility.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `init()` was not called first, if called twice, or if items are still
+   *   pending in the queue
    */
   def complete(): Unit = {
     require(initialized, "init() must be called before complete()")
@@ -101,7 +114,12 @@ final class SmallMigrator[A, B, ID1, ID2](
     buf.result()
   }
 
-  /** Processes one batch. Returns count of migrated rows. */
+  /**
+   * Processes one batch. Returns count of migrated rows.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `init()` was not called first or after `complete()`
+   */
   def processBatch(): Int = {
     require(initialized, "init() must be called before processBatch()")
     require(!completed, "cannot processBatch() after complete(); create a new migrator")

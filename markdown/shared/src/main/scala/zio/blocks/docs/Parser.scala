@@ -38,12 +38,35 @@ import zio.blocks.chunk.Chunk
  *   - HTML blocks and inline HTML
  *
  * ==Not Supported==
- *   - YAML frontmatter (causes parse error)
+ *   - YAML frontmatter in strict `parse` (causes parse error; use
+ *     `parseWithFrontmatter` to accept and read it instead). Fence detection
+ *     tolerates CRLF: `---\r\n` fences are honored exactly like `---\n` ones.
  *   - Setext headings (use ATX style)
  *   - Indented code blocks (use fenced)
  *   - Link reference definitions
  */
 object Parser {
+
+  /**
+   * Fence comparison tolerant of a trailing carriage return, so CRLF documents
+   * detect frontmatter exactly like LF ones. Only the fence lines are folded:
+   * the body keeps its original newlines.
+   */
+  private def isFenceLine(line: String): Boolean =
+    line == "---" || line == "---\r"
+
+  /**
+   * Shared fence scan behind `stripFrontmatter` and the strict `parse` gate.
+   * Returns the line index just past the closing fence, or `None` when the
+   * input does not open with a well-formed `---` fence pair (unclosed fences
+   * and empty `---`/`---` pairs are not frontmatter, in both line endings).
+   */
+  private def frontmatterEnd(lines: Array[String]): Option[Int] =
+    if (lines.nonEmpty && isFenceLine(lines(0))) {
+      var i = 1
+      while (i < lines.length && !isFenceLine(lines(i))) i += 1
+      if (i < lines.length && i > 1) Some(i + 1) else None
+    } else None
 
   /**
    * Parses a markdown string into a Doc.
@@ -63,6 +86,57 @@ object Parser {
     state.parseDocument()
   }
 
+  /**
+   * Parses a markdown string that may carry YAML frontmatter.
+   *
+   * Frontmatter is a leading `---` fence with `key: value` lines and a closing
+   * `---` fence, in LF or CRLF line endings. The pairs are returned as a `Map`
+   * alongside the parsed [[Doc]] (which also carries them in its metadata).
+   * Inputs without frontmatter parse exactly like `parse`; strict `parse` is
+   * unchanged and still rejects frontmatter.
+   *
+   * @param input
+   *   The markdown string to parse
+   * @return
+   *   Either a [[ParseError]], or the frontmatter pairs with the parsed [[Doc]]
+   */
+  def parseWithFrontmatter(input: String): Either[ParseError, (Map[String, String], Doc)] = {
+    val (meta, rest) = stripFrontmatter(input)
+    parse(rest).map(doc => (meta, doc.copy(metadata = doc.metadata ++ meta)))
+  }
+
+  /**
+   * Splits leading YAML frontmatter off a markdown string.
+   *
+   * Returns the `key: value` pairs between the opening and closing `---` fences
+   * plus the remaining document. Inputs without a well-formed leading fence
+   * return an empty map and the input unchanged.
+   *
+   * Kept private so `parseWithFrontmatter` stays the single public entry:
+   * callers should not pre-strip (and re-join) around strict `parse`.
+   *
+   * @param input
+   *   The markdown string to strip
+   * @return
+   *   The frontmatter pairs and the remaining document
+   */
+  private def stripFrontmatter(input: String): (Map[String, String], String) = {
+    val lines = input.split("\n", -1)
+    frontmatterEnd(lines) match {
+      case Some(end) =>
+        val meta = lines
+          .slice(1, end - 1)
+          .flatMap { line =>
+            val sep = line.indexOf(':')
+            if (sep > 0) Some(line.substring(0, sep).trim -> line.substring(sep + 1).trim)
+            else None
+          }
+          .toMap
+        (meta, lines.drop(end).mkString("\n"))
+      case None => (Map.empty, input)
+    }
+  }
+
   private class ParserState(input: String) {
     private val lines: Array[String] = input.split("\n", -1)
     private var lineIndex: Int       = 0
@@ -74,20 +148,9 @@ object Parser {
       } yield Doc(blocks)
 
     private def checkFrontmatter(): Either[ParseError, Unit] =
-      if (lines.nonEmpty && lines(0) == "---") {
-        var i        = 1
-        var foundEnd = false
-        while (i < lines.length && !foundEnd) {
-          if (lines(i) == "---") foundEnd = true
-          i += 1
-        }
-        if (foundEnd && i > 2) {
-          Left(ParseError("Frontmatter is not supported", 1, 1, lines(0)))
-        } else {
-          Right(())
-        }
-      } else {
-        Right(())
+      frontmatterEnd(lines) match {
+        case Some(_) => Left(ParseError("Frontmatter is not supported", 1, 1, lines(0)))
+        case None    => Right(())
       }
 
     private def parseBlocks(): Either[ParseError, Chunk[Block]] = {
