@@ -278,6 +278,8 @@ final class HandlerBuilder[E, A] {
 
 When an event arrives, the projection looks for a handler by the event's class. A handler matches any event that is an instance of its event type, so a handler for a sealed trait also matches each of its cases. If more than one handler matches, the first one added wins. The engine searches the handlers of all the sources together, in the order the sources were added, and it does not narrow the search to the source the event came from. So when two sources have a handler for the same event type, the handler of the source added first handles the events of both.
 
+Handlers describe changes as `ProjectionAction` values and cannot perform effects. The engine applies each returned action to the projection store; the handler only decides which action to produce. This separation makes event replay deterministic: running the same sequence of events through the same handlers always yields the same read-model state.
+
 ### ProjectionContext
 
 Every handler function receives a `ProjectionContext` alongside the event, providing the metadata the engine attached when it processed the event envelope:
@@ -411,9 +413,6 @@ Running it prints one line for each user:
 - `user-3`: `Carol <carol@example.com>, closed`. Only `status` changed.
 - `user-4`: `no row`. The row was created, then removed by `Delete`.
 
-### Handlers Are Pure Functions
-
-Handlers describe changes as `ProjectionAction` values and cannot perform effects. The engine applies each returned action to the projection store; the handler only decides which action to produce. This separation makes event replay deterministic: running the same sequence of events through the same handlers always yields the same read-model state.
 
 ### Default Source
 
