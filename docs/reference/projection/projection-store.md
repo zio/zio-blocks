@@ -44,7 +44,7 @@ trait ProjectionStore[A] {
 
 `ProjectionStore#upsert` uses `INSERT ... ON CONFLICT DO UPDATE` so no read-before-write is needed. `ProjectionStore#updateFields` runs inside a single transaction: it inserts a default row first with `INSERT OR IGNORE`, then runs one `UPDATE` for each `FieldUpdate`.
 
-`recreateTable` and `addColumn` are what [schema evolution](./engine.md#schema-evolution) uses. A full rebuild calls `recreateTable` to start from an empty table, and the migration shortcut calls `addColumn` for each new field. The defaults only truncate the rows and do nothing, which is what the in-memory store uses. `SQLiteProjectionStore` overrides both: `recreateTable` drops and recreates the table, and `addColumn` adds the column if it does not exist yet, after checking the name against `^[a-zA-Z_][a-zA-Z0-9_]*$`.
+`recreateTable` and `addColumn` are what [schema evolution](./migration.md#changing-the-read-model) uses. A full rebuild calls `recreateTable` to start from an empty table, and the migration shortcut calls `addColumn` for each new field. The defaults only truncate the rows and do nothing, which is what the in-memory store uses. `SQLiteProjectionStore` overrides both: `recreateTable` drops and recreates the table, and `addColumn` adds the column if it does not exist yet, after checking the name against `^[a-zA-Z_][a-zA-Z0-9_]*$`.
 
 ## FieldUpdate
 
@@ -76,3 +76,4 @@ enum FieldUpdate {
 - [Projection[A]](./projection.md) — the handlers whose actions are applied to a projection store, and [Aggregating Fields](./projection.md#aggregating-fields) for `FieldUpdate` in a projection.
 - [ProjectionEngine](./engine.md) — the runtime that writes to the projection stores and creates the SQLite ones.
 - [Testing](./testing.md) — `InMemoryProjectionStore` and the other in-memory helpers.
+- [Migration](./migration.md) — the full rebuild and the add-column shortcut that call `recreateTable` and `addColumn`.

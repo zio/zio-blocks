@@ -32,7 +32,7 @@ A few properties follow from this:
 - **Events are facts about the past.** They are only ever appended, never edited or deleted, and their order is kept. The log is the source of truth.
 - **State can be recomputed.** Replaying the same events always gives the same state, so a view of the data can be thrown away and rebuilt, or built in a different shape later.
 - **History comes for free.** You can answer "how did we get here?", not only "where are we now?".
-- **Events are permanent.** Once written they stay as they are, so renaming an event or changing its shape needs care. The [Event Tagging and Migration](./projection.md#event-tagging-and-migration) section covers this.
+- **Events are permanent.** Once written they stay as they are, so renaming an event or changing its shape needs care. The [Migration](./migration.md#changing-events) page covers this.
 
 ### Reading the current state
 
@@ -90,7 +90,7 @@ The terms below are used throughout the pages of this module. The first list giv
 - **Projection**: The rules, and the process running them, that keep a read model up to date by applying each event as it arrives.
 - **CQRS**: Command query responsibility segregation: the write side appends events, and the read side answers queries from read models.
 - **Eventual consistency**: A read model is updated shortly after an event is appended, so a query made right after a write may not see it yet.
-- **Event versioning (schema evolution)**: Changing the name or shape of an event or a read model after data exists. Old events stay as they are, so a migration maps them to the new shape, and a read model is rebuilt.
+- **Event versioning (schema evolution)**: Changing the name or shape of an event or a read model after data exists. Old events stay as they are and are read by the new code, and a read model is rebuilt from them. See [Migration](./migration.md).
 
 ```text
 event store  --(engine reads events and runs handlers)-->  projection store
@@ -106,7 +106,7 @@ The types below are the ones you meet when you use the library, grouped by the p
 - `EventStore`: The event log, as a trait. It appends events, reads the history, and lets a consumer follow new events.
 - `SQLiteEventStore`: An `EventStore` kept in a SQLite file.
 - `EventEnvelope`: An event together with the metadata the store records about it: its sequence number, its tag, its timestamp and the entity ID it was recorded under.
-- `eventTag`: The annotation `@eventTag(n)`, which gives an event case a stable numeric tag. See [Event Tagging and Migration](./projection.md#event-tagging-and-migration).
+- `eventTag`: The annotation `@eventTag(n)`, which gives an event case a stable numeric tag. See [Numeric Tags](./migration.md#numeric-tags--eventtag).
 
 #### Projections
 
@@ -136,8 +136,8 @@ The types below are the ones you meet when you use the library, grouped by the p
 
 - `EntityPath`: Says which folder the files of a projection go in and which field of the row is its ID. See [Entity Paths](./projection.md#entity-paths).
 - `SchemaHash`: A fingerprint of a read model's schema. When it changes, the engine rebuilds the `ProjectionStore`.
-- `SchemaEvolution`: Rebuilds a `ProjectionStore` by replaying the events. See [Schema Evolution](./engine.md#schema-evolution).
-- `TagInfo`: A cheat sheet of the tags of an event type: which tags are current, and which old tags were renamed to them. It lets an `EventStore` find the events that were saved under an old name. See [Tag aliases via Migration](./projection.md#tag-aliases-via-migration).
+- `SchemaEvolution`: Rebuilds a `ProjectionStore` by replaying the events. See [Full Rebuild](./migration.md#full-rebuild).
+- `TagInfo`: A cheat sheet of the tags of an event type: which tags are current, and which old tags were renamed to them. It lets an `EventStore` find the events that were saved under an old name. See [Renaming an Event Case](./migration.md#renaming-an-event-case).
 - `TagResolver`: Builds a `TagInfo` from an event type and, if a case was renamed, a `Migration`.
 
 ## Installation
@@ -168,7 +168,7 @@ Two types carry the whole lifecycle:
 A projection goes through nine steps, from the declaration in your code to a row you can query:
 
 1. **Declare the projection.** Call `Projection[A](name)` for a read model with one row per entity, or `Projection.global[A](name)` for one shared row of totals. The result is an empty, immutable description: it knows the shape of a row and where its files go, and nothing else yet.
-2. **Say where the events come from.** Call `from(sourceName)` to name the event store the projection reads. A projection can read several, one `from` call each: everything that follows a `from` call, the routing and the handlers up to the next `from`, belongs to that source, which is how one read model can combine facts from more than one feed, such as a daily stats row that counts both new users and new repositories (see [`from`](./projection.md#from)).
+2. **Say where the events come from.** Call `from(sourceName)` to name the event store the projection reads. A projection can read several, one `from` call each: everything that follows a `from` call, the routing and the handlers up to the next `from`, belongs to that source, which is how one read model can combine facts from more than one feed, such as a daily stats row that counts both new users and new repositories (see [`from`](./projection.md#defining-sources)).
 3. **Say how the events are routed.** Right after `from`, choose one of three:
    - **Per entity:** `routeToSelf` sends each event to the row of the entity it was recorded under.
    - **By a key from the event:** `routedBy[E](_.field)` groups events by a value read from the event.

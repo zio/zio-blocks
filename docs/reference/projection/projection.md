@@ -155,7 +155,7 @@ final class Projection[A] {
 }
 ```
 
-`from` adds a source to the projection: the event store that the engine is given under the name `sourceName`. It returns a `FromBuilder[A]`, on which you call one of the [routing methods](#routing-methods). The `on[E]` handlers after it belong to that source, up to the next `from`, so a projection that reads several sources calls `from` once for each:
+`from` adds a source to the projection: the event store that the engine is given under the name `sourceName`. It returns a `FromBuilder[A]`, on which you call one of the [routing methods](#defining-routes). The `on[E]` handlers after it belong to that source, up to the next `from`, so a projection that reads several sources calls `from` once for each:
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
@@ -549,7 +549,7 @@ Events are grouped by a key that is read from the event, not by the ID they were
 
 The routing key only chooses the shard. A row keeps its own ID, so two rows in the same shard still need different IDs. To read a row you give its ID: the engine looks in the main store first, and then in every shard. It uses the scope to know that there are shards to look in; it does not use the key to pick one.
 
-It is the right scope for views that group things by a related entity, such as the orders of a customer or the repositories of an owner. See [Routing Methods](#routing-methods) for a full example.
+It is the right scope for views that group things by a related entity, such as the orders of a customer or the repositories of an owner. See [Routing Methods](#defining-routes) for a full example.
 
 ### Global: one scoreboard on the wall
 
@@ -561,192 +561,6 @@ Two details matter in practice:
 
 - A counter update is applied to the row whose ID the event was recorded under. To keep one row of totals, record all the events under one fixed ID, for example a date or `"shop"`. Otherwise each event updates a different row.
 - A global projection has no `EntityPath`, so its store looks for an ID column called `id`. Name the ID field of the row `id`.
-
-## Event Tagging and Migration
-
-Event tags identify variant cases for serialization. By default, the tag is the case class name (e.g., `"UserCreated"`). You can override with numeric tags or rename cases across versions.
-
-### String tags (default)
-
-For a sealed trait `UserEvent` with cases `UserCreated` and `UserDeleted`, the tags are `"UserCreated"` and `"UserDeleted"`.
-
-### Numeric tags
-
-Use the `@eventTag` annotation for stable numeric identifiers:
-
-```scala mdoc:compile-only
-import zio.blocks.projection.eventTag
-import zio.blocks.schema.{Modifier, Schema}
-
-sealed trait UserEvent
-object UserEvent {
-  @eventTag(1)
-  case class Created(name: String) extends UserEvent
-  object Created {
-    implicit val schema: Schema[Created] = Schema.derived[Created]
-  }
-
-  @eventTag(2)
-  case class Deleted(userId: String) extends UserEvent
-  object Deleted {
-    implicit val schema: Schema[Deleted] = Schema.derived[Deleted]
-  }
-
-  implicit val schema: Schema[UserEvent] = Schema.derived[UserEvent]
-}
-```
-
-### Tag aliases via Migration
-
-Every event is saved with a tag, the name of its event type, and the tag is how the store finds events again. Suppose your application has recorded `UserLoggedIn` events for a year, and then you rename the case to `UserAuthenticated`. The old events are still in the database with the old tag, so code that asks for `UserAuthenticated` would not find them, and a year of history would seem to be gone.
-
-You fix this by describing the rename with a `Migration`, using `Migration.renameCase`, and opening the event store with it. Working out which tags an event type can have in the store is harder than it looks, because the answer is spread over several places:
-
-- The tags the type has now come from its cases, or from their `@eventTag` numbers.
-- The tags it had before are not in the type any more. A renamed case leaves nothing behind in the code, and the only record of the old name is the rename step in a `Migration`.
-- A case renamed more than once leaves a chain, such as `UserLoggedIn` to `UserSignedIn` to `UserAuthenticated`, and the oldest name has to lead to the newest.
-
-If every part of the store worked this out for itself, the parts could disagree. The code that decodes an event, the code that filters a read by tag, and the startup check would each need the same rules, and one of them getting a rule wrong would hide old events or report false warnings.
-
-`TagResolver` does this work once. It reads the current tags from the `Schema` of the event type and the old tags from the `renameCase` steps of the `Migration[E, E]`, where `E` is the event type. It follows the chains and returns one `TagInfo`, a small cheat sheet that says "anything tagged `UserLoggedIn` is now called `UserAuthenticated`", which the whole store consults. So you describe a rename in one place, the migration, and you do not rewrite the stored events or change the code that reads them. The event stores call `TagResolver` when they are created, so you normally only pass a migration to the store and never call it yourself. Call it directly when you want to check what a migration does, for example in a test.
-
-The example appends an event with the first version of the event type, then opens the same store with the second version and reads the old event back:
-
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example5TagRename.scala
-
-```
-
-#### What a TagInfo holds
-
-You do not write a `TagInfo` yourself. `TagResolver.resolve` builds it, and the event store keeps it and uses it when it reads. It holds four things:
-
-- `aliases`: the map from each old tag to the current tag it became.
-- `currentTags`: the tags that the event type has now.
-- `allTags`: the tags that may be in the database, which are the current tags and all the old ones.
-- `migration`: the migration that turns an old event into the current shape.
-
-```scala
-final case class TagInfo(
-  aliases: Map[String, String],
-  allTags: Set[String],
-  currentTags: Set[String],
-  migration: DynamicMigration
-) {
-  def isOldTag(tag: String): Boolean
-  def currentTagFor(oldTag: String): Option[String]
-  def normalize(tag: String): String
-  def migrateValue(dv: DynamicValue): Either[SchemaError, DynamicValue]
-  def expandRequested(requested: Set[String]): Set[String]
-  def unknownTags(distinctDbTags: Set[String]): Set[String]
-}
-```
-
-- `isOldTag` says whether a tag is an old name that was renamed, and `currentTagFor` gives the tag it became.
-- `normalize` returns the current tag for an old tag and any other tag unchanged, so you can compare tags without caring whether an event was saved before or after the rename.
-- `migrateValue` runs the migration on the stored value of an old event, so that it can be decoded with the current schema. The event store calls it when it reads an event that was saved under an old tag.
-- `expandRequested` widens a request so that nothing is missed: asking for `UserAuthenticated` also asks for `UserLoggedIn`. An empty request means all tags. This is what makes a filtered read return both the old and the new events.
-- `unknownTags` finds the tags in the database that the `TagInfo` does not explain, which is the check behind the startup warning below.
-
-#### Building a TagInfo
-
-```scala
-object TagResolver {
-  def resolve[E: Schema]: TagInfo
-  def resolve[E: Schema](migration: Migration[E, E]): TagInfo
-  def resolveImplicit[E: Schema](implicit migration: Migration[E, E] = null): TagInfo
-  inline def resolveAuto[E](using schema: Schema[E]): TagInfo
-  def resolveOpt[E](opt: Option[Migration[E, E]])(using schema: Schema[E]): TagInfo
-}
-```
-
-- `resolve[E]` is for an event type that was never renamed, so there are no aliases.
-- `resolve[E](migration)` adds the aliases of the migration. This is the usual form.
-- `resolveImplicit` and `resolveAuto` use a `Migration[E, E]` that is in scope, and no migration if there is none. `resolveImplicit` also works in Scala 2, and `resolveAuto` is Scala 3 only.
-- `resolveOpt` takes the migration as an `Option`. The other four call it.
-
-#### How tags and aliases are worked out
-
-- **Current tags.** For a sealed event type there is one tag for each case: the number from its `@eventTag`, or the name of the case if it has none. For a single event type that is not sealed, the tag is its `@eventTag` number or the name of the type, and there is no tag if that name is empty, `Object` or `Any`.
-- **Aliases.** Only the `renameCase` actions of the migration make aliases. Any other action in it is ignored, and the names are used exactly as written.
-- **Chains.** If you rename `A` to `B` and then `B` to `C`, the alias of `A` is `C`, so every old tag points straight to its final name. A cycle of renames stops instead of looping. If the same old name is renamed twice, the last rename wins.
-- **All tags.** `allTags` is the current tags plus every old name, so an old tag is still found even when it is no longer a case of the type.
-
-```scala mdoc:silent
-import zio.blocks.projection.TagResolver
-import zio.blocks.schema.Schema
-import zio.blocks.schema.migration.Migration
-
-sealed trait LoginEvent
-object LoginEvent {
-  case class UserAuthenticated(userId: String) extends LoginEvent
-  object UserAuthenticated {
-    implicit val schema: Schema[UserAuthenticated] = Schema.derived
-  }
-  implicit val schema: Schema[LoginEvent] = Schema.derived
-}
-
-// UserLoggedIn was renamed to UserSignedIn, which was later renamed to UserAuthenticated
-val migration = Migration
-  .newBuilder[LoginEvent, LoginEvent]
-  .renameCase("UserLoggedIn", "UserSignedIn")
-  .renameCase("UserSignedIn", "UserAuthenticated")
-  .build
-
-val info = TagResolver.resolve[LoginEvent](migration)
-```
-
-```scala mdoc
-info.currentTags
-info.aliases
-info.allTags
-info.expandRequested(Set("UserAuthenticated"))
-TagResolver.resolve[LoginEvent].aliases
-```
-
-#### Looking at the parts
-
-The same results are available one at a time, without building a `TagInfo`:
-
-```scala
-object TagResolver {
-  def currentTags[E](using schema: Schema[E]): Set[String]
-  def allTags[E: Schema](migration: Migration[E, E] = null): Set[String]
-  def aliases[E: Schema](migration: Migration[E, E] = null): Map[String, String]
-  def aliasMap[E](migration: Migration[E, E]): Map[String, String]
-  def aliasMapFromDynamic(dm: DynamicMigration): Map[String, String]
-  def unknownTags(tagInfo: TagInfo, distinctDbTags: Set[String]): Set[String]
-}
-```
-
-- `currentTags` are the tags the type produces now. `allTags` and `aliases` take a migration, and `null`, which is the default, means no migration.
-- `aliasMap` gives the aliases of a migration with chains followed. `aliasMapFromDynamic` reads the same renames from a `DynamicMigration` but does not follow chains, so `A` stays mapped to `B`.
-- `unknownTags` is the same as `TagInfo#unknownTags`: the tags in the database that no current tag or alias explains.
-
-#### The TagResolver trait
-
-```scala
-trait TagResolver[E] {
-  def tagInfo: TagInfo
-  def aliases: Map[String, String]
-  def allTags: Set[String]
-  def currentTags: Set[String]
-}
-```
-
-A `TagResolver[E]` is a view of the `TagInfo` of an event type with its parts as methods. You make one by implementing `tagInfo`, and the other three come from it. Most code uses the functions on the object and gets a `TagInfo` directly.
-
-#### How the event store uses it
-
-An event store is given a `TagInfo` when it is created. `SQLiteEventStore.make[E](transactor)` resolves one with no aliases, `make[E](transactor, migration)` resolves one from a migration, and `makeWithResolver[E](transactor, tagInfo)` takes one you built.
-
-- **Writing.** A new event is saved under its current tag: the `@eventTag` number or the case name.
-- **Reading.** An event saved under an old tag is decoded as the case it was renamed to, and its `EventEnvelope` carries the current tag, so the code that reads it only ever sees the new name.
-- **Filtering.** A read that asks for some tags is widened with `expandRequested`, so a filter on the new tag also returns the old events.
-- **Checking.** When the store starts, it compares the tags in the database with `allTags`, see the warning below.
-
-### Startup warning
-
-On startup, the `SQLiteEventStore` checks all distinct tags in the database against the known tag set. Unknown tags, found with `TagInfo#unknownTags`, produce a warning log, not an error. This catches typos or events from a different schema version without crashing the application.
 
 ## Inspecting a Projection
 
@@ -821,3 +635,4 @@ Nothing was written anywhere by these calls. `handle` only says that the event w
 
 - [Projection module overview](./index.md) — module introduction, key concepts, and integration points with `zio-blocks-schema`, `zio-blocks-sql`, and ZIO Streams.
 - [ProjectionEngine](./engine.md) — the runtime that executes `Projection[A]` descriptors: event dispatch, watermark tracking, schema-change detection, and the SQLite / in-memory store implementations.
+- [Migration](./migration.md) — renamed event cases, `@eventTag`, changed event fields, and what happens when the row type changes.

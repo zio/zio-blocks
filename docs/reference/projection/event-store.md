@@ -132,9 +132,9 @@ The `seq` field is the resumption position: the engine saves it after each succe
 
 ## Event Tags
 
-By default, `EventStore[E]` uses the case class simple name as the tag. Renaming a case class therefore changes the tag that new events are stored under, leaving old events unreadable under the new name.
+By default, `EventStore[E]` uses the case class simple name as the tag. Renaming a case class therefore changes the tag that new events are stored under, and the events stored under the old name are no longer read.
 
-There are two ways to keep old events readable: give each case a stable numeric tag with `@eventTag(n)`, or describe the rename with a `Migration` so that the store knows the old name. Both are explained in [Event Tagging and Migration](./projection.md#event-tagging-and-migration).
+A read keeps only the events whose tag the store knows: the current tags, and the old names of renamed cases declared with a `Migration`. Events under any other tag are skipped without an error. To keep a renamed case readable, see [Renaming an Event Case](./migration.md#renaming-an-event-case); for numeric tags, see [Numeric Tags](./migration.md#numeric-tags--eventtag).
 
 ## SQLiteEventStore
 
@@ -151,7 +151,7 @@ object SQLiteEventStore {
 }
 ```
 
-`make` is the usual way to create a store. It creates a bounded hub of 4,096 envelopes for the store to publish to, and works out the store's tags from the event type with `TagResolver`. Pass a `migration` when a case of the event type was renamed: its `renameCase` steps tell the store the old names, so events saved under them are still found, see [Tag aliases via Migration](./projection.md#tag-aliases-via-migration). When the store starts, it compares the tags in the database with the ones it knows, and logs a warning for any it cannot explain.
+`make` is the usual way to create a store. It creates a bounded hub of 4,096 envelopes for the store to publish to, and works out the store's tags from the event type with `TagResolver`. Pass a `migration` when a case of the event type was renamed: its `renameCase` steps tell the store the old names, so events saved under them are still found, see [Renaming an Event Case](./migration.md#renaming-an-event-case). When the store starts, it compares the tags in the database with the ones it knows, and logs a warning for any it cannot explain.
 
 ```scala mdoc:silent
 // UserCreated used to be called UserRegistered
@@ -173,7 +173,7 @@ renamed.tagInfo.aliases
 val tagInfo: TagInfo
 ```
 
-`tagInfo` is the [`TagInfo`](./projection.md#what-a-taginfo-holds) the store was created with: the tags the event type has now, the old tags that were renamed to them, and the migration for old events. The store uses it to widen filtered reads, to decode old events, and for the check at startup:
+`tagInfo` is the [`TagInfo`](./migration.md#taginfo-and-tagresolver) the store was created with: the tags the event type has now, the old tags that were renamed to them, and the migration for old events. The store uses it to widen filtered reads, to decode old events, and for the check at startup:
 
 ```scala mdoc
 store.tagInfo.currentTags
@@ -268,5 +268,6 @@ run(cache.close)
 ## See Also
 
 - [Projection module overview](./index.md) — how the event store, the projections, the engine and the projection stores fit together.
-- [Projection[A]](./projection.md) — the projections that read the event store, and [Event Tagging and Migration](./projection.md#event-tagging-and-migration) for renamed events.
+- [Projection[A]](./projection.md) — the projections that read the event store.
+- [Migration](./migration.md) — renamed event cases, `@eventTag`, and changed event fields.
 - [ProjectionEngine](./engine.md) — the runtime that replays and follows an event store.

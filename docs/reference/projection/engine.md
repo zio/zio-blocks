@@ -109,7 +109,7 @@ Each field controls a distinct aspect of engine behavior:
 - **`ringCapacity`** — the capacity of the bounded `Hub[EventEnvelope[E]]` created when `TestEngine` builds its in-memory event hub. Has no effect when an external `EventStore` already supplies its own hub.
 - **`rebuildParallelism`** — the group size used by the background pre-warm when `lazyRebuild` is enabled. The pre-warm rebuilds the pending projections one after the other, group by group, so the value does not make rebuilds run at the same time.
 - **`lazyRebuild`** — when `false` (the default), any projection whose schema has changed is fully rebuilt during `start`, blocking initialization until the replay completes. When `true`, stale projections are only marked as pending at startup, then rebuilt on their first `query` call or in the background by the pre-warm fiber. Lazy rebuild shortens startup at the cost of a potential brief stall on the first read.
-- **`evolution`** — a `SchemaEvolutionConfig`, described under [Schema Evolution](#schema-evolution). The engine does not read it: it always tries the migration shortcut when a migration is registered, and uses its own `lazyRebuild` and `rebuildParallelism` above.
+- **`evolution`** — a `SchemaEvolutionConfig`, described under [`SchemaEvolution`](./migration.md#schemaevolution). The engine does not read it: it always tries the migration shortcut when a migration is registered, and uses its own `lazyRebuild` and `rebuildParallelism` above.
 
 ## Starting and Stopping
 
@@ -125,7 +125,7 @@ final class ProjectionEngine private[projection] (...) {
 
 The method performs three phases in order:
 
-1. **Schema checks** — for each projection, `start` computes the current `SchemaHash` and compares it with the value stored in the primary store. If the hashes differ and `lazyRebuild` is `false`, the engine immediately attempts a migration shortcut (an `ALTER TABLE ADD COLUMN` for simple field additions) or falls back to a full event replay. If `lazyRebuild` is `true`, the projection is only marked pending; no rebuild happens yet.
+1. **Schema checks** — for each projection, `start` computes the current `SchemaHash` and compares it with the value stored in the primary store. If the hashes differ and `lazyRebuild` is `false`, the engine immediately attempts a migration shortcut (an `ALTER TABLE ADD COLUMN` for simple field additions) or falls back to a full event replay. If `lazyRebuild` is `true`, the projection is only marked pending; no rebuild happens yet. See [Migration](./migration.md#changing-the-read-model).
 
 2. **Catch-up replay** — for each source binding, `start` reads the events the projection has not processed yet. It begins right after the last event it saved a record of, the watermark, and works through the stored events in batches. It moves on only when it has read to the end of the stored events, so `start` waits for the catch-up to finish.
 
@@ -158,143 +158,6 @@ final class ProjectionEngine private[projection] (...) {
 :::caution
 A read model is updated shortly after an event is appended, not synchronously. A `query` made immediately after an `append` may not yet reflect the new event. 
 :::
-
-## Schema Evolution
-
-When you change a projection's read model, for example by adding a field to `UserProfile`, the rows already stored no longer match your code. The projection engine detects this automatically and rebuilds or migrates the stored rows without manual intervention. It works like this:
-
-1. On startup, the engine works out a fingerprint of each read model's schema, called its `SchemaHash`. The fingerprint is built from the field names, their types and their order.
-2. The fingerprint is stored next to the rows, in the projection's store. In a SQLite store it is the `schema_hash` column of the `_projection_meta` table.
-3. On the next startup, the engine compares the stored fingerprint with the current one. If they are the same, nothing is done.
-4. If they differ, the stored rows are out of date, and the engine brings them up to date: either with a quick migration, if you registered one, or by rebuilding the read model from the stored events.
-
-Two supporting objects — `SchemaHash` and `SchemaEvolution` — implement this internally; `registerMigration` is the only engine method most users interact with. Renaming an event case is a separate concern, handled by the event store rather than by the engine; see [Event Tagging and Migration](./projection.md#event-tagging-and-migration).
-
-### Schema Change Detection — `SchemaHash`
-
-`SchemaHash` is an internal helper used by `ProjectionEngine` during startup and lazy-rebuild checks. You rarely call it directly.
-
-```scala
-object SchemaHash {
-  def compute[A: Schema]: String
-}
-```
-
-`SchemaHash#compute` produces a stable SHA-256 fingerprint of a schema structure. It recurses into record fields — capturing field names, types, and their order in the declaration — so a field addition, removal, rename, or type change all produce a different hash. Nested records are traversed fully. For variants, case names and their field schemas are included. A hash that differs from the stored one is how the engine knows that the stored rows are out of date.
-
-For example, adding an `email` field to a read model gives it a different hash:
-
-```scala mdoc:compile-only
-import zio.blocks.projection.*
-import zio.blocks.schema.{Modifier, Schema}
-
-case class UserProfileV1(@Modifier.id id: String, name: String)
-object UserProfileV1 {
-  implicit val schema: Schema[UserProfileV1] = Schema.derived[UserProfileV1]
-}
-
-case class UserProfileV2(@Modifier.id id: String, name: String, email: String)
-object UserProfileV2 {
-  implicit val schema: Schema[UserProfileV2] = Schema.derived[UserProfileV2]
-}
-
-val hashV1 = SchemaHash.compute[UserProfileV1]
-val hashV2 = SchemaHash.compute[UserProfileV2]
-// hashV1 != hashV2 because V2 has an extra "email" field
-```
-
-### Rebuild Logic — `SchemaEvolution`
-
-When you change the shape of a read model, for example by adding a field to `UserProfile`, the rows already stored on disk no longer match your code. `SchemaEvolution` is the part of the library that fixes this. The engine uses it for you at startup, and you normally never call it yourself.
-
-It looks at each projection and chooses one of three outcomes:
-
-- **Nothing changed.** The stored fingerprint of the schema is the same as the current one, so nothing needs to be done.
-- **Only new fields were added, and you told the engine about them.** If you registered a migration that only adds fields, the engine adds the matching columns to the existing table and saves the new fingerprint. No event is read again, so this is quick.
-- **Anything else changed, or no migration was registered.** The engine rebuilds the read model from scratch. It empties the table, sets the watermark back to the start, replays every stored event through your handlers, and then saves the new fingerprint.
-
-The rebuild can be done at any time, because the events are the source of truth and the read model is only a view of them. It is slower than the shortcut, because it has to replay the whole history.
-
-The methods behind this are listed below. You can skip them unless you are writing your own runner:
-
-```scala
-object SchemaEvolution {
-  def needsRebuild[A: Schema](store: ProjectionStore[A]): Task[Boolean]
-
-  def rebuild[A](
-    store: ProjectionStore[A],
-    eventStore: EventStore[_],
-    spec: Projection[A],
-    currentHash: String
-  ): Task[Unit]
-
-  def tryMigrationShortcut[A: Schema: EntityPath](
-    store: ProjectionStore[A],
-    migrationOpt: Option[Migration[?, A]],
-    currentHash: String
-  ): Task[Boolean]
-
-  def checkAndRebuild[A: Schema: EntityPath](
-    store: ProjectionStore[A],
-    eventStore: EventStore[_],
-    spec: Projection[A],
-    config: SchemaEvolutionConfig = SchemaEvolutionConfig.default,
-    migrationOpt: Option[Migration[?, A]] = None
-  ): Task[Boolean]
-}
-```
-
-- `needsRebuild` answers whether the stored fingerprint is different from the current one. It answers `false` for a store that has no saved fingerprint yet, such as a brand new one.
-- `rebuild` does the full rebuild described above. If one event cannot be applied while replaying, the error is logged and the replay goes on with the next event.
-- `tryMigrationShortcut` tries the quick route. It returns `true` when it handled the change and `false` when it could not, for example because there is no migration or the migration does more than add top-level fields. For each new field it adds a column, with the type of the field, or with a plain text type when it cannot work the type out. A column that fails to be added is logged as a warning and skipped.
-- `checkAndRebuild` is the one that ties it together. It compares the fingerprints, tries the shortcut first, and falls back to `rebuild`. It returns `true` when it changed the store, either way.
-
-`SchemaEvolutionConfig` holds the settings:
-
-```scala
-final case class SchemaEvolutionConfig(
-  rebuildParallelism: Int        = 4,
-  lazyRebuild: Boolean           = false,
-  enableMigrationShortcut: Boolean = true
-)
-```
-
-- `enableMigrationShortcut` turns the quick route on or off for `checkAndRebuild`: when it is `false`, `checkAndRebuild` handles every schema change with a full rebuild.
-- `rebuildParallelism` is how many projections `SchemaEvolution.bulkRebuildPending` rebuilds at the same time.
-- `lazyRebuild` is not read anywhere.
-
-The engine uses none of these settings: it does not call `checkAndRebuild` or `bulkRebuildPending`, and it always tries the shortcut when a migration is registered. Its own lazy rebuild is set with `lazyRebuild` and `rebuildParallelism` on `ProjectionEngineConfig`, see [Configuration](#configuration).
-
-When `lazyRebuild` is on, the rebuild does not happen at startup but on the first query of the projection, or in the background. See [Configuration](#configuration) and [Starting and Stopping](#starting-and-stopping).
-
-The full example below runs on real SQLite files and starts two engines in a row, like an application that is stopped and started again with a newer version. The first engine runs the projection with `V1.UserProfile` (`id`, `name`), and the second runs it with `V2.UserProfile` (`id`, `name`, `email`). On `start`, the second engine finds that the schema hash has changed and rebuilds the table from the stored events, so the old rows gain their `email`, and the rebuilt projection keeps processing new events:
-
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example4SchemaEvolution.scala
-
-```
-
-### Registering a Migration
-
-When a change only adds fields to the read model, the engine can skip the rebuild. You register a `Migration` that describes the change, and the engine adds the new columns with `ALTER TABLE ADD COLUMN` instead of replaying every event. This is much faster for a large projection. Call `registerMigration` on the engine before `start`, because the changed schema is found in `start`:
-
-```scala
-final class ProjectionEngine private[projection] (...) {
-  def registerMigration[Old, New](
-    spec: Projection[New],
-    migration: Migration[Old, New]
-  ): Task[Unit]
-}
-```
-
-The migration is stored in an internal registry keyed by projection name. When the engine detects a schema change for that projection, it retrieves the migration and passes it to `SchemaEvolution.tryMigrationShortcut`. The engine uses the shortcut only when every action of the migration adds a top-level field. For any other change, such as a rename or a removed field, it replays the events as usual. If the shortcut itself fails as a whole, the engine also falls back to a full rebuild. A single column that cannot be added is only logged as a warning and skipped.
-
-The shortcut does not fill the new column for the rows that already exist. They keep what they had, and the new field is empty (`null`) in them. The default in the migration is not written into them, and a rebuild would have filled the field from the stored events. Use the shortcut when old rows can do without the new value, for example because the field is optional, and let the engine rebuild when they cannot.
-
-The example below runs the story of the full example above again, this time with a migration registered for the second engine. The old users come back with an empty `email`, and the new user has its `email`:
-
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example6MigrationShortcut.scala
-
-```
 
 ## Connection Management
 
@@ -409,4 +272,5 @@ object ProjectionEngine {
 ## See Also
 
 - [Projection[A]](./projection.md) — the declarative descriptor that `ProjectionEngine` executes: event sources, routing modes, handlers, and `ProjectionAction` types.
+- [Migration](./migration.md) — what happens when the row type or the events change: the schema check in `start`, rebuilds, `registerMigration` and renamed events.
 - [SQL Module](../sql/index.md) — the `Transactor` and `DbCon` primitives that back `SQLiteEventStore` and `SQLiteProjectionStore`; also the source of `SqlNameMapper` and the DDL helpers used for per-entity store creation.
