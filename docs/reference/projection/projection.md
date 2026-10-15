@@ -143,13 +143,13 @@ object UserProfile {
 
 The annotation takes precedence over the derivation algorithm, but not over an explicit `pathOverride` argument — when `pathOverride` is provided to `EntityPath.derived[A](pathOverride)`, it is used unconditionally and the annotation is ignored.
 
-## Binding Event Sources
+## Sources and Routing
 
-A **source** is a named feed of events: one `EventStore`. The name is a plain string that you choose, such as `"users"` or `"orders"`, and it stands for the event store that holds those events. A projection does not hold an event store itself; it only says which source names it listens to, and the engine is given the actual event store for each name when it is created. Those are the `Map[String, EventStore[?]]` of `ProjectionEngine.makeWithStores`. If the engine has no event store under the name a projection uses, it falls back to the store named `"_default"`, and then to the first store it was given. It only logs "no EventStore for source ..." and skips the binding when it has no event stores at all.
+A **source** is a named feed of events: one `EventStore`. The name is a plain string that you choose, such as `"users"` or `"orders"`, and it stands for the event store that holds those events. A projection does not hold an event store itself; it only says which source names it listens to, and the engine is given the actual event store for each name when it is created. Those are the `Map[String, EventStore[?]]` of `ProjectionEngine.makeWithStores`. If the engine has no event store under the name a projection uses, it falls back to the store named `"_default"`, and then to the first store it was given. It only logs "no EventStore for source ..." and skips the source when it has no event stores at all.
 
-A source is not the same thing as an entity. Many entities can write to one source: the source `"users"` can hold the events of `user-1`, `user-2` and every other user, each recorded under its own entity ID. Several projections can also listen to the same source, and one projection can listen to several sources, one `from` call each. Bindings are how a projection says which sources it reads and, for each one, how its events are routed.
+A source is not the same thing as an entity. Many entities can write to one source: the source `"users"` can hold the events of `user-1`, `user-2` and every other user, each recorded under its own entity ID. Several projections can also listen to the same source, and one projection can listen to several sources, one `from` call each. **Each `from` call names a source the projection reads, and the routing call after it says how that source's events are routed.**
 
-`from(sourceName)` opens a new source binding and returns a `FromBuilder[A]`. One of the four routing methods on `FromBuilder` must be called to close the binding and return a new `Projection[A]`; subsequent `on[E]` handler calls then attach to that binding:
+`from(sourceName)` starts a new source and returns a `FromBuilder[A]`. One of the four routing methods on `FromBuilder` must be called to finish it and return a new `Projection[A]`; the `on[E]` handlers that follow then belong to that source:
 
 ```scala
 final class Projection[A] {
@@ -164,7 +164,7 @@ final class FromBuilder[A] {
 }
 ```
 
-Each routing call appends one `SourceBinding` to `bindings`. Multiple `from()` calls can appear on the same `Projection`, each with its own routing mode and its own set of handlers.
+Multiple `from()` calls can appear on the same `Projection`, each with its own routing mode and its own set of handlers.
 
 ### `routeToSelf`
 
@@ -210,7 +210,7 @@ Projection[CustomerOrder]("customer_orders")
 
 ### Several Sources
 
-A projection can read events from more than one source. Each call to `from` starts a new source binding, with its own routing and its own handlers, and the engine reads every source by the name you pass to `from`. The next projection keeps one activity row for each repository created and each issue opened, and puts both kinds under their owner:
+A projection can read events from more than one source. Each call to `from` starts a new source, with its own routing and its own handlers, and the engine reads every source by the name you pass to `from`. The next projection keeps one activity row for each repository created and each issue opened, and puts both kinds under their owner:
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*
@@ -248,9 +248,9 @@ val activity = Projection[OwnerActivity]("ownerActivity")
 
 The engine needs an `EventStore` for each name, `"repos"` and `"issues"`, in the `eventStores` map you give it. Here both sources use `routedBy` with the owner, so a repository and an issue of the same owner go to the same shard store. The routing mode, such as `routedBy` here, is chosen for each source right after its `from`, while the scope belongs to the whole projection.
 
-### Putting the Bindings Together
+### Putting Sources and Routing Together
 
-The snippets above show one routing call each. The example below uses them together on one domain: orders are recorded per order (`order-1`, `order-2`, ...), each event carries the `customerId`, and we want two views of the same events. The first view keeps one row per order, grouped by customer, so it binds the `"orders"` source with `routedBy`. The second view is a single row of shop-wide counters, so it binds a `"shop"` source with `routeToAll`:
+The snippets above show one routing call each. The example below uses them together on one domain: orders are recorded per order (`order-1`, `order-2`, ...), each event carries the `customerId`, and we want two views of the same events. The first view keeps one row per order, grouped by customer, so it reads the `"orders"` source with `routedBy`. The second view is a single row of shop-wide counters, so it reads a `"shop"` source with `routeToAll`:
 
 ```scala
 import zio.blocks.projection.*
@@ -297,9 +297,9 @@ val shopStats: Projection[ShopStats] =
 
 Reading the two definitions side by side:
 
-- `customerOrders` has one binding, `"orders"`. Both of its handlers sit under that binding's `routedBy`, so `OrderPlaced` and `OrderShipped` for the same customer reach the same shard. That is what lets `OrderShipped` update a row that `OrderPlaced` created earlier.
-- `shopStats` has one binding, `"shop"`, with `routeToAll`. The customer in the event is never looked at.
-- The two bindings name different sources, so the engine is given two event stores, one under each name. See [`ProjectionEngine`](./engine.md) for how sources are connected.
+- `customerOrders` reads one source, `"orders"`. Both of its handlers come after that source's `routedBy`, so `OrderPlaced` and `OrderShipped` for the same customer reach the same shard. That is what lets `OrderShipped` update a row that `OrderPlaced` created earlier.
+- `shopStats` reads one source, `"shop"`, with `routeToAll`. The customer in the event is never looked at.
+- The two projections read different sources, so the engine is given two event stores, one under each name. See [`ProjectionEngine`](./engine.md) for how sources are connected.
 
 The full example below runs both projections on real SQLite files. It also feeds a second counter that goes up when an order is placed and down when it is shipped, and it records the same events to both sources before reading the rows back:
 
@@ -603,7 +603,7 @@ Events are grouped by a key that is read from the event, not by the ID they were
 
 The routing key only chooses the shard. A row keeps its own ID, so two rows in the same shard still need different IDs. To read a row you give its ID: the engine looks in the main store first, and then in every shard. It uses the scope to know that there are shards to look in; it does not use the key to pick one.
 
-It is the right scope for views that group things by a related entity, such as the orders of a customer or the repositories of an owner. See [Putting the Bindings Together](#putting-the-bindings-together) for a full example.
+It is the right scope for views that group things by a related entity, such as the orders of a customer or the repositories of an owner. See [Putting Sources and Routing Together](#putting-sources-and-routing-together) for a full example.
 
 ### Global: one scoreboard on the wall
 
@@ -837,7 +837,7 @@ final class Projection[A] {
 ```
 
 - `handle` returns the `ProjectionAction` of the first handler that matches the event, or `None` if no handler matches. With `source = Some(name)` it searches only the handlers of that source. With `None`, which is what the engine uses, it searches all handlers, in the order the sources were added. It does not apply the action to a store, so it is a way to unit-test a handler without an engine.
-- `routingKey` returns the key for an event in the named source: `ctx.entityId` for `routeToSelf`, the extracted key for `routedBy`, and `None` for `routeToAll` or when there is no source with that name. See [Binding Event Sources](#binding-event-sources).
+- `routingKey` returns the key for an event in the named source: `ctx.entityId` for `routeToSelf`, the extracted key for `routedBy`, and `None` for `routeToAll` or when there is no source with that name. See [Binding Event Sources](#sources-and-routing).
 
 The snippet below shows both methods on a projection with an `"orders"` source that is routed by customer. It is a fragment: `OrderPlaced`, `OrderShipped` and `Refunded` are event case classes, and `ctx` is a `ProjectionContext` for an event recorded under `"order-1"`:
 
