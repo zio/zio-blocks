@@ -14,7 +14,7 @@ keywords:
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The projection module turns an append-only event log into queryable read models with a purely declarative API. You describe — once, in a builder chain — which events a model listens to, how they route to entity stores, and what each kind of event does to the model. An engine then reads those descriptions and handles replay, watermark tracking, schema-change detection, and live streaming automatically. Core types: [`Projection[A]`](./projection.md), [`ProjectionEngine`](./engine.md), `EventStore[E]`, `EventEnvelope[E]`, `EventTag`, `ProjectionStore[A]`, `ProjectionAction[A]`, and `FieldUpdate`.
+The projection module turns an append-only event log into queryable read models with a purely declarative API. You describe — once, in a builder chain — which events a model listens to, how they route to entity stores, and what each kind of event does to the model. An engine then reads those descriptions and handles replay, watermark tracking, schema-change detection, and live streaming automatically. 
 
 ## Event Sourcing Basics
 
