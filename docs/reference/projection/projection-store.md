@@ -11,9 +11,6 @@ keywords:
   - "SQLite"
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 `ProjectionStore[A]` is the read side of the module: a persistence contract for projection rows. Each `ProjectionStore[A]` also holds the engine's watermark and the schema hash alongside the entity rows:
 
 ```scala
@@ -38,33 +35,20 @@ trait ProjectionStore[A] {
   // Schema fingerprint — triggers rebuild when changed
   def getSchemaHash: Task[Option[String]]
   def updateSchemaHash(hash: String): Task[Unit]
+
+  // Schema evolution — these two have defaults
+  def recreateTable(): Task[Unit] = truncate
+  def addColumn(columnName: String, sqlType: String): Task[Unit] = ZIO.unit
 }
 ```
 
-`ProjectionStore#upsert` uses `INSERT ... ON CONFLICT DO UPDATE` so no read-before-write is needed. `ProjectionStore#updateFields` runs field-level mutations inside a single transaction — it inserts a default row first with `INSERT OR IGNORE`, then applies each `FieldUpdate` in one round trip.
+`ProjectionStore#upsert` uses `INSERT ... ON CONFLICT DO UPDATE` so no read-before-write is needed. `ProjectionStore#updateFields` runs inside a single transaction: it inserts a default row first with `INSERT OR IGNORE`, then runs one `UPDATE` for each `FieldUpdate`.
+
+`recreateTable` and `addColumn` are what [schema evolution](./engine.md#schema-evolution) uses. A full rebuild calls `recreateTable` to start from an empty table, and the migration shortcut calls `addColumn` for each new field. The defaults only truncate the rows and do nothing, which is what the in-memory store uses. `SQLiteProjectionStore` overrides both: `recreateTable` drops and recreates the table, and `addColumn` adds the column if it does not exist yet, after checking the name against `^[a-zA-Z_][a-zA-Z0-9_]*$`.
 
 ## FieldUpdate
 
 `FieldUpdate` describes a single field-level mutation and is used inside a `ProjectionAction.Update`:
-
-<Tabs groupId="scala-version" defaultValue="scala2">
-<TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.projection._
-
-sealed abstract class FieldUpdate
-object FieldUpdate {
-  final case class Set(field: String, value: Any)     extends FieldUpdate
-  final case class Increment(field: String, by: Long) extends FieldUpdate
-  final case class Decrement(field: String, by: Long) extends FieldUpdate
-  final case class Max(field: String, value: Long)    extends FieldUpdate
-  final case class Min(field: String, value: Long)    extends FieldUpdate
-}
-```
-
-</TabItem>
-<TabItem value="scala3" label="Scala 3">
 
 ```scala
 import zio.blocks.projection._
@@ -77,9 +61,6 @@ enum FieldUpdate {
   case Min(field: String, value: Long)    extends FieldUpdate
 }
 ```
-
-</TabItem>
-</Tabs>
 
 `Increment`, `Decrement`, `Max`, and `Min` are atomic in SQLite (`COALESCE(col, 0) + ?`, `MAX(col, ?)`, etc.), so no separate read is required. Field names can be given as raw snake_case strings (`FieldUpdate.Increment("user_count", 1L)`) or via a compile-time selector that maps Scala field names automatically (`FieldUpdate.increment[Stats](_.userCount)`).
 
