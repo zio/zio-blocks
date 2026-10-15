@@ -64,4 +64,6 @@ object QueryCodecDeriver
     }
     builder.build()
   }
+
+  protected def isTopLevelKey(key: String): Boolean = key == topLevelKey
 }

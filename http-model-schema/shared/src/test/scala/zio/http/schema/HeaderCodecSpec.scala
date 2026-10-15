@@ -16,6 +16,7 @@
 
 package zio.http.schema
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
 import zio.blocks.schema.SchemaError
 import zio.blocks.typeid.TypeId
@@ -157,6 +158,59 @@ object HeaderCodecSpec extends ZIOSpecDefault {
         codec.decode(encoded) == Right(value),
         codec.decode(Headers("count" -> "custom-7", "token" -> "secret")) == Right(value),
         codec.decode(Headers("COUNT" -> "7", "TOKEN" -> "secret")).isLeft
+      )
+    },
+    test("honors custom Int inside optional, sequence and wrapper fields case-insensitively") {
+      import CustomCodecFixtures._
+
+      val codec =
+        Schema[NestedInts].deriving(HeaderCodecDeriver).instance(TypeId.int, prefixedHeaderIntCodec()).derive
+      val value   = NestedInts(Some(1), List(2, 3), Tag(4))
+      val encoded = codec.encodeToHeaders(value)
+
+      assertTrue(
+        encoded.rawGetAll("MAYBE") == Chunk("custom-1"),
+        encoded.rawGetAll("MANY") == Chunk("custom-2", "custom-3"),
+        encoded.rawGet("TAG").contains("custom-4"),
+        codec.decode(encoded) == Right(value),
+        codec.decode(Headers("maybe" -> "custom-1", "many" -> "custom-2", "many" -> "custom-3", "tag" -> "custom-4")) ==
+          Right(value),
+        codec.decode(Headers("TAG" -> "custom-4")) == Right(NestedInts(None, Nil, Tag(4))),
+        codec.decode(Headers("MAYBE" -> "1", "MANY" -> "2", "TAG" -> "4")).isLeft
+      )
+    },
+    test("rejects off-key custom field codecs but accepts canonical casing") {
+      import CustomCodecFixtures._
+
+      val offKey  = Schema[CustomHeader].deriving(HeaderCodecDeriver).instance(TypeId.int, offKeyHeaderIntCodec).derive
+      val capital =
+        Schema[CustomHeader].deriving(HeaderCodecDeriver).instance(TypeId.int, capitalValueHeaderIntCodec()).derive
+      val value   = CustomHeader(7, "secret")
+      val encoded = capital.encodeToHeaders(value)
+
+      assertTrue(
+        Try(offKey.encodeToHeaders(value)).isFailure,
+        encoded.rawGet("COUNT").contains("custom-7"),
+        capital.decode(encoded) == Right(value),
+        capital.decode(Headers("count" -> "custom-7", "token" -> "secret")) == Right(value)
+      )
+    },
+    test("re-anchors only the root custom key to the field path") {
+      import CustomCodecFixtures._
+      import zio.blocks.schema.DynamicOptic.Node.Field
+
+      val codec  = Schema[IntPair].deriving(HeaderCodecDeriver).instance(TypeId.int, pathHeaderIntCodec).derive
+      val result = codec.decode(Headers("FIRST" -> "1", "SECOND" -> "2"))
+
+      assertTrue(
+        result.swap.exists(_.errors.size == 2),
+        // Only the root "value" node is re-anchored; the nested one is preserved.
+        result.swap.exists(
+          _.errors.toList.map(_.source.nodes.toList) == List(
+            List(Field("FIRST"), Field("value")),
+            List(Field("SECOND"), Field("value"))
+          )
+        )
       )
     },
     test("reports malformed top-level char values") {

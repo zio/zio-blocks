@@ -187,6 +187,42 @@ object QueryCodecSpec extends ZIOSpecDefault {
         codec.decode(QueryParams("page" -> "42", "name" -> "alice")).isLeft
       )
     },
+    test("honors custom Int inside optional, sequence and wrapper fields") {
+      import CustomCodecFixtures._
+
+      val codec   = Schema[NestedInts].deriving(QueryCodecDeriver).instance(TypeId.int, prefixedQueryIntCodec()).derive
+      val value   = NestedInts(Some(1), List(2, 3), Tag(4))
+      val encoded = codec.encodeToQueryParams(value)
+
+      assertTrue(
+        encoded == QueryParams("maybe" -> "custom-1", "many" -> "custom-2", "many" -> "custom-3", "tag" -> "custom-4"),
+        codec.decode(encoded) == Right(value),
+        codec.decode(QueryParams("tag" -> "custom-5")) == Right(NestedInts(None, Nil, Tag(5))),
+        codec.decode(QueryParams("maybe" -> "1", "many" -> "2", "tag" -> "4")).isLeft
+      )
+    },
+    test("rejects custom field codecs that bypass the canonical value key") {
+      import CustomCodecFixtures._
+
+      val topLevel = Schema[Int].deriving(QueryCodecDeriver).instance(TypeId.int, offKeyQueryIntCodec).derive
+      val record   = Schema[CustomChild].deriving(QueryCodecDeriver).instance(TypeId.int, offKeyQueryIntCodec).derive
+
+      assertTrue(
+        topLevel.decode(topLevel.encodeToQueryParams(1)) == Right(1),
+        Try(record.encodeToQueryParams(CustomChild(1, "alice"))).isFailure
+      )
+    },
+    test("accumulates custom field errors across a record") {
+      import CustomCodecFixtures._
+
+      val codec  = Schema[IntPair].deriving(QueryCodecDeriver).instance(TypeId.int, prefixedQueryIntCodec()).derive
+      val result = codec.decode(QueryParams("first" -> "bad", "second" -> "worse"))
+
+      assertTrue(
+        result.swap.exists(_.errors.size == 2),
+        result.swap.exists(_.message.contains("Expected custom- prefix"))
+      )
+    },
     test("reports malformed top-level char values") {
       val codec = Schema[Char].derive(DefaultQueryFormat)
 
