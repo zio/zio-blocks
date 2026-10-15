@@ -63,9 +63,9 @@ val stats    = Projection.global[DailyStats]("daily_stats")                     
 val archived = Projection[UserProfile]("old_profiles", EntityPath.derived[UserProfile]("archive")) // archive/old_profiles.db
 ```
 
-## Entity Paths
+### Entity Paths
 
-`EntityPath[A]` describes where a projection's SQLite files live and which field of `A` holds the entity identifier. The ID field is marked with `@Modifier.id`, from `zio.blocks.schema.Modifier`. An entity path is required for per-entity and cross-entity projections; global projections do not use it, see [Projection Scope](#projection-scope).
+`EntityPath[A]` describes where a projection's SQLite files live and which field of `A` holds the entity identifier. The ID field is marked with `@Modifier.id`, from `zio.blocks.schema.Modifier`. Every projection made with `Projection[A](name)` or `Projection[A](name, entityPath)` has one; a global projection has none, as described above.
 
 ```scala
 trait EntityPath[A] {
@@ -76,7 +76,7 @@ trait EntityPath[A] {
 
 The engine uses `basePath` to construct the path to each SQLite file and `entityIdField` to locate the primary-key column in `A`'s schema. Both fields are exposed as read-only members and are set at construction time.
 
-### Manual Construction
+#### Manual Construction
 
 `EntityPath.apply[A]` accepts explicit strings for both fields, giving full control over the folder name and the id field without relying on derivation:
 
@@ -91,7 +91,7 @@ object MyEntity {
 }
 ```
 
-### Derived Construction
+#### Derived Construction
 
 `EntityPath.derived[A]` inspects `Schema[A]` and applies a four-step algorithm to produce both values automatically:
 
@@ -124,7 +124,7 @@ object UserProfile {
 // basePath = "users", entityIdField = "userId"
 ```
 
-### Overriding the Folder Name
+#### Overriding the Folder Name
 
 `EntityPath.derived[A](pathOverride)` keeps the standard id-field derivation but substitutes an explicit `basePath`, which is useful when the conventional pluralized name conflicts with an existing schema:
 
@@ -136,7 +136,7 @@ implicit val ep: EntityPath[OrderRecord] = EntityPath.derived[OrderRecord]("cust
 
 The path can have several folders, such as `"example2/orders"`.
 
-### The `@path` Annotation
+#### The `@path` Annotation
 
 Placing `@path("folder")` on a case class type overrides the derived folder name at the declaration site rather than at each call to `derived`:
 
