@@ -41,8 +41,11 @@ private[schema] object ParamCodecSupport {
   /**
    * Encodes one field to its strings and decodes it from the strings found
    * under its name, `None` when the name is absent.
+   *
+   * Non-sealed so transports can bridge user-supplied whole-value codecs as
+   * record fields; the fast-path cases below stay closed by construction.
    */
-  sealed trait FieldCodec {
+  trait FieldCodec {
     def encodeAny(value: Any): Chunk[String]
     def decodeAny(
       fieldName: String,

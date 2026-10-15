@@ -48,6 +48,11 @@ object QueryCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[UserId] = Schema[String].transform(UserId(_), _.value)
   }
 
+  final case class CustomChild(page: Int, name: String)
+  object CustomChild {
+    implicit val schema: Schema[CustomChild] = Schema.derived[CustomChild]
+  }
+
   final case class Wrapped(id: UserId)
   object Wrapped {
     implicit val schema: Schema[Wrapped] = Schema.derived[Wrapped]
@@ -157,6 +162,29 @@ object QueryCodecSpec extends ZIOSpecDefault {
       assertTrue(
         encoded == QueryParams("value" -> "custom-42"),
         codec.decode(encoded) == Right(42)
+      )
+    },
+    test("respects custom child codec for record fields") {
+      val customIntCodec = new QueryCodec[Int] {
+        def encode(value: Int, output: QueryParamsBuilder): Unit =
+          output.add("value", s"custom-$value")
+
+        def decode(input: QueryParams): Either[SchemaError, Int] =
+          input.getFirst("value") match {
+            case Some(s) if s.startsWith("custom-") =>
+              Right(s.stripPrefix("custom-").toInt)
+            case other =>
+              Left(SchemaError(s"Expected custom- prefix, got: $other"))
+          }
+      }
+      val codec   = Schema[CustomChild].deriving(QueryCodecDeriver).instance(TypeId.int, customIntCodec).derive
+      val value   = CustomChild(42, "alice")
+      val encoded = codec.encodeToQueryParams(value)
+
+      assertTrue(
+        encoded == QueryParams("page" -> "custom-42", "name" -> "alice"),
+        codec.decode(encoded) == Right(value),
+        codec.decode(QueryParams("page" -> "42", "name" -> "alice")).isLeft
       )
     },
     test("reports malformed top-level char values") {
