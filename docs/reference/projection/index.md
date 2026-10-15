@@ -178,6 +178,8 @@ A projection goes through eight steps, from the declaration in your code to a ro
    - **Per entity:** `routeToSelf` sends each event to the row of the entity it was recorded under.
    - **By a key from the event:** `routedBy[E](_.field)` groups events by a value read from the event.
    - **One shared store:** `routeToAll` sends them all to one store.
+
+   Which one fits, and where each keeps its files, is described under [Projection Scope](./projection.md#projection-scope).
 4. **Add a handler for each event type.** Call `on[E]` for an event type, then one of the handler verbs, which says what that event does to the row:
    - **Insert and delete:** the event adds a new row or removes one. `insert(...)` builds the row from the event; `delete` removes the row of the entity the event belongs to.
    - **Field updates:** the event changes one column of an existing row, for example `status` to `"shipped"`. `update(_.field)(...)` picks the column by field, checked by the compiler; `updateWithField("column", ...)` and `updateField("column")(...)` pick it by name.
@@ -225,72 +227,6 @@ Open the event store and the projection store yourself, through a `TransactorCac
 ```
 
 The files stay on disk after the program ends. When a program starts again, the events are still in `events/users.db`, and the engine continues after the last event it processed, so no event is applied twice. The files are plain SQLite databases, so `sqlite3 users/user_profiles.db` shows the rows while the program is stopped.
-
-## Common Patterns
-
-Three routing modes drive three distinct projection shapes. Choose by how the data is partitioned: one row per originating entity, one shard per a key extracted from the event, or one shared row for the whole projection.
-
-### Per-Entity Projection
-
-Each entity ID gets its own row. Use `Projection[A](name)` — which requires [`Schema[A]`](../schema/schema.md) and [`EntityPath[A]`](./projection.md#entity-paths) — with `routeToSelf`. The store file on disk is `<basePath>/<name>.db`, and each row is addressed by `ctx.entityId`:
-
-```scala
-import zio.blocks.projection._
-
-// One row per user — UserProfile("user-1", ...) stored at entity ID "user-1"
-val userProfiles: Projection[UserProfile] =
-  Projection[UserProfile]("userProfiles")
-    .from("users")
-    .routeToSelf
-    .on[UserCreated]
-    .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
-    .on[UserEmailChanged]
-    .updateWithField("email", (e, _) => e.newEmail)
-```
-
-This is the default shape. `EntityPath.derived[A]` finds the field annotated `@Modifier.id` (or named `id`), uses it as the entity-ID column, and derives the folder name by stripping any trailing `Id` suffix, snake-casing the result, and pluralising it (e.g., `userId` → strip → `user` → snake-case → `user` → pluralise → `users`).
-
-### Cross-Entity (Sharded) Projection
-
-Events recorded under one entity ID are grouped into shards keyed by a field inside the event. Use `FromBuilder#routedBy[E](_.field)` to declare the sharding key. The engine creates a separate shard file for each distinct key value, for example `customer_orders_shard_alice.db` alongside `customer_orders_shard_bob.db`:
-
-```scala
-import zio.blocks.projection._
-
-// Orders grouped by customer — each customer's orders live in their own shard
-val customerOrders: Projection[CustomerOrder] =
-  Projection[CustomerOrder]("customer_orders")
-    .from("orders")
-    .routedBy[OrderEvent](_.customerId)   // shard key read from the event
-    .on[OrderPlaced]
-    .insert((e, ctx) => CustomerOrder(ctx.entityId, e.customerId, e.product, e.total, "placed"))
-    .on[OrderShipped]
-    .updateWithField("status", (_, _) => "shipped")
-```
-
-Both `OrderPlaced` and `OrderShipped` carry `customerId`, so they always land in the same customer's shard. Within a shard, rows are keyed by `ctx.entityId` (the order ID), so `OrderShipped` finds and updates the row that `OrderPlaced` created.
-
-### Global Aggregate Projection
-
-One shared row accumulates totals from any number of sources. Use `Projection.global[A](name)` with `routeToAll` on every source, and handle events with `aggregate(FieldUpdate.Increment(...))` for atomic counter updates. The store lives in `global/<name>.db`:
-
-```scala
-import zio.blocks.projection._
-
-// One row, updated atomically by events from two separate sources
-val dailyStats: Projection[DailyStats] =
-  Projection.global[DailyStats]("dailyStats")
-    .from("users")
-    .routeToAll
-    .on[UserCreated]
-    .aggregate(FieldUpdate.Increment("user_count", 1L))
-    .from("repos")
-    .routeToAll
-    .on[RepoCreated]
-    .aggregate(FieldUpdate.Increment("repo_count", 1L))
-```
-
-`FieldUpdate.Increment` translates to `COALESCE(col, 0) + ?` in SQLite, so the counter is safe even if the row does not exist yet. The row's ID is `ctx.entityId`, which the application sets to a stable key such as a date string (`"2025-08-26"`) when appending events.
 
 ## Integration Points
 
