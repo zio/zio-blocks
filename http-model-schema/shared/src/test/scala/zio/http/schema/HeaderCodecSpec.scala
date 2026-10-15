@@ -37,6 +37,11 @@ object HeaderCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[UserId] = Schema[String].transform(UserId(_), _.value)
   }
 
+  final case class CustomHeader(count: Int, token: String)
+  object CustomHeader {
+    implicit val schema: Schema[CustomHeader] = Schema.derived[CustomHeader]
+  }
+
   final case class RichHeaders(
     shortValue: Short,
     byteValue: Byte,
@@ -127,6 +132,31 @@ object HeaderCodecSpec extends ZIOSpecDefault {
       assertTrue(
         encoded.rawGet("value").contains("custom-42"),
         codec.decode(encoded) == Right(42)
+      )
+    },
+    test("respects custom child codec for record fields case-insensitively") {
+      val customIntCodec = new HeaderCodec[Int] {
+        def encode(value: Int, output: HeadersBuilder): Unit =
+          output.add("value", s"custom-$value")
+
+        def decode(input: Headers): Either[SchemaError, Int] =
+          input.rawGet("value") match {
+            case Some(s) if s.startsWith("custom-") =>
+              Right(s.stripPrefix("custom-").toInt)
+            case other =>
+              Left(SchemaError(s"Expected custom- prefix, got: $other"))
+          }
+      }
+      val codec   = Schema[CustomHeader].deriving(HeaderCodecDeriver).instance(TypeId.int, customIntCodec).derive
+      val value   = CustomHeader(7, "secret")
+      val encoded = codec.encodeToHeaders(value)
+
+      assertTrue(
+        encoded.rawGet("COUNT").contains("custom-7"),
+        encoded.rawGet("TOKEN").contains("secret"),
+        codec.decode(encoded) == Right(value),
+        codec.decode(Headers("count" -> "custom-7", "token" -> "secret")) == Right(value),
+        codec.decode(Headers("COUNT" -> "7", "TOKEN" -> "secret")).isLeft
       )
     },
     test("reports malformed top-level char values") {

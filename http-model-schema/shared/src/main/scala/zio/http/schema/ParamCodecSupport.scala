@@ -30,7 +30,9 @@ private[schema] object ParamCodecSupport {
     def malformed(name: String, raw: String, cause: String): String
   }
 
-  sealed trait FieldCodec {
+  // Non-sealed so transports can bridge user-supplied whole-value codecs as
+  // record fields; the fast-path cases below stay closed by construction.
+  trait FieldCodec {
     def encodeAny(value: Any): Chunk[String]
     def decodeAny(
       fieldName: String,

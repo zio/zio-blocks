@@ -38,8 +38,30 @@ object QueryCodecDeriver
     encodeFn: (A, QueryParamsBuilder) => Unit,
     decodeFn: QueryParams => Either[SchemaError, A]
   ): QueryCodec[A] =
-    new QueryCodec[A] {
+    new QueryCodec[A] with ParamCodecDeriver.Derived {
       def encode(value: A, output: QueryParamsBuilder): Unit = encodeFn(value, output)
       def decode(input: QueryParams): Either[SchemaError, A] = decodeFn(input)
     }
+
+  protected def freshOutput(): QueryParamsBuilder = QueryParamsBuilder.make()
+
+  protected def finishEntries(output: QueryParamsBuilder): Chunk[(String, String)] = {
+    val pairs   = output.build().toList
+    val builder = Chunk.newBuilder[(String, String)]
+    val it      = pairs.iterator
+    while (it.hasNext) builder += it.next()
+    builder.result()
+  }
+
+  protected def syntheticInput(rawValues: Option[Chunk[String]]): QueryParams = {
+    val builder = QueryParamsBuilder.make()
+    rawValues.foreach { values =>
+      var index = 0
+      while (index < values.length) {
+        builder.add(topLevelKey, values(index))
+        index += 1
+      }
+    }
+    builder.build()
+  }
 }

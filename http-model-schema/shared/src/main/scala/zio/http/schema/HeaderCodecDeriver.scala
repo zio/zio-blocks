@@ -40,10 +40,27 @@ object HeaderCodecDeriver
     encodeFn: (A, HeadersBuilder) => Unit,
     decodeFn: Headers => Either[SchemaError, A]
   ): HeaderCodec[A] =
-    new HeaderCodec[A] {
+    new HeaderCodec[A] with ParamCodecDeriver.Derived {
       def encode(value: A, output: HeadersBuilder): Unit = encodeFn(value, output)
       def decode(input: Headers): Either[SchemaError, A] = decodeFn(input)
     }
+
+  protected def freshOutput(): HeadersBuilder = HeadersBuilder.make()
+
+  protected def finishEntries(output: HeadersBuilder): Chunk[(String, String)] =
+    output.build().toChunk
+
+  protected def syntheticInput(rawValues: Option[Chunk[String]]): Headers = {
+    val builder = HeadersBuilder.make()
+    rawValues.foreach { values =>
+      var index = 0
+      while (index < values.length) {
+        builder.add(topLevelKey, values(index))
+        index += 1
+      }
+    }
+    builder.build()
+  }
 
   private def toHeaderName(fieldName: String): String = {
     val builder = new StringBuilder
