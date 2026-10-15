@@ -197,9 +197,7 @@ Header.AcceptEncoding.parse("gzip")
 Header.AcceptEncoding.parse("!!!")
 ```
 
-:::warning[`AcceptEncoding` falls back to `GZip` on unknown values]
-`Header.AcceptEncoding` matches a fixed set of encoding names and returns `GZip` for anything it does not recognize, rather than reporting a parse failure. A request with `accept-encoding: bogus` — or a typo like `identityy` — reads as if the client asked for gzip. `Header.AcceptEncoding.parse` rejects only values with no non-empty comma-separated part, so almost any string succeeds. A server choosing a response encoding from this header should read the raw value instead of trusting the parsed variant. Tracked as [zio/zio-blocks#1618](https://github.com/zio/zio-blocks/issues/1618).
-:::
+`Header.AcceptEncoding` keeps a coding it does not recognize as `Unparsed` rather than rejecting it, so `!!!` parses and renders back unchanged; `Header.AcceptEncoding.parse` fails only when no non-empty comma-separated part remains. A server choosing a response encoding should treat `Unparsed` as unsupported.
 
 ### `Headers#getLast` — last parseable match
 
@@ -503,12 +501,12 @@ Header.CacheControl.parse("max-age=soon")
 | Type                      | Wire name          | Shape                                                            |
 | ------------------------- | ------------------ | ---------------------------------------------------------------- |
 | `Header.Accept`           | `accept`           | `mediaRanges: Chunk[Accept.MediaRange]`                           |
-| `Header.AcceptEncoding`   | `accept-encoding`  | ADT: `GZip`, `Deflate`, `Br`, `Compress`, `Identity`, `Any`, `Multiple` |
+| `Header.AcceptEncoding`   | `accept-encoding`  | ADT: `GZip`, `Deflate`, `Br`, `Compress`, `Identity`, `Any`, `Unparsed`, `Multiple` |
 | `Header.AcceptLanguage`   | `accept-language`  | `languages: Chunk[AcceptLanguage.LanguageRange]`                  |
 | `Header.AcceptRanges`     | `accept-ranges`    | ADT: `Bytes`, `None_`                                             |
 | `Header.AcceptPatch`      | `accept-patch`     | `mediaTypes: Chunk[MediaType]`                                    |
 
-`Accept.MediaRange` and `AcceptLanguage.LanguageRange` are the per-entry types that carry a quality weight, which is what makes these headers a `Chunk` rather than a single value. `None_` on `AcceptRanges` is spelled with a trailing underscore because `None` is taken.
+`Accept.MediaRange` and `AcceptLanguage.LanguageRange` are the per-entry types that carry a quality weight, which is what makes these headers a `Chunk` rather than a single value. `None_` on `AcceptRanges` is spelled with a trailing underscore because `None` is taken. `Unparsed` on `AcceptEncoding` plays the same role as on `Authorization`: a coding the ADT does not name is preserved, weight included, rather than rejected.
 
 ### CORS
 

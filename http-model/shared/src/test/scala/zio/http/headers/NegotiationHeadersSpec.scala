@@ -146,6 +146,72 @@ object NegotiationHeadersSpec extends ZIOSpecDefault {
       test("parse empty returns Left") {
         assertTrue(AcceptEncoding.parse("").isLeft)
       },
+      test("unknown encoding is preserved, not coerced to gzip") {
+        assertTrue(
+          AcceptEncoding.parse("bogus") == Right(AcceptEncoding.Unparsed("bogus", None)),
+          AcceptEncoding.parse("!!!") == Right(AcceptEncoding.Unparsed("!!!", None)),
+          AcceptEncoding.parse("identityy") == Right(AcceptEncoding.Unparsed("identityy", None)),
+          AcceptEncoding.parse("identityy") != Right(AcceptEncoding.GZip(None))
+        )
+      },
+      test("unknown encoding keeps its weight") {
+        assertTrue(
+          AcceptEncoding.parse("bogus;q=0.3") ==
+            Right(AcceptEncoding.Unparsed("bogus", Some(0.3)))
+        )
+      },
+      test("unknown encoding round-trips") {
+        val rendered = AcceptEncoding.render(AcceptEncoding.parse("bogus").toOption.get)
+        assertTrue(
+          rendered == "bogus",
+          AcceptEncoding.render(AcceptEncoding.Unparsed("bogus", Some(0.3))) == "bogus;q=0.3"
+        )
+      },
+      test("unknown encoding inside a list is kept in place") {
+        assertTrue(
+          AcceptEncoding.parse("gzip, zstd, br;q=0.5") == Right(
+            AcceptEncoding.Multiple(
+              Chunk(
+                AcceptEncoding.GZip(None),
+                AcceptEncoding.Unparsed("zstd", None),
+                AcceptEncoding.Br(Some(0.5))
+              )
+            )
+          )
+        )
+      },
+      test("weight parameter tolerates optional whitespace and uppercase Q (RFC 9110 §12.4.2)") {
+        assertTrue(
+          AcceptEncoding.parse("identity; q=0.5") ==
+            Right(AcceptEncoding.Identity(Some(0.5))),
+          AcceptEncoding.parse("identity ; q=0.5") ==
+            Right(AcceptEncoding.Identity(Some(0.5))),
+          AcceptEncoding.parse("GZIP;Q=0.5") == Right(AcceptEncoding.GZip(Some(0.5))),
+          AcceptEncoding.parse("gzip; Q=0.5") == Right(AcceptEncoding.GZip(Some(0.5))),
+          AcceptEncoding.parse("gzip;q=1.0, identity; q=0.5, *;q=0") == Right(
+            AcceptEncoding.Multiple(
+              Chunk(
+                AcceptEncoding.GZip(Some(1.0)),
+                AcceptEncoding.Identity(Some(0.5)),
+                AcceptEncoding.Any(Some(0.0))
+              )
+            )
+          )
+        )
+      },
+      test("malformed parameters never throw") {
+        assertTrue(
+          AcceptEncoding.parse(";") == Right(AcceptEncoding.Unparsed("", None)),
+          AcceptEncoding.parse(";q=0.5") == Right(AcceptEncoding.Unparsed("", Some(0.5))),
+          AcceptEncoding.parse("gzip;") == Right(AcceptEncoding.GZip(None)),
+          AcceptEncoding.parse("gzip;;q=0.5") == Right(AcceptEncoding.GZip(Some(0.5))),
+          AcceptEncoding.parse("gzip;level=9;q=0.5") ==
+            Right(AcceptEncoding.GZip(Some(0.5))),
+          AcceptEncoding.parse("gzip;q=abc;q=0.9") == Right(AcceptEncoding.GZip(Some(0.9))),
+          AcceptEncoding.parse("gzip;q=abc") == Right(AcceptEncoding.GZip(None)),
+          AcceptEncoding.parse("gzip;q=") == Right(AcceptEncoding.GZip(None))
+        )
+      },
       test("header name") {
         assertTrue(AcceptEncoding.GZip(None).headerName == "accept-encoding")
       },
