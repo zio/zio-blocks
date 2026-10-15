@@ -39,7 +39,7 @@ object Projection {
 
 ### Per-Entity Projection
 
-`Projection[A](name)` creates a projection whose data is partitioned by entity ID. It requires both a `Schema[A]` and an `EntityPath[A]` in implicit scope — the schema describes the read model's structure, while the entity path tells the engine where to keep the SQLite files:
+`Projection[A](name)` creates a projection whose data is partitioned by entity ID. It requires both a [`Schema[A]`](../schema/schema.md) and an [`EntityPath[A]`](#entity-paths) in implicit scope — the schema describes the read model's structure, while the entity path tells the engine where to keep the SQLite files:
 
 ```scala
 case class UserProfile(@Modifier.id id: String, name: String, email: String)
@@ -631,7 +631,7 @@ It is the right scope for views that group things by a related entity, such as t
 
 There is no card for each thing and no drawer for each group. Every note, whoever it is about, changes the numbers on one board: orders so far, shipped, pending. This scope answers the question "how many in total?".
 
-All events go to one shared store, `global/<name>.db`, whichever entity or key they belong to. The routing mode of the source is [`routeToAll`](#routetoall), which does not split the events by entity or by key. It does not make a projection global by itself, only `Projection.global` does. It is the right scope for totals and counters, such as the number of orders or the revenue of a shop. See [Aggregating Fields](#aggregating-fields) for a full example.
+All events go to one shared store, `global/<name>.db`, whichever entity or key they belong to, and from as many sources as the projection reads. The routing mode of its sources is [`routeToAll`](#routetoall), which does not split the events by entity or by key. It does not make a projection global by itself, only `Projection.global` does. It is the right scope for totals and counters, such as the number of orders or the revenue of a shop. See [Aggregating Fields](#aggregating-fields) for a full example.
 
 Two details matter in practice:
 
