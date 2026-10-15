@@ -179,10 +179,10 @@ A projection goes through eight steps, from the declaration in your code to a ro
    - **By a key from the event:** `routedBy[E](_.field)` groups events by a value read from the event.
    - **One shared store:** `routeToAll` sends them all to one store.
 4. **Say what each event does.** Call `on[E]` for an event type, then one of the handler verbs:
-   - **Insert and delete:** `insert(...)` adds a row built from the event, and `delete` removes the row of the entity the event was recorded under.
-   - **Field updates:** `update(_.field)(...)`, `updateWithField("column", ...)` and `updateField("column")(...)` set one column to a value computed from the event.
-   - **Aggregation:** `aggregate(FieldUpdate.Increment(...))`, `aggregate(Chunk(...))` and `aggregateField(...)` apply field updates that are fixed when the projection is declared, such as adding one to a counter.
-   - **Custom actions:** `custom(...)` returns the action itself, chosen from the event, for example an upsert, or nothing at all.
+   - **Insert and delete:** the event adds a new row or removes one. `insert(...)` builds the row from the event; `delete` removes the row of the entity the event belongs to.
+   - **Field updates:** the event changes one column of an existing row, for example `status` to `"shipped"`. `update(_.field)(...)` picks the column by field, checked by the compiler; `updateWithField("column", ...)` and `updateField("column")(...)` pick it by name.
+   - **Aggregation:** the event makes the same change every time, such as adding one to a counter: `aggregate(FieldUpdate.Increment("order_count", 1L))` on `OrderPlaced` adds one to `order_count` for every order. `aggregate(Chunk(...))` makes several changes at once, and `aggregateField(...)` is another name for the single form.
+   - **Custom actions:** the handler looks at the event and decides what to do: insert, update, or nothing. `custom(...)` returns that decision as a `ProjectionAction`.
 
    A handler is a plain function from the event and its metadata to a `ProjectionAction`: it describes the change and does not perform it.
 5. **Create an engine.** In a test, `TestEngine.make(projection)` wires everything up in memory. In an application, `ProjectionEngine.makeWithStores(...)` takes the SQLite stores you created.
