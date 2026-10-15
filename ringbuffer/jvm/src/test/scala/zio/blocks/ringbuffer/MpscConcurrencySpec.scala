@@ -197,6 +197,74 @@ object MpscConcurrencySpec extends ZIOSpecDefault {
           rb.isEmpty
         )
       }
+    } @@ TestAspect.timeout(60.seconds),
+    test("4 producers with drain-based consumer: batched publication frees slots without loss") {
+      ZIO.attemptBlocking {
+        val capacity         = 8
+        val rb               = new MpscRingBuffer[String](capacity)
+        val numProducers     = 4
+        val itemsPerProducer = 2_500
+        val totalItems       = numProducers * itemsPerProducer
+        // Pre-fill so producers contend from the start: they can only succeed
+        // once the single consumer's drain publishes the consumer index. A
+        // drain that never publishes would stall producers until the timeout.
+        (0 until capacity).foreach(i => rb.offer(s"seed-$i"))
+
+        val producersDone = new CountDownLatch(numProducers)
+        val consumerDone  = new CountDownLatch(1)
+        val received      = new AtomicLong(0L)
+        val seen          = java.util.Collections.newSetFromMap(
+          new java.util.concurrent.ConcurrentHashMap[String, java.lang.Boolean]()
+        )
+
+        val producers = (0 until numProducers).map { p =>
+          new Thread(() => {
+            var i = 0
+            while (i < itemsPerProducer) {
+              if (rb.offer(s"p$p-$i")) i += 1
+              else Thread.onSpinWait()
+            }
+            producersDone.countDown()
+          })
+        }
+
+        // Single consumer: the only thread that drains. Producers only offer.
+        val consumer = new Thread(() => {
+          var got = 0L
+          val end = capacity + totalItems
+          while (got < end) {
+            val n = rb.drain(
+              e => {
+                seen.add(e)
+                ()
+              },
+              capacity
+            )
+            if (n > 0) {
+              got += n
+              received.addAndGet(n.toLong)
+            } else Thread.onSpinWait()
+          }
+          consumerDone.countDown()
+        })
+
+        producers.foreach(_.start())
+        consumer.start()
+        val producersOk = producersDone.await(50, java.util.concurrent.TimeUnit.SECONDS)
+        val consumerOk  = consumerDone.await(50, java.util.concurrent.TimeUnit.SECONDS)
+
+        // The queue stays usable after the concurrent phase.
+        val reusable = rb.offer("after") && rb.take() == "after"
+
+        assertTrue(
+          producersOk,
+          consumerOk,
+          received.get() == (capacity + totalItems).toLong,
+          seen.size() == capacity + totalItems,
+          reusable,
+          rb.isEmpty
+        )
+      }
     } @@ TestAspect.timeout(60.seconds)
   )
 }

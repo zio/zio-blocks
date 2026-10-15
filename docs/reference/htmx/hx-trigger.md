@@ -145,9 +145,21 @@ HxTrigger.input.delay(500.millis).changed
 
 ## Source & Target Control
 
-Direct where the request originates and how it affects other elements:
+Direct where the request originates and how it affects other elements. Each of `from:`, `target:`, and `root:` has three forms: a typed `CssSelector` overload, an `HxTarget` overload (for `from:`), and an explicitly-named Raw `String` escape hatch for selectors the typed surface cannot express (HTMX extended selectors like `closest ...`, `document`, or `window`). The plain-`String` overloads remain as legacy aliases of the Raw hatches:
 
-**`from(selector: String)` or `from(target: HxTarget)`** adds a `from:` modifier, listening for the trigger on a different element. The request still fires on the original element, but it listens for the trigger event on the specified source:
+```scala mdoc:compile-only
+import zio.blocks.html._
+import zio.http.htmx._
+
+// Typed selector — preferred
+HxTrigger.click.from(CssSelector.id("search"))
+// Raw hatch for extended selectors
+HxTrigger.click.fromRaw("closest form")
+// Legacy String alias, delegates to fromRaw
+HxTrigger.click.from("#search")
+```
+
+**`from(selector: CssSelector)` / `from(target: HxTarget)` / `fromRaw(selector: String)`** adds a `from:` modifier, listening for the trigger on a different element. The request still fires on the original element, but it listens for the trigger event on the specified source:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -158,11 +170,11 @@ input(id := "search")
 button(
   "Go",
   hxPost := "/search",
-  hxTrigger := HxTrigger.click.from("#search")
+  hxTrigger := HxTrigger.click.from(CssSelector.id("search"))
 )
 ```
 
-**`target(selector: String)`** adds a `target:` modifier, restricting the trigger to events from specific descendant elements. Useful for event delegation:
+**`target(selector: CssSelector)` / `targetRaw(selector: String)`** adds a `target:` modifier, restricting the trigger to events from specific descendant elements. Useful for event delegation:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -171,11 +183,13 @@ import zio.http.htmx._
 // Only fire on clicks within .clickable items
 div(
   hxPost := "/item-selected",
-  hxTrigger := HxTrigger.click.target(".clickable"),
+  hxTrigger := HxTrigger.click.target(CssSelector.`class`("clickable")),
   div(className := "clickable", "Item 1"),
   div(className := "clickable", "Item 2")
 )
 ```
+
+The matching `HxTrigger.Modifier.From` / `Target` / `Root` constructors take raw strings, with `Modifier.From.css`, `Modifier.Target.css`, and `Modifier.Root.css` as the typed `CssSelector` entry points (mirroring `HxTarget.css`).
 
 ## Queue Strategy
 
@@ -223,7 +237,7 @@ div(
 )
 ```
 
-**`root(selector: String)`** adds a `root:` modifier, specifying the container for Intersection Observer calculations:
+**`root(selector: CssSelector)` / `rootRaw(selector: String)`** adds a `root:` modifier, specifying the container for Intersection Observer calculations:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -234,7 +248,7 @@ div(
   id := "scrollable-list",
   div(
     hxGet := "/item",
-    hxTrigger := HxTrigger.intersect.root(".scrollable-list")
+    hxTrigger := HxTrigger.intersect.root(CssSelector.`class`("scrollable-list"))
   )
 )
 ```

@@ -47,7 +47,7 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
    *   full
    */
   def offer(a: A): Boolean = {
-    if (a == null) throw new NullPointerException("offer(null) is not permitted")
+    if (a eq null) throw new NullPointerException("offer(null) is not permitted")
     val pIdx = producerIndex
     val cIdx = consumerIndex
     if ((pIdx - cIdx).toInt == capacity) {
@@ -102,21 +102,34 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
    *   if `limit` is negative
    * @return
    *   the number of elements actually drained (0 if the buffer is empty)
+   * @note
+   *   If `consumer` throws, the already-advanced consumer index is still
+   *   published before the exception propagates, so the drained slots are freed
+   *   and the queue stays usable.
    */
   def drain(consumer: A => Unit, limit: Int): Int = {
     if (limit < 0) throw new IllegalArgumentException(s"limit is negative: $limit")
     var count = 0
-    while (count < limit) {
-      val cIdx = consumerIndex
-      val pIdx = producerIndex
-      if (pIdx == cIdx) return count
-      val offset = (cIdx & mask).toInt
-      val e      = buffer(offset).asInstanceOf[A]
-      buffer(offset) = null
-      consumerIndex = cIdx + 1L
-      count += 1
-      consumer(e)
+    var cIdx  = consumerIndex
+    try {
+      while (count < limit) {
+        if (producerIndex == cIdx) {
+          consumerIndex = cIdx
+          return count
+        }
+        val offset = (cIdx & mask).toInt
+        val e      = buffer(offset).asInstanceOf[A]
+        buffer(offset) = null
+        cIdx += 1L
+        count += 1
+        consumer(e)
+      }
+    } catch {
+      case throwable: Throwable =>
+        consumerIndex = cIdx
+        throw throwable
     }
+    consumerIndex = cIdx
     count
   }
 }
