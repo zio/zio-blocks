@@ -39,6 +39,16 @@ private[schema] object CustomCodecFixtures {
     implicit val schema: Schema[IntPair] = Schema.derived[IntPair]
   }
 
+  final case class OptBox(maybe: Option[Int])
+  object OptBox {
+    implicit val schema: Schema[OptBox] = Schema.derived[OptBox]
+  }
+
+  final case class TagBox(tag: Tag)
+  object TagBox {
+    implicit val schema: Schema[TagBox] = Schema.derived[TagBox]
+  }
+
   def prefixedQueryIntCodec(prefix: String = "custom-"): QueryCodec[Int] = new QueryCodec[Int] {
     def encode(value: Int, output: QueryParamsBuilder): Unit =
       output.add("value", s"$prefix$value")
