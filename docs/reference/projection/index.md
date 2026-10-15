@@ -178,13 +178,11 @@ A projection goes through eight steps, from the declaration in your code to a ro
    - **Per entity:** `routeToSelf` sends each event to the row of the entity it was recorded under.
    - **By a key from the event:** `routedBy[E](_.field)` groups events by a value read from the event.
    - **One shared store:** `routeToAll` sends them all to one store.
-4. **Say what each event does.** Call `on[E]` for an event type, then one of the handler verbs:
+4. **Add a handler for each event type.** Call `on[E]` for an event type, then one of the handler verbs, which says what that event does to the row:
    - **Insert and delete:** the event adds a new row or removes one. `insert(...)` builds the row from the event; `delete` removes the row of the entity the event belongs to.
    - **Field updates:** the event changes one column of an existing row, for example `status` to `"shipped"`. `update(_.field)(...)` picks the column by field, checked by the compiler; `updateWithField("column", ...)` and `updateField("column")(...)` pick it by name.
    - **Aggregation:** the event makes the same change every time, such as adding one to a counter: `aggregate(FieldUpdate.Increment("order_count", 1L))` on `OrderPlaced` adds one to `order_count` for every order. `aggregate(Chunk(...))` makes several changes at once, and `aggregateField(...)` is another name for the single form.
    - **Custom actions:** the handler looks at the event and decides what to do: insert, update, or nothing. `custom(...)` returns that decision as a `ProjectionAction`.
-
-   A handler is a plain function from the event and its metadata to a `ProjectionAction`: it describes the change and does not perform it.
 5. **Create an engine.** In a test, `TestEngine.make(projection)` wires everything up in memory. In an application, `ProjectionEngine.makeWithStores(...)` takes the SQLite stores you created.
 6. **Append events.** Call `eventStore.append(entityId, event)`. The store gives the event the next sequence number, wraps it in an `EventEnvelope` with that number, its tag, the time and the entity ID, and publishes it to the engine.
 7. **The engine does the rest.** It first catches up on the events it has not seen yet, then follows new ones as they arrive. For each event it builds a `ProjectionContext` from the envelope, asks the projection for the handler's action with `handle`, applies that action to the store chosen by the routing, and saves the sequence number as its watermark, so that a restart continues from there.
