@@ -168,7 +168,7 @@ Two types carry the whole lifecycle:
 A projection goes through nine steps, from the declaration in your code to a row you can query:
 
 1. **Declare the projection.** Call `Projection[A](name)` for a read model with one row per entity, or `Projection.global[A](name)` for one shared row of totals. The result is an empty, immutable description: it knows the shape of a row and where its files go, and nothing else yet.
-2. **Say where the events come from.** Call `from(sourceName)` to name the event store the projection reads. A projection can read several, one `from` call each: everything that follows a `from` call, the routing and the handlers up to the next `from`, belongs to that source, which is how one read model can combine facts from more than one feed, such as a daily stats row that counts both new users and new repositories (see [Several Sources](./projection.md#several-sources)).
+2. **Say where the events come from.** Call `from(sourceName)` to name the event store the projection reads. A projection can read several, one `from` call each: everything that follows a `from` call, the routing and the handlers up to the next `from`, belongs to that source, which is how one read model can combine facts from more than one feed, such as a daily stats row that counts both new users and new repositories (see [`from`](./projection.md#from)).
 3. **Say how the events are routed.** Right after `from`, choose one of three:
    - **Per entity:** `routeToSelf` sends each event to the row of the entity it was recorded under.
    - **By a key from the event:** `routedBy[E](_.field)` groups events by a value read from the event.
