@@ -36,6 +36,12 @@ private[otel] final class BatchProcessor[A](
   private val queueSize: AtomicInteger        = new AtomicInteger(0)
   private val isShutdown: AtomicBoolean       = new AtomicBoolean(false)
 
+  // Monitor for the retry backoff wait. shutdown() notifies it so a flush
+  // parked in backoff wakes immediately instead of sleeping out the delay —
+  // the scheduler thread is never blocked longer than necessary and shutdown
+  // still flushes promptly.
+  private val retryMonitor = new Object
+
   private val flushTask: Runnable = new Runnable {
     def run(): Unit = doFlush()
   }
@@ -60,11 +66,23 @@ private[otel] final class BatchProcessor[A](
 
   def forceFlush(): Unit = doFlush()
 
-  def shutdown(): Unit =
-    if (isShutdown.compareAndSet(false, true)) {
+  def shutdown(): Unit = {
+    // The flag flip and the wake-up are atomic under retryMonitor, so a
+    // flush thread checking awaitBackoff cannot slip between them and miss
+    // the notify (which would park it for the full backoff delay).
+    val shouldFlush = retryMonitor.synchronized {
+      if (isShutdown.compareAndSet(false, true)) {
+        retryMonitor.notifyAll()
+        true
+      } else false
+    }
+    if (shouldFlush) {
       scheduledFuture.cancel(false)
+      // Wake any flush parked in retry backoff so it stops retrying now;
+      // the doFlush below then drains whatever is left in the queue.
       doFlush()
     }
+  }
 
   override def close(): Unit = shutdown()
 
@@ -116,15 +134,38 @@ private[otel] final class BatchProcessor[A](
         } else {
           val shift   = math.min(attempt, 30)
           val delayMs = math.min(retryBaseMillis * (1L << shift), 30000L)
-          if (isShutdown.get()) {
+          if (awaitBackoff(delayMs)) exportWithRetry(batch, attempt + 1)
+          else {
             System.err.println(
               "[zio-blocks-telemetry] BatchProcessor shutting down, not retrying. Dropping " + batch.size + " items."
             )
-          } else {
-            try Thread.sleep(delayMs)
-            catch { case _: InterruptedException => Thread.currentThread().interrupt() }
-            exportWithRetry(batch, attempt + 1)
           }
         }
+    }
+
+  /**
+   * Waits out the retry backoff, returning `false` early (without sleeping the
+   * full delay) once shutdown has started. The check/wait runs under the same
+   * `retryMonitor` as `shutdown`'s flag flip plus notify, so the wake-up cannot
+   * be missed; the deadline loop additionally guards against spurious wakeups
+   * by re-waiting for only the time that is left.
+   */
+  private def awaitBackoff(delayMs: Long): Boolean =
+    retryMonitor.synchronized {
+      if (isShutdown.get()) false
+      else {
+        val deadlineMs  = System.currentTimeMillis() + delayMs
+        var remainingMs = delayMs
+        while (!isShutdown.get() && remainingMs > 0) {
+          try retryMonitor.wait(remainingMs)
+          catch {
+            case _: InterruptedException =>
+              Thread.currentThread().interrupt()
+              remainingMs = 0
+          }
+          if (remainingMs > 0) remainingMs = deadlineMs - System.currentTimeMillis()
+        }
+        !isShutdown.get()
+      }
     }
 }

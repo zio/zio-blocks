@@ -119,10 +119,9 @@ object log extends LogVersionSpecific {
         val now     = EpochClock.epochNanos()
         val builder = AttributeBuilderPool
           .get()
-          .put("code.filepath", location.filePath)
-          .put("code.namespace", location.namespace)
-          .put("code.function", location.methodName)
-          .put("code.lineno", location.lineNumber.toLong)
+          .put("code.file.path", location.filePath)
+          .put("code.function.name", SourceLocation.qualifiedFunctionName(location.namespace, location.methodName))
+          .put("code.line.number", location.lineNumber.toLong)
 
         // Merge scoped annotations
         val annotations = LogAnnotations.get()
@@ -161,10 +160,9 @@ object log extends LogVersionSpecific {
     val now     = EpochClock.epochNanos()
     val builder = AttributeBuilderPool
       .get()
-      .put("code.filepath", location.filePath)
-      .put("code.namespace", location.namespace)
-      .put("code.function", location.methodName)
-      .put("code.lineno", location.lineNumber.toLong)
+      .put("code.file.path", location.filePath)
+      .put("code.function.name", SourceLocation.qualifiedFunctionName(location.namespace, location.methodName))
+      .put("code.line.number", location.lineNumber.toLong)
 
     // Merge scoped annotations
     val annotations = LogAnnotations.get()
@@ -172,8 +170,7 @@ object log extends LogVersionSpecific {
       annotations.foreach { case (k, v) => builder.put(k, v) }
     }
 
-    val attrs = builder.build
-    builder.clear()
+    val attrs    = builder.buildAndReset()
     val state    = GlobalLogState.get()
     val resource = state.logger.resource
 

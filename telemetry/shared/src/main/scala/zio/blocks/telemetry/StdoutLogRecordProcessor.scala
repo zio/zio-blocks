@@ -45,54 +45,70 @@ private[telemetry] class StdoutLogRecordProcessor extends LogRecordProcessor {
     var pad = 5 - sevText.length
     while (pad > 0) { sb.append(' '); pad -= 1 }
 
-    // Source location — [Namespace.method:line]
-    sb.append(" [")
-    var namespace = ""
-    var method    = ""
-    var line      = 0L
+    // Source location — scanned by stable key from the record attributes. The
+    // captured file path is preserved exactly as emitted at compile time.
+    var filePath     = ""
+    var functionName = ""
+    var line         = 0L
     logRecord.attributes.foreach { (key, value) =>
       key match {
-        case "code.namespace" =>
-          value match { case AttributeValue.StringValue(v) => namespace = v; case _ => }
-        case "code.function" =>
-          value match { case AttributeValue.StringValue(v) => method = v; case _ => }
-        case "code.lineno" =>
-          value match { case AttributeValue.LongValue(v) => line = v; case _ => }
+        case SourceLocation.CodeFilePath =>
+          value match {
+            case AttributeValue.StringValue(v) => filePath = v
+            case _                             => ()
+          }
+        case SourceLocation.CodeFunctionName =>
+          value match {
+            case AttributeValue.StringValue(v) => functionName = v
+            case _                             => ()
+          }
+        case SourceLocation.CodeLineNumber =>
+          value match {
+            case AttributeValue.LongValue(v)   => line = v
+            case AttributeValue.StringValue(v) =>
+              if (v != null) v.toLongOption.foreach(parsed => line = parsed)
+            case _ => ()
+          }
         case _ => ()
       }
     }
-    if (namespace.nonEmpty) {
-      val lastDot = namespace.lastIndexOf('.')
-      if (lastDot >= 0) sb.append(namespace.substring(lastDot + 1))
-      else sb.append(namespace)
+
+    // Body first — escaped so a multi-line message cannot forge extra lines.
+    val body = logRecord.body.value
+    if (body != null && body.nonEmpty) {
+      sb.append(' ')
+      TextLogFormatter.appendBodyEscaped(sb, body)
     }
-    if (method.nonEmpty) { sb.append('.'); sb.append(method) }
-    if (line > 0) { sb.append(':'); sb.append(line) }
-    sb.append("] ")
 
-    // Body
-    sb.append(logRecord.body.value)
+    // Location after the body: compact function separately, then the
+    // contiguous captured `path:line` token.
+    TextLogLayout.appendLocation(sb, filePath, functionName, line)
 
-    // User attributes (skip source location keys)
+    // User attributes (skip source location keys, except an unparseable
+    // String-typed code.line.number which stays visible instead of being
+    // dropped — same rule as TextLogFormatter).
     var hasUserAttrs = false
     logRecord.attributes.foreach { (key, value) =>
-      if (
-        key != "code.filepath" && key != "code.namespace" &&
-        key != "code.function" && key != "code.lineno"
-      ) {
+      val visible = value match {
+        case AttributeValue.StringValue(v) => TextLogFormatter.showRecordStringAsUserAttr(key, v)
+        case _                             => !TextLogFormatter.isCodeKey(key)
+      }
+      if (visible) {
         if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
         else sb.append(", ")
-        sb.append(key)
+        TextLogFormatter.appendTextKeyEscaped(sb, key)
         sb.append('=')
         value match {
-          case AttributeValue.StringValue(v)      => sb.append('"'); sb.append(v); sb.append('"')
-          case AttributeValue.LongValue(v)        => sb.append(v)
-          case AttributeValue.DoubleValue(v)      => sb.append(v)
-          case AttributeValue.BooleanValue(v)     => sb.append(v)
-          case AttributeValue.StringSeqValue(vs)  => appendStringSeq(sb, vs)
-          case AttributeValue.LongSeqValue(vs)    => appendScalarSeq(sb, vs)
-          case AttributeValue.DoubleSeqValue(vs)  => appendScalarSeq(sb, vs)
-          case AttributeValue.BooleanSeqValue(vs) => appendScalarSeq(sb, vs)
+          case AttributeValue.StringValue(v) => TextLogFormatter.renderTextAttrValue(sb, 0, 0L, v, null)
+          case AttributeValue.LongValue(v)   => TextLogFormatter.renderTextAttrValue(sb, 1, v, null, null)
+          case AttributeValue.DoubleValue(v) =>
+            TextLogFormatter.renderTextAttrValue(sb, 2, java.lang.Double.doubleToRawLongBits(v), null, null)
+          case AttributeValue.BooleanValue(v) =>
+            TextLogFormatter.renderTextAttrValue(sb, 3, if (v) 1L else 0L, null, null)
+          case AttributeValue.StringSeqValue(vs)  => TextLogFormatter.renderTextAttrValue(sb, 4, 0L, null, vs)
+          case AttributeValue.LongSeqValue(vs)    => TextLogFormatter.renderTextAttrValue(sb, 5, 0L, null, vs)
+          case AttributeValue.DoubleSeqValue(vs)  => TextLogFormatter.renderTextAttrValue(sb, 6, 0L, null, vs)
+          case AttributeValue.BooleanSeqValue(vs) => TextLogFormatter.renderTextAttrValue(sb, 7, 0L, null, vs)
         }
       }
     }
@@ -111,24 +127,4 @@ private[telemetry] class StdoutLogRecordProcessor extends LogRecordProcessor {
 
   override def shutdown(): Unit   = ()
   override def forceFlush(): Unit = ()
-
-  private def appendStringSeq(sb: StringBuilder, value: Seq[Any]): Unit = {
-    sb.append('[')
-    var first = true
-    value.foreach { v =>
-      if (first) first = false else sb.append(", ")
-      sb.append('"').append(v.toString).append('"')
-    }
-    sb.append(']')
-  }
-
-  private def appendScalarSeq(sb: StringBuilder, value: Seq[Any]): Unit = {
-    sb.append('[')
-    var first = true
-    value.foreach { v =>
-      if (first) first = false else sb.append(", ")
-      sb.append(v.toString)
-    }
-    sb.append(']')
-  }
 }
