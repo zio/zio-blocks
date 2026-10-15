@@ -48,6 +48,11 @@ object QueryCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[UserId] = Schema[String].transform(UserId(_), _.value)
   }
 
+  final case class CustomChild(page: Int, name: String)
+  object CustomChild {
+    implicit val schema: Schema[CustomChild] = Schema.derived[CustomChild]
+  }
+
   final case class Wrapped(id: UserId)
   object Wrapped {
     implicit val schema: Schema[Wrapped] = Schema.derived[Wrapped]
@@ -127,6 +132,7 @@ object QueryCodecSpec extends ZIOSpecDefault {
       val intCodec     = Schema[Int].derive(DefaultQueryFormat)
       val listCodec    = Schema[List[Int]].derive(DefaultQueryFormat)
       val wrapperCodec = Schema[UserId].derive(DefaultQueryFormat)
+      val optionCodec  = Schema[Option[Int]].derive(DefaultQueryFormat)
 
       assertTrue(
         intCodec.encodeToQueryParams(42) == QueryParams("value" -> "42"),
@@ -134,7 +140,11 @@ object QueryCodecSpec extends ZIOSpecDefault {
         listCodec.encodeToQueryParams(List(1, 2)) == QueryParams("value" -> "1", "value" -> "2"),
         listCodec.decode(QueryParams("value" -> "1", "value" -> "2")) == Right(List(1, 2)),
         wrapperCodec.encodeToQueryParams(UserId("wrapped")) == QueryParams("value" -> "wrapped"),
-        wrapperCodec.decode(QueryParams("value" -> "wrapped")) == Right(UserId("wrapped"))
+        wrapperCodec.decode(QueryParams("value" -> "wrapped")) == Right(UserId("wrapped")),
+        optionCodec.encodeToQueryParams(None) == QueryParams.empty,
+        optionCodec.encodeToQueryParams(Some(3)) == QueryParams("value" -> "3"),
+        optionCodec.decode(QueryParams.empty) == Right(None),
+        optionCodec.decode(QueryParams("value" -> "3")) == Right(Some(3))
       )
     },
     test("respects BindingInstance override for primitive codec") {
@@ -159,6 +169,94 @@ object QueryCodecSpec extends ZIOSpecDefault {
         codec.decode(encoded) == Right(42)
       )
     },
+    test("respects custom child codec for record fields") {
+      val customIntCodec = new QueryCodec[Int] {
+        def encode(value: Int, output: QueryParamsBuilder): Unit =
+          output.add("value", s"custom-$value")
+
+        def decode(input: QueryParams): Either[SchemaError, Int] =
+          input.getFirst("value") match {
+            case Some(s) if s.startsWith("custom-") =>
+              Right(s.stripPrefix("custom-").toInt)
+            case other =>
+              Left(SchemaError(s"Expected custom- prefix, got: $other"))
+          }
+      }
+      val codec   = Schema[CustomChild].deriving(QueryCodecDeriver).instance(TypeId.int, customIntCodec).derive
+      val value   = CustomChild(42, "alice")
+      val encoded = codec.encodeToQueryParams(value)
+
+      assertTrue(
+        encoded == QueryParams("page" -> "custom-42", "name" -> "alice"),
+        codec.decode(encoded) == Right(value),
+        codec.decode(QueryParams("page" -> "42", "name" -> "alice")).isLeft
+      )
+    },
+    test("honors custom Int inside optional, sequence and wrapper fields") {
+      import CustomCodecFixtures._
+
+      val codec   = Schema[NestedInts].deriving(QueryCodecDeriver).instance(TypeId.int, prefixedQueryIntCodec()).derive
+      val value   = NestedInts(Some(1), List(2, 3), Tag(4))
+      val encoded = codec.encodeToQueryParams(value)
+
+      assertTrue(
+        encoded == QueryParams("maybe" -> "custom-1", "many" -> "custom-2", "many" -> "custom-3", "tag" -> "custom-4"),
+        codec.decode(encoded) == Right(value),
+        codec.decode(QueryParams("tag" -> "custom-5")) == Right(NestedInts(None, Nil, Tag(5))),
+        codec.decode(QueryParams("maybe" -> "1", "many" -> "2", "tag" -> "4")).isLeft
+      )
+    },
+    test("rejects custom field codecs that bypass the canonical value key") {
+      import CustomCodecFixtures._
+
+      val topLevel = Schema[Int].deriving(QueryCodecDeriver).instance(TypeId.int, offKeyQueryIntCodec).derive
+      val record   = Schema[CustomChild].deriving(QueryCodecDeriver).instance(TypeId.int, offKeyQueryIntCodec).derive
+
+      assertTrue(
+        topLevel.decode(topLevel.encodeToQueryParams(1)) == Right(1),
+        Try(record.encodeToQueryParams(CustomChild(1, "alice"))).isFailure
+      )
+    },
+    test("accumulates custom field errors across a record") {
+      import CustomCodecFixtures._
+
+      val codec  = Schema[IntPair].deriving(QueryCodecDeriver).instance(TypeId.int, prefixedQueryIntCodec()).derive
+      val result = codec.decode(QueryParams("first" -> "bad", "second" -> "worse"))
+
+      assertTrue(
+        result.swap.exists(_.errors.size == 2),
+        result.swap.exists(_.message.contains("Expected custom- prefix"))
+      )
+    },
+    test("composes custom Int through top-level Option") {
+      import CustomCodecFixtures._
+
+      val codec =
+        Schema[Option[Int]].deriving(QueryCodecDeriver).instance(TypeId.int, prefixedQueryIntCodec()).derive
+
+      assertTrue(
+        codec.encodeToQueryParams(Some(1)) == QueryParams("value" -> "custom-1"),
+        codec.encodeToQueryParams(None) == QueryParams.empty,
+        codec.decode(QueryParams("value" -> "custom-1")) == Right(Some(1)),
+        codec.decode(QueryParams.empty) == Right(None),
+        codec.decode(QueryParams("value" -> "1")).isLeft
+      )
+    },
+    test("honors an installed derived Option codec with a customized child") {
+      import CustomCodecFixtures._
+
+      val installed =
+        Schema[Option[Int]].deriving(QueryCodecDeriver).instance(TypeId.int, prefixedQueryIntCodec()).derive
+      val codec =
+        Schema[OptBox].deriving(QueryCodecDeriver).instance(TypeId.of[OptBox], "maybe", installed).derive
+      val value = OptBox(Some(3))
+
+      assertTrue(
+        codec.encodeToQueryParams(value) == QueryParams("maybe" -> "custom-3"),
+        codec.decode(QueryParams("maybe" -> "custom-3")) == Right(value),
+        codec.decode(QueryParams("maybe" -> "3")).isLeft
+      )
+    },
     test("reports malformed top-level char values") {
       val codec = Schema[Char].derive(DefaultQueryFormat)
 
@@ -166,14 +264,12 @@ object QueryCodecSpec extends ZIOSpecDefault {
         codec.decode(QueryParams("value" -> "too-long")).swap.exists(_.message.contains("Expected single character"))
       )
     },
-    test("rejects unsupported top-level option, map, and dynamic schemas") {
-      val optionCodec  = Schema[Option[Int]].derive(DefaultQueryFormat)
+    test("rejects unsupported top-level map and dynamic schemas") {
       val mapCodec     = Schema[Map[String, Int]].derive(DefaultQueryFormat)
       val dynamicCodec = Schema[DynamicValue].derive(DefaultQueryFormat)
       val dynamicValue = DynamicValue.Primitive(PrimitiveValue.Int(1))
 
       assertTrue(
-        Try(optionCodec.encodeToQueryParams(None)).isFailure,
         Try(mapCodec.encodeToQueryParams(Map("a" -> 1))).isFailure,
         Try(dynamicCodec.encodeToQueryParams(dynamicValue)).isFailure
       )
