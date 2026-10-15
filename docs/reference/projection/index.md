@@ -218,12 +218,13 @@ The diagram shows how the types hand the data along:
 
 A projection is defined once, then run by an engine. The example below defines the events and the read model, declares the projection, and runs it on SQLite files, the way an application does.
 
-Create the stores yourself and give them to `ProjectionEngine.makeWithStores`. It needs `sqlite-jdbc` on the runtime classpath, see [Installation](#installation):
+Open the event store yourself, through a `TransactorCache`, and give it to `ProjectionEngine.makeWithStoresVarargs`, which creates the projection's own store from its `EntityPath`. The stores do not create folders, so the program creates `events/` and `users/` first. It needs `sqlite-jdbc` on the runtime classpath, see [Installation](#installation):
 
 ```scala mdoc:compile-only
 import zio.*
 import zio.blocks.projection.*
 import zio.blocks.schema.{Modifier, Schema}
+import java.nio.file.{Files, Paths}
 
 // The events, the read model and the projection
 case class UserCreated(name: String, email: String)
@@ -231,7 +232,8 @@ object UserCreated {
   implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
 }
 
-case class UserProfile(@Modifier.id id: String, name: String, email: String)
+// The ID field is `userId`, so the derived folder is `users`. A field named `id` would give `ids`.
+case class UserProfile(@Modifier.id userId: String, name: String, email: String)
 object UserProfile {
   implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
   implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
@@ -245,20 +247,16 @@ val projection = Projection[UserProfile]("userProfiles")
 
 // Wire the projection to SQLite files
 val program: ZIO[Scope, Throwable, Option[UserProfile]] = for {
-  cache    <- TransactorCache.make()
-  tx       <- cache.get("events/users.db")
-  users    <- SQLiteEventStore.make[UserCreated](tx)
-  profiles <- SQLiteProjectionStore.make[UserProfile]("users/userProfiles.db", cache)
-  engine   <- ProjectionEngine.makeWithStores(
-                List(projection),
-                Map("userProfiles" -> profiles), // projection name -> its store
-                Map("users" -> users),           // source name given to `from` -> its event store
-                cache
-              )
-  _        <- engine.start
-  _        <- users.append("user-1", UserCreated("Alice", "alice@example.com"))
+  _      <- ZIO.attemptBlocking(List("events", "users").foreach(d => Files.createDirectories(Paths.get(d))))
+  cache  <- TransactorCache.make()
+  tx     <- cache.get("events/users.db")
+  users  <- SQLiteEventStore.make[UserCreated](tx)
+  // "users" is the source name given to `from`; the projection store becomes users/userProfiles.db
+  engine <- ProjectionEngine.makeWithStoresVarargs(cache, Map("users" -> users))(projection)
+  _      <- engine.start
+  _      <- users.append("user-1", UserCreated("Alice", "alice@example.com"))
   // The engine applies the event in the background, so ask until the row is there
-  alice    <- engine.query(projection, "user-1").repeatUntil(_.isDefined)
+  alice  <- engine.query(projection, "user-1").repeatUntil(_.isDefined)
 } yield alice
 ```
 
