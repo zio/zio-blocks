@@ -178,7 +178,13 @@ A projection goes through eight steps, from the declaration in your code to a ro
    - **Per entity:** `routeToSelf` sends each event to the row of the entity it was recorded under.
    - **By a key from the event:** `routedBy[E](_.field)` groups events by a value read from the event.
    - **One shared store:** `routeToAll` sends them all to one store.
-4. **Say what each event does.** Call `on[E]` for an event type, then a verb such as `insert(...)`, `aggregate(FieldUpdate.Increment(...))` or `custom(...)`. A handler is a plain function from the event and its metadata to a `ProjectionAction`: it describes the change and does not perform it.
+4. **Say what each event does.** Call `on[E]` for an event type, then one of the handler verbs:
+   - **Insert and delete:** `insert(...)` adds a row built from the event, and `delete` removes the row of the entity the event was recorded under.
+   - **Field updates:** `update(_.field)(...)`, `updateWithField("column", ...)` and `updateField("column")(...)` set one column to a value computed from the event.
+   - **Aggregation:** `aggregate(FieldUpdate.Increment(...))`, `aggregate(Chunk(...))` and `aggregateField(...)` apply field updates that are fixed when the projection is declared, such as adding one to a counter.
+   - **Custom actions:** `custom(...)` returns the action itself, chosen from the event, for example an upsert, or nothing at all.
+
+   A handler is a plain function from the event and its metadata to a `ProjectionAction`: it describes the change and does not perform it.
 5. **Create an engine.** In a test, `TestEngine.make(projection)` wires everything up in memory. In an application, `ProjectionEngine.makeWithStores(...)` takes the SQLite stores you created.
 6. **Append events.** Call `eventStore.append(entityId, event)`. The store gives the event the next sequence number, wraps it in an `EventEnvelope` with that number, its tag, the time and the entity ID, and publishes it to the engine.
 7. **The engine does the rest.** It first catches up on the events it has not seen yet, then follows new ones as they arrive. For each event it builds a `ProjectionContext` from the envelope, asks the projection for the handler's action with `handle`, applies that action to the store chosen by the routing, and saves the sequence number as its watermark, so that a restart continues from there.
