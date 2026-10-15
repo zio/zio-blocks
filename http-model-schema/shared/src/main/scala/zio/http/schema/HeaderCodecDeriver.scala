@@ -45,6 +45,15 @@ object HeaderCodecDeriver
       def decode(input: Headers): Either[SchemaError, A] = decodeFn(input)
     }
 
+  protected def makeCustomizedCodec[A](
+    encodeFn: (A, HeadersBuilder) => Unit,
+    decodeFn: Headers => Either[SchemaError, A]
+  ): HeaderCodec[A] =
+    new HeaderCodec[A] with ParamCodecDeriver.Derived with ParamCodecDeriver.Customized {
+      def encode(value: A, output: HeadersBuilder): Unit = encodeFn(value, output)
+      def decode(input: Headers): Either[SchemaError, A] = decodeFn(input)
+    }
+
   protected def freshOutput(): HeadersBuilder = HeadersBuilder.make()
 
   protected def finishEntries(output: HeadersBuilder): Chunk[(String, String)] =

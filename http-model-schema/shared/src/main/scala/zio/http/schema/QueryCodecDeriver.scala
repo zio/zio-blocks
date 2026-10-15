@@ -43,6 +43,15 @@ object QueryCodecDeriver
       def decode(input: QueryParams): Either[SchemaError, A] = decodeFn(input)
     }
 
+  protected def makeCustomizedCodec[A](
+    encodeFn: (A, QueryParamsBuilder) => Unit,
+    decodeFn: QueryParams => Either[SchemaError, A]
+  ): QueryCodec[A] =
+    new QueryCodec[A] with ParamCodecDeriver.Derived with ParamCodecDeriver.Customized {
+      def encode(value: A, output: QueryParamsBuilder): Unit = encodeFn(value, output)
+      def decode(input: QueryParams): Either[SchemaError, A] = decodeFn(input)
+    }
+
   protected def freshOutput(): QueryParamsBuilder = QueryParamsBuilder.make()
 
   protected def finishEntries(output: QueryParamsBuilder): Chunk[(String, String)] = {

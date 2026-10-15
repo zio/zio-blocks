@@ -101,6 +101,7 @@ object HeaderCodecSpec extends ZIOSpecDefault {
       val intCodec     = Schema[Int].derive(DefaultHeaderFormat)
       val listCodec    = Schema[List[Int]].derive(DefaultHeaderFormat)
       val wrapperCodec = Schema[UserId].derive(DefaultHeaderFormat)
+      val optionCodec  = Schema[Option[Int]].derive(DefaultHeaderFormat)
 
       assertTrue(
         intCodec.encodeToHeaders(42).rawGet("value").contains("42"),
@@ -108,7 +109,11 @@ object HeaderCodecSpec extends ZIOSpecDefault {
         listCodec.encodeToHeaders(List(1, 2)).rawGetAll("value") == zio.blocks.chunk.Chunk("1", "2"),
         listCodec.decode(Headers("value" -> "1", "value" -> "2")) == Right(List(1, 2)),
         wrapperCodec.encodeToHeaders(UserId("wrapped")).rawGet("value").contains("wrapped"),
-        wrapperCodec.decode(Headers("value" -> "wrapped")) == Right(UserId("wrapped"))
+        wrapperCodec.decode(Headers("value" -> "wrapped")) == Right(UserId("wrapped")),
+        optionCodec.encodeToHeaders(None).toList.isEmpty,
+        optionCodec.encodeToHeaders(Some(3)).rawGet("value").contains("3"),
+        optionCodec.decode(Headers.empty) == Right(None),
+        optionCodec.decode(Headers("value" -> "3")) == Right(Some(3))
       )
     },
     test("respects BindingInstance override for primitive codec") {
@@ -213,6 +218,34 @@ object HeaderCodecSpec extends ZIOSpecDefault {
         )
       )
     },
+    test("composes custom Int through top-level List") {
+      import CustomCodecFixtures._
+
+      val codec =
+        Schema[List[Int]].deriving(HeaderCodecDeriver).instance(TypeId.int, prefixedHeaderIntCodec()).derive
+      val value = List(1, 2)
+
+      assertTrue(
+        codec.encodeToHeaders(value).rawGetAll("value") == Chunk("custom-1", "custom-2"),
+        codec.decode(Headers("value" -> "custom-1", "value" -> "custom-2")) == Right(value),
+        codec.decode(Headers("value" -> "1")).isLeft
+      )
+    },
+    test("honors an installed derived wrapper codec with a customized child") {
+      import CustomCodecFixtures._
+
+      val installed =
+        Schema[Tag].deriving(HeaderCodecDeriver).instance(TypeId.int, prefixedHeaderIntCodec()).derive
+      val codec = Schema[TagBox].deriving(HeaderCodecDeriver).instance(TypeId.of[Tag], installed).derive
+      val value = TagBox(Tag(9))
+
+      assertTrue(
+        codec.encodeToHeaders(value).rawGet("TAG").contains("custom-9"),
+        codec.decode(Headers("TAG" -> "custom-9")) == Right(value),
+        codec.decode(Headers("tag" -> "custom-9")) == Right(value),
+        codec.decode(Headers("TAG" -> "9")).isLeft
+      )
+    },
     test("reports malformed top-level char values") {
       val codec = Schema[Char].derive(DefaultHeaderFormat)
 
@@ -220,14 +253,12 @@ object HeaderCodecSpec extends ZIOSpecDefault {
         codec.decode(Headers("value" -> "too-long")).swap.exists(_.message.contains("Expected single character"))
       )
     },
-    test("rejects unsupported top-level option, map, and dynamic schemas") {
-      val optionCodec  = Schema[Option[Int]].derive(DefaultHeaderFormat)
+    test("rejects unsupported top-level map and dynamic schemas") {
       val mapCodec     = Schema[Map[String, Int]].derive(DefaultHeaderFormat)
       val dynamicCodec = Schema[DynamicValue].derive(DefaultHeaderFormat)
       val dynamicValue = DynamicValue.Primitive(PrimitiveValue.Int(1))
 
       assertTrue(
-        Try(optionCodec.encodeToHeaders(None)).isFailure,
         Try(mapCodec.encodeToHeaders(Map("a" -> 1))).isFailure,
         Try(dynamicCodec.encodeToHeaders(dynamicValue)).isFailure
       )
