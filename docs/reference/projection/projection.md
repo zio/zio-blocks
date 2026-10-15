@@ -27,7 +27,7 @@ The `name` field doubles as the store file name. `entityPath` is `None` only for
 
 ## Creating a Projection
 
-The `Projection` companion object provides three factory methods, all of which return a fresh, binding-free instance ready for the builder chain:
+The `Projection` companion object provides three factory methods. Each returns a new projection with no sources yet, ready for the builder chain:
 
 ```scala
 object Projection {
@@ -37,40 +37,30 @@ object Projection {
 }
 ```
 
-### Per-Entity Projection
+- `Projection[A](name)` keeps one row for each entity ID, in the folder of its [`EntityPath[A]`](#entity-paths). It needs a [`Schema[A]`](../schema/schema.md) and an `EntityPath[A]` in implicit scope.
+- `Projection.global[A](name)` keeps every row in one shared store, `global/<name>.db`, which suits totals and counters. It needs only a `Schema[A]`. With no `EntityPath`, the store looks for an ID column called `id`, so name the ID field `id`.
+- `Projection[A](name, entityPath)` is the first one with the `EntityPath[A]` passed explicitly, for example to keep a projection of the same type in another folder.
 
-`Projection[A](name)` creates a projection whose data is partitioned by entity ID. It requires both a [`Schema[A]`](../schema/schema.md) and an [`EntityPath[A]`](#entity-paths) in implicit scope — the schema describes the read model's structure, while the entity path tells the engine where to keep the SQLite files:
+The `name` is also the file name of the store, so it may contain only letters, digits, `_` and `-`:
 
-```scala
-case class UserProfile(@Modifier.id id: String, name: String, email: String)
+```scala mdoc:compile-only
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
+
+case class UserProfile(@Modifier.id userId: String, name: String)
 object UserProfile {
-  implicit val schema: Schema[UserProfile]         = Schema.derived
-  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived
+  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
+  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
 }
 
-val proj = Projection[UserProfile]("userProfiles")
-```
+case class DailyStats(@Modifier.id id: String, userCount: Long)
+object DailyStats {
+  implicit val schema: Schema[DailyStats] = Schema.derived[DailyStats]
+}
 
-### Global Projection
-
-`Projection.global[A](name)` creates a projection with one shared store for all events — useful for global totals and counters. Only `Schema[A]` is required; no `EntityPath` is needed because the data is not partitioned by entity:
-
-```scala
-// The key is the date. The field is called `id` because a global projection has no `EntityPath`,
-// so its store looks for an ID column with that name.
-case class DailyStats(@Modifier.id id: String, userCount: Int, repoCount: Int)
-implicit val schema: Schema[DailyStats] = Schema.derived
-
-val proj = Projection.global[DailyStats]("dailyStats")
-```
-
-### Explicit Entity Path
-
-`Projection[A](name, entityPath)` accepts an `EntityPath[A]` value directly, bypassing implicit lookup. This is useful when the same type serves multiple projection layouts, each with a different folder structure:
-
-```scala
-val customPath = EntityPath[Order]("custom_orders", "orderId")
-val proj       = Projection[Order]("orders", customPath)
+val profiles = Projection[UserProfile]("user_profiles")                                       // users/user_profiles.db
+val stats    = Projection.global[DailyStats]("daily_stats")                                   // global/daily_stats.db
+val archived = Projection[UserProfile]("old_profiles", EntityPath.derived[UserProfile]("archive")) // archive/old_profiles.db
 ```
 
 ## Entity Paths
