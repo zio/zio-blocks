@@ -218,6 +218,13 @@ object JsonSchemaSpec extends SchemaBaseSpec {
           !schema.conforms(Json.String("yellow"))
         )
       },
+      test("enum treats precomposed and decomposed strings as different") {
+        val schema = JsonSchema.enumOf(NonEmptyChunk(Json.String("\u00e4")))
+        assertTrue(
+          schema.conforms(Json.String("\u00e4")),
+          !schema.conforms(Json.String("a\u0308"))
+        )
+      },
       test("const constraint") {
         val schema = JsonSchema.constOf(Json.String("fixed"))
         assertTrue(
