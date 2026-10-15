@@ -92,7 +92,8 @@ object LoggerDirectSpec extends ZIOSpecDefault {
         out.contains("user=\"nabil\""),
         out.contains("tries=3"),
         out.contains("ratio=1.5"),
-        out.contains("active=true")
+        out.contains("active=true"),
+        !out.contains("[]")
       )
     },
     test("direct info with attributes prints every attribute") {
