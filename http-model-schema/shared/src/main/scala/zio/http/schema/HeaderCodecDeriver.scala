@@ -69,6 +69,8 @@ object HeaderCodecDeriver
     builder.build()
   }
 
+  protected def isTopLevelKey(key: String): Boolean = key.equalsIgnoreCase(topLevelKey)
+
   private def toHeaderName(fieldName: String): String = {
     val builder = new StringBuilder
     var index   = 0

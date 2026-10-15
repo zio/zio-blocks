@@ -30,11 +30,10 @@ import scala.util.control.NonFatal
 private[schema] object ParamCodecDeriver {
 
   /**
-   * Marks codecs built by this deriver family, distinguishing them from
-   * user-supplied overrides. Record fields holding a marked codec keep the
-   * allocation-free `FieldCodec` fast path; unmarked (custom) field codecs are
-   * bridged through an isolated whole-collection adapter re-keyed to the
-   * field's wire name.
+   * Marks codecs built by this deriver family. Derivation here is deterministic
+   * and these derivers are stateless singletons, so a user-installed override
+   * that is itself a derived codec behaves identically to the direct fast path;
+   * only unmarked (genuinely custom) codecs need whole-collection bridging.
    */
   trait Derived
 }
@@ -92,9 +91,9 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
   protected def freshOutput(): Out
 
   /**
-   * Drains a temp-built custom value to its entries. Single-key temps are
-   * re-keyed under the record field key; multi-key temps cannot be blindly
-   * re-keyed and are rejected when bridged as a record field.
+   * Drains a temp-built custom value to its entries for re-keying under the
+   * record field key. The bridge enforces the canonical [[topLevelKey]] key on
+   * these entries (see [[isTopLevelKey]]).
    */
   protected def finishEntries(output: Out): Chunk[(String, String)]
 
@@ -103,6 +102,13 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
    * whole-value custom codec decodes exactly the owning field's raw values.
    */
   protected def syntheticInput(rawValues: Option[Chunk[String]]): In
+
+  /**
+   * Checks a temp-built entry key against the canonical whole-value key. Query
+   * keys compare exactly; header names compare case-insensitively, matching
+   * header semantics.
+   */
+  protected def isTopLevelKey(key: String): Boolean
 
   protected def unsupportedCodec[A](message: String): TC[A] =
     makeCodec[A](
@@ -140,17 +146,16 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
       val fieldReflects = new Array[Reflect[F, Any]](fields.length)
       var index         = 0
       while (index < fields.length) {
-        val field         = fields(index)
-        val fieldInstance = D.instance(field.value.metadata).force
-        fieldKeys(index) = fieldKey(field.name)
+        val field   = fields(index)
+        val wireKey = fieldKey(field.name)
+        fieldKeys(index) = wireKey
         fieldReflects(index) = field.value.asInstanceOf[Reflect[F, Any]]
-        fieldCodecs(index) = if (fieldInstance.isInstanceOf[ParamCodecDeriver.Derived]) {
-          ParamCodecSupport.buildFieldCodec(field.value, field.name) match {
-            case Right(codec) => codec
-            case Left(error)  => throw new UnsupportedOperationException(error)
-          }
-        } else {
-          customFieldCodec(fieldInstance.asInstanceOf[TC[Any]], fieldKeys(index))
+        fieldCodecs(index) = ParamCodecSupport.buildFieldCodec(field.value, field.name) match {
+          case Right(fast) => findCustomCodec(field.value, wireKey).getOrElse(fast)
+          case Left(error) =>
+            val top = D.instance(field.value.metadata).force
+            if (top.isInstanceOf[ParamCodecDeriver.Derived]) throw new UnsupportedOperationException(error)
+            else customFieldCodec(top.asInstanceOf[TC[Any]], wireKey)
         }
         index += 1
       }
@@ -203,12 +208,17 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]] =
     Lazy {
-      if (typeId.isOption && cases.length == 2)
-        ParamCodecSupport.buildOptionalCodec(cases(1).value, topLevelKey) match {
-          case Right(fieldCodec) => buildTopLevelCodec(fieldCodec)
-          case Left(_)           => unsupportedCodec[A](s"$codecName does not support variant schema ${typeId.fullName}")
+      if (typeId.isOption && cases.length == 2) {
+        val inner = cases(1).value
+        findCustomCodec(inner, topLevelKey) match {
+          case Some(custom) => buildTopLevelCodec[A](custom)
+          case None         =>
+            ParamCodecSupport.buildOptionalCodec(inner, topLevelKey) match {
+              case Right(fieldCodec) => buildTopLevelCodec(fieldCodec)
+              case Left(_)           => unsupportedCodec[A](s"$codecName does not support variant schema ${typeId.fullName}")
+            }
         }
-      else
+      } else
         unsupportedCodec[A](s"$codecName does not support variant schema ${typeId.fullName}")
     }
 
@@ -222,10 +232,14 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
     examples: Seq[C[A]]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[C[A]]] =
     Lazy {
-      ParamCodecSupport.buildSequenceCodec(element, binding.constructor, topLevelKey) match {
-        case Right(fieldCodec) => buildTopLevelCodec(fieldCodec).asInstanceOf[TC[C[A]]]
-        case Left(_)           =>
-          unsupportedCodec[C[A]](s"$codecName does not support sequence schema ${typeId.fullName}")
+      findCustomCodec(element, topLevelKey) match {
+        case Some(custom) => buildTopLevelCodec(custom).asInstanceOf[TC[C[A]]]
+        case None         =>
+          ParamCodecSupport.buildSequenceCodec(element, binding.constructor, topLevelKey) match {
+            case Right(fieldCodec) => buildTopLevelCodec(fieldCodec).asInstanceOf[TC[C[A]]]
+            case Left(_)           =>
+              unsupportedCodec[C[A]](s"$codecName does not support sequence schema ${typeId.fullName}")
+          }
       }
     }
 
@@ -278,31 +292,31 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
 
   /**
-   * Bridges a user-supplied whole-value codec to one record field. Encoding
-   * runs the custom codec against an isolated builder and re-emits its values
-   * under the field's wire key; decoding feeds the field's raw values back
-   * through the custom codec via an isolated input keyed by [[topLevelKey]].
-   * Custom failures keep their content with `topLevelKey` paths re-anchored to
-   * the field key, and the record loop accumulates them across fields.
+   * Bridges a user-supplied whole-value codec to one record field. Whole-value
+   * codecs must use the canonical [[topLevelKey]] key: encoding runs the custom
+   * codec against an isolated builder and re-emits its values under the field's
+   * wire key, rejecting any other key so a codec can always decode its own
+   * output; decoding feeds the field's raw values back through the custom codec
+   * via an isolated input keyed by [[topLevelKey]]. Custom failures keep their
+   * content with the root key re-anchored to the field key, and the record loop
+   * accumulates them across fields.
    */
   private def customFieldCodec[A](custom: TC[A], wireKey: String): ParamCodecSupport.FieldCodec =
     new ParamCodecSupport.FieldCodec {
       def encodeAny(value: Any): Chunk[String] = {
         val tmp = freshOutput()
         custom.asInstanceOf[TC[Any]].encode(value, tmp)
-        val entries       = finishEntries(tmp)
-        var index         = 0
-        var first: String = null
-        var multi         = false
+        val entries     = finishEntries(tmp)
+        var index       = 0
+        var bad: String = null
         while (index < entries.length) {
-          val key = entries(index)._1
-          if (first eq null) first = key
-          else if (key != first) multi = true
+          if (!isTopLevelKey(entries(index)._1)) bad = entries(index)._1
           index += 1
         }
-        if (multi)
+        if (bad ne null)
           throw new UnsupportedOperationException(
-            s"$codecName does not support multi-key custom codecs as record field '$wireKey'"
+            s"$codecName requires custom field codecs to use the canonical '$topLevelKey' key " +
+              s"as record field '$wireKey', but found key '$bad'"
           )
         val builder = Chunk.newBuilder[String]
         index = 0
@@ -325,32 +339,70 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
           .asInstanceOf[Either[SchemaError, Any]]
     }
 
+  /**
+   * Finds the outermost custom codec in a shape-supported subtree, bridging it
+   * to the owning field's wire key. Fully derived subtrees yield `None` and
+   * keep the direct fast path. Only runs after the shape-only builder succeeds,
+   * so unsupported shapes (nested records, deferred recursion) never force
+   * instances here and keep their existing errors.
+   */
+  private def findCustomCodec[F2[_, _]](
+    reflect: Reflect[F2, ?],
+    wireKey: String
+  )(implicit F2: HasBinding[F2], D2: HasInstance[F2]): Option[ParamCodecSupport.FieldCodec] = {
+    val tc = D2.instance(reflect.metadata).force
+    if (!tc.isInstanceOf[ParamCodecDeriver.Derived]) Some(customFieldCodec(tc.asInstanceOf[TC[Any]], wireKey))
+    else if (reflect.isOption)
+      reflect.optionInnerType.flatMap { inner =>
+        findCustomCodec(inner.asInstanceOf[Reflect[F2, Any]], wireKey).map(ParamCodecSupport.OptionalValue.apply)
+      }
+    else
+      reflect.asSequenceUnknown.flatMap { unknown =>
+        val sequence = unknown.sequence
+        findCustomCodec(sequence.element.asInstanceOf[Reflect[F2, Any]], wireKey).map { elementCodec =>
+          ParamCodecSupport.SequenceValue(sequence.seqConstructor, elementCodec)
+        }
+      }.orElse(
+        reflect.asWrapperUnknown.flatMap { unknown =>
+          val wrapper = unknown.wrapper
+          findCustomCodec(wrapper.wrapped.asInstanceOf[Reflect[F2, unknown.Wrapped]], wireKey).map { inner =>
+            ParamCodecSupport.WrappedValue(
+              wrapper.binding.wrap.asInstanceOf[unknown.Wrapped => unknown.Wrapping],
+              wrapper.binding.unwrap.asInstanceOf[unknown.Wrapping => unknown.Wrapped],
+              inner
+            )
+          }
+        }
+      )
+  }
+
   private def remapError(error: SchemaError, fieldKey: String): SchemaError =
     if (fieldKey == topLevelKey) error
     else {
-      def remapOptic(optic: DynamicOptic): DynamicOptic =
-        new DynamicOptic(optic.nodes.map {
-          case DynamicOptic.Node.Field(name) if name == topLevelKey => DynamicOptic.Node.Field(fieldKey)
-          case node                                                 => node
-        })
+      def remapRoot(optic: DynamicOptic): DynamicOptic =
+        optic.nodes.headOption match {
+          case Some(DynamicOptic.Node.Field(name)) if isTopLevelKey(name) =>
+            new DynamicOptic(optic.nodes.updated(0, DynamicOptic.Node.Field(fieldKey)))
+          case _ => optic
+        }
 
       def remapSingle(single: SchemaError.Single): SchemaError.Single = single match {
         case e: SchemaError.ConversionFailed =>
-          e.copy(source = remapOptic(e.source), cause = e.cause.map(remapError(_, fieldKey)))
+          e.copy(source = remapRoot(e.source), cause = e.cause.map(remapError(_, fieldKey)))
         case e: SchemaError.MissingField =>
           e.copy(
-            source = remapOptic(e.source),
-            fieldName = if (e.fieldName == topLevelKey) fieldKey else e.fieldName
+            source = remapRoot(e.source),
+            fieldName = if (isTopLevelKey(e.fieldName)) fieldKey else e.fieldName
           )
         case e: SchemaError.DuplicatedField =>
           e.copy(
-            source = remapOptic(e.source),
-            fieldName = if (e.fieldName == topLevelKey) fieldKey else e.fieldName
+            source = remapRoot(e.source),
+            fieldName = if (isTopLevelKey(e.fieldName)) fieldKey else e.fieldName
           )
-        case e: SchemaError.ExpectationMismatch => e.copy(source = remapOptic(e.source))
-        case e: SchemaError.UnknownCase         => e.copy(source = remapOptic(e.source))
-        case e: SchemaError.Message             => e.copy(source = remapOptic(e.source))
-        case e: SchemaError.MigrationError      => e.copy(source = remapOptic(e.source))
+        case e: SchemaError.ExpectationMismatch => e.copy(source = remapRoot(e.source))
+        case e: SchemaError.UnknownCase         => e.copy(source = remapRoot(e.source))
+        case e: SchemaError.Message             => e.copy(source = remapRoot(e.source))
+        case e: SchemaError.MigrationError      => e.copy(source = remapRoot(e.source))
       }
 
       val remapped = error.errors.toList.map(remapSingle)
