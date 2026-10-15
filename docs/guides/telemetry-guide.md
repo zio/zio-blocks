@@ -316,8 +316,10 @@ log.warn("slow query", "table" -> "orders", "duration_ms" -> 450L)
 
 **TextLogFormatter output:**
 ```
-2026-05-14T09:30:00.123Z WARN  [PaymentService.handleRequest:87] slow query {table="orders", duration_ms=450}
+2026-05-14T09:30:00.123Z WARN  slow query [PaymentService.handleRequest] src/main/scala/com/example/PaymentService.scala:87 {table="orders", duration_ms=450}
 ```
+
+The message comes first, then the compact function in brackets, then the captured file path as a contiguous `path:line` token. (An older layout printed the location before the body — `WARN  [PaymentService.handleRequest:87] slow query {...}`.) The path is the compile-time source path the macro captured, preserved exactly: never absolutized, never shortened — backslashes stay literal, so Windows `C:\...` paths survive intact — with the method kept outside the token. Only CR/LF/tab/control characters are escaped. When no path was captured you get the compact `[PaymentService.handleRequest:87]` fallback instead; a bare line renders as `[line:87]`; with no location at all nothing renders.
 
 **JsonLogFormatter output:**
 ```json
@@ -325,6 +327,8 @@ log.warn("slow query", "table" -> "orders", "duration_ms" -> 450L)
 ```
 
 The JSON format follows the OTLP log data model directly, making it compatible with any OTLP-aware log processor (Grafana Loki, OpenTelemetry Collector, etc.).
+
+One caveat on the text `path:line` token: it is the source file path as seen by the compiler that built the code. For a library compiled from another checkout, for CI artifacts, or for logs emitted inside a container image without sources, that file may live elsewhere or not exist at all — treat the token as an informational pointer, not a guarantee the file opens there.
 
 The text formatter caches the timestamp prefix per second (the part before milliseconds) using two `@volatile` fields, so it avoids repeated date formatting work on high-throughput paths.
 
