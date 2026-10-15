@@ -228,14 +228,6 @@ Open the event store and the projection store yourself, through a `TransactorCac
 
 The files stay on disk after the program ends. When a program starts again, the events are still in `events/users.db`, and the engine continues after the last event it processed, so no event is applied twice. The files are plain SQLite databases, so `sqlite3 users/user_profiles.db` shows the rows while the program is stopped.
 
-## Integration Points
-
-The projection module depends on three sibling modules:
-
-- **`zio-blocks-schema`** — `Schema[A]` drives DDL generation, JSON encoding/decoding of event payloads, `DynamicValue` manipulation for in-memory field updates, `Migration` for schema-evolution shortcuts, and `Modifier.id` for `EntityPath` derivation.
-- **`zio-blocks-sql`** — [`Transactor`](../sql/transactor.md) and [`DbCon`](../sql/db-con.md) back the SQLite implementations of `EventStore[E]` and `ProjectionStore[A]`. [`SqlNameMapper`](../sql/sql-name-mapper.md) maps Scala field names to snake_case column names for both DDL and `FieldUpdate`.
-- **ZIO core and ZIO Streams** — `Task`, `ZIO`, and `Scope` are used throughout the engine lifecycle; `ZStream` and `Hub` carry the event streams.
-
 ## Event Store
 
 `EventStore[E]` is the write side of the module: an append-only log for one event type `E`. It assigns a monotonic sequence number to each event, streams history on demand, and broadcasts live events to a `Hub`:
@@ -359,10 +351,6 @@ enum FieldUpdate {
 ## Testing
 
 `TestEngine` replaces the full JVM wiring for unit and integration tests. It creates an `InMemoryProjectionStore[A]` per projection, an in-memory `EventStore` per source name, starts the underlying `ProjectionEngine`, and manages the whole lifecycle in a single `Scope`. The [Testing](./testing.md) page documents it, together with `InMemoryProjectionStore`, `TestContext` and `TestProjectionEngine`.
-
-## Type Pages
-
-The two core types each have a dedicated reference page with complete API coverage. [`Projection[A]`](./projection.md) documents the descriptor, its builder chain (`from`, `on`, routing methods, handler methods), `ProjectionAction`, `FieldUpdate` factories, `ProjectionScope`, and `EntityPath`. [`ProjectionEngine`](./engine.md) documents the runtime, `ProjectionEngineConfig`, watermark and schema-hash mechanics, schema evolution, `TransactorCache`, and the production store implementations. [Testing](./testing.md) documents the in-memory helpers: `TestEngine`, `InMemoryProjectionStore`, `TestContext`, and `TestProjectionEngine`.
 
 ## See Also
 
