@@ -14,6 +14,9 @@ import {
   extensionlessUxJs,
   hoistSideMenu,
   navbarHtml,
+  nestedTypePaths,
+  relocatePage,
+  relocateSideMenu,
   themeApiPage,
 } from '../../scripts/lib/api-theme.mjs';
 
@@ -89,14 +92,14 @@ test('the API pages use the site favicon, the one docusaurus.config.js names', (
   assert.ok(!html.includes('favicon.ico'));
 });
 
-test('the breadcrumbs read Home > API > packages under zio > page, at the top of the text column', () => {
+test('the breadcrumbs read Home > API > packages > page, at the top of the text column', () => {
   const html = themeApiPage(PAGE, { prompt: PROMPT });
   assert.ok(!html.includes('class="breadcrumbs container"'), "Scaladoc's trail is gone");
   const nav = /<div id="content" class="body-medium"><div>(<nav class="zb-breadcrumbs" aria-label="Breadcrumbs">.*?<\/nav>)<div class="cover-header">/.exec(html);
   assert.ok(nav, 'the breadcrumbs open the text column');
   const crumbs = [...nav[1].matchAll(/<li class="([^"]*)">(?:<a (?:aria-label="Home page" )?class="zb-breadcrumbs__link" href="([^"]*)">(?:<svg[^]*?<\/svg>|<span>([^<]*)<\/span>)<\/a>|<span class="zb-breadcrumbs__link">([^<]*)<\/span>)<\/li>/g)]
     .map(([, cls, href, label, current]) => (current ? `[${current}]` : `${label ?? 'home'} ${href}`) + (cls.includes('--active') ? ' (active)' : ''));
-  assert.deepEqual(crumbs, ['home /', 'API /api/', 'blocks ../../blocks', 'schema ../schema', '[Schema] (active)']);
+  assert.deepEqual(crumbs, ['home /', 'API /api/', 'zio.blocks ../../blocks', 'schema ../schema', '[Schema] (active)']);
 });
 
 test('on the API index the trail ends at API', () => {
@@ -107,7 +110,7 @@ test('on the API index the trail ends at API', () => {
   );
 });
 
-test('the side menu starts at the packages under zio, named relative to it', () => {
+test('the side menu starts at the packages under zio, which keep their full names', () => {
   const pkg = (name, children = []) => ({ name, location: name.split('.'), kind: 'package', children });
   const cls = (name) => ({ name, location: ['x', name], kind: 'class', children: [] });
   const menu = { docs: null, api: { name: 'ZIO Blocks', location: ['index'], kind: null, children: [
@@ -116,8 +119,8 @@ test('the side menu starts at the packages under zio, named relative to it', () 
   const hoisted = hoistSideMenu(menu);
   const names = (items) => items.map((i) => [i.name, names(i.children)]);
   assert.deepEqual(names(hoisted.api.children), [
-    ['blocks', [['blocks.schema', [['Schema', []]]]]],
-    ['http', [['Header', []]]],
+    ['zio.blocks', [['zio.blocks.schema', [['Schema', []]]]]],
+    ['zio.http', [['Header', []]]],
   ]);
   assert.deepEqual(hoisted.api.children[0].children[0].location, ['zio', 'blocks', 'schema'], 'links keep their locations');
   assert.throws(() => hoistSideMenu({ api: { children: [pkg('zio'), pkg('scala')] } }), /only API root/);
@@ -146,7 +149,7 @@ test('only relative links lose .html; the site and other sites keep theirs', () 
     '<a href="Chunk">c</a><a href="#m">m</a><a href="/api/">api</a>' +
       '<a href="https://docs.oracle.com/javase/21/docs/api/java.base/java/lang/Object.html">o</a><a href="//cdn.example/x.html">x</a>',
   );
-  assert.match(themeApiPage(PAGE, { prompt: PROMPT }), /href="\.\.\/\.\.\/blocks"><span>blocks<\/span>/);
+  assert.match(themeApiPage(PAGE, { prompt: PROMPT }), /href="\.\.\/\.\.\/blocks"><span>zio\.blocks<\/span>/);
 });
 
 test('search results and side-menu links are extensionless too', () => {
@@ -163,6 +166,65 @@ test('search results and side-menu links are extensionless too', () => {
   assert.equal(linkTo(['', 'api'])(['zio', 'blocks', 'chunk', 'Chunk']), '/api/zio/blocks/chunk/Chunk');
   assert.equal(linkTo(['', 'api'])(['index']), '/api/');
   assert.throws(() => extensionlessUxJs('return `${baseUrl}/${loc.join("/")}.html`;'), /side-menu links/);
+});
+
+// A side menu shaped like Scaladoc's: nested types are children of the type they are declared in.
+const node = (location, kind, children = []) => ({ name: location.split('/').pop(), location: location.split('/'), kind, children });
+const NESTED = { docs: null, api: { name: 'ZIO Blocks', location: ['index'], kind: null, children: [
+  node('zio', 'package', [node('zio/blocks', 'package', [node('zio/blocks/chunk', 'package', [
+    node('zio/blocks/chunk/ChunkBuilder', 'class'),
+    node('zio/blocks/chunk/ChunkBuilder$', 'object', [node('zio/blocks/chunk/ChunkBuilder$$Int', 'class')]),
+  ]), node('zio/blocks/schema/comptime', 'package', [
+    node('zio/blocks/schema/comptime/Allows$', 'object', [node('zio/blocks/schema/comptime/Allows$$$bar$', 'object')]),
+  ])]), node('zio/http', 'package', [
+    node('zio/http/Header$', 'object', [node('zio/http/Header$$ContentDisposition$', 'object', [
+      node('zio/http/Header$$ContentDisposition$$Attachment', 'class'),
+    ])]),
+    node('zio/http/Version$', 'object', [node('zio/http/Version$$HTTP$div1/0$$', 'object')]),
+  ])]),
+] } };
+
+test('nested types move into folders named after the type they are declared in', () => {
+  assert.deepEqual(Object.fromEntries(nestedTypePaths(NESTED)), {
+    'zio/blocks/chunk/ChunkBuilder$$Int': 'zio/blocks/chunk/ChunkBuilder/Int',
+    'zio/blocks/schema/comptime/Allows$$$bar$': 'zio/blocks/schema/comptime/Allows/$bar$',
+    'zio/http/Header$$ContentDisposition$': 'zio/http/Header/ContentDisposition$',
+    'zio/http/Header$$ContentDisposition$$Attachment': 'zio/http/Header/ContentDisposition/Attachment',
+    'zio/http/Version$$HTTP$div1/0$$': 'zio/http/Version/HTTP$div1/0$$',
+  });
+});
+
+test('a moved page is rewritten for its new folder, and links to moved pages follow them', () => {
+  const moves = nestedTypePaths(NESTED);
+  const page = (rawLocation, root, body) =>
+    `<html data-pathToRoot="${root}" data-rawLocation="${rawLocation}"><head><script>var pathToRoot = "${root}";</script>` +
+    `<link rel="stylesheet" href="${root}styles/a.css"></head><body>${body}</body></html>`;
+  const moved = relocatePage(
+    page('zio/blocks/chunk/ChunkBuilder$$Int', '../../../', '<a href="ChunkBuilder.html">up</a><a href="Chunk.html#map">c</a><a href="#m">m</a><a href="/api/">api</a>'),
+    { from: 'zio/blocks/chunk/ChunkBuilder$$Int', to: 'zio/blocks/chunk/ChunkBuilder/Int', moves },
+  );
+  assert.equal(
+    moved,
+    page('zio/blocks/chunk/ChunkBuilder/Int', '../../../../', '<a href="../ChunkBuilder.html">up</a><a href="../Chunk.html#map">c</a><a href="#m">m</a><a href="/api/">api</a>'),
+  );
+  const staying = '<a href="ChunkBuilder$$Int.html#x">Int</a><a href="Chunk.html">c</a><a href="../../../index.html">i</a>';
+  assert.equal(
+    relocatePage(staying, { from: 'zio/blocks/chunk/ChunkBuilder$', to: 'zio/blocks/chunk/ChunkBuilder$', moves }),
+    '<a href="ChunkBuilder/Int.html#x">Int</a><a href="Chunk.html">c</a><a href="../../../index.html">i</a>',
+  );
+});
+
+test('the side menu and the search index point at the moved pages', () => {
+  const moves = nestedTypePaths(NESTED);
+  const locations = [];
+  const walk = (i) => (locations.push(i.location.join('/')), i.children.forEach(walk));
+  relocateSideMenu(NESTED, moves).api.children.forEach(walk);
+  assert.ok(locations.includes('zio/blocks/chunk/ChunkBuilder/Int'));
+  assert.ok(!locations.some((l) => l.includes('ChunkBuilder$$')));
+  assert.equal(
+    extensionlessSearchData('{"l":"zio/blocks/chunk/ChunkBuilder$$Int.html#"},{"l":"zio/blocks/chunk/ChunkBuilder$$Int.html#add-1"}', moves),
+    '{"l":"zio/blocks/chunk/ChunkBuilder/Int"},{"l":"zio/blocks/chunk/ChunkBuilder/Int#add-1"}',
+  );
 });
 
 test('a page whose markup no longer matches fails loudly', () => {

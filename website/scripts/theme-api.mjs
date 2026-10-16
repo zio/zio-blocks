@@ -2,11 +2,19 @@
 // lib/api-theme.mjs). Runs after `docusaurus build`. Each file is read from static/api, as `sbt docs/generateApiDocs`
 // wrote it, and written over its copy in build/api, so running this again is safe. Without static/api there is nothing
 // to do.
-import { copyFile, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { extensionlessSearchData, extensionlessUxJs, hoistSideMenu, themeApiPage } from './lib/api-theme.mjs';
+import {
+  extensionlessSearchData,
+  extensionlessUxJs,
+  hoistSideMenu,
+  nestedTypePaths,
+  relocatePage,
+  relocateSideMenu,
+  themeApiPage,
+} from './lib/api-theme.mjs';
 import { promptFor } from '../src/lib/prompt.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -29,20 +37,30 @@ if (!(await exists(sourceDir)) || !(await exists(apiDir))) {
   // The same origin the rest of the site uses for the onboard-agent prompt (SITE_URL or the production domain).
   const { url } = createRequire(import.meta.url)('../docusaurus.config.js');
   const prompt = promptFor(url);
+  const menu = JSON.parse(await readFile(join(sourceDir, 'dynamicSideMenu.json'), 'utf8'));
+  // Nested types move into folders named after their parents (ChunkBuilder$$Int -> ChunkBuilder/Int).
+  const moves = nestedTypePaths(menu);
   let pages = 0;
   for await (const file of htmlFiles(sourceDir)) {
-    const target = join(apiDir, relative(sourceDir, file));
-    await writeFile(target, themeApiPage(await readFile(file, 'utf8'), { prompt }));
+    const from = relative(sourceDir, file).replace(/\.html$/, '');
+    const to = moves.get(from) ?? from;
+    const page = relocatePage(await readFile(file, 'utf8'), { from, to, moves });
+    await mkdir(dirname(join(apiDir, `${to}.html`)), { recursive: true });
+    await writeFile(join(apiDir, `${to}.html`), themeApiPage(page, { prompt }));
+    if (to !== from) {
+      // Docusaurus copied the page to its old place; only the new one is published. Drop folders left empty.
+      await rm(join(apiDir, `${from}.html`), { force: true });
+      await rmdir(dirname(join(apiDir, `${from}.html`))).catch(() => {});
+    }
     pages++;
   }
-  const menu = JSON.parse(await readFile(join(sourceDir, 'dynamicSideMenu.json'), 'utf8'));
-  await writeFile(join(apiDir, 'dynamicSideMenu.json'), JSON.stringify(hoistSideMenu(menu)));
+  await writeFile(join(apiDir, 'dynamicSideMenu.json'), JSON.stringify(hoistSideMenu(relocateSideMenu(menu, moves))));
   for (const [file, rewrite] of [
     ['scripts/ux.js', extensionlessUxJs],
-    ['scripts/searchData.js', extensionlessSearchData],
+    ['scripts/searchData.js', (js) => extensionlessSearchData(js, moves)],
   ])
     await writeFile(join(apiDir, file), rewrite(await readFile(join(sourceDir, file), 'utf8')));
   await copyFile(join(root, 'src', 'api-theme', 'api.css'), join(apiDir, 'styles', 'zio-blocks.css'));
   await copyFile(join(root, 'src', 'api-theme', 'theme.js'), join(apiDir, 'scripts', 'theme.js'));
-  console.log(`theme-api: gave ${pages} API pages the site navbar, favicon and theme`);
+  console.log(`theme-api: gave ${pages} API pages the site navbar, favicon and theme (${moves.size} nested types in folders)`);
 }

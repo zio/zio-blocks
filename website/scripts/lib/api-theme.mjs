@@ -1,3 +1,5 @@
+import { posix } from 'node:path';
+
 // Re-skins the Scaladoc pages under /api so they share the site's navbar, fonts and colour mode. Scaladoc is a separate
 // generator: `sbt docs/generateApiDocs` copies its HTML into static/api, and Docusaurus publishes those files untouched,
 // outside its layout. scripts/theme-api.mjs applies `themeApiPage` to every page of build/api after `docusaurus build`.
@@ -82,8 +84,7 @@ const CONTENT_START = /<div id="content"[^>]*><div>/;
 /**
  * The docs breadcrumbs (Docusaurus' theme-doc-breadcrumbs markup, with zb- classes because Scaladoc styles
  * .breadcrumbs) for a Scaladoc trail, given as its links `[{ href, label }]`: the home icon, then API for Scaladoc's
- * index entry, then the packages under `zio` by their last name segment, as the side menu shows them, and the current
- * page last, not linked.
+ * index entry, then the packages under `zio` as the side menu shows them, and the current page last, not linked.
  */
 export function breadcrumbsHtml(trail) {
   const [, ...rest] = trail; // the first entry is Scaladoc's index page, shown as API
@@ -97,10 +98,12 @@ export function breadcrumbsHtml(trail) {
       ? '<li class="zb-breadcrumbs__item"><a class="zb-breadcrumbs__link" href="/api/"><span>API</span></a></li>'
       : '<li class="zb-breadcrumbs__item zb-breadcrumbs__item--active"><span class="zb-breadcrumbs__link">API</span></li>',
   );
-  for (const { href, label } of packages)
+  // As the side menu labels them: the top-level package in full (zio.blocks), the ones inside it by their last segment.
+  packages.forEach(({ href, label }, i) =>
     items.push(
-      `<li class="zb-breadcrumbs__item"><a class="zb-breadcrumbs__link" href="${href}"><span>${label.split('.').pop()}</span></a></li>`,
-    );
+      `<li class="zb-breadcrumbs__item"><a class="zb-breadcrumbs__link" href="${href}"><span>${i === 0 ? label : label.split('.').pop()}</span></a></li>`,
+    ),
+  );
   if (current)
     items.push(
       `<li class="zb-breadcrumbs__item zb-breadcrumbs__item--active"><span class="zb-breadcrumbs__link">${current.label.split('.').pop()}</span></li>`,
@@ -136,21 +139,16 @@ export function themeApiPage(html, { prompt }) {
 }
 
 /**
- * Starts the API side menu at the subpackages of `zio` (blocks, http) instead of the one `zio` package above them, as
- * a docs sidebar starts at its categories. Scaladoc labels a package by its name relative to its parent, so the hoisted
- * packages are renamed relative to `zio` ("zio.blocks.schema" becomes "blocks.schema", shown as "schema" under
- * "blocks"); other entries keep their names. Fails if the menu no longer has `zio` as its only root.
+ * Starts the API side menu at the subpackages of `zio` (zio.blocks, zio.http) instead of the one `zio` package above
+ * them, as a docs sidebar starts at its categories. Scaladoc labels a top-level package by its full name and the
+ * packages inside it relative to it, so the menu reads zio.blocks > schema. Fails if the menu no longer has `zio` as its
+ * only root.
  */
 export function hoistSideMenu(menu) {
   const roots = menu?.api?.children;
   if (!roots || roots.length !== 1 || roots[0].name !== 'zio' || roots[0].kind !== 'package')
     throw new Error('dynamicSideMenu.json no longer has the zio package as its only API root; update hoistSideMenu');
-  const rename = (item) => ({
-    ...item,
-    name: item.kind === 'package' && item.name.startsWith('zio.') ? item.name.slice('zio.'.length) : item.name,
-    children: item.children.map(rename),
-  });
-  return { ...menu, api: { ...menu.api, children: roots[0].children.map(rename) } };
+  return { ...menu, api: { ...menu.api, children: roots[0].children } };
 }
 
 // Extensionless URLs: the site serves pages as /api/zio/blocks/chunk/Chunk, as the docs are /reference/chunk, rather
@@ -178,10 +176,16 @@ export function extensionlessLinks(html) {
 
 /**
  * Drops `.html` from the page locations in Scaladoc's search index (scripts/searchData.js, `"l":"zio/blocks.html#"`),
- * and the empty `#` Scaladoc ends a page's own entry with.
+ * and the empty `#` Scaladoc ends a page's own entry with; entries for a page in `moves` point at its new place.
  */
-export function extensionlessSearchData(js) {
-  return js.replace(/"l":"([^"]*)"/g, (all, url) => `"l":"${extensionless(url).replace(/#$/, '')}"`);
+export function extensionlessSearchData(js, moves = new Map()) {
+  return js.replace(/"l":"([^"]*)"/g, (all, url) => {
+    // A moved page's entries point at its new place first.
+    const at = url.indexOf('#');
+    const [path, hash] = at < 0 ? [url, ''] : [url.slice(0, at), url.slice(at)];
+    const moved = path.endsWith('.html') && moves.get(path.slice(0, -'.html'.length));
+    return `"l":"${extensionless(moved ? `${moved}.html${hash}` : url).replace(/#$/, '')}"`;
+  });
 }
 
 /**
@@ -192,4 +196,70 @@ export function extensionlessUxJs(js) {
   const link = 'return `${baseUrl.join("/")}/${loc.join("/")}.html`;';
   if (!js.includes(link)) throw new Error('scripts/ux.js no longer builds side-menu links with `' + link + '`');
   return js.replace(link, 'return `${baseUrl.join("/")}/${loc.join("/") === "index" ? "" : loc.join("/")}`;');
+}
+
+// Nested types get folders: Scaladoc files `ChunkBuilder.Int` as `ChunkBuilder$$Int.html` beside its parent; the site
+// serves it as `ChunkBuilder/Int`, as a docs page sits under its category. Objects keep Scaladoc's trailing `$`
+// (`Schema$` is the companion of `Schema`), so `MediaTypes.application` (an object) is `MediaTypes/application$`.
+
+/**
+ * Old page path -> new page path (no `.html`, relative to /api) for every nested type, read off the side menu, where
+ * each one is a child of the type it is declared in. A child's file name is its parent's name (less the parent's
+ * object `$`), `$$`, then its own name, which can itself start with `$` (`Allows$$$bar$` is the object `|` in
+ * `Allows`), so the parent's name is taken off the front rather than split on `$$`.
+ */
+export function nestedTypePaths(menu) {
+  const moves = new Map();
+  const visit = (item, parent) => {
+    const from = item.location.join('/');
+    if (parent && parent.kind !== 'package' && parent.kind !== null) {
+      const parentFrom = parent.location.join('/');
+      const parentTo = moves.get(parentFrom) ?? parentFrom;
+      const base = (p) => p.replace(/\$$/, '');
+      // The parent's folder and name less its object `$`, then `$$`. What follows can hold a `/`: Scaladoc files a
+      // name with a `.` in folders (the object `HTTP/1.0` in `Version` is `Version$$HTTP$div1/0$$`).
+      const prefix = base(parentFrom) + '$$';
+      if (from.startsWith(prefix) && from.length > prefix.length) moves.set(from, `${base(parentTo)}/${from.slice(prefix.length)}`);
+    }
+    for (const child of item.children) visit(child, item);
+  };
+  for (const root of menu.api.children) visit(root, null);
+  return moves;
+}
+
+/**
+ * Rewrites one page for its new place: the page at `from` (a path under /api without `.html`) is published at `to`,
+ * and the pages in `moves` (old path -> new path) at theirs. Every relative `href`/`src` is resolved against the old
+ * place, mapped, and written relative to the new one; the root path Scaladoc's scripts use (`pathToRoot`) and the
+ * page's own location (`data-rawLocation`) follow. Links that neither start nor end at a moved page are left as they
+ * are.
+ */
+export function relocatePage(html, { from, to, moves }) {
+  const base = new URL(`https://api.invalid/${from}.html`);
+  const newDir = posix.dirname(`/${to}.html`);
+  const out = html.replace(/\b(href|src)="([^"]*)"/g, (all, attr, url) => {
+    if (!isRelative(url) || url === '') return all;
+    const target = new URL(url, base);
+    let path = decodeURIComponent(target.pathname).slice(1);
+    const moved = path.endsWith('.html') && moves.get(path.slice(0, -'.html'.length));
+    if (moved) path = `${moved}.html`;
+    else if (from === to) return all;
+    const relative = posix.relative(newDir, `/${path}`) || posix.basename(path);
+    return `${attr}="${relative}${target.hash}"`;
+  });
+  if (from === to) return out;
+  const root = '../'.repeat(to.split('/').length - 1);
+  return out
+    .replace(/data-pathToRoot="[^"]*"/, `data-pathToRoot="${root}"`)
+    .replace(/pathToRoot = "[^"]*";/g, `pathToRoot = "${root}";`)
+    .replace(`data-rawLocation="${from}"`, `data-rawLocation="${to}"`);
+}
+
+/** The side menu with every moved page at its new location (the names, which the menu shows, stay). */
+export function relocateSideMenu(menu, moves) {
+  const move = (item) => {
+    const to = moves.get(item.location.join('/'));
+    return { ...item, location: to ? to.split('/') : item.location, children: item.children.map(move) };
+  };
+  return { ...menu, api: { ...menu.api, children: menu.api.children.map(move) } };
 }

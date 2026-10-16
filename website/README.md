@@ -85,10 +85,14 @@ Scaladoc is a separate generator with its own HTML, stylesheets and scripts, so 
   folder). The files keep their names, since Netlify and `docusaurus serve` serve `Chunk.html` for `/…/Chunk`; the
   relative links in every page, the search index (`scripts/searchData.js`) and the side menu's link builder in
   `scripts/ux.js` drop the extension. Old `.html` links still work.
+- Nested types get folders: Scaladoc files `ChunkBuilder.Int` as `ChunkBuilder$$Int.html`, the site serves it at
+  `/api/zio/blocks/chunk/ChunkBuilder/Int` (`nestedTypePaths` reads each nested type's parent off the side menu;
+  `relocatePage` rewrites a moved page's links, root path and location for its new folder, and every link to it).
+  Objects keep Scaladoc's `$` (`Schema$` is the companion of `Schema`, `MediaTypes/application$` an object).
 - The site favicon (`favicon` in `docusaurus.config.js`) replaces Scaladoc's `favicon.ico`.
-- The breadcrumbs become the docs breadcrumbs (home icon, API, the packages under `zio`, the page) at the top of the
-  text column.
-- The side menu (`dynamicSideMenu.json`) starts at `blocks` and `http` rather than the single `zio` package
+- The breadcrumbs become the docs breadcrumbs (home icon, API, the packages as the side menu names them, the page) at
+  the top of the text column.
+- The side menu (`dynamicSideMenu.json`) starts at `zio.blocks` and `zio.http` rather than the single `zio` package
   (`hoistSideMenu`), and `theme.js` keeps that top level unfolded across page loads unless the reader folds it. It is
   drawn as the docs sidebar: Infima's rows, colours, chevron caret on the right, 12px per level, no kind icons, and the
   browser's own scrollbars (Scaladoc hides them; setting `scrollbar-color` overrides its `::-webkit-scrollbar` rules).
