@@ -100,6 +100,13 @@ object Example3CrossEntity extends ZIOAppDefault {
   private def show(order: Option[CustomerOrder]): String =
     order.map(o => s"${o.customerId}, ${o.product}, ${o.total}, ${o.status}").getOrElse("not found")
 
+  // `CrossEntity` holds the routing function, which prints as an unreadable lambda, so only the kind is printed.
+  private def scopeName(scope: ProjectionScope): String = scope match {
+    case ProjectionScope.PerEntity      => "PerEntity"
+    case ProjectionScope.CrossEntity(_) => "CrossEntity"
+    case ProjectionScope.Global         => "Global"
+  }
+
   def demo: ZIO[Any, Throwable, Unit] =
     Console.printLine("\n--- Example 3: CrossEntity Projection (orders routed by customerId) ---").orDie *>
       ZIO.scoped {
@@ -134,7 +141,8 @@ object Example3CrossEntity extends ZIOAppDefault {
                     .on[OrderShipped]
                     .aggregate(Chunk(FieldUpdate.Increment("shipped", 1L), FieldUpdate.Decrement("pending", 1L)))
 
-          _ <- Console.printLine(s"  Scope: ${projection.scope}, stats scope: ${stats.scope}").orDie
+          _ <-
+            Console.printLine(s"  Scope: ${scopeName(projection.scope)}, stats scope: ${scopeName(stats.scope)}").orDie
 
           cache  <- TransactorCache.make()
           orders <- Sqlite.eventStore[OrderEvent](cache, Sqlite.path("example3/events/orders.db"))
