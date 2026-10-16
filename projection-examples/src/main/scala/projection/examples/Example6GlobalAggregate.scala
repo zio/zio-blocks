@@ -64,9 +64,9 @@ object Example6GlobalAggregate extends ZIOAppDefault {
 
           _ <- Console.printLine(s"  Scope: ${projection.scope}").orDie
 
-          cache <- TransactorCache.make()
-          users <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example6/events/users.db"))
-          repos <- Sqlite.eventStore[RepoCreated](cache, Sqlite.path("example6/events/repos.db"))
+          cache  <- TransactorCache.make()
+          users  <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example6/events/users.db"))
+          repos  <- Sqlite.eventStore[RepoCreated](cache, Sqlite.path("example6/events/repos.db"))
           engine <- ProjectionEngine.makeWithStoresVarargs(
                       cache,
                       Map[String, EventStore[?]]("users" -> users, "repos" -> repos)
@@ -83,7 +83,7 @@ object Example6GlobalAggregate extends ZIOAppDefault {
 
           files <- Sqlite.dbFiles("global")
           _     <- Console.printLine(s"  Files in global/: ${files.mkString(", ")}").orDie
-          _ <- stats match {
+          _     <- stats match {
                  case Some(s) =>
                    Console.printLine(s"  Date: $dateKey, Users: ${s.userCount}, Repos: ${s.repoCount}").orDie
                  case None =>

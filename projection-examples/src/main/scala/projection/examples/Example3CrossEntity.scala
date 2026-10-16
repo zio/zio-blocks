@@ -55,7 +55,7 @@ import Polling.pollUntil
 object Example3CrossEntity extends ZIOAppDefault {
 
   sealed trait OrderEvent { def customerId: String }
-  object OrderEvent {
+  object OrderEvent       {
     case class OrderPlaced(customerId: String, product: String, total: Long) extends OrderEvent
     object OrderPlaced {
       implicit val schema: Schema[OrderPlaced] = Schema.derived[OrderPlaced]
@@ -77,7 +77,7 @@ object Example3CrossEntity extends ZIOAppDefault {
   // Not called `Order`: the table is named after the class, and `order` is an SQL keyword.
   case class CustomerOrder(@Modifier.id id: String, customerId: String, product: String, total: Long, status: String)
   object CustomerOrder {
-    implicit val schema: Schema[CustomerOrder]         = Schema.derived[CustomerOrder]
+    implicit val schema: Schema[CustomerOrder] = Schema.derived[CustomerOrder]
     // The folder is chosen explicitly. Derived from the `id` field, it would be "ids".
     implicit val entityPath: EntityPath[CustomerOrder] = EntityPath.derived[CustomerOrder](ordersFolder)
   }
@@ -179,7 +179,7 @@ object Example3CrossEntity extends ZIOAppDefault {
           _     <- Console.printLine(s"  order-2: ${show(order2)}").orDie
           _     <- Console.printLine(s"  order-3: ${show(order3)}").orDie
           _     <- Console.printLine(s"  order-4: ${show(order4)}").orDie
-          _ <- totals match {
+          _     <- totals match {
                  case Some(t) =>
                    Console
                      .printLine(

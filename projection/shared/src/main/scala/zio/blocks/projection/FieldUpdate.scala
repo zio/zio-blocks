@@ -71,11 +71,15 @@ object FieldUpdate {
   inline def decrement[A](inline selector: A => Any, by: Long = 1L): FieldUpdate.Decrement =
     ${ FieldSelectorMacros.decrementImpl[A]('selector, 'by) }
 
-  /** Keeps the larger of the stored value and `value` for the selected field. */
+  /**
+   * Keeps the larger of the stored value and `value` for the selected field.
+   */
   inline def maxValue[A](inline selector: A => Any, value: Long): FieldUpdate.Max =
     ${ FieldSelectorMacros.maxValueImpl[A]('selector, 'value) }
 
-  /** Keeps the smaller of the stored value and `value` for the selected field. */
+  /**
+   * Keeps the smaller of the stored value and `value` for the selected field.
+   */
   inline def minValue[A](inline selector: A => Any, value: Long): FieldUpdate.Min =
     ${ FieldSelectorMacros.minValueImpl[A]('selector, 'value) }
 

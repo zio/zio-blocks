@@ -91,7 +91,7 @@ object Example8SchemaEvolution extends ZIOAppDefault {
                                cache,
                                Map[String, EventStore[?]]("users" -> users)
                              )(projectionV1)
-                   _      <- engine.start
+                   _ <- engine.start
 
                    _ <- users.append("user-1", UserCreated("Alice", "alice@example.com"))
                    _ <- users.append("user-2", UserCreated("Bob", "bob@example.com"))

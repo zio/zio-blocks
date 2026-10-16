@@ -33,8 +33,8 @@ import zio.blocks.sql.SqlNameMapper
  * that reads no field, such as `x => x`, is rejected with a compile error.
  *
  * Field names are mapped to SQL `snake_case` column names with
- * `SqlNameMapper.SnakeCase`, for example `userCount` becomes `user_count`.
- * The name is worked out at compile time and appears as a string literal in the
+ * `SqlNameMapper.SnakeCase`, for example `userCount` becomes `user_count`. The
+ * name is worked out at compile time and appears as a string literal in the
  * expanded code, so no reflection happens at runtime.
  */
 object FieldSelectorMacros {

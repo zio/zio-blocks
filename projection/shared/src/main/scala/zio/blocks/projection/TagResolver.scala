@@ -27,8 +27,8 @@ import zio.blocks.typeid.AnnotationArg
  * ones.
  *
  * Event tags are stored as strings, and a renamed case leaves old events in the
- * store under its old tag. A `TagInfo` records which tags are current, which are
- * old aliases of them, and the migration that rewrites old events. An
+ * store under its old tag. A `TagInfo` records which tags are current, which
+ * are old aliases of them, and the migration that rewrites old events. An
  * [[EventStore]] uses it to read old events as if they carried the current tag.
  *
  * Build one with [[TagResolver]] rather than by hand.
@@ -59,8 +59,8 @@ final case class TagInfo(
 
   /**
    * Returns the current tag for an old tag, and any other tag unchanged. Use it
-   * to compare tags without caring whether an event was stored before or after a
-   * rename.
+   * to compare tags without caring whether an event was stored before or after
+   * a rename.
    */
   def normalize(tag: String): String = aliases.getOrElse(tag, tag)
 
@@ -142,11 +142,11 @@ trait TagResolver[E] {
 object TagResolver {
 
   /**
-   * Builds a [[TagInfo]] from `Schema[E]` and an optional migration. This is the
-   * function the others call.
+   * Builds a [[TagInfo]] from `Schema[E]` and an optional migration. This is
+   * the function the others call.
    *
-   * Chains of renames are followed, so if `A` was renamed to `B` and `B` to `C`,
-   * then `A` maps to `C`.
+   * Chains of renames are followed, so if `A` was renamed to `B` and `B` to
+   * `C`, then `A` maps to `C`.
    */
   def resolveOpt[E](opt: Option[Migration[E, E]])(using schema: Schema[E]): TagInfo = {
     val current = currentTags[E]
@@ -178,8 +178,8 @@ object TagResolver {
     resolveOpt[E](Option(migration))
 
   /**
-   * All tags of `E`, current and old. Pass `null` for no migration, which is the
-   * default.
+   * All tags of `E`, current and old. Pass `null` for no migration, which is
+   * the default.
    */
   def allTags[E: Schema](migration: Migration[E, E] = null): Set[String] =
     resolve[E](migration).allTags
@@ -225,8 +225,8 @@ object TagResolver {
    *
    * For a sealed event type there is one tag per case: the number from its
    * `@eventTag`, or the case name if it has none. For a single, non-sealed type
-   * the tag is its `@eventTag` number or its type name, and there is none if the
-   * name is empty, `Object` or `Any`.
+   * the tag is its `@eventTag` number or its type name, and there is none if
+   * the name is empty, `Object` or `Any`.
    */
   def currentTags[E](using schema: Schema[E]): Set[String] =
     schema.reflect.asVariant match {

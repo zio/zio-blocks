@@ -84,8 +84,8 @@ object ProjectionScope {
   case object PerEntity extends ProjectionScope
 
   /**
-   * One shared store for the whole projection, kept in its own `global/` folder.
-   * Used for totals and counters.
+   * One shared store for the whole projection, kept in its own `global/`
+   * folder. Used for totals and counters.
    */
   case object Global extends ProjectionScope
 
@@ -190,8 +190,9 @@ final case class SourceBinding[E, A](
  * }}}
  *
  * Further `from(...)` calls add more sources, and further `on[...]` calls add
- * more handlers to the latest source. An `on[...]` with no `from(...)` before it
- * creates a default source named `"_default"` that routes to the entity itself.
+ * more handlers to the latest source. An `on[...]` with no `from(...)` before
+ * it creates a default source named `"_default"` that routes to the entity
+ * itself.
  *
  * Call [[validate]] before starting an engine to catch an empty projection.
  *
@@ -260,8 +261,8 @@ final class Projection[A] private[projection] (
   /**
    * The projection's [[ProjectionScope]], derived from how it was built:
    *   - [[ProjectionScope.Global]] if it was created with `Projection.global`
-   *   - otherwise [[ProjectionScope.CrossEntity]] if any source uses `routedBy`,
-   *     taking the key from the first such source
+   *   - otherwise [[ProjectionScope.CrossEntity]] if any source uses
+   *     `routedBy`, taking the key from the first such source
    *   - otherwise [[ProjectionScope.PerEntity]]
    *
    * Note that `routeToAll` alone does not make a projection global.
@@ -286,8 +287,8 @@ final class Projection[A] private[projection] (
   def sources: List[SourceBinding[?, A]] = bindings
 
   /**
-   * Finds the handler for `event` and runs it, returning the action to apply, or
-   * `None` if no handler matches the event's class.
+   * Finds the handler for `event` and runs it, returning the action to apply,
+   * or `None` if no handler matches the event's class.
    *
    * When `source` is given, only the handlers of the first binding with that
    * name are considered. Otherwise all handlers are searched in binding order,
@@ -319,8 +320,8 @@ final class Projection[A] private[projection] (
 
   /**
    * The routing key of `event` for the named source: `ctx.entityId` for
-   * `routeToSelf`, the extracted key for `routedBy`, and `None` for `routeToAll`
-   * or when there is no source with that name.
+   * `routeToSelf`, the extracted key for `routedBy`, and `None` for
+   * `routeToAll` or when there is no source with that name.
    */
   def routingKey(event: Any, ctx: ProjectionContext, sourceName: String): Option[String] =
     bindings.find(_.sourceName == sourceName).flatMap { b =>
@@ -334,8 +335,8 @@ final class Projection[A] private[projection] (
 
   /**
    * The routing key of `event` using the most recently added source, or
-   * `ctx.entityId` if there are no sources. The result follows the same rules as
-   * [[routingKey]].
+   * `ctx.entityId` if there are no sources. The result follows the same rules
+   * as [[routingKey]].
    */
   def routingKeyForDefault(event: Any, ctx: ProjectionContext): Option[String] =
     if (bindings.isEmpty) Some(ctx.entityId)
@@ -351,8 +352,8 @@ final class Projection[A] private[projection] (
    * Checks the projection for problems that would stop it from doing anything,
    * and returns a message for each. The list is empty if none are found.
    *
-   * It reports a projection with no sources, one with no handlers, a source with
-   * an empty name, and a handler with a null event class.
+   * It reports a projection with no sources, one with no handlers, a source
+   * with an empty name, and a handler with a null event class.
    */
   def validate(): List[String] = {
     val warnings = scala.collection.mutable.ListBuffer.empty[String]
@@ -374,8 +375,8 @@ final class Projection[A] private[projection] (
 object Projection {
 
   /**
-   * Creates a per-entity projection. The `EntityPath` says where its store lives
-   * and which field of `A` is the ID.
+   * Creates a per-entity projection. The `EntityPath` says where its store
+   * lives and which field of `A` is the ID.
    *
    * @param name
    *   the projection's name
@@ -395,8 +396,8 @@ object Projection {
     new Projection[A](name, summon[Schema[A]], None, isGlobal = true, Nil)
 
   /**
-   * Like `apply(name)`, but takes the `EntityPath` explicitly instead of finding
-   * it implicitly.
+   * Like `apply(name)`, but takes the `EntityPath` explicitly instead of
+   * finding it implicitly.
    */
   def apply[A](name: String, entityPath: EntityPath[A])(using schema: Schema[A]): Projection[A] =
     new Projection[A](name, schema, Some(entityPath), isGlobal = false, Nil)
@@ -445,8 +446,8 @@ final class HandlerBuilder[E, A] private[projection] (
     add(f)
 
   /**
-   * Applies the same [[FieldUpdate]] every time this event arrives, whatever the
-   * event contains. Typically used for counters on a global projection.
+   * Applies the same [[FieldUpdate]] every time this event arrives, whatever
+   * the event contains. Typically used for counters on a global projection.
    */
   def aggregate(update: FieldUpdate): Projection[A] =
     add((_, _) => ProjectionAction.Update(Chunk(update)))
@@ -514,7 +515,9 @@ final class FromBuilder[A] private[projection] (
   def routeToAll: Projection[A] =
     spec.addBinding(SourceBinding[Any, A](sourceName, RoutingMode.RouteToAll, Nil))
 
-  /** Applies each event to the entity it was recorded under (`ctx.entityId`). */
+  /**
+   * Applies each event to the entity it was recorded under (`ctx.entityId`).
+   */
   def routeToSelf: Projection[A] =
     spec.addBinding(SourceBinding[Any, A](sourceName, RoutingMode.RouteToSelf, Nil))
 }

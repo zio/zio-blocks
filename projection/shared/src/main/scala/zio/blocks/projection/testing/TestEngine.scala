@@ -32,8 +32,8 @@ import java.time.Instant
  * store backed by a `Hub`. If no projection declares a source, a single
  * `"_default"` source is created. The engine is started when the `TestEngine`
  * is built and stopped when the enclosing `Scope` closes, so no database or
- * files are involved. This replaces the verbose `ProjectionEngine.makeWithStores`
- * wiring.
+ * files are involved. This replaces the verbose
+ * `ProjectionEngine.makeWithStores` wiring.
  *
  * Use [[append]] to feed events in and [[query]] to read the projected rows
  * back. Appending only publishes the event; the engine processes it

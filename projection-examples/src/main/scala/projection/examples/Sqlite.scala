@@ -38,7 +38,10 @@ object Sqlite {
       finally stream.close()
     }
 
-  /** Creates empty folders at the given paths, for example `Sqlite.path("events")`. */
+  /**
+   * Creates empty folders at the given paths, for example
+   * `Sqlite.path("events")`.
+   */
   def folders(paths: String*): ZIO[Scope, Throwable, Unit] =
     ZIO.foreachDiscard(paths) { name =>
       val folder = Paths.get(name)
@@ -49,8 +52,9 @@ object Sqlite {
     }
 
   /**
-   * Prepares the store of a global projection. The engine keeps it in `global/<name>.db`, a folder that several
-   * examples share, so only that projection's files are removed, not the whole folder.
+   * Prepares the store of a global projection. The engine keeps it in
+   * `global/<name>.db`, a folder that several examples share, so only that
+   * projection's files are removed, not the whole folder.
    */
   def globalFolder(projectionName: String): ZIO[Scope, Throwable, Unit] =
     ZIO.attemptBlocking {
@@ -58,7 +62,10 @@ object Sqlite {
       List("", "-wal", "-shm").foreach(suffix => Files.deleteIfExists(Paths.get(s"global/$projectionName.db$suffix")))
     }
 
-  /** An event store kept in its own SQLite file, for example `Sqlite.path("events/users.db")`. */
+  /**
+   * An event store kept in its own SQLite file, for example
+   * `Sqlite.path("events/users.db")`.
+   */
   def eventStore[E: Schema](cache: TransactorCache, file: String): Task[SQLiteEventStore[E]] =
     cache.get(file).flatMap(transactor => SQLiteEventStore.make[E](transactor))
 

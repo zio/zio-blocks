@@ -21,15 +21,15 @@ import scala.annotation.StaticAnnotation
 /**
  * Gives an event case a numeric tag in place of its default name-based tag.
  *
- * Every event an [[EventStore]] appends is stored with a tag that identifies its
- * kind, and reads can be filtered by tag. By default the tag is the case name,
- * so renaming a case changes the tag that new events are stored with. Annotating
- * the case with `@eventTag(n)` makes the tag the string form of `n` instead,
- * for example `"1"`, which stays the same when the case is renamed.
+ * Every event an [[EventStore]] appends is stored with a tag that identifies
+ * its kind, and reads can be filtered by tag. By default the tag is the case
+ * name, so renaming a case changes the tag that new events are stored with.
+ * Annotating the case with `@eventTag(n)` makes the tag the string form of `n`
+ * instead, for example `"1"`, which stays the same when the case is renamed.
  *
- * Put the annotation on each case class of a sealed event type, with a different
- * number for each case. The numbers are not checked for uniqueness. It is also
- * honoured on a single, non-sealed event type.
+ * Put the annotation on each case class of a sealed event type, with a
+ * different number for each case. The numbers are not checked for uniqueness.
+ * It is also honoured on a single, non-sealed event type.
  *
  * {{{
  * sealed trait UserEvent

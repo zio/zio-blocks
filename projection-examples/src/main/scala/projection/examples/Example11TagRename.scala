@@ -111,7 +111,7 @@ object Example11TagRename extends ZIOAppDefault {
                    events <- SQLiteEventStore.make[V2.LoginEvent](tx, migration)
                    _      <- events.append("user-2", V2.LoginEvent.UserAuthenticated("user-2", "11:00"))
                    all    <- events.readAll().runCollect
-                   _ <- ZIO.foreachDiscard(all) { env =>
+                   _      <- ZIO.foreachDiscard(all) { env =>
                           Console.printLine(s"  seq ${env.seq}: tag ${env.tag}, ${env.entityId}, ${env.event}").orDie
                         }
                    byNewTag <- events.readAll(Set("UserAuthenticated")).runCollect
