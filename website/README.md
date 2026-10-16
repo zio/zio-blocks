@@ -127,7 +127,9 @@ Scaladoc is a separate generator with its own HTML, stylesheets and scripts, so 
   contents at 0.8rem. Scaladoc sizes text with utility classes (`body-small` is 13px in the sidebar and in sentences
   alike), so the rules target sections rather than those classes.
 - `src/api-theme/theme.js` replaces Scaladoc's `scripts/theme.js`: the colour mode is the one Docusaurus keeps in
-  `localStorage.theme`, cycled system -> light -> dark like the site toggle, so switching it on either side carries over.
+  `localStorage.theme`, so switching it on either side carries over, and each click flips what the page shows, as the
+  site toggle does (`src/theme/ColorModeToggle`, which replaces Docusaurus' system -> light -> dark cycle, where one
+  click in three changed nothing on screen).
   It also keeps the navbar's site links out of Scaladoc's in-place page loader.
 
 `yarn start` serves `static/api` as generated, without this skin.

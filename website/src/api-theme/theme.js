@@ -2,7 +2,8 @@
 // early in <head>, so the colour mode is applied before the first paint, as Scaladoc's own version did.
 (function () {
   // Colour mode, shared with the rest of the site: Docusaurus keeps it in localStorage "theme" ("light" or "dark",
-  // absent for the system setting), and its navbar toggle cycles system -> light -> dark -> system.
+  // absent for the system setting). The toggle flips what the page shows, as the docs toggle does
+  // (src/theme/ColorModeToggle): the page follows the OS until the first click.
   var KEY = 'theme';
   var LABELS = { system: 'system mode', light: 'light mode', dark: 'dark mode' };
   var systemDark = window.matchMedia('(prefers-color-scheme: dark)');
@@ -26,7 +27,7 @@
   var mode = readMode();
 
   function apply() {
-    var dark = mode === 'system' ? systemDark.matches : mode === 'dark';
+    var dark = isDark();
     var root = document.documentElement;
     // Scaladoc's stylesheets switch on the theme-dark class; data-theme mirrors what Docusaurus sets.
     root.classList.toggle('theme-dark', dark);
@@ -39,8 +40,8 @@
     }
   }
 
-  function next(m) {
-    return m === 'system' ? 'light' : m === 'light' ? 'dark' : 'system';
+  function isDark() {
+    return mode === 'system' ? systemDark.matches : mode === 'dark';
   }
 
   apply();
@@ -68,7 +69,7 @@
     var toggles = document.querySelectorAll('[data-color-mode-toggle], #mobile-theme-toggle');
     for (var i = 0; i < toggles.length; i++) {
       toggles[i].addEventListener('click', function () {
-        mode = next(mode);
+        mode = isDark() ? 'light' : 'dark';
         writeMode(mode);
         apply();
       });

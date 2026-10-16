@@ -302,17 +302,19 @@ test('the colour mode is the one Docusaurus stores, applied before first paint',
   assert.equal(system.toggle.title, 'system mode');
 });
 
-test('the toggle cycles system -> light -> dark -> system and writes localStorage "theme" like Docusaurus', () => {
-  const t = loadThemeScript({ systemDark: true });
-  const seen = [];
-  for (let i = 0; i < 3; i++) {
-    t.toggle.click();
-    seen.push([t.store.get('theme') ?? null, t.attrs['data-theme-choice'], t.classes.has('theme-dark')]);
+test('every click flips what the page shows, and is stored in localStorage "theme" like Docusaurus', () => {
+  for (const systemDark of [true, false]) {
+    const t = loadThemeScript({ systemDark });
+    const seen = [];
+    for (let i = 0; i < 3; i++) {
+      t.toggle.click();
+      seen.push([t.store.get('theme'), t.classes.has('theme-dark')]);
+    }
+    const [first, second] = systemDark ? ['light', 'dark'] : ['dark', 'light'];
+    assert.deepEqual(seen, [
+      [first, first === 'dark'],
+      [second, second === 'dark'],
+      [first, first === 'dark'],
+    ], `system dark: ${systemDark}`);
   }
-  assert.deepEqual(seen, [
-    ['light', 'light', false],
-    ['dark', 'dark', true],
-    [null, 'system', true],
-  ]);
-  assert.equal(t.toggle.attrs['aria-label'], 'Switch between dark and light mode (currently system mode)');
 });
