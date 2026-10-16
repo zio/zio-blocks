@@ -35,9 +35,15 @@ const PAGE =
   '<span class="project-name h300">ZIO Blocks</span></span><button id="mobile-menu-close" class="icon-button close"></button></div>' +
   '<div class="mobile-menu-container body-medium"><input id="mobile-scaladoc-searchbar-input" class="scaladoc-searchbar-input" type="search">' +
   '</input><span id="mobile-theme-toggle" class="mobile-menu-item mode"></span></div></div>' +
+  '<div id="footer" class="body-small"><div class="left-container">Generated with</div><div class="right-container">' +
+  '<a href="https://github.com/zio/zio-blocks"><button class="icon-button gh"></button></a><div class="text"></div></div>' +
+  '<div class="text-mobile"></div></div>' +
   '<div id="main"><div class="breadcrumbs container"><a href="../../../index.html">ZIO Blocks</a>/<a href="../../../zio.html">zio</a>/' +
   '<a href="../../blocks.html">zio.blocks</a>/<a href="../schema.html">zio.blocks.schema</a>/<a href="Schema.html">Schema</a></div>' +
-  '<div id="content" class="body-medium"><div><div class="cover-header"><h1 class="h600">Schema</h1></div></div></div></div></div></body></html>';
+  '<div id="content" class="body-medium"><div><div class="cover-header"><h1 class="h600">Schema</h1></div></div>' +
+  '<div id="footer" class="body-small mobile-footer"><div class="left-container">Generated with</div>' +
+  '<div class="right-container"><a href="https://github.com/zio/zio-blocks"><button class="icon-button gh"></button></a>' +
+  '<div class="text"></div></div><div class="text-mobile"></div></div></div></div></div></body></html>';
 
 const PROMPT = 'Fetch https://example.dev/start.md and "follow" <it>';
 const count = (s, needle) => s.split(needle).length - 1;
@@ -225,6 +231,13 @@ test('the side menu and the search index point at the moved pages', () => {
     extensionlessSearchData('{"l":"zio/blocks/chunk/ChunkBuilder$$Int.html#"},{"l":"zio/blocks/chunk/ChunkBuilder$$Int.html#add-1"}', moves),
     '{"l":"zio/blocks/chunk/ChunkBuilder/Int"},{"l":"zio/blocks/chunk/ChunkBuilder/Int#add-1"}',
   );
+});
+
+test('both "Generated with Scaladoc" footers are gone, and nothing after them', () => {
+  const html = themeApiPage(PAGE, { prompt: PROMPT });
+  assert.ok(!html.includes('id="footer"'));
+  assert.ok(!html.includes('Generated with'));
+  assert.ok(html.endsWith('<h1 class="h600">Schema</h1></div></div></div></div></div></body></html>'));
 });
 
 test('a page whose markup no longer matches fails loudly', () => {

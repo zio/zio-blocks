@@ -248,16 +248,10 @@
   content: 'Colour mode: dark';
 }
 
-/* Scaladoc's layout, moved under the 60px navbar */
+/* Scaladoc's layout, moved under the 60px navbar; the sidebar runs to the bottom, since the footer is gone */
 #leftColumn {
   top: var(--zb-navbar-height);
-  height: calc(100% - var(--zb-navbar-height) - (6 * var(--base-spacing)));
-}
-
-@media (max-width: 480px) {
-  #leftColumn {
-    height: calc(100% - var(--zb-navbar-height));
-  }
+  height: calc(100% - var(--zb-navbar-height));
 }
 
 

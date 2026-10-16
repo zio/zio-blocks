@@ -80,6 +80,7 @@ const HOME_ICON =
   '<svg viewBox="0 0 24 24" class="zb-breadcrumbs__home"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg>';
 const CRUMBS = /<div class="breadcrumbs container">([\s\S]*?)<\/div>/;
 const CONTENT_START = /<div id="content"[^>]*><div>/;
+const FOOTER = /<div id="footer"[^>]*>[\s\S]*?<div class="text-mobile">[\s\S]*?<\/div><\/div>/g;
 
 /**
  * The docs breadcrumbs (Docusaurus' theme-doc-breadcrumbs markup, with zb- classes because Scaladoc styles
@@ -111,7 +112,7 @@ export function breadcrumbsHtml(trail) {
   return `<nav class="zb-breadcrumbs" aria-label="Breadcrumbs"><ul class="zb-breadcrumbs__list">${items.join('')}</ul></nav>`;
 }
 
-/** Puts the site navbar, breadcrumbs, favicon, stylesheet and mobile-menu links into one Scaladoc page. */
+/** Puts the site navbar, breadcrumbs, favicon, stylesheet and mobile-menu links into one Scaladoc page, without its footer. */
 export function themeApiPage(html, { prompt }) {
   let out = replaceOnce(html, HEADER, navbarHtml({ prompt }), 'header (#header before #mobile-menu)');
   // The breadcrumbs move from above the columns to the top of the text column, where a docs page has them.
@@ -133,6 +134,11 @@ export function themeApiPage(html, { prompt }) {
     'mobile theme toggle',
   );
   out = extensionlessLinks(out);
+  // No "Generated with Scaladoc" footer (Scaladoc writes one for wide screens and one at the end of the text for
+  // narrow ones); the docs pages have none either.
+  const footers = out.match(FOOTER)?.length ?? 0;
+  if (!footers) throw new Error('Scaladoc page has no footer; did a Scaladoc upgrade change its markup?');
+  out = out.replace(FOOTER, '');
   // The site favicon instead of Scaladoc's own favicon.ico, with the markup the docs pages use.
   out = replaceOnce(out, SCALADOC_FAVICON, `<link rel="icon" href="${FAVICON}">`, 'favicon link');
   return replaceOnce(out, '</head>', `<link rel="stylesheet" href="${STYLESHEET}"></head>`, '</head>');

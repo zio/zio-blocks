@@ -90,6 +90,8 @@ Scaladoc is a separate generator with its own HTML, stylesheets and scripts, so 
   `relocatePage` rewrites a moved page's links, root path and location for its new folder, and every link to it).
   Objects keep Scaladoc's `$` (`Schema$` is the companion of `Schema`, `MediaTypes/application$` an object).
 - The site favicon (`favicon` in `docusaurus.config.js`) replaces Scaladoc's `favicon.ico`.
+- Scaladoc's "Generated with Scaladoc" footers (one for wide screens, one at the end of the text) are removed, and the
+  sidebar runs to the bottom of the window.
 - The breadcrumbs become the docs breadcrumbs (home icon, API, the packages as the side menu names them, the page) at
   the top of the text column.
 - The side menu (`dynamicSideMenu.json`) starts at `zio.blocks` and `zio.http` rather than the single `zio` package
