@@ -56,6 +56,14 @@
   });
 
   window.addEventListener('DOMContentLoaded', function () {
+    // The window scrolls instead of #main (api.css), but Scaladoc's ux.js still scrolls #main: to the #section in the
+    // URL on load, and to the top after loading a page in place. Send those to the window. This listener is added
+    // before ux.js adds its own, so it runs first; ux.js swaps #main's content, not the element, so it lasts.
+    var main = document.getElementById('main');
+    if (main)
+      main.scrollTo = function () {
+        window.scrollTo.apply(window, arguments);
+      };
     apply();
     var toggles = document.querySelectorAll('[data-color-mode-toggle], #mobile-theme-toggle');
     for (var i = 0; i < toggles.length; i++) {

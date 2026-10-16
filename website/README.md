@@ -81,7 +81,8 @@ The task also fixes the generated output in three ways (all in `generateApiDocs`
   about 100 MB to 1.5 GB) comes with bugs in `scripts/ux.js` that break navigation, patched in place: menu links joined
   with commas under a sub-path (`,api/zio.html`), link clicks calling jQuery's `$.get` though Scaladoc no longer ships
   jQuery (no link navigated), and Back/Forward leaving the menu highlight on the page you left. Each patch fails the task
-  when its target text disappears, so a Scaladoc upgrade gets them reviewed.
+  when its target text disappears, so a Scaladoc upgrade gets them reviewed. A fourth keeps a URL that names a section
+  rather than a member (`#attributes`) from aborting the page setup, which skipped code highlighting.
 
 Scaladoc is a separate generator with its own HTML, stylesheets and scripts, so after `docusaurus build`
 `scripts/theme-api.mjs` gives every page in `build/api` the site's look (`scripts/lib/api-theme.mjs`, assets in
@@ -100,6 +101,10 @@ Scaladoc is a separate generator with its own HTML, stylesheets and scripts, so 
   `relocatePage` rewrites a moved page's links, root path and location for its new folder, and every link to it).
   Objects keep Scaladoc's `$` (`Schema$` is the companion of `Schema`, `MediaTypes/application$` an object).
 - The site favicon (`favicon` in `docusaurus.config.js`) replaces Scaladoc's `favicon.ico`.
+- The window scrolls, as on a docs page, so its scrollbar runs the whole height beside a fixed navbar. Scaladoc locks
+  the body and scrolls `#main` as a pane under its header; `api.css` puts `#main` back in the page flow, fixes the
+  navbar, sidebar and overlays (search, mobile menu, sidebar button), and `theme.js` sends Scaladoc's `#main.scrollTo`
+  calls (to a `#section` on load, to the top after an in-place page load) to the window.
 - The index page sends `/api` to `/api/` first thing in `<head>` (with `<base href="/api/">` for the requests the
   browser starts before that runs): without the slash, Scaladoc's relative paths resolve against the site root and the
   page comes up unstyled. A Netlify redirect rule cannot do it, since a rule is skipped when a file answers the path.

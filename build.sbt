@@ -1572,7 +1572,12 @@ lazy val docs = project
         "  loadPageState(document, e.state);\n" ->
           ("  const oldLoc = getRawLoc();\n" +
             "  loadPageState(document, e.state);\n" +
-            "  if (dynamicSideMenu && updateMenu) updateMenu(oldLoc, getRawLoc());\n")
+            "  if (dynamicSideMenu && updateMenu) updateMenu(oldLoc, getRawLoc());\n"),
+        // A URL naming a section (#attributes) rather than a member expands it with the member's toggle button,
+        // which a section does not have, so the page setup throws there and skips the rest (code highlighting
+        // included). Toggle the button only when there is one.
+        "btn.classList.toggle(\"expand\");\n        btn.classList.toggle(\"expanded\");" ->
+          "btn?.classList.toggle(\"expand\");\n        btn?.classList.toggle(\"expanded\");"
       )
       val uxJs        = apiDir / "scripts" / "ux.js"
       val patchedUxJs = uxJsPatches.foldLeft(IO.read(uxJs)) { case (src, (broken, fixed)) =>

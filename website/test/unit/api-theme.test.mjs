@@ -272,6 +272,7 @@ function loadThemeScript({ stored = null, systemDark = false } = {}) {
       setAttribute: (k, v) => (attrs[k] = v),
     },
     querySelectorAll: () => [toggle],
+    getElementById: () => null,
     addEventListener() {},
   };
   const window = {

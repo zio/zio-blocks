@@ -248,10 +248,53 @@
   content: 'Colour mode: dark';
 }
 
-/* Scaladoc's layout, moved under the 60px navbar; the sidebar runs to the bottom, since the footer is gone */
+/* Scrolling: the window scrolls, as on a docs page, so its scrollbar runs the whole height of the window beside a fixed
+   navbar. Scaladoc locks the body and scrolls #main as a pane under an absolutely placed header, which put the
+   scrollbar partly under the navbar. The sidebar is fixed under the navbar and runs to the bottom (the footer is gone),
+   and #main is back in the page flow beside it, clipping the content Scaladoc's tablet sidebar pushes sideways. */
+html,
+body {
+  height: auto;
+  overflow: visible;
+}
+
+#header.zb-navbar {
+  position: fixed;
+  top: 0;
+}
+
 #leftColumn {
+  position: fixed;
   top: var(--zb-navbar-height);
-  height: calc(100% - var(--zb-navbar-height));
+  height: calc(100vh - var(--zb-navbar-height));
+}
+
+#main {
+  position: relative;
+  left: auto;
+  right: auto;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  overflow-x: clip;
+}
+
+@media (min-width: 997px) {
+  #main {
+    margin-left: 300px;
+  }
+}
+
+/* Overlays Scaladoc places from the top of the page stay on screen when it scrolls */
+#searchbar-container,
+#mobile-menu,
+#mobile-sidebar-toggle {
+  position: fixed;
+}
+
+/* A link to a #section stops just under the navbar, as on a docs page (Scaladoc's offset is 144px) */
+[id] {
+  scroll-margin-top: calc(var(--zb-navbar-height) + 0.5rem);
 }
 
 
@@ -298,8 +341,8 @@ body,
   --zb-scrollbar: #6b6b6b #2b2b2b;
 }
 
-#leftColumn .side-menu,
-#main {
+:root,
+#leftColumn .side-menu {
   scrollbar-color: var(--zb-scrollbar);
 }
 
@@ -595,14 +638,11 @@ a.zb-breadcrumbs__link:hover {
   }
 }
 
-@media (min-width: 1025px) {
-  #main {
-    width: calc(100vw - 300px);
+/* Below 997px the sidebar slides in over the page, pushing the text aside as Scaladoc does */
+@media (max-width: 996px) {
+  #content.sidebar-shown {
+    margin-left: 300px;
   }
-}
-
-#content.sidebar-shown {
-  margin-left: 300px;
 }
 
 /* Under the navbar the column starts 1rem down, as the docs .container does (Scaladoc pads it 144px) */
@@ -654,15 +694,11 @@ a.zb-breadcrumbs__link:hover {
     left: 0;
   }
 
-  #main {
-    left: auto;
-    width: calc(100vw - 300px);
-  }
-
   #mobile-sidebar-toggle {
     display: none;
   }
 
+  /* The sidebar is pinned here, so Scaladoc's push for a slid-in sidebar would count it twice */
   #content.sidebar-shown {
     margin-left: auto;
   }
