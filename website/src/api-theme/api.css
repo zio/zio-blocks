@@ -1,0 +1,258 @@
+/* The site skin for the Scaladoc pages under /api (scripts/theme-api.mjs links it from every page, after Scaladoc's own
+   stylesheets). It draws the navbar the way the Docusaurus navbar looks (src/css/custom.css and Infima's .navbar), sets
+   the site font and colours, and moves Scaladoc's layout under the 60px navbar (Scaladoc assumes a 64px header). */
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('/fonts/manrope-latin-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Brand palette (assets/logo/README.md), as in src/css/custom.css */
+  --zb-ultramarine: #2d3f8f;
+  --zb-ink: #141a2e;
+  --zb-lifted: #4b5fc4;
+  --zb-paper-ink: #f3f5fc;
+  --zb-hairline: #e4e7f0;
+  --zb-ink-rule: #232b4a;
+  --zb-ink-soft: #a9b1ce;
+  --zb-field: #1e2647;
+  --zb-navbar-height: 3.75rem;
+
+  --header-height: var(--zb-navbar-height);
+  --body-font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --code-font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --text-primary: var(--zb-ink);
+  --border-default: var(--zb-hairline);
+  --focus-default: var(--zb-lifted);
+}
+
+/* Dark mode: the site's ink surfaces instead of Scaladoc's greys */
+:root.theme-dark {
+  --text-primary: var(--zb-paper-ink);
+  --text-secondary: var(--zb-ink-soft);
+  --border-default: var(--zb-ink-rule);
+  --background-default: var(--zb-ink);
+  --background-subtle: var(--zb-ink);
+  --background-main: var(--zb-ink);
+  --background-nav: var(--zb-ink);
+  --background-neutral: var(--zb-field);
+}
+
+/* Navbar: ink in both colour modes, hairline underneath, Manrope 600 links */
+#header.zb-navbar {
+  --header-height: var(--zb-navbar-height);
+  height: var(--zb-navbar-height);
+  padding: 0.5rem 1rem;
+  background: var(--zb-ink);
+  border-bottom: 1px solid var(--zb-ink-rule);
+  color: var(--zb-paper-ink);
+  font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.zb-navbar__left,
+.zb-navbar__right {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.zb-navbar__brand {
+  display: flex;
+  align-items: center;
+  margin-right: 1rem;
+}
+
+.zb-navbar__brand img {
+  height: 2.25rem;
+  width: auto;
+}
+
+.zb-navbar__link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  color: var(--zb-paper-ink);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s cubic-bezier(0.08, 0.52, 0.52, 1);
+}
+
+.zb-navbar__link:hover,
+.zb-navbar__link--active {
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.zb-navbar__external {
+  margin-left: 0.3rem;
+}
+
+.zb-navbar__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--zb-paper-ink);
+  cursor: pointer;
+  line-height: 0;
+}
+
+.zb-navbar__icon:hover {
+  color: #ffffff;
+}
+
+#search-toggle.zb-navbar__icon {
+  width: 2rem;
+  height: 2rem;
+  margin-left: 0.4rem;
+}
+
+.zb-onboard {
+  margin: 0 0.4rem;
+  padding: 0.35rem;
+  font-size: 1.25rem;
+}
+
+.zb-onboard__done,
+.zb-onboard--copied .zb-onboard__idle {
+  display: none;
+}
+
+.zb-onboard--copied .zb-onboard__done {
+  display: inline;
+}
+
+/* Colour-mode toggle: a 2rem square showing the current mode, as Docusaurus draws it */
+.zb-mode {
+  width: 2rem;
+  height: 2rem;
+  transition: background 0.2s;
+}
+
+.zb-mode:hover {
+  background: #ffffff1a;
+}
+
+.zb-mode svg {
+  display: none;
+}
+
+:root[data-theme-choice='light'] .zb-mode__light,
+:root[data-theme-choice='dark'] .zb-mode__dark,
+:root[data-theme-choice='system'] .zb-mode__system {
+  display: inline;
+}
+
+.zb-navbar :focus-visible,
+#mobile-menu :focus-visible {
+  outline: 2px solid var(--zb-lifted);
+  outline-offset: 2px;
+}
+
+/* The hamburger sits left of the logo and opens Scaladoc's mobile menu; Docusaurus collapses its items at 996px */
+#mobile-menu-toggle.zb-navbar__toggle {
+  display: none;
+  margin-right: 0.5rem;
+  padding: 0;
+  color: var(--zb-paper-ink);
+  cursor: pointer;
+  line-height: 0;
+}
+
+@media (max-width: 996px) {
+  #mobile-menu-toggle.zb-navbar__toggle {
+    display: inline-flex;
+  }
+
+  .zb-navbar__link,
+  .zb-mode {
+    display: none;
+  }
+
+  #mobile-menu.show {
+    display: block;
+  }
+}
+
+/* Mobile menu: ink like the navbar, the site links on top */
+#mobile-menu {
+  background-color: var(--zb-ink);
+  color: var(--zb-paper-ink);
+  font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+#mobile-menu .mobile-menu-header {
+  height: var(--zb-navbar-height);
+  padding: 0.5rem 1rem;
+  border: none;
+  border-bottom: 1px solid var(--zb-ink-rule);
+  justify-content: space-between;
+}
+
+#mobile-menu .mobile-menu-logo {
+  opacity: 1;
+}
+
+#mobile-menu .mobile-menu-logo img {
+  height: 2.25rem;
+  width: auto;
+}
+
+#mobile-menu .mobile-menu-item {
+  color: var(--zb-paper-ink);
+  border-bottom-color: var(--zb-ink-rule);
+}
+
+.zb-mobile-links {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1rem;
+}
+
+.zb-mobile-link {
+  padding: 0.5rem 0.75rem;
+  color: var(--zb-paper-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.zb-mobile-link:hover,
+.zb-mobile-link--active {
+  background: var(--zb-ink-rule);
+  color: #ffffff;
+  text-decoration: none;
+}
+
+/* Three colour modes instead of Scaladoc's two: name the current one */
+#mobile-menu .mobile-menu-item.mode::after {
+  content: 'Colour mode: system';
+}
+
+:root[data-theme-choice='light'] #mobile-menu .mobile-menu-item.mode::after {
+  content: 'Colour mode: light';
+}
+
+:root[data-theme-choice='dark'] #mobile-menu .mobile-menu-item.mode::after {
+  content: 'Colour mode: dark';
+}
+
+/* Scaladoc's layout, moved under the 60px navbar */
+#leftColumn {
+  top: var(--zb-navbar-height);
+  height: calc(100% - var(--zb-navbar-height) - (6 * var(--base-spacing)));
+}
+
+@media (max-width: 480px) {
+  #leftColumn {
+    height: calc(100% - var(--zb-navbar-height));
+  }
+}
+

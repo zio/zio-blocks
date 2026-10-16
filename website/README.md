@@ -73,6 +73,21 @@ The task also fixes the generated output in three ways (all in `generateApiDocs`
   jQuery (no link navigated), and Back/Forward leaving the menu highlight on the page you left. Each patch fails the task
   when its target text disappears, so a Scaladoc upgrade gets them reviewed.
 
+Scaladoc is a separate generator with its own HTML, stylesheets and scripts, so after `docusaurus build`
+`scripts/theme-api.mjs` gives every page in `build/api` the site's look (`scripts/lib/api-theme.mjs`, assets in
+`src/api-theme/`):
+
+- Scaladoc's header is replaced by a copy of the site navbar (same logo, links, onboard-agent button and colour-mode
+  toggle, 60px ink bar, collapsing into the mobile menu at 996px), keeping the ids Scaladoc's scripts look up
+  (`#search-toggle`, `#mobile-menu-toggle`, a hidden version dropdown). Scaladoc's search button stays in the bar. A unit
+  test keeps its links in step with `navbar.items` in `docusaurus.config.js`.
+- `src/api-theme/api.css` sets Manrope and the brand colours, and moves Scaladoc's layout under the 60px bar.
+- `src/api-theme/theme.js` replaces Scaladoc's `scripts/theme.js`: the colour mode is the one Docusaurus keeps in
+  `localStorage.theme`, cycled system -> light -> dark like the site toggle, so switching it on either side carries over.
+  It also keeps the navbar's site links out of Scaladoc's in-place page loader.
+
+`yarn start` serves `static/api` as generated, without this skin.
+
 The navbar and footer link to it with `pathname:///api/`: Scaladoc is plain HTML outside the Docusaurus router, and
 the `pathname://` protocol makes the link a full page load and keeps it out of the broken-link checker. Without a prior
 `generateApiDocs` the build still succeeds, but `/api/` is a 404.
