@@ -11,7 +11,7 @@ keywords:
   - "SQLite Projections"
 ---
 
-`ProjectionEngine` is the runtime that turns a `Projection[A]` descriptor into a live read model. It reads events from `EventStore` instances, calls each projection's handlers, and writes the resulting state into `ProjectionStore` instances — SQLite files on the JVM, or in-memory maps in tests. On startup it validates schemas, rebuilds any store whose schema has drifted, and catches up on the history of each source binding; once running it keeps one fiber per source binding that follows new events, keeping every read model up to date. See the [overview](./index.md) for how `EventStore`, `ProjectionStore`, and `TestEngine` fit alongside it.
+`ProjectionEngine` is the runtime that turns a `Projection[A]` descriptor into a live read model. It reads events from `EventStore` instances, calls each projection's handlers, and writes the resulting state into `ProjectionStore` instances — SQLite files on the JVM, or in-memory maps in tests. On startup it validates schemas, rebuilds any store whose schema has drifted, and catches up on the history of each source binding; once running it keeps one fiber per source binding that follows new events, keeping every read model up to date.
 
 The structural shape of the class is:
 

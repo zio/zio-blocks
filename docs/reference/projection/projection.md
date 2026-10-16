@@ -282,7 +282,7 @@ Handlers describe changes as `ProjectionAction` values and cannot perform effect
 
 ### ProjectionContext
 
-Every handler function receives a `ProjectionContext` alongside the event, providing the metadata the engine attached when it processed the event envelope:
+Most handler functions receive a `ProjectionContext` alongside the event, providing the metadata the engine attached when it processed the event envelope:
 
 ```scala
 final case class ProjectionContext(
