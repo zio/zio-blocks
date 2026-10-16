@@ -1,5 +1,6 @@
 ---
 id: projection
+slug: projection
 title: "Projection[A]"
 sidebar_label: "Projection[A]"
 description: "Declarative descriptor for an event-sourced read model: defines event sources, routing, and handlers."
