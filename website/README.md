@@ -96,7 +96,7 @@ Scaladoc is a separate generator with its own HTML, stylesheets and scripts, so 
   the top of the text column.
 - The side menu (`dynamicSideMenu.json`) starts at `zio.blocks` and `zio.http` rather than the single `zio` package
   (`hoistSideMenu`), and `theme.js` keeps that top level unfolded across page loads unless the reader folds it. It is
-  drawn as the docs sidebar: Infima's rows, colours, chevron caret on the right, 12px per level, no kind icons, and the
+  drawn as the docs sidebar: Infima's rows, colours, chevron caret on the right, 12px per level, Scaladoc's kind icons, and the
   browser's own scrollbars (Scaladoc hides them; setting `scrollbar-color` overrides its `::-webkit-scrollbar` rules).
   Its Docs/API switcher is hidden, since `/api` has no Scaladoc docs section.
 - The columns follow the docs page grid: a 300px sidebar shown down to 997px, the container's width steps (40, 48, 64,

@@ -265,8 +265,8 @@ body,
 
 /* Sidebar: the docs sidebar (Infima's .menu, with src/css/custom.css). Rows are .menu__link (16px, weight 500, 6px 12px
    padding, 0.25rem apart, square), each level indented 12px, the caret a chevron on the right (Infima's, pointing down
-   when unfolded), no kind icons, and Infima's colours: grey links, the current page bold on a 5% tint, the pages
-   above it in the active colour. */
+   when unfolded), Scaladoc's kind icons (package, class, object, trait...) before each name, and Infima's colours:
+   grey links, the current page bold on a 5% tint, the pages above it in the active colour. */
 :root {
   --zb-menu-color: #606770;
   --zb-menu-color-active: var(--zb-ultramarine);
@@ -360,10 +360,6 @@ body,
 /* The current page is bold when it is a leaf, as .menu__link--active:not(.menu__link--sublist) */
 #leftColumn .side-menu .nh.selected:not(:has(> button.ar)) > a {
   font-weight: 700;
-}
-
-#leftColumn .side-menu .micon {
-  display: none;
 }
 
 /* The caret: Scaladoc's arrow button, moved after the link and drawn as .menu__caret */
