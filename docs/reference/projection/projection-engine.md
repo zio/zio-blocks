@@ -315,49 +315,6 @@ Two limits apply; see [Limitations](./migration.md#limitations):
 - A rebuild replays only one event store: the one `start` uses for the projection's first source.
 - An engine without event stores, made with `make` or `makeWithConfig`, changes nothing and keeps the old fingerprint.
 
-## Connection Management
-
-Every `SQLiteProjectionStore` reaches its file through a `TransactorCache`, and a `SQLiteEventStore` usually gets its `Transactor` from one. The cache keeps one `Transactor`, from the [SQL module](../sql/index.md), for each file path:
-
-```scala
-trait TransactorCache {
-  def get(path: String): Task[Transactor]
-  def evict(path: String): Task[Unit]
-  def close: Task[Unit]
-  def size: Task[Int]
-}
-
-final case class TransactorCacheConfig(maxSize: Int = 256)
-
-object TransactorCache {
-  def make(maxSize: Int = 256): ZIO[Scope, Nothing, TransactorCache]
-  def makeUnscoped(maxSize: Int = 256): UIO[TransactorCache]
-  def live(maxSize: Int = 256): ZLayer[Scope, Nothing, TransactorCache]
-  def liveConfig(config: TransactorCacheConfig): ZLayer[Scope, Nothing, TransactorCache]
-}
-```
-
-- `TransactorCache.make` creates a cache that is closed when the enclosing `Scope` closes. `TransactorCache.makeUnscoped` creates one that you close yourself with `TransactorCache#close`. `TransactorCache.live` and `TransactorCache.liveConfig` provide a cache from `make` as a `ZLayer`.
-- `TransactorCache#get` returns the `Transactor` of a path, and creates it on the first request. Creating it loads the `org.sqlite.JDBC` driver, opens one connection, runs `PRAGMA journal_mode=WAL`, `PRAGMA synchronous=NORMAL` and `PRAGMA busy_timeout=5000` on it, and closes it again.
-- The cache keeps `Transactor` values, not open connections. Each operation through a `Transactor` opens its own JDBC connection and closes it when done, and `SQLiteEventStore#readFrom`, which catch-up uses, opens its own connection for the stream. So `maxSize` limits how many paths are cached, not how many connections are open.
-- When the cache holds `maxSize` paths and a new one is requested, the least recently used path is evicted. A `maxSize` of 0 or less means no limit. `evict` removes one path, and `size` returns the number of cached paths.
-- After `close`, the cache is empty, and `get` fails with `IllegalStateException("TransactorCache is closed")`.
-
-The engine and the event stores can share one cache. The snippet below opens the event store and the engine with the cache from the environment, starts the engine, and then provides that cache with `TransactorCache.live`:
-
-```scala mdoc:compile-only
-val cacheLayer: ZLayer[Scope, Nothing, TransactorCache] = TransactorCache.live(maxSize = 64)
-
-val startOnSharedCache: ZIO[TransactorCache & Scope, Throwable, ProjectionEngine] = for {
-  cache  <- ZIO.service[TransactorCache]
-  users  <- cache.get("events/users.db").flatMap(tx => SQLiteEventStore.make[UserCreated](tx))
-  engine <- ProjectionEngine.makeWithStoresVarargs(cache, Map[String, EventStore[?]]("users" -> users))(projection)
-  _      <- engine.start
-} yield engine
-
-val program: ZIO[Scope, Throwable, ProjectionEngine] = startOnSharedCache.provideSomeLayer[Scope](cacheLayer)
-```
-
 ## Testing
 
 [`TestEngine`](./testing.md#testengine) creates an `InMemoryProjectionStore` for each projection and an in-memory event store for each source name, then calls `ProjectionEngine.makeWithStores` and `start` for you. The engine it wraps is available as its `engine` field, so a test can call the operations on this page with no files and no `sqlite-jdbc`. Because `start` runs inside `TestEngine.make`, a test cannot register a migration first; see [Limitations](./migration.md#limitations).
