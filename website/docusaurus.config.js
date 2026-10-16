@@ -107,7 +107,12 @@ const config = {
         },
         items: [
           { to: '/overview', label: 'Docs', position: 'right' },
-          { to: '/#catalog', label: 'Blocks', position: 'right' },
+          // A plain link, not a docSidebar item: the landing-only build has no docs plugin. activeBaseRegex keeps it
+          // highlighted on every page of the guides sidebar (docs/sidebars.js).
+          { to: '/guides/async-getting-started', label: 'Guides', position: 'right', activeBaseRegex: '^/guides/' },
+          // A hash link to the landing page: never mark it active. Docusaurus' default prefix match on `/` would light it
+          // up on every docs page, now that docs are served at the site root. A pathname is never empty, so '^$' never matches.
+          { to: '/#catalog', label: 'Blocks', position: 'right', activeBaseRegex: '^$' },
           { href: 'https://github.com/zio/zio-blocks', label: 'GitHub', position: 'right' },
         ],
       },

@@ -1,11 +1,7 @@
 const sidebars = {
+  // No "ZIO Blocks" wrapper category: the overview page and the block groups sit at the top level of the sidebar.
   sidebar: [
-    {
-      type: "category",
-      label: "ZIO Blocks",
-      collapsed: false,
-      link: { type: "doc", id: "index" },
-      items: [
+    { type: "doc", id: "index", label: "Overview" },
          {
            type: "category",
            label: "Meta Programming",
@@ -435,24 +431,27 @@ const sidebars = {
               "reference/smithy",
             ]
           },
-        ]
-      },
+  ],
+  // Guides get their own sidebar, reached from the "Guides" navbar item, so the reference sidebar stays reference-only.
+  guides: [
+    "guides/async-getting-started",
+    "guides/compile-time-resource-safety-with-scope",
+    "guides/getting-started-with-mux",
+    "guides/telemetry-guide",
+    "guides/zio-schema-migration",
     {
       type: "category",
-      label: "Guides",
+      label: "Query DSL",
+      collapsed: false,
       items: [
-        "guides/async-getting-started",
-        "guides/compile-time-resource-safety-with-scope",
-        "guides/getting-started-with-mux",
-        "guides/query-dsl-extending",
-        "guides/query-dsl-fluent-builder",
         "guides/query-dsl-reified-optics",
         "guides/query-dsl-sql",
-        "guides/sql-transactions",
-        "guides/zio-schema-migration",
-        "guides/telemetry-guide",
+        "guides/query-dsl-extending",
+        "guides/query-dsl-fluent-builder",
       ]
-    }
+    },
+    "guides/sql-transactions",
+    "guides/sql-checked-interpolation",
   ]
 };
 
