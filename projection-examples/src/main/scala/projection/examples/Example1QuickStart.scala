@@ -14,7 +14,9 @@
  * `users/user_profiles.db`, both relative to the working directory. The stores do
  * not create folders, so the program creates the two folders first. The files
  * stay on disk after the program ends, so running it again continues after the
- * last event it processed.
+ * last event it processed. The program appends its events only when the event
+ * store is empty, so a second run appends nothing and reads the same rows back
+ * from the files.
  *
  * Run it from the repository root with:
  *   sbt "projection-examples/runMain projection.examples.Example1QuickStart"
@@ -75,10 +77,14 @@ object Example1QuickStart extends ZIOAppDefault {
                 cache = cache
               )
     _ <- engine.start
-    _ <- users.append("user-1", UserCreated("Alice", "alice@example.com"))
-    _ <- users.append("user-2", UserCreated("Bob", "bob@example.com"))
-    _ <- users.append("user-3", UserCreated("Charlie", "charlie@example.com"))
-    _ <- users.append("user-1", EmailChanged("alice@zio.dev"))
+    // The events are appended on the first run only; a later run finds them in events/users.db
+    stored <- users.readAll().runCount
+    _      <- ZIO.when(stored == 0) {
+           users.append("user-1", UserCreated("Alice", "alice@example.com")) *>
+             users.append("user-2", UserCreated("Bob", "bob@example.com")) *>
+             users.append("user-3", UserCreated("Charlie", "charlie@example.com")) *>
+             users.append("user-1", EmailChanged("alice@zio.dev"))
+         }
     // The engine applies the events in the background, in order, so once the last one shows all of them have been applied
     _    <- engine.query(projection, "user-1").repeatUntil(_.exists(_.email == "alice@zio.dev"))
     rows <- ZIO.foreach(List("user-1", "user-2", "user-3"))(id => engine.query(projection, id).map(id -> _))
