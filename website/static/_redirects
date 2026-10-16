@@ -1,0 +1,3 @@
+# Only the production Netlify host redirects; deploy previews live on other hosts (deploy-preview-N--...netlify.app).
+https://zio-blocks.netlify.app/*   https://zioblocks.com/:splat       301!
+http://zio-blocks.netlify.app/*    https://zioblocks.com/:splat       301!

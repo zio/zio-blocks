@@ -57,6 +57,9 @@ jobs:
     - name: Check website build process
       if: ${{ hashFiles('website/yarn.lock') != '' }}
       run: yarn --cwd website build
+      env:
+        SITE_URL: ${{ vars.SITE_URL }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Check docs build on a fresh ZIO website
       if: ${{ hashFiles('website/yarn.lock') != '' }}
       run: sbt docs/checkDocsOnFreshWebsite
@@ -80,6 +83,36 @@ jobs:
         overwrite: true
     - name: Print All Generated Files
       run: find ./website/build -print
+  landing:
+    name: Landing
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: false
+    permissions:
+      contents: read
+    steps:
+    - name: Git Checkout
+      uses: actions/checkout@v7.0.1
+      with:
+        fetch-depth: '0'
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: 24.12.0
+    - name: Install yarn
+      run: npm install -g yarn
+    - name: Install website dependencies
+      run: yarn install --cwd website --frozen-lockfile
+    - name: Website unit tests
+      run: yarn --cwd website test
+    - name: Build the landing page and check the static output
+      run: yarn --cwd website check:landing
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Check external links
+      run: yarn --cwd website check:links || echo "::warning::External link check failed (outside links may be down)"
+    - name: Landing Lighthouse (95+)
+      run: cd website && npx --yes @lhci/cli@0.15.1 autorun
   lint:
     name: lint
     runs-on: ubuntu-latest

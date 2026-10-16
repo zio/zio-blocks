@@ -1,0 +1,18 @@
+name: Deploy Website
+on:
+  release:
+    types: [published]
+  workflow_dispatch:  # Manual trigger
+
+# The site is built by Netlify itself (netlify.toml, build.sh). A release rebuilds it so the install line on the landing
+# page shows the new version; this workflow only triggers that build.
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Trigger Netlify Deploy
+        run: |
+          curl -fsS -X POST -d {} "$NETLIFY_DEPLOY_WEBHOOK"
+        env:
+          NETLIFY_DEPLOY_WEBHOOK: ${{ secrets.NETLIFY_DEPLOY_WEBHOOK }}
