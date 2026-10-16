@@ -1,5 +1,5 @@
 /*
- * Example 9 of 10: inserting and deleting rows.
+ * Example 9 of 11: inserting and deleting rows.
  *
  * Builds on Example1PerEntity. Read it first.
  *

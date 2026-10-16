@@ -1,5 +1,5 @@
 /*
- * Example 5 of 10: renaming an event.
+ * Example 5 of 11: renaming an event.
  *
  * Builds on Example4SchemaEvolution. Next: Example6MigrationShortcut.
  *

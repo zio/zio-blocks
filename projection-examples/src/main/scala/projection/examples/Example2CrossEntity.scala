@@ -1,5 +1,5 @@
 /*
- * Example 2 of 10: a cross-entity projection.
+ * Example 2 of 11: a cross-entity projection.
  *
  * Read Example1PerEntity first. Next: Example3GlobalAggregate.
  *

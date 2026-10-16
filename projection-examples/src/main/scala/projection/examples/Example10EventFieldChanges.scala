@@ -1,5 +1,5 @@
 /*
- * Example 10 of 10: changing the fields of an event.
+ * Example 10 of 11: changing the fields of an event.
  *
  * Builds on Example5TagRename. Read it first.
  *

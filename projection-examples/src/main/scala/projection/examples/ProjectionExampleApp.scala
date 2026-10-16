@@ -11,6 +11,7 @@
  *   8. Example8FieldUpdates
  *   9. Example9InsertAndDelete
  *   10. Example10EventFieldChanges
+ *   11. Example11RebuildOnDemand
  *
  * Each example can also be run on its own, see the comment at the top of its
  * file.
@@ -38,6 +39,7 @@ object ProjectionExampleApp extends ZIOAppDefault {
       _ <- Example8FieldUpdates.demo
       _ <- Example9InsertAndDelete.demo
       _ <- Example10EventFieldChanges.demo
+      _ <- Example11RebuildOnDemand.demo
       _ <- Console.printLine("\n=== All demos completed successfully ===").orDie
     } yield ()
 }
