@@ -1,7 +1,7 @@
 /*
- * Example 10 of 11: changing the fields of an event.
+ * Example 11 of 11: changing the fields of an event.
  *
- * Builds on Example5TagRename. Read it first.
+ * Builds on Example10TagRename. Read it first.
  *
  * Stored events are never rewritten. When a case of the event type gains, loses
  * or changes a field, the events already stored keep their old JSON, and the
@@ -13,7 +13,7 @@
  *   - a field that was added with none of these makes the event fail to decode
  *
  * This example stores two `AccountOpened` events with the first version of the
- * event type, in `.projection-examples/example10/events/accounts.db`, then reads
+ * event type, in `.projection-examples/example11/events/accounts.db`, then reads
  * them back with two newer versions:
  *   1. V1 has `owner` and `plan`.
  *   2. V2 drops `plan` and adds `currency` with a default, `referrer` as an
@@ -28,7 +28,7 @@
  *   - which added fields are filled in, and which make an old event unreadable
  *
  * Run it from the repository root with:
- *   sbt "projection-examples/runMain projection.examples.Example10EventFieldChanges"
+ *   sbt "projection-examples/runMain projection.examples.Example11EventFieldChanges"
  */
 
 package projection.examples
@@ -37,7 +37,7 @@ import zio.*
 import zio.blocks.projection.*
 import zio.blocks.schema.Schema
 
-object Example10EventFieldChanges extends ZIOAppDefault {
+object Example11EventFieldChanges extends ZIOAppDefault {
 
   object V1 {
     sealed trait AccountEvent
@@ -64,7 +64,7 @@ object Example10EventFieldChanges extends ZIOAppDefault {
     }
   }
 
-  private val eventsFile: String = Sqlite.path("example10/events/accounts.db")
+  private val eventsFile: String = Sqlite.path("example11/events/accounts.db")
 
   // Opens the event store with the given version of the event type and reads every event.
   private def readAll[E: Schema]: Task[Chunk[EventEnvelope[E]]] =
@@ -77,10 +77,10 @@ object Example10EventFieldChanges extends ZIOAppDefault {
     }
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Example 10: Changing the Fields of an Event (AccountOpened V1 -> V2 -> V3) ---").orDie *>
+    Console.printLine("\n--- Example 11: Changing the Fields of an Event (AccountOpened V1 -> V2 -> V3) ---").orDie *>
       ZIO.scoped {
         for {
-          _ <- Sqlite.folders(Sqlite.path("example10/events"))
+          _ <- Sqlite.folders(Sqlite.path("example11/events"))
 
           // 1. The first version stores two events.
           _ <- ZIO.scoped {

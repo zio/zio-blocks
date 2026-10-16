@@ -1,7 +1,7 @@
 /*
- * Example 5 of 11: renaming an event.
+ * Example 10 of 11: renaming an event.
  *
- * Builds on Example4SchemaEvolution. Next: Example6MigrationShortcut.
+ * Builds on Example7SchemaEvolution. Next: Example11EventFieldChanges.
  *
  * Event tags are stored as strings, so renaming a case, here `UserLoggedIn` to
  * `UserAuthenticated`, leaves old events in the store under the old tag. A
@@ -9,7 +9,7 @@
  * events can still be recognised and read.
  *
  * This example runs on a real SQLite event store,
- * `.projection-examples/example5/events/logins.db`, with two versions of the event type in
+ * `.projection-examples/example10/events/logins.db`, with two versions of the event type in
  * a row. Both are called `LoginEvent`, so they use the same table.
  *   1. `V1.LoginEvent` has the case `UserLoggedIn`. An event is appended with it.
  *   2. `V2.LoginEvent` has the case `UserAuthenticated`. The store is opened again
@@ -25,7 +25,7 @@
  *     event with the current tag and decoded as the new case
  *
  * Run it from the repository root with:
- *   sbt "projection-examples/runMain projection.examples.Example5TagRename"
+ *   sbt "projection-examples/runMain projection.examples.Example10TagRename"
  */
 
 package projection.examples
@@ -35,7 +35,7 @@ import zio.blocks.projection.*
 import zio.blocks.schema.Schema
 import zio.blocks.schema.migration.Migration
 
-object Example5TagRename extends ZIOAppDefault {
+object Example10TagRename extends ZIOAppDefault {
 
   object V1 {
     sealed trait LoginEvent
@@ -60,10 +60,10 @@ object Example5TagRename extends ZIOAppDefault {
   }
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Example 5: Tag Rename (UserLoggedIn -> UserAuthenticated) ---").orDie *>
+    Console.printLine("\n--- Example 10: Tag Rename (UserLoggedIn -> UserAuthenticated) ---").orDie *>
       ZIO.scoped {
         for {
-          _ <- Sqlite.folders(Sqlite.path("example5/events"))
+          _ <- Sqlite.folders(Sqlite.path("example10/events"))
 
           migration = Migration
                         .newBuilder[V2.LoginEvent, V2.LoginEvent]
@@ -97,7 +97,7 @@ object Example5TagRename extends ZIOAppDefault {
           _ <- ZIO.scoped {
                  for {
                    cache  <- TransactorCache.make()
-                   tx     <- cache.get(Sqlite.path("example5/events/logins.db"))
+                   tx     <- cache.get(Sqlite.path("example10/events/logins.db"))
                    events <- SQLiteEventStore.make[V1.LoginEvent](tx)
                    _      <- events.append("user-1", V1.LoginEvent.UserLoggedIn("user-1", "10:00"))
                  } yield ()
@@ -107,7 +107,7 @@ object Example5TagRename extends ZIOAppDefault {
           _ <- ZIO.scoped {
                  for {
                    cache  <- TransactorCache.make()
-                   tx     <- cache.get(Sqlite.path("example5/events/logins.db"))
+                   tx     <- cache.get(Sqlite.path("example10/events/logins.db"))
                    events <- SQLiteEventStore.make[V2.LoginEvent](tx, migration)
                    _      <- events.append("user-2", V2.LoginEvent.UserAuthenticated("user-2", "11:00"))
                    all    <- events.readAll().runCollect

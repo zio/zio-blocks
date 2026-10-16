@@ -1,7 +1,7 @@
 /*
- * Example 8 of 11: field updates.
+ * Example 4 of 11: field updates.
  *
- * Builds on Example1PerEntity. Read it first.
+ * Builds on Example1PerEntity. Read it first. Next: Example5GlobalAggregate.
  *
  * `insert` writes a whole row. When an event changes only one column, a field
  * update sets that column and leaves the rest of the row as it is. There are
@@ -24,7 +24,7 @@
  *   - running it in memory with `TestEngine`
  *
  * Run it from the repository root with:
- *   sbt "projection-examples/runMain projection.examples.Example8FieldUpdates"
+ *   sbt "projection-examples/runMain projection.examples.Example4FieldUpdates"
  */
 
 package projection.examples
@@ -36,7 +36,7 @@ import zio.blocks.schema.{Modifier, Schema}
 
 import Polling.pollUntil
 
-object Example8FieldUpdates extends ZIOAppDefault {
+object Example4FieldUpdates extends ZIOAppDefault {
 
   case class UserRegistered(firstName: String, email: String)
   object UserRegistered {
@@ -68,7 +68,7 @@ object Example8FieldUpdates extends ZIOAppDefault {
     profile.map(p => s"${p.firstName} <${p.email}>, ${p.status}").getOrElse("not found")
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Example 8: Field Updates (update, updateWithField, updateField) ---").orDie *>
+    Console.printLine("\n--- Example 4: Field Updates (update, updateWithField, updateField) ---").orDie *>
       ZIO.scoped {
         for {
           projection = Projection[UserProfile]("user_profiles")

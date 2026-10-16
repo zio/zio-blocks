@@ -1,7 +1,7 @@
 /*
- * Example 7 of 11: custom actions.
+ * Example 6 of 11: custom actions.
  *
- * Builds on Example1PerEntity. Read it first.
+ * Builds on Example1PerEntity. Read it first. Next: Example7SchemaEvolution.
  *
  * `insert`, `delete` and the field updates each produce one fixed action. When
  * what should happen depends on the event, `custom` lets the handler look at the
@@ -22,7 +22,7 @@
  *   - running it in memory with `TestEngine`
  *
  * Run it from the repository root with:
- *   sbt "projection-examples/runMain projection.examples.Example7CustomActions"
+ *   sbt "projection-examples/runMain projection.examples.Example6CustomActions"
  */
 
 package projection.examples
@@ -35,7 +35,7 @@ import zio.blocks.schema.{Modifier, Schema}
 
 import Polling.pollUntil
 
-object Example7CustomActions extends ZIOAppDefault {
+object Example6CustomActions extends ZIOAppDefault {
 
   case class ProfileImported(name: String, email: String, draft: Boolean)
   object ProfileImported {
@@ -57,7 +57,7 @@ object Example7CustomActions extends ZIOAppDefault {
     profile.map(p => s"${p.name} <${p.email}>, ${p.status}").getOrElse("no row")
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Example 7: Custom Actions (Upsert, Noop, Delete, Update) ---").orDie *>
+    Console.printLine("\n--- Example 6: Custom Actions (Upsert, Noop, Delete, Update) ---").orDie *>
       ZIO.scoped {
         for {
           projection = Projection[UserProfile]("user_profiles")

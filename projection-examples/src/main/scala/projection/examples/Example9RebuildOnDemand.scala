@@ -1,7 +1,7 @@
 /*
- * Example 11 of 11: rebuilding on demand.
+ * Example 9 of 11: rebuilding on demand.
  *
- * Builds on Example4SchemaEvolution. Read it first.
+ * Builds on Example7SchemaEvolution. Read it first. Next: Example10TagRename.
  *
  * The engine rebuilds a projection by itself only when the shape of its row type
  * changes. A handler that now computes something else does not change that
@@ -11,8 +11,8 @@
  * handlers.
  *
  * This example runs on real SQLite files: the events are kept in
- * `.projection-examples/example11/events/users.db`, and the read model in
- * `.projection-examples/example11/profiles/user_profiles.db`. It runs three
+ * `.projection-examples/example9/events/users.db`, and the read model in
+ * `.projection-examples/example9/profiles/user_profiles.db`. It runs three
  * versions of an application in a row, on the same files:
  *   1. The first version stores the users' names as they are.
  *   2. The second changes the handler to store the names in upper case. The old
@@ -27,7 +27,7 @@
  *     `start`, with the stores created for `makeWithStores`
  *
  * Run it from the repository root with:
- *   sbt "projection-examples/runMain projection.examples.Example11RebuildOnDemand"
+ *   sbt "projection-examples/runMain projection.examples.Example9RebuildOnDemand"
  */
 
 package projection.examples
@@ -38,11 +38,11 @@ import zio.blocks.schema.{Modifier, Schema}
 
 import Polling.pollUntil
 
-object Example11RebuildOnDemand extends ZIOAppDefault {
+object Example9RebuildOnDemand extends ZIOAppDefault {
 
-  private val profilesFolder: String = Sqlite.path("example11/profiles")
+  private val profilesFolder: String = Sqlite.path("example9/profiles")
   private val profilesFile: String   = s"$profilesFolder/user_profiles.db"
-  private val eventsFile: String     = Sqlite.path("example11/events/users.db")
+  private val eventsFile: String     = Sqlite.path("example9/events/users.db")
 
   case class UserProfile(@Modifier.id userId: String, name: String)
   object UserProfile {
@@ -67,10 +67,10 @@ object Example11RebuildOnDemand extends ZIOAppDefault {
   private def name(profile: Option[UserProfile]): String = profile.map(_.name).getOrElse("not found")
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Example 11: Rebuilding on Demand (a changed handler) ---").orDie *>
+    Console.printLine("\n--- Example 9: Rebuilding on Demand (a changed handler) ---").orDie *>
       ZIO.scoped {
         for {
-          _ <- Sqlite.folders(profilesFolder, Sqlite.path("example11/events"))
+          _ <- Sqlite.folders(profilesFolder, Sqlite.path("example9/events"))
 
           // 1. The first version of the application.
           _ <- ZIO.scoped {

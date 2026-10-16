@@ -1,7 +1,7 @@
 /*
  * Example 2 of 11: a cross-entity projection.
  *
- * Read Example1PerEntity first. Next: Example3GlobalAggregate.
+ * Read Example1PerEntity first. Next: Example3InsertAndDelete.
  *
  * In Example 1 every event belongs to the entity it was recorded under. Here the
  * events are recorded per order (`order-1`, `order-2`, ...), but they are viewed

@@ -3,15 +3,15 @@
  * read:
  *   1. Example1PerEntity
  *   2. Example2CrossEntity
- *   3. Example3GlobalAggregate
- *   4. Example4SchemaEvolution
- *   5. Example5TagRename
- *   6. Example6MigrationShortcut
- *   7. Example7CustomActions
- *   8. Example8FieldUpdates
- *   9. Example9InsertAndDelete
- *   10. Example10EventFieldChanges
- *   11. Example11RebuildOnDemand
+ *   3. Example3InsertAndDelete
+ *   4. Example4FieldUpdates
+ *   5. Example5GlobalAggregate
+ *   6. Example6CustomActions
+ *   7. Example7SchemaEvolution
+ *   8. Example8MigrationShortcut
+ *   9. Example9RebuildOnDemand
+ *   10. Example10TagRename
+ *   11. Example11EventFieldChanges
  *
  * Each example can also be run on its own, see the comment at the top of its
  * file.
@@ -31,15 +31,15 @@ object ProjectionExampleApp extends ZIOAppDefault {
       _ <- Console.printLine("=== ZIO Blocks Projection Examples ===").orDie
       _ <- Example1PerEntity.demo
       _ <- Example2CrossEntity.demo
-      _ <- Example3GlobalAggregate.demo
-      _ <- Example4SchemaEvolution.demo
-      _ <- Example5TagRename.demo
-      _ <- Example6MigrationShortcut.demo
-      _ <- Example7CustomActions.demo
-      _ <- Example8FieldUpdates.demo
-      _ <- Example9InsertAndDelete.demo
-      _ <- Example10EventFieldChanges.demo
-      _ <- Example11RebuildOnDemand.demo
+      _ <- Example3InsertAndDelete.demo
+      _ <- Example4FieldUpdates.demo
+      _ <- Example5GlobalAggregate.demo
+      _ <- Example6CustomActions.demo
+      _ <- Example7SchemaEvolution.demo
+      _ <- Example8MigrationShortcut.demo
+      _ <- Example9RebuildOnDemand.demo
+      _ <- Example10TagRename.demo
+      _ <- Example11EventFieldChanges.demo
       _ <- Console.printLine("\n=== All demos completed successfully ===").orDie
     } yield ()
 }

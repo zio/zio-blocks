@@ -1,7 +1,7 @@
 /*
- * Example 3 of 11: a global aggregate projection.
+ * Example 5 of 11: a global aggregate projection.
  *
- * Read Examples 1 and 2 first. Next: Example4SchemaEvolution.
+ * Read Examples 1 and 2 first. Next: Example6CustomActions.
  *
  * A global projection keeps one shared store for the whole projection, which is
  * the place for totals and counters. Here `UserCreated` events from the "users"
@@ -9,7 +9,7 @@
  * `DailyStats` row.
  *
  * This example runs on real SQLite files: the events are kept in
- * `.projection-examples/example3/events/users.db` and `.projection-examples/example3/events/repos.db`,
+ * `.projection-examples/example5/events/users.db` and `.projection-examples/example5/events/repos.db`,
  * and the projection in `global/dailyStats.db`. The engine always keeps the store
  * of a global projection in a folder called `global`, so it is not inside
  * `.projection-examples`.
@@ -22,7 +22,7 @@
  *     event store
  *
  * Run it from the repository root with:
- *   sbt "projection-examples/runMain projection.examples.Example3GlobalAggregate"
+ *   sbt "projection-examples/runMain projection.examples.Example5GlobalAggregate"
  */
 
 package projection.examples
@@ -33,7 +33,7 @@ import zio.blocks.schema.{Modifier, Schema}
 
 import Polling.pollUntil
 
-object Example3GlobalAggregate extends ZIOAppDefault {
+object Example5GlobalAggregate extends ZIOAppDefault {
 
   // The key is the date. Its field is called `id` because a global projection has no `EntityPath`, so its
   // SQLite store looks for a column with that name.
@@ -44,10 +44,10 @@ object Example3GlobalAggregate extends ZIOAppDefault {
   }
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Example 3: Global Aggregate (DailyStats from users + repos) ---").orDie *>
+    Console.printLine("\n--- Example 5: Global Aggregate (DailyStats from users + repos) ---").orDie *>
       ZIO.scoped {
         for {
-          _ <- Sqlite.globalFolder("dailyStats") *> Sqlite.folders(Sqlite.path("example3/events"))
+          _ <- Sqlite.globalFolder("dailyStats") *> Sqlite.folders(Sqlite.path("example5/events"))
 
           dateKey = "2025-08-26"
 
@@ -65,8 +65,8 @@ object Example3GlobalAggregate extends ZIOAppDefault {
           _ <- Console.printLine(s"  Scope: ${projection.scope}").orDie
 
           cache <- TransactorCache.make()
-          users <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example3/events/users.db"))
-          repos <- Sqlite.eventStore[RepoCreated](cache, Sqlite.path("example3/events/repos.db"))
+          users <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example5/events/users.db"))
+          repos <- Sqlite.eventStore[RepoCreated](cache, Sqlite.path("example5/events/repos.db"))
           engine <- ProjectionEngine.makeWithStoresVarargs(
                       cache,
                       Map[String, EventStore[?]]("users" -> users, "repos" -> repos)
