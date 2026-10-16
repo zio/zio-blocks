@@ -267,3 +267,8 @@ When a worker transaction fails, the transaction is rolled back and the dirty ke
 ## Architecture Decisions
 
 For a detailed record of architecture decisions, see the [ADR](../adr/2026-07-18-data-migration.md).
+
+## See Also
+
+- [Projection](./projection/index.md) — event-sourced read models that complement schema-migration workflows: while `DataMigration` evolves the write-side schema, `ProjectionEngine` rebuilds read-side views from the event log without touching source tables.
+- [SQL Module](./sql/index.md) — the `Transactor`, `Repo`, and `Table` types shared by both the data-migration and projection modules.

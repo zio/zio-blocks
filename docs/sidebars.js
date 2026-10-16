@@ -408,7 +408,19 @@ const sidebars = {
             },
                 "reference/sql-zio",
                 "reference/data-migration",
-                "reference/projection",
+                {
+                  type: "category",
+                  label: "Projection",
+                  link: { type: "doc", id: "reference/projection/index" },
+                  items: [
+                    "reference/projection/projection",
+                    "reference/projection/engine",
+                    "reference/projection/event-store",
+                    "reference/projection/projection-store",
+                    "reference/projection/migration",
+                    "reference/projection/testing",
+                  ],
+                },
             ],
           },
           {

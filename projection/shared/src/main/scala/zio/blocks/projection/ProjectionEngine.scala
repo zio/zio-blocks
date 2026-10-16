@@ -27,6 +27,31 @@ import scala.util.Try
 // Config
 // ---------------------------------------------------------------------------
 
+/**
+ * Settings for a [[ProjectionEngine]].
+ *
+ * @param batchSize
+ *   the most events read together while catching up on history. Each event of a
+ *   batch is still applied, and its position saved, on its own.
+ * @param batchTimeout
+ *   how long catch-up waits for a batch to fill before it applies what it has
+ * @param ringCapacity
+ *   the capacity of the bounded hub that carries live events, where a hub is
+ *   created from the config, as `TestEngine` does. An event store made with
+ *   `SQLiteEventStore.make` has its own hub of 4,096 events.
+ * @param rebuildParallelism
+ *   the size of the groups in which the background pre-warm rebuilds pending
+ *   projections when `lazyRebuild` is on. The groups, and the projections in
+ *   them, are rebuilt one after the other.
+ * @param lazyRebuild
+ *   if `true`, a projection whose schema changed is only marked as pending at
+ *   startup, and rebuilt on its first query or by the background pre-warm. If
+ *   `false`, the default, it is rebuilt during `start`.
+ * @param evolution
+ *   settings for [[SchemaEvolution]]. The engine does not read them: it always
+ *   tries the migration shortcut when a migration is registered for the
+ *   projection, and uses its own `lazyRebuild` and `rebuildParallelism`.
+ */
 final case class ProjectionEngineConfig(
   batchSize: Int = 100,
   batchTimeout: zio.Duration = 50.millis,
@@ -37,6 +62,12 @@ final case class ProjectionEngineConfig(
 )
 
 object ProjectionEngineConfig {
+
+  /**
+   * The default settings: batches of 100 events with a 50 ms timeout, a hub
+   * capacity of 4,096, groups of 4 for the pre-warm, and rebuilds during
+   * `start`.
+   */
   val default: ProjectionEngineConfig = ProjectionEngineConfig()
 }
 
@@ -45,24 +76,44 @@ object ProjectionEngineConfig {
 // ---------------------------------------------------------------------------
 
 /**
- * ProjectionEngine runs projections — materializing event streams into
- * queryable read models.
+ * Runs projections: it reads events from [[EventStore]]s, applies each
+ * [[Projection]]'s handlers, and keeps the results in [[ProjectionStore]]s that
+ * can be queried.
  *
- * Each [[Projection]] defines how events map to an entity `A`. The engine backs
- * each projection with a [[ProjectionStore]] (one SQLite file per spec on the
- * JVM, or an in-memory map in tests) and keeps it up to date by consuming one
- * or more [[EventStore]] streams.
+ * A [[Projection]] only describes what should happen. The engine is the part
+ * that does it. Each projection gets a primary store, which is one SQLite file
+ * per projection on the JVM or an in-memory map in tests.
  *
- * Lifecycle: on [[start]] the engine checks stored schema hashes and rebuilds
- * any stale stores, then launches a catch-up fiber per binding (`readFrom` +
- * `groupedWithin`) followed by a live subscription fiber. Queries via [[query]]
- * first ensure any pending lazy rebuild is applied.
+ * Lifecycle: [[start]] first compares each projection's stored schema hash with
+ * the current one, and brings stale stores up to date unless `lazyRebuild` is
+ * on. Then, for each source of each projection, it catches up on the events
+ * after the projection's saved position, reading them in batches with
+ * `readFrom`, and only then starts a fiber that follows the new events from the
+ * source's hub. `start` returns once every source has caught up. [[query]]
+ * first applies any pending lazy rebuild.
  *
- * Persistence: when `sqlite-jdbc` is on the classpath the engine uses
- * [[SQLiteProjectionStore]]; otherwise it falls back to
- * `InMemoryProjectionStore`. Add `libraryDependencies += "org.xerial" %
- * "sqlite-jdbc" % "3.53.4.0"` for SQLite persistence, or it falls back to
- * `InMemory` (see `docs/reference/projection.md`).
+ * Routing: for each event the engine builds a [[ProjectionContext]] from the
+ * [[EventEnvelope]], runs the matching handler, and applies the resulting
+ * [[ProjectionAction]] to the store chosen by the projection's
+ * [[ProjectionScope]]: the primary store for per-entity and global projections,
+ * and a shard per routing key for cross-entity ones.
+ *
+ * Failures: an event whose handler throws, or that the store rejects, is logged
+ * as an error and skipped; an event that no handler matches is skipped too, and
+ * logged at debug level. Processing continues with the next event. The saved
+ * position is updated after each event that succeeds, so a skipped event is not
+ * retried once a later one succeeds.
+ *
+ * Persistence: the stores that `make`, `makeWithConfig` and
+ * `makeWithStoresVarargs` create are SQLite files, so `sqlite-jdbc` must be on
+ * the runtime classpath and the folders of the files must exist. A store opens
+ * its file only when it is first used, so a missing driver or folder shows up
+ * as a failure then, not when the engine is created.
+ *
+ * Create an engine with the factories on the companion object. `make` and
+ * `makeWithConfig` give it no event stores, so it has nothing to read; to give
+ * it event stores, create it with `makeWithStores` or `makeWithStoresVarargs`,
+ * or use `TestEngine` in tests.
  *
  * @param specs
  *   list of projections this engine manages
@@ -73,7 +124,7 @@ object ProjectionEngineConfig {
  * @param cache
  *   shared [[TransactorCache]] for SQLite connections
  * @param config
- *   engine tuning (batching, timeouts, rebuild parallelism)
+ *   the settings the engine was created with
  * @param shardsRef
  *   sharded stores for cross-entity routing
  * @param pendingRebuildRef
@@ -96,29 +147,36 @@ final class ProjectionEngine private[projection] (
 ) {
 
   /**
-   * Returns the shared [[TransactorCache]] that backs SQLite transactors.
+   * The [[TransactorCache]] that opens the engine's SQLite files: the one
+   * `make` and `makeWithConfig` created, or the one given to `makeWithStores`
+   * or `makeWithStoresVarargs`.
    *
-   * Exposed for testing and for consumers that need direct transactor access.
+   * Exposed for tests and for code that needs a connection to the same files.
    */
   def transactorCache: TransactorCache = cache
 
   /**
-   * Registers a schema migration for the given projection.
+   * Registers how the row type of a projection changed, from `Old` to `New`, so
+   * that the change can be handled without a full rebuild.
    *
-   * The migration is used during schema-evolution checks to attempt an
-   * `ALTER TABLE ADD COLUMN` shortcut instead of a full rebuild when the change
-   * is a simple `AddField`.
+   * When the stored rows are out of date and every action of `migration` adds a
+   * top-level field, the engine adds the new columns with
+   * `ALTER TABLE ADD COLUMN` instead of replaying the events. The existing rows
+   * get no value in the new columns. For any other change, it rebuilds the rows
+   * from the events as usual.
+   *
+   * Register it before `start`, which is when the schema is checked, or, with
+   * `lazyRebuild`, before the projection is first queried. The migration is
+   * kept under the projection's name, so registering another one replaces it.
    *
    * @param spec
    *   the projection the migration applies to
    * @param migration
    *   the migration from `Old` to `New`
    * @tparam Old
-   *   the previous entity type
+   *   the previous row type
    * @tparam New
-   *   the current entity type
-   * @return
-   *   a task that registers the migration
+   *   the current row type
    */
   def registerMigration[Old, New](
     spec: Projection[New],
@@ -337,15 +395,23 @@ final class ProjectionEngine private[projection] (
   }
 
   /**
-   * Starts the engine: validates schemas, rebuilds stale stores, then launches
-   * per-binding catch-up and live fibers.
+   * Starts the engine.
    *
-   * Must be run inside a `Scope`; all fibers and transactors are tied to that
-   * scope and are released when it closes.
+   * It first checks the schema of each projection and, unless `lazyRebuild` is
+   * on, brings stale stores up to date, with the migration shortcut or a full
+   * rebuild. Then, for each source of each projection, it applies the events
+   * after the projection's saved position and starts a fiber that follows the
+   * new events. With `lazyRebuild` on, it also starts a fiber that rebuilds the
+   * pending projections in the background.
+   *
+   * A source that fails is logged and skipped. A source without an event store,
+   * which only happens when the engine has no event stores at all, is skipped
+   * with a warning. The fibers run until the enclosing `Scope` closes; there is
+   * no separate stop method.
    *
    * @return
-   *   a scoped task that completes when fibers are launched (not when they
-   *   finish)
+   *   a scoped task that completes once every source has caught up and its live
+   *   fiber has been started
    */
   def start: ZIO[Scope, Nothing, Unit] = {
     val schemaChecks: ZIO[Any, Nothing, Unit] =
@@ -481,9 +547,9 @@ final class ProjectionEngine private[projection] (
    * @param entityId
    *   the entity id to look up
    * @tparam A
-   *   the projection entity type
+   *   the row type of the projection
    * @return
-   *   the entity if found
+   *   the row, or `None` if no store has it
    */
   def query[A](spec: Projection[A], entityId: String): Task[Option[A]] =
     ensureRebuiltIfPending(spec) *>
@@ -507,27 +573,64 @@ final class ProjectionEngine private[projection] (
           }
       }
 
-  /** Query by spec name + id (untyped helper) */
+  /**
+   * Reads the row with the given ID from the projection with the given name, or
+   * `None` if there is no such projection or row.
+   *
+   * Unlike [[query]], it neither applies a pending lazy rebuild nor searches
+   * shards, and the caller chooses the result type `A` without it being
+   * checked.
+   *
+   * @param specName
+   *   the name of the projection
+   * @param entityId
+   *   the ID of the row
+   * @return
+   *   the row, or `None`
+   */
   def queryByName[A](specName: String, entityId: String): Task[Option[A]] =
     primaryStores.get(specName) match {
       case Some(store) => store.asInstanceOf[ProjectionStore[A]].findById(entityId)
       case None        => ZIO.succeed(None)
     }
 
+  /**
+   * The sequence number of the last event the projection has applied, which is
+   * where the engine resumes after a restart. It is kept in the projection's
+   * primary store, also for a cross-entity projection with shards.
+   *
+   * @param spec
+   *   the projection
+   */
   def getLastProcessedSeq[A](spec: Projection[A]): Task[Long] =
     primaryStoreFor(spec).getLastProcessedSeq
 
+  /** The primary store of each projection, keyed by projection name. */
   def storesMap: Map[String, ProjectionStore[_]] = primaryStores
 
+  /** The event stores, keyed by source name. */
   def eventStoresMap: Map[String, EventStore[_]] = eventStores
 }
 
 object ProjectionEngine {
 
-  // M1: bounded Hub (ringCapacity 4096) — respects backpressure via suspending publish
+  /**
+   * Creates a bounded hub for live events. Publishing suspends when the hub is
+   * full, so a slow consumer slows the producer down instead of losing events.
+   *
+   * @param capacity
+   *   the most events the hub holds
+   */
   def boundedHub[E](capacity: Int = 4096): UIO[Hub[EventEnvelope[E]]] = Hub.bounded[EventEnvelope[E]](capacity)
 
-  // M3: path traversal validation
+  /**
+   * Checks that a projection name is safe to use as a file name, and throws
+   * `IllegalArgumentException` if it is not. A name must be non-empty and made
+   * of letters, digits, `_` and `-`.
+   *
+   * @param name
+   *   the projection name to check
+   */
   def validateName(name: String): Unit =
     require(
       name.nonEmpty && !name.contains("/") && !name.contains("\\") && !name.contains("..") && name
@@ -535,6 +638,14 @@ object ProjectionEngine {
       s"invalid name $name"
     )
 
+  /**
+   * Checks that a folder path cannot escape the storage directory, and throws
+   * `IllegalArgumentException` if it can. It rejects an empty path,
+   * backslashes, `..`, `//`, and absolute paths.
+   *
+   * @param path
+   *   the folder path to check
+   */
   def validateBasePath(path: String): Unit = {
     require(
       path.nonEmpty && !path.contains("\\") && !path.contains("..") && !path.contains("//"),
@@ -562,9 +673,33 @@ object ProjectionEngine {
     }
   }
 
+  /**
+   * Creates an engine for the given projections, with the default
+   * [[ProjectionEngineConfig]].
+   *
+   * It checks the projection names and folders, creates a [[TransactorCache]]
+   * that is closed with the enclosing `Scope`, and a SQLite store for each
+   * projection: `global/<name>.db` for a global projection and
+   * `<basePath>/<name>.db` otherwise. The engine has no event stores, so it has
+   * nothing to read; to give it some, use `makeWithStores` or
+   * `makeWithStoresVarargs` instead.
+   *
+   * Fails if a name or folder is invalid.
+   *
+   * @param specs
+   *   the projections to run
+   */
   def make(specs: Projection[_]*): ZIO[Scope, Throwable, ProjectionEngine] =
     makeWithConfig(ProjectionEngineConfig.default, specs: _*)
 
+  /**
+   * Like [[make]], with the settings `config`.
+   *
+   * @param config
+   *   the settings
+   * @param specs
+   *   the projections to run
+   */
   def makeWithConfig(
     config: ProjectionEngineConfig,
     specs: Projection[_]*
@@ -604,7 +739,27 @@ object ProjectionEngine {
       sem
     )
 
-  // Test helper: inject explicit stores and eventStores
+  /**
+   * Creates an engine from stores you made yourself, instead of creating them.
+   * This is how an engine is given event stores to read from, and how
+   * `TestEngine` wires its in-memory stores.
+   *
+   * It neither creates nor opens any store, and `stores` must have an entry for
+   * every projection. An invalid projection name or folder is a defect, not a
+   * typed error.
+   *
+   * @param specs
+   *   the projections to run
+   * @param stores
+   *   the primary store of each projection, keyed by projection name
+   * @param eventStores
+   *   the event store of each source, keyed by the source name given to `from`
+   * @param cache
+   *   the cache that opens the SQLite files; the engine also opens the shards
+   *   of cross-entity projections with it
+   * @param config
+   *   the settings
+   */
   def makeWithStores(
     specs: List[Projection[_]],
     stores: Map[String, ProjectionStore[_]],
@@ -620,7 +775,23 @@ object ProjectionEngine {
       sem        <- Semaphore.make(1)
     } yield new ProjectionEngine(specs, stores, eventStores, cache, config, shardsRef, pendingRef, migReg, sem)
 
-  // Overload for varargs specs
+  /**
+   * Like [[makeWithStores]] in that it takes event stores, but it creates the
+   * primary stores itself, the way [[make]] does. The projections are passed in
+   * a second parameter list.
+   *
+   * Unlike `makeWithStores`, an invalid projection name or folder fails the
+   * task.
+   *
+   * @param cache
+   *   the cache that opens the SQLite files
+   * @param eventStores
+   *   the event store of each source, keyed by the source name given to `from`
+   * @param config
+   *   the settings
+   * @param specs
+   *   the projections to run
+   */
   def makeWithStoresVarargs(
     cache: TransactorCache,
     eventStores: Map[String, EventStore[_]],
