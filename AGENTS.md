@@ -117,6 +117,12 @@ Most `*-examples/` directories are **standalone sbt builds** (own `build.sbt` an
 
 `projection-examples` is the exception: it is a **root subproject** that depends on the local `projection.jvm` (like zio-http's `zio-http-example`), so its examples use the latest API without waiting for a release. It has no `build.sbt` of its own, and the CI example loop skips directories without one. Run it from the repository root: `sbt "projection-examples/runMain ..."`. Its SQLite files go in `projection-examples/.projection-examples/` (git ignores it), except `global/`, which the engine fixes.
 
+**Keep the docs that embed an example in sync with it.** Docs pages embed example files with `mdoc:embed:<path>` and describe them in the surrounding prose: what each step does, the lines it prints, the files it writes. After any change to the logic of an example, or after renaming, renumbering or moving one, update every page that embeds it in the same change:
+
+1. Find the pages: `grep -rn "mdoc:embed:.*<ExampleFile>" docs/`.
+2. Run the example, and check that the prose and the output it quotes still match what the example does and prints.
+3. Run mdoc on those pages, so that a moved or renamed file is caught.
+
 ## Cross-Version Code Structure
 
 For version-specific code: ONE shared `package.scala` extending a trait with per-version implementations in `scala-2/` and `scala-3/`. See `markdown/` module (`MdInterpolator`). Never separate package objects per version.
