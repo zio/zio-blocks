@@ -76,7 +76,7 @@ A full rebuild throws the rows away and computes them again from the stored even
 
 The example below runs two versions of an application on the same files. The first keeps `UserProfile(id, name)`; the second adds `email`, so its `start` rebuilds the table, and the old users get their email from the stored events:
 
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example7SchemaEvolution.scala
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example8SchemaEvolution.scala
 
 ```
 
@@ -107,7 +107,7 @@ The engine does not check that a registered migration describes the change it fi
 
 The example below runs the two versions of the full rebuild example again, with a migration registered for the second version. The old users come back with an empty email:
 
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example8MigrationShortcut.scala
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example9MigrationShortcut.scala
 
 ```
 
@@ -141,7 +141,7 @@ Some changes need a rebuild that the engine cannot detect: a handler that now co
 
 The example below runs three versions of an application on the same files. The second changes the handler to store the names in upper case, and its old rows keep their names, because nothing triggers a rebuild. The third rebuilds on demand, before the engine starts:
 
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example9RebuildOnDemand.scala
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example10RebuildOnDemand.scala
 
 ```
 
@@ -237,7 +237,7 @@ The stored events themselves are not changed. The rules:
 
 The example below appends an event with the old version of the event type, then reads it back through a store created with the rename. It also prints the aliases the store works out:
 
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example10TagRename.scala
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example11TagRename.scala
 
 ```
 
@@ -290,7 +290,7 @@ So add a field as an `Option` or with a default, and never change a default or a
 
 The example below stores two events with the first version of an event type, then reads them back with two newer versions:
 
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example11EventFieldChanges.scala
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example12EventFieldChanges.scala
 
 ```
 

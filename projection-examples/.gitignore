@@ -1,6 +1,6 @@
 # Files written by the examples that run on SQLite. `global/` is where the engine keeps a global projection.
 /.projection-examples/
 /global/
-# Files written by QuickStart, which uses plain folder names like an application would.
+# Files written by Example1QuickStart, which uses plain folder names like an application would.
 /events/
 /users/

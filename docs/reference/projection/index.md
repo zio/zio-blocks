@@ -216,9 +216,9 @@ The diagram shows how the types hand the data along:
 
 A projection is defined once, then run by an engine. The example below defines the events and the read model, declares the projection, and runs it on SQLite files, the way an application does.
 
-Open the event store and the projection store yourself, through a `TransactorCache`, and give them to `ProjectionEngine.makeWithStores`. The stores do not create folders, so the program creates `events/` and `users/` first. It needs `sqlite-jdbc` on the runtime classpath, see [Installation](#installation). The program is `QuickStart` in the projection examples:
+Open the event store and the projection store yourself, through a `TransactorCache`, and give them to `ProjectionEngine.makeWithStores`. The stores do not create folders, so the program creates `events/` and `users/` first. It needs `sqlite-jdbc` on the runtime classpath, see [Installation](#installation). The program is `Example1QuickStart` in the projection examples:
 
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/QuickStart.scala
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example1QuickStart.scala
 
 ```
 

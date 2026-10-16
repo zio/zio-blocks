@@ -1,4 +1,8 @@
 /*
+ * Example 1 of 12: the quick start.
+ *
+ * Start here. Next: Example2PerEntity.
+ *
  * The program of the Quick Start in the documentation.
  *
  * It defines the events and the read model, declares a projection, and runs it
@@ -13,7 +17,7 @@
  * last event it processed.
  *
  * Run it from the repository root with:
- *   sbt "projection-examples/runMain projection.examples.QuickStart"
+ *   sbt "projection-examples/runMain projection.examples.Example1QuickStart"
  */
 
 package projection.examples
@@ -24,7 +28,7 @@ import zio.blocks.schema.{Modifier, Schema}
 
 import java.nio.file.{Files, Paths}
 
-object QuickStart extends ZIOAppDefault {
+object Example1QuickStart extends ZIOAppDefault {
 
   // The events. They share a sealed trait, so that one event store holds both kinds.
   sealed trait UserEvent

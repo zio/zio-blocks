@@ -1,8 +1,8 @@
 /*
- * Example 8 of 11: the migration shortcut.
+ * Example 9 of 12: the migration shortcut.
  *
- * Read Example7SchemaEvolution first. It is the same story, with one change: the
- * second engine is told how the read model changed. Next: Example9RebuildOnDemand.
+ * Read Example8SchemaEvolution first. It is the same story, with one change: the
+ * second engine is told how the read model changed. Next: Example10RebuildOnDemand.
  *
  * When the read model gains a field, such as `UserProfile` gaining an `email`,
  * the engine normally rebuilds the whole table by replaying every event. If the
@@ -11,8 +11,8 @@
  * `ALTER TABLE ADD COLUMN` instead, and no event is replayed.
  *
  * This example runs on real SQLite files and uses two engines in a row. The
- * events stay in `.projection-examples/example8/events/users.db`, and the read
- * model in `.projection-examples/example8/profiles/userProfiles.db`.
+ * events stay in `.projection-examples/example9/events/users.db`, and the read
+ * model in `.projection-examples/example9/profiles/userProfiles.db`.
  *   1. The first engine runs the projection with `V1.UserProfile` (id, name).
  *   2. The second engine runs it with `V2.UserProfile` (id, name, email), after
  *      registering a migration that adds `email` with the default `""`.
@@ -22,11 +22,11 @@
  *   - the old rows being kept without a rebuild. Their new `email` column is
  *     empty (`null`), not `""` and not the real address: the shortcut only adds
  *     the column and does not replay the events. A rebuild, as in
- *     Example7SchemaEvolution, would fill it from the stored events.
+ *     Example8SchemaEvolution, would fill it from the stored events.
  *   - that the migrated projection keeps processing new events
  *
  * Run it from the repository root with:
- *   sbt "projection-examples/runMain projection.examples.Example8MigrationShortcut"
+ *   sbt "projection-examples/runMain projection.examples.Example9MigrationShortcut"
  */
 
 package projection.examples
@@ -38,9 +38,9 @@ import zio.blocks.schema.migration.Migration
 
 import Polling.pollUntil
 
-object Example8MigrationShortcut extends ZIOAppDefault {
+object Example9MigrationShortcut extends ZIOAppDefault {
 
-  private val profilesFolder: String = Sqlite.path("example8/profiles")
+  private val profilesFolder: String = Sqlite.path("example9/profiles")
 
   object V1 {
     case class UserProfile(@Modifier.id id: String, name: String)
@@ -62,10 +62,10 @@ object Example8MigrationShortcut extends ZIOAppDefault {
     profile.map(u => s"${u.name} <${u.email}>").getOrElse("not found")
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Example 8: Migration Shortcut (UserProfile V1 -> V2) ---").orDie *>
+    Console.printLine("\n--- Example 9: Migration Shortcut (UserProfile V1 -> V2) ---").orDie *>
       ZIO.scoped {
         for {
-          _ <- Sqlite.folders(profilesFolder, Sqlite.path("example8/events"))
+          _ <- Sqlite.folders(profilesFolder, Sqlite.path("example9/events"))
 
           hashV1 = SchemaHash.compute[V1.UserProfile]
           hashV2 = SchemaHash.compute[V2.UserProfile]
@@ -95,7 +95,7 @@ object Example8MigrationShortcut extends ZIOAppDefault {
           _ <- ZIO.scoped {
                  for {
                    cache  <- TransactorCache.make()
-                   users  <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example8/events/users.db"))
+                   users  <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example9/events/users.db"))
                    engine <- ProjectionEngine.makeWithStoresVarargs(
                                cache,
                                Map[String, EventStore[?]]("users" -> users)
@@ -118,7 +118,7 @@ object Example8MigrationShortcut extends ZIOAppDefault {
           _ <- ZIO.scoped {
                  for {
                    cache  <- TransactorCache.make()
-                   users  <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example8/events/users.db"))
+                   users  <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example9/events/users.db"))
                    engine <- ProjectionEngine.makeWithStoresVarargs(
                                cache,
                                Map[String, EventStore[?]]("users" -> users)

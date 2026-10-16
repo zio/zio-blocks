@@ -250,7 +250,7 @@ Projection[CustomerOrder]("customer_orders")
 
 The full example below reads two sources: it routes the orders by customer with `routedBy`, and feeds a global row of shop totals with `routeToAll`:
 
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example2CrossEntity.scala
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example3CrossEntity.scala
 
 ```
 
@@ -312,7 +312,7 @@ Projection[UserProfile]("userProfiles")
 
 The full example below creates three users, deletes one of them, and reads the rows back. `UserCreated` inserts a `UserProfile` and `UserDeleted` removes it:
 
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example3InsertAndDelete.scala
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example4InsertAndDelete.scala
 
 ```
 
@@ -341,7 +341,7 @@ Running it prints one line for each user:
 
 The full example below registers a user and then changes one column at a time, using each of the three ways to name the column. `UserRenamed` uses the `update` macro, `EmailChanged` uses `updateWithField` with the column name as a string, and `UserVerified` uses `updateField`. Each handler changes only its own column:
 
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example4FieldUpdates.scala
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example5FieldUpdates.scala
 
 ```
 
@@ -387,7 +387,7 @@ A field can also be named with a selector instead of a string. `FieldUpdate.incr
 
 The full example below counts users and repositories into one `DailyStats` row. Each source is bound with `routeToAll`, so the events of both sources land in the same row, and each handler adds one to its own counter with `FieldUpdate.Increment`. The row is created on the first event, with the other counters at zero:
 
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example5GlobalAggregate.scala
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example6GlobalAggregate.scala
 
 ```
 
@@ -402,7 +402,7 @@ The example below handles two events for a user profile, and each handler picks 
 - `ProfileImported` carries a `draft` flag. A draft is ignored with `Noop`, so no row is written. Anything else is written with `Upsert`, which creates the row or replaces it if it exists. That makes importing the same user twice safe, where `Insert` would not be.
 - `AccountClosed` carries an `eraseData` flag. When it is set, the row is removed with `Delete`. Otherwise `Update` changes only the `status` column and keeps the rest of the row.
 
-```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example6CustomActions.scala
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example7CustomActions.scala
 
 ```
 

@@ -1,7 +1,7 @@
 /*
- * Example 7 of 11: schema evolution.
+ * Example 8 of 12: schema evolution.
  *
- * Builds on Example1PerEntity. Next: Example8MigrationShortcut.
+ * Builds on Example2PerEntity. Next: Example9MigrationShortcut.
  *
  * When the read model's class changes, such as `UserProfile` gaining an `email`
  * field, the data already stored no longer matches. The engine notices this when
@@ -10,8 +10,8 @@
  *
  * This example runs on real SQLite files and uses two engines in a row, like an
  * application that is stopped and started again with a newer version. The events
- * stay in `.projection-examples/example7/events/users.db`, and the read model in
- * `.projection-examples/example7/profiles/userProfiles.db`.
+ * stay in `.projection-examples/example8/events/users.db`, and the read model in
+ * `.projection-examples/example8/profiles/userProfiles.db`.
  *   1. The first engine runs the projection with `V1.UserProfile` (id, name).
  *   2. The second engine runs it with `V2.UserProfile` (id, name, email). Both
  *      classes are called `UserProfile`, so they use the same table, and the
@@ -24,7 +24,7 @@
  *   - that the rebuilt projection keeps processing new events
  *
  * Run it from the repository root with:
- *   sbt "projection-examples/runMain projection.examples.Example7SchemaEvolution"
+ *   sbt "projection-examples/runMain projection.examples.Example8SchemaEvolution"
  */
 
 package projection.examples
@@ -35,9 +35,9 @@ import zio.blocks.schema.{Modifier, Schema}
 
 import Polling.pollUntil
 
-object Example7SchemaEvolution extends ZIOAppDefault {
+object Example8SchemaEvolution extends ZIOAppDefault {
 
-  private val profilesFolder: String = Sqlite.path("example7/profiles")
+  private val profilesFolder: String = Sqlite.path("example8/profiles")
 
   object V1 {
     case class UserProfile(@Modifier.id id: String, name: String)
@@ -59,10 +59,10 @@ object Example7SchemaEvolution extends ZIOAppDefault {
     profile.map(u => s"${u.name} <${u.email}>").getOrElse("not found")
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Example 7: Schema Evolution (UserProfile V1 -> V2) ---").orDie *>
+    Console.printLine("\n--- Example 8: Schema Evolution (UserProfile V1 -> V2) ---").orDie *>
       ZIO.scoped {
         for {
-          _ <- Sqlite.folders(profilesFolder, Sqlite.path("example7/events"))
+          _ <- Sqlite.folders(profilesFolder, Sqlite.path("example8/events"))
 
           hashV1 = SchemaHash.compute[V1.UserProfile]
           hashV2 = SchemaHash.compute[V2.UserProfile]
@@ -86,7 +86,7 @@ object Example7SchemaEvolution extends ZIOAppDefault {
           _ <- ZIO.scoped {
                  for {
                    cache  <- TransactorCache.make()
-                   users  <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example7/events/users.db"))
+                   users  <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example8/events/users.db"))
                    engine <- ProjectionEngine.makeWithStoresVarargs(
                                cache,
                                Map[String, EventStore[?]]("users" -> users)
@@ -109,7 +109,7 @@ object Example7SchemaEvolution extends ZIOAppDefault {
           _ <- ZIO.scoped {
                  for {
                    cache  <- TransactorCache.make()
-                   users  <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example7/events/users.db"))
+                   users  <- Sqlite.eventStore[UserCreated](cache, Sqlite.path("example8/events/users.db"))
                    engine <- ProjectionEngine.makeWithStoresVarargs(
                                cache,
                                Map[String, EventStore[?]]("users" -> users)

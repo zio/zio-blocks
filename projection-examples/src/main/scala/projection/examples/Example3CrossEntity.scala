@@ -1,9 +1,9 @@
 /*
- * Example 2 of 11: a cross-entity projection.
+ * Example 3 of 12: a cross-entity projection.
  *
- * Read Example1PerEntity first. Next: Example3InsertAndDelete.
+ * Read Example2PerEntity first. Next: Example4InsertAndDelete.
  *
- * In Example 1 every event belongs to the entity it was recorded under. Here the
+ * In Example 2 every event belongs to the entity it was recorded under. Here the
  * events are recorded per order (`order-1`, `order-2`, ...), but they are viewed
  * per customer, and the customer is a field inside the event. `routedBy` tells the
  * projection to read that key from each event and send the event to the store for
@@ -23,8 +23,8 @@
  * feed, "shop", under the single ID "shop". That feed is what the stats read.
  *
  * This example runs on real SQLite files: the events are kept in
- * `.projection-examples/example2/events/orders.db`, and the projection in
- * `.projection-examples/example2/orders/`, where each customer gets their own file next to
+ * `.projection-examples/example3/events/orders.db`, and the projection in
+ * `.projection-examples/example3/orders/`, where each customer gets their own file next to
  * the main one, for example `customer_orders_shard_alice.db`.
  *
  * It shows:
@@ -40,7 +40,7 @@
  *     (`pending`), fed by three kinds of event
  *
  * Run it from the repository root with:
- *   sbt "projection-examples/runMain projection.examples.Example2CrossEntity"
+ *   sbt "projection-examples/runMain projection.examples.Example3CrossEntity"
  */
 
 package projection.examples
@@ -52,7 +52,7 @@ import zio.blocks.schema.{Modifier, Schema}
 
 import Polling.pollUntil
 
-object Example2CrossEntity extends ZIOAppDefault {
+object Example3CrossEntity extends ZIOAppDefault {
 
   sealed trait OrderEvent { def customerId: String }
   object OrderEvent {
@@ -72,7 +72,7 @@ object Example2CrossEntity extends ZIOAppDefault {
   }
   import OrderEvent.*
 
-  private val ordersFolder: String = Sqlite.path("example2/orders")
+  private val ordersFolder: String = Sqlite.path("example3/orders")
 
   // Not called `Order`: the table is named after the class, and `order` is an SQL keyword.
   case class CustomerOrder(@Modifier.id id: String, customerId: String, product: String, total: Long, status: String)
@@ -101,10 +101,10 @@ object Example2CrossEntity extends ZIOAppDefault {
     order.map(o => s"${o.customerId}, ${o.product}, ${o.total}, ${o.status}").getOrElse("not found")
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Example 2: CrossEntity Projection (orders routed by customerId) ---").orDie *>
+    Console.printLine("\n--- Example 3: CrossEntity Projection (orders routed by customerId) ---").orDie *>
       ZIO.scoped {
         for {
-          _ <- Sqlite.globalFolder("shop_stats") *> Sqlite.folders(ordersFolder, Sqlite.path("example2/events"))
+          _ <- Sqlite.globalFolder("shop_stats") *> Sqlite.folders(ordersFolder, Sqlite.path("example3/events"))
 
           projection = Projection[CustomerOrder]("customer_orders")
                          .from("orders")
@@ -137,8 +137,8 @@ object Example2CrossEntity extends ZIOAppDefault {
           _ <- Console.printLine(s"  Scope: ${projection.scope}, stats scope: ${stats.scope}").orDie
 
           cache  <- TransactorCache.make()
-          orders <- Sqlite.eventStore[OrderEvent](cache, Sqlite.path("example2/events/orders.db"))
-          shop   <- Sqlite.eventStore[OrderEvent](cache, Sqlite.path("example2/events/shop.db"))
+          orders <- Sqlite.eventStore[OrderEvent](cache, Sqlite.path("example3/events/orders.db"))
+          shop   <- Sqlite.eventStore[OrderEvent](cache, Sqlite.path("example3/events/shop.db"))
           engine <- ProjectionEngine.makeWithStoresVarargs(
                       cache,
                       Map[String, EventStore[?]]("orders" -> orders, "shop" -> shop)

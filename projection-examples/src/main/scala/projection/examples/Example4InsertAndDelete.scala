@@ -1,7 +1,7 @@
 /*
- * Example 3 of 11: inserting and deleting rows.
+ * Example 4 of 12: inserting and deleting rows.
  *
- * Builds on Example1PerEntity. Read it first. Next: Example4FieldUpdates.
+ * Builds on Example2PerEntity. Read it first. Next: Example5FieldUpdates.
  *
  * Two handlers add and remove whole rows:
  *   - `insert` builds a complete row from the event and the `ProjectionContext`
@@ -20,7 +20,7 @@
  *   - running it in memory with `TestEngine`
  *
  * Run it from the repository root with:
- *   sbt "projection-examples/runMain projection.examples.Example3InsertAndDelete"
+ *   sbt "projection-examples/runMain projection.examples.Example4InsertAndDelete"
  */
 
 package projection.examples
@@ -32,7 +32,7 @@ import zio.blocks.schema.{Modifier, Schema}
 
 import Polling.pollUntil
 
-object Example3InsertAndDelete extends ZIOAppDefault {
+object Example4InsertAndDelete extends ZIOAppDefault {
 
   case class UserDeleted()
   object UserDeleted {
@@ -49,7 +49,7 @@ object Example3InsertAndDelete extends ZIOAppDefault {
     profile.map(p => s"${p.name} <${p.email}>").getOrElse("no row")
 
   def demo: ZIO[Any, Throwable, Unit] =
-    Console.printLine("\n--- Example 3: Insert and Delete (UserProfile rows) ---").orDie *>
+    Console.printLine("\n--- Example 4: Insert and Delete (UserProfile rows) ---").orDie *>
       ZIO.scoped {
         for {
           projection = Projection[UserProfile]("user_profiles")
