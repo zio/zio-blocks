@@ -3,7 +3,19 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
-import { FAVICON, NAV_LINKS, STYLESHEET, breadcrumbsHtml, hoistSideMenu, navbarHtml, themeApiPage } from '../../scripts/lib/api-theme.mjs';
+import {
+  FAVICON,
+  NAV_LINKS,
+  STYLESHEET,
+  breadcrumbsHtml,
+  extensionless,
+  extensionlessLinks,
+  extensionlessSearchData,
+  extensionlessUxJs,
+  hoistSideMenu,
+  navbarHtml,
+  themeApiPage,
+} from '../../scripts/lib/api-theme.mjs';
 
 // The page skeleton Scaladoc 3.9.0 generates (zio/blocks/schema/Schema.html, trimmed to the parts the theme touches).
 const PAGE =
@@ -84,7 +96,7 @@ test('the breadcrumbs read Home > API > packages under zio > page, at the top of
   assert.ok(nav, 'the breadcrumbs open the text column');
   const crumbs = [...nav[1].matchAll(/<li class="([^"]*)">(?:<a (?:aria-label="Home page" )?class="zb-breadcrumbs__link" href="([^"]*)">(?:<svg[^]*?<\/svg>|<span>([^<]*)<\/span>)<\/a>|<span class="zb-breadcrumbs__link">([^<]*)<\/span>)<\/li>/g)]
     .map(([, cls, href, label, current]) => (current ? `[${current}]` : `${label ?? 'home'} ${href}`) + (cls.includes('--active') ? ' (active)' : ''));
-  assert.deepEqual(crumbs, ['home /', 'API /api/', 'blocks ../../blocks.html', 'schema ../schema.html', '[Schema] (active)']);
+  assert.deepEqual(crumbs, ['home /', 'API /api/', 'blocks ../../blocks', 'schema ../schema', '[Schema] (active)']);
 });
 
 test('on the API index the trail ends at API', () => {
@@ -109,6 +121,48 @@ test('the side menu starts at the packages under zio, named relative to it', () 
   ]);
   assert.deepEqual(hoisted.api.children[0].children[0].location, ['zio', 'blocks', 'schema'], 'links keep their locations');
   assert.throws(() => hoistSideMenu({ api: { children: [pkg('zio'), pkg('scala')] } }), /only API root/);
+});
+
+test('API URLs have no .html, and an index page is its folder', () => {
+  const cases = {
+    'Chunk.html': 'Chunk',
+    '../chunk/Chunk.html#map-1': '../chunk/Chunk#map-1',
+    'zio/blocks/html.html': 'zio/blocks/html',
+    'MediaTypes$$application$.html#vnd.dtg.local.html-0': 'MediaTypes$$application$#vnd.dtg.local.html-0',
+    'Other#anchor.html': 'Other#anchor.html',
+    '../../../index.html': '../../../',
+    'index.html#': './#',
+    'Schema.scala': 'Schema.scala',
+  };
+  for (const [from, to] of Object.entries(cases)) assert.equal(extensionless(from), to, from);
+});
+
+test('only relative links lose .html; the site and other sites keep theirs', () => {
+  assert.equal(
+    extensionlessLinks(
+      '<a href="Chunk.html">c</a><a href="#m">m</a><a href="/api/">api</a>' +
+        '<a href="https://docs.oracle.com/javase/21/docs/api/java.base/java/lang/Object.html">o</a><a href="//cdn.example/x.html">x</a>',
+    ),
+    '<a href="Chunk">c</a><a href="#m">m</a><a href="/api/">api</a>' +
+      '<a href="https://docs.oracle.com/javase/21/docs/api/java.base/java/lang/Object.html">o</a><a href="//cdn.example/x.html">x</a>',
+  );
+  assert.match(themeApiPage(PAGE, { prompt: PROMPT }), /href="\.\.\/\.\.\/blocks"><span>blocks<\/span>/);
+});
+
+test('search results and side-menu links are extensionless too', () => {
+  assert.equal(
+    extensionlessSearchData(
+      'pages = [{"l":"index.html#","n":"ZIO Blocks"},{"l":"zio/blocks/chunk/Chunk.html#","n":"Chunk"},' +
+        '{"l":"zio/blocks/chunk/Chunk.html#map-1","d":"zio.blocks.html"}]',
+    ),
+    'pages = [{"l":"./","n":"ZIO Blocks"},{"l":"zio/blocks/chunk/Chunk","n":"Chunk"},' +
+      '{"l":"zio/blocks/chunk/Chunk#map-1","d":"zio.blocks.html"}]',
+  );
+  const ux = extensionlessUxJs('function linkTo(loc) {\n    return `${baseUrl.join("/")}/${loc.join("/")}.html`;\n  }');
+  const linkTo = new Function('baseUrl', ux.replace(/^function linkTo\(loc\) \{|\}$/g, '').replace('return', 'return (loc) =>'));
+  assert.equal(linkTo(['', 'api'])(['zio', 'blocks', 'chunk', 'Chunk']), '/api/zio/blocks/chunk/Chunk');
+  assert.equal(linkTo(['', 'api'])(['index']), '/api/');
+  assert.throws(() => extensionlessUxJs('return `${baseUrl}/${loc.join("/")}.html`;'), /side-menu links/);
 });
 
 test('a page whose markup no longer matches fails loudly', () => {

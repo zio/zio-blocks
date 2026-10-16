@@ -81,6 +81,10 @@ Scaladoc is a separate generator with its own HTML, stylesheets and scripts, so 
   toggle, 60px ink bar, collapsing into the mobile menu at 996px), keeping the ids Scaladoc's scripts look up
   (`#search-toggle`, `#mobile-menu-toggle`, a hidden version dropdown). Scaladoc's search button stays in the bar. A unit
   test keeps its links in step with `navbar.items` in `docusaurus.config.js`.
+- URLs have no `.html`, like the docs pages: `/api/zio/blocks/chunk/Chunk`, not `Chunk.html` (an index page is its
+  folder). The files keep their names, since Netlify and `docusaurus serve` serve `Chunk.html` for `/…/Chunk`; the
+  relative links in every page, the search index (`scripts/searchData.js`) and the side menu's link builder in
+  `scripts/ux.js` drop the extension. Old `.html` links still work.
 - The site favicon (`favicon` in `docusaurus.config.js`) replaces Scaladoc's `favicon.ico`.
 - The breadcrumbs become the docs breadcrumbs (home icon, API, the packages under `zio`, the page) at the top of the
   text column.

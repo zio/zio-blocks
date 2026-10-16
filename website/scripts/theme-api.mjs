@@ -6,7 +6,7 @@ import { copyFile, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { hoistSideMenu, themeApiPage } from './lib/api-theme.mjs';
+import { extensionlessSearchData, extensionlessUxJs, hoistSideMenu, themeApiPage } from './lib/api-theme.mjs';
 import { promptFor } from '../src/lib/prompt.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -37,6 +37,11 @@ if (!(await exists(sourceDir)) || !(await exists(apiDir))) {
   }
   const menu = JSON.parse(await readFile(join(sourceDir, 'dynamicSideMenu.json'), 'utf8'));
   await writeFile(join(apiDir, 'dynamicSideMenu.json'), JSON.stringify(hoistSideMenu(menu)));
+  for (const [file, rewrite] of [
+    ['scripts/ux.js', extensionlessUxJs],
+    ['scripts/searchData.js', extensionlessSearchData],
+  ])
+    await writeFile(join(apiDir, file), rewrite(await readFile(join(sourceDir, file), 'utf8')));
   await copyFile(join(root, 'src', 'api-theme', 'api.css'), join(apiDir, 'styles', 'zio-blocks.css'));
   await copyFile(join(root, 'src', 'api-theme', 'theme.js'), join(apiDir, 'scripts', 'theme.js'));
   console.log(`theme-api: gave ${pages} API pages the site navbar, favicon and theme`);

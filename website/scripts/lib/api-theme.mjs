@@ -129,6 +129,7 @@ export function themeApiPage(html, { prompt }) {
     `<nav class="zb-mobile-links">${NAV_LINKS.map((l) => linkHtml(l, 'zb-mobile-link')).join('')}</nav>${MOBILE_THEME}`,
     'mobile theme toggle',
   );
+  out = extensionlessLinks(out);
   // The site favicon instead of Scaladoc's own favicon.ico, with the markup the docs pages use.
   out = replaceOnce(out, SCALADOC_FAVICON, `<link rel="icon" href="${FAVICON}">`, 'favicon link');
   return replaceOnce(out, '</head>', `<link rel="stylesheet" href="${STYLESHEET}"></head>`, '</head>');
@@ -150,4 +151,45 @@ export function hoistSideMenu(menu) {
     children: item.children.map(rename),
   });
   return { ...menu, api: { ...menu.api, children: roots[0].children.map(rename) } };
+}
+
+// Extensionless URLs: the site serves pages as /api/zio/blocks/chunk/Chunk, as the docs are /reference/chunk, rather
+// than Scaladoc's Chunk.html. The hosts serve `Chunk.html` for `/…/Chunk` (Netlify, and `docusaurus serve`, which also
+// redirects the .html form), so only the links change; the files keep their names. An index page is its folder.
+
+/** `Chunk.html` -> `Chunk`, `Chunk.html#m` -> `Chunk#m`, `../index.html` -> `../`; `index.html` alone -> `./`. */
+export function extensionless(url) {
+  // Only the path: an anchor can end in .html too (MediaTypes$$application$.html#vnd.dtg.local.html-0).
+  const at = url.indexOf('#');
+  const [path, hash] = at < 0 ? [url, ''] : [url.slice(0, at), url.slice(at)];
+  if (!path.endsWith('.html')) return url;
+  const page = path.slice(0, -'.html'.length);
+  const dir = /^(.*\/)?index$/.exec(page);
+  return (dir ? dir[1] || './' : page) + hash;
+}
+
+// A relative link: no scheme, not protocol- or root-relative (the site's own /… links and other sites keep theirs).
+const isRelative = (url) => !/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(url);
+
+/** Drops `.html` from the relative links of a Scaladoc page. */
+export function extensionlessLinks(html) {
+  return html.replace(/href="([^"]*)"/g, (all, url) => (isRelative(url) ? `href="${extensionless(url)}"` : all));
+}
+
+/**
+ * Drops `.html` from the page locations in Scaladoc's search index (scripts/searchData.js, `"l":"zio/blocks.html#"`),
+ * and the empty `#` Scaladoc ends a page's own entry with.
+ */
+export function extensionlessSearchData(js) {
+  return js.replace(/"l":"([^"]*)"/g, (all, url) => `"l":"${extensionless(url).replace(/#$/, '')}"`);
+}
+
+/**
+ * The side menu builds its links in scripts/ux.js (as `docs/generateApiDocs` patched it); make them extensionless too,
+ * with the index entry as the API root. Fails if the line changed.
+ */
+export function extensionlessUxJs(js) {
+  const link = 'return `${baseUrl.join("/")}/${loc.join("/")}.html`;';
+  if (!js.includes(link)) throw new Error('scripts/ux.js no longer builds side-menu links with `' + link + '`');
+  return js.replace(link, 'return `${baseUrl.join("/")}/${loc.join("/") === "index" ? "" : loc.join("/")}`;');
 }
