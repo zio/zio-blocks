@@ -154,8 +154,8 @@ jobs:
         - JVM
         scala:
         - 2.13.x
-        - 3.3.x
         - 3.9.x
+        - 3.10.x
     services:
       postgres:
         image: postgres:16
@@ -205,8 +205,11 @@ jobs:
         test -d target/sql-dumps && ls -R target/sql-dumps
         sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.9.0; sqlJVM/testOnly zio.blocks.sql.ExplainDumpGoldenSpec"
     - name: Run Scala Next tests
+      if: ${{ matrix.scala == '3.10.x' }}
+      run: sbt ++3.10.0 scalaNextTests${{ matrix.platform }}/test
+    - name: Run benchmarks tests
       if: ${{ matrix.scala == '3.9.x' }}
-      run: sbt ++3.9.0 scalaNextTests${{ matrix.platform }}/test benchmarks/test
+      run: sbt ++3.9.0 benchmarks/test
     - name: Compile example projects
       if: ${{ matrix.scala == '3.9.x' }}
       run: for dir in *-examples; do (cd "$dir" && sbt compile) || exit 1; done
@@ -224,8 +227,8 @@ jobs:
         - JS
         scala:
         - 2.13.x
-        - 3.3.x
         - 3.9.x
+        - 3.10.x
     steps:
     - name: Checkout current branch
       uses: actions/checkout@v7

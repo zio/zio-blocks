@@ -44,10 +44,12 @@ jobs:
       matrix:
         include:
           - { scala: '2.13.18', platform: JVM, java: '25' }
-          - { scala: '3.3.7', platform: JVM, java: '25' }
+          - { scala: '3.9.0', platform: JVM, java: '25' }
+          - { scala: '3.10.0', platform: JVM, java: '25' }
           - { scala: '3.8.3', platform: JVM, java: '25' }
           - { scala: '2.13.18', platform: JS, java: '17' }
-          - { scala: '3.3.7', platform: JS, java: '17' }
+          - { scala: '3.9.0', platform: JS, java: '17' }
+          - { scala: '3.10.0', platform: JS, java: '17' }
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: coursier/setup-action@v3
@@ -81,10 +83,12 @@ jobs:
       matrix:
         include:
           - { scala: '2.13.18', platform: JVM, java: '25' }
-          - { scala: '3.3.7', platform: JVM, java: '25' }
+          - { scala: '3.9.0', platform: JVM, java: '25' }
+          - { scala: '3.10.0', platform: JVM, java: '25' }
           - { scala: '3.8.3', platform: JVM, java: '25' }
           - { scala: '2.13.18', platform: JS, java: '17' }
-          - { scala: '3.3.7', platform: JS, java: '17' }
+          - { scala: '3.9.0', platform: JS, java: '17' }
+          - { scala: '3.10.0', platform: JS, java: '17' }
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: coursier/setup-action@v3
@@ -127,10 +131,12 @@ jobs:
       matrix:
         include:
           - { scala: '2.13.18', platform: JVM, java: '25' }
-          - { scala: '3.3.7', platform: JVM, java: '25' }
+          - { scala: '3.9.0', platform: JVM, java: '25' }
+          - { scala: '3.10.0', platform: JVM, java: '25' }
           - { scala: '3.8.3', platform: JVM, java: '25' }
           - { scala: '2.13.18', platform: JS, java: '17' }
-          - { scala: '3.3.7', platform: JS, java: '17' }
+          - { scala: '3.9.0', platform: JS, java: '17' }
+          - { scala: '3.10.0', platform: JS, java: '17' }
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: coursier/setup-action@v3
