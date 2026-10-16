@@ -274,16 +274,26 @@ body,
   border-radius: 0;
 }
 
+/* Like .menu__list-item:not(:first-child): no gap above the first item */
+#leftColumn .side-menu > .ni:first-child > .nh {
+  margin-top: 0;
+}
+
 #leftColumn .side-menu .nh > a {
   font-size: 1rem;
   line-height: 1.25;
   font-weight: 500;
 }
 
-#leftColumn .switcher {
-  font-size: 1rem;
-  line-height: 1.25;
-  font-weight: 600;
+/* Scaladoc's Docs/API switcher only matters on a Scaladoc site with its own docs section; /api has the API alone, and
+   the site docs are a navbar link away. Hide it and give the menu its height, starting 0.5rem down like the docs menu. */
+#leftColumn .switcher-container {
+  display: none;
+}
+
+#leftColumn .side-menu {
+  height: 100%;
+  padding-top: 0.5rem;
 }
 
 /* Breadcrumbs and the table of contents: 0.8rem, as .breadcrumbs__link and .table-of-contents__link */
