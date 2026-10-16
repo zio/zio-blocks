@@ -34,7 +34,7 @@ import zio.sbt.githubactions._
  */
 object CiWorkflow {
 
-  private val Scalas = List("2.13.x", "3.3.x", "3.9.x")
+  private val Scalas = List("2.13.x", "3.9.x", "3.10.x")
 
   // Locale data must be installed before sbt starts, or tests that format dates disagree with the
   // expectations recorded on developer machines.
@@ -268,12 +268,12 @@ object CiWorkflow {
    * backs the sql modules and carries a health check so steps cannot start
    * before it accepts connections.
    *
-   * The timeout is sized for the JDK 25 / 3.9.x cell, the only one that runs
-   * instrumented tests, the Scala Next suite and the example compile in
-   * sequence. The coverage step alone has measured anywhere from 10 to 20
-   * minutes on unchanged sources, because only dependencies are cached and
-   * every run recompiles from scratch on whatever runner it draws, so the cap
-   * has to clear the slow end of that spread rather than its median.
+   * The timeout is sized for the JDK 25 cells: 3.9.x runs instrumented tests
+   * and the example compile in sequence, while 3.10.x runs the Scala Next
+   * suite. The coverage step alone has measured anywhere from 10 to 20 minutes
+   * on unchanged sources, because only dependencies are cached and every run
+   * recompiles from scratch on whatever runner it draws, so the cap has to
+   * clear the slow end of that spread rather than its median.
    */
   lazy val testJVM: Def.Initialize[Job] = Def.setting(
     Job(
@@ -347,8 +347,13 @@ object CiWorkflow {
         ),
         SingleStep(
           name = "Run Scala Next tests",
+          condition = Some(expr("matrix.scala == '3.10.x'")),
+          run = Some("sbt ++3.10.0 scalaNextTests${{ matrix.platform }}/test")
+        ),
+        SingleStep(
+          name = "Run benchmarks tests",
           condition = Some(expr("matrix.scala == '3.9.x'")),
-          run = Some("sbt ++3.9.0 scalaNextTests${{ matrix.platform }}/test benchmarks/test")
+          run = Some("sbt ++3.9.0 benchmarks/test")
         ),
         SingleStep(
           name = "Compile example projects",

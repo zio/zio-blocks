@@ -19,6 +19,7 @@ package zio.blocks.async
 import zio.blocks.combinators.Concat
 import zio.blocks.combinators.Tuples.Tuples
 import zio.blocks.async.internal.AsyncRunner
+import zio.blocks.async.AsyncEncoding.WrappedPollable
 
 /**
  * Scala 3 surface for [[Async]]: extension methods on `Async[A]` and a
@@ -133,7 +134,7 @@ private[async] trait AsyncSyntaxVersionSpecific {
       val r: Any = fa
       if (r.isInstanceOf[Pollable[?]])
         Async.slowPath.tapAsync[A](r, (a: A) => f(a))
-      else if (r.isInstanceOf[AsyncEncoding.WrappedPollable])
+      else if (r.isInstanceOf[WrappedPollable])
         Async.slowPath.tapReady[A](AsyncEncoding.deliverSuccess[A](r), f)
       else {
         // Plain ready value: apply `f` inline. A ready successful effect means

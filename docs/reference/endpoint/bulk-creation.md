@@ -93,4 +93,4 @@ val lookup: Endpoint[(Int, Int), Unit, Unit, Unit, AuthType.None.type] = ordersB
 
 Variable prefixes should be bound to an explicit `val` — the val names the subgroup whose members you access through it (`byId.get`, `ordersById.o`). Constant-prefix and capturing-prefix subgroups can be freely nested inside each other: `"api" / endpoints { PathCodec.int("id") / endpoints { ... } }` composes both prefixes into every leaf route at compile time.
 
-The returned type is a Scala 3 `NamedTuple` — static member access, erased at runtime. The DSL is Scala 3 only (3.7+ with `-experimental` for named tuples). All examples above compile against the `endpoint` module on Scala 3.8.3 with `scalacOptions += "-experimental"`.
+The returned type is a Scala 3 `NamedTuple` — static member access, erased at runtime. The DSL is Scala 3 only (3.7+ with `-experimental` for named tuples). All examples above compile against the `endpoint` module on Scala 3.9.0 with `scalacOptions += "-experimental"`.
