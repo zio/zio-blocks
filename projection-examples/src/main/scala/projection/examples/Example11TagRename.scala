@@ -1,5 +1,5 @@
 /*
- * Example 11 of 12: renaming an event.
+ * Example 11 of 13: renaming an event.
  *
  * Builds on Example8SchemaEvolution. Next: Example12EventFieldChanges.
  *

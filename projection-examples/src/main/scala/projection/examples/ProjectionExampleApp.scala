@@ -13,6 +13,7 @@
  *   10. Example10RebuildOnDemand
  *   11. Example11TagRename
  *   12. Example12EventFieldChanges
+ *   13. Example13EngineCatchUp
  *
  * Each example can also be run on its own, see the comment at the top of its
  * file.
@@ -42,6 +43,7 @@ object ProjectionExampleApp extends ZIOAppDefault {
       _ <- Example10RebuildOnDemand.demo
       _ <- Example11TagRename.demo
       _ <- Example12EventFieldChanges.demo
+      _ <- Example13EngineCatchUp.demo
       _ <- Console.printLine("\n=== All demos completed successfully ===").orDie
     } yield ()
 }

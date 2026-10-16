@@ -1,5 +1,5 @@
 /*
- * Example 8 of 12: schema evolution.
+ * Example 8 of 13: schema evolution.
  *
  * Builds on Example2PerEntity. Next: Example9MigrationShortcut.
  *

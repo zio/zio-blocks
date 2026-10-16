@@ -1,5 +1,5 @@
 /*
- * Example 7 of 12: custom actions.
+ * Example 7 of 13: custom actions.
  *
  * Builds on Example2PerEntity. Read it first. Next: Example8SchemaEvolution.
  *

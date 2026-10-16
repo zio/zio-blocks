@@ -1,5 +1,5 @@
 /*
- * Example 3 of 12: a cross-entity projection.
+ * Example 3 of 13: a cross-entity projection.
  *
  * Read Example2PerEntity first. Next: Example4InsertAndDelete.
  *

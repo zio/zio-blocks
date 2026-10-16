@@ -1,5 +1,5 @@
 /*
- * Example 5 of 12: field updates.
+ * Example 5 of 13: field updates.
  *
  * Builds on Example2PerEntity. Read it first. Next: Example6GlobalAggregate.
  *

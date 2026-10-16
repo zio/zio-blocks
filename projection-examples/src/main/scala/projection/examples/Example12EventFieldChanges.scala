@@ -1,7 +1,7 @@
 /*
- * Example 12 of 12: changing the fields of an event.
+ * Example 12 of 13: changing the fields of an event.
  *
- * Builds on Example11TagRename. Read it first.
+ * Builds on Example11TagRename. Read it first. Next: Example13EngineCatchUp.
  *
  * Stored events are never rewritten. When a case of the event type gains, loses
  * or changes a field, the events already stored keep their old JSON, and the

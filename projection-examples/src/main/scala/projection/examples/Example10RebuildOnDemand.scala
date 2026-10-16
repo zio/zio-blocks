@@ -1,5 +1,5 @@
 /*
- * Example 10 of 12: rebuilding on demand.
+ * Example 10 of 13: rebuilding on demand.
  *
  * Builds on Example8SchemaEvolution. Read it first. Next: Example11TagRename.
  *

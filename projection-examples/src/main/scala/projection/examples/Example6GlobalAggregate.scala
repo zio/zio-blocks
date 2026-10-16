@@ -1,5 +1,5 @@
 /*
- * Example 6 of 12: a global aggregate projection.
+ * Example 6 of 13: a global aggregate projection.
  *
  * Read Examples 2 and 3 first. Next: Example7CustomActions.
  *
