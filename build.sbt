@@ -6,6 +6,7 @@ import zio.sbt.githubactions.{CancelInProgress, Concurrency, Condition, DeployPr
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val generateMediaTypes = taskKey[File]("Generate MediaTypes.scala from mime-db")
+lazy val generateApiDocs    = taskKey[File]("Generate the unified Scaladoc into website/static/api")
 
 generateMediaTypes := GenerateMediaTypes.generateMediaTypesTask.value
 
@@ -1469,10 +1470,83 @@ lazy val docs = project
           |</picture>
           |""".stripMargin
     },
-    mainModuleName                             := (schema.jvm / moduleName).value,
-    projectStage                               := ProjectStage.Development,
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
-    publish / skip                             := true,
+    mainModuleName := (schema.jvm / moduleName).value,
+    projectStage   := ProjectStage.Development,
+    // The API reference served at /api on the website: one unified Scaladoc for every published
+    // module (the JVM side of cross-built ones, since JVM and JS share the public API). A new
+    // published module must be added here too.
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
+      chunk.jvm,
+      maybe.jvm,
+      combinators.jvm,
+      typeid.jvm,
+      context.jvm,
+      scope.jvm,
+      ringbuffer.jvm,
+      streams.jvm,
+      async.jvm,
+      mux.jvm,
+      schema.jvm,
+      `schema-avro`,
+      `schema-bson`,
+      `schema-csv`.jvm,
+      `schema-messagepack`.jvm,
+      `schema-thrift`,
+      `schema-toon`.jvm,
+      `schema-xml`.jvm,
+      `schema-yaml`.jvm,
+      dataMigration.jvm,
+      projection.jvm,
+      mediatype.jvm,
+      `http-model`.jvm,
+      `http-model-schema`.jvm,
+      endpoint.jvm,
+      openapi.jvm,
+      jwt.jvm,
+      markdown.jvm,
+      html.jvm,
+      datastar.jvm,
+      htmx.jvm,
+      smithy,
+      codegen,
+      sql.jvm,
+      `sql-zio`,
+      telemetry.jvm,
+      otel,
+      config.jvm,
+      `config-yaml`.jvm,
+      `config-json`.jvm,
+      `config-hocon`.jvm
+    ),
+    ScalaUnidoc / unidoc / scalacOptions ++= {
+      val root     = (ThisBuild / baseDirectory).value
+      val revision = git.gitHeadCommit.value.getOrElse("main")
+      Seq(
+        "-project",
+        "ZIO Blocks",
+        "-project-version",
+        version.value,
+        "-project-logo",
+        (root / "assets" / "logo" / "zio-blocks-mark.svg").getAbsolutePath,
+        "-sourceroot",
+        root.getAbsolutePath,
+        s"-source-links:github://zio/zio-blocks/$revision",
+        "-social-links:github::https://github.com/zio/zio-blocks",
+        // Load the side menu from one JS file: inlined, it repeats the whole package tree on every
+        // page and the site grows to about 1.5 GB.
+        "-dynamic-side-menu"
+      )
+    },
+    // Copies the unified Scaladoc into website/static/api, so `yarn build` publishes it at /api.
+    generateApiDocs := {
+      val apiDir = websiteDir.value.toFile / "static" / "api"
+      val docDir = (ScalaUnidoc / doc).value
+      IO.delete(apiDir)
+      IO.copyDirectory(docDir, apiDir)
+      Keys.streams.value.log.info(s"Copied the API docs from $docDir to $apiDir")
+      apiDir
+    },
+    publish / skip := true,
     libraryDependencies ++= Seq(
       "dev.zio"   %% "zio-prelude"    % "1.0.0-RC48",
       "dev.zio"   %% "zio-sbt-source" % "0.8.6",
@@ -1615,7 +1689,7 @@ lazy val docs = project
     projection.jvm,
     jwt.jvm
   )
-  .enablePlugins(WebsitePlugin)
+  .enablePlugins(WebsitePlugin, ScalaUnidocPlugin)
 
 lazy val html = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)

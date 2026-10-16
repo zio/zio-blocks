@@ -2,7 +2,7 @@
 
 One Docusaurus app serves the whole site: the landing page at `/` and the documentation at the site root (`/reference/...`, `/guides/...`; its index page is `/overview`). The docs
 content lives in `../docs/` (rendered through mdoc); the landing page content is generated from
-`../docs/index.md`, and brand SVGs are copied from `../assets/logo/`.
+`../docs/index.md`, and brand SVGs are copied from `../assets/logo/`. The API reference (Scaladoc) is served at `/api`.
 
 ## Commands
 
@@ -54,6 +54,19 @@ right (`src/components/landing/SectionRail.js`, wider than 62.5rem only) links t
 `src/lib/rail.mjs`. The rules live in `src/components/landing/landing.css` and are pinned by
 `test/unit/landing-scroll.test.mjs`.
 
+## API reference at `/api`
+
+`sbt docs/generateApiDocs` builds one unified Scaladoc (sbt-unidoc, Scala 3) for every published module and copies it
+into `static/api` (gitignored), so `yarn build` publishes it at `/api/` next to the docs, the way
+[fs2-kafka](https://typelevel.org/fs2-kafka/api/) serves its API. Cross-built modules contribute their JVM side, since
+JVM and JS share the public API. The module list is `ScalaUnidoc / unidoc / unidocProjectFilter` on the `docs` project
+in `../build.sbt`; a new published module must be added there. Source links point at the commit the docs were built
+from.
+
+The navbar and footer link to it with `pathname:///api/`: Scaladoc is plain HTML outside the Docusaurus router, and
+the `pathname://` protocol makes the link a full page load and keeps it out of the broken-link checker. Without a prior
+`generateApiDocs` the build still succeeds, but `/api/` is a 404.
+
 ## Onboard your agent button
 
 The hero and the navbar (an icon next to the colour-mode toggle) have an "Onboard your agent to ZIO Blocks" button
@@ -73,7 +86,7 @@ zio/zio-http (originally zio/zio). The one deliberate difference is a square `ro
 ## CI and deployment
 
 This follows zio/zio-http: the production site is a Netlify site connected to this Git repository. Netlify builds it
-itself with `netlify.toml` and `build.sh` (which installs Java and sbt through SDKMAN, runs `sbt docs/mdoc`, then
+itself with `netlify.toml` and `build.sh` (which installs Java and sbt through SDKMAN, runs `sbt docs/mdoc docs/generateApiDocs`, then
 `yarn build`) and publishes `website/build`. The site is rebuilt only on a library release or when someone runs the
 **Deploy Website** workflow by hand (Actions > Deploy Website > Run workflow); both call a Netlify build hook from
 `.github/workflows/site.yml`, so the install line on the landing page shows the new version. A push to `main` does not
@@ -81,7 +94,7 @@ rebuild it: `netlify.toml` sets `ignore = "exit 0"`, which skips every Git-trigg
 build-hook build because of that command. Previews come from the CI workflow.
 
 GitHub Actions (`.github/workflows/ci.yml`, generated from `project/CiWorkflow.scala`) checks the site on every pull
-request: it runs `sbt docs/mdoc` and `yarn build`, uploads the build as an artifact, and `deploy-preview.yml` publishes a
+request: it runs `sbt docs/mdoc docs/generateApiDocs` and `yarn build`, uploads the build as an artifact, and `deploy-preview.yml` publishes a
 Netlify deploy preview showing both the landing page and the docs. The `landing` job runs `yarn test`,
 `yarn check:landing`, `yarn check:links` and Lighthouse (`@lhci/cli`, pinned to an exact version, config in
 `lighthouserc.json`). A 404 on a `https://zio.dev/zio-blocks/` URL is only a warning in `check:links`, since a page may
