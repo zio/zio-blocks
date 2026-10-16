@@ -437,22 +437,27 @@ const sidebars = {
           },
         ]
       },
+  ],
+  // Guides get their own sidebar, reached from the "Guides" navbar item, so the reference sidebar stays reference-only.
+  guides: [
+    "guides/async-getting-started",
+    "guides/compile-time-resource-safety-with-scope",
+    "guides/getting-started-with-mux",
+    "guides/telemetry-guide",
+    "guides/zio-schema-migration",
     {
       type: "category",
-      label: "Guides",
+      label: "Query DSL",
+      collapsed: false,
       items: [
-        "guides/async-getting-started",
-        "guides/compile-time-resource-safety-with-scope",
-        "guides/getting-started-with-mux",
-        "guides/query-dsl-extending",
-        "guides/query-dsl-fluent-builder",
         "guides/query-dsl-reified-optics",
         "guides/query-dsl-sql",
-        "guides/sql-transactions",
-        "guides/zio-schema-migration",
-        "guides/telemetry-guide",
+        "guides/query-dsl-extending",
+        "guides/query-dsl-fluent-builder",
       ]
-    }
+    },
+    "guides/sql-transactions",
+    "guides/sql-checked-interpolation",
   ]
 };
 

@@ -107,6 +107,9 @@ const config = {
         },
         items: [
           { to: '/overview', label: 'Docs', position: 'right' },
+          // A plain link, not a docSidebar item: the landing-only build has no docs plugin. activeBaseRegex keeps it
+          // highlighted on every page of the guides sidebar (docs/sidebars.js).
+          { to: '/guides/async-getting-started', label: 'Guides', position: 'right', activeBaseRegex: '^/guides/' },
           { to: '/#catalog', label: 'Blocks', position: 'right' },
           { href: 'https://github.com/zio/zio-blocks', label: 'GitHub', position: 'right' },
         ],

@@ -66,6 +66,11 @@ test('hero', () => {
 
 test('the navbar and footer carry the brand lockups and the main links', () => {
   assert.match(html, /<img [^>]*src="\/brand\/zio-blocks-logo-on-dark\.svg"[^>]*alt="ZIO Blocks"|<img [^>]*alt="ZIO Blocks"[^>]*src="\/brand\/zio-blocks-logo-on-dark\.svg"/);
+  const navbar = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'));
+  // The Guides item opens the first page of the guides sidebar.
+  for (const href of ['/overview', '/guides/async-getting-started']) {
+    assert.match(navbar, new RegExp(`href="${href.replace(/[./]/g, '\\$&')}"`));
+  }
   const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
   assert.match(footer, /\/brand\/zio-blocks-logo-mono-white\.svg/);
   for (const href of ['/overview', '/reference/schema/', 'https://github.com/zio/zio-blocks']) {
