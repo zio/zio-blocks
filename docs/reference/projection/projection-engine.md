@@ -301,7 +301,19 @@ val rebuildLater          = ProjectionEngineConfig.default.copy(lazyRebuild = tr
 
 ## Schema Changes
 
-On every `start`, the engine compares the fingerprint stored in each primary store with the fingerprint of the current row type, as described under [How a Change Is Detected](./migration.md#how-a-change-is-detected--schemahash). A new store without a fingerprint just gets the current one. When they differ, the engine takes the [add-column shortcut](./migration.md#adding-fields-without-a-rebuild--registermigration) if a registered migration fits, and otherwise runs a [full rebuild](./migration.md#full-rebuild) from the projection's event store, before catch-up begins. With [`lazyRebuild`](./migration.md#rebuilding-later--lazyrebuild) on, it only marks the projection, and the first `query` or the pre-warm fiber rebuilds it. A rebuild replays only one event store, found the way `start` finds the store of the projection's first source, and an engine without event stores does not rebuild at all; see [Limitations](./migration.md#limitations).
+On every `start`, before catch-up, the engine checks whether the stored rows still match the row type. It compares two **fingerprints**, hashes of the shape of the row type: the one saved in the primary store, and the one of the current row type. See [How a Change Is Detected](./migration.md#how-a-change-is-detected--schemahash). What it does next depends on the result:
+
+- **No saved fingerprint**, because the store is new: it saves the current one.
+- **Same fingerprint:** nothing.
+- **Different fingerprint:** it brings the rows up to date in one of two ways:
+  - with the [add-column shortcut](./migration.md#adding-fields-without-a-rebuild--registermigration), if a migration registered for the projection only adds fields;
+  - otherwise with a [full rebuild](./migration.md#full-rebuild) from the projection's event store.
+- **Different fingerprint, with [`lazyRebuild`](./migration.md#rebuilding-later--lazyrebuild) on:** it only marks the projection. The first `query`, or the pre-warm fiber, rebuilds it later.
+
+Two limits apply; see [Limitations](./migration.md#limitations):
+
+- A rebuild replays only one event store: the one `start` uses for the projection's first source.
+- An engine without event stores, made with `make` or `makeWithConfig`, changes nothing and keeps the old fingerprint.
 
 ## Connection Management
 
