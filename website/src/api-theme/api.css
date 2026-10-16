@@ -362,11 +362,13 @@ body,
   font-weight: 700;
 }
 
-/* Kind icons at 1.25rem (Scaladoc draws them at 16px), the height of a row's text and of the caret */
+/* Kind icons at 1.5rem (Scaladoc draws them at 16px). They are 0.25rem taller than a row's text, so they reach 0.125rem
+   into the row's padding above and below rather than make the row taller than a docs row. */
 #leftColumn .side-menu .micon {
   flex: none;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-block: -0.125rem;
 }
 
 /* The caret: Scaladoc's arrow button, moved after the link and drawn as .menu__caret */
