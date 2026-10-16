@@ -299,22 +299,6 @@ val catchUpInLargeBatches = ProjectionEngineConfig(batchSize = 1000, batchTimeou
 val rebuildLater          = ProjectionEngineConfig.default.copy(lazyRebuild = true)
 ```
 
-## Storage Layout
-
-The engine keeps each projection in its own SQLite files. `ProjectionEngine.make`, `ProjectionEngine.makeWithConfig` and `ProjectionEngine.makeWithStoresVarargs` choose the paths, relative to the working directory of the process; with `ProjectionEngine.makeWithStores`, the primary store is wherever you created it:
-
-- **Primary store:** `<basePath>/<name>.db`, where `basePath` comes from the projection's `EntityPath`, or `global/<name>.db` for a global projection. The `global/` folder is fixed by the engine.
-- **Folders:** SQLite does not create them, so `<basePath>/` and `global/` must exist before a store is used.
-- **Shards:** `<basePath>/<name>_shard_<key>.db`, one per routing key, opened when the first event with that key arrives. The key is changed into a safe file name as described under [CrossEntity](./projection.md#crossentity-one-drawer-per-group), so two keys that give the same file name share one file. Shards are SQLite files only when the primary store is a `SQLiteProjectionStore`; otherwise they are `InMemoryProjectionStore`s, which are lost when the program ends.
-- **ID column of a global projection:** a global projection has no `EntityPath`, so the store the engine creates for it uses the column `id`, whatever field `@Modifier.id` marks; see [Global](./projection.md#global-one-scoreboard-on-the-wall).
-
-Inside each store file, the store creates its tables the first time it is used:
-
-- The table of rows, named after the row type in snake_case, as described under [Changing the Read Model](./migration.md#changing-the-read-model), with a unique index on the ID column.
-- The table `_projection_meta`, with the columns `name`, `last_seq`, `schema_hash` and `updated_at`. Its row is keyed by the name of the rows' table, not by the projection name. `last_seq` is the watermark, `schema_hash` the fingerprint of the row type, and `updated_at` the time of the last change, in milliseconds since the epoch.
-
-Each file also gets `-wal` and `-shm` files next to it, because the `TransactorCache` turns on SQLite's write-ahead log; see [Connection Management](#connection-management) and the WAL entry of the [Glossary](./index.md#stores-and-the-engine).
-
 ## Schema Changes
 
 On every `start`, the engine compares the fingerprint stored in each primary store with the fingerprint of the current row type, as described under [How a Change Is Detected](./migration.md#how-a-change-is-detected--schemahash). A new store without a fingerprint just gets the current one. When they differ, the engine takes the [add-column shortcut](./migration.md#adding-fields-without-a-rebuild--registermigration) if a registered migration fits, and otherwise runs a [full rebuild](./migration.md#full-rebuild) from the projection's event store, before catch-up begins. With [`lazyRebuild`](./migration.md#rebuilding-later--lazyrebuild) on, it only marks the projection, and the first `query` or the pre-warm fiber rebuilds it. A rebuild replays only one event store, found the way `start` finds the store of the projection's first source, and an engine without event stores does not rebuild at all; see [Limitations](./migration.md#limitations).
