@@ -559,14 +559,15 @@ lazy val `projection-examples` = project
   .in(file("projection-examples"))
   .settings(stdSettings("zio-blocks-projection-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
   .dependsOn(projection.jvm)
+  // Examples are copy-paste templates and are embedded in the docs, so they carry no licence header. Setting
+  // `headerLicense := None` is not enough: sbt-header then falls back to the licence detected from `licenses`.
+  .disablePlugins(HeaderPlugin)
   .settings(
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
     scalacOptions -= "-Werror",
-    // Examples are copy-paste templates and are embedded in the docs, so they carry no licence header.
-    headerLicense := None,
     // The run is forked, so that the examples write their SQLite files into this folder and not the root.
     Compile / fork := true,
     // Several examples are runnable on their own, so `projection-examples/run` needs to know which one to start.
