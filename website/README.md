@@ -54,6 +54,16 @@ right (`src/components/landing/SectionRail.js`, wider than 62.5rem only) links t
 `src/lib/rail.mjs`. The rules live in `src/components/landing/landing.css` and are pinned by
 `test/unit/landing-scroll.test.mjs`.
 
+## Index pages for `/guides/` and `/reference/`
+
+`docs/guides/index.md` and `docs/reference/index.md` give the two folders an index page each. They are not entries in
+`docs/sidebars.js`: `displayed_sidebar` shows the guides or the main sidebar beside them, and `docs/SidebarCards.jsx`
+draws one card per entry of that sidebar (only the categories on `/reference/`) with Docusaurus' `DocCardList`, so a
+new guide or block group appears there without editing the page. `src/clientModules/folderIndexes.js` gives `/guides`
+and `/reference` their trailing slash in place (hosts serve the same page for both forms); a unit test checks each
+folder it lists has an index page. The cards are flattened to the brand (no shadow, square, no link underline) in
+`src/css/custom.css`.
+
 ## API reference at `/api`
 
 `sbt docs/generateApiDocs` builds one unified Scaladoc (sbt-unidoc, Scala 3) for every published module and copies it

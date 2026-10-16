@@ -53,6 +53,8 @@ const config = {
       },
     ],
   ],
+  // /guides and /reference become /guides/ and /reference/ (src/clientModules/folderIndexes.js).
+  clientModules: [require.resolve('./src/clientModules/folderIndexes.js')],
   plugins: [
     // Tailwind (utilities only, see src/css/custom.css) for the Onboard Agent button.
     async function tailwindPlugin() {
