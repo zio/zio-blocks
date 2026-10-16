@@ -25,6 +25,7 @@ const ICONS = {
 // The navbar items of docusaurus.config.js, in the same order, with API as the current page.
 export const NAV_LINKS = [
   { label: 'Docs', href: '/overview' },
+  { label: 'Guides', href: '/guides/async-getting-started' },
   { label: 'API', href: '/api/', current: true },
   { label: 'Blocks', href: '/#catalog' },
   { label: 'GitHub', href: 'https://github.com/zio/zio-blocks', external: true },

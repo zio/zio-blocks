@@ -77,7 +77,6 @@ test('the navbar and footer carry the brand lockups and the main links', () => {
     assert.match(footer, new RegExp(`href="${href.replace(/[./]/g, '\\$&')}"`));
   }
   // The API links point at the Scaladoc in static/api: plain links, not client-side routes, opening in the same tab.
-  const navbar = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'));
   for (const part of [navbar, footer]) {
     const api = /<a [^>]*href="\/api\/"[^>]*>API<\/a>/.exec(part);
     assert.ok(api, 'missing the API link');
