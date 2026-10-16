@@ -53,7 +53,7 @@ import kyo.{
  *
  * Run (allocations + timing):
  * {{{
- * sbt --client -Dsbt.color=false "++3.8.3; sql-benchmarks/Jmh/run -prof gc -f 1 -wi 3 -i 3 -r 1s zio.blocks.sql.bench.RealWorldBenchmark"
+ * sbt --client -Dsbt.color=false "++3.9.0; sql-benchmarks/Jmh/run -prof gc -f 1 -wi 3 -i 3 -r 1s zio.blocks.sql.bench.RealWorldBenchmark"
  * }}}
  *
  * Environment: PostgreSQL 17 at localhost:32886, db `benchdb`, user `bench`.

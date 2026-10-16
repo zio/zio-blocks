@@ -7,10 +7,9 @@ import sbtcrossproject.CrossPlugin.autoImport.*
 import scoverage.ScoverageKeys._
 
 object BuildHelper {
-  val Scala213: String    = "2.13.18"
-  val Scala33: String     = "3.3.7" // LTS
-  val Scala3: String      = "3.9.0"
-  val Scala3Golem: String = "3.8.3" // Golem macros use experimental APIs (Symbol.newClass etc.)
+  val Scala213: String = "2.13.18"
+  val Scala33: String  = "3.3.7" // LTS
+  val Scala3: String   = "3.9.0"
 
   def removeOptionWithValue(options: Seq[String], option: String): Seq[String] =
     options
@@ -215,6 +214,7 @@ object BuildHelper {
             "-Wconf:msg=Skipping coverage instrumentation.*:s",                                                      // scoverage skips giant macro methods on 3.9 (telemetry LogMacros); informational, fatal under -Werror
             "-Wconf:msg=unused explicit parameter.*&src=.*AsyncDcaTransform.scala:s",                                // Scala 3.9 stricter unused analysis: quote-spliced givens consumed by cps.async macro expansion
             "-Wconf:msg=unused pattern variable.*&src=.*AsyncDcaTransform.scala:s",                                  // Scala 3.9 stricter unused analysis in DCA transform shape checks
+            "-Wconf:msg=unused pattern variable.*&src=.*AgentClientMacro.scala:s",                                   // Scala 3.9 false positive: quoted tuple destructuring in Golem agent-client macro (both sides used)
             "-Wconf:msg=unused pattern variable.*&src=.*shared/src/main/scala/cps/.*:s",                             // dotty-cps-async macro TASTY inlined under 3.9 (lib paths rebased onto our base dir); no repo source matches this layout
             "-Wconf:msg=the type test for NamedTuple.*cannot be checked at runtime.*&src=.*zio/test/Macros.scala:s", // zio-test macro TASTY inlined on 3.9 (NamedTuple became abstract-membered); lib-internal, same phantom-path class
             "-Werror"
@@ -227,8 +227,8 @@ object BuildHelper {
             } else Seq.empty
           } ++ {
             // E230 exists only on Scala 3.9+; older compilers reject the unknown id and the
-            // parse warning itself is fatal under -Werror (bare `sbt docs/mdoc` and the Golem
-            // 3.8.2 job both compile below 3.9).
+            // parse warning itself is fatal under -Werror (bare `sbt docs/mdoc`
+            // compiles below 3.9).
             if (minor >= 9) {
               Seq(
                 "-Wconf:id=E230:s",               // `$`-identifiers are deliberate public API (Scope.$, JsonSchema $defs), not compiler artifacts

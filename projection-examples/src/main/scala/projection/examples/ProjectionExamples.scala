@@ -29,7 +29,7 @@ import java.time.Instant
  * Comprehensive examples demonstrating all three projection scopes, schema
  * evolution, and event tag migration.
  *
- * Run with: {{{sbt "++3.8.3; projection-examples/run"}}}
+ * Run with: {{{sbt "++3.9.0; projection-examples/run"}}}
  */
 object ProjectionExampleApp extends ZIOAppDefault {
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]
 PREFIX="zio.blocks.streams.bench."
-COMMAND=["java","-jar","streams-benchmark/target/scala-3.8.3/streams-benchmark.jar",
+COMMAND=["java","-jar","streams-benchmark/target/scala-3.9.0/streams-benchmark.jar",
   "-wi","10","-i","10","-f","{fork}","-w","{warmupTime}s","-r","{measurementTime}s",
   "-rf","json","-rff","{output}","{params}","{benchmark}"]
 
@@ -17,7 +17,7 @@ def scalar_params(params):
   return [dict(zip(keys,row)) for row in itertools.product(*values)]
 def metadata(logical,params,harness,host,work,checksum,boundary):
   return {"benchmark":logical,"params":params,"mode":"Throughput","warmup":"10x1s","measurement":"10x1s",
-    "jvmArgs":[],"scala":"3.8.3","jdk":host["javaSha256"],"harnessHash":harness,
+    "jvmArgs":[],"scala":"3.9.0","jdk":host["javaSha256"],"harnessHash":harness,
     "work":work,"checksum":checksum,"boundary":boundary}
 def cell(ident,baseline,candidate,params,harness,host,work,checksum,boundary):
   meta=metadata(ident,params,harness,host,work,checksum,boundary)

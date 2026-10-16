@@ -9,7 +9,7 @@ This project targets a moving toolchain (Scala.js + golem-cli). The compatibilit
 
 | Category | Supported |
 |---|---|
-| Scala | 2.13.x (runtime + test-agents + example), 3.8.2+ (runtime + tooling) |
+| Scala | 2.13.x (runtime + test-agents + example), 3.9.0+ (runtime + tooling) |
 | Scala.js | 1.20.x |
 | sbt | 1.10+ (tested with 1.11.x) |
 | Mill | 1.1.x (tested with 1.1.0-RC3; set `GOLEM_MILL_LIBS_VERSION` to compile the plugin against other 1.1.x versions) |

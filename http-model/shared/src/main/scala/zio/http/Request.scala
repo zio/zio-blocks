@@ -16,6 +16,8 @@
 
 package zio.http
 
+import zio.blocks.maybe.Maybe
+
 /**
  * Immutable HTTP request consisting of method, URL, headers, body, and protocol
  * version.
@@ -33,17 +35,18 @@ final case class Request(
   /**
    * Decodes the first request header matching the supplied codec.
    */
-  def header[A](headerCodec: Header.Codec[A]): Option[A] = headers.get(headerCodec)
+  def header[A](headerCodec: Header.Codec[A]): Maybe[A] = headers.get(headerCodec)
 
   /**
    * Returns this request's content type.
    *
    * The typed `Content-Type` header is preferred when present and parseable. If
    * the header is absent or cannot be parsed as a typed `Content-Type` header,
-   * this method falls back to the body's content type.
+   * this method falls back to the body's content type, so the result is always
+   * defined and needs no `Option`/`Maybe` wrapper.
    */
-  def contentType: Option[ContentType] =
-    header(Header.ContentType).map(_.value).orElse(Some(body.contentType))
+  def contentType: ContentType =
+    header(Header.ContentType).map(_.value).getOrElse(body.contentType)
 
   def path: Path = url.path
 

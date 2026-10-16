@@ -17,6 +17,7 @@
 package zio.http
 
 import zio.test._
+import zio.blocks.maybe.Maybe
 
 object HeaderSpec extends HttpModelBaseSpec {
   private object RequestIdHeader extends Header.Codec[String] {
@@ -31,9 +32,9 @@ object HeaderSpec extends HttpModelBaseSpec {
       test("custom headers via rawGet") {
         val headers = Headers("x-request-id" -> "abc-123", "x-trace-id" -> "trace-456")
         assertTrue(
-          headers.rawGet("x-request-id") == Some("abc-123"),
-          headers.rawGet("x-trace-id") == Some("trace-456"),
-          headers.rawGet("x-missing") == None
+          headers.rawGet("x-request-id") == Maybe.present("abc-123"),
+          headers.rawGet("x-trace-id") == Maybe.present("trace-456"),
+          headers.rawGet("x-missing") == Maybe.absent
         )
       },
       test("custom header codec can be defined without extending Header") {

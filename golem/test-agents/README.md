@@ -23,7 +23,7 @@ Prerequisites:
 - `GOLEM_TS_PACKAGES_PATH` env var set to the TypeScript SDK packages directory
 
 ```bash
-sbt "++3.8.3; zioGolemTestAgents/golemPrepare" "++3.8.3; zioGolemIntegrationTests/test"
+sbt "++3.9.0!; zioGolemTestAgents/golemPrepare" "++3.9.0!; zioGolemIntegrationTests/test"
 ```
 
 ### Manual

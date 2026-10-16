@@ -206,7 +206,7 @@ jobs:
     - name: Run Scala JS tests and compile docs
       run: sbt ++${{ matrix.scala }} testJS docJS
   testGolem:
-    name: Test Golem (Scala 3.8.x / 2.13.x)
+    name: Test Golem (Scala 3.9.x / 2.13.x)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     continue-on-error: false
@@ -228,8 +228,8 @@ jobs:
         apps: sbt
     - name: Cache scala dependencies
       uses: coursier/cache-action@v8
-    - name: Run Golem tests (Scala 3.8)
-      run: sbt "++3.8.2; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS"
+    - name: Run Golem tests (Scala 3.9)
+      run: sbt "++3.9.0!; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS"
     - name: Run Golem tests (Scala 2.13)
       run: sbt "++2.13.18; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS"
     - name: Test Golem build codegen (Scala 3.3)

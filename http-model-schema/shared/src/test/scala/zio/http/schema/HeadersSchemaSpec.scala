@@ -111,6 +111,36 @@ object HeadersSchemaSpec extends ZIOSpecDefault {
         val headers = Headers("x-page" -> "abc")
         assertTrue(headers.headerOrElse[Int]("x-page", 1) == 1)
       }
+    ),
+    suite("stacked Maybe integration")(
+      test("absent header short-circuits to Missing before decoding") {
+        assertTrue(
+          Headers.empty.header[Int]("x-page") == Left(HeaderError.Missing("x-page")),
+          Headers.empty.header(TraceIdHeader) == Left(HeaderError.Missing("x-trace-id")),
+          Headers.empty.headerAll[Int]("x-page") == Left(HeaderError.Missing("x-page"))
+        )
+      },
+      test("malformed header preserves the raw value through the Maybe fold") {
+        val schemaHeaders = Headers("x-page" -> "abc")
+        val codecHeaders  = Headers("X-Trace-Id" -> "bogus")
+        assertTrue(
+          schemaHeaders.header[Int]("x-page") == Left(
+            HeaderError.Malformed("x-page", "abc", "Cannot parse 'abc' as Int")
+          ),
+          codecHeaders.header(TraceIdHeader) == Left(
+            HeaderError.Malformed("x-trace-id", "bogus", "trace id must start with trace-")
+          )
+        )
+      },
+      test("multiple raw headers decode in order and report the bad raw value") {
+        val headers = Headers("x-count" -> "1", "x-count" -> "bad", "x-count" -> "3")
+        assertTrue(
+          Headers("x-count" -> "1", "x-count" -> "2").headerAll[Int]("x-count") == Right(Chunk(1, 2)),
+          headers.headerAll[Int]("x-count") == Left(
+            HeaderError.Malformed("x-count", "bad", "Cannot parse 'bad' as Int")
+          )
+        )
+      }
     )
   ) @@ TestAspect.timeout(zio.Duration.fromSeconds(60))
 }

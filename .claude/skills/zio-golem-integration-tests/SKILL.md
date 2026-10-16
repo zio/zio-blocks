@@ -15,7 +15,7 @@ Integration tests for the Golem Scala SDK live in `golem/integration-tests/`. Th
 4. **SDK published locally** — run from the zio-blocks monorepo root:
 
 ```bash
-sbt --client '++3.8.2; set ThisBuild / version := "0.0.0-SNAPSHOT"; set ThisBuild / packageDoc / publishArtifact := false; set every (publish / skip) := false; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal'
+sbt --client '++3.9.0!; set ThisBuild / version := "0.0.0-SNAPSHOT"; set ThisBuild / packageDoc / publishArtifact := false; set every (publish / skip) := false; zioGolemModelJVM/publishLocal; zioGolemModelJS/publishLocal; zioGolemMacros/publishLocal; zioGolemCoreJS/publishLocal'
 ```
 
 ## Running Tests
@@ -34,13 +34,13 @@ With `sbt --client`, env vars don't propagate to the forked test JVM. Use the `s
 
 ```bash
 # All integration tests
-sbt --client '++3.8.2; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=<TS_PACKAGES_PATH>"; zioGolemIntegrationTests/test'
+sbt --client '++3.9.0!; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=<TS_PACKAGES_PATH>"; zioGolemIntegrationTests/test'
 
 # Only HTTP endpoint tests
-sbt --client '++3.8.2; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=<TS_PACKAGES_PATH>"; zioGolemIntegrationTests/testOnly -- -t http-'
+sbt --client '++3.9.0!; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=<TS_PACKAGES_PATH>"; zioGolemIntegrationTests/testOnly -- -t http-'
 
 # A specific test by name
-sbt --client '++3.8.2; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=<TS_PACKAGES_PATH>"; zioGolemIntegrationTests/testOnly -- -t sync-return'
+sbt --client '++3.9.0!; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=<TS_PACKAGES_PATH>"; zioGolemIntegrationTests/testOnly -- -t sync-return'
 ```
 
 Use the standard AGENTS.md sbt logging pattern (redirect to log file, check exit code).

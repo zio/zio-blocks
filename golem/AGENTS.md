@@ -31,7 +31,7 @@ Every change **must** include tests. No exceptions.
 - Follow existing test patterns — look at neighboring spec files before writing new ones.
 - **Run the tests** after writing them to confirm they pass. Use:
   ```
-  sbt --client '++3.8.2; <project>/test'
+  sbt --client '++3.9.0!; <project>/test'
   ```
 
 ### Test Agents (`golem/test-agents/`)
@@ -65,7 +65,7 @@ GOLEM_TS_PACKAGES_PATH=<TS_PACKAGES_PATH> sbt golemTestAll
 For running only integration tests with `sbt --client` (where env vars don't propagate), use the `set` override:
 
 ```bash
-sbt --client '++3.8.2; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=<TS_PACKAGES_PATH>"; zioGolemIntegrationTests/test'
+sbt --client '++3.9.0!; set zioGolemIntegrationTests / Test / javaOptions += "-Dgolem.tsPackagesPath=<TS_PACKAGES_PATH>"; zioGolemIntegrationTests/test'
 ```
 
 Use the standard sbt logging pattern from the root `AGENTS.md`.

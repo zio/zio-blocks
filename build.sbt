@@ -155,9 +155,12 @@ addCommandAlias(
     ).flatten.mkString("; ")
   }
 )
+// `!` forces the whole session to 3.9.0: without it `++` falls plain-JS
+// projects back to listed 3.3.7 while Golem JS lands on 3.9.0, and the 3.3.7
+// compiler cannot read 3.9.0 TASTy from shared JS deps (markdownJS -> chunkJS).
 addCommandAlias(
   "golemTest3",
-  "++3.8.2; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS; zioGolemIntegrationTests/test"
+  "++3.9.0!; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS; zioGolemIntegrationTests/test"
 )
 addCommandAlias(
   "golemTest2",
@@ -350,6 +353,7 @@ lazy val root = project
     scalaNextTests.js,
     benchmarks,
     `scope-benchmarks`,
+    `http-model-benchmarks`,
     `sql-benchmarks`,
     `streams-benchmark`,
     docs,
@@ -838,7 +842,7 @@ lazy val telemetryBenchmarks = project
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(scope, chunk, combinators, ringbuffer, async)
-  .settings(stdSettings("zio-blocks-streams", Seq(Scala3, Scala3Golem, Scala33, Scala213)))
+  .settings(stdSettings("zio-blocks-streams", Seq(Scala3, Scala33, Scala213)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.streams"))
   .enablePlugins(BuildInfoPlugin)
@@ -1106,6 +1110,18 @@ lazy val `http-model-examples` = project
     coverageMinimumBranchTotal := 0
   )
   .dependsOn(`http-model`.jvm)
+
+lazy val `http-model-benchmarks` = project
+  .in(file("http-model-benchmarks"))
+  .settings(stdSettings("zio-blocks-http-model-benchmarks", Seq("3.9.0")))
+  .dependsOn(`http-model`.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
 
 lazy val `zio-blocks-htmx-examples` = project
   .in(file("zio-blocks-htmx-examples"))
@@ -1524,7 +1540,7 @@ lazy val `sql-benchmarks` = project
 lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .in(file("golem/model"))
-  .settings(stdSettings("zio-golem-model", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
+  .settings(stdSettings("zio-golem-model", Seq(BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(
     publish / skip := true,
     Compile / unmanagedSourceDirectories ++= {
@@ -1559,32 +1575,20 @@ lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .jsSettings(
     // Override jsSettings' default Scala 3 filtering: golem modules keep
-    // Scala3Golem in crossScalaVersions and use it consistently for 3.x builds.
-    crossScalaVersions := Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213),
-    scalaVersion       := {
-      CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
-        case Some((3, _)) => BuildHelper.Scala3Golem
-        case _            => (ThisBuild / scalaVersion).value
-      }
-    }
+    // Scala3 in crossScalaVersions and use it consistently for 3.x builds.
+    crossScalaVersions := Seq(BuildHelper.Scala3, BuildHelper.Scala213)
   )
 
 lazy val zioGolemCoreJS = project
   .in(file("golem/core/js"))
   .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin)
-  .settings(stdSettings("zio-golem-core", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
+  .settings(stdSettings("zio-golem-core", Seq(BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(jsSettings)
   .settings(
     publish / skip := true,
     // Override jsSettings' default Scala 3 filtering: golem modules keep
-    // Scala3Golem in crossScalaVersions and use it consistently for 3.x builds.
-    crossScalaVersions := Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213),
-    scalaVersion       := {
-      CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
-        case Some((3, _)) => BuildHelper.Scala3Golem
-        case _            => (ThisBuild / scalaVersion).value
-      }
-    },
+    // Scala3 in crossScalaVersions and use it consistently for 3.x builds.
+    crossScalaVersions := Seq(BuildHelper.Scala3, BuildHelper.Scala213),
     libraryDependencies ++= Seq(
       "dev.zio"           %%% "zio-test"                   % "2.1.26" % Test,
       "dev.zio"           %%% "zio-test-sbt"               % "2.1.26" % Test,
@@ -1606,7 +1610,7 @@ lazy val zioGolemCoreJS = project
 
 lazy val zioGolemMacros = project
   .in(file("golem/macros"))
-  .settings(stdSettings("zio-golem-macros", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
+  .settings(stdSettings("zio-golem-macros", Seq(BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(
     publish / skip        := true,
     coverageEnabled       := false,
@@ -1635,18 +1639,12 @@ lazy val zioGolemMacros = project
 
 lazy val zioGolemTestAgents = project
   .in(file("golem/test-agents"))
-  .settings(stdSettings("zio-golem-examples-js", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
+  .settings(stdSettings("zio-golem-examples-js", Seq(BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(jsSettings)
   .settings(
     // Override jsSettings' default Scala 3 filtering: golem modules keep
-    // Scala3Golem in crossScalaVersions and use it consistently for 3.x builds.
-    crossScalaVersions := Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213),
-    scalaVersion       := {
-      CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
-        case Some((3, _)) => BuildHelper.Scala3Golem
-        case _            => (ThisBuild / scalaVersion).value
-      }
-    },
+    // Scala3 in crossScalaVersions and use it consistently for 3.x builds.
+    crossScalaVersions              := Seq(BuildHelper.Scala3, BuildHelper.Scala213),
     publish / skip                  := true,
     name                            := "zio-golem-test-agents",
     scalaJSUseMainModuleInitializer := false,
@@ -1691,7 +1689,7 @@ lazy val zioGolemTestAgents = project
 
 lazy val zioGolemIntegrationTests = project
   .in(file("golem/integration-tests"))
-  .settings(stdSettings("zio-golem-integration-tests", Seq(BuildHelper.Scala3Golem)))
+  .settings(stdSettings("zio-golem-integration-tests", Seq(BuildHelper.Scala3)))
   .settings(
     publish / skip           := true,
     Test / fork              := true,
@@ -1771,6 +1769,13 @@ lazy val `streams-benchmark` = project
   .dependsOn(streams.jvm)
   .enablePlugins(JmhPlugin)
   .settings(
+    // Third-party benchmark deps (kyo, …) track the newest Scala 3 TASTy, which a
+    // session-wide older compiler cannot read: without this pin the module
+    // inherits the session Scala from ThisBuild even though it only lists 3.9.0,
+    // and the build crashes with "TASTy signature has wrong version". Keep the
+    // benchmark module on its own listed head; scoped here only, never the
+    // project baseline.
+    scalaVersion := Scala3,
     // Requires JDK 21+ for Thread.ofVirtual() (Project Loom)
     scalacOptions ~= { opts =>
       opts.zipWithIndex.flatMap { case (o, i) => if (o == "-release") None else Some((o, i)) }
@@ -2095,7 +2100,6 @@ lazy val datastar = crossProject(JSPlatform, JVMPlatform)
 lazy val async = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-async"))
-  .settings(crossScalaVersions += Scala3Golem)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.async"))
   .enablePlugins(BuildInfoPlugin)
@@ -2118,7 +2122,7 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     // Target ES2017 so Scala.js can emit native async/await (`js.async`/
     // `js.await`), used by the Scala 3.8+ direct-style implementation.
     scalaJSLinkerConfig ~= { _.withESFeatures(_.withESVersion(org.scalajs.linker.interface.ESVersion.ES2017)) },
-    // The repo-wide `jsSettings` drops the latest Scala (3.8.x) from JS cross
+    // The repo-wide `jsSettings` drops the latest Scala (3.9.0) from JS cross
     // builds; async opts back in because its native `js.async`/`js.await`
     // backend exists only on 3.8+ and would otherwise never be compiled or
     // tested.
@@ -2136,13 +2140,9 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     //     is needed; JS behavior is covered by
     //     `js/src/test/scala-2/.../AsyncJsAwaitSpec`.
     //
-    // Intentionally validated on the repo default Scala 3.8.3 rather than
-    // bumping BuildHelper.Scala3 to 3.8.4-RC1. 3.8.4 fixes the narrow
-    // `js.await(js.Promise[Unit])` compile bug, but that single case is
-    // explicitly accepted/deferred; a repo-wide RC bump would force ~40
-    // unrelated subprojects onto an RC compiler with much larger blast radius.
-    // Caveat: a direct `Async[Unit].await` expanding to `js.await(Promise[Unit])`
-    // can fail to compile on 3.8.3; revisit when 3.8.4 is stable.
+    // Validated on Scala 3.9.0. Caveat: a direct `Async[Unit].await` expanding to
+    // `js.await(Promise[Unit])` failed to compile on 3.8.3 (fixed in later
+    // compilers); the `scala-3.8` selection below covers 3.8+ including 3.9.
     Compile / unmanagedSourceDirectories ++= {
       val sharedMain = baseDirectory.value.getParentFile / "shared" / "src" / "main"
       val jsMain     = baseDirectory.value / "src" / "main"
@@ -2163,7 +2163,7 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     // rewrite on every Scala 3 cell except JS 3.8+ (which uses native
     // `js.async`/`js.await`). Scala 2 uses a hand-written `scala-reflect` macro
     // (`internal.AsyncMacros`) and must not pull DCA onto its classpath. The
-    // `_3` artifact (built against 3.3.7) is consumed on 3.8.x via LTS forward
+    // `_3` artifact (built against 3.3.7) is consumed on 3.9.x via LTS forward
     // compatibility.
     libraryDependencies ++= {
       CrossVersion.partialVersion(scalaVersion.value) match {
@@ -2230,7 +2230,7 @@ lazy val `async-benchmarks-scala2` = project
 // JS-native benchmark gate. JMH is JVM-only, so this is a Scala.js main that
 // runs hand-rolled throughput + Node heap-delta allocation measurements (see
 // `AsyncJsBench`). It depends on `async.js`, so selecting the Scala version
-// chooses the cell under test: `++3.8.3; async-benchmarks-js/run` exercises the
+// chooses the cell under test: `++3.9.0; async-benchmarks-js/run` exercises the
 // native `js.async`/`js.await` backend; `++3.3.7; async-benchmarks-js/run`
 // exercises the dotty-cps-async backend. The `jsEnv` passes Node `--expose-gc`
 // so the harness can force a GC between heap reads. No Kyo / Cats Effect deps:
@@ -2251,7 +2251,7 @@ lazy val `async-benchmarks-js` = project
     // Benchmark in production mode (Closure full optimization) so the measured
     // allocation/throughput reflects what ships, not the dev `fastLinkJS` output.
     scalaJSStage := FullOptStage,
-    // jsSettings pins JS Scala 3 to 3.3.7; allow the native 3.8.x cell too.
+    // jsSettings pins JS Scala 3 to 3.3.7; allow the native 3.9.x cell too.
     scalaVersion       := (ThisBuild / scalaVersion).value,
     crossScalaVersions := Seq(BuildHelper.Scala3, BuildHelper.Scala33),
     // ES2017 so the native `js.async`/`js.await` in `async.js` (Scala 3.8+) links.

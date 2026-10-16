@@ -35,7 +35,7 @@ import zio.blocks.async._
  * It exercises the SAME ready-value hot paths the JVM JMH gate does (`succeed`
  * / `map` / `flatMap` / direct-style `.await`), so the JS-native
  * `js.async`/`js.await` cell (Scala 3.8+) and the DCA cell (Scala 3.3.x JS) can
- * each be measured by selecting the Scala version (`++3.8.3` vs `++3.3.7`).
+ * each be measured by selecting the Scala version (`++3.9.0` vs `++3.3.7`).
  * Every benchmark drives its `Async` to a value with `.block`; on JS `.block`
  * only succeeds for already-resolved values, which is exactly the zero-cost hot
  * path under test (no genuinely-suspended work, no thrown "cannot block").
