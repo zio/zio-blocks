@@ -10,8 +10,9 @@ export function findViolations(input) {
   // so the `//` in `https://` survives).
   const source = input.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|\s)\/\/[^\n]*/g, '$1');
   if (/gradient\s*\(/i.test(source)) out.push('gradient');
-  // Real CSS forms only: the transform functions and the standalone property, never the bare word.
-  if (/\b(?:rotate(?:[XYZ]|3d)?|skew[XY]?)\s*\(/i.test(source) || /(?:^|[\s;{])rotate\s*:/i.test(source)) {
+  // Real CSS forms only: the transform functions and the standalone property, never the bare word. `hue-rotate()` is a
+  // colour filter, not a rotation, so a name ending in `-rotate(` does not count.
+  if (/(?<![\w-])(?:rotate(?:[XYZ]|3d)?|skew[XY]?)\s*\(/i.test(source) || /(?:^|[\s;{])rotate\s*:/i.test(source)) {
     out.push('rotation or skew');
   }
   if (/drop-shadow\s*\(/i.test(source)) out.push('drop-shadow');
