@@ -1537,12 +1537,50 @@ lazy val docs = project
         "-dynamic-side-menu"
       )
     },
+    // sbt-api-mappings (via zio-sbt-website) maps every module to its javadoc.io page, so links
+    // between documented types would leave the site for javadoc.io, which has no page for a
+    // snapshot. Every module is documented here, so drop its mappings; other libraries keep theirs.
+    ScalaUnidoc / unidoc / apiMappings ~= (_.filterNot { case (_, url) =>
+      url.toString.startsWith("https://javadoc.io/page/dev.zio/zio-blocks")
+    }),
     // Copies the unified Scaladoc into website/static/api, so `yarn build` publishes it at /api.
     generateApiDocs := {
       val apiDir = websiteDir.value.toFile / "static" / "api"
       val docDir = (ScalaUnidoc / doc).value
       IO.delete(apiDir)
       IO.copyDirectory(docDir, apiDir)
+      // Scaladoc 3.9.0 bugs in scripts/ux.js break navigation; patch them in place.
+      // Each patch fails the task once its target text is gone, so a Scaladoc upgrade that fixes
+      // (or rewrites) the script gets the patch reviewed instead of silently skipped.
+      val uxJsPatches = Seq(
+        // The dynamic side menu interpolates `baseUrl`, an array of path segments, straight into its
+        // links, so JavaScript joins it with commas: under /api every menu link becomes
+        // ",api/zio.html", which resolves against the current page and 404s. (At a site root the
+        // array is [""] and the bug is invisible.) Join it with "/".
+        "return `${baseUrl}/${loc.join(\"/\")}.html`;" ->
+          "return `${baseUrl.join(\"/\")}/${loc.join(\"/\")}.html`;",
+        // Same-origin link clicks are loaded in place with jQuery's `$.get`, but Scaladoc no longer
+        // ships jQuery: the click handler calls preventDefault and then throws "$ is not defined",
+        // so no link on any page navigates. Use fetch, and fall back to a normal page load if the
+        // request fails (the never-settling promise keeps the in-place load from running then).
+        "$.get(href, function (data) {" ->
+          ("fetch(href).then((r) => (r.ok ? r.text() : Promise.reject(r)))" +
+            ".catch(() => { window.location.href = href; return new Promise(() => {}); })" +
+            ".then(function (data) {"),
+        // Back and Forward restore the page content but not the dynamic side menu, which keeps
+        // highlighting the page you left. Update it the way a link click does.
+        "  loadPageState(document, e.state);\n" ->
+          ("  const oldLoc = getRawLoc();\n" +
+            "  loadPageState(document, e.state);\n" +
+            "  if (dynamicSideMenu && updateMenu) updateMenu(oldLoc, getRawLoc());\n")
+      )
+      val uxJs        = apiDir / "scripts" / "ux.js"
+      val patchedUxJs = uxJsPatches.foldLeft(IO.read(uxJs)) { case (src, (broken, fixed)) =>
+        if (!src.contains(broken))
+          sys.error(s"$uxJs no longer contains `$broken`: check whether Scaladoc fixed it and drop this patch")
+        src.replace(broken, fixed)
+      }
+      IO.write(uxJs, patchedUxJs)
       Keys.streams.value.log.info(s"Copied the API docs from $docDir to $apiDir")
       apiDir
     },

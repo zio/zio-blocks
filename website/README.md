@@ -63,6 +63,16 @@ JVM and JS share the public API. The module list is `ScalaUnidoc / unidoc / unid
 in `../build.sbt`; a new published module must be added there. Source links point at the commit the docs were built
 from.
 
+The task also fixes the generated output in three ways (all in `generateApiDocs`):
+
+- Links to other zio-blocks types stay on `/api`. sbt-api-mappings, which comes with zio-sbt-website, would otherwise
+  send them to javadoc.io, which has no page for a snapshot.
+- Scaladoc's `-dynamic-side-menu` (without it, every page repeats the whole package tree and the output grows from
+  about 100 MB to 1.5 GB) comes with bugs in `scripts/ux.js` that break navigation, patched in place: menu links joined
+  with commas under a sub-path (`,api/zio.html`), link clicks calling jQuery's `$.get` though Scaladoc no longer ships
+  jQuery (no link navigated), and Back/Forward leaving the menu highlight on the page you left. Each patch fails the task
+  when its target text disappears, so a Scaladoc upgrade gets them reviewed.
+
 The navbar and footer link to it with `pathname:///api/`: Scaladoc is plain HTML outside the Docusaurus router, and
 the `pathname://` protocol makes the link a full page load and keeps it out of the broken-link checker. Without a prior
 `generateApiDocs` the build still succeeds, but `/api/` is a 404.
