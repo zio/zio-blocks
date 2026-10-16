@@ -75,13 +75,18 @@ The task also fixes the generated output in three ways (all in `generateApiDocs`
 
 Scaladoc is a separate generator with its own HTML, stylesheets and scripts, so after `docusaurus build`
 `scripts/theme-api.mjs` gives every page in `build/api` the site's look (`scripts/lib/api-theme.mjs`, assets in
-`src/api-theme/`):
+`src/api-theme/`). It reads each page from `static/api` and writes it over its copy in `build/api`, so it can be rerun:
 
 - Scaladoc's header is replaced by a copy of the site navbar (same logo, links, onboard-agent button and colour-mode
   toggle, 60px ink bar, collapsing into the mobile menu at 996px), keeping the ids Scaladoc's scripts look up
   (`#search-toggle`, `#mobile-menu-toggle`, a hidden version dropdown). Scaladoc's search button stays in the bar. A unit
   test keeps its links in step with `navbar.items` in `docusaurus.config.js`.
-- `src/api-theme/api.css` sets Manrope and the brand colours, and moves Scaladoc's layout under the 60px bar.
+- The site favicon (`favicon` in `docusaurus.config.js`) replaces Scaladoc's `favicon.ico`.
+- `src/api-theme/api.css` sets Manrope and the brand colours, moves Scaladoc's layout under the 60px bar, and gives each
+  section the size of its docs counterpart: sidebar as `.menu__link` (16px, weight 500), headings at Infima's 3/2/1.5/1rem
+  in weight 800, text and tables 16px at line height 1.65, code at 90% in the site monospace, breadcrumbs and the table of
+  contents at 0.8rem. Scaladoc sizes text with utility classes (`body-small` is 13px in the sidebar and in sentences
+  alike), so the rules target sections rather than those classes.
 - `src/api-theme/theme.js` replaces Scaladoc's `scripts/theme.js`: the colour mode is the one Docusaurus keeps in
   `localStorage.theme`, cycled system -> light -> dark like the site toggle, so switching it on either side carries over.
   It also keeps the navbar's site links out of Scaladoc's in-place page loader.

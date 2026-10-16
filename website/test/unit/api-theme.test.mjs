@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
-import { NAV_LINKS, STYLESHEET, navbarHtml, themeApiPage } from '../../scripts/lib/api-theme.mjs';
+import { FAVICON, NAV_LINKS, STYLESHEET, navbarHtml, themeApiPage } from '../../scripts/lib/api-theme.mjs';
 
 // The page skeleton Scaladoc 3.9.0 generates (zio/blocks/schema/Schema.html, trimmed to the parts the theme touches).
 const PAGE =
-  '<html><head><meta charset="utf-8"></meta><title>Schema</title>' +
+  '<html><head><meta charset="utf-8"></meta><title>Schema</title><link rel="shortcut icon" type="image/x-icon" href="../../../favicon.ico">' +
   '<link rel="stylesheet" href="../../../styles/theme/bundle.css"></head>' +
   '<body><div id=""><div id="header" class="body-small"><div class="header-container-left"><a href="../../../" class="logo-container">' +
   '<span id="project-logo" class="project-logo"><img src="../../../project-logo/zio-blocks-mark.svg"></img></span>' +
@@ -62,6 +62,16 @@ test('the mobile menu gets the site logo and links, and the stylesheet comes las
   );
   assert.ok(html.includes(`<link rel="stylesheet" href="${STYLESHEET}"></head>`));
   assert.equal(count(html, 'project-logo'), 0);
+});
+
+test('the API pages use the site favicon, the one docusaurus.config.js names', () => {
+  const { favicon } = createRequire(import.meta.url)('../../docusaurus.config.js');
+  assert.equal(FAVICON, `/${favicon}`);
+  const html = themeApiPage(PAGE, { prompt: PROMPT });
+  assert.equal(count(html, 'rel="icon"'), 1);
+  assert.equal(count(html, 'rel="shortcut icon"'), 0);
+  assert.ok(html.includes(`<link rel="icon" href="${FAVICON}">`));
+  assert.ok(!html.includes('favicon.ico'));
 });
 
 test('a page whose markup no longer matches fails loudly', () => {

@@ -256,3 +256,137 @@
   }
 }
 
+
+/* Typography: the docs pages' scale (Infima with src/css/custom.css), section by section. Scaladoc sizes text with
+   utility classes (body-small is 13px whether it is the sidebar or a sentence), so each section is set here to the size
+   of its counterpart on a docs page rather than by remapping those classes. */
+body,
+#main,
+.breadcrumbs {
+  font-family: var(--body-font-family);
+}
+
+/* Sidebar, as .menu__link: 16px, weight 500, 6px vertical padding, 0.25rem between items, square corners */
+#leftColumn .side-menu .nh {
+  margin-top: 0.25rem;
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  border-radius: 0;
+}
+
+#leftColumn .side-menu .nh > a {
+  font-size: 1rem;
+  line-height: 1.25;
+  font-weight: 500;
+}
+
+#leftColumn .switcher {
+  font-size: 1rem;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+/* Breadcrumbs and the table of contents: 0.8rem, as .breadcrumbs__link and .table-of-contents__link */
+.breadcrumbs {
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+#toc .toc-list a,
+#toc .toc-title {
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+#toc .toc-title {
+  font-weight: 700;
+}
+
+/* The table of contents' rhythm: Infima's 0.5rem between entries and 1rem per nesting level */
+#toc li {
+  margin: 0.5rem 0;
+}
+
+#toc .toc-list li > ul {
+  margin-top: 0.5rem;
+  padding-left: 1rem;
+}
+
+/* Headings: Infima's sizes at the site's weight 800 */
+#content h1,
+#content h2,
+#content h3,
+#content h4 {
+  line-height: 1.25;
+  font-weight: 800;
+}
+
+#content h1,
+#content h2,
+#content h3 {
+  letter-spacing: -0.01em;
+}
+
+#content h1,
+#content h1:first-of-type {
+  font-size: 3rem;
+  line-height: 1.25;
+}
+
+#content h2 {
+  font-size: 2rem;
+}
+
+#content h3 {
+  font-size: 1.5rem;
+}
+
+#content h4 {
+  font-size: 1rem;
+}
+
+/* Running text, labels and tables: 16px at line height 1.65, table labels bold like a docs <th> */
+#content .body-medium,
+#content .body-small,
+#content p,
+#content li,
+#content dt,
+#content dd,
+#content .originInfo {
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+#content dl.attributes > dt {
+  font-weight: 700;
+}
+
+#content button,
+#content .text-button {
+  font-family: var(--body-font-family);
+  font-size: 0.8rem;
+}
+
+/* Code: the site's monospace at 90%; blocks and signatures at line height 1.45, as a docs code block */
+#content code,
+#content pre,
+#content .monospace,
+#content .signature,
+#content .snippet pre code {
+  font-family: var(--code-font-family);
+}
+
+#content :not(pre) > code {
+  font-family: var(--code-font-family);
+  font-size: 0.9em;
+  line-height: inherit;
+}
+
+#content pre,
+#content pre code,
+#content .mono-small-block,
+#content .mono-medium,
+#content .mono-medium .signature {
+  font-size: 0.9rem;
+  line-height: 1.45;
+}

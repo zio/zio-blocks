@@ -64,6 +64,9 @@ const HEADER = /<div id="header"[\s\S]*?(?=<div id="mobile-menu">)/;
 const MOBILE_LOGO = /<span class="mobile-menu-logo">[\s\S]*?(?=<button id="mobile-menu-close")/;
 const MOBILE_THEME = '<span id="mobile-theme-toggle"';
 export const STYLESHEET = '/api/styles/zio-blocks.css';
+// docusaurus.config.js `favicon`, which Docusaurus serves from static/.
+export const FAVICON = '/brand/zio-blocks-mark-favicon.svg';
+const SCALADOC_FAVICON = /<link rel="shortcut icon"[^>]*>/;
 
 function replaceOnce(html, pattern, replacement, what) {
   if (!(typeof pattern === 'string' ? html.includes(pattern) : pattern.test(html)))
@@ -71,7 +74,7 @@ function replaceOnce(html, pattern, replacement, what) {
   return html.replace(pattern, replacement);
 }
 
-/** Puts the site navbar, stylesheet and mobile-menu links into one Scaladoc page. */
+/** Puts the site navbar, favicon, stylesheet and mobile-menu links into one Scaladoc page. */
 export function themeApiPage(html, { prompt }) {
   let out = replaceOnce(html, HEADER, navbarHtml({ prompt }), 'header (#header before #mobile-menu)');
   out = replaceOnce(
@@ -86,5 +89,7 @@ export function themeApiPage(html, { prompt }) {
     `<nav class="zb-mobile-links">${NAV_LINKS.map((l) => linkHtml(l, 'zb-mobile-link')).join('')}</nav>${MOBILE_THEME}`,
     'mobile theme toggle',
   );
+  // The site favicon instead of Scaladoc's own favicon.ico, with the markup the docs pages use.
+  out = replaceOnce(out, SCALADOC_FAVICON, `<link rel="icon" href="${FAVICON}">`, 'favicon link');
   return replaceOnce(out, '</head>', `<link rel="stylesheet" href="${STYLESHEET}"></head>`, '</head>');
 }
