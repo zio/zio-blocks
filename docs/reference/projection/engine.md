@@ -107,9 +107,8 @@ Each field controls a distinct aspect of engine behavior:
 - **`batchSize`** — the most events gathered into a single batch during catch-up. Larger values reduce per-batch overhead but increase memory usage and the window between a failure and when the watermark is saved.
 - **`batchTimeout`** — how long catch-up waits to fill a batch before processing whatever has arrived. At low event rates this prevents the replay from stalling indefinitely waiting for a full batch.
 - **`ringCapacity`** — the capacity of the bounded `Hub[EventEnvelope[E]]` created when `TestEngine` builds its in-memory event hub. Has no effect when an external `EventStore` already supplies its own hub.
-- **`rebuildParallelism`** — the group size used by the background pre-warm when `lazyRebuild` is enabled. The pre-warm rebuilds the pending projections one after the other, group by group, so the value does not make rebuilds run at the same time.
-- **`lazyRebuild`** — when `false` (the default), any projection whose schema has changed is fully rebuilt during `start`, blocking initialization until the replay completes. When `true`, stale projections are only marked as pending at startup, then rebuilt on their first `query` call or in the background by the pre-warm fiber. Lazy rebuild shortens startup at the cost of a potential brief stall on the first read.
-- **`evolution`** — a `SchemaEvolutionConfig`, described under [`SchemaEvolution`](./migration.md#schemaevolution). The engine does not read it: it always tries the migration shortcut when a migration is registered, and uses its own `lazyRebuild` and `rebuildParallelism` above.
+- **`rebuildParallelism`** and **`lazyRebuild`** — whether a projection whose row type changed is rebuilt during `start` (the default) or later, and in which groups; see [Rebuilding Later](./migration.md#rebuilding-later--lazyrebuild).
+- **`evolution`** — not read by the engine; see [`SchemaEvolution`](./migration.md#schemaevolution).
 
 ## Starting and Stopping
 
@@ -125,13 +124,11 @@ final class ProjectionEngine private[projection] (...) {
 
 The method performs three phases in order:
 
-1. **Schema checks** — for each projection, `start` computes the current `SchemaHash` and compares it with the value stored in the primary store. If the hashes differ and `lazyRebuild` is `false`, the engine immediately attempts a migration shortcut (an `ALTER TABLE ADD COLUMN` for simple field additions) or falls back to a full event replay. If `lazyRebuild` is `true`, the projection is only marked pending; no rebuild happens yet. See [Migration](./migration.md#changing-the-read-model).
+1. **Schema checks** — for each projection, `start` checks whether the stored rows still match the row type, and brings them up to date if not, or leaves that to a background fiber when `lazyRebuild` is on. See [Changing the Read Model](./migration.md#changing-the-read-model).
 
 2. **Catch-up replay** — for each source binding, `start` reads the events the projection has not processed yet. It begins right after the last event it saved a record of, the watermark, and works through the stored events in batches. It moves on only when it has read to the end of the stored events, so `start` waits for the catch-up to finish.
 
 3. **Live streaming** — only after catch-up completes does the engine subscribe to the event store's live hub. This sequencing prevents a race where a live event arrives while catch-up is still processing the same region of history. The live fiber runs until the scope closes.
-
-When `lazyRebuild` is enabled, a fourth background fiber runs concurrently with the source bindings: it finds every pending spec and rebuilds them sequentially in batches of `config.rebuildParallelism`, so that reads do not have to trigger rebuilds once the pre-warm has finished.
 
 :::note
 An event whose handler throws, or for which no handler matches, is logged and skipped. The watermark advances only after a successful event; a failed event is not retried once a later event succeeds.

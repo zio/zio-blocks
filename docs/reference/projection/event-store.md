@@ -2,7 +2,7 @@
 id: event-store
 title: "EventStore[E]"
 sidebar_label: "EventStore[E]"
-description: "The write side of the projection module: EventStore[E], the append-only log of events, with EventEnvelope and event tags."
+description: "The write side of the projection module: EventStore[E], the append-only log of events, with EventEnvelope and the SQLite implementation."
 keywords:
   - "Event Sourcing"
   - "Event Store"
@@ -78,7 +78,7 @@ def readAll(tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelop
 
 `readFrom` streams the stored events whose sequence number is strictly greater than `afterSeq`, in order, each in its [`EventEnvelope`](#eventenvelope). `readAll` is `readFrom(0L, tags)`, so it streams every event. Both read from the database as the stream is pulled, rather than loading the whole log first. The engine uses `readFrom` to catch up from its saved position, and a schema rebuild uses `readAll` to replay everything.
 
-`tags` keeps only the events with one of the given tags, and an empty set, the default, keeps all of them. A tag that was renamed is matched under its old name too, and the envelope always carries the current name, see [Event Tags](#event-tags).
+`tags` keeps only the events with one of the given tags, and an empty set, the default, keeps all of them. Which stored tags a read can return is described under [Which Stored Events Are Read](./migration.md#which-stored-events-are-read).
 
 The examples print each envelope without its timestamp, which changes on every run:
 
@@ -128,13 +128,7 @@ final case class EventEnvelope[+E](
 )
 ```
 
-The `seq` field is the resumption position: the engine saves it after each successful event and passes it to `readFrom` on restart so no event is re-processed. The `tag` field identifies the event kind for filtering and for `TagResolver`'s rename detection.
-
-## Event Tags
-
-By default, `EventStore[E]` uses the case class simple name as the tag. Renaming a case class therefore changes the tag that new events are stored under, and the events stored under the old name are no longer read.
-
-A read keeps only the events whose tag the store knows: the current tags, and the old names of renamed cases declared with a `Migration`. Events under any other tag are skipped without an error. To keep a renamed case readable, see [Renaming an Event Case](./migration.md#renaming-an-event-case); for numeric tags, see [Numeric Tags](./migration.md#numeric-tags--eventtag).
+The `seq` field is the resumption position: the engine saves it after each successful event and passes it to `readFrom` on restart so no event is re-processed. The `tag` field is the case name of the event, or its `@eventTag` number; reads can filter on it, see [Changing Events](./migration.md#changing-events).
 
 ## SQLiteEventStore
 
@@ -151,7 +145,7 @@ object SQLiteEventStore {
 }
 ```
 
-`make` is the usual way to create a store. It creates a bounded hub of 4,096 envelopes for the store to publish to, and works out the store's tags from the event type with `TagResolver`. Pass a `migration` when a case of the event type was renamed: its `renameCase` steps tell the store the old names, so events saved under them are still found, see [Renaming an Event Case](./migration.md#renaming-an-event-case). When the store starts, it compares the tags in the database with the ones it knows, and logs a warning for any it cannot explain.
+`make` is the usual way to create a store. It creates a bounded hub of 4,096 envelopes for the store to publish to, and works out the store's tags from the event type with `TagResolver`. Pass a `migration` when a case of the event type was renamed; see [Renaming an Event Case](./migration.md#renaming-an-event-case). When the store starts, it logs a warning for the tags in the database that it cannot explain.
 
 ```scala mdoc:silent
 // UserCreated used to be called UserRegistered
@@ -173,7 +167,7 @@ renamed.tagInfo.aliases
 val tagInfo: TagInfo
 ```
 
-`tagInfo` is the [`TagInfo`](./migration.md#taginfo-and-tagresolver) the store was created with: the tags the event type has now, the old tags that were renamed to them, and the migration for old events. The store uses it to widen filtered reads, to decode old events, and for the check at startup:
+`tagInfo` is the [`TagInfo`](./migration.md#taginfo-and-tagresolver) the store was created with: the tags the event type has now, the old tags that were renamed to them, and the migration for old events:
 
 ```scala mdoc
 store.tagInfo.currentTags
