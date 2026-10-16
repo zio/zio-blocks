@@ -8,6 +8,7 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   extensionlessSearchData,
+  folderIndexRedirect,
   extensionlessUxJs,
   hoistSideMenu,
   nestedTypePaths,
@@ -46,7 +47,8 @@ if (!(await exists(sourceDir)) || !(await exists(apiDir))) {
     const to = moves.get(from) ?? from;
     const page = relocatePage(await readFile(file, 'utf8'), { from, to, moves });
     await mkdir(dirname(join(apiDir, `${to}.html`)), { recursive: true });
-    await writeFile(join(apiDir, `${to}.html`), themeApiPage(page, { prompt }));
+    const themed = themeApiPage(page, { prompt });
+    await writeFile(join(apiDir, `${to}.html`), to === 'index' ? folderIndexRedirect(themed) : themed);
     if (to !== from) {
       // Docusaurus copied the page to its old place; only the new one is published. Drop folders left empty.
       await rm(join(apiDir, `${from}.html`), { force: true });

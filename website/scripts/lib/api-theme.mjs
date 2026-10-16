@@ -270,3 +270,18 @@ export function relocateSideMenu(menu, moves) {
   };
   return { ...menu, api: { ...menu.api, children: menu.api.children.map(move) } };
 }
+
+/**
+ * For the API index: send `/api` to `/api/` before anything loads. Without the slash the browser resolves the page's
+ * relative paths (scripts/, styles/, dynamicSideMenu.json) against the site root, and the page comes up unstyled. The
+ * hosts answer both paths with the same index.html, and a redirect rule cannot do this on Netlify (a rule is skipped
+ * when a file answers the path, and its matching ignores the trailing slash), so the page does it, first thing in
+ * <head>.
+ */
+export function folderIndexRedirect(html) {
+  const script =
+    "<script>if(!location.pathname.endsWith('/'))location.replace(location.pathname+'/'+location.search+location.hash)</script>";
+  if (!html.includes('<head>')) throw new Error('Scaladoc index page has no <head>');
+  // The base makes the requests the browser starts while parsing, before the script has run, resolve against /api/ too.
+  return html.replace('<head>', `<head>${script}<base href="/api/">`);
+}

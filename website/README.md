@@ -90,6 +90,9 @@ Scaladoc is a separate generator with its own HTML, stylesheets and scripts, so 
   `relocatePage` rewrites a moved page's links, root path and location for its new folder, and every link to it).
   Objects keep Scaladoc's `$` (`Schema$` is the companion of `Schema`, `MediaTypes/application$` an object).
 - The site favicon (`favicon` in `docusaurus.config.js`) replaces Scaladoc's `favicon.ico`.
+- The index page sends `/api` to `/api/` first thing in `<head>` (with `<base href="/api/">` for the requests the
+  browser starts before that runs): without the slash, Scaladoc's relative paths resolve against the site root and the
+  page comes up unstyled. A Netlify redirect rule cannot do it, since a rule is skipped when a file answers the path.
 - Scaladoc's "Generated with Scaladoc" footers (one for wide screens, one at the end of the text) are removed, and the
   sidebar runs to the bottom of the window.
 - The breadcrumbs become the docs breadcrumbs (home icon, API, the packages as the side menu names them, the page) at

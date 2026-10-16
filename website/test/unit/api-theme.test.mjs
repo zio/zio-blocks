@@ -12,6 +12,7 @@ import {
   extensionlessLinks,
   extensionlessSearchData,
   extensionlessUxJs,
+  folderIndexRedirect,
   hoistSideMenu,
   navbarHtml,
   nestedTypePaths,
@@ -238,6 +239,19 @@ test('both "Generated with Scaladoc" footers are gone, and nothing after them', 
   assert.ok(!html.includes('id="footer"'));
   assert.ok(!html.includes('Generated with'));
   assert.ok(html.endsWith('<h1 class="h600">Schema</h1></div></div></div></div></div></body></html>'));
+});
+
+test('the API index sends /api to /api/ before anything loads', () => {
+  const html = folderIndexRedirect(PAGE);
+  const script = /^<html><head><script>(.*?)<\/script><base href="\/api\/"><meta charset/.exec(html);
+  assert.ok(script, 'the redirect is the first thing in <head>');
+  const run = (pathname) => {
+    let target = null;
+    new Function('location', script[1])({ pathname, search: '?q=1', hash: '#x', replace: (u) => (target = u) });
+    return target;
+  };
+  assert.equal(run('/api'), '/api/?q=1#x');
+  assert.equal(run('/api/'), null);
 });
 
 test('a page whose markup no longer matches fails loudly', () => {
