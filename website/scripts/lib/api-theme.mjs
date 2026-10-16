@@ -74,9 +74,49 @@ function replaceOnce(html, pattern, replacement, what) {
   return html.replace(pattern, replacement);
 }
 
-/** Puts the site navbar, favicon, stylesheet and mobile-menu links into one Scaladoc page. */
+const HOME_ICON =
+  '<svg viewBox="0 0 24 24" class="zb-breadcrumbs__home"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg>';
+const CRUMBS = /<div class="breadcrumbs container">([\s\S]*?)<\/div>/;
+const CONTENT_START = /<div id="content"[^>]*><div>/;
+
+/**
+ * The docs breadcrumbs (Docusaurus' theme-doc-breadcrumbs markup, with zb- classes because Scaladoc styles
+ * .breadcrumbs) for a Scaladoc trail, given as its links `[{ href, label }]`: the home icon, then API for Scaladoc's
+ * index entry, then the packages under `zio` by their last name segment, as the side menu shows them, and the current
+ * page last, not linked.
+ */
+export function breadcrumbsHtml(trail) {
+  const [, ...rest] = trail; // the first entry is Scaladoc's index page, shown as API
+  const packages = rest.slice(0, -1).filter((c) => c.label !== 'zio');
+  const items = [
+    `<li class="zb-breadcrumbs__item"><a aria-label="Home page" class="zb-breadcrumbs__link" href="/">${HOME_ICON}</a></li>`,
+  ];
+  const current = rest.length ? rest[rest.length - 1] : null;
+  items.push(
+    current
+      ? '<li class="zb-breadcrumbs__item"><a class="zb-breadcrumbs__link" href="/api/"><span>API</span></a></li>'
+      : '<li class="zb-breadcrumbs__item zb-breadcrumbs__item--active"><span class="zb-breadcrumbs__link">API</span></li>',
+  );
+  for (const { href, label } of packages)
+    items.push(
+      `<li class="zb-breadcrumbs__item"><a class="zb-breadcrumbs__link" href="${href}"><span>${label.split('.').pop()}</span></a></li>`,
+    );
+  if (current)
+    items.push(
+      `<li class="zb-breadcrumbs__item zb-breadcrumbs__item--active"><span class="zb-breadcrumbs__link">${current.label.split('.').pop()}</span></li>`,
+    );
+  return `<nav class="zb-breadcrumbs" aria-label="Breadcrumbs"><ul class="zb-breadcrumbs__list">${items.join('')}</ul></nav>`;
+}
+
+/** Puts the site navbar, breadcrumbs, favicon, stylesheet and mobile-menu links into one Scaladoc page. */
 export function themeApiPage(html, { prompt }) {
   let out = replaceOnce(html, HEADER, navbarHtml({ prompt }), 'header (#header before #mobile-menu)');
+  // The breadcrumbs move from above the columns to the top of the text column, where a docs page has them.
+  const crumbs = CRUMBS.exec(out);
+  if (!crumbs) throw new Error('Scaladoc page has no breadcrumbs; did a Scaladoc upgrade change its markup?');
+  const trail = [...crumbs[1].matchAll(/<a href="([^"]*)">([^<]*)<\/a>/g)].map(([, href, label]) => ({ href, label }));
+  out = out.replace(CRUMBS, '');
+  out = replaceOnce(out, CONTENT_START, (open) => open + breadcrumbsHtml(trail), 'content column');
   out = replaceOnce(
     out,
     MOBILE_LOGO,
@@ -92,4 +132,22 @@ export function themeApiPage(html, { prompt }) {
   // The site favicon instead of Scaladoc's own favicon.ico, with the markup the docs pages use.
   out = replaceOnce(out, SCALADOC_FAVICON, `<link rel="icon" href="${FAVICON}">`, 'favicon link');
   return replaceOnce(out, '</head>', `<link rel="stylesheet" href="${STYLESHEET}"></head>`, '</head>');
+}
+
+/**
+ * Starts the API side menu at the subpackages of `zio` (blocks, http) instead of the one `zio` package above them, as
+ * a docs sidebar starts at its categories. Scaladoc labels a package by its name relative to its parent, so the hoisted
+ * packages are renamed relative to `zio` ("zio.blocks.schema" becomes "blocks.schema", shown as "schema" under
+ * "blocks"); other entries keep their names. Fails if the menu no longer has `zio` as its only root.
+ */
+export function hoistSideMenu(menu) {
+  const roots = menu?.api?.children;
+  if (!roots || roots.length !== 1 || roots[0].name !== 'zio' || roots[0].kind !== 'package')
+    throw new Error('dynamicSideMenu.json no longer has the zio package as its only API root; update hoistSideMenu');
+  const rename = (item) => ({
+    ...item,
+    name: item.kind === 'package' && item.name.startsWith('zio.') ? item.name.slice('zio.'.length) : item.name,
+    children: item.children.map(rename),
+  });
+  return { ...menu, api: { ...menu.api, children: roots[0].children.map(rename) } };
 }

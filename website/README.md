@@ -82,6 +82,17 @@ Scaladoc is a separate generator with its own HTML, stylesheets and scripts, so 
   (`#search-toggle`, `#mobile-menu-toggle`, a hidden version dropdown). Scaladoc's search button stays in the bar. A unit
   test keeps its links in step with `navbar.items` in `docusaurus.config.js`.
 - The site favicon (`favicon` in `docusaurus.config.js`) replaces Scaladoc's `favicon.ico`.
+- The breadcrumbs become the docs breadcrumbs (home icon, API, the packages under `zio`, the page) at the top of the
+  text column.
+- The side menu (`dynamicSideMenu.json`) starts at `blocks` and `http` rather than the single `zio` package
+  (`hoistSideMenu`), and `theme.js` keeps that top level unfolded across page loads unless the reader folds it. It is
+  drawn as the docs sidebar: Infima's rows, colours, chevron caret on the right, 12px per level, no kind icons, and the
+  browser's own scrollbars (Scaladoc hides them; setting `scrollbar-color` overrides its `::-webkit-scrollbar` rules).
+  Its Docs/API switcher is hidden, since `/api` has no Scaladoc docs section.
+- The columns follow the docs page grid: a 300px sidebar shown down to 997px, the container's width steps (40, 48, 64,
+  80 and 96rem), a 75%/25% text/contents split with 1rem gutters, and the contents hidden below 997px, so text starts at
+  the same place as on a docs page. In the text column, the title comes before its class/object badge and attribute
+  labels are flush left.
 - `src/api-theme/api.css` sets Manrope and the brand colours, moves Scaladoc's layout under the 60px bar, and gives each
   section the size of its docs counterpart: sidebar as `.menu__link` (16px, weight 500), headings at Infima's 3/2/1.5/1rem
   in weight 800, text and tables 16px at line height 1.65, code at 90% in the site monospace, breadcrumbs and the table of

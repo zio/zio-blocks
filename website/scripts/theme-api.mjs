@@ -1,11 +1,12 @@
-// Gives the Scaladoc pages in build/api the site's navbar, favicon, fonts and colour mode (see lib/api-theme.mjs). Runs
-// after `docusaurus build`. Each page is read from static/api, as `sbt docs/generateApiDocs` wrote it, and written over
-// its copy in build/api, so running this again is safe. Without static/api there is nothing to do.
+// Gives the Scaladoc pages in build/api the site's navbar, favicon, fonts, colour mode and side menu (see
+// lib/api-theme.mjs). Runs after `docusaurus build`. Each file is read from static/api, as `sbt docs/generateApiDocs`
+// wrote it, and written over its copy in build/api, so running this again is safe. Without static/api there is nothing
+// to do.
 import { copyFile, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { themeApiPage } from './lib/api-theme.mjs';
+import { hoistSideMenu, themeApiPage } from './lib/api-theme.mjs';
 import { promptFor } from '../src/lib/prompt.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -34,6 +35,8 @@ if (!(await exists(sourceDir)) || !(await exists(apiDir))) {
     await writeFile(target, themeApiPage(await readFile(file, 'utf8'), { prompt }));
     pages++;
   }
+  const menu = JSON.parse(await readFile(join(sourceDir, 'dynamicSideMenu.json'), 'utf8'));
+  await writeFile(join(apiDir, 'dynamicSideMenu.json'), JSON.stringify(hoistSideMenu(menu)));
   await copyFile(join(root, 'src', 'api-theme', 'api.css'), join(apiDir, 'styles', 'zio-blocks.css'));
   await copyFile(join(root, 'src', 'api-theme', 'theme.js'), join(apiDir, 'scripts', 'theme.js'));
   console.log(`theme-api: gave ${pages} API pages the site navbar, favicon and theme`);

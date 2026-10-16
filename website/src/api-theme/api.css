@@ -27,6 +27,10 @@
   --code-font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
   --text-primary: var(--zb-ink);
   --border-default: var(--zb-hairline);
+  /* The docs page background */
+  --background-default: #ffffff;
+  --background-main: #ffffff;
+  --background-nav: #ffffff;
   --focus-default: var(--zb-lifted);
 }
 
@@ -261,47 +265,228 @@
    utility classes (body-small is 13px whether it is the sidebar or a sentence), so each section is set here to the size
    of its counterpart on a docs page rather than by remapping those classes. */
 body,
-#main,
-.breadcrumbs {
+#main {
   font-family: var(--body-font-family);
 }
 
-/* Sidebar, as .menu__link: 16px, weight 500, 6px vertical padding, 0.25rem between items, square corners */
-#leftColumn .side-menu .nh {
-  margin-top: 0.25rem;
-  padding-top: 0.375rem;
-  padding-bottom: 0.375rem;
-  border-radius: 0;
+/* Sidebar: the docs sidebar (Infima's .menu, with src/css/custom.css). Rows are .menu__link (16px, weight 500, 6px 12px
+   padding, 0.25rem apart, square), each level indented 12px, the caret a chevron on the right (Infima's, pointing down
+   when unfolded), no kind icons, and Infima's colours: grey links, the current page bold on a 5% tint, the pages
+   above it in the active colour. */
+:root {
+  --zb-menu-color: #606770;
+  --zb-menu-color-active: var(--zb-ultramarine);
+  --zb-menu-tint: #0000000d;
+  --zb-menu-icon-filter: none;
+  /* Infima's caret (a chevron at 50% black) as Docusaurus turns it: right when folded, down when unfolded. The brand
+     rules forbid rotation in our CSS, so each direction is its own path instead of a rotated one. */
+  --zb-menu-icon-folded: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" viewBox="0 0 24 24"><path fill="rgba(0,0,0,0.5)" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"></path></svg>');
+  --zb-menu-icon-unfolded: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" viewBox="0 0 24 24"><path fill="rgba(0,0,0,0.5)" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"></path></svg>');
 }
 
-/* Like .menu__list-item:not(:first-child): no gap above the first item */
-#leftColumn .side-menu > .ni:first-child > .nh {
-  margin-top: 0;
+:root.theme-dark {
+  --zb-menu-color: #dadde1;
+  --zb-menu-color-active: var(--zb-paper-ink);
+  --zb-menu-tint: #ffffff0d;
+  --zb-menu-icon-filter: invert(100%) sepia(94%) saturate(17%) hue-rotate(223deg) brightness(104%) contrast(98%);
 }
 
-#leftColumn .side-menu .nh > a {
-  font-size: 1rem;
-  line-height: 1.25;
-  font-weight: 500;
+/* Scrollbars: Scaladoc hides them (a 5px one in the sidebar), the docs pages keep the browser's. Setting the standard
+   scrollbar-color makes the browser ignore Scaladoc's ::-webkit-scrollbar rules and draw full-width ones again, in
+   its default colours, with Docusaurus' color-scheme per mode. */
+:root {
+  color-scheme: light;
+  --zb-scrollbar: #c1c1c1 #f1f1f1;
+}
+
+:root.theme-dark {
+  color-scheme: dark;
+  --zb-scrollbar: #6b6b6b #2b2b2b;
+}
+
+#leftColumn .side-menu,
+#main {
+  scrollbar-color: var(--zb-scrollbar);
 }
 
 /* Scaladoc's Docs/API switcher only matters on a Scaladoc site with its own docs section; /api has the API alone, and
-   the site docs are a navbar link away. Hide it and give the menu its height, starting 0.5rem down like the docs menu. */
+   the site docs are a navbar link away. Hide it and give the menu its height. */
 #leftColumn .switcher-container {
   display: none;
 }
 
 #leftColumn .side-menu {
   height: 100%;
-  padding-top: 0.5rem;
+  padding: 0.5rem 0 0.5rem 0.5rem;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  font-weight: 500;
 }
 
-/* Breadcrumbs and the table of contents: 0.8rem, as .breadcrumbs__link and .table-of-contents__link */
-.breadcrumbs {
+#leftColumn .side-menu .ni .ni {
+  padding-left: 0.75rem;
+}
+
+#leftColumn .side-menu .nh {
+  display: flex;
+  align-items: stretch;
+  margin-top: 0.25rem;
+  padding: 0;
+  border-radius: 0;
+  transition: background 200ms cubic-bezier(0.08, 0.52, 0.52, 1);
+}
+
+/* Like .menu__list-item:not(:first-child): no gap above the first row */
+#leftColumn .side-menu > .ni:first-child > .nh {
+  margin-top: 0;
+}
+
+#leftColumn .side-menu .nh:hover,
+#leftColumn .side-menu .nh.selected {
+  background: var(--zb-menu-tint);
+}
+
+#leftColumn .side-menu .nh > a {
+  flex: 1;
+  left: 0;
+  max-width: none;
+  padding: 0.375rem 0.75rem;
+  color: var(--zb-menu-color);
+  font-size: 1rem;
+  line-height: 1.25;
+  font-weight: 500;
+  transition: color 200ms cubic-bezier(0.08, 0.52, 0.52, 1);
+}
+
+#leftColumn .side-menu .nh.cs > a,
+#leftColumn .side-menu .nh.selected > a {
+  color: var(--zb-menu-color-active) !important;
+}
+
+/* The current page is bold when it is a leaf, as .menu__link--active:not(.menu__link--sublist) */
+#leftColumn .side-menu .nh.selected:not(:has(> button.ar)) > a {
+  font-weight: 700;
+}
+
+#leftColumn .side-menu .micon {
+  display: none;
+}
+
+/* The caret: Scaladoc's arrow button, moved after the link and drawn as .menu__caret */
+#leftColumn .side-menu .nh > button.ar {
+  order: 1;
+  position: static;
+  left: auto;
+  flex: none;
+  box-sizing: content-box;
+  width: auto;
+  height: auto;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.375rem 0.75rem;
+  border: none;
+  border-radius: 0;
+  background: none;
+  transition: background 200ms cubic-bezier(0.08, 0.52, 0.52, 1);
+}
+
+#leftColumn .side-menu .nh > button.ar:hover {
+  background: var(--zb-menu-tint);
+}
+
+#leftColumn .side-menu .nh > button.ar.icon-button::after {
+  content: '';
+  display: block;
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  background: var(--zb-menu-icon-folded) 50% / 2rem 2rem;
+  filter: var(--zb-menu-icon-filter);
+}
+
+#leftColumn .side-menu .nh > button.ar.icon-button.expanded::after {
+  background-image: var(--zb-menu-icon-unfolded);
+}
+
+/* Breadcrumbs, as Docusaurus draws them (Infima's .breadcrumbs at the doc page's 0.8 size): links in the text colour,
+   the current page tinted in the active colour, chevron separators, a home icon */
+:root {
+  --zb-crumb-color: var(--zb-ink);
+  --zb-crumb-color-active: var(--zb-ultramarine);
+  --zb-crumb-separator-filter: none;
+}
+
+:root.theme-dark {
+  --zb-crumb-color: var(--zb-paper-ink);
+  --zb-crumb-color-active: var(--zb-paper-ink);
+  --zb-crumb-separator-filter: invert(64%) sepia(11%) saturate(0%) hue-rotate(149deg) brightness(99%) contrast(95%);
+}
+
+#content .zb-breadcrumbs {
+  margin: 0 0 0.8rem;
+  font-family: var(--body-font-family);
+}
+
+.zb-breadcrumbs__list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.zb-breadcrumbs__item {
+  display: inline-block;
+}
+
+.zb-breadcrumbs__item:not(:last-child)::after {
+  content: ' ';
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: 0 0.5rem;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 256 256"><g><g><polygon points="79.093,0 48.907,30.187 146.72,128 48.907,225.813 79.093,256 207.093,128"/></g></g></svg>') center;
+  filter: var(--zb-crumb-separator-filter);
+  opacity: 0.5;
+}
+
+.zb-breadcrumbs__link {
+  display: inline-block;
+  padding: 0.32rem 0.64rem;
+  border-radius: 0;
+  color: var(--zb-crumb-color);
   font-size: 0.8rem;
   line-height: 1.65;
+  text-decoration: none;
+  transition: background 200ms cubic-bezier(0.08, 0.52, 0.52, 1), color 200ms cubic-bezier(0.08, 0.52, 0.52, 1);
 }
 
+#content .zb-breadcrumbs__link {
+  text-decoration: none;
+}
+
+a.zb-breadcrumbs__link:hover,
+.zb-breadcrumbs__item--active .zb-breadcrumbs__link {
+  background: var(--zb-menu-tint);
+  text-decoration: none;
+}
+
+a.zb-breadcrumbs__link:hover {
+  color: var(--zb-crumb-color);
+}
+
+.zb-breadcrumbs__item--active .zb-breadcrumbs__link {
+  color: var(--zb-crumb-color-active);
+}
+
+.zb-breadcrumbs__home {
+  position: relative;
+  top: 1px;
+  width: 1.1rem;
+  height: 1.1rem;
+  vertical-align: top;
+}
+
+/* The table of contents: 0.8rem, as .table-of-contents__link */
 #toc .toc-list a,
 #toc .toc-title {
   font-size: 0.8rem;
@@ -399,4 +584,131 @@ body,
 #content .mono-medium .signature {
   font-size: 0.9rem;
   line-height: 1.45;
+}
+
+/* Columns: the docs page grid (Infima's .container > .row with a 75% doc column and a 25% table of contents, 16px
+   gutters, 1280px at most), so text starts 16px right of a 300px sidebar as it does on a docs page. Scaladoc's own
+   grid is a 313px sidebar, 48-68px gutters and a 720px text column. */
+@media (min-width: 429px) {
+  #leftColumn {
+    box-sizing: border-box;
+    width: 300px;
+  }
+}
+
+@media (min-width: 1025px) {
+  #main {
+    width: calc(100vw - 300px);
+  }
+}
+
+#content.sidebar-shown {
+  margin-left: 300px;
+}
+
+/* Under the navbar the column starts 1rem down, as the docs .container does (Scaladoc pads it 144px) */
+#content {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin-inline: auto;
+  padding-top: calc(var(--zb-navbar-height) + 1rem);
+  padding-inline: 1rem;
+  gap: 2rem;
+  justify-content: flex-start;
+}
+
+/* The container's steps on a docs page, by viewport width (the site's Tailwind .container) */
+@media (min-width: 640px) {
+  #content {
+    max-width: 40rem;
+  }
+}
+
+@media (min-width: 768px) {
+  #content {
+    max-width: 48rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  #content {
+    max-width: 64rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  #content {
+    max-width: 80rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  #content {
+    max-width: 96rem;
+  }
+}
+
+/* Docusaurus keeps the sidebar down to 997px; Scaladoc folds it away below 1025px */
+@media (min-width: 997px) and (max-width: 1024px) {
+  #leftColumn {
+    left: 0;
+  }
+
+  #main {
+    left: auto;
+    width: calc(100vw - 300px);
+  }
+
+  #mobile-sidebar-toggle {
+    display: none;
+  }
+
+  #content.sidebar-shown {
+    margin-left: auto;
+  }
+}
+
+/* Inside the 1rem padding: 75% of the row less its 1rem gutters, then the 2rem between the columns */
+#content > div:first-child {
+  width: calc(75% - 0.5rem);
+  max-width: none;
+  flex: none;
+}
+
+#toc {
+  width: calc(25% - 1.5rem);
+  flex: none;
+}
+
+#toc-container {
+  box-sizing: border-box;
+  width: 100%;
+  top: calc(var(--zb-navbar-height) + 1rem);
+}
+
+/* Docusaurus drops the table of contents at 996px and gives the text the full width */
+@media (max-width: 996px) {
+  #toc {
+    display: none;
+  }
+
+  #content > div:first-child {
+    width: 100%;
+  }
+}
+
+/* One left edge for the text: the title first (its class/object badge after it), attribute labels flush left */
+#content .cover-header {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+}
+
+#content .cover-header > a {
+  margin-left: 1rem;
+}
+
+#content dl.attributes > dt {
+  text-align: left;
+  padding-left: 0;
 }

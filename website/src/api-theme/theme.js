@@ -67,10 +67,31 @@
     }
   });
 
+  // The side menu's top level (blocks, http) stays unfolded, like the categories of a docs sidebar. Scaladoc folds the
+  // path of the page you leave on every in-place page load, top level included, so unfold it again after each one
+  // ("dynamicPageLoad", which also fires once the menu is first drawn), except the packages the reader folded.
+  var foldedByReader = {};
+  window.addEventListener('dynamicPageLoad', function () {
+    var tops = document.querySelectorAll('#api-nav > .ni');
+    for (var i = 0; i < tops.length; i++) {
+      if (foldedByReader[tops[i].getAttribute('data-loc')]) continue;
+      tops[i].classList.add('expanded');
+      var arrow = tops[i].querySelector(':scope > .nh > button.ar');
+      if (arrow) arrow.classList.add('expanded');
+    }
+  });
+
   document.addEventListener(
     'click',
     function (e) {
       var target = e.target instanceof Element ? e.target : null;
+
+      // Remember a top-level package the reader folds or unfolds (this runs before Scaladoc toggles it).
+      var arrow = target && target.closest('#api-nav > .ni > .nh > button.ar');
+      if (arrow) {
+        var top = arrow.parentElement.parentElement;
+        foldedByReader[top.getAttribute('data-loc')] = top.classList.contains('expanded');
+      }
       // Scaladoc loads every same-origin link in place, swapping in the fetched page's #main. The navbar's site links
       // (/overview, /#catalog) are not Scaladoc pages, so stop the click before it reaches Scaladoc's handler on the
       // link itself (this listener runs first, in the capture phase) and let the browser load them normally.

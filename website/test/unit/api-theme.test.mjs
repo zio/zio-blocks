@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
-import { FAVICON, NAV_LINKS, STYLESHEET, navbarHtml, themeApiPage } from '../../scripts/lib/api-theme.mjs';
+import { FAVICON, NAV_LINKS, STYLESHEET, breadcrumbsHtml, hoistSideMenu, navbarHtml, themeApiPage } from '../../scripts/lib/api-theme.mjs';
 
 // The page skeleton Scaladoc 3.9.0 generates (zio/blocks/schema/Schema.html, trimmed to the parts the theme touches).
 const PAGE =
@@ -19,7 +19,10 @@ const PAGE =
   '<span id="project-logo" class="project-logo"><img src="../../../project-logo/zio-blocks-mark.svg"></img></span>' +
   '<span class="project-name h300">ZIO Blocks</span></span><button id="mobile-menu-close" class="icon-button close"></button></div>' +
   '<div class="mobile-menu-container body-medium"><input id="mobile-scaladoc-searchbar-input" class="scaladoc-searchbar-input" type="search">' +
-  '</input><span id="mobile-theme-toggle" class="mobile-menu-item mode"></span></div></div><div id="main"></div></div></body></html>';
+  '</input><span id="mobile-theme-toggle" class="mobile-menu-item mode"></span></div></div>' +
+  '<div id="main"><div class="breadcrumbs container"><a href="../../../index.html">ZIO Blocks</a>/<a href="../../../zio.html">zio</a>/' +
+  '<a href="../../blocks.html">zio.blocks</a>/<a href="../schema.html">zio.blocks.schema</a>/<a href="Schema.html">Schema</a></div>' +
+  '<div id="content" class="body-medium"><div><div class="cover-header"><h1 class="h600">Schema</h1></div></div></div></div></div></body></html>';
 
 const PROMPT = 'Fetch https://example.dev/start.md and "follow" <it>';
 const count = (s, needle) => s.split(needle).length - 1;
@@ -72,6 +75,40 @@ test('the API pages use the site favicon, the one docusaurus.config.js names', (
   assert.equal(count(html, 'rel="shortcut icon"'), 0);
   assert.ok(html.includes(`<link rel="icon" href="${FAVICON}">`));
   assert.ok(!html.includes('favicon.ico'));
+});
+
+test('the breadcrumbs read Home > API > packages under zio > page, at the top of the text column', () => {
+  const html = themeApiPage(PAGE, { prompt: PROMPT });
+  assert.ok(!html.includes('class="breadcrumbs container"'), "Scaladoc's trail is gone");
+  const nav = /<div id="content" class="body-medium"><div>(<nav class="zb-breadcrumbs" aria-label="Breadcrumbs">.*?<\/nav>)<div class="cover-header">/.exec(html);
+  assert.ok(nav, 'the breadcrumbs open the text column');
+  const crumbs = [...nav[1].matchAll(/<li class="([^"]*)">(?:<a (?:aria-label="Home page" )?class="zb-breadcrumbs__link" href="([^"]*)">(?:<svg[^]*?<\/svg>|<span>([^<]*)<\/span>)<\/a>|<span class="zb-breadcrumbs__link">([^<]*)<\/span>)<\/li>/g)]
+    .map(([, cls, href, label, current]) => (current ? `[${current}]` : `${label ?? 'home'} ${href}`) + (cls.includes('--active') ? ' (active)' : ''));
+  assert.deepEqual(crumbs, ['home /', 'API /api/', 'blocks ../../blocks.html', 'schema ../schema.html', '[Schema] (active)']);
+});
+
+test('on the API index the trail ends at API', () => {
+  assert.ok(
+    breadcrumbsHtml([{ href: 'index.html', label: 'ZIO Blocks' }]).endsWith(
+      '<li class="zb-breadcrumbs__item zb-breadcrumbs__item--active"><span class="zb-breadcrumbs__link">API</span></li></ul></nav>',
+    ),
+  );
+});
+
+test('the side menu starts at the packages under zio, named relative to it', () => {
+  const pkg = (name, children = []) => ({ name, location: name.split('.'), kind: 'package', children });
+  const cls = (name) => ({ name, location: ['x', name], kind: 'class', children: [] });
+  const menu = { docs: null, api: { name: 'ZIO Blocks', location: ['index'], kind: null, children: [
+    pkg('zio', [pkg('zio.blocks', [pkg('zio.blocks.schema', [cls('Schema')])]), pkg('zio.http', [cls('Header')])]),
+  ] } };
+  const hoisted = hoistSideMenu(menu);
+  const names = (items) => items.map((i) => [i.name, names(i.children)]);
+  assert.deepEqual(names(hoisted.api.children), [
+    ['blocks', [['blocks.schema', [['Schema', []]]]]],
+    ['http', [['Header', []]]],
+  ]);
+  assert.deepEqual(hoisted.api.children[0].children[0].location, ['zio', 'blocks', 'schema'], 'links keep their locations');
+  assert.throws(() => hoistSideMenu({ api: { children: [pkg('zio'), pkg('scala')] } }), /only API root/);
 });
 
 test('a page whose markup no longer matches fails loudly', () => {
