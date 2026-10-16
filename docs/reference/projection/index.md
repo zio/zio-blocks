@@ -222,7 +222,7 @@ Open the event store and the projection store yourself, through a `TransactorCac
 
 ```
 
-The files stay on disk after the program ends. When a program starts again, the events are still in `events/users.db`, and the engine continues after the last event it processed, so no event is applied twice. The files are plain SQLite databases, so `sqlite3 users/user_profiles.db` shows the rows while the program is stopped.
+The files stay on disk after the program ends. When a program starts again, the events are still in `events/users.db`, and the engine continues after the last event it processed, so no event is applied twice. That is why the program appends its events only when the event store is empty: run it a second time, and it reads the same rows back from the files. The files are plain SQLite databases, so `sqlite3 users/user_profiles.db` shows the rows while the program is stopped.
 
 ## See Also
 
