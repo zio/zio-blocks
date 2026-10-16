@@ -350,14 +350,3 @@ val program: ZIO[Scope, Throwable, ProjectionEngine] = startOnSharedCache.provid
 
 [`TestEngine`](./testing.md#testengine) creates an `InMemoryProjectionStore` for each projection and an in-memory event store for each source name, then calls `ProjectionEngine.makeWithStores` and `start` for you. The engine it wraps is available as its `engine` field, so a test can call the operations on this page with no files and no `sqlite-jdbc`. Because `start` runs inside `TestEngine.make`, a test cannot register a migration first; see [Limitations](./migration.md#limitations).
 
-## Running the Examples
-
-The projection examples that use the engine are embedded on the pages that explain them. Each file is under `projection-examples/src/main/scala/projection/examples/`, and each command runs from the repository root. `sbt "projection-examples/run"` runs all the examples in turn.
-
-- `Example1QuickStart.scala`: the quick start, an engine from `ProjectionEngine.makeWithStores` on SQLite files, polled with `repeatUntil`. Run `sbt "projection-examples/runMain projection.examples.Example1QuickStart"`; see [Quick Start](./index.md#quick-start).
-- `Example3CrossEntity.scala`: a cross-entity projection and a global one, from `ProjectionEngine.makeWithStoresVarargs` with two sources, and the shard files it creates. Run `sbt "projection-examples/runMain projection.examples.Example3CrossEntity"`; see [`routedByField`](./projection.md#routedbyfield).
-- `Example6GlobalAggregate.scala`: one global row of counters fed by two sources. Run `sbt "projection-examples/runMain projection.examples.Example6GlobalAggregate"`; see [Aggregating Fields](./projection.md#aggregating-fields).
-- `Example8SchemaEvolution.scala`: two engines in a row, the second rebuilding a changed read model in `start`. Run `sbt "projection-examples/runMain projection.examples.Example8SchemaEvolution"`; see [Full Rebuild](./migration.md#full-rebuild).
-- `Example9MigrationShortcut.scala`: the same two engines, with `ProjectionEngine#registerMigration` before `ProjectionEngine#start`, so the column is added without a rebuild. Run `sbt "projection-examples/runMain projection.examples.Example9MigrationShortcut"`; see [Adding Fields Without a Rebuild](./migration.md#adding-fields-without-a-rebuild--registermigration).
-- `Example10RebuildOnDemand.scala`: a changed handler, and a rebuild with `SchemaEvolution.rebuildWithHash` before the engine starts. Run `sbt "projection-examples/runMain projection.examples.Example10RebuildOnDemand"`; see [Rebuilding on Demand](./migration.md#rebuilding-on-demand).
-- `Example13EngineCatchUp.scala`: events appended before `ProjectionEngine#start`, applied by catch-up and read right after it, and the watermark. Run `sbt "projection-examples/runMain projection.examples.Example13EngineCatchUp"`; see [Usage](#usage).
