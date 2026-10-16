@@ -164,7 +164,7 @@ When waiting on PR checks, suppress watch output to avoid context bloat:
 - Adding dependencies (even test-only)
 - Creating or removing subprojects
 - Any repo-wide test or coverage run
-- **New modules:** When adding a new module, update the `testJVM`, `testJS`, `docJVM`, and `docJS` command aliases in `build.sbt`.
+- **New modules:** When adding a new module, update the `testJVM`, `testJS`, `docJVM`, and `docJS` command aliases in `build.sbt`, and add a published module to the `docs` project's `ScalaUnidoc / unidoc / unidocProjectFilter` so it appears in the API reference at `/api`.
 
 ### Never
 - Use coverage as starting point for test design (think first, verify with coverage)

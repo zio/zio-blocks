@@ -184,3 +184,21 @@ button[class*='backToTopButton_'] { border-radius: 0; }
 
 /* The navbar is ink in both colour modes: the onboard icon button hovers to white, not the (dark) primary. */
 .navbar button[title^='Copy the prompt']:hover { color: #ffffff; }
+
+/* Doc cards (the /guides/ and /reference/ index pages, docs/SidebarCards.jsx): flat and square like the rest of the
+   site, a hairline border that turns to the accent on hover, and none of the docs' link underline. */
+.markdown a[class*='cardContainer_'],
+.markdown a[class*='cardContainer_'] * {
+  text-decoration: none;
+}
+
+.markdown [class*='cardContainer_'] {
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.markdown [class*='cardContainer_']:hover {
+  border-color: var(--accent);
+  box-shadow: none;
+}

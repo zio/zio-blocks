@@ -53,6 +53,8 @@ const config = {
       },
     ],
   ],
+  // /guides and /reference become /guides/ and /reference/ (src/clientModules/folderIndexes.js).
+  clientModules: [require.resolve('./src/clientModules/folderIndexes.js')],
   plugins: [
     // Tailwind (utilities only, see src/css/custom.css) for the Onboard Agent button.
     async function tailwindPlugin() {
@@ -110,6 +112,9 @@ const config = {
           // A plain link, not a docSidebar item: the landing-only build has no docs plugin. activeBaseRegex keeps it
           // highlighted on every page of the guides sidebar (docs/sidebars.js).
           { to: '/guides/async-getting-started', label: 'Guides', position: 'right', activeBaseRegex: '^/guides/' },
+          // The Scaladoc is plain HTML copied into static/api by `sbt docs/generateApiDocs`, outside the Docusaurus
+          // router: pathname:// makes it a full page load and keeps the broken link checker off it.
+          { to: 'pathname:///api/', label: 'API', position: 'right', target: '_self' },
           // A hash link to the landing page: never mark it active. Docusaurus' default prefix match on `/` would light it
           // up on every docs page, now that docs are served at the site root. A pathname is never empty, so '^$' never matches.
           { to: '/#catalog', label: 'Blocks', position: 'right', activeBaseRegex: '^$' },
@@ -129,6 +134,7 @@ const config = {
             items: [
               { label: 'Docs', to: '/overview' },
               { label: 'Reference', to: '/reference/schema/' },
+              { label: 'API', to: 'pathname:///api/', target: '_self' },
               { label: 'GitHub', href: 'https://github.com/zio/zio-blocks' },
             ],
           },

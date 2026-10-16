@@ -43,6 +43,11 @@ test('zero with a unit is flat; inherit and var() stay flagged', () => {
   assert.deepEqual(findViolations('.a { border-radius: inherit; }'), ['border-radius: inherit']);
 });
 
+test('hue-rotate is a colour filter, not a rotation', () => {
+  assert.deepEqual(findViolations('.a { filter: invert(64%) hue-rotate(149deg) brightness(99%); }'), []);
+  assert.deepEqual(findViolations('.a { filter: hue-rotate(90deg); transform: rotate(3deg); }'), ['rotation or skew']);
+});
+
 test('every real rotation or skew form is flagged', () => {
   for (const css of [
     '.a { transform: rotateX(3deg); }',

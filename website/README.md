@@ -2,7 +2,7 @@
 
 One Docusaurus app serves the whole site: the landing page at `/` and the documentation at the site root (`/reference/...`, `/guides/...`; its index page is `/overview`). The docs
 content lives in `../docs/` (rendered through mdoc); the landing page content is generated from
-`../docs/index.md`, and brand SVGs are copied from `../assets/logo/`.
+`../docs/index.md`, and brand SVGs are copied from `../assets/logo/`. The API reference (Scaladoc) is served at `/api`.
 
 ## Commands
 
@@ -54,6 +54,90 @@ right (`src/components/landing/SectionRail.js`, wider than 62.5rem only) links t
 `src/lib/rail.mjs`. The rules live in `src/components/landing/landing.css` and are pinned by
 `test/unit/landing-scroll.test.mjs`.
 
+## Index pages for `/guides/` and `/reference/`
+
+`docs/guides/index.md` and `docs/reference/index.md` give the two folders an index page each. They are not entries in
+`docs/sidebars.js`: `displayed_sidebar` shows the guides or the main sidebar beside them, and `docs/SidebarCards.jsx`
+draws one card per entry of that sidebar (only the categories on `/reference/`) with Docusaurus' `DocCardList`, so a
+new guide or block group appears there without editing the page. `src/clientModules/folderIndexes.js` gives `/guides`
+and `/reference` their trailing slash in place (hosts serve the same page for both forms); a unit test checks each
+folder it lists has an index page. The cards are flattened to the brand (no shadow, square, no link underline) in
+`src/css/custom.css`.
+
+## API reference at `/api`
+
+`sbt docs/generateApiDocs` builds one unified Scaladoc (sbt-unidoc, Scala 3) for every published module and copies it
+into `static/api` (gitignored), so `yarn build` publishes it at `/api/` next to the docs, the way
+[fs2-kafka](https://typelevel.org/fs2-kafka/api/) serves its API. Cross-built modules contribute their JVM side, since
+JVM and JS share the public API. The module list is `ScalaUnidoc / unidoc / unidocProjectFilter` on the `docs` project
+in `../build.sbt`; a new published module must be added there. Source links point at the commit the docs were built
+from.
+
+The task also fixes the generated output in three ways (all in `generateApiDocs`):
+
+- Links to other zio-blocks types stay on `/api`. sbt-api-mappings, which comes with zio-sbt-website, would otherwise
+  send them to javadoc.io, which has no page for a snapshot.
+- Scaladoc's `-dynamic-side-menu` (without it, every page repeats the whole package tree and the output grows from
+  about 100 MB to 1.5 GB) comes with bugs in `scripts/ux.js` that break navigation, patched in place: menu links joined
+  with commas under a sub-path (`,api/zio.html`), link clicks calling jQuery's `$.get` though Scaladoc no longer ships
+  jQuery (no link navigated), and Back/Forward leaving the menu highlight on the page you left. Each patch fails the task
+  when its target text disappears, so a Scaladoc upgrade gets them reviewed. A fourth keeps a URL that names a section
+  rather than a member (`#attributes`) from aborting the page setup, which skipped code highlighting.
+
+Scaladoc is a separate generator with its own HTML, stylesheets and scripts, so after `docusaurus build`
+`scripts/theme-api.mjs` gives every page in `build/api` the site's look (`scripts/lib/api-theme.mjs`, assets in
+`src/api-theme/`). It reads each page from `static/api` and writes it over its copy in `build/api`, so it can be rerun:
+
+- Scaladoc's header is replaced by a copy of the site navbar (same logo, links, onboard-agent button and colour-mode
+  toggle, 60px ink bar, collapsing into the mobile menu at 996px), keeping the ids Scaladoc's scripts look up
+  (`#search-toggle`, `#mobile-menu-toggle`, a hidden version dropdown). Scaladoc's search button stays in the bar. A unit
+  test keeps its links in step with `navbar.items` in `docusaurus.config.js`.
+- URLs have no `.html`, like the docs pages: `/api/zio/blocks/chunk/Chunk`, not `Chunk.html` (an index page is its
+  folder). The files keep their names, since Netlify and `docusaurus serve` serve `Chunk.html` for `/…/Chunk`; the
+  relative links in every page, the search index (`scripts/searchData.js`) and the side menu's link builder in
+  `scripts/ux.js` drop the extension. Old `.html` links still work.
+- Nested types get folders: Scaladoc files `ChunkBuilder.Int` as `ChunkBuilder$$Int.html`, the site serves it at
+  `/api/zio/blocks/chunk/ChunkBuilder/Int` (`nestedTypePaths` reads each nested type's parent off the side menu;
+  `relocatePage` rewrites a moved page's links, root path and location for its new folder, and every link to it).
+  Objects keep Scaladoc's `$` (`Schema$` is the companion of `Schema`, `MediaTypes/application$` an object).
+- The site favicon (`favicon` in `docusaurus.config.js`) replaces Scaladoc's `favicon.ico`.
+- The window scrolls, as on a docs page, so its scrollbar runs the whole height beside a fixed navbar. Scaladoc locks
+  the body and scrolls `#main` as a pane under its header; `api.css` puts `#main` back in the page flow, fixes the
+  navbar, sidebar and overlays (search, mobile menu, sidebar button), and `theme.js` sends Scaladoc's `#main.scrollTo`
+  calls (to a `#section` on load, to the top after an in-place page load) to the window.
+- The index page sends `/api` to `/api/` first thing in `<head>` (with `<base href="/api/">` for the requests the
+  browser starts before that runs): without the slash, Scaladoc's relative paths resolve against the site root and the
+  page comes up unstyled. A Netlify redirect rule cannot do it, since a rule is skipped when a file answers the path.
+- Scaladoc's "Generated with Scaladoc" footers (one for wide screens, one at the end of the text) are removed, and the
+  sidebar runs to the bottom of the window.
+- The breadcrumbs become the docs breadcrumbs (home icon, API, the packages as the side menu names them, the page) at
+  the top of the text column.
+- The side menu (`dynamicSideMenu.json`) starts at `zio.blocks` and `zio.http` rather than the single `zio` package
+  (`hoistSideMenu`), and `theme.js` keeps that top level unfolded across page loads unless the reader folds it. It is
+  drawn as the docs sidebar: Infima's rows, colours, chevron caret on the right, 12px per level, Scaladoc's kind icons, and the
+  browser's own scrollbars (Scaladoc hides them; setting `scrollbar-color` overrides its `::-webkit-scrollbar` rules).
+  Its Docs/API switcher is hidden, since `/api` has no Scaladoc docs section.
+- The columns follow the docs page grid: a 300px sidebar shown down to 997px, the container's width steps (40, 48, 64,
+  80 and 96rem), a 75%/25% text/contents split with 1rem gutters, and the contents hidden below 997px, so text starts at
+  the same place as on a docs page. In the text column, the title comes before its class/object badge and attribute
+  labels are flush left.
+- `src/api-theme/api.css` sets Manrope and the brand colours, moves Scaladoc's layout under the 60px bar, and gives each
+  section the size of its docs counterpart: sidebar as `.menu__link` (16px, weight 500), headings at Infima's 3/2/1.5/1rem
+  in weight 800, text and tables 16px at line height 1.65, code at 90% in the site monospace, breadcrumbs and the table of
+  contents at 0.8rem. Scaladoc sizes text with utility classes (`body-small` is 13px in the sidebar and in sentences
+  alike), so the rules target sections rather than those classes.
+- `src/api-theme/theme.js` replaces Scaladoc's `scripts/theme.js`: the colour mode is the one Docusaurus keeps in
+  `localStorage.theme`, so switching it on either side carries over, and each click flips what the page shows, as the
+  site toggle does (`src/theme/ColorModeToggle`, which replaces Docusaurus' system -> light -> dark cycle, where one
+  click in three changed nothing on screen).
+  It also keeps the navbar's site links out of Scaladoc's in-place page loader.
+
+`yarn start` serves `static/api` as generated, without this skin.
+
+The navbar and footer link to it with `pathname:///api/`: Scaladoc is plain HTML outside the Docusaurus router, and
+the `pathname://` protocol makes the link a full page load and keeps it out of the broken-link checker. Without a prior
+`generateApiDocs` the build still succeeds, but `/api/` is a 404.
+
 ## Onboard your agent button
 
 The hero and the navbar (an icon next to the colour-mode toggle) have an "Onboard your agent to ZIO Blocks" button
@@ -73,7 +157,7 @@ zio/zio-http (originally zio/zio). The one deliberate difference is a square `ro
 ## CI and deployment
 
 This follows zio/zio-http: the production site is a Netlify site connected to this Git repository. Netlify builds it
-itself with `netlify.toml` and `build.sh` (which installs Java and sbt through SDKMAN, runs `sbt docs/mdoc`, then
+itself with `netlify.toml` and `build.sh` (which installs Java and sbt through SDKMAN, runs `sbt docs/mdoc docs/generateApiDocs`, then
 `yarn build`) and publishes `website/build`. The site is rebuilt only on a library release or when someone runs the
 **Deploy Website** workflow by hand (Actions > Deploy Website > Run workflow); both call a Netlify build hook from
 `.github/workflows/site.yml`, so the install line on the landing page shows the new version. A push to `main` does not
@@ -81,7 +165,7 @@ rebuild it: `netlify.toml` sets `ignore = "exit 0"`, which skips every Git-trigg
 build-hook build because of that command. Previews come from the CI workflow.
 
 GitHub Actions (`.github/workflows/ci.yml`, generated from `project/CiWorkflow.scala`) checks the site on every pull
-request: it runs `sbt docs/mdoc` and `yarn build`, uploads the build as an artifact, and `deploy-preview.yml` publishes a
+request: it runs `sbt docs/mdoc docs/generateApiDocs` and `yarn build`, uploads the build as an artifact, and `deploy-preview.yml` publishes a
 Netlify deploy preview showing both the landing page and the docs. The `landing` job runs `yarn test`,
 `yarn check:landing`, `yarn check:links` and Lighthouse (`@lhci/cli`, pinned to an exact version, config in
 `lighthouserc.json`). A 404 on a `https://zio.dev/zio-blocks/` URL is only a warning in `check:links`, since a page may
