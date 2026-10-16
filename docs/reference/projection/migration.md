@@ -137,46 +137,15 @@ Until then, the engine keeps applying events to the old table, and the events th
 Some changes need a rebuild that the engine cannot detect: a handler that now computes something else, or a change the fingerprint does not see. There are two ways to rebuild:
 
 - Delete the projection's store file while the application is stopped: `<folder>/<name>.db`, with its `-wal` and `-shm` files. For a cross-entity projection, delete its `<name>_shard_*.db` files too, and for a global projection the file is `global/<name>.db`. When the application starts, the empty store has no fingerprint and a watermark of 0, so the engine applies every stored event again as it catches up.
-- In code, call `SchemaEvolution.rebuildWithHash` on the store before the engine starts:
+- In code, call `SchemaEvolution.rebuildWithHash` on the store before the engine starts. It empties the store and applies every stored event again, with the current handlers.
 
-```scala mdoc:compile-only
-import zio.*
-import zio.blocks.projection.*
-import zio.blocks.schema.{Modifier, Schema}
+The example below runs three versions of an application on the same files. The second changes the handler to store the names in upper case, and its old rows keep their names, because nothing triggers a rebuild. The third rebuilds on demand, before the engine starts:
 
-case class UserCreated(name: String, email: String)
-object UserCreated {
-  implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
-}
+```scala mdoc:embed:projection-examples/src/main/scala/projection/examples/Example11RebuildOnDemand.scala
 
-case class UserProfile(@Modifier.id userId: String, name: String)
-object UserProfile {
-  implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
-  implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
-}
-
-// The handler now stores the name in upper case
-val projection = Projection[UserProfile]("user_profiles")
-  .from("users")
-  .routeToSelf
-  .on[UserCreated]
-  .insert((e, ctx) => UserProfile(ctx.entityId, e.name.toUpperCase))
-
-val program: ZIO[Scope, Throwable, Unit] = for {
-  cache    <- TransactorCache.make()
-  tx       <- cache.get("events/users.db")
-  users    <- SQLiteEventStore.make[UserCreated](tx)
-  profiles <- SQLiteProjectionStore.make[UserProfile]("users/user_profiles.db", cache)
-  _        <- SchemaEvolution.rebuildWithHash(profiles, users, projection) // replays every event
-  engine   <- ProjectionEngine.makeWithStores(
-                specs = List(projection),
-                stores = Map("user_profiles" -> profiles),
-                eventStores = Map("users" -> users),
-                cache = cache
-              )
-  _        <- engine.start
-} yield ()
 ```
+
+It prints `V2 user-1: Alice (not rebuilt)`, then `After rebuildWithHash, user-1: ALICE`.
 
 Neither way works for a projection that reads several sources; see [Limitations](#limitations).
 
