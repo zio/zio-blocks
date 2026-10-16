@@ -362,6 +362,13 @@ body,
   font-weight: 700;
 }
 
+/* Kind icons at 1.25rem (Scaladoc draws them at 16px), the height of a row's text and of the caret */
+#leftColumn .side-menu .micon {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 /* The caret: Scaladoc's arrow button, moved after the link and drawn as .menu__caret */
 #leftColumn .side-menu .nh > button.ar {
   order: 1;
