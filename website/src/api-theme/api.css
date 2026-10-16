@@ -73,13 +73,16 @@
 }
 
 .zb-navbar__brand img {
+  /* Docusaurus sets the logo in a 2rem box (.navbar__logo) it overflows, which leaves it 2px lower than centred */
+  position: relative;
+  top: 2px;
   height: 2.25rem;
   width: auto;
 }
 
 .zb-navbar__link {
-  display: inline-flex;
-  align-items: center;
+  /* inline-block, as .navbar__item: the external-link icon then sits on the text baseline as on docs pages */
+  display: inline-block;
   padding: 0.25rem 0.75rem;
   color: var(--zb-paper-ink);
   font-weight: 600;
@@ -101,6 +104,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* No browser button padding: it squeezed the 24px colour-mode icon to 20px */
+  padding: 0;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -164,6 +169,8 @@
 /* The hamburger sits left of the logo and opens Scaladoc's mobile menu; Docusaurus collapses its items at 996px */
 #mobile-menu-toggle.zb-navbar__toggle {
   display: none;
+  /* Scaladoc gives its toggle a 24px left margin on narrow screens; the docs toggle sits at the navbar's padding */
+  margin-left: 0;
   margin-right: 0.5rem;
   padding: 0;
   color: var(--zb-paper-ink);
