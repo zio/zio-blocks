@@ -34,16 +34,37 @@ import scala.util.control.NonFatal
  */
 object YamlFormat extends BinaryFormat("application/yaml", YamlCodecDeriver)
 
-/** Default instance of [[YamlCodecDeriver]]. */
-object YamlCodecDeriver extends YamlCodecDeriver
+/**
+ * Default instance of [[YamlCodecDeriver]]. Applies [[NameMapper.KebabCase]] to
+ * field names, matching the historical YAML behavior.
+ */
+object YamlCodecDeriver extends YamlCodecDeriver(NameMapper.KebabCase)
 
 /**
  * A [[zio.blocks.schema.derive.Deriver]] that produces [[YamlCodec]] instances
  * for schema-described types, converting between Scala values and YAML
  * representations.
+ *
+ * The derivation process can be customized through pre-configured parameters,
+ * including:
+ *   - `fieldNameMapper`: Controls how field names are transformed during
+ *     encoding and decoding.
  */
-class YamlCodecDeriver extends Deriver[YamlCodec] {
+class YamlCodecDeriver(fieldNameMapper: NameMapper = NameMapper.KebabCase) extends Deriver[YamlCodec] {
   import YamlCodec._
+
+  /**
+   * Updates the [[YamlCodecDeriver]] instance with the specified field name
+   * mapper. The field name mapper defines how field names should be transformed
+   * during encoding and decoding.
+   *
+   * @param fieldNameMapper
+   *   The [[NameMapper]] to apply for transforming field names.
+   * @return
+   *   A new instance of [[YamlCodecDeriver]] with the updated field name
+   *   mapper.
+   */
+  def withFieldNameMapper(fieldNameMapper: NameMapper): YamlCodecDeriver = new YamlCodecDeriver(fieldNameMapper)
 
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
@@ -101,9 +122,16 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
-      val recordBinding = binding.asInstanceOf[Binding.Record[A]]
-      val isRecursive   = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
-      var fieldInfos    =
+      val recordBinding                       = binding.asInstanceOf[Binding.Record[A]]
+      val isRecursive                         = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
+      var resolvedFieldNameMapper: NameMapper = null
+      modifiers.foreach {
+        case m: Modifier.fieldNaming =>
+          if (resolvedFieldNameMapper eq null) resolvedFieldNameMapper = NameMapper.fromString(m.strategy)
+        case _ =>
+      }
+      if (resolvedFieldNameMapper eq null) resolvedFieldNameMapper = fieldNameMapper
+      var fieldInfos =
         if (isRecursive) recursiveRecordCache.get.get(typeId)
         else null
       val deriveCodecs = fieldInfos eq null
@@ -116,15 +144,20 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
         while (idx < len) {
           val field        = fields(idx)
           val fieldReflect = field.value
-          val name         = field.name
+          var name: String = null
+          field.modifiers.foreach {
+            case m: Modifier.rename => if (name eq null) name = m.name
+            case _                  =>
+          }
+          if (name eq null) name = resolvedFieldNameMapper(field.name)
           fieldInfos(idx) = new FieldInfo(
-            name = NameMapper.KebabCase.apply(name),
+            name = name,
             defaultValue = getDefaultValue(fieldReflect),
             codec = D.instance(fieldReflect.metadata).force.asInstanceOf[YamlCodec[Any]],
             offset = offset,
             typeTag = Reflect.typeTag(fieldReflect),
             isOptional = fieldReflect.typeId.isOption,
-            span = new DynamicOptic.Node.Field(name)
+            span = new DynamicOptic.Node.Field(field.name)
           )
           offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
           idx += 1

@@ -477,6 +477,55 @@ object Status {
 val codec = Status.schema.derive(YamlFormat)
 ```
 
+### Field Name Mapping
+
+By default, `YamlCodecDeriver` maps record field names to **kebab-case** (e.g. `firstName` → `first-name`). You can customize this with `withFieldNameMapper`, which accepts any `NameMapper`:
+
+```scala
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+// Preserve Scala field names as-is
+val identity = YamlCodecDeriver.withFieldNameMapper(NameMapper.Identity)
+// firstName → firstName
+
+// Convert to snake_case
+val snake = YamlCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)
+// firstName → first_name
+
+// Convert to kebab-case (the default)
+val kebab = YamlCodecDeriver.withFieldNameMapper(NameMapper.KebabCase)
+// firstName → first-name
+
+// Custom transformation
+val upper = YamlCodecDeriver.withFieldNameMapper(NameMapper.Custom(_.toUpperCase))
+// firstName → FIRSTNAME
+
+case class User(firstName: String, emailAddress: String)
+
+object User {
+  implicit val schema: Schema[User] = Schema.derived
+}
+
+val codec = User.schema.derive(snake)
+```
+
+A record-level `@Modifier.fieldNaming(...)` annotation overrides the deriver default for that record, and a field-level `@Modifier.rename(...)` overrides the mapping for a single field:
+
+```scala
+import zio.blocks.schema._
+
+@Modifier.fieldNaming("snake_case")
+case class Account(firstName: String, @Modifier.rename("login") userName: String)
+
+object Account {
+  implicit val schema: Schema[Account] = Schema.derived
+}
+
+// firstName → first_name (from annotation), userName → login (from rename)
+val codec = Account.schema.derive(YamlFormat)
+```
+
 ---
 
 ## YamlOptions
