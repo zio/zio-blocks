@@ -7,7 +7,7 @@ import sbtcrossproject.CrossPlugin.autoImport.*
 import scoverage.ScoverageKeys._
 
 object BuildHelper {
-  val Scala213: String = "2.13.18"
+  val Scala213: String = "3.10.0"
   val Scala33: String  = "3.3.7" // LTS
   val Scala3: String   = "3.9.0"
   // The Scala version pinned by the external golemcloud/golem Scala SDK (which depends on this
