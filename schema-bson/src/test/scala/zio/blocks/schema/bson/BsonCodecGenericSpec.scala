@@ -18,6 +18,7 @@ package zio.blocks.schema.bson
 
 import zio.blocks.schema._
 import zio.test._
+import TestIntersections.Intersect
 
 object BsonCodecGenericSpec extends SchemaBaseSpec {
 

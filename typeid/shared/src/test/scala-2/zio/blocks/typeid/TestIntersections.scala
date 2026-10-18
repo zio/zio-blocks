@@ -17,5 +17,8 @@
 package zio.blocks.typeid
 
 // Intersection alias for tests: `with` as a type operator is an error on
-// Scala 3.10; Scala 3 uses `&`. Scala 2.13 has no `&` types.
-type Intersect[A, B] = A with B
+// Scala 3.10; Scala 3 uses `&`. Scala 2.13 has no `&` types and does not
+// allow top-level type aliases, so the alias lives in an object.
+object TestIntersections {
+  type Intersect[A, B] = A with B
+}

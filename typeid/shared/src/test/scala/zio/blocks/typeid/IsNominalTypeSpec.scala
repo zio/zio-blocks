@@ -18,6 +18,7 @@ package zio.blocks.typeid
 
 import zio.blocks.chunk.Chunk
 import zio.test._
+import TestIntersections.Intersect
 
 // ---------------------------------------------------------------------------
 // Test fixtures — defined at top level so macros can see them

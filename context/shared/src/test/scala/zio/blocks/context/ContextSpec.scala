@@ -17,6 +17,7 @@
 package zio.blocks.context
 
 import zio.test._
+import TestIntersections.Intersect
 
 object ContextSpec extends ZIOSpecDefault {
 
