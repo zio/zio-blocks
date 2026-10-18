@@ -145,7 +145,7 @@ object ContextSpec extends ZIOSpecDefault {
       },
       test("get throws for missing service when added type differs") {
         val ctx     = Context(ConsoleLogger("test"))
-        val wideCtx = ctx.asInstanceOf[Context[Logger with Database]]
+        val wideCtx = ctx.asInstanceOf[Context[Intersect[Logger, Database]]]
         val result  = try {
           wideCtx.get[Database]
           false
@@ -168,7 +168,7 @@ object ContextSpec extends ZIOSpecDefault {
       },
       test("getOption returns None for missing service") {
         val ctx     = Context(ConsoleLogger("test"))
-        val wideCtx = ctx.asInstanceOf[Context[Logger with Database]]
+        val wideCtx = ctx.asInstanceOf[Context[Intersect[Logger, Database]]]
         assertTrue(wideCtx.getOption[Database] == None)
       },
       test("getOption caches retrieved value") {
@@ -205,9 +205,9 @@ object ContextSpec extends ZIOSpecDefault {
       },
       test("update is no-op for missing service") {
         val ctx     = Context(ConsoleLogger("test"))
-        val wideCtx = ctx.asInstanceOf[Context[ConsoleLogger with Config]]
+        val wideCtx = ctx.asInstanceOf[Context[Intersect[ConsoleLogger, Config]]]
         val updated = wideCtx.update[Config](c => c.copy(debug = true))
-        assertTrue(updated.asInstanceOf[Context[ConsoleLogger with Config]].getOption[Config] == None)
+        assertTrue(updated.asInstanceOf[Context[Intersect[ConsoleLogger, Config]]].getOption[Config] == None)
       }
     ),
     suite("union (++)")(

@@ -33,7 +33,7 @@ object BsonCodecGenericSpec extends SchemaBaseSpec {
     // Generator for GenericTree[T]
     private def genLeafOf[R, A](gen: Gen[R, A]): Gen[R, GenericTree[A]] = gen.map(Leaf(_))
 
-    def genOf[R, A](gen: Gen[R, A]): Gen[R with Sized, GenericTree[A]] = Gen.sized { size =>
+    def genOf[R, A](gen: Gen[R, A]): Gen[Intersect[R, Sized], GenericTree[A]] = Gen.sized { size =>
       if (size >= 2)
         Gen.oneOf(
           genLeafOf(gen),
@@ -47,7 +47,7 @@ object BsonCodecGenericSpec extends SchemaBaseSpec {
   case class GenericRec[T](t: T, next: Option[GenericRec[T]])
   object GenericRec {
     // Generator for GenericRec[T]
-    def genOf[R, A](gen: Gen[R, A]): Gen[R with Sized, GenericRec[A]] = Gen.sized { size =>
+    def genOf[R, A](gen: Gen[R, A]): Gen[Intersect[R, Sized], GenericRec[A]] = Gen.sized { size =>
       if (size <= 1) gen.map(a => GenericRec(a, None))
       else
         for {

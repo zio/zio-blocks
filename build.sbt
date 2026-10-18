@@ -115,11 +115,29 @@ addCommandAlias(
   // the shared `Scala3Golem` constant so a future version bump only has to change one
   // place — `set`'s own expression compiler doesn't see build.sbt's `import
   // BuildHelper.*`, so the reference has to be fully qualified here.
+  // The full project-dependency closure (scope, chunk, combinators, ringbuffer,
+  // context, typeid) is included, not just streams/async: under `++3.8.3` any
+  // project not listing 3.8.3 is excluded from the switch and falls back to its
+  // default (3.9.0), whose TASTy the 3.8.3 compiler cannot read. This only
+  // became load-bearing once 3.3.7 left the cross lists (3.8.3 could read 3.3
+  // TASTy, so the old fallback was harmless).
   "; set Seq(" +
     "LocalProject(\"streamsJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
     "LocalProject(\"streamsJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
     "LocalProject(\"asyncJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
-    "LocalProject(\"asyncJS\") / crossScalaVersions += BuildHelper.Scala3Golem)"
+    "LocalProject(\"asyncJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"scopeJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"scopeJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"chunkJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"chunkJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"combinatorsJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"combinatorsJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"ringbufferJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"ringbufferJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"contextJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"contextJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"typeidJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"typeidJS\") / crossScalaVersions += BuildHelper.Scala3Golem)"
 )
 addCommandAlias(
   "asyncTestPr",
@@ -483,21 +501,11 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.sql"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jvmSettings(
-    // TODO(3.10): re-enable sql tests on next once sql interpolator/codec
-    // macros + Tracer handle 3.10; currently most specs misexpand
-    // Tracer.instance.Type on 3.10 only. Mains still compile on 3.10, and
-    // tests run fully on 2.13/3.9.
-    Test / unmanagedSources := {
-      val prev = (Test / unmanagedSources).value
-      if (scalaVersion.value.startsWith("3.10")) Nil else prev
-    }
-  )
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
@@ -572,8 +580,8 @@ lazy val `sql-zio` = project
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio"          % "2.1.27",
-      "dev.zio" %% "zio-test"     % "2.1.24" % Test,
-      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
+      "dev.zio" %% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
@@ -679,8 +687,8 @@ lazy val telemetry = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
@@ -724,8 +732,8 @@ lazy val otel = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
