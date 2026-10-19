@@ -578,3 +578,4 @@ val rowsDeleted: Int = repo.clear()
 `DELETE FROM` is transactional and precise but may be slower than `TRUNCATE` for very large tables on databases that support the `TRUNCATE` statement. When performance for bulk deletes is critical, issue a `TRUNCATE` via a custom `Frag` query instead.
 :::
 
+See also the [Build Your First Database Repository on SQLite](../../guides/your-first-sqlite-repository.md) tutorial, which builds a `Repo` step by step and runs it against SQLite.

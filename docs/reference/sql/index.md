@@ -304,3 +304,4 @@ The **`zio-blocks-sql-zio` module** provides `TransactorZIO`, a ZIO-aware wrappe
 ## See Also
 
 - **[SQL-ZIO Integration Reference](../sql-zio.md)** — Reference page for `TransactorZIO` and the ZIO `ZLayer` integration.
+- **[Build Your First Database Repository on SQLite](../../guides/your-first-sqlite-repository.md)** — Tutorial that connects to SQLite and builds a `Repo` from a derived schema, end to end.
