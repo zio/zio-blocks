@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import site from '../src/data/site.json' with { type: 'json' };
 import { titleCase } from '../src/lib/title-case.mjs';
 import { RAIL } from '../src/lib/rail.mjs';
+import { JOIN_URL, USERS } from '../src/lib/users.mjs';
 
 const html = readFileSync(new URL('../build/index.html', import.meta.url), 'utf8');
 
@@ -100,7 +101,7 @@ test('the section rail links to every landing section and sits outside the landi
   assert.deepEqual(links.map((t) => /href="#([^"]+)"/.exec(t)[1]), RAIL.map((s) => s.id));
   assert.deepEqual(links.map((t) => /aria-label="([^"]+)"/.exec(t)[1]), RAIL.map((s) => s.label));
   // Server-rendered HTML marks the first section as current; exactly one link is.
-  assert.deepEqual(links.map((t) => /aria-current="true"/.test(t)), [true, false, false, false]);
+  assert.deepEqual(links.map((t) => /aria-current="true"/.test(t)), RAIL.map((_, i) => i === 0));
   for (const s of RAIL) assert.ok(main.includes(`<section id="${s.id}"`), `no <section id="${s.id}">`);
 });
 
@@ -175,7 +176,7 @@ test('catalog has no filter controls, counter, empty-state message or buttons', 
 
 test('page order, anchors, images, and leftovers', () => {
   const ids = [...main.matchAll(/<section id="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(ids, ['hero', 'principles', 'deep-dives', 'catalog']);
+  assert.deepEqual(ids, ['hero', 'principles', 'deep-dives', 'catalog', 'users']);
   const allIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
   for (const [, target] of html.matchAll(/href="#([^"]+)"/g)) assert.ok(allIds.has(target), `dangling #${target}`);
   for (const img of html.matchAll(/<img\b[^>]*>/g)) assert.match(img[0], /\balt="[^"]+"/);
@@ -225,12 +226,13 @@ test('every title, heading and label on the landing page is in title case', () =
     'Use What You Need, Nothing More',
     'Four Blocks, in Code',
     'Take Only What You Need',
+    'Who Is Using ZIO Blocks?',
   ]);
   assert.deepEqual(
     all(/<p class="lp-label"[^>]*>([\s\S]*?)<\/p>/g)
       .map((l) => l.replace(/\u00a0/g, ' ').replace(/\s+/g, ' '))
       .filter((l) => !l.startsWith('The ')),
-    ['01 Principles', '02 Deep Dives', 'One Schema, Many Formats', '03 Block Catalog'],
+    ['01 Principles', '02 Deep Dives', 'One Schema, Many Formats', '03 Block Catalog', '04 Users'],
   );
   assert.deepEqual(all(/<p class="lp-label"[^>]*>(The [\s\S]*?)<\/p>/g), site.deepDives.flatMap(() => ['The Problem', 'The Solution']));
   assert.deepEqual(all(/<h3[^>]*>([\s\S]*?)<\/h3>/g), [
@@ -240,6 +242,50 @@ test('every title, heading and label on the landing page is in title case', () =
   const blocks = site.categories.flatMap((c) => c.blocks);
   assert.deepEqual(all(/<h4[^>]*>([\s\S]*?)<\/h4>/g), blocks.map((b) => titleCase(b.name)));
   assert.deepEqual(all(/<strong[^>]*>([\s\S]*?)<\/strong>/g, sec('principles')), site.principles.map((p) => titleCase(p.name)));
+});
+
+test('the users section links every organization by its logo and invites new users to join', () => {
+  const s = sec('users');
+  const tiles = [...s.matchAll(/<li class="lp-user">([\s\S]*?)<\/li>/g)].map((m) => m[1]);
+  assert.equal(tiles.length, USERS.length);
+  USERS.forEach((u, i) => {
+    assert.ok(tiles[i].includes(`href="${u.url}"`), `${u.name} links to ${u.url}`);
+    // One image, or a light and a dark one that CSS switches between; every one is named and sized.
+    const imgs = [...tiles[i].matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+    const logos = u.logoDark ? [[u.logo, 'lp-logo-light'], [u.logoDark, 'lp-logo-dark']] : [[u.logo, undefined]];
+    assert.equal(imgs.length, logos.length, `${u.name} logo count`);
+    logos.forEach(([src, cls], k) => {
+      assert.ok(imgs[k].startsWith(`<img src="${src}" alt="${u.name}" width="${u.width}" height="${u.height}"`), imgs[k]);
+      assert.equal(/class="([^"]*)"/.exec(imgs[k])?.[1], cls);
+      assert.equal(/--lp-logo-scale:\s*([\d.]+)/.exec(imgs[k])?.[1], u.logoScale?.toString(), `${u.name} logo scale`);
+      assert.ok(readFileSync(new URL(`../static${src}`, import.meta.url), 'utf8').startsWith('<?xml'), `${src} exists`);
+    });
+    assert.equal(text(tiles[i]), u.description);
+  });
+  const join = /<p class="lp-join">([\s\S]*?)<\/p>/.exec(s)[1];
+  assert.equal(text(join), 'Are you using ZIO Blocks? Let us know and join the list!');
+  assert.ok(join.includes(`href="${JOIN_URL}"`));
+});
+
+test('the footer carries the zio.dev credit line with the build year', () => {
+  const credit = /<div class="footer__copyright">([\s\S]*?)<\/div>/.exec(html)?.[1];
+  assert.ok(credit, 'missing the footer copyright');
+  assert.equal(text(credit), `Copyright © ${new Date().getFullYear()} ZIO Maintainers - Built with Docusaurus`);
+  assert.ok(credit.includes('<a href="https://docusaurus.io/"'));
+});
+
+test('the footer puts the logo and tagline beside three titled link columns', () => {
+  const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
+  assert.match(footer, /^<footer class="[^"]*\bzb-footer\b/);
+  assert.equal(/footer--dark/.test(footer), false, "Infima's grey dark footer is not used");
+  const brand = /<div class="zb-footer-brand">([\s\S]*?)<\/p><\/div>/.exec(footer)?.[1];
+  assert.ok(brand, 'missing the footer brand block');
+  assert.ok(brand.includes('href="/"') && brand.includes('alt="ZIO Blocks"'), 'the footer logo links home');
+  assert.equal(text(brand), 'Type-safe, modular building blocks for Scala.');
+  assert.deepEqual([...footer.matchAll(/<div class="footer__title">([^<]*)<\/div>/g)].map((m) => m[1]), ['Learn', 'Community', 'ZIO ecosystem']);
+  const hrefs = [...footer.matchAll(/class="footer__link-item"[^>]*href="([^"]+)"|href="([^"]+)"[^>]*class="footer__link-item"/g)].map((m) => m[1] ?? m[2]);
+  assert.deepEqual(hrefs, ['/overview', '/guides/', '/reference/', '/api/', 'https://github.com/zio/zio-blocks', 'https://discord.gg/2ccFBr4', 'https://zio.dev', 'https://ziohttp.com']);
+  assert.ok(footer.indexOf('zb-footer-base') > footer.indexOf('footer__links'), 'the credit line comes last');
 });
 
 test('there is no switching-cost section and no guides list on the landing page', () => {

@@ -199,6 +199,30 @@ html:has(.lp-page) { scroll-padding-top: var(--ifm-navbar-height); }
 }
 .lp-learn:hover { background: var(--accent); color: #fff; text-decoration: none; }
 .lp-badges { margin: 0; color: var(--label); font-size: 0.75rem; letter-spacing: 0.04em; }
+/* Users: one logo tile per organization, on the catalog's tile grid, logo and line centred. The logos keep their own colours. */
+.lp-users { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--seam); margin: 2rem 0 0; }
+.lp-user a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  height: 100%;
+  padding: 1.5rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  color: var(--fg);
+  text-decoration: none;
+}
+.lp-user a:hover { border-color: var(--accent); text-decoration: none; }
+.lp-user img { width: auto; height: calc(2.5rem * var(--lp-logo-scale, 1)); max-width: 100%; }
+.lp-user .lp-desc { flex: none; text-align: center; }
+/* A logo with a dark-mode variant: show the one that matches the colour mode Docusaurus sets on <html>. */
+.lp-user .lp-logo-dark, [data-theme='dark'] .lp-user .lp-logo-light { display: none; }
+[data-theme='dark'] .lp-user .lp-logo-dark { display: block; }
+.lp-join { margin: 2rem 0 0; color: var(--fg-soft); }
+.lp-join a { text-decoration: underline; text-underline-offset: 0.2em; }
+
 /* The onboard button's hover colour is the brand primary, which is too dark on the ink hero: use the lifted tone. */
 .lp-onboard button:hover { border-color: var(--lifted) !important; color: var(--lifted) !important; }
 

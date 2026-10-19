@@ -5,4 +5,5 @@ export const RAIL = [
   { id: 'principles', label: 'Principles' },
   { id: 'deep-dives', label: 'Deep Dives' },
   { id: 'catalog', label: 'Catalog' },
+  { id: 'users', label: 'Users' },
 ];
