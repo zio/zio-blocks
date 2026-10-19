@@ -133,7 +133,8 @@ const config = {
           {
             items: [
               { label: 'Docs', to: '/overview' },
-              { label: 'Reference', to: '/reference/schema/' },
+              { label: 'Guides', to: '/guides/' },
+              { label: 'Reference', to: '/reference/' },
               { label: 'API', to: 'pathname:///api/', target: '_self' },
               { label: 'GitHub', href: 'https://github.com/zio/zio-blocks' },
             ],
