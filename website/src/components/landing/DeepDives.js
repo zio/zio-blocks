@@ -55,7 +55,7 @@ export default function DeepDives() {
   return (
     <section id="deep-dives" className="lp-section lp-screen" aria-labelledby="deep-dives-title">
       <div className="lp-wrap">
-        <p className="lp-label">02 &nbsp; Deep Dives</p>
+        <p className="lp-label"><span className="lp-num">02</span> Deep Dives</p>
         <h2 id="deep-dives-title">Four Blocks, in Code</h2>
 
         <div className="lp-tablist" role="tablist" aria-label="Deep dives" hidden={!hydrated}>

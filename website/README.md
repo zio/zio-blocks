@@ -47,7 +47,9 @@ lands it under the navbar (`src/components/landing/useSectionScroll.js`; the dec
 until its edge, then the next gesture advances; nested scrollers such as code blocks keep their own wheel. An 800 ms lock
 absorbs trackpad inertia. Touch scrolling is left to the browser, docs pages are unaffected, and with
 `prefers-reduced-motion: reduce` (or no JavaScript) nothing is intercepted. Hero, Principles and Deep Dives fill one screen
-(`min-height`, so they grow rather than clip). The Hero squares drift away as Principles rises in, and Principles rows and Catalog
+(`min-height`, so they grow rather than clip). On screens wider than 82rem the Hero shows a block wall
+(`src/components/landing/ModuleField.js`): one square per catalog block, linking to its docs, in four columns stepped half a
+module apart like the logo's stair; it is decorative (`aria-hidden`, out of the tab order). The wall drifts away as Principles rises in, and Principles rows and Catalog
 headings fade up once; both use CSS scroll-driven animation inside `@supports (animation-timeline: view())`, so other
 browsers see a static page (the guard is asserted against the built stylesheet in `test/dist.test.mjs`). A fixed rail of five squares on the
 right (`src/components/landing/SectionRail.js`, wider than 62.5rem only) links to the sections; the section list lives in

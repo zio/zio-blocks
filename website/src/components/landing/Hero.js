@@ -24,6 +24,16 @@ export default function Hero() {
           <h1 id="hero-title">{headline}</h1>
           <p className="lp-lead" dangerouslySetInnerHTML={{__html: renderInline(site.lead)}} />
 
+          <div className="lp-actions">
+            <p className="lp-cta">
+              <Link className="lp-btn lp-btn-primary" to="/overview">Get started</Link>
+              <a className="lp-btn lp-btn-ghost" href="https://github.com/zio/zio-blocks">GitHub</a>
+            </p>
+            <div className="lp-onboard">
+              <OnboardAgentButton tone="onDark" />
+            </div>
+          </div>
+
           <div className="lp-codecard">
             <Highlight theme={prismThemes.dark} code={snippet} language="scala">
               {({className, style, tokens, getLineProps, getTokenProps}) => (
@@ -39,15 +49,6 @@ export default function Hero() {
               )}
             </Highlight>
           </div>
-
-          <div className="lp-onboard">
-            <OnboardAgentButton tone="onDark" />
-          </div>
-
-          <p className="lp-cta">
-            <Link className="lp-btn lp-btn-primary" to="/overview">Get started</Link>
-            <a className="lp-btn lp-btn-ghost" href="https://github.com/zio/zio-blocks">GitHub</a>
-          </p>
 
           <p className="lp-stack">Works with {site.compatibility.join(' · ')}</p>
         </div>

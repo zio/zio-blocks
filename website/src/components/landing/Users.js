@@ -40,7 +40,7 @@ export default function Users() {
   return (
     <section id="users" className="lp-section" aria-labelledby="users-title">
       <div className="lp-wrap">
-        <p className="lp-label">04 &nbsp; Users</p>
+        <p className="lp-label"><span className="lp-num">04</span> Users</p>
         <h2 id="users-title">Who Is Using ZIO Blocks?</h2>
         <p className="lp-sub">Organizations and projects that run ZIO Blocks in production.</p>
         <ul className="lp-users">

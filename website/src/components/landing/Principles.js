@@ -6,7 +6,7 @@ export default function Principles() {
   return (
     <section id="principles" className="lp-section lp-screen" aria-labelledby="principles-title">
       <div className="lp-wrap">
-        <p className="lp-label">01 &nbsp; Principles</p>
+        <p className="lp-label"><span className="lp-num">01</span> Principles</p>
         <h2 id="principles-title">Use What You Need, Nothing More</h2>
         <ol className="lp-principles">
           {site.principles.map((p, i) => (

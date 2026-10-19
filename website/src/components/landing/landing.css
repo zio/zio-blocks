@@ -6,19 +6,20 @@
 .lp-wrap { max-width: var(--lp-measure); margin-inline: auto; padding-inline: var(--lp-gutter); }
 .lp-label {
   margin: 0 0 0.75rem;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 0.9375rem;
+  font-weight: 700;
   color: var(--label);
 }
-.lp-section { border-top: 1px solid var(--rule); padding-block: clamp(3rem, 7vw, 5.5rem); }
+/* The section number: the same square the rail uses for that section, then the number in the accent colour */
+.lp-num { display: inline-flex; align-items: center; gap: 0.5rem; margin-right: 0.25rem; color: var(--fg); font-variant-numeric: tabular-nums; }
+.lp-num::before { content: ''; width: 0.625rem; height: 0.625rem; background: var(--accent); }
+.lp-section { border-top: 1px solid var(--rule); padding-block: clamp(3.5rem, 8vw, 6.5rem); }
 .lp-section h2 {
-  margin: 0 0 1rem;
-  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  margin: 0 0 1.25rem;
+  font-size: clamp(2rem, 4.4vw, 3.5rem);
   font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: -0.01em;
+  line-height: 1.04;
+  letter-spacing: -0.035em;
   text-wrap: balance;
 }
 
@@ -37,19 +38,21 @@ html:has(.lp-page) { scroll-padding-top: var(--ifm-navbar-height); }
 }
 .lp-hero > .lp-wrap, .lp-screen > .lp-wrap { width: 100%; }
 
+/* Hero buttons share the onboard button's height (2px border, 0.875rem block padding, 1.5 line height) so the row lines up */
 .lp-btn {
   display: inline-block;
-  padding: 0.7rem 1.1rem;
+  padding: 0.875rem 1.5rem;
   border: 2px solid transparent;
   font-weight: 700;
-  font-size: 0.9375rem;
+  font-size: 1rem;
+  line-height: 1.5;
   text-decoration: none;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
-.lp-btn-primary, .lp-btn-primary:hover { color: #fff; }
-.lp-btn-primary { background: var(--lifted); }
-.lp-btn-primary:hover { background: #fff; color: var(--ink); text-decoration: none; }
-.lp-btn-ghost { border-color: var(--lifted); color: var(--paper-ink); }
-.lp-btn-ghost:hover { border-color: #fff; color: var(--paper-ink); text-decoration: none; }
+.lp-btn-primary { background: var(--paper-ink); color: var(--ink); }
+.lp-btn-primary:hover { background: var(--lifted); color: #fff; text-decoration: none; }
+.lp-btn-ghost { border-color: var(--ink-rule); color: var(--paper-ink); }
+.lp-btn-ghost:hover { border-color: var(--paper-ink); color: var(--paper-ink); text-decoration: none; }
 
 /* Code surfaces: always ink, in both colour modes */
 .lp-codecard { background: var(--code-bg); color: var(--paper-ink); border: 1px solid var(--ink-rule); max-width: 40rem; }
@@ -58,7 +61,7 @@ html:has(.lp-page) { scroll-padding-top: var(--ifm-navbar-height); }
   padding: 1rem 1.25rem;
   overflow-x: auto;
   font-family: var(--ifm-font-family-monospace);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.65;
   background: transparent !important;
 }
@@ -69,82 +72,101 @@ html:has(.lp-page) { scroll-padding-top: var(--ifm-navbar-height); }
   overflow: hidden;
   background: var(--ink);
   color: var(--paper-ink);
-  padding-bottom: clamp(3rem, 8vw, 6rem);
+  padding-bottom: clamp(3rem, 7vw, 5rem);
 }
 .lp-hero .lp-inner { position: relative; }
-.lp-copy { max-width: 56rem; padding-top: clamp(2.5rem, 7vw, 5rem); }
+.lp-copy { max-width: 40rem; padding-top: clamp(2.5rem, 6vw, 4rem); }
 .lp-hero h1 {
-  margin: 0 0 1rem;
-  color: var(--paper-ink);
-  font-size: clamp(2rem, 4vw, 3rem);
+  margin: 0 0 1.5rem;
+  color: #fff;
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
   font-weight: 800;
-  line-height: 1.08;
-  letter-spacing: -0.02em;
+  line-height: 1;
+  letter-spacing: -0.04em;
   text-wrap: balance;
 }
-.lp-lead { margin: 0 0 1.75rem; max-width: 34rem; color: var(--ink-soft); font-size: 1.0625rem; }
+.lp-lead { margin: 0 0 2rem; max-width: 34rem; color: var(--ink-soft); font-size: 1.1875rem; line-height: 1.6; }
 .lp-lead strong { color: var(--paper-ink); }
-.lp-onboard { margin: 1.5rem 0 0; }
-.lp-onboard + .lp-cta { margin-top: 0.75rem; }
-.lp-cta { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.5rem 0 0; }
-.lp-stack { margin: 2rem 0 0; color: var(--muted); font-size: 0.8125rem; letter-spacing: 0.04em; }
+.lp-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0 0 2rem; }
+.lp-cta { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0; }
+.lp-stack { margin: 1.5rem 0 0; color: var(--muted); font-size: 0.875rem; }
 
-/* Module field */
-.lp-field {
-  --m: clamp(64px, 9vw, 132px);
-  position: absolute;
-  inset: 0 calc(var(--m) * -0.4) 0 auto;
-  width: calc(3 * var(--m) + 2 * var(--seam));
-  pointer-events: none;
+/*
+ * Block wall: one square module per catalog block, columns stepped half a module apart like the logo's stair, bleeding
+ * off the top and bottom edges. It stops short of the section rail on the right, and shows only on screens wide enough
+ * to keep it clear of the copy column.
+ */
+.lp-field { display: none; }
+@media (min-width: 82rem) {
+  .lp-field {
+    --m: clamp(7.5rem, 8.6vw, 8.75rem);
+    position: absolute;
+    top: calc(var(--m) * -1.25);
+    right: 2.5rem;
+    display: flex;
+    gap: var(--seam);
+  }
 }
+.lp-field-col { display: flex; flex-direction: column; gap: var(--seam); margin-top: calc(var(--step) * (var(--m) + var(--seam)) / 2); }
 .lp-sq {
-  position: absolute;
+  display: flex;
+  align-items: flex-end;
   width: var(--m);
   height: var(--m);
-  left: calc(var(--c) * (var(--m) + var(--seam)));
-  top: calc(var(--r) * (var(--m) + var(--seam)));
+  padding: 0.625rem 0.75rem;
   background: var(--field);
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  text-decoration: none;
+  transition: background-color 0.15s, color 0.15s;
 }
-@media (max-width: 720px) { .lp-field { opacity: 0.5; } }
+.lp-sq:hover { background: var(--lifted); color: #fff; text-decoration: none; }
 @media (prefers-reduced-motion: no-preference) {
-  .lp-sq { animation: lp-rise 0.6s both; animation-delay: calc(var(--i) * 70ms); }
+  .lp-sq { animation: lp-rise 0.5s both; animation-delay: calc(var(--i) * 45ms); }
   @keyframes lp-rise {
-    from { opacity: 0; transform: translateY(12px); }
+    from { opacity: 0; transform: translateY(-1.5rem); }
     to { opacity: 1; transform: none; }
   }
 }
 
-/* Principles */
-.lp-principles { margin: 2rem 0 0; border-top: 1px solid var(--rule); }
+/* Principles: five equal modules on the seam, the way every block in the logo is equal */
+ol.lp-principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--seam); margin: 2.5rem 0 0; }
 .lp-principles li {
-  display: grid;
-  grid-template-columns: 2.5rem 11rem 1fr;
-  gap: 0.25rem 1rem;
-  padding-block: 1rem;
-  border-bottom: 1px solid var(--rule);
-  align-items: baseline;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 14rem;
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
 }
-.lp-n { font-size: 0.6875rem; letter-spacing: 0.14em; color: var(--label); font-weight: 600; }
-.lp-principles strong { font-weight: 800; }
-.lp-t { color: var(--fg-soft); }
+.lp-n { color: var(--fg); font-size: 0.9375rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lp-principles strong { margin-top: 2.5rem; font-size: 1.375rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; }
+.lp-t { color: var(--fg-soft); font-size: 0.9375rem; }
 @media (max-width: 640px) {
-  .lp-principles li { grid-template-columns: 2rem 1fr; }
-  .lp-t { grid-column: 2; }
+  .lp-principles li { min-height: 0; }
+  .lp-principles strong { margin-top: 0.25rem; }
 }
 
 /* Deep dives */
-.lp-tablist { display: flex; flex-wrap: wrap; margin: 1.5rem 0; border-bottom: 1px solid var(--rule); }
+/* Tabs: a row of modules on the seam; the selected one is filled */
+.lp-tablist { display: flex; flex-wrap: wrap; gap: var(--seam); margin: 2rem 0 1.5rem; }
 .lp-tablist[hidden] { display: none; }
 .lp-tablist [role='tab'] {
-  padding: 0.75rem 1.25rem;
-  border: 0;
-  border-bottom: 3px solid transparent;
-  background: transparent;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--rule);
+  background: var(--surface);
   color: var(--fg-soft);
   font: 700 1rem/1.2 var(--ifm-font-family-base);
   cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
-.lp-tablist [role='tab'][aria-selected='true'] { color: var(--fg); border-bottom-color: var(--accent); }
+.lp-tablist [role='tab']:hover { border-color: var(--accent); color: var(--fg); }
+.lp-tablist [role='tab'][aria-selected='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .lp-panel { margin-top: 2rem; }
 .lp-panel h3 { margin: 0 0 0.5rem; font-size: 1.5rem; font-weight: 800; }
 .lp-vh { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -180,11 +202,22 @@ html:has(.lp-page) { scroll-padding-top: var(--ifm-navbar-height); }
   .lp-row[data-shared] .lp-cat[data-span='3'] { grid-column: span 3; }
 }
 .lp-cat { margin-top: 2.5rem; }
-.lp-cat h3 { margin: 0 0 0.25rem; font-size: 1.125rem; font-weight: 800; }
+.lp-cat h3 { margin: 0 0 0.25rem; font-size: 1.25rem; font-weight: 800; letter-spacing: -0.01em; }
 .lp-note { margin: 0 0 0.75rem; color: var(--fg-soft); font-size: 0.9375rem; }
 .lp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--seam); margin: 1rem 0 0; }
-.lp-tile { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; background: var(--surface); border: 1px solid var(--rule); min-width: 0; }
-.lp-tile h4 { margin: 0; font-size: 1rem; font-weight: 800; }
+.lp-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  min-width: 0;
+  transition: border-color 0.15s;
+}
+.lp-tile:hover { border-color: var(--accent); }
+.lp-tile h4 { margin: 0; font-size: 1.0625rem; font-weight: 800; letter-spacing: -0.01em; }
+.lp-tile h4 a { color: var(--fg); }
 .lp-desc { margin: 0; color: var(--fg-soft); font-size: 0.875rem; flex: 1; }
 .lp-artifact { overflow-wrap: anywhere; font-size: 0.75rem; }
 /* Badges on the left, the button on the right of one row; the button wraps to its own right-aligned line only if the tile is very narrow */
@@ -197,8 +230,8 @@ html:has(.lp-page) { scroll-padding-top: var(--ifm-navbar-height); }
   font: 700 0.8125rem/1.2 var(--ifm-font-family-base);
   text-decoration: none;
 }
-.lp-learn:hover { background: var(--accent); color: #fff; text-decoration: none; }
-.lp-badges { margin: 0; color: var(--label); font-size: 0.75rem; letter-spacing: 0.04em; }
+.lp-learn:hover, .lp-tile:hover .lp-learn { background: var(--accent); color: #fff; text-decoration: none; }
+.lp-badges { margin: 0; color: var(--label); font-size: 0.75rem; }
 /* Users: one logo tile per organization, on the catalog's tile grid, logo and line centred. The logos keep their own colours. */
 .lp-users { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--seam); margin: 2rem 0 0; }
 .lp-user a {
