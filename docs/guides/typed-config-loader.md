@@ -80,7 +80,7 @@ object BookstoreConfig {
 
 The code above:
 
-- `import zio.blocks.config._` brings in `Config`, `ConfigSource`, `Secret` and the rest of the config module.
+- `import zio.blocks.config._` brings in `Config`, [`ConfigSource`](../reference/config/config-source.md), `Secret` and the rest of the config module.
 - `DbConfig` groups the database settings. `port: Int = 5432` gives the database port a default value.
 - `password: Secret` stores the password in a `Secret` — a wrapper around a `String` whose `toString` never shows the value.
 - `BookstoreConfig` nests a `DbConfig`, gives its own `port` a default of `8080`, holds a `List[String]` of tags, and makes `discountPercent` an `Option[Int]` because not every deployment runs a discount.
@@ -131,6 +131,8 @@ def report(result: Either[::[ConfigError], BookstoreConfig]): Unit =
   }
 ```
 
+Now let's load our defaults with it:
+
 ```scala mdoc
 report(Config.load[BookstoreConfig](defaults))
 ```
@@ -140,7 +142,7 @@ The code above:
 - `Config.load[BookstoreConfig](defaults)` reads one key per field and converts each string to the field's type.
 - `report` prints the configuration on `Right`, and the message of each error on `Left`.
 
-Notice the two ports in the output. Our map has no `port` or `db.port` key, so the loader used the default values from the case classes: `8080` and `5432`. The string `"10"` became the number `10`, wrapped in `Some` because `discountPercent` is optional.
+Notice the two ports in the output. Our map has no `port` or `db.port` key, so the loader uses the default values from the case classes: `8080` and `5432`. The string `"10"` becomes the number `10`, wrapped in `Some` because `discountPercent` is optional.
 
 What happens when an optional field has no key at all? Let's remove `discountPercent` from the map and load again:
 
@@ -177,13 +179,13 @@ val yaml: ConfigSource = ConfigSource.fromYaml(bookstoreYaml, "bookstore.yaml") 
 
 The code above:
 
-- `import zio.blocks.config.yaml._` adds the `fromYaml` method to `ConfigSource`.
+- `import zio.blocks.config.yaml._` adds the `ConfigSource.fromYaml` method.
 - `bookstoreYaml` holds the file content: a store name, a featured title, a nested `db` mapping and a sequence of three tags.
 - `ConfigSource.fromYaml(bookstoreYaml, "bookstore.yaml")` parses the text and returns `Either[ConfigError, ConfigSource]`, because the text might not be valid YAML. We name the source after the file it would come from.
 - `case Left(error) => throw error` stops the program if the YAML doesn't parse. A `ConfigError` is also a `Throwable`, so it can be thrown as it is.
 
 :::tip
-To read a real file, pass its content to `fromYaml`, for example `java.nio.file.Files.readString(java.nio.file.Path.of("bookstore.yaml"))`.
+To read a real file, pass its content to `ConfigSource.fromYaml`, for example `java.nio.file.Files.readString(java.nio.file.Path.of("bookstore.yaml"))`.
 :::
 
 Now we load the configuration from the YAML source alone:
@@ -196,7 +198,7 @@ The load fails, and the message says exactly why: the YAML has no `db.password` 
 
 ## 6. Layer Environment Overrides, YAML and Defaults
 
-`ConfigSource#orElse` stacks two sources. `primary.orElse(fallback)` looks up each key in `primary` first and asks `fallback` only for keys that `primary` doesn't have. The lookup happens key by key, so one configuration value can mix fields from several sources. Chaining `orElse` builds a whole stack, with the highest priority on the left.
+`ConfigSource#orElse` stacks two sources. `primary.orElse(fallback)` looks up each key in `primary` first and asks `fallback` only for keys that `primary` doesn't have. The lookup happens key by key, so one configuration value can mix fields from several sources. Chaining `ConfigSource#orElse` builds a whole stack, with the highest priority on the left.
 
 In production, the top layer is the environment. ZIO Blocks reads it with `EnvSource`, which looks up a key such as `db.password` as an environment variable such as `DB_PASSWORD`. A documentation page can't set environment variables, so we stand in for the environment with a map source named `env` that holds two keys:
 
@@ -260,11 +262,11 @@ try Config.loadOrThrow[BookstoreConfig](yaml)
 catch { case e: ConfigLoadException => println(e.getMessage) }
 ```
 
-The code above calls `loadOrThrow` on the YAML source alone and prints the exception's message — the same report a service that fails at startup would log.
+The code above calls `Config.loadOrThrow` on the YAML source alone and prints the exception's message — the same report a service that fails at startup would log.
 
 ## 8. See Where Each Value Came From
 
-When a value surprises us, the first question is "which source set this?". `Config.loadWithProvenance` loads the configuration and also keeps the source stack, so we can ask where each key was found. Its `dump` method prints a table of every key, its value and the source that answered:
+When a value surprises us, the first question is "which source set this?". `Config.loadWithProvenance` loads the configuration and also keeps the source stack, so we can ask where each key was found. Its `ProvenanceMap#dump` method prints a table of every key, its value and the source that answered:
 
 ```scala mdoc
 Config.loadWithProvenance[BookstoreConfig](layered) match {
@@ -288,12 +290,14 @@ Inside our program, we still need the real password to connect to the database. 
 val config = Config.loadOrThrow[BookstoreConfig](layered)
 ```
 
+Next, we print the password field and the length of the real password:
+
 ```scala mdoc
 println(config.db.password)
 println(Secret.unwrap(config.db.password).length)
 ```
 
-The code above loads the layered configuration, prints the password field, which shows `<secret>`, and then prints the length of the real password returned by `Secret.unwrap` — a value our code can use without ever logging the password itself.
+The code above loads the layered configuration, prints the password field, which shows `<secret>`, and then prints the length of the real password that `Secret.unwrap` returns — a value our code can use without ever logging the password itself.
 
 ## 9. Putting It Together
 
@@ -369,7 +373,7 @@ sbt "runMain typedconfigloader.Concept3YamlExample"
 
 ### Layer Environment Overrides, YAML and Defaults
 
-This example stacks an environment stand-in, the YAML source and the defaults with `orElse` and loads the result.
+This example stacks an environment stand-in, the YAML source and the defaults with `ConfigSource#orElse` and loads the result.
 
 <details>
   <summary>config-examples/src/main/scala/typedconfigloader/Concept4LayeringExample.scala</summary>
@@ -387,7 +391,7 @@ sbt "runMain typedconfigloader.Concept4LayeringExample"
 
 ### Collect Every Error at Once
 
-This example loads layers with a bad port and no password, prints every error, and then shows the report from `loadOrThrow`.
+This example loads layers with a bad port and no password, prints every error, and then shows the report from `Config.loadOrThrow`.
 
 <details>
   <summary>config-examples/src/main/scala/typedconfigloader/Concept5ErrorsExample.scala</summary>
@@ -442,15 +446,15 @@ In this tutorial, you learned:
 
 - How a case class with a derived `Schema` describes a typed configuration, and how `Secret` keeps a password out of printed values
 - How `Config.load` reads dot-separated keys from a `ConfigSource`, and how default values and `Option` fields decide which keys are required
-- How `ConfigSource.fromYaml` flattens YAML into the same keys, and how `orElse` layers environment overrides, YAML and defaults key by key
+- How `ConfigSource.fromYaml` flattens YAML into the same keys, and how `ConfigSource#orElse` layers environment overrides, YAML and defaults key by key
 - How `Config.load` returns every error at once, and how `Config.loadOrThrow` turns them into one report at startup
-- How `Config.loadWithProvenance` and `dump` show which source supplied each value, with sensitive values redacted
+- How `Config.loadWithProvenance` and `ProvenanceMap#dump` show which source supplied each value, with sensitive values redacted
 
 You now have a solid foundation in typed configuration with ZIO Blocks. The next step is to explore the other sources and formats, and to wire configuration into the rest of your application.
 
 ## 12. Where to Go Next
 
-- **Want every way to build and combine sources?** Read [Config Source](../reference/config/config-source.md), which covers `EnvSource`, `SysPropSource`, `prefix` and key-format mapping for environment-style names.
+- **Want every way to build and combine sources?** Read [Config Source](../reference/config/config-source.md), which covers `EnvSource`, `SysPropSource`, `ConfigSource#prefix` and key-format mapping for environment-style names.
 - **Curious how fields map to keys?** [Config Decoder](../reference/config/config-decoder.md) documents the rules for nested records, sealed traits, lists and maps.
 - **Want to handle errors by kind?** [Errors](../reference/config/errors.md) lists every `ConfigError` case and how errors are combined.
 - **Using JSON or HOCON instead of YAML?** [File Formats](../reference/config/formats.md) covers all three adapters.
