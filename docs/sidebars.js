@@ -415,8 +415,15 @@ const sidebars = {
                   items: [
                     "reference/projection/projection",
                     "reference/projection/projection-engine",
-                    "reference/projection/event-store",
-                    "reference/projection/projection-store",
+                    {
+                      type: "category",
+                      label: "Stores",
+                      collapsed: false,
+                      items: [
+                        "reference/projection/event-store",
+                        "reference/projection/projection-store",
+                      ],
+                    },
                     "reference/projection/migration",
                     "reference/projection/testing",
                   ],
