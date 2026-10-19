@@ -121,21 +121,38 @@ const config = {
           { href: 'https://github.com/zio/zio-blocks', label: 'GitHub', position: 'right' },
         ],
       },
+      // Laid out by src/theme/Footer/Layout (logo and tagline beside the columns) and styled by `.zb-footer` in
+      // src/css/custom.css; the colours come from there, not from Infima's footer styles.
       footer: {
-        style: 'dark',
         logo: {
           alt: 'ZIO Blocks',
           src: 'brand/zio-blocks-logo-mono-white.svg',
+          href: '/',
           width: 160,
           height: 37,
         },
         links: [
           {
+            title: 'Learn',
             items: [
-              { label: 'Docs', to: '/overview' },
-              { label: 'Reference', to: '/reference/schema/' },
+              { label: 'Overview', to: '/overview' },
+              { label: 'Guides', to: '/guides/' },
+              { label: 'Reference', to: '/reference/' },
               { label: 'API', to: 'pathname:///api/', target: '_self' },
+            ],
+          },
+          {
+            title: 'Community',
+            items: [
               { label: 'GitHub', href: 'https://github.com/zio/zio-blocks' },
+              { label: 'Discord', href: 'https://discord.gg/2ccFBr4' },
+            ],
+          },
+          {
+            title: 'ZIO ecosystem',
+            items: [
+              { label: 'ZIO', href: 'https://zio.dev' },
+              { label: 'ZIO HTTP', href: 'https://ziohttp.com' },
             ],
           },
         ],

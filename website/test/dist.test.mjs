@@ -74,7 +74,7 @@ test('the navbar and footer carry the brand lockups and the main links', () => {
   }
   const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
   assert.match(footer, /\/brand\/zio-blocks-logo-mono-white\.svg/);
-  for (const href of ['/overview', '/reference/schema/', '/api/', 'https://github.com/zio/zio-blocks']) {
+  for (const href of ['/overview', '/reference/', '/api/', 'https://github.com/zio/zio-blocks']) {
     assert.match(footer, new RegExp(`href="${href.replace(/[./]/g, '\\$&')}"`));
   }
   // The API links point at the Scaladoc in static/api: plain links, not client-side routes, opening in the same tab.
@@ -272,6 +272,20 @@ test('the footer carries the zio.dev credit line with the build year', () => {
   assert.ok(credit, 'missing the footer copyright');
   assert.equal(text(credit), `Copyright © ${new Date().getFullYear()} ZIO Maintainers - Built with Docusaurus`);
   assert.ok(credit.includes('<a href="https://docusaurus.io/"'));
+});
+
+test('the footer puts the logo and tagline beside three titled link columns', () => {
+  const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
+  assert.match(footer, /^<footer class="[^"]*\bzb-footer\b/);
+  assert.equal(/footer--dark/.test(footer), false, "Infima's grey dark footer is not used");
+  const brand = /<div class="zb-footer-brand">([\s\S]*?)<\/p><\/div>/.exec(footer)?.[1];
+  assert.ok(brand, 'missing the footer brand block');
+  assert.ok(brand.includes('href="/"') && brand.includes('alt="ZIO Blocks"'), 'the footer logo links home');
+  assert.equal(text(brand), 'Type-safe, modular building blocks for Scala.');
+  assert.deepEqual([...footer.matchAll(/<div class="footer__title">([^<]*)<\/div>/g)].map((m) => m[1]), ['Learn', 'Community', 'ZIO ecosystem']);
+  const hrefs = [...footer.matchAll(/class="footer__link-item"[^>]*href="([^"]+)"|href="([^"]+)"[^>]*class="footer__link-item"/g)].map((m) => m[1] ?? m[2]);
+  assert.deepEqual(hrefs, ['/overview', '/guides/', '/reference/', '/api/', 'https://github.com/zio/zio-blocks', 'https://discord.gg/2ccFBr4', 'https://zio.dev', 'https://ziohttp.com']);
+  assert.ok(footer.indexOf('zb-footer-base') > footer.indexOf('footer__links'), 'the credit line comes last');
 });
 
 test('there is no switching-cost section and no guides list on the landing page', () => {

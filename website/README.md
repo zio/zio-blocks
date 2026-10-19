@@ -61,6 +61,13 @@ The last landing section lists organizations that use ZIO Blocks, one logo tile 
 organization; `test/dist.test.mjs` checks every entry renders with its link and logo. The section's "join the list" link
 opens GitHub's editor on `src/lib/users.mjs`, so adding an organization is a one-entry pull request plus its logo.
 
+## Footer
+
+Every page ends with the same footer: the logo (linking home) and the site tagline on the left, the link columns from
+`themeConfig.footer.links` in `docusaurus.config.js` on the right, and the credit line under a rule. The layout is
+`src/theme/Footer/Layout` (Docusaurus' own layout puts the logo under the links) and the styles are `.zb-footer` in
+`src/css/custom.css`: ink in light mode, the deeper code-card tone in dark mode, on the landing page's measure.
+
 ## Index pages for `/guides/` and `/reference/`
 
 `docs/guides/index.md` and `docs/reference/index.md` give the two folders an index page each. They are not entries in
