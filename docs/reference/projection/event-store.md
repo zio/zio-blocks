@@ -26,7 +26,7 @@ trait EventStore[E] {
 }
 ```
 
-The examples on this page run against a real SQLite file and show what each call returns. They share the setup below: an event type with two cases, a helper that runs an effect, and one store created with [`SQLiteEventStore.make`](#creating-a-store--make), which is described further down:
+The examples on this page run against a real SQLite file and show what each call returns. They share the setup below: an event type with two cases, a helper that runs an effect, and one store created with [`SQLiteEventStore.make`](#creating-a-store--make):
 
 ```scala mdoc:silent
 import zio.*
@@ -61,7 +61,7 @@ val store  = run(cache.get(s"$folder/users.db").flatMap(tx => SQLiteEventStore.m
 def append(entityId: String, event: E): Task[Long]
 ```
 
-`append` records `event` under the entity `entityId` and returns the sequence number the store gave it. Sequence numbers start at 1 and only grow, so they also give the order of the events. The event is saved with its tag, the case name or its `@eventTag` number, and the current time. Once it is stored, its envelope is published to the store's hub, so live subscribers see it too:
+`append` records `event` under the entity `entityId` and returns the sequence number the store gave it. Sequence numbers start at 1 and only grow, so they also give the order of the events. The event is saved with its tag, the case name or its `@eventTag` number, and the current time. Once it is stored, its envelope is published to the store's [hub](#following-new-events--subscribe):
 
 ```scala mdoc
 run(store.append("user-1", UserCreated("Alice", "alice@example.com")))
@@ -99,7 +99,7 @@ show(store.readAll(Set("EmailChanged")))
 def subscribe: Hub[EventEnvelope[E]]
 ```
 
-`subscribe` returns the store's hub, the ZIO `Hub` that every appended envelope is published to. Despite its name it does not subscribe by itself: call `subscribe` on the hub, inside a `Scope`, to get a queue of the envelopes appended from then on. Events stored earlier are not in that queue; read them with `readFrom`. The engine does both: it catches up with `readFrom`, then follows the hub:
+`subscribe` returns the store's hub, the ZIO `Hub` that every appended envelope is published to. Despite its name it does not subscribe by itself: call `subscribe` on the hub, inside a `Scope`, to get a queue of the envelopes appended from then on. Events stored earlier are not in that queue; read them with `readFrom`. The engine does both: it catches up first, then follows the hub:
 
 ```scala mdoc
 run(ZIO.scoped {
@@ -128,7 +128,7 @@ final case class EventEnvelope[+E](
 )
 ```
 
-The `seq` field is the resumption position: the engine saves it after each successful event and passes it to `readFrom` on restart so no event is re-processed. The `tag` field is the case name of the event, or its `@eventTag` number; reads can filter on it, see [Changing Events](./migration.md#changing-events).
+The engine saves `seq` as its watermark after each event it applies, and resumes after it on restart.
 
 ## SQLiteEventStore
 
@@ -238,7 +238,7 @@ object SQLiteEventStore {
 }
 ```
 
-These return the store directly instead of a `Task`, for tests that need to build one outside an effect. They create the table and its index on the calling thread, and unlike the factories above they do not check the tags in the database. As with `makeWithHub`, you pass the hub:
+These return the store directly instead of a `Task`, for tests that need to build one outside an effect. They work on the calling thread, and unlike the factories above they do not check the tags in the database. As with `makeWithHub`, you pass the hub:
 
 ```scala mdoc:silent
 val blockingHub = run(Hub.bounded[EventEnvelope[UserEvent]](16))
