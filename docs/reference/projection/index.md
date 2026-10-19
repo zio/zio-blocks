@@ -66,7 +66,7 @@ A projection keeps a read model up to date as events arrive, so queries such as 
 
 ZIO Blocks Projection addresses these by making a projection a declaration rather than a hand-rolled consumer. You state which event types a projection listens to, which entity each event belongs to, and how an event changes that entity. The engine then does the rest:
 
-- it reads historical events to catch up, then follows live events. It saves its position after every event it applies, so a restart resumes exactly where it left off;
+- it reads historical events to catch up, then follows live events. It saves its position after every event it applies, so a restart resumes where it left off;
 - it routes each event to the entity (or entities) that should see it, following the routing declared once on the projection (`routeToSelf`, `routedBy`, `routeToAll`);
 - it detects a changed schema and rebuilds the read model, with a shortcut for added fields and migrations to map old event tags to new ones;
 - it stores each projection in its own SQLite file, so read models are isolated, individually backed up, and queryable offline. Unrelated projections never wait for each other's locks or write-ahead log, as they would with one shared database.
@@ -222,7 +222,7 @@ Open the event store and the projection store yourself, through a `TransactorCac
 
 ```
 
-The files stay on disk after the program ends. When a program starts again, the events are still in `events/users.db`, and the engine continues after the last event it processed, so no event is applied twice. That is why the program appends its events only when the event store is empty: run it a second time, and it reads the same rows back from the files. The files are plain SQLite databases, so `sqlite3 users/user_profiles.db` shows the rows while the program is stopped.
+The files stay on disk after the program ends. When a program starts again, the events are still in `events/users.db`, and the engine continues after the last event it applied. That is why the program appends its events only when the event store is empty: run it a second time, and it reads the same rows back from the files. The files are plain SQLite databases, so `sqlite3 users/user_profiles.db` shows the rows while the program is stopped.
 
 ## See Also
 

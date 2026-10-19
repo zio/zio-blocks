@@ -294,7 +294,7 @@ final case class ProjectionContext(
 )
 ```
 
-`entityId` is the entity the event was recorded under and determines the routing target for `RouteToSelf`. `timestamp` is the wall-clock time at which the event was appended. `seq` is the monotonic sequence number that the engine uses as a resume watermark after a restart. `sourceEntityId` is populated when a cross-entity routing key differs from the originating entity.
+`entityId` is the entity the event was recorded under and determines the routing target for `RouteToSelf`. `timestamp` is the wall-clock time at which the event was appended. `seq` is the monotonic sequence number that the engine uses as a resume watermark after a restart. The engine always sets `sourceEntityId` to `Some(entityId)`, the event's own entity ID, also in a cross-entity projection.
 
 ### Inserting and Deleting Rows
 
@@ -440,7 +440,7 @@ Projection[UserProfile]("userProfiles")
 
 The shortcut is purely a convenience. It gives nothing that `.from("_default").routeToSelf` does not, and nothing requires you to use it.
 
-The engine looks the source name up in the event stores it was given. For `"_default"` it uses the store registered under `"_default"` if there is one, and otherwise the first store it was given. With a single event store, such as the one behind `TestEngine`, the name never matters.
+The engine looks each source name up in the event stores it was given. If no store has that name, it uses the store under `"_default"`, and if there is none, the first store in the map, so a misspelt name reads another store instead of failing. With a single event store, every source reads that store.
 
 What the shortcut does and does not do:
 - Only the first handler creates the binding. A second `on[E]` attaches to the binding that already exists, whether it is `"_default"` or one made by an earlier `from()`.
@@ -548,7 +548,7 @@ Here the cabinet has a drawer for each customer. The note says "order 7 placed, 
 
 Events are grouped by a key that is read from the event, not by the ID they were recorded under. You say which part of the event picks the drawer with the routing mode [`routedBy`](#routedby), for example `routedBy[OrderPlaced](_.customerId)`. Any source that uses `routedBy` makes the projection `CrossEntity`. Each routing key gets its own store, called a shard, next to the main one: `<basePath>/<name>_shard_<key>.db`. With SQLite each shard is its own file, such as `customer_orders_shard_alice.db`. In the file name the key is cut to 64 characters, and any character other than letters, digits, `_` and `-` is replaced by `_`. If the key cannot be read from an event, the engine uses the entity ID.
 
-The routing key only chooses the shard. A row keeps its own ID, so two rows in the same shard still need different IDs. To read a row you give its ID: the engine looks in the main store first, and then in every shard. It uses the scope to know that there are shards to look in; it does not use the key to pick one.
+The routing key only chooses the shard. A row keeps its own ID, so two rows in the same shard still need different IDs. To read a row you give its ID: the engine looks in the main store first, and then in the shards it has opened since it was created. It opens a shard when it routes the first event to it. It uses the scope to know that there are shards to look in; it does not use the key to pick one.
 
 It is the right scope for views that group things by a related entity, such as the orders of a customer or the repositories of an owner. See [Routing Methods](#defining-routes) for a full example.
 
