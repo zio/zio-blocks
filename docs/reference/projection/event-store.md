@@ -26,11 +26,10 @@ trait EventStore[E] {
 }
 ```
 
-The examples on this page run against a real SQLite file and show what each call returns. They share the setup below: an event type with two cases, a helper that runs an effect, and one store created with [`SQLiteEventStore.make`](#creating-a-store--make):
+The examples on this page share the setup below: an event type with two cases, a helper that gets the `Transactor` of a database file, and an effect that opens a store with [`SQLiteEventStore.make`](#creating-a-store--make):
 
 ```scala mdoc:silent
 import zio.*
-import zio.stream.ZStream
 import zio.blocks.projection.*
 import zio.blocks.schema.Schema
 import zio.blocks.schema.migration.Migration
@@ -43,16 +42,11 @@ object UserEvent {
 }
 import UserEvent.*
 
-// Runs an effect and returns its result
-def run[A](effect: ZIO[Any, Throwable, A]): A =
-  Unsafe.unsafe { implicit unsafe =>
-    Runtime.default.unsafe.run(effect).getOrThrowFiberFailure()
-  }
+// The Transactor of a database file, from a cache that is closed with the Scope
+def transactor(file: String) = TransactorCache.make().flatMap(_.get(file))
 
-// A fresh folder for the database files of this page
-val folder = java.nio.file.Files.createTempDirectory("event-store-docs").toString
-val cache  = run(TransactorCache.makeUnscoped())
-val store  = run(cache.get(s"$folder/users.db").flatMap(tx => SQLiteEventStore.make[UserEvent](tx)))
+// The store kept in events/users.db
+val openStore = transactor("events/users.db").flatMap(tx => SQLiteEventStore.make[UserEvent](tx))
 ```
 
 ## Appending Events — `append`
@@ -63,10 +57,14 @@ def append(entityId: String, event: E): Task[Long]
 
 `append` records `event` under the entity `entityId` and returns the sequence number the store gave it. Sequence numbers start at 1 and only grow, so they also give the order of the events. The event is saved with its tag, the case name or its `@eventTag` number, and the current time. Once it is stored, its envelope is published to the store's [hub](#following-new-events--subscribe):
 
-```scala mdoc
-run(store.append("user-1", UserCreated("Alice", "alice@example.com")))
-run(store.append("user-2", UserCreated("Bob", "bob@example.com")))
-run(store.append("user-1", EmailChanged("alice@zio.dev")))
+```scala mdoc:compile-only
+val appended = openStore.flatMap { store =>
+  for {
+    a <- store.append("user-1", UserCreated("Alice", "alice@example.com"))
+    b <- store.append("user-2", UserCreated("Bob", "bob@example.com"))
+    c <- store.append("user-1", EmailChanged("alice@zio.dev"))
+  } yield List(a, b, c) // List(1, 2, 3) on a new store
+}
 ```
 
 ## Reading Events — `readFrom` and `readAll`
@@ -80,17 +78,16 @@ def readAll(tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelop
 
 `tags` keeps only the events with one of the given tags, and an empty set, the default, keeps all of them. Which stored tags a read can return is described under [Which Stored Events Are Read](./migration.md#which-stored-events-are-read).
 
-The examples print each envelope without its timestamp, which changes on every run:
+After the three appends above, these reads return:
 
-```scala mdoc:silent
-def show(events: ZStream[Any, Throwable, EventEnvelope[UserEvent]]) =
-  run(events.map(e => (e.seq, e.tag, e.entityId, e.event)).runCollect)
-```
-
-```scala mdoc
-show(store.readAll())
-show(store.readFrom(1L))
-show(store.readAll(Set("EmailChanged")))
+```scala mdoc:compile-only
+val reads = openStore.flatMap { store =>
+  for {
+    all     <- store.readAll().runCollect                    // events 1, 2 and 3
+    after1  <- store.readFrom(1L).runCollect                 // events 2 and 3
+    changed <- store.readAll(Set("EmailChanged")).runCollect // event 3 only
+  } yield (all, after1, changed)
+}
 ```
 
 ## Following New Events — `subscribe`
@@ -101,14 +98,14 @@ def subscribe: Hub[EventEnvelope[E]]
 
 `subscribe` returns the store's hub, the ZIO `Hub` that every appended envelope is published to. Despite its name it does not subscribe by itself: call `subscribe` on the hub, inside a `Scope`, to get a queue of the envelopes appended from then on. Events stored earlier are not in that queue; read them with `readFrom`. The engine does both: it catches up first, then follows the hub:
 
-```scala mdoc
-run(ZIO.scoped {
+```scala mdoc:compile-only
+val next = openStore.flatMap { store =>
   for {
     queue <- store.subscribe.subscribe
     _     <- store.append("user-3", UserCreated("Charlie", "charlie@example.com"))
-    next  <- queue.take
-  } yield (next.seq, next.tag, next.entityId, next.event)
-})
+    env   <- queue.take // event 4, the UserCreated of user-3
+  } yield env
+}
 ```
 
 
@@ -153,12 +150,12 @@ val migration = Migration
   .newBuilder[UserEvent, UserEvent]
   .renameCase("UserRegistered", "UserCreated")
   .build
-
-val renamed = run(cache.get(s"$folder/renamed.db").flatMap(tx => SQLiteEventStore.make[UserEvent](tx, migration)))
 ```
 
-```scala mdoc
-renamed.tagInfo.aliases
+The store is then created with the migration:
+
+```scala mdoc:compile-only
+val renamed = transactor("events/renamed.db").flatMap(tx => SQLiteEventStore.make[UserEvent](tx, migration))
 ```
 
 ### The Store's Tags — `tagInfo`
@@ -167,12 +164,13 @@ renamed.tagInfo.aliases
 val tagInfo: TagInfo
 ```
 
-`tagInfo` is the [`TagInfo`](./migration.md#taginfo-and-tagresolver) the store was created with: the tags the event type has now, the old tags that were renamed to them, and the migration for old events:
+`tagInfo` is the [`TagInfo`](./migration.md#taginfo-and-tagresolver) the store was created with: the tags the event type has now, the old tags that were renamed to them, and the migration for old events. `make` works it out with `TagResolver.resolve`, so the `tagInfo` of the two stores above can be computed without a store:
 
 ```scala mdoc
-store.tagInfo.currentTags
-store.tagInfo.aliases
-renamed.tagInfo.allTags
+TagResolver.resolve[UserEvent].currentTags
+TagResolver.resolve[UserEvent].aliases
+TagResolver.resolve[UserEvent](migration).aliases
+TagResolver.resolve[UserEvent](migration).allTags
 ```
 
 ### Bringing Your Own TagInfo — `makeWithResolver`
@@ -186,12 +184,13 @@ object SQLiteEventStore {
 `makeWithResolver` takes a `TagInfo` you built yourself, for example with `TagResolver.resolve`, instead of working it out. `make` is a shortcut for it:
 
 ```scala mdoc:silent
-val info     = TagResolver.resolve[UserEvent](migration)
-val resolved = run(cache.get(s"$folder/resolved.db").flatMap(tx => SQLiteEventStore.makeWithResolver[UserEvent](tx, info)))
+val info = TagResolver.resolve[UserEvent](migration)
 ```
 
-```scala mdoc
-resolved.tagInfo == info
+The store then has `info` as its `tagInfo`:
+
+```scala mdoc:compile-only
+val resolved = transactor("events/resolved.db").flatMap(tx => SQLiteEventStore.makeWithResolver[UserEvent](tx, info))
 ```
 
 ### Choosing the Hub — `makeWithHub`
@@ -206,27 +205,22 @@ object SQLiteEventStore {
 
 `makeWithHub` uses the hub you give it instead of creating one, for example to choose its capacity or its strategy when it is full. The three overloads differ in how the tags are worked out, the same way as `make` with and without a migration, and `makeWithResolver`:
 
-```scala mdoc:silent
-val sliding = run(Hub.sliding[EventEnvelope[UserEvent]](16))
-val withHub = run(cache.get(s"$folder/hub.db").flatMap(tx => SQLiteEventStore.makeWithHub[UserEvent](tx, sliding)))
+```scala mdoc:compile-only
+// The Transactor of a file, and a new sliding hub of 16 envelopes
+def txAndHub(file: String) = transactor(file).zip(Hub.sliding[EventEnvelope[UserEvent]](16))
 
-val withHubAndMigration = run(
-  Hub.bounded[EventEnvelope[UserEvent]](16).zip(cache.get(s"$folder/hub-migration.db")).flatMap { case (hub, tx) =>
-    SQLiteEventStore.makeWithHub[UserEvent](tx, hub, migration)
-  }
-)
-val withHubAndInfo = run(
-  Hub.bounded[EventEnvelope[UserEvent]](16).zip(cache.get(s"$folder/hub-info.db")).flatMap { case (hub, tx) =>
-    SQLiteEventStore.makeWithHub[UserEvent](tx, hub, info)
-  }
-)
+val withHub = txAndHub("events/hub.db").flatMap { case (tx, hub) =>
+  SQLiteEventStore.makeWithHub[UserEvent](tx, hub)
+}
+val withHubAndMigration = txAndHub("events/hub-migration.db").flatMap { case (tx, hub) =>
+  SQLiteEventStore.makeWithHub[UserEvent](tx, hub, migration)
+}
+val withHubAndInfo = txAndHub("events/hub-info.db").flatMap { case (tx, hub) =>
+  SQLiteEventStore.makeWithHub[UserEvent](tx, hub, info)
+}
 ```
 
-```scala mdoc
-withHub.subscribe eq sliding
-withHubAndMigration.tagInfo.aliases
-withHubAndInfo.tagInfo == info
-```
+Each store publishes to the hub it was given: its `subscribe` returns that hub.
 
 ### Blocking Construction — `makeBlocking` and `makeBlockingWithResolver`
 
@@ -240,23 +234,17 @@ object SQLiteEventStore {
 
 These return the store directly instead of a `Task`, for tests that need to build one outside an effect. They work on the calling thread, and unlike the factories above they do not check the tags in the database. As with `makeWithHub`, you pass the hub:
 
-```scala mdoc:silent
-val blockingHub = run(Hub.bounded[EventEnvelope[UserEvent]](16))
-val blocking    = SQLiteEventStore.makeBlocking[UserEvent](run(cache.get(s"$folder/blocking.db")), blockingHub)
-val blockingMigration =
-  SQLiteEventStore.makeBlocking[UserEvent](run(cache.get(s"$folder/blocking-migration.db")), blockingHub, migration)
-val blockingInfo =
-  SQLiteEventStore.makeBlockingWithResolver[UserEvent](run(cache.get(s"$folder/blocking-info.db")), blockingHub, info)
-```
-
-```scala mdoc
-run(blocking.append("user-1", UserCreated("Alice", "alice@example.com")))
-blockingMigration.tagInfo.aliases
-blockingInfo.tagInfo == info
-```
-
-```scala mdoc:invisible
-run(cache.close)
+```scala mdoc:compile-only
+val blocking = for {
+  hub <- Hub.bounded[EventEnvelope[UserEvent]](16)
+  tx1 <- transactor("events/blocking.db")
+  tx2 <- transactor("events/blocking-migration.db")
+  tx3 <- transactor("events/blocking-info.db")
+} yield (
+  SQLiteEventStore.makeBlocking[UserEvent](tx1, hub),
+  SQLiteEventStore.makeBlocking[UserEvent](tx2, hub, migration),
+  SQLiteEventStore.makeBlockingWithResolver[UserEvent](tx3, hub, info)
+)
 ```
 
 ## See Also
