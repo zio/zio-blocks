@@ -133,23 +133,66 @@ html:has(.lp-page) { scroll-padding-top: var(--ifm-navbar-height); }
   }
 }
 
-/* Principles: five equal modules on the seam, the way every block in the logo is equal */
-ol.lp-principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--seam); margin: 2.5rem 0 0; }
+/*
+ * Principles. Narrow screens: a stack of equal modules. Wide screens: the logo's construction at section scale. The
+ * five principles are its five blocks on the ultramarine ground (lifted blue in dark mode, as the on-dark logo): the
+ * first and last span all four columns as the bars, the middle three are the stair at columns 4, 3 and 2. The seams
+ * and the cells the stair leaves empty show the ground, and the heading sits in that empty ground.
+ */
+ol.lp-principles { display: grid; gap: var(--seam); margin: 2rem 0 0; }
 .lp-principles li {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  min-height: 14rem;
+  gap: 0.5rem;
   padding: 1.25rem;
   background: var(--surface);
   border: 1px solid var(--rule);
 }
 .lp-n { color: var(--fg); font-size: 0.9375rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.lp-principles strong { margin-top: 2.5rem; font-size: 1.375rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; }
+.lp-principles strong { margin-top: 0.25rem; font-size: 1.375rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; }
 .lp-t { color: var(--fg-soft); font-size: 0.9375rem; }
-@media (max-width: 640px) {
-  .lp-principles li { min-height: 0; }
-  .lp-principles strong { margin-top: 0.25rem; }
+@media (min-width: 56rem) {
+  #principles { padding-block: clamp(2.5rem, 5vw, 4rem); }
+  .lp-z {
+    --ground: var(--ultramarine);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: auto repeat(3, 1fr) auto;
+    gap: var(--seam);
+    margin-top: 1.25rem;
+    padding: clamp(1rem, 2vw, 1.75rem);
+    background: var(--ground);
+  }
+  [data-theme='dark'] .lp-z { --ground: var(--lifted); }
+  .lp-section .lp-z h2 { grid-area: 2 / 1 / 4 / 3; align-self: center; margin: 0; padding-right: 1.5rem; color: #fff; }
+  ol.lp-principles { display: contents; }
+  /* Each block: number and name on one line, the text under both */
+  .lp-principles li {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr;
+    align-items: baseline;
+    align-content: start;
+    gap: 0.375rem 0;
+    padding: 1rem 1.25rem;
+    background: #fff;
+    border: 0;
+    color: var(--ink);
+  }
+  .lp-principles strong { margin: 0; font-size: 1.25rem; }
+  .lp-principles .lp-t { grid-column: 1 / -1; font-size: 0.875rem; line-height: 1.55; }
+  .lp-principles .lp-n { color: var(--ink); }
+  .lp-principles .lp-t { color: #4a5470; }
+  .lp-principles li:nth-child(2) { grid-area: 2 / 4; }
+  .lp-principles li:nth-child(3) { grid-area: 3 / 3; }
+  .lp-principles li:nth-child(4) { grid-area: 4 / 2; }
+  /* The bars: number, name and text in one row, the name as wide as one column */
+  .lp-principles li:nth-child(1), .lp-principles li:nth-child(5) {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 2.5rem calc((100% - 3 * var(--seam)) / 4 - 2.5rem) 1fr;
+    gap: 0;
+  }
+  .lp-principles li:nth-child(1) .lp-t, .lp-principles li:nth-child(5) .lp-t { grid-column: 3; font-size: 0.9375rem; }
 }
 
 /* Deep dives */
