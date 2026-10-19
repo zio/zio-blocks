@@ -42,6 +42,14 @@ trait ProjectionStore[A] {
 }
 ```
 
+## Motivation
+
+Events record everything that happened, but they answer questions such as "what is Alice's email now?" badly: you would have to replay all of her events every time. A read model keeps the current answer instead, one row per user, and updates it as events arrive.
+
+`ProjectionStore[A]` is where those rows live. Next to the rows it keeps the watermark, so that the engine knows where to continue after a restart, and a fingerprint of the row type, so that the engine notices when the row class changes. Handlers never write SQL: the engine turns their actions into calls on the store. The same interface works on a SQLite file in production and on an in-memory map in tests.
+
+## How the Methods Work
+
 `ProjectionStore#upsert` uses `INSERT ... ON CONFLICT DO UPDATE` so no read-before-write is needed. `ProjectionStore#updateFields` runs inside a single transaction: it inserts a default row first with `INSERT OR IGNORE`, then runs one `UPDATE` for each `FieldUpdate`.
 
 `recreateTable` and `addColumn` are what [schema evolution](./migration.md#changing-the-read-model) uses. A full rebuild calls `recreateTable` to start from an empty table, and the migration shortcut calls `addColumn` for each new field. The defaults only truncate the rows and do nothing, which is what the in-memory store uses. `SQLiteProjectionStore` overrides both: `recreateTable` drops and recreates the table, and `addColumn` adds the column if it does not exist yet, after checking the name against `^[a-zA-Z_][a-zA-Z0-9_]*$`.
