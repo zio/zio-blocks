@@ -82,7 +82,7 @@ The code above:
 
 - `import zio.blocks.config._` brings in `Config`, [`ConfigSource`](../reference/config/config-source.md), `Secret` and the rest of the config module.
 - `DbConfig` groups the database settings. `port: Int = 5432` gives the database port a default value.
-- `password: Secret` stores the password in a `Secret` — a wrapper around a `String` whose `toString` never shows the value.
+- `password: Secret` stores the password in a `Secret` — a wrapper around a `String` whose `Secret#toString` never shows the value.
 - `BookstoreConfig` nests a `DbConfig`, gives its own `port` a default of `8080`, holds a `List[String]` of tags, and makes `discountPercent` an `Option[Int]` because not every deployment runs a discount.
 - `implicit val schema` derives the schema at compile time. `Schema.derived` also derives the schemas for `DbConfig`, `List[String]` and `Option[Int]`, and `Secret` already ships with one.
 
@@ -280,7 +280,7 @@ The code above:
 - `Config.loadWithProvenance[BookstoreConfig](layered)` returns `Either[::[ConfigError], ProvenanceMap[BookstoreConfig]]`. On success, `provenance.value` holds the loaded configuration.
 - `provenance.dump()` builds the table as a `String`, sorted by key.
 
-Notice two things in the table. First, each key names the layer that supplied it: `env`, `bookstore.yaml` or `defaults`. Second, the value of `db.password` is shown as `<secret>`. `dump` hides the value of every key whose name looks sensitive — names containing words such as `password`, `secret` or `token`. Redaction goes by the key name, not by the field's type, so give every secret setting a name that says what it is.
+Notice two things in the table. First, each key names the layer that supplied it: `env`, `bookstore.yaml` or `defaults`. Second, the value of `db.password` is shown as `<secret>`. `ProvenanceMap#dump` hides the value of every key whose name looks sensitive — names containing words such as `password`, `secret` or `token`. Redaction goes by the key name, not by the field's type, so give every secret setting a name that says what it is.
 
 The table lists keys that a source supplied. The database port came from the case-class default, not from a source, so it has no row.
 
