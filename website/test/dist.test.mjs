@@ -259,6 +259,13 @@ test('the users section links every organization by its logo and invites new use
   assert.ok(join.includes(`href="${JOIN_URL}"`));
 });
 
+test('the footer carries the zio.dev credit line with the build year', () => {
+  const credit = /<div class="footer__copyright">([\s\S]*?)<\/div>/.exec(html)?.[1];
+  assert.ok(credit, 'missing the footer copyright');
+  assert.equal(text(credit), `Copyright © ${new Date().getFullYear()} ZIO Maintainers - Built with Docusaurus`);
+  assert.ok(credit.includes('<a href="https://docusaurus.io/"'));
+});
+
 test('there is no switching-cost section and no guides list on the landing page', () => {
   assert.equal(/switching/i.test(main), false);
 });
