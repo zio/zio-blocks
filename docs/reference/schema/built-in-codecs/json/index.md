@@ -78,6 +78,7 @@ JsonSchema (validate or generate)
 ```
 
 **Type Relationships:**
+
 - `Json` is the central value type; all operations start with or produce it
 - `JsonSelection` provides fluent navigation through nested `Json` structures
 - `JsonCodec` bridges Scala types ↔ `Json` with configurable `WriterConfig` and `ReaderConfig`
@@ -293,3 +294,5 @@ val dynamicPatch: DynamicPatch = jsonPatch.toDynamicPatch
 - **[JsonDiffer](./json-differ.md)** — Diff algorithm computing minimal patches. Uses smart strategies per type: NumberDelta for numbers, LCS-based StringEdit for strings, ArrayEdit with insertion/deletion for arrays, and ObjectEdit for fields.
 
 - **[JSON Schema](./json-schema.md)** — Full JSON Schema 2020-12 support for validation and code generation. Derive schemas from Scala types, validate JSON, construct schemas manually with builders, and combine with logical operators.
+
+See also the [Your First Schema](../../../../guides/your-first-schema.md) tutorial, which round-trips a type through JSON end to end.

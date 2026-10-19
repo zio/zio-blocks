@@ -407,3 +407,5 @@ The API is the same—just import `zio.blocks.schema._` and the appropriate synt
 | `applyPatchStrict` | `A`           | `Either[SchemaError, A]` | Apply patch (strict)           |
 
 All methods require an implicit/given `Schema[A]` in scope.
+
+See also the [Your First Schema](../../guides/your-first-schema.md) tutorial for a step-by-step walkthrough of `toJsonString` and `fromJson`.
