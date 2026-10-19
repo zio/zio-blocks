@@ -390,3 +390,5 @@ Keep `rawValue` as the original string even when `value` is transformed. Provena
 `ConfigSource` is the input to every other part of the module: `ConfigDecoder#decode` takes one, `Config.wire` injects one, and `FlagSource.Registry` accepts one because `ConfigSource` extends `FlagSource`. It depends only on `Maybe` from `zio-blocks-maybe`.
 
 See [Config Decoder](./config-decoder.md) for how a source becomes a typed value, [Errors](./errors.md) for what a failed lookup produces, and [File Formats](./formats.md) for the YAML, JSON, and HOCON constructors.
+
+See also the [Build a Typed Configuration Loader](../../guides/typed-config-loader.md) tutorial, which composes sources into a layered chain and prints where each value came from.
