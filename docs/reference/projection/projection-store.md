@@ -42,6 +42,10 @@ trait ProjectionStore[A] {
 }
 ```
 
+:::note
+You rarely call these methods yourself: the engine does. You create a store to pass to `ProjectionEngine.makeWithStores`, or implement the trait for another database.
+:::
+
 ## Motivation
 
 Events record everything that happened, but they answer questions such as "what is Alice's email now?" badly: you would have to replay all of her events every time. A read model keeps the current answer instead, one row per user, and updates it as events arrive.
