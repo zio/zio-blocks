@@ -46,6 +46,8 @@ val jsonStr = alice.toJsonString                      // {"name":"Alice","age":3
 val parsed  = """{"name":"Bob","age":25}""".fromJson[Person]
 ```
 
+New to ZIO Blocks? Start with the [Your First Schema](./guides/your-first-schema.md) tutorial.
+
 The four blocks below get a full walkthrough because they have no close
 equivalent elsewhere in Scala. Every other block is one row away in the catalog,
 and each row links to its own reference page.
@@ -236,6 +238,7 @@ val updated = Person.age.replace(person, 31)
 
 ### Learn More
 
+- [Your First Schema](./guides/your-first-schema.md) — a getting-started tutorial: describe a type once, round-trip it through JSON, and read decode errors
 - [Schema reference](./reference/schema/index.md) — the full API surface, from `Reflect` and `Binding` through optics, validation, and schema evolution
 - [Migrating from ZIO Schema](./guides/zio-schema-migration.md) — a step-by-step port from ZIO Schema 1.x
 
@@ -491,6 +494,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ## Guides
 
+- [Your First Schema: Round-Trip a Type Through JSON](./guides/your-first-schema.md) - Start here: describe a type once with `Schema`, then encode, decode, and read errors
 - [Getting Started with Async](./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
 - [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
 - [Getting Started with Mux](./guides/getting-started-with-mux.md) - Manage multiplexed bidirectional message streams with capacity limits
