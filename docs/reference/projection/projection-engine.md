@@ -27,17 +27,17 @@ The class has a private constructor, so engines are created with the factories o
 ```scala
 final class ProjectionEngine private[projection] (
   // the projections, their stores, the event stores and the cache are private
-  val config: ProjectionEngineConfig
+  val config: ProjectionEngineConfig // the configuration the engine was created with
   // ...
 ) {
-  def transactorCache: TransactorCache
+  def transactorCache: TransactorCache // the cache the engine opens SQLite files with
   def registerMigration[Old, New](spec: Projection[New], migration: Migration[Old, New]): Task[Unit]
   def start: ZIO[Scope, Nothing, Unit]
   def query[A](spec: Projection[A], entityId: String): Task[Option[A]]
   def queryByName[A](specName: String, entityId: String): Task[Option[A]]
   def getLastProcessedSeq[A](spec: Projection[A]): Task[Long]
-  def storesMap: Map[String, ProjectionStore[_]]
-  def eventStoresMap: Map[String, EventStore[_]]
+  def storesMap: Map[String, ProjectionStore[_]] // the primary store of each projection, by name; no shards
+  def eventStoresMap: Map[String, EventStore[_]] // the event stores, by source name
 }
 ```
 
@@ -205,7 +205,7 @@ val smallHub: ZIO[Scope, Throwable, SQLiteEventStore[UserCreated]] = for {
 
 ## Core Operations
 
-An engine is started once, then queried; the operations below cover starting it, reading rows back, registering a migration, and reaching its stores.
+An engine is started once, then queried; the operations below cover starting it, reading rows back and registering a migration.
 
 ### Starting the Engine — `start`
 
@@ -228,6 +228,16 @@ It runs these steps in order:
 Steps 2 to 4 run for one source after another, not in parallel. `start` returns when every source has caught up and its live fiber is running. A source whose catch-up fails is logged with `bind failed` and skipped, and it gets no live fiber. With `lazyRebuild`, `start` does not wait for the pre-warm.
 
 `start` has no error type: a failing source or rebuild is logged, not returned. Its fibers are forked in the `Scope` it runs in, so closing that `Scope` stops the engine. Wrap the program in `ZIO.scoped`, as [Usage](#usage) does, or run it in a `ZIOAppDefault`, which provides a `Scope` for the whole application.
+
+:::note[Failed events]
+The engine logs an event that fails and goes on with the next one. An event fails when:
+
+- its handler throws;
+- no handler matches it, which is logged at debug level only;
+- the store rejects the action.
+
+The watermark moves only after an event succeeds. So the next event that succeeds moves it past the failed one, and the failed event is never retried.
+:::
 
 ### Reading Rows — `query`, `queryByName` and `getLastProcessedSeq`
 
@@ -315,7 +325,40 @@ Two limits apply; see [Limitations](./migration.md#limitations):
 - A rebuild replays only one event store: the one `start` uses for the projection's first source.
 - An engine without event stores, made with `make` or `makeWithConfig`, changes nothing and keeps the old fingerprint.
 
+## Connection Management
+
+The SQLite stores and the engine open their database files through a `TransactorCache`. It keeps one `Transactor`, the [SQL module](../sql/index.md)'s handle on a database file, for each file path:
+
+```scala
+object TransactorCache {
+  def make(maxSize: Int = 256): ZIO[Scope, Nothing, TransactorCache]
+  def makeUnscoped(maxSize: Int = 256): UIO[TransactorCache]
+  def live(maxSize: Int = 256): ZLayer[Scope, Nothing, TransactorCache]
+  def liveConfig(config: TransactorCacheConfig): ZLayer[Scope, Nothing, TransactorCache]
+}
+
+trait TransactorCache {
+  def get(path: String): Task[Transactor]
+  def evict(path: String): Task[Unit]
+  def close: Task[Unit]
+  def size: Task[Int]
+}
+```
+
+- **Share one cache.** Create it once and give it to the projection stores and the engine. Open each event store on the `Transactor` that `get` returns for its file. The [Usage](#usage) example does this.
+- **Closing it.** `make` closes the cache when its `Scope` closes. `makeUnscoped` creates one that you close yourself with `close`. `live` and `liveConfig` provide one as a `ZLayer`; `liveConfig` takes the size as a `TransactorCacheConfig(maxSize)`.
+- **Its size.** `maxSize`, 256 by default, is how many file paths the cache keeps. When it is full, it drops the least recently used path, and the next `get` for that file sets it up again. A `maxSize` of 0 or less means no limit. `evict` drops one path, and `size` returns how many paths it keeps.
+
 ## Testing
 
 [`TestEngine`](./testing.md#testengine) creates an `InMemoryProjectionStore` for each projection and an in-memory event store for each source name, then calls `ProjectionEngine.makeWithStores` and `start` for you. The engine it wraps is available as its `engine` field, so a test can call the operations on this page with no files and no `sqlite-jdbc`. Because `start` runs inside `TestEngine.make`, a test cannot register a migration first; see [Limitations](./migration.md#limitations).
+
+## See Also
+
+- [Projection[A]](./projection.md) — the descriptor the engine runs: its sources, routing, handlers and actions.
+- [EventStore[E]](./event-store.md) — where the engine reads events from, during catch-up and live.
+- [ProjectionStore[A]](./projection-store.md) — where the engine writes the rows and keeps the watermark.
+- [Migration](./migration.md) — what `start` does when the row type or the events change.
+- [Testing](./testing.md) — `TestEngine`, which runs the engine on in-memory stores.
+- [SQL Module](../sql/index.md) — the `Transactor` behind the SQLite stores.
 
