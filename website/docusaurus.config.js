@@ -42,9 +42,9 @@ const config = {
               // Docs live at the site root (no /docs prefix). The landing page owns `/`, so scripts/set-docs-home.mjs gives the docs home the slug /overview.
               routeBasePath: '/',
               sidebarPath: require.resolve('../docs/sidebars.js'),
-              // docs/plans holds internal planning notes: keep them in the repo but out of the site. This replaces
+              // docs/plans and docs/dev hold internal planning notes: keep them in the repo but out of the site. This replaces
               // Docusaurus' default excludes, so they are repeated here.
-              exclude: ['**/_*.{js,jsx,ts,tsx,md,mdx}', '**/_*/**', '**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**', 'plans/**'],
+              exclude: ['**/_*.{js,jsx,ts,tsx,md,mdx}', '**/_*/**', '**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**', 'plans/**', 'dev/**'],
             },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -81,7 +81,7 @@ const config = {
               docsDir: 'docs',
               includeBlog: false,
               // Keep internal planning notes out of llms.txt and the per-page markdown too.
-              ignoreFiles: ['plans/**'],
+              ignoreFiles: ['plans/**', 'dev/**'],
               // Docs are served at the site root, so drop the docs/ directory from the generated markdown paths: the links
               // in llms.txt are then /<page>.md, next to the pages they describe.
               preserveDirectoryStructure: false,
