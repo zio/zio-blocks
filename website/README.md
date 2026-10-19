@@ -57,7 +57,7 @@ right (`src/components/landing/SectionRail.js`, wider than 62.5rem only) links t
 ## Who is using ZIO Blocks
 
 The last landing section lists organizations that use ZIO Blocks, one logo tile each. The list lives in
-`src/lib/users.mjs` (name, link, logo path and size, one-line description, and an optional dark-mode logo for a logo drawn in one dark colour) and the logos in `static/img/users/`, one SVG per
+`src/lib/users.mjs` (name, link, logo path and size, one-line description, and an optional dark-mode logo for a logo drawn in one dark colour, and an optional `logoScale` to enlarge a logo whose wordmark fills only part of its height) and the logos in `static/img/users/`, one SVG per
 organization; `test/dist.test.mjs` checks every entry renders with its link and logo. The section's "join the list" link
 opens GitHub's editor on `src/lib/users.mjs`, so adding an organization is a one-entry pull request plus its logo.
 

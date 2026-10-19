@@ -215,7 +215,7 @@ html:has(.lp-page) { scroll-padding-top: var(--ifm-navbar-height); }
   text-decoration: none;
 }
 .lp-user a:hover { border-color: var(--accent); text-decoration: none; }
-.lp-user img { width: auto; height: 2.5rem; max-width: 100%; }
+.lp-user img { width: auto; height: calc(2.5rem * var(--lp-logo-scale, 1)); max-width: 100%; }
 .lp-user .lp-desc { flex: none; text-align: center; }
 /* A logo with a dark-mode variant: show the one that matches the colour mode Docusaurus sets on <html>. */
 .lp-user .lp-logo-dark, [data-theme='dark'] .lp-user .lp-logo-light { display: none; }

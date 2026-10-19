@@ -10,6 +10,7 @@ function Logo({src, user, mode}) {
       width={user.width}
       height={user.height}
       loading="lazy"
+      {...(user.logoScale ? {style: {'--lp-logo-scale': user.logoScale}} : {})}
       {...(mode ? {className: `lp-logo-${mode}`} : {})}
     />
   );

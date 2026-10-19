@@ -1,7 +1,8 @@
 // Organizations that use ZIO Blocks, shown in the landing page's "Who Is Using ZIO Blocks?" section in this order.
 // `logo` is a path under static/ (one SVG per organization in static/img/users/); `logoDark`, when present, replaces it in
 // dark mode, for a logo drawn in a single dark colour. `width` and `height` are the logo's viewBox size, so the page
-// reserves the right space before it loads. `description` is one short line.
+// reserves the right space before it loads. `logoScale`, when present, enlarges a logo whose wordmark fills only part of
+// its height, so it reads as large as the others. `description` is one short line.
 export const USERS = [
   {
     name: 'Ziverge',
@@ -18,6 +19,7 @@ export const USERS = [
     logoDark: '/img/users/golem-dark.svg',
     width: 450,
     height: 114,
+    logoScale: 1.4,
     description: 'The durable runtime for agents, their tools, and their artifacts.',
   },
 ];

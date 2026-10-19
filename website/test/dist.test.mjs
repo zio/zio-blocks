@@ -257,6 +257,7 @@ test('the users section links every organization by its logo and invites new use
     logos.forEach(([src, cls], k) => {
       assert.ok(imgs[k].startsWith(`<img src="${src}" alt="${u.name}" width="${u.width}" height="${u.height}"`), imgs[k]);
       assert.equal(/class="([^"]*)"/.exec(imgs[k])?.[1], cls);
+      assert.equal(/--lp-logo-scale:\s*([\d.]+)/.exec(imgs[k])?.[1], u.logoScale?.toString(), `${u.name} logo scale`);
       assert.ok(readFileSync(new URL(`../static${src}`, import.meta.url), 'utf8').startsWith('<?xml'), `${src} exists`);
     });
     assert.equal(text(tiles[i]), u.description);
