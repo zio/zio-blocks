@@ -11,7 +11,7 @@ keywords:
   - "SQLite"
 ---
 
-`ProjectionStore[A]` is the read side of the module: a persistence contract for projection rows. Each `ProjectionStore[A]` also holds the engine's watermark and the schema hash alongside the entity rows:
+`ProjectionStore[A]` is the read side of the module: a persistence contract for projection rows. Next to the rows, it keeps the watermark (the number of the last event applied) and the schema hash (a fingerprint of the row type):
 
 ```scala
 import zio._
