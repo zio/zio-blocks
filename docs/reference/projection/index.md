@@ -129,7 +129,7 @@ The types below are the ones you meet when you use the library, grouped by the p
 - `InMemoryProjectionStore`: A `ProjectionStore` kept in an in-memory map, used for tests.
 - `ProjectionEngine`: The runtime that reads events from `EventStore`s, runs the handlers and writes the results to `ProjectionStore`s.
 - `TestEngine`: A `ProjectionEngine` with in-memory stores, for tests and examples.
-- `TransactorCache`: A cache of open SQLite connections, one for each database file, shared by the stores and the engine. See [TransactorCache](./projection-engine.md#connection-management).
+- `TransactorCache`: A cache of `Transactor`s, one for each database file, shared by the stores and the engine. A `Transactor` opens a new connection for each operation, so no connection stays open. See [TransactorCache](./projection-engine.md#connection-management).
 - **WAL (write-ahead log)**: A way for SQLite to make writes safe. A write is first appended to a separate `.db-wal` file, and it is copied into the main `.db` file later. Readers can keep reading while a write happens, and a crash does not lose the writes in the log. There is still only one writer at a time for each file. The `TransactorCache` turns it on for every file it opens, so you will see `-wal` and `-shm` files next to the `.db` files.
 
 #### Schemas
