@@ -2,11 +2,33 @@ import React from 'react';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import {JOIN_URL, USERS} from '../../lib/users.mjs';
 
+function Logo({src, user, mode}) {
+  return (
+    <img
+      src={useBaseUrl(src)}
+      alt={user.name}
+      width={user.width}
+      height={user.height}
+      loading="lazy"
+      {...(mode ? {className: `lp-logo-${mode}`} : {})}
+    />
+  );
+}
+
+// A logo with a dark-mode variant renders both images; CSS shows the one matching the colour mode, so there is no
+// flash before hydration. The hidden one is display: none, so screen readers announce the name once.
 function User({user}) {
   return (
     <li className="lp-user">
       <a href={user.url}>
-        <img src={useBaseUrl(user.logo)} alt={user.name} width="380" height="70" loading="lazy" />
+        {user.logoDark ? (
+          <>
+            <Logo src={user.logo} user={user} mode="light" />
+            <Logo src={user.logoDark} user={user} mode="dark" />
+          </>
+        ) : (
+          <Logo src={user.logo} user={user} />
+        )}
         <span className="lp-desc">{user.description}</span>
       </a>
     </li>

@@ -250,9 +250,16 @@ test('the users section links every organization by its logo and invites new use
   assert.equal(tiles.length, USERS.length);
   USERS.forEach((u, i) => {
     assert.ok(tiles[i].includes(`href="${u.url}"`), `${u.name} links to ${u.url}`);
-    assert.match(tiles[i], new RegExp(`<img src="${u.logo}" alt="${u.name}"`));
+    // One image, or a light and a dark one that CSS switches between; every one is named and sized.
+    const imgs = [...tiles[i].matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+    const logos = u.logoDark ? [[u.logo, 'lp-logo-light'], [u.logoDark, 'lp-logo-dark']] : [[u.logo, undefined]];
+    assert.equal(imgs.length, logos.length, `${u.name} logo count`);
+    logos.forEach(([src, cls], k) => {
+      assert.ok(imgs[k].startsWith(`<img src="${src}" alt="${u.name}" width="${u.width}" height="${u.height}"`), imgs[k]);
+      assert.equal(/class="([^"]*)"/.exec(imgs[k])?.[1], cls);
+      assert.ok(readFileSync(new URL(`../static${src}`, import.meta.url), 'utf8').startsWith('<?xml'), `${src} exists`);
+    });
     assert.equal(text(tiles[i]), u.description);
-    assert.ok(readFileSync(new URL(`../static${u.logo}`, import.meta.url), 'utf8').startsWith('<?xml'), `${u.logo} exists`);
   });
   const join = /<p class="lp-join">([\s\S]*?)<\/p>/.exec(s)[1];
   assert.equal(text(join), 'Are you using ZIO Blocks? Let us know and join the list!');
