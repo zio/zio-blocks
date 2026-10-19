@@ -288,7 +288,8 @@ final class ProjectionEngine private[projection] (
     }
   }
 
-  // Simplified shard fallback: if cross-entity, still use primary but trace routing
+  // Chooses the store for an event: the primary store, or, for a cross-entity projection, the shard of the event's
+  // routing key, falling back to the primary store when the shard cannot be opened
   private def resolveTargetStore[A](
     spec: Projection[A],
     event: Any,
@@ -345,8 +346,7 @@ final class ProjectionEngine private[projection] (
     batch: zio.Chunk[EventEnvelope[Any]]
   ): Task[Unit] = {
     val primary = primaryStoreFor(spec)
-    // C1+C2: per-event processing with lastSuccess tracking; each success atomically
-    // applies the action and persists seq in same logical transaction (SQLite: single JDBC tx)
+    // Each event is processed on its own, and the watermark only moves past an event whose action succeeded
     ZIO
       .foldLeft(batch)(Option.empty[Long]) { (acc, env) =>
         val ctx                                            = ProjectionContext(env.entityId, env.timestamp, env.seq, Some(env.entityId))
@@ -368,9 +368,8 @@ final class ProjectionEngine private[projection] (
           case Some(action) =>
             val processOne: Task[Option[Long]] =
               resolveTargetStore(spec, env.event, ctx, binding.sourceName).flatMap { targetStore =>
-                // Transactional: applyAction + seq persist share same DB transaction where possible
-                // For SQLite primary, the same connection backs both; for InMemory, sequential but watermark
-                // only moves on success, so crash between apply and seq causes replay not double-count (dedup)
+                // Applying the action and saving the watermark are two separate writes, not one transaction, so a
+                // crash between them leaves the event applied but not recorded, and the next start applies it again
                 val transactional: Task[Unit] =
                   applyAction(targetStore.asInstanceOf[ProjectionStore[A]], action, ctx).flatMap { _ =>
                     primary.updateLastProcessedSeq(env.seq)
@@ -450,8 +449,8 @@ final class ProjectionEngine private[projection] (
             case Some(es) =>
               val primary =
                 primaryStoreFor(specAny.asInstanceOf[Projection[Any]]).asInstanceOf[ProjectionStore[Any]]
-              // C3: catch-up first, then subscribe for live; avoids race where subscribed queue
-              // sees events that catch-up also replays. Subscribe after catch-up, filter seq > lastSeq.
+              // Catch up first, then subscribe to the hub for live events, so that no event is seen by both.
+              // Live events are not filtered by seq.
               val bindTask: ZIO[Scope, Throwable, Unit] =
                 for {
                   initialLast <- primary.getLastProcessedSeq

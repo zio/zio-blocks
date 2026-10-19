@@ -553,7 +553,7 @@ object SQLiteProjectionStore {
    * @param path
    *   the database file, such as `users/user_profiles.db`
    * @param cache
-   *   the cache that opens the file and keeps its connection
+   *   the cache that gives the store the `Transactor` of the file
    */
   def make[A: Schema: EntityPath](path: String, cache: TransactorCache): Task[SQLiteProjectionStore[A]] =
     for {
@@ -568,7 +568,7 @@ object SQLiteProjectionStore {
    * @param path
    *   the database file, such as `users/user_profiles.db`
    * @param cache
-   *   the cache that opens the file and keeps its connection
+   *   the cache that gives the store the `Transactor` of the file
    */
   def makeSync[A: Schema: EntityPath](path: String, cache: TransactorCache): SQLiteProjectionStore[A] = {
     import zio.Unsafe
