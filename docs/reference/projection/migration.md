@@ -130,7 +130,7 @@ By default, `start` rebuilds a changed projection before it returns. With `lazyR
 - A background fiber rebuilds the pending projections one after the other, in groups of `rebuildParallelism`.
 - `queryByName` does not trigger the rebuild.
 
-Until then, the engine keeps applying events to the old table, and the events that no longer fit it fail and are logged. The rebuild applies them again from the stored events. The `evolution` settings are not read by the engine; see [`SchemaEvolution`](#schemaevolution). The other settings are described under [Configuration](./engine.md#configuration).
+Until then, the engine keeps applying events to the old table, and the events that no longer fit it fail and are logged. The rebuild applies them again from the stored events. The `evolution` settings are not read by the engine; see [`SchemaEvolution`](#schemaevolution). The other settings are described under [Configuration](./projection-engine.md#configuration).
 
 ### Rebuilding on Demand
 
@@ -413,7 +413,7 @@ The `TagResolver[E]` trait is a view of one `TagInfo`: implement `tagInfo`, and 
 
 ## See Also
 
-- [ProjectionEngine](./engine.md) — `start`, `query` and the engine's configuration.
+- [ProjectionEngine](./projection-engine.md) — `start`, `query` and the engine's configuration.
 - [EventStore[E]](./event-store.md) — the event store and its factories.
 - [ProjectionStore[A]](./projection-store.md) — the store hooks `recreateTable` and `addColumn`.
 - [Testing](./testing.md) — the in-memory helpers.

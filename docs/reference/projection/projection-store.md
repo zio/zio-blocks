@@ -74,6 +74,6 @@ enum FieldUpdate {
 
 - [Projection module overview](./index.md) — how the event store, the projections, the engine and the projection stores fit together.
 - [Projection[A]](./projection.md) — the handlers whose actions are applied to a projection store, and [Aggregating Fields](./projection.md#aggregating-fields) for `FieldUpdate` in a projection.
-- [ProjectionEngine](./engine.md) — the runtime that writes to the projection stores and creates the SQLite ones.
+- [ProjectionEngine](./projection-engine.md) — the runtime that writes to the projection stores and creates the SQLite ones.
 - [Testing](./testing.md) — `InMemoryProjectionStore` and the other in-memory helpers.
 - [Migration](./migration.md) — the full rebuild and the add-column shortcut that call `recreateTable` and `addColumn`.

@@ -129,7 +129,7 @@ The types below are the ones you meet when you use the library, grouped by the p
 - `InMemoryProjectionStore`: A `ProjectionStore` kept in an in-memory map, used for tests.
 - `ProjectionEngine`: The runtime that reads events from `EventStore`s, runs the handlers and writes the results to `ProjectionStore`s.
 - `TestEngine`: A `ProjectionEngine` with in-memory stores, for tests and examples.
-- `TransactorCache`: A cache of open SQLite connections, one for each database file, shared by the stores and the engine. See [TransactorCache](./engine.md#connection-management).
+- `TransactorCache`: A cache of open SQLite connections, one for each database file, shared by the stores and the engine. See [TransactorCache](./projection-engine.md#connection-management).
 - **WAL (write-ahead log)**: A way for SQLite to make writes safe. A write is first appended to a separate `.db-wal` file, and it is copied into the main `.db` file later. Readers can keep reading while a write happens, and a crash does not lose the writes in the log. There is still only one writer at a time for each file. The `TransactorCache` turns it on for every file it opens, so you will see `-wal` and `-shm` files next to the `.db` files.
 
 #### Schemas
@@ -154,14 +154,14 @@ For durable SQLite persistence on the JVM, add the JDBC driver:
 libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 ```
 
-The library does not bring `sqlite-jdbc` with it, so add it to your own build to keep events and read models in SQLite files. The SQLite stores open their files through a [`TransactorCache`](./engine.md#connection-management), which loads the driver by name when it first opens a file. Without the driver, that first file fails to open with `ClassNotFoundException: org.sqlite.JDBC`. For a `SQLiteEventStore` that happens when you create it. For the projection stores that the engine creates, it happens when a store is first used, because the engine does not open their files when it is created.
+The library does not bring `sqlite-jdbc` with it, so add it to your own build to keep events and read models in SQLite files. The SQLite stores open their files through a [`TransactorCache`](./projection-engine.md#connection-management), which loads the driver by name when it first opens a file. Without the driver, that first file fails to open with `ClassNotFoundException: org.sqlite.JDBC`. For a `SQLiteEventStore` that happens when you create it. For the projection stores that the engine creates, it happens when a store is first used, because the engine does not open their files when it is created.
 
 ## Overview
 
 Two types carry the whole lifecycle:
 
 - [`Projection[A]`](./projection.md) is the descriptor: a pure, immutable value that names the read model, lists its sources, and records a handler per event type. It holds no fibers.
-- [`ProjectionEngine`](./engine.md) is the runtime: it reads `Projection[A]` values, connects each one to an `EventStore[E]`, and drives events through the right handler into a `ProjectionStore[A]`. It does not inspect the handler functions. `EventStore[E]` is the write-side contract, the log that events are appended to, and [`ProjectionStore[A]`](./projection-store.md) is the read-side contract, the rows of a read model, as described under [Event Sourcing Basics](#event-sourcing-basics).
+- [`ProjectionEngine`](./projection-engine.md) is the runtime: it reads `Projection[A]` values, connects each one to an `EventStore[E]`, and drives events through the right handler into a `ProjectionStore[A]`. It does not inspect the handler functions. `EventStore[E]` is the write-side contract, the log that events are appended to, and [`ProjectionStore[A]`](./projection-store.md) is the read-side contract, the rows of a read model, as described under [Event Sourcing Basics](#event-sourcing-basics).
 
 ## How They Work Together
 

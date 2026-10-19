@@ -414,7 +414,7 @@ const sidebars = {
                   link: { type: "doc", id: "reference/projection/index" },
                   items: [
                     "reference/projection/projection",
-                    "reference/projection/engine",
+                    "reference/projection/projection-engine",
                     "reference/projection/event-store",
                     "reference/projection/projection-store",
                     "reference/projection/migration",

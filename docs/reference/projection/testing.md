@@ -206,4 +206,4 @@ val test: ZIO[Any, Throwable, Unit] = for {
 
 - [Projection module overview](./index.md) — how `Projection[A]`, `ProjectionEngine`, the stores and the test helpers fit together.
 - [Projection[A]](./projection.md) — the descriptor the helpers run: sources, routing, handlers and `ProjectionAction`.
-- [ProjectionEngine](./engine.md) — the runtime that `TestEngine` wraps, and the SQLite stores used outside tests.
+- [ProjectionEngine](./projection-engine.md) — the runtime that `TestEngine` wraps, and the SQLite stores used outside tests.

@@ -134,7 +134,7 @@ The `seq` field is the resumption position: the engine saves it after each succe
 
 `SQLiteEventStore[E]` is the implementation of `EventStore[E]` that keeps the events in a SQLite file. Each event is a row of the `events` table, whose columns are `seq`, `tag`, `payload`, `ts` and `entityId`: `seq` is the row's primary key and gives the sequence number, and `payload` is the event encoded as JSON. An index on `tag` and `seq` serves filtered reads.
 
-Its constructor is private. Every factory below takes a `Transactor` for the database file, usually from a [`TransactorCache`](./engine.md#connection-management), and creates the table and its index if they are missing.
+Its constructor is private. Every factory below takes a `Transactor` for the database file, usually from a [`TransactorCache`](./projection-engine.md#connection-management), and creates the table and its index if they are missing.
 
 ### Creating a Store — `make`
 
@@ -264,4 +264,4 @@ run(cache.close)
 - [Projection module overview](./index.md) — how the event store, the projections, the engine and the projection stores fit together.
 - [Projection[A]](./projection.md) — the projections that read the event store.
 - [Migration](./migration.md) — renamed event cases, `@eventTag`, and changed event fields.
-- [ProjectionEngine](./engine.md) — the runtime that replays and follows an event store.
+- [ProjectionEngine](./projection-engine.md) — the runtime that replays and follows an event store.

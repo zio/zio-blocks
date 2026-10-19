@@ -635,5 +635,5 @@ Nothing was written anywhere by these calls. `handle` only says that the event w
 ## See Also
 
 - [Projection module overview](./index.md) — module introduction, key concepts, and integration points with `zio-blocks-schema`, `zio-blocks-sql`, and ZIO Streams.
-- [ProjectionEngine](./engine.md) — the runtime that executes `Projection[A]` descriptors: event dispatch, watermark tracking, schema-change detection, and the SQLite / in-memory store implementations.
+- [ProjectionEngine](./projection-engine.md) — the runtime that executes `Projection[A]` descriptors: event dispatch, watermark tracking, schema-change detection, and the SQLite / in-memory store implementations.
 - [Migration](./migration.md) — renamed event cases, `@eventTag`, changed event fields, and what happens when the row type changes.
