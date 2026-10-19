@@ -135,7 +135,7 @@ const config = {
           {
             title: 'Learn',
             items: [
-              { label: 'Overview', to: '/overview' },
+              { label: 'Docs', to: '/overview' },
               { label: 'Guides', to: '/guides/' },
               { label: 'Reference', to: '/reference/' },
               { label: 'API', to: 'pathname:///api/', target: '_self' },

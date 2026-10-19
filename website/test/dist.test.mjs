@@ -74,7 +74,7 @@ test('the navbar and footer carry the brand lockups and the main links', () => {
   }
   const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
   assert.match(footer, /\/brand\/zio-blocks-logo-mono-white\.svg/);
-  for (const href of ['/overview', '/reference/', '/api/', 'https://github.com/zio/zio-blocks']) {
+  for (const href of ['/overview', '/guides/', '/reference/', '/api/', 'https://github.com/zio/zio-blocks']) {
     assert.match(footer, new RegExp(`href="${href.replace(/[./]/g, '\\$&')}"`));
   }
   // The API links point at the Scaladoc in static/api: plain links, not client-side routes, opening in the same tab.
