@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import site from '../src/data/site.json' with { type: 'json' };
 import { titleCase } from '../src/lib/title-case.mjs';
 import { RAIL } from '../src/lib/rail.mjs';
+import { JOIN_URL, USERS } from '../src/lib/users.mjs';
 
 const html = readFileSync(new URL('../build/index.html', import.meta.url), 'utf8');
 
@@ -100,7 +101,7 @@ test('the section rail links to every landing section and sits outside the landi
   assert.deepEqual(links.map((t) => /href="#([^"]+)"/.exec(t)[1]), RAIL.map((s) => s.id));
   assert.deepEqual(links.map((t) => /aria-label="([^"]+)"/.exec(t)[1]), RAIL.map((s) => s.label));
   // Server-rendered HTML marks the first section as current; exactly one link is.
-  assert.deepEqual(links.map((t) => /aria-current="true"/.test(t)), [true, false, false, false]);
+  assert.deepEqual(links.map((t) => /aria-current="true"/.test(t)), RAIL.map((_, i) => i === 0));
   for (const s of RAIL) assert.ok(main.includes(`<section id="${s.id}"`), `no <section id="${s.id}">`);
 });
 
@@ -175,7 +176,7 @@ test('catalog has no filter controls, counter, empty-state message or buttons', 
 
 test('page order, anchors, images, and leftovers', () => {
   const ids = [...main.matchAll(/<section id="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(ids, ['hero', 'principles', 'deep-dives', 'catalog']);
+  assert.deepEqual(ids, ['hero', 'principles', 'deep-dives', 'catalog', 'users']);
   const allIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
   for (const [, target] of html.matchAll(/href="#([^"]+)"/g)) assert.ok(allIds.has(target), `dangling #${target}`);
   for (const img of html.matchAll(/<img\b[^>]*>/g)) assert.match(img[0], /\balt="[^"]+"/);
@@ -225,12 +226,13 @@ test('every title, heading and label on the landing page is in title case', () =
     'Use What You Need, Nothing More',
     'Four Blocks, in Code',
     'Take Only What You Need',
+    'Who Is Using ZIO Blocks?',
   ]);
   assert.deepEqual(
     all(/<p class="lp-label"[^>]*>([\s\S]*?)<\/p>/g)
       .map((l) => l.replace(/\u00a0/g, ' ').replace(/\s+/g, ' '))
       .filter((l) => !l.startsWith('The ')),
-    ['01 Principles', '02 Deep Dives', 'One Schema, Many Formats', '03 Block Catalog'],
+    ['01 Principles', '02 Deep Dives', 'One Schema, Many Formats', '03 Block Catalog', '04 Users'],
   );
   assert.deepEqual(all(/<p class="lp-label"[^>]*>(The [\s\S]*?)<\/p>/g), site.deepDives.flatMap(() => ['The Problem', 'The Solution']));
   assert.deepEqual(all(/<h3[^>]*>([\s\S]*?)<\/h3>/g), [
@@ -240,6 +242,21 @@ test('every title, heading and label on the landing page is in title case', () =
   const blocks = site.categories.flatMap((c) => c.blocks);
   assert.deepEqual(all(/<h4[^>]*>([\s\S]*?)<\/h4>/g), blocks.map((b) => titleCase(b.name)));
   assert.deepEqual(all(/<strong[^>]*>([\s\S]*?)<\/strong>/g, sec('principles')), site.principles.map((p) => titleCase(p.name)));
+});
+
+test('the users section links every organization by its logo and invites new users to join', () => {
+  const s = sec('users');
+  const tiles = [...s.matchAll(/<li class="lp-user">([\s\S]*?)<\/li>/g)].map((m) => m[1]);
+  assert.equal(tiles.length, USERS.length);
+  USERS.forEach((u, i) => {
+    assert.ok(tiles[i].includes(`href="${u.url}"`), `${u.name} links to ${u.url}`);
+    assert.match(tiles[i], new RegExp(`<img src="${u.logo}" alt="${u.name}"`));
+    assert.equal(text(tiles[i]), u.description);
+    assert.ok(readFileSync(new URL(`../static${u.logo}`, import.meta.url), 'utf8').startsWith('<?xml'), `${u.logo} exists`);
+  });
+  const join = /<p class="lp-join">([\s\S]*?)<\/p>/.exec(s)[1];
+  assert.equal(text(join), 'Are you using ZIO Blocks? Let us know and join the list!');
+  assert.ok(join.includes(`href="${JOIN_URL}"`));
 });
 
 test('there is no switching-cost section and no guides list on the landing page', () => {

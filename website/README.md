@@ -49,10 +49,17 @@ absorbs trackpad inertia. Touch scrolling is left to the browser, docs pages are
 `prefers-reduced-motion: reduce` (or no JavaScript) nothing is intercepted. Hero, Principles and Deep Dives fill one screen
 (`min-height`, so they grow rather than clip). The Hero squares drift away as Principles rises in, and Principles rows and Catalog
 headings fade up once; both use CSS scroll-driven animation inside `@supports (animation-timeline: view())`, so other
-browsers see a static page (the guard is asserted against the built stylesheet in `test/dist.test.mjs`). A fixed rail of four squares on the
+browsers see a static page (the guard is asserted against the built stylesheet in `test/dist.test.mjs`). A fixed rail of five squares on the
 right (`src/components/landing/SectionRail.js`, wider than 62.5rem only) links to the sections; the section list lives in
 `src/lib/rail.mjs`. The rules live in `src/components/landing/landing.css` and are pinned by
 `test/unit/landing-scroll.test.mjs`.
+
+## Who is using ZIO Blocks
+
+The last landing section lists organizations that use ZIO Blocks, one logo tile each. The list lives in
+`src/lib/users.mjs` (name, link, logo path, one-line description) and the logos in `static/img/users/`, one SVG per
+organization; `test/dist.test.mjs` checks every entry renders with its link and logo. The section's "join the list" link
+opens GitHub's editor on `src/lib/users.mjs`, so adding an organization is a one-entry pull request plus its logo.
 
 ## Index pages for `/guides/` and `/reference/`
 

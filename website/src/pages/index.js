@@ -5,6 +5,7 @@ import Hero from '../components/landing/Hero';
 import Principles from '../components/landing/Principles';
 import DeepDives from '../components/landing/DeepDives';
 import Catalog from '../components/landing/Catalog';
+import Users from '../components/landing/Users';
 import SectionRail from '../components/landing/SectionRail';
 import useSectionScroll from '../components/landing/useSectionScroll';
 import {RAIL} from '../lib/rail.mjs';
@@ -28,6 +29,7 @@ export default function Home() {
         <Principles />
         <DeepDives />
         <Catalog />
+        <Users />
       </main>
       <SectionRail />
     </Layout>
