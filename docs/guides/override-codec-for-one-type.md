@@ -117,7 +117,7 @@ println(shelf.toJsonString)
 
 ## Writing the Codec for `LocalDate`
 
-A `JsonCodec[A]` needs two methods: `decodeValue(in: JsonReader)` reads a value from the streaming reader, and `encodeValue(x, out: JsonWriter)` writes it. Two more methods convert to and from the `Json` AST; their defaults throw, so we override them too, which keeps the codec usable with `Json` values:
+A `JsonCodec[A]` needs two methods: `decodeValue(in: JsonReader)` reads a value from the streaming reader, and `encodeValue(x, out: JsonWriter)` writes it. Two more methods convert to and from the `Json` value type; their defaults throw, so we override them too, which keeps the codec usable with `Json` values:
 
 ```scala mdoc:silent
 val partnerDateFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy")
@@ -213,7 +213,7 @@ val shelfToonCodec: ToonCodec[Shelf] = Schema[Shelf].deriving(partnerToon).deriv
 println(shelfToonCodec.encodeToString(shelf))
 ```
 
-## Narrower Scopes: One Field or One Derivation
+## Narrower Scope: One Field
 
 Sometimes only one field should use the custom format. The second `withInstance` overload takes the parent type's `TypeId`, the field name and the codec. Here only `Order.orderedOn` changes, and `Shelf.openedOn` keeps the ISO-8601 format:
 
@@ -228,6 +228,8 @@ println(shelfCodecOrderDateOnly.encodeToString(shelf))
 ```
 
 The field type isn't checked against the codec at compile time, so make sure the codec's type matches the field's type.
+
+## Narrower Scope: One Derivation
 
 To override for a single derivation without building a new deriver, call `instance` on the `DerivationBuilder` that `deriving` returns. It accepts a `TypeId` (with or without a field name) or an optic:
 
@@ -249,11 +251,11 @@ The deriver also accepts field modifiers through `withModifier`, for example `wi
 
 ## Which Tool When
 
-| Goal                                                     | Tool                                                         | Scope                                         |
-|----------------------------------------------------------|--------------------------------------------------------------|-----------------------------------------------|
-| One type encoded the same way in every derived codec     | `Deriver#withInstance[A](codec)`                             | Every codec derived through that deriver      |
-| One field of one type encoded differently                | `Deriver#withInstance(TypeId.of[P], "field", codec)`         | That field, in every codec from that deriver  |
-| A one-off override for a single codec                    | `DerivationBuilder#instance(typeId or optic, codec)`         | The one `.derive` call                        |
+| Goal                                                      | Tool                                                                             | Scope                                                |
+|-----------------------------------------------------------|----------------------------------------------------------------------------------|------------------------------------------------------|
+| One type encoded the same way in every derived codec      | `Deriver#withInstance[A](codec)`                                                 | Every codec derived through that deriver             |
+| One field of one type encoded differently                 | `Deriver#withInstance(TypeId.of[P], "field", codec)`                             | That field, in every codec from that deriver         |
+| A one-off override for a single codec                     | `DerivationBuilder#instance(typeId or optic, codec)`                             | The one `.derive` call                               |
 | Full control of a whole type's wire format, used directly | A hand-written `JsonCodec[A]`, called directly or plugged in with `withInstance` | Only where you call it; derivation ignores implicits |
 
 ## Putting It Together
@@ -271,6 +273,8 @@ All examples in this guide have corresponding runnable Scala files in the `schem
 git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/schema-examples
 ```
+
+Run them in order to follow the guide step by step.
 
 ### Writing the Codec for `LocalDate`
 
@@ -350,6 +354,12 @@ The complete example from "Putting It Together" runs the JSON and TOON overrides
 
 ```bash
 sbt "runMain overridecodecforonetype.CompleteExample"
+```
+
+To check that every example compiles without running it, use:
+
+```bash
+sbt compile
 ```
 
 ## Going Further
