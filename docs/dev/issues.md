@@ -65,17 +65,17 @@ println(Schema.fromJsonSchema(jsonSchema).jsonCodec.decode("""{"title":"Zionomic
 
 ### schema-toon: `ArrayFormat.Tabular` with a non-primitive field writes output it cannot decode
 
-Found 2026-10-20 while writing H-12 (`docs/guides/llm-data-with-toon.md`). Verified on 0.0.56; schema-toon is unchanged since.
+Filed as #1778. Found 2026-10-20 while writing H-12 (`docs/guides/llm-data-with-toon.md`). Verified on 0.0.56; schema-toon is unchanged since.
 
 **Summary.** With `withArrayFormat(ArrayFormat.Tabular)`, a record list whose records have a non-primitive field (for example `tags: List[String]`) does not fall back to list form, as the `Tabular` Scaladoc says (`ArrayFormat.scala:34-37`). The writer emits a hybrid row such as `Zionomicon,...,2024,[2]:` followed by `- zio` lines. Decoding it fails with `Array count mismatch: expected 2 items but got 0 at: .books.at(0).tags`.
 
-**Root cause.** `ToonCodecDeriver.writeTabularValue` (`ToonCodecDeriver.scala:1496-1507`) has no fallback for non-primitive fields.
+**Root cause.** `deriveSequence` chooses tabular from `element.isRecord` alone (`ToonCodecDeriver.scala:832-835`), not from `hasOnlyPrimitiveFields` (`:845-846`), and `writeTabularValue` (`:1496-1507`) then writes the non-primitive field as a multi-line block inside the row.
 
 **Fix.** Fall back to list form when any field is not primitive, as documented, or reject the configuration at derive time. Add a round-trip test.
 
 ### schema-toon: a top-level tabular list cannot be decoded
 
-Found 2026-10-20 while writing H-12. Verified on 0.0.56.
+Filed as #1779. Found 2026-10-20 while writing H-12. Verified on 0.0.56.
 
 **Summary.** A top-level list written in tabular form (`[N]{f1,f2}:`), including one the codec itself wrote, fails to decode with `Expected key:value, no colon found at: .at(0)`. The same table as a record field (`books[N]{...}:`) decodes fine, so encode then decode is not a round trip for a top-level `List[Record]`.
 
@@ -85,17 +85,11 @@ Found 2026-10-20 while writing H-12. Verified on 0.0.56.
 
 ### schema-toon: `withFieldNameMapper` is ignored in tabular headers
 
-Found 2026-10-20 while writing H-12. Verified on 0.0.56.
+Filed as #1780. Found 2026-10-20 while writing H-12. Verified on 0.0.56.
 
 **Summary.** `withFieldNameMapper(NameMapper.SnakeCase)` has no effect on tabular headers: `{title,firstAuthor,...}` is printed unchanged.
 
 **Root cause.** The header is built with `caseNameMapper` instead of `fieldNameMapper` (`ToonCodecDeriver.scala:855`).
-
-### schema-toon: `withEnumValuesAsStrings` does nothing
-
-Found 2026-10-20 while writing H-12. From source.
-
-**Summary.** The flag is stored (`ToonCodecDeriver.scala:77-78`) but never read, so setting it has no effect. Either implement it or remove it.
 
 ### `JsonSchema#check` enforces `pattern` only when the pattern is anchored
 
