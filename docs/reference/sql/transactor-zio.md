@@ -146,7 +146,7 @@ val tx: TransactorZIO =
 ```
 
 :::caution
-`fromUrl` opens a new physical connection for every `connect` or `transact` call and does no pooling. For applications with concurrent request workloads, prefer `fromDataSource` backed by a pooling `DataSource`.
+`fromUrl` opens a new physical connection for every `connect` or `transact` call and does no pooling. For applications with concurrent request workloads, prefer `fromDataSource` backed by a pooling `DataSource`. Because every call gets a new connection, `jdbc:sqlite::memory:` gives each `TransactorZIO#connect`, `TransactorZIO#transact`, `TransactorZIO#connectZIO` or `TransactorZIO#transactZIO` call its own empty database: tables and rows created in one call are gone in the next. Use a file URL such as `jdbc:sqlite:/path/to/app.db` when data must outlive a single call.
 :::
 
 ### `TransactorZIO.fromUrl` (with credentials) — Create from a JDBC URL with username and password

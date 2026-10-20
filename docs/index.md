@@ -155,7 +155,7 @@ All of these ship in `zio-blocks-scope`.
 | [SQL Module](./reference/sql/index.md) | `zio-blocks-sql` | JVM · JS | 3.x | Type-safe JDBC wrapper with schema-derived codecs and a CRUD repository |
 | [ZIO Integration](./reference/sql-zio.md) | `zio-blocks-sql-zio` | JVM | 3.x | ZIO integration with `ZIO.attemptBlocking` and `ZLayer` |
 | [Data Migration](./reference/data-migration.md) | `zio-blocks-data-migration` | JVM · JS | 3.x | Typed, online database schema migrations in three execution models, with no hand-written SQL |
-| [Projection](./reference/projection.md) | `zio-blocks-projection` | JVM | 3.x | Event-sourced projections with per-entity SQLite storage |
+| [Projection](./reference/projection/index.md) | `zio-blocks-projection` | JVM | 3.x | Event-sourced projections with per-entity SQLite storage |
 
 ### Tooling & Codegen
 
@@ -398,7 +398,6 @@ val program: Async[Int] =
 
 ### Learn More
 
-- [Build a Typed Configuration Loader](./guides/typed-config-loader.md) - Load a typed case class from YAML, environment overrides and defaults, report every error at once, and see where each value came from
 - [Getting Started with Async](./guides/async-getting-started.md) — create, compose, and run async effects
 - [Async reference](./reference/async.md) — the full API, including `zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and `Future` / `CompletionStage` interop
 - [`async-examples`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala) — a single-file order-fulfillment demo (`cd async-examples && sbt run`)
@@ -496,6 +495,9 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 ## Guides
 
 - [Your First Schema: Round-Trip a Type Through JSON](./guides/your-first-schema.md) - Start here: describe a type once with `Schema`, then encode, decode, and read errors
+- [Build a Typed Configuration Loader](./guides/typed-config-loader.md) - Load a typed case class from YAML, environment overrides and defaults, report every error at once, and see where each value came from
+- [Build Your First Database Repository on SQLite](./guides/your-first-sqlite-repository.md) - Connect to SQLite, derive a table and `Repo` from one schema, write your own queries, and roll back a transaction
+- [Render Your First Server-Side HTML Page](./guides/your-first-html-page.md) - Build a book page with the HTML DSL, escape user input, add CSS and JSON state, and save it as a file
 - [Getting Started with Async](./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
 - [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
 - [Getting Started with Mux](./guides/getting-started-with-mux.md) - Manage multiplexed bidirectional message streams with capacity limits
@@ -516,6 +518,7 @@ large enough to have several pages start from an overview:
   - [Schema Evolution](./reference/schema/schema-evolution/index.md) - one-way and bidirectional type-safe conversions
 - [Telemetry](./reference/telemetry/index.md) - tracing, logging, metrics, and OTLP export
 - [SQL](./reference/sql/index.md) - codecs, fragments, tables, repositories, transactors, and dialects
+- [Projection](./reference/projection/index.md) - event-sourced read models: `Projection[A]`, `ProjectionEngine`, and per-entity SQLite stores
 - [Resource Management](./reference/resource-management/index.md) - `Scope`, `Resource`, `Wire`, `Unscoped`, and finalization
 - [Streams](./reference/streams/index.md) - `Stream`, `Pipeline`, `Sink`, and the low-level readers and writers
 - [Endpoint](./reference/endpoint/index.md) - endpoint descriptors, HTTP codecs, route patterns, and typed auth

@@ -404,7 +404,26 @@ const sidebars = {
             },
                 "reference/sql-zio",
                 "reference/data-migration",
-                "reference/projection",
+                {
+                  type: "category",
+                  label: "Projection",
+                  link: { type: "doc", id: "reference/projection/index" },
+                  items: [
+                    "reference/projection/projection",
+                    "reference/projection/projection-engine",
+                    {
+                      type: "category",
+                      label: "Stores",
+                      collapsed: false,
+                      items: [
+                        "reference/projection/event-store",
+                        "reference/projection/projection-store",
+                      ],
+                    },
+                    "reference/projection/migration",
+                    "reference/projection/testing",
+                  ],
+                },
             ],
           },
           {
@@ -436,6 +455,8 @@ const sidebars = {
   guides: [
     "guides/your-first-schema",
     "guides/typed-config-loader",
+    "guides/your-first-sqlite-repository",
+    "guides/your-first-html-page",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
     "guides/getting-started-with-mux",
