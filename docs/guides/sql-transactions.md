@@ -70,11 +70,11 @@ Passing `readOnly = true` marks the connection as read-only at the JDBC level:
 
 ```scala
 transactor.transact(TransactionIsolation.ReadCommitted, readOnly = true) {
-  sql"SELECT COUNT(*) FROM users".query[Int].toOne
+  sql"SELECT COUNT(*) FROM users".queryOne[Long]
 }
 ```
 
-PostgreSQL uses the read-only flag to enable optimization paths (e.g., avoiding WAL writes for read-only transactions). SQLite may ignore the flag depending on the driver version, but it's still set on the connection for consistency. The previous `readOnly` value is always restored after the transaction, regardless of dialect.
+On PostgreSQL, the JDBC driver starts the transaction with `BEGIN READ ONLY`, so a write inside the block fails with an error such as `ERROR: cannot execute INSERT in a read-only transaction`. SQLite may ignore the flag depending on the driver version, but it's still set on the connection for consistency. The previous `readOnly` value is always restored after the transaction, regardless of dialect.
 
 ## Nested Transactions via Savepoints
 
@@ -194,7 +194,7 @@ To run these transactions on a HikariCP pool, build the transactor with `JdbcTra
 |----------------------------|---------------------------------------------------------|
 | `transactor.transact`      | Opens connection, disables auto-commit, commits/rollbacks |
 | `TransactionIsolation`     | Four levels; SQLite only true `SERIALIZABLE`            |
-| `readOnly` flag            | Sets JDBC read-only; PG optimizes, SQLite may ignore    |
+| `readOnly` flag            | Sets JDBC read-only; PG rejects writes, SQLite may ignore |
 | Nested via `summon[DbTx]`  | Savepoints `zib_tx_1..N`, inner rollback isolated       |
 | `transactNested`           | Alias using `using` parameter instead of extension      |
 
