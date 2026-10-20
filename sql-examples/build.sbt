@@ -28,5 +28,7 @@ def zioBlocks(module: String) = Def.setting {
 
 libraryDependencies ++= Seq(
   zioBlocks("sql").value,
-  "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
+  "org.xerial" % "sqlite-jdbc"  % "3.53.4.0",
+  "dev.zio"   %% "zio-test"     % "2.1.27" % Test,
+  "dev.zio"   %% "zio-test-sbt" % "2.1.27" % Test
 )

@@ -840,6 +840,8 @@ Scope.global.scoped { scope =>
 }
 ```
 
+For every error the Scope and Wire macros report, with the real compiler output and a fix for each, see [How to Fix Common Scope and Wire Compile Errors](./fix-scope-and-wire-compile-errors.md).
+
 ---
 
 ## Putting It Together
