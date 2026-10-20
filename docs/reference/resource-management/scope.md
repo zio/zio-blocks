@@ -930,6 +930,8 @@ To learn more about building and composing resources, see the [Resource referenc
 
 ## Runtime Errors
 
+For every error the Scope and Wire macros report, see [How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md).
+
 Runtime errors occur when you violate scope rules at runtime—typically by accessing resources after the scope has already cleaned them up, or by mixing scopes across threads.
 
 ### `IllegalStateException` — accessing a closed scope
@@ -963,6 +965,8 @@ This happens when you try to:
 To fix this, use thread-unowned scopes when you need to share across threads. Instead of `scope.scoped { }` (which creates a thread-owned child), use `Scope.global.open()` or the scope's `open()` method directly to get an `OpenScope` handle. These unowned scopes can be safely passed and used from any thread, though you're responsible for manual cleanup via the returned handle.
 
 ## Compile Errors
+
+For a task-oriented walkthrough of every error the Scope and Wire macros report, see [How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md).
 
 The following compile errors occur when `Scope` type rules are violated. All examples below use this scoping pattern (see [Quickstart](#quickstart) for full context):
 

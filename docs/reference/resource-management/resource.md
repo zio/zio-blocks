@@ -701,6 +701,7 @@ Resource is a core abstraction in ZIO Blocks' resource management ecosystem:
 - **[`Scope`](./scope.md)** — Resources require a `Scope` for allocation. The `Scope` manages the lifetime of acquired resources and automatically runs finalizers when the scope closes.
 - **[`Wire`](./wire.md)** — The `Resource.from[T](wires)` macro builds dependency graphs using `Wire` values, enabling constructor-based dependency injection with automatic resource management.
 - **[`Finalizer`](./finalizer.md)** — Resources register their cleanup logic with `Finalizer` objects, which execute in LIFO order when scopes close.
+- **[How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md)** — The compile-time errors that `Resource.from` and the Scope macros report, and how to fix each one.
 
 For example, `Resource.from[T]` uses `Wire` to construct instances with their dependencies, automatically registering any `AutoCloseable` cleanup:
 

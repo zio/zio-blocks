@@ -460,3 +460,4 @@ You now have a solid foundation in typed configuration with ZIO Blocks. The next
 - **Using JSON or HOCON instead of YAML?** [File Formats](../reference/config/formats.md) covers all three adapters.
 - **Wiring configuration into a dependency graph?** `Config.wire[A]` turns a `ConfigSource` into a typed value as a node in a `scope` wire graph; the [Configuration & Feature Flags](../reference/config/index.md) overview shows it in action.
 - **Need runtime switches?** [Flags](../reference/config/flags.md) and [Rollout](../reference/config/rollout.md) cover feature flags with percentage-based rollouts, built on the same sources.
+- **Coming from PureConfig, Typesafe Config or zio-config?** [Coming from PureConfig, Typesafe Config or zio-config](./config-library-migration.md) maps the concepts and APIs you already know onto the ones in this tutorial.
