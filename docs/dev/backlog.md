@@ -1,6 +1,46 @@
 # ZIO Blocks: tutorials and how-to guides backlog
 
-Compiled 2026-10-19 on branch `tutorials-and-guides-lists` (HEAD `b5f9fb71`).
+Compiled 2026-10-19 on branch `tutorials-and-guides-lists` (HEAD `b5f9fb71`). Status last updated 2026-10-20.
+
+## Status
+
+This table tracks every item that has been written or started. Items not listed here have not been started. Update the row when an item changes state.
+
+| ID   | Title                                                              | Status                                    | Where                                                                                           |
+|------|--------------------------------------------------------------------|-------------------------------------------|-------------------------------------------------------------------------------------------------|
+| T-01 | Your first schema: round-trip a type through JSON                  | Done                                      | #1756, `guides/your-first-schema.md`                                                            |
+| T-07 | Build your first database repository on SQLite                     | Done                                      | #1760, `guides/your-first-sqlite-repository.md`, `sql-examples/`                                |
+| T-05 | Build a typed configuration loader                                 | In review                                 | #1759 (`config-loader`), `config-examples/`                                                     |
+| T-04 | One type, many formats                                             | In review                                 | #1762 (`many-formats`)                                                                          |
+| T-09 | Render your first server-side HTML page                            | In review                                 | #1763 (`html-page`), `html-examples/`                                                           |
+| H-03 | How to override the codec for one type everywhere                  | In progress (local commits, not pushed)   | worktree `override-codec`                                                                       |
+| M-06 | Coming from PureConfig, Typesafe Config or zio-config              | In progress (local commits, not pushed)   | worktree `pureconfig-migration`, branched from `config-loader`; depends on #1759                 |
+| H-28 | How to wrap callback and Future-based APIs in Async                | In progress (local commits, not pushed)   | worktree `async-interop`                                                                        |
+| H-37 | How to issue and verify JWTs (plus `jwt.md` fixes)                 | In progress (uncommitted)                 | worktree `jwt`                                                                                  |
+| H-31 | How to fix common Scope and Wire compile errors                    | In progress (uncommitted)                 | worktree `scope-errors`                                                                         |
+| M-03 | Coming from Magnum or doobie                                       | In progress (just started)                | worktree `magnum-migration`                                                                     |
+| H-01 | How to add ZIO Blocks to your build                                | Stalled: uncommitted, session exited      | worktree `adding-zio-block-to-build`; `guides/add-zio-blocks-to-your-build.md` + artifact fixes |
+| H-02 | How to customize JSON field names, ADT encoding and optional fields | Stalled: uncommitted, session exited     | worktree `customize-json-fields`; `guides/customize-json-encoding.md`                           |
+| T-06 | Build your first streaming pipeline                                | Stalled: uncommitted, session exited      | worktree `streaming-pipeline`; `guides/your-first-streaming-pipeline.md`                        |
+| T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`   | Stalled: uncommitted, session exited      | worktree `evolve-data`; `guides/evolve-your-data.md`                                            |
+| T-08 | Describe a typed HTTP API with Endpoint                            | Skipped (maintainer decision)             | —                                                                                               |
+
+**Unblocked since this backlog was compiled:**
+
+- T-07 merged, so the sql items can start: H-17, H-18 (partly covered by the `repo.md` upsert and `pageAfter` docs added in #1760), H-20 and H-47.
+- PR #1742 (projection docs) merged on 2026-10-20. T-14 now waits only on issue #1744, which has grown to sixteen engine problems.
+
+**Waiting on stalled items:** M-01 needs H-02; H-04 needs T-02; H-24, H-25 and M-04 need T-06.
+
+**Library follow-ups found while writing:**
+
+- `ProvenanceMap#dump` over an unprefixed `EnvSource` prints the whole process environment. Only names that match `Sensitive` markers are redacted.
+- `Table.createTable` emits no `PRIMARY KEY`, so `Repo.insertOrUpdate` fails on tables it creates. #1760 documents this; the code is unchanged.
+- In the html module, `selector"..."` never matches in `Dom#select`.
+- On Scala 3, `import zio.blocks.html._` together with `import zio.blocks.schema._` makes `p(...)` ambiguous.
+- `html"..."` attribute values may be double-escaped. This is unverified.
+- TOON `ArrayFormat.Auto` never picks the tabular layout, although its Scaladoc and `toon.md:706` say it does.
+- `loadOrThrow` reports the wrong error count. #1761 fixes this.
 
 ## 1. Introduction
 
@@ -11,7 +51,7 @@ Compiled 2026-10-19 on branch `tutorials-and-guides-lists` (HEAD `b5f9fb71`).
 1. **Library capabilities** come from `docs/dev/research.md`, a code-grounded survey of all 41 published modules. Every topic below cites the section or module of that file it depends on. No topic relies on an API that the research did not find in the source.
 2. **Existing guides** come from `docs/guides/*.md` and `docs/sidebars.js`. A topic that an existing guide already covers is left out, or kept only with a clearly different angle, which the row states.
 3. **User demand** comes from about 35 web searches and fetches (October 2026): the doc sites of comparable libraries (tapir, doobie, ZIO, Pekko Projection, otel4s, chimney, the Typelevel toolkit), library issue trackers (zio-blocks, zio-schema, zio-json, MongoDB JIRA), and community posts. The sources are listed in [§10](#10-sources).
-4. **Open work** was checked on GitHub. Two open PRs already cover some topics: #1742 (projection docs split, migration page, 12 runnable examples) and #1666 (config `Secret` docs). Issue #1744 lists seven projection rebuild bugs.
+4. **Open work** was checked on GitHub. Two open PRs already cover some topics: #1742 (projection docs split, migration page, 12 runnable examples; merged 2026-10-20) and #1666 (config `Secret` docs). Issue #1744 lists seven projection rebuild bugs (sixteen engine problems as of 2026-10-20).
 
 **Limits of the demand evidence.** The searches surfaced mostly official docs and blog posts, and very few Reddit or Stack Overflow threads. No independent community discussion of ZIO Blocks itself turned up. Demand ratings therefore measure "how much do users of comparable libraries need this task", not "how often do ZIO Blocks users ask for it". Treat them as informed judgments.
 
@@ -317,7 +357,7 @@ These inaccuracies from §9.6 will mislead a guide author who copies from the ex
 
 ## 9. Top 10 next
 
-The ten P0 items, in the order to write them:
+The ten P0 items, in the order to write them. As of 2026-10-20 all ten are done, in review or in progress; see [Status](#status).
 
 1. **H-01 How to add ZIO Blocks to your build.** Every tutorial needs an install step, and today only one page mentions the Scala 3.7+ `zio-blocks-next-*` artifacts.
 2. **T-01 Your first schema: round-trip a type through JSON.** Schema is the hub that 22 modules build on, and the library has no getting-started lesson.
