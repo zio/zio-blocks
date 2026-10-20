@@ -5,12 +5,14 @@ import zio.blocks.schema._
 import zio.blocks.schema.json._
 
 /**
- * How to Generate JSON Schema from a Type and Validate Payloads Against It — Generate and Publish the Contract
+ * How to Generate JSON Schema from a Type and Validate Payloads Against It —
+ * Generate and Publish the Contract
  *
- * Derives the JSON Schema contract for BookSubmission, prints it pretty and compact, writes it to
- * a temporary file and parses the file back.
+ * Derives the JSON Schema contract for BookSubmission, prints it pretty and
+ * compact, writes it to a temporary file and parses the file back.
  *
- * Run with: cd schema-examples && sbt "runMain generatejsonschemaandvalidatepayloads.Step1GenerateContractExample"
+ * Run with: cd schema-examples && sbt "runMain
+ * generatejsonschemaandvalidatepayloads.Step1GenerateContractExample"
  */
 object Step1GenerateContractExample extends App {
 

@@ -5,12 +5,15 @@ import zio.blocks.schema._
 import zio.blocks.schema.json._
 
 /**
- * How to Generate JSON Schema from a Type and Validate Payloads Against It — Complete Example
+ * How to Generate JSON Schema from a Type and Validate Payloads Against It —
+ * Complete Example
  *
- * Derives the contract, writes it to a file, validates payloads against it, loads the catalog
- * team's schema and compares typed decoding with JSON Schema validation.
+ * Derives the contract, writes it to a file, validates payloads against it,
+ * loads the catalog team's schema and compares typed decoding with JSON Schema
+ * validation.
  *
- * Run with: cd schema-examples && sbt "runMain generatejsonschemaandvalidatepayloads.CompleteExample"
+ * Run with: cd schema-examples && sbt "runMain
+ * generatejsonschemaandvalidatepayloads.CompleteExample"
  */
 object CompleteExample extends App {
 
@@ -81,7 +84,6 @@ object CompleteExample extends App {
     )
   )
 
-
   // Load an external schema
   println("=== Load an external schema ===")
   val catalogContractText: String =
@@ -128,7 +130,6 @@ object CompleteExample extends App {
   println(
     catalogSchema.jsonCodec.decode("""{"title":"Zionomicon","firstAuthor":"John A. De Goes","year":2024}""")
   )
-
 
   // Typed decoding versus JSON Schema validation
   println("=== Typed decoding versus JSON Schema validation ===")

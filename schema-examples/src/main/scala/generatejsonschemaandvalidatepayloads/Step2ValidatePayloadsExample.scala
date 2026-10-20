@@ -4,12 +4,14 @@ import zio.blocks.schema._
 import zio.blocks.schema.json._
 
 /**
- * How to Generate JSON Schema from a Type and Validate Payloads Against It — Validate Untyped Payloads
+ * How to Generate JSON Schema from a Type and Validate Payloads Against It —
+ * Validate Untyped Payloads
  *
- * Parses JSON text with Json.parse and validates it against the generated contract with
- * JsonSchema#check for valid and invalid submissions.
+ * Parses JSON text with Json.parse and validates it against the generated
+ * contract with JsonSchema#check for valid and invalid submissions.
  *
- * Run with: cd schema-examples && sbt "runMain generatejsonschemaandvalidatepayloads.Step2ValidatePayloadsExample"
+ * Run with: cd schema-examples && sbt "runMain
+ * generatejsonschemaandvalidatepayloads.Step2ValidatePayloadsExample"
  */
 object Step2ValidatePayloadsExample extends App {
 

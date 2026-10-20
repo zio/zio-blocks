@@ -4,11 +4,14 @@ import zio.blocks.schema._
 import zio.blocks.schema.json._
 
 /**
- * How to Generate JSON Schema from a Type and Validate Payloads Against It — Compare Typed Decoding with Validation
+ * How to Generate JSON Schema from a Type and Validate Payloads Against It —
+ * Compare Typed Decoding with Validation
  *
- * Decodes one bad payload with fromJson[BookSubmission] and validates it with JsonSchema#check.
+ * Decodes one bad payload with fromJson[BookSubmission] and validates it with
+ * JsonSchema#check.
  *
- * Run with: cd schema-examples && sbt "runMain generatejsonschemaandvalidatepayloads.Step4TypedVersusUntypedExample"
+ * Run with: cd schema-examples && sbt "runMain
+ * generatejsonschemaandvalidatepayloads.Step4TypedVersusUntypedExample"
  */
 object Step4TypedVersusUntypedExample extends App {
 

@@ -4,12 +4,14 @@ import zio.blocks.schema._
 import zio.blocks.schema.json._
 
 /**
- * How to Generate JSON Schema from a Type and Validate Payloads Against It — Load an External Schema
+ * How to Generate JSON Schema from a Type and Validate Payloads Against It —
+ * Load an External Schema
  *
- * Parses the catalog team's JSON Schema, checks payloads against it, and decodes payloads through
- * Schema.fromJsonSchema.
+ * Parses the catalog team's JSON Schema, checks payloads against it, and
+ * decodes payloads through Schema.fromJsonSchema.
  *
- * Run with: cd schema-examples && sbt "runMain generatejsonschemaandvalidatepayloads.Step3ExternalSchemaExample"
+ * Run with: cd schema-examples && sbt "runMain
+ * generatejsonschemaandvalidatepayloads.Step3ExternalSchemaExample"
  */
 object Step3ExternalSchemaExample extends App {
 
@@ -25,7 +27,6 @@ object Step3ExternalSchemaExample extends App {
   object BookSubmission {
     implicit val schema: Schema[BookSubmission] = Schema.derived
   }
-
 
   def validate(schema: JsonSchema, payload: String): Unit =
     Json.parse(payload) match {
