@@ -140,16 +140,6 @@ Filed as #1780. Found 2026-10-20 while writing H-12. Verified on 0.0.56.
 
 **Root cause.** The header is built with `caseNameMapper` instead of `fieldNameMapper` (`ToonCodecDeriver.scala:855`).
 
-### schema-toon: `ArrayFormat.List` still writes a nested record list as a table
-
-Found 2026-10-20 while writing H-12 (`docs/guides/llm-data-with-toon.md`). Observed when running the H-12 examples on 0.0.56; **needs a reproduction section** before filing.
-
-**Summary.** A list of primitive-only records nested inside a list item is written in tabular form under every `ArrayFormat`, including `ArrayFormat.List`, so the configured format is ignored at that depth.
-
-**Root cause.** `ToonCodecDeriver.scala:983` chooses the tabular layout for such nested lists without checking `arrayFormat`.
-
-**Fix.** Respect the configured `arrayFormat` at every nesting level, or document the exception next to the `ArrayFormat` cases.
-
 ### `JsonSchema#check` enforces `pattern` only when the pattern is anchored
 
 Found 2026-10-20 while writing H-05. From source (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:1124`).
@@ -522,6 +512,61 @@ Found 2026-10-20 while writing T-09. Verified. Not filed.
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
+
+### schema-toon: `ArrayFormat.List` still writes a table for a record list inside a list item
+
+Found 2026-10-20 while writing H-12 (`docs/guides/llm-data-with-toon.md`). Verified on 0.0.56. Intended behaviour (a conformance test asserts it), but it contradicts the `ArrayFormat.List` Scaladoc.
+
+**Summary.** With one deriver set to `ArrayFormat.List`, the same `chapters` field is written as a table when its record sits inside a list item, and as a `- ` list when it does not. The `ArrayFormat.List` Scaladoc says "Force list format with `- ` markers" (`ArrayFormat.scala:46-48`), and `toon.md`'s ArrayFormat section says the same, so users get a table they did not ask for.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-schema-toon` 0.0.56, run from `schema-examples`):
+
+```scala
+import zio.blocks.schema._
+import zio.blocks.schema.toon._
+
+case class Chapter(title: String, pages: Int)
+object Chapter { implicit val schema: Schema[Chapter] = Schema.derived }
+
+case class Book(title: String, chapters: List[Chapter])
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+case class Shelf(books: List[Book])
+object Shelf { implicit val schema: Schema[Shelf] = Schema.derived }
+
+val listFormat = ToonCodecDeriver.withArrayFormat(ArrayFormat.List)
+val shelf      = Shelf(List(Book("Zionomicon", List(Chapter("Essentials", 30), Chapter("Fibers", 25)))))
+
+val codec = Shelf.schema.derive(listFormat)
+val toon  = codec.encodeToString(shelf)
+println(toon)
+// books[1]:
+//   - title: Zionomicon
+//     chapters[2]{title,pages}:
+//         Essentials,30
+//         Fibers,25
+
+println(codec.decode(toon) == Right(shelf))
+// true
+
+println(Book.schema.derive(listFormat).encodeToString(shelf.books.head))
+// title: Zionomicon
+// chapters[2]:
+//   - title: Essentials
+//     pages: 30
+//   - title: Fibers
+//     pages: 25
+```
+
+**Expected (per the Scaladoc).** `chapters` is written in list form in both cases.
+
+**Root cause.** `encodeAsField` decides with `useTabularFormat || (out.isInListItemContext && hasOnlyPrimitiveFields)` (`ToonCodecDeriver.scala:983`). The second part ignores `arrayFormat`, so it applies under every format.
+
+**Why intended.** The output round-trips, and `ToonSpecConformanceSpec` ("roundtrips deep nesting with three levels", around lines 2486-2528) uses `deriveCodec[OrgWrapper](_.withArrayFormat(ArrayFormat.List))` and expects `projects[2]{name,hours}:`.
+
+**Fix.** Document the exception in the `ArrayFormat.List` Scaladoc and `toon.md`, unless the maintainers decide the conformance test encodes a mistake, in which case make `List` apply at every depth.
+
+**Side note, not checked against the TOON spec.** The table rows are indented 4 spaces under their header rather than 2, and the conformance test expects the same.
 
 ### A per-derivation `DerivationBuilder#instance` override silently loses to a deriver-level `Deriver#withInstance` override
 
