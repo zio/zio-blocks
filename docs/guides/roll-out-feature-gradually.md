@@ -71,9 +71,9 @@ Flag.registry.clear()
 
 Flags are Scala `object`s, and each flag's name is the object's fully-qualified name. On this page, mdoc nests every object inside `repl.MdocSession.MdocApp`, so that prefix appears in the names below; in your application, the prefix is your package and enclosing objects, as the [companion examples](#running-the-examples) show.
 
-## A Restart-Only Knob: the Free-Shipping Threshold
+## A Restart-Only Knob: The Free-Shipping Threshold
 
-The free-shipping threshold is a setting the bookstore changes rarely and only on restart, so it is a `StaticFlag`. A `StaticFlag[A]` takes a default and resolves its value once, the first time anything touches the object.
+The free-shipping threshold is a setting the bookstore changes rarely and only on restart, so it is a [`StaticFlag`](../reference/config/flags.md). A `StaticFlag[A]` takes a default and resolves its value once, the first time anything touches the object.
 
 Its value comes from the first place that has one: a source registered in `FlagSource.Registry`, then a system property with the flag's name, then an environment variable with the dots replaced by underscores and uppercased, then the default. Here, an operator lowers the threshold from $35 to $25 through a map source:
 
@@ -88,7 +88,7 @@ FlagSource.Registry.register(
 object FreeShippingThreshold extends StaticFlag[Int](35)
 ```
 
-Touching the flag resolves it. `source` tells you which step answered:
+Touching the flag resolves it. `StaticFlag#source` tells you which step answered:
 
 ```scala mdoc
 println(FreeShippingThreshold.name)
@@ -113,6 +113,8 @@ FlagSource.Registry.register(
 object MaxBooksPerOrder extends StaticFlag[Int](20)
 ```
 
+Touching the flag now fails at initialization:
+
 ```scala mdoc
 try println(MaxBooksPerOrder())
 catch {
@@ -130,7 +132,7 @@ The recommendations panel needs a decision per reader that can change while the 
 object RecommendationsPanel extends DynamicFlag[Boolean](false, "true@*/10%; false")
 ```
 
-Call the flag with the reader's id. The id is the bucketing key: `Rollout.bucketFor` hashes it with MurmurHash3 into a bucket from 0 to 99, and `10%` matches buckets 0 to 9. The hash depends only on the id, so the answer for a reader never changes between calls, requests or restarts:
+Call the flag with the reader's id. The id is the bucketing key: [`Rollout.bucketFor`](../reference/config/rollout.md) hashes it with MurmurHash3 into a bucket from 0 to 99, and `10%` matches buckets 0 to 9. The hash depends only on the id, so the answer for a reader never changes between calls, requests or restarts:
 
 ```scala mdoc
 println(Rollout.bucketFor("reader-42"))
@@ -144,12 +146,14 @@ val readers = (1 to 1000).map(i => s"reader-$i")
 val panelCohort = readers.filter(RecommendationsPanel.evaluate(_))
 ```
 
+Printing the cohort size and its first five readers shows the share:
+
 ```scala mdoc
 println(s"${panelCohort.size} of ${readers.size} readers see the panel")
 println(panelCohort.take(5))
 ```
 
-`apply` also counts each call per key for the [evaluation counters](#changing-the-rollout-while-the-service-runs); `evaluate` returns the same answer without counting, which is what a batch like this one should use.
+`DynamicFlag#apply` also counts each call per key for the [evaluation counters](#changing-the-rollout-while-the-service-runs); `DynamicFlag#evaluate` returns the same answer without counting, which is what a batch like this one should use.
 
 :::warning[Every rollout buckets the same readers]
 The bucket depends on the key alone, not on the flag. Two features both at `10%` and keyed by the plain reader id reach exactly the same readers, so a reader in bucket 3 gets every early rollout at once. Prefix the key with the feature's name when rollouts should be independent:
@@ -161,6 +165,8 @@ val wishlistPlain = readers.filter(WishlistSharing.evaluate(_))
 val panelSalted = readers.filter(id => RecommendationsPanel.evaluate(s"recommendations:$id"))
 val wishlistSalted = readers.filter(id => WishlistSharing.evaluate(s"wishlist:$id"))
 ```
+
+Comparing the cohorts shows how many readers appear in both rollouts:
 
 ```scala mdoc
 println(s"in both rollouts, plain key:  ${panelCohort.intersect(wishlistPlain).size}")
@@ -178,6 +184,8 @@ To offer the panel to half of the readers in the `eu` region and to nobody else,
 object RegionalPanel extends DynamicFlag[Boolean](false, "true@*/eu/50%; false")
 ```
 
+Counting the readers each region sees shows the targeting:
+
 ```scala mdoc
 println(readers.count(id => RegionalPanel.evaluate(id, "eu")))
 println(readers.count(id => RegionalPanel.evaluate(id, "us")))
@@ -185,19 +193,17 @@ println(readers.count(id => RegionalPanel.evaluate(id, "us")))
 
 Readers outside `eu` fall through to the catch-all `false`. Rules for more regions are more choices, tried in order: `true@*/eu/100%; true@*/us/25%; false` gives the panel to every `eu` reader and a quarter of the `us` readers.
 
-:::warning[The segment count must match exactly]
-A selector with two segments never matches a path with one or three. A call site that forgets the region builds the one-segment path `reader-42`, which `*/eu/50%` never matches, so the flag silently answers with the catch-all:
+**The segment count must match exactly.** A selector with two segments never matches a path with one or three. A call site that forgets the region builds the one-segment path `reader-42`, which `*/eu/50%` never matches, so the flag silently answers with the catch-all:
 
 ```scala mdoc
 println(readers.count(id => RegionalPanel.evaluate(id)))
 ```
-:::
 
 The full matching rules are in [Rollout](../reference/config/rollout.md).
 
 ## Changing the Rollout While the Service Runs
 
-A rollout widens in steps: 10%, then 25%, then 50%. `update` replaces the expression from code and returns `Right(())` when the new expression parses:
+A rollout widens in steps: 10%, then 25%, then 50%. `DynamicFlag#update` replaces the expression from code and returns `Right(())` when the new expression parses:
 
 ```scala mdoc
 println(RecommendationsPanel.update("true@*/25%; false"))
@@ -208,6 +214,8 @@ Widening keeps everyone who already had the panel. A reader in bucket 7 matches 
 ```scala mdoc:silent
 val widened = readers.filter(RecommendationsPanel.evaluate(_))
 ```
+
+Comparing the two cohorts shows that nobody lost the panel:
 
 ```scala mdoc
 println(s"${widened.size} readers, original cohort kept: ${panelCohort.forall(widened.contains)}")
@@ -220,25 +228,25 @@ println(RecommendationsPanel.update("true@*/150%; false"))
 println(RecommendationsPanel.expression)
 ```
 
-:::caution[Parsing does not check the values]
-`update` checks the grammar, not whether each value parses as the flag's type. An expression whose values the flag cannot read is accepted, every matching call answers with the default, and `parseErrorCount` counts the fallbacks; see [Checking an Expression Before You Ship It](#checking-an-expression-before-you-ship-it). `update` also accepts an empty or blank expression as a no-op and returns `Right(())` without changing anything.
-:::
+**Parsing does not check the values.** `DynamicFlag#update` checks the grammar, not whether each value parses as the flag's type. An expression whose values the flag cannot read is accepted, every matching call answers with the default, and `DynamicFlag#parseErrorCount` counts the fallbacks; see [Checking an Expression Before You Ship It](#checking-an-expression-before-you-ship-it). `DynamicFlag#update` also accepts an empty or blank expression as a no-op and returns `Right(())` without changing anything.
 
 ### Reloading From a Source
 
-In production the expression lives in a flag service or a config file, not in code. `reload()` reads the flag's name from the registered sources and reports the outcome as a `Flag.ReloadResult`. With no source providing the flag, nothing changes:
+In production the expression lives in a flag service or a config file, not in code. `DynamicFlag#reload` reads the flag's name from the registered sources and reports the outcome as a `Flag.ReloadResult`. With no source providing the flag, nothing changes:
 
 ```scala mdoc
 println(RecommendationsPanel.reload())
 ```
 
-Once a source provides an expression, `reload()` applies it, and reloading the same expression again is a no-op. Because the flag is already initialized, `RecommendationsPanel.name` is safe to use as the key:
+Once a source provides an expression, `DynamicFlag#reload` applies it, and reloading the same expression again is a no-op. Because the flag is already initialized, `RecommendationsPanel.name` is safe to use as the key:
 
 ```scala mdoc:silent
 FlagSource.Registry.register(
   FlagSource.fromMap(Map(RecommendationsPanel.name -> "true@*/50%; false"), "flag-service")
 )
 ```
+
+The first reload applies the source's expression, and the second finds nothing to change:
 
 ```scala mdoc
 println(RecommendationsPanel.reload())
@@ -253,6 +261,8 @@ FlagSource.Registry.register(
 )
 ```
 
+Reloading again rejects the bad push and keeps the current expression:
+
 ```scala mdoc
 println(RecommendationsPanel.reload())
 println(RecommendationsPanel.expression)
@@ -260,13 +270,13 @@ println(RecommendationsPanel.expression)
 
 ### Auditing Changes
 
-Every successful `update` or `reload` adds a `DynamicFlag.UpdateRecord` to `updateHistory`, most recent first and capped at the last ten. Each record also carries a `timestampMillis`:
+Every successful `DynamicFlag#update` or `DynamicFlag#reload` adds a `DynamicFlag.UpdateRecord` to `DynamicFlag#updateHistory`, most recent first and capped at the last ten. Each record also carries a `timestampMillis`:
 
 ```scala mdoc
 RecommendationsPanel.updateHistory.foreach(r => println(s"${r.oldExpression}  ->  ${r.newExpression}"))
 ```
 
-`counters` shows how often `apply` saw each key; `evaluate` calls are not counted. After three more calls, the snapshot holds them next to the three calls for `reader-42` from earlier. The counters stop adding keys at 100 distinct ones and count the rest under `"other"`:
+`DynamicFlag#counters` shows how often `DynamicFlag#apply` saw each key; `DynamicFlag#evaluate` calls are not counted. After three more calls, the snapshot holds them next to the three calls for `reader-42` from earlier. The counters stop adding keys at 100 distinct ones and count the rest under `"other"`:
 
 ```scala mdoc:silent
 RecommendationsPanel("reader-1")
@@ -274,11 +284,13 @@ RecommendationsPanel("reader-1")
 RecommendationsPanel("reader-2")
 ```
 
+Printing the snapshot shows each key's count:
+
 ```scala mdoc
 println(RecommendationsPanel.counters.toList.sorted)
 ```
 
-`parseErrorCount` counts calls whose matched value could not be parsed as the flag's type. The expression `maybe` parses as a catch-all, but `maybe` is not a `Boolean`, so each call answers with the default `false` and the count grows:
+`DynamicFlag#parseErrorCount` counts calls whose matched value could not be parsed as the flag's type. The expression `maybe` parses as a catch-all, but `maybe` is not a `Boolean`, so each call answers with the default `false` and the count grows:
 
 ```scala mdoc
 println(RecommendationsPanel.update("maybe"))
@@ -286,11 +298,11 @@ println(RecommendationsPanel("reader-1"))
 println(RecommendationsPanel.parseErrorCount)
 ```
 
-A non-zero `parseErrorCount` always means a misconfigured expression, so it is worth exporting as a metric.
+A non-zero `DynamicFlag#parseErrorCount` always means a misconfigured expression, so it is worth exporting as a metric.
 
 ### Reloading on a Schedule
 
-Reload is manual. The library does not poll a source, watch a file or start a thread, so call `reload()` from a scheduler your service already has. A plain `ScheduledExecutorService` is enough:
+Reload is manual. The library does not poll a source, watch a file or start a thread, so call `DynamicFlag#reload` from a scheduler your service already has. A plain `ScheduledExecutorService` is enough:
 
 ```scala mdoc:compile-only
 import java.util.concurrent.{Executors, TimeUnit}
@@ -335,7 +347,7 @@ println(Rollout.validate("true@*/eu/50%; false"))
 ```
 
 :::warning[Percentages are thresholds, not slices]
-Each choice matches `bucket < percentage` on its own, and the first match wins. `a@*/10%; b@*/20%; c` gives `a` to buckets 0–9 and `b` only to buckets 10–19, so `b` reaches 10% of keys, not 20%. A later choice with a lower percentage on the same pattern is never reached, and `validate` does not warn about it:
+Each choice matches `bucket < percentage` on its own, and the first match wins. `a@*/10%; b@*/20%; c` gives `a` to buckets 0–9 and `b` only to buckets 10–19, so `b` reaches 10% of keys, not 20%. A later choice with a lower percentage on the same pattern is never reached, and `Rollout.validate` does not warn about it:
 
 ```scala mdoc
 println(Rollout.validate("true@*/eu/30%; false@*/eu/20%; false"))
@@ -356,6 +368,8 @@ def valuesParseAsBoolean(expression: String): Boolean =
   }
 ```
 
+Checking one valid and one invalid expression shows the difference:
+
 ```scala mdoc
 println(valuesParseAsBoolean("true@*/eu/50%; false"))
 println(valuesParseAsBoolean("maybe"))
@@ -375,6 +389,8 @@ FlagSource.Registry.register(
 
 object NewCheckout extends DynamicFlag[Boolean](false, "false")
 ```
+
+Printing the expression shows the default, and the warning names the misspelled key:
 
 ```scala mdoc
 println(NewCheckout.expression)
@@ -397,7 +413,7 @@ Flags read two global singletons: `FlagSource.Registry`, which holds the sources
 
 1. **Clear the registry in setup and in teardown.** A source left behind by one test changes what the next test's flags see.
 2. **Run flag tests sequentially.** Two tests registering sources at the same time race on the registry. The config module's own tests turn off parallel execution for this reason.
-3. **Register before first touch, then reload.** A `StaticFlag` resolves once per JVM, so it cannot take a different value per test; keep restart-only values out of logic you want to test with several values. A `DynamicFlag` can be reset in each test with `reload()` or `update`.
+3. **Register before first touch, then reload.** A `StaticFlag` resolves once per JVM, so it cannot take a different value per test; keep restart-only values out of logic you want to test with several values. A `DynamicFlag` can be reset in each test with `DynamicFlag#reload` or `DynamicFlag#update`.
 
 A small helper keeps the first rule in one place:
 
@@ -583,6 +599,12 @@ Run the complete example from the `config-examples` directory:
 
 ```bash
 sbt "runMain rolloutfeaturegradually.CompleteExample"
+```
+
+To check that every example compiles without running it, use:
+
+```bash
+sbt compile
 ```
 
 ## Going Further
