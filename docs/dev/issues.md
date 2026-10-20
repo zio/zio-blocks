@@ -487,13 +487,45 @@ List("name = \"Scala Bookstore\"\ntags = [scala,\n", "a = ${missing}").foreach {
 
 **Suggested fix.** Append the cause message in `ParseError#message` whatever the path, and override `getCause` to return the cause. Record the position of each substitution when parsing, and use it for resolution errors. Add a `HoconConfigSourceSpec` test that asserts the full message of a syntax error.
 
-### sql: `Table.createTable` emits no `PRIMARY KEY`, so `Repo.insertOrUpdate` fails
+### `Table#createTable` declares no `PRIMARY KEY`, so derived tables accept duplicate IDs and reject `Repo#insertOrUpdate`
 
-Found 2026-10-20 while writing T-07 (`docs/guides/your-first-sqlite-repository.md`). Verified on SQLite.
+Found 2026-10-20 while writing the how-to guide `docs/guides/test-database-code-against-sqlite.md` (backlog H-47), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`. This is a usability trap rather than a crash: `docs/reference/sql/repo.md`, `table.md` and `ddl.md` already document it, but nothing in the API steers users away from it.
 
-**Summary.** The DDL that `Table`/`Ddl` generate has no `PRIMARY KEY` constraint. `Repo.insertOrUpdate` relies on one, so on SQLite it fails with `ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint`.
+**Summary.** `Table.derived[A].createTable(dialect)` renders every column as `name type [NOT NULL]` and never adds `PRIMARY KEY`, even when the table backs a `Repo` that knows its ID column. A table created this way silently stores two rows with the same ID, and `Repo#insertOrUpdate` / `Repo#insertOrUpdateBatch` fail on it, because their `ON CONFLICT (id)` clause needs a primary key or unique constraint. Tests suffer most: a test that checks that a duplicate insert is rejected can never pass on a derived schema, so users have to hand-write the DDL and keep it in sync with the case class.
 
-**Status.** #1760 documents the caveat in `repo.md`, `table.md` and `ddl.md`. The code is unchanged. Fix by emitting a primary key for the `Repo` ID column.
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0):
+
+```scala
+import java.nio.file.Files
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Book(id: Long, title: String, stock: Int)
+object Book { given Schema[Book] = Schema.derived }
+
+val books = Repo.derived[Book, Long]
+val file  = Files.createTempFile("pk-repro", ".db")
+val xa    = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+
+xa.connect {
+  Table.derived[Book].createTable(SqlDialect.SQLite).update
+  books.insert(Book(1L, "Zionomicon", 5))
+  books.insert(Book(1L, "Zionomicon", 5))
+  println(books.count)
+  // 2
+  println(Try(books.insertOrUpdate(Book(1L, "Zionomicon", 7))))
+  // Failure(org.sqlite.SQLiteException: [SQLITE_ERROR] SQL error or missing database (ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint))
+}
+```
+
+**Expected.** A table created for a `Repo` declares its ID column as the primary key, so the second insert fails with `SQLITE_CONSTRAINT_PRIMARYKEY` and `insertOrUpdate` updates the row.
+
+**Root cause.** `Ddl.createTable` (`sql/shared/src/main/scala/zio/blocks/sql/Ddl.scala:38-47`) only knows column names, types and nullability; `ColumnDef` has no key flag, and `Table#createTable` (`sql/shared/src/main/scala/zio/blocks/sql/Table.scala:54-60`) has no way to pass one. The ID column is known only to `Repo` (`Repo#validatedIdColumn`), which has no DDL method of its own.
+
+**Suggested fix.** Add a `primaryKey: Option[String]` (or a `ColumnDef#primaryKey` flag) to `Ddl.createTable` and an overload `Table#createTable(dialect, primaryKey: String)`, plus a `Repo#createTable(dialect)` that passes its ID column. Keep the current output for callers that pass nothing. Add a `RepoUpsertSpec` test that runs `insertOrUpdate` on a table created by `Repo#createTable`.
+
+**Related (testing ergonomics).** `JdbcTransactor` has no way to hold one connection open across blocks, so `jdbc:sqlite::memory:` loses its tables between `connect`/`transact` calls, and there is no rollback-only `transact` for tests. The repo's own `RepoIntegrationSpec.withFreshDb` (`sql/jvm/src/test/scala/zio/blocks/sql/RepoIntegrationSpec.scala:58-84`) works around the first by subclassing `JdbcTransactor` and overriding `connect` with the `private[sql]` `JdbcConnection`, which users can't copy; its `transact` (not overridden) would close the shared connection. The H-47 guide uses a temporary file per test and a sentinel-exception `rollingBack` helper instead. A public single-connection transactor for tests (whose `close` is a no-op until the test ends) would make both unnecessary.
 
 ### html: `html"..."` escapes interpolated attribute values twice
 
@@ -673,6 +705,7 @@ println(order.toJsonString)
 - **A missing `List` field decodes to `Nil`.** circe fails with `Missing required field` and zio-json with `.tags(missing)`; ZIO Blocks (and jsoniter-scala) give an empty list because `requireCollectionFields` defaults to false. Usually convenient, but it silently accepts payloads that other libraries reject. Found while writing M-01.
 - **`withRequireCollectionFields(true)` and `withRequireDefaultValueFields(true)` also change the encoder.** Besides making decoding strict, they make the encoder write empty collections and default values, because `emptyCollectionConstructor` and `getDefaultValue` become null/None (`JsonCodecDeriver.scala:586-590`, `731-739`, `3027-3029`, `3075-3078`). Users who set them for strict decoding get different output. Found while writing M-01.
 - **Unverified: an implicit `Schema[LocalDate]` changes derivation, while an implicit `JsonCodec[LocalDate]` does not.** The Scala 3 `Schema.derived` macro looks for implicit `Schema[T]` instances for field types (`scala-3/.../SchemaCompanionVersionSpecific.scala:373`), so a custom `Schema[LocalDate]` in scope would be picked up. Undocumented and easy to confuse with the ignored implicit codec above. **Needs a reproduction before it is documented or filed.** Raised while writing M-01.
+- **Nested and concurrent access inside a test transaction on SQLite.** Inside a transaction that will roll back, a second connection sees only committed rows, and a nested `JdbcTransactor#transact` blocks and fails with `SQLITE_BUSY` after about 5 s. `DbTx#transact` (a savepoint) works. Verified while writing H-47; the guide warns about it.
 - **Scope and Wire error codes never appear in compiler output.** `ErrorMessages.scala` numbers them E1-E17, RE1-RE3 and W1, but the messages users see carry no code, so docs must index errors by message text. Found while writing H-31.
 - **`defer` on a closed scope is a silent no-op** (`Scope.scala:202`), while `allocate` and `$` throw. Found while writing H-31.
 - **`jdbc:sqlite::memory:` gives every connection its own empty database.** Code that opens more than one connection loses its tables. Found while writing T-07; now noted in `transactor.md`.
@@ -698,6 +731,10 @@ Found 2026-10-20 while writing H-03. The schema-csv spec checks rendered output 
 ### `schema-examples` has no scalafmt setup
 
 Found 2026-10-20 while writing H-03. The standalone `schema-examples/` build has no scalafmt plugin or config, so `sbt scalafmtAll` in the root build does not format it. Sessions format example files by hand or with `cs launch scalafmt -- --config .scalafmt.conf`. Add the plugin (or a `.scalafmt.conf` symlink) to the example builds, or document the command in AGENTS.md.
+
+### Example projects' tests never run in CI
+
+Found 2026-10-20 while writing H-47. CI's "Compile example projects" step (`project/CiWorkflow.scala:360`, generated into `.github/workflows/ci.yml`) runs `sbt compile` in each `*-examples/` build, so `src/test` sources are never compiled or run. `sql-examples` is the first examples build with tests (H-47's `BookshopSpec`, 4 tests, passing locally against 0.0.56). Switching the step to `sbt test` (and regenerating `ci.yml`) would cover them. This is a CI change for the maintainer to decide; H-47's attempt to make it was blocked by a permission check, so it was left alone.
 
 ### Docs build memory with many sbt servers
 
