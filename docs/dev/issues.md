@@ -882,6 +882,145 @@ A thread dump of the tutorial's companion example `Concept8CatchAllExample` (the
 
 **Suggested fix.** For blocking terminals, drive the async engine on the calling thread (poll the pollable in a loop on the caller instead of scheduling it on the pool and parking), so user code never moves to another thread. If that is not possible, document on the blocking terminals that the stream may run on `ForkJoinPool.commonPool`, and that calling them from a class initializer can deadlock.
 
+### Streams: `flatMap` followed by a primitive `map` throws `ClassCastException` (or passes `null`) on the blocking interpreter
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/stream-large-query-results.md` (backlog H-20), on `main` at `b4179489`. The `streams/` sources are the same at tag `v0.0.56`.
+
+**Summary.** Take a stream whose `flatMap` produces reference elements (`String`, a row case class, a `Chunk`). Map those elements to a primitive (`Int`, `Long`, `Double`, `Boolean`, `Char`). Then add an operator that compiles through `SyncInterpreter`: `grouped`/`chunked`, `sliding`, `take`, `takeWhile`, `scan` or `mapAccum`. A JVM blocking terminal such as `runCollect` then throws `java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Number`. The exception is thrown out of `runCollect`, not returned as a `Left`. The same pipeline is correct with `runCollectAsync.block`, and it is also correct without the trailing operator. The real case was a SQL row stream: `rows.flatMap(c => Stream.fromChunk(c)).filter(...).map(_.id).grouped(20).map(_.size).runCollect` threw `ClassCastException: class zio.blocks.chunk.Chunk$AnyRefArray cannot be cast to class java.lang.Number`. The mirror case also exists: a `flatMap` typed as `Any` whose inner stream holds primitives, followed by a primitive `map`, throws nothing. Instead it calls the user's `map` function with `null` and returns wrong values.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-streams` 0.0.56, run with `scala-cli run .`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+
+import zio.blocks.async._
+import zio.blocks.chunk.Chunk
+import zio.blocks.streams._
+
+@main def flatMapLaneRepro(): Unit = {
+  def show(label: String)(run: => Any): Unit = {
+    val result =
+      try run.toString
+      catch { case e: Throwable => s"THROWS ${e.getClass.getName}: ${e.getMessage}" }
+    println(s"$label -> $result")
+  }
+
+  // Each outer element is a chunk of Strings; flatMap flattens it to a Stream[String].
+  val words: Stream[Nothing, String] =
+    Stream.fromChunk(Chunk(Chunk("a", "bb"), Chunk("ccc"))).flatMap(c => Stream.fromChunk(c))
+
+  // 1. Failing: flatMap with reference inner elements, then a map to a primitive,
+  //    then an operator that compiles through SyncInterpreter.
+  show("map(Int).grouped(2)")(words.map(_.length).grouped(2).runCollect)
+  show("map(Long).grouped(2)")(words.map(_.length.toLong).grouped(2).runCollect)
+  show("filter.map(Int).grouped(2)")(words.filter(_.nonEmpty).map(_.length).grouped(2).runCollect)
+  show("map(Int).sliding(2, 1)")(words.map(_.length).sliding(2, 1).runCollect)
+  show("map(Int).take(2)")(words.map(_.length).take(2).runCollect)
+  show("map(Int).scan(0)(_ + _)")(words.map(_.length).scan(0)(_ + _).runCollect)
+
+  // 2. The same pipeline is correct on the async interpreter.
+  show("async: map(Int).grouped(2)")(words.map(_.length).grouped(2).runCollectAsync.block)
+
+  // 3. Controls that work on the blocking path.
+  show("map(Int) only")(words.map(_.length).runCollect)
+  show("map(String).grouped(2)")(words.map(_ + "!").grouped(2).runCollect)
+  show("map inside flatMap, grouped(2)")(
+    Stream
+      .fromChunk(Chunk(Chunk("a", "bb"), Chunk("ccc")))
+      .flatMap(c => Stream.fromChunk(c).map(_.length))
+      .grouped(2)
+      .runCollect
+  )
+  show("no flatMap: range.map(Long).grouped(20)")(
+    Stream.range(0, 100).map(_.toLong).grouped(20).map(_.size).runCollect
+  )
+
+  // 4. Mirror case: the inner stream is primitive but the flatMap is typed as Any.
+  //    No exception, but the map callback is handed null instead of the element.
+  val erased: Stream[Nothing, Any] =
+    Stream.fromChunk(Chunk(1)).flatMap(_ => (Stream.fromChunk(Chunk(5, 6)): Stream[Nothing, Any]))
+  show("erased: map(Int) only")(erased.map(x => if (x == null) -1 else 1).runCollect)
+  show("erased: map(Int).grouped(2)")(erased.map(x => if (x == null) -1 else 1).grouped(2).runCollect)
+}
+
+// Output:
+// map(Int).grouped(2) -> THROWS java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Number (java.lang.String and java.lang.Number are in module java.base of loader 'bootstrap')
+// map(Long).grouped(2) -> THROWS java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Number (java.lang.String and java.lang.Number are in module java.base of loader 'bootstrap')
+// filter.map(Int).grouped(2) -> THROWS java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Number (java.lang.String and java.lang.Number are in module java.base of loader 'bootstrap')
+// map(Int).sliding(2, 1) -> THROWS java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Number (java.lang.String and java.lang.Number are in module java.base of loader 'bootstrap')
+// map(Int).take(2) -> THROWS java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Number (java.lang.String and java.lang.Number are in module java.base of loader 'bootstrap')
+// map(Int).scan(0)(_ + _) -> THROWS java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Number (java.lang.String and java.lang.Number are in module java.base of loader 'bootstrap')
+// async: map(Int).grouped(2) -> Right(Chunk(Chunk(1,2),Chunk(3)))
+// map(Int) only -> Right(Chunk(1,2,3))
+// map(String).grouped(2) -> Right(Chunk(Chunk(a!,bb!),Chunk(ccc!)))
+// map inside flatMap, grouped(2) -> Right(Chunk(Chunk(1,2),Chunk(3)))
+// no flatMap: range.map(Long).grouped(20) -> Right(Chunk(20,20,20,20,20))
+// erased: map(Int) only -> Right(Chunk(1,1))
+// erased: map(Int).grouped(2) -> Right(Chunk(Chunk(-1,-1)))
+```
+
+Stack trace of the first case (top frames):
+
+```
+java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Number
+	at zio.blocks.streams.internal.SyncInterpreter$.$init$$$anonfun$17(SyncInterpreter.scala:2125)
+	at zio.blocks.streams.internal.SyncInterpreter.readIntStorage(SyncInterpreter.scala:607)
+	at zio.blocks.streams.internal.SyncInterpreter.readInt(SyncInterpreter.scala:572)
+	at zio.blocks.streams.io.Reader$SyncReader.readIntPhysical(Reader.scala:790)
+	at zio.blocks.streams.io.Reader$SyncReader.readN(Reader.scala:365)
+	at zio.blocks.streams.internal.SyncInterpreter.readN(SyncInterpreter.scala:856)
+	at zio.blocks.streams.Stream$$anon$2.read(Stream.scala:157)
+	at zio.blocks.streams.internal.SyncInterpreter.readRefChecked(SyncInterpreter.scala:1606)
+	at zio.blocks.streams.internal.SyncInterpreter.read(SyncInterpreter.scala:220)
+	at zio.blocks.streams.Sink$$anon$3.drain(Sink.scala:177)
+	...
+	at zio.blocks.streams.Stream.runBlocking(Stream.scala:1428)
+```
+
+**Expected.** Every line should print the same value as the async run and the no-flatMap control: `Right(Chunk(Chunk(1,2),Chunk(3)))` for `grouped(2)`, `Right(Chunk(Chunk(1,2),Chunk(2,3)))` for `sliding(2, 1)`, `Right(Chunk(1,2))` for `take(2)`, and `Right(Chunk(Chunk(1,1)))` for the erased case. In particular `runCollect` must not throw, and a `map` callback must never receive `null` for a non-null element.
+
+**Root cause.** The bug is in how `SyncInterpreter` (`streams/shared/src/main/scala/zio/blocks/streams/internal/SyncInterpreter.scala`) joins a `flatMap`'s inner stream to the rest of the pipeline.
+
+The interpreter keeps each element in one of five typed slots called "lanes": `Int`, `Long`, `Float`, `Double` and reference. Every operator reads from one lane and writes to one lane. A `flatMap` is stored as a PUSH op. The ops written after it (here `map(_.length)`) go into the "outgoing" array (`addAdaptedMap`, lines 1071–1074), and they read from the lane the PUSH produces. When an inner stream starts at run time, `handlePush` (lines 1381–1411) compiles it into the same interpreter. If the inner stream's lane differs from the expected one, `handlePush` adds a "bridge" map to convert between them. The problem is which lane counts as expected:
+
+- Lines 1384–1385 take `outerOL = outputLane` and `outerType = logicalOutputType`. Those are the lane and type at the very end of the pipeline, after all outgoing ops. For `words.map(_.length)` that is the `Int` lane, because the `map` already ran at compile time and overwrote both fields (`addAdaptedMap`, lines 1080–1081).
+- `addPush` (lines 1087–1102) never stores the PUSH op's own output type. Unlike `appendRead` (line 1150), it writes nothing to `incomingType`, and there is no outgoing type array. So `handlePush` cannot look up the right target.
+- Lines 1401–1406 compare the inner lane (reference, for `Stream.fromChunk(Chunk("a","bb"))`) with `outerOL` (`Int`). The two differ, so the code adds the bridge `logicalBridgeFn(AnyRef, Int)`. That is the reference-to-`Int` function `a.asInstanceOf[java.lang.Number].intValue()` at line 2125 (`Long` and `Double` use the same pattern at 2126–2128).
+- At run time the inner `String` reaches the bridge at line 607 (`case 20` in `readIntStorage`) before the user's `map`, and the `Number` cast fails. In the correct design the inner `String` would go untouched to the outgoing `map(_.length)`, which reads the reference lane.
+
+In plain English: the inner stream's elements are converted to the type the whole pipeline ends with, when they should be converted to the type the `flatMap` itself produces. The step after the `flatMap` then gets a value in the wrong form. For a reference value the conversion is a `Number` cast, so it throws. The mirror case fails the other way. The `flatMap` is declared as producing `Any` (reference lane), the inner stream produces `Int`s, and the pipeline ends in `Int`. The lanes look equal (`Int` == `Int`), so no bridge is added. The outgoing `map` (`AnyRef => Int`, tag 20) then reads the reference slot, which was never filled, and gets `null`.
+
+A bridge between two primitive lanes happens to be harmless. It writes the target slot, and the outgoing `map` still reads the untouched source slot. The bridge from a reference to a primitive is the only one that casts, so that is where the bug shows. When `flatMap`s are nested, every PUSH bridges to the final lane. The first one whose inner elements are references fails. That is why the SQL case reported `Chunk$AnyRefArray`: the page stream was itself a `flatMap` result, and its inner `Chunk` pages were the first references to reach a bridge.
+
+Why only some pipelines fail: `FlatMapped.compileBlocking` normally builds a dedicated `Reader.FlatMappedRef` (`Stream.scala:5663–5688`), which does not go through `SyncInterpreter`. So `words.map(_.length).runCollect` works. `grouped` is `chunked` (`Stream.scala:318`), a `StatefulReaderStream`. That type has no `compileBlocking` of its own, so it uses `compileBlockingFallback` → `SyncInterpreter.fromStream` (`Stream.scala:3379–3384`). Its `compileInterpreter` then compiles the upstream through the interpreter too (`Stream.scala:6002–6004` → `compileToReader(source, pipeline)` at 3582–3584 → `FlatMapped.compileInterpreter` at 5689–5691). `take`, `takeWhile`, `scan`, `mapAccum` and `sliding` take the same path. The chunk reader then calls `readN` (`io/Reader.scala:365`), which uses the `Int` lane because the interpreter's `jvmType` is `Int`. That lands in `readIntStorage`. `AsyncInterpreter` gets this right: it stores each PUSH's target type in `incomingType(ip)` / `outgoingType(out)` (`AsyncInterpreter.scala:852`, `846`) and bridges to it (`AsyncInterpreter.scala:1734`, `1857`, `2559–2564`). That is why `runCollectAsync.block` is correct.
+
+**Impact.** Any JVM blocking terminal (`runCollect`, `runFold`, `runForeach`, ...) can hit this. The pipeline shape is common: flatten a stream of batches (`Chunk`s of rows, lists of records), pick a numeric field, then batch, window, limit or scan it. This is the standard shape for paging through large query results. Results:
+
+- When the inner elements are references, the pipeline throws `ClassCastException` out of `runCollect` as a defect, not as a `Left`, so typed error handling never sees it.
+- When the `flatMap` is typed as `Any`/erased over primitive inner elements, the user's callback silently gets `null`. That produces wrong results, or a `NullPointerException` inside user code (`erased.map(_.toString.length).grouped(2)` throws an NPE at `_.toString`).
+
+Scala.js uses the same shared `SyncInterpreter`, so its synchronous terminals are presumably affected too (not run). Scala 2.13 could not be checked from published artifacts: `zio-blocks-next-streams_2.13:0.0.56` is not on Maven Central. Because the code is shared, a 2.13 build from source has the same bug. The async interpreter is not affected.
+
+**Test gap.** No test covers a reference-lane inner stream followed by a primitive-lane op after the PUSH:
+
+- `SyncInterpreterSpec.scala:1248–1295` (tests "4. flatMap(Int→Int) then map(Int→Long)", "5. ... map(Int→Double)", "6. ... map(Int→AnyRef)") always use an `Int` inner stream. The bad bridge is then primitive-to-primitive (or a box to reference), which does not throw. The outgoing map reads the untouched source slot, so the wrong bridge is never seen.
+- `SyncInterpreterSpec.scala:576–615` covers `Boolean` PUSH output types and an erased `Any` inner stream, but with no lane-changing op after the PUSH.
+- The `addMap(LANE_R, OUT_I/L/D)` cases in `SyncInterpreterCoverageSpec.scala:206–221` and `SyncInterpreterSpec.scala:271` have no PUSH.
+- No test in `streams/shared/src/test` chains `flatMap` with `grouped`/`chunked`/`sliding` at all (searched within 4 lines of every `flatMap`). No test runs a `flatMap(...).map(primitive)` pipeline through an interpreter-only operator (`grouped`, `take`, `scan`, `takeWhile`, `mapAccum`) and checks the blocking result against `runCollectAsync`.
+
+**Suggested fix.** Make `SyncInterpreter` bridge an inner stream to the PUSH op's own output type, as `AsyncInterpreter` already does:
+
+1. In `addPush` (`SyncInterpreter.scala:1087–1102`), record `outType` for the PUSH op. For the incoming branch use `incomingType(idx) = outType`. For the outgoing branch add an `outgoingType: Array[JvmType]`, allocated and grown next to `outgoingPrim`/`outgoingRef` in `ensureOutgoing`/`growOutgoing` and cleared in `rollbackPush`, the way `AsyncInterpreter` does at lines 846/852.
+2. Pass the op index to `handlePush` from the incoming loops too (they pass `-1` today). There are 50 call sites: five read loops (`read`, `readDouble`, `readFloat`, `readIntStorage`, `readLong`) × 5 incoming + 5 outgoing PUSH tags.
+3. In `handlePush`, look up `targetType = if (fromOutgoing) outgoingType(idx) else incomingType(idx)`. Add the bridge only when the inner stream's lane differs from `targetType`'s lane, using `logicalBridgeFn(innerType, targetType)`, with the same `Boolean` special case as `AsyncInterpreter.scala:2562–2564`. Keep `outputLane = outerOL`, `logicalOutputType = outerType` and the saved state unchanged: those still control how the final value is emitted and restored by `popAt`.
+
+The change runs once per inner stream, when `handlePush` materializes it: one array read and one lane comparison. It adds nothing per element. It does not touch the hot drain loops, the primitive sentinels or the `readN` loops in `io/Reader.scala`, so it is within the AGENTS.md sentinel performance policy. Still run the `flatMap` JMH benchmarks before and after, since the bridge op count per inner stage can change. Add regression tests:
+
+- interpreter-level: `appendRead(ref reader)` → `addPush(AnyRef, AnyRef)` → `addMap(AnyRef, Int/Long/Double)`, read with `readInt`/`readLong`/`readDouble`/`readN`, and the erased `addPush(Int, AnyRef)` + inner `Int` stream + `addMap(AnyRef, Int)` case;
+- stream-level: the reproduction above for `grouped`, `sliding`, `take`, `takeWhile`, `scan` and `mapAccum`, plus a nested `flatMap` of pages, each checked against `runCollectAsync.block`.
+
 ### jwt: `Jwt.sign` writes a registered claim twice when `extra` also contains it, and verifiers read the `extra` value
 
 Documented in #1789 (H-37, merged). Not filed on GitHub yet.
@@ -1132,6 +1271,81 @@ Found 2026-10-20 while writing H-05 and M-01. Verified on 0.0.56.
 **Reproduction.** See the `Schema[LocalDate]` usability trap below (last line of output), and the `fromJsonSchema` entry above.
 
 **Fix.** Drop the wrapper segment when rendering the error path for wrapper schemas.
+
+### sql: `queryStream` throws, instead of returning `Left`, when the `SELECT` has fewer columns than the row type, and logs the failed query as a success
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/stream-large-query-results.md` (backlog H-20), on `main` at `b4179489`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 main -- sql/ streams/` is empty, and the stack trace from the 0.0.56 jar points at the same line numbers as `main`.
+
+**Summary.** `Frag#queryStream` and `Frag#queryChunked` promise that "SQL failures surface as typed errors (`Left`) from terminal operations such as `runCollect`". That is true when the database rejects the statement and when one row fails to decode. It is not true when the result set has fewer columns than the row type needs, for example `SELECT id, title` decoded as a four-field `Sale`. Then `runCollect` throws `java.sql.SQLException: column 3 out of bounds [1,2]` out of the call, so code that matches on the `Either` never sees the error. The `SqlLogger` also records the failed query as `onSuccess` with `rowCount=0`, and no `onError` event is emitted. The statement and result set are still closed (checked by tracking the `PreparedStatement` through a `java.sql.Connection` proxy and calling `isClosed` before the connection closed), so nothing leaks.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql` 0.0.56 + sqlite-jdbc 3.53.4.0, run with `scala-cli run .`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import java.nio.file.Files
+import java.sql.DriverManager
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Sale(id: Long, title: String, quantity: Int, soldOn: String)
+object Sale { given Schema[Sale] = Schema.derived }
+
+val logger = new SqlLogger {
+  def onSuccess(e: SqlLogger.SuccessEvent): Unit = println(s"  [log] onSuccess rowCount=${e.rowCount}: ${e.sql}")
+  def onError(e: SqlLogger.ErrorEvent): Unit     = println(s"  [log] onError ${e.error.getMessage}: ${e.sql}")
+}
+
+@main def queryStreamThrows(): Unit = {
+  val url = s"jdbc:sqlite:${Files.createTempFile("sales", ".db")}"
+  val tx  = new JdbcTransactor(() => DriverManager.getConnection(url), SqlDialect.SQLite)
+  tx.connect {
+    Table.derived[Sale].createTable(SqlDialect.SQLite).update
+    Frag.literal("INSERT INTO sale VALUES (1, 'Zionomicon', 3, '2026-10-01')").update
+    ()
+  }
+  val logged = new JdbcTransactor(() => DriverManager.getConnection(url), SqlDialect.SQLite, logger)
+
+  // The SELECT lists 2 of the 4 columns Sale needs.
+  println(Try(logged.connect(sql"SELECT id, title FROM sale".queryStream[Sale].runCollect)))
+  // An unknown column, for comparison.
+  println(Try(logged.connect(sql"SELECT nope FROM sale".queryStream[Sale].runCollect)))
+  // The List API, for comparison.
+  println(Try(logged.connect(sql"SELECT id, title FROM sale".query[Sale])))
+}
+
+//   [log] onSuccess rowCount=0: SELECT id, title FROM sale
+// Failure(java.sql.SQLException: column 3 out of bounds [1,2])
+//   [log] onError [SQLITE_ERROR] SQL error or missing database (no such column: nope): SELECT nope FROM sale
+// Success(Left(org.sqlite.SQLiteException: [SQLITE_ERROR] SQL error or missing database (no such column: nope)))
+//   [log] onError column 3 out of bounds [1,2]: SELECT id, title FROM sale
+// Failure(java.sql.SQLException: column 3 out of bounds [1,2])
+```
+
+The first `Failure` is the bug. The exception starts in the sqlite-jdbc driver (`CoreResultSet.checkCol`); its first `zio.blocks` frames are `JdbcResultReader.columnLabel(JdbcResultReader.scala:277)` ← `Frag$.selectLabels(Frag.scala:216)` ← `Frag$.rowDecoder(Frag.scala:237)` ← `Frag$.queryChunked` (`Frag.scala:435`) ← `Stream$FromAcquireRelease.compileInterpreter(Stream.scala:5870)`. The third line is the expected behavior of the `List` API, which throws by design and does log `onError`.
+
+**Expected.** The first call prints `Success(Left(java.sql.SQLException: column 3 out of bounds [1,2]))`, and the logger records one `onError` event and no `onSuccess`, the same as for `SELECT nope`.
+
+**Root cause.** `queryChunked` (`sql/shared/src/main/scala/zio/blocks/sql/Frag.scala:396-470`) handles errors in two places, and the column-mapping step falls between them:
+
+1. Running the statement happens inside `Stream.attempt` (`Frag.scala:399-418`). Its `catch` (`:409-417`) closes the statement, logs `onError` and rethrows, and `Stream.attempt` turns the exception into a typed error.
+2. Reading each row happens inside the `SyncReader#read` `try`/`catch` (`Frag.scala:442-463`), which logs `onError` and calls `failSource(e)`, another typed error.
+
+Between the two, the `use` function of `Stream.fromAcquireRelease` (`Frag.scala:433-435`) calls `rowDecoder(reader, codec)` once to decide how rows map to columns. `rowDecoder` (`Frag.scala:231-240`) falls back to `selectLabels` (`Frag.scala:213-217`), which, for each codec column that the result set doesn't have by name, asks for the label at the same position: `reader.columnLabel(offset + 1)`. With a two-column result and a four-column codec, position 3 doesn't exist, and the JDBC driver throws. `Stream.fromAcquireRelease` documents that exceptions thrown by `use` are defects (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:2955-2960`). `FromAcquireRelease#compileInterpreter` (`Stream.scala:5864-5882`) runs `release` and rethrows (`:5876-5881`), and `runCollect` lets the defect escape.
+
+The wrong log event comes from the same gap. `release` (`Frag.scala:422-432`) logs `onSuccess` whenever the shared `mark.logged` flag is still unset (`:428-431`), because it assumes that an unlogged release means the consumer stopped early. The error paths in steps 1 and 2 set that flag before logging `onError`; the `rowDecoder` failure sets nothing, so `release` reports a success with `mark.count` = 0.
+
+The query is only wrong for a codec column that is missing by name *and* lies past the last result column. A missing column at a position that exists is read from that position instead: `SELECT id, title, quantity, sold_on AS x` returns `Right` with `soldOn` filled from `x`, and any per-row failure there happens inside `read` and becomes a `Left`. A one-column `SELECT id FROM sale` decoded as `(Long, String)` throws `column 2 out of bounds [1,1]` the same way.
+
+**Impact.** Users of the streaming API are told they can handle every SQL failure through the `Either`. A projection that leaves out columns, which is an easy mistake when a query is edited, instead crashes the caller (for example a request handler that only matches on `Left`/`Right`). Monitoring built on `SqlLogger` counts the broken query as a successful zero-row read, so dashboards and alerts don't see it. `Frag#query`, `queryOne` and `queryLimit` are not affected: they throw by design, and they log `onError` correctly.
+
+**Test gap.** The streaming tests are in `sql/jvm/src/test/scala/zio/blocks/sql/TransactorSpec.scala:539-645`. "surfaces acquisition failure as Left" (`:595`) only covers a failure inside `executeQuery` (unknown table). "surfaces row decode failure as Left" (`:607`) uses `failingCodec` (`:124-135`), which delegates to the real codec and then throws inside `readValue`, so it only covers the per-row path inside `read`. No test makes `rowDecoder` itself fail, meaning a `SELECT` with fewer columns than the codec, and no test in `sql/shared/src/test` or `sql/jvm/src/test` decodes a narrower projection through `query` or `queryChunked`.
+
+**Suggested fix.** Resolve the decoder during acquisition, so that it fails through the existing `catch`. In the `Stream.attempt` block, after `ps.executeQuery()`, compute `val decode = rowDecoder(rs.reader, codec)` and return it with the resource (`(ps, rs, decode, FinishMark(start))`). Closing `ps` in that `catch` also closes `rs`. The `use` function then only builds the reader. Another option is to keep the call in `use`, wrap it in a `try` that sets `mark.logged`, logs `onError` and returns `Stream.fail(e)`. `release` still closes the statement and, with the flag set, won't log a second event. Either way, add a `TransactorSpec` case like "frag.queryChunked surfaces a column-count mismatch as Left with exactly one error log": decode a one-column `SELECT id FROM t` as `(Long, String)` and assert `result.isLeft`, `logger.errors.size == 1` and `logger.successes.isEmpty`.
 
 ### `Table#createTable` declares no `PRIMARY KEY`, so derived tables accept duplicate IDs and reject `Repo#insertOrUpdate`
 
@@ -1637,6 +1851,26 @@ case class Database(url: String) extends AutoCloseable {
 ```
 
 **Suggested fix.** Correct each statement to match the source, and point section 12 of the tutorial and the error sections of `scope.md` at `docs/guides/fix-scope-and-wire-compile-errors.md` instead of keeping a second list of messages. Fix the example's comment, and the cycle claims, once #1767 is fixed.
+
+### docs: `db-codec.md` says non-optional types throw on SQL `NULL`, but `String` decodes to `null` and numeric types to `0`
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/stream-large-query-results.md` (backlog H-20), on `main` at `b4179489`. Verified with `zio-blocks-next-sql` 0.0.56 and sqlite-jdbc 3.53.4.0; the code is the same at tag `v0.0.56`.
+
+**Summary.** `docs/reference/sql/db-codec.md:22` says "non-optional types throw `IllegalStateException` on unexpected `NULL`, surfacing schema mismatches immediately rather than silently coercing." Only `BigDecimal` and the deriver's `Char` do that. A `NULL` read into a `String` field becomes `null`, and a `NULL` read into an `Int` field becomes `0`. `Frag#query` and `Frag#queryStream` behave the same way.
+
+**Reproduction.** With `case class Sale(id: Long, title: String, quantity: Int, soldOn: LocalDate)` and one row in a SQLite `sale` table:
+
+- `sql"SELECT id, NULL AS title, quantity, sold_on FROM sale".queryStream[Sale].runCollect` returns `Right(Chunk(Chunk(Sale(1,null,3,2026-10-01))))`.
+- The same query with `.query[Sale]` returns `List(Sale(1,null,3,2026-10-01))`; `title` is a real `null`.
+- `SELECT id, title, NULL AS quantity, sold_on` with `.query[Sale]` returns `List(Sale(1,Zionomicon,0,2026-10-01))`.
+
+**Root cause.** Only `BigDecimal` (`sql/shared/src/main/scala/zio/blocks/sql/DbCodec.scala:336,340`) and the deriver's `Char` (`sql/shared/src/main/scala/zio/blocks/sql/DbCodecDeriver.scala:661-662`) call `unexpectedNull`. `stringCodec` (`DbCodec.scala:278-285`), `intCodec`, `longCodec` and the other primitive codecs return whatever the JDBC getter returns (`null`, `0`, `false`). The type table on the same page (`db-codec.md:360`) says "Throws on SQL NULL" only for `BigDecimal`, which matches the code, so the page contradicts itself.
+
+**Impact.** A schema mismatch (a nullable column mapped to a non-`Option` field) passes silently: a `String` field holds `null` and can throw a `NullPointerException` far from the query, and a numeric field holds `0`, which looks like real data.
+
+**Test gap.** Only `DbCodecSpec.scala:612-616` tests the `NULL` failure, for `BigDecimal`. No test reads `NULL` into a `String` or a numeric field.
+
+**Suggested fix.** Either change `db-codec.md:22` to say that only `BigDecimal` and `Char` fail fast, `String` gives `null` and the numeric and `Boolean` types give the JDBC default, or make the primitive codecs check `wasNull` and throw. The second is a behaviour change with a per-column cost.
 
 **Other modules**
 
