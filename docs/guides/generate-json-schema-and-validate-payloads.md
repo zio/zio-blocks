@@ -10,7 +10,7 @@ keywords:
   - "Schema.fromJsonSchema"
 ---
 
-In this guide, we build the API contract for a book-catalog service that accepts new book submissions. We derive a JSON Schema document (draft 2020-12) from the `BookSubmission` case class, publish it as a file that other teams can read, validate raw JSON payloads against it, and load a stricter schema that another team wrote. By the end, you will have one program that generates the contract from the type and rejects bad payloads with readable error messages.
+In this guide, we build the API contract for a book-catalog service that accepts new book submissions. We derive a JSON Schema document (draft 2020-12) from the `BookSubmission` case class, publish it as a file that other teams can read, validate raw JSON payloads against it, and load a stricter schema from another team. By the end, you will have one program that generates the contract from the type and rejects bad payloads with readable error messages.
 
 We take an incremental approach:
 
@@ -191,7 +191,7 @@ validate(
 
 When you only need a yes-or-no answer, `JsonSchema#conforms` returns a `Boolean` instead. For more on the validation API, see [Validation](../reference/schema/built-in-codecs/json/json-schema.md#validation) in the JSON Schema reference.
 
-## Load a Schema You Didn't Write
+## Load a Schema from Another Source
 
 Sometimes the contract comes from somewhere else — a partner team, a schema registry or a configuration file read at startup. Suppose the catalog team publishes a stricter schema for the same payload: titles and authors must be non-empty, the year must be 1450 or later, an ISBN must be an ISBN-13 without hyphens, and tags must not repeat:
 
