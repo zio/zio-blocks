@@ -406,5 +406,5 @@ You now have a solid foundation in ZIO Blocks schemas. The next step is to tune 
 - **Ready to customize the JSON?** The [JSON Codec](../reference/schema/built-in-codecs/json/index.md) overview shows how the codec pieces fit together, and [JSON Configuration](../reference/schema/built-in-codecs/json/json-config.md) covers reader and writer settings and field-name mapping with `NameMapper`.
 - **Want to understand errors in depth?** Read [SchemaError](../reference/schema/schema-error.md) for every error case and how errors are combined.
 - **Curious about the generic view?** Read [DynamicValue](../reference/schema/dynamic-value.md).
-- **Need another format?** The [Built-in Codecs](../reference/schema/built-in-codecs/index.md) overview lists Avro, BSON, CSV, MessagePack, Thrift, TOON, XML and YAML, all derived from the same `Schema`.
+- **Need another format?** Follow [One Type, Many Formats](./one-type-many-formats.md) to derive JSON, YAML, XML, TOON, MessagePack, Avro and CSV codecs from the same `Schema`. The [Built-in Codecs](../reference/schema/built-in-codecs/index.md) overview lists Avro, BSON, CSV, MessagePack, Thrift, TOON, XML and YAML, all derived from the same `Schema`.
 - **Want the full API?** The [Schema](../reference/schema/schema.md) reference page documents every operation on `Schema`.

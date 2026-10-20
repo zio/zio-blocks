@@ -75,3 +75,7 @@ For format-specific limitations, see the dedicated codec documentation.
 ## Error Handling
 
 All formats return `Either[SchemaError, A]` for decoding operations. Errors include path information for debugging, showing exactly where in nested structures a decoding failure occurred. See individual codec documentation for format-specific error details.
+
+## See Also
+
+- [One Type, Many Formats](../../../guides/one-type-many-formats.md) - a tutorial that derives JSON, YAML, XML, TOON, MessagePack, Avro and CSV codecs from one `Schema` and round-trips a catalog through each.
