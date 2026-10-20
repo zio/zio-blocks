@@ -455,6 +455,7 @@ const sidebars = {
   guides: [
     "guides/your-first-schema",
     "guides/customize-json-encoding",
+    "guides/override-codec-for-one-type",
     "guides/nested-data-with-optics",
     "guides/one-type-many-formats",
     "guides/typed-config-loader",
