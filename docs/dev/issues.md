@@ -303,3 +303,109 @@ List("name = \"Scala Bookstore\"\ntags = [scala,\n", "a = ${missing}").foreach {
 **Test gap.** `ConfigErrorSpec` tests `ParseError` messages only with a non-empty path, and no test checks the message of a HOCON parse failure.
 
 **Suggested fix.** Append the cause message in `ParseError#message` whatever the path, and override `getCause` to return the cause. Record the position of each substitution when parsing, and use it for resolution errors. Add a `HoconConfigSourceSpec` test that asserts the full message of a syntax error.
+
+## config: `Config.load` returns one `Composite` for many errors, so `loadOrThrow` reports "1 error(s)"
+
+Found 2026-10-19 while writing the tutorial `docs/guides/typed-config-loader.md` (backlog T-05), and reproduced 2026-10-20 while writing `docs/guides/config-library-migration.md` (backlog M-06), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`. Verified by running. PR #1761 fixed the report but was closed without merging, so the bug is still open.
+
+**Summary.** `Config.load` returns `Either[::[ConfigError], A]`, and its Scaladoc says it "returns all accumulated `ConfigError`s". When a case class has several bad fields, though, the list holds a single `ConfigError.Composite` that wraps them. Code that counts or walks the list sees one error. `Config.loadOrThrow` builds its report from that list, so it says `failed with 1 error(s)`, prints the `-` bullet only before the first message, and puts the other messages on unindented lines. `ConfigLoadException#errors` also has length 1.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-config` 0.0.56):
+
+```scala
+import zio.blocks.config._
+import zio.blocks.schema.Schema
+
+case class DbConfig(host: String, port: Int)
+case class BookstoreConfig(name: String, port: Int, db: DbConfig)
+object BookstoreConfig { implicit val schema: Schema[BookstoreConfig] = Schema.derived }
+
+val source = ConfigSource.fromMap(Map("port" -> "eighty", "db.port" -> "5432"), "application.conf")
+
+Config.load[BookstoreConfig](source) match {
+  case Left(errors) =>
+    println(errors.length)
+    println(errors.head.getClass.getSimpleName)
+  case Right(config) => println(config)
+}
+// 1
+// Composite
+
+try Config.loadOrThrow[BookstoreConfig](source)
+catch { case e: ConfigLoadException => print(e.getMessage); println(e.errors.length) }
+// Configuration loading failed with 1 error(s):
+//   - Missing required key 'name' in source 'application.conf'
+// Invalid value 'eighty' for key 'port' (expected Int) in source 'application.conf': For input string: "eighty"
+// Missing required key 'db.host' in source 'application.conf'
+// 1
+```
+
+**Expected.** `errors.length` is `3`, with one entry per problem. The report says `failed with 3 error(s):` and puts each message on its own `  - ` line. `e.errors.length` is `3`.
+
+**Root cause.** The record decoder collects every field error, but when there is more than one it returns `Left(::(ConfigError.Composite(errors), Nil))`, a one-element list (`config/shared/src/main/scala/zio/blocks/config/ConfigDecoderDeriver.scala:122-127`, in `deriveRecord` at `:61`). The sequence and map decoders return the errors as a flat list instead (`:249-251` and `:304-306`), so the shape of `Left` depends on the type being decoded. `Config.formatErrors` counts `errors.length` and writes one `  - ` bullet per list element (`config/shared/src/main/scala/zio/blocks/config/Config.scala:131-142`), and `Composite#message` joins its children with `"\n"` (`ConfigError.scala:126-130`), which is where the unindented lines come from.
+
+**Impact.** The headline count in every startup failure report is wrong whenever more than one field is bad, which is the case `Config.load` is designed for. Callers who match on the list (for example to group errors by kind) have to know to unwrap `Composite` first.
+
+**Test gap.** `ConfigSpec` checks only that `e.errors.head` is a `Composite` and that `e.report.contains("error(s)")` (`config/shared/src/test/scala/zio/blocks/config/ConfigSpec.scala:115`, `:143`). No test asserts the count or the full report.
+
+**Suggested fix.** Return the record errors as a flat list, as the sequence and map decoders already do, and keep `Composite` only for callers that build one themselves. At the least, flatten `Composite` in `formatErrors` (this is what PR #1761 did). Assert the full report string in `ConfigSpec`.
+
+## docs: `formats.md` says infinite HOCON numbers keep their `Double` rendering
+
+Found 2026-10-20 while writing `docs/guides/config-library-migration.md` (backlog M-06), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `docs/reference/config/formats.md:164` says: "Non-integral and infinite values keep their `Double` rendering." The HOCON parser never produces an infinite number. A literal too large for a `Double` (such as `1e400`), `Infinity` and `-1e400` are all kept as the text that was written, as strings.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-config-hocon` 0.0.56):
+
+```scala
+import zio.blocks.config._
+import zio.blocks.config.hocon._
+
+List("big = 1e400", "big = Infinity", "big = 1.5", "big = -1e400").foreach { doc =>
+  println(ConfigSource.fromHocon(doc).map(_.all("").map { case (k, v) => s"$k='${v.value}'" }.toList))
+}
+// Right(List(big='1e400'))
+// Right(List(big='Infinity'))
+// Right(List(big='1.5'))
+// Right(List(big='-1e400'))
+
+println(HoconParser.parse("big = 1e400"))
+// Right(Obj(Map(big -> Str(1e400))))
+```
+
+**Root cause.** `interpretUnquoted` keeps a number only when `!d.isNaN && !d.isInfinite`, and otherwise falls back to a string (`config-hocon/shared/src/main/scala/zio/blocks/config/hocon/HoconParser.scala:392-393`).
+
+**Suggested fix.** Replace the sentence with: "Non-integral values keep their `Double` rendering. A number too large for a `Double`, such as `1e400`, is kept as the text that was written."
+
+## docs: `formats.md` leaves out the 1 MiB file-size limit of `ConfigSource.fromFile`
+
+Found 2026-10-20 while writing `docs/guides/config-library-migration.md` (backlog M-06), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** The "Loading from a File" section of `docs/reference/config/formats.md` (`:199-228`) lists `allowedBase` and `maxIncludeDepth` as the two guards on `ConfigSource.fromFile`. It does not mention the third one: `fromFile` refuses a file or include larger than 1 MiB, and the only way to raise the limit is `ConfigSource.fromFileWithLimits(..., maxFileBytes = ...)`, which the page never names. A reader whose generated configuration grows past 1 MiB gets a parse error that the page does not explain.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-config-hocon` 0.0.56, JVM):
+
+```scala
+import zio.blocks.config._
+import zio.blocks.config.hocon._
+import java.nio.file.Files
+
+val file = Files.createTempDirectory("bookstore").resolve("application.conf")
+Files.writeString(file, "bookstore.name = \"Scala Bookstore\"\n" + ("# padding\n" * 120000))
+println(Files.size(file))
+
+ConfigSource.fromFile(file.toString) match {
+  case Left(e: ConfigError.ParseError) => println(e.cause.map(_.getMessage))
+  case other                           => println(other)
+}
+
+ConfigSource.fromFileWithLimits(file.toString, maxFileBytes = 4L * 1024 * 1024).map(_.all("").keys.toList).foreach(println)
+// 1200035
+// Some(File size exceeds limit (1048576 bytes) (line 0, column 0))
+// List(bookstore.name)
+```
+
+**Root cause.** `fromFile` delegates to `fromFileWithLimits` with `DefaultMaxFileBytes = 1024L * 1024L` (`config-hocon/jvm/src/main/scala/zio/blocks/config/hocon/HoconConfigSourcePlatform.scala:28`, `:204`), and the read throws `File size exceeds limit` above it (`:36`, `:54`). The docs table was written before the limit existed (added by PR #1649).
+
+**Suggested fix.** Add a third row to the table: `maxFileBytes` | `1 MiB` | "Maximum size of the file and of each include; a larger one is a parse failure. Set it with `ConfigSource.fromFileWithLimits`." Then change "Two parameters guard ..." to "Three parameters guard ...", and add the size failure to the failures paragraph.
