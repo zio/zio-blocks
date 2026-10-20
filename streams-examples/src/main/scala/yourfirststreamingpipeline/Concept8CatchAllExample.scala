@@ -1,0 +1,90 @@
+package yourfirststreamingpipeline
+
+import zio.blocks.streams._
+import zio.blocks.chunk.Chunk
+import java.io.BufferedReader
+import java.nio.file.{Files, Path, StandardOpenOption}
+import scala.jdk.CollectionConverters._
+
+/**
+ * Your First Streaming Pipeline: Turn a Sales Log into a Report — Concept 8:
+ * Recover with catchAll
+ *
+ * Recovers from the truncated line with catchAll and prints the report.
+ *
+ * Uses def main rather than extends App: with catchAll the stream may call
+ * these functions on another thread, which deadlocks inside an object
+ * initializer.
+ *
+ * Run with: cd streams-examples && sbt "runMain
+ * yourfirststreamingpipeline.Concept8CatchAllExample"
+ */
+object Concept8CatchAllExample {
+  final case class Sale(title: String, quantity: Int)
+
+  def toSale(line: String): Sale = {
+    val fields = line.split(",")
+    Sale(fields(1), fields(2).toInt)
+  }
+
+  final case class MalformedLine(line: String)
+
+  def parse(line: String): Stream[MalformedLine, Sale] =
+    line.split(",") match {
+      case Array(_, title, quantity) if quantity.toIntOption.isDefined =>
+        Stream.succeed(Sale(title, quantity.toInt))
+      case _ =>
+        Stream.fail(MalformedLine(line))
+    }
+
+  def main(args: Array[String]): Unit = {
+    val salesLog: Path = Files.createTempFile("sales", ".csv")
+
+    Files.writeString(
+      salesLog,
+      """timestamp,title,quantity
+        |2026-10-19T10:15,Zionomicon,2
+        |2026-10-19T10:42,Programming in Scala,1
+        |2026-10-19T11:05,Functional Programming in Scala,3
+        |2026-10-19T12:10,Zionomicon,1
+        |""".stripMargin
+    )
+
+    val salesLines: Stream[Nothing, String] =
+      Stream.fromAcquireRelease(
+        acquire = {
+          println("Opened the sales log")
+          Files.newBufferedReader(salesLog)
+        },
+        release = (reader: BufferedReader) => {
+          reader.close()
+          println("Closed the sales log")
+        }
+      )(reader => Stream.fromIterator(reader.lines().iterator().asScala))
+
+    val header = "timestamp,title,quantity"
+
+    val saleLines: Stream[Nothing, String] = salesLines.filter(line => line != header)
+
+    val sales: Stream[Nothing, Sale] = saleLines.map(toSale)
+
+    val copiesPerTitle: Sink[Nothing, Chunk[Sale], Map[String, Int]] =
+      Sink.foldLeft(Map.empty[String, Int]) { (totals: Map[String, Int], batch: Chunk[Sale]) =>
+        batch.foldLeft(totals) { (acc, sale) =>
+          acc.updated(sale.title, acc.getOrElse(sale.title, 0) + sale.quantity)
+        }
+      }
+
+    Files.writeString(salesLog, "2026-10-19T12:31,Zionom", StandardOpenOption.APPEND)
+
+    val parsedSales: Stream[MalformedLine, Sale] = saleLines.flatMap(parse)
+
+    val cleanSales: Stream[Nothing, Sale] =
+      parsedSales.catchAll { bad =>
+        println(s"Skipping malformed line: ${bad.line}")
+        Stream.empty
+      }
+
+    println(cleanSales.grouped(2).run(copiesPerTitle))
+  }
+}
