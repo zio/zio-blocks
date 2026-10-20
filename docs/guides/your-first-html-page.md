@@ -280,7 +280,7 @@ Text inside `<script>` is not HTML, so it can't be escaped with `&lt;`. JSON tha
 println(ToJs[Review].toJs(review))
 ```
 
-Notice that `<script>` became `<script>`. JavaScript reads it back as the original text, but the HTML parser never sees a tag. The same review is now safe in three places: as text, as a link and as JSON, each escaped in the way that place needs.
+Notice that `<script>` became `\u003cscript\u003e`. JavaScript reads it back as the original text, but the HTML parser never sees a tag. The same review is now safe in three places: as text, as a link and as JSON, each escaped in the way that place needs.
 
 ## 8. Check the Page With Selectors
 
