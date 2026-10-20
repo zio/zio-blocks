@@ -102,7 +102,7 @@ import zio.blocks.schema.Schema
 
 `zio.blocks.config._` brings in `Config`, `ConfigSource`, `EnvSource`, `KeyFormat`, `Secret` and `ConfigError`. `zio.blocks.config.hocon._` adds `ConfigSource.fromHocon`, and on the JVM `ConfigSource.fromFile`.
 
-## The Concept Map
+## Mapping Old Calls to ZIO Blocks
 
 Each row is one task the old loader did, and the ZIO Blocks call that does it now:
 
@@ -237,7 +237,7 @@ val hocon: ConfigSource = ConfigSource.fromHocon(applicationConf, "application.c
 }
 ```
 
-PureConfig's `.at("bookstore")` becomes `ConfigSource#prefix("bookstore")`, which puts `bookstore.` in front of every key the loader asks for. Let's load the file as it is:
+PureConfig's `.at("bookstore")` becomes `ConfigSource#prefix("bookstore")`, which puts `bookstore.` in front of every key the loader asks for. Load the file as it is:
 
 ```scala mdoc
 report(Config.load[BookstoreConfig](hocon.prefix("bookstore")))
@@ -248,7 +248,7 @@ The file parses, but the load reports two missing keys, and each one is a migrat
 - `featuredTitle` is missing because the file spells it `featured-title`. ZIO Blocks looks up field names exactly as written in the case class; the next section maps them.
 - `db.password` is missing because `${?DB_PASSWORD}` found nothing. We replace it with an environment layer two sections below.
 
-Notice what the report leaves out: `discount-percent` is missing for the same reason as `featured-title`, but `discountPercent` is an `Option[Int]`, and a missing key for an optional field is `None`, not an error. Until the keys are mapped, every kebab-case key behind an optional field or a field with a default is silently ignored.
+The report leaves out one key: `discount-percent` is missing for the same reason as `featured-title`, but `discountPercent` is an `Option[Int]`, and a missing key for an optional field is `None`, not an error. Until the keys are mapped, every kebab-case key behind an optional field or a field with a default is silently ignored.
 
 ## Keeping Your Kebab-Case Keys
 
@@ -258,7 +258,7 @@ PureConfig maps the camelCase field `featuredTitle` to the kebab-case key `featu
 val application: ConfigSource = hocon.keyFormat(KeyFormat.KebabCase).prefix("bookstore")
 ```
 
-Let's load again:
+Load again:
 
 ```scala mdoc
 report(Config.load[BookstoreConfig](application))
@@ -266,9 +266,7 @@ report(Config.load[BookstoreConfig](application))
 
 Only the password is missing now. `featuredTitle` and `discountPercent` both read their kebab-case keys.
 
-:::tip
 The file keeps its kebab-case keys, so it stays readable by the old loader while both run side by side. `ConfigSource#keyFormat` also accepts `KeyFormat.SnakeCase`, `KeyFormat.UpperSnakeCase` and `KeyFormat.CamelCase`, and `ConfigSource#keyMapper` takes a custom `KeyMapper` for any other convention.
-:::
 
 ## Replacing `${?VAR}` With an Environment Layer
 
@@ -282,7 +280,7 @@ val env = ConfigSource.fromMap(Map("db.password" -> "s3cr3t-from-env", "port" ->
 val layered = env.orElse(application)
 ```
 
-Let's load the layered source:
+Load the layered source:
 
 ```scala mdoc
 report(Config.load[BookstoreConfig](layered))
@@ -384,7 +382,7 @@ Most of an `application.conf` parses unchanged: objects with `=`, `:` or no sepa
 | Array concatenation such as `[a] [b]`               | Supported                                         | The value becomes an empty string                                              | Write one array, or use `+=`                                    |
 | Durations such as `10s` and sizes such as `512M`    | Parsed by `getDuration` and `getBytes`            | Kept as strings; `java.time.Duration` fields need ISO-8601 (`PT10S`)            | Rewrite durations as ISO-8601; read sizes as numbers            |
 
-Let's see four of these on small documents. The helper `keys` parses a document with `fromHocon` and prints the keys it produced, or the parse error:
+Four of these show up on small documents. The helper `keys` parses a document with `fromHocon` and prints the keys it produced, or the parse error:
 
 ```scala mdoc:silent
 def keys(document: String): Unit =
@@ -422,7 +420,7 @@ object Timeouts {
 }
 ```
 
-Let's load it from both spellings:
+Load it from both spellings:
 
 ```scala mdoc
 report(Config.load[Timeouts](ConfigSource.fromHocon("requestTimeout = 10s").toOption.get))
@@ -435,7 +433,7 @@ report(Config.load[Timeouts](ConfigSource.fromHocon("requestTimeout = PT10S").to
 
 PureConfig and zio-config already collect errors from every field before they fail, and Typesafe Config getters throw on the first one. `Config.load` collects them too: it checks every field and returns a non-empty list `::[ConfigError]`, one entry per problem.
 
-Let's break the file in three ways: a word for the port, a word for the discount, and no featured title. The environment stand-in is empty, so the password is missing too:
+Break the file in three ways: a word for the port, a word for the discount, and no featured title. The environment stand-in is empty, so the password is missing too:
 
 ```scala mdoc:silent
 val brokenConf =
@@ -505,10 +503,18 @@ When `EnvSource` is wrapped in a key format, as in `production` above, `Provenan
 
 A few habits from the old libraries don't carry over:
 
-- **No effect system.** `Config.load` is a plain function call that returns an `Either`. There is no ZIO runtime to set up and no `bootstrap` layer; a ZIO application can wrap the call in `ZIO.fromEither` where it needs an effect.
-- **No reload or watch.** A load reads the sources once. To pick up a changed file, load again. Runtime switches that change while the service runs are covered by [Flags](../reference/config/flags.md), not by `Config`.
+- **No effect system.** `Config.load` is a plain function call that returns an `Either`. There is no ZIO runtime to set up and no `bootstrap` layer; a ZIO application wraps the call in `ZIO.fromEither` where it needs an effect.
+- **No reload or watch.** A load reads the sources once. To pick up a changed file, load again, as in the example below. Runtime switches that change while the service runs are covered by [Flags](../reference/config/flags.md), not by `Config`.
 - **Every Scala version and Scala.js.** `zio-blocks-config` and `zio-blocks-config-hocon` are built for Scala 2.13, Scala 3.3 LTS and Scala 3.9, on the JVM and Scala.js. `ConfigSource.fromFile` is JVM-only, and on Scala.js `SysPropSource` is always empty; `ConfigSource.fromHocon` and `EnvSource` work on both platforms.
 - **Nothing is read implicitly.** `ConfigFactory.load()` merges system properties, `application.conf` and `reference.conf` on its own. In ZIO Blocks, each layer is a source we name, and the order of `orElse` calls is the order of precedence. `SysPropSource` reads JVM system properties by their dotted names when a `-D` override layer is wanted.
+
+Loading is an ordinary call, so reloading is a function we call again whenever the service wants fresh values:
+
+```scala mdoc
+def loadBookstore(): Either[::[ConfigError], BookstoreConfig] = Config.load[BookstoreConfig](layered)
+
+println(loadBookstore().map(_.featuredTitle))
+```
 
 ## Putting It Together
 
