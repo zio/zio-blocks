@@ -33,7 +33,7 @@ This table tracks every item that has been written or started. Items not listed 
 | T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`              | Stalled: uncommitted, session exited    | worktree `evolve-data`; `guides/evolve-your-data.md`                                    |
 | T-08 | Describe a typed HTTP API with Endpoint                                       | Skipped (maintainer decision)           | —                                                                                       |
 
-**Related doc-fix PRs:** #1771 (config parse-error and `EnvSource` contradictions, merged), #1784 (`codec.md` overrides, merged), #1773 (codec reference pages, open), #1787 (`type-class-derivation.md` snippet, open). #1761 (`loadOrThrow` error count) was closed without merging.
+**Related doc-fix PRs:** #1771 (config parse-error and `EnvSource` contradictions, merged), #1784 (`codec.md` overrides, merged), #1773 (codec reference pages, open), #1787 (`type-class-derivation.md` snippets, merged). #1761 (`loadOrThrow` error count) was closed without merging.
 
 **Unblocked since this backlog was compiled:**
 
