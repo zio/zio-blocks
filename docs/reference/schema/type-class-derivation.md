@@ -229,6 +229,8 @@ val myDeriver = JsonCodecDeriver
 - Unknown `termName` values are silently ignored.
 - The `B` type parameter in field-level `withInstance` is not statically checked against the actual field type.
 
+See also: [Override the Codec for One Type](../../guides/override-codec-for-one-type.md) for a step-by-step guide to type-level overrides.
+
 ## Example 1: Deriving a `Show` Type Class Instance
 
 Let's say we want to derive a `Show` type class instance for any type of type `A`:
