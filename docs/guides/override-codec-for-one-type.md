@@ -247,7 +247,7 @@ println(oneOffShelfCodec.encodeToString(shelf))
 
 When the deriver and the builder both override the same type or field, the deriver's override wins. See [Custom Type-class Instances](../reference/schema/type-class-derivation.md#custom-type-class-instances) for the optic overload and the full resolution order.
 
-The deriver also accepts field modifiers through `withModifier`, for example `withModifier(TypeId.of[Order], "title", Modifier.rename("bookTitle"))`. For JSON field names in general, see [JSON Configuration](../reference/schema/codec.md#json-configuration).
+The deriver also accepts field modifiers through `withModifier`, for example `withModifier(TypeId.of[Order], "title", Modifier.rename("bookTitle"))`. For JSON field names, ADT encoding and optional fields, see [How to Customize JSON Field Names, ADT Encoding and Optional Fields](./customize-json-encoding.md).
 
 ## Which Tool When
 
