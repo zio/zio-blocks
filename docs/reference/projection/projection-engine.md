@@ -239,6 +239,15 @@ The engine logs an event that fails and goes on with the next one. An event fail
 The watermark moves only after an event succeeds. So the next event that succeeds moves it past the failed one, and the failed event is never retried.
 :::
 
+:::caution[Lost and doubled events]
+Nothing connects catch-up to the live fiber, and the watermark is saved in a separate write after each action. So:
+
+- An event appended while `start` is catching up is not applied. Once a later event is applied, not even a restart applies it.
+- An event is applied twice when catch-up reads it but its publish to the hub is delayed until after the subscription, for example by a full hub, or when the process stops between applying it and saving the watermark.
+
+Avoid appending events while the engine starts, and prefer actions that give the same row when applied twice, such as `Upsert` or `FieldUpdate.Set`.
+:::
+
 ### Reading Rows — `query`, `queryByName` and `getLastProcessedSeq`
 
 Three methods read from the stores of a projection:
