@@ -513,6 +513,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL
 - [Query DSL Part 3: Extending the Expression Language](./guides/query-dsl-extending.md) - Add custom operators beyond `SchemaExpr`
 - [Query DSL Part 4: A Fluent SQL Builder](./guides/query-dsl-fluent-builder.md) - Build type-safe SELECT, UPDATE, INSERT, and DELETE statements
+- [How to Send Compact Data to an LLM with TOON and Parse the Reply](./guides/llm-data-with-toon.md) - Encode records as tabular TOON for a prompt, then decode the model's TOON reply into case classes
 
 ## Full API Reference
 
