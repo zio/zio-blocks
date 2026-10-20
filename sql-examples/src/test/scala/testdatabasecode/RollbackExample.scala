@@ -14,15 +14,13 @@ import zio.blocks.sql.*
  */
 object RollbackExample extends App {
 
-  val handsOnScala = Book(4L, "Hands-on Scala Programming", "Li Haoyi", 2020, None, 2)
-
   TestDb.withTestDb { transactor =>
-    val seenInside = TestDb.rollingBack(transactor) {
-      Bookshop.books.insert(handsOnScala)
+    val (booksInside, stockInside) = TestDb.rollingBack(transactor) {
+      Bookshop.books.insert(Book(4L, "Hands-on Scala Programming", "Li Haoyi", 2020, None, 2))
       Bookshop.restock(TestDb.fpInScala.id, 10)
       (Bookshop.books.count, Bookshop.books.find(TestDb.fpInScala.id).map(_.stock).getOrElse(-1))
     }
-    println(s"Inside the test: ${seenInside._1} books, ${seenInside._2} copies of FP in Scala")
+    println(s"Inside the test: $booksInside books, $stockInside copies of FP in Scala")
 
     transactor.connect {
       val stock = Bookshop.books.find(TestDb.fpInScala.id).map(_.stock).getOrElse(-1)

@@ -23,10 +23,7 @@ object FreshDatabaseExample extends App {
 
   val usedFiles = List("first test", "second test").map { _ =>
     TestDb.withTempDb { transactor =>
-      transactor.connect {
-        TestDb.createSchema()
-        sql"SELECT file FROM pragma_database_list WHERE name = 'main'".queryOne[String].getOrElse("")
-      }
+      transactor.connect(sql"SELECT file FROM pragma_database_list WHERE name = 'main'".queryOne[String].getOrElse(""))
     }
   }
 

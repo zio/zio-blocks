@@ -7,7 +7,8 @@ import zio.blocks.sql.*
  * How to Test Database Code Against SQLite — Create the Schema from Code
  *
  * Prints the `CREATE TABLE` statement derived from `Book`, shows that a table
- * created from it accepts two books with the same ID, and that the
+ * created from it accepts two books with the same ID and can't run
+ * `Repo#insertOrUpdate`, and that the
  * hand-written schema in `TestDb.createSchema` rejects the duplicate and still
  * has the columns the derived table expects.
  *
@@ -26,6 +27,7 @@ object SchemaExample extends App {
       Bookshop.books.insert(TestDb.zionomicon)
       Bookshop.books.insert(TestDb.zionomicon)
       println(s"Rows with id 1 in the derived table: ${Bookshop.books.count}")
+      println(Try(Bookshop.books.insertOrUpdate(TestDb.zionomicon.copy(stock = 7))))
     }
   }
 
