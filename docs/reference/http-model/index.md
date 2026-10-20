@@ -6,7 +6,7 @@ sidebar_label: "HTTP Model"
 
 # HTTP Model
 
-`zio-http-model` is a **pure, zero-dependency HTTP data model** for building HTTP clients and servers. It provides immutable types representing all HTTP concepts: requests, responses, headers, URLs, paths, query parameters, methods, status codes, versions, cookies, and forms. The module separates protocol concerns (representing HTTP messages) from effect concerns (actually sending/receiving them), enabling portable, testable HTTP code across any Scala application.
+`zio-blocks-http-model` is a **pure, zero-dependency HTTP data model** for building HTTP clients and servers. It provides immutable types representing all HTTP concepts: requests, responses, headers, URLs, paths, query parameters, methods, status codes, versions, cookies, and forms. The module separates protocol concerns (representing HTTP messages) from effect concerns (actually sending/receiving them), enabling portable, testable HTTP code across any Scala application.
 
 ## Core Capabilities
 
@@ -43,7 +43,7 @@ Start with the [HTTP Model](./model.md) to understand the core data types and ho
 ---
 
 **Modules:**
-- [`zio-http-model`](./model.md) — Core immutable data types for HTTP
-- [`zio-http-model`](./headers.md) — Typed header model and the `Header.Codec` type class
-- [`zio-http-model`](./server-sent-event.md) — Server-Sent Event envelope and payload encoders
-- [`zio-http-model-schema`](./schema.md) — Schema-based typed extraction for query parameters and headers
+- [`zio-blocks-http-model`](./model.md) — Core immutable data types for HTTP
+- [`zio-blocks-http-model`](./headers.md) — Typed header model and the `Header.Codec` type class
+- [`zio-blocks-http-model`](./server-sent-event.md) — Server-Sent Event envelope and payload encoders
+- [`zio-blocks-http-model-schema`](./schema.md) — Schema-based typed extraction for query parameters and headers
