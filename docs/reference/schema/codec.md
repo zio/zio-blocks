@@ -102,9 +102,9 @@ abstract class BinaryCodec[A] extends Codec[ByteBuffer, ByteBuffer, A]
 abstract class TextCodec[A] extends Codec[CharBuffer, CharBuffer, A]
 ```
 
-All built-in serialization formats (JSON, Avro, TOON, MessagePack, Thrift) extend `BinaryCodec`. Despite JSON being a text format, the JSON codec operates on UTF-8 encoded bytes for performance.
+Most built-in codecs (JSON, Avro, TOON, MessagePack, Thrift, XML and YAML) extend `BinaryCodec`. Despite JSON being a text format, the JSON codec operates on UTF-8 encoded bytes for performance. BSON extends neither: its `BsonCodec` is a pair of a BSON encoder and a BSON decoder.
 
-`TextCodec` exists for formats that operate on character data rather than raw bytes. No built-in formats currently use `TextCodec`, but it is available for custom text-based formats.
+`TextCodec` is for formats that operate on character data rather than raw bytes. The built-in CSV codec, `CsvCodec`, extends it, and custom text-based formats can extend it too.
 
 ## Deriving Codecs
 
@@ -168,6 +168,8 @@ val codec: JsonCodec[Person] = Schema[Person]
   .derive
 ```
 
+To apply the same override to every codec you derive, register it on the deriver instead (see [Overriding a Type on a Deriver](#overriding-a-type-on-a-deriver)).
+
 ### Using Schema#decode and Schema#encode
 
 `Schema` also provides `decode` and `encode` methods that internally call `derive` (with caching) and then delegate to the codec:
@@ -210,6 +212,76 @@ val codec2 = Schema[Person].derive(JsonFormat.deriver)
 ```
 
 Passing a `Deriver` directly is useful when working with custom or configured derivers (see [Configuring Codecs](#configuring-codecs)).
+
+### Overriding a Type on a Deriver
+
+`Deriver#withInstance` returns a new `Deriver[TC]` that uses a codec you supply wherever a given type appears, at any depth, and derives everything else as before. Use it when the same override must apply to every codec derived through that deriver.
+
+`DerivationBuilder#instance` (see [Using Schema.deriving for Customization](#using-schemaderiving-for-customization)) changes a single `DerivationBuilder#derive` call, so an override that every type needs, such as money written as a JSON string to keep its precision in JavaScript clients, would have to be repeated for each type. An `implicit` codec in scope doesn't help either: derivation never searches for codec implicits. `Deriver#withInstance` registers the override once on the deriver instead:
+
+| Situation                                                    | Right choice                                    |
+|--------------------------------------------------------------|-------------------------------------------------|
+| One override for a single derived codec                      | `Schema[A].deriving(deriver).instance(...)`     |
+| The same override in every codec derived through a deriver   | `deriver.withInstance(...)`                     |
+
+`Deriver#withInstance` has two overloads, one for every occurrence of a type and one for a single field of a parent type, and `Deriver#withModifier` has matching ones:
+
+```scala
+trait Deriver[TC[_]] {
+  final def withInstance[A](instance: => TC[A])(implicit typeId: TypeId[A]): Deriver[TC]
+  final def withInstance[A, B](typeId: TypeId[A], termName: String, instance: => TC[B]): Deriver[TC]
+  final def withModifier[A](typeId: TypeId[A], modifier: Modifier.Reflect): Deriver[TC]
+  final def withModifier[A](typeId: TypeId[A], termName: String, modifier: Modifier.Term): Deriver[TC]
+}
+```
+
+The following billing service writes every `BigDecimal` as a JSON string, in invoices and in the line items nested inside them, and renames one field:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.derive.Deriver
+import zio.blocks.schema.json._
+import zio.blocks.typeid.TypeId
+
+case class LineItem(sku: String, unitPrice: BigDecimal, quantity: Int)
+object LineItem {
+  implicit val schema: Schema[LineItem] = Schema.derived
+}
+
+case class Invoice(number: String, total: BigDecimal, items: List[LineItem])
+object Invoice {
+  implicit val schema: Schema[Invoice] = Schema.derived
+}
+
+val moneyAsString: JsonCodec[BigDecimal] = new JsonCodec[BigDecimal] {
+  def decodeValue(in: JsonReader): BigDecimal = {
+    val s = in.readString()
+    try BigDecimal(s)
+    catch { case _: NumberFormatException => error(s"expected a decimal string, got: $s") }
+  }
+
+  def encodeValue(x: BigDecimal, out: JsonWriter): Unit =
+    out.writeVal(x.bigDecimal.toPlainString)
+}
+
+val billingDeriver: Deriver[JsonCodec] =
+  JsonCodecDeriver
+    .withFieldNameMapper(NameMapper.SnakeCase)
+    .withInstance[BigDecimal](moneyAsString)
+    .withModifier(TypeId.of[Invoice], "number", Modifier.rename("invoice_no"))
+
+val invoiceCodec: JsonCodec[Invoice]   = Schema[Invoice].deriving(billingDeriver).derive
+val lineItemCodec: JsonCodec[LineItem] = Schema[LineItem].deriving(billingDeriver).derive
+```
+
+`Deriver#withInstance[A]` finds the type through an implicit `TypeId[A]`, which ZIO Blocks provides for built-in types. Keep these points in mind:
+
+- `Deriver#withInstance` and `Deriver#withModifier` return a plain `Deriver[TC]`, so call format options such as `JsonCodecDeriver#withFieldNameMapper` first, as above, and the overrides last.
+- The field-level overload doesn't check at compile time that the codec's type matches the field's type.
+- When the deriver and a `DerivationBuilder` override the same type or field, the deriver's override wins.
+- `toJsonString` and `fromJson` always use the default codec from `Schema#jsonCodec`, so call `JsonCodec#encodeToString` and `JsonCodec#decode` on the codec derived through your deriver.
+
+See also: [Customizing Derivation with Instance and Modifier Overrides](./type-class-derivation.md#customizing-derivation-with-instance-and-modifier-overrides) for every override and its resolution order, and the guide [How to Override the Codec for One Type Everywhere](../../guides/override-codec-for-one-type.md) for a step-by-step walkthrough.
 
 ## Convenience Methods on Format-Specific Codecs
 
