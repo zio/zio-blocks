@@ -219,3 +219,4 @@ val output = json.print(WriterConfig
 ## See Also
 
 - [How to Customize JSON Field Names, ADT Encoding and Optional Fields](../../../../guides/customize-json-encoding.md): a task-oriented guide that applies these settings to a real model.
+- [Coming from circe, zio-json or jsoniter-scala](../../../../guides/json-library-migration.md): maps circe `Configuration`, zio-json annotations and jsoniter-scala `CodecMakerConfig` options onto these settings.
