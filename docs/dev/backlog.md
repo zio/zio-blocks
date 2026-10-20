@@ -17,9 +17,9 @@ This table tracks every item that has been written or started. Items not listed 
 | T-04 | One type, many formats                                                        | Done                                    | #1762, `guides/one-type-many-formats.md`                                                |
 | H-05 | How to generate JSON Schema from a type and validate payloads                 | Done                                    | #1772, `guides/generate-json-schema-and-validate-payloads.md`                           |
 | H-02 | How to customize JSON field names, ADT encoding and optional fields           | Done                                    | #1775, `guides/customize-json-encoding.md`                                              |
+| H-03 | How to override the codec for one type everywhere                             | Done                                    | #1781, `guides/override-codec-for-one-type.md`                                          |
 | H-12 | How to send compact data to an LLM with TOON and parse the reply              | In review                               | #1774 (`toon-llm`)                                                                      |
 | H-31 | How to fix common Scope and Wire compile errors                               | Pushed, no PR                           | branch `scope-errors`, `guides/fix-scope-and-wire-compile-errors.md`                    |
-| H-03 | How to override the codec for one type everywhere                             | Pushed, no PR                           | branch `override-codec`, `guides/override-codec-for-one-type.md`                        |
 | M-06 | Coming from PureConfig, Typesafe Config or zio-config                         | Pushed, no PR                           | branch `pureconfig-migration-guide`, `guides/config-library-migration.md`; rebased onto main |
 | H-17 | How to connect to PostgreSQL with a connection pool                           | Committed locally, not pushed           | worktree `postgres-pool` (5 commits)                                                    |
 | M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
@@ -39,7 +39,7 @@ This table tracks every item that has been written or started. Items not listed 
 - T-09 merged, so T-10 (HTMX) and T-11 (Datastar) have their prerequisite, but both still need an HTTP adapter (H-35).
 - PR #1742 (projection docs) merged on 2026-10-20. T-14 now waits only on issue #1744, which has grown to sixteen engine problems.
 
-**Unblocked by H-02 and H-03:** M-01 (P0, 14/15) can start; both pages it links to are pushed.
+**Unblocked by H-02 and H-03:** M-01 (P0, 14/15) can start; both pages it links to are on main.
 
 **Waiting on stalled items:** H-04 and M-07 need T-02; H-24, H-25 and M-04 need T-06.
 

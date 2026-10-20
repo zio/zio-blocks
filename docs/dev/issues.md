@@ -306,7 +306,6 @@ Pages that contradict the source. None of these were copied into the new guides.
 - `ValidationOptions` Scaladoc (`JsonSchema.scala:376-377`) says format checks are annotation-only by default; the code defaults to `validateFormats = true`.
 - `codec.md` never mentions `Deriver#withInstance` or `Deriver#withModifier` (#1348). Its "Using Schema.deriving for Customization" section shows only the per-derivation `DerivationBuilder` path. Found while writing H-03.
 - `type-class-derivation.md:170`: the first example (`customDateCodec`) contains a `// ... AST overrides ...` placeholder, so it is not complete, compilable code. Found while writing H-03.
-- `schema-examples/src/main/scala/deriveroverrides/CompleteExample.scala` says custom codec derivation with instance overrides "requires an updated API". It predates #1348, contains no codec override at all, and its run header uses the old `sbt "schema-examples/runMain ..."` form. Rewrite it with `Deriver#withInstance`, or delete it. Found while writing H-03.
 
 **schema / optics and paths**
 
@@ -353,6 +352,7 @@ Pages that contradict the source. None of these were copied into the new guides.
 
 ## Resolved
 
+- Stale example: `schema-examples/src/main/scala/deriveroverrides/CompleteExample.scala` predated #1348 and showed no codec override. Rewritten in #1781 to demonstrate type, term-name and optic overrides with a round trip and the current run command.
 - Docs build: a broken relative link in `docs/reference/schema/modifier.md:395` (`../guides/` instead of `../../guides/`), added by #1775, failed Build Docs on main. Fixed in #1772.
 - Config: `formats.md:97` (YAML parse error type) and `config-source.md` (`EnvSource` and `keyFormat`). Fixed in #1771.
 - sql: `sql-transactions.md` default isolation and PostgreSQL facts; `repo.md`/`table.md`/`ddl.md` upserts, `pageAfter` and the missing `PRIMARY KEY` caveat; `:memory:` warnings in `transactor.md` and `transactor-zio.md`; `db-con.md` `DbTx` members; the backlog's "sql has no JS backend" note. Fixed in #1760.
