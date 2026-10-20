@@ -325,3 +325,4 @@ Queries can also stream: `Frag#queryStream` and `Frag#queryChunked` return a `zi
 - **[How to Write Joins and Inspect the Generated SQL](../../guides/write-joins-and-inspect-generated-sql.md)** — Guide to joining related tables with `SqlQuery` and `Rel`, reading rows as tuples, and printing or dumping the SQL each join generates.
 - **[Build a Small JSON Backend from Blocks](../../guides/small-json-backend-from-blocks.md)** — Capstone tutorial that combines `schema`, `config`, `scope`, `sql`, `http-model` and `telemetry` into one small JSON backend.
 - **[How to Use the sql Module from a ZIO Application](../../guides/sql-from-zio.md)** — Guide to running queries and transactions as ZIO effects with `TransactorZIO`.
+- **[Coming from Magnum or doobie](../../guides/migrate-from-magnum-or-doobie.md)** — Migration guide that maps Magnum and doobie entities, transactors, queries and streams onto the `sql` module.
