@@ -455,6 +455,7 @@ const sidebars = {
   guides: [
     "guides/your-first-schema",
     "guides/your-first-sqlite-repository",
+    "guides/your-first-html-page",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
     "guides/getting-started-with-mux",

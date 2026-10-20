@@ -1298,3 +1298,7 @@ val pieces: Chunk[Dom] = Chunk(
 
 pieces.map(_.render(indent = 2)).mkString("\n")
 ```
+
+## See also
+
+- [Render Your First Server-Side HTML Page](../guides/your-first-html-page.md) — a hands-on tutorial that builds a book page as a `Dom` tree, step by step, and saves it as an HTML file.
