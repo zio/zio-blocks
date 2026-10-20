@@ -128,6 +128,49 @@ Found 2026-10-20 while writing M-05. Verified with mdoc.
 
 **Summary.** When the function passed to `Wire.Shared.fromFunction` returns an `AutoCloseable`, its `close()` is not registered as a finalizer, so the resource leaks. `Resource.from[T]` registers it; `fromFunction` should too, or document the difference.
 
+### scope: a dependency cycle crashes the macro instead of reporting E10
+
+Filed as #1767. Found 2026-10-20 while writing H-31 (`docs/guides/fix-scope-and-wire-compile-errors.md`). Verified with mdoc.
+
+**Summary.** `class InventoryRepo(p: PriceService); class PriceService(i: InventoryRepo); class Catalog(i: InventoryRepo); Resource.from[Catalog]()` fails with `Exception occurred while executing macro expansion. java.util.NoSuchElementException: key not found: InventoryRepo` instead of the E10 "Dependency cycle detected" error.
+
+**Root cause.** `resolveWire` records each type in `aliasMap` before it recurses, and its `aliasMap.contains` early return runs before the cycle check, so `chain.contains` can never fire. The same in Scala 3 (`ResourceMacros.scala:252-259`) and Scala 2 (`ResourceVersionSpecific.scala`, around lines 354-361).
+
+**Fix.** Run the cycle check before the `aliasMap` early return. `scope-examples/.../CircularDependencyDemoExample` promises a cycle diagram that never appears.
+
+### scope: a dependency on a Java class with constructor parameters crashes the macro
+
+Found 2026-10-20 while writing H-31. Verified with mdoc. Not filed.
+
+**Summary.** `Wire.shared[java.util.ArrayList[String]]` fails with `TypeError: is not a value type, cannot be used in intersection & Int`. `class Catalog(l: java.util.ArrayList[String]); Resource.from[Catalog]()` fails with an `AssertionError` in `MacroCore.computeInType` (an `AndType` of `TypeBounds <FromJavaObject>`). Both are compiler crashes rather than error messages.
+
+**Fix.** Handle Java-defined constructor parameter types in `computeInType`, or reject them with a clear error.
+
+### scope: E12 (duplicate parameter type) is unreachable on Scala 3
+
+Found 2026-10-20 while writing H-31. Verified with mdoc. Not filed.
+
+**Summary.** `class Catalog(primary: Db, replica: Db)` compiles through both `Resource.from[Catalog]()` and `Wire.shared[Catalog]`, and both parameters receive the same `Db` instance (`eq` is true). The user almost certainly wanted two different databases.
+
+**Root cause.** `computeInType` builds `Db & Db`, and `flattenIntersection` simplifies it to `Db`, so the duplicate check never sees two entries.
+
+### scope: the E3 hint prints invalid Scala
+
+Found 2026-10-20 while writing H-31. Verified with mdoc. Not filed.
+
+**Summary.** The suggested wrapper is rendered as `case class WrappedMdocApp2.this.InventoryRepo(value: ...)`, or `case class Wrappedcom.x.InventoryRepo` in a package. `ErrorMessages.renderSubtypeConflict` interpolates the fully qualified type name where it needs the simple name.
+
+### scope: dead and unreachable error codes
+
+Found 2026-10-20 while writing H-31. From source unless marked verified.
+
+- `renderMissingDependency` is never called: missing dependencies are auto-created, or fail with E7 or E8.
+- E5 sits behind the E4 check in both Scala versions (verified on Scala 3: a constructor with `(using Finalizer, Clock)` reports E4).
+- E6 is reachable only with `???` (verified).
+- No Scala trigger was found for E2 or E9 (`Resource.from[java.lang.Object]` compiles).
+
+Either make these reachable or remove them, so the error catalog matches what users can see.
+
 ### config: `ProvenanceMap#dump` over an unprefixed `EnvSource` prints the whole environment
 
 Found 2026-10-19 while writing T-05 (`docs/guides/typed-config-loader.md`). Verified.
@@ -217,6 +260,8 @@ These behave as designed but surprise users. Each should at least be documented 
 - **JSON Schema error paths are imprecise.** An `additionalProperties: false` failure reports `Schema rejects all values at: .`, at the object rather than the extra field. Errors raised inside `fromJsonSchema` end with ` at: .wrapped`. Found while writing H-05.
 - **HOCON `${?VAR}` and `${VAR}` never read environment variables.** Typesafe Config falls back to the environment; config-hocon resolves substitutions only inside the document (`HoconParser.scala`, `lookupPath`, around line 655). `${?DB_PASSWORD}` silently drops the key, and a non-optional `${VAR}` is a parse error. This is the biggest trap for teams migrating from Typesafe Config: layer `EnvSource` with `orElse` instead. Document it in `formats.md`, or add an opt-in environment fallback. Found while writing M-06.
 - **Durations and sizes use Java syntax only.** `10s` is rejected because durations go through `java.time.Duration.parse` (ISO-8601, e.g. `PT10S`; `ConfigDecoderDeriver.scala:416`), and size units like `512M` are not parsed. Typesafe Config's `getDuration`/`getBytes` accept both. Found while writing M-06.
+- **Scope and Wire error codes never appear in compiler output.** `ErrorMessages.scala` numbers them E1-E17, RE1-RE3 and W1, but the messages users see carry no code, so docs must index errors by message text. Found while writing H-31.
+- **`defer` on a closed scope is a silent no-op** (`Scope.scala:202`), while `allocate` and `$` throw. Found while writing H-31.
 - **`jdbc:sqlite::memory:` gives every connection its own empty database.** Code that opens more than one connection loses its tables. Found while writing T-07; now noted in `transactor.md`.
 
 ## Test and CI
@@ -228,6 +273,8 @@ Seen 2026-10-20 on PR #1773 (docs only, touches nothing in `streams/` or `async/
 ### mdoc: `mdoc:fail` on Scala 3 ignores earlier `:reset` sections
 
 Seen 2026-10-20 while writing H-02. A `mdoc:fail` block after a `mdoc:silent:reset` reports bogus "already defined" errors for names from before the reset, so the expected compile error cannot be shown. H-02 described that error in prose instead. Pages that rely on `mdoc:fail` (H-31) should check their rendered output.
+
+Related, seen while writing H-31: `mdoc:fail` and `mdoc:warn` inline the earlier `compile-only` blocks of the same section, so a `compile-only` fix block that redefines a name breaks a later `mdoc:warn` with no reason given. Use `mdoc:silent:reset` for such fix blocks. H-31 added this to the docs-mdoc-conventions skill.
 
 ### `DeriverWithInstanceCsvSpec` asserts with `.contains`
 
@@ -286,11 +333,12 @@ Pages that contradict the source. None of these were copied into the new guides.
 
 **scope**
 
-- `scope.md:1065` lists a non-existent `andThen`; `scope.md:19-22` have wrong `scoped`, `allocate` and `open` signatures; `scope.md:941` has a wrong error text.
+- `scope.md:1065` lists a non-existent `andThen`; `scope.md:19-22` have wrong `scoped`, `allocate` and `open` signatures; `scope.md:943` quotes `Cannot acquire resource: scope has already been closed.`; the real text is `Cannot allocate resource: scope is already closed.`
 - `wire.md:66` (`new UserService($(db)(identity))`) does not compile; `wire.md:28` calls Wire a "lazy recipe" (see the eager `Wire(value)` bug).
 - `finalization.md` says `abstract class` in five places (the source is `final class`); line 173 has wrong LIFO comments; line 280 names the private `runFinalizers`.
 - Thread ownership (`scope.md:952`, Scope tutorial lines 690, 706, 749): only `scoped` checks the owner thread; `allocate`, `defer` and `$` do not.
-- Scope tutorial: lines 162-163 blame rejected `$` lambdas on `Unscoped` instead of the `$` macro; line 820 attributes the `Wire.shared[Database]` error to the wrong macro; line 726 has a wrong error text.
+- Scope tutorial: lines 162-163 blame rejected `$` lambdas on `Unscoped` instead of the `$` macro. Section 12 ("Common Errors and Troubleshooting"): it says `defer` on a closed scope throws (it is a silent no-op); line 726 quotes `IllegalStateException: Scope is closed` (the real text is `Cannot allocate resource: scope is already closed.` and similar); line 820 says `Wire.shared[Database]` fails with "no Wire[String] for url" (it compiles; the error comes from `Resource.from` as E7 `Cannot auto-create java.lang.String`); the first runtime-error fence reads `mdoc:compile-only mdoc:silent:reset`.
+- `wire.md:85`, `:506`, `:515` and `resource-management/index.md:18` promise compile-time cycle detection and "missing dependency" errors. Cycles crash the macro (#1767), and missing dependencies are auto-created or fail with E7/E8. `scope.md:1254-1267` presents `CircularDependencyDemoExample` as cycle detection.
 - `unscoped.md:114` and the Scope tutorial (lines 316, 332) do not mention Scala 3 automatic derivation (see the `AutoCloseable` escape bug).
 - Several pages teach `val appResource = Resource.from(...)` (see the single-use bug).
 
