@@ -457,6 +457,7 @@ const sidebars = {
     "guides/your-first-sqlite-repository",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
+    "guides/resource-and-di-migration",
     "guides/getting-started-with-mux",
     "guides/telemetry-guide",
     "guides/zio-schema-migration",
