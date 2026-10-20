@@ -6,10 +6,11 @@ import zio.blocks.sql.*
 /**
  * How to Connect to PostgreSQL with a Connection Pool: Many Concurrent Callers
  *
- * Runs 50 lookups at once on a pool of 10 connections, each holding its connection for 0.2 seconds, and prints how long
- * they took.
+ * Runs 50 lookups at once on a pool of 10 connections, each holding its
+ * connection for 0.2 seconds, and prints how long they took.
  *
- * Run with: cd sql-examples && sbt "runMain postgrespool.ConcurrentCallersExample"
+ * Run with: cd sql-examples && sbt "runMain
+ * postgrespool.ConcurrentCallersExample"
  */
 object ConcurrentCallersExample {
 

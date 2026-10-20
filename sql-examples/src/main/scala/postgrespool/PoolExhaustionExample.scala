@@ -7,7 +7,8 @@ import zio.blocks.sql.*
 /**
  * How to Connect to PostgreSQL with a Connection Pool: Pool Exhaustion
  *
- * Uses a pool of one connection and borrows a second connection inside a transaction, so the second borrow times out.
+ * Uses a pool of one connection and borrows a second connection inside a
+ * transaction, so the second borrow times out.
  *
  * Run with: cd sql-examples && sbt "runMain postgrespool.PoolExhaustionExample"
  */

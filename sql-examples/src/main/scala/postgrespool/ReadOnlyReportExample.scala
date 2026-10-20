@@ -6,8 +6,8 @@ import zio.blocks.sql.*
 /**
  * How to Connect to PostgreSQL with a Connection Pool: Read-Only Report
  *
- * Prints a report from a RepeatableRead, read-only transaction, then shows the error PostgreSQL raises for a write
- * inside a read-only transaction.
+ * Prints a report from a RepeatableRead, read-only transaction, then shows the
+ * error PostgreSQL raises for a write inside a read-only transaction.
  *
  * Run with: cd sql-examples && sbt "runMain postgrespool.ReadOnlyReportExample"
  */

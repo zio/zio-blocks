@@ -6,8 +6,8 @@ import zio.blocks.sql.*
 /**
  * How to Connect to PostgreSQL with a Connection Pool: Complete Example
  *
- * Opens the pool in a Scope, prints the server version, stocks the shelf and prints a read-only report. The scope
- * closes the pool when the block ends.
+ * Opens the pool in a Scope, prints the server version, stocks the shelf and
+ * prints a read-only report. The scope closes the pool when the block ends.
  *
  * Run with: cd sql-examples && sbt "runMain postgrespool.CompleteExample"
  */

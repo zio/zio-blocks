@@ -8,8 +8,9 @@ import zio.blocks.sql.*
 /**
  * How to Connect to PostgreSQL with a Connection Pool: shared setup
  *
- * The pool settings read from the environment, the health check, the Book case class with its Schema, the Table and
- * Repo for it, and the database work that the examples in this package share.
+ * The pool settings read from the environment, the health check, the Book case
+ * class with its Schema, the Table and Repo for it, and the database work that
+ * the examples in this package share.
  */
 def bookstorePoolConfig(): HikariConfig = {
   val config = new HikariConfig()
