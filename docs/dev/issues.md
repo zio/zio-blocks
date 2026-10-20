@@ -49,3 +49,197 @@ println(Schema.fromJsonSchema(jsonSchema).jsonCodec.decode("""{"title":"Zionomic
 **Suggested fix.** In `buildRecord`, make each property outside `required` optional, so that the codec accepts its absence: give the term a default value, or wrap it as an optional field. Leave it out of the rebuilt `Json` object when it was absent, so that `Json.fromDynamicValue` does not produce `"isbn": null` and fail `check` against `{"type":"string"}`. Add a `SchemaFromJsonSchemaSpec` test that decodes an object without an optional property.
 
 **Related (minor, same code path).** Errors raised by the `JsonSchema#check` inside `fromJsonSchema` end with ` at: .wrapped`, which exposes the internal wrapper's name in the path (for example `String length 0 is less than minLength 1 at: .title at: .wrapped`).
+
+## `Resource.from` never reports a dependency cycle (E10); the macro crashes instead
+
+Filed: [zio/zio-blocks#1767](https://github.com/zio/zio-blocks/issues/1767).
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/fix-scope-and-wire-compile-errors.md` (backlog H-31), on `main` at `64b2f666`. Reproduced against the published `0.0.56`.
+
+**Summary.** `ErrorMessages.renderDependencyCycle` (E10) draws a cycle diagram, but `Resource.from` can never reach it. A constructor cycle crashes the macro with `java.util.NoSuchElementException: key not found` and a long compiler stack trace instead.
+
+**Reproduction** (`scala-cli run .`; Scala 3.9.0, `zio-blocks-next-scope` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-scope:0.0.56
+//> using options -experimental
+
+import zio.blocks.scope.*
+
+class InventoryRepo(prices: PriceService)
+class PriceService(inventory: InventoryRepo)
+class Catalog(inventory: InventoryRepo)
+
+@main def cycle(): Unit = {
+  val catalog = Resource.from[Catalog]()
+  println(catalog)
+}
+// -- Error: Cycle.scala:12:38
+// 12 |  val catalog = Resource.from[Catalog]()
+//    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+//    |Exception occurred while executing macro expansion.
+//    |java.util.NoSuchElementException: key not found: InventoryRepo
+//    |	at scala.collection.immutable.Map$EmptyMap$.apply(Map.scala:270)
+//    |	at scala.collection.immutable.Map$EmptyMap$.apply(Map.scala:270)
+//    |	at zio.blocks.scope.ResourceMacros$.buildDepAcquisition$1(ResourceMacros.scala:515)
+//    |	at zio.blocks.scope.ResourceMacros$.createResourceExpr$1$$anonfun$5$$anonfun$1(ResourceMacros.scala:529)
+//    |	... (about 40 more compiler frames)
+```
+
+**Expected.** The E10 error: `Dependency cycle detected`, with a diagram of `InventoryRepo ──► PriceService` and the hints "Introducing an interface/trait", "Using lazy initialization" and "Restructuring dependencies".
+
+**Root cause.** `resolveWire` runs two checks in this order: `if (aliasMap.contains(requiredKey)) return`, then `if (chain.contains(requiredKey)) abortDependencyCycle(...)`. It records a type in `aliasMap` *before* it recurses into that type's dependencies, so every key on `chain` is already in `aliasMap`, and the early return always wins. The cycle check is dead code. Resolution then "succeeds" with a cyclic wire map, the topological sort visits each node once, and code generation looks up a dependency value that was never produced. Both macros have the bug: Scala 3 `scope/shared/src/main/scala-3/zio/blocks/scope/ResourceMacros.scala:248-259`, Scala 2 `scope/shared/src/main/scala-2/zio/blocks/scope/ResourceVersionSpecific.scala:350-361`.
+
+**Impact.** Every dependency cycle, the most common wiring mistake, produces an unreadable macro crash. `scope-examples/.../CircularDependencyDemoExample.scala`, `docs/reference/resource-management/wire.md` and `index.md` all promise compile-time cycle detection.
+
+**Test gap.** No test triggers E10 through the macro. `ErrorMessagesSpec` only tests the string renderer.
+
+**Suggested fix.** Run the cycle check before the `aliasMap` early return, in both macros. Diamonds still work, because a shared dependency reached through two branches is never on the current `chain`. Add a `typeCheck` test to `WireMacroErrorSpec`.
+
+## A dependency on a Java class with constructor parameters crashes the `Resource.from` / `Wire.shared` macro
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/fix-scope-and-wire-compile-errors.md` (backlog H-31), on `main` at `64b2f666`. Reproduced against the published `0.0.56`. The same crash happens for `Wire.shared[java.util.ArrayList[String]]` (seen in mdoc).
+
+**Summary.** When `Resource.from` has to auto-create a Java class whose constructors take parameters, or `Wire.shared` derives one, the macro throws an internal compiler `AssertionError` instead of reporting a Scope error.
+
+**Reproduction** (`scala-cli run .`; Scala 3.9.0, `zio-blocks-next-scope` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-scope:0.0.56
+//> using options -experimental
+
+import zio.blocks.scope.*
+
+class Catalog(titles: java.util.ArrayList[String])
+
+@main def javaDep(): Unit = {
+  val catalog = Resource.from[Catalog]()
+  println(catalog)
+}
+// -- Error: JavaDep.scala:10:38
+// 10 |  val catalog = Resource.from[Catalog]()
+//    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+//    |Exception occurred while executing macro expansion.
+//    |java.lang.AssertionError: assertion failed: TypeBounds(TypeRef(ThisType(TypeRef(NoPrefix,module class scala)),class Nothing),TypeRef(ThisType(TypeRef(NoPrefix,module class <special-ops>)),type <FromJavaObject>)) in in intersection  & Int
+//    |	at scala.runtime.Scala3RunTime$.assertFailed(Scala3RunTime.scala:10)
+//    |	at dotty.tools.dotc.core.Types$.expectValueTypeOrWildcard(Types.scala:3777)
+//    |	at dotty.tools.dotc.core.Types$AndType$.apply(Types.scala:3587)
+//    |	at scala.quoted.runtime.impl.QuotesImpl$reflect$AndType$.apply(QuotesImpl.scala:2175)
+//    |	at scala.quoted.runtime.impl.QuotesImpl$reflect$AndType$.apply(QuotesImpl.scala:2175)
+//    |	at zio.blocks.scope.internal.MacroCore$.computeInType$$anonfun$1(MacroCore.scala:101)
+//    |	at scala.collection.AbstractIterable.reduceLeftOption(Iterable.scala:979)
+//    |	at zio.blocks.scope.internal.MacroCore$.computeInType(MacroCore.scala:101)
+//    |	at zio.blocks.scope.internal.WireCodeGen$.deriveWire(WireCodeGen.scala:78)
+//    |	at zio.blocks.scope.ResourceMacros$.autoCreateWire$1(ResourceMacros.scala:236)
+//    |	... (more frames)
+```
+
+**Expected.** A Scope error that says the Java class can't be derived and that you should provide its wire, for example `Wire(new java.util.ArrayList[String]())`.
+
+**Root cause** (from the stack trace and source, not debugged further). `WireCodeGen.deriveWire` takes the parameter types of the class's "primary constructor" (`WireCodeGen.scala:66-70`). For a Java class, Scala 3 hands back constructor parameters whose types are not value types: here a `TypeBounds` built from Java's `Object` (`<FromJavaObject>`). `MacroCore.computeInType` (`scala-3/.../internal/MacroCore.scala:101`) passes every dependency type to `AndType(_, _)`, which asserts that its arguments are value types.
+
+**Impact.** Any graph that contains a JDK or other Java class with constructor parameters fails with a compiler crash that doesn't name the cause.
+
+**Test gap.** No test derives a wire for a Java-defined class.
+
+**Suggested fix.** In `deriveWire` and `autoCreateWire`, detect Java-defined classes (`sym.flags.is(Flags.JavaDefined)`) and abort with a Scope error asking for an explicit wire. Alternatively, reject any dependency type that is not a value type before calling `AndType`.
+
+## Duplicate constructor parameter types (E12) are never reported in Scala 3; both parameters get the same instance
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/fix-scope-and-wire-compile-errors.md` (backlog H-31), on `main` at `64b2f666`. Reproduced against the published `0.0.56`.
+
+**Summary.** `ErrorMessages.renderDuplicateParamType` (E12) says a constructor can't take two parameters of the same type, because the graph holds one value per type. In Scala 3 the check never fires: the code compiles, and both parameters silently receive the same instance.
+
+**Reproduction** (`scala-cli run .`; Scala 3.9.0, `zio-blocks-next-scope` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-scope:0.0.56
+//> using options -experimental
+
+import zio.blocks.scope.*
+
+class Db
+class Catalog(val primary: Db, val replica: Db)
+
+@main def dupParam(): Unit = {
+  val sameDb: Boolean = Scope.global.scoped { scope =>
+    import scope.*
+    val catalog = allocate(Resource.from[Catalog]())
+    $(catalog)(c => c.primary.eq(c.replica))
+  }
+  println(s"primary eq replica: $sameDb")
+}
+// primary eq replica: true
+```
+
+`Wire.shared[Catalog]` also compiles (seen in mdoc).
+
+**Expected.** E12: `Constructor of Catalog has multiple parameters of type Db`, with the hint to wrap one parameter in a distinct type.
+
+**Root cause** (from source). `MacroCore.computeInType` builds `Db & Db` (`scala-3/.../internal/MacroCore.scala:99-102`). `MacroCore.flattenIntersection` calls `.dealias.simplified` on it (`:113`), which collapses `Db & Db` to `Db`. So the wire's `inTypes` is `List(Db)`, and the duplicate check in `ResourceMacros.scala:306-312` never sees two entries. `WireCodeGen.deriveWire` (used by `Wire.shared`) has no duplicate check at all. The Scala 2 macro was not checked.
+
+**Impact.** A class that needs two different values of one type, such as a primary and a replica database, silently gets one instance in both places. The bug shows up only at run time.
+
+**Test gap.** No test triggers E12 through the macro. `ErrorMessagesSpec` only tests the string renderer.
+
+**Suggested fix.** Run the duplicate check on the constructor's parameter types before they are combined into an intersection (in `WireCodeGen.deriveWire` and in `ResourceMacros`), and abort with `abortDuplicateParamType`. Add `typeCheck` tests for `Wire.shared` and `Resource.from`.
+
+## The E3 subtype-conflict hint suggests code that isn't valid Scala
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/fix-scope-and-wire-compile-errors.md` (backlog H-31), on `main` at `64b2f666`. Reproduced against the published `0.0.56`.
+
+**Summary.** The hint of the E3 "Dependency type conflict" error builds a wrapper name by pasting `Wrapped` in front of the fully qualified type name. For any type in a package, the suggested `case class` and `opaque type` don't compile.
+
+**Reproduction** (`scala-cli run .`; Scala 3.9.0, `zio-blocks-next-scope` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-scope:0.0.56
+//> using options -experimental
+
+package com.example.bookstore
+
+import zio.blocks.scope.*
+
+class InventoryRepo
+class SqlInventoryRepo extends InventoryRepo
+class Catalog(inventory: InventoryRepo, sql: SqlInventoryRepo)
+
+@main def subtype(): Unit = {
+  val wire = Wire.shared[Catalog]
+  println(wire)
+}
+// -- Error: Subtype.scala:14:24
+// 14 |  val wire = Wire.shared[Catalog]
+//    |             ^^^^^^^^^^^^^^^^^^^^
+//    |── Scope Error ─────────────────────────────────────────────────────────────────
+//    |
+//    |  Dependency type conflict in com.example.bookstore.Catalog
+//    |
+//    |  com.example.bookstore.SqlInventoryRepo is a subtype of com.example.bookstore.InventoryRepo.
+//    |
+//    |  When both types are dependencies, Context cannot reliably distinguish
+//    |  them. The more specific type may be retrieved when the more general
+//    |  type is requested.
+//    |
+//    |  To fix this, wrap one or both types in a distinct wrapper:
+//    |
+//    |    case class Wrappedcom.example.bookstore.InventoryRepo(value: com.example.bookstore.InventoryRepo)
+//    |    or
+//    |    opaque type Wrappedcom.example.bookstore.InventoryRepo = com.example.bookstore.InventoryRepo
+//    |
+//    |────────────────────────────────────────────────────────────────────────────────
+```
+
+**Expected.** `case class WrappedInventoryRepo(value: com.example.bookstore.InventoryRepo)`, and the same for the `opaque type`.
+
+**Root cause.** `ErrorMessages.renderSubtypeConflict` interpolates the full `supertype` string as the identifier: `s"case class Wrapped$supertype(value: $supertype)"` and `s"opaque type Wrapped$supertype = $supertype"` (`scope/shared/src/main/scala/zio/blocks/scope/internal/ErrorMessages.scala:311-313`). The macros pass `tpe.show` / `toString`, which is fully qualified. E12's hint (`:559-561`) has the same pattern with `paramType`.
+
+**Impact.** Copying the hint gives a syntax error. The hint also suggests an `opaque type` to Scala 2 users.
+
+**Test gap.** `ErrorMessagesSpec` tests the renderer only with unqualified names.
+
+**Suggested fix.** Build the identifier from the simple name (the text after the last `.`, with type arguments removed) and keep the full name only on the right-hand side. Show the `opaque type` alternative only in Scala 3.
