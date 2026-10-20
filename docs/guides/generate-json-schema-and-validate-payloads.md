@@ -100,7 +100,7 @@ val contract: JsonSchema = BookSubmission.schema.toJsonSchema
 println(contract)
 ```
 
-The generated contract follows the codec's rules for each field:
+The contract that `Schema#toJsonSchema` derives follows the codec's rules for each field:
 
 - `"required"` lists `title`, `firstAuthor` and `year`. The `Option` field `isbn` and the `List` field `tags` are left out, because the decoder accepts a payload without them — fields with a default value are left out too.
 - `isbn` accepts `null` as well as a string (`"type": ["null", "string"]`), and `tags` accepts `null` as well as an array.
@@ -111,7 +111,7 @@ The generated contract follows the codec's rules for each field:
 The output contains no `$schema` keyword; the document follows draft 2020-12, the version that `JsonSchema` implements.
 
 :::note
-Constraints that you add to a schema with `Validation` (see [Validation](../reference/schema/validation.md)), such as a minimum length or a pattern, do not appear in the generated contract. The only bounds in the output come from the field types, like the `Int` range on `year`.
+Constraints that you add to a schema with `Validation` (see [Validation](../reference/schema/validation.md)), such as a minimum length or a pattern, do not appear in the contract that `Schema#toJsonSchema` derives. The only bounds in the output come from the field types, like the `Int` range on `year`.
 :::
 
 ## Publish the Contract as a JSON File
@@ -347,7 +347,7 @@ sbt "runMain generatejsonschemaandvalidatepayloads.Step1GenerateContractExample"
 
 ### Validate Untyped Payloads
 
-This example parses JSON text with `Json.parse` and validates it against the generated contract with `JsonSchema#check`, printing the result for valid submissions and for a missing field, a wrong type, an unknown field and an out-of-range year.
+This example parses JSON text with `Json.parse` and validates it against the contract that `Schema#toJsonSchema` derives, using `JsonSchema#check`, printing the result for valid submissions and for a missing field, a wrong type, an unknown field and an out-of-range year.
 
 <details>
   <summary>schema-examples/src/main/scala/generatejsonschemaandvalidatepayloads/Step2ValidatePayloadsExample.scala</summary>
@@ -405,6 +405,12 @@ The complete example from "Putting It Together" runs everything from the guide i
 
 ```bash
 sbt "runMain generatejsonschemaandvalidatepayloads.CompleteExample"
+```
+
+To compile every example at once without running them:
+
+```bash
+sbt compile
 ```
 
 ## Going Further
