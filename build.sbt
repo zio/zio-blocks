@@ -332,6 +332,7 @@ lazy val root = project
     asyncExamples,
     endpointExamples,
     httpModelExamples,
+    jwtExamples,
     muxExamples,
     schemaExamples,
     scopeExamples,
@@ -347,6 +348,7 @@ lazy val root = project
 lazy val asyncExamples         = RootProject(file("async-examples"))
 lazy val endpointExamples      = RootProject(file("endpoint-examples"))
 lazy val httpModelExamples     = RootProject(file("http-model-examples"))
+lazy val jwtExamples           = RootProject(file("jwt-examples"))
 lazy val muxExamples           = RootProject(file("mux-examples"))
 lazy val schemaExamples        = RootProject(file("schema-examples"))
 lazy val scopeExamples         = RootProject(file("scope-examples"))
