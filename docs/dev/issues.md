@@ -1173,3 +1173,202 @@ println(signed.flatMap(t => Jwt.decode(t, secret, Algorithm.HS256, JwtDecodeOpti
 **Test gap.** No test signs with tightened `JwtSignOptions.limits`. No test sends an `alg: none` header (the code returns `UnsupportedAlgorithm("none")`, or `InvalidToken` when the signature segment is empty, but nothing asserts it).
 
 **Suggested fix.** Either apply all six limits on sign (parse the rendered JSON with the same limits before encoding), or document that only the size limits apply on sign. Change the `JwtDecodeOptions` Scaladoc to "mismatch yields `InvalidClaim("aud", ...)`". Add tests for both, plus an `alg: none` test in `JwtEdgeCasesSpec`.
+
+## schema-csv: `CsvError` row and column count from the start of the failing row, not the document
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/read-and-write-csv-and-tsv-files.md` (backlog H-11), on `main` at `b4179489`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `CsvError#row` is documented as "Row number where the error occurred (1-based)", and `CsvReader.readAll` parses a whole document. But the row in a `ParseError` from `readAll` is counted from the start of the row that failed, so it is almost always 1. A stray character on line 4 of a file is reported as `row 1`; an unclosed quote that opens on line 3 is reported as `row 3`, the number of lines the open cell spans.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-schema-csv` 0.0.56, run with scala-cli):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-csv:0.0.56
+
+import zio.blocks.schema.csv._
+
+@main def repro(): Unit = {
+  // The stray 'x' after the closing quote is on line 4 of the document.
+  val stray = "title,year\nZionomicon,2024\nProgramming in Scala,2008\n\"Functional Programming in Scala\"x,2014\n"
+  println(CsvReader.readAll(stray, CsvConfig.default))
+  // Left(zio.blocks.schema.csv.CsvError$ParseError: CSV error at row 1, column 34: Unexpected character 'x' after closing quote)
+
+  // The unclosed quote opens on line 3 and runs to the end of the document (line 5).
+  val unclosed = "title,year\nZionomicon,2024\n\"Programming in Scala,2008\nFunctional Programming in Scala,2014\n"
+  println(CsvReader.readAll(unclosed, CsvConfig.default))
+  // Left(zio.blocks.schema.csv.CsvError$ParseError: CSV error at row 3, column 1: Unclosed quoted field)
+}
+```
+
+**Expected.** `row 4, column 34` for the stray character. For the unclosed quote, the line where the quote opens (`row 3, column 1`) or the end of the document (`row 6, column 1`), but counted from the start of the document either way.
+
+**Root cause.** `CsvReader.readRow` starts its counters at `var row = 1` and `var col = 1` on every call (`schema-csv/src/main/scala/zio/blocks/schema/csv/CsvReader.scala:65-66`), and `readAll` calls it once per row (`:237`, `:249`) without adding the number of lines already consumed. `readRow` has no parameter for a starting row, so a caller that loops over `readRow` can't fix the number either, except by counting lines itself and adding `error.row - 1`.
+
+**Impact.** Every parse error from `readAll` points at the wrong line, so on a large file the user has to find the bad row by hand. The reference page `csv.md` promises "the exact row and column where parsing ... failed".
+
+**Test gap.** `CsvReaderSpec` "returns error for malformed data row" (`schema-csv/src/test/scala/zio/blocks/schema/csv/CsvReaderSpec.scala:153`) checks only that `readAll` returns a `Left`, never the row it reports.
+
+**Suggested fix.** Count rows across the document in `readAll`: track the line number of each row's start (one plus the line breaks consumed so far, including those inside quoted fields) and return `ParseError(message, startLine + row - 1, col)`. Optionally add a `readRow` overload that takes the starting line. Add a test that asserts the row and column of an error on line 4.
+
+## schema-csv: a nested case class field is accepted and written as one cell with a line break inside
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/read-and-write-csv-and-tsv-files.md` (backlog H-11), on `main` at `b4179489`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** The `CsvFormat` Scaladoc says it supports "flat case classes (records)", and `csv.md` says "Flat case classes (records with no variant or sequence fields) are fully supported". A record with a field whose type is another case class is not rejected: the deriver derives a record codec for the inner type and uses its whole encoded line, including its `\r\n` terminator, as the value of one cell. The cell is quoted because it contains a comma and a line break, `headerNames` lists one column for it, and spreadsheets show it as a two-line value.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-schema-csv` 0.0.56, run with scala-cli):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+//> using dep dev.zio::zio-blocks-next-schema-csv:0.0.56
+
+import java.nio.CharBuffer
+import zio.blocks.schema._
+import zio.blocks.schema.csv._
+
+case class Edition(number: Int, year: Int)
+object Edition { implicit val schema: Schema[Edition] = Schema.derived }
+
+case class EditionRow(title: String, edition: Edition)
+object EditionRow { implicit val schema: Schema[EditionRow] = Schema.derived }
+
+@main def repro(): Unit = {
+  val codec  = EditionRow.schema.derive(CsvFormat) // no exception
+  println(codec.headerNames)
+  // Vector(title, edition)
+  val buffer = CharBuffer.allocate(256)
+  codec.encode(EditionRow("Programming in Scala", Edition(5, 2021)), buffer)
+  buffer.flip()
+  val line = buffer.toString
+  println(line.replace("\r\n", "\\r\\n"))
+  // Programming in Scala,"5,2021\r\n"\r\n
+  println(codec.decode(CharBuffer.wrap(line)))
+  // Right(EditionRow(Programming in Scala,Edition(5,2021)))
+}
+```
+
+**Expected.** Either the deriver rejects a nested record with an `UnsupportedOperationException`, like sequences and maps, or it flattens it into separate columns (for example `edition.number,edition.year`) with matching `headerNames`.
+
+**Root cause.** `CsvCodecDeriver.deriveRecord` gets a codec for each field with `D.instance(fieldReflect.metadata)` (`schema-csv/src/main/scala/zio/blocks/schema/csv/CsvCodecDeriver.scala:128`) and never checks whether the field is itself a record. The inner record codec writes a full row with `CsvWriter.writeRow(..., CsvConfig.default)` (`:174`), line terminator included, and the outer codec stores that string as one field. `headerNames` is built from the outer field names only (`:139`).
+
+**Impact.** A user who follows the "flat records" rule by accident (one nested value object, such as an address or a money type) gets no error, and a file whose cells contain line breaks. It round-trips through the same codec, so tests that only round-trip don't notice.
+
+**Test gap.** Neither `CsvRejectionSpec` nor `CsvRecordCodecSpec` derives a codec for a record with a nested record field.
+
+**Suggested fix.** Decide on one behaviour and test it. The smaller change is to reject: in `deriveRecord`, throw `UnsupportedOperationException("CSV does not support nested record fields. Flatten them into the row type.")` when a field's `Reflect` is a record (and not a wrapper). Then update the Scaladoc of `CsvFormat` and the "Record Type Support" section of `csv.md`.
+
+## schema-csv: decode errors never name the column, and `CsvError.TypeError` is never produced
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/read-and-write-csv-and-tsv-files.md` (backlog H-11), on `main` at `b4179489`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** When a cell can't be converted to its field's type, `CsvCodec#decode` returns a `SchemaError` with an empty path (`at: .`), so the message names the bad value but not the column. `CsvError.TypeError`, which has a `fieldName`, a `row` and a `column` for exactly this case, is defined but no code in the module constructs it.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-schema-csv` 0.0.56, run with scala-cli):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+//> using dep dev.zio::zio-blocks-next-schema-csv:0.0.56
+
+import java.nio.CharBuffer
+import zio.blocks.schema._
+import zio.blocks.schema.csv._
+
+case class BookRow(title: String, year: Int, copies: Int)
+object BookRow { implicit val schema: Schema[BookRow] = Schema.derived }
+
+@main def repro(): Unit = {
+  val codec = BookRow.schema.derive(CsvFormat)
+  // Both Int columns get a bad value; the error does not say which column failed.
+  println(codec.decode(CharBuffer.wrap("Zionomicon,MMXXIV,12")))
+  // Left(zio.blocks.schema.SchemaError: Cannot parse 'MMXXIV' as Int: For input string: "MMXXIV" at: .)
+  println(codec.decode(CharBuffer.wrap("Zionomicon,2024,twelve")))
+  // Left(zio.blocks.schema.SchemaError: Cannot parse 'twelve' as Int: For input string: "twelve" at: .)
+  codec.decode(CharBuffer.wrap("Zionomicon,2024,twelve")).left.foreach(e => println(e.errors.head.source.nodes))
+  // ArraySeq()
+}
+```
+
+**Expected.** The path names the field, as the JSON codec does: `... at: .copies`.
+
+**Root cause.** The record decoder returns the field codec's error unchanged: `case Left(err) => return new Left(err)` (`schema-csv/src/main/scala/zio/blocks/schema/csv/CsvCodecDeriver.scala:194`). The primitive codecs build their errors with an empty path (`SchemaError.expectationMismatch(Nil, ...)` in `typeError`, `:309-310`). `CsvError.TypeError` (`schema-csv/src/main/scala/zio/blocks/schema/csv/CsvError.scala:63`) is only constructed in `CsvErrorSpec`.
+
+**Impact.** On a file with several numeric columns, the user can't tell which column held the bad value. `csv.md` says "CSV errors report the exact row and column where parsing or type conversion failed" and describes `TypeError` as the error for a failed conversion, so readers write `case CsvError.TypeError(...)` handlers that never match.
+
+**Test gap.** `CsvPrimitiveCodecSpec` checks only `isLeft` for a bad cell (for example `:77`), and `CsvRecordCodecSpec` never decodes a record with a bad cell, so nothing asserts which field an error names.
+
+**Suggested fix.** In the record decoder, return `new Left(err.atField(fieldNames(idx)))`; `SchemaError#atField` already exists for this. Either remove `CsvError.TypeError` or document it as reserved, and fix the `csv.md` text.
+
+## schema-csv: `CsvConfig.nullValue` is never read
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/read-and-write-csv-and-tsv-files.md` (backlog H-11), on `main` at `b4179489`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `CsvConfig` has a `nullValue` parameter, documented as "The string representation for null values (default: "")", and `csv.md` lists it and sets it to `"NULL"` in an example. No code in `schema-csv` reads it: neither `CsvReader`, `CsvWriter` nor the derived codecs.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-schema-csv` 0.0.56, run with scala-cli):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-csv:0.0.56
+
+import zio.blocks.schema.csv._
+
+@main def repro(): Unit = {
+  val config = CsvConfig(nullValue = "NULL")
+  // nullValue = "NULL" does not turn the NULL cell into anything else.
+  println(CsvReader.readAll("title,isbn\nZionomicon,NULL\nScala with Cats,\n", config))
+  // Right((Vector(title, isbn),Vector(Vector(Zionomicon, NULL), Vector(Scala with Cats, ))))
+}
+```
+
+**Root cause.** `nullValue` is declared at `schema-csv/src/main/scala/zio/blocks/schema/csv/CsvConfig.scala:40` and used nowhere else (`grep -rn nullValue schema-csv/src/main` finds only `CsvConfig.scala`). The derived codecs reject `Option` fields, so there is no value that could map to it.
+
+**Impact.** Low. A user who sets `nullValue` expects some effect and gets none, silently.
+
+**Test gap.** `CsvConfigSpec` only checks the field's default value.
+
+**Suggested fix.** Remove `nullValue`, or give it a meaning once `Option` fields are supported (write `None` as `nullValue`, read `nullValue` as `None`). Until then, document it as unused.
+
+## docs: `csv.md` promises error locations the codec doesn't give, and documents unused API
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/read-and-write-csv-and-tsv-files.md` (backlog H-11), on `main` at `b4179489`. Verified by running. PR #1773 fixes other parts of this page (TSV "Pattern 2", run-time rejection, `Option` fields); the statements below are not covered by it.
+
+**Summary.** `docs/reference/schema/built-in-codecs/csv.md` makes these claims that the source contradicts:
+
+- `:31` "Precise error reporting with row/column locations" and `:154` "CSV errors report the exact row and column where parsing or type conversion failed". Decode errors carry no row, column or field (see "decode errors never name the column" above), and parse errors count rows from the failing row (see "`CsvError` row and column count from the start of the failing row" above).
+- `:152-179` "Pattern 3" decodes a whole document, header included, with `CsvCodec#decode`. The codec reads only the first row, so the example reports the header, not the bad `salary` cell.
+- `:358-367` presents `CsvError.TypeError` as the error for a failed conversion; nothing produces it.
+- `:322` and `:336` document `nullValue`, which nothing reads.
+- `:523` "Flat case classes (records with no variant or sequence fields) are fully supported" leaves out that a nested record field is accepted and written as one cell with a line break inside.
+
+**Reproduction of Pattern 3** (Scala 3.9.0, `zio-blocks-next-schema-csv` 0.0.56, run with scala-cli):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+//> using dep dev.zio::zio-blocks-next-schema-csv:0.0.56
+
+import java.nio.CharBuffer
+import zio.blocks.schema._
+import zio.blocks.schema.csv._
+
+case class Employee(id: Int, name: String, salary: BigDecimal)
+object Employee { implicit val schema: Schema[Employee] = Schema.derived }
+
+@main def repro(): Unit = {
+  // csv.md "Pattern 3: Handle CSV Errors with Location Information", verbatim input
+  val codec   = Employee.schema.derive(CsvFormat)
+  val csvData = "id,name,salary\n1,Alice,invalid\n"
+  println(codec.decode(CharBuffer.wrap(csvData)))
+  // Left(zio.blocks.schema.SchemaError: Cannot parse 'id' as Int: For input string: "id" at: .)
+}
+```
+
+**Suggested fix.** Say that `CsvCodec#decode` decodes one row and its errors name the bad value but not the column, and rewrite Pattern 3 to read the document with `CsvReader.readAll` and decode each row, counting rows itself (as the H-11 guide does). Mark `TypeError` and `nullValue` as unused, and add nested records to the "Record Type Support" section. Do this after #1773 merges, since it touches the neighbouring Pattern 2.

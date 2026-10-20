@@ -458,6 +458,7 @@ const sidebars = {
     "guides/override-codec-for-one-type",
     "guides/nested-data-with-optics",
     "guides/one-type-many-formats",
+    "guides/read-and-write-csv-and-tsv-files",
     "guides/typed-config-loader",
     "guides/roll-out-feature-gradually",
     "guides/your-first-sqlite-repository",
