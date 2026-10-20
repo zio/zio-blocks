@@ -2011,7 +2011,7 @@ Pages that contradict the source. None of these were copied into the new guides.
 
 ### docs: `zio-blocks-next-*` needs Scala 3.9+, not 3.7+
 
-Found 2026-10-21 while writing H-01 (`docs/guides/add-zio-blocks-to-your-build.md`, branch `adding-zio-block-to-build`, not pushed yet). Verified with scala-cli against 0.0.56.
+Found 2026-10-21 while writing H-01 (`docs/guides/add-zio-blocks-to-your-build.md`, branch `adding-zio-block-to-build`, pushed, no PR yet). Verified with scala-cli against 0.0.56.
 
 **Summary.** The docs and every guide written so far tell readers that Scala 3.7 and newer use the `zio-blocks-next-*` artifacts. That is the *publishing* rule (`project/BuildHelper.scala`, `minor >= 7`), not the rule for users. The `zio-blocks-next-*` POMs depend on `scala3-library` 3.9.0, so:
 
