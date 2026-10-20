@@ -210,7 +210,7 @@ The DDL Generation category provides `createTable` and `dropTable`, which produc
 
 #### `createTable` — Generate a CREATE TABLE statement
 
-`Table#createTable` accepts a `SqlDialect` and returns a `Frag` whose SQL text is a `CREATE TABLE IF NOT EXISTS` statement. Each column definition uses the dialect's `typeName` method to convert the column's `DbValue` representative to the appropriate SQL type string (for example, `DbValue.DbString` becomes `TEXT` in PostgreSQL and `TEXT` in SQLite; `DbValue.DbInt` becomes `INTEGER` in both). Non-nullable columns carry a `NOT NULL` constraint; nullable columns do not.
+`Table#createTable` accepts a `SqlDialect` and returns a `Frag` whose SQL text is a `CREATE TABLE IF NOT EXISTS` statement. Each column definition uses the dialect's `typeName` method to convert the column's `DbValue` representative to the appropriate SQL type string (for example, `DbValue.DbString` becomes `TEXT` in PostgreSQL and `TEXT` in SQLite; `DbValue.DbInt` becomes `INTEGER` in both). Non-nullable columns carry a `NOT NULL` constraint; nullable columns do not. The statement declares no `PRIMARY KEY` or `UNIQUE` constraint, not even on the column that a `Repo` uses as its ID, so `Repo#insertOrUpdate` needs a table you create yourself (see [Repo](./repo.md)).
 
 ```scala
 final case class Table[A](...) {
