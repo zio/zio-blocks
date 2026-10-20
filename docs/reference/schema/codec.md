@@ -102,9 +102,9 @@ abstract class BinaryCodec[A] extends Codec[ByteBuffer, ByteBuffer, A]
 abstract class TextCodec[A] extends Codec[CharBuffer, CharBuffer, A]
 ```
 
-All built-in serialization formats (JSON, Avro, TOON, MessagePack, Thrift) extend `BinaryCodec`. Despite JSON being a text format, the JSON codec operates on UTF-8 encoded bytes for performance.
+Most built-in codecs (JSON, Avro, TOON, MessagePack, Thrift, XML and YAML) extend `BinaryCodec`. Despite JSON being a text format, the JSON codec operates on UTF-8 encoded bytes for performance. BSON extends neither: its `BsonCodec` is a pair of a BSON encoder and a BSON decoder.
 
-`TextCodec` exists for formats that operate on character data rather than raw bytes. No built-in formats currently use `TextCodec`, but it is available for custom text-based formats.
+`TextCodec` is for formats that operate on character data rather than raw bytes. The built-in CSV codec, `CsvCodec`, extends it, and custom text-based formats can extend it too.
 
 ## Deriving Codecs
 
