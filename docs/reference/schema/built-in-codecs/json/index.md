@@ -296,3 +296,5 @@ val dynamicPatch: DynamicPatch = jsonPatch.toDynamicPatch
 - **[JSON Schema](./json-schema.md)** — Full JSON Schema 2020-12 support for validation and code generation. Derive schemas from Scala types, validate JSON, construct schemas manually with builders, and combine with logical operators.
 
 See also the [Your First Schema](../../../../guides/your-first-schema.md) tutorial, which round-trips a type through JSON end to end.
+
+Coming from another JSON library? [Coming from circe, zio-json or jsoniter-scala](../../../../guides/json-library-migration.md) maps their codecs, configuration and annotations onto ZIO Blocks.
