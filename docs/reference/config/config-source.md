@@ -60,7 +60,7 @@ source.get("db.user")
 
 ### From the Environment
 
-`EnvSource` reads environment variables. It performs its own key translation: a dotted lookup becomes an upper-snake environment variable name, so `get("db.host")` reads `DB_HOST`:
+`EnvSource` reads environment variables. It performs its own key translation: dots become underscores and the result is upper-cased, so `get("db.host")` reads `DB_HOST`. It does not split camelCase, so a `databaseUrl` field needs the mapping described in [Applying a Mapper to a Source](#applying-a-mapper-to-a-source):
 
 ```scala mdoc:compile-only
 import zio.blocks.config._
@@ -225,8 +225,8 @@ canonical.get("databaseUrl")
 
 `ConfigSource#keyMapper` is the general form, taking an explicit `KeyMapper` as well as the target format, for sources whose naming convention the default mapper does not cover. Both operations compose with `ConfigSource#orElse` and `ConfigSource#prefix`.
 
-:::note[EnvSource already maps keys]
-`EnvSource` performs dot-to-underscore uppercasing internally, so it does not need `ConfigSource#keyFormat`. Use `ConfigSource#keyFormat` for sources that hold environment-style keys without being the environment — a `Map` scraped from an env file, for instance.
+:::note[EnvSource and camelCase fields]
+`EnvSource` already replaces dots with underscores and upper-cases the result, so dotted keys of lowercase field names need nothing more: `db.host` reads `DB_HOST`. It does not split camelCase, though — a `databaseUrl` field is looked up as `DATABASEURL`. For case classes with camelCase fields, wrap the environment as `EnvSource.keyFormat(KeyFormat.UpperSnakeCase)`, which reads `DATABASE_URL` for `databaseUrl` and `DB_MAX_POOL_SIZE` for `db.maxPoolSize`. `ConfigSource#keyFormat` works the same way for sources that hold environment-style keys without being the environment — a `Map` scraped from an env file, for instance.
 :::
 
 ## Provenance
