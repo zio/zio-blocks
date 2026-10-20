@@ -210,7 +210,7 @@ Every `Repo` method requires a `DbCon` (or `DbTx`) given in scope, which is supp
 
 ### Read Operations
 
-The read operations query the database without modifying it. `Repo#all`, `Repo#findAll`, and `Repo#find` decode and return entity values; `Repo#exists` and `Repo#count` return summary information without decoding full rows.
+The read operations query the database without modifying it. `Repo#all`, `Repo#findAll`, `Repo#find`, and `Repo#pageAfter` decode and return entity values; `Repo#exists` and `Repo#count` return summary information without decoding full rows.
 
 #### `all` — Retrieve all rows
 
@@ -343,9 +343,39 @@ given DbCon = ???
 val total: Long = repo.count
 ```
 
+#### `pageAfter` — Read the next page of rows by primary key
+
+`Repo#pageAfter` implements keyset pagination: it returns at most `limit` rows whose primary key is strictly greater than `cursorId`, ordered by primary key ascending. It runs `SELECT … FROM "<table>" WHERE "<id>" > ? ORDER BY "<id>" ASC LIMIT <limit>`, so the cursor row itself never repeats, and a cursor equal to the last ID returns an empty list.
+
+```scala
+class Repo[E, ID] {
+  def pageAfter(cursorId: ID, limit: Int)(using con: DbCon): List[E]
+}
+```
+
+To read the table two rows at a time, we pass the ID of the last row on one page as the cursor for the next:
+
+```scala mdoc:compile-only
+import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("users", "id", _.id)
+given DbCon = ???
+
+val firstPage: List[User]  = repo.pageAfter(0, 2)
+val secondPage: List[User] = firstPage.lastOption.fold(List.empty[User])(last => repo.pageAfter(last.id, 2))
+```
+
+:::caution
+`Repo#pageAfter` throws `IllegalArgumentException` when `limit` is zero or negative.
+:::
+
 ### Write Operations
 
-The write operations insert, update, or delete rows in the database. `Repo#insert`, `Repo#insertBatch`, `Repo#insertAll`, `Repo#update`, `Repo#delete`, `Repo#deleteAll`, and `Repo#clear` each return an `Int` row count (`insertAll` returns the inserted IDs instead); `Repo#insertReturning` is the exception and returns the full inserted entity.
+The write operations insert, update, or delete rows in the database. `Repo#insert`, `Repo#insertBatch`, `Repo#insertAll`, `Repo#insertOrUpdate`, `Repo#insertOrUpdateBatch`, `Repo#update`, `Repo#delete`, `Repo#deleteAll`, and `Repo#clear` each return an `Int` row count (`insertAll` returns the inserted IDs instead); `Repo#insertReturning` is the exception and returns the full inserted entity.
 
 #### `insert` — Insert a single entity
 
@@ -467,6 +497,76 @@ val ids: Seq[Int] = repo.insertAll(newUsers)
 :::caution
 `insertAll` throws `IllegalArgumentException` for an empty `Seq`. Always verify the input is non-empty before calling it, or use `insertBatch`, which accepts empty collections and returns 0 without error.
 :::
+
+#### `insertOrUpdate` — Insert or update by primary key
+
+`Repo#insertOrUpdate` writes an entity whether or not its row already exists, an operation often called an upsert. It runs `INSERT INTO "<table>" (…) VALUES (…) ON CONFLICT ("<id>") DO UPDATE SET …`: when no row has the entity's ID, it inserts one; when a row exists, it overwrites every non-ID column with the entity's values. It returns the affected row count, normally 1 on both paths.
+
+```scala
+class Repo[E, ID] {
+  def insertOrUpdate(entity: E)(using con: DbCon): Int
+}
+```
+
+The same call creates a user the first time and replaces its name and email the second time:
+
+```scala mdoc:compile-only
+import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("users", "id", _.id)
+given DbCon = ???
+
+val inserted: Int = repo.insertOrUpdate(User(1, "Alice", "alice@example.com"))
+val updated: Int  = repo.insertOrUpdate(User(1, "Alice Smith", "alice.smith@example.com"))
+```
+
+:::caution
+`ON CONFLICT` needs a `PRIMARY KEY` or `UNIQUE` constraint on the ID column, and `Table#createTable` doesn't declare one. On a table created with `Table#createTable`, `Repo#insertOrUpdate` fails; SQLite reports `ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint`. The method also throws `IllegalArgumentException` when the table has no columns besides the ID.
+:::
+
+To use `Repo#insertOrUpdate`, we create the table ourselves and declare the ID column as the primary key:
+
+```scala mdoc:compile-only
+import zio.blocks.sql._
+
+given DbCon = ???
+
+Frag.literal("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL)").update
+```
+
+#### `insertOrUpdateBatch` — Upsert many entities in one batch
+
+`Repo#insertOrUpdateBatch` runs the same `INSERT … ON CONFLICT … DO UPDATE` statement as `Repo#insertOrUpdate` for every entity, using JDBC batch execution like `Repo#insertBatch`. It returns the total affected row count, returns 0 without touching the database when the input is empty, and has the same `PRIMARY KEY` requirement as `Repo#insertOrUpdate`.
+
+```scala
+class Repo[E, ID] {
+  def insertOrUpdateBatch(entities: Iterable[E])(using con: DbCon): Int
+}
+```
+
+To insert new users and update existing ones in one batch:
+
+```scala mdoc:compile-only
+import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("users", "id", _.id)
+given DbCon = ???
+
+val rowsAffected: Int = repo.insertOrUpdateBatch(
+  List(
+    User(1, "Alice Smith", "alice.smith@example.com"),
+    User(2, "Bob",         "bob@example.com")
+  )
+)
+```
 
 #### `update` — Update an entity's non-ID columns
 
