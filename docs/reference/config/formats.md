@@ -94,7 +94,7 @@ Re-rooting with `ConfigSource#prefix` reads the `db` section:
 ConfigSource.fromYaml(yamlText, "app.yaml").map(src => Config.load[Db](src.prefix("db")))
 ```
 
-A document that will not parse yields `ConfigError.InvalidValue` whose `value` is the first 100 characters of the input, truncated with an ellipsis, and whose `cause` is the underlying reader exception. `YamlConfigSource.fromString` is the same operation without the syntax import, for code that prefers an explicit call.
+A document that will not parse yields `ConfigError.ParseError` with an empty `path` and `valid YAML` as the expected type, so its message reads `Parse error for key '' (expected valid YAML) in source 'app.yaml'` for a source named `app.yaml`. The error carries no excerpt of the document and no cause, so a secret in a malformed file never reaches a log. `YamlConfigSource.fromString` is the same operation without the syntax import, for code that prefers an explicit call.
 
 Non-scalar mapping keys are skipped rather than rejected, since a dotted key namespace cannot represent them.
 
@@ -127,7 +127,7 @@ Numbers and booleans are rendered with their `toString`, so every value arrives 
 ConfigSource.fromJson(jsonText, "app.json")
 ```
 
-A malformed document yields `ConfigError.InvalidValue` with a 100-character excerpt of the input and the parser's `SchemaError` as the cause.
+A malformed document yields `ConfigError.ParseError` with `valid JSON` as the expected type and, as with YAML, no excerpt of the input and no cause.
 
 ## HOCON
 

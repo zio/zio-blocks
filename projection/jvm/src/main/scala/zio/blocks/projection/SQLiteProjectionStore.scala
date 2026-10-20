@@ -21,6 +21,28 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema.Schema
 import zio.blocks.sql.*
 
+/**
+ * A [[ProjectionStore]] kept in a SQLite file. `ProjectionEngine.make` creates
+ * one for each projection; with `ProjectionEngine.makeWithStores` you create
+ * them yourself.
+ *
+ * The rows are kept in a table named after `A`, with one column for each field,
+ * in snake_case, and a unique index on the ID column. The watermark and the
+ * schema hash are kept in a table called `_projection_meta`, in a row named
+ * after the rows' table. The tables are created the first time the store is
+ * used, not when it is made.
+ *
+ * `upsert` uses `INSERT ... ON CONFLICT DO UPDATE`, and falls back to
+ * `INSERT OR REPLACE` if SQLite rejects that statement. `updateFields` checks
+ * every field name against the table's columns before it starts, then runs
+ * `INSERT OR IGNORE` for the default row and one `UPDATE` for each field
+ * update, in one transaction.
+ *
+ * The constructor is private: create a store with `SQLiteProjectionStore.make`.
+ *
+ * @tparam A
+ *   the type of a row, with an [[EntityPath]] that names its ID field
+ */
 class SQLiteProjectionStore[A: Schema: EntityPath] private (
   path: String,
   cache: TransactorCache,
@@ -521,13 +543,33 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
 
 object SQLiteProjectionStore {
 
+  /**
+   * Creates a store for `A` in the SQLite file at `path`.
+   *
+   * Nothing is written yet: the tables are created the first time the store is
+   * used. The folder of `path` must exist, because SQLite does not create
+   * folders.
+   *
+   * @param path
+   *   the database file, such as `users/user_profiles.db`
+   * @param cache
+   *   the cache that gives the store the `Transactor` of the file
+   */
   def make[A: Schema: EntityPath](path: String, cache: TransactorCache): Task[SQLiteProjectionStore[A]] =
     for {
       flag <- Ref.make(false)
       sem  <- Semaphore.make(1)
     } yield new SQLiteProjectionStore[A](path, cache, flag, sem)
 
-  /** Unsafe synchronous creation for tests that need immediate instance */
+  /**
+   * Like `make`, but runs on the calling thread and returns the store directly,
+   * for tests that need one outside a ZIO program.
+   *
+   * @param path
+   *   the database file, such as `users/user_profiles.db`
+   * @param cache
+   *   the cache that gives the store the `Transactor` of the file
+   */
   def makeSync[A: Schema: EntityPath](path: String, cache: TransactorCache): SQLiteProjectionStore[A] = {
     import zio.Unsafe
     Unsafe.unsafe { implicit unsafe =>

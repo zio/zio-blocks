@@ -53,8 +53,8 @@ sbt projects
 sbt 'show crossScalaVersions'              # note the 2.13.x version
 
 # sbt command template (use for ALL sbt invocations):
-ROOT="$(git rev-parse --show-toplevel)" && mkdir -p "$ROOT/.git/agent-logs"
-LOG="$ROOT/.git/agent-logs/sbt-$(date +%s)-$$.log"
+GD="$(git rev-parse --absolute-git-dir)" && mkdir -p "$GD/agent-logs"   # works in worktrees, where .git is a file
+LOG="$GD/agent-logs/sbt-$(date +%s)-$$.log"
 sbt --client -Dsbt.color=false <command> >"$LOG" 2>&1; echo "Exit: $? | Log: $LOG"
 # Query: tail -50 "$LOG" or grep -i error "$LOG"
 
@@ -73,6 +73,8 @@ sbt --client -Dsbt.color=false <command> >"$LOG" 2>&1; echo "Exit: $? | Log: $LO
 ```
 
 `<project>` = any project name from `sbt projects` (e.g., `schemaJVM`, `schemaJS`, `schema-avro`).
+
+Docs pages that open JDBC connections (the `sql` pages use `sqlite-jdbc`) pass `docs/mdoc` only once per sbt server: the second run fails with `No suitable driver found for jdbc:sqlite:...`, because `java.sql.DriverManager` loads drivers once per JVM and the new mdoc classloader can't see the old driver. Run `sbt --client shutdown` before re-running mdoc on such a page. CI is unaffected (fresh JVM).
 `<scala2>` = the 2.13.x version from `show crossScalaVersions`.
 
 Not every project supports every version — check `show <project>/crossScalaVersions` if
@@ -113,7 +115,11 @@ Run once after verify passes.
 
 ## Example Projects
 
-Every `*-examples/` directory is a **standalone sbt build** (own `build.sbt` and `project/build.properties`), not part of the root build. Each depends on the *published* `zio-blocks` artifacts (`zioBlocksVersion` in its `build.sbt`), so it works as a copy-paste template. Run from inside the directory: `cd schema-examples && sbt "runMain ..."`. Root `sbt` commands (`++3.9.0; ...`, coverage, `fmtDirty`) do not touch them. When an API change should show up in an example, bump `zioBlocksVersion` after the release.
+Most `*-examples/` directories are **standalone sbt builds** (own `build.sbt` and `project/build.properties`). Each depends on the *published* `zio-blocks` artifacts (`zioBlocksVersion` in its `build.sbt`), so it works as a copy-paste template. Run from inside the directory: `cd schema-examples && sbt "runMain ..."`. The root `build.sbt` only references them (`RootProject`, the way zio-http does) and aggregates them. When an API change should show up in an example, bump `zioBlocksVersion` after the release.
+
+`projection-examples` is the exception: it is a **root subproject** that depends on the local `projection.jvm` (like zio-http's `zio-http-example`), so its examples use the latest API without waiting for a release. It has no `build.sbt` of its own, and the CI example loop skips directories without one. Run it from the repository root: `sbt "projection-examples/runMain ..."`. Its SQLite files go in `projection-examples/.projection-examples/` (git ignores it), except `global/`, which the engine fixes.
+
+When you change, rename or move an example, update the docs that embed it (`grep -rn "mdoc:embed:.*<ExampleFile>" docs/`) in the same change, so their prose and quoted output still match; then run the example and mdoc on those pages.
 
 ## Cross-Version Code Structure
 

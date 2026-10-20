@@ -109,16 +109,6 @@ function parseCategories(body, exists) {
   return categories;
 }
 
-function parseHero(body) {
-  const blocks = fences(body);
-  const install = blocks.find((b) => b.source.includes('libraryDependencies'));
-  if (!install) throw new CatalogError('Getting Started: no libraryDependencies code block');
-  const line = blocks.flatMap((b) => b.source.split('\n')).find((l) => l.includes('toJsonString') && l.includes('//'));
-  const m = line && /^(.*?)\s*\/\/\s*(.+)$/.exec(line);
-  if (!m) throw new CatalogError('Getting Started: no code line containing toJsonString with a // result comment');
-  return { install: install.source.trim(), jsonCode: m[1].trim(), jsonResult: m[2].trim() };
-}
-
 function parseDive([id, title], sections, exists) {
   const prose = (text, field) => resolveProseLinks(text, `${title}: ${field}`, exists);
   const body = section(sections, title);
@@ -132,12 +122,15 @@ function parseDive([id, title], sections, exists) {
   const solution = need('The Solution');
   const solutionCode = fences(solution)[0];
   if (!solutionCode) throw new CatalogError(`${title}: "The Solution" has no code block`);
+  const install = fences(need('Installation')).find((b) => b.source.includes('libraryDependencies'));
+  if (!install) throw new CatalogError(`${title}: "Installation" has no libraryDependencies code block`);
   const intro = paragraphs(sub.preamble)[0];
   if (!intro) throw new CatalogError(`${title}: no intro paragraph`);
   return {
     id,
     title,
     intro: prose(intro, 'intro'),
+    install: install.source.trim(),
     problem: { paragraphs: paragraphs(proseBeforeFence(problem)).map((p) => prose(p, 'problem')), code: fences(problem)[0] ?? null },
     solution: { paragraphs: paragraphs(proseBeforeFence(solution)).map((p) => prose(p, 'solution')), code: solutionCode },
     learnMore: learnMore(title, need('Learn More'), exists),
@@ -158,7 +151,7 @@ function learnMore(title, body, exists) {
   return items;
 }
 
-/** Parses docs/index.md. `hero.install` still contains the `@VERSION@` placeholder. */
+/** Parses docs/index.md. Each `deepDives[].install` still contains the `@VERSION@` placeholder. */
 export function parseIndex(md, { exists } = {}) {
   const top = splitSections(md, 2);
   const tagline = /^\*\*(.+)\*\*$/m.exec(top.preamble)?.[1];
@@ -179,7 +172,6 @@ export function parseIndex(md, { exists } = {}) {
   const compatibility = (compat?.rows ?? []).filter((r) => r[1].includes('✅')).map((r) => r[0]);
   if (compatibility.length === 0) throw new CatalogError('"## Compatibility" table has no ✅ rows');
 
-  const hero = parseHero(section(top.sections, 'Getting Started'));
   const categories = parseCategories(section(top.sections, 'All Blocks'), exists);
   const deepDives = DIVES.map((d) => parseDive(d, top.sections, exists));
 
@@ -198,7 +190,6 @@ export function parseIndex(md, { exists } = {}) {
     tagline: prose(tagline, 'tagline'),
     lead: prose(lead, 'lead'),
     principles,
-    hero,
     compatibility,
     categories,
     deepDives,

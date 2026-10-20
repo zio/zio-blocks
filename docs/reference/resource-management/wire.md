@@ -517,6 +517,8 @@ The `AppConfig` leaf above is hardcoded, which is rarely what a real graph wants
 | **Finalization** | ✓ (LIFO, automatic) | Manual | Manual |
 | **Performance** | ~0 overhead (macro-generated) | ~0 overhead | ~1 allocation overhead |
 
+Coming from `ZLayer` or macwire? [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](../../guides/resource-and-di-migration.md) maps `ZLayer.make`, `ZLayer.fromFunction`, `wire[A]` and `autowire` onto `Resource.from` and `Wire`.
+
 ## Running the Examples
 
 All code from this guide is available as runnable examples in the `scope-examples` module.

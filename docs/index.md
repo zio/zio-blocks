@@ -155,7 +155,7 @@ All of these ship in `zio-blocks-scope`.
 | [SQL Module](./reference/sql/index.md) | `zio-blocks-sql` | JVM · JS | 3.x | Type-safe JDBC wrapper with schema-derived codecs and a CRUD repository |
 | [ZIO Integration](./reference/sql-zio.md) | `zio-blocks-sql-zio` | JVM | 3.x | ZIO integration with `ZIO.attemptBlocking` and `ZLayer` |
 | [Data Migration](./reference/data-migration.md) | `zio-blocks-data-migration` | JVM · JS | 3.x | Typed, online database schema migrations in three execution models, with no hand-written SQL |
-| [Projection](./reference/projection.md) | `zio-blocks-projection` | JVM | 3.x | Event-sourced projections with per-entity SQLite storage |
+| [Projection](./reference/projection/index.md) | `zio-blocks-projection` | JVM | 3.x | Event-sourced projections with per-entity SQLite storage |
 
 ### Tooling & Codegen
 
@@ -239,6 +239,7 @@ val updated = Person.age.replace(person, 31)
 ### Learn More
 
 - [Your First Schema](./guides/your-first-schema.md) — a getting-started tutorial: describe a type once, round-trip it through JSON, and read decode errors
+- [One Type, Many Formats](./guides/one-type-many-formats.md) — a tutorial that exports one catalog as JSON, YAML, XML, TOON, MessagePack, Avro and CSV from the same schema
 - [Schema reference](./reference/schema/index.md) — the full API surface, from `Reflect` and `Binding` through optics, validation, and schema evolution
 - [Migrating from ZIO Schema](./guides/zio-schema-migration.md) — a step-by-step port from ZIO Schema 1.x
 
@@ -336,6 +337,7 @@ Scope.global.scoped { scope =>
 - [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) — the step-by-step tutorial, from basic resource management through dependency injection
 - [How to Fix Common Scope and Wire Compile Errors](./guides/fix-scope-and-wire-compile-errors.md) — every Scope, Wire and `Resource.from` error message, with its cause and its fix
 - [Resource Management reference](./reference/resource-management/index.md) — `Scope`, `Resource`, `Wire`, `Unscoped`, and finalization order
+- [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./guides/resource-and-di-migration.md) — port `Resource`, `ZLayer`, macwire or `Using` code to `Scope`, `Resource` and `Wire`
 
 ---
 
@@ -496,12 +498,19 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 ## Guides
 
 - [Your First Schema: Round-Trip a Type Through JSON](./guides/your-first-schema.md) - Start here: describe a type once with `Schema`, then encode, decode, and read errors
+- [Navigate and Update Nested Data with Optics](./guides/nested-data-with-optics.md) - Read and update fields deep inside immutable data with lenses, optionals, and traversals instead of nested `copy` calls
+- [One Type, Many Formats](./guides/one-type-many-formats.md) - Derive JSON, YAML, XML, TOON, MessagePack, Avro and CSV codecs from one `Schema` and round-trip a catalog through each
+- [Build a Typed Configuration Loader](./guides/typed-config-loader.md) - Load a typed case class from YAML, environment overrides and defaults, report every error at once, and see where each value came from
+- [Build Your First Database Repository on SQLite](./guides/your-first-sqlite-repository.md) - Connect to SQLite, derive a table and `Repo` from one schema, write your own queries, and roll back a transaction
+- [Render Your First Server-Side HTML Page](./guides/your-first-html-page.md) - Build a book page with the HTML DSL, escape user input, add CSS and JSON state, and save it as a file
 - [Getting Started with Async](./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
 - [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
 - [How to Fix Common Scope and Wire Compile Errors](./guides/fix-scope-and-wire-compile-errors.md) - Look up a Scope or Wire error message and apply the fix
+- [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./guides/resource-and-di-migration.md) - Move resource handling and dependency wiring to ZIO Blocks Scope, Resource, and Wire
 - [Getting Started with Mux](./guides/getting-started-with-mux.md) - Manage multiplexed bidirectional message streams with capacity limits
 - [Telemetry: Architecture, Patterns, and Real-World Usage](./guides/telemetry-guide.md) - Wire tracing, logging, and metrics into a running application
 - [Migrating from ZIO Schema](./guides/zio-schema-migration.md) - Step-by-step migration from ZIO Schema 1.x to ZIO Blocks Schema
+- [How to Generate JSON Schema from a Type and Validate Payloads Against It](./guides/generate-json-schema-and-validate-payloads.md) - Derive a JSON Schema from a `Schema`, publish it, and validate incoming JSON payloads
 - [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
 - [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL
 - [Query DSL Part 3: Extending the Expression Language](./guides/query-dsl-extending.md) - Add custom operators beyond `SchemaExpr`
@@ -517,6 +526,7 @@ large enough to have several pages start from an overview:
   - [Schema Evolution](./reference/schema/schema-evolution/index.md) - one-way and bidirectional type-safe conversions
 - [Telemetry](./reference/telemetry/index.md) - tracing, logging, metrics, and OTLP export
 - [SQL](./reference/sql/index.md) - codecs, fragments, tables, repositories, transactors, and dialects
+- [Projection](./reference/projection/index.md) - event-sourced read models: `Projection[A]`, `ProjectionEngine`, and per-entity SQLite stores
 - [Resource Management](./reference/resource-management/index.md) - `Scope`, `Resource`, `Wire`, `Unscoped`, and finalization
 - [Streams](./reference/streams/index.md) - `Stream`, `Pipeline`, `Sink`, and the low-level readers and writers
 - [Endpoint](./reference/endpoint/index.md) - endpoint descriptors, HTTP codecs, route patterns, and typed auth

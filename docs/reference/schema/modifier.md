@@ -389,3 +389,7 @@ This means you can serialize modifiers as part of your schema metadata, allowing
 3. **Use `transient` sparingly**: Only mark fields as transient when they are truly derived or temporary. Remember that transient fields need default values.
 
 4. **Use namespaced keys for `config`**: Follow the `<format>.<property>` convention to avoid conflicts between different formats or tools.
+
+## See Also
+
+- [How to Customize JSON Field Names, ADT Encoding and Optional Fields](../../guides/customize-json-encoding.md): a task-oriented guide that applies `rename`, `alias` and `transient` to a real model.

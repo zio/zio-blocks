@@ -56,10 +56,8 @@ test('hero', () => {
     'Modular Building\u00a0Blocks for Modern Scala Applications',
   );
   assert.equal(text(/<p class="lp-lead"[^>]*>([\s\S]*?)<\/p>/.exec(hero)[1]), text(site.lead.replace(/\*+|`/g, '')));
-  assert.equal(
-    text(/<pre[\s\S]*?<\/pre>/.exec(hero)[0]),
-    `${site.hero.install} ${site.hero.jsonCode} // ${site.hero.jsonResult}`,
-  );
+  // The hero has no code: each deep-dive panel shows its own install line instead.
+  assert.doesNotMatch(hero, /<pre/);
   assert.equal(text(/<p class="lp-stack"[^>]*>([\s\S]*?)<\/p>/.exec(hero)[1]), `Works with ${site.compatibility.join(' · ')}`);
   assert.match(hero, /href="\/overview"/);
   assert.match(hero, /href="https:\/\/github\.com\/zio\/zio-blocks"/);
@@ -120,6 +118,12 @@ test('deep dives render every panel visible without JavaScript', () => {
   assert.deepEqual(tabTags.map((t) => /aria-selected="(true|false)"/.exec(t)[1]), ['true', 'false', 'false', 'false']);
   assert.deepEqual(tabTags.map((t) => /tabindex="(-?\d)"/.exec(t)[1]), ['0', '-1', '-1', '-1']);
   assert.deepEqual(tabTags.map((t) => /aria-controls="([^"]*)"/.exec(t)[1]), site.deepDives.map((d) => `panel-${d.id}`));
+});
+
+test('every deep-dive panel shows its own install snippet', () => {
+  const s = sec('deep-dives');
+  const installs = [...s.matchAll(/<div class="lp-install">([\s\S]*?<\/pre>)/g)].map((m) => text(m[1]));
+  assert.deepEqual(installs, site.deepDives.map((d) => `Installation ${text(d.install)}`));
 });
 
 test('schema panel lists the format chips derived from the catalog', () => {
@@ -231,10 +235,13 @@ test('every title, heading and label on the landing page is in title case', () =
   assert.deepEqual(
     all(/<p class="lp-label"[^>]*>([\s\S]*?)<\/p>/g)
       .map((l) => l.replace(/\u00a0/g, ' ').replace(/\s+/g, ' '))
-      .filter((l) => !l.startsWith('The ')),
+      .filter((l) => !l.startsWith('The ') && l !== 'Installation'),
     ['01 Principles', '02 Deep Dives', 'One Schema, Many Formats', '03 Block Catalog', '04 Users'],
   );
-  assert.deepEqual(all(/<p class="lp-label"[^>]*>(The [\s\S]*?)<\/p>/g), site.deepDives.flatMap(() => ['The Problem', 'The Solution']));
+  assert.deepEqual(
+    all(/<p class="lp-label"[^>]*>((?:The |Installation)[\s\S]*?)<\/p>/g),
+    site.deepDives.flatMap(() => ['Installation', 'The Problem', 'The Solution']),
+  );
   assert.deepEqual(all(/<h3[^>]*>([\s\S]*?)<\/h3>/g), [
     ...site.deepDives.map((d) => titleCase(d.title)),
     ...site.categories.map((c) => titleCase(c.name)),
