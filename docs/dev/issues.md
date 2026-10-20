@@ -140,6 +140,16 @@ Filed as #1780. Found 2026-10-20 while writing H-12. Verified on 0.0.56.
 
 **Root cause.** The header is built with `caseNameMapper` instead of `fieldNameMapper` (`ToonCodecDeriver.scala:855`).
 
+### schema-toon: `ArrayFormat.List` still writes a nested record list as a table
+
+Found 2026-10-20 while writing H-12 (`docs/guides/llm-data-with-toon.md`). Observed when running the H-12 examples on 0.0.56; **needs a reproduction section** before filing.
+
+**Summary.** A list of primitive-only records nested inside a list item is written in tabular form under every `ArrayFormat`, including `ArrayFormat.List`, so the configured format is ignored at that depth.
+
+**Root cause.** `ToonCodecDeriver.scala:983` chooses the tabular layout for such nested lists without checking `arrayFormat`.
+
+**Fix.** Respect the configured `arrayFormat` at every nesting level, or document the exception next to the `ArrayFormat` cases.
+
 ### `JsonSchema#check` enforces `pattern` only when the pattern is anchored
 
 Found 2026-10-20 while writing H-05. From source (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:1124`).
@@ -530,6 +540,8 @@ These behave as designed but surprise users. Each should at least be documented 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
 
 Seen 2026-10-20 on PR #1773 (docs only, touches nothing in `streams/` or `async/`). In `testJVM (25, JVM, 3.3.x)`, this test hit its 30 s timeout while the other 12,760 tests passed. Rerunning is the current workaround. Needs investigation: a timing dependency in the test, or a real race in `unfoldAsync` reset.
+
+Seen again 2026-10-20 on PR #1774 (H-12, docs only): an async-reader test hit the same 30 s timeout in `testJVM (17, JVM, 3.9.x)`. Later pushes replaced that run. Two sightings on unrelated docs PRs in one day suggest the timeouts are too tight for loaded CI runners.
 
 ### mdoc: `mdoc:fail` on Scala 3 ignores earlier `:reset` sections
 
