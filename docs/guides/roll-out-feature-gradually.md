@@ -363,7 +363,7 @@ println(valuesParseAsBoolean("maybe"))
 
 ## Catching Typos at Startup
 
-An override whose key is spelled differently from the flag's name is ignored, and the flag quietly uses its default. `Flag.nearMissWarnings` looks for keys that differ from a flag's name only in case or in dots versus underscores, in the registered sources, in system properties and in environment variables:
+An override whose key is spelled differently from the flag's name is ignored, and the flag quietly uses its default. `Flag.nearMissWarnings` looks in three places. In the registered sources it looks for keys that differ from the flag's name in case or in dots versus underscores. In system properties and environment variables it looks only for case differences (for an environment variable, against the flag's name with dots replaced by underscores and uppercased):
 
 ```scala mdoc:silent
 FlagSource.Registry.register(
