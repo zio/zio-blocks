@@ -496,6 +496,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 ## Guides
 
 - [Your First Schema: Round-Trip a Type Through JSON](./guides/your-first-schema.md) - Start here: describe a type once with `Schema`, then encode, decode, and read errors
+- [Navigate and Update Nested Data with Optics](./guides/nested-data-with-optics.md) - Read and update fields deep inside immutable data with lenses, optionals, and traversals instead of nested `copy` calls
 - [Build a Typed Configuration Loader](./guides/typed-config-loader.md) - Load a typed case class from YAML, environment overrides and defaults, report every error at once, and see where each value came from
 - [Build Your First Database Repository on SQLite](./guides/your-first-sqlite-repository.md) - Connect to SQLite, derive a table and `Repo` from one schema, write your own queries, and roll back a transaction
 - [Render Your First Server-Side HTML Page](./guides/your-first-html-page.md) - Build a book page with the HTML DSL, escape user input, add CSS and JSON state, and save it as a file

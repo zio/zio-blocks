@@ -3,6 +3,10 @@ id: path-interpolator
 title: "Path Interpolator"
 ---
 
+:::tip
+To see optics applied step by step to nested data, follow the [Navigate and Update Nested Data with Optics](../../guides/nested-data-with-optics.md) tutorial.
+:::
+
 :::note
 To use the path interpolator `p"..."`, you must import the schema package: `import zio.blocks.schema._`
 :::
