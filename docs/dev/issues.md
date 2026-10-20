@@ -16,6 +16,7 @@ Contents:
 
 ### `Schema.fromJsonSchema` treats every property as required, ignoring `"required"`
 
+Filed as [zio/zio-blocks#1776](https://github.com/zio/zio-blocks/issues/1776).
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/generate-json-schema-and-validate-payloads.md` (backlog H-05), on `main` at `32866f71`. The code is the same at tag `v0.0.56`.
 
