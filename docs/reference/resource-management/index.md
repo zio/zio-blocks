@@ -42,3 +42,8 @@ The typical flow is:
 - **Wire** uses **Resource** to manage lifecycles of constructed services
 - **Resource** uses **Scope** for finalization and scoped value boundaries
 - Both **Wire** and **Resource** produce values that are usable only within a **Scope** context
+
+## See Also
+
+- [Compile-Time Resource Safety with Scope](../../guides/compile-time-resource-safety-with-scope.md) — a step-by-step tutorial covering `Scope`, `Resource` and `Wire`
+- [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](../../guides/resource-and-di-migration.md) — maps each of those libraries onto `Scope`, `Resource` and `Wire`
