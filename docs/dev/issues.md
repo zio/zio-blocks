@@ -150,6 +150,38 @@ Found 2026-10-19 while writing T-05. Verified.
 
 **Summary.** An error from `env.orElse(yaml).orElse(defaults)` names the source as `env|bookstore.yaml|defaults`, not the layer that held the bad value. That makes it hard to find which file or variable to fix.
 
+### config: `ProvenanceMap#dump` misreports env overrides through a key-formatted `EnvSource`
+
+Found 2026-10-20 while writing M-06 (`docs/guides/config-library-migration.md`). Verified on 0.0.56.
+
+**Summary.** With `EnvSource.keyFormat(KeyFormat.UpperSnakeCase).prefix("bookstore")` layered over a HOCON file and `BOOKSTORE_FEATURED_TITLE` set, the loaded value is correct and `provenanceOf("featuredTitle")` correctly names `BOOKSTORE_FEATURED_TITLE`. But `dump` shows a spurious row `featured.title | <env value> | env`, and still shows the overridden `featuredTitle | Zionomicon | application.conf` row as if it were in effect.
+
+**Root cause.** `EnvSource.all` maps environment keys back with `fromEnvKey` (lowercase, `_` to `.`) (`config/jvm/src/main/scala/zio/blocks/config/PlatformConfigSource.scala:53-54`). `KeyMapper.toCanonical` cannot recover the camelCase name because the key no longer contains `_` or `-`. `orElse.all` then merges both maps by key (`ConfigSource.scala:53-62`), so the two spellings never meet.
+
+**Fix.** Make `EnvSource.all` return keys that round-trip through the key mapper, or have `keyMapper(...).all` map keys through `fromCanonical(..., UpperSnakeCase)`. Add a `dump` test for a key-formatted env layer.
+
+### config-hocon: `ConfigSource.fromHocon` silently drops every `include`
+
+Found 2026-10-20 while writing M-06. Verified on 0.0.56.
+
+**Summary.** `fromHocon` passes no include callback, so every `include` directive is dropped without an error. An object whose only content is an include disappears: `db { include "db.conf" }` yields no `db` keys. `HoconConfigSource.fromStringWithCallback` is `private[hocon]`, so callers of the public `ConfigSource` API cannot supply a resolver.
+
+**Fix.** Either fail on an unresolved include, or expose a public way to pass an include resolver (and a file-relative default for `fromFile`).
+
+### config-hocon: array concatenation `[a] [b]` becomes an empty string
+
+Found 2026-10-20 while writing M-06. Verified on 0.0.56.
+
+**Summary.** HOCON array concatenation (`xs = [a] [b]`) silently produces `""` instead of the merged list `[a, b]` or a parse error. Cause: `hoconValueToString` in `HoconParser.scala` (around line 647).
+
+### config-hocon: parse errors lose their line and column
+
+Found 2026-10-20 while writing M-06. Verified on 0.0.56 (resolution-pass part from source).
+
+**Summary.** A HOCON syntax error surfaces only as `Parse error for key '' (expected valid HOCON) in source 'hocon:string'`. `ConfigError.ParseError` appends its cause only when `path` is non-empty (`ConfigError.scala`, around lines 165-173), and `fromHocon` uses the empty path, so the `HoconError` with the position never reaches `.message`. Errors from the resolution pass (circular or unresolved substitution) carry line 0, column 0 even in the cause.
+
+**Fix.** Always include the cause message for `ParseError`, and record real positions for resolution errors.
+
 ### sql: `Table.createTable` emits no `PRIMARY KEY`, so `Repo.insertOrUpdate` fails
 
 Found 2026-10-20 while writing T-07 (`docs/guides/your-first-sqlite-repository.md`). Verified on SQLite.
@@ -183,6 +215,8 @@ These behave as designed but surprise users. Each should at least be documented 
 - **`.each`, `.when` and `.atKey` work only inside the companion.** They are members of `CompanionOptics`, so `Inventory.$(_.shelves.each...)` written at a call site does not compile (`value each is not a member of List[Shelf]`). Found while writing T-03.
 - **A chatty TOON reply decodes as if it were clean.** A prose line ending in `:` (for example `Sure! Here is my pick:`) is read as an unknown key and skipped by default. `withRejectExtraFields(true)` catches it. Found while writing H-12.
 - **JSON Schema error paths are imprecise.** An `additionalProperties: false` failure reports `Schema rejects all values at: .`, at the object rather than the extra field. Errors raised inside `fromJsonSchema` end with ` at: .wrapped`. Found while writing H-05.
+- **HOCON `${?VAR}` and `${VAR}` never read environment variables.** Typesafe Config falls back to the environment; config-hocon resolves substitutions only inside the document (`HoconParser.scala`, `lookupPath`, around line 655). `${?DB_PASSWORD}` silently drops the key, and a non-optional `${VAR}` is a parse error. This is the biggest trap for teams migrating from Typesafe Config: layer `EnvSource` with `orElse` instead. Document it in `formats.md`, or add an opt-in environment fallback. Found while writing M-06.
+- **Durations and sizes use Java syntax only.** `10s` is rejected because durations go through `java.time.Duration.parse` (ISO-8601, e.g. `PT10S`; `ConfigDecoderDeriver.scala:416`), and size units like `512M` are not parsed. Typesafe Config's `getDuration`/`getBytes` accept both. Found while writing M-06.
 - **`jdbc:sqlite::memory:` gives every connection its own empty database.** Code that opens more than one connection loses its tables. Found while writing T-07; now noted in `transactor.md`.
 
 ## Test and CI
@@ -241,6 +275,14 @@ Pages that contradict the source. None of these were copied into the new guides.
 - Line 693 shows `items:` for `ArrayFormat.List`; the output is `items[N]:`.
 - Line 1044 shows `Expected sequence, got: invalid`; the source message is `Expected array header with [`.
 - Lines 14 and 659 say there are three array formats; there are four.
+
+**config (`formats.md`, HOCON section)**
+
+- Line 191 says `include` directives are resolved through a callback, so includes "come from a classpath, an archive, or a test fixture". Through the public `ConfigSource` API there is no callback (see the dropped-includes bug) and no classpath loader.
+- Line 162 says infinite values keep their `Double` rendering. From HOCON text this is unreachable: the parser rejects `NaN`/`Infinity` and keeps them as strings. From source.
+- Line 247 says `HoconError` carries the line and column. That holds only for lexer errors; resolution errors report 0:0. From source.
+- The "Loading from a File" section omits `maxFileBytes` / `fromFileWithLimits` (default 1 MiB) and the file-too-large error.
+- The HOCON section has no warnings for the dropped includes, environment substitutions, array concatenation and duration/size syntax above.
 
 **scope**
 
