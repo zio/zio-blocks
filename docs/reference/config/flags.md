@@ -337,3 +337,5 @@ try {
 Flags depend on `FlagSource` — and therefore accept any `ConfigSource` — on `Flag.Reader` for parsing, on `Displayable` for rendering, and on `ConfigError` for parse failures. `DynamicFlag` additionally depends on `Rollout` for expression evaluation.
 
 See [Rollout](./rollout.md) for the expression language and reload lifecycle, [ConfigSource](./config-source.md) for sources and `Secret`, and [Errors](./errors.md) for the shared error model.
+
+See also the [How to Roll Out a Feature Gradually with Flags](../../guides/roll-out-feature-gradually.md) guide, which ships a feature to a percentage of readers with a `DynamicFlag` and widens it at runtime.
