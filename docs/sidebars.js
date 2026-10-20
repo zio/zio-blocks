@@ -464,6 +464,7 @@ const sidebars = {
     "guides/your-first-html-page",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
+    "guides/fix-scope-and-wire-compile-errors",
     "guides/resource-and-di-migration",
     "guides/getting-started-with-mux",
     "guides/telemetry-guide",

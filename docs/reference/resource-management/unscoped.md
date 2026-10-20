@@ -123,3 +123,4 @@ All other types (resources, handles, connections) must be manually defined if ne
 - [`Scope.$`](./scope.md) — the operator that uses `Unscoped`
 - [`Resource`](./resource.md) — types that provide `Unscoped` may be wrapped in resources
 - [`Scope`](./scope.md) — manages the lifecycle of resources
+- [How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md) — fixing the `Unscoped` and other Scope compile errors
