@@ -115,7 +115,11 @@ Run once after verify passes.
 
 ## Example Projects
 
-Every `*-examples/` directory is a **standalone sbt build** (own `build.sbt` and `project/build.properties`), not part of the root build. Each depends on the *published* `zio-blocks` artifacts (`zioBlocksVersion` in its `build.sbt`), so it works as a copy-paste template. Run from inside the directory: `cd schema-examples && sbt "runMain ..."`. Root `sbt` commands (`++3.9.0; ...`, coverage, `fmtDirty`) do not touch them. When an API change should show up in an example, bump `zioBlocksVersion` after the release.
+Most `*-examples/` directories are **standalone sbt builds** (own `build.sbt` and `project/build.properties`). Each depends on the *published* `zio-blocks` artifacts (`zioBlocksVersion` in its `build.sbt`), so it works as a copy-paste template. Run from inside the directory: `cd schema-examples && sbt "runMain ..."`. The root `build.sbt` only references them (`RootProject`, the way zio-http does) and aggregates them. When an API change should show up in an example, bump `zioBlocksVersion` after the release.
+
+`projection-examples` is the exception: it is a **root subproject** that depends on the local `projection.jvm` (like zio-http's `zio-http-example`), so its examples use the latest API without waiting for a release. It has no `build.sbt` of its own, and the CI example loop skips directories without one. Run it from the repository root: `sbt "projection-examples/runMain ..."`. Its SQLite files go in `projection-examples/.projection-examples/` (git ignores it), except `global/`, which the engine fixes.
+
+When you change, rename or move an example, update the docs that embed it (`grep -rn "mdoc:embed:.*<ExampleFile>" docs/`) in the same change, so their prose and quoted output still match; then run the example and mdoc on those pages.
 
 ## Cross-Version Code Structure
 

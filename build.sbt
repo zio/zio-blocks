@@ -328,8 +328,32 @@ lazy val root = project
     otel,
     dataMigration.jvm,
     dataMigration.js,
-    projection.jvm
+    projection.jvm,
+    asyncExamples,
+    endpointExamples,
+    httpModelExamples,
+    muxExamples,
+    schemaExamples,
+    scopeExamples,
+    smithyExamples,
+    streamsExamples,
+    zioBlocksExamples,
+    zioBlocksHtmxExamples,
+    `projection-examples`
   )
+
+// Example projects are standalone builds (see AGENTS.md) that depend on published artifacts, so the
+// root build only references them, the way zio-http does, instead of defining them as subprojects.
+lazy val asyncExamples         = RootProject(file("async-examples"))
+lazy val endpointExamples      = RootProject(file("endpoint-examples"))
+lazy val httpModelExamples     = RootProject(file("http-model-examples"))
+lazy val muxExamples           = RootProject(file("mux-examples"))
+lazy val schemaExamples        = RootProject(file("schema-examples"))
+lazy val scopeExamples         = RootProject(file("scope-examples"))
+lazy val smithyExamples        = RootProject(file("smithy-examples"))
+lazy val streamsExamples       = RootProject(file("streams-examples"))
+lazy val zioBlocksExamples     = RootProject(file("zio-blocks-examples"))
+lazy val zioBlocksHtmxExamples = RootProject(file("zio-blocks-htmx-examples"))
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
@@ -529,6 +553,29 @@ lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
+  )
+
+// Unlike the standalone example builds, this one depends on the local projection module, so its examples
+// always use the latest API instead of waiting for a release (zio-http does the same for its `zio-http-example`).
+lazy val `projection-examples` = project
+  .in(file("projection-examples"))
+  .settings(stdSettings("zio-blocks-projection-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .dependsOn(projection.jvm)
+  // Examples are copy-paste templates and are embedded in the docs, so they carry no licence header. Setting
+  // `headerLicense := None` is not enough: sbt-header then falls back to the licence detected from `licenses`.
+  .disablePlugins(HeaderPlugin)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    scalacOptions -= "-Werror",
+    // The run is forked, so that the examples write their SQLite files into this folder and not the root.
+    Compile / fork := true,
+    // Several examples are runnable on their own, so `projection-examples/run` needs to know which one to start.
+    Compile / mainClass := Some("projection.examples.ProjectionExampleApp"),
+    // The projection module only has the SQLite driver as a test dependency, and the examples run on SQLite files.
+    libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
   )
 
 lazy val projection = crossProject(JVMPlatform)
