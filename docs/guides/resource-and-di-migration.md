@@ -269,7 +269,7 @@ val program: Task[Int] =
 
 #### You Write This
 
-`ZIO.scoped` becomes `Scope.global.scoped`, `ZIO.fromAutoCloseable` becomes `allocate`, and `ZIO.addFinalizer` becomes `defer`. Values come back as `$[A]`, and `$` opens them for one call:
+`ZIO.scoped` becomes `Scope.global.scoped`, `ZIO.fromAutoCloseable` becomes `Scope#allocate`, and `ZIO.addFinalizer` becomes `defer`. Values come back as `$[A]`, and `$` opens them for one call:
 
 ```scala mdoc
 val exportedLines: Int = Scope.global.scoped { scope =>
@@ -558,9 +558,9 @@ From there, `finalization.orThrow()` throws the first error with the rest suppre
 
 ### What Changes
 
-- **Resources cannot escape.** `Using.resource(r)(identity)` compiles; `allocate` returns a `$[A]`, and `Scope#scoped` rejects a result without an `Unscoped` instance.
+- **Resources cannot escape.** `Using.resource(r)(identity)` compiles; `Scope#allocate` returns a `$[A]`, and `Scope#scoped` rejects a result without an `Unscoped` instance.
 - **Use goes through `$`.** Inside the scope, call methods on a resource with `$(db)(_.stockOf(title))`. The lambda's parameter may appear only as the receiver of a method call, so you cannot pass the resource itself to other code. See [`$` and the scoped value type](../reference/resource-management/scope.md) for the rules.
-- **More than resources.** `defer` adds any cleanup action, `DeferHandle.cancel()` removes it again, and nested `scoped` blocks plus `lower` let a child scope use its parent's resources.
+- **More than resources.** `defer` adds any cleanup action, `DeferHandle.cancel()` removes it again, and nested `Scope#scoped` blocks plus `Scope#lower` let a child scope use its parent's resources.
 
 ## What You Gain and What Is Different
 
@@ -616,8 +616,8 @@ println(report)
 ## Migration Checklist
 
 1. Add `zio-blocks-scope` and `import zio.blocks.scope._`.
-2. Replace `Resource.make` / `ZIO.acquireRelease` with `Resource.acquireRelease`, and cats-effect or ZIO `fromAutoCloseable` with ZIO Blocks `Resource.fromAutoCloseable` or `allocate(new ...)`. Remove the effect wrappers around acquire and release.
-3. Replace `use` / `ZIO.scoped` / `Using.Manager` blocks with `Scope.global.scoped { scope => import scope._; ... }` and call resources through `$`.
+2. Replace `Resource.make` / `ZIO.acquireRelease` with `Resource.acquireRelease`, and cats-effect or ZIO `fromAutoCloseable` with ZIO Blocks `Resource.fromAutoCloseable` or `allocate(new ...)` (`Scope#allocate`). Remove the effect wrappers around acquire and release.
+3. Replace `Resource#use` / `ZIO.scoped` / `Using.Manager` blocks with `Scope.global.scoped { scope => import scope._; ... }` and call resources through `$`.
 4. Replace `Resource.onFinalize` / `ZIO.addFinalizer` with `defer`.
 5. Replace `allocated` / `Scope.make` with `open()` and `OpenScope.close()`, and handle the returned `Finalization`.
 6. Replace `ZLayer.make` or a macwire module with one `Resource.from[Root](wires*)`. Pass `Wire(value)` for configuration values; let the macro build the rest.
