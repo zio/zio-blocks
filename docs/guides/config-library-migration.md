@@ -526,15 +526,7 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/config-examples
 ```
 
-The bookstore case classes, the unchanged `application.conf` text and the `report` helper are shared by every example:
-
-<details>
-  <summary>config-examples/src/main/scala/configlibrarymigration/Common.scala</summary>
-
-```scala mdoc:embed:config-examples/src/main/scala/configlibrarymigration/Common.scala:show-line-numbers
-```
-
-</details>
+Each example is self-contained: it declares the bookstore case classes and the helpers it uses, so any file can be copied on its own. Run them in order to follow the guide.
 
 ### Reading Your Existing application.conf
 
