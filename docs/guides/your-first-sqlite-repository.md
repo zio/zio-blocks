@@ -514,4 +514,5 @@ You now have a solid foundation in the ZIO Blocks `sql` module. The next step is
 - **Need to stream large results?** The [Frag](../reference/sql/frag.md) reference covers `queryStream` and `queryChunked`.
 - **Prefer building queries from Scala expressions?** [Query DSL with Reified Optics — Part 2: SQL Generation](./query-dsl-sql.md) turns typed query expressions into SQL.
 - **Using ZIO?** [TransactorZIO](../reference/sql/transactor-zio.md) runs the same work as ZIO effects.
+- **Testing your database code?** [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) gives every test its own SQLite database and rolls back writes.
 - **Want the big picture?** The [SQL Module](../reference/sql/index.md) overview links to every `sql` reference page.
