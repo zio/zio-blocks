@@ -7,6 +7,8 @@ import java.nio.file.Path
 import SampleFiles._
 
 /**
+ * How to Stream Files and Sockets Without Leaking Resources
+ *
  * Fail Mid-Stream: a thrown exception is a defect, a typed `BadRow` is a `Left`;
  * the file is closed both times.
  *

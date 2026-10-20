@@ -8,6 +8,8 @@ import java.nio.file.{Files, Path}
 import SampleFiles._
 
 /**
+ * How to Stream Files and Sockets Without Leaking Resources
+ *
  * Cleanup That Is Not a Resource, and Pulling Elements by Hand: `Stream#ensuring`
  * deletes a staging file, `Stream#start` reads two rows inside a `Scope`.
  *

@@ -928,3 +928,4 @@ cd streams-examples && sbt "runMain sink.SinkAsyncExample"
 - [Zero-Boxing Streams](../execution-and-compatibility/zero-boxing.md) — how a primitive lane is chosen, and the per-lane end-of-stream table
 - [Stream](./stream.md) — the producer a sink consumes
 - [Pipeline](./pipeline.md) — transformations that can be attached to a sink's input
+- [How to Stream Files and Sockets Without Leaking Resources](../../../guides/stream-files-and-sockets.md) — drain a file or socket stream into a sink and have the handle closed on every exit path

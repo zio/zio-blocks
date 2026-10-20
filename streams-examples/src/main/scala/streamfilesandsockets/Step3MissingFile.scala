@@ -9,6 +9,8 @@ import scala.jdk.CollectionConverters._
 import SampleFiles._
 
 /**
+ * How to Stream Files and Sockets Without Leaking Resources
+ *
  * Report a Missing File: a defect thrown by `acquire`, then a typed error with
  * `Stream.attempt`.
  *

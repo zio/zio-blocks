@@ -10,6 +10,8 @@ import scala.jdk.CollectionConverters._
 import SampleFiles._
 
 /**
+ * How to Stream Files and Sockets Without Leaking Resources
+ *
  * Compose Scope Resources: `Stream.fromResource` with one resource, then with a
  * reader and a writer that close in reverse order.
  *

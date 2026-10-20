@@ -10,6 +10,8 @@ import scala.util.Using
 import SampleFiles._
 
 /**
+ * How to Stream Files and Sockets Without Leaking Resources
+ *
  * Copy a File Through a Sink: `NioSinks.fromChannel` writes the bytes and
  * `Using.resource` closes the backup file.
  *

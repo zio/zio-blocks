@@ -13,6 +13,8 @@ import scala.jdk.CollectionConverters._
 import scala.util.Using
 
 /**
+ * How to Stream Files and Sockets Without Leaking Resources
+ *
  * Nightly restock job: downloads the inventory export from a loopback server
  * into a staging file, reads it and writes a restock list through two composed
  * `Resource` values, fails with a typed error on a damaged row, and deletes the

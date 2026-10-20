@@ -8,6 +8,8 @@ import java.nio.file.{Files, Path}
 import SampleFiles._
 
 /**
+ * How to Stream Files and Sockets Without Leaking Resources
+ *
  * Managed and Unmanaged Handles: which constructor closes the handle, and what
  * that means for running a stream twice.
  *

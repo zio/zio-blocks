@@ -9,6 +9,8 @@ import java.nio.file.{Files, Path}
 import SampleFiles._
 
 /**
+ * How to Stream Files and Sockets Without Leaking Resources
+ *
  * Read from a Socket: connect in `acquire`, disconnect in `release`, on every
  * run.
  *

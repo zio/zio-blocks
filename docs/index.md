@@ -507,6 +507,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [How to Test Database Code Against SQLite](./guides/test-database-code-against-sqlite.md) - Give every test its own SQLite database, create the schema from code, seed fixtures and roll back writes in ZIO Test specs
 - [How to Connect to PostgreSQL with a Connection Pool](./guides/connect-to-postgresql-with-a-connection-pool.md) - Set up a HikariCP pool for PostgreSQL, build a `JdbcTransactor` on it, size it for virtual threads and close it with a `Scope`
 - [Render Your First Server-Side HTML Page](./guides/your-first-html-page.md) - Build a book page with the HTML DSL, escape user input, add CSS and JSON state, and save it as a file
+- [How to Stream Files and Sockets Without Leaking Resources](./guides/stream-files-and-sockets.md) - Read files, NIO channels and sockets as streams that close their handles on success, failure, early stop and missing input
 - [Getting Started with Async](./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
 - [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
 - [How to Fix Common Scope and Wire Compile Errors](./guides/fix-scope-and-wire-compile-errors.md) - Look up a Scope or Wire error message and apply the fix

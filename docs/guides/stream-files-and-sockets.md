@@ -81,7 +81,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-next-streams" % "@VERSION@"
 ```
 
-The streams module depends on the scope module, so `zio.blocks.scope.Resource` and `Scope` are available without another dependency. On the JVM, the streams module needs JDK 21 or newer. `NioStreams`, `NioSinks` and `Stream#start` exist only on the JVM; the other constructors on this page also work on Scala.js.
+The streams module depends on the scope module, so `zio.blocks.scope.Resource` and `Scope` are available without another dependency. On the JVM, the streams module needs JDK 21 or newer. `NioStreams`, `NioSinks`, `Stream#start` and the blocking terminals such as `Stream#runCollect` exist only on the JVM; the other constructors on this page also work on Scala.js, where you run the stream with an asynchronous terminal such as `Stream#runCollectAsync`.
 
 This guide assumes you have run a [`Stream`](../reference/streams/core/stream.md) before and know that every terminal returns an `Either` with typed failures on the `Left`. The beginner tutorial "Your First Streaming Pipeline" covers that ground. For `Resource` and `Scope`, see [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md).
 
@@ -143,7 +143,7 @@ Running it with `Stream#runForeach` prints each row as it arrives:
 inventoryRows(inventory).runForeach(row => println(row))
 ```
 
-The file opens before the first row and closes after the last one. When the resource is an `AutoCloseable`, as a `BufferedReader` is, you can leave `release` out: its default calls `close()`. We keep the explicit `release` on this page only for the printed line.
+The file opens before the first row and closes after the last one. When the resource is an `AutoCloseable`, as a `BufferedReader` is, you can leave `release` out: its default calls `AutoCloseable#close`. We keep the explicit `release` on this page only for the printed line.
 
 ## Stopping Early Still Closes the File
 
@@ -357,7 +357,7 @@ println(channel.isOpen)
 channel.close()
 ```
 
-`NioStreams.fromChannel` is the managed counterpart: given the same channel, it would have closed it at the end of the run.
+`NioStreams.fromChannel` is the managed counterpart: given the same channel, it closes the channel at the end of the run.
 
 | Constructor                                  | Who closes the handle      | Running the stream twice             |
 | -------------------------------------------- | -------------------------- | ------------------------------------ |
@@ -475,7 +475,7 @@ println(
 )
 ```
 
-`closed inventory.csv` is printed when the `scoped` block ends, not when `Reader#readN` returns. The `$` call is how a scope lets you use a value it owns; the [Scope tutorial](./compile-time-resource-safety-with-scope.md) explains why the reader cannot leave the block.
+`closed inventory.csv` is printed when the `scoped` block ends, not when `Reader#readN` returns. `Scope#$` is how a scope lets you use a value it owns; the [Scope tutorial](./compile-time-resource-safety-with-scope.md) explains why the reader cannot leave the block.
 
 ## Putting It Together
 
@@ -663,7 +663,7 @@ The reference pages cover each constructor in full:
 
 - [`Stream` resource management](../reference/streams/core/stream.md#resource-management) lists `Stream.fromAcquireRelease`, `Stream.fromResource`, `Stream#ensuring` and `Stream#ensuringAsync` with their signatures.
 - [`Sink`](../reference/streams/core/sink.md) covers `NioSinks.fromChannel`, `NioSinks.fromByteBuffer` and `Sink.fromOutputStream`.
-- [Async Execution](../reference/streams/execution-and-compatibility/async-execution.md) covers `Stream.fromAcquireReleaseAsync`, whose `acquire` and `release` return `Async` values, and the asynchronous NIO readers in `AsyncNioReaders`.
+- [Async Execution](../reference/streams/execution-and-compatibility/async-execution.md) covers `Stream.fromAcquireReleaseAsync`, whose `acquire` and `release` return `Async` values. The asynchronous NIO readers in `AsyncNioReaders` are covered in [Reader](../reference/streams/primitives/reader.md).
 - [`Resource`](../reference/resource-management/resource.md) covers `Resource.fromAutoCloseable`, `Resource#zip` and shared resources.
 - The streams [overview](../reference/streams/index.md#resource-management) explains how streams integrate with `Scope`.
 
