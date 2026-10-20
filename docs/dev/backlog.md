@@ -34,7 +34,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-30 | How to feed configuration into a Wire dependency graph                        | Pushed, no PR                           | branch `config-wire`, `guides/feed-config-into-a-wire-graph.md`                         |
 | M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
 | H-28 | How to wrap callback and Future-based APIs in Async                           | Committed locally, not pushed           | worktree `async-interop` (2 commits)                                                    |
-| H-01 | How to add ZIO Blocks to your build                                           | Stalled: uncommitted, session exited    | worktree `adding-zio-block-to-build`; `guides/add-zio-blocks-to-your-build.md` + artifact fixes |
+| H-01 | How to add ZIO Blocks to your build                                           | Committed locally, not pushed           | branch `adding-zio-block-to-build` (5 commits); fixes the 3.9+ rule across docs        |
 | T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`              | Stalled: uncommitted, session exited    | worktree `evolve-data`; `guides/evolve-your-data.md`                                    |
 | H-25 | How to process a stream in parallel with bounded concurrency                  | Skipped (maintainer decision)           | —                                                                                       |
 | T-08 | Describe a typed HTTP API with Endpoint                                       | Skipped (maintainer decision)           | —                                                                                       |
@@ -107,7 +107,7 @@ Each topic is scored from 1 (low) to 3 (high) on five criteria. The score is sho
 
 **Constraints that apply to every item** (§1.2, §9.5):
 
-- Every install step must show both `zio-blocks-*` and the Scala 3.7+ name `zio-blocks-next-*`.
+- Every install step must show both `zio-blocks-*` and the Scala 3.9+ name `zio-blocks-next-*` (plus `-experimental`). The earlier "3.7+" rule was wrong; see `docs/dev/issues.md`.
 - sql, sql-zio, dataMigration, projection, datastar and htmx are Scala 3 only.
 - `*-examples/` projects pin the published 0.0.56. A newer API can appear only in mdoc snippets until the next release.
 - Telemetry needs JDK 21 or later on the JVM (the guide says 25 for `ScopedValue`). State it in the install step.

@@ -1895,6 +1895,46 @@ println(order.toJsonString)
 
 ## Test and CI
 
+### Release: a stray version `0.017` on Maven Central is the "latest" release of eleven modules
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/add-zio-blocks-to-your-build.md` (backlog H-01), on `main` at `b4179489`. The current release is `v0.0.56`.
+
+**Summary.** Besides the real `0.0.17` release, version `0.017` (no second dot) was published to Maven Central on 2026-02-07, the same day as tag `v0.0.17`. There is no `v0.017` tag or GitHub release. Maven orders `0.017` above `0.0.56` (its second segment, 17, beats 0), so the `<latest>` and `<release>` fields of `maven-metadata.xml` still point at the February build for every module that existed then: `chunk`, `context`, `schema`, `schema-avro`, `schema-bson`, `schema-messagepack`, `schema-thrift`, `schema-toon`, `scope`, `streams` and `typeid`, under both `zio-blocks-` and `zio-blocks-next-`, on all published platforms and Scala versions. Modules added later (`maybe`, `config`, `jwt`, ...) are not affected.
+
+**Reproduction** (coursier 2.x and scala-cli 1.10.1, against Maven Central):
+
+```bash
+curl -s https://repo1.maven.org/maven2/dev/zio/zio-blocks-schema_3/maven-metadata.xml | grep -E '<latest>|<release>'
+#     <latest>0.017</latest>
+#     <release>0.017</release>
+
+cs resolve 'dev.zio:zio-blocks-schema_3:latest.release' | grep zio-blocks-schema
+# dev.zio:zio-blocks-schema_3:0.017:default
+```
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+```
+
+```
+$ scala-cli compile .
+[hint] ./Main.scala:2:15
+[hint] "zio-blocks-schema is outdated, update to 0.017"
+[hint]      zio-blocks-schema 0.0.56 -> dev.zio::zio-blocks-schema:0.017
+```
+
+**Expected.** `latest.release` resolves to `0.0.56`, and scala-cli reports `0.0.56` as up to date.
+
+**Root cause.** A release was published with the version string `0.017` instead of `0.0.17`. Maven Central does not allow deleting or overwriting a published version, so the metadata will keep ranking it highest until a version that sorts above `0.017` (such as `0.1.0`) is released.
+
+**Impact.** Every scala-cli user of the affected modules sees an "outdated, update to 0.017" hint, and following it downgrades them to February code. Builds that use `latest.release` or a version range get `0.017`. Dependency bots such as Scala Steward may also propose the downgrade, unless they are told to ignore it.
+
+**Test gap.** The release workflow does not check that the version derived from the tag has the `MAJOR.MINOR.PATCH` shape.
+
+**Suggested fix.** Add a check to the release workflow that fails when the version does not match `^\d+\.\d+\.\d+(-.+)?$`. Add a Scala Steward `updates.ignore` entry for version `0.017` under `dev.zio` so the repo's own bots skip it. The metadata only stops pointing at `0.017` once a release sorts above it, such as `0.1.0`. Until then, the install guide pins `@VERSION@` and never suggests `latest.release`.
+
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
 
 Seen 2026-10-20 on PR #1773 (docs only, touches nothing in `streams/` or `async/`). In `testJVM (25, JVM, 3.3.x)`, this test hit its 30 s timeout while the other 12,760 tests passed. Rerunning is the current workaround. Needs investigation: a timing dependency in the test, or a real race in `unfoldAsync` reset.
@@ -1968,6 +2008,25 @@ Seen 2026-10-20: a full `sbt check` was OOM-killed while several worktrees each 
 ## Documentation errors
 
 Pages that contradict the source. None of these were copied into the new guides.
+
+### docs: `zio-blocks-next-*` needs Scala 3.9+, not 3.7+
+
+Found 2026-10-21 while writing H-01 (`docs/guides/add-zio-blocks-to-your-build.md`, branch `adding-zio-block-to-build`, not pushed yet). Verified with scala-cli against 0.0.56.
+
+**Summary.** The docs and every guide written so far tell readers that Scala 3.7 and newer use the `zio-blocks-next-*` artifacts. That is the *publishing* rule (`project/BuildHelper.scala`, `minor >= 7`), not the rule for users. The `zio-blocks-next-*` POMs depend on `scala3-library` 3.9.0, so:
+
+- Scala 3.8.3 fails with `Forward incompatible TASTy file has version 28.9, produced by Scala 3.9.0`.
+- Scala 3.9.0 without `-experimental` fails with `... is marked @experimental`.
+
+**Correct rule for users.** Scala 2.13 and 3.3–3.8 use `zio-blocks-*`; Scala 3.9+ uses `zio-blocks-next-*` together with `scalacOptions += "-experimental"`.
+
+**Related facts verified in H-01.**
+- `streams` is compiled to Java 21 bytecode (class major 65), so every JVM module built on it (http-model, http-model-schema, endpoint, datastar, htmx, sql, sql-zio, data-migration, projection) needs JDK 21+.
+- Scala.js users need Scala.js 1.22+, because the artifacts are IR 1.22.
+- `http-model-schema` is not Scala 3 only.
+- `docs/index.md` is right that sql and data-migration support Scala.js: their `_sjs1_3` 0.0.56 artifacts are on Maven Central.
+
+**Fix.** H-01's branch corrects 15 guides, `jwt.md`, the wrong `zio-http-model`/`zio-http-model-schema` artifact names, and the `zioBlocks` helper in 14 example builds (`minor >= 9`). Six pushed-but-unmerged guide branches add new "3.7" install lines and need the same fix before merging: `streaming-pipeline`, `stream-query`, `stream-resources`, `csv-files`, `derive-typeclass` and `config-wire`.
 
 **schema / JSON**
 
@@ -2289,9 +2348,9 @@ With the page's line instead, `val buildService = Wire.make[Config & Logger, Ser
 **Other modules**
 
 - `transactor-zio.md` mentions `JdbcTransactor.postgresLayer` without saying it is an extension that needs `import zio.blocks.sql.zio.*` (sql-zio). Found while writing H-17.
-- `html.md`: artifact name for Scala 3.7+, `Css.Declaration`, `hx-*` URL attributes, `selector""`. Filed as #1766.
+- `html.md`: artifact name for Scala 3.9+ (see the `zio-blocks-next-*` entry), `Css.Declaration`, `hx-*` URL attributes, `selector""`. Filed as #1766.
 - `streams/index.md:78` lists Kyo RC6 and Ox 1.0.6; the build pins RC7 and 1.1.0.
-- `docs/index.md` and `built-in-codecs/json/index.md:39,45` give `zio-blocks-schema` for every Scala version; Scala 3.7+ uses `zio-blocks-next-schema`. H-01 (stalled) includes this fix.
+- `docs/index.md` and `built-in-codecs/json/index.md:39,45` give `zio-blocks-schema` for every Scala version; Scala 3.9+ uses `zio-blocks-next-schema` (the earlier "3.7+" was wrong; see the `zio-blocks-next-*` entry). H-01 (stalled) includes this fix.
 - `combinators.md` documents a `Choices` module that does not exist (research §9.6).
 - `docs/dev/research.md` cites stale line numbers (for example `Transactor.scala:65` is now `:261`/`:275`, `Table.scala:32` is now `:262`).
 
