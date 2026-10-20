@@ -218,13 +218,18 @@ tx.connect {
 
 ## Transactional Scope — `DbTx`
 
-`DbTx` is the only subtype of `DbCon`. It is a marker trait — it adds no new members — whose sole purpose is to distinguish code that runs inside `Transactor#transact` from code that runs inside `Transactor#connect` at the type level:
+`DbTx` is the only subtype of `DbCon`. It distinguishes code that runs inside `Transactor#transact` from code that runs inside `Transactor#connect` at the type level, and it adds the savepoint members that nested transactions are built on:
 
 ```scala
-trait DbTx extends DbCon
+trait DbTx extends DbCon {
+  def savepoint(name: String): Unit
+  def release(name: String): Unit
+  def rollbackTo(name: String): Unit
+  def currentDepth: Int
+}
 ```
 
-Because `DbTx` has no additional members, it exists purely to make the transactional / non-transactional boundary visible in method signatures. A method that requires `DbTx` cannot be called from a `connect` block, but a method that requires `DbCon` can be called from either. This asymmetry is enforced by the compiler: `DbTx <: DbCon` so `DbTx` satisfies a `DbCon` requirement, but a plain `DbCon` does not satisfy a `DbTx` requirement.
+[DbTx](./db-tx.md) documents the savepoint members and nested transactions. For `DbCon` code, the important part is the type itself: it makes the transactional / non-transactional boundary visible in method signatures. A method that requires `DbTx` cannot be called from a `connect` block, but a method that requires `DbCon` can be called from either. This asymmetry is enforced by the compiler: `DbTx <: DbCon` so `DbTx` satisfies a `DbCon` requirement, but a plain `DbCon` does not satisfy a `DbTx` requirement.
 
 The following example illustrates how to write a helper method that is restricted to transactional scope:
 
