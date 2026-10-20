@@ -459,6 +459,7 @@ const sidebars = {
     "guides/nested-data-with-optics",
     "guides/one-type-many-formats",
     "guides/typed-config-loader",
+    "guides/feed-config-into-a-wire-graph",
     "guides/roll-out-feature-gradually",
     "guides/your-first-sqlite-repository",
     "guides/test-database-code-against-sqlite",
