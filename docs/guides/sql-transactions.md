@@ -55,16 +55,16 @@ When you pass a level to `transactor.transact`, it calls `Connection.setTransact
 
 The two supported dialects differ significantly in how they honor isolation levels:
 
-| Level              | PostgreSQL                        | SQLite                                    |
-|--------------------|-----------------------------------|-------------------------------------------|
-| `ReadUncommitted`  | Full support (dirty reads)        | Accepted, treated as `SERIALIZABLE`       |
-| `ReadCommitted`    | Full support (default PG level)   | Accepted, treated as `SERIALIZABLE`       |
-| `RepeatableRead`   | Full support (MVCC snapshot)      | Accepted, treated as `SERIALIZABLE`       |
-| `Serializable`     | Full support (SSI)                | Native (default and only true level)      |
+| Level             | PostgreSQL                           | SQLite                               |
+|-------------------|--------------------------------------|--------------------------------------|
+| `ReadUncommitted` | Accepted, behaves as `ReadCommitted` | Accepted, treated as `SERIALIZABLE`  |
+| `ReadCommitted`   | Full support (default PG level)      | Accepted, treated as `SERIALIZABLE`  |
+| `RepeatableRead`  | Full support (MVCC snapshot)         | Accepted, treated as `SERIALIZABLE`  |
+| `Serializable`    | Full support (SSI)                   | Native (default and only true level) |
 
 SQLite natively supports only `SERIALIZABLE`. The driver accepts the `setTransactionIsolation` call without error, but the engine ignores the requested level and behaves as serializable. This is a SQLite limitation, not a ZIO Blocks one. If your application relies on weaker isolation guarantees (e.g., `ReadCommitted` for higher concurrency), test on PostgreSQL where those semantics are real.
 
-PostgreSQL supports all four levels natively through its MVCC implementation. `ReadCommitted` is the default for non-transactional statements; `RepeatableRead` gives you a consistent snapshot for the duration of the transaction; `Serializable` adds serialization conflict detection via Snapshot Isolation (SSI).
+PostgreSQL accepts all four levels but implements three of them: `ReadUncommitted` behaves exactly like `ReadCommitted`, so PostgreSQL never allows dirty reads. `ReadCommitted` is PostgreSQL's default level for every new transaction; `RepeatableRead` gives you a consistent snapshot for the duration of the transaction; `Serializable` also detects serialization anomalies with Serializable Snapshot Isolation (SSI) and fails one of the conflicting transactions, which your application must retry.
 
 ## Read-Only Transactions
 
