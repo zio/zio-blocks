@@ -14,10 +14,11 @@ This table tracks every item that has been written or started. Items not listed 
 | T-05 | Build a typed configuration loader                                            | Done                                    | #1759, `guides/typed-config-loader.md`, `config-examples/`                              |
 | M-05 | Coming from cats-effect `Resource`, ZIO `Scope`/`ZLayer`, macwire or `Using`  | Done                                    | #1769, `guides/resource-and-di-migration.md`                                            |
 | T-03 | Navigate and update nested data with optics                                   | Done                                    | #1770, `guides/nested-data-with-optics.md`                                              |
-| T-04 | One type, many formats                                                        | In review                               | #1762 (`many-formats`)                                                                  |
+| T-04 | One type, many formats                                                        | Done                                    | #1762, `guides/one-type-many-formats.md`                                                |
 | H-05 | How to generate JSON Schema from a type and validate payloads                 | In review                               | #1772 (`json-schema`)                                                                   |
 | H-12 | How to send compact data to an LLM with TOON and parse the reply              | In review                               | #1774 (`toon-llm`)                                                                      |
 | H-31 | How to fix common Scope and Wire compile errors                               | Pushed, no PR                           | branch `scope-errors`; 1 uncommitted file in its worktree                               |
+| H-02 | How to customize JSON field names, ADT encoding and optional fields           | Pushed, no PR                           | branch `customize-json-fields`, `guides/customize-json-encoding.md`                     |
 | H-17 | How to connect to PostgreSQL with a connection pool                           | Committed locally, not pushed           | worktree `postgres-pool` (5 commits)                                                    |
 | M-06 | Coming from PureConfig, Typesafe Config or zio-config                         | Committed locally, not pushed           | worktree `pureconfig-migration` (9 commits); based on the pre-squash `config-loader`, needs a rebase onto main |
 | H-03 | How to override the codec for one type everywhere                             | Committed locally, not pushed           | worktree `override-codec` (3 commits)                                                   |
@@ -25,7 +26,6 @@ This table tracks every item that has been written or started. Items not listed 
 | H-28 | How to wrap callback and Future-based APIs in Async                           | Committed locally, not pushed           | worktree `async-interop` (2 commits)                                                    |
 | H-37 | How to issue and verify JWTs (plus `jwt.md` fixes)                            | Stalled: uncommitted, session exited    | worktree `jwt`                                                                          |
 | H-01 | How to add ZIO Blocks to your build                                           | Stalled: uncommitted, session exited    | worktree `adding-zio-block-to-build`; `guides/add-zio-blocks-to-your-build.md` + artifact fixes |
-| H-02 | How to customize JSON field names, ADT encoding and optional fields           | Stalled: uncommitted, session exited    | worktree `customize-json-fields`; `guides/customize-json-encoding.md`                   |
 | T-06 | Build your first streaming pipeline                                           | Stalled: uncommitted, session exited    | worktree `streaming-pipeline`; `guides/your-first-streaming-pipeline.md`                |
 | T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`              | Stalled: uncommitted, session exited    | worktree `evolve-data`; `guides/evolve-your-data.md`                                    |
 | T-08 | Describe a typed HTTP API with Endpoint                                       | Skipped (maintainer decision)           | —                                                                                       |
@@ -39,9 +39,11 @@ This table tracks every item that has been written or started. Items not listed 
 - T-09 merged, so T-10 (HTMX) and T-11 (Datastar) have their prerequisite, but both still need an HTTP adapter (H-35).
 - PR #1742 (projection docs) merged on 2026-10-20. T-14 now waits only on issue #1744, which has grown to sixteen engine problems.
 
-**Waiting on stalled items:** M-01 needs H-02; H-04 and M-07 need T-02; H-24, H-25 and M-04 need T-06.
+**Unblocked by H-02:** M-01 (P0, 14/15) can start; it should link H-03, which is written but not pushed.
 
-**Library follow-ups found while writing:**
+**Waiting on stalled items:** H-04 and M-07 need T-02; H-24, H-25 and M-04 need T-06.
+
+**Library follow-ups found while writing** (full write-ups, ready to file, are in `docs/dev/issues.md`):
 
 - config: `ProvenanceMap#dump` over an unprefixed `EnvSource` prints the whole process environment. Only names that match `Sensitive` markers are redacted.
 - sql: `Table.createTable` emits no `PRIMARY KEY`, so `Repo.insertOrUpdate` fails on tables it creates. #1760 documents this; the code is unchanged.
