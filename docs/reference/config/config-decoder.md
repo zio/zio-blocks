@@ -380,7 +380,7 @@ An empty source fails both fields, so both errors arrive together:
 Config.load[Db](ConfigSource.fromMap(Map.empty[String, String], "empty"))
 ```
 
-`ConfigError.Composite#message` joins the child messages with newlines, and `Config.loadOrThrow` formats them into a numbered report. See [Errors](./errors.md) for the full error model.
+`ConfigError.Composite#message` joins the child messages with newlines, and `Config.loadOrThrow` lists each child error as its own bullet in its report. See [Errors](./errors.md) for the full error model.
 
 ## Integration Points
 

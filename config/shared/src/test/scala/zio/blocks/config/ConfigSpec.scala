@@ -37,6 +37,14 @@ object ConfigSpec extends ConfigBaseSpec {
 
   final class DbService(val config: Db)
 
+  private def loadOrThrowReport[A: Schema](source: ConfigSource): String =
+    try {
+      Config.loadOrThrow[A](source)
+      "no exception"
+    } catch {
+      case e: ConfigLoadException => e.report
+    }
+
   case class WithSecret(token: Secret, name: String)
   object WithSecret {
     implicit val schema: Schema[WithSecret] = Schema.derived[WithSecret]
@@ -143,6 +151,33 @@ object ConfigSpec extends ConfigBaseSpec {
             e.errors.head.isInstanceOf[ConfigError.Composite] && e.report.contains("error(s)")
         }
         assertTrue(threw)
+      },
+      test("report lists a single error as one bullet") {
+        val report = loadOrThrowReport[Db](ConfigSource.fromMap(Map("host" -> "localhost"), "one"))
+        assertTrue(
+          report ==
+            "Configuration loading failed with 1 error(s):\n" +
+            "  - Missing required key 'port' in source 'one'\n"
+        )
+      },
+      test("report lists every error of a Composite as its own bullet") {
+        val report = loadOrThrowReport[Db](ConfigSource.fromMap(Map.empty[String, String], "empty"))
+        assertTrue(
+          report ==
+            "Configuration loading failed with 2 error(s):\n" +
+            "  - Missing required key 'host' in source 'empty'\n" +
+            "  - Missing required key 'port' in source 'empty'\n"
+        )
+      },
+      test("report flattens nested Composites from nested records") {
+        val report = loadOrThrowReport[App](ConfigSource.fromMap(Map.empty[String, String], "empty"))
+        assertTrue(
+          report ==
+            "Configuration loading failed with 3 error(s):\n" +
+            "  - Missing required key 'db.host' in source 'empty'\n" +
+            "  - Missing required key 'db.port' in source 'empty'\n" +
+            "  - Missing required key 'name' in source 'empty'\n"
+        )
       }
     ),
     suite("Config.loadWithProvenance")(

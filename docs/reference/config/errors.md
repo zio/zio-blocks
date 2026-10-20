@@ -214,7 +214,7 @@ final class ConfigLoadException(val report: String, val errors: ::[ConfigError])
   extends RuntimeException(report)
 ```
 
-`report` is a multi-line summary: a count line followed by one indented bullet per top-level error. Catching the exception and reading `errors` recovers the structured form, so throwing does not lose information:
+`report` is a multi-line summary: a count line followed by one indented bullet per error. `ConfigError.Composite` errors are unpacked, including the composites of nested records, so the count and the bullets match the individual problems. Catching the exception and reading `errors` recovers the structured form, so throwing does not lose information:
 
 ```scala mdoc:compile-only
 import zio.blocks.config._

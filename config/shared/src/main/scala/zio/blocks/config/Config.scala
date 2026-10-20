@@ -129,16 +129,25 @@ object Config {
     }
 
   private def formatErrors(errors: ::[ConfigError]): String = {
-    val sb = new StringBuilder
+    val leaves = errors.toList.flatMap(leafErrors)
+    val sb     = new StringBuilder
     sb.append("Configuration loading failed with ")
-    sb.append(errors.length)
+    sb.append(leaves.length)
     sb.append(" error(s):\n")
-    errors.toList.foreach { e =>
+    leaves.foreach { e =>
       sb.append("  - ")
       sb.append(e.message)
       sb.append('\n')
     }
     sb.toString
+  }
+
+  // A Composite groups the errors of one record (possibly nesting the
+  // Composites of inner records), so the report unpacks it to give every
+  // underlying error its own bullet and count.
+  private def leafErrors(error: ConfigError): List[ConfigError] = error match {
+    case ConfigError.Composite(errors) => errors.toList.flatMap(leafErrors)
+    case other                         => other :: Nil
   }
 }
 
