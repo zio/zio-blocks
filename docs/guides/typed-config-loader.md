@@ -37,16 +37,16 @@ We recommend reading from top to bottom — each section builds on the previous 
 To follow along, add the config module and its YAML adapter to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-config"      % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config"      % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config-yaml" % "@VERSION@"
 ```
 
-Scala 3.7 and newer use the `zio-blocks-next-*` artifact names; the code in this tutorial is the same for every Scala version.
+Scala 3.9 and newer use the `zio-blocks-next-*` artifact names; the code in this tutorial is the same for every Scala version.
 
 ## 2. Background: Configuration Is Just Typed Data
 

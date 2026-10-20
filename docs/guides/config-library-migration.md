@@ -79,11 +79,11 @@ libraryDependencies += "dev.zio"               %% "zio-config-typesafe" % "4.1.0
 Add the ZIO Blocks config module and its HOCON adapter:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-config"       % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config"       % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config-hocon" % "@VERSION@"
 ```
