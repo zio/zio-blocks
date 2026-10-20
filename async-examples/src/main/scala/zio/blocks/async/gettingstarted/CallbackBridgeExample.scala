@@ -12,7 +12,7 @@ import zio.blocks.async._
  *
  * Run with:
  * {{{
- *   sbt "async-examples/runMain zio.blocks.async.gettingstarted.CallbackBridgeExample"
+ *   cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.CallbackBridgeExample"
  * }}}
  */
 object CallbackBridgeExample {

@@ -14,7 +14,7 @@ import zio.blocks.async._
  *
  * Run with:
  * {{{
- *   sbt "async-examples/runMain zio.blocks.async.gettingstarted.CompleteExample"
+ *   cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.CompleteExample"
  * }}}
  */
 object CompleteExample {
