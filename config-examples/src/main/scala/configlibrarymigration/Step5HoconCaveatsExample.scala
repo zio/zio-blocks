@@ -22,8 +22,9 @@ object Step5HoconCaveatsExample extends App {
 
   def keys(hocon: String): Unit =
     ConfigSource.fromHocon(hocon) match {
-      case Right(source) => println(source.all("").map { case (key, value) => s"$key = '${value.value}'" }.toList.sorted)
-      case Left(error)   => println(error.message)
+      case Right(source) =>
+        println(source.all("").map { case (key, value) => s"$key = '${value.value}'" }.toList.sorted)
+      case Left(error) => println(error.message)
     }
 
   // HOME is set in almost every environment, but `${?HOME}` only looks inside the document.

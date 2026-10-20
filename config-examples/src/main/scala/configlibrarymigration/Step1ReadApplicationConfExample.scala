@@ -9,8 +9,8 @@ import Common._
  * Coming from PureConfig, Typesafe Config or zio-config — Step 1: Read Your
  * Existing application.conf
  *
- * Parses the unchanged PureConfig application.conf with config-hocon, scopes
- * it to the `bookstore` block with ConfigSource#prefix, and loads it. The load
+ * Parses the unchanged PureConfig application.conf with config-hocon, scopes it
+ * to the `bookstore` block with ConfigSource#prefix, and loads it. The load
  * reports the kebab-case `featured-title` key and the `${?DB_PASSWORD}`
  * substitution, which the next steps fix.
  *

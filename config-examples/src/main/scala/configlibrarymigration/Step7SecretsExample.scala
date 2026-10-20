@@ -20,7 +20,9 @@ import Common._
 object Step7SecretsExample extends App {
 
   val application: ConfigSource =
-    orThrow(ConfigSource.fromHocon(applicationConf, "application.conf")).keyFormat(KeyFormat.KebabCase).prefix("bookstore")
+    orThrow(ConfigSource.fromHocon(applicationConf, "application.conf"))
+      .keyFormat(KeyFormat.KebabCase)
+      .prefix("bookstore")
 
   // Stands in for EnvSource so the output does not depend on the machine.
   val env: ConfigSource = ConfigSource.fromMap(Map("db.password" -> "s3cr3t-from-env", "port" -> "9090"), "env")

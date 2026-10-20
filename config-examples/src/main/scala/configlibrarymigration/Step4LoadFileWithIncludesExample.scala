@@ -18,7 +18,9 @@ import Common._
  */
 object Step4LoadFileWithIncludesExample extends App {
 
-  val file: ConfigSource = orThrow(ConfigSource.fromFile("src/main/resources/configlibrarymigration/split/application.conf"))
+  val file: ConfigSource = orThrow(
+    ConfigSource.fromFile("src/main/resources/configlibrarymigration/split/application.conf")
+  )
 
   println(file.sourceId)
 

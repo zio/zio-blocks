@@ -21,7 +21,9 @@ import Common._
 object Step3EnvironmentLayerExample extends App {
 
   val application: ConfigSource =
-    orThrow(ConfigSource.fromHocon(applicationConf, "application.conf")).keyFormat(KeyFormat.KebabCase).prefix("bookstore")
+    orThrow(ConfigSource.fromHocon(applicationConf, "application.conf"))
+      .keyFormat(KeyFormat.KebabCase)
+      .prefix("bookstore")
 
   val env: ConfigSource = EnvSource.keyFormat(KeyFormat.UpperSnakeCase).prefix("bookstore")
 
