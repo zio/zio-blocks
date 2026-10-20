@@ -289,7 +289,9 @@ final class ProjectionEngine private[projection] (
   }
 
   // Chooses the store for an event: the primary store, or, for a cross-entity projection, the shard of the event's
-  // routing key, falling back to the primary store when the shard cannot be opened
+  // routing key (its entity ID when no `routedBy` function applies to the event). Creating a shard does not open its
+  // file, so the fallback to the primary store below is never reached: a shard that cannot be opened makes the action
+  // fail, and the event is logged as `apply failed` and skipped
   private def resolveTargetStore[A](
     spec: Projection[A],
     event: Any,
@@ -346,7 +348,8 @@ final class ProjectionEngine private[projection] (
     batch: zio.Chunk[EventEnvelope[Any]]
   ): Task[Unit] = {
     val primary = primaryStoreFor(spec)
-    // Each event is processed on its own, and the watermark only moves past an event whose action succeeded
+    // Each event is processed on its own. The watermark is set to the seq of each event whose action succeeds, so a
+    // failed or unhandled event leaves it where it is, until a later success moves it past that event for good
     ZIO
       .foldLeft(batch)(Option.empty[Long]) { (acc, env) =>
         val ctx                                            = ProjectionContext(env.entityId, env.timestamp, env.seq, Some(env.entityId))
@@ -449,8 +452,10 @@ final class ProjectionEngine private[projection] (
             case Some(es) =>
               val primary =
                 primaryStoreFor(specAny.asInstanceOf[Projection[Any]]).asInstanceOf[ProjectionStore[Any]]
-              // Catch up first, then subscribe to the hub for live events, so that no event is seen by both.
-              // Live events are not filtered by seq.
+              // Catch up first, then subscribe to the hub for live events. Live events are not filtered by seq.
+              // Nothing joins the two: an event appended while catch-up runs is seen by neither, and is skipped for
+              // good once a later event moves the watermark past it; an event stored before catch-up reads it but
+              // published after the subscription is seen by both.
               val bindTask: ZIO[Scope, Throwable, Unit] =
                 for {
                   initialLast <- primary.getLastProcessedSeq
