@@ -22,6 +22,12 @@ ${title} solution prose.
 val ${title.toLowerCase()} = 1  // comment
 \`\`\`
 
+### Installation
+
+\`\`\`scala
+libraryDependencies += "dev.zio" %% "zio-blocks-${title.toLowerCase()}" % "@VERSION@"
+\`\`\`
+
 ### Learn More
 
 - [${title} reference](./reference/${title.toLowerCase()}.md) — the full API
@@ -49,17 +55,6 @@ The philosophy is simple. Use what you need.
 
 - **Zero Lock-In**: No dependency on any effect system. Use a block with your stack.
 - **Modular**: Each block is a separate artifact.
-
-## Getting Started
-
-\`\`\`scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
-\`\`\`
-
-\`\`\`scala mdoc:compile-only
-val alice = Person("Alice", 30)
-val jsonStr = alice.toJsonString                      // {"name":"Alice","age":30}
-\`\`\`
 
 ## All Blocks
 
@@ -128,11 +123,6 @@ test('parseIndex extracts the header content', () => {
     { name: 'Zero Lock-In', text: 'No dependency on any effect system.' },
     { name: 'Modular', text: 'Each block is a separate artifact.' },
   ]);
-  assert.deepEqual(p.hero, {
-    install: 'libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"',
-    jsonCode: 'val jsonStr = alice.toJsonString',
-    jsonResult: '{"name":"Alice","age":30}',
-  });
   assert.deepEqual(p.compatibility, ['ZIO 2.x', 'Kyo']);
 });
 
@@ -170,6 +160,7 @@ test('parseIndex extracts the four deep dives', () => {
   assert.deepEqual(dives.map((d) => d.id), ['schema', 'scope', 'async', 'sql']);
   assert.deepEqual(dives[0], {
     id: 'schema', title: 'Schema', intro: 'Schema intro sentence. More words.',
+    install: 'libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"',
     problem: { paragraphs: ['Schema problem prose:'], code: { info: 'javascript', lang: 'javascript', source: 'const data = await res.json();' } },
     solution: { paragraphs: ['Schema solution prose.'], code: { info: 'scala mdoc', lang: 'scala', source: 'val schema = 1  // comment' } },
     learnMore: [
@@ -203,7 +194,9 @@ test('parseIndex fails loudly, naming the offender', () => {
     '| Block | Artifact | Platform | Scala |\n|-------|----------|----------|-------|\n| [Mux]').replace('| JVM · JS | 3.x | Multiplexer |', '| JVM · JS | 3.x |'),
     'category "Web & HTTP": expected columns Block | Artifact | Platform | Scala | Description');
   failsWith(GOOD.replace('## Core Principles', '## Core Principle'), 'docs/index.md has no "## Core Principles" section');
-  failsWith(GOOD.replace('toJsonString', 'toJson'), 'Getting Started: no code line containing toJsonString with a // result comment');
+  failsWith(GOOD.replace('libraryDependencies += "dev.zio" %% "zio-blocks-scope"', 'val scope = "zio-blocks-scope"'),
+    'Scope: "Installation" has no libraryDependencies code block');
+  failsWith(GOOD.replace(/### Installation\n\n```scala\nlibraryDependencies[^\n]*zio-blocks-async[^\n]*\n```\n\n/, ''), 'Async: no "### Installation" section');
   failsWith(GOOD.replace('### The Solution\n\nSchema solution prose.\n\n```scala mdoc\nval schema = 1  // comment\n```', '### The Solution\n\nSchema solution prose.'),
     'Schema: "The Solution" has no code block');
 });
@@ -297,6 +290,8 @@ test('parseIndex accepts the real docs/index.md', () => {
     assert.match(b.docsUrl, /^\/(?!docs\/)/);
     assert.ok(b.platforms.length > 0 && b.scala.length > 0 && b.description !== '');
   }
-  assert.ok(real.hero.install.includes('@VERSION@'));
-  assert.equal(real.hero.jsonResult, '{"name":"Alice","age":30}');
+  assert.deepEqual(
+    real.deepDives.map((d) => d.install.split('\n')[0]),
+    ['schema', 'scope', 'async', 'sql'].map((m) => `libraryDependencies += "dev.zio" %% "zio-blocks-${m}" % "@VERSION@"`),
+  );
 });
