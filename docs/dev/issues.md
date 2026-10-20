@@ -613,6 +613,87 @@ A thread dump of the tutorial's companion example `Concept8CatchAllExample` (the
 
 **Suggested fix.** For blocking terminals, drive the async engine on the calling thread (poll the pollable in a loop on the caller instead of scheduling it on the pool and parking), so user code never moves to another thread. If that is not possible, document on the blocking terminals that the stream may run on `ForkJoinPool.commonPool`, and that calling them from a class initializer can deadlock.
 
+### jwt: `Jwt.sign` writes a registered claim twice when `extra` also contains it, and verifiers read the `extra` value
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/issue-and-verify-jwts.md` (backlog H-37), on `main` at `ad0821d2`. The jwt sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56.
+
+**Summary.** `JwtClaims` has typed fields for the registered claims (`iss`, `sub`, `aud`, `exp`, `nbf`, `iat`, `jti`) and a free-form `extra` map. If `extra` also contains one of these names, `Jwt.sign` writes the claim twice into the signed payload. Every JSON parser that keeps the last duplicate, including this module's own decoder, then reads the `extra` value, not the typed field. The issuer believes it signed `iss = "bookstore-auth"`; every verifier sees `iss = "partner-auth"`. RFC 7519 §4 says claim names within a claims set MUST be unique, so the issuer produces a non-conforming token without any error.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-jwt` 0.0.56, run with `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-jwt:0.0.56
+import zio.blocks.jwt._
+import java.nio.charset.StandardCharsets.UTF_8
+
+val secret = "sample-bookstore-secret-32-bytes".getBytes(UTF_8)
+
+// The issuer sets iss = "bookstore-auth"; a custom claim map built elsewhere also contains "iss"
+val claims = JwtClaims(
+  iss = Some("bookstore-auth"),
+  sub = Some("reader-1024"),
+  extra = Map("iss" -> JwtValue.Str("partner-auth"))
+)
+val token = Jwt.sign(claims, secret, Algorithm.HS256).fold(e => throw e, identity)
+
+println(Base64Url.decode(token.split('.')(1)).map(new String(_, UTF_8)))
+println(Jwt.decode(token, secret, Algorithm.HS256, JwtDecodeOptions(nowSeconds = Some(0L))).map(_.iss))
+println(Jwt.decode(token, secret, Algorithm.HS256, JwtDecodeOptions(issuer = Some("bookstore-auth"), nowSeconds = Some(0L))))
+// Right({"iss":"bookstore-auth","sub":"reader-1024","iss":"partner-auth"})
+// Right(Some(partner-auth))
+// Left(zio.blocks.jwt.JwtError$InvalidClaim: Invalid JWT claim 'iss': expected bookstore-auth but found partner-auth)
+```
+
+**Expected.** `Jwt.sign` never emits duplicate claim names. Either it rejects the claims (for example `Left(InvalidClaim("iss", "registered claim name must not appear in extra"))`), or the typed field wins and the `extra` entry is dropped. The decoded `iss` should be `Some(bookstore-auth)`.
+
+**Root cause.** `JwtClaims.render` writes the typed fields and then every `extra` entry without filtering registered names (`jwt/shared/src/main/scala/zio/blocks/jwt/JwtClaims.scala:91-93`). The parser's object builder keeps the last value for a repeated key (`fields.update(key, value)`, `jwt/shared/src/main/scala/zio/blocks/jwt/Jwt.scala:622` and `:671`), and `parseExtra` drops registered names from `extra` (`JwtClaims.scala:98-104`), so the duplicate silently replaces the typed field. The decoder's last-wins behaviour is allowed by RFC 7515 §5.2; the bug is on the signing side.
+
+**Impact.** Code that merges custom claims from another source (a user profile map, a config file) into `extra` can override `iss`, `sub`, `aud` or `exp` without noticing. An `exp` in `extra` can extend a token's lifetime past the typed `exp`; a `sub` can change whose token it is. The JWT reference page now tells users not to put registered names in `extra`, but nothing enforces it.
+
+**Test gap.** No test signs claims whose `extra` contains a registered name. `JwtFeatureSpec` only round-trips non-reserved custom claims.
+
+**Suggested fix.** Validate in `Jwt.sign` (or in `JwtClaims.render`) that `extra.keySet` and the registered names are disjoint, and return `Left(JwtError.InvalidClaim(name, ...))` otherwise. Add a test per registered name.
+
+### jwt: `JwtSignOptions.limits` does not apply the JSON-shape limits, and two Scaladocs contradict the code
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/issue-and-verify-jwts.md` (backlog H-37). Verified by running against the published 0.0.56.
+
+**Summary.** `Jwt.sign` applies only the size limits of `JwtSignOptions.limits` (`maxJsonChars`, `maxSegmentChars`, `maxTokenChars`). It ignores `maxDepth`, `maxFields` and `maxArrayElements`, so an issuer can sign a token that a verifier configured with the same `JwtLimits` rejects. Separately, the Scaladoc of `JwtDecodeOptions` says an audience mismatch yields `InvalidToken`, but the code returns `InvalidClaim("aud", ...)`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-jwt` 0.0.56, run with `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-jwt:0.0.56
+import zio.blocks.jwt._
+import java.nio.charset.StandardCharsets.UTF_8
+
+val secret = "sample-bookstore-secret-32-bytes".getBytes(UTF_8)
+val limits = JwtLimits(maxDepth = 3)
+
+// A custom claim nested five arrays deep
+val deep   = (1 to 5).foldLeft(JwtValue.Str("Zionomicon"): JwtValue)((v, _) => JwtValue.Arr(v))
+val signed = Jwt.sign(JwtClaims(extra = Map("shelf" -> deep)), secret, Algorithm.HS256, JwtSignOptions(limits = limits))
+
+println(signed.isRight)
+println(signed.flatMap(t => Jwt.decode(t, secret, Algorithm.HS256, JwtDecodeOptions(limits = limits, nowSeconds = Some(0L)))))
+// true
+// Left(zio.blocks.jwt.JwtError$TooDeep: JWT JSON too deep: depth 4 exceeds limit 3)
+```
+
+**Expected.** Signing with `JwtSignOptions(limits = limits)` fails with `Left(TooDeep(...))` when the decoder with the same `limits` would, or the Scaladoc says which limits apply on sign.
+
+**Root cause.** The sign path checks `maxJsonChars`, `maxSegmentChars` and `maxTokenChars` only (`jwt/shared/src/main/scala/zio/blocks/jwt/Jwt.scala:245-259`); it renders JSON with `JwtClaims.render` and never runs the depth, field or element checks that the parser applies on decode. The `JwtSignOptions` Scaladoc describes `limits` as "resource limits for header JSON validation" (`Jwt.scala:169`), which matches neither behaviour. The `JwtDecodeOptions` Scaladoc says "mismatch yields `InvalidToken`" (`Jwt.scala:131-132`), while `validateAudience` returns `JwtError.InvalidClaim("aud", ...)` (`Jwt.scala:450-453`, tested in `JwtFeatureSpec.scala:354-372`).
+
+**Impact.** Low. An issuer that shares one `JwtLimits` value between signing and verifying can mint tokens its own verifiers reject, and only finds out at verification time. The wrong `InvalidToken` statement in the Scaladoc was also copied into `docs/reference/jwt.md` (fixed in the H-37 PR).
+
+**Test gap.** No test signs with tightened `JwtSignOptions.limits`. No test sends an `alg: none` header (the code returns `UnsupportedAlgorithm("none")`, or `InvalidToken` when the signature segment is empty, but nothing asserts it).
+
+**Suggested fix.** Either apply all six limits on sign (parse the rendered JSON with the same limits before encoding), or document that only the size limits apply on sign. Change the `JwtDecodeOptions` Scaladoc to "mismatch yields `InvalidClaim("aud", ...)`". Add tests for both, plus an `alg: none` test in `JwtEdgeCasesSpec`.
+
 ### config: Rollout buckets depend on the key alone, so every percentage rollout picks the same users
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/roll-out-feature-gradually.md` (backlog H-32), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`.
@@ -1062,6 +1143,10 @@ Found 2026-10-20 while writing H-03. The standalone `schema-examples/` build has
 
 Found 2026-10-20 while writing H-47. CI's "Compile example projects" step (`project/CiWorkflow.scala:360`, generated into `.github/workflows/ci.yml`) runs `sbt compile` in each `*-examples/` build, so `src/test` sources are never compiled or run. `sql-examples` is the first examples build with tests (H-47's `BookshopSpec`, 4 tests, passing locally against 0.0.56). Switching the step to `sbt test` (and regenerating `ci.yml`) would cover them. This is a CI change for the maintainer to decide; H-47's attempt to make it was blocked by a permission check, so it was left alone.
 
+### Four example builds are not registered in the root build
+
+Found 2026-10-20 while recording H-37. `config-examples` (T-05), `sql-examples` (T-07), `html-examples` (T-09) and `projection-examples` have a `build.sbt` but no `lazy val ... = RootProject(file("..."))` line or root `aggregate(...)` entry in `build.sbt`, unlike the other ten `*-examples/` builds. CI's examples loop still compiles them (it looks for a `build.sbt`), so the gap shows up in the root aggregate and IDE import. AGENTS.md (updated on the `jwt` branch, H-37) now says a new examples build needs both. Add the four missing entries.
+
 ### Docs build memory with many sbt servers
 
 Seen 2026-10-20: a full `sbt check` was OOM-killed while several worktrees each ran an sbt server (about 4 GB free). Shut down idle servers in finished worktrees with `sbt --client shutdown`.
@@ -1186,7 +1271,7 @@ ConfigSource.fromFileWithLimits(file.toString, maxFileBytes = 4L * 1024 * 1024).
 
 **Other modules**
 
-- `jwt.md` documents an audience mismatch as `InvalidToken`; the source returns `InvalidClaim("aud", ...)` (`Jwt.scala:451-453`). It also omits `InvalidClaim` and `InvalidKey` and gives no key-format guidance. H-37 (stalled) includes this fix.
+- `jwt.md` documents an audience mismatch as `InvalidToken`; the source returns `InvalidClaim("aud", ...)` (`Jwt.scala:451-453`). It also omits `InvalidClaim` and `InvalidKey` and gives no key-format guidance. Fixed on branch `jwt` (H-37, no PR yet), commit `6345247d`; the `JwtDecodeOptions` Scaladoc (`Jwt.scala:131-132`) still says `InvalidToken` (see the jwt entry above).
 - `html.md`: artifact name for Scala 3.7+, `Css.Declaration`, `hx-*` URL attributes, `selector""`. Filed as #1766.
 - `streams/index.md:78` lists Kyo RC6 and Ox 1.0.6; the build pins RC7 and 1.1.0.
 - `docs/index.md` and `built-in-codecs/json/index.md:39,45` give `zio-blocks-schema` for every Scala version; Scala 3.7+ uses `zio-blocks-next-schema`. H-01 (stalled) includes this fix.
