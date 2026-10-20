@@ -1611,6 +1611,7 @@ println(order.toJsonString)
 - **A nested `connect` inside `transact` takes a second pooled connection.** With a small pool it times out: `SQLTransientConnectionException: bookstore - Connection is not available, request timed out after 1001ms (total=1, active=1, idle=0, waiting=0)`. Pass the `DbCon`/`DbTx` down instead of calling `connect` again. Verified against PostgreSQL 16 while writing H-17; the SQLite counterpart (`SQLITE_BUSY`) is above.
 - **`$` only accepts a method call on its receiver.** `$(transactor)(t => restockShelf(t))` fails with "cannot be passed as an argument to a function or method", so helpers must take `using DbCon` and be called as `$(transactor)(_.transact(work()))`. Verified while writing H-17.
 - **Scala 3 `object X extends App` deadlocks when worker threads touch the object.** Code in the `App` body runs inside the object's static initializer, so any other thread that reads a member of the object waits on the class-init lock the main thread holds. Hit in H-17's concurrency example and in T-06 (the streams deadlock above); both use `def main` instead. Worth a general note in AGENTS.md and the examples templates.
+- **`Stream.fromInputStream` and `NioStreams.fromChannel` take an already-open handle.** If the stream never runs, the handle leaks; if it runs twice, the second run fails with `Left(ClosedChannelException)`, because the first run closed it. Wrap the open in `fromAcquireRelease(open)(...Unmanaged)` to get a re-runnable stream. The Scaladoc says the instance is reused. Verified while writing H-24.
 - **Scope and Wire error codes never appear in compiler output.** `ErrorMessages.scala` numbers them E1-E17, RE1-RE3 and W1, but the messages users see carry no code, so docs must index errors by message text. Found while writing H-31.
 - **`defer` on a closed scope is a silent no-op** (`Scope.scala:202`), while `allocate` and `$` throw. Found while writing H-31.
 - **`jdbc:sqlite::memory:` gives every connection its own empty database.** Code that opens more than one connection loses its tables. Found while writing T-07; now noted in `transactor.md`.
@@ -1871,6 +1872,50 @@ Found 2026-10-20 while writing the how-to guide `docs/guides/stream-large-query-
 **Test gap.** Only `DbCodecSpec.scala:612-616` tests the `NULL` failure, for `BigDecimal`. No test reads `NULL` into a `String` or a numeric field.
 
 **Suggested fix.** Either change `db-codec.md:22` to say that only `BigDecimal` and `Char` fail fast, `String` gives `null` and the numeric and `Boolean` types give the JDBC default, or make the primitive codecs check `wasNull` and throw. The second is a behaviour change with a per-column cost.
+
+### docs: the streams overview marks `fromInputStream` and `fromJavaReader` as JVM-only, but they also run on Scala.js
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/stream-files-and-sockets.md` (backlog H-24), on `main` at `b4179489`. The same text is in tag `v0.0.56`; it dates from #1318.
+
+**Summary.** The "Creating Streams" block of `docs/reference/streams/index.md` labels both groups of I/O constructors "JVM only": `Stream.fromInputStream`, `Stream.fromJavaReader`, `Stream.fromInputStreamUnmanaged` and `Stream.fromJavaReaderUnmanaged`. All four are defined in the shared sources and work on Scala.js; only their blocking terminals (`runCollect`, `run`, …) and the NIO helpers (`NioStreams`, `NioSinks`) are JVM-only.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-streams` 0.0.56 for Scala.js, run with `scala-cli run Repro.scala --js-cli-on-jvm` — the default native Scala.js linker of scala-cli 1.10 only reads IR up to 1.20, and the 0.0.56 artifacts are IR 1.22):
+
+```scala
+//> using scala 3.9.0
+//> using platform scala-js
+//> using jsVersion 1.22.0
+//> using option -experimental
+//> using dep dev.zio::zio-blocks-next-streams::0.0.56
+
+import zio.blocks.async._
+import zio.blocks.streams._
+
+import java.io.{ByteArrayInputStream, StringReader}
+import scala.concurrent.ExecutionContext.Implicits.global
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val bytes = new ByteArrayInputStream("Zionomicon".getBytes("UTF-8"))
+    Stream.fromInputStream(bytes).map(_.toChar).runCollectAsync.toFuture.foreach(println)
+
+    val chars = new StringReader("Programming in Scala")
+    Stream.fromJavaReader(chars).runCollectAsync.toFuture.foreach(r => println(r.map(_.mkString)))
+  }
+}
+// Right(Chunk(Z,i,o,n,o,m,i,c,o,n))
+// Right(Programming in Scala)
+```
+
+**Expected.** The overview says these constructors are available on both platforms, as `docs/reference/streams/core/stream.md` already implies (it lists them without a platform note).
+
+**Root cause.** Documentation only. `docs/reference/streams/index.md:398` and `:402` say "JVM only", but the four constructors live in `streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:2997`, `:3010`, `:3067` and `:3080`, and the shared spec `streams/shared/src/test/scala/zio/blocks/streams/NewCombinatorsSpec.scala:612-630` runs them on both platforms.
+
+**Impact.** Low. A Scala.js user reading the overview concludes they cannot stream a `java.io.InputStream` or `Reader` and writes the adapter by hand.
+
+**Test gap.** None in the library; the shared spec covers both platforms. Nothing checks platform labels in the docs against the source tree.
+
+**Suggested fix.** Drop "- JVM only" from both comments at `docs/reference/streams/index.md:398` and `:402` (done in the H-24 PR).
 
 **Other modules**
 
