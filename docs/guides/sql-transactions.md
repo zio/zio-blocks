@@ -1,9 +1,9 @@
 ---
 id: sql-transactions
-title: "SQL Transactions: Isolation, Savepoints & Hikari on Loom"
+title: "SQL Transactions: Isolation, Read-Only and Savepoints"
 ---
 
-This guide covers ZIO Blocks' SQL transaction system: how `transact` works under the hood, which isolation levels are available on each database, how nested transactions use savepoints, and how to wire HikariCP into a `JdbcTransactor` for virtual-thread-friendly connection pooling.
+This guide covers ZIO Blocks' SQL transaction system: how `transact` works under the hood, which isolation levels are available on each database, and how nested transactions use savepoints. To set up a connection pool, see [How to Connect to PostgreSQL with a Connection Pool](./connect-to-postgresql-with-a-connection-pool.md).
 
 **What we'll cover:**
 
@@ -11,8 +11,6 @@ This guide covers ZIO Blocks' SQL transaction system: how `transact` works under
 - The `TransactionIsolation` enum and how SQLite vs PostgreSQL handle each level
 - Nested transactions via SQL savepoints (`zib_tx_1 .. zib_tx_N`)
 - Error semantics: inner rollback vs outer commit
-- HikariCP connection pooling with `JdbcTransactor.fromDataSource`
-- Virtual threads (JDK 25+ Loom): why blocking JDBC is fine, and what pinning caveats remain
 
 ## Basic Usage
 
@@ -186,85 +184,9 @@ Both forms are equivalent. The extension method (`summon[DbTx].transact { ... }`
 
 When a `DbTx` is already in scope (inside `transactor.transact`), the extension `summon[DbTx].transact { ... }` resolves via the more specific `DbTx` receiver and reuses the same connection with a savepoint. Using `transactor.transact { ... }` instead would open a **new** connection, which is almost never what you want inside an existing transaction. The explicit `summon[DbTx]` form keeps semantics clear without hidden implicit resolution.
 
-## HikariCP Recipe
+## Connection Pooling
 
-For production applications, use HikariCP for connection pooling. Create a `HikariDataSource` and pass it to `JdbcTransactor.fromDataSource`:
-
-```scala
-import com.zaxxer.hikari.HikariDataSource
-import zio.blocks.sql.{JdbcTransactor, SqlDialect}
-
-val ds = new HikariDataSource()
-ds.setJdbcUrl("jdbc:postgresql://localhost:5432/mydb")
-ds.setUsername("app_user")
-ds.setPassword("secret")
-ds.setMaximumPoolSize(10)
-
-val transactor = JdbcTransactor.fromDataSource(ds, SqlDialect.PostgreSQL)
-```
-
-Convenience helpers are available for the built-in dialects:
-
-```scala
-val pgTransactor   = JdbcTransactor.postgres(ds)   // shorthand for fromDataSource(ds, PostgreSQL)
-val sqliteTransactor = JdbcTransactor.sqlite(ds)    // shorthand for fromDataSource(ds, SQLite)
-```
-
-### Pool Sizing for Virtual Threads
-
-With virtual threads (JDK 25+), the pool size rule is straightforward: **pool size equals database max connections, not thread count**. Virtual threads are cheap to create and block, so you don't need a thread pool to limit concurrency. The HikariCP pool limits how many database connections are open simultaneously, which is the only resource that actually needs capping.
-
-A typical configuration:
-
-```scala
-ds.setMaximumPoolSize(20)   // match your DB's max_connections / app instances
-ds.setMinimumIdle(5)        // keep a few warm connections
-ds.setConnectionTimeout(3000) // fail fast if pool exhausted
-```
-
-Don't set `maximumPoolSize` to the number of CPU cores or virtual threads. Size it based on your database's connection limit and how many concurrent queries your application actually runs. Most applications need 10-30 connections, not thousands.
-
-Queue sizing via `connectionTimeout` (default 30 seconds) controls how long a request waits for a pooled connection when the pool is exhausted. With virtual threads, you can afford to wait longer since you're not blocking platform threads, but 30 seconds via `ds.setConnectionTimeout(30000)` is usually a good default.
-
-### Pinning Notes (Post-JEP491)
-
-JEP 491 (JDK 25+) eliminates virtual-thread pinning on most blocking I/O operations. Blocking JDBC calls like `Statement.executeQuery()` no longer pin the virtual thread to its carrier thread. This means you can run thousands of concurrent queries without needing an async JDBC wrapper.
-
-However, some drivers still have internal `synchronized` blocks or native calls that can pin:
-
-- **SQLite driver**: The `busy_timeout` implementation uses `synchronized` internally. Under high concurrency with short timeouts, this can still pin virtual threads. Set `busy_timeout` high (e.g., 5000ms) to reduce contention, or use PostgreSQL for concurrent workloads.
-
-- **PostgreSQL JDBC driver**: The driver's `Object.wait()` calls are safe on virtual threads post-JEP491. Earlier JDK versions (21-24) may pin during `Object.wait` in the driver's connection handshake, but this is resolved in JDK 25+.
-
-- **HikariCP itself**: HikariCP's internal `ConcurrentBag` uses `ThreadLocal`-based tracking, which works correctly with virtual threads. The pool doesn't need special configuration for Loom.
-
-If you're on JDK 25+, just use blocking JDBC directly. No need for `ZIO.attemptBlocking` or async wrappers to avoid pinning.
-
-## Virtual Threads (JDK 25+ Loom)
-
-JDK 25 brings Loom to general availability on the JVM-first path. Virtual threads handle blocking I/O naturally: when a JDBC call blocks, the virtual thread unmounts from its carrier thread and the carrier is free to run other work.
-
-This changes the connection-pooling calculus. Before Loom, you needed to size your thread pool and connection pool carefully to avoid thread starvation. With virtual threads, the thread pool concern disappears. Your only constraint is the database's connection limit.
-
-```scala
-// No special thread pool needed. Just use virtual threads directly.
-import java.util.concurrent.Executors
-import scala.concurrent.ExecutionContext
-
-val vtExecutor = Executors.newVirtualThreadPerTaskExecutor()
-val ec = ExecutionContext.fromExecutor(vtExecutor)
-
-// Run hundreds of concurrent queries
-val results = Future.traverse(userIds) { id =>
-  Future {
-    transactor.transact {
-      sql"SELECT * FROM users WHERE id = $id".query[User].toOne
-    }
-  }(ec)
-}
-```
-
-With virtual threads, you don't need async JDBC drivers, reactive wrappers, or thread pool tuning. Blocking is fine. The database connection pool is the only thing you need to manage.
+To run these transactions on a HikariCP pool, build the transactor with `JdbcTransactor.postgres(dataSource)`; [How to Connect to PostgreSQL with a Connection Pool](./connect-to-postgresql-with-a-connection-pool.md) covers the pool setup, sizing it for virtual threads, and closing it.
 
 ## Summary
 
@@ -275,12 +197,10 @@ With virtual threads, you don't need async JDBC drivers, reactive wrappers, or t
 | `readOnly` flag            | Sets JDBC read-only; PG optimizes, SQLite may ignore    |
 | Nested via `summon[DbTx]`  | Savepoints `zib_tx_1..N`, inner rollback isolated       |
 | `transactNested`           | Alias using `using` parameter instead of extension      |
-| HikariCP                   | `fromDataSource(ds, dialect)`, pool = DB connections     |
-| Virtual threads            | Blocking JDBC is fine on JDK 25+ Loom                   |
-| Pinning                    | Post-JEP491 mostly resolved; SQLite `busy_timeout` caveat |
 
 ## Going Further
 
 - **[Query DSL with SQL](./query-dsl-sql.md)** -- Building parameterized SQL from `SchemaExpr` queries
 - **[Transactor Reference](../reference/sql/transactor)** -- `JdbcTransactor.fromDataSource` / `fromUrl` and `transact(isolation, readOnly)` overloads
 - **[DbTx Reference](../reference/sql/db-tx)** -- Savepoint API (`savepoint` / `release` / `rollbackTo`) and `summon[DbTx].transact`
+- **[How to Connect to PostgreSQL with a Connection Pool](./connect-to-postgresql-with-a-connection-pool.md)** -- HikariCP setup, pool sizing for virtual threads, and shutdown
