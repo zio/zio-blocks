@@ -279,7 +279,7 @@ Two details of the report trip readers up. The keys are relative to the section'
 
 ## Testing Without Files or Environment Variables
 
-The graph depends only on the `ConfigSource` passed to `catalogResource`, so a test passes a `ConfigSource.fromMap` instead of the production layers. A test usually changes one or two settings, so it puts a small map in front of the defaults and leaves the rest alone:
+The graph depends only on the `ConfigSource` passed to `catalogResource`, so a test passes a `ConfigSource.fromMap` instead of the production layers. A test usually changes one or two settings, so it puts a small map in front of the defaults and leaves the rest alone, as `frontPageWith` does:
 
 ```scala mdoc:silent
 def frontPageWith(overrides: Map[String, String]): String = {
@@ -414,6 +414,12 @@ Run it from the `config-examples` directory, optionally overriding a setting thr
 
 ```bash
 BOOKSTORE_CATALOG_FEATURED_TITLE="Programming in Scala" sbt "runMain feedconfigintoawiregraph.CompleteExample"
+```
+
+To check that every example compiles without running it, use:
+
+```bash
+sbt compile
 ```
 
 ## Going Further
