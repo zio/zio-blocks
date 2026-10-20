@@ -639,6 +639,12 @@ sbt "runMain scope.examples.compileerrors.bookstoreWiringExample"
 
 </details>
 
+To compile the example without running it:
+
+```bash
+sbt compile
+```
+
 ## See Also
 
 - [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md): the tutorial that introduces every concept this page assumes.
