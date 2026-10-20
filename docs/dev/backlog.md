@@ -10,15 +10,17 @@ This table tracks every item that has been written or started. Items not listed 
 |------|--------------------------------------------------------------------|-------------------------------------------|-------------------------------------------------------------------------------------------------|
 | T-01 | Your first schema: round-trip a type through JSON                  | Done                                      | #1756, `guides/your-first-schema.md`                                                            |
 | T-07 | Build your first database repository on SQLite                     | Done                                      | #1760, `guides/your-first-sqlite-repository.md`, `sql-examples/`                                |
+| T-09 | Render your first server-side HTML page                            | Done                                      | #1763, `guides/your-first-html-page.md`, `html-examples/`                                       |
 | T-05 | Build a typed configuration loader                                 | In review                                 | #1759 (`config-loader`), `config-examples/`                                                     |
 | T-04 | One type, many formats                                             | In review                                 | #1762 (`many-formats`)                                                                          |
-| T-09 | Render your first server-side HTML page                            | In review                                 | #1763 (`html-page`), `html-examples/`                                                           |
 | H-03 | How to override the codec for one type everywhere                  | In progress (local commits, not pushed)   | worktree `override-codec`                                                                       |
 | M-06 | Coming from PureConfig, Typesafe Config or zio-config              | In progress (local commits, not pushed)   | worktree `pureconfig-migration`, branched from `config-loader`; depends on #1759                 |
 | H-28 | How to wrap callback and Future-based APIs in Async                | In progress (local commits, not pushed)   | worktree `async-interop`                                                                        |
 | H-37 | How to issue and verify JWTs (plus `jwt.md` fixes)                 | In progress (uncommitted)                 | worktree `jwt`                                                                                  |
 | H-31 | How to fix common Scope and Wire compile errors                    | In progress (uncommitted)                 | worktree `scope-errors`                                                                         |
-| M-03 | Coming from Magnum or doobie                                       | In progress (just started)                | worktree `magnum-migration`                                                                     |
+| M-03 | Coming from Magnum or doobie                                       | In progress                               | worktree `magnum-migration`                                                                     |
+| M-05 | Coming from cats-effect `Resource`, ZIO `Scope`/`ZLayer`, macwire or `Using` | In progress                     | worktree `resource-migration`                                                                   |
+| H-17 | How to connect to PostgreSQL with a connection pool                | In progress                               | worktree `postgres-pool`                                                                        |
 | H-01 | How to add ZIO Blocks to your build                                | Stalled: uncommitted, session exited      | worktree `adding-zio-block-to-build`; `guides/add-zio-blocks-to-your-build.md` + artifact fixes |
 | H-02 | How to customize JSON field names, ADT encoding and optional fields | Stalled: uncommitted, session exited     | worktree `customize-json-fields`; `guides/customize-json-encoding.md`                           |
 | T-06 | Build your first streaming pipeline                                | Stalled: uncommitted, session exited      | worktree `streaming-pipeline`; `guides/your-first-streaming-pipeline.md`                        |
@@ -27,7 +29,8 @@ This table tracks every item that has been written or started. Items not listed 
 
 **Unblocked since this backlog was compiled:**
 
-- T-07 merged, so the sql items can start: H-17, H-18 (partly covered by the `repo.md` upsert and `pageAfter` docs added in #1760), H-20 and H-47.
+- T-07 merged, so the sql items can start: H-17 (now in progress), H-18 (partly covered by the `repo.md` upsert and `pageAfter` docs added in #1760), H-20 and H-47.
+- T-09 merged, so T-10 (HTMX) and T-11 (Datastar) have their prerequisite, but both still need an HTTP adapter (H-35).
 - PR #1742 (projection docs) merged on 2026-10-20. T-14 now waits only on issue #1744, which has grown to sixteen engine problems.
 
 **Waiting on stalled items:** M-01 needs H-02; H-04 needs T-02; H-24, H-25 and M-04 need T-06.
@@ -36,9 +39,9 @@ This table tracks every item that has been written or started. Items not listed 
 
 - `ProvenanceMap#dump` over an unprefixed `EnvSource` prints the whole process environment. Only names that match `Sensitive` markers are redacted.
 - `Table.createTable` emits no `PRIMARY KEY`, so `Repo.insertOrUpdate` fails on tables it creates. #1760 documents this; the code is unchanged.
-- In the html module, `selector"..."` never matches in `Dom#select`.
+- In the html module, `selector"..."` never matches in `Dom#select`: issue #1765.
 - On Scala 3, `import zio.blocks.html._` together with `import zio.blocks.schema._` makes `p(...)` ambiguous.
-- `html"..."` attribute values may be double-escaped. This is unverified.
+- `html"..."` escapes interpolated attribute values twice, so `&` renders as `&amp;amp;` and URLs with query strings break: issue #1764. `html.md` drift is issue #1766.
 - TOON `ArrayFormat.Auto` never picks the tabular layout, although its Scaladoc and `toon.md:706` say it does.
 - `loadOrThrow` reports the wrong error count. #1761 fixes this.
 
