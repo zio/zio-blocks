@@ -165,9 +165,10 @@ final class ProjectionEngine private[projection] (
    * get no value in the new columns. For any other change, it rebuilds the rows
    * from the events as usual.
    *
-   * Register it before `start`, which is when the schema is checked, or, with
-   * `lazyRebuild`, before the projection is first queried. The migration is
-   * kept under the projection's name, so registering another one replaces it.
+   * Register it before `start`, which is when the schema is checked. That holds
+   * with `lazyRebuild` too: `start` ends by forking a background rebuild, which
+   * can run before a migration registered later. The migration is kept under
+   * the projection's name, so registering another one replaces it.
    *
    * @param spec
    *   the projection the migration applies to
