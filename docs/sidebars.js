@@ -455,6 +455,7 @@ const sidebars = {
   guides: [
     "guides/add-zio-blocks-to-your-build",
     "guides/your-first-schema",
+    "guides/evolve-your-data",
     "guides/customize-json-encoding",
     "guides/json-without-case-classes",
     "guides/build-a-schema-registry",
