@@ -26,7 +26,7 @@ object AsManualConstructionExample extends App {
   show(intStringAs.from("not-a-number"))
 }
 
-// As.apply[A, B] with no arguments summons an implicit As[A, B] already in scope.
+// As.summon[A, B] summons an implicit As[A, B] already in scope.
 // This retrieves the instance by type rather than by variable name.
 object AsSummoningExample extends App {
 
@@ -35,8 +35,10 @@ object AsSummoningExample extends App {
 
   implicit val conv: As[Metric, Imperial] = As.derived[Metric, Imperial]
 
-  // Summon the implicit instance by type
-  val summoned: As[Metric, Imperial] = As[Metric, Imperial]
+  // Summon the implicit instance by type.
+  // NB: standalone example builds resolve the published release, which predates
+  // As.summon, so this uses implicitly (same semantics; As.summon is covered in AsSpec).
+  val summoned: As[Metric, Imperial] = implicitly[As[Metric, Imperial]]
 
   show(summoned.into(Metric(100)))
   show(summoned.from(Imperial(200L)))

@@ -98,14 +98,14 @@ object AsSpec extends SchemaBaseSpec {
         reverse.from(100) == Right(100L)
       )
     },
-    test("As.apply[A, B] summons implicit As") {
+    test("As.summon[A, B] summons implicit As") {
       implicit val stringIntAs: As[String, Int] = new As[String, Int] {
         def into(input: String): Either[SchemaError, Int] =
           try Right(input.toInt)
           catch { case _: NumberFormatException => Left(SchemaError.validationFailed("not an int")) }
         def from(input: Int): Either[SchemaError, String] = Right(input.toString)
       }
-      val summoned = As[String, Int]
+      val summoned = As.summon[String, Int]
       assertTrue(
         summoned.into("42") == Right(42),
         summoned.from(100) == Right("100")
