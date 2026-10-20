@@ -466,6 +466,7 @@ const sidebars = {
     "guides/getting-started-with-mux",
     "guides/telemetry-guide",
     "guides/zio-schema-migration",
+    "guides/config-library-migration",
     "guides/generate-json-schema-and-validate-payloads",
     {
       type: "category",
