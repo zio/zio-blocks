@@ -24,10 +24,13 @@ sealed trait ArrayFormat
 object ArrayFormat {
 
   /**
-   * Automatically select the most compact format based on array contents:
-   *   - Tabular for uniform object arrays with primitive fields
+   * Select the format from the element type:
    *   - Inline for primitive arrays
-   *   - List for heterogeneous or nested data
+   *   - List for record arrays and other complex elements
+   *
+   * An array of records with only primitive fields that is nested inside a list
+   * item is written in tabular form. Use [[Tabular]] to write record arrays as
+   * tables everywhere.
    */
   case object Auto extends ArrayFormat
 
