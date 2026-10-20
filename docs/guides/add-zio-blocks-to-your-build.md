@@ -142,6 +142,10 @@ In a Scala.js or `crossProject` build, change `%%` to `%%%` inside `zioBlocks`.
 
 ## Add a Dependency With scala-cli
 
+:::warning
+scala-cli may report that a module "is outdated, update to 0.017". Ignore the hint: `0.017` is a mistyped February release that Maven ranks above the current versions, and following it downgrades you.
+:::
+
 On Scala 2.13 or Scala 3.3 to 3.8:
 
 ```scala

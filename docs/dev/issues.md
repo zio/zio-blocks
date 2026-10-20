@@ -1946,6 +1946,46 @@ println(order.toJsonString)
 - **`defer` on a closed scope is a silent no-op** (`Scope.scala:202`), while `allocate` and `$` throw. Found while writing H-31.
 - **`jdbc:sqlite::memory:` gives every connection its own empty database.** Code that opens more than one connection loses its tables. Found while writing T-07; now noted in `transactor.md`.
 
+### Release: a stray version `0.017` on Maven Central is the "latest" release of eleven modules
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/add-zio-blocks-to-your-build.md` (backlog H-01), on `main` at `b4179489`. The current release is `v0.0.56`.
+
+**Summary.** Besides the real `0.0.17` release, version `0.017` (no second dot) was published to Maven Central on 2026-02-07, the same day as tag `v0.0.17`. There is no `v0.017` tag or GitHub release. Maven orders `0.017` above `0.0.56` (its second segment, 17, beats 0), so the `<latest>` and `<release>` fields of `maven-metadata.xml` still point at the February build for every module that existed then: `chunk`, `context`, `schema`, `schema-avro`, `schema-bson`, `schema-messagepack`, `schema-thrift`, `schema-toon`, `scope`, `streams` and `typeid`, under both `zio-blocks-` and `zio-blocks-next-`, on all published platforms and Scala versions. Modules added later (`maybe`, `config`, `jwt`, ...) are not affected.
+
+**Reproduction** (coursier 2.x and scala-cli 1.10.1, against Maven Central):
+
+```bash
+curl -s https://repo1.maven.org/maven2/dev/zio/zio-blocks-schema_3/maven-metadata.xml | grep -E '<latest>|<release>'
+#     <latest>0.017</latest>
+#     <release>0.017</release>
+
+cs resolve 'dev.zio:zio-blocks-schema_3:latest.release' | grep zio-blocks-schema
+# dev.zio:zio-blocks-schema_3:0.017:default
+```
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+```
+
+```
+$ scala-cli compile .
+[hint] ./Main.scala:2:15
+[hint] "zio-blocks-schema is outdated, update to 0.017"
+[hint]      zio-blocks-schema 0.0.56 -> dev.zio::zio-blocks-schema:0.017
+```
+
+**Expected.** `latest.release` resolves to `0.0.56`, and scala-cli reports `0.0.56` as up to date.
+
+**Root cause.** A release was published with the version string `0.017` instead of `0.0.17`. Maven Central does not allow deleting or overwriting a published version, so the metadata will keep ranking it highest until a version that sorts above `0.017` (such as `0.1.0`) is released.
+
+**Impact.** Every scala-cli user of the affected modules sees an "outdated, update to 0.017" hint, and following it downgrades them to February code. Builds that use `latest.release` or a version range get `0.017`. Dependency bots such as Scala Steward may also propose the downgrade, unless they are told to ignore it.
+
+**Test gap.** The release workflow does not check that the version derived from the tag has the `MAJOR.MINOR.PATCH` shape.
+
+**Suggested fix.** Add a check to the release workflow that fails when the version does not match `^\d+\.\d+\.\d+(-.+)?$`. Add a Scala Steward `updates.ignore` entry for version `0.017` under `dev.zio` so the repo's own bots skip it. The metadata only stops pointing at `0.017` once a release sorts above it, such as `0.1.0`. Until then, the install guide pins `@VERSION@` and never suggests `latest.release`.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
