@@ -68,38 +68,38 @@ libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 
 The module is cross-built for the JVM and Scala.js, but `JdbcTransactor`, the part that talks to a database, runs on the JVM only. The built-in dialects are `SqlDialect.PostgreSQL` and `SqlDialect.SQLite`.
 
-This guide assumes you know the basics from [Build Your First Database Repository on SQLite](./your-first-sqlite-repository.md): a `Schema` for each entity, a `JdbcTransactor`, `Repo` and `sql"..."`. We don't re-teach them here; we map what you already write onto them. The "before" snippets follow Magnum 2.0.0-M4 and doobie 1.0.0-RC13. They are plain Scala blocks, because neither library is on this site's build. Every ZIO Blocks snippet is compiled, and most of them run against a SQLite file.
+This guide assumes you know the basics from [Build Your First Database Repository on SQLite](./your-first-sqlite-repository.md): a `Schema` for each entity, a `JdbcTransactor`, `Repo` and `sql"..."`. This guide does not re-teach them; it maps what you already write onto them. The "before" snippets follow Magnum 2.0.0-M4 and doobie 1.0.0-RC13. They are plain Scala blocks, because neither library is on this site's build. Every ZIO Blocks snippet is compiled, and most of them run against a SQLite file.
 
 ## Concept Map
 
 The table below lists the constructs you use every day, with the name each library gives them. The sections that follow show each row in code:
 
-| Concept               | Magnum                                     | doobie                                          | ZIO Blocks                                            |
-| --------------------- | ------------------------------------------ | ----------------------------------------------- | ----------------------------------------------------- |
-| Row mapping           | `derives DbCodec`                          | `Read` / `Write`, derived automatically         | `Schema.derived`; `DbCodec` is derived from it        |
-| Custom column type    | `DbCodec[A].biMap`                         | `Meta[A].timap`, `Get` / `Put`                  | `DbCodec[A].transform`                                |
-| Table metadata        | `@Table(dbType, nameMapper)`, `TableInfo`  | none, SQL is written by hand                    | `Table.derived[A]`                                    |
-| Column naming         | `SqlNameMapper.CamelToSnakeCase`, `@SqlName` | none, SQL is written by hand                  | snake_case by default, `@Modifier.rename`             |
-| Repository            | `Repo[EC, E, ID]`, `ImmutableRepo[E, ID]`  | none                                            | `Repo.derived[E, ID]`                                 |
-| Dynamic criteria      | `Spec[E]`                                  | `Fragments.whereAndOpt`                         | `SqlQuery.from(table)`, or `Frag` composition         |
-| SQL fragment          | `Frag`, `sql"..."`                         | `Fragment`, `sql"..."`, `fr"..."`, `fr0"..."`   | `Frag`, `sql"..."`                                    |
-| Raw SQL splice        | `SqlLiteral`                               | `Fragment.const`                                | `SqlLiteral`                                          |
-| Database program      | a block with `using DbCon` / `DbTx`        | `ConnectionIO[A]`                               | a block with `using DbCon` / `DbTx`                   |
-| Transactor            | `Transactor(dataSource)`                   | `Transactor.fromDriverManager`, `HikariTransactor` | `JdbcTransactor.fromUrl`, `JdbcTransactor.fromDataSource` |
-| Run on a connection   | `connect(xa) { ... }`                      | none, `transact` always opens a transaction     | `transactor.connect { ... }`                          |
-| Run in a transaction  | `transact(xa) { ... }`                     | `program.transact(xa)`                          | `transactor.transact { ... }`                         |
-| All rows              | `.query[A].run(): Vector[A]`               | `.query[A].to[List]`                            | `Frag#query[A]: List[A]`                              |
-| At most one row       | `repo.findById(id): Option[E]`             | `.query[A].option`                              | `Frag#queryOne[A]: Maybe[A]`, `Repo#find`             |
-| Streaming             | `.query[A].iterator()`                     | `.query[A].stream` (fs2)                        | `Frag#queryStream`, `Frag#queryChunked`               |
-| Insert, update, delete | `.update.run(): Int`                      | `.update.run`                                   | `Frag#update: Int`                                    |
-| Generated keys        | `.returning[K]`, `.returningKeys`          | `.update.withUniqueGeneratedKeys[K]`            | `Frag#updateReturningKeys[K]: List[K]`                |
-| Query checking        | none                                       | `.check` against a live database                | `StringContext(...).sql(table)(...)` at compile time  |
-| ZIO integration       | `magnumzio`: `TransactorZIO`               | none                                            | `zio-blocks-sql-zio`: `TransactorZIO`                 |
-| cats-effect integration | `magnum-cats-effect`: `TransactorCats`   | built in                                        | none; wrap calls in `IO.blocking`                     |
+| Concept                 | Magnum                                       | doobie                                             | ZIO Blocks                                                |
+| ----------------------- | -------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------- |
+| Row mapping             | `derives DbCodec`                            | `Read` / `Write`, derived automatically            | `Schema.derived`; `DbCodec` is derived from it            |
+| Custom column type      | `DbCodec[A].biMap`                           | `Meta[A].timap`, `Get` / `Put`                     | `DbCodec[A].transform`                                    |
+| Table metadata          | `@Table(dbType, nameMapper)`, `TableInfo`    | none, SQL is written by hand                       | `Table.derived[A]`                                        |
+| Column naming           | `SqlNameMapper.CamelToSnakeCase`, `@SqlName` | none, SQL is written by hand                       | snake_case by default, `@Modifier.rename`                 |
+| Repository              | `Repo[EC, E, ID]`, `ImmutableRepo[E, ID]`    | none                                               | `Repo.derived[E, ID]`                                     |
+| Dynamic criteria        | `Spec[E]`                                    | `Fragments.whereAndOpt`                            | `SqlQuery.from(table)`, or `Frag` composition             |
+| SQL fragment            | `Frag`, `sql"..."`                           | `Fragment`, `sql"..."`, `fr"..."`, `fr0"..."`      | `Frag`, `sql"..."`                                        |
+| Raw SQL splice          | `SqlLiteral`                                 | `Fragment.const`                                   | `SqlLiteral`                                              |
+| Database program        | a block with `using DbCon` / `DbTx`          | `ConnectionIO[A]`                                  | a block with `using DbCon` / `DbTx`                       |
+| Transactor              | `Transactor(dataSource)`                     | `Transactor.fromDriverManager`, `HikariTransactor` | `JdbcTransactor.fromUrl`, `JdbcTransactor.fromDataSource` |
+| Run on a connection     | `connect(xa) { ... }`                        | none, `transact` always opens a transaction        | `transactor.connect { ... }`                              |
+| Run in a transaction    | `transact(xa) { ... }`                       | `program.transact(xa)`                             | `transactor.transact { ... }`                             |
+| All rows                | `.query[A].run(): Vector[A]`                 | `.query[A].to[List]`                               | `Frag#query[A]: List[A]`                                  |
+| At most one row         | `repo.findById(id): Option[E]`               | `.query[A].option`                                 | `Frag#queryOne[A]: Maybe[A]`, `Repo#find`                 |
+| Streaming               | `.query[A].iterator()`                       | `.query[A].stream` (fs2)                           | `Frag#queryStream`, `Frag#queryChunked`                   |
+| Insert, update, delete  | `.update.run(): Int`                         | `.update.run`                                      | `Frag#update: Int`                                        |
+| Generated keys          | `.returning[K]`, `.returningKeys`            | `.update.withUniqueGeneratedKeys[K]`               | `Frag#updateReturningKeys[K]: List[K]`                    |
+| Query checking          | none                                         | `.check` against a live database                   | `StringContext(...).sql(table)(...)` at compile time      |
+| ZIO integration         | `magnumzio`: `TransactorZIO`                 | none                                               | `zio-blocks-sql-zio`: `TransactorZIO`                     |
+| cats-effect integration | `magnum-cats-effect`: `TransactorCats`       | built in                                           | none; wrap calls in `IO.blocking`                         |
 
 ## The Shared Bookshelf
 
-Both migration paths end at the same ZIO Blocks code, so we set it up once. We reuse the bookshelf from [the SQLite tutorial](./your-first-sqlite-repository.md): a `Book` with a derived `Schema`, a transactor for a temporary SQLite file, the table and the repository:
+Both migration paths end at the same ZIO Blocks code, so the setup comes first. It reuses the bookshelf from [the SQLite tutorial](./your-first-sqlite-repository.md): a `Book` with a derived `Schema`, a transactor for a temporary SQLite file, the table and the repository:
 
 ```scala mdoc:silent
 import zio.blocks.sql.*
@@ -149,7 +149,7 @@ case class Book(
 
 In ZIO Blocks, the entity only derives a `Schema`, as in the shared bookshelf above. Three things move elsewhere. The database type becomes a `SqlDialect` on the transactor, so the same entity works with PostgreSQL and SQLite. Column names are snake_case by default, which matches `SqlNameMapper.CamelToSnakeCase`. And the ID needs no annotation when the field is named `id`, is the only field of the ID type, or is named `<entity>Id`.
 
-ZIO Blocks also generates the `CREATE TABLE` statement from the same schema, which Magnum leaves to you. Let's look at it and run it:
+ZIO Blocks also generates the `CREATE TABLE` statement from the same schema, which Magnum leaves to you. The next block prints the statement and runs it:
 
 ```scala mdoc
 println(bookTable.createTable(SqlDialect.SQLite).sql(SqlDialect.SQLite))
@@ -199,26 +199,26 @@ val bookRepo = Repo[Book, Book, Long]
 
 The ZIO Blocks repository is the `books` value from the shared bookshelf. Most methods keep their meaning but change their name or return type:
 
-| Magnum `Repo` / `ImmutableRepo`           | ZIO Blocks `Repo`                                      |
-| ----------------------------------------- | ------------------------------------------------------ |
-| `findById(id): Option[E]`                 | `find(id): Maybe[E]`                                   |
-| `findAll: Vector[E]`                      | `all: List[E]`                                         |
-| `findAll(spec): Vector[E]`                | `SqlQuery` or `sql"..."`, see [Spec Queries](#spec-queries) |
-| `findAllById(ids): Vector[E]`             | `findAll(ids): List[E]`                                |
-| `existsById(id): Boolean`                 | `exists(id): Boolean`                                  |
-| `count: Long`                             | `count: Long`                                          |
-| `insert(creator): Unit`                   | `insert(entity): Int`                                  |
-| `insertAll(creators): Unit`               | `insertBatch(entities): Int`                           |
-| `insertReturning(creator): E`             | `insertReturning(entity): E`                           |
-| `update(entity): Unit`                    | `update(entity): Int`                                  |
-| `updateAll(entities): BatchUpdateResult`  | `update` in a loop inside `transact`                   |
-| `deleteById(id): Unit`                    | `delete(id): Int`                                      |
-| `delete(entity): Unit`                    | `delete(entity.id): Int`                               |
-| `deleteAllById(ids): BatchUpdateResult`   | `deleteAll(ids): Int`                                  |
-| `truncate(): Unit`                        | `clear(): Int`                                         |
+| Magnum `Repo` / `ImmutableRepo`          | ZIO Blocks `Repo`                                           |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| `findById(id): Option[E]`                | `find(id): Maybe[E]`                                        |
+| `findAll: Vector[E]`                     | `all: List[E]`                                              |
+| `findAll(spec): Vector[E]`               | `SqlQuery` or `sql"..."`, see [Spec Queries](#spec-queries) |
+| `findAllById(ids): Vector[E]`            | `findAll(ids): List[E]`                                     |
+| `existsById(id): Boolean`                | `exists(id): Boolean`                                       |
+| `count: Long`                            | `count: Long`                                               |
+| `insert(creator): Unit`                  | `insert(entity): Int`                                       |
+| `insertAll(creators): Unit`              | `insertBatch(entities): Int`                                |
+| `insertReturning(creator): E`            | `insertReturning(entity): E`                                |
+| `update(entity): Unit`                   | `update(entity): Int`                                       |
+| `updateAll(entities): BatchUpdateResult` | `Repo#update` in a loop inside `JdbcTransactor#transact`    |
+| `deleteById(id): Unit`                   | `delete(id): Int`                                           |
+| `delete(entity): Unit`                   | `delete(entity.id): Int`                                    |
+| `deleteAllById(ids): BatchUpdateResult`  | `deleteAll(ids): Int`                                       |
+| `truncate(): Unit`                       | `clear(): Int`                                              |
 
 :::warning
-`findAll` means different things in the two libraries. Magnum's `findAll` returns every row; ZIO Blocks' `Repo#findAll(ids)` returns the rows with the given IDs, and `Repo#all` returns every row.
+`findAll` means different things in the two libraries. Magnum's `ImmutableRepo#findAll` returns every row; ZIO Blocks' `Repo#findAll(ids)` returns the rows with the given IDs, and `Repo#all` returns every row.
 :::
 
 ZIO Blocks has no `ImmutableRepo`. To hand out a read-only view, expose a trait of your own with only the read methods. In return, `Repo` adds `Repo#insertOrUpdate` and `Repo#insertOrUpdateBatch` for upserts, and `Repo#pageAfter` for keyset pagination.
@@ -330,7 +330,7 @@ val classicsQuery =
     .limit(10)
 ```
 
-Let's print the SQL it renders for SQLite and run it:
+The next block prints the SQL it renders for SQLite and runs it:
 
 ```scala mdoc
 println(classicsQuery.sql(SqlDialect.SQLite))
@@ -422,10 +422,7 @@ println(s"Books on the shelf: $total")
 
 The compiler still tracks database access for you: `addBook` can only be called where a `DbCon` is in scope, which means inside `JdbcTransactor#connect` or `JdbcTransactor#transact`. A method that needs a transaction, such as one that uses savepoints, asks for `(using DbTx)` instead, and then only compiles inside `JdbcTransactor#transact`.
 
-Two more consequences of the change:
-
-- **Errors are exceptions.** A failed statement throws the JDBC driver's exception, usually a `java.sql.SQLException`, instead of failing an `IO`. `JdbcTransactor#transact` rolls back and rethrows it. Use `try`/`catch`, `scala.util.Try`, or the effect wrappers in [Effect Integration](#effect-integration) to handle it.
-- **Choose between `connect` and `transact`.** doobie's `.transact(xa)` always runs in a transaction. In ZIO Blocks, `JdbcTransactor#transact` is the direct equivalent; `JdbcTransactor#connect` runs in auto-commit mode, where each statement is saved as soon as it runs, which suits single reads.
+Two more consequences follow. Errors are exceptions: a failed statement throws the JDBC driver's exception, usually a `java.sql.SQLException`, instead of failing an `IO`, and `JdbcTransactor#transact` rolls back and rethrows it, so use `try`/`catch`, `scala.util.Try`, or the effect wrappers in [Effect Integration](#effect-integration) to handle it. You also choose between `JdbcTransactor#connect` and `JdbcTransactor#transact`: doobie's `.transact(xa)` always runs in a transaction, so `JdbcTransactor#transact` is its direct equivalent, while `JdbcTransactor#connect` runs in auto-commit mode, where each statement is saved as soon as it runs, which suits single reads.
 
 ### Transactors
 
@@ -447,13 +444,13 @@ val pooled: Resource[IO, HikariTransactor[IO]] =
 
 A `JdbcTransactor` has no effect type and no driver class name, and takes a `SqlDialect` instead. Each doobie constructor maps as follows:
 
-| doobie                                                     | ZIO Blocks                                                    |
-| ---------------------------------------------------------- | ------------------------------------------------------------- |
-| `Transactor.fromDriverManager[IO](driver, url, logHandler)` | `JdbcTransactor.fromUrl(url, dialect)`                        |
-| `Transactor.fromDriverManager[IO](driver, url, user, password, logHandler)` | `JdbcTransactor.fromUrl(url, user, password, dialect)` |
-| `Transactor.fromDataSource[IO](dataSource, connectEC)`      | `JdbcTransactor.fromDataSource(dataSource, dialect)`          |
-| `HikariTransactor.fromHikariConfig[IO](config)`             | `JdbcTransactor.fromDataSource(new HikariDataSource(config), dialect)` |
-| `logHandler = Some(handler)`                                | `new JdbcTransactor(connectionFactory, dialect, sqlLogger)`   |
+| doobie                                                                      | ZIO Blocks                                                             |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `Transactor.fromDriverManager[IO](driver, url, logHandler)`                 | `JdbcTransactor.fromUrl(url, dialect)`                                 |
+| `Transactor.fromDriverManager[IO](driver, url, user, password, logHandler)` | `JdbcTransactor.fromUrl(url, user, password, dialect)`                 |
+| `Transactor.fromDataSource[IO](dataSource, connectEC)`                      | `JdbcTransactor.fromDataSource(dataSource, dialect)`                   |
+| `HikariTransactor.fromHikariConfig[IO](config)`                             | `JdbcTransactor.fromDataSource(new HikariDataSource(config), dialect)` |
+| `logHandler = Some(handler)`                                                | `new JdbcTransactor(connectionFactory, dialect, sqlLogger)`            |
 
 With Hikari, you now own the pool: create the `HikariDataSource` at startup and close it at shutdown, which the `Resource` used to do for you.
 
@@ -508,16 +505,16 @@ transactor.connect {
 
 A doobie `Query0` picks its result shape with a method such as `.to[List]` or `.option`. In ZIO Blocks, the method on `Frag` picks the shape and runs the query:
 
-| doobie                                   | ZIO Blocks                                                  |
-| ---------------------------------------- | ----------------------------------------------------------- |
-| `.query[A].to[List]`                     | `Frag#query[A]: List[A]`                                    |
-| `.query[A].to[Vector]`                   | `Frag#query[A].toVector`                                    |
-| `.query[A].option`                       | `Frag#queryOne[A]: Maybe[A]`                                |
-| `.query[A].unique`                       | `Frag#queryOne[A]` plus `getOrElse(throw ...)`              |
-| `.query[A].stream`                       | `Frag#queryStream[A]`, `Frag#queryChunked[A](chunkSize)`    |
-| `.update.run`                            | `Frag#update: Int`                                          |
-| `.update.withUniqueGeneratedKeys[K]("id")` | `Frag#updateReturningKeys[K]: List[K]`                    |
-| `Update[A](sql).updateMany(rows)`        | `Repo#insertBatch(rows)`                                    |
+| doobie                                     | ZIO Blocks                                               |
+| ------------------------------------------ | -------------------------------------------------------- |
+| `.query[A].to[List]`                       | `Frag#query[A]: List[A]`                                 |
+| `.query[A].to[Vector]`                     | `Frag#query[A].toVector`                                 |
+| `.query[A].option`                         | `Frag#queryOne[A]: Maybe[A]`                             |
+| `.query[A].unique`                         | `Frag#queryOne[A]` plus `getOrElse(throw ...)`           |
+| `.query[A].stream`                         | `Frag#queryStream[A]`, `Frag#queryChunked[A](chunkSize)` |
+| `.update.run`                              | `Frag#update: Int`                                       |
+| `.update.withUniqueGeneratedKeys[K]("id")` | `Frag#updateReturningKeys[K]: List[K]`                   |
+| `Update[A](sql).updateMany(rows)`          | `Repo#insertBatch(rows)`                                 |
 
 `Frag#queryOne` returns a `Maybe`, the ZIO Blocks counterpart of `Option`. Unlike doobie's `.option`, it doesn't fail when the query returns several rows; it returns the first one:
 
@@ -565,7 +562,7 @@ The code above reads the books in chunks of two and counts them; `Right(4)` mean
 
 doobie's `.check` and its `IOChecker` test helpers prepare each query against a live database and compare the SQL, the parameter types, the column types and their nullability with your Scala types. That catches type mismatches, but only in a test run that can reach a database.
 
-ZIO Blocks checks at compile time instead, without a database. Pass one or more `Table` values to the interpolator, written as `StringContext(...).sql(table)(args)`, and the compiler checks every table and column name in the SQL against them, with a did-you-mean suggestion for typos. Let's misspell a column:
+ZIO Blocks checks at compile time instead, without a database. Pass one or more `Table` values to the interpolator, written as `StringContext(...).sql(table)(args)`, and the compiler checks every table and column name in the SQL against them, with a did-you-mean suggestion for typos. A misspelled column fails the build:
 
 ```scala mdoc:fail
 StringContext("SELECT title, auther FROM book WHERE year < ", "").sql(bookTable)(publishedBefore)
@@ -644,11 +641,11 @@ Work through these steps in order; each one leaves the project compiling:
 4. Replace `@SqlName` with `@Modifier.rename`, `@Id` on a field that isn't named `id` with `@Modifier.id`, and custom table names with `@Modifier.config("sql.table_name", ...)`.
 5. Port custom column types from `biMap` or `Meta#timap` to `DbCodec#transform`.
 6. Build one `JdbcTransactor` with `JdbcTransactor.fromUrl` or `JdbcTransactor.fromDataSource`, passing the right `SqlDialect`.
-7. Replace Magnum repositories with `Repo.derived[E, ID]` and rename their methods using the table in [Repositories](#repositories), watching out for `findAll`.
+7. Replace Magnum repositories with `Repo.derived[E, ID]` and rename their methods using the table in [Repositories](#repositories), watching out for `Repo#findAll`.
 8. Turn every doobie `ConnectionIO[A]` method into a method returning `A` with `(using DbCon)`, and every `.transact(xa)` into `transactor.transact { ... }`.
 9. Drop `run()` after Magnum queries; replace doobie's `.to[List]`, `.option`, `.unique` and `.update.run` with `Frag#query`, `Frag#queryOne` and `Frag#update`.
 10. Rewrite `Spec` queries with `SqlQuery`, and `Fragments` helpers with `Frag#++` and explicit spaces.
-11. Move fs2 or iterator streaming to `Frag#queryChunked`, consumed inside the `connect` or `transact` block.
+11. Move fs2 or iterator streaming to `Frag#queryChunked`, consumed inside the `JdbcTransactor#connect` or `JdbcTransactor#transact` block.
 12. Wrap transactor calls in `TransactorZIO` for ZIO, or in `IO.blocking` for cats-effect.
 13. Pass `Table` values to `sql"..."` for the queries you want checked at compile time.
 
@@ -682,6 +679,12 @@ Run it from the `sql-examples` directory:
 
 ```bash
 sbt "runMain migratefrommagnumordoobie.CompleteExample"
+```
+
+To compile the example without running it:
+
+```bash
+sbt compile
 ```
 
 ## Going Further
