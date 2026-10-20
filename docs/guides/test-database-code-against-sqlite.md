@@ -95,7 +95,7 @@ Every operation takes a `(using DbCon)` instead of a transactor. The caller deci
 
 ## Give Each Test Its Own Database
 
-`jdbc:sqlite::memory:` looks like the natural choice for tests: nothing touches the disk and nothing needs deleting. It doesn't work with `JdbcTransactor`, though. Every call to `JdbcTransactor#connect` or `JdbcTransactor#transact` opens a new connection and closes it at the end of the block, and SQLite gives each new connection to `:memory:` its own empty database. Let's create the `book` table in one block:
+`jdbc:sqlite::memory:` looks like the natural choice for tests: nothing touches the disk and nothing needs deleting. It doesn't work with `JdbcTransactor`, though. Every call to `JdbcTransactor#connect` or `JdbcTransactor#transact` opens a new connection and closes it at the end of the block, and SQLite gives each new connection to `:memory:` its own empty database. We create the `book` table in one block:
 
 ```scala mdoc:silent
 import scala.util.Try
@@ -123,7 +123,7 @@ def withTempDb[A](f: JdbcTransactor => A): A = {
 }
 ```
 
-A file behaves exactly like the database the application uses: tables outlive a single block, transactions commit and roll back for real, and SQLite's locking is the same. Let's run two "tests" and ask SQLite which file each one uses:
+A file behaves exactly like the database the application uses: tables outlive a single block, transactions commit and roll back for real, and SQLite's locking is the same. We run two "tests" and ask SQLite which file each one uses:
 
 ```scala mdoc:silent
 val usedFiles = List("first test", "second test").map { _ =>
@@ -144,7 +144,7 @@ println(s"Files left behind: ${usedFiles.count(file => Files.exists(Paths.get(fi
 
 ## Create the Schema from Code
 
-A test database starts empty, so each test needs the tables before it can run. The SQLite tutorial creates them with `Table#createTable`, which derives a `CREATE TABLE` statement from the schema. Let's derive the table for `Book`:
+A test database starts empty, so each test needs the tables before it can run. The SQLite tutorial creates them with `Table#createTable`, which derives a `CREATE TABLE` statement from the schema. We derive the table for `Book`:
 
 ```scala mdoc:silent
 val bookTable = Table.derived[Book]
@@ -156,7 +156,7 @@ Then we print its `CREATE TABLE` statement for SQLite:
 println(bookTable.createTable(SqlDialect.SQLite).sql(SqlDialect.SQLite))
 ```
 
-The statement has a column for every field, but no `PRIMARY KEY`. That matters in tests: a database with no primary key accepts two books with the same ID, so a test that checks that duplicates are rejected can never pass. `Repo#insertOrUpdate` doesn't work on such a table either, because its `ON CONFLICT` clause needs a primary key to detect the conflict. Let's try both on a table created from the derived statement:
+The statement has a column for every field, but no `PRIMARY KEY`. That matters in tests: a database with no primary key accepts two books with the same ID, so a test that checks that duplicates are rejected can never pass. `Repo#insertOrUpdate` doesn't work on such a table either, because its `ON CONFLICT` clause needs a primary key to detect the conflict. We try both on a table created from the derived statement:
 
 ```scala mdoc
 withTempDb { transactor =>
@@ -261,7 +261,7 @@ def rollingBack[A](transactor: JdbcTransactor)(f: DbTx ?=> A): A =
   catch { case rollback: Rollback => rollback.result.asInstanceOf[A] }
 ```
 
-The `Rollback` class is private, so no code under test can catch it by accident, and its `RuntimeException` constructor skips the stack trace, which a signal like this never needs. When the test body itself throws, `JdbcTransactor#transact` rolls back too and the original exception reaches the test. Let's add a book and restock another inside `rollingBack`, then look at the database afterwards:
+The `Rollback` class is private, so no code under test can catch it by accident, and its `RuntimeException` constructor skips the stack trace, which a signal like this never needs. When the test body itself throws, `JdbcTransactor#transact` rolls back too and the original exception reaches the test. We add a book and restock another inside `rollingBack`, then look at the database afterwards:
 
 ```scala mdoc
 withTestDb { transactor =>
@@ -329,11 +329,15 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/sql-examples
 ```
 
-The code under test is in `src/main` and everything else is in `src/test`, so the examples run with `Test/runMain`. Each one creates and deletes its own temporary database files, so you can run them in any order.
+The code under test is in `src/main` and everything else is in `src/test`, so the examples run with `Test/runMain`. Each one creates and deletes its own temporary database files, so you can run them in any order. To compile all the examples without running them:
+
+```bash
+sbt "Test/compile"
+```
 
 ### The Code Under Test
 
-`Book` and the `Bookshop` operations the tests exercise.
+`Book` and the `Bookshop` operations the tests exercise are in this file:
 
 <details>
   <summary>sql-examples/src/main/scala/testdatabasecode/Bookshop.scala</summary>
@@ -345,7 +349,7 @@ The code under test is in `src/main` and everything else is in `src/test`, so th
 
 ### The Test Helpers
 
-`withTempDb`, `createSchema`, the fixtures, `resetFixtures`, `withTestDb` and `rollingBack` in one object.
+`withTempDb`, `createSchema`, the fixtures, `resetFixtures`, `withTestDb` and `rollingBack` are in one object:
 
 <details>
   <summary>sql-examples/src/test/scala/testdatabasecode/TestDb.scala</summary>
@@ -357,7 +361,7 @@ The code under test is in `src/main` and everything else is in `src/test`, so th
 
 ### Give Each Test Its Own Database
 
-This example shows the `:memory:` table disappearing between blocks and two tests using two temporary files that are gone afterwards.
+This example shows the `:memory:` table disappearing between blocks and two tests using two temporary files that are gone afterwards:
 
 <details>
   <summary>sql-examples/src/test/scala/testdatabasecode/FreshDatabaseExample.scala</summary>
@@ -375,7 +379,7 @@ sbt "Test/runMain testdatabasecode.FreshDatabaseExample"
 
 ### Create the Schema from Code
 
-This example prints the derived `CREATE TABLE` statement, shows the derived table accepting a duplicate ID and rejecting an upsert, and shows the hand-written schema rejecting the duplicate.
+This example prints the derived `CREATE TABLE` statement, shows the derived table accepting a duplicate ID and rejecting an upsert, and shows the hand-written schema rejecting the duplicate:
 
 <details>
   <summary>sql-examples/src/test/scala/testdatabasecode/SchemaExample.scala</summary>
@@ -393,7 +397,7 @@ sbt "Test/runMain testdatabasecode.SchemaExample"
 
 ### Seed Fixtures for Every Test
 
-This example lists the fixture books, deletes one and restores them with `resetFixtures`.
+This example lists the fixture books, deletes one and restores them with `resetFixtures`:
 
 <details>
   <summary>sql-examples/src/test/scala/testdatabasecode/FixturesExample.scala</summary>
@@ -411,7 +415,7 @@ sbt "Test/runMain testdatabasecode.FixturesExample"
 
 ### Roll Back Instead of Cleaning Up
 
-This example writes inside `rollingBack` and shows that the writes are gone afterwards.
+This example writes inside `rollingBack` and shows that the writes are gone afterwards:
 
 <details>
   <summary>sql-examples/src/test/scala/testdatabasecode/RollbackExample.scala</summary>
