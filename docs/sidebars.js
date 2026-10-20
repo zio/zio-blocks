@@ -435,6 +435,7 @@ const sidebars = {
   // Guides get their own sidebar, reached from the "Guides" navbar item, so the reference sidebar stays reference-only.
   guides: [
     "guides/your-first-schema",
+    "guides/your-first-html-page",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
     "guides/getting-started-with-mux",
