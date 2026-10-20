@@ -168,6 +168,8 @@ val codec: JsonCodec[Person] = Schema[Person]
   .derive
 ```
 
+See also: [Override the Codec for One Type](../../guides/override-codec-for-one-type.md) to replace one type's codec everywhere it appears.
+
 ### Using Schema#decode and Schema#encode
 
 `Schema` also provides `decode` and `encode` methods that internally call `derive` (with caching) and then delegate to the codec:
