@@ -594,3 +594,7 @@ val schemaJson = userSchema.toJson.print
 - **Scala.js** - Browser and Node.js
 
 All features work identically across platforms.
+
+## See Also
+
+- [How to Generate JSON Schema from a Type and Validate Payloads Against It](../../../../guides/generate-json-schema-and-validate-payloads.md) - a step-by-step guide to deriving a JSON Schema from a `Schema` and validating payloads against it
