@@ -306,3 +306,4 @@ The **`zio-blocks-sql-zio` module** provides `TransactorZIO`, a ZIO-aware wrappe
 - **[SQL-ZIO Integration Reference](../sql-zio.md)** — Reference page for `TransactorZIO` and the ZIO `ZLayer` integration.
 - **[Build Your First Database Repository on SQLite](../../guides/your-first-sqlite-repository.md)** — Tutorial that connects to SQLite and builds a `Repo` from a derived schema, end to end.
 - **[How to Test Database Code Against SQLite](../../guides/test-database-code-against-sqlite.md)** — Guide to giving each ZIO Test spec its own SQLite database and rolling back writes.
+- **[How to Connect to PostgreSQL with a Connection Pool](../../guides/connect-to-postgresql-with-a-connection-pool.md)** — Guide that wires a HikariCP pool into `JdbcTransactor` for PostgreSQL.

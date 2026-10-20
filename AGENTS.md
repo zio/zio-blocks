@@ -119,6 +119,8 @@ Most `*-examples/` directories are **standalone sbt builds** (own `build.sbt` an
 
 `projection-examples` is the exception: it is a **root subproject** that depends on the local `projection.jvm` (like zio-http's `zio-http-example`), so its examples use the latest API without waiting for a release. It has no `build.sbt` of its own, and the CI example loop skips directories without one. Run it from the repository root: `sbt "projection-examples/runMain ..."`. Its SQLite files go in `projection-examples/.projection-examples/` (git ignores it), except `global/`, which the engine fixes.
 
+CI compiles the example projects on JDK 17 as well as JDK 25, and compiles the docs on JDK 17, so example and mdoc code must not call JDK 21+ APIs such as `Executors.newVirtualThreadPerTaskExecutor()` or `Thread.ofVirtual()`. Take an `ExecutorService` parameter instead and show the JDK 21 line in a plain fence. An example that needs a database (e.g. `sql-examples/.../postgrespool`) only has to compile in CI; run it locally against `docker run ... postgres:16` before committing.
+
 When you change, rename or move an example, update the docs that embed it (`grep -rn "mdoc:embed:.*<ExampleFile>" docs/`) in the same change, so their prose and quoted output still match; then run the example and mdoc on those pages.
 
 ## Cross-Version Code Structure
