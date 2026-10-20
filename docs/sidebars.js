@@ -469,6 +469,7 @@ const sidebars = {
     "guides/telemetry-guide",
     "guides/zio-schema-migration",
     "guides/generate-json-schema-and-validate-payloads",
+    "guides/llm-data-with-toon",
     {
       type: "category",
       label: "Query DSL",
