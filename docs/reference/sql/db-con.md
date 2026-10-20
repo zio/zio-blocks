@@ -229,7 +229,7 @@ trait DbTx extends DbCon {
 }
 ```
 
-[DbTx](./db-tx.md) documents the savepoint members and nested transactions. For `DbCon` code, the important part is the type itself: it makes the transactional / non-transactional boundary visible in method signatures. A method that requires `DbTx` cannot be called from a `connect` block, but a method that requires `DbCon` can be called from either. This asymmetry is enforced by the compiler: `DbTx <: DbCon` so `DbTx` satisfies a `DbCon` requirement, but a plain `DbCon` does not satisfy a `DbTx` requirement.
+[DbTx](./db-tx.md) documents the savepoint members and nested transactions. For `DbCon` code, the important part is the type itself: it makes the transactional / non-transactional boundary visible in method signatures. A method that requires `DbTx` compiles only inside a `Transactor#transact` block, while a method that requires `DbCon` works inside both `Transactor#connect` and `Transactor#transact`. The compiler enforces this asymmetry: `DbTx <: DbCon`, so `DbTx` satisfies a `DbCon` requirement, but a plain `DbCon` does not satisfy a `DbTx` requirement.
 
 The following example illustrates how to write a helper method that is restricted to transactional scope:
 
