@@ -137,6 +137,8 @@ A malformed document yields `ConfigError.ParseError` with `valid JSON` as the ex
 libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
 ```
 
+Moving an existing `application.conf` from Typesafe Config, PureConfig or zio-config? [Coming from PureConfig, Typesafe Config or zio-config](../../guides/config-library-migration.md) lists the HOCON features that behave differently and what to change.
+
 ### Parsing a String
 
 The package object mixes in both the shared and platform-specific syntax, so one import brings in every constructor available on the current platform:

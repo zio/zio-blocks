@@ -346,3 +346,7 @@ transactor.transact {
 ```
 
 Because `DbTx extends DbCon`, `upsertUser` works unchanged inside both `connect` and `transact`. This lets us design helper functions against the minimal context they need and promote them to transactional scope at the call site without modifying their signatures.
+
+## See Also
+
+- **[How to Test Database Code Against SQLite](../../guides/test-database-code-against-sqlite.md)** — Guide to giving each ZIO Test spec its own SQLite database and rolling back writes.

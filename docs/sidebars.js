@@ -460,6 +460,7 @@ const sidebars = {
     "guides/one-type-many-formats",
     "guides/typed-config-loader",
     "guides/your-first-sqlite-repository",
+    "guides/test-database-code-against-sqlite",
     "guides/your-first-html-page",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
@@ -468,6 +469,8 @@ const sidebars = {
     "guides/getting-started-with-mux",
     "guides/telemetry-guide",
     "guides/zio-schema-migration",
+    "guides/config-library-migration",
+    "guides/json-library-migration",
     "guides/generate-json-schema-and-validate-payloads",
     "guides/llm-data-with-toon",
     {
