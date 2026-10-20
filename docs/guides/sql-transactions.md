@@ -36,7 +36,7 @@ transactor.transact(TransactionIsolation.RepeatableRead, readOnly = false) {
 }
 ```
 
-The default overload uses `Serializable` isolation with `readOnly = false`, which matches the standard SQL default for transactional databases.
+The one-argument `Transactor#transact` sets neither the isolation level nor the read-only flag, so it never forces `Serializable`. It keeps the connection's current settings, which are the JDBC driver's defaults unless your connection pool configures them: on PostgreSQL that is `ReadCommitted`, and on SQLite every transaction behaves as `Serializable`, the only level SQLite supports. To get a specific level, use the two-argument overload shown above.
 
 ## TransactionIsolation
 
