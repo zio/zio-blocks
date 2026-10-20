@@ -57,7 +57,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 ```
 
-For Scala.js, use `%%%`. You can remove the circe, zio-json or jsoniter-scala dependency once the last codec is gone; the schema module has no third-party dependencies.
+For Scala.js, use `%%%`. You can remove the circe, zio-json or jsoniter-scala dependency once the last codec is gone; on the JVM the schema module has no third-party dependencies, and on Scala.js it adds only the `scala-java-time` libraries.
 
 This guide assumes you already know one of the three source libraries. It maps their concepts onto ZIO Blocks rather than teaching `Schema` from scratch, so if `Schema.derived`, `toJsonString` and `fromJson` are new to you, work through [Your First Schema](./your-first-schema.md) first. Every ZIO Blocks snippet below starts from these imports:
 
@@ -496,21 +496,21 @@ println(Book.codec.decode("""{"title":"Zionomicon","first_author":42}"""))
 
 ### Mapping `CodecMakerConfig`
 
-Most `CodecMakerConfig` options that shape the JSON have a `JsonCodecDeriver` counterpart. jsoniter-scala's `requireCollectionFields` and `requireDefaultFields` also make the encoder write those fields, so their counterparts combine two settings:
+Most `CodecMakerConfig` options that shape the JSON have a `JsonCodecDeriver` counterpart. jsoniter-scala's `requireCollectionFields` and `requireDefaultFields` also make the encoder write those fields, and so do their counterparts, so each is a single setting:
 
-| `CodecMakerConfig`                                       | `JsonCodecDeriver`                                                      |
-| -------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `withFieldNameMapper(JsonCodecMaker.enforce_snake_case)` | `withFieldNameMapper(NameMapper.SnakeCase)`                             |
-| `withAdtLeafClassNameMapper(f)`                          | `withCaseNameMapper(NameMapper.Custom(f))`                              |
-| `withDiscriminatorFieldName(Some("type"))` (default)     | `withDiscriminatorKind(DiscriminatorKind.Field("type"))`                |
-| `withDiscriminatorFieldName(None)`                       | `withDiscriminatorKind(DiscriminatorKind.Key)` (default)                |
-| `withTransientNone(b)`                                   | `withTransientNone(b)`                                                  |
-| `withTransientEmpty(b)`                                  | `withTransientEmptyCollection(b)`                                       |
-| `withTransientDefault(b)`                                | `withTransientDefaultValue(b)`                                          |
-| `withRequireCollectionFields(true)`                      | `withRequireCollectionFields(true).withTransientEmptyCollection(false)` |
-| `withRequireDefaultFields(true)`                         | `withRequireDefaultValueFields(true).withTransientDefaultValue(false)`  |
-| `withSkipUnexpectedFields(false)`                        | `withRejectExtraFields(true)`                                           |
-| `withCheckFieldDuplication(true)` (default)              | always on                                                               |
+| `CodecMakerConfig`                                       | `JsonCodecDeriver`                                       |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| `withFieldNameMapper(JsonCodecMaker.enforce_snake_case)` | `withFieldNameMapper(NameMapper.SnakeCase)`              |
+| `withAdtLeafClassNameMapper(f)`                          | `withCaseNameMapper(NameMapper.Custom(f))`               |
+| `withDiscriminatorFieldName(Some("type"))` (default)     | `withDiscriminatorKind(DiscriminatorKind.Field("type"))` |
+| `withDiscriminatorFieldName(None)`                       | `withDiscriminatorKind(DiscriminatorKind.Key)` (default) |
+| `withTransientNone(b)`                                   | `withTransientNone(b)`                                   |
+| `withTransientEmpty(b)`                                  | `withTransientEmptyCollection(b)`                        |
+| `withTransientDefault(b)`                                | `withTransientDefaultValue(b)`                           |
+| `withRequireCollectionFields(true)`                      | `withRequireCollectionFields(true)`                      |
+| `withRequireDefaultFields(true)`                         | `withRequireDefaultValueFields(true)`                    |
+| `withSkipUnexpectedFields(false)`                        | `withRejectExtraFields(true)`                            |
+| `withCheckFieldDuplication(true)` (default)              | always on                                                |
 
 Several options have no `JsonCodecDeriver` setting:
 
@@ -705,7 +705,7 @@ You gain:
 - **One derivation for every format.** The `Schema` that gives you JSON also gives you YAML, Avro, MessagePack, TOON and the other formats in [One Type, Many Formats](./one-type-many-formats.md), with the same annotations.
 - **Configuration you can see.** Rules are values on a `JsonCodecDeriver` or annotations on the type, not instances found through implicit search, so the codec a call site uses is the one it names.
 - **Errors with paths, never exceptions.** `fromJson` and `JsonCodec#decode` return `Either[SchemaError, A]`, and the message names the field that failed.
-- **No third-party dependencies.** The schema module runs on Scala 2.13 and 3, on the JVM and Scala.js.
+- **No third-party JSON dependencies.** The schema module runs on Scala 2.13 and 3, on the JVM and Scala.js, and needs no JSON library.
 
 What is different:
 
