@@ -513,6 +513,7 @@ You now have a solid foundation in the ZIO Blocks `sql` module. The next step is
 - **Curious about tables and DDL?** Read [Table](../reference/sql/table.md) for custom table and column names, and [Ddl](../reference/sql/ddl.md) for the statements it generates.
 - **Need to stream large results?** The [Frag](../reference/sql/frag.md) reference covers `queryStream` and `queryChunked`.
 - **Prefer building queries from Scala expressions?** [Query DSL with Reified Optics — Part 2: SQL Generation](./query-dsl-sql.md) turns typed query expressions into SQL.
+- **Moving to PostgreSQL?** [How to Connect to PostgreSQL with a Connection Pool](./connect-to-postgresql-with-a-connection-pool.md) sets up a HikariCP pool and builds the same `Repo` on PostgreSQL.
 - **Using ZIO?** [TransactorZIO](../reference/sql/transactor-zio.md) runs the same work as ZIO effects.
 - **Testing your database code?** [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) gives every test its own SQLite database and rolls back writes.
 - **Want the big picture?** The [SQL Module](../reference/sql/index.md) overview links to every `sql` reference page.
