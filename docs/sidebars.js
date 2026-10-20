@@ -455,6 +455,7 @@ const sidebars = {
   guides: [
     "guides/your-first-schema",
     "guides/customize-json-encoding",
+    "guides/override-codec-for-one-type",
     "guides/nested-data-with-optics",
     "guides/one-type-many-formats",
     "guides/typed-config-loader",
@@ -468,6 +469,7 @@ const sidebars = {
     "guides/zio-schema-migration",
     "guides/config-library-migration",
     "guides/generate-json-schema-and-validate-payloads",
+    "guides/llm-data-with-toon",
     {
       type: "category",
       label: "Query DSL",
