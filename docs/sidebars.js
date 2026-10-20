@@ -460,6 +460,7 @@ const sidebars = {
     "guides/one-type-many-formats",
     "guides/typed-config-loader",
     "guides/your-first-sqlite-repository",
+    "guides/test-database-code-against-sqlite",
     "guides/your-first-html-page",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
