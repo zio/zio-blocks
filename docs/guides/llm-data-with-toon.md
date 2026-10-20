@@ -471,4 +471,5 @@ sbt compile
 
 - The [TOON Codec Module](../reference/schema/built-in-codecs/toon.md) reference documents every `ToonCodecDeriver` option, including `ReaderConfig` and `WriterConfig`, key folding and discriminators.
 - The [Built-in Formats and Codecs](../reference/schema/built-in-codecs/index.md) overview shows the other formats you can derive from the same `Schema`.
+- The upcoming tutorial "One Type, Many Formats" encodes one type to TOON alongside JSON, YAML, CSV and other formats.
 - To ask the model for several picks, decode a record with a list field, such as `case class Picks(picks: List[Recommendation])`. The model can answer with a tabular block like `picks[2]{title,reason}:`.
