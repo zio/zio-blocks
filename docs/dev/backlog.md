@@ -19,21 +19,21 @@ This table tracks every item that has been written or started. Items not listed 
 | H-02 | How to customize JSON field names, ADT encoding and optional fields           | Done                                    | #1775, `guides/customize-json-encoding.md`                                              |
 | H-03 | How to override the codec for one type everywhere                             | Done                                    | #1781, `guides/override-codec-for-one-type.md`                                          |
 | H-12 | How to send compact data to an LLM with TOON and parse the reply              | Done                                    | #1774, `guides/llm-data-with-toon.md`                                                   |
-| H-31 | How to fix common Scope and Wire compile errors                               | Pushed, no PR                           | branch `scope-errors`, `guides/fix-scope-and-wire-compile-errors.md`                    |
-| M-01 | Coming from circe, zio-json or jsoniter-scala                                 | In review                               | #1785 (`circe-migration`), `guides/json-library-migration.md`                           |
-| H-47 | How to test database code against SQLite                                      | Pushed, no PR                           | branch `sqlite-testing`, `guides/test-database-code-against-sqlite.md`                  |
+| H-31 | How to fix common Scope and Wire compile errors                               | Done                                    | #1783, `guides/fix-scope-and-wire-compile-errors.md`                                    |
+| M-06 | Coming from PureConfig, Typesafe Config or zio-config                         | Done                                    | #1782, `guides/config-library-migration.md`                                             |
+| M-01 | Coming from circe, zio-json or jsoniter-scala                                 | Done                                    | #1785, `guides/json-library-migration.md`                                               |
+| H-47 | How to test database code against SQLite                                      | Done                                    | #1786, `guides/test-database-code-against-sqlite.md`                                    |
 | H-32 | How to roll out a feature gradually with flags                                | Pushed, no PR                           | branch `feature-flags`, `guides/roll-out-feature-gradually.md`                          |
 | T-06 | Build your first streaming pipeline                                           | Pushed, no PR                           | branch `streaming-pipeline`, `guides/your-first-streaming-pipeline.md`                  |
 | H-37 | How to issue and verify JWTs (plus `jwt.md` fixes)                            | Pushed, no PR                           | branch `jwt`, `guides/issue-and-verify-jwts.md`, `jwt-examples/`                        |
 | H-17 | How to connect to PostgreSQL with a connection pool                           | Pushed, no PR                           | branch `postgres-pool`, `guides/connect-to-postgresql-with-a-connection-pool.md`        |
-| M-06 | Coming from PureConfig, Typesafe Config or zio-config                         | Pushed, no PR                           | branch `pureconfig-migration-guide`, `guides/config-library-migration.md`; rebased onto main |
 | M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
 | H-28 | How to wrap callback and Future-based APIs in Async                           | Committed locally, not pushed           | worktree `async-interop` (2 commits)                                                    |
 | H-01 | How to add ZIO Blocks to your build                                           | Stalled: uncommitted, session exited    | worktree `adding-zio-block-to-build`; `guides/add-zio-blocks-to-your-build.md` + artifact fixes |
 | T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`              | Stalled: uncommitted, session exited    | worktree `evolve-data`; `guides/evolve-your-data.md`                                    |
 | T-08 | Describe a typed HTTP API with Endpoint                                       | Skipped (maintainer decision)           | —                                                                                       |
 
-**Related doc-fix PRs:** #1771 (config parse-error and `EnvSource` contradictions, merged), #1773 (codec reference pages, open). #1761 (`loadOrThrow` error count) was closed without merging.
+**Related doc-fix PRs:** #1771 (config parse-error and `EnvSource` contradictions, merged), #1784 (`codec.md` overrides, merged), #1773 (codec reference pages, open), #1787 (`type-class-derivation.md` snippet, open). #1761 (`loadOrThrow` error count) was closed without merging.
 
 **Unblocked since this backlog was compiled:**
 
