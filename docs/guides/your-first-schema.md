@@ -403,9 +403,9 @@ You now have a solid foundation in ZIO Blocks schemas. The next step is to tune 
 ## 12. Where to Go Next
 
 - **Want to see every extension method?** Read [Extension Syntax](../reference/schema/syntax.md), which covers `toJson`, `toJsonBytes`, `show` and more.
-- **Ready to customize the JSON?** The [JSON Codec](../reference/schema/built-in-codecs/json/index.md) overview shows how the codec pieces fit together, and [JSON Configuration](../reference/schema/built-in-codecs/json/json-config.md) covers reader and writer settings and field-name mapping with `NameMapper`.
+- **Ready to customize the JSON?** The [customization guide](./customize-json-encoding.md) walks through it task by task. The [JSON Codec](../reference/schema/built-in-codecs/json/index.md) overview shows how the codec pieces fit together, and [JSON Configuration](../reference/schema/built-in-codecs/json/json-config.md) covers reader and writer settings and field-name mapping with `NameMapper`.
 - **Want to understand errors in depth?** Read [SchemaError](../reference/schema/schema-error.md) for every error case and how errors are combined.
 - **Curious about the generic view?** Read [DynamicValue](../reference/schema/dynamic-value.md).
-- **Need another format?** The [Built-in Codecs](../reference/schema/built-in-codecs/index.md) overview lists Avro, BSON, CSV, MessagePack, Thrift, TOON, XML and YAML, all derived from the same `Schema`.
+- **Need another format?** Follow [One Type, Many Formats](./one-type-many-formats.md) to derive JSON, YAML, XML, TOON, MessagePack, Avro and CSV codecs from the same `Schema`. The [Built-in Codecs](../reference/schema/built-in-codecs/index.md) overview lists Avro, BSON, CSV, MessagePack, Thrift, TOON, XML and YAML, all derived from the same `Schema`.
 - **Need to validate incoming JSON?** Follow [How to Generate JSON Schema from a Type and Validate Payloads Against It](./generate-json-schema-and-validate-payloads.md) to derive a JSON Schema from your `Schema` and check payloads against it.
 - **Want the full API?** The [Schema](../reference/schema/schema.md) reference page documents every operation on `Schema`.

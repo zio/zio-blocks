@@ -454,10 +454,15 @@ const sidebars = {
   // Guides get their own sidebar, reached from the "Guides" navbar item, so the reference sidebar stays reference-only.
   guides: [
     "guides/your-first-schema",
+    "guides/customize-json-encoding",
+    "guides/nested-data-with-optics",
+    "guides/one-type-many-formats",
+    "guides/typed-config-loader",
     "guides/your-first-sqlite-repository",
     "guides/your-first-html-page",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
+    "guides/resource-and-di-migration",
     "guides/getting-started-with-mux",
     "guides/telemetry-guide",
     "guides/zio-schema-migration",

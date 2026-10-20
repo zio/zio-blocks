@@ -31,7 +31,7 @@ Add a block and use it. Nothing else to wire up—no runtime to install, no effe
 type to adopt:
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.54"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
 ```
 
 ```scala
@@ -49,6 +49,8 @@ val alice = Person("Alice", 30)
 val jsonStr = alice.toJsonString                      // {"name":"Alice","age":30}
 val parsed  = """{"name":"Bob","age":25}""".fromJson[Person]
 ```
+
+New to ZIO Blocks? Start with the [Your First Schema](docs/./guides/your-first-schema.md) tutorial.
 
 The four blocks below get a full walkthrough because they have no close
 equivalent elsewhere in Scala. Every other block is one row away in the catalog,
@@ -157,7 +159,7 @@ All of these ship in `zio-blocks-scope`.
 | [SQL Module](docs/./reference/sql/index.md) | `zio-blocks-sql` | JVM · JS | 3.x | Type-safe JDBC wrapper with schema-derived codecs and a CRUD repository |
 | [ZIO Integration](docs/./reference/sql-zio.md) | `zio-blocks-sql-zio` | JVM | 3.x | ZIO integration with `ZIO.attemptBlocking` and `ZLayer` |
 | [Data Migration](docs/./reference/data-migration.md) | `zio-blocks-data-migration` | JVM · JS | 3.x | Typed, online database schema migrations in three execution models, with no hand-written SQL |
-| [Projection](docs/./reference/projection.md) | `zio-blocks-projection` | JVM | 3.x | Event-sourced projections with per-entity SQLite storage |
+| [Projection](docs/./reference/projection/index.md) | `zio-blocks-projection` | JVM | 3.x | Event-sourced projections with per-entity SQLite storage |
 
 ### Tooling & Codegen
 
@@ -213,7 +215,7 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.54"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
 ```
 
 See the [Meta Programming](#meta-programming) rows above for the optional format modules.
@@ -240,6 +242,7 @@ val updated = Person.age.replace(person, 31)
 
 ### Learn More
 
+- [Your First Schema](docs/./guides/your-first-schema.md) — a getting-started tutorial: describe a type once, round-trip it through JSON, and read decode errors
 - [Schema reference](docs/./reference/schema/index.md) — the full API surface, from `Reflect` and `Binding` through optics, validation, and schema evolution
 - [Migrating from ZIO Schema](docs/./guides/zio-schema-migration.md) — a step-by-step port from ZIO Schema 1.x
 
@@ -305,7 +308,7 @@ Scope.global.scoped { scope =>
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.54"
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.56"
 ```
 
 ### Example
@@ -336,6 +339,7 @@ Scope.global.scoped { scope =>
 
 - [Compile-Time Resource Safety with Scope](docs/./guides/compile-time-resource-safety-with-scope.md) — the step-by-step tutorial, from basic resource management through dependency injection
 - [Resource Management reference](docs/./reference/resource-management/index.md) — `Scope`, `Resource`, `Wire`, `Unscoped`, and finalization order
+- [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](docs/./guides/resource-and-di-migration.md) — port `Resource`, `ZLayer`, macwire or `Using` code to `Scope`, `Resource` and `Wire`
 
 ---
 
@@ -377,7 +381,7 @@ val computed: Int =
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-async" % "0.0.54"
+libraryDependencies += "dev.zio" %% "zio-blocks-async" % "0.0.56"
 ```
 
 ### Example
@@ -402,7 +406,7 @@ val program: Async[Int] =
 
 - [Getting Started with Async](docs/./guides/async-getting-started.md) — create, compose, and run async effects
 - [Async reference](docs/./reference/async.md) — the full API, including `zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and `Future` / `CompletionStage` interop
-- [`async-examples`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala) — a single-file order-fulfillment demo (`sbt "++3.9.0; async-examples/run"`)
+- [`async-examples`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala) — a single-file order-fulfillment demo (`cd async-examples && sbt run`)
 
 ---
 
@@ -442,10 +446,10 @@ val frag = sql"SELECT * FROM user WHERE email = ${"alice@example.com"}"
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "0.0.54"
+libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "0.0.56"
 
 // Optional ZIO integration
-libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "0.0.54"
+libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "0.0.56"
 ```
 
 ### Example
@@ -496,8 +500,11 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ## Guides
 
+- [Your First Schema: Round-Trip a Type Through JSON](docs/./guides/your-first-schema.md) - Start here: describe a type once with `Schema`, then encode, decode, and read errors
+- [Build Your First Database Repository on SQLite](docs/./guides/your-first-sqlite-repository.md) - Connect to SQLite, derive a table and `Repo` from one schema, write your own queries, and roll back a transaction
 - [Getting Started with Async](docs/./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
 - [Compile-Time Resource Safety with Scope](docs/./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
+- [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](docs/./guides/resource-and-di-migration.md) - Move resource handling and dependency wiring to ZIO Blocks Scope, Resource, and Wire
 - [Getting Started with Mux](docs/./guides/getting-started-with-mux.md) - Manage multiplexed bidirectional message streams with capacity limits
 - [Telemetry: Architecture, Patterns, and Real-World Usage](docs/./guides/telemetry-guide.md) - Wire tracing, logging, and metrics into a running application
 - [Migrating from ZIO Schema](docs/./guides/zio-schema-migration.md) - Step-by-step migration from ZIO Schema 1.x to ZIO Blocks Schema
@@ -516,6 +523,7 @@ large enough to have several pages start from an overview:
   - [Schema Evolution](docs/./reference/schema/schema-evolution/index.md) - one-way and bidirectional type-safe conversions
 - [Telemetry](docs/./reference/telemetry/index.md) - tracing, logging, metrics, and OTLP export
 - [SQL](docs/./reference/sql/index.md) - codecs, fragments, tables, repositories, transactors, and dialects
+- [Projection](docs/./reference/projection/index.md) - event-sourced read models: `Projection[A]`, `ProjectionEngine`, and per-entity SQLite stores
 - [Resource Management](docs/./reference/resource-management/index.md) - `Scope`, `Resource`, `Wire`, `Unscoped`, and finalization
 - [Streams](docs/./reference/streams/index.md) - `Stream`, `Pipeline`, `Sink`, and the low-level readers and writers
 - [Endpoint](docs/./reference/endpoint/index.md) - endpoint descriptors, HTTP codecs, route patterns, and typed auth
