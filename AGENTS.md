@@ -75,6 +75,8 @@ sbt --client -Dsbt.color=false <command> >"$LOG" 2>&1; echo "Exit: $? | Log: $LO
 `<project>` = any project name from `sbt projects` (e.g., `schemaJVM`, `schemaJS`, `schema-avro`).
 
 Docs pages that open JDBC connections (the `sql` pages use `sqlite-jdbc`) pass `docs/mdoc` only once per sbt server: the second run fails with `No suitable driver found for jdbc:sqlite:...`, because `java.sql.DriverManager` loads drivers once per JVM and the new mdoc classloader can't see the old driver. Run `sbt --client shutdown` before re-running mdoc on such a page. CI is unaffected (fresh JVM).
+
+Docs pages that define flag objects (`StaticFlag`/`DynamicFlag` from `config`) share two global registries across every block and across reruns in the same sbt server. Start the page with an `mdoc:invisible` block that calls `FlagSource.Registry.clear()` and `Flag.registry.clear()`, and give every flag object on the page a distinct name, or you get `FlagDuplicateNameException`. A flag's name is its JVM class name, so in mdoc it carries the `repl.MdocSession.MdocApp.` prefix (see `docs/guides/roll-out-feature-gradually.md`).
 `<scala2>` = the 2.13.x version from `show crossScalaVersions`.
 
 Not every project supports every version — check `show <project>/crossScalaVersions` if
