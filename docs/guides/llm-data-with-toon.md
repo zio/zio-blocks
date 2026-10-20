@@ -83,7 +83,7 @@ This guide assumes you can derive a `Schema` for a case class and read a `Schema
 
 ## The Book Catalog
 
-Our catalog holds three books. Each `Book` has only primitive fields, which is what lets TOON lay the list out as a table. The `tags` field is a single comma-separated string rather than a `List[String]` for that reason. A `Catalog` wraps the list in a named field, so the TOON header reads `books[3]{...}:`, a label the model can refer to.
+Our catalog holds three books. Each `Book` has only primitive fields, which is what lets TOON lay the list out as a table. The `tags` field is a single comma-separated string rather than a `List[String]` for that reason. A `Catalog` wraps the list in a named field, so the TOON header reads `books[3]{...}:`, a label the model can refer to. To define the catalog:
 
 ```scala mdoc:silent
 case class Book(title: String, firstAuthor: String, year: Int, tags: String)
@@ -113,7 +113,7 @@ The tabular layout needs every field of the record to be a primitive value: a st
 
 ## Encoding the Records for a Prompt
 
-`ToonCodecDeriver` is the deriver behind `ToonFormat`, and its `with*` methods return a configured copy. We call `withArrayFormat(ArrayFormat.Tabular)` to ask for the tabular layout, derive a codec for `Catalog` with it, and encode the catalog with `encodeToString`:
+`ToonCodecDeriver` is the deriver behind `ToonFormat`, and its `ToonCodecDeriver#with*` methods return a configured copy. We call `ToonCodecDeriver#withArrayFormat(ArrayFormat.Tabular)` to ask for the tabular layout, derive a codec for `Catalog` with it, and encode the catalog with `ToonCodec#encodeToString`:
 
 ```scala mdoc:silent
 val tabular = ToonCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
@@ -137,6 +137,8 @@ For comparison, here is the same catalog as JSON, from the `toJsonString` extens
 val catalogJson = catalog.toJsonString
 ```
 
+To print the JSON text and compare its length with the TOON text:
+
 ```scala mdoc
 println(catalogJson)
 println(s"JSON: ${catalogJson.length} characters, TOON: ${catalogToon.length} characters")
@@ -150,11 +152,13 @@ The savings grow with the number of rows and shrink with the shape of the data. 
 
 `ArrayFormat` has four cases: `Auto`, `Tabular`, `Inline` and `List`. The default deriver, the one `derive(ToonFormat)` uses, is set to `Auto`. In practice, `Auto` writes a list of records in list form, one `- ` item per record with every field name repeated, even when the records are flat and uniform. Only `ArrayFormat.Tabular` produces the table.
 
-Let's encode the same catalog with both settings:
+To compare the two layouts, encode the same catalog with both settings:
 
 ```scala mdoc:silent
 val autoToon = Catalog.schema.derive(ToonFormat).encodeToString(catalog)
 ```
+
+To print both encodings and their lengths side by side:
 
 ```scala mdoc
 println("ArrayFormat.Auto:")
@@ -170,9 +174,9 @@ The list form is valid TOON and decodes back to the same `Catalog`, but it repea
 
 ## Choosing a Delimiter
 
-With the default comma delimiter, any value that contains a comma must be quoted, as the `tags` column showed. `withDelimiter` picks a different column separator: `Delimiter.Comma` (the default), `Delimiter.Tab` or `Delimiter.Pipe`. A fourth case, `Delimiter.None`, exists for the reader's internal use and isn't meant for encoding.
+With the default comma delimiter, any value that contains a comma must be quoted, as the `tags` column showed. `ToonCodecDeriver#withDelimiter` picks a different column separator: `Delimiter.Comma` (the default), `Delimiter.Tab` or `Delimiter.Pipe`. A fourth case, `Delimiter.None`, exists for the reader's internal use and isn't meant for encoding.
 
-Here is the catalog with each delimiter:
+To see how each delimiter changes the encoded table:
 
 ```scala mdoc
 for (delimiter <- List(Delimiter.Comma, Delimiter.Pipe, Delimiter.Tab)) {
@@ -195,13 +199,15 @@ The codec reads its own output back without any extra setting:
 val pipeCodec = Catalog.schema.derive(tabular.withDelimiter(Delimiter.Pipe))
 ```
 
+To check that the codec reads its own output back:
+
 ```scala mdoc
 println(pipeCodec.decode(pipeCodec.encodeToString(catalog)) == Right(catalog))
 ```
 
 ## Building the Prompt
 
-A prompt is a plain string, so we build it with ordinary Scala. It holds three things: a short instruction, the TOON block, and a description of the reply we want. Naming the reply's fields and showing their shape makes it far more likely that the model answers in a form our decoder accepts.
+A prompt is a plain string, so we build it with ordinary Scala. It holds three things: a short instruction, the TOON block, and a description of the reply we want. Naming the reply's fields and showing their shape makes it far more likely that the model answers in a form our decoder accepts. To assemble the prompt:
 
 ```scala mdoc:silent
 val catalogPipeToon = pipeCodec.encodeToString(catalog)
@@ -230,7 +236,7 @@ println(prompt)
 
 ## Decoding the Model's Reply
 
-The model's answer is described by a case class like any other type. We derive its codec with `withRejectExtraFields(true)`, so any key the case class doesn't declare is an error instead of being ignored. The reason for that choice shows up below, when the model adds prose.
+The model's answer is described by a case class like any other type. We derive its codec with `ToonCodecDeriver#withRejectExtraFields(true)`, so any key the case class doesn't declare is an error instead of being ignored. The reason for that choice shows up below, when the model adds prose. To define the reply type and its strict codec:
 
 ```scala mdoc:silent
 case class Recommendation(title: String, reason: String)
@@ -243,13 +249,15 @@ val replyCodec: ToonCodec[Recommendation] =
   Recommendation.schema.derive(ToonCodecDeriver.withRejectExtraFields(true))
 ```
 
-Suppose the model answered with this text. `decode` returns an `Either[SchemaError, Recommendation]`:
+Suppose the model answered with this text. `ToonCodec#decode` returns an `Either[SchemaError, Recommendation]`:
 
 ```scala mdoc:silent
 val reply =
   """title: Zionomicon
     |reason: It teaches ZIO, an effect system for Scala, from first steps to concurrency.""".stripMargin
 ```
+
+To decode the reply:
 
 ```scala mdoc
 println(replyCodec.decode(reply))
@@ -259,7 +267,7 @@ A single record's value runs to the end of its line, so the commas in `reason` n
 
 ### Reading a Malformed Reply
 
-Models don't always follow instructions. `decode` turns each kind of mistake into a `Left`, and the error's `message` names the field at fault and its path (`.` is the top-level record):
+Models don't always follow instructions. `ToonCodec#decode` turns each kind of mistake into a `Left`, and the error's `message` names the field at fault and its path (`.` is the top-level record):
 
 ```scala mdoc:silent
 val malformedReplies = List(
@@ -270,6 +278,8 @@ val malformedReplies = List(
 )
 ```
 
+To decode each malformed reply and print its error:
+
 ```scala mdoc
 for ((label, text) <- malformedReplies)
   replyCodec.decode(text) match {
@@ -278,11 +288,13 @@ for ((label, text) <- malformedReplies)
   }
 ```
 
-The last case is the reason for `withRejectExtraFields(true)`. The line `Sure! Here is my pick:` ends with a colon, so TOON reads it as a key named `Sure! Here is my pick`. With the default deriver, unknown keys are skipped, and that prose would be accepted without a word:
+The last case is the reason for `ToonCodecDeriver#withRejectExtraFields(true)`. The line `Sure! Here is my pick:` ends with a colon, so TOON reads it as a key named `Sure! Here is my pick`. With the default deriver, unknown keys are skipped, and that prose would be accepted without a word:
 
 ```scala mdoc:silent
 val lenientCodec = Recommendation.schema.derive(ToonFormat)
 ```
+
+To decode the prose-prefixed reply with the lenient codec:
 
 ```scala mdoc
 println(lenientCodec.decode("Sure! Here is my pick:\ntitle: Zionomicon\nreason: It teaches ZIO."))
@@ -292,7 +304,7 @@ Rejecting extra fields turns that silent pass into an error you can log, retry o
 
 ### Stripping Prose and Code Fences
 
-A common reply shape wraps the TOON in a Markdown code fence, with prose before and after it. That text isn't TOON, so `decode` rejects it:
+A common reply shape wraps the TOON in a Markdown code fence, with prose before and after it. That text isn't TOON, so `ToonCodec#decode` rejects it:
 
 ```scala mdoc:silent
 val chattyReply =
@@ -305,6 +317,8 @@ val chattyReply =
     |
     |Enjoy the book!""".stripMargin
 ```
+
+To decode the chatty reply with the strict codec:
 
 ```scala mdoc
 println(replyCodec.decode(chattyReply).left.map(_.message))
@@ -445,6 +459,12 @@ Run the complete example from the `schema-examples` directory:
 
 ```bash
 sbt "runMain llmdatawithtoon.CompleteExample"
+```
+
+To compile every example at once without running them:
+
+```bash
+sbt compile
 ```
 
 ## Going Further
