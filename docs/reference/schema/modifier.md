@@ -392,4 +392,4 @@ This means you can serialize modifiers as part of your schema metadata, allowing
 
 ## See Also
 
-- [How to Customize JSON Field Names, ADT Encoding and Optional Fields](../guides/customize-json-encoding.md): a task-oriented guide that applies `rename`, `alias` and `transient` to a real model.
+- [How to Customize JSON Field Names, ADT Encoding and Optional Fields](../../guides/customize-json-encoding.md): a task-oriented guide that applies `rename`, `alias` and `transient` to a real model.

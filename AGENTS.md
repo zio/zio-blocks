@@ -53,8 +53,8 @@ sbt projects
 sbt 'show crossScalaVersions'              # note the 2.13.x version
 
 # sbt command template (use for ALL sbt invocations):
-ROOT="$(git rev-parse --show-toplevel)" && mkdir -p "$ROOT/.git/agent-logs"
-LOG="$ROOT/.git/agent-logs/sbt-$(date +%s)-$$.log"
+GD="$(git rev-parse --absolute-git-dir)" && mkdir -p "$GD/agent-logs"   # works in worktrees, where .git is a file
+LOG="$GD/agent-logs/sbt-$(date +%s)-$$.log"
 sbt --client -Dsbt.color=false <command> >"$LOG" 2>&1; echo "Exit: $? | Log: $LOG"
 # Query: tail -50 "$LOG" or grep -i error "$LOG"
 
