@@ -108,7 +108,7 @@ val catalog = Catalog(
 )
 ```
 
-The code above builds the one value we export in every section that follows. Notice that two of the author lists contain commas — that detail matters when we reach CSV.
+The code above builds the one value we export in every section that follows. Notice that every author list contains a comma — that detail matters when we reach CSV.
 
 ## 4. Encode to JSON the Long Way
 
@@ -314,10 +314,7 @@ import zio.blocks.schema.csv.CsvFormat
 println(scala.util.Try(Book.schema.derive(CsvFormat)))
 ```
 
-The code above:
-
-- `import zio.blocks.schema.csv.CsvFormat` brings the CSV format object into scope.
-- `scala.util.Try(...)` wraps the derivation so we can print the failure instead of stopping the program.
+The code above imports `CsvFormat` from `zio.blocks.schema.csv` and wraps the derivation in `scala.util.Try(...)`, so we can print the failure instead of stopping the program.
 
 The exception is thrown at run time, when we call `Schema#derive`, not at compile time. The CSV deriver rejects lists, maps, `Option` fields and sealed traits in the same way.
 
