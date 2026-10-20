@@ -487,6 +487,132 @@ List("name = \"Scala Bookstore\"\ntags = [scala,\n", "a = ${missing}").foreach {
 
 **Suggested fix.** Append the cause message in `ParseError#message` whatever the path, and override `getCause` to return the cause. Record the position of each substitution when parsing, and use it for resolution errors. Add a `HoconConfigSourceSpec` test that asserts the full message of a syntax error.
 
+### Streams: a blocking terminal throws the internal `AsyncBoundaryRequired` signal when `catchAll` sits inside `flatMap` and a stateful operator follows
+
+Found 2026-10-20 while writing the tutorial `docs/guides/your-first-streaming-pipeline.md` (backlog T-06), on `main` at `db589bd0`. The `streams/` and `async/` sources are the same at tag `v0.0.56`.
+
+**Summary.** Recovering per element — `catchAll` (or `||`) on the inner stream of a `flatMap` — works on its own, but as soon as a stateful operator such as `grouped`, `sliding`, `scan` or `mapAccum` follows it, every JVM blocking terminal (`runCollect`, `run`, `runForeach`, …) throws `zio.blocks.streams.Stream$AsyncBoundaryRequired$: asynchronous stream boundary`. That object is a `private[streams]` control-flow signal with no stack trace; users are never supposed to see it. The `*Async` terminals return the right result for the same stream.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-streams` 0.0.56, run with `scala-cli run .`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+//> using option -experimental
+
+import zio.blocks.async._
+import zio.blocks.streams._
+
+@main def repro1(): Unit = {
+  final case class Bad(line: String)
+
+  def parse(line: String): Stream[Bad, Int] =
+    line.toIntOption match {
+      case Some(n) => Stream.succeed(n)
+      case None    => Stream.fail(Bad(line))
+    }
+
+  val lines = Stream("1", "x", "3")
+
+  // Recover per element: catchAll on the inner stream of flatMap.
+  val numbers: Stream[Nothing, Int] = lines.flatMap(line => parse(line).catchAll(_ => Stream.empty))
+
+  println(numbers.runCollect)
+  // Right(Chunk(1,3))
+
+  println(numbers.runCollectAsync.block)
+  // Right(Chunk(1,3))
+
+  try println(numbers.grouped(2).runCollect)
+  catch { case t: Throwable => println(s"threw ${t.getClass.getName}: ${t.getMessage}") }
+  // threw zio.blocks.streams.Stream$AsyncBoundaryRequired$: asynchronous stream boundary
+}
+```
+
+The same exception is thrown with `sliding(2, 2)`, `scan`, `mapAccum`, `grouped(2).run(sink)` and `grouped(2).runForeach(...)`, and with `parse(line) || Stream.empty` in place of `catchAll`. Moving `catchAll` outside the `flatMap` (`lines.flatMap(parse).catchAll(...).grouped(2)`) does not throw.
+
+**Expected.** `numbers.grouped(2).runCollect` returns `Right(Chunk(Chunk(1,3)))`, the same value as `numbers.grouped(2).runCollectAsync.block`.
+
+**Root cause.** Recovery nodes cannot run in the synchronous interpreter, so `CatchAll.compileInterpreter` throws the internal signal (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:3755`; `CatchDefect` at `:3782` and `AsyncUnary` at `:5024` do the same). The only handler is `Stream.compileBlockingFallback` (`Stream.scala:3379-3383`), which guards the up-front compile of the whole stream and falls back to the reader-based engine. With a stateful operator downstream, the blocking run uses the `SyncInterpreter`, which compiles each inner stream of `flatMap` lazily, while pulling: `SyncInterpreter.handlePush` calls `innerStreamRef.compileInterpreter(this)` (`streams/shared/src/main/scala/zio/blocks/streams/internal/SyncInterpreter.scala:1394`). A `jdb` trace shows the signal thrown there, rethrown by `handlePush`'s rollback handler (`:1410-1416`) and by the read's failure handler (`:713`), and leaving `Stream.runBlocking` (`Stream.scala:1428`) because no fallback exists at pull time.
+
+**Impact.** Per-element error recovery inside `flatMap` is the usual way to skip bad input, and batching with `grouped` is the usual next step, so ordinary pipelines crash on the JVM blocking terminals with an exception that names an internal type. The docs tutorial works around it by recovering on the outer stream, which stops the stream at the first bad element.
+
+**Test gap.** No spec combines a `flatMap` whose inner stream uses `catchAll`, `||` or another recovery node with a stateful operator downstream and a blocking terminal.
+
+**Suggested fix.** Before compiling a pushed inner stream in `SyncInterpreter.handlePush`, check whether it can run synchronously, and when it cannot, compile it with `stream.compile` and bridge the resulting reader in, as `compileBlockingFallback` does for the whole stream. Alternatively, make the up-front blocking compile detect recovery nodes under `flatMap` and pick the fallback engine from the start. Add a regression spec for each stateful operator listed above.
+
+### Streams: a blocking terminal deadlocks inside an object initializer once `catchAll` is in the pipeline
+
+Found 2026-10-20 while building the companion examples for `docs/guides/your-first-streaming-pipeline.md` (backlog T-06), on `main` at `db589bd0`. The `streams/` and `async/` sources are the same at tag `v0.0.56`.
+
+**Summary.** On the JVM, a blocking terminal such as `runCollect` or `run` on a stream that contains `catchAll` runs the stream on `ForkJoinPool.commonPool` and parks the calling thread until it finishes. When the caller is a class initializer — the body of a Scala 3 `object ... extends App`, or any `val` in an `object` — and a function in the pipeline reads a field of that object, the program hangs forever: the worker waits for the class to finish initializing, and the initializer waits for the worker.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-streams` 0.0.56, run with `scala-cli run .`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+//> using option -experimental
+
+import zio.blocks.streams._
+
+object Repro2 extends App {
+  val header = "header"
+
+  def parse(line: String): Stream[String, Int] =
+    line.toIntOption match {
+      case Some(n) => Stream.succeed(n)
+      case None    => Stream.fail(line)
+    }
+
+  val numbers: Stream[Nothing, Int] =
+    Stream("header", "1", "2", "x")
+      .filter(line => line != header) // reads the object's field `header`
+      .flatMap(parse)
+      .catchAll(_ => Stream.empty)
+
+  println("running")
+  println(numbers.runCollect) // never returns
+  println("done")
+}
+// running
+// (the program hangs here; killed by `timeout 120`)
+```
+
+The same program prints `Right(Chunk(1,2))` and `done` when the code moves into `def main(args: Array[String]): Unit`, or when the filter compares with the literal `"header"` instead of the field. Without `catchAll` it prints `Left(x)` and `done`. In the tutorial's companion examples, `runAsync(sink).block` hung in the same way.
+
+A thread dump of the tutorial's companion example `Concept8CatchAllExample` (the same shape, hung in `object ... extends App`) shows the two threads:
+
+```text
+"main" WAITING (parking)
+  at zio.blocks.async.Async$slowPath$.block(Async.scala:2360)
+  at zio.blocks.streams.io.AsyncToSyncReader.drive(AsyncToSyncReader.scala:168)
+  at zio.blocks.streams.io.AsyncToSyncReader.read(AsyncToSyncReader.scala:277)
+  at zio.blocks.streams.Sink$.foldSyncReader(Sink.scala:1210)
+  at zio.blocks.streams.Stream.runBlocking(Stream.scala:1428)
+  at zio.blocks.streams.StreamPlatformSpecific.run(StreamPlatformSpecific.scala:66)
+  at yourfirststreamingpipeline.Concept8CatchAllExample$.<clinit>(Concept8CatchAllExample.scala:75)
+
+"ForkJoinPool.commonPool-worker-1"
+  at yourfirststreamingpipeline.Concept8CatchAllExample$.header(Concept8CatchAllExample.scala:35)
+  - waiting on the Class initialization monitor for yourfirststreamingpipeline.Concept8CatchAllExample$
+  at zio.blocks.streams.internal.SyncInterpreter$.adaptFilter$$anonfun$9(SyncInterpreter.scala:1731)
+  at zio.blocks.streams.io.Reader$FilteredRef.read(Reader.scala:3341)
+  at zio.blocks.streams.internal.AsyncInterpreter$InterpreterSyncReader.read(AsyncInterpreter.scala:2702)
+  ...
+  at zio.blocks.async.internal.AsyncRunner$SuspendedRunning.$anonfun$2$$anonfun$1(AsyncRunner.scala:211)
+```
+
+**Expected.** A blocking terminal runs the stream on the calling thread, or at least never deadlocks because of where it is called from: the program prints `Right(Chunk(1,2))` and `done`.
+
+**Root cause.** `catchAll` cannot run in the synchronous interpreter, so `Stream.compileBlockingFallback` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:3379-3383`) compiles the stream with the async reader engine. The blocking read then goes through `AsyncToSyncReader.drive` (`streams/jvm/src/main/scala/zio/blocks/streams/io/AsyncToSyncReader.scala:160-168`), which starts the read with `Async.startRegistered` — scheduled on the `commonPool` by `AsyncRunner` (`async/jvm/src/main/scala/zio/blocks/async/internal/AsyncRunner.scala:211`) — and parks the caller with `running.block`. User functions in the pipeline therefore run on a pool thread while the caller holds the JVM class-initialization lock. Scala 3 lambdas are static methods of the enclosing object, so calling them, and reading the object's fields, waits for that lock.
+
+**Impact.** `object Main extends App` is the first thing most Scala users write, and the streams module's own examples use it. A pipeline works until someone adds `catchAll`, then hangs silently with no error. The tutorial's companion examples hit this and had to switch to `def main`; the tutorial page carries a caution about it.
+
+**Test gap.** No spec runs a blocking terminal from inside a class initializer, or checks which thread runs user functions under a blocking terminal.
+
+**Suggested fix.** For blocking terminals, drive the async engine on the calling thread (poll the pollable in a loop on the caller instead of scheduling it on the pool and parking), so user code never moves to another thread. If that is not possible, document on the blocking terminals that the stream may run on `ForkJoinPool.commonPool`, and that calling them from a class initializer can deadlock.
+
 ### config: Rollout buckets depend on the key alone, so every percentage rollout picks the same users
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/roll-out-feature-gradually.md` (backlog H-32), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`.

@@ -23,13 +23,13 @@ This table tracks every item that has been written or started. Items not listed 
 | M-01 | Coming from circe, zio-json or jsoniter-scala                                 | Pushed, no PR                           | branch `circe-migration`, `guides/json-library-migration.md`                            |
 | H-47 | How to test database code against SQLite                                      | Pushed, no PR                           | branch `sqlite-testing`, `guides/test-database-code-against-sqlite.md`                  |
 | H-32 | How to roll out a feature gradually with flags                                | Pushed, no PR                           | branch `feature-flags`, `guides/roll-out-feature-gradually.md`                          |
+| T-06 | Build your first streaming pipeline                                           | Pushed, no PR                           | branch `streaming-pipeline`, `guides/your-first-streaming-pipeline.md`                  |
 | M-06 | Coming from PureConfig, Typesafe Config or zio-config                         | Pushed, no PR                           | branch `pureconfig-migration-guide`, `guides/config-library-migration.md`; rebased onto main |
 | H-17 | How to connect to PostgreSQL with a connection pool                           | Committed locally, not pushed           | worktree `postgres-pool` (5 commits)                                                    |
 | M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
 | H-28 | How to wrap callback and Future-based APIs in Async                           | Committed locally, not pushed           | worktree `async-interop` (2 commits)                                                    |
 | H-37 | How to issue and verify JWTs (plus `jwt.md` fixes)                            | Stalled: uncommitted, session exited    | worktree `jwt`                                                                          |
 | H-01 | How to add ZIO Blocks to your build                                           | Stalled: uncommitted, session exited    | worktree `adding-zio-block-to-build`; `guides/add-zio-blocks-to-your-build.md` + artifact fixes |
-| T-06 | Build your first streaming pipeline                                           | Stalled: uncommitted, session exited    | worktree `streaming-pipeline`; `guides/your-first-streaming-pipeline.md`                |
 | T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`              | Stalled: uncommitted, session exited    | worktree `evolve-data`; `guides/evolve-your-data.md`                                    |
 | T-08 | Describe a typed HTTP API with Endpoint                                       | Skipped (maintainer decision)           | —                                                                                       |
 
@@ -42,7 +42,9 @@ This table tracks every item that has been written or started. Items not listed 
 - T-09 merged, so T-10 (HTMX) and T-11 (Datastar) have their prerequisite, but both still need an HTTP adapter (H-35).
 - PR #1742 (projection docs) merged on 2026-10-20. T-14 now waits only on issue #1744, which has grown to sixteen engine problems.
 
-**Waiting on stalled items:** H-04 and M-07 need T-02; H-24, H-25 and M-04 need T-06.
+**Unblocked by T-06 (pushed):** H-20, H-24, H-25 and M-04 can start once it merges. H-24 should cover `Stream.fromResource`, which T-06 left out.
+
+**Waiting on stalled items:** H-04 and M-07 need T-02.
 
 **Library follow-ups found while writing** (full write-ups, ready to file, are in `docs/dev/issues.md`):
 
