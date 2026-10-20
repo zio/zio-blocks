@@ -454,6 +454,7 @@ const sidebars = {
   // Guides get their own sidebar, reached from the "Guides" navbar item, so the reference sidebar stays reference-only.
   guides: [
     "guides/your-first-schema",
+    "guides/customize-json-encoding",
     "guides/nested-data-with-optics",
     "guides/one-type-many-formats",
     "guides/typed-config-loader",
