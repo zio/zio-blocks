@@ -437,6 +437,7 @@ const sidebars = {
     "guides/your-first-schema",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
+    "guides/fix-scope-and-wire-compile-errors",
     "guides/getting-started-with-mux",
     "guides/telemetry-guide",
     "guides/zio-schema-migration",
