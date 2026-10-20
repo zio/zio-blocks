@@ -189,10 +189,7 @@ val programmingInScala = Book("Programming in Scala", Author("Martin Odersky"), 
 val zionomicon = Book("Zionomicon", Author("John A. De Goes"), Ebook(5.2), 3)
 ```
 
-The code above:
-
-- `$(_.format.when[Paperback].pages)` reads as "the format, if it is a `Paperback`, then its page count".
-- `programmingInScala` is a paperback, and `zionomicon` is an ebook in our sample data.
+The code above reads `$(_.format.when[Paperback].pages)` as "the format, if it is a `Paperback`, then its page count", and defines `programmingInScala` as a paperback and `zionomicon` as an ebook in our sample data.
 
 :::caution
 Path steps such as `.when[B]`, `.each` and `.atKey(k)` exist only inside an object that extends `CompanionOptics`. Declare optics that use them in the companion object, as we do here. Outside it, the compiler reports an error such as ``value each is not a member of List[Shelf]``.
@@ -336,10 +333,7 @@ println(Inventory.zionomiconPrice.getOption(inventory))
 println(Inventory.zionomiconPrice.replace(inventory, BigDecimal("44.99")).prices)
 ```
 
-The code above:
-
-- `getOption(inventory)` returns the current price, wrapped in `Some`.
-- `replace(inventory, BigDecimal("44.99"))` returns a new inventory with the new price; we print only its `prices` to keep the output short.
+The code above looks up the current price with `getOption(inventory)`, which returns it wrapped in `Some`, and builds a new inventory with the new price using `replace(inventory, BigDecimal("44.99"))`; we print only its `prices` to keep the output short.
 
 Now let's see what an `Optional` does with the missing key:
 
@@ -364,10 +358,7 @@ Book.paperbackPages.modifyOrFail(zionomicon, _ + 16) match {
 }
 ```
 
-The code above:
-
-- `Book.paperbackPages.modifyOrFail(zionomicon, _ + 16)` returns a `Left`, because Zionomicon's format is an `Ebook`.
-- `check.message` names the full path of the optic, the step where it stopped, the case it expected and the case it found.
+The code above calls `Book.paperbackPages.modifyOrFail(zionomicon, _ + 16)`, which returns a `Left` because Zionomicon's format is an `Ebook`; `check.message` names the full path of the optic, the step where it stopped, the case it expected and the case it found.
 
 Now let's try to raise the missing price:
 
@@ -403,10 +394,7 @@ println(stockPath)
 println(Inventory.allStock.toDynamic == stockPath)
 ```
 
-The code above:
-
-- `p".shelves[*].books[*].stock"` writes the path from section 6 as a string; `[*]` means "every element", like `.each`.
-- `Inventory.allStock.toDynamic` turns the typed traversal into its `DynamicOptic`, and the comparison prints `true`.
+The code above writes the path from section 6 as the string `p".shelves[*].books[*].stock"`, where `[*]` means "every element", like `.each`, and turns the typed traversal into its `DynamicOptic` with `Inventory.allStock.toDynamic`; the comparison prints `true`.
 
 A `DynamicOptic` works on `DynamicValue`, the generic data view from [Your First Schema](./your-first-schema.md#8-look-at-the-same-data-two-more-ways). Let's convert the inventory and select the stock values with the string path:
 
