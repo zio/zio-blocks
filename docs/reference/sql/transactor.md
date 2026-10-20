@@ -62,8 +62,11 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 
 implicit val userCodec: DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
 
-val repo       = Repo.derived[User, Int]("users", "id", _.id)
-val transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
+
+// A file-backed database, so the table created in `transact` is still there in `connect`
+val dbFile     = java.nio.file.Files.createTempFile("users", ".db")
+val transactor = JdbcTransactor.fromUrl(s"jdbc:sqlite:$dbFile", SqlDialect.SQLite)
 
 // transact: auto-commit disabled; commits on success, rolls back on exception
 transactor.transact {
@@ -143,7 +146,7 @@ val postgres: JdbcTransactor =
 ```
 
 :::caution
-`fromUrl` opens a new physical connection for every `connect` or `transact` call and does no pooling. For applications with concurrent workloads, prefer `fromDataSource` backed by a pooling `DataSource`.
+`fromUrl` opens a new physical connection for every `connect` or `transact` call and does no pooling. For applications with concurrent workloads, prefer `fromDataSource` backed by a pooling `DataSource`. Because every call gets a new connection, `jdbc:sqlite::memory:` gives each `Transactor#connect` or `Transactor#transact` block its own empty database: tables and rows created in one block are gone in the next. Use a file URL such as `jdbc:sqlite:/path/to/app.db` when data must outlive a single block.
 :::
 
 ### `JdbcTransactor.postgres` — PostgreSQL convenience factory
