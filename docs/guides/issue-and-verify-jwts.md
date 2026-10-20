@@ -13,7 +13,7 @@ keywords:
 
 In this guide, we will issue a JSON Web Token (JWT) for a reader of a Scala bookstore and verify it the way an API would. By the end, you will have a small program that signs a token with `Jwt.sign`, checks it with `Jwt.decode`, and turns every kind of bad token into a typed `JwtError`.
 
-A JWT is just a signed string. Issuing one means "claims plus key gives a `String`". Verifying one means "`String` plus key gives either the claims or an error". So we need no HTTP server here. The program plays both sides in memory, with a fixed clock so that every result below is the same on every run:
+The program plays both sides in memory, with no HTTP server and a fixed clock, so that every result below is the same on every run:
 
 - the **bookstore auth service** issues tokens, and
 - the **catalog API** verifies them before showing a reader their purchased books.
@@ -77,7 +77,7 @@ val now: Long = 1767225600L
 val secret: Array[Byte] = "sample-bookstore-secret-32-bytes".getBytes(UTF_8)
 ```
 
-We also add a tiny helper that prints the outcome of a verification. We'll use it for every check below:
+We also add a tiny helper that prints the outcome of a verification. It is used for every check below:
 
 ```scala mdoc:silent
 def report(result: Either[JwtError, JwtClaims]): Unit = result match {
@@ -158,7 +158,7 @@ println(verified)
 println(verified.map(_.extra.get("titles")))
 ```
 
-The algorithm argument is the one the **verifier** expects, not the one the token claims. We'll see why that matters in the next sections.
+The algorithm argument is the one the **verifier** expects, not the one the token claims. The next sections show why that matters.
 
 :::note
 In production, leave `nowSeconds` unset (it defaults to `None`). The check then uses `System.currentTimeMillis() / 1000`.
@@ -192,7 +192,7 @@ Wiring this into a real server's request pipeline is a separate topic. ZIO Block
 
 ## Seeing Every Failure
 
-Every way a token can be wrong is a small edit to a string or to the decode options. Let's make them one at a time and look at the error each gives.
+Every way a token can be wrong is a small edit to a string or to the decode options. We make them one at a time and look at the error each gives.
 
 First, an attacker rewrites the payload to claim another reader's identity and keeps the original signature:
 
@@ -612,6 +612,14 @@ The complete example from "Putting It Together" runs everything in one program:
 
 ```bash
 sbt "runMain issueandverifyjwts.CompleteExample"
+```
+
+### Compile All Examples
+
+To compile every example in the project without running any of them, run this from the `jwt-examples` directory:
+
+```bash
+sbt compile
 ```
 
 ## Going Further
