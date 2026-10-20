@@ -198,7 +198,7 @@ println(formatCodec.encodeToString(Format.Paperback(320)))
 println(formatCodec.decode("""{"type":"Ebook","size_mb":4.5}"""))
 ```
 
-There is no equivalent of `withDefaults` to turn on: a field with a default value is filled in when it is missing from the input, and left out of the output when it holds that value. If the rule belongs to one type rather than to the service you talk to, annotate the type with `@Modifier.fieldNaming("snake_case")` or `@Modifier.discriminator("type")` instead, and the plain `toJsonString` picks it up. [How to Customize JSON Field Names, ADT Encoding and Optional Fields](./customize-json-encoding.md) covers every option and when to pick an annotation over a deriver setting.
+There is no equivalent of `Configuration#withDefaults` to turn on: a field with a default value is filled in when it is missing from the input, and left out of the output when it holds that value. If the rule belongs to one type rather than to the service you talk to, annotate the type with `@Modifier.fieldNaming("snake_case")` or `@Modifier.discriminator("type")` instead, and the plain `toJsonString` picks it up. [How to Customize JSON Field Names, ADT Encoding and Optional Fields](./customize-json-encoding.md) covers every option and when to pick an annotation over a deriver setting.
 
 ### Custom Codecs for One Type
 
@@ -274,7 +274,7 @@ circe returns an `io.circe.Error`, either a `ParsingFailure` or a `DecodingFailu
 }
 ```
 
-The path after `at:` starts at `.` for the top-level value, so `.year` is the `year` field of the book. circe's `Decoder[Int]` accepts the string `"2024"`, so circe decodes this input; ZIO Blocks requires a JSON number. `SchemaError` extends `Exception`, so code that converts the result with `Either#toTry` or rethrows the error keeps working.
+The path after `at:` names the failing field and starts at `.` for the top-level value; here it points at the `year` field of the book. circe's `Decoder[Int]` accepts the string `"2024"`, so circe decodes this input; ZIO Blocks requires a JSON number. `SchemaError` extends `Exception`, so code that converts the result with `Either#toTry` or rethrows the error keeps working.
 
 ### What Changes
 
@@ -436,7 +436,7 @@ The full mapping, including the annotations not shown here:
 - **`fromJson` returns `Either[SchemaError, A]`.** Use `SchemaError#message` where you need the old `String`.
 - **Encoders in implicit scope are ignored.** In zio-json, an implicit `JsonEncoder[LocalDate]` and `JsonDecoder[LocalDate]` change every derived codec; register a `JsonCodec[LocalDate]` with `JsonCodecDeriver.withInstance` instead. See the [traps](#an-implicit-codec-in-scope-is-ignored).
 - **`@Modifier.rename` replaces the name.** Like `@jsonField`, the Scala name is no longer accepted; add `@Modifier.alias` with the old name if clients still send it. See the [traps](#modifierrename-drops-the-scala-name).
-- **Empty collections are left out.** zio-json writes `"tags":[]`; ZIO Blocks omits the field, and decodes a missing collection as empty where zio-json fails with `.tags(missing)`. See the [traps](#none-and-empty-collections-are-left-out). `None` is omitted by both.
+- **Empty collections are left out.** zio-json writes `"tags":[]`; ZIO Blocks omits the field, and decodes a missing collection as empty where zio-json fails with a missing-field error for `tags`. See the [traps](#none-and-empty-collections-are-left-out). `None` is omitted by both.
 - **Numbers must be JSON numbers.** zio-json decodes `"year":"2024"` into an `Int`; ZIO Blocks rejects it.
 - **Transient fields need a default.** A `@Modifier.transient()` field must have a default value unless it is an `Option` or a collection; `Schema.derived` reports the missing default at compile time.
 
@@ -696,7 +696,7 @@ val circeShaped: JsonCodec[Book] =
 println(circeShaped.encodeToString(zionomicon))
 ```
 
-`JsonCodecDeriver#withTransientDefaultValue(false)` does the same for fields that hold their default value. [Control Optional Fields, Empty Collections and Defaults](./customize-json-encoding.md#control-optional-fields-empty-collections-and-defaults) covers the matching decoder settings, which make missing fields an error.
+`JsonCodecDeriver#withTransientDefaultValue(false)` does the same for fields that hold their default value. [Control Optional Fields, Empty Collections and Defaults](./customize-json-encoding.md#control-optional-fields-empty-collections-and-defaults) covers the matching decoder settings, which make missing fields an error; `JsonCodecDeriver#withRequireCollectionFields(true)` and `JsonCodecDeriver#withRequireDefaultValueFields(true)` also make the encoder write empty collections and default values.
 
 ## What You Gain and What Is Different
 
