@@ -10,7 +10,7 @@ keywords:
   - "Virtual Threads"
 ---
 
-In this guide, we connect the ZIO Blocks `sql` module to a PostgreSQL server through a HikariCP connection pool. By the end, you will have a `JdbcTransactor` that borrows connections from a pool configured from environment variables, a health check, a bookstore repository running on PostgreSQL, and a pool that closes when your program is done with it.
+In this guide, we connect the ZIO Blocks `sql` module to a PostgreSQL server through a HikariCP connection pool. By the end, you will have a [`JdbcTransactor`](../reference/sql/transactor.md) that borrows connections from a pool configured from environment variables, a health check, a bookstore repository running on PostgreSQL, and a pool that closes when your program is done with it.
 
 We start from an empty build and add one piece at a time:
 
@@ -105,7 +105,7 @@ def bookstorePoolConfig(): HikariConfig = {
 The code above sets the JDBC URL and user name from `BOOKSTORE_DB_URL` and `BOOKSTORE_DB_USER`, with defaults that match the Docker command. The password has no default: `sys.env("BOOKSTORE_DB_PASSWORD")` throws a `NoSuchElementException` naming the variable when it is missing, so a misconfigured deployment fails at startup. `HikariConfig#setPoolName` names the pool in log lines and error messages. `HikariConfig#setMaximumPoolSize` caps the pool at 10 connections, which is also HikariCP's default; we size it properly in [Size the Pool for Many Concurrent Callers](#size-the-pool-for-many-concurrent-callers). `HikariConfig#setConnectionTimeout` makes a caller wait at most 5 seconds for a free connection instead of the default 30 seconds.
 
 :::tip
-If you load your settings with [ZIO Blocks Config](../reference/config/index.md), read the password as a [`Secret`](../reference/config/config-source.md#secrets). Its `toString` is always `<secret>`, so it can't leak into logs, and `Secret.unwrap` gives you the `String` to pass to `HikariConfig#setPassword`.
+If you load your settings with [ZIO Blocks Config](../reference/config/index.md), as in [Build a Typed Configuration Loader](./typed-config-loader.md), read the password as a [`Secret`](../reference/config/config-source.md#secrets). `Secret#toString` is always `<secret>`, so the password can't leak into logs, and `Secret.unwrap` gives you the `String` to pass to `HikariConfig#setPassword`.
 :::
 
 Creating a `HikariDataSource` from the config starts the pool:
@@ -159,10 +159,7 @@ def serverVersion()(using DbCon): String =
   sql"SELECT version()".queryOne[String].getOrElse("unknown")
 ```
 
-The code above:
-
-- `isHealthy` borrows a connection, runs `SELECT 1` and checks the answer with `Maybe#contains`. When the database is down, or the pool can't hand out a connection within the connection timeout, the JDBC call throws an `SQLException` and `isHealthy` returns `false`.
-- `serverVersion` asks PostgreSQL for its version string, which is a quick way to confirm which server the URL points to. It takes a `DbCon` from its caller instead of a transactor, like `findByTitle` in the SQLite tutorial, so we run it with `transactor.connect(serverVersion())`.
+The code above defines two functions. `isHealthy` borrows a connection, runs `SELECT 1` and checks the answer with `Maybe#contains`. When the database is down, or the pool can't hand out a connection within the connection timeout, the JDBC call throws an `SQLException` and `isHealthy` returns `false`. `serverVersion` asks PostgreSQL for its version string, which is a quick way to confirm which server the URL points to. It takes a `DbCon` from its caller instead of a transactor, like `findByTitle` in the SQLite tutorial, so we run it with `transactor.connect(serverVersion())`.
 
 From here on, we write the database work as functions with a `using DbCon` parameter and leave the choice of `JdbcTransactor#connect` or `JdbcTransactor#transact`, and of the transaction settings, to the caller. This shape also lets us use the work with a transactor that a `Scope` manages, as we see in [Close the Pool with a Scope](#close-the-pool-with-a-scope).
 
@@ -189,7 +186,7 @@ The only thing that changes is the dialect we pass to `Table#createTable`. With 
 println(bookTable.createTable(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL))
 ```
 
-`Long` becomes `BIGINT`, `Int` becomes `INTEGER` and `String` becomes `TEXT`; on SQLite, both `Long` and `Int` became `INTEGER`. Now let's create the table and put three books on the shelf:
+`Long` becomes `BIGINT`, `Int` becomes `INTEGER` and `String` becomes `TEXT`; on SQLite, both `Long` and `Int` map to `INTEGER`. To create the table and put three books on the shelf:
 
 ```scala mdoc:silent
 def stockShelf()(using DbCon): List[Book] = {
@@ -205,10 +202,7 @@ def restockShelf(transactor: JdbcTransactor): List[Book] =
   transactor.transact(stockShelf())
 ```
 
-The code above:
-
-- `stockShelf` runs the `CREATE TABLE IF NOT EXISTS` statement, empties the table with `Repo#clear` so it gives the same result every time we run it, inserts three books and reads them back with `Repo#all`.
-- `restockShelf` runs `stockShelf` in one transaction. PostgreSQL can run DDL inside a transaction, so if any insert fails, the whole block is rolled back, the `CREATE TABLE` included.
+The code above defines two functions. `stockShelf` runs the `CREATE TABLE IF NOT EXISTS` statement, empties the table with `Repo#clear` so it gives the same result every time we run it, inserts three books and reads them back with `Repo#all`. `restockShelf` runs `stockShelf` in one transaction. PostgreSQL can run DDL inside a transaction, so if any insert fails, the whole block is rolled back, the `CREATE TABLE` included.
 
 :::caution
 The generated `CREATE TABLE` declares no primary key, so PostgreSQL won't stop two rows from sharing an `id`. That is fine for a demo; in production, create your tables with a migration tool and declare the keys there. See [Table](../reference/sql/table.md) for what `Table#createTable` generates.
@@ -304,8 +298,18 @@ In a long-running service, wrap the whole application in one `Scope#scoped` bloc
 Most problems show up as an exception from `HikariDataSource`'s constructor or from the first `JdbcTransactor#connect`:
 
 - **The pool doesn't start.** The `HikariDataSource` constructor throws `HikariPool.PoolInitializationException` when it can't open its first connection, and the message names the real problem. `Failed to initialize pool: Connection to localhost:5432 refused` means nothing listens at the host and port in the URL; `Failed to initialize pool: FATAL: password authentication failed for user "bookstore"` means the credentials are wrong.
-- **`Connection is not available, request timed out`.** Every connection was in use for the whole connection timeout, and HikariCP threw an `SQLTransientConnectionException` whose message ends with the pool's state, such as `(total=1, active=1, idle=0, waiting=0)`. Either the pool is too small for the load, or connections are held too long. A common cause is calling `JdbcTransactor#connect` or `JdbcTransactor#transact` inside another such block: the inner call borrows a second connection, and with a small pool, every thread can end up holding one connection while it waits for another. Inside a transaction, use the `DbTx` you already have, as [SQL Transactions](./sql-transactions.md) shows. HikariCP's `leakDetectionThreshold` setting logs a warning with a stack trace for any connection that stays out of the pool longer than the threshold.
+- **`Connection is not available, request timed out`.** Every connection stays in use for the whole connection timeout, and HikariCP throws an `SQLTransientConnectionException` whose message ends with the pool's state, such as `(total=1, active=1, idle=0, waiting=0)`. Either the pool is too small for the load, or connections are held too long. A common cause is calling `JdbcTransactor#connect` or `JdbcTransactor#transact` inside another such block: the inner call borrows a second connection, and with a small pool, every thread can end up holding one connection while it waits for another. Inside a transaction, use the `DbTx` you already have, as [SQL Transactions](./sql-transactions.md) shows. HikariCP's `leakDetectionThreshold` setting logs a warning with a stack trace for any connection that stays out of the pool longer than the threshold.
 - **The connection must be encrypted.** The PostgreSQL driver's default `sslmode` is `prefer`, which encrypts only when the server offers TLS and never checks the server's certificate. To require TLS and verify both the certificate and the host name, add the parameters to the URL, for example `jdbc:postgresql://db.example.com:5432/bookstore?sslmode=verify-full&sslrootcert=/etc/ssl/certs/bookstore-root.crt`. `sslmode=require` encrypts without verifying the certificate. The [PostgreSQL JDBC SSL documentation](https://jdbc.postgresql.org/documentation/ssl/) lists every mode.
+
+To make HikariCP log a warning for any connection held for more than 10 seconds, set the leak detection threshold on the config:
+
+```scala mdoc:silent
+def leakDetectingPoolConfig(): HikariConfig = {
+  val config = bookstorePoolConfig()
+  config.setLeakDetectionThreshold(10000)
+  config
+}
+```
 
 ## Putting It Together
 
@@ -429,6 +433,12 @@ The complete example from "Putting It Together" runs everything from this guide 
 
 ```bash
 sbt "runMain postgrespool.CompleteExample"
+```
+
+To compile every example without running them, which needs no database:
+
+```bash
+sbt compile
 ```
 
 When you are done, stop the database container:
