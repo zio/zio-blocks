@@ -4,6 +4,8 @@ Internal list of library bugs found while writing documentation. Each entry is w
 
 ## `Schema.fromJsonSchema` treats every property as required, ignoring `"required"`
 
+Filed as [zio/zio-blocks#1776](https://github.com/zio/zio-blocks/issues/1776).
+
 Found 2026-10-20 while writing the how-to guide `docs/guides/generate-json-schema-and-validate-payloads.md` (backlog H-05), on `main` at `32866f71`. The code is the same at tag `v0.0.56`.
 
 **Summary.** The JSON decoder of the `Schema[Json]` returned by `Schema.fromJsonSchema` rejects any object that leaves out a property listed in `"properties"`, even when `"required"` does not list it. A payload that conforms to the JSON Schema (`JsonSchema#check` returns `None`) fails to decode with `missing required field`.
