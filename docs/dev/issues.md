@@ -884,6 +884,8 @@ A thread dump of the tutorial's companion example `Concept8CatchAllExample` (the
 
 ### jwt: `Jwt.sign` writes a registered claim twice when `extra` also contains it, and verifiers read the `extra` value
 
+Documented in #1789 (H-37, merged). Not filed on GitHub yet.
+
 Found 2026-10-20 while writing the how-to guide `docs/guides/issue-and-verify-jwts.md` (backlog H-37), on `main` at `ad0821d2`. The jwt sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56.
 
 **Summary.** `JwtClaims` has typed fields for the registered claims (`iss`, `sub`, `aud`, `exp`, `nbf`, `iat`, `jti`) and a free-form `extra` map. If `extra` also contains one of these names, `Jwt.sign` writes the claim twice into the signed payload. Every JSON parser that keeps the last duplicate, including this module's own decoder, then reads the `extra` value, not the typed field. The issuer believes it signed `iss = "bookstore-auth"`; every verifier sees `iss = "partner-auth"`. RFC 7519 §4 says claim names within a claims set MUST be unique, so the issuer produces a non-conforming token without any error.
@@ -926,6 +928,8 @@ println(Jwt.decode(token, secret, Algorithm.HS256, JwtDecodeOptions(issuer = Som
 **Suggested fix.** Validate in `Jwt.sign` (or in `JwtClaims.render`) that `extra.keySet` and the registered names are disjoint, and return `Left(JwtError.InvalidClaim(name, ...))` otherwise. Add a test per registered name.
 
 ### jwt: `JwtSignOptions.limits` does not apply the JSON-shape limits, and two Scaladocs contradict the code
+
+Documented in #1789 (H-37, merged). Not filed on GitHub yet.
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/issue-and-verify-jwts.md` (backlog H-37). Verified by running against the published 0.0.56.
 
@@ -1629,7 +1633,6 @@ case class Database(url: String) extends AutoCloseable {
 
 **Other modules**
 
-- `jwt.md` documents an audience mismatch as `InvalidToken`; the source returns `InvalidClaim("aud", ...)` (`Jwt.scala:451-453`). It also omits `InvalidClaim` and `InvalidKey` and gives no key-format guidance. Fixed on branch `jwt` (H-37, no PR yet), commit `6345247d`; the `JwtDecodeOptions` Scaladoc (`Jwt.scala:131-132`) still says `InvalidToken` (see the jwt entry above).
 - `transactor-zio.md` mentions `JdbcTransactor.postgresLayer` without saying it is an extension that needs `import zio.blocks.sql.zio.*` (sql-zio). Found while writing H-17.
 - `html.md`: artifact name for Scala 3.7+, `Css.Declaration`, `hx-*` URL attributes, `selector""`. Filed as #1766.
 - `streams/index.md:78` lists Kyo RC6 and Ox 1.0.6; the build pins RC7 and 1.1.0.
@@ -1639,6 +1642,7 @@ case class Database(url: String) extends AutoCloseable {
 
 ## Resolved
 
+- `jwt.md`: audience mismatch documented as `InvalidToken` (it is `InvalidClaim("aud", ...)`), missing `InvalidClaim`/`InvalidKey` rows, no key-format guidance, no frontmatter. Fixed in #1789 (H-37). The `JwtDecodeOptions` Scaladoc (`Jwt.scala:131-132`) still says `InvalidToken`; see the jwt entry above.
 - `sql-transactions.md`: the Hikari recipe, "JDK 25+" virtual-thread claim and "pool size equals database max connections" advice were replaced by a link to H-17's guide (virtual threads are final in JDK 21, JEP 444; JEP 491 shipped in JDK 24; pool sizing must keep the sum of all pools under `max_connections`). Also fixed: `.query[Int].toOne` (no such method; `queryOne[Long]`) and the unsupported "read-only avoids WAL writes" claim. On branch `postgres-pool` (H-17, no PR yet).
 - `codec.md` never mentioned `Deriver#withInstance`/`withModifier`, and its BinaryCodec/TextCodec paragraph was wrong (`CsvCodec` extends `TextCodec`; XML and YAML extend `BinaryCodec`; `BsonCodec` extends neither). New "Overriding a Type on a Deriver" subsection and fix in #1784 (merged).
 - Stale example: `schema-examples/src/main/scala/deriveroverrides/CompleteExample.scala` predated #1348 and showed no codec override. Rewritten in #1781 to demonstrate type, term-name and optic overrides with a round trip and the current run command.
