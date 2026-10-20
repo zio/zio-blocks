@@ -281,3 +281,5 @@ Distinct keys are capped at 100. Once that many have been seen, every new key is
 `Rollout` depends only on `Maybe` and `ConfigError`. It is used by `DynamicFlag` for initialization, updates, reloads, and every evaluation, and it can be used directly wherever a path-and-percentage decision is needed without a flag object.
 
 See [Flags](./flags.md) for the flag types that drive it, and [Errors](./errors.md) for the error type its parser returns.
+
+See also the [How to Roll Out a Feature Gradually with Flags](../../guides/roll-out-feature-gradually.md) guide, which writes rollout expressions for a percentage and a region and widens them at runtime.

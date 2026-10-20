@@ -969,6 +969,8 @@ println(signed.flatMap(t => Jwt.decode(t, secret, Algorithm.HS256, JwtDecodeOpti
 
 ### config: Rollout buckets depend on the key alone, so every percentage rollout picks the same users
 
+Documented in #1788 (H-32, merged). Not filed on GitHub yet.
+
 Found 2026-10-20 while writing the how-to guide `docs/guides/roll-out-feature-gradually.md` (backlog H-32), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`.
 
 **Summary.** `DynamicFlag` buckets a call with `Rollout.bucketFor(key)`, which hashes only the key. The flag's name is not part of the hash. Two features that are both rolled out to 10% of users, keyed by the same user id, reach exactly the same users. A user in a low bucket gets every early rollout at once, and a bug report from that group cannot be attributed to one feature. Rollout tools hash the flag key together with the user key so that rollouts are independent.
@@ -1001,6 +1003,8 @@ object WishlistSharing      extends DynamicFlag[Boolean](false, "true@*/10%; fal
 **Suggested fix.** Bucket on `name + ":" + key` inside `DynamicFlag` (keep `Rollout.bucketFor(key)` as is for direct use), or add an optional salt parameter that defaults to the flag name. This moves existing users between buckets, so mention it in the release notes.
 
 ### config: `Rollout.validate` assumes percentages are slices, but evaluation treats them as thresholds
+
+Documented in #1788 (H-32, merged). Not filed on GitHub yet.
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/roll-out-feature-gradually.md` (backlog H-32), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`.
 
@@ -1038,6 +1042,8 @@ def share(expr: String, value: String): Int = {
 **Suggested fix.** Pick one meaning. Either keep thresholds and make `validate` warn when a choice's percentage is less than or equal to an earlier choice's on the same pattern (it is shadowed), dropping the sum check; or switch evaluation to slices (each choice takes the next `n` buckets) so the sum check is correct. Update `rollout.md` to match.
 
 ### config: `Flag.dump` prints `StaticFlag[String]` values even when the flag's name marks it as sensitive
+
+Documented in #1788 (H-32, merged). Not filed on GitHub yet.
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/roll-out-feature-gradually.md` (backlog H-32), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`.
 
@@ -1078,6 +1084,8 @@ object FreeShipping extends StaticFlag[Int](35)
 **Suggested fix.** In `Flag.dump`, render `<secret>` when `Sensitive.isSensitive(name)` holds, whatever the type, and apply the same rule to a dynamic flag's expression.
 
 ### config: `DynamicFlag` accepts expressions whose values its reader cannot parse, and a selector without `%` silently becomes a path
+
+Documented in #1788 (H-32, merged). Not filed on GitHub yet.
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/roll-out-feature-gradually.md` (backlog H-32), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`.
 
