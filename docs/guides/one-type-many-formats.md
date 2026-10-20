@@ -266,7 +266,7 @@ avroCodec.decode(avroBytes) == Right(catalog)
 
 The code above shows that Avro is the smallest export so far. Its bytes contain no field names at all: `06` is the number of books (Avro writes 3 as `06`), `14` is the length of the first title (10), and the next ten bytes spell `Zionomicon`. A reader needs the Avro schema to know which value is which field, and the codec derived that from `Catalog.schema` as well — `AvroCodec#avroSchema` returns it.
 
-ZIO Blocks has two more binary formats that follow the same pattern: Thrift (`ThriftFormat` in `zio-blocks-schema-thrift`) and BSON (`zio-blocks-schema-bson`), both JVM only.
+ZIO Blocks has two more binary formats, both JVM only: Thrift, derived with `ThriftFormat` from `zio-blocks-schema-thrift`, and BSON, derived with `BsonCodecDeriver` from `zio-blocks-schema-bson`.
 
 ## 10. Flatten the Catalog for CSV
 
