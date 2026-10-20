@@ -594,5 +594,5 @@ You now have a solid foundation in ZIO Blocks optics. The next step is to explor
 
 - **Want the full optics API?** Read [Optics](../reference/schema/optics.md), which covers every operation on `Lens`, `Prism`, `Optional` and `Traversal`, building optics by hand, composing optics and their debug-friendly `toString`.
 - **Need paths at run time?** Read [DynamicOptic](../reference/schema/dynamic-optic.md) and the [Path Interpolator](../reference/schema/path-interpolator.md) syntax.
-- **Want to understand failures in depth?** The `OpticCheck` section of [Optics](../reference/schema/optics.md) lists every kind of failure an optic can report.
+- **Want to understand failures in depth?** The [Failure Path in OpticCheck](../reference/schema/dynamic-optic.md#failure-path-in-opticcheck) section of DynamicOptic shows the kinds of failure an optic can report, such as a wrong case, an empty sequence and a missing map key.
 - **Ready to build on optics?** The four-part Query DSL series starts with [Writing a Query DSL with Reified Optics](./query-dsl-reified-optics.md), then [SQL](./query-dsl-sql.md), [Extending the DSL](./query-dsl-extending.md) and the [Fluent Builder](./query-dsl-fluent-builder.md).
