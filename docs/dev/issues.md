@@ -181,7 +181,9 @@ Found 2026-10-20 while writing T-09. Verified. Not filed.
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
 
-- **`toJsonString` ignores codecs built with `Schema#derive`.** `toJson`, `toJsonString` and `fromJson` always use `schema.jsonCodec`, the default deriver (`Schema.scala:38`, `syntax.scala:32-40`). A customised codec must be called directly. Found while writing H-02.
+- **`toJsonString` ignores codecs built with `Schema#derive`.** `toJson`, `toJsonString` and `fromJson` always use `schema.jsonCodec`, the default deriver (`Schema.scala:38`, `syntax.scala:32-40`). A customised codec must be called directly. Found while writing H-02; confirmed while writing H-03.
+- **An implicit `JsonCodec[LocalDate]` in scope is ignored by derivation.** `JsonCodecDeriver` always uses its built-in `localDateCodec` (`JsonCodecDeriver.scala:310`). Users coming from circe expect a codec in implicit scope to be picked up. Use `Deriver#withInstance` instead. Found while writing H-03.
+- **Deriver-level overrides beat builder-level overrides for the same key.** `DerivationBuilder` merges `instanceOverrides ++ deriver.instanceOverrides` and `.toMap` keeps the last entry (`DerivationBuilder.scala:125`), so a one-off `DerivationBuilder#instance` cannot override a `Deriver#withInstance` for the same type. Most users expect the narrower scope to win. Documented in H-03, but worth reconsidering. Found while writing H-03.
 - **`@Modifier.rename` drops the original name.** An `Option` field sent under its Scala name silently decodes to `None`. Use `@Modifier.alias` to accept both. Found while writing H-02.
 - **`.each`, `.when` and `.atKey` work only inside the companion.** They are members of `CompanionOptics`, so `Inventory.$(_.shelves.each...)` written at a call site does not compile (`value each is not a member of List[Shelf]`). Found while writing T-03.
 - **A chatty TOON reply decodes as if it were clean.** A prose line ending in `:` (for example `Sure! Here is my pick:`) is read as an unknown key and skipped by default. `withRejectExtraFields(true)` catches it. Found while writing H-12.
@@ -197,6 +199,14 @@ Seen 2026-10-20 on PR #1773 (docs only, touches nothing in `streams/` or `async/
 ### mdoc: `mdoc:fail` on Scala 3 ignores earlier `:reset` sections
 
 Seen 2026-10-20 while writing H-02. A `mdoc:fail` block after a `mdoc:silent:reset` reports bogus "already defined" errors for names from before the reset, so the expected compile error cannot be shown. H-02 described that error in prose instead. Pages that rely on `mdoc:fail` (H-31) should check their rendered output.
+
+### `DeriverWithInstanceCsvSpec` asserts with `.contains`
+
+Found 2026-10-20 while writing H-03. The schema-csv spec checks rendered output with `.contains`, against the AGENTS.md rule to assert the full rendered string with `==`. A regression in field order or separators would pass.
+
+### `schema-examples` has no scalafmt setup
+
+Found 2026-10-20 while writing H-03. The standalone `schema-examples/` build has no scalafmt plugin or config, so `sbt scalafmtAll` in the root build does not format it. Sessions format example files by hand or with `cs launch scalafmt -- --config .scalafmt.conf`. Add the plugin (or a `.scalafmt.conf` symlink) to the example builds, or document the command in AGENTS.md.
 
 ### Docs build memory with many sbt servers
 
@@ -218,6 +228,9 @@ Pages that contradict the source. None of these were copied into the new guides.
 - `validation.md:304` uses `JsonDecoder[Order].decodeString`; `JsonDecoder` was removed in #1240.
 - `json-schema.md:366` shows an error message without the ` at: <path>` suffix that `SchemaError.message` adds. The page also does not mention the `pattern` anchoring behaviour above.
 - `ValidationOptions` Scaladoc (`JsonSchema.scala:376-377`) says format checks are annotation-only by default; the code defaults to `validateFormats = true`.
+- `codec.md` never mentions `Deriver#withInstance` or `Deriver#withModifier` (#1348). Its "Using Schema.deriving for Customization" section shows only the per-derivation `DerivationBuilder` path. Found while writing H-03.
+- `type-class-derivation.md:170`: the first example (`customDateCodec`) contains a `// ... AST overrides ...` placeholder, so it is not complete, compilable code. Found while writing H-03.
+- `schema-examples/src/main/scala/deriveroverrides/CompleteExample.scala` says custom codec derivation with instance overrides "requires an updated API". It predates #1348, contains no codec override at all, and its run header uses the old `sbt "schema-examples/runMain ..."` form. Rewrite it with `Deriver#withInstance`, or delete it. Found while writing H-03.
 
 **schema / optics and paths**
 

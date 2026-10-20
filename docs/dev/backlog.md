@@ -19,9 +19,9 @@ This table tracks every item that has been written or started. Items not listed 
 | H-12 | How to send compact data to an LLM with TOON and parse the reply              | In review                               | #1774 (`toon-llm`)                                                                      |
 | H-31 | How to fix common Scope and Wire compile errors                               | Pushed, no PR                           | branch `scope-errors`; 1 uncommitted file in its worktree                               |
 | H-02 | How to customize JSON field names, ADT encoding and optional fields           | Pushed, no PR                           | branch `customize-json-fields`, `guides/customize-json-encoding.md`                     |
+| H-03 | How to override the codec for one type everywhere                             | Pushed, no PR                           | branch `override-codec`, `guides/override-codec-for-one-type.md`                        |
 | H-17 | How to connect to PostgreSQL with a connection pool                           | Committed locally, not pushed           | worktree `postgres-pool` (5 commits)                                                    |
 | M-06 | Coming from PureConfig, Typesafe Config or zio-config                         | Committed locally, not pushed           | worktree `pureconfig-migration` (9 commits); based on the pre-squash `config-loader`, needs a rebase onto main |
-| H-03 | How to override the codec for one type everywhere                             | Committed locally, not pushed           | worktree `override-codec` (3 commits)                                                   |
 | M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
 | H-28 | How to wrap callback and Future-based APIs in Async                           | Committed locally, not pushed           | worktree `async-interop` (2 commits)                                                    |
 | H-37 | How to issue and verify JWTs (plus `jwt.md` fixes)                            | Stalled: uncommitted, session exited    | worktree `jwt`                                                                          |
@@ -39,7 +39,7 @@ This table tracks every item that has been written or started. Items not listed 
 - T-09 merged, so T-10 (HTMX) and T-11 (Datastar) have their prerequisite, but both still need an HTTP adapter (H-35).
 - PR #1742 (projection docs) merged on 2026-10-20. T-14 now waits only on issue #1744, which has grown to sixteen engine problems.
 
-**Unblocked by H-02:** M-01 (P0, 14/15) can start; it should link H-03, which is written but not pushed.
+**Unblocked by H-02 and H-03:** M-01 (P0, 14/15) can start; both pages it links to are pushed.
 
 **Waiting on stalled items:** H-04 and M-07 need T-02; H-24, H-25 and M-04 need T-06.
 
