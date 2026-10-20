@@ -11,7 +11,8 @@ test('build writes site.json with the version substituted and copies brand asset
 
   const site = JSON.parse(readFileSync(join(out, 'src/data/site.json'), 'utf8'));
   assert.equal(site.version, '9.9.9');
-  assert.equal(site.hero.install, 'libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "9.9.9"');
+  assert.equal(site.hero, undefined);
+  assert.equal(site.deepDives[0].install, 'libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "9.9.9"');
   assert.equal(site.blockCount, site.categories.flatMap((c) => c.blocks).length);
   assert.ok(site.blockCount >= 40);
   // One tile per artifact across the whole page (blocks that ship in the same artifact are collapsed).

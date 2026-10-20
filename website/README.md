@@ -23,9 +23,10 @@ full build.
 ## The `docs/index.md` contract
 
 The parser fails the build, naming the row, if the page changes shape. It relies on: the bold tagline line, the
-`## What Is ZIO Blocks?` (its second paragraph becomes the hero `lead`), `## Core Principles`, `## Getting Started`, `## All Blocks` (one `###` per category, with
+`## What Is ZIO Blocks?` (its second paragraph becomes the hero `lead`), `## Core Principles`, `## All Blocks` (one `###` per category, with
 a five-column table `Block | Artifact | Platform | Scala | Description`), `## Schema`/`Scope`/`Async`/`SQL` (each
-with `### The Problem`, `### The Solution`, `### Learn More`), `## Compatibility`, and `## Guides` sections.
+with `### The Problem`, `### The Solution`, `### Installation` (its `libraryDependencies` block is shown in the deep-dive tab),
+`### Learn More`), `## Compatibility`, and `## Guides` sections.
 Links in prose (descriptions, notes, deep-dive text) must be `https://` URLs or `./` docs paths; docs paths are
 rewritten to site-relative URLs (`/reference/...`) and checked against `docs/` at build time. Platforms are `JVM`/`JS`; Scala versions are `2.13`/`3.x`. On the page there is one tile per artifact: rows that share an
 artifact (Scope, Resource, Unscoped, ... and Wire all live in `zio-blocks-scope`) are collapsed into the first row, a
