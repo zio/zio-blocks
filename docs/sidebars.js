@@ -461,6 +461,7 @@ const sidebars = {
     "guides/typed-config-loader",
     "guides/your-first-sqlite-repository",
     "guides/test-database-code-against-sqlite",
+    "guides/connect-to-postgresql-with-a-connection-pool",
     "guides/your-first-html-page",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",

@@ -1640,7 +1640,9 @@ lazy val docs = project
     libraryDependencies ++= Seq(
       "dev.zio"   %% "zio-prelude"    % "1.0.0-RC48",
       "dev.zio"   %% "zio-sbt-source" % "0.8.6",
-      "org.xerial" % "sqlite-jdbc"    % "3.53.2.0"
+      "org.xerial" % "sqlite-jdbc"    % "3.53.2.0",
+      // Lets the PostgreSQL connection-pool guide compile its HikariCP snippets; nothing connects.
+      "com.zaxxer" % "HikariCP" % "7.1.0"
     ),
     // Override @PROJECT_BADGES@ to exclude the javadoc badge and to anchor the Maven Central /
     // Sonatype Snapshot badges on the "zio-blocks-config" artifact instead of "zio-blocks-schema".
