@@ -1,7 +1,6 @@
-name         := "projection-examples"
+name         := "sql-examples"
 version      := "0.1.0"
 scalaVersion := "3.9.0"
-crossScalaVersions := Seq("3.9.0", "3.3.7")
 
 publish / skip := true
 run / fork     := true
@@ -28,5 +27,6 @@ def zioBlocks(module: String) = Def.setting {
 }
 
 libraryDependencies ++= Seq(
-  zioBlocks("projection").value
+  zioBlocks("sql").value,
+  "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 )
