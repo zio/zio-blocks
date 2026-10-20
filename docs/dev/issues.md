@@ -487,6 +487,16 @@ List("name = \"Scala Bookstore\"\ntags = [scala,\n", "a = ${missing}").foreach {
 
 **Suggested fix.** Append the cause message in `ParseError#message` whatever the path, and override `getCause` to return the cause. Record the position of each substitution when parsing, and use it for resolution errors. Add a `HoconConfigSourceSpec` test that asserts the full message of a syntax error.
 
+### schema: error paths leak the internal `.wrapped` segment for transformed fields
+
+Found 2026-10-20 while writing H-05 and M-01. Verified on 0.0.56.
+
+**Summary.** When a field's schema is a wrapper (built with `Schema#transform`, or the `Schema[Json]` returned by `Schema.fromJsonSchema`), decode errors end with an internal path segment: `... at: .orderedOn.wrapped`, or ` at: .wrapped` for `fromJsonSchema`. Users see a field name that does not exist in their data. The message is also the raw exception text from the `transform` function (`Text '2025-03-14' could not be parsed at index 2`).
+
+**Reproduction.** See the `Schema[LocalDate]` usability trap below (last line of output), and the `fromJsonSchema` entry above.
+
+**Fix.** Drop the wrapper segment when rendering the error path for wrapper schemas.
+
 ### `Table#createTable` declares no `PRIMARY KEY`, so derived tables accept duplicate IDs and reject `Repo#insertOrUpdate`
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/test-database-code-against-sqlite.md` (backlog H-47), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`. This is a usability trap rather than a crash: `docs/reference/sql/repo.md`, `table.md` and `ddl.md` already document it, but nothing in the API steers users away from it.
@@ -600,6 +610,49 @@ println(Book.schema.derive(listFormat).encodeToString(shelf.books.head))
 
 **Side note, not checked against the TOON spec.** The table rows are indented 4 spaces under their header rather than 2, and the conformance test expects the same.
 
+### An implicit field `Schema` is picked up by `Schema.derived`, but an implicit codec is not
+
+Found 2026-10-20 while writing M-01 (`docs/guides/json-library-migration.md`). Verified on Scala 3.9.0 and 2.13.16 against 0.0.56.
+
+**Summary.** `Schema.derived` searches implicit scope for a `Schema[T]` for each field type (`scala-3/.../SchemaCompanionVersionSpecific.scala:373`), so a custom `implicit val Schema[LocalDate]` in scope changes how that field is derived. An implicit `JsonCodec[LocalDate]` in scope, by contrast, is ignored (see the entry above). A circe user's "put it in implicit scope" instinct therefore works for `Schema` but not for codecs, and neither H-03 nor M-01 mentions the `Schema` route.
+
+**Reproduction** (run with scala-cli):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema._
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+val partnerDateFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+implicit val partnerDateSchema: Schema[LocalDate] =
+  Schema[String].transform[LocalDate](s => LocalDate.parse(s, partnerDateFormat), d => partnerDateFormat.format(d))
+
+case class Order(title: String, orderedOn: LocalDate)
+object Order {
+  implicit val schema: Schema[Order] = Schema.derived
+}
+
+@main def run(): Unit = {
+  val order = Order("Zionomicon", LocalDate.of(2025, 3, 14))
+  println(order.toJsonString)
+  // {"title":"Zionomicon","orderedOn":"14/03/2025"}
+  println("""{"title":"Zionomicon","orderedOn":"14/03/2025"}""".fromJson[Order])
+  // Right(Order(Zionomicon,2025-03-14))
+  println("""{"title":"Zionomicon","orderedOn":"2025-03-14"}""".fromJson[Order])
+  // Left(zio.blocks.schema.SchemaError: Text '2025-03-14' could not be parsed at index 2 at: .orderedOn.wrapped)
+}
+```
+
+The output is identical on Scala 2.13.16 with `zio-blocks-schema` 0.0.56 (plus `scala-reflect`, code wrapped in `object Main extends App`).
+
+**Impact.** The override changes the representation in every format, not only JSON, and turns the field into a wrapper (which may also change the generated JSON Schema; unverified). Decode errors show the raw `DateTimeParseException` text plus an internal `.wrapped` path segment (see the library bug below).
+
+**Suggested fix (docs).** Document that an implicit field `Schema` is honoured by derivation and changes every format. Add it to H-03's "Which Tool When" table as the all-formats option, next to `Deriver#withInstance` for one format.
+
 ### A per-derivation `DerivationBuilder#instance` override silently loses to a deriver-level `Deriver#withInstance` override
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/override-codec-for-one-type.md` (backlog H-03), on `main` at `64b2f666`. The code is the same at tag `v0.0.56`. Verified by running against the published 0.0.56.
@@ -704,7 +757,6 @@ println(order.toJsonString)
 - **ZIO Blocks rejects numbers sent as strings.** `"year":"2024"` for an `Int` field fails with `illegal number at: .year`. circe and zio-json both accept numeric strings; jsoniter-scala rejects them too. A common migration surprise for APIs that send numbers as strings. Documented in M-01. Found while writing M-01.
 - **A missing `List` field decodes to `Nil`.** circe fails with `Missing required field` and zio-json with `.tags(missing)`; ZIO Blocks (and jsoniter-scala) give an empty list because `requireCollectionFields` defaults to false. Usually convenient, but it silently accepts payloads that other libraries reject. Found while writing M-01.
 - **`withRequireCollectionFields(true)` and `withRequireDefaultValueFields(true)` also change the encoder.** Besides making decoding strict, they make the encoder write empty collections and default values, because `emptyCollectionConstructor` and `getDefaultValue` become null/None (`JsonCodecDeriver.scala:586-590`, `731-739`, `3027-3029`, `3075-3078`). Users who set them for strict decoding get different output. Found while writing M-01.
-- **Unverified: an implicit `Schema[LocalDate]` changes derivation, while an implicit `JsonCodec[LocalDate]` does not.** The Scala 3 `Schema.derived` macro looks for implicit `Schema[T]` instances for field types (`scala-3/.../SchemaCompanionVersionSpecific.scala:373`), so a custom `Schema[LocalDate]` in scope would be picked up. Undocumented and easy to confuse with the ignored implicit codec above. **Needs a reproduction before it is documented or filed.** Raised while writing M-01.
 - **Nested and concurrent access inside a test transaction on SQLite.** Inside a transaction that will roll back, a second connection sees only committed rows, and a nested `JdbcTransactor#transact` blocks and fails with `SQLITE_BUSY` after about 5 s. `DbTx#transact` (a savepoint) works. Verified while writing H-47; the guide warns about it.
 - **Scope and Wire error codes never appear in compiler output.** `ErrorMessages.scala` numbers them E1-E17, RE1-RE3 and W1, but the messages users see carry no code, so docs must index errors by message text. Found while writing H-31.
 - **`defer` on a closed scope is a silent no-op** (`Scope.scala:202`), while `allocate` and `$` throw. Found while writing H-31.
