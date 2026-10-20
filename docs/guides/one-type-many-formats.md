@@ -153,7 +153,13 @@ val yamlCodec = Catalog.schema.derive(YamlFormat)
 val yamlBytes = yamlCodec.encode(catalog)
 ```
 
-The code above is the JSON code with `JsonFormat` replaced by `YamlFormat`. We didn't write anything YAML-specific — `Catalog.schema` already says everything the YAML codec needs. Let's print the result and check the round trip:
+The code above:
+
+- `import zio.blocks.schema.yaml.YamlFormat` brings the YAML format object into scope.
+- `Catalog.schema.derive(YamlFormat)` is the JSON line with `JsonFormat` replaced by `YamlFormat`; `Catalog.schema` already says everything the YAML codec needs.
+- `yamlCodec.encode(catalog)` writes the catalog as YAML bytes.
+
+Let's print the result and check the round trip:
 
 ```scala mdoc
 println(new String(yamlBytes, UTF_8))
@@ -174,6 +180,12 @@ val xmlCodec = Catalog.schema.derive(XmlFormat)
 
 val xmlBytes = xmlCodec.encode(catalog)
 ```
+
+The code above:
+
+- `import zio.blocks.schema.xml.XmlFormat` brings the XML format object into scope.
+- `Catalog.schema.derive(XmlFormat)` builds the XML codec from the same schema.
+- `xmlCodec.encode(catalog)` writes the catalog as XML bytes.
 
 Let's print the XML and decode it back:
 
@@ -201,6 +213,12 @@ val toonCodec = Catalog.schema.derive(ToonFormat)
 val toonBytes = toonCodec.encode(catalog)
 ```
 
+The code above:
+
+- `import zio.blocks.schema.toon.ToonFormat` brings the TOON format object into scope.
+- `Catalog.schema.derive(ToonFormat)` builds the TOON codec from the same schema.
+- `toonCodec.encode(catalog)` writes the catalog as TOON bytes.
+
 Let's print the TOON text and decode it back:
 
 ```scala mdoc
@@ -223,12 +241,24 @@ val msgpackCodec = Catalog.schema.derive(MessagePackFormat)
 val msgpackBytes = msgpackCodec.encode(catalog)
 ```
 
+The code above:
+
+- `import zio.blocks.schema.msgpack.MessagePackFormat` brings the MessagePack format object into scope.
+- `Catalog.schema.derive(MessagePackFormat)` builds the MessagePack codec from the same schema.
+- `msgpackCodec.encode(catalog)` writes the catalog as binary bytes.
+
 Binary bytes aren't readable as text, so instead of printing them as a `String`, we write a small helper that shows the first 16 bytes in hexadecimal:
 
 ```scala mdoc:silent
 def hexPrefix(bytes: Array[Byte]): String =
   bytes.take(16).map(b => f"$b%02x").mkString(" ")
 ```
+
+The code above:
+
+- `bytes.take(16)` keeps only the first 16 bytes.
+- `f"$b%02x"` formats each byte as two hexadecimal digits.
+- `mkString(" ")` joins the digits with spaces.
 
 Now let's compare the size with JSON, look at the first bytes and check the round trip:
 
@@ -254,6 +284,12 @@ val avroCodec = Catalog.schema.derive(AvroFormat)
 val avroBytes = avroCodec.encode(catalog)
 ```
 
+The code above:
+
+- `import zio.blocks.schema.avro.AvroFormat` brings the Avro format object into scope.
+- `Catalog.schema.derive(AvroFormat)` builds the Avro codec from the same schema.
+- `avroCodec.encode(catalog)` writes the catalog as binary bytes.
+
 Let's compare the size with the previous two formats, look at the first bytes and check the round trip:
 
 ```scala mdoc
@@ -278,7 +314,12 @@ import zio.blocks.schema.csv.CsvFormat
 println(scala.util.Try(Book.schema.derive(CsvFormat)))
 ```
 
-The code above wraps the derivation in `Try` so we can print the failure instead of stopping the program. The exception is thrown at run time, when we call `Schema#derive`, not at compile time. The CSV deriver rejects lists, maps, `Option` fields and sealed traits in the same way.
+The code above:
+
+- `import zio.blocks.schema.csv.CsvFormat` brings the CSV format object into scope.
+- `scala.util.Try(...)` wraps the derivation so we can print the failure instead of stopping the program.
+
+The exception is thrown at run time, when we call `Schema#derive`, not at compile time. The CSV deriver rejects lists, maps, `Option` fields and sealed traits in the same way.
 
 The fix is a flat row type that holds only the columns we want in the table. Let's define `BookRow` and turn each book into a row:
 
