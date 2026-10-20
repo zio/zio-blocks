@@ -8,8 +8,8 @@ import zio.blocks.schema.csv._
  * How to Read and Write CSV and TSV Files — Report Every Bad Row
  *
  * Reads a damaged inventory, keeps the good records and prints every bad row
- * with its row number. Also shows a file with a missing column and a file
- * with an unclosed quote.
+ * with its row number. Also shows a file with a missing column and a file with
+ * an unclosed quote.
  *
  * Run with: cd schema-examples && sbt "runMain
  * readandwritecsvandtsvfiles.Step2ReportBadRowsExample"

@@ -86,7 +86,7 @@ The `authors` field holds all the authors of a book in one string, such as `"Mar
 
 ## Read a CSV File With a Header
 
-Our sample file lists its columns in a different order from `BookRow`: the year comes before the authors. Files exported by other tools often do this, so we match columns by their header name, not by position. Let's write the file to a temporary path:
+Our sample file lists its columns in a different order from `BookRow`: the year comes before the authors. Files exported by other tools often do this, so we match columns by their header name, not by position. First, we write the file to a temporary path:
 
 ```scala mdoc:silent
 val inventoryCsv: String =
@@ -222,7 +222,7 @@ def writeCsv[A](codec: CsvCodec[A], values: Iterable[A]): String =
   CsvWriter.writeHeader(codec.headerNames, CsvConfig.default) + values.map(value => encodeLine(codec, value)).mkString
 ```
 
-The buffer must be large enough for one line; `CharBuffer#put` throws a `java.nio.BufferOverflowException` when a line doesn't fit. `CsvWriter.writeHeader` writes the column names as the first line, quoted by the same rules as data. Let's write the inventory after a delivery of new copies:
+The buffer must be large enough for one line; `CharBuffer#put` throws a `java.nio.BufferOverflowException` when a line doesn't fit. `CsvWriter.writeHeader` writes the column names as the first line, quoted by the same rules as data. Here is the inventory after a delivery of new copies, written as CSV text:
 
 ```scala mdoc:silent
 val restocked: List[BookRow] = List(
@@ -349,7 +349,7 @@ def withCsvFile[A, B](path: Path, codec: CsvCodec[A], config: CsvConfig)(
   }
 ```
 
-Because each record is parsed on its own, a parse error such as a stray character after a closing quote affects only that record. `CsvError#row` counts lines from the start of the record, so `line + error.row - 1` is the line in the file, and `CsvError#column` is the column within that line. Blank lines are skipped. Let's try it on a small file with a cell that spans two lines, a bad year and a stray character after a closing quote:
+Because each record is parsed on its own, a parse error such as a stray character after a closing quote affects only that record. `CsvError#row` counts lines from the start of the record, so `line + error.row - 1` is the line in the file, and `CsvError#column` is the column within that line. Blank lines are skipped. To try it, we write a small file with a cell that spans two lines, a bad year and a stray character after a closing quote:
 
 ```scala mdoc:silent
 val awkwardPath: Path = Files.createTempFile("awkward", ".csv")
@@ -373,7 +373,7 @@ withCsvFile(awkwardPath, bookCodec, CsvConfig.default)(rows => rows.foreach(prin
 
 The first record spans lines 2 and 3, and its authors cell keeps the line break. The errors point to lines 4 and 5 of the file.
 
-Writing a large file needs no new code: open a `java.io.BufferedWriter`, write the header, then write one encoded line per record. Let's write 100,000 rows by cycling through the restocked inventory:
+Writing a large file needs no new code: open a `java.io.BufferedWriter`, write the header, then write one encoded line per record. The following code writes 100,000 rows by cycling through the restocked inventory:
 
 ```scala mdoc:silent
 def writeCsvFile[A](path: Path, codec: CsvCodec[A], values: Iterator[A]): Unit =
@@ -613,6 +613,14 @@ Run the complete example from the `schema-examples` directory:
 
 ```bash
 sbt "runMain readandwritecsvandtsvfiles.CompleteExample"
+```
+
+### Compile All Examples
+
+To compile every example in the project without running any of them, run this from the `schema-examples` directory:
+
+```bash
+sbt compile
 ```
 
 ## Going Further

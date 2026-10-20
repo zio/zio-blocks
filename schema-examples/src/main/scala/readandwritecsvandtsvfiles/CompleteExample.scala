@@ -12,9 +12,9 @@ import zio.blocks.schema.csv._
 /**
  * How to Read and Write CSV and TSV Files — Complete Example
  *
- * Reads an inventory CSV file one record at a time, matching columns by
- * header name, reports every bad row with its line in the file, and writes
- * each good record to a TSV file as soon as it is decoded.
+ * Reads an inventory CSV file one record at a time, matching columns by header
+ * name, reports every bad row with its line in the file, and writes each good
+ * record to a TSV file as soon as it is decoded.
  *
  * Run with: cd schema-examples && sbt "runMain
  * readandwritecsvandtsvfiles.CompleteExample"

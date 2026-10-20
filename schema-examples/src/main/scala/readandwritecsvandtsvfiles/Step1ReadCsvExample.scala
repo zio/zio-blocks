@@ -10,8 +10,8 @@ import zio.blocks.schema.csv._
  * How to Read and Write CSV and TSV Files — Read a CSV File With a Header
  *
  * Writes a small inventory file whose columns are in a different order from
- * BookRow, reads it with CsvReader.readAll, and decodes each row by column
- * name with the derived CSV codec.
+ * BookRow, reads it with CsvReader.readAll, and decodes each row by column name
+ * with the derived CSV codec.
  *
  * Run with: cd schema-examples && sbt "runMain
  * readandwritecsvandtsvfiles.Step1ReadCsvExample"
