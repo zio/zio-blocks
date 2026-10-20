@@ -106,7 +106,7 @@ The contract that `Schema#toJsonSchema` derives follows the codec's rules for ea
 - `isbn` accepts `null` as well as a string (`"type": ["null", "string"]`), and `tags` accepts `null` as well as an array.
 - `year` carries `minimum` and `maximum` bounds, because a JSON number outside the `Int` range cannot become an `Int`.
 - `"additionalProperties": false` comes from `@Modifier.noExtraFields()`. Without the annotation, the key is absent and extra properties are allowed.
-- `"title"` names the type that each part of the contract was derived from.
+- `"title"` names the type that each part of the contract derives from.
 
 The output contains no `$schema` keyword; the document follows draft 2020-12, the version that `JsonSchema` implements.
 
@@ -127,13 +127,13 @@ val contractFile: Path = Files.createTempFile("book-submission", ".schema.json")
 Files.writeString(contractFile, contractText)
 ```
 
-The indented text is the same document that `println(contract)` showed. The compact form fits on one line, which suits logs and HTTP responses:
+The indented text is the same document that `println(contract)` shows. The compact form fits on one line, which suits logs and HTTP responses:
 
 ```scala mdoc
 println(contract.toJson.print)
 ```
 
-Reading the file back with `JsonSchema.parse` gives a contract equal to the one we wrote:
+Reading the file back with `JsonSchema.parse` gives a contract equal to the one we write:
 
 ```scala mdoc
 println(JsonSchema.parse(Files.readString(contractFile)) == Right(contract))
@@ -180,7 +180,7 @@ validate(contract, """{"title":"Zionomicon","year":"2024","publisher":"Ziverge"}
 
 Each line ends with the path to the failing value. The first line comes from `"additionalProperties": false`: it reports the extra `publisher` field, but its path points at the enclosing object (`.`) rather than at the field itself.
 
-A year that does not fit in an `Int` breaks the `maximum` bound that the contract derived from the field type:
+A year that does not fit in an `Int` breaks the `maximum` bound that the contract derives from the field type:
 
 ```scala mdoc
 validate(
@@ -258,7 +258,7 @@ println(
 )
 ```
 
-A payload that breaks the catalog rules fails with the same messages that `JsonSchema#check` reported, followed by `at: .wrapped`, the path of the wrapper that ran the check:
+A payload that breaks the catalog rules fails with the same messages that `JsonSchema#check` reports, followed by `at: .wrapped`, the path of the wrapper that runs the check:
 
 ```scala mdoc
 catalogSchema.jsonCodec.decode(
