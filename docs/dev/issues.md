@@ -243,3 +243,210 @@ class Catalog(inventory: InventoryRepo, sql: SqlInventoryRepo)
 **Test gap.** `ErrorMessagesSpec` tests the renderer only with unqualified names.
 
 **Suggested fix.** Build the identifier from the simple name (the text after the last `.`, with type arguments removed) and keep the full name only on the right-hand side. Show the `opaque type` alternative only in Scala 3.
+
+## Four Scope error codes can't be reached, and `renderMissingDependency` is dead code
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/fix-scope-and-wire-compile-errors.md` (backlog H-31), on `main` at `64b2f666`. Reproduced against the published `0.0.56`.
+
+**Summary.** `ErrorMessages` defines messages that user code can't trigger, or can trigger only with nonsense input:
+
+- **E5 (unsupported implicit parameter)** sits behind the E4 check in both macros, so an implicit `Clock` parameter is reported as an ordinary E4 dependency.
+- **E2 (no primary constructor) and E9 (no constructor for auto-create)** need a class without a primary constructor. Every Scala class has one, and Java classes either compile or crash the macro (see the Java-class entry above).
+- **E6 (cannot extract wire types)** fires only for an argument whose static type isn't `Wire[In, Out]`, which in practice means `???` or `null`.
+- **`renderMissingDependency`** (`ErrorMessages.scala:687`), the most elaborate renderer (resolution stack, dependency tree, hints), is never called by either macro. Only `ErrorMessagesSpec` calls it. Missing dependencies are auto-created instead, or fail as E7/E8.
+
+**Reproduction** (`scala-cli run .` per file; Scala 3.9.0, `zio-blocks-next-scope` 0.0.56; each file starts with `//> using scala 3.9.0`, `//> using dep dev.zio::zio-blocks-next-scope:0.0.56` and `//> using options -experimental`):
+
+```scala
+// E5.scala: expected E5, got E4
+import zio.blocks.scope.*
+
+class Clock
+class Catalog()(using Finalizer, Clock)
+
+@main def e5(): Unit = println(Resource.from[Catalog])
+// -- Error: E5.scala:10:44
+//    |── Scope Error ─────────────────────────────────────────────────────────────────
+//    |
+//    |  Resource.from[Catalog] cannot be derived.
+//    |
+//    |  Catalog has dependencies that must be provided:
+//    |    • Clock
+```
+
+```scala
+// E2.scala: no E2 or E9, both lines compile
+import zio.blocks.scope.*
+
+class Catalog(owner: java.lang.Object)
+
+@main def e2(): Unit = {
+  println(Resource.from[java.lang.Object])
+  println(Resource.from[Catalog]())
+  println("both compiled")
+}
+// zio.blocks.scope.Resource$Shared@34340fab
+// zio.blocks.scope.Resource$Shared@2eee9593
+// both compiled
+```
+
+```scala
+// E6.scala: the only trigger found for E6
+import zio.blocks.scope.*
+
+class Catalog
+
+@main def e6(): Unit = println(Resource.from[Catalog](???))
+// -- Error: E6.scala:9:53
+//    |── Scope Error ─────────────────────────────────────────────────────────────────
+//    |
+//    |  Cannot extract types from wire expression.
+//    |
+//    |  Wire type: scala.Nothing
+```
+
+**Expected.** Each defined error is reachable by the mistake it describes, or is removed.
+
+**Root cause** (from source). E5: `ResourceMacros.deriveResourceImpl` aborts with E4 (`scala-3/.../ResourceMacros.scala:75-77`) for any non-`Finalizer` parameter before it builds the constructor call where E5 lives (`:99`). Scala 2 has the same order (`scala-2/.../ResourceVersionSpecific.scala:111-112` before `:129-134`). E2/E9: the `primaryConstructor == Symbol.noSymbol` checks never hold for a class definition. `renderMissingDependency` has no call site in `scope/shared/src/main`.
+
+**Impact.** The error catalog and `ErrorMessagesSpec` suggest coverage that the macros don't have. The best-designed message, missing dependency, is never shown.
+
+**Test gap.** `ErrorMessagesSpec` tests the renderers in isolation, so dead renderers stay green.
+
+**Suggested fix.** Either wire E5 into the dependency loop (check implicit parameter lists before E4) and call `renderMissingDependency` where auto-creation is not wanted, or delete the unreachable renderers and their tests. Add `typeCheck` tests through the macros for each code that stays.
+
+## A failing `scoped` body adds a confusing "Ambiguous given instances" error
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/fix-scope-and-wire-compile-errors.md` (backlog H-31), on `main` at `64b2f666`. Reproduced against the published `0.0.56`.
+
+**Summary.** When the last expression of a `scoped` block fails to type-check, the compiler can't infer the block's result type, and the `Unscoped[A]` search for that type then fails with a second error that names two unrelated built-in instances. The real mistake (calling a method directly on `$[Db]`) is the first error, but the second one points the reader at `Unscoped` instances for `Int` and `FiniteDuration`.
+
+**Reproduction** (`scala-cli run .`; Scala 3.9.0, `zio-blocks-next-scope` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-scope:0.0.56
+//> using options -experimental
+
+import zio.blocks.scope.*
+
+class Db extends AutoCloseable {
+  def countBooks(): Int = 42
+  def close(): Unit     = ()
+}
+
+@main def ambig(): Unit = {
+  val n = Scope.global.scoped { scope =>
+    import scope.*
+    val db = allocate(Resource(new Db))
+    db.countBooks()
+  }
+  println(n)
+}
+// -- [E008] Not Found Error: Ambig.scala:16:7
+// 16 |    db.countBooks()
+//    |    ^^^^^^^^^^^^^
+//    |    value countBooks is not a member of scope.$[Db]
+// -- [E172] Type Error: Ambig.scala:17:3
+// 17 |  }
+//    |   ^
+//    |Ambiguous given instances: both given instance given_Unscoped_FiniteDuration in object Unscoped and given instance given_Unscoped_Int in object Unscoped match type zio.blocks.scope.Unscoped[A] of parameter ev of method scoped in trait ScopeVersionSpecific
+// 2 errors found
+```
+
+**Expected.** Only the first error.
+
+**Root cause** (from the output). `scoped[A](f: ... => A)(using ev: Unscoped[A])`: when `f`'s body is an error, `A` stays uninstantiated, and implicit search for `Unscoped[A]` finds several candidates (`scala-3/.../ScopeVersionSpecific.scala:55`). In mdoc, with `A` inferred as `Any`, the message instead names `given_Unscoped_BigInt` and `given_Unscoped_FiniteDuration`.
+
+**Impact.** A reader fixing the second error first goes looking for an `Unscoped` problem that doesn't exist. This is a usability trap rather than a wrong result.
+
+**Suggested fix.** Hard to avoid fully, because the compiler drives this. Consider `@implicitNotFound` / `@implicitAmbiguous` messages on `Unscoped` that say "if another error is reported inside the block, fix that first". `@implicitAmbiguous` on the low-priority instances would also make the real escape error (no instance) read better.
+
+## Scope tutorial, reference pages and example contradict the source
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/fix-scope-and-wire-compile-errors.md` (backlog H-31), on `main` at `64b2f666`. Reproduced against the published `0.0.56`. Listed here and not fixed in that PR.
+
+**Wrong statements:**
+
+- `docs/guides/compile-time-resource-safety-with-scope.md:726` says `defer` throws `IllegalStateException` on a closed scope. `defer` returns a no-op `DeferHandle` and ignores the finalizer (`Scope.scala:202-211`).
+- The same line quotes the exception as `Scope is closed`. The real messages are `Cannot allocate resource: scope is already closed.` (allocate), `Cannot open child scope: scope is already closed.` (open) and `Cannot access scoped value: scope is already closed.` (`$`).
+- The same file at `:820` says `Wire.shared[Database]`, where `Database(url: String)`, fails with "no Wire[String] for url". It compiles. The error only appears later, from `Resource.from`, as E7 `Cannot auto-create java.lang.String`.
+- The same file uses the fence `scala mdoc:compile-only mdoc:silent:reset` at `:27` and `:728`. That fence mixes two modifier lists, `compile-only` and `silent:reset`, so it isn't clear which one the author meant mdoc to apply.
+- `docs/reference/resource-management/scope.md:943` quotes `Cannot acquire resource: scope has already been closed.` The real text is `Cannot allocate resource: scope is already closed.`
+- `docs/reference/resource-management/wire.md:85` and `:506`, and `index.md:18`, promise compile-time cycle detection and "missing dependency" errors. Cycles crash the macro (#1767), and `renderMissingDependency` is never called (see the entry above).
+- `scope-examples/src/main/scala/scope/examples/CircularDependencyDemoExample.scala:28` and `:41` say that uncommenting the cycle "would produce a compile error" with a cycle diagram. It crashes the macro instead. `scope.md:1258` presents that example as cycle detection.
+
+**Reproduction** (`scala-cli run .` per file; same header as above):
+
+```scala
+// Closed.scala: defer is a no-op, and the allocate message
+import zio.blocks.scope.*
+
+class Db extends AutoCloseable { def close(): Unit = () }
+
+@main def closed(): Unit = {
+  val shop  = Scope.global.open()
+  val scope = shop.scope
+  shop.close()
+  val handle = scope.defer(println("never runs"))
+  println(s"defer on a closed scope returned: $handle")
+  try scope.allocate(Resource(new Db))
+  catch { case e: IllegalStateException => println(e.getMessage.linesIterator.take(3).mkString("\n")) }
+}
+// defer on a closed scope returned: zio.blocks.scope.DeferHandle$Noop$@2f7a2457
+// ── Scope Error ─────────────────────────────────────────────────────────────────
+//
+//   Cannot allocate resource: scope is already closed.
+```
+
+```scala
+// WireDb.scala: Wire.shared[Database] compiles
+import zio.blocks.scope.*
+
+case class Database(url: String) extends AutoCloseable {
+  override def close(): Unit = ()
+}
+
+@main def wireDb(): Unit = {
+  val dbWire = Wire.shared[Database]
+  println(s"Wire.shared[Database] compiled: $dbWire")
+}
+// Wire.shared[Database] compiled: Shared(WireDb$package$$$Lambda/0x000070e180002900@45c8e616)
+```
+
+**Suggested fix.** Correct each statement to match the source, and point section 12 of the tutorial and the error sections of `scope.md` at `docs/guides/fix-scope-and-wire-compile-errors.md` instead of keeping a second list of messages. Fix the example's comment, and the cycle claims, once #1767 is fixed.
+
+## mdoc: `mdoc:fail` and `mdoc:warn` also compile earlier `compile-only` blocks
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/fix-scope-and-wire-compile-errors.md` (backlog H-31). This is docs tooling (mdoc), not a library bug. Reproduced with this repo's `docs/mdoc`.
+
+**Summary.** A `mdoc:fail` or `mdoc:warn` block is checked by compiling a program made of every earlier evaluated block *plus every earlier `compile-only` block*, pasted in without their own scope. A `compile-only` fix that redefines a name from the same section compiles fine on its own, but a later `mdoc:warn` then fails with no reason given. Later `mdoc:fail` blocks can fail for the clash instead of their intended error.
+
+**Reproduction** (`sbt "++3.9.0; docs/mdoc --in docs/guides/zz-trap.md --out /tmp/zz-trap.md"`):
+
+````markdown
+```scala mdoc:silent:reset
+class Book(val title: String)
+```
+
+```scala mdoc:compile-only
+final case class Book(title: String)
+```
+
+```scala mdoc:warn
+val two = { 1; 2 }
+```
+````
+
+```
+error: zz-trap.md:15:1: Expected compile warnings but program failed to compile
+val two = { 1; 2 }
+^^^^^^^^^^^^^^^^^^
+info: Compiled in 17.99s (1 error)
+```
+
+Changing the second fence to `scala mdoc:silent:reset` makes the run pass.
+
+**Root cause.** mdoc's fail/warn instrumentation builds one program from the earlier sections and inlines `compile-only` code into its section's class, so the two `Book` definitions clash. Run `docs/mdoc --verbose` to see it: the hidden program is the `FailSection("...")` string in the instrumented output.
+
+**Workaround.** Start any fix block that redefines a name with `mdoc:silent:reset`, not `compile-only`. Always read the rendered `// error:` lines of every `mdoc:fail` block.
