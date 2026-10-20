@@ -133,7 +133,15 @@ html:has(.lp-page) { scroll-padding-top: var(--ifm-navbar-height); }
 }
 
 /* Deep dives */
-.lp-tablist { display: flex; flex-wrap: wrap; margin: 1.5rem 0; border-bottom: 1px solid var(--rule); }
+/*
+ * Deep Dives fits one screen on a laptop (1440x900): the title shares a row with the tabs, the intro shares a row with
+ * the install snippet, and the code is set tighter than elsewhere. Unlike the other screens it is top-aligned, not
+ * centred: panels differ in height, and switching tabs must not move the heading or the tabs.
+ */
+#deep-dives { padding-block: clamp(1.5rem, 3vw, 2.5rem); justify-content: flex-start; }
+.lp-dd-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0 2rem; border-bottom: 1px solid var(--rule); }
+.lp-dd-head h2 { margin-bottom: 0.75rem; }
+.lp-tablist { display: flex; flex-wrap: wrap; }
 .lp-tablist[hidden] { display: none; }
 .lp-tablist [role='tab'] {
   padding: 0.75rem 1.25rem;
@@ -145,19 +153,23 @@ html:has(.lp-page) { scroll-padding-top: var(--ifm-navbar-height); }
   cursor: pointer;
 }
 .lp-tablist [role='tab'][aria-selected='true'] { color: var(--fg); border-bottom-color: var(--accent); }
-.lp-panel { margin-top: 2rem; }
+.lp-panel { margin-top: 1.25rem; }
 .lp-panel h3 { margin: 0 0 0.5rem; font-size: 1.5rem; font-weight: 800; }
 .lp-vh { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.lp-intro { max-width: 46rem; color: var(--fg-soft); font-size: 1.0625rem; }
-.lp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1.5rem; }
+.lp-intro { margin: 0; color: var(--fg-soft); font-size: 1.0625rem; }
+.lp-install { min-width: 0; }
+.lp-install .lp-label { color: var(--label); }
+.lp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+.lp-cols + .lp-cols { margin-top: 1.25rem; }
+#deep-dives .lp-codecard pre { padding: 0.75rem 1rem; font-size: 0.78rem; line-height: 1.5; }
 .lp-col { min-width: 0; }
 .lp-col p { color: var(--fg-soft); }
 .lp-col .lp-label { color: var(--label); }
-.lp-formats { margin-top: 2rem; }
+.lp-formats { margin-top: 1.25rem; }
 .lp-formats ul { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0 0; }
 .lp-chip { padding: 0.25rem 0.75rem; border: 1px solid var(--accent); font-size: 0.875rem; font-weight: 600; }
-.lp-more { margin: 2rem 0 0; color: var(--fg-soft); }
-.lp-more li { padding-block: 0.25rem; }
+.lp-more { margin: 1.25rem 0 0; color: var(--fg-soft); }
+.lp-more li { padding-block: 0.125rem; }
 .lp-more a { text-decoration: underline; text-underline-offset: 0.2em; }
 .lp-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 @media (max-width: 800px) { .lp-cols { grid-template-columns: 1fr; } }

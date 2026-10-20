@@ -90,3 +90,8 @@ For details on implementing a `Deriver`, see [Type-class Derivation](./type-clas
 ## Available Formats
 
 ZIO Blocks provides multiple built-in formats. See the [Built-in Formats and Codecs](./built-in-codecs/index.md) section for a complete list of supported serialization formats and their respective codec modules.
+
+## See Also
+
+- [One Type, Many Formats](../../guides/one-type-many-formats.md) - a tutorial that derives several built-in formats from one `Schema` and round-trips data through each.
+- [Built-in Formats and Codecs](./built-in-codecs/index.md) - every built-in format with its codec type and module.

@@ -48,7 +48,7 @@ export async function build({ repoRoot = REPO_ROOT, outDir = LANDING_ROOT, versi
     ...parsed,
     principles: overridePrincipleText(parsed.principles, PRINCIPLE_TEXT),
     categories,
-    hero: { ...parsed.hero, install: parsed.hero.install.replaceAll('@VERSION@', resolved) },
+    deepDives: parsed.deepDives.map((d) => ({ ...d, install: d.install.replaceAll('@VERSION@', resolved) })),
     blockCount: categories.reduce((n, c) => n + c.blocks.length, 0),
   };
 

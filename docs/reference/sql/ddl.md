@@ -59,6 +59,8 @@ transactor.transact {
 2. `Table#createTable(dialect)` converts schema columns to `ColumnDef` using `dialect.typeName`.
 3. `Ddl.createTable` receives the `ColumnDef` list and generates the SQL fragment.
 
+The generated statement declares no `PRIMARY KEY` or `UNIQUE` constraint. When a column needs one, such as the ID column that `Repo#insertOrUpdate` relies on, write the `CREATE TABLE` statement yourself with `Frag.literal`.
+
 You call `Ddl` directly only when you need custom DDL that doesn't fit the `Table` abstraction.
 
 See [Table](./table.md) for the high-level DDL API.
