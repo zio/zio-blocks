@@ -4,8 +4,6 @@ import zio.blocks.config._
 import zio.blocks.config.hocon._
 import zio.blocks.schema.Schema
 
-import Common._
-
 /**
  * Coming from PureConfig, Typesafe Config or zio-config — Step 5: Check Which
  * HOCON Features Carry Over
@@ -19,6 +17,18 @@ import Common._
  * configlibrarymigration.Step5HoconCaveatsExample"
  */
 object Step5HoconCaveatsExample extends App {
+
+  def report[A](result: Either[::[ConfigError], A]): Unit =
+    result match {
+      case Right(config) => println(config)
+      case Left(errors)  => errors.foreach(error => println(error.message))
+    }
+
+  def orThrow(parsed: Either[ConfigError, ConfigSource]): ConfigSource =
+    parsed match {
+      case Right(source) => source
+      case Left(error)   => throw error
+    }
 
   def keys(hocon: String): Unit =
     ConfigSource.fromHocon(hocon) match {

@@ -2,6 +2,7 @@ package configlibrarymigration
 
 import zio.blocks.config._
 import zio.blocks.config.hocon._
+import zio.blocks.schema.Schema
 
 /**
  * Coming from PureConfig, Typesafe Config or zio-config — Putting It Together
@@ -19,6 +20,21 @@ import zio.blocks.config.hocon._
  * configlibrarymigration.CompleteExample"
  */
 object CompleteExample extends App {
+
+  case class DbConfig(host: String, port: Int = 5432, user: String, password: Secret)
+
+  case class BookstoreConfig(
+    name: String,
+    port: Int = 8080,
+    featuredTitle: String,
+    db: DbConfig,
+    tags: List[String],
+    discountPercent: Option[Int]
+  )
+
+  object BookstoreConfig {
+    implicit val schema: Schema[BookstoreConfig] = Schema.derived
+  }
 
   // Same file the PureConfig application read, minus the `${?DB_PASSWORD}` line.
   val application: Either[ConfigError, ConfigSource] =
