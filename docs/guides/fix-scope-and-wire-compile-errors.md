@@ -130,7 +130,7 @@ class Book(val title: String)
 val book = Scope.global.scoped { _ => new Book("Zionomicon") }
 ```
 
-`Unscoped` instances exist for primitives, `String`, collections, `Option`, `Either` and tuples of such types. For your own data, declare an instance. In Scala 3, case classes, sealed traits and enums whose fields are all `Unscoped` get one automatically. In Scala 2 you derive it explicitly:
+`Unscoped` instances exist for primitives, `String`, collections, `Option`, `Either` and tuples of up to four elements, as long as every element type is itself `Unscoped`. For your own data, declare an instance. In Scala 3, case classes, sealed traits and enums whose fields are all `Unscoped` get one automatically. In Scala 2 you derive it explicitly:
 
 <Tabs groupId="scala-version" defaultValue="scala2">
 <TabItem value="scala2" label="Scala 2">
