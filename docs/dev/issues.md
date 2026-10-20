@@ -143,14 +143,3 @@ println(order.toJsonString)
 **Impact.** The most common first attempt at a custom date format (an implicit codec) compiles and produces the default format, so users conclude the feature is missing (see zio-json issue #1036 for how often this is asked). After finding `withInstance`, the convenience methods from the getting-started tutorial quietly bypass it.
 
 **Suggested fix.** Both behaviours follow from the design, so the cheapest fix is documentation: state both points in the Scaladoc of `syntax.toJsonString`/`fromJson` and `Deriver#withInstance` (the H-03 guide and `codec.md` now do). A library-level option is a `toJsonString(codec)`/`fromJson(codec)` overload, or a way to attach a configured deriver to a `Schema` so that `Schema#jsonCodec` uses it.
-
-## Documentation errors
-
-### schema
-
-- `docs/reference/schema/type-class-derivation.md:170` ("Customizing Derivation with Instance and Modifier Overrides"): the first example, `customDateCodec`, is a plain `scala` block with a `// ... AST overrides ...` placeholder, so it is not compiled and cannot be copied as is. The compiled form only appears later, in "Custom Type-class Instances". Fix: make it an `mdoc:compile-only` block with the full codec.
-- `docs/reference/schema/codec.md` ("BinaryCodec and TextCodec") said every built-in format extends `BinaryCodec` and that no built-in format uses `TextCodec`. Source: `CsvCodec extends TextCodec` (`schema-csv/src/main/scala/zio/blocks/schema/csv/CsvCodec.scala:29`), `XmlCodec` and `YamlCodec` (missing from the list) extend `BinaryCodec`, and `BsonCodec` extends neither (`schema-bson/src/main/scala/zio/blocks/schema/bson/BsonTypes.scala:191`). Fixed on branch `codec-md-withinstance`.
-
-## Test style
-
-- `schema-csv/src/test/scala/zio/blocks/schema/csv/DeriverWithInstanceCsvSpec.scala` asserts with `csv.contains("20250801")` instead of comparing the full rendered string, against the "Render Assertions" rule in `AGENTS.md`.
