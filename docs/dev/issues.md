@@ -944,3 +944,84 @@ ConfigSource.fromFileWithLimits(file.toString, maxFileBytes = 4L * 1024 * 1024).
 **Root cause.** `fromFile` delegates to `fromFileWithLimits` with `DefaultMaxFileBytes = 1024L * 1024L` (`config-hocon/jvm/src/main/scala/zio/blocks/config/hocon/HoconConfigSourcePlatform.scala:28`, `:204`), and the read throws `File size exceeds limit` above it (`:36`, `:54`). The docs table was written before the limit existed (added by PR #1649).
 
 **Suggested fix.** Add a third row to the table: `maxFileBytes` | `1 MiB` | "Maximum size of the file and of each include; a larger one is a parse failure. Set it with `ConfigSource.fromFileWithLimits`." Then change "Two parameters guard ..." to "Three parameters guard ...", and add the size failure to the failures paragraph.
+
+## `Jwt.sign` writes a registered claim twice when `extra` also contains it, and verifiers read the `extra` value
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/issue-and-verify-jwts.md` (backlog H-37), on `main` at `ad0821d2`. The jwt sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56.
+
+**Summary.** `JwtClaims` has typed fields for the registered claims (`iss`, `sub`, `aud`, `exp`, `nbf`, `iat`, `jti`) and a free-form `extra` map. If `extra` also contains one of these names, `Jwt.sign` writes the claim twice into the signed payload. Every JSON parser that keeps the last duplicate, including this module's own decoder, then reads the `extra` value, not the typed field. The issuer believes it signed `iss = "bookstore-auth"`; every verifier sees `iss = "partner-auth"`. RFC 7519 §4 says claim names within a claims set MUST be unique, so the issuer produces a non-conforming token without any error.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-jwt` 0.0.56, run with `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-jwt:0.0.56
+import zio.blocks.jwt._
+import java.nio.charset.StandardCharsets.UTF_8
+
+val secret = "sample-bookstore-secret-32-bytes".getBytes(UTF_8)
+
+// The issuer sets iss = "bookstore-auth"; a custom claim map built elsewhere also contains "iss"
+val claims = JwtClaims(
+  iss = Some("bookstore-auth"),
+  sub = Some("reader-1024"),
+  extra = Map("iss" -> JwtValue.Str("partner-auth"))
+)
+val token = Jwt.sign(claims, secret, Algorithm.HS256).fold(e => throw e, identity)
+
+println(Base64Url.decode(token.split('.')(1)).map(new String(_, UTF_8)))
+println(Jwt.decode(token, secret, Algorithm.HS256, JwtDecodeOptions(nowSeconds = Some(0L))).map(_.iss))
+println(Jwt.decode(token, secret, Algorithm.HS256, JwtDecodeOptions(issuer = Some("bookstore-auth"), nowSeconds = Some(0L))))
+// Right({"iss":"bookstore-auth","sub":"reader-1024","iss":"partner-auth"})
+// Right(Some(partner-auth))
+// Left(zio.blocks.jwt.JwtError$InvalidClaim: Invalid JWT claim 'iss': expected bookstore-auth but found partner-auth)
+```
+
+**Expected.** `Jwt.sign` never emits duplicate claim names. Either it rejects the claims (for example `Left(InvalidClaim("iss", "registered claim name must not appear in extra"))`), or the typed field wins and the `extra` entry is dropped. The decoded `iss` should be `Some(bookstore-auth)`.
+
+**Root cause.** `JwtClaims.render` writes the typed fields and then every `extra` entry without filtering registered names (`jwt/shared/src/main/scala/zio/blocks/jwt/JwtClaims.scala:91-93`). The parser's object builder keeps the last value for a repeated key (`fields.update(key, value)`, `jwt/shared/src/main/scala/zio/blocks/jwt/Jwt.scala:622` and `:671`), and `parseExtra` drops registered names from `extra` (`JwtClaims.scala:98-104`), so the duplicate silently replaces the typed field. The decoder's last-wins behaviour is allowed by RFC 7515 §5.2; the bug is on the signing side.
+
+**Impact.** Code that merges custom claims from another source (a user profile map, a config file) into `extra` can override `iss`, `sub`, `aud` or `exp` without noticing. An `exp` in `extra` can extend a token's lifetime past the typed `exp`; a `sub` can change whose token it is. The JWT reference page now tells users not to put registered names in `extra`, but nothing enforces it.
+
+**Test gap.** No test signs claims whose `extra` contains a registered name. `JwtFeatureSpec` only round-trips non-reserved custom claims.
+
+**Suggested fix.** Validate in `Jwt.sign` (or in `JwtClaims.render`) that `extra.keySet` and the registered names are disjoint, and return `Left(JwtError.InvalidClaim(name, ...))` otherwise. Add a test per registered name.
+
+## `JwtSignOptions.limits` does not apply the JSON-shape limits, and two Scaladocs contradict the code
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/issue-and-verify-jwts.md` (backlog H-37). Verified by running against the published 0.0.56.
+
+**Summary.** `Jwt.sign` applies only the size limits of `JwtSignOptions.limits` (`maxJsonChars`, `maxSegmentChars`, `maxTokenChars`). It ignores `maxDepth`, `maxFields` and `maxArrayElements`, so an issuer can sign a token that a verifier configured with the same `JwtLimits` rejects. Separately, the Scaladoc of `JwtDecodeOptions` says an audience mismatch yields `InvalidToken`, but the code returns `InvalidClaim("aud", ...)`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-jwt` 0.0.56, run with `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-jwt:0.0.56
+import zio.blocks.jwt._
+import java.nio.charset.StandardCharsets.UTF_8
+
+val secret = "sample-bookstore-secret-32-bytes".getBytes(UTF_8)
+val limits = JwtLimits(maxDepth = 3)
+
+// A custom claim nested five arrays deep
+val deep   = (1 to 5).foldLeft(JwtValue.Str("Zionomicon"): JwtValue)((v, _) => JwtValue.Arr(v))
+val signed = Jwt.sign(JwtClaims(extra = Map("shelf" -> deep)), secret, Algorithm.HS256, JwtSignOptions(limits = limits))
+
+println(signed.isRight)
+println(signed.flatMap(t => Jwt.decode(t, secret, Algorithm.HS256, JwtDecodeOptions(limits = limits, nowSeconds = Some(0L)))))
+// true
+// Left(zio.blocks.jwt.JwtError$TooDeep: JWT JSON too deep: depth 4 exceeds limit 3)
+```
+
+**Expected.** Signing with `JwtSignOptions(limits = limits)` fails with `Left(TooDeep(...))` when the decoder with the same `limits` would, or the Scaladoc says which limits apply on sign.
+
+**Root cause.** The sign path checks `maxJsonChars`, `maxSegmentChars` and `maxTokenChars` only (`jwt/shared/src/main/scala/zio/blocks/jwt/Jwt.scala:245-259`); it renders JSON with `JwtClaims.render` and never runs the depth, field or element checks that the parser applies on decode. The `JwtSignOptions` Scaladoc describes `limits` as "resource limits for header JSON validation" (`Jwt.scala:169`), which matches neither behaviour. The `JwtDecodeOptions` Scaladoc says "mismatch yields `InvalidToken`" (`Jwt.scala:131-132`), while `validateAudience` returns `JwtError.InvalidClaim("aud", ...)` (`Jwt.scala:450-453`, tested in `JwtFeatureSpec.scala:354-372`).
+
+**Impact.** Low. An issuer that shares one `JwtLimits` value between signing and verifying can mint tokens its own verifiers reject, and only finds out at verification time. The wrong `InvalidToken` statement in the Scaladoc was also copied into `docs/reference/jwt.md` (fixed in the H-37 PR).
+
+**Test gap.** No test signs with tightened `JwtSignOptions.limits`. No test sends an `alg: none` header (the code returns `UnsupportedAlgorithm("none")`, or `InvalidToken` when the signature segment is empty, but nothing asserts it).
+
+**Suggested fix.** Either apply all six limits on sign (parse the rendered JSON with the same limits before encoding), or document that only the size limits apply on sign. Change the `JwtDecodeOptions` Scaladoc to "mismatch yields `InvalidClaim("aud", ...)`". Add tests for both, plus an `alg: none` test in `JwtEdgeCasesSpec`.
