@@ -15,7 +15,7 @@ In this guide, we roll out two changes to a Scala bookstore with ZIO Blocks flag
 
 We start with a restart-only knob, turn the panel on for a percentage of readers, narrow it to one region, change it at runtime, check expressions before they ship, print a startup report, and finish with tests:
 
-- [A Restart-Only Knob: the Free-Shipping Threshold](#a-restart-only-knob-the-free-shipping-threshold)
+- [A Restart-Only Knob: The Free-Shipping Threshold](#a-restart-only-knob-the-free-shipping-threshold)
 - [Turning the Panel On for 10% of Readers](#turning-the-panel-on-for-10-of-readers)
 - [Targeting One Region](#targeting-one-region)
 - [Changing the Rollout While the Service Runs](#changing-the-rollout-while-the-service-runs)
@@ -57,7 +57,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-config" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config" % "@VERSION@"
 ```
 
-This guide assumes you have loaded configuration with ZIO Blocks before; [Build a Typed Configuration Loader](./typed-config-loader.md) covers sources and provenance. Every snippet below uses one import:
+This guide assumes you have loaded configuration with ZIO Blocks before; [Build a Typed Configuration Loader](./typed-config-loader.md) covers sources and provenance. Most snippets below use one import:
 
 ```scala mdoc:silent
 import zio.blocks.config._
@@ -253,7 +253,7 @@ println(RecommendationsPanel.reload())
 println(RecommendationsPanel.reload())
 ```
 
-A bad push to the flag service comes back as `Failed`, and the flag keeps its current expression instead of dropping to the default. Registering a source under an existing `sourceId` replaces it in place, which is how this snippet simulates a new push:
+A bad push to the flag service comes back as `Failed`, and the flag keeps its current expression instead of dropping to the default. Registering a source under an existing `FlagSource#sourceId` replaces it in place, which is how this snippet simulates a new push:
 
 ```scala mdoc:silent
 FlagSource.Registry.register(
@@ -270,7 +270,7 @@ println(RecommendationsPanel.expression)
 
 ### Auditing Changes
 
-Every successful `DynamicFlag#update` or `DynamicFlag#reload` adds a `DynamicFlag.UpdateRecord` to `DynamicFlag#updateHistory`, most recent first and capped at the last ten. Each record also carries a `timestampMillis`:
+Every successful `DynamicFlag#update` or `DynamicFlag#reload` adds a `DynamicFlag.UpdateRecord` to `DynamicFlag#updateHistory`, most recent first and capped at the last ten. Each record also carries a `DynamicFlag.UpdateRecord#timestampMillis`:
 
 ```scala mdoc
 RecommendationsPanel.updateHistory.foreach(r => println(s"${r.oldExpression}  ->  ${r.newExpression}"))
@@ -323,7 +323,7 @@ scheduler.scheduleAtFixedRate(
 )
 ```
 
-Shut the scheduler down when the service stops. For a source that fetches from a remote service, refresh the source's contents on the same schedule before calling `reload()`.
+Shut the scheduler down when the service stops. For a source that fetches from a remote service, refresh the source's contents on the same schedule before calling `DynamicFlag#reload`.
 
 ## Checking an Expression Before You Ship It
 
