@@ -6,44 +6,50 @@ Compiled 2026-10-19 on branch `tutorials-and-guides-lists` (HEAD `b5f9fb71`). St
 
 This table tracks every item that has been written or started. Items not listed here have not been started. Update the row when an item changes state.
 
-| ID   | Title                                                              | Status                                    | Where                                                                                           |
-|------|--------------------------------------------------------------------|-------------------------------------------|-------------------------------------------------------------------------------------------------|
-| T-01 | Your first schema: round-trip a type through JSON                  | Done                                      | #1756, `guides/your-first-schema.md`                                                            |
-| T-07 | Build your first database repository on SQLite                     | Done                                      | #1760, `guides/your-first-sqlite-repository.md`, `sql-examples/`                                |
-| T-09 | Render your first server-side HTML page                            | Done                                      | #1763, `guides/your-first-html-page.md`, `html-examples/`                                       |
-| T-05 | Build a typed configuration loader                                 | In review                                 | #1759 (`config-loader`), `config-examples/`                                                     |
-| T-04 | One type, many formats                                             | In review                                 | #1762 (`many-formats`)                                                                          |
-| H-03 | How to override the codec for one type everywhere                  | In progress (local commits, not pushed)   | worktree `override-codec`                                                                       |
-| M-06 | Coming from PureConfig, Typesafe Config or zio-config              | In progress (local commits, not pushed)   | worktree `pureconfig-migration`, branched from `config-loader`; depends on #1759                 |
-| H-28 | How to wrap callback and Future-based APIs in Async                | In progress (local commits, not pushed)   | worktree `async-interop`                                                                        |
-| H-37 | How to issue and verify JWTs (plus `jwt.md` fixes)                 | In progress (uncommitted)                 | worktree `jwt`                                                                                  |
-| H-31 | How to fix common Scope and Wire compile errors                    | In progress (uncommitted)                 | worktree `scope-errors`                                                                         |
-| M-03 | Coming from Magnum or doobie                                       | In progress                               | worktree `magnum-migration`                                                                     |
-| M-05 | Coming from cats-effect `Resource`, ZIO `Scope`/`ZLayer`, macwire or `Using` | In progress                     | worktree `resource-migration`                                                                   |
-| H-17 | How to connect to PostgreSQL with a connection pool                | In progress                               | worktree `postgres-pool`                                                                        |
-| H-01 | How to add ZIO Blocks to your build                                | Stalled: uncommitted, session exited      | worktree `adding-zio-block-to-build`; `guides/add-zio-blocks-to-your-build.md` + artifact fixes |
-| H-02 | How to customize JSON field names, ADT encoding and optional fields | Stalled: uncommitted, session exited     | worktree `customize-json-fields`; `guides/customize-json-encoding.md`                           |
-| T-06 | Build your first streaming pipeline                                | Stalled: uncommitted, session exited      | worktree `streaming-pipeline`; `guides/your-first-streaming-pipeline.md`                        |
-| T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`   | Stalled: uncommitted, session exited      | worktree `evolve-data`; `guides/evolve-your-data.md`                                            |
-| T-08 | Describe a typed HTTP API with Endpoint                            | Skipped (maintainer decision)             | —                                                                                               |
+| ID   | Title                                                                         | Status                                  | Where                                                                                   |
+|------|-------------------------------------------------------------------------------|-----------------------------------------|-----------------------------------------------------------------------------------------|
+| T-01 | Your first schema: round-trip a type through JSON                             | Done                                    | #1756, `guides/your-first-schema.md`                                                    |
+| T-07 | Build your first database repository on SQLite                                | Done                                    | #1760, `guides/your-first-sqlite-repository.md`, `sql-examples/`                        |
+| T-09 | Render your first server-side HTML page                                       | Done                                    | #1763, `guides/your-first-html-page.md`, `html-examples/`                               |
+| T-05 | Build a typed configuration loader                                            | Done                                    | #1759, `guides/typed-config-loader.md`, `config-examples/`                              |
+| M-05 | Coming from cats-effect `Resource`, ZIO `Scope`/`ZLayer`, macwire or `Using`  | Done                                    | #1769, `guides/resource-and-di-migration.md`                                            |
+| T-03 | Navigate and update nested data with optics                                   | Done                                    | #1770, `guides/nested-data-with-optics.md`                                              |
+| T-04 | One type, many formats                                                        | In review                               | #1762 (`many-formats`)                                                                  |
+| H-05 | How to generate JSON Schema from a type and validate payloads                 | In review                               | #1772 (`json-schema`)                                                                   |
+| H-12 | How to send compact data to an LLM with TOON and parse the reply              | In review                               | #1774 (`toon-llm`)                                                                      |
+| H-31 | How to fix common Scope and Wire compile errors                               | Pushed, no PR                           | branch `scope-errors`; 1 uncommitted file in its worktree                               |
+| H-17 | How to connect to PostgreSQL with a connection pool                           | Committed locally, not pushed           | worktree `postgres-pool` (5 commits)                                                    |
+| M-06 | Coming from PureConfig, Typesafe Config or zio-config                         | Committed locally, not pushed           | worktree `pureconfig-migration` (9 commits); based on the pre-squash `config-loader`, needs a rebase onto main |
+| H-03 | How to override the codec for one type everywhere                             | Committed locally, not pushed           | worktree `override-codec` (3 commits)                                                   |
+| M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
+| H-28 | How to wrap callback and Future-based APIs in Async                           | Committed locally, not pushed           | worktree `async-interop` (2 commits)                                                    |
+| H-37 | How to issue and verify JWTs (plus `jwt.md` fixes)                            | Stalled: uncommitted, session exited    | worktree `jwt`                                                                          |
+| H-01 | How to add ZIO Blocks to your build                                           | Stalled: uncommitted, session exited    | worktree `adding-zio-block-to-build`; `guides/add-zio-blocks-to-your-build.md` + artifact fixes |
+| H-02 | How to customize JSON field names, ADT encoding and optional fields           | Stalled: uncommitted, session exited    | worktree `customize-json-fields`; `guides/customize-json-encoding.md`                   |
+| T-06 | Build your first streaming pipeline                                           | Stalled: uncommitted, session exited    | worktree `streaming-pipeline`; `guides/your-first-streaming-pipeline.md`                |
+| T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`              | Stalled: uncommitted, session exited    | worktree `evolve-data`; `guides/evolve-your-data.md`                                    |
+| T-08 | Describe a typed HTTP API with Endpoint                                       | Skipped (maintainer decision)           | —                                                                                       |
+
+**Related doc-fix PRs:** #1771 (config parse-error and `EnvSource` contradictions, merged), #1773 (codec reference pages, open). #1761 (`loadOrThrow` error count) was closed without merging.
 
 **Unblocked since this backlog was compiled:**
 
-- T-07 merged, so the sql items can start: H-17 (now in progress), H-18 (partly covered by the `repo.md` upsert and `pageAfter` docs added in #1760), H-20 and H-47.
+- T-07 merged, so the sql items can start: H-17 (written, unpushed), H-18 (partly covered by the `repo.md` upsert and `pageAfter` docs added in #1760), H-20 and H-47.
+- T-05 merged, so H-30 (config into a `Wire` graph) and H-32 (feature-flag rollouts) can start.
 - T-09 merged, so T-10 (HTMX) and T-11 (Datastar) have their prerequisite, but both still need an HTTP adapter (H-35).
 - PR #1742 (projection docs) merged on 2026-10-20. T-14 now waits only on issue #1744, which has grown to sixteen engine problems.
 
-**Waiting on stalled items:** M-01 needs H-02; H-04 needs T-02; H-24, H-25 and M-04 need T-06.
+**Waiting on stalled items:** M-01 needs H-02; H-04 and M-07 need T-02; H-24, H-25 and M-04 need T-06.
 
 **Library follow-ups found while writing:**
 
-- `ProvenanceMap#dump` over an unprefixed `EnvSource` prints the whole process environment. Only names that match `Sensitive` markers are redacted.
-- `Table.createTable` emits no `PRIMARY KEY`, so `Repo.insertOrUpdate` fails on tables it creates. #1760 documents this; the code is unchanged.
-- In the html module, `selector"..."` never matches in `Dom#select`: issue #1765.
-- On Scala 3, `import zio.blocks.html._` together with `import zio.blocks.schema._` makes `p(...)` ambiguous.
-- `html"..."` escapes interpolated attribute values twice, so `&` renders as `&amp;amp;` and URLs with query strings break: issue #1764. `html.md` drift is issue #1766.
-- TOON `ArrayFormat.Auto` never picks the tabular layout, although its Scaladoc and `toon.md:706` say it does.
-- `loadOrThrow` reports the wrong error count. #1761 fixes this.
+- config: `ProvenanceMap#dump` over an unprefixed `EnvSource` prints the whole process environment. Only names that match `Sensitive` markers are redacted.
+- sql: `Table.createTable` emits no `PRIMARY KEY`, so `Repo.insertOrUpdate` fails on tables it creates. #1760 documents this; the code is unchanged.
+- html: `selector"..."` never matches in `Dom#select` (#1765). `html"..."` escapes interpolated attribute values twice (#1764). `html.md` drift (#1766). On Scala 3, `import zio.blocks.html._` with `import zio.blocks.schema._` makes `p(...)` ambiguous (not filed).
+- scope: a `val r = Resource.from[T](...)` can be used only once; the second use throws "Cannot allocate from a destroyed shared resource". On Scala 3, `Unscoped` is derived for case classes that extend `AutoCloseable`, so a closed resource can escape `use`. `Wire(new Db(...))` builds eagerly. `Wire.Shared.fromFunction` does not register `close()` for an `AutoCloseable` result.
+- schema / JSON Schema: `Schema.fromJsonSchema` treats every property as required and ignores `"required"` (`JsonSchemaToReflect.scala:311`); see `docs/dev/issues.md`. `JsonSchema#check` enforces `pattern` only when it is anchored with `^...$`, while JSON Schema matches patterns anywhere in the string.
+- schema-toon: `ArrayFormat.Tabular` with a non-primitive field writes output that cannot be decoded. A top-level tabular list cannot be decoded, even when the codec wrote it. `ArrayFormat.Auto` never picks the tabular layout for record lists. `withFieldNameMapper` is ignored in tabular headers. `withEnumValuesAsStrings` is never read.
+- config: `loadOrThrow` reports the wrong error count when the single error is a `Composite`. #1761 was closed without merging, so this is still open.
 
 ## 1. Introduction
 
