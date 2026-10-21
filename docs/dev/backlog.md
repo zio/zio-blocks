@@ -467,3 +467,20 @@ The ten P0 items, in the order to write them. As of 2026-10-20 all ten are done,
 - [smithy4s sbt codegen](https://index.scala-lang.org/disneystreaming/smithy4s/artifacts/smithy4s-sbt-codegen/0.18.4)
 - [guardrail](https://github.com/twilio/guardrail/)
 - [Zuplo: API-first development in Scala](https://zuplo.com/blog/2025/04/11/api-first-development-in-scala)
+
+## 11. Scaladoc: schema module
+
+Plan: `docs/superpowers/plans/2026-10-21-schema-scaladoc.md`. Style: `docs/dev/scaladoc-style.md`. Coverage: `python3 .claude/scripts/scaladoc-coverage.py schema` (TOTAL row, documented / declarations).
+
+| Wave                     | Status      | PR | Coverage before   | Coverage after    |
+|--------------------------|-------------|----|-------------------|-------------------|
+| 0. Tooling               | In progress |    | 1194 / 6902 (17%) | 1194 / 6902 (17%) |
+| 1. Entry point           | Not started |    |                   |                   |
+| 2. Structure             | Not started |    |                   |                   |
+| 3. Binding               | Not started |    |                   |                   |
+| 4. Optics                | Not started |    |                   |                   |
+| 5. Dynamic               | Not started |    |                   |                   |
+| 6. Derivation and codecs | Not started |    |                   |                   |
+| 7. Transform and evolve  | Not started |    |                   |                   |
+| 8a. JSON model           | Not started |    |                   |                   |
+| 8b. JSON I/O             | Not started |    |                   |                   |

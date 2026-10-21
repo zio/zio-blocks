@@ -52,7 +52,7 @@ No Scaladoc content beyond fixing existing snippets.
 
    Snippets are compiled, not run, so `// result` comments in them are not checked.
 3. **CI.** Add `schema-scaladoc-check/compile` to `testJVMScala2Command` and `testJVMScala3Command` in `build.sbt` (the commands behind the `testJVM` alias that CI runs) so a broken example fails CI on both Scala versions.
-4. **Coverage script** `scripts/scaladoc-coverage.py`. Prints the share of documented API-level declarations per package and lists cross-version copies whose Scaladoc differs. Report only; no threshold, so nobody games a number.
+4. **Coverage script** `.claude/scripts/scaladoc-coverage.py`. Prints the share of documented API-level declarations per package and lists cross-version copies whose Scaladoc differs. Report only; no threshold, so nobody games a number.
 5. **Docs.** `docs/dev/scaladoc-style.md` and a link from `AGENTS.md`.
 6. **Seed.** The checker runs over the existing `{{{` blocks (about 19 files). Each failing block is fixed, or marked `// no-check` with an `issues.md` entry when the fix needs real work.
 
