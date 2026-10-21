@@ -203,7 +203,7 @@ Json.newBook.decode("""{"title":"Scala with Cats"}""") match {
 }
 ```
 
-Notice that the encoded `Zionomicon` has no `isbn` field: a `None` is left out of the JSON, and a missing optional field decodes back to `None`. A missing required field is an error with a readable message, which is exactly what we'll send back to a client as a 400 in section 7. The [Your First Schema](./your-first-schema.md) tutorial explains what else a schema gives you.
+Notice that the encoded `Zionomicon` has no `isbn` field: a `None` is left out of the JSON, and a missing optional field decodes back to `None`. A missing required field is an error with a readable message, which is exactly what we send back to a client as a 400 in section 7. The [Your First Schema](./your-first-schema.md) tutorial explains what else a schema gives you.
 
 ## 4. Load the Settings
 
