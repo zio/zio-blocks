@@ -131,6 +131,8 @@ CI compiles the example projects on JDK 17 as well as JDK 25, and compiles the d
 
 The standalone examples builds have no scalafmt plugin, so `sbt scalafmtAll` at the root does not format them. Format a new or changed example package with the repo config instead: `scala-cli fmt --scalafmt-conf ../.scalafmt.conf src/main/scala/<package>` from inside the examples directory (add `--check` to only report).
 
+The standalone example builds set `run / fork := true`, so a `-D` flag on the `sbt` command line reaches only sbt, not the example. Pass a system property as `sbt 'set run / javaOptions += "-Dkey=value"' "runMain ..."`; environment variables do reach the forked JVM. These builds declare no `crossScalaVersions`, so checking an example on Scala 2.13 needs the forced form, `sbt "++2.13.18!" compile`.
+
 When you change, rename or move an example, update the docs that embed it (`grep -rn "mdoc:embed:.*<ExampleFile>" docs/`) in the same change, so their prose and quoted output still match; then run the example and mdoc on those pages.
 
 ## Cross-Version Code Structure
