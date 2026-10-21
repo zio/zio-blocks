@@ -56,7 +56,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-33 | How to keep secrets out of logs and config dumps                              | Skipped (maintainer decision)           | —                                                                                       |
 | T-08 | Describe a typed HTTP API with Endpoint                                       | Skipped (maintainer decision)           | —                                                                                       |
 
-**Related doc-fix PRs:** #1771 (config parse-error and `EnvSource` contradictions, merged), #1784 (`codec.md` overrides, merged), #1773 (codec reference pages, open), #1787 (`type-class-derivation.md` snippets, merged). #1761 (`loadOrThrow` error count) was closed without merging.
+**Related doc-fix PRs:** #1771 (config parse-error and `EnvSource` contradictions, merged), #1784 (`codec.md` overrides, merged), #1773 (codec reference pages, merged), #1787 (`type-class-derivation.md` snippets, merged). #1761 (`loadOrThrow` error count) was closed without merging.
 
 **Unblocked since this backlog was compiled:**
 
@@ -72,6 +72,8 @@ This table tracks every item that has been written or started. Items not listed 
 **Unblocked by H-35 (pushed):** H-36, H-38, H-49, H-40, H-41, T-10, T-11 and the T-15 capstone can reuse its `JdkHttp` adapter (`http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala`).
 
 **Links to add when PRs merge:** `small-json-backend-from-blocks.md` (T-15) names H-35 (#1806, section 9 and Background), H-36 (#1808, end of section 6), T-12 (#1805, end of section 8 and the log source-location caution) and H-38 (#1804, Where to Go Next) without links. Each of those PRs should turn its mention into a link.
+
+**Doc-fix follow-up:** `csv.md` statements listed in the H-11 Documentation errors entry (Pattern 3, row/column claims, `TypeError`, `nullValue`, nested records) still need fixing; unblocked now that #1773 merged.
 
 **Waiting on stalled items:** M-07 needs T-02. H-04 only depends on T-01; it can start now and link to T-02 once T-02 merges.
 
