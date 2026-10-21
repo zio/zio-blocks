@@ -2457,6 +2457,8 @@ import zio.blocks.schema.json.{Json, WriterConfig}
 
 **Suggested fix.** Defer the newline and indentation after an opening bracket until the first element or key is written, and write the closing bracket directly when nothing was written.
 
+**Also seen in H-06** (2026-10-21, `docs/guides/json-without-case-classes.md`). `Json#toString` uses the same indenting writer, so `println(json)` on any tree with an empty list shows the blank line too: `{"title": "Zionomicon", "tags": []}` prints `"tags": [`, a line of four spaces, `]`. Verified with `zio-blocks-next-schema` 0.0.56 on Scala 3.9.0.
+
 ### telemetry: the default text log line prints the full class name and two numbers for any class in a package
 
 Found 2026-10-21 while writing the tutorial `docs/guides/instrument-a-program-with-logs-traces-and-metrics.md` (backlog T-12), on `main` at `a44dc6db`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
@@ -2721,6 +2723,311 @@ object DefaultsIgnored {
 **Test gap.** `QueryCodecSpec` and `HeaderCodecSpec` have no case class with a default value.
 
 **Suggested fix.** In both `deriveRecord`s, read `field.value.getDefaultValue` and, when the raw value is absent and a default exists, store the default instead of calling `decodeAny`. Add tests for a missing defaulted field, a present defaulted field and a malformed defaulted field (which should still fail).
+
+### schema: `json"..."` does not compile on Scala 2.13 outside the `zio.blocks.schema` package
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** On Scala 2.13, every use of the `json"..."` interpolator in user code fails to compile, with or without spliced values. The Scala 2 macro expands to a call on `JsonInterpolatorRuntime`, which is `private[schema]`, so the expansion compiles only when the call site is itself inside the `zio.blocks.schema` package, as the library's own tests are. On Scala 3 the same code compiles and works.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run JsonInterpolatorScala2.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json._
+
+object JsonInterpolatorScala2 {
+  def main(args: Array[String]): Unit = {
+    val title = "Zionomicon"
+    println(json"""{"title": $title, "price": 49.99}""".print)
+  }
+}
+// [error] ./JsonInterpolatorScala2.scala:8:13
+// [error] object JsonInterpolatorRuntime in package json cannot be accessed as a member of package zio.blocks.schema.json from object JsonInterpolatorScala2
+// [error]     println(json"""{"title": $title, "price": 49.99}""".print)
+// [error]             ^
+```
+
+**Expected.** The program compiles and prints `{"title":"Zionomicon","price":49.99}`, as it does on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56.
+
+**Root cause.** `schema/shared/src/main/scala-2/zio/blocks/schema/json/package.scala:88` (`JsonInterpolatorRuntime.validateJsonLiteral`, run inside the macro, which is fine) and `:92` (`reify(JsonInterpolatorRuntime.jsonWithContexts(...))`, which is emitted into the caller's code). `reify` keeps the reference as written, and `JsonInterpolatorRuntime` is declared `private[schema] object JsonInterpolatorRuntime` at `schema/shared/src/main/scala/zio/blocks/schema/json/JsonInterpolatorRuntime.scala:28`. The Scala 3 macro (`scala-3/zio/blocks/schema/json/package.scala`) is inlined differently and is not affected.
+
+**Impact.** The `json"..."` interpolator, which `json.md` presents as a main way to write JSON, is unusable on Scala 2.13. Scala 2 users have to fall back to the `Json` constructors or `Json.parse`.
+
+**Test gap.** `schema/shared/src/test/scala/zio/blocks/schema/json/JsonInterpolatorSpec.scala:17` is in `package zio.blocks.schema.json`, so the `private[schema]` reference resolves there. No test calls `json"..."` from a package outside `zio.blocks.schema`, and mdoc runs only on Scala 3.
+
+**Suggested fix.** Make `JsonInterpolatorRuntime` public (it can stay undocumented, like other macro runtimes), or emit a fully qualified call to a public forwarder. Add a Scala 2 test in a package outside `zio.blocks.schema` (for example `zio.blocksjsontest`) that calls `json"..."` with and without splices.
+
+### schema: `Json#delete` through `[*]` removes the array elements that lack the field
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** `json.delete(p".books[*].isbn")` is meant to remove the `isbn` field from every book. It also removes every book that has no `isbn` field, and when no book has it, it empties the array. `Json#deleteOrFail` returns the same damaged document as a `Right`. `Json#modify` on the same path keeps the elements it can't change.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run DeleteWildcard.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  val doc = Json.parseUnsafe(
+    """{"books":[{"title":"Zionomicon","isbn":"978-0-9961-1250-4"},{"title":"Programming in Scala"}]}"""
+  )
+
+  // Remove "isbn" from every book: the book without "isbn" disappears too
+  println(doc.delete(p".books[*].isbn").print)
+  // {"books":[{"title":"Zionomicon"}]}
+
+  // No book has "edition": every book disappears
+  println(doc.delete(p".books[*].edition").print)
+  // {"books":[]}
+
+  // deleteOrFail reports nothing wrong
+  println(doc.deleteOrFail(p".books[*].isbn").map(_.print))
+  // Right({"books":[{"title":"Zionomicon"}]})
+
+  // modify on the same elements keeps both books
+  println(doc.modify(p".books[*]")(_.delete(p".isbn")).print)
+  // {"books":[{"title":"Zionomicon"},{"title":"Programming in Scala"}]}
+}
+```
+
+**Expected.** `{"books":[{"title":"Zionomicon"},{"title":"Programming in Scala"}]}` for the first and third calls, and the document unchanged for the second (or a `Left` from `deleteOrFail` when no element has the field).
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:1979`, in `deleteAtPathRecursive`: for a non-last `Elements` node it builds `new Array(arr.value.flatMap(e => deleteAtPathRecursive(e, nodes, idx + 1)))`. The recursive call returns `None` when the element has no such field (`Json.scala:1935-1937`, `if (filtered.length != fields.length) ... else None`), and `flatMap` over that `Option` drops the element. The `modify` counterpart (`Json.scala:1705-1712`) maps `None` back to the original element.
+
+**Impact.** Silent data loss: a cleanup step such as removing an internal field before publishing a document deletes whole records whenever the field is optional. Nothing reports it.
+
+**Test gap.** `schema/shared/src/test/scala/zio/blocks/schema/json/JsonSpec.scala:2992-3004` ("delete with Elements non-last applies recursively through elements") uses two objects that both contain `x`. No test deletes `[*].field` where some element lacks the field.
+
+**Suggested fix.** Mirror `modifyAtPathRecursive`: `arr.value.map(e => deleteAtPathRecursive(e, nodes, idx + 1).getOrElse(e))`, and return `None` from the `Elements` case only when no element changed, so `deleteOrFail` can still report a path that matches nothing. Add tests for a partly missing and a fully missing field.
+
+### schema: `Json.Number(Double)` keeps a trailing zero, so `Json.Number(49.99)` prints `49.990`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** `Json.Number(value: Double)` converts the `Double` with `JsonWriter.toBigDecimal`, which leaves one trailing zero in the scale whenever the shortest decimal form has an odd number of them. `49.99` becomes `49.990` (scale 3), `2.5` becomes `2.50`. The value compares equal to `Json.Number(BigDecimal("49.99"))`, but it prints differently, so generated JSON doesn't match what the user wrote. The JSON codec for `Double` uses the same factory when it encodes to a `Json` tree, so `Json.from(value)` pads every `Double` field, while `toJsonString` on the same value does not.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run NumberFromDouble.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+final case class Price(amount: Double)
+object Price { given Schema[Price] = Schema.derived }
+
+@main def run(): Unit = {
+  println(Json.Number(49.99).print)
+  // 49.990
+  println(Json.Number(2.5).print)
+  // 2.50
+  println(Json.Number(10.0).print)
+  // 10.0
+  println(Json.Number(49.99).value.scale)
+  // 3
+
+  // the same value from a BigDecimal or from parsed text prints as written
+  println(Json.Number(BigDecimal("49.99")).print)
+  // 49.99
+  println(Json.parseUnsafe("49.99").print)
+  // 49.99
+
+  // a Double field encoded to a Json tree is padded; encoded straight to text it is not
+  println(Json.from(Price(49.99)).print)
+  // {"amount":49.990}
+  println(Price(49.99).toJsonString)
+  // {"amount":49.99}
+}
+```
+
+**Expected.** `49.99`, `2.5` and `10.0` (or `10`): the shortest text that reads back as the same `Double`, as `java.lang.Double.toString` and `JsonWriter#writeVal(Double)` produce.
+
+**Root cause.** `schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:3665` (`toBigDecimal(x: Double)`; the JS copy is at `schema/js/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:3830`) strips trailing zeros from the decimal mantissa only in pairs: both loops at `:3730-3750` divide by 100. One zero is left when their count is odd. `Json.Number.apply(Double)` (`schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:837`) and `apply(Float)` (`:829`) call it, and `JsonCodec.doubleCodec.encodeValue(x: Double): Json` (`JsonCodec.scala:771`) calls `Json.Number(x)`. Encoding to text goes through `JsonWriter#writeVal(Double)` instead (`JsonCodec.scala:764`), which is why `toJsonString` is not affected.
+
+**Impact.** Any JSON built from `Double` values through `Json.Number` or `Json.from` prints padded numbers: prices like `49.990` in API responses and test fixtures that don't match their expected text. Parsed numbers and `BigDecimal` inputs are not affected.
+
+**Test gap.** No test prints a `Json.Number` built from a `Double` with a fractional part; `JsonSpec.scala` builds numbers from `Int` literals (for example `:35`, `:51`).
+
+**Suggested fix.** After the pair loop, strip one more zero when `m10 % 10 == 0`, or build the `BigDecimal` with `stripTrailingZeros` and keep the `10.0`-style scale only for integral values. Add a test that `Json.Number(49.99).print == "49.99"` on the JVM and JS.
+
+### schema: decoding a fractional JSON number as `Int` or `Long` reports "value is too large"
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** `json.as[Int]` on `49.99` fails with `value is too large for int`. The value is not too large: it has a fractional part. The same message is used for a real overflow, so the user can't tell the two apart.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run FractionAsInt.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  val doc = Json.parseUnsafe("""{"price": 49.99, "pages": 3000000000}""")
+  println(doc.get("price").as[Int])
+  // Left(zio.blocks.schema.SchemaError: value is too large for int at: .)
+  println(doc.get("price").as[Long])
+  // Left(zio.blocks.schema.SchemaError: value is too large for long at: .)
+
+  // a real overflow gets the same message
+  println(doc.get("pages").as[Int])
+  // Left(zio.blocks.schema.SchemaError: value is too large for int at: .)
+}
+```
+
+**Expected.** A message that names the problem, such as `expected an integer, got 49.99 at: .`, for the fractional case, and `value is too large for int` only for an overflow.
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodec.scala:674-679`: `decodeValue(json: Json)` calls `num.value.bigDecimal.intValueExact` and maps every `ArithmeticException` to `"value is too large for int"`. `intValueExact` throws both for overflow and for a non-zero fraction. The `Byte` (`:612`), `Short` (`:645`) and `Long` (`:711`) codecs do the same.
+
+**Impact.** Misleading errors when an untyped read (`selection.as[Int]`) or a typed decode meets a decimal where an integer was expected, which is common with third-party payloads.
+
+**Test gap.** `JsonCodecDeriverSpec.scala:96-97` tests only real overflows (`2147483648`, `-2147483649`), and only through the text reader, not through `decodeValue(json: Json)`.
+
+**Suggested fix.** Check `num.value.isWhole` first and report a separate message for a fraction; keep the overflow message for the `ArithmeticException` that remains. Add tests for `1.5` read as `Byte`, `Short`, `Int` and `Long` from a `Json` value.
+
+### schema: JSON parse errors carry no line, column or offset
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** A `SchemaError` from `Json.parse` names what the reader expected and the structural path it was in (`at: .authors`), but never a line, column or character offset. For an error directly in an object, the path is only `.`, so in a large document the user has to search for the problem by hand.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run ParseErrorPosition.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  // a missing comma on line 3 of a 4-line document
+  val text =
+    """{
+      |  "title": "Zionomicon",
+      |  "authors": ["John A. De Goes" "Adam Fraser"],
+      |  "price": 49.99
+      |}""".stripMargin
+  println(Json.parse(text))
+  // Left(zio.blocks.schema.SchemaError: expected ']' or ',' at: .authors)
+
+  // a trailing comma: only the root is named
+  println(Json.parse("""{"title": "Zionomicon", "price": 49.99,}"""))
+  // Left(zio.blocks.schema.SchemaError: expected '"' at: .)
+}
+```
+
+**Expected.** The message includes the position, for example `expected ']' or ',' at: .authors (line 3, column 34)`, or the `SchemaError` exposes the offset.
+
+**Root cause.** `schema/jvm/src/main/scala/zio/blocks/schema/json/JsonReader.scala:1657` raises `new JsonCodecError(Nil, msg)` with the message alone; the reader knows `pos` at that point but drops it. `JsonCodec.scala:515-540` turns the error into `SchemaError.ExpectationMismatch(path, msg)` (`SchemaError.scala:179-181`), which has no place for a position.
+
+**Impact.** Debugging malformed payloads (webhooks, config files, hand-written fixtures) takes longer than with other JSON libraries, which all report a position.
+
+**Test gap.** `JsonSpec.scala:1356-1365` asserts only `isLeft` for malformed input; no test asserts a position.
+
+**Suggested fix.** Append the byte offset (and, for `String` input, line and column) to the message in `decodeError`, or add a position to `ExpectationMismatch`. The same change helps `ConfigSource.fromJson` (see the config-hocon entry above).
+
+### schema: `Json#project` with a path that matches nothing returns `null`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** `Json#project(paths*)` keeps only the given paths. When none of them exists, it returns JSON `null` instead of an empty object (or an error). With at least one matching path the result is an object, so the return value changes kind depending on the data.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run ProjectMissing.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  val book = Json.parseUnsafe("""{"title": "Zionomicon", "tags": []}""")
+  println(book.project(p".title").print)
+  // {"title":"Zionomicon"}
+  println(book.project(p".isbn").print)
+  // null
+  println(book.project(p".title", p".isbn").print)
+  // {"title":"Zionomicon"}
+}
+```
+
+**Expected.** `{}` for `project(p".isbn")` on an object, so callers can always treat the result as an object.
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:390` delegates to `Json.project` (`:1237-1241`), which rebuilds the result with `fromKVUnsafe` from the matched `(path, value)` pairs. `fromKVUnsafe` (`:1466-1470`) returns `Null` for an empty list and folds from `Null` otherwise, so with no match the result is `null`.
+
+**Impact.** Code that projects a payload and then reads from the result (`projected.get("title")`) fails with `Cannot get field 'title' from non-object JSON value` instead of a not-found error.
+
+**Test gap.** The `project` tests in `JsonSpec.scala` use paths that exist.
+
+**Suggested fix.** Start from an empty container of the root's kind, or return `Json.Object.empty` when the root is an object and nothing matched.
+
+### schema: `Json#delete` and `Json#insert` ignore a quoted-key path step, which `get`, `set` and `modify` follow
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`, during the docs-reviewer fact-check. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** A JSON key that is not a Scala identifier, such as `first-edition`, can only be written in `p"..."` as a quoted key, `p"""{"first-edition"}"""`, which parses to a `DynamicOptic.Node.AtMapKey` step. `Json#get`, `Json#set` and `Json#modify` treat that step as an object key. `Json#delete` and `Json#insert` silently return the document unchanged, `Json#deleteOrFail` reports `Path not found` for a key that exists, and `Json#insertOrFail` reports `Insert not supported for path node type: AtMapKey(...)`. The same key built with `DynamicOptic.root.field(...)` works with every method.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run QuotedKeyPath.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  val book = Json.parseUnsafe("""{"title": "Zionomicon", "first-edition": 2021}""")
+  // the only way to name a non-identifier key in p"..." is the quoted-key form
+  val edition = p"""{"first-edition"}"""
+
+  // get, set and modify follow it
+  println(book.get(edition).as[Int])
+  // Right(2021)
+  println(book.set(edition, Json.Number(2022)).print)
+  // {"title":"Zionomicon","first-edition":2022}
+
+  // delete ignores it, and deleteOrFail says the existing key is not there
+  println(book.delete(edition).print)
+  // {"title":"Zionomicon","first-edition":2021}
+  println(book.deleteOrFail(edition))
+  // Left(zio.blocks.schema.SchemaError: Path not found: {"first-edition"})
+
+  // insert ignores it, and insertOrFail rejects the node
+  println(book.insert(p"""{"second-edition"}""", Json.Number(2025)).print)
+  // {"title":"Zionomicon","first-edition":2021}
+  println(book.insertOrFail(p"""{"second-edition"}""", Json.Number(2025)))
+  // Left(zio.blocks.schema.SchemaError: Insert not supported for path node type: AtMapKey("second-edition"))
+
+  // the same keys as field nodes work with every method
+  println(book.delete(DynamicOptic.root.field("first-edition")).print)
+  // {"title":"Zionomicon"}
+  println(book.insert(DynamicOptic.root.field("second-edition"), Json.Number(2025)).print)
+  // {"title":"Zionomicon","first-edition":2021,"second-edition":2025}
+}
+```
+
+**Expected.** `delete` removes `first-edition` and `insert` adds `second-edition`, as `get`, `set` and `modify` already treat the step as an object key; or all five methods reject `AtMapKey` on a `Json` the same way.
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:1600-1623` (`getAtPath`) and `:1747-1768` (`modifyAtPathRecursive`) handle `AtMapKey` with a string key as an object field. `deleteAtPathRecursive` falls through to `case _ => None` at `:1989`; the comment at `:1987` calls `AtMapKey` an "architectural no-op" because "Json has no Map/Variant types", which contradicts the `get`/`modify` handling. The insert helper rejects it at `:2126`. `Json#deleteOrFail` turns the `None` into `Path not found` (`:173`).
+
+**Impact.** A guide or user who removes a field whose name has a dash (common in HTTP-style payloads, for example `content-type`) with the path syntax gets no change and no error, while reads and updates on the same path work.
+
+**Test gap.** `schema/shared/src/test/scala/zio/blocks/schema/json/JsonSpec.scala:1902-1929` ("AtMapKey operations") tests `get` and `modify` only; no test deletes or inserts through `AtMapKey`.
+
+**Suggested fix.** Handle `AtMapKey` with a string key in `deleteAtPathRecursive` and in the insert helpers the same way as `Field`, and add delete/insert cases to the "AtMapKey operations" suite.
 
 ## Usability traps
 
@@ -3187,6 +3494,130 @@ $ scala-cli compile .
 
 **Suggested fix.** Add a check to the release workflow that fails when the version does not match `^\d+\.\d+\.\d+(-.+)?$`. Add a Scala Steward `updates.ignore` entry for version `0.017` under `dev.zio` so the repo's own bots skip it. The metadata only stops pointing at `0.017` once a release sorts above it, such as `0.1.0`. Until then, the install guide pins `@VERSION@` and never suggests `latest.release`.
 
+### schema: JSON paths that match nothing change nothing and report nothing, and wildcard reads skip elements without the field
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** Three behaviours of `Json` paths make a typo in a path or a missing field hard to notice. A wildcard read such as `get(p".books[*].price")` skips the elements that lack the field and fails only when none has it. `Json#modify`, `set`, `delete` and `insert` return the document unchanged when the path matches nothing, so a misspelled key changes nothing silently; only the `OrFail` variants report it. And the not-found errors name only the last step (`Field 'isbn' not found`), without the path that led there, while `Json#get(index)` adds `at: [5]` and a path read does not.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run SilentPaths.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  // the second book has a misspelled "prise" key
+  val doc = Json.parseUnsafe(
+    """{"books":[{"title":"Zionomicon","price":49.99},{"title":"Programming in Scala","prise":59.99}]}"""
+  )
+
+  // a wildcard read returns one price for two books, with no error
+  println(doc.get(p".books[*].price").asAll[BigDecimal])
+  // Right(Chunk(49.99))
+
+  // a misspelled path: modify and set return the document unchanged, with no error
+  println(doc.modify(p".books[*].prize")(_ => Json.Number(1)) == doc)
+  // true
+  println(doc.set(p".books[0].prize", Json.Number(1)) == doc)
+  // true
+
+  // only the OrFail variants report it
+  println(doc.setOrFail(p".books[0].prize", Json.Number(1)))
+  // Left(zio.blocks.schema.SchemaError: Field 'prize' not found)
+
+  // not-found errors name the last step only, not the path to it
+  println(doc.get(p".books[0].isbn").one)
+  // Left(zio.blocks.schema.SchemaError: Field 'isbn' not found)
+  println(doc.get(p".books[5].title").one)
+  // Left(zio.blocks.schema.SchemaError: Index 5 out of bounds)
+  println(doc.get("books")(5).one)
+  // Left(zio.blocks.schema.SchemaError: Index 5 out of bounds (size: 2) at: [5])
+}
+```
+
+**Expected.** Not necessarily a different default, but a consistent and documented one: errors that carry the full path (`Field 'isbn' not found at: .books[0]`), and reference docs that say the plain change methods ignore missing paths and that wildcard reads skip elements.
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:1556` (`getAtPath`) fails only when `results.knownSize == 0 && jsons.nonEmpty`, so a partial match succeeds, and it builds `SchemaError(s"Field '$name' not found")` with no path. `Json.scala:132-135`, `:149`, `:162` and `:181` return `this` when the path helper returns `None`.
+
+**Impact.** Code that reads or cleans third-party JSON gets fewer values than it expects or leaves fields in place, with no error. The H-06 guide warns about both and teaches the `OrFail` variants.
+
+**Test gap.** No test reads `[*].field` where only some elements have the field.
+
+**Suggested fix.** Add the path so far to not-found errors (`.atField`/`.atIndex`, as `Json.Array#get` already does with `atIndex`), and document the silent behaviour of the plain change methods in `json.md`.
+
+### schema: `Schema#fromDynamicValue` rejects missing collection, `Option` and defaulted fields that the JSON codec accepts
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`; widened the same day with a case from the H-04 session (`docs/guides/validated-newtypes.md`, PR #1811). The code is the same at tag `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0. Not filed.
+
+**Summary.** There are two ways to decode a `Json` value into a case class: `json.as[A]` (the JSON codec) and `Schema[A].fromDynamicValue(json.toDynamicValue)`, which collects every error instead of stopping at the first. They accept different documents. When a field is absent, the JSON codec uses the field's default value, `None` for an `Option`, or an empty collection. `fromDynamicValue` reports `Missing field '<name>'` for each of them. Their messages for the same type mismatch also differ (`expected Json.Number` vs `Expected BigDecimal`).
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run MissingFieldsScala2.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+final case class Entry(title: String, tags: List[String], subtitle: Option[String], edition: Int = 1)
+object Entry { implicit val schema: Schema[Entry] = Schema.derived }
+
+object MissingFieldsScala2 {
+  def main(args: Array[String]): Unit = {
+    val json = Json.parseUnsafe("""{"title": "Zionomicon"}""")
+    println(json.as[Entry])
+    // Right(Entry(Zionomicon,List(),None,1))
+    println(Schema[Entry].fromDynamicValue(json.toDynamicValue))
+    // Left(zio.blocks.schema.SchemaError: Missing field 'tags' at: .
+    // Missing field 'subtitle' at: .
+    // Missing field 'edition' at: .)
+  }
+}
+```
+
+The same program on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 (`given Schema[Entry] = Schema.derived`, `@main`) prints the same two lines. A second reproduction shows the differing mismatch messages (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run AsVersusDynamic.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+final case class Book(title: String, authors: List[String], price: BigDecimal, tags: List[String])
+object Book { given Schema[Book] = Schema.derived }
+
+@main def run(): Unit = {
+  // no "tags" field
+  val noTags = Json.parseUnsafe("""{"title":"Zionomicon","authors":["John A. De Goes","Adam Fraser"],"price":49.99}""")
+  println(noTags.as[Book])
+  // Right(Book(Zionomicon,List(John A. De Goes, Adam Fraser),49.99,List()))
+  println(Schema[Book].fromDynamicValue(noTags.toDynamicValue))
+  // Left(zio.blocks.schema.SchemaError: Missing field 'tags' at: .)
+
+  // a string where a number belongs: the two messages differ
+  val stringPrice = Json.parseUnsafe("""{"title":"Zionomicon","authors":[],"price":"49.99","tags":[]}""")
+  println(stringPrice.as[Book])
+  // Left(zio.blocks.schema.SchemaError: expected Json.Number at: .price)
+  println(Schema[Book].fromDynamicValue(stringPrice.toDynamicValue))
+  // Left(zio.blocks.schema.SchemaError: Expected BigDecimal at: .price)
+}
+```
+
+**Expected.** Both routes accept the same documents, so switching to the error-collecting route (as the H-04 newtype validation guide does) does not start rejecting payloads that `json.as[A]` accepts: `Right(Entry(Zionomicon,List(),None,1))` from both.
+
+**Root cause.** The JSON codec fills absent fields in `JsonFieldInfo#setMissingValueOrError` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:3155-3179` when reading text, `:3182-3204` when decoding a `Json` value): the default value from `Reflect#getDefaultValue` first (`getDefaultValue` at `:3027-3029`), then `None` when `isOptional` (`:616`, unless `withRequireOptionFields`), then `emptyCollectionConstructor()` (`:588-590`, unless `withRequireCollectionFields`), and only then `missing required field`. `Reflect.Record#fromDynamicValue` (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:407-445`) has no such fallback: after reading the record's fields, every field it did not see goes straight to `SchemaError.missingField` (`:437-441`).
+
+**Impact.** A payload that passes `json.as[A]` in one place fails validation in another, for the most common optional shapes (absent `Option`, empty list left out, defaulted field). Users of the error-collecting route have to send every field, which the JSON codec's own encoder does not do: it leaves out `None`, empty collections and default values by default. Verified on 2.13.18: `Json.from(Entry("Zionomicon", Nil, None)).print` is `{"title":"Zionomicon"}`, and `fromDynamicValue` of its `toDynamicValue` fails with the same three `Missing field` errors, while `Schema#toDynamicValue` of the same value round-trips.
+
+**Test gap.** No test decodes the same `Json` through both routes, and no `fromDynamicValue` test covers an absent `Option`, collection or defaulted field.
+
+**Suggested fix.** In the missing-field loop of `Reflect.Record#fromDynamicValue`, apply the same order as the codec before reporting `missingField`: the field's default value, `None` for an `Option`/`Maybe` field, an empty collection for a sequence or map field. Or document the difference in `dynamic-value.md` and `json.md` if it is intended.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -3280,6 +3711,15 @@ Pages that contradict the source. None of these were copied into the new guides.
 - `schema-error.md:41-43` says multiple independent problems are surfaced all at once and that every `Codec#decode` returns them in one `SchemaError`. The JSON and TOON codecs stop at the first failure; only `Schema#fromDynamicValue` (and `Into.derived`) collect every error. Found while writing H-04, which shows both.
 - `json-schema.md:366` shows an error message without the ` at: <path>` suffix that `SchemaError.message` adds. The page also does not mention the `pattern` anchoring behaviour above.
 - `ValidationOptions` Scaladoc (`JsonSchema.scala:376-377`) says format checks are annotation-only by default; the code defaults to `validateFormats = true`.
+
+- `json.md:25` says "Objects use `Vector[(String, Json)]`". `Json.Object` holds a `Chunk[(String, Json)]` (`Json.scala:493`). Found while writing H-06; verified.
+- `json.md:66-86` ("String Interpolators") says the `json"..."` interpolator is compile-time validated, without saying it does not compile on Scala 2.13 in user code (see Library bugs).
+- `json.md:471` says the `Auto` merge strategy concatenates arrays, and the table at `json.md:494-501` lists a `Deep` strategy and says `Auto` and `Shallow` concatenate arrays. There is no `Deep` (`MergeStrategy.scala:37-115` has `Auto`, `Replace`, `Shallow`, `Concat`, `Custom`); `Auto` merges arrays by index (`{"arr":[1,2]}` merged with `{"arr":[9]}` gives `[9,2]`), and `Shallow` takes the right array (`[9]`). Verified with 0.0.56.
+- `json.md:732-736` shows `toKV` output as `($.a.b, Json.Number(1))`. It prints `Chunk((.a.b,1),(.a.c,2))`; `DynamicOptic` has no `$` prefix. Verified.
+- `json.md:904-905` shows `Left(SchemaError: Index 5 out of bounds at path $.users[5])`. The real message is `Index 5 out of bounds (size: 1) at: [5]` (`Json.scala:671-672`): no `$`, and the path holds only the index. Verified.
+- `json-selection.md:92` says to access elements "using `JsonSelection#apply` or `JsonSelection#get`". `JsonSelection` has `apply(index: Int)` (`JsonSelection.scala:182`) but no `get(Int)`; the example compiles only because `data` is a `Json`, which has `get(index)`.
+- `json-selection.md:284` shows `data.get("age").error  // Some(SchemaError("field not found"))`. The message is `Key 'age' not found` (`Json.scala:508-516`). Verified.
+- `JsonSelection` Scaladoc (`JsonSelection.scala:29`) shows `json.get("users").asArrays.apply(0).get("name").asStrings`; there are no `asArrays`/`asStrings` (they became the `arrays`/`strings` filters in #830). `Json` Scaladoc (`Json.scala:40`) says "Numbers use `String`"; `Json.Number` holds a `BigDecimal` (`Json.scala:796`).
 
 **schema / optics and paths**
 

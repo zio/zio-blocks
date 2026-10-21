@@ -129,6 +129,8 @@ Most `*-examples/` directories are **standalone sbt builds** (own `build.sbt` an
 
 CI compiles the example projects on JDK 17 as well as JDK 25, and compiles the docs on JDK 17, so example and mdoc code must not call JDK 21+ APIs such as `Executors.newVirtualThreadPerTaskExecutor()` or `Thread.ofVirtual()`. Take an `ExecutorService` parameter instead and show the JDK 21 line in a plain fence. An examples build whose module itself needs JDK 21 (the `telemetry` jar is class file 65, and its log macros load inside the compiler, so even `sbt compile` fails on JDK 17) skips its sources below JDK 21 with a warning; see `telemetry-examples/build.sbt`. scala-cli hides this: `scala-cli run --jvm 17` still compiles on its own newer JVM unless you pass `--server=false`. An example that needs a database (e.g. `sql-examples/.../postgrespool`) only has to compile in CI; run it locally against `docker run ... postgres:16` before committing.
 
+The standalone examples builds have no scalafmt plugin, so `sbt scalafmtAll` at the root does not format them. Format a new or changed example package with the repo config instead: `scala-cli fmt --scalafmt-conf ../.scalafmt.conf src/main/scala/<package>` from inside the examples directory (add `--check` to only report).
+
 When you change, rename or move an example, update the docs that embed it (`grep -rn "mdoc:embed:.*<ExampleFile>" docs/`) in the same change, so their prose and quoted output still match; then run the example and mdoc on those pages.
 
 ## Cross-Version Code Structure

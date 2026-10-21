@@ -937,3 +937,7 @@ The `Json` type works across 2 platforms:
 - **Scala.js** - Browser and Node.js
 
 String interpolators use compile-time validation that works on both platforms too.
+
+## See Also
+
+- [How to Read and Modify JSON Without Case Classes](../../../../guides/json-without-case-classes.md) - A task-oriented guide to parsing, reading, changing, and printing JSON as a tree
