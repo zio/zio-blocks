@@ -34,7 +34,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-30 | How to feed configuration into a Wire dependency graph                        | Done                                    | #1794, `guides/feed-config-into-a-wire-graph.md` |
 | M-04 | Coming from fs2, ZIO Streams or Ox                                            | In review                               | #1801 (`streams-migration-guide`) |
 | H-19 | How to write joins and inspect the generated SQL                              | In review                               | #1802 (`sql-joins`) |
-| H-18 | How to upsert rows and paginate with keyset cursors                           | In review                               | #1800 (`upsert-pagination`) |
+| H-18 | How to upsert rows and paginate with keyset cursors                           | Merged (#1800)                          | `guides/upsert-and-paginate-with-keyset-cursors.md` |
 | H-21 | How to use the sql module from a ZIO application                             | In review                               | #1803 (`docs/h21-sql-from-zio`); adds `sql-zio` to the docs classpath |
 | H-35 | How to serve http-model requests with the JDK HTTP server                     | In review                               | #1806 (`http-server`); reusable `JdkHttp` adapter |
 | T-12 | Instrument a program with logs, traces and metrics                            | In review                               | #1805 (`docs/t12-instrument-telemetry`), `telemetry-examples/` |
