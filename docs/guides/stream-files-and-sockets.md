@@ -667,4 +667,4 @@ The reference pages cover each constructor in full:
 - [`Resource`](../reference/resource-management/resource.md) covers `Resource.fromAutoCloseable`, `Resource#zip` and shared resources.
 - The streams [overview](../reference/streams/index.md#resource-management) explains how streams integrate with `Scope`.
 
-Streaming rows from a SQL query uses the same guarantee for a database cursor; the how-to guide on streaming query results covers it.
+Streaming rows from a SQL query uses the same guarantee for a database cursor; [How to Stream Large Query Results](./stream-large-query-results.md) covers it.
