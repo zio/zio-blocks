@@ -1673,6 +1673,7 @@ println(order.toJsonString)
 - **Scala 3 `object X extends App` deadlocks when worker threads touch the object.** Code in the `App` body runs inside the object's static initializer, so any other thread that reads a member of the object waits on the class-init lock the main thread holds. Hit in H-17's concurrency example and in T-06 (the streams deadlock above); both use `def main` instead. Worth a general note in AGENTS.md and the examples templates.
 - **`Stream.fromInputStream` and `NioStreams.fromChannel` take an already-open handle.** If the stream never runs, the handle leaks; if it runs twice, the second run fails with `Left(ClosedChannelException)`, because the first run closed it. Wrap the open in `fromAcquireRelease(open)(...Unmanaged)` to get a re-runnable stream. The Scaladoc says the instance is reused. Verified while writing H-24.
 - **`withModifier` silently ignores an unknown field name.** `Deriver#withModifier(TypeId.of[Customer], "nmae", ...)` with a typo applies nothing and reports nothing. Found while writing H-08.
+- **Parallel stream operators emit in completion order.** `mapPar`, `mapParAsync`, `flatMapPar` and `mergeAll` emit results as they finish, while fs2 `parEvalMap`, ZIO `mapZIOPar` and Ox `mapPar` keep input order. Code migrated from those libraries silently changes order. Sort, or carry an index, when order matters. Verified with scala-cli against 0.0.56 while writing M-04.
 - **Scope and Wire error codes never appear in compiler output.** `ErrorMessages.scala` numbers them E1-E17, RE1-RE3 and W1, but the messages users see carry no code, so docs must index errors by message text. Found while writing H-31.
 - **`defer` on a closed scope is a silent no-op** (`Scope.scala:202`), while `allocate` and `$` throw. Found while writing H-31.
 - **`jdbc:sqlite::memory:` gives every connection its own empty database.** Code that opens more than one connection loses its tables. Found while writing T-07; now noted in `transactor.md`.
@@ -1769,9 +1770,9 @@ Changing the second fence to `scala mdoc:silent:reset` makes the run pass.
 
 Found 2026-10-20 while writing H-03. The schema-csv spec checks rendered output with `.contains`, against the AGENTS.md rule to assert the full rendered string with `==`. A regression in field order or separators would pass.
 
-### `schema-examples` has no scalafmt setup
+### `schema-examples` and `streams-examples` have no scalafmt setup
 
-Found 2026-10-20 while writing H-03. The standalone `schema-examples/` build has no scalafmt plugin or config, so `sbt scalafmtAll` in the root build does not format it. Sessions format example files by hand or with `cs launch scalafmt -- --config .scalafmt.conf`. Add the plugin (or a `.scalafmt.conf` symlink) to the example builds, or document the command in AGENTS.md.
+Found 2026-10-20 while writing H-03. The standalone `schema-examples/` build has no scalafmt plugin or config, so `sbt scalafmtAll` in the root build does not format it. Sessions format example files by hand or with `cs launch scalafmt -- --config .scalafmt.conf`. The same gap exists in `streams-examples` (seen while writing M-04). Add the plugin (or a `.scalafmt.conf` symlink) to the example builds, or document the command in AGENTS.md.
 
 ### Example projects' tests never run in CI
 
@@ -2096,6 +2097,7 @@ With the page's line instead, `val buildService = Wire.make[Config & Logger, Ser
 - `transactor-zio.md` mentions `JdbcTransactor.postgresLayer` without saying it is an extension that needs `import zio.blocks.sql.zio.*` (sql-zio). Found while writing H-17.
 - `html.md`: artifact name for Scala 3.9+ (see the `zio-blocks-next-*` entry), `Css.Declaration`, `hx-*` URL attributes, `selector""`. Filed as #1766.
 - `streams/index.md:78` lists Kyo RC6 and Ox 1.0.6; the build pins RC7 and 1.1.0.
+- `streams/index.md` "Installation" shows only `zio-blocks-streams`. That artifact (built with Scala 3.3.7) also works on 3.9, so this is incomplete rather than wrong; add the `zio-blocks-next-streams` line for Scala 3.9+. `streams/index.md:462` and `zero-boxing.md:95-113` claim, unverified, that fs2 and ZIO Streams box every `Int`. Found while writing M-04.
 - `docs/index.md` and `built-in-codecs/json/index.md:39,45` give `zio-blocks-schema` for every Scala version; Scala 3.9+ uses `zio-blocks-next-schema` (the earlier "3.7+" was wrong; see the `zio-blocks-next-*` entry). H-01 (stalled) includes this fix.
 - `combinators.md` documents a `Choices` module that does not exist (research §9.6).
 - `docs/dev/research.md` cites stale line numbers (for example `Transactor.scala:65` is now `:261`/`:275`, `Table.scala:32` is now `:262`).
