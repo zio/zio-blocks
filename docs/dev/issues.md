@@ -1272,6 +1272,61 @@ Found 2026-10-20 while writing H-05 and M-01. Verified on 0.0.56.
 
 **Fix.** Drop the wrapper segment when rendering the error path for wrapper schemas.
 
+### schema: `Schema.derived` crashes the compiler for a sealed trait nested in a class when its case classes sit in its companion
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/derive-your-own-type-class.md` (backlog H-08), on `main` at `b4179489`. The code is the same at tag `v0.0.56`.
+
+**Summary.** When a sealed trait is declared inside a class (or a `def`), and its case classes are declared inside the trait's companion object, `Schema.derived` crashes the compiler, both directly (`Schema.derived[Format]`) and when it derives a record with a field of that type. Scala 3 fails with an `AssertionError` in the Erasure phase; Scala 2.13 reports an internal error. Case objects alone work, and so does a sealed trait whose cases are direct members of the class. mdoc compiles every docs block as a member of a class, so any docs page with the common model below hits it; mdoc shows only `skipping file, the compiler produced no classfiles and reported no errors`.
+
+**Reproduction** (run with `scala-cli run Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema._
+
+class Bookstore {
+  sealed trait Format
+  object Format {
+    case object Hardcover                  extends Format
+    final case class Ebook(sizeMb: Double) extends Format
+  }
+
+  final case class Book(title: String, format: Format)
+  object Book {
+    implicit val schema: Schema[Book] = Schema.derived[Book]
+  }
+}
+
+object Main {
+  def main(args: Array[String]): Unit =
+    println(new Bookstore().Book.schema.reflect.typeId.name)
+}
+// Exception in thread "main" java.lang.AssertionError: assertion failed: missing outer accessor in anonymous class zio.blocks.schema.binding.Constructor {...}
+// Compilation failed
+```
+
+The same file on Scala 2.13 (`//> using scala 2.13.18`, no `-experimental`, `dev.zio::zio-blocks-schema:0.0.56`):
+
+```
+Repro.scala:14: error: Internal error: unable to find the outer accessor symbol of class Bookstore
+    implicit val schema: Schema[Book] = Schema.derived[Book]
+                                                      ^
+```
+
+Moving the derivation into the companion works around it. With `implicit val schema: Schema[Format] = Schema.derived[Format]` added inside `object Format`, the program prints `Book`. The same crash also happens with a Scala 3 `enum Format { case Ebook(sizeMb: Double); case Print }` declared in a class, and with a sealed trait plus companion declared inside a `def`; the latter gives the message from the closed issue #511 (`missing outer accessor in anonymous class Object with zio.blocks.schema.binding.Discriminator`).
+
+**Expected.** Both programs compile and print `Book`, as they do when `Bookstore` is an `object`.
+
+**Root cause.** `CommonMacroOps.directSubTypes` builds each case's type from its symbol, with the owner's `this` as prefix: `symbol.typeRef` in Scala 3 (`schema/shared/src/main/scala-3/zio/blocks/schema/CommonMacroOps.scala:228`; the generic branch at `:231-232` reuses that prefix) and `classSymbol.toType` in Scala 2 (`schema/shared/src/main/scala-2/zio/blocks/schema/CommonMacroOps.scala:79`). For `Ebook` that is `Format$.this.Ebook` (Scala 3) or `Format.this.Ebook` (Scala 2), a path that only exists inside `object Format`. The macro then generates `new Format$.this.Ebook(...)` in an anonymous `Constructor` (`ClassInfo.constructor`, `schema/shared/src/main/scala-3/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:584`; `q"new $tpe(...$argss)"`, `schema/shared/src/main/scala-2/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:466`) and a type test in the discriminator (Scala 3 `:1383`, Scala 2 `:921`). Called from outside `object Format`, the compiler finds no outer accessor that leads to the nested `Format` instance. Records work because their type comes from user-written source, which has a proper path; case objects work because their branch uses `Ref(symbol).tpe`; and top-level objects work because their `this` is static.
+
+**Impact.** Models declared inside a class, a trait or a method (test classes, `def`-local models, and every mdoc page) cannot derive a schema for an ADT whose cases follow the usual companion-object layout, and the Scala 3 failure is a compiler crash with no source position. `directSubTypes` is shared by `Binding.of`, `Into`/`As` and the derived optics, which are probably affected too (not tested).
+
+**Test gap.** Tests declare ADTs in top-level spec objects, or derive them inside the companion with `derives Schema` (for example `schema/shared/src/test/scala-3/zio/blocks/schema/SchemaVersionSpecificSpec.scala:282`), which is the shape that works. No test derives a class-nested or `def`-local sealed trait with companion-held cases from outside the companion, and #511 was closed without a regression test.
+
+**Suggested fix.** In `directSubTypes`, build each case's type from the parent's prefix instead of the owner's `this`: walk from the case's owner up to the parent's owner, and select each module on the way (Scala 3: `prefix.select(owner.companionModule)` and then `.select(symbol)`; Scala 2: `c.internal.singleType(prefix, owner.asClass.module)` and then `c.internal.typeRef(prefix, symbol, Nil)`). For the repro this yields `Bookstore.this.Format.Ebook`. Apply it to the generic branch too, and add tests for both Scala versions: a class-nested sealed trait with companion-held cases derived from the class body and from another companion, a `def`-local variant, and a Scala 3 enum with class cases inside a class.
+
 ### sql: `queryStream` throws, instead of returning `Left`, when the `SELECT` has fewer columns than the row type, and logs the failed query as a success
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/stream-large-query-results.md` (backlog H-20), on `main` at `b4179489`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 main -- sql/ streams/` is empty, and the stack trace from the 0.0.56 jar points at the same line numbers as `main`.
