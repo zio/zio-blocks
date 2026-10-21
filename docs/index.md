@@ -534,6 +534,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Query DSL Part 4: A Fluent SQL Builder](./guides/query-dsl-fluent-builder.md) - Build type-safe SELECT, UPDATE, INSERT, and DELETE statements
 - [How to Send Compact Data to an LLM with TOON and Parse the Reply](./guides/llm-data-with-toon.md) - Encode records as tabular TOON for a prompt, then decode the model's TOON reply into case classes
 - [How to Issue and Verify JWTs](./guides/issue-and-verify-jwts.md) - Sign JWTs with HMAC, RSA or EdDSA keys, verify `iss`, `aud` and `exp` with a fixed clock, and reject tampered or hostile tokens
+- [How to Protect an Endpoint with JWT Bearer Tokens](./guides/protect-endpoints-with-jwt.md) - Read the bearer token, verify the JWT, and answer 401 or 403 correctly for an `http-model` endpoint
 
 ## Full API Reference
 
