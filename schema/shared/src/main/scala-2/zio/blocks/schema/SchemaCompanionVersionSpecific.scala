@@ -30,11 +30,11 @@ trait SchemaCompanionVersionSpecific {
 
   /**
    * Derives the schema of `A` at compile time. It supports case classes and
-   * other classes whose constructor parameters are `val`s, sealed traits and
-   * sealed abstract classes with their cases, case objects, options, arrays and
-   * collections, and ZIO Prelude newtypes. On Scala 3 it also supports enums,
-   * union types, generic and named tuples, opaque types and Neotype newtypes,
-   * and `derives Schema` calls it.
+   * other classes whose constructor parameters are `val`s or `var`s, sealed
+   * traits and sealed abstract classes with their cases, case objects, options,
+   * arrays and collections, and ZIO Prelude newtypes. On Scala 3 it also
+   * supports enums, union types, generic and named tuples, opaque types and
+   * Neotype newtypes, and `derives Schema` calls it.
    *
    * For each field or case type it uses the implicit `Schema` in scope when
    * there is one, so an `implicit val` of type `Schema[LocalDate]` changes how
@@ -59,14 +59,13 @@ trait SchemaCompanionVersionSpecific {
    *   implicit val schema: Schema[Format] = Schema.derived
    * }
    *
-   * final case class Book(title: String, format: Format)
+   * final case class Book(format: Format, title: String)
    * object Book {
    *   implicit val schema: Schema[Book] = Schema.derived
    * }
    *
-   * val json = Schema[Book].jsonCodec.encodeToString(Book("Zionomicon", Format.Ebook(2.5)))
-   * // {"title":"Zionomicon","format":{"Ebook":{"sizeMb":2.5
-   * }}}
+   * val json = Schema[Book].jsonCodec.encodeToString(Book(Format.Ebook(2.5), "Zionomicon"))
+   * // {"format":{"Ebook":{"sizeMb":2.5}},"title":"Zionomicon"}
    * }}}
    *
    * @see
