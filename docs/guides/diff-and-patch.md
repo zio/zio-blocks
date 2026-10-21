@@ -134,7 +134,7 @@ The function works for any type with a `Schema`, so new fields show up in the au
 auditLines(Book.schema, zionomicon, secondEdition, pricePatch).foreach(println)
 ```
 
-## Apply a Patch and Compose Patches
+## Apply a Patch
 
 `Schema#patch` applies a patch to a value and returns `Either[SchemaError, A]`. Applying the patch to the version it was computed from gives back the new version, which is the basic law of diff and patch:
 
@@ -145,6 +145,12 @@ Book.schema.patch(zionomicon, pricePatch) == Right(secondEdition)
 ```
 
 `Schema#patch` always uses `PatchMode.Strict`. To choose the mode, call `Patch#apply(value, mode)` instead; we look at the modes in [Choose a PatchMode When the Data Changed](#choose-a-patchmode-when-the-data-changed).
+
+:::warning
+`Patch#apply(value)`, with no mode, returns a plain `Book`, not an `Either`. It applies the patch in `PatchMode.Lenient`, which skips the operations that fail, and returns the original value if the result cannot be built. A failed patch then looks the same as a patch that did nothing. Prefer `Patch#apply(value, mode)` or `Schema#patch`, which report the error.
+:::
+
+## Compose Patches into One
 
 Two patches compose with `Patch#++`: the result applies the left patch first, then the right one. Here, a second edit adds the subtitle:
 
@@ -158,10 +164,6 @@ Applying the composed patch to the first edition gives the book after both edits
 ```scala mdoc
 (pricePatch ++ subtitlePatch)(zionomicon, PatchMode.Strict)
 ```
-
-:::warning
-`Patch#apply(value)`, with no mode, returns a plain `Book`, not an `Either`. It applies the patch in `PatchMode.Lenient`, which skips the operations that fail, and returns the original value if the result cannot be built. A failed patch then looks the same as a patch that did nothing. Prefer `Patch#apply(value, mode)` or `Schema#patch`, which report the error.
-:::
 
 ## Store a Patch as JSON and Load It Back
 
@@ -257,7 +259,7 @@ applyInEveryMode(monday.copy(books = monday.books - programmingInScala.id))
 
 Use `Strict` when a conflict must reach a person or a retry loop, `Lenient` when the latest writer should not undo other people's additions, and `Clobber` when our patch should win.
 
-### Strict Mode Does Not Detect Every Change
+## Strict Mode Does Not Detect Every Change
 
 `Strict` only checks that each operation *fits* the value: a map key exists, an index is inside the list, an insert position is inside the string. It does not check that the value still holds what it held when the patch was made. Numeric deltas, string edits and list operations by index all apply to whatever value is there now.
 
@@ -390,11 +392,11 @@ println(jsonPatch)
 mondayJson.patch(jsonPatch).map(_.print)
 ```
 
-A typed patch converts to a `JsonPatch` with `JsonPatch.fromDynamicPatch`, and `JsonPatch` has a `Schema`, so another ZIO Blocks service can receive it with `JsonPatch.schema.jsonCodec`.
+A typed patch's `DynamicPatch` converts to a `JsonPatch` with `JsonPatch.fromDynamicPatch`, which returns `Either[SchemaError, JsonPatch]` because temporal deltas and non-string map keys have no JSON form. `JsonPatch` has a `Schema`, so another ZIO Blocks service can receive it with `JsonPatch.schema.jsonCodec`.
 
-The ZIO Blocks `JsonPatch` is its own format, not the [RFC 6902](https://datatracker.ietf.org/doc/html/rfc6902) "JSON Patch" standard that HTTP `PATCH` APIs and many JSON libraries understand. RFC 6902 has no number deltas or string edits: it sends `add`, `remove` and `replace` operations with [JSON Pointer](https://datatracker.ietf.org/doc/html/rfc6901) paths such as `/tags/1`. The [JsonPatch reference](../reference/schema/built-in-codecs/json/json-patch.md) lists every operation and compares the two formats.
+The ZIO Blocks `JsonPatch` is its own format, not the [RFC 6902](https://datatracker.ietf.org/doc/html/rfc6902) "JSON Patch" standard that HTTP `PATCH` APIs and many JSON libraries understand. RFC 6902 has no number deltas or string edits: it sends operations such as `add`, `remove` and `replace` (it also defines `move`, `copy` and `test`) with [JSON Pointer](https://datatracker.ietf.org/doc/html/rfc6901) paths such as `/tags/1`. The [JsonPatch reference](../reference/schema/built-in-codecs/json/json-patch.md) lists every operation and compares the two formats.
 
-### Convert a JsonPatch to RFC 6902
+## Convert a JsonPatch to RFC 6902
 
 To send a change to a system that expects RFC 6902, we convert the `JsonPatch` ourselves. The converter below is our own code, not a library API. It walks the operations in order and keeps the current JSON value next to them, applying each operation with `JsonPatch.root`, so that every index and every computed value refers to the document as it is at that point:
 
@@ -521,7 +523,7 @@ Run it from the `schema-examples` directory:
 sbt "runMain diffandpatch.DiffAndAuditExample"
 ```
 
-### Apply and Compose
+### Apply and Compose Patches
 
 This example applies a patch with `Schema#patch`, checks the round trip, and composes two patches with `Patch#++`.
 
@@ -617,6 +619,12 @@ The complete example runs every step in one program:
 
 ```bash
 sbt "runMain diffandpatch.CompleteExample"
+```
+
+To compile every example at once without running them:
+
+```bash
+sbt compile
 ```
 
 ## Going Further
