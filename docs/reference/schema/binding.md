@@ -10,12 +10,12 @@ In other words, a binding is used to attach non-serializable Scala functions, su
 The combination of `Reflect` and `Binding` forms the foundation of `Schema`: a bound reflect (one where `F[_, _] = Binding`) that can both describe and manipulate data.
 
 ```scala
-sealed trait Binding[T <: BindingType, A]
+sealed trait Binding[T, +A]
 ```
 
 The `Binding` trait is parameterized by:
 
-- **`T <: BindingType`**: A phantom type that identifies the kind of binding (Record, Variant, Seq, Map, etc.)
+- **`T`**: A phantom type, one of the `BindingType` members, that identifies the kind of binding (Record, Variant, Seq, Map, etc.)
 - **`A`**: The Scala type that this binding operates on
 
 ## The Role of Binding in the Schema Architecture
@@ -50,9 +50,7 @@ Provides construction and deconstruction capabilities for product types—case c
 ```scala
 final case class Record[A](
   constructor: Constructor[A],
-  deconstructor: Deconstructor[A],
-  defaultValue: Option[() => A] = None,
-  examples: collection.immutable.Seq[A] = Nil
+  deconstructor: Deconstructor[A]
 ) extends Binding[BindingType.Record, A]
 ```
 
@@ -60,8 +58,8 @@ final case class Record[A](
 
 - `constructor`: Builds an `A` from primitive components stored in `Registers`
 - `deconstructor`: Breaks down an `A` into primitive components in `Registers`
-- `defaultValue`: An optional thunk `() => A` that produces a default instance. This is useful for formats like Protocol Buffers where missing fields assume default values.
-- `examples`: Sample values for documentation or testing, or OpenAPI schema generation.
+
+Default values and examples are not part of a binding: they are stored on the `Reflect` node (`Reflect#defaultValue`, `Reflect#examples`).
 
 Here is an example of a `Binding.Record` for a simple `Person` case class:
 
@@ -103,9 +101,7 @@ The `Binding.Variant` data type provides discrimination capabilities and matcher
 ```scala
 final case class Variant[A](
   discriminator: Discriminator[A],
-  matchers: Matchers[A],
-  defaultValue: Option[() => A] = None,
-  examples: collection.immutable.Seq[A] = Nil
+  matchers: Matchers[A]
 ) extends Binding[BindingType.Variant, A]
 ```
 
@@ -154,59 +150,63 @@ Please note that the `Variant` is only responsible for discrimination and downca
 The `Binding.Seq` data type provides efficient construction and deconstruction capabilities for sequence/collection types—`List`, `Vector`, `Array`, `Set`, `Chunk`, and any ordered collection:
 
 ```scala
-final case class Seq[C[_], A](
+final case class Seq[C[_], +A](
   constructor: SeqConstructor[C],
-  deconstructor: SeqDeconstructor[C],
-  defaultValue: Option[() => C[A]] = None,
-  examples: collection.immutable.Seq[C[A]] = Nil
+  deconstructor: SeqDeconstructor[C]
 ) extends Binding[BindingType.Seq[C], C[A]]
 ```
 
-The type parameter is `C[_]` (the collection type constructor) rather than `C[A]` (a specific element type). This allows a single `Binding.Seq[List]` to work for `List[Int]`, `List[String]`, `List[Person]`, etc. Inside the companion object of `Binding.Seq`, there are implementations for standard Scala collections like `List`, `Vector`, `Seq`, `IndexedSeq`, `Set`, and `ArraySeq`.
+The type parameter is `C[_]` (the collection type constructor) rather than `C[A]` (a specific element type). This allows a single `Binding.Seq[List]` to work for `List[Int]`, `List[String]`, `List[Person]`, etc. Inside the companion object of `Binding.Seq`, there are implementations for `Set`, `List`, `Vector`, `IndexedSeq`, `Seq` and `Chunk`; `Binding.of[ArraySeq]`, `Binding.of[Array]` and, on Scala 3, `Binding.of[IArray]` create the array-backed ones.
 
 Sequences are ubiquitous in data modeling, and their efficient handling is critical for performance. The `Seq` binding abstracts over the specific collection type using the **builder pattern**, enabling both stacked and heap-allocated construction strategies.
 
-- `seqConstructor` is a sequence constructor which provides how to build the sequence of type `C[_]`. It provides collection-specific builder operations. Different collections have different constructor strategies (e.g., `Array` needs size upfront and is stack-allocated, while `List` can be built incrementally on the heap).
-- `seqDeconstructor` is a sequence deconstructor that provides iteration and size information for the collection type `C[_]`, which enables us to tear down the collection into its elements efficiently. The size hints enable codecs to pre-allocate output buffers and builders.
+- `constructor` is a sequence constructor which provides how to build the sequence of type `C[_]`. It provides collection-specific builder operations. Different collections have different constructor strategies (e.g., an `Array` is built in an array of the element type that doubles when it is full and is trimmed at the end, while a `List` is built in a `ListBuffer`).
+- `deconstructor` is a sequence deconstructor that provides iteration and size information for the collection type `C[_]`, which enables us to tear down the collection into its elements efficiently. The size hints enable codecs to pre-allocate output buffers and builders.
 
 Let's take a deep dive into these two main components.
 
 #### SeqConstructor
 
-The `SeqConstructor` has two main variants:
-
-1. **Heap-allocated Constructors** which are for collections like `List`, `Vector`, `Set`, etc. These collections typically use mutable builders under the hood to efficiently accumulate elements before producing an immutable collection. The `Boxed` abstract class is a convenient base class for heap-allocated constructors that uses a single builder type for all primitive types. This makes it easy to implement sequence constructors for collections of heap-allocated objects:
+The `SeqConstructor` trait builds a collection through a mutable builder:
 
 ```scala
-abstract class Boxed[C[_]] extends SeqConstructor[C] {
-  override type BooleanBuilder = ObjectBuilder[Boolean]
-  override type ByteBuilder = ObjectBuilder[Byte]
-  // ... all primitive builders are aliases to ObjectBuilder
+trait SeqConstructor[C[_]] {
+  type Builder[_]
 
-  def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = addObject(builder, a)
-  // primitives get boxed when passed to addObject
+  def newBuilder[A](sizeHint: Int = 4)(implicit ct: ClassTag[A]): Builder[A]
 
-  // ... similarly for other primitive adders
+  def add[A](builder: Builder[A], a: A): Unit
+
+  def addBoolean(builder: Builder[Boolean], a: Boolean): Unit = add(builder, a)
+  // ... addByte, addShort, addInt, addLong, addFloat, addDouble and addChar, also calling add
+
+  def result[A](builder: Builder[A]): C[A]
+
+  def empty[A](implicit ct: ClassTag[A]): C[A]
 }
 ```
 
-To implement a boxed sequence, we have to define just four things: the builder type, how to create a new builder, how to add elements to it, and how to produce the final collection.
-
-ZIO Blocks provides `SeqConstructor.Boxed` implementations for standard Scala collections like `List`, `Vector`, `Set`, `IndexedSeq` and `Seq`. Here is an example of a `SeqConstructor.Boxed` for `List`:
+To implement a sequence constructor, we define the builder type, how to create a new builder, how to add an element to it, how to produce the final collection, and the empty collection. Here is the `SeqConstructor` for `List`:
 
 ```scala
-val listConstructor: SeqConstructor[List] = new Boxed[List] {
-  type ObjectBuilder[A] = scala.collection.mutable.ListBuffer[A]
+implicit val listConstructor: SeqConstructor[List] = new SeqConstructor[List] {
+  type Builder[A] = scala.collection.mutable.ListBuffer[A]
 
-  def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = new ListBuffer[A]
+  def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] = new ListBuffer[A]
 
-  def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
+  def add[A](builder: Builder[A], a: A): Unit = builder.addOne(a)
 
-  def resultObject[A](builder: ObjectBuilder[A]): List[A] = builder.toList
+  def result[A](builder: Builder[A]): List[A] = builder.toList
+
+  def empty[A](implicit ct: ClassTag[A]): List[A] = Nil
 }
 ```
 
-2. **Stack-allocated Constructors** which are for collections like `Array`, `ArraySeq`, and `IArray`.
+There are two kinds of implementations:
+
+1. **Collection-builder constructors** for `List`, `Vector`, `Set`, `IndexedSeq`, `Seq` and `Chunk`. They use the collection's own mutable builder, and their primitive adders such as `addInt` pass the value to that builder like any other element.
+
+2. **Array-backed constructors** for `Array`, `ArraySeq` and, on Scala 3, `IArray`. They store the elements in an array of the element type (that is what the `ClassTag` is for), and override the primitive adders to write into that array without boxing.
 
 All the implementations are found in the companion object of the `SeqConstructor` trait.
 
@@ -252,32 +252,27 @@ You can find implementations of `SpecializedIndexed` for `Array`, `ArraySeq`, an
 To describe the construction and deconstruction of key-value collections, use `Binding.Map`:
 
 ```scala
-final case class Map[M[_, _], K, V](
+final case class Map[M[_, _], +K, +V](
   constructor: MapConstructor[M],
-  deconstructor: MapDeconstructor[M],
-  defaultValue: Option[() => M[K, V]] = None,
-  examples: collection.immutable.Seq[M[K, V]] = Nil
+  deconstructor: MapDeconstructor[M]
 ) extends Binding[BindingType.Map[M], M[K, V]]
 ```
 
 It has two main components for building maps and tearing down maps to their key-value pairs:
 
-- `mapConstructor`: Builds maps from key-value pairs using builders
-- `mapDeconstructor`: Provides key-value iteration for maps
+- `constructor`: Builds maps from key-value pairs using builders
+- `deconstructor`: Provides key-value iteration for maps
 
 Their interfaces are similar to `SeqConstructor` and `SeqDeconstructor`, but specialized for key-value pairs.
 
-ZIO Blocks has an implementation of `Binding.Map` for standard Scala `Map`s in the companion object of `Binding.Map` called `Binding.Map.map`.
+ZIO Blocks has implementations of `Binding.Map` in the companion object of `Binding.Map`: `Binding.Map.map` for the standard Scala `Map` and `Binding.Map.chunkMap` for `ChunkMap`.
 
 ### 5. Binding.Primitive
 
 The `Binding.Primitive` provides metadata for primitive/scalar types—`Int`, `Long`, `Double`, `String`, `Boolean`, `Byte`, `Short`, `Char`, `Float`, `BigInt`, `BigDecimal`, `UUID`, and temporal types.
 
 ```scala
-final case class Primitive[A](
-  defaultValue: Option[() => A] = None,
-  examples: collection.immutable.Seq[A] = Nil
-) extends Binding[BindingType.Primitive, A]
+final case class Primitive[A]() extends Binding[BindingType.Primitive, A]
 ```
 
 Primitives require minimal binding logic since they are atomic values that don't need construction from parts. You can access all built-in primitive bindings in the companion object of `Binding.Primitive`, such as `Primitive.int`, `Primitive.string`, etc.
@@ -288,12 +283,12 @@ The `Binding.Wrapper` provides wrap/unwrap capabilities for newtype patterns—o
 
 `Newtypes` are extremely common in well-designed codebases. Instead of passing raw String values for emails, you define `Email` as a distinct type. Instead of `Int` for user IDs, you define `UserId`. This provides type safety without runtime overhead.
 
-The Wrapper binding handles the bidirectional transformation between the wrapper type and its underlying representation, with optional validation:
+The Wrapper binding handles the bidirectional transformation between the wrapper type and its underlying representation. `wrap` can reject a value by throwing; `Reflect#fromDynamicValue` and the JSON codec report that as a decoding error:
 
 ```scala
 final case class Wrapper[A, B](
-  wrap: B => Either[SchemaError, A],
-  unwrap: A => Either[SchemaError, B]
+  wrap: B => A,
+  unwrap: A => B
 ) extends Binding[BindingType.Wrapper[A, B], A]
 ```
 
@@ -323,10 +318,7 @@ object Email {
 To bind untyped dynamic values, use `Binding.Dynamic`. It provides a binding for dynamically typed values whose structure is not known at compile time:
 
 ```scala
-final case class Dynamic(
-  defaultValue: Option[() => DynamicValue] = None,
-  examples: collection.immutable.Seq[DynamicValue] = Nil
-) extends Binding[BindingType.Dynamic, DynamicValue]
+final case class Dynamic() extends Binding[BindingType.Dynamic, DynamicValue]
 ```
 
 Used when the schema of the data is not known at compile time, such as JSON payloads with arbitrary structure.
