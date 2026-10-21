@@ -2473,7 +2473,7 @@ object Repro extends App {
 
 **Suggested fix.** Put the target field in the path (for example `SchemaError.conversionFailed(contextMessage, cause).atField(fieldName)`, or a `conversionFailed` overload that takes the trace), and make both macros accumulate in declaration order.
 
-**Also: a `ConversionFailed` with a cause never shows its path.** Found 2026-10-21 while writing the Scaladoc of `SchemaError` (wave 1 of the schema Scaladoc, branch `scaladoc-wave-1` at `b0956ec6`); the code is the same at tag `v0.0.56`. Verified with `scala-cli run --server=false CausePath.scala`. `ConversionFailed#message` appends ` at: <path>` only when `cause` is `None`; with a cause it prints `details` and the cause's messages and drops `source` (`schema/shared/src/main/scala/zio/blocks/schema/SchemaError.scala`, the `cause match` in `ConversionFailed#message`). So the suggested `.atField(fieldName)` would fix `source`, but the rendered message would still not name the field.
+**Also: a `ConversionFailed` with a cause never shows its path.** Found 2026-10-21 while writing the Scaladoc of `SchemaError` (wave 1 of the schema Scaladoc, branch `scaladoc-wave-1` at `b0956ec6`); the code is the same at tag `v0.0.56`. Verified with `scala-cli run --server=false CausePath.scala`. `ConversionFailed#message` appends ` at: <path>` only when `cause` is `None`; with a cause it prints `details` and the cause's messages and drops `source`. So the suggested `.atField(fieldName)` would fix `source`, but the rendered message would still not name the field.
 
 ```scala
 //> using scala 2.13.18
@@ -2495,7 +2495,7 @@ object Repro extends App {
 }
 ```
 
-Expected: the first line of the message with a cause also ends with ` at: .book` when the path is not the root. Test gap: no spec renders a `ConversionFailed` that has both a cause and a non-root path. Fix: append ` at: ${source.toScalaString}` to `details` in the `Some(causeErr)` branch when `source.nodes` is not empty, as the `None` branch does. The `SchemaError` Scaladoc describes the current behaviour.
+Expected: the first line of the message with a cause also ends with ` at: .book` when the path is not the root. Root cause: `schema/shared/src/main/scala/zio/blocks/schema/SchemaError.scala:255-273` (the `cause match` in `ConversionFailed#message`); the path is appended only in the `case _` branch at `:270-272`. Impact: errors from `Into.derived` and other wrapped conversions never show where they happened, even after the suggested `.atField` fix. Test gap: no spec renders a `ConversionFailed` that has both a cause and a non-root path. Fix: append ` at: ${source.toScalaString}` to `details` in the `Some(causeErr)` branch when `source.nodes` is not empty, as the `None` branch does. The `SchemaError` Scaladoc describes the current behaviour.
 
 ### schema (Scala 3): `Into.derived` to an opaque type fails in the default package, ignores a `given Into`, and puts the error's class name in the message
 
