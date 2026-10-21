@@ -413,9 +413,9 @@ The ZIO Blocks repository has a `benchmarks` project with JMH benchmarks for its
 | `JsonListOfRecordsBenchmark` | Reading and writing a list of `size` flat records                      | jsoniter-scala, zio-json, zio-schema-json |
 | `JsonNestedRecordsBenchmark` | Reading, writing and failing to read records nested `size` levels deep | Nothing (zio-blocks only)                 |
 | `JsonListOfJsonsBenchmark`   | Reading and writing a list of `Json` values                            | zio-json                                  |
-| `MaybeBoxingBenchmark`       | Encoding and decoding an `Option` field against a `Maybe` field        | Nothing (zio-blocks only)                 |
+| `MaybeBoxingBenchmark`       | Encoding and decoding an `Option[String]` against a `Maybe[String]`    | Nothing (zio-blocks only)                 |
 
-All of them read from and write to `Array[Byte]`. To run the list-of-records benchmark from a clone of the repository:
+The zio-blocks and jsoniter-scala benchmarks read from and write to `Array[Byte]`; the zio-json and zio-schema-json ones go through a `String`. To run the list-of-records benchmark from a clone of the repository:
 
 ```bash
 git clone https://github.com/zio/zio-blocks.git
@@ -484,7 +484,7 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/schema-examples
 ```
 
-The section examples share the catalog model in `BookCatalog.scala`; `CompleteExample` defines its own model and runs on its own.
+To compile every example without running one, use `sbt compile`. The section examples share the catalog model in `BookCatalog.scala`; `CompleteExample` defines its own model and runs on its own.
 
 <details>
   <summary>schema-examples/src/main/scala/tunejsonthroughput/BookCatalog.scala</summary>
