@@ -517,3 +517,4 @@ You now have a solid foundation in the ZIO Blocks `sql` module. The next step is
 - **Using ZIO?** [TransactorZIO](../reference/sql/transactor-zio.md) runs the same work as ZIO effects.
 - **Testing your database code?** [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) gives every test its own SQLite database and rolls back writes.
 - **Want the big picture?** The [SQL Module](../reference/sql/index.md) overview links to every `sql` reference page.
+- **Ready to put it all together?** [Build a Small JSON Backend from Blocks](./small-json-backend-from-blocks.md) is the capstone tutorial that combines schema, config, scope, SQL and telemetry into one small JSON backend.
