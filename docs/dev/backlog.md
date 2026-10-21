@@ -1,6 +1,6 @@
 # ZIO Blocks: tutorials and how-to guides backlog
 
-Compiled 2026-10-19 on branch `tutorials-and-guides-lists` (HEAD `b5f9fb71`). Status last updated 2026-10-20.
+Compiled 2026-10-19 on branch `tutorials-and-guides-lists` (HEAD `b5f9fb71`). Status last updated 2026-10-21.
 
 ## Status
 
@@ -41,6 +41,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-38 | How to protect an endpoint with JWT bearer tokens                             | In review                               | #1804 (`jwt-bearer`) |
 | H-39 | How to write an OpenAPI document and export it as JSON or YAML                | In review                               | #1807 (`openapi`), `openapi-examples/` |
 | H-36 | How to validate query parameters and headers and answer 400                   | In review                               | #1808 (`query-validation`), depends on #1806 (H-35)                                     |
+| T-15 | Build a small JSON backend from blocks (capstone)                             | Pushed, no PR                           | branch `docs/t15-capstone-json-backend`, `guides/small-json-backend-from-blocks.md`, new `capstone-examples/` build |
 | M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
 | H-28 | How to wrap callback and Future-based APIs in Async                           | Committed locally, not pushed           | worktree `async-interop` (2 commits)                                                    |
 | H-01 | How to add ZIO Blocks to your build                                           | Pushed, no PR                           | branch `adding-zio-block-to-build` (6 commits); fixes the 3.9+ rule across docs        |
