@@ -15,11 +15,11 @@ In this guide, we protect the endpoints of a small Scala bookstore API so that o
 
 We start from an API with no protection at all and add one piece at a time:
 
-- read the token from the request with the typed header API,
-- verify it, including issuer, audience and expiry,
-- choose between 401 and 403, with the right `WWW-Authenticate` challenge,
-- wrap handlers so they only ever run for a verified caller,
-- load the signing key from configuration as a `Secret`.
+- Read the token from the request with the typed header API.
+- Verify it, including issuer, audience and expiry.
+- Choose between 401 and 403, with the right `WWW-Authenticate` challenge.
+- Wrap handlers so they only ever run for a verified caller.
+- Load the signing key from configuration as a `Secret`.
 
 Every section that serves requests starts a real server on a free loopback port, calls it, and prints what came back.
 
@@ -49,7 +49,7 @@ val ordersHandler: HttpHandler = (exchange: HttpExchange) => {
 
 This handler lets in `Bearer hello`, never checks a signature or an expiry, has no idea *who* the caller is, and answers a missing token with 403, which tells a well-behaved client that signing in again will not help.
 
-Declaring the requirement does not fix it either. ZIO Blocks' endpoint module has `AuthType.Bearer`, and it is easy to read `.auth(AuthType.Bearer)` as "this endpoint is protected". It is not: `AuthType` only *describes* the requirement and says how to *extract* the token. Nothing in ZIO Blocks verifies a JWT on your behalf. Verification is your code, and this guide shows that code.
+Declaring the requirement does not fix it either. ZIO Blocks' endpoint module has `AuthType.Bearer`, and it is easy to read `Endpoint#auth(AuthType.Bearer)` as "this endpoint is protected". It is not: `AuthType` only *describes* the requirement and says how to *extract* the token. Nothing in ZIO Blocks verifies a JWT on your behalf. Verification is your code, and this guide shows that code.
 
 ## Prerequisites
 
@@ -278,7 +278,7 @@ println(priceEndpoint.auth.unauthorizedStatus)
 The default is `404 Not Found`, chosen to hide that a protected endpoint exists (see [Answering 401, 403 or 404](#answering-401-403-or-404)). Neither value checks a signature, an expiry or a scope: ZIO Blocks ships no server interpreter that enforces them. The rest of the guide is the code that does.
 
 :::warning
-`.auth(AuthType.Bearer)` on its own does not protect anything. Treat it as documentation of what your handler enforces, and keep the two in sync.
+`Endpoint#auth(AuthType.Bearer)` on its own does not protect anything. Treat it as documentation of what your handler enforces, and keep the two in sync.
 :::
 
 ## Reading the Bearer Token
@@ -356,7 +356,7 @@ object TestTokens {
 ```
 
 :::caution
-Keep registered claims such as `iss` and `exp` out of `JwtClaims#extra`. If `extra` also holds one, `Jwt.sign` writes the claim twice and verifiers read the `extra` value.
+Keep registered claims such as `iss` and `exp` out of `JwtClaims#extra`. If `JwtClaims#extra` also holds one, `Jwt.sign` writes the claim twice and verifiers read the `JwtClaims#extra` value.
 :::
 
 On the API side, a handler should not work with raw claims. We turn a verified token into a `Caller`: who the user is and what roles they have. A `Verifier` is any function from a token to a `Caller` or a `JwtError`:
@@ -632,8 +632,17 @@ The wrapper verifies tokens; it is not a complete security setup. Before you rel
 
 - **Use HTTPS.** A bearer token works for whoever holds it. Over plain HTTP, anyone on the network path can copy it. The loopback server in this guide is for examples only.
 - **No revocation.** A signed token stays valid until it expires. Keep `exp` short, minutes rather than days, and refresh tokens on the client.
-- **No key rotation.** The verifier knows one key. To rotate, try the new key and then the old one until old tokens expire, and choose the key yourself: the module does not pick a key by the header's `kid`.
 - **Roles are only as good as the issuer.** The API trusts the `roles` claim because the token is signed. Anyone who holds the signing key can mint an admin token, so prefer an asymmetric key pair when another service issues tokens: the API then holds only the public key.
+
+The verifier also knows only one key, so rotating the signing key needs a little more code. The module does not pick a key by the header's `kid`, so we choose the key ourselves: during a rotation, a verifier tries the new key and then the old one until every token signed with the old key has expired:
+
+```scala mdoc:silent
+def firstAccepting(verifiers: List[Verifier]): Verifier =
+  token => {
+    val results = verifiers.map(verify => verify(token))
+    results.collectFirst { case accepted @ Right(_) => accepted }.getOrElse(results.head)
+  }
+```
 
 ## Putting It Together
 
