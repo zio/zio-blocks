@@ -222,7 +222,7 @@ Applying all four patches shifts every field by its own amount:
 
 ### String Edits
 
-`Patch.editString` applies character-level edits to strings. It takes the edits as a `Chunk[Patch.StringOp]`:
+`Patch.editString` applies character-level edits to strings. It takes the edits as a [`Chunk`](../chunk.md) of `Patch.StringOp` values:
 
 ```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
