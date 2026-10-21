@@ -340,6 +340,7 @@ lazy val root = project
     scopeExamples,
     smithyExamples,
     streamsExamples,
+    telemetryExamples,
     zioBlocksExamples,
     zioBlocksHtmxExamples,
     `projection-examples`
@@ -358,6 +359,7 @@ lazy val schemaExamples        = RootProject(file("schema-examples"))
 lazy val scopeExamples         = RootProject(file("scope-examples"))
 lazy val smithyExamples        = RootProject(file("smithy-examples"))
 lazy val streamsExamples       = RootProject(file("streams-examples"))
+lazy val telemetryExamples     = RootProject(file("telemetry-examples"))
 lazy val zioBlocksExamples     = RootProject(file("zio-blocks-examples"))
 lazy val zioBlocksHtmxExamples = RootProject(file("zio-blocks-htmx-examples"))
 

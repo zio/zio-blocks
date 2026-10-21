@@ -2298,9 +2298,166 @@ import zio.blocks.schema.json.{Json, WriterConfig}
 
 **Suggested fix.** Defer the newline and indentation after an opening bracket until the first element or key is written, and write the closing bracket directly when nothing was written.
 
+### telemetry: the default text log line prints the full class name and two numbers for any class in a package
+
+Found 2026-10-21 while writing the tutorial `docs/guides/instrument-a-program-with-logs-traces-and-metrics.md` (backlog T-12), on `main` at `a44dc6db`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** The text format puts the source location in brackets: the short class name, the method and the line, as in `[RestockJob$.main:10]`. When the class sits in a package, `TextLogFormatter` prints the full name followed by two numbers instead: `[(bookstore.RestockJob$,10,21).main:10]`. `TextLogFormatter` is what the zero-setup `log.info` uses, so almost every user sees this on their very first log line. The default console processor, which takes over once a writer or processor is added, prints the location correctly, so the same call can print two different brackets.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 21, run with `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package bookstore
+
+import zio.blocks.telemetry._
+
+object RestockJob {
+  def main(args: Array[String]): Unit = {
+    log.info("default console output")
+    log.writer(TextLogFormatter, StdoutWriter)
+    log.info("default console plus TextLogFormatter writer")
+  }
+}
+// 2026-10-21T09:03:25.964Z INFO  [(bookstore.RestockJob$,10,21).main:10] default console output
+// 2026-10-21T09:03:25.979Z INFO  [RestockJob$.main:12] default console plus TextLogFormatter writer
+// 2026-10-21T09:03:25.979Z INFO  [(bookstore.RestockJob$,10,21).main:12] default console plus TextLogFormatter writer
+```
+
+**Expected.** Every line shows `[RestockJob$.main:N]`, the part of the name after the last dot.
+
+**Root cause.** `TextLogFormatter.format` and `TextLogFormatter.formatRecord` call `sb.append(namespace, lastDot + 1, namespace.length)` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/LogFormatter.scala:106` and `:194`). `sb` is a `scala.collection.mutable.StringBuilder`, which has no three-argument `append` like `java.lang.StringBuilder#append(CharSequence, int, int)`. The compiler auto-tuples the three arguments into one `(String, Int, Int)` and calls `append(x: Any)`, which appends the tuple's `toString`. `StdoutLogRecordProcessor` uses `namespace.substring(lastDot + 1)` (`StdoutLogRecordProcessor.scala:66`) and is correct. A namespace without a dot takes the `else` branch, which is why scripts in the empty package look right.
+
+**Impact.** The zero-setup path (`Logger.emitter` is a `FormattedLogEmitter(TextLogFormatter, StdoutWriter)` when only the console processor is registered, `Logger.scala:53-55`) and every `log.writer(TextLogFormatter, ...)` print a long, misleading location for all real applications, which always use packages. Log parsers that expect `[Class.method:line]` break. The JSON format is not affected.
+
+**Test gap.** `LogFormatterSpec.scala:181` checks the rendered line with `.contains("com.example.Service")`, which the tuple text also contains, and `:226-228` tests only a namespace without dots ("handles a namespace without dots"). No test asserts the full bracket for a dotted namespace. AGENTS.md's rule to assert the full rendered string with `==` would have caught it.
+
+**Suggested fix.** Use `sb.append(namespace.substring(lastDot + 1))`, or `sb.underlying.append(namespace, lastDot + 1, namespace.length)` to keep the allocation-free form, at both lines. Add a test that asserts the full line for `code.namespace = "com.example.Service"` through both `format` and `formatRecord`. Building with `-Xlint:adapted-args` (Scala 2) would have flagged the auto-tupling.
+
+### telemetry: on Scala 2.13, `log.info` and the other `log.*` calls don't compile outside the library's package
+
+Found 2026-10-21 while writing T-12, on `main` at `a44dc6db`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** On Scala 2.13, every `log.trace`, `log.debug`, `log.info`, `log.warn`, `log.error` and `log.fatal` call in user code fails to compile, in any package and in the empty package. The Scala 2 macro expands to code that reads `GlobalLogState` and other objects that are `private[telemetry]`, and Scala 2 type-checks a macro expansion with the access rights of the call site. The module is published for Scala 2.13, and the reference pages say it supports 2.13, but its main logging API can't be used there. Spans and metrics are not affected.
+
+**Reproduction** (Scala 2.13.16, `zio-blocks-telemetry` 0.0.56, JDK 21, `scala-cli compile`):
+
+```scala
+//> using scala 2.13.16
+//> using dep dev.zio::zio-blocks-telemetry:0.0.56
+package bookstore
+
+import zio.blocks.telemetry._
+
+object RestockJob {
+  def main(args: Array[String]): Unit =
+    log.info("default console output")
+}
+// [error] ./Repro.scala:9:13
+// [error] object GlobalLogState in package telemetry cannot be accessed as a member of package zio.blocks.telemetry from object RestockJob in package bookstore
+// [error]     log.info("default console output")
+// [error]             ^
+```
+
+Without the `package bookstore` line, the error is the same except that it ends with `from object RestockJob`.
+
+**Expected.** The call compiles and prints the line, as it does on Scala 3.
+
+**Root cause.** The expansion in `telemetry/shared/src/main/scala-2/zio/blocks/telemetry/LogMacros.scala` refers to `_root_.zio.blocks.telemetry.GlobalLogState` (`:357-358`), `AttributeBuilderPool`, `LogAnnotations` and `EpochClock`, all `private[telemetry]` (`GlobalLogState.scala:53`, `jvm/.../AttributeBuilderPool.scala:19`, `jvm/.../LogAnnotations.scala:26`, `EpochClock.scala:29`). The Scala 3 macro refers to the same objects, but code inside a Scala 3 quote is not access-checked at the call site, so Scala 3 works.
+
+**Impact.** Logging is unusable on Scala 2.13 in 0.0.56. A Scala 2.13 user who follows the reference page's installation section gets a compile error on the first `log.info`.
+
+**Test gap.** Every telemetry test, including the Scala 2 runs, is in `package zio.blocks.telemetry`, where `private[telemetry]` members are visible. No test calls the macros from another package.
+
+**Suggested fix.** Make the members the expansion needs public and mark them as internal in their Scaladoc (or move them to an `internal` object that is public but documented as not for users), then add a test in a different package, for example `package zio.blocks.telemetry.external`, that calls each `log.*` method on Scala 2.13 and Scala 3.
+
+### telemetry: after `log.removeAll()`, `log.writer` and `log.addProcessor` never bring logging back
+
+Found 2026-10-21 while writing T-12, on `main` at `a44dc6db`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** The Scaladoc of `log.removeAll()` says that "log calls are no-ops until you add a processor or install a logger", and the logging reference page says they are no-ops "until you add an output again". In fact, `log.writer(...)` and `log.addProcessor(...)` after `removeAll` add the output but nothing is ever written to it. Only `log.install(...)` or `log.setMinSeverity(...)` restores logging. Code that clears the defaults with `removeAll` and then adds its own JSON writer, which is the natural way to say "only JSON, please", logs nothing at all, with no error.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 21, run with `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package bookstore
+
+import zio.blocks.telemetry._
+
+object RemoveAllRepro {
+  def main(args: Array[String]): Unit = {
+    log.removeAll()
+    log.writer(TextLogFormatter, StdoutWriter)
+    log.info("1: after removeAll + writer")
+    log.addProcessor(new ConsoleLogRecordProcessor)
+    log.info("2: after addProcessor too")
+    log.setMinSeverity(Severity.Trace)
+    log.info("3: after setMinSeverity")
+  }
+}
+// 2026-10-21T09:10:30.808Z INFO  [(bookstore.RemoveAllRepro$,10,25).main:16] 3: after setMinSeverity
+// 2026-10-21T09:10:30.808Z INFO  [RemoveAllRepro$.main:16] 3: after setMinSeverity
+```
+
+Lines 1 and 2 are never printed. (The two forms of the bracket in line 3 are the `TextLogFormatter` bug above.)
+
+**Expected.** Line 1 is printed by the writer, and line 2 by both outputs, as the Scaladoc promises.
+
+**Root cause.** `removeAll` installs `silentState`, whose minimum severity is `Int.MaxValue`, and sets `globalMinLevel` to `Int.MaxValue` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/GlobalLogState.scala:67-75` and `:130-132`; called from `log.scala:65-73`). `log.writer` rebuilds the state with `currentState.minSeverity` (`log.scala:104-113`), and `log.addProcessor` also keeps it (`log.scala:46-55`), so the floor stays above every severity. `log.setMinSeverity` (`log.scala:30-31`) and `log.install` (`log.scala:58-59`) reset it.
+
+**Impact.** Silent loss of all logs in a program that calls `removeAll` before adding outputs. The reference page `docs/reference/telemetry/logging/index.md:176` repeats the Scaladoc's promise.
+
+**Test gap.** No test logs through a writer or processor added after `log.removeAll()`. The tests that call `removeAll` use it as cleanup at the end.
+
+**Suggested fix.** Make `removeAll` keep the minimum severity and mark the state as having no outputs instead of raising the floor, or have `writer` and `addProcessor` restore the previous minimum severity when they leave the silent state. Add a test for `removeAll` followed by each of `writer`, `addProcessor` and `install`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
+
+### telemetry: every call to `metric.counter(name)` registers a new instrument
+
+Found 2026-10-21 while writing T-12, on `main` at `a44dc6db` (same at `v0.0.56`). Verified against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `metric.counter("x")`, `metric.histogram("x")`, `metric.upDownCounter("x")` and `metric.gauge("x")` build and register a new instrument on every call, even when one with the same name exists. The reference pages show the inline form as the normal use (`metric.counter("http.requests").add(1)`, `docs/reference/telemetry/metrics/index.md:15`; `instruments.md:37` and `:172` use it inline too). Code that calls the factory inside a method gets one instrument per call: the reader returns many separate series with the same attributes instead of one total, and the registry grows without bound.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 21, `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package bookstore
+
+import zio.blocks.telemetry._
+
+object CounterRepro {
+  def restock(title: String): Unit =
+    metric.counter("bookstore.books.restocked").add(1L, "title" -> title)
+
+  def main(args: Array[String]): Unit = {
+    (1 to 3).foreach(_ => restock("Zionomicon"))
+    val sums = metric.reader.collectAllMetrics()
+    println(s"instruments: ${sums.size}")
+    sums.foreach(println)
+  }
+}
+// instruments: 3
+// SumData(List(SumDataPoint(zio.blocks.telemetry.Attributes@cb9700ed,0,1792573831692001433,1)))
+// SumData(List(SumDataPoint(zio.blocks.telemetry.Attributes@cb9700ed,0,1792573831694297386,1)))
+// SumData(List(SumDataPoint(zio.blocks.telemetry.Attributes@cb9700ed,0,1792573831694308297,1)))
+```
+
+**Expected.** Either one instrument with the value 3 (the factory returns the existing instrument for a name, as OpenTelemetry SDKs do), or documentation that tells users to create each instrument once and keep it in a `val`.
+
+**Root cause.** `metric.counter` calls `counterBuilder(name).build()` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/metric.scala:38-39`), and `build()` always creates a new `Counter` and registers it (`Meter.scala:164-168`, `registerCounter` at `:91-93`). The registry has no lookup by name.
+
+**Suggested fix.** Cache instruments by name, kind and unit in `Meter`, or document the "create once" rule on the `metric` reference pages and change the inline examples to `val`s. The T-12 tutorial creates each instrument once and says why.
 
 ### schema: `Validation` constraints are checked only by `DynamicSchema#check`, and `DynamicSchema#check` skips `Schema#transform` checks
 
@@ -3108,6 +3265,18 @@ object Repro {
 **Suggested fix.** Drop "- JVM only" from both comments at `docs/reference/streams/index.md:398` and `:402`.
 
 Fixed in #1796 (H-24).
+
+### docs: telemetry pages give the wrong JDK requirement, no Scala 3.9 artifact, and a double-printing example
+
+Found 2026-10-21 while writing T-12, on `main` at `a44dc6db` (same at `v0.0.56`). Verified against the published 0.0.56 on JDK 17, 21 and 25.
+
+- **JDK.** The JVM module is compiled with `-release 21` (`build.sbt:746-755`). On JDK 17 even compiling a `log.*` call fails, because the log macros run inside the compiler: `java.lang.UnsupportedClassVersionError: zio/blocks/telemetry/LogMacros$ has been compiled by a more recent version of the Java Runtime (class file version 65.0), this version of the Java Runtime only recognizes class file versions up to 61.0` (verified with `scala-cli run --server=false --jvm 17`; without `--server=false`, scala-cli compiles on its own newer JVM and hides this). Code that only uses spans or metrics compiles on JDK 17 and fails the same way at run time (`zio/blocks/telemetry/trace$`). On JDK 21 it works without `--enable-preview`, including span context propagation through `ScopedValue` (a preview API in JDK 21 to 24, final in 25): a log line inside a nested span carries the span's ids, and the child's parent is the outer span. `telemetry-guide.md:1032` and `:1113` call `ScopedValue` storage "JDK 25+", and the `ContextStorage` Scaladoc says "Pure ScopedValue storage for JDK 25+" (`telemetry/jvm/src/main/scala/zio/blocks/telemetry/ContextStorage.scala:49`); the installation sections of `reference/telemetry/index.md` and `telemetry-guide.md` gave no JDK requirement. Fixed in the T-12 PR: both installation sections now say JDK 21 or newer, and the guide's JDK 25 wording is corrected.
+- **Test and CI gap.** The telemetry and otel tests run only on JDK 25 (`whenJdkAtLeast(25, "telemetryJVM/test; otel/test")`, `build.sbt:149` and `:155`), although the published jar targets Java 21. Nothing in CI runs the module on JDK 21.
+- **Scala 3.9.** Neither installation section said that Scala 3.9 and newer use `zio-blocks-next-telemetry` with `-experimental` (without the flag, 0.0.56 fails with `LogVersionSpecific is marked @experimental`). Fixed in the T-12 PR in `reference/telemetry/index.md`.
+- **Double printing.** `reference/telemetry/logging/index.md:178-183` adds `log.writer(TextLogFormatter, StdoutWriter)` and `log.writer(JsonLogFormatter, StderrWriter)` as "human-readable text to stdout, JSON to stderr". `log.writer` is additive and the default console output stays, so every line is printed twice on standard output, once by the default output and once by the new writer, plus once as JSON. The example needs `log.install(LoggerProvider.builder.build().get(...))` first. Not fixed here.
+- **`removeAll`.** `reference/telemetry/logging/index.md:176` says `log.*` calls become no-ops after `log.removeAll()` "until you add an output again"; adding an output with `writer` or `addProcessor` doesn't restore them (see the library bug above). Not fixed here.
+- **Histogram boundaries.** The `HistogramDataPoint` Scaladoc calls `boundaries` "upper exclusive boundaries for each bucket" (`telemetry/shared/src/main/scala/zio/blocks/telemetry/MetricData.scala:68`), but `Histogram.findBucketIndex` puts a value in the first bucket whose boundary is `>=` the value (`value <= boundaries(i)`, `Histogram.scala:98-105`), so the boundaries are inclusive upper bounds, as in OpenTelemetry. From source; not fixed here.
+- **Missing ADR.** `ContextStorage.scala:28` links `docs/adr/0001-scoped-context-no-set.md`, which never existed (already noted in `backlog.md`).
 
 ## Resolved
 

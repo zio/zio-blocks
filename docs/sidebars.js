@@ -479,6 +479,7 @@ const sidebars = {
     "guides/resource-and-di-migration",
     "guides/getting-started-with-mux",
     "guides/small-json-backend-from-blocks",
+    "guides/instrument-a-program-with-logs-traces-and-metrics",
     "guides/telemetry-guide",
     "guides/zio-schema-migration",
     "guides/config-library-migration",

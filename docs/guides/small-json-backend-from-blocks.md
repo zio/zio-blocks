@@ -603,7 +603,7 @@ Each request writes one log line with its fields, just above the response it des
 The brackets of a log line should hold the source location: the short class name, the method and the line, such as `[RequestTelemetry.wrap:20]`. In version 0.0.56, a class inside a package prints its full name followed by two numbers instead, as in `[(smalljsonbackendfromblocks.RequestTelemetry,27,43).wrap:20]` from the companion example. On this page, the class also sits inside the `repl.MdocSession` wrapper that renders the examples. This is a known bug; the message and the fields are not affected.
 :::
 
-The [Telemetry Guide](./telemetry-guide.md) explains how to send logs as JSON, export spans and metrics, and set log levels. The tutorial T-12 "Instrument a Program with Logs, Traces and Metrics" teaches the three signals step by step; it is not published yet.
+The [Telemetry Guide](./telemetry-guide.md) explains how to send logs as JSON, export spans and metrics, and set log levels. The tutorial [Instrument a Program with Logs, Traces and Metrics](./instrument-a-program-with-logs-traces-and-metrics.md) teaches the three signals step by step.
 
 ## 9. Serve the Routes over HTTP
 
