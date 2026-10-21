@@ -473,5 +473,6 @@ You now have a solid foundation in server-side HTML with ZIO Blocks. The next st
 
 - **Want the full HTML API?** Read the [HTML](../reference/html.md) reference page, which covers the `html"..."` template interpolator, the `Css` data type, `Dom#transform`, and every `DomSelection` operation.
 - **Ready to make the page interactive?** [HTMX](../reference/htmx/index.md) adds typed `hx-*` attributes to the same DSL, so links and forms can fetch new HTML from the server without a full reload.
+- **Want to serve the page over HTTP?** [How to Serve http-model Requests with the JDK HTTP Server](./serve-http-model-requests.md) shows how to hand an http-model `Response` to the server built into the JDK.
 - **Prefer reactive signals?** [Datastar](../reference/datastar/index.md) builds on the HTML module with typed `data-*` attributes and server-sent events.
 - **Want more from your schemas?** Return to [Your First Schema](./your-first-schema.md) and follow its links to the JSON codec and the other formats one `Schema` can produce.
