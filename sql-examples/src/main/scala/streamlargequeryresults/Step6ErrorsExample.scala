@@ -1,7 +1,7 @@
 package streamlargequeryresults
 
-import zio.blocks.sql.*
 import zio.blocks.streams.*
+import zio.blocks.sql.*
 
 /**
  * How to Stream Large Query Results — Step 6: Handle Query and Decoding Errors

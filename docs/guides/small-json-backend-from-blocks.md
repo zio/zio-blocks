@@ -352,6 +352,12 @@ object TempDb {
 }
 ```
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the blocks below
+import _root_.zio
+```
+
 The code above:
 
 - `JdbcTransactor.fromUrl` points at the SQLite file named in `DbConfig`. It opens a connection for each `JdbcTransactor#connect` or `JdbcTransactor#transact` call and closes it afterwards, so `Db#close` has nothing to release here and only reports that it ran. A connection pool, such as the one in [How to Connect to PostgreSQL with a Connection Pool](./connect-to-postgresql-with-a-connection-pool.md), would be closed in `Db#close`.
