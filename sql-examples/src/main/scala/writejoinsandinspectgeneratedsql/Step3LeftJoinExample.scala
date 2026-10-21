@@ -1,7 +1,7 @@
 package writejoinsandinspectgeneratedsql
 
-import zio.blocks.sql.*
 import zio.blocks.sql.query.*
+import zio.blocks.sql.*
 
 /**
  * How to Write Joins and Inspect the Generated SQL: Keep Authors Who Have No

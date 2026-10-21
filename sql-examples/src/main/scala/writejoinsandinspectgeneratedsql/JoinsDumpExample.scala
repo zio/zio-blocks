@@ -1,7 +1,7 @@
 package writejoinsandinspectgeneratedsql
 
-import zio.blocks.sql.*
 import zio.blocks.sql.query.*
+import zio.blocks.sql.*
 
 object LibraryQueries {
   inline def booksWithFirstAuthors: SqlQuery[Book] =

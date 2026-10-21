@@ -1,8 +1,8 @@
 package writejoinsandinspectgeneratedsql
 
 import zio.blocks.schema.Schema
-import zio.blocks.sql.*
 import zio.blocks.sql.query.*
+import zio.blocks.sql.*
 
 case class Author(authorId: Int, name: String, born: Option[Int])
 object Author {

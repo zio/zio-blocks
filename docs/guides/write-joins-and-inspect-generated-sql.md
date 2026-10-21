@@ -84,8 +84,8 @@ Everything in this guide comes from three imports:
 
 ```scala mdoc:silent
 import zio.blocks.schema.Schema
-import zio.blocks.sql.*
 import zio.blocks.sql.query.*
+import zio.blocks.sql.*
 ```
 
 ## The Library Tables
