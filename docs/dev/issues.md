@@ -1733,6 +1733,14 @@ Seen 2026-10-20 on PR #1773 (docs only, touches nothing in `streams/` or `async/
 
 Seen again 2026-10-20 on PR #1774 (H-12, docs only): an async-reader test hit the same 30 s timeout in `testJVM (17, JVM, 3.9.x)`. Later pushes replaced that run. Two sightings on unrelated docs PRs in one day suggest the timeouts are too tight for loaded CI runners.
 
+Seen 2026-10-21 on four more docs-only PRs, each with exactly 1 of 12,761 tests failing and a different test each time:
+
+- #1814 (H-22), `testJVM (25, JVM, 3.9.x)`: `unfoldAsync - reset invalidates a stale completion and restarts from initial state` (job 119294098388). Also hit once on #1807 (H-39), passed on rerun.
+- #1802 (H-19), `testJVM (17, JVM, 3.3.x)`: `MergeInnerErrorSpec - error in inner stream does not hang (InnerDone-in-finally regression) - Long mergeAll: error in inner terminates without hang` (job 119256732852).
+- #1808 (H-36), `testJVM (25, JVM, 3.9.x)`: `async reader reachable coverage - nested concat rejected reset closes its nested head` (job 119164951462).
+
+All three are hang-detection tests in the streams async paths. Docs PRs now fail CI about once per run on these, so either the timeouts need headroom on shared runners or one of these paths has a real race. Worth one investigation pass with the tests looped locally under CPU load (`taskset -c 0,1`).
+
 ### mdoc: `mdoc:fail` on Scala 3 ignores earlier `:reset` sections
 
 Seen 2026-10-20 while writing H-02. A `mdoc:fail` block after a `mdoc:silent:reset` reports bogus "already defined" errors for names from before the reset, so the expected compile error cannot be shown. H-02 described that error in prose instead. Pages that rely on `mdoc:fail` (H-31) should check their rendered output.
