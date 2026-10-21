@@ -515,6 +515,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [How to Write Joins and Inspect the Generated SQL](./guides/write-joins-and-inspect-generated-sql.md) - Join related tables with `SqlQuery` and `Rel`, read the rows as tuples, and print or dump the SQL each join generates
 - [How to Use the sql Module from a ZIO Application](./guides/sql-from-zio.md) - Run `sql` queries and transactions as ZIO effects with `TransactorZIO`, provide it as a layer, and mix database writes with other effects in one transaction
 - [Render Your First Server-Side HTML Page](./guides/your-first-html-page.md) - Build a book page with the HTML DSL, escape user input, add CSS and JSON state, and save it as a file
+- [How to Serve http-model Requests with the JDK HTTP Server](./guides/serve-http-model-requests.md) - Turn a JDK `HttpExchange` into an http-model `Request`, write a `Response` back, and run a handler function on the built-in server
 - [How to Stream Files and Sockets Without Leaking Resources](./guides/stream-files-and-sockets.md) - Read files, NIO channels and sockets as streams that close their handles on success, failure, early stop and missing input
 - [Getting Started with Async](./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
 - [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles

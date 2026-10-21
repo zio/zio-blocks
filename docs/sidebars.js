@@ -473,6 +473,7 @@ const sidebars = {
     "guides/write-joins-and-inspect-generated-sql",
     "guides/sql-from-zio",
     "guides/your-first-html-page",
+    "guides/serve-http-model-requests",
     "guides/stream-files-and-sockets",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",

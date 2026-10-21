@@ -34,6 +34,8 @@ Extension methods that add **type-safe, validated extraction** of query paramete
 2. **Add type-safe extraction** with schema-based extension methods
 3. **Hand off to an HTTP client/server library** (ZIO HTTP, Akka, Play, etc.) for the actual I/O work
 
+See [How to Serve http-model Requests with the JDK HTTP Server](../../guides/serve-http-model-requests.md) for a worked hand-off to the server built into the JDK.
+
 This separation keeps your domain logic portable and testable while maintaining full expressiveness for HTTP interactions.
 
 ## Getting Started

@@ -2575,6 +2575,51 @@ Lines 1 and 2 are never printed. (The two forms of the bracket in line 3 are the
 
 **Suggested fix.** Make `removeAll` keep the minimum severity and mark the state as having no outputs instead of raising the floor, or have `writer` and `addProcessor` restore the previous minimum severity when they leave the silent state. Add a test for `removeAll` followed by each of `writer`, `addProcessor` and `install`.
 
+### http-model: `QueryParams` keeps `+` as a plus sign, so values from HTML `GET` forms arrive with `+` instead of spaces
+
+Not filed on GitHub yet.
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/serve-http-model-requests.md` (backlog H-35), on `main` at `a44dc6db`. The http-model sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56.
+
+**Summary.** When a browser submits an HTML form with `method="get"`, it encodes the fields as `application/x-www-form-urlencoded` in the query string, so a space becomes `+` and a literal plus becomes `%2B`. `URL.parse` decodes the query with `QueryParams.fromEncoded`, which percent-decodes but treats `+` as a literal plus. A search for `zio blocks` therefore arrives as `zio+blocks`. Worse, `+` and `%2B` both decode to `+`, so once the query is a `QueryParams` the handler can no longer tell a space from a real plus sign. The module's own `Form.fromString` decodes the same string correctly, so the two types disagree about one wire format.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-http-model` 0.0.56, run with `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model:0.0.56
+
+import zio.http._
+
+object PlusInQuery {
+  def main(args: Array[String]): Unit = {
+    // What a browser sends for <form method="get"> with q = "zio blocks"
+    val url = URL.parse("/search?q=zio+blocks&tag=a%2Bb").toOption.get
+    println(url.queryParams.getFirst("q"))
+    println(url.queryParams.getFirst("tag"))
+    // The same pair decoded as form data
+    println(Form.fromString("q=zio+blocks&tag=a%2Bb").get("q"))
+    // Encoding a space in a query value
+    println(QueryParams("q" -> "zio blocks").encode)
+  }
+}
+// Some(zio+blocks)
+// Some(a+b)
+// Some(zio blocks)
+// q=zio%20blocks
+```
+
+**Expected.** `url.queryParams.getFirst("q")` returns `Some(zio blocks)` and `getFirst("tag")` returns `Some(a+b)`, as `URLSearchParams` does in browsers and `Form.fromString` does in this module.
+
+**Root cause.** `QueryParams.fromEncoded` decodes each key and value with `PercentEncoder.decode` (`http-model/shared/src/main/scala/zio/http/QueryParams.scala:196-197`), and `PercentEncoder.decode` (`http-model/shared/src/main/scala/zio/http/PercentEncoder.scala:103`) only handles `%XY` escapes. `Form` replaces `+` with a space before decoding (`http-model/shared/src/main/scala/zio/http/Form.scala:98-99`), but `QueryParams` does not.
+
+**Impact.** Any page that submits a search or filter form with `method="get"` gets `+` instead of spaces. This hits the server adapter in H-35 and the planned query-validation guide (H-36) and HTMX live-search tutorial (T-10) as soon as a plain form is used. The workaround is to bypass `QueryParams` and decode the raw query string with `Form.fromString`, which needs access to the raw query (for example `URI#getRawQuery` in a JDK `HttpExchange`). The H-35 guide documents the behaviour in a note.
+
+**Test gap.** `QueryParamsSpec` (`http-model/shared/src/test/scala/zio/http/QueryParamsSpec.scala`) has no test with `+` in a key or value. `FormSpec` tests "decodes plus as space" for `Form` only.
+
+**Suggested fix.** In `QueryParams.fromEncoded`, replace `+` with a space before calling `PercentEncoder.decode`, as `Form` does, and add tests for `q=zio+blocks` and `tag=a%2Bb`. `QueryParams#encode` already writes a space as `%20`; encode a literal `+` in a query key or value as `%2B` (today `+` is in the allowed set for `QueryKey` and `QueryValue`, `PercentEncoder.scala:58-65`) so that encoding and decoding round-trip.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.

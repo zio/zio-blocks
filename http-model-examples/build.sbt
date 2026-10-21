@@ -7,10 +7,10 @@ run / fork     := true
 
 scalacOptions ++= Seq("-deprecation", "-encoding", "UTF-8", "-feature", "-unchecked")
 
-// Scala 3.8+ artifacts are published with `@experimental` APIs, which consumers must opt into.
+// The zio-blocks-next-* artifacts (Scala 3.9+) are compiled with `-experimental`, which consumers must opt into.
 scalacOptions ++= {
   CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((3, minor)) if minor >= 8 => Seq("-experimental")
+    case Some((3, minor)) if minor >= 9 => Seq("-experimental")
     case _                              => Seq.empty
   }
 }
@@ -27,5 +27,7 @@ def zioBlocks(module: String) = Def.setting {
 }
 
 libraryDependencies ++= Seq(
-  zioBlocks("http-model").value
+  zioBlocks("http-model").value,
+  zioBlocks("html").value,
+  zioBlocks("schema").value
 )

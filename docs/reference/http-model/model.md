@@ -62,7 +62,7 @@ You've built your entire API client around ZIO's HTTP library, but your team dec
 
 - **Efficient, composable** — Headers and QueryParams use parallel array-backed collections for fast lookups. Types compose naturally without forcing a single architectural path.
 
-This separation is powerful: you can build, manipulate, serialize, and test HTTP messages using pure data, then hand them off to any HTTP client/server library (ZIO, Akka, Play, etc.) for the actual I/O work. Your domain logic stays portable and testable.
+This separation is powerful: you can build, manipulate, serialize, and test HTTP messages using pure data, then hand them off to any HTTP client/server library (ZIO, Akka, Play, etc.) for the actual I/O work. Your domain logic stays portable and testable. For a worked example, see [How to Serve http-model Requests with the JDK HTTP Server](../../guides/serve-http-model-requests.md).
 
 
 ## Installation
