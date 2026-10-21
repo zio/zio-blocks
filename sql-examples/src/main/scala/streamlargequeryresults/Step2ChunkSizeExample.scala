@@ -2,8 +2,8 @@ package streamlargequeryresults
 
 import scala.util.Try
 
-import zio.blocks.sql.*
 import zio.blocks.streams.*
+import zio.blocks.sql.*
 
 /**
  * How to Stream Large Query Results — Step 2: Choose a Chunk Size

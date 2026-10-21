@@ -3,8 +3,8 @@ package streamlargequeryresults
 import java.nio.file.Files
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.sql.*
 import zio.blocks.streams.*
+import zio.blocks.sql.*
 
 /**
  * How to Stream Large Query Results — Step 3: Export Every Row to a CSV File
