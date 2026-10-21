@@ -528,6 +528,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Coming from fs2, ZIO Streams or Ox](./guides/streaming-library-migration.md) - Map fs2, ZIO Streams and Ox code onto ZIO Blocks `Stream`, `Pipeline` and `Sink`
 - [How to Generate JSON Schema from a Type and Validate Payloads Against It](./guides/generate-json-schema-and-validate-payloads.md) - Derive a JSON Schema from a `Schema`, publish it, and validate incoming JSON payloads
 - [How to Define Validated Newtypes and Collect Every Validation Error](./guides/validated-newtypes.md) - Wrap a primitive in a validated newtype, reject bad values at construction, and collect every validation error in one `SchemaError`
+- [How to Compute, Store and Replay Changes with Diff and Patch](./guides/diff-and-patch.md) - Diff two versions of a value, store the patch as JSON, replay an edit history with undo, and send changes as JSON patches, including RFC 6902
 - [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
 - [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL
 - [Query DSL Part 3: Extending the Expression Language](./guides/query-dsl-extending.md) - Add custom operators beyond `SchemaExpr`
