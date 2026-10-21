@@ -59,9 +59,10 @@ import scala.util.control.NonFatal
  * A reflect is immutable: `doc`, `modifier`, `defaultValue` and the other
  * setters return a copy. Two reflects are equal when their structure is equal;
  * bindings, default values and examples are not compared. `toString` prints the
- * tree in a schema definition language. A node that appears more than once, as
- * in a recursive type, is printed in full only the first time, and as
- * `deferred =>` and its type name after that.
+ * tree in a schema definition language. A record, variant, sequence, map or
+ * wrapper node that appears more than once, as in a recursive type, is printed
+ * in full only the first time, and as `deferred =>` and its type name after
+ * that; primitive and dynamic nodes are always printed in full.
  *
  * {{{
  * case class Book(title: String, year: Int)
@@ -236,9 +237,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
    *   - a variant expects a `DynamicValue.Variant` whose case name it knows.
    *   - a sequence expects a `DynamicValue.Sequence`, and a map a
    *     `DynamicValue.Map`.
-   *   - a primitive expects a `DynamicValue.Primitive`; numeric types also
-   *     accept other numeric values that convert without loss (see
-   *     `PrimitiveType#fromDynamicValue`).
+   *   - a primitive expects a `DynamicValue.Primitive`; numeric types and
+   *     `Char` also accept other numeric or `Char` values that convert to them,
+   *     without loss except for the cases listed at
+   *     `PrimitiveType#fromDynamicValue`.
    *   - a wrapper decodes the value of the type it wraps, then wraps it.
    *   - a dynamic node accepts any value as it is.
    *
@@ -536,9 +538,13 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
    * forced.
    *
    * For a [[Reflect.Deferred]] node, the result is cached per thread under that
-   * node and `f`, which is what makes a recursive type terminate. `noBinding`,
-   * `DynamicSchema#rebind` and type class derivation clear that cache when they
-   * finish; a direct call leaves its entries in the cache.
+   * node and `f`, which is what makes a recursive type terminate. A `Deferred`
+   * node reached by several paths in one scope is transformed once, with the
+   * path of the first. `noBinding`, `DynamicSchema#rebind` and type class
+   * derivation clear that cache when they return. A direct call leaves its
+   * entries in the cache, and so does the first use of a `Deferred` node in any
+   * result after the call has returned, because that is when the node's value
+   * is transformed.
    *
    * @see
    *   [[https://zioblocks.com/reference/schema/reflect-transformer/ ReflectTransformer]]
@@ -566,7 +572,9 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
    * Returns a copy of this reflect in which the node at the path `dynamic` is
    * replaced by `f.update` of it, or `None` when the path does not lead to a
    * node. It follows field, case, sequence, wrapped, map-keys and map-values
-   * steps as `get` does, but it does not run type or schema searches.
+   * steps as `get` does, but it does not run type or schema searches: on a map
+   * node a type or schema search step is treated as a map-values step, and on
+   * any other node it returns `None`.
    */
   def updated[B](dynamic: DynamicOptic)(f: Reflect.Updater[F]): Option[Reflect[F, A]] = {
     def loop(current: Reflect[F, ?], idx: Int): Option[Reflect[F, ?]] =

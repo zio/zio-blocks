@@ -23,12 +23,13 @@ import scala.annotation.tailrec
  * Prints [[Reflect]] trees in a schema definition language; the `toString` of
  * every node uses it.
  *
- * Every node is printed inline, down to its leaves. A node that was already
- * printed earlier in the same call is printed as `deferred =>` and its type
- * name instead, which stops a recursive type. The printer keeps every printed
- * node in that set until the call ends, so a node that is shared but not
- * recursive, such as the schema of a case class used for two fields, also
- * prints as `deferred =>` the second time.
+ * Every node is printed inline, down to its leaves. A record, variant,
+ * sequence, map or wrapper node that was already printed earlier in the same
+ * call is printed as `deferred =>` and its type name instead, which stops a
+ * recursive type. The printer keeps those nodes in that set until the call
+ * ends, so such a node that is shared but not recursive, such as the schema of
+ * a case class used for two fields, also prints as `deferred =>` the second
+ * time. Primitive and dynamic nodes are always printed in full.
  */
 private[schema] object ReflectPrinter {
 

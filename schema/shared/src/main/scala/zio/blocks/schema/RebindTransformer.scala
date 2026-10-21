@@ -23,8 +23,9 @@ import zio.blocks.typeid.TypeId
 /**
  * A [[ReflectTransformer]] that turns an unbound reflect into a bound one,
  * looking up the binding of each node by its type ID in `resolver`.
- * `DynamicSchema#rebind` runs it. Each method throws a [[RebindException]] when
- * the resolver has no binding of the right kind for the node's type.
+ * `DynamicSchema#rebind` runs it. The `Lazy` that each method returns throws a
+ * [[RebindException]], when forced, if the resolver has no binding of the right
+ * kind for the node's type.
  */
 private[schema] final class RebindTransformer(resolver: BindingResolver)
     extends ReflectTransformer[NoBinding, Binding] {
@@ -214,8 +215,10 @@ private[schema] final class RebindTransformer(resolver: BindingResolver)
 
 /**
  * Thrown by `DynamicSchema#rebind` when its `BindingResolver` has no binding
- * for a type in the schema. The message names the kind of binding, the full
- * name of the type and the path.
+ * for a type in the schema. For a node behind a [[Reflect.Deferred]], such as
+ * the recursive field of a recursive type, it is thrown later, when that part
+ * of the rebound schema is first used. The message names the kind of binding,
+ * the full name of the type and the path.
  *
  * @param path
  *   the location of the node that needs the binding (a wrapped node has the
