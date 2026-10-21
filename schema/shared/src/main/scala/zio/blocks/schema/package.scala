@@ -16,4 +16,19 @@
 
 package zio.blocks
 
+/**
+ * Schemas of Scala types and what is built on them: codecs, dynamic values,
+ * optics, patches and migrations. Importing the package with
+ * `import zio.blocks.schema._` also brings in the extension syntax
+ * (`toJsonString`, `fromJson`, `diff`, ...) and the `p"..."` path interpolator.
+ *
+ * On Scala 3 the path interpolator is an extension method named `p`, so with
+ * both `import zio.blocks.schema._` and `import zio.blocks.html._` in scope a
+ * call to the HTML element `p(...)` is ambiguous. Write that element as
+ * `zio.blocks.html.p(...)`, or import only the names you need from one of the
+ * two packages.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/syntax/ Extension Syntax]]
+ */
 package object schema extends PathInterpolator with SyntaxVersionSpecific {}
