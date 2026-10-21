@@ -162,6 +162,29 @@ import zio.blocks.schema.yaml.{Yaml, YamlReader}
 
 **Suggested fix.** In `needsQuoting`, quote a value whose first character is any YAML indicator (`#`, `,`, `[`, `]`, `{`, `}`, `&`, `*`, `!`, `|`, `>`, `'`, `"`, `%`, `@`, `` ` ``), or that starts with `-`, `?` or `:` followed by a space, and a value with leading or trailing spaces. Make `YamlReader` treat `#` at the start of a value as a comment, as the spec says. Add writer tests for each indicator and a test that the OpenAPI petstore document survives `Yaml.fromJson(...).printPretty` and a spec-following read.
 
+**Addendum (2026-10-21, H-15).** Its suggested fix already names the other cases from source; they are now verified by running. A value that starts with `- ` or ends with `:` is written unquoted and rejected by SnakeYAML, and leading or trailing spaces are lost by every reader, including `YamlReader`. Found 2026-10-21 while writing H-15 (`docs/guides/read-and-write-yaml.md`), `main` at `4ec6dd90`, same at `v0.0.56`.
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+//> using dep org.yaml:snakeyaml:2.3
+import zio.blocks.schema.yaml._
+
+@main def writerQuoting(): Unit = {
+  val snake = new org.yaml.snakeyaml.Yaml()
+  for (value <- List("- Zionomicon", "Zionomicon:", " Zionomicon", "Zionomicon ")) {
+    val text = Yaml.Mapping.fromStringKeys("title" -> Yaml.Scalar(value)).print
+    val read = scala.util.Try(snake.load[Object](text)).fold(e => "error: " + e.getMessage.linesIterator.next(), v => s"'$v'")
+    println(s"[$value] is written as <$text>; SnakeYAML reads $read; YamlReader reads ${YamlReader.read(text)}")
+  }
+}
+// Output:
+// [- Zionomicon] is written as <title: - Zionomicon>; SnakeYAML reads error: sequence entries are not allowed here; YamlReader reads Mapping(Chunk((Scalar(title,None),Scalar(- Zionomicon,None))))
+// [Zionomicon:] is written as <title: Zionomicon:>; SnakeYAML reads error: mapping values are not allowed here; YamlReader reads Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon:,None))))
+// [ Zionomicon] is written as <title:  Zionomicon>; SnakeYAML reads '{title=Zionomicon}'; YamlReader reads Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon,None))))
+// [Zionomicon ] is written as <title: Zionomicon >; SnakeYAML reads '{title=Zionomicon}'; YamlReader reads Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon,None))))
+```
+
 ### schema-toon: `ArrayFormat.Tabular` with a non-primitive field writes output it cannot decode
 
 Filed as #1778. Found 2026-10-20 while writing H-12 (`docs/guides/llm-data-with-toon.md`). Verified on 0.0.56; schema-toon is unchanged since.
@@ -3577,6 +3600,389 @@ The same happens with a sensitive name: `provenanceOf("db.password")` on a layer
 
 **Suggested fix.** Have `Config.loadWithProvenance` record the paths of `Secret` fields (it has the schema) and pass them to `ProvenanceMap`, so `dump` and `provenanceOf` redact them. Override `Provenance.Resolved#toString` to omit `rawValue`, or redact it when the key is sensitive. Until then, correct the advice in `config-source.md`.
 
+### schema-yaml: `YamlReader` silently misreads or drops valid YAML that it does not support
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** `YamlReader.read` never fails, so YAML forms it does not implement are not rejected: they are misread, or they end the document early, and the rest of the file is dropped without an error. This is separate from the "stops at the first line it cannot read" entry (typos such as `pageSize:20`): every input below is valid YAML that other readers accept. The affected forms are common in real files: a block sequence at the same indentation as its key is the usual Kubernetes and docker-compose style, anchors and merge keys are how CI files share defaults, and multi-document streams are how `kubectl` files bundle several objects.
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema.yaml.YamlReader
+
+@main def unsupportedYaml(): Unit = {
+  // 1. A sequence at the same indentation as its key (the usual Kubernetes and docker-compose style)
+  println(YamlReader.read("steps:\n- name: checkout\n- name: test\ntimeout: 30\n"))
+  // 2. A sequence nested directly in a sequence
+  println(YamlReader.read("matrix:\n  - - '2.13'\n    - '3.3'\n  - - jdk17\nfail-fast: true\n"))
+  // 3. An anchor on a block mapping, then a merge key
+  println(YamlReader.read("defaults: &defaults\n  image: sbt:1.10\n  timeout: 30\ntest:\n  <<: *defaults\n  script: sbt test\n"))
+  // 4. A stream of two documents
+  println(YamlReader.read("title: Zionomicon\n---\ntitle: Programming in Scala\n"))
+  // 5. Anchors, aliases and tags on scalars
+  println(YamlReader.read("author: &a John A. De Goes\nreviewer: *a\nisbn: !!str 9780986200406\n"))
+  // 6. A tab used for indentation
+  println(YamlReader.read("db:\n\turl: jdbc:postgresql://localhost/books\nport: 5432\n"))
+}
+// Output:
+// Mapping(Chunk((Scalar(steps,None),NullValue),(Scalar(- name,None),Scalar(checkout,None)),(Scalar(- name,None),Scalar(test,None)),(Scalar(timeout,None),Scalar(30,None))))
+// Mapping(Chunk((Scalar(matrix,None),Sequence(Chunk(Scalar(- '2.13',None))))))
+// Mapping(Chunk((Scalar(defaults,None),Scalar(&defaults,None))))
+// Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon,None))))
+// Mapping(Chunk((Scalar(author,None),Scalar(&a John A. De Goes,None)),(Scalar(reviewer,None),Scalar(*a,None)),(Scalar(isbn,None),Scalar(!!str 9780986200406,None))))
+// Mapping(Chunk((Scalar(db,None),NullValue),(Scalar(url,None),Scalar(jdbc:postgresql://localhost/books,None)),(Scalar(port,None),Scalar(5432,None))))
+```
+
+**Expected.** Either the YAML 1.2 meaning, or a parse error that names the unsupported construct and its line:
+
+1. `steps: [{name: checkout}, {name: test}]` plus `timeout: 30`, not `steps: null` followed by two keys named `- name`.
+2. `matrix: [['2.13', '3.3'], [jdk17]]` plus `fail-fast: true`.
+3. `test` with `image`, `timeout` and `script` (the merge key), and `defaults` as a mapping.
+4. Both documents (for example a `readAll` that returns a `Chunk[Yaml]`), or an error when `read` meets a second document.
+5. `reviewer: John A. De Goes` and `isbn: "9780986200406"` (a string), not the anchor, alias and tag kept as text.
+6. A parse error: YAML forbids tabs for indentation. Today `url` silently moves up to the root mapping.
+
+**Root cause.** In `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlReader.scala`:
+- Indentless sequence: `parseBlockMapping` parses a value on the following lines only when they are indented further than the key (`:120-123`, `currentIndent > indent` at `:122`); otherwise the value is `NullValue`. The next line, `- name: checkout`, is then at the mapping's own indentation, and `findMappingColon` (`:85-101`) finds the colon after `- name`, so it becomes a key.
+- Anchor on a block value: `&defaults` is not empty, so it is read as an inline scalar (`:128`, `parseInlineValue` at `:445-453`), and the indented block that follows makes `parseBlockMapping` return (`:107-108`).
+- Nested sequence: the output shows the first item read as the plain scalar `- '2.13'` and the sequence ending at the next line; the branch inside `parseBlockSequence` (`:136-212`) was not traced.
+- Multi-document: `parse()` (`:36-48`) skips one leading `---`, returns the value of `parseValue(0)`, and never looks at the remaining lines.
+- Anchors, aliases and tags: `parseInlineValue` (`:445-453`) has no case for `&`, `*` or `!`. `YamlTag.fromString` (`YamlTag.scala`) exists but no reader code calls it.
+- Tabs: `countLeadingSpaces` (`:62-66`) counts only spaces, so a tab-indented line has indentation 0.
+
+**Impact.** Silent data loss or silently wrong structure for real-world YAML. A Kubernetes manifest with `containers:` followed by `- name: ...` at the same indentation loses its containers, and every key after them. `config-yaml` uses this reader, so the same files load as smaller configurations. A typed decode reports the problem only when a required field happens to be in the lost part, and then names the field, not the line.
+
+**Test gap.** `YamlReaderSpec` has no test for an indentless sequence, a nested sequence, an anchor or alias, a merge key, a tag, a second document or a tab, and no test that the whole input was consumed.
+
+**Suggested fix.** Treat a `- ` line at the key's own indentation as the key's sequence value (as YAML allows). Parse `- - ` items recursively. Either implement anchors, aliases, merge keys and tags, or reject them with a parse error naming the line. After `parse()`, fail if any non-blank, non-comment line is left (or add a multi-document `readAll`). Reject tab indentation.
+
+### schema-yaml: `YamlReader` drops the final line break of `|` and `>` blocks and ignores chomping indicators
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** YAML's default "clip" chomping keeps one final line break in a literal (`|`) or folded (`>`) block, `-` (strip) removes it, and `+` (keep) keeps all trailing line breaks. `YamlReader` removes the last line break in every case, so `|` reads like `|-`, and `|+` loses one of its line breaks. A shell script in a CI `run: |` block, a PEM certificate or a Markdown description read through `YamlReader` therefore differs from what every other YAML reader returns.
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema.yaml.{Yaml, YamlReader}
+
+@main def blockScalars(): Unit = {
+  def value(text: String): String = YamlReader.read(text) match {
+    case Yaml.Mapping(entries) => entries.head._2 match {
+      case Yaml.Scalar(v, _) => v.replace("\n", "\\n")
+      case other             => other.toString
+    }
+    case other => other.toString
+  }
+  println(value("run: |\n  sbt compile\n  sbt test\n"))
+  println(value("run: |-\n  sbt compile\n  sbt test\n"))
+  println(value("run: |+\n  sbt compile\n  sbt test\n\n"))
+  println(value("run: >\n  sbt compile\n  sbt test\n"))
+}
+// Output:
+// sbt compile\nsbt test
+// sbt compile\nsbt test
+// sbt compile\nsbt test\n
+// sbt compile sbt test
+```
+
+**Expected.** `sbt compile\nsbt test\n` for `|`, `sbt compile\nsbt test` for `|-`, `sbt compile\nsbt test\n\n` for `|+`, and `sbt compile sbt test\n` for `>`.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlReader.scala`: the block header is only checked for its first character (`:124-127`, `afterColon.charAt(0) == '|'`), so the chomping and indentation indicators are never read. `parseLiteralBlockContent` (`:287-322`) always strips one trailing `'\n'` (`:304-305` and `:319-320`).
+
+**Impact.** Small but silent changes to multi-line strings: a value that must end in a newline (a certificate, a file body, a script that is concatenated with another) no longer does. Round trips through other tools change the text.
+
+**Test gap.** `YamlReaderSpec` asserts the stripped form for a plain `|` block (`"line1\nline2"`), which is the bug, and tests `|+` only with `isRight`.
+
+**Suggested fix.** Parse the block header's chomping (`-`, `+`) and indentation indicators, keep one final line break by default, all of them for `+`, none for `-`. Update the existing test to the YAML result.
+
+### schema-yaml: `YamlReader` forgets which scalars were quoted, so `Yaml#print` quotes every number it read and `Yaml#toJson` turns quoted strings into numbers and booleans
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** `YamlReader` keeps the text of each scalar but not whether it was quoted, and it never sets a `YamlTag`. Two things go wrong as a result. Printing a tree that was read from text quotes every number and boolean (`replicas: 3` comes back as `replicas: "3"`), so a read-modify-write of a Kubernetes manifest changes the types of its fields. `Yaml#toJson` guesses the types from the text alone, so a quoted `"9780986200406"`, `"1.10"` or `"true"` becomes a JSON number or boolean.
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema.yaml.YamlReader
+
+@main def scalarTypes(): Unit = {
+  val manifest = "replicas: 3\npaused: false\nversion: \"1.10\"\nisbn: \"9780986200406\"\nlabel: \"true\"\n"
+  val yaml     = YamlReader.read(manifest)
+  println(yaml)
+  println(yaml.print)
+  println(yaml.toJson.print)
+}
+// Output:
+// Mapping(Chunk((Scalar(replicas,None),Scalar(3,None)),(Scalar(paused,None),Scalar(false,None)),(Scalar(version,None),Scalar(1.10,None)),(Scalar(isbn,None),Scalar(9780986200406,None)),(Scalar(label,None),Scalar(true,None))))
+// replicas: "3"
+// paused: "false"
+// version: "1.10"
+// isbn: "9780986200406"
+// label: "true"
+// {"replicas":3,"paused":false,"version":1.10,"isbn":9780986200406,"label":true}
+```
+
+**Expected.** `print` writes `replicas: 3` and `paused: false` unquoted and keeps the quotes on `version`, `isbn` and `label`. `toJson` gives `{"replicas":3,"paused":false,"version":"1.10","isbn":"9780986200406","label":"true"}`.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlReader.scala:445-453` (`parseInlineValue`) builds `new Yaml.Scalar(...)` with no tag for plain and quoted scalars alike. `YamlWriter.needsQuoting` (`schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlWriter.scala:203-227`) leaves numbers and booleans unquoted only when they carry a `Bool`, `Int`, `Float` or `Null` tag (`:205-208`). `YamlJsonInterop.yamlToJson` (`schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlJsonInterop.scala:24-44`) ignores tags and quoting and converts any scalar that starts with a digit or `-` and parses as a number to `Json.Number`, and `true`/`false`/`null` in three spellings to JSON literals.
+
+**Impact.** A program that reads YAML, changes a value and writes it back turns every number into a string, which tools such as the Kubernetes API reject (`replicas: "3"`). YAML converted to JSON changes the type of quoted values; decoding that JSON into a `String` field then fails (`expected Json.String`), and JSON written out silently has a number where the file had a string, for example for an ISBN.
+
+**Test gap.** `YamlJsonInteropSpec` converts only hand-built `Yaml` values and JSON, never text read by `YamlReader` with quoted numbers or booleans; no test prints a tree that came from `YamlReader`.
+
+**Suggested fix.** In `parseInlineValue`, tag quoted scalars `YamlTag.Str` and resolve plain scalars with the YAML 1.2 core schema (`Int`, `Float`, `Bool`, `Null`). In `yamlToJson`, keep `Str`-tagged scalars as JSON strings. In the writer, quote a `Str`-tagged scalar whenever it would otherwise resolve to another type.
+
+### schema-yaml: flow style leaves commas and closing brackets unquoted, and `YamlReader` splits the value
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** With `YamlOptions.flow` (or `flowStyle = true`), `YamlWriter` writes strings that contain `,`, `]` or `}` without quotes. Inside a flow collection these characters end the item, so the output is invalid YAML for spec-following readers, and `YamlReader` reads it back as different data without an error: a book title `Scala, the Language` comes back as `Scala`.
+
+**Reproduction** (scala-cli, run exactly as written; SnakeYAML 2.3 only to read the output with a spec-following reader; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+//> using dep org.yaml:snakeyaml:2.3
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+case class Book(title: String, tags: List[String])
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+@main def flowCommas(): Unit = {
+  val codec = Schema[Book].derive(YamlFormat)
+  val book  = Book("Scala, the Language", List("fp, effects", "zio]", "a: b"))
+  val text  = YamlWriter.write(codec.encodeValue(book), YamlOptions.flow)
+  println(text)
+  println(codec.decode(text))
+  println(scala.util.Try(new org.yaml.snakeyaml.Yaml().load[Object](text)).fold(_.getMessage.linesIterator.next(), _.toString))
+}
+// Output:
+// {title: Scala, the Language, tags: [fp, effects, zio], "a: b"]}
+// Right(Book(Scala,List(fp, effects, zio)))
+// while parsing a flow mapping
+```
+
+**Expected.** `{title: "Scala, the Language", tags: ["fp, effects", "zio]", "a: b"]}`, which every reader, including `YamlReader`, reads back as the original value.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlWriter.scala`: the flow writers (`:141-174`) call `writeScalar` with the same `needsQuoting` as block style (`:203-227`), which does not know about the flow indicators `,`, `[`, `]`, `{`, `}` inside a value. `YamlReader.splitFlowItems` (`YamlReader.scala:409`) splits at every unquoted comma, so the reader cannot recover.
+
+**Impact.** Silent data loss whenever flow style is used for free text: titles, author lists ("Odersky, Spoon"), descriptions.
+
+**Test gap.** `YamlWriterSpec` tests flow style only with values that contain no flow indicators, and has no flow-style round trip.
+
+**Suggested fix.** Pass a flow flag to `needsQuoting` and quote any value that contains `,`, `[`, `]`, `{` or `}` in flow context (or always quote strings in flow style). Add a flow round-trip property test.
+
+### schema-yaml: `BigDecimal` and `BigInt` fields are written as quoted strings
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** The YAML codec writes `BigDecimal` and `BigInt` values without a numeric tag, so `YamlWriter` quotes them because they look like numbers: `amount: "49.99"`. Every other YAML reader then sees a string. The JSON codec writes the same values as numbers, and the YAML codec writes `Double`, `Int` and `Long` as plain numbers.
+
+**Reproduction** (scala-cli, run exactly as written; SnakeYAML 2.3 only to show the types another reader sees; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+//> using dep org.yaml:snakeyaml:2.3
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+case class Price(amount: BigDecimal, copiesSold: BigInt, rating: Double)
+object Price { implicit val schema: Schema[Price] = Schema.derived }
+
+@main def bigNumbers(): Unit = {
+  val text = Schema[Price].derive(YamlFormat).encodeToString(Price(BigDecimal("49.99"), BigInt(120000), 4.8))
+  println(text)
+  val loaded = new org.yaml.snakeyaml.Yaml().load[java.util.Map[String, Any]](text)
+  loaded.forEach((k, v) => println(s"$k -> ${v.getClass.getSimpleName}"))
+  println(Schema[Price].jsonCodec.encodeToString(Price(BigDecimal("49.99"), BigInt(120000), 4.8)))
+}
+// Output:
+// amount: "49.99"
+// copies-sold: "120000"
+// rating: 4.8
+// amount -> String
+// copies-sold -> String
+// rating -> Double
+// {"amount":49.99,"copiesSold":120000,"rating":4.8}
+```
+
+**Expected.** `amount: 49.99` and `copies-sold: 120000`, read by SnakeYAML as numbers.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodec.scala:267` (`bigIntCodec.encodeValue`) and `:278` (`bigDecimalCodec.encodeValue`) build `Yaml.Scalar(...)` with no tag, while the other numeric codecs pass `tag = Some(YamlTag.Int)` or `Some(YamlTag.Float)` (for example `:205`, `:238-239`). `YamlWriter.needsQuoting` quotes any untagged value that starts with a digit (`YamlWriter.scala:239-252`).
+
+**Impact.** Money and other exact decimals, the usual reason to pick `BigDecimal`, are exported as strings to tools that read the YAML (Kubernetes, Ansible, Python services). The values still round-trip inside ZIO Blocks, so tests don't notice.
+
+**Test gap.** No `YamlCodecSpec` or `YamlWriterSpec` test asserts the written text of a `BigDecimal` or `BigInt`.
+
+**Suggested fix.** Tag `BigInt` scalars `YamlTag.Int`, and `BigDecimal` scalars `YamlTag.Float` (or `Int` when whole).
+
+### schema-yaml: derived codecs always use kebab-case keys and ignore `@Modifier.rename`, `@Modifier.transient` and the other field modifiers
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** `YamlCodecDeriver` converts every field name to kebab-case and never reads the `modifiers` it is given. `@Modifier.rename("name")` is ignored, `@Modifier.transient` fields are written and read, and there is no way to choose another naming: a field `imagePullPolicy` is always the key `image-pull-policy`. YAML formats that use camelCase keys (Kubernetes, OpenAPI, docker-compose's `snake_case`) cannot be decoded into case classes with the YAML codec at all. The JSON codec honours all of these modifiers, so the same schema behaves differently in the two formats. GitHub issue #1327 asks for configurable field names, and PR #1747 (open) adds a `fieldNameMapper` and support for `@Modifier.rename` and `@Modifier.fieldNaming`; it does not mention `@Modifier.transient`.
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+case class Container(
+  @Modifier.rename("name") containerName: String,
+  imagePullPolicy: String,
+  @Modifier.transient cachedDigest: String = ""
+)
+object Container { implicit val schema: Schema[Container] = Schema.derived }
+
+@main def fieldNames(): Unit = {
+  val codec = Schema[Container].derive(YamlFormat)
+  val c     = Container("bookstore", "IfNotPresent", "sha256:abc")
+  println(codec.encodeToString(c))
+  println(Schema[Container].jsonCodec.encodeToString(c))
+  println(codec.decode("name: bookstore\nimagePullPolicy: IfNotPresent\n"))
+  println(codec.decode("container-name: bookstore\nimage-pull-policy: IfNotPresent\n"))
+}
+// Output:
+// container-name: bookstore
+// image-pull-policy: IfNotPresent
+// cached-digest: sha256:abc
+// {"name":"bookstore","imagePullPolicy":"IfNotPresent"}
+// Left(zio.blocks.schema.SchemaError: Missing required field: container-name at: .)
+// Right(Container(bookstore,IfNotPresent,))
+```
+
+**Expected.** The same keys as the JSON codec (`name`, `imagePullPolicy`, no `cachedDigest`), or at least a way to choose the naming and honour `rename` and `transient`.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodecDeriver.scala:121` (`name = NameMapper.KebabCase.apply(name)`); none of the seven `derive*` methods reads its `modifiers: Seq[Modifier.Reflect]` parameter (for example `:99`, `:257`). Variant case names are used as written (`:299`).
+
+**Impact.** Kubernetes manifests, OpenAPI documents and any camelCase YAML can't be read into case classes; JSON customizations don't carry over; a `@Modifier.transient` secret is written to YAML files. The reference page `docs/reference/schema/built-in-codecs/yaml.md` never mentions the kebab-case conversion (see the documentation entry).
+
+**Test gap.** `YamlCodecDeriverExtendedSpec` pins the kebab-case output for `firstName`; no test uses a field modifier.
+
+**Suggested fix.** Merge PR #1747, and extend it to `@Modifier.transient` (and `@Modifier.alias` on decode) so YAML follows the JSON codec's modifier semantics.
+
+### schema-yaml: `yaml"..."` does not compile on Scala 2.13 outside the `zio.blocks.schema` package
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** Same bug as the `json"..."` entry above, in the YAML module. On Scala 2.13, every use of the `yaml"..."` interpolator in user code fails to compile, with or without spliced values, because the macro expansion calls `YamlInterpolatorRuntime`, which is `private[schema]`. On Scala 3 the interpolator compiles (see the next entry for what it does).
+
+**Reproduction** (scala-cli, run exactly as written; the compiler output is pasted at the end):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema.yaml._
+
+object YamlInterpolatorScala2 {
+  def main(args: Array[String]): Unit = {
+    val title = "Zionomicon"
+    println(yaml"title: $title".print)
+    println(yaml"title: Zionomicon".print)
+  }
+}
+// Output:
+// ./g.scala:8: error: object YamlInterpolatorRuntime in package yaml cannot be accessed as a member of package zio.blocks.schema.yaml from object YamlInterpolatorScala2
+//     println(yaml"title: $title".print)
+//             ^
+// ./g.scala:9: error: object YamlInterpolatorRuntime in package yaml cannot be accessed as a member of package zio.blocks.schema.yaml from object YamlInterpolatorScala2
+//     println(yaml"title: Zionomicon".print)
+//             ^
+// 2 errors
+```
+
+**Expected.** Both lines compile and print `title: Zionomicon`.
+
+**Root cause.** `schema-yaml/shared/src/main/scala-2/zio/blocks/schema/yaml/package.scala:92` emits `reify(YamlInterpolatorRuntime.yamlWithContexts(...))` into the caller's code, and `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlInterpolatorRuntime.scala:22` declares `private[schema] object YamlInterpolatorRuntime`. Scala 2 checks the expansion with the call site's access rights.
+
+**Impact.** The interpolator is unusable on Scala 2.13; users have to build trees with the `Yaml` constructors or `YamlReader.read`.
+
+**Test gap.** `YamlInterpolatorSpec` is in `package zio.blocks.schema.yaml`, so the private reference resolves there; no test calls `yaml"..."` from another package.
+
+**Suggested fix.** Make `YamlInterpolatorRuntime` public (it can be marked internal in Scaladoc), as for `JsonInterpolatorRuntime`, and add a test in a package outside `zio.blocks.schema`.
+
+### schema-yaml: on Scala 3, `yaml"..."` loses spliced collections and records, ignores escape sequences, and accepts malformed literals
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** The Scala 3 `yaml"..."` interpolator builds YAML text from the literal parts and the spliced values, then parses it with `YamlReader`. That design has four visible problems:
+1. A spliced `List`, case class or `Yaml` tree is rendered in block style on the line of its key, so the text is invalid and the reader misreads it without an error: a list keeps only its first item and the rest of the literal is dropped, a record's fields move up into the parent mapping, and a `Yaml` mapping becomes a string.
+2. A splice inside a quoted string is inserted in its quoted form, so the quotes become part of the text.
+3. Escape sequences in the literal are not processed, unlike `s"..."`: `yaml"a: 1\nb: 2"` is one key whose value contains a backslash and `n`.
+4. The compile-time check only validates the spliced types: the literal is parsed with the lenient `YamlReader`, so unclosed brackets and `price:49.99` compile and load as different data.
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+case class Author(name: String, born: Int)
+object Author { implicit val schema: Schema[Author] = Schema.derived }
+
+@main def yamlInterpolatorScala3(): Unit = {
+  val tags   = List("zio", "effects")
+  val author = Author("John A. De Goes", 1978)
+  val inner  = Yaml.Mapping.fromStringKeys("city" -> Yaml.Scalar("Berlin"))
+  val note   = "Fraser: co-author"
+  // 1. A spliced List: the list and every later line are lost
+  println(yaml"""title: Zionomicon
+tags: $tags
+price: 49.99""")
+  // 2. A spliced record
+  println(yaml"""title: Zionomicon
+author: $author
+price: 49.99""")
+  // 3. A spliced Yaml mapping becomes a string
+  println(yaml"store: $inner")
+  // 4. A string-position splice of a value that needs quoting keeps the quotes in the text
+  println(yaml"""note: "Written with $note"""")
+  // 5. Escape sequences in the literal are not processed: one key, not two
+  println(yaml"title: Zionomicon\nprice: 49.99")
+  // 6. Malformed literals compile and load
+  println(yaml"tags: [zio, effects")
+  println(yaml"""title: Zionomicon
+price:49.99
+pages: 744""")
+}
+// Output:
+// Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon,None)),(Scalar(tags,None),Scalar(- zio,None))))
+// Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon,None)),(Scalar(author,None),Scalar(name: John A. De Goes,None)),(Scalar(born,None),Scalar(1978,None)),(Scalar(price,None),Scalar(49.99,None))))
+// Mapping(Chunk((Scalar(store,None),Scalar(city: Berlin,None))))
+// Mapping(Chunk((Scalar(note,None),Scalar(Written with "Fraser: co-author",None))))
+// Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon\nprice: 49.99,None))))
+// Mapping(Chunk((Scalar(tags,None),Sequence(Chunk(Scalar(zio,None),Scalar(effect,None))))))
+// Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon,None))))
+```
+
+**Expected.** 1: `tags: [zio, effects]` and `price: 49.99` both present; `author` a nested mapping; `store` a nested mapping. 2: `note: Written with Fraser: co-author`. 3: two keys, as with `s"..."`. 4: compile errors for the unclosed `[` and for `price:49.99` (or at least for the first).
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlInterpolatorRuntime.scala`: `writeValue` renders a `Yaml` (which every Schema-typed splice becomes in the Scala 3 macro) with `YamlWriter.write(y, YamlOptions.default)`, which is block style (`:98`), and the text is parsed again (`:57`). `writeInString` inserts the value raw (`:156`), and the macro passes it `encodeKey(...)`, which is already quoted (`schema-yaml/shared/src/main/scala-3/zio/blocks/schema/yaml/package.scala`). The macro takes the literal parts as written (`rawParts.map(... valueOrAbort)`, scala-3 `package.scala:31-34`) and never calls `StringContext.processEscapes`. `validateYamlLiteral` (`YamlInterpolatorRuntime.scala:24-39`) relies on `YamlReader.read`, which does not throw on malformed input.
+
+**Impact.** Values silently disappear from documents built with the interpolator, which is meant to be the convenient way to build YAML in code. Only literals of scalar splices are safe.
+
+**Test gap.** `YamlInterpolatorSpec` splices collections only in flow or single-line positions where the rendered block happens to parse, has no multi-line literal followed by more keys after a collection splice, and no test with `\n` in a literal or a malformed literal.
+
+**Suggested fix.** Splice values into the parsed tree instead of re-parsing text (parse the literal with placeholders, then replace the placeholder nodes with the encoded `Yaml`), or render spliced values in flow style. Process escapes in the parts. Make `validateYamlLiteral` use a strict parse once the reader can fail.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -4305,6 +4711,93 @@ println(ConfigSource.fromYaml("- Zionomicon\n- Programming in Scala", "config.ya
 
 **Suggested fix.** Return `Left(ConfigError.ParseError("", sourceId, "a YAML mapping"))` when the document root is not a mapping (or is a non-null scalar).
 
+### schema-yaml: a derived sealed trait or enum is written as `Ebook: {}`, and a plain `Ebook` fails to decode
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** The YAML codec encodes every variant as a mapping with one key, the case name, so an enumeration value such as `Format.Ebook` is written as `- Ebook: {}`. YAML files list such values as plain words (`formats: [Ebook, Paperback]`), and decoding those fails with `Expected mapping with single key for variant`. The JSON codec has the same shape by default (`{"Ebook":{}}`) but offers configuration; the YAML deriver has none. The workaround, used in the H-15 guide, is a `Schema[String].transform` schema for the enum, which then adds a `.wrapped` step to error paths (see the `.wrapped` entry).
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+enum Format { case Paperback, Ebook }
+object Format { implicit val schema: Schema[Format] = Schema.derived }
+case class Book(title: String, formats: List[Format])
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+@main def enumCases(): Unit = {
+  val codec = Schema[Book].derive(YamlFormat)
+  println(codec.encodeToString(Book("Zionomicon", List(Format.Ebook, Format.Paperback))))
+  println(codec.decode("title: Zionomicon\nformats: [Ebook, Paperback]\n"))
+  println(codec.decode("title: Zionomicon\nformats:\n  - Ebook: {}\n  - Paperback: {}\n"))
+}
+// Output:
+// title: Zionomicon
+// formats:
+//   - Ebook: {}
+//   - Paperback: {}
+// Left(zio.blocks.schema.SchemaError: Expected mapping with single key for variant at: .formats.at(0))
+// Right(Book(Zionomicon,List(Ebook, Paperback)))
+```
+
+**Expected.** At least an option to encode case objects (enum cases without fields) as their name, as YAML users expect; ideally that as the default for case-object-only enums.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodecDeriver.scala:304-331`: `decodeValue` accepts only a one-entry mapping (`:308`, error at `:322`), and `encodeValue` always writes `Yaml.Mapping.fromStringKeys((caseName, inner))` (`:328`).
+
+**Impact.** Every model with an enum field needs a hand-written `transform` schema before it can read ordinary YAML, and the written files look odd to anyone else (`Ebook: {}`).
+
+**Test gap.** Not a gap; the shape is tested and intended. The trap is that nothing documents it and there is no option.
+
+**Suggested fix.** Encode a case with no fields as a plain scalar of its name (and accept both forms on decode), or add a `caseObjectsAsStrings` style option to `YamlCodecDeriver`. Document the shape on the YAML reference page.
+
+### schema-yaml: a `String` field decodes an empty value, `null` or `~` as `""`, and a `Boolean` field rejects `True`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** A required `String` field whose key is present with an empty value, `null` or `~` decodes as the empty string instead of failing, so a missing title in a file is not reported. A `Boolean` field accepts only lowercase `true` and `false`; `True`, which the YAML 1.2 core schema allows and which `Yaml#toJson` converts to `true`, is an error. (`yes`, `no`, `on`, `off` being rejected is fine: it avoids the YAML 1.1 "Norway problem".)
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+case class Book(title: String, inStock: Boolean)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+@main def scalarDecoding(): Unit = {
+  val codec = Schema[Book].derive(YamlFormat)
+  println(codec.decode("title:\nin-stock: true\n"))
+  println(codec.decode("title: null\nin-stock: true\n"))
+  println(codec.decode("title: ~\nin-stock: true\n"))
+  println(codec.decode("title: Zionomicon\nin-stock: True\n"))
+  println(YamlReader.read("in-stock: True").toJson.print)
+}
+// Output:
+// Right(Book(,true))
+// Right(Book(,true))
+// Right(Book(,true))
+// Left(zio.blocks.schema.SchemaError: Invalid boolean value: True at: .inStock)
+// {"in-stock":true}
+```
+
+**Expected.** `Left(... title ...)` for the first three (a `String` field can't be null; `Option[String]` is how YAML files mark an absent value), and `Right(Book(Zionomicon,true))` for `True`, consistent with `toJson`.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodec.scala:251-256` (`stringCodec` maps `Yaml.NullValue` to `""`, `:253`); `YamlReader.parseInlineValue` turns an empty value, `null` and `~` into `NullValue` (`YamlReader.scala:447`). `booleanCodec` (`YamlCodec.scala:162-172`) matches only `"true"` and `"false"`, while `YamlJsonInterop.yamlToJson` accepts `True`/`TRUE` and `False`/`FALSE` (`YamlJsonInterop.scala:33-34`).
+
+**Impact.** A typo or an unfinished line in a file (`title:`) loads as a record with an empty string, which passes the codec and fails later, if at all. The `Boolean` mismatch makes files from tools that write `True` (Python's `str(True)`) fail.
+
+**Test gap.** No test decodes `NullValue` into a required `String` field or `True` into a `Boolean`.
+
+**Suggested fix.** Make `stringCodec` fail on `NullValue` (an `Option[String]` field already maps it to `None`), and accept the YAML 1.2 core spellings `True`/`TRUE`/`False`/`FALSE` in `booleanCodec`.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -4733,6 +5226,73 @@ Found 2026-10-21 while writing T-12, on `main` at `a44dc6db` (same at `v0.0.56`)
 - **`removeAll`.** `reference/telemetry/logging/index.md:176` says `log.*` calls become no-ops after `log.removeAll()` "until you add an output again"; adding an output with `writer` or `addProcessor` doesn't restore them (see the library bug above). Not fixed here.
 - **Histogram boundaries.** The `HistogramDataPoint` Scaladoc calls `boundaries` "upper exclusive boundaries for each bucket" (`telemetry/shared/src/main/scala/zio/blocks/telemetry/MetricData.scala:68`), but `Histogram.findBucketIndex` puts a value in the first bucket whose boundary is `>=` the value (`value <= boundaries(i)`, `Histogram.scala:98-105`), so the boundaries are inclusive upper bounds, as in OpenTelemetry. From source; not fixed here.
 - **Missing ADR.** `ContextStorage.scala:28` links `docs/adr/0001-scoped-context-no-set.md`, which never existed (already noted in `backlog.md`).
+
+### `docs/reference/schema/built-in-codecs/yaml.md` shows output the codec does not produce and omits kebab-case keys
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** The YAML reference page has no mdoc blocks, and several of its plain-fence examples and claims contradict 0.0.56:
+1. "Pattern 3: Pretty-Print with Configuration" (`yaml.md:176-202`) says `YamlOptions` controls the output, but its code calls `codec.encodeToString(server)`, which takes no options and never writes `---`; the comment shows a `---` line that is not printed. `YamlCodec` has no method that takes `YamlOptions`; options apply only to `YamlWriter.write` and `Yaml#print`/`printPretty`.
+2. The `Yaml.print` example (`yaml.md:285-304`) shows `active: true` for `Yaml.Scalar("true")`; the writer prints `active: "true"` because the scalar has no `Bool` tag.
+3. "Each field becomes a named key" (`yaml.md:446`) doesn't say the key is the field name in kebab-case: `zipCode` is written as `zip-code`. The page never mentions this, nor that field modifiers are ignored.
+4. "Sealed traits and sum types are encoded as YAML mappings with discriminator information" (`yaml.md:463`, also `:65`) — there is no discriminator: a case is a one-key mapping named after the case (`Stopped:` / `  exit-code: 1`).
+5. "27 primitive types" (`yaml.md:6`, `:51`, `:417`); the deriver handles 30 (by reading `YamlCodecDeriver.scala`, not run).
+6. The page never mentions `YamlReader`, `YamlWriter`, `YamlSyntax`, the `yaml"..."` interpolator, `YamlTag`, or that the reader is lenient and never reports syntax errors.
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+case class Server(name: String, endpoints: List[String], timeout: Int)
+object Server { implicit val schema: Schema[Server] = Schema.derived }
+
+case class Address(street: String, city: String, zipCode: String)
+object Address { implicit val schema: Schema[Address] = Schema.derived }
+
+sealed trait Status
+case class Running(pid: Int) extends Status
+case class Stopped(exitCode: Int) extends Status
+object Status { implicit val schema: Schema[Status] = Schema.derived }
+
+@main def referencePage(): Unit = {
+  // Pattern 3: "Pretty-Print with Configuration"
+  println(Server.schema.derive(YamlFormat).encodeToString(Server("api-server", List("GET /health", "POST /data"), 30)))
+  // "Format YAML nodes using compact or pretty-printed output"
+  val yaml = Yaml.Mapping.fromStringKeys("name" -> Yaml.Scalar("Bob"), "active" -> Yaml.Scalar("true"))
+  println(yaml.print)
+  // Record support: "Each field becomes a named key"
+  println(Address.schema.derive(YamlFormat).encodeToString(Address("Unter den Linden 1", "Berlin", "10117")))
+  // Variant support: "encoded as YAML mappings with discriminator information"
+  println(Status.schema.derive(YamlFormat).encodeToString(Stopped(1)))
+}
+// Output:
+// name: api-server
+// endpoints:
+//   - GET /health
+//   - POST /data
+// timeout: 30
+// name: Bob
+// active: "true"
+// street: Unter den Linden 1
+// city: Berlin
+// zip-code: "10117"
+// Stopped:
+//   exit-code: 1
+```
+
+**Expected.** The page's comments match this output; Pattern 3 uses `YamlWriter.write(codec.encodeValue(server), YamlOptions.pretty)` (or `codec.encodeValue(server).printPretty`); the records section states the kebab-case rule; the variants section shows the wrapper shape.
+
+**Root cause.** Hand-written, never-compiled examples (`yaml.md` has 0 mdoc blocks).
+
+**Impact.** Readers copy Pattern 3 and get no document marker; expect camelCase keys and fail to read their files; expect a discriminator field.
+
+**Test gap.** The page isn't checked by mdoc.
+
+**Suggested fix.** Convert the page's examples to `mdoc` blocks so the output is generated, fix the five statements above, and add sections on `YamlReader`/`YamlWriter`, `YamlSyntax`, the interpolator (with its Scala 2.13 limitation) and the unsupported YAML features. The H-15 guide (`docs/guides/read-and-write-yaml.md`) has a verified table of unsupported features that can be linked.
 
 ## Resolved
 
