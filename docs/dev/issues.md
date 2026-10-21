@@ -2598,6 +2598,218 @@ final case class Book(isbn: Isbn)
 
 **Suggested fix.** Before the `apply`/`unsafe` search, look for an implicit `Into[Source, Opaque]` (as the case-class path does). Find the companion through `tpe.typeSymbol.companionModule` or the owner's declarations first, and handle the empty package in the `fullName` fallback. When the error type is `SchemaError`, pass it as the cause instead of interpolating it.
 
+### schema: `PrimitiveValue.Int#compare` overflows, so `Int` values far apart compare the wrong way round
+
+Found 2026-10-21 while writing the Scaladoc of `PrimitiveValue` (schema Scaladoc wave 2, branch `scaladoc-wave-2`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** `PrimitiveValue.Int#compare` returns `value - x.value`. The subtraction overflows when the two values are more than `Int.MaxValue` apart, so `>`, `<`, `PrimitiveValue.ordering` and `DynamicValue#compare` give the wrong answer: `Int(Int.MaxValue) > Int(-1)` is `false`, and the maximum of `0`, `Int.MaxValue` and `-1` is `-1`.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+@main def run(): Unit = {
+  val max   = PrimitiveValue.Int(Int.MaxValue)
+  val minus = PrimitiveValue.Int(-1)
+  println(max.compare(minus))
+  println(max > minus)
+  println(List[PrimitiveValue](PrimitiveValue.Int(0), max, minus).max)
+  println(DynamicValue.Primitive(max) > DynamicValue.Primitive(minus))
+}
+// -2147483648
+// false
+// Int(-1)
+// false
+```
+
+**Expected.** A positive number, `true`, `Int(2147483647)` and `true`.
+
+**Root cause.** `case x: Int => value - x.value` (`schema/shared/src/main/scala/zio/blocks/schema/PrimitiveValue.scala:161`). The `Byte` and `Short` cases subtract too, but their values widen to `Int` first, so they cannot overflow; `Long` and the other cases use `compare` or `compareTo`. `DynamicValue.Primitive#compare` delegates to it (`DynamicValue.scala:523`).
+
+**Impact.** Sorting, `min`/`max` and comparisons of `PrimitiveValue`s or `DynamicValue`s that hold `Int`s can be wrong, and the ordering is not transitive. The Scaladoc of `PrimitiveValue` and `PrimitiveValue.Int` now states the overflow.
+
+**Test gap.** `PrimitiveValueSpec` compares only `Int(1)` with `Int(0)` (`schema/shared/src/test/scala/zio/blocks/schema/PrimitiveValueSpec.scala:76-78`).
+
+**Suggested fix.** Use `java.lang.Integer.compare(value, x.value)`, and add a test with `Int.MaxValue` and `Int.MinValue`.
+
+### schema: `PrimitiveType#fromDynamicValue` accepts lossy numeric conversions at the limits of `Int` and `Long`
+
+Found 2026-10-21 while writing the Scaladoc of `PrimitiveType` (schema Scaladoc wave 2, branch `scaladoc-wave-2`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** The numeric `PrimitiveType`s accept a value of another numeric type only when it converts without loss, which they check by converting there and back. The JVM conversions from floating point to `Int` and `Long` saturate, and `Int.MaxValue` and `Long.MaxValue` round up when converted to `Float` or `Double`, so the round trip succeeds for some values that change: a `Float` of `2^31` decodes as `Int.MaxValue`, a `Double` of `2^63` as `Long.MaxValue`, and `Int.MaxValue` as the `Float` `2^31`. A `Double` of `2^31` is rejected, as it should be, because `Int.MaxValue` is exact in a `Double`.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Counter(hits: Long)
+object Counter {
+  implicit val schema: Schema[Counter] = Schema.derived
+}
+
+@main def run(): Unit = {
+  def prim(pv: PrimitiveValue) = DynamicValue.Primitive(pv)
+  val int   = PrimitiveType.Int(Validation.None)
+  val long  = PrimitiveType.Long(Validation.None)
+  val float = PrimitiveType.Float(Validation.None)
+  val dbl   = PrimitiveType.Double(Validation.None)
+  println(int.fromDynamicValue(prim(PrimitiveValue.Float(2147483648.0f))))
+  println(long.fromDynamicValue(prim(PrimitiveValue.Double(9.223372036854775808e18))))
+  println(float.fromDynamicValue(prim(PrimitiveValue.Int(Int.MaxValue))))
+  println(dbl.fromDynamicValue(prim(PrimitiveValue.Long(Long.MaxValue))))
+  println(int.fromDynamicValue(prim(PrimitiveValue.Double(2147483648.0))))
+  println(Counter.schema.fromDynamicValue(DynamicValue.Record("hits" -> prim(PrimitiveValue.Double(1e19)))))
+  println(Counter.schema.fromDynamicValue(DynamicValue.Record("hits" -> prim(PrimitiveValue.Double(9.223372036854775808e18)))))
+}
+// Right(2147483647)
+// Right(9223372036854775807)
+// Right(2.1474836E9)
+// Right(9.223372036854776E18)
+// Left(zio.blocks.schema.SchemaError: Expected Int at: .)
+// Left(zio.blocks.schema.SchemaError: Expected Long at: .hits)
+// Right(Counter(9223372036854775807))
+```
+
+**Expected.** The first four conversions return `Left(... Expected Int/Long/Float/Double ...)`, like the fifth, and the last line fails like the one before it: `2^63` is outside the `Long` range, and `2^31` outside the `Int` range.
+
+**Root cause.** In `schema/shared/src/main/scala/zio/blocks/schema/PrimitiveType.scala`: `Int` from `Float` checks `f.toInt.toFloat == f` (`:263`); `Long` from `Float` and `Double` check `f.toLong.toFloat == f` and `d.toLong.toDouble == d` (`:305-306`); `Float` from `Int` and `Long` check `i.toFloat.toInt == i` and `l.toFloat.toLong == l` (`:345`, `:347`); `Double` from `Long` checks `l.toDouble.toLong == l` (`:388`). `2^31` saturates to `Int.MaxValue`, which converts back to `2^31` as a `Float`; `2^63` saturates to `Long.MaxValue`, which converts back to `2^63` as a `Float` or `Double`.
+
+**Impact.** `Schema#fromDynamicValue` and every other path through `Reflect#fromDynamicValue` silently changes such values by one instead of rejecting them, for example when a `DynamicValue` built from another source holds a floating-point number for a `Long` field. The Scaladoc of `PrimitiveType#fromDynamicValue` now lists these cases.
+
+**Test gap.** The out-of-range tests in `PrimitiveTypeSpec` use values far outside the range or with a fraction, such as `Long(3000000000L)` and `Float(1.5f)` (`schema/shared/src/test/scala/zio/blocks/schema/PrimitiveTypeSpec.scala:831-905`); none is at the limit.
+
+**Suggested fix.** Compare in an exact type, for example `scala.BigDecimal(f) == scala.BigDecimal(f.toInt)`, or check the range before converting (`f >= -2^31 && f < 2^31`). Add tests with `2^31`, `2^63`, `Int.MaxValue` and `Long.MaxValue`.
+
+### schema: `Reflect#toString` prints a shared node that is not recursive as `deferred => Name`
+
+Found 2026-10-21 while writing the Scaladoc of `Reflect` and `ReflectPrinter` (schema Scaladoc wave 2, branch `scaladoc-wave-2`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** `ReflectPrinter` prints `deferred => Name` instead of a node it has already printed, to stop at recursive references. It remembers every node it prints until the whole `toString` call ends, so when two fields share one node, such as the schema of a case class used for both, the second field is printed as `deferred => Author` although nothing is recursive.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Author(name: String)
+object Author {
+  implicit val schema: Schema[Author] = Schema.derived
+}
+
+case class Book(title: String, author: Author, editor: Author)
+object Book {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+@main def run(): Unit =
+  println(Book.schema.reflect)
+// record Book {
+//   title: String
+//   author: record Author {
+//     name: String
+//   }
+//   editor: deferred => Author
+// }
+```
+
+**Expected.** `editor` is printed in full, like `author`.
+
+**Root cause.** `printRecord`, `printVariant`, `printSequence`, `printMap` and `printWrapper` add their node to the shared `visited` set and never remove it (`schema/shared/src/main/scala/zio/blocks/schema/ReflectPrinter.scala:54`, `:83`, `:105`, `:134`, `:169`), and `printReflect` prints `deferred => ...` for any node in the set (`:242`). `Reflect.Deferred#toString` does it the other way, removing the node in a `finally` once it is printed (`Reflect.scala:2112`).
+
+**Impact.** The `toString` of a schema whose types are used more than once, which is common with shared address, money or ID types, hides their structure and suggests recursion that is not there. `docs/reference/schema/reflect.md` (Debug-Friendly toString) and the `Reflect` Scaladoc now describe this behaviour.
+
+**Test gap.** `ReflectToStringSpec` has nested and recursive records, but no record that uses the same node twice (`schema/shared/src/test/scala/zio/blocks/schema/tostring/ReflectToStringSpec.scala:97`, `:282`, `:292`).
+
+**Suggested fix.** Treat `visited` as the set of nodes on the current path: remove the node after printing its children, as `Deferred#toString` does.
+
+### schema: a forced `Lazy` runs again when it is part of another `Lazy`'s chain
+
+Found 2026-10-21 while writing the Scaladoc of `Lazy` (schema Scaladoc wave 2, branch `scaladoc-wave-2`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** `Lazy#force` caches its result, but only in the instance it is called on. When a `Lazy` that was already forced is the start of a `map` or `flatMap` chain, forcing the chain runs its computation again instead of reading the cached result. `docs/reference/schema/lazy.md` says that "subsequent calls to `force` return the cached value without re-executing the computation", which a reader takes to cover this case.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.Lazy
+
+@main def run(): Unit = {
+  var runs = 0
+  val title = Lazy { runs += 1; "Zionomicon" }
+  title.force
+  title.force
+  println(s"after two forces: $runs")
+  title.map(_.toUpperCase).force
+  println(s"after map(...).force: $runs")
+  title.flatMap(t => Lazy(t.length)).force
+  println(s"after flatMap(...).force: $runs")
+}
+// after two forces: 1
+// after map(...).force: 2
+// after flatMap(...).force: 3
+```
+
+**Expected.** `1` on all three lines: the chains reuse the cached `"Zionomicon"`.
+
+**Root cause.** `force` checks the cache only of the instance it is called on (`schema/shared/src/main/scala/zio/blocks/schema/Lazy.scala:123`). Its loop walks into `FlatMap#first` and calls `Defer#thunk()` directly (`:110-120`), without looking at the cached `value` or `error` of those inner instances.
+
+**Impact.** Work is repeated, and side effects run more than once, whenever a forced `Lazy` is reused in a chain. Whether type class derivation, which keeps a `Lazy` instance per node, hits this was not checked. The Scaladoc of `Lazy` now states that the cache belongs to the instance. A related detail, documented but not a bug: `Lazy.collectAll` forces its elements from the last to the first.
+
+**Test gap.** `LazySpec` checks memoization only by forcing the same instance twice (`schema/shared/src/test/scala/zio/blocks/schema/LazySpec.scala:47`).
+
+**Suggested fix.** In the loop, when the current node `isEvaluated`, use its cached value (or rethrow its cached error) instead of running it.
+
+### schema: a direct call to `Reflect#transform` leaves entries in a per-thread cache
+
+Found 2026-10-21 while writing the Scaladoc of `Reflect#transform` (schema Scaladoc wave 2, branch `scaladoc-wave-2`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** `Reflect.Deferred#transform` caches its result in a thread-local map, keyed by the node and the transformer, so that transforming a recursive type terminates. `Reflect#noBinding`, `DynamicSchema#rebind` and `DerivationBuilder#derive` wrap their call in the `private[schema]` `Reflect.withTransformCache`, which clears the map when they finish. `Reflect#transform` is public, but a caller outside the library cannot use that scope, so a direct call leaves its entries in the map. They keep the transformer and the transformed nodes alive until the same thread runs one of the scoped calls.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56; the file is in package `zio.blocks.schema` only to read the `private[schema]` map):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+// Declared in this package only to read the private[schema] cache.
+package zio.blocks.schema
+
+case class Tree(value: Int, children: List[Tree])
+object Tree {
+  implicit val schema: Schema[Tree] = Schema.derived
+}
+
+@main def run(): Unit = {
+  println(s"before: ${Reflect.transformCache.get.size}")
+  Tree.schema.reflect.transform(DynamicOptic.root, ReflectTransformer.noBinding()).force
+  println(s"after a direct transform: ${Reflect.transformCache.get.size}")
+  Tree.schema.reflect.noBinding
+  println(s"after noBinding: ${Reflect.transformCache.get.size}")
+}
+// before: 0
+// after a direct transform: 1
+// after noBinding: 0
+```
+
+**Expected.** `0` after the direct transform too.
+
+**Root cause.** `Deferred#transform` puts its result in `Reflect.transformCache` (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:1885-1896`, map at `:2146`); only `withTransformCache` (`:2167`) removes it, and it is `private[schema]`.
+
+**Impact.** A long-lived thread, such as a server worker, that calls `transform` directly with a new transformer per request keeps every transformer and transformed tree until a scoped call happens to run on it. The Scaladoc of `Reflect#transform` now says that a direct call leaves its entries in the cache.
+
+**Test gap.** No test checks the cache after a direct `transform`; `withTransformCache` and `transformCache` do not appear in `schema/shared/src/test`.
+
+**Suggested fix.** Wrap the body of the public `Reflect#transform` in `withTransformCache`, which is re-entrant, so that the outermost call clears the cache (the result's `Deferred` nodes must then be forced inside it, as `noBinding` does), or make `withTransformCache` public and document it.
+
 ### http-model: `WWW-Authenticate` and the other auth-parameter headers neither escape nor parse quoted strings
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/protect-endpoints-with-jwt.md` (backlog H-38), on `main` at `a44dc6db`. The http-model sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
