@@ -13,10 +13,7 @@ keywords:
 
 In this guide, we will write the OpenAPI 3.1 document for a small bookstore API as a typed Scala value. By the end, you will have one program that builds the document with the `OpenAPI` data model, generates the `Book` schema from the same `Schema` that encodes books as JSON, and prints the document as JSON and as YAML, ready for Swagger UI or a client generator.
 
-The bookstore API has two endpoints:
-
-- `GET /books?limit=` lists books, and
-- `GET /books/{id}` returns one book, or `404` when there is no such book.
+The bookstore API has two endpoints: `GET /books?limit=` lists books, and `GET /books/{id}` returns one book, or `404` when there is no such book.
 
 Every request must carry a bearer token. We start with the schemas of the request and response bodies, then describe the endpoints and the security scheme, and finish by exporting the document in both formats.
 
@@ -157,6 +154,8 @@ val (bookRef, _)  = Schema[Book].toRefSchema
 val (errorRef, _) = Schema[ApiError].toRefSchema
 ```
 
+To see the reference that `Schema#toRefSchema` returned:
+
 ```scala mdoc
 println(bookRef)
 ```
@@ -169,12 +168,14 @@ For the `components` section, `OpenAPIGen.schemas` builds the entries for severa
 val componentSchemas: Map[String, SchemaObject] = OpenAPIGen.schemas(Schema[Book], Schema[ApiError])
 ```
 
+To list the component names that were generated:
+
 ```scala mdoc
 println(componentSchemas.keys)
 ```
 
 :::warning
-`OpenAPIGen.schemas` and `toRefSchema` name a component after the type's simple name, without its package. Two types with the same simple name in different packages get the same key, and one silently replaces the other. Use `toRefSchema("CatalogBook")` to choose a name yourself.
+`OpenAPIGen.schemas` and `Schema#toRefSchema` name a component after the type's simple name, without its package. Two types with the same simple name in different packages get the same key, and one silently replaces the other. Use `Schema#toRefSchema("CatalogBook")` to choose a name yourself.
 :::
 
 `GET /books` returns a list of books. `Schema[List[Book]].toOpenAPISchema` would copy the whole `Book` schema into the response, so we write the small array schema ourselves and point its `items` at the `Book` component. `SchemaObject` takes any JSON Schema as a `Json` value:
@@ -192,7 +193,7 @@ val bookListSchema: ReferenceOr[SchemaObject] = ReferenceOr.Value(
 
 ## Describing the Endpoints
 
-An endpoint's inputs are `Parameter` values. `limit` is an optional query parameter, and `id` is part of the path. Each parameter's schema comes from a `Schema` as well; `toInlineSchema` puts the schema in place instead of referencing a component:
+An endpoint's inputs are `Parameter` values. `limit` is an optional query parameter, and `id` is part of the path. Each parameter's schema comes from a `Schema` as well; `Schema#toInlineSchema` puts the schema in place instead of referencing a component:
 
 ```scala mdoc:silent
 val limitParam: Parameter = Parameter(
@@ -305,11 +306,13 @@ val api: OpenAPI = OpenAPI(
 )
 ```
 
-`openAPICodec.encodeValue` turns the document into a `Json` value in the OpenAPI format, and `Json#print` renders it. `print` alone writes compact JSON on one line; `WriterConfig.withIndentionStep2` indents it for people to read:
+`openAPICodec.encodeValue` turns the document into a `Json` value in the OpenAPI format, and `Json#print` renders it. `Json#print` alone writes compact JSON on one line; `WriterConfig.withIndentionStep2` indents it for people to read:
 
 ```scala mdoc:silent
 val json: Json = openAPICodec.encodeValue(api)
 ```
+
+To print the document as indented JSON:
 
 ```scala mdoc
 println(json.print(WriterConfig.withIndentionStep2))
@@ -341,6 +344,8 @@ val jsonText: String = json.print(WriterConfig.withIndentionStep2)
 val reloaded: Either[SchemaError, OpenAPI] = Json.parse(jsonText).flatMap(openAPICodec.decode)
 ```
 
+To check that the reloaded document encodes to the same JSON:
+
 ```scala mdoc
 println(reloaded.map(document => openAPICodec.encodeValue(document) == json))
 ```
@@ -351,11 +356,13 @@ Compare documents by their JSON, as above, not with `==` on `OpenAPI` values. A 
 
 ## Exporting the Document as YAML
 
-Many teams keep their OpenAPI documents in YAML. `Yaml.fromJson` from the `schema-yaml` module converts the `Json` value into a YAML tree, and `printPretty` renders it as a YAML document:
+Many teams keep their OpenAPI documents in YAML. `Yaml.fromJson` from the `schema-yaml` module converts the `Json` value into a YAML tree, and `Yaml#printPretty` renders it as a YAML document:
 
 ```scala mdoc:silent
 val rawYaml: String = Yaml.fromJson(json).printPretty
 ```
+
+To print the YAML document:
 
 ```scala mdoc
 println(rawYaml)
@@ -369,6 +376,8 @@ def quoteRefs(yaml: String): String =
 
 val yamlText: String = quoteRefs(rawYaml)
 ```
+
+To show that every `$ref` value is now quoted:
 
 ```scala mdoc
 yamlText.linesIterator.filter(_.contains("$ref")).foreach(println)
@@ -412,9 +421,13 @@ Open `http://localhost:8081` to see both endpoints, the `Book` and `ApiError` sc
 
 ## What the Module Does Not Do
 
-- **No generation from endpoints.** You describe paths, operations, parameters and responses yourself. Only the body schemas come from your types.
-- **No validation of the document.** The types check the structure, but not the rules between parts: a `$ref` to a missing component, a duplicate `operationId` or a path parameter without `required = true` is accepted. Run an OpenAPI validator on the exported file in CI to catch these.
-- **No direct text encoding.** As shown above, convert through `Json` to print or parse a document.
+The module describes and exports a document. It does not generate one from endpoints, and it does not validate one. The types check the structure but not the rules between parts, so a path parameter without `required = true` is accepted:
+
+```scala mdoc
+println(Parameter(name = "id", in = ParameterLocation.Path).required)
+```
+
+The same holds for a `$ref` to a missing component and for a duplicate `operationId`. Run an OpenAPI validator on the exported file in CI to catch these. Only the body schemas come from your types; you describe paths, operations, parameters and responses yourself. To print or parse a document, convert through `Json`, because the codec has no direct text encoding.
 
 ## Putting It Together
 
@@ -434,7 +447,7 @@ cd zio-blocks/openapi-examples
 
 ### Generate Component Schemas
 
-This example prints the `SchemaObject` derived from `Book`, the `$ref` that `toRefSchema` returns, and the component names from `OpenAPIGen.schemas`.
+This example prints the `SchemaObject` derived from `Book`, the `$ref` that `Schema#toRefSchema` returns, and the component names from `OpenAPIGen.schemas`.
 
 <details>
   <summary>openapi-examples/src/main/scala/writeandexportopenapi/Step1ComponentSchemasExample.scala</summary>
