@@ -315,10 +315,11 @@ val json: Json = openAPICodec.encodeValue(api)
 println(json.print(WriterConfig.withIndentionStep2))
 ```
 
-This is the file that Swagger UI, Redoc or a client generator reads. Two details of the output come from the encoder:
+This is the file that Swagger UI, Redoc or a client generator reads. Three details of the output come from the encoder and the printer:
 
 - Fields you didn't set are left out, so the output contains only what the document says.
 - Descriptions are Markdown, and the renderer ends each paragraph with a blank line, so every description ends with `\n\n`. Markdown readers such as Swagger UI ignore the trailing newlines.
+- The empty scope list of `bearerAuth` prints with a line of spaces between its brackets. It is still the empty array `[]` to every JSON reader.
 
 :::warning
 Always encode an `OpenAPI` value through `Json`, as above. In this release, `openAPICodec.encodeToString(api)` and `openAPICodec.encode(api)` throw `NotImplementedError`, and `openAPICodec.decode` on a `String` returns a `Left`, because the codec implements only the conversion to and from `Json`.
@@ -414,3 +415,149 @@ Open `http://localhost:8081` to see both endpoints, the `Book` and `ApiError` sc
 - **No generation from endpoints.** You describe paths, operations, parameters and responses yourself. Only the body schemas come from your types.
 - **No validation of the document.** The types check the structure, but not the rules between parts: a `$ref` to a missing component, a duplicate `operationId` or a path parameter without `required = true` is accepted. Run an OpenAPI validator on the exported file in CI to catch these.
 - **No direct text encoding.** As shown above, convert through `Json` to print or parse a document.
+
+## Putting It Together
+
+This example combines everything from the guide in one program: it generates the component schemas, describes both endpoints and the bearer-token requirement, prints the document as JSON and as YAML with quoted references, and checks that the JSON reads back to the same document:
+
+```scala mdoc:embed:openapi-examples/src/main/scala/writeandexportopenapi/CompleteExample.scala
+```
+
+## Running the Examples
+
+All examples in this guide have runnable Scala files in the `openapi-examples` project. To get them, clone the repository and change into the examples project:
+
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks/openapi-examples
+```
+
+### Generate Component Schemas
+
+This example prints the `SchemaObject` derived from `Book`, the `$ref` that `toRefSchema` returns, and the component names from `OpenAPIGen.schemas`.
+
+<details>
+  <summary>openapi-examples/src/main/scala/writeandexportopenapi/Step1ComponentSchemasExample.scala</summary>
+
+```scala mdoc:embed:openapi-examples/src/main/scala/writeandexportopenapi/Step1ComponentSchemasExample.scala:show-line-numbers
+```
+
+</details>
+
+Run it from the `openapi-examples` directory:
+
+```bash
+sbt "runMain writeandexportopenapi.Step1ComponentSchemasExample"
+```
+
+### Describe the Endpoints
+
+This example describes `GET /books` and `GET /books/{id}` with their parameters and responses, and prints the `paths` section of the document.
+
+<details>
+  <summary>openapi-examples/src/main/scala/writeandexportopenapi/Step2EndpointsExample.scala</summary>
+
+```scala mdoc:embed:openapi-examples/src/main/scala/writeandexportopenapi/Step2EndpointsExample.scala:show-line-numbers
+```
+
+</details>
+
+Run it from the `openapi-examples` directory:
+
+```bash
+sbt "runMain writeandexportopenapi.Step2EndpointsExample"
+```
+
+### Require a Bearer Token
+
+This example adds the `bearerAuth` security scheme to `components`, requires it for every operation, and prints both parts of the document.
+
+<details>
+  <summary>openapi-examples/src/main/scala/writeandexportopenapi/Step3BearerTokenExample.scala</summary>
+
+```scala mdoc:embed:openapi-examples/src/main/scala/writeandexportopenapi/Step3BearerTokenExample.scala:show-line-numbers
+```
+
+</details>
+
+Run it from the `openapi-examples` directory:
+
+```bash
+sbt "runMain writeandexportopenapi.Step3BearerTokenExample"
+```
+
+### Export the Document as JSON
+
+This example encodes the whole document with `openAPICodec`, prints it as indented JSON, and reads the text back to check that it gives the same document.
+
+<details>
+  <summary>openapi-examples/src/main/scala/writeandexportopenapi/Step4ExportJsonExample.scala</summary>
+
+```scala mdoc:embed:openapi-examples/src/main/scala/writeandexportopenapi/Step4ExportJsonExample.scala:show-line-numbers
+```
+
+</details>
+
+Run it from the `openapi-examples` directory:
+
+```bash
+sbt "runMain writeandexportopenapi.Step4ExportJsonExample"
+```
+
+### Export the Document as YAML
+
+This example converts the document to YAML with `Yaml.fromJson`, quotes the `$ref` values, and prints the result.
+
+<details>
+  <summary>openapi-examples/src/main/scala/writeandexportopenapi/Step5ExportYamlExample.scala</summary>
+
+```scala mdoc:embed:openapi-examples/src/main/scala/writeandexportopenapi/Step5ExportYamlExample.scala:show-line-numbers
+```
+
+</details>
+
+Run it from the `openapi-examples` directory:
+
+```bash
+sbt "runMain writeandexportopenapi.Step5ExportYamlExample"
+```
+
+### Serve the Document to Swagger UI
+
+This example serves the document at `http://localhost:8080/openapi.json` with the JDK's built-in HTTP server, fetches it once to show that it works, and keeps serving until you press Enter.
+
+<details>
+  <summary>openapi-examples/src/main/scala/writeandexportopenapi/Step6ServeSwaggerUiExample.scala</summary>
+
+```scala mdoc:embed:openapi-examples/src/main/scala/writeandexportopenapi/Step6ServeSwaggerUiExample.scala:show-line-numbers
+```
+
+</details>
+
+Run it from the `openapi-examples` directory, then start Swagger UI as shown in [Serving the Document to Swagger UI](#serving-the-document-to-swagger-ui):
+
+```bash
+sbt "runMain writeandexportopenapi.Step6ServeSwaggerUiExample"
+```
+
+### The Complete Example
+
+The complete example from "Putting It Together" runs everything in one program:
+
+```bash
+sbt "runMain writeandexportopenapi.CompleteExample"
+```
+
+### Compile All Examples
+
+To compile every example in the project without running any of them, run this from the `openapi-examples` directory:
+
+```bash
+sbt compile
+```
+
+## Going Further
+
+- The [OpenAPI reference](../reference/openapi.md) covers every type of the data model, including request bodies, headers, servers, tags and the other security schemes.
+- [How to Generate JSON Schema from a Type and Validate Payloads Against It](./generate-json-schema-and-validate-payloads.md) explains the JSON Schema that each component schema contains, and how to validate payloads against it.
+- The [YAML format reference](../reference/schema/built-in-codecs/yaml.md) shows the `Yaml` tree and its other uses.
