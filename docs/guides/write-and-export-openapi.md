@@ -317,7 +317,7 @@ println(json.print(WriterConfig.withIndentionStep2))
 
 This is the file that Swagger UI, Redoc or a client generator reads. Three details of the output come from the encoder and the printer:
 
-- Fields you didn't set are left out, so the output contains only what the document says.
+- Optional fields you didn't set are left out, so the output contains only what the document says. The exceptions are the required ones: an `Operation` always prints `responses` (as `{}` when empty) and a `Response` always prints `description`.
 - Descriptions are Markdown, and the renderer ends each paragraph with a blank line, so every description ends with `\n\n`. Markdown readers such as Swagger UI ignore the trailing newlines.
 - The empty scope list of `bearerAuth` prints with a line of spaces between its brackets. It is still the empty array `[]` to every JSON reader.
 
