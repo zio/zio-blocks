@@ -101,7 +101,7 @@ libraryDependencies ++= Seq(
 scalacOptions += "-experimental"
 ```
 
-The tutorial is Scala 3 only, because the `sql` module is published for Scala 3 only. Run it on **JDK 21 or newer**: the `http-model` and `telemetry` modules are compiled for Java 21.
+The tutorial is Scala 3 only, because the `sql` module is published for Scala 3 only. Run it on **JDK 21 or newer**: the `telemetry` module is compiled for Java 21, and `http-model` and `sql` depend on the `streams` module, which is too.
 
 ## 2. Background: One Backend, Seven Blocks
 
@@ -134,7 +134,7 @@ Here is the bookstore we build. Settings flow down from one layered source; each
 | `telemetry`         | Request logs, spans and a counter                   | [Telemetry Guide](./telemetry-guide.md)                                     |
 
 :::note
-ZIO Blocks ships no HTTP server. The `http-model` module describes requests and responses; it doesn't open sockets. In section 7 we connect it to the HTTP server built into the JDK through a small adapter. That adapter is glue for examples, tools and small internal services, not a production server: it has no TLS, no HTTP/2 and no limit on request body size.
+ZIO Blocks ships no HTTP server. The `http-model` module describes requests and responses; it doesn't open sockets. In section 9 we connect it to the HTTP server built into the JDK through a small adapter. That adapter is glue for examples, tools and small internal services, not a production server: it has no TLS, no HTTP/2 and no limit on request body size.
 :::
 
 ## 3. Model the Books
@@ -203,11 +203,11 @@ Json.newBook.decode("""{"title":"Scala with Cats"}""") match {
 }
 ```
 
-Notice that the encoded `Zionomicon` has no `isbn` field: a `None` is left out of the JSON, and a missing optional field decodes back to `None`. A missing required field is an error with a readable message, which is exactly what we'll send back to a client as a 400 in section 5. The [Your First Schema](./your-first-schema.md) tutorial explains what else a schema gives you.
+Notice that the encoded `Zionomicon` has no `isbn` field: a `None` is left out of the JSON, and a missing optional field decodes back to `None`. A missing required field is an error with a readable message, which is exactly what we'll send back to a client as a 400 in section 7. The [Your First Schema](./your-first-schema.md) tutorial explains what else a schema gives you.
 
 ## 4. Load the Settings
 
-The backend needs three settings: the HTTP port, the database file and the default page size of the catalog. Each service gets its own settings type. That keeps every service's constructor honest about what it reads, and it matters for the wiring in section 8: the dependency graph finds values by type, so two services that both took a plain `Int` would silently share one value.
+The backend needs three settings: the HTTP port, the database file and the default page size of the catalog. Each service gets its own settings type. That keeps every service's constructor honest about what it reads, and it matters for the wiring in section 10: the dependency graph finds values by type, so two services that both took a plain `Int` would silently share one value.
 
 We read the settings from three layers. Environment variables win over a YAML file, which wins over built-in defaults:
 
@@ -601,7 +601,7 @@ The [Telemetry Guide](./telemetry-guide.md) explains how to send logs as JSON, e
 
 ## 9. Serve the Routes over HTTP
 
-So far we've called the routes ourselves. To serve real clients, something has to accept TCP connections, parse HTTP, and write responses back. ZIO Blocks has no server, but the JDK has one built in: `com.sun.net.httpserver.HttpServer`. A small adapter, `JdkHttp`, converts each exchange of that server into a `Request`, calls our function, and writes the `Response` back. We copy it from the guide H-35 "How to Serve http-model Requests with the JDK HTTP Server", which explains every line; it is about 90 lines, so it is folded here:
+So far we've called the routes ourselves. To serve real clients, something has to accept TCP connections, parse HTTP, and write responses back. ZIO Blocks has no server, but the JDK has one built in: `com.sun.net.httpserver.HttpServer`. A small adapter, `JdkHttp`, converts each exchange of that server into a `Request`, calls our function, and writes the `Response` back. We copy it from the guide H-35 "How to Serve http-model Requests with the JDK HTTP Server", which explains every line; it is about sixty lines, so it is folded here:
 
 <details>
   <summary>The JdkHttp adapter</summary>
@@ -684,7 +684,7 @@ object JdkHttp {
 
 </details>
 
-What matters for the bookstore is `JdkHttp.start(app, port)`: it starts a server on the loopback interface that sends every request to our function, turns an exception thrown by the function into a 500 response, and returns the JDK's `HttpServer`. To call the server, we also copy H-35's tiny test client. `Client.call(port, method, target, body)` sends one request with the JDK's `HttpClient` and prints the status line, the content type and length, and the body:
+What matters for the bookstore is `JdkHttp.start(app, port)`: it starts a server on the loopback interface that sends every request to our function, turns an exception thrown by the function into a 500 response, and returns the JDK's `HttpServer`. To call the server, we also copy H-35's tiny test client. `Client.call(port, method, target, body)` sends one request with the JDK's `HttpClient` and prints the status code, the content type and length, and the body:
 
 <details>
   <summary>The test client</summary>
@@ -1071,6 +1071,7 @@ You now have a small backend built entirely from ZIO Blocks, and you know where 
 ## 15. Where to Go Next
 
 - **Go to production storage.** [How to Connect to PostgreSQL with a Connection Pool](./connect-to-postgresql-with-a-connection-pool.md) replaces SQLite with PostgreSQL and a pool that `Db#close` would shut down.
+- **Serve a bigger catalog.** [How to Stream Large Query Results](./stream-large-query-results.md) reads a large table as a stream of small row chunks, instead of loading every row into a `List` at once.
 - **Test more of the database code.** [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) covers fixtures, schema setup and rolling back instead of cleaning up.
 - **Go deeper on settings.** [How to Feed Configuration into a Wire Dependency Graph](./feed-config-into-a-wire-graph.md) and [Build a Typed Configuration Loader](./typed-config-loader.md) cover secrets, formats and testing settings.
 - **Go deeper on resources.** [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md) explains how scopes keep services from escaping.
