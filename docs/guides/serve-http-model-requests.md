@@ -182,7 +182,7 @@ def handler(app: Request => Response): HttpHandler = exchange =>
   } finally exchange.close()
 ```
 
-The handler runs a `HEAD` request as a `GET`, and `writeResponse` drops the body afterwards. That way every `GET` route also answers `HEAD` without writing it twice. The endpoint module's `RouteTree` uses the same fallback. The error message goes to standard error and the client only sees `Internal Server Error`, so exception details never leak to callers.
+The handler runs a `HEAD` request as a `GET`, and `writeResponse` drops the body afterwards. That way every `GET` route also answers `HEAD` without writing it twice. The endpoint module's [`RouteTree`](../reference/endpoint/route-tree.md) uses the same fallback. The error message goes to standard error and the client only sees `Internal Server Error`, so exception details never leak to callers.
 
 ## Starting and Stopping the Server
 
@@ -245,7 +245,7 @@ val hello: Request => Response =
   request => Response.text(s"Hello from ${request.method.name} ${request.path.encode}")
 ```
 
-Let's serve it, then call it once with `GET` and once with `HEAD`:
+To call the handler once with `GET` and once with `HEAD`:
 
 ```scala mdoc
 withServer(hello) { port =>
@@ -256,7 +256,7 @@ withServer(hello) { port =>
 
 The `HEAD` request reports the same type and length as the `GET`, without a body, and the server is stopped by the time `withServer` returns.
 
-Next, let's check the failure path with an application that always throws:
+To check the failure path, define an application that always throws:
 
 ```scala mdoc:silent
 val broken: Request => Response =
@@ -321,7 +321,7 @@ def routes(request: Request): Response =
   }
 ```
 
-`Response.json` sets the status to 200 and the content type to `application/json`. Let's call a known book, an unknown book and a method the router doesn't handle:
+`Response.json` sets the status to 200 and the content type to `application/json`. To call a known book, an unknown book and a method the router doesn't handle:
 
 ```scala mdoc
 withServer(routes) { port =>
@@ -349,7 +349,7 @@ def listBooks(request: Request): Response =
   }
 ```
 
-Let's serve `listBooks` on its own and call it with a valid and an invalid limit:
+To serve `listBooks` on its own and call it with a valid and an invalid limit:
 
 ```scala mdoc
 withServer(listBooks) { port =>
@@ -374,7 +374,7 @@ def addBook(request: Request): Response =
   }
 ```
 
-This handler only echoes the book back with 201 Created; a real service would store it first. Let's post a complete book, one with a missing field and one with a field of the wrong type:
+This handler only echoes the book back with 201 Created; a real service would store it first. To post a complete book, one with a missing field and one with a field of the wrong type:
 
 ```scala mdoc
 withServer(addBook) { port =>
@@ -409,7 +409,7 @@ def htmlResponse(page: String): Response =
   Response.ok(Body.fromArray(page.getBytes("UTF-8"), ContentType.`text/html`))
 ```
 
-`Response.ok(body)` copies the body's content type into the `content-type` header. The `ContentType.text/html` constant carries no charset, so the page declares UTF-8 itself with `<meta charset="utf-8">`. Let's serve the page:
+`Response.ok(body)` copies the body's content type into the `content-type` header. The `ContentType.text/html` constant carries no charset, so the page declares UTF-8 itself with `<meta charset="utf-8">`. To serve the page:
 
 ```scala mdoc
 withServer(_ => htmlResponse(catalogPage(books).render)) { port =>
@@ -421,7 +421,7 @@ Each link is built with `href := ...` and points at the JSON route for that book
 
 ## Putting It Together
 
-The complete example combines every route into one bookstore application and calls each route once. The adapter lives in its own file, `JdkHttp.scala`, so you can copy it into your own project unchanged:
+The complete example combines every route into one bookstore application and calls each route once. It builds on three shared files embedded under Running the Examples below: the adapter `JdkHttp.scala`, which you can copy into your own project unchanged, the test client `Client.scala` and the model `Bookstore.scala`. The complete example:
 
 ```scala mdoc:embed:http-model-examples/src/main/scala/servehttpmodelrequests/CompleteExample.scala
 ```
@@ -529,6 +529,12 @@ To run the complete example:
 
 ```bash
 sbt "runMain servehttpmodelrequests.CompleteExample"
+```
+
+To compile all the examples without running them:
+
+```bash
+sbt compile
 ```
 
 ## Going Further
