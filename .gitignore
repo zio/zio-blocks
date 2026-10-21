@@ -81,3 +81,5 @@ sweep-*.db
 
 # superpowers visual companion sessions
 .superpowers/
+
+__pycache__/

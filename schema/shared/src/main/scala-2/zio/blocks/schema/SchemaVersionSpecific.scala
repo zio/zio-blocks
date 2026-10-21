@@ -30,9 +30,13 @@ trait SchemaVersionSpecific[A] { self: Schema[A] =>
    * Example:
    * {{{
    * case class Person(name: String, age: Int)
-   * val structuralSchema: Schema[{ def name: String; def age: Int }] =
-   *   Schema.derived[Person].structural
+   * val structuralSchema = Schema.derived[Person].structural
    * }}}
+   *
+   * In Scala 2 the static type of the result is `Schema[ts.StructuralType]`:
+   * the compiler does not see that `ts.StructuralType` is
+   * `{ def name: String; def age: Int }`, so the result cannot be assigned to a
+   * `Schema` of the structural type.
    *
    * Note: This is JVM-only due to reflection requirements for structural types.
    *

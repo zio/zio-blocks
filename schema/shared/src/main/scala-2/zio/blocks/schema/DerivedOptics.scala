@@ -26,6 +26,7 @@ import scala.reflect.macros.whitebox
  *
  * Usage:
  * {{{
+ * // no-check: on Scala 2, `optics` expands to the package-private `DerivedOpticsMacros`, so it compiles only inside `zio.blocks.schema` (docs/dev/issues.md)
  * case class Person(name: String, age: Int)
  * object Person extends DerivedOptics {
  *   implicit val schema: Schema[Person] = Schema.derived
@@ -38,6 +39,7 @@ import scala.reflect.macros.whitebox
  *
  * For sealed traits:
  * {{{
+ * // no-check: on Scala 2, `optics` expands to the package-private `DerivedOpticsMacros`, so it compiles only inside `zio.blocks.schema` (docs/dev/issues.md)
  * sealed trait Shape
  * case class Circle(radius: Double) extends Shape
  * case class Rectangle(width: Double, height: Double) extends Shape

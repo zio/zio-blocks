@@ -27,8 +27,11 @@ trait NonNegativeIntCompanionVersionSpecific {
    * overhead.
    *
    * {{{
-   * val min = NonNegativeInt.literal(3)   // Compiles - returns NonNegativeInt directly
-   * val bad = NonNegativeInt.literal(-1)  // Compile error!
+   * // no-check: on Scala 2, the macro calls the package-private constructor, so it compiles only inside `zio.blocks.schema.json` (docs/dev/issues.md)
+   * import zio.blocks.schema.json.NonNegativeInt
+   *
+   * val min: NonNegativeInt = NonNegativeInt.literal(3) // compiles
+   * // NonNegativeInt.literal(-1)                       // does not compile
    * }}}
    */
   def literal(n: Int): NonNegativeInt = macro NonNegativeIntMacros.literalImpl
