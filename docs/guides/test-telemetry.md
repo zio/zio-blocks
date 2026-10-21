@@ -208,7 +208,7 @@ def placeOrderSpan: Option[SpanData] = spanRecorder.spans.find(_.name == "placeO
 
 `AttributeKey.string("book.title")` is a typed key: `Attributes#get` with it returns an `Option[String]`. Use `AttributeKey.long` for a `Long` attribute such as `amount.cents`.
 
-Now let's place the order and look at the spans it recorded:
+Place the order and look at the spans it recorded:
 
 ```scala mdoc
 tracedOrders.placeOrder(Order("order-2", "Programming in Scala", 2, 5000L))
@@ -266,7 +266,7 @@ def placeOrderContext: Option[SpanContext] =
   logSpans.spans.find(_.name == "placeOrder").map(_.spanContext)
 ```
 
-Let's place the declined order and read the log record back:
+Place the declined order and read the log record back:
 
 ```scala mdoc
 loggedOrders.placeOrder(Order("order-2", "Programming in Scala", 2, 5000L))
@@ -306,7 +306,7 @@ def total(counter: Counter, attributes: (String, String)*): Long =
   }
 ```
 
-We read the counter through its own instance because `MetricData` carries no instrument name. `MeterProvider#reader` returns the data of every instrument on the provider, and nothing in it says which point belongs to `orders.failed`.
+We read the counter through its own instance because `MetricData` carries no instrument name. `MeterProvider#reader.collectAllMetrics()` returns the data of every instrument on the provider, and nothing in it says which point belongs to `orders.failed`.
 
 Next, we give a service a meter of its own, so its counters start at zero, and place three orders, one of them declined:
 
@@ -319,7 +319,7 @@ val countedOrders = new OrderService(
 )
 ```
 
-Let's place the orders and read the totals:
+Place the orders and read the totals:
 
 ```scala mdoc
 countedOrders.placeOrder(Order("order-1", "Zionomicon", 1, 4500L))
@@ -352,7 +352,7 @@ final class TestTelemetry {
 }
 ```
 
-To show that two kits don't share anything, let's create two:
+To show that two kits don't share anything, we create two:
 
 ```scala mdoc:silent
 val first  = new TestTelemetry
@@ -414,7 +414,7 @@ log.install(LoggerProvider.builder.addLogRecordProcessor(globalLogs).build().get
 val failedBefore = total(Checkout.ordersFailed)
 ```
 
-Now let's run the checkout and read what it recorded:
+Run the checkout and read what it recorded:
 
 ```scala mdoc
 Checkout.placeOrder(Order("order-2", "Programming in Scala", 2, 5000L), PaymentGateway.declineAll("card declined"))
@@ -495,6 +495,8 @@ The specs below use these helpers; the file has nothing to run on its own.
 
 </details>
 
+Run it with:
+
 ```bash
 sbt "testOnly testtelemetry.RecordSpansSpec"
 ```
@@ -506,6 +508,8 @@ sbt "testOnly testtelemetry.RecordSpansSpec"
 ```
 
 </details>
+
+Run it with:
 
 ```bash
 sbt "testOnly testtelemetry.CaptureLogsSpec"
@@ -519,6 +523,8 @@ sbt "testOnly testtelemetry.CaptureLogsSpec"
 
 </details>
 
+Run it with:
+
 ```bash
 sbt "testOnly testtelemetry.ReadCountersSpec"
 ```
@@ -526,13 +532,19 @@ sbt "testOnly testtelemetry.ReadCountersSpec"
 <details>
 <summary><strong>6. Test code that uses the global objects</strong></summary>
 
+The code under test:
+
 ```scala mdoc:embed:telemetry-examples/src/main/scala/testtelemetry/Checkout.scala:show-line-numbers
 ```
+
+The spec that tests it:
 
 ```scala mdoc:embed:telemetry-examples/src/test/scala/testtelemetry/GlobalTelemetrySpec.scala:show-line-numbers
 ```
 
 </details>
+
+Run it with:
 
 ```bash
 sbt "testOnly testtelemetry.GlobalTelemetrySpec"
