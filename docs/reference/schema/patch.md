@@ -19,6 +19,8 @@ A `Patch[S]` represents a sequence of operations that transform a value of type 
 For **untyped JSON patching** without a schema, use [`JsonPatch`](./built-in-codecs/json/json-patch.md) instead. `JsonPatch` is optimized for diff-and-apply workflows on raw JSON values and provides compact delta representations without requiring typed optics.
 :::
 
+For an end-to-end workflow (diffing two versions, storing patches as JSON, choosing a `PatchMode` when the data changed, and replaying an edit history), see [How to Compute, Store and Replay Changes with Diff and Patch](../../guides/diff-and-patch.md).
+
 ```scala
 import zio.blocks.schema._
 import zio.blocks.schema.patch._
