@@ -36,7 +36,7 @@ type Reflect.Unbound[A] = Reflect[NoBinding, A] // Pure metadata, serializable
 A `Schema[A]` is simply a wrapper around `Reflect.Bound[A]`:
 
 ```scala
-final class Schema[A](val reflect: Reflect.Bound[A])
+final case class Schema[A](reflect: Reflect.Bound[A])
 ```
 
 ## Binding Variants
@@ -158,7 +158,7 @@ final case class Seq[C[_], +A](
 
 The type parameter is `C[_]` (the collection type constructor) rather than `C[A]` (a specific element type). This allows a single `Binding.Seq[List]` to work for `List[Int]`, `List[String]`, `List[Person]`, etc. Inside the companion object of `Binding.Seq`, there are implementations for `Set`, `List`, `Vector`, `IndexedSeq`, `Seq` and `Chunk`; `Binding.of[ArraySeq]`, `Binding.of[Array]` and, on Scala 3, `Binding.of[IArray]` create the array-backed ones.
 
-Sequences are ubiquitous in data modeling, and their efficient handling is critical for performance. The `Seq` binding abstracts over the specific collection type using the **builder pattern**, enabling both stacked and heap-allocated construction strategies.
+Sequences are ubiquitous in data modeling, and their efficient handling is critical for performance. The `Seq` binding abstracts over the specific collection type using the **builder pattern**, enabling collection-builder and array-backed construction strategies.
 
 - `constructor` is a sequence constructor which provides how to build the sequence of type `C[_]`. It provides collection-specific builder operations. Different collections have different constructor strategies (e.g., an `Array` is built in an array of the element type that doubles when it is full and is trimmed at the end, while a `List` is built in a `ListBuffer`).
 - `deconstructor` is a sequence deconstructor that provides iteration and size information for the collection type `C[_]`, which enables us to tear down the collection into its elements efficiently. The size hints enable codecs to pre-allocate output buffers and builders.
