@@ -37,8 +37,8 @@ Key properties:
 The following example shows how `DbCon` is obtained from a `Transactor`, how the context is propagated into helper methods, and how the three members can be accessed when needed:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String)
 object User {
@@ -76,6 +76,12 @@ trait Transactor {
 ```
 
 The following example shows a non-transactional read that uses the supplied `DbCon` to execute a query:
+
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._
@@ -233,6 +239,12 @@ trait DbTx extends DbCon {
 
 The following example illustrates how to write a helper method that is restricted to transactional scope:
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
+
 ```scala mdoc:compile-only
 import zio.blocks.sql._
 
@@ -256,8 +268,8 @@ tx.transact {
 When a helper only reads data and should work in both contexts, declare it with `using DbCon`:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 // Usable inside both `connect` and `transact` blocks
 def findUser(id: Int)(using DbCon): Maybe[String] =

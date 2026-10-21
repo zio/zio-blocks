@@ -330,6 +330,7 @@ lazy val root = project
     dataMigration.js,
     projection.jvm,
     asyncExamples,
+    capstoneExamples,
     endpointExamples,
     httpModelExamples,
     jwtExamples,
@@ -346,6 +347,7 @@ lazy val root = project
 // Example projects are standalone builds (see AGENTS.md) that depend on published artifacts, so the
 // root build only references them, the way zio-http does, instead of defining them as subprojects.
 lazy val asyncExamples         = RootProject(file("async-examples"))
+lazy val capstoneExamples      = RootProject(file("capstone-examples"))
 lazy val endpointExamples      = RootProject(file("endpoint-examples"))
 lazy val httpModelExamples     = RootProject(file("http-model-examples"))
 lazy val jwtExamples           = RootProject(file("jwt-examples"))
@@ -1774,6 +1776,7 @@ lazy val docs = project
     mux.jvm,
     async.jvm,
     sql.jvm,
+    `sql-zio`,
     telemetry.jvm,
     otel,
     config.jvm,

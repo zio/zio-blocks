@@ -38,8 +38,8 @@ object DbCodecDeriver extends DbCodecDeriver(SqlNameMapper.SnakeCase) {
 The following example shows the three most common ways to reach `DbCodecDeriver`: through the `derives` clause on a case class, through `DbCodec.derived` (equivalent), and through `DbCodecDeriver.withColumnNameMapper` when a non-default naming strategy is needed.
 
 ```scala mdoc
-import zio.blocks.sql.{DbCodec, DbCodecDeriver, SqlNameMapper}
 import zio.blocks.schema.Schema
+import zio.blocks.sql.{DbCodec, DbCodecDeriver, SqlNameMapper}
 
 // 1. Derives clause — most concise
 case class User(userId: Int, fullName: String) derives DbCodec

@@ -1502,6 +1502,121 @@ xa.connect {
 
 **Related (testing ergonomics).** `JdbcTransactor` has no way to hold one connection open across blocks, so `jdbc:sqlite::memory:` loses its tables between `connect`/`transact` calls, and there is no rollback-only `transact` for tests. The repo's own `RepoIntegrationSpec.withFreshDb` (`sql/jvm/src/test/scala/zio/blocks/sql/RepoIntegrationSpec.scala:58-84`) works around the first by subclassing `JdbcTransactor` and overriding `connect` with the `private[sql]` `JdbcConnection`, which users can't copy; its `transact` (not overridden) would close the shared connection. The H-47 guide uses a temporary file per test and a sentinel-exception `rollingBack` helper instead. A public single-connection transactor for tests (whose `close` is a no-op until the test ends) would make both unnecessary.
 
+### sql-zio: `transactZIO` commits instead of rolling back when its body throws while being built, or when it is interrupted
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/sql-from-zio.md` (backlog H-21), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 main -- sql-zio/` is empty. Verified by running the reproduction below against the published 0.0.56 artifacts.
+
+**Summary.** `TransactorZIO#transactZIO` promises to commit on success and roll back on failure, and its class Scaladoc says the connection is "always closed even on interruption". A typed failure (`ZIO.fail`) and a defect inside the body's effect (`ZIO.die`) do roll back. Two other ways out of the body commit instead: (1) a statement written directly in the body, outside any ZIO constructor, that throws while the body's effect is being built; (2) interruption of the running transaction from outside, for example `transactZIO { ... }.timeout(d)`, `race`, or a fiber interrupt. In both cases every statement that already ran is committed, and the caller sees a defect or a timeout, so it believes nothing was written.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql-zio` 0.0.56, sqlite-jdbc 3.53.4.0, run with `scala-cli run .`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql-zio:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import java.nio.file.Files
+import zio.*
+import zio.blocks.sql.zio.*
+import zio.blocks.sql.*
+
+object TransactZIOCommits extends ZIOAppDefault {
+  val tx = TransactorZIO.fromUrl(s"jdbc:sqlite:${Files.createTempFile("repro", ".db")}", SqlDialect.SQLite)
+
+  def rows = tx.connect(sql"SELECT x FROM t ORDER BY x".query[Int])
+
+  def run = for {
+    _ <- tx.connect(sql"CREATE TABLE t (x INTEGER NOT NULL)".update)
+
+    // 1. A statement in the body throws while the body's effect is being built.
+    r1 <- tx.transactZIO {
+            sql"INSERT INTO t VALUES (1)".update
+            sql"INSERT INTO t VALUES (NULL)".update // NOT NULL violation, thrown here
+            ZIO.unit
+          }.exit
+    _  <- Console.printLine(s"1. died: ${r1.causeOption.exists(_.isDie)}")
+    _  <- rows.flatMap(r => Console.printLine(s"   rows after a body that threw: $r"))
+
+    // 2. The body's effect is interrupted, here by a timeout.
+    r2 <- tx.transactZIO {
+            ZIO.attemptBlocking(sql"INSERT INTO t VALUES (2)".update) *> ZIO.never
+          }.timeout(200.millis)
+    _  <- Console.printLine(s"2. timeout result: $r2")
+    _  <- rows.flatMap(r => Console.printLine(s"   rows after an interrupted transaction: $r"))
+
+    // 3. For comparison: a typed failure rolls back.
+    r3 <- tx.transactZIO {
+            ZIO.attemptBlocking(sql"INSERT INTO t VALUES (3)".update) *> ZIO.fail("boom")
+          }.either
+    _  <- Console.printLine(s"3. typed failure: $r3")
+    _  <- rows.flatMap(r => Console.printLine(s"   rows after a failed transaction: $r"))
+  } yield ()
+}
+
+// 1. died: true
+//    rows after a body that threw: List(1)
+// 2. timeout result: None
+//    rows after an interrupted transaction: List(1, 2)
+// 3. typed failure: Left(boom)
+//    rows after a failed transaction: List(1, 2)
+```
+
+Rows `1` and `2` are the bug: both come from transactions that did not succeed. Row `3`, from the typed failure, is correctly rolled back.
+
+**Expected.** Both transactions roll back: the rows stay `List()` after case 1 and after case 2. Case 1 still dies with the `SQLiteException` (or fails with it), and case 2 still returns `None`.
+
+**Root cause.** The rollback lives only in the `flatMap` after `f(using tx).exit` (`sql-zio/src/main/scala/zio/blocks/sql/zio/TransactorZIO.scala:200-210`). The release finalizer of the `acquireRelease` (`TransactorZIO.scala:175-189`) never rolls back; it restores the previous settings and calls `conn.setAutoCommit(prevAutoCommit)` (`:185`) before closing. `prevAutoCommit` is `true` for a fresh connection, and the JDBC contract of `Connection#setAutoCommit` is that "if this method is called during a transaction and the auto-commit mode is changed, the transaction is committed". So any path that skips the `flatMap` commits.
+
+1. `f(using tx)` is evaluated inside the `flatMap` lambda at `:190` before `.exit` is applied. A body such as `{ sql"...".update; ZIO.unit }` runs its statements right there; when one throws, ZIO turns the exception into a defect of the outer `flatMap`, `.exit` never sees it, and the release commits the earlier statements.
+2. When the fiber is interrupted while `f(using tx)` runs, the continuation of `.exit.flatMap` does not run (the region is interruptible), so the explicit rollback at `:209` is skipped, and the release commits.
+
+**Impact.** Data corruption without an error to show for it. `ZIO#timeout` is the standard way to bound a request in ZIO, and a timed-out `transactZIO` leaves partial writes behind. Shutting down an application (which interrupts running fibers) commits half-done transactions. Users of `TransactorZIO#transact` are not affected: it delegates to `JdbcTransactor#transact`, which rolls back in a `catch`. The guide tells readers to wrap every statement in `ZIO.attemptBlocking` and to use `ZIO#timeoutFail` inside the body until this is fixed.
+
+**Test gap.** `sql-zio/src/test/scala/zio/blocks/sql/zio/TransactorZIOSpec.scala` has four tests (`:106-178`): commit failure, commit on success, isolation-setup failure and default isolation. None runs a body that fails, dies, throws while being built or is interrupted, and none checks that rows are absent afterwards. `connectZIO` has no test at all.
+
+**Suggested fix.** Make the release decide: use `ZIO.acquireReleaseExit` (or keep `acquireRelease` and always call `conn.rollback()` first in the finalizer, which is a no-op after a successful commit) so that the finalizer rolls back before it restores `autoCommit`. Evaluate the body lazily with `ZIO.suspend(f(using tx))` so an eager throw becomes part of the body's `Exit`. Add `TransactorZIOSpec` cases on a real SQLite file that assert no rows remain after a `ZIO.fail`, a `ZIO.die`, an eager throw, and `transactZIO(...).timeout(...)` around `ZIO.never`.
+
+### sql-zio: the package `zio.blocks.sql.zio` shadows the root `zio` package after `import zio.blocks.sql.*`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/sql-from-zio.md` (backlog H-21), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running the reproduction below against the published 0.0.56 artifacts.
+
+**Summary.** `sql-zio` puts `TransactorZIO` and the `JdbcTransactor.postgresLayer`/`sqliteLayer` extensions in the package `zio.blocks.sql.zio`. Once the `sql-zio` jar is on the classpath, the wildcard `import zio.blocks.sql.*` also imports that subpackage under the name `zio`, and it shadows the root `zio` package for the rest of the scope. Every later `import zio.blocks...` and every fully qualified `zio.X` then fails to compile with `value blocks is not a member of zio.blocks.sql.zio`. Code that compiled before stops compiling as soon as a project adds the `sql-zio` dependency, even if it never uses it.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql-zio` 0.0.56, run with `scala-cli run .`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql-zio:0.0.56
+
+import zio.blocks.sql.*
+import zio.blocks.schema.Schema
+
+case class Book(id: Long, title: String)
+object Book { given Schema[Book] = Schema.derived }
+
+@main def shadow(): Unit = println(Table.derived[Book].name)
+
+// [error] ./Shadow.scala:6:8
+// [error] value blocks is not a member of zio.blocks.sql.zio
+// [error] import zio.blocks.schema.Schema
+// [error]        ^^^^^^^^^^
+// Error compiling project (Scala 3.9.0, JVM (21))
+```
+
+With `dev.zio::zio-blocks-next-sql:0.0.56` instead of `sql-zio` in the `using dep` line, the same file compiles and prints `book`.
+
+**Expected.** Adding `sql-zio` doesn't change what `zio` means in existing code.
+
+**Root cause.** The package clause `package zio.blocks.sql.zio` (`sql-zio/src/main/scala/zio/blocks/sql/zio/TransactorZIO.scala:17`, `JdbcTransactorLayers.scala:17`). A wildcard import brings in member packages too, and an imported name takes precedence over the top-level package `zio`. Writing `import zio.blocks.sql.zio.*` before `import zio.blocks.sql.*` works, but only as long as nothing after it starts with `zio.`.
+
+**Impact.** Every sql page in the docs used the failing order, so putting `sql-zio` on the docs classpath for H-21 broke 16 docs pages and 23 files in `sql-examples` (including the H-18, H-20 and T-15 pages and examples merged while H-21 was open), all fixed on the H-21 branch by putting `import zio.blocks.sql.*` last (plus an invisible `import _root_.zio` before self-contained `compile-only` blocks that mdoc compiles in a page's shared scope). `docs/reference/sql-zio.md` and `docs/reference/sql/transactor-zio.md` showed the failing order in every snippet, so none of them compiled. Users hit it the first time they add ZIO support to an existing sql code base.
+
+**Test gap.** The sql-zio tests live inside `package zio.blocks.sql.zio` and import `_root_.zio.*` (`TransactorZIOSpec.scala:19-21`), so they can't see the problem. No test compiles user-style code with `import zio.blocks.sql.*` followed by another `zio` import against a classpath that contains `sql-zio`.
+
+**Suggested fix.** Rename the package to one whose last segment isn't `zio`, for example `zio.blocks.sqlzio` or `zio.blocks.sql.ziointerop`. The module is pre-1.0 (0.0.x), so a rename is cheap now and gets more expensive with every release. Add a compile test in a package outside `zio.blocks` that imports `zio.blocks.sql.*` and then `zio.blocks.schema.Schema`.
+
 ### sql: `Frag.keysetAfter` leaves the column unquoted, so a keyword column such as `order` renders invalid SQL
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/upsert-and-paginate-with-keyset-cursors.md` (backlog H-18), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified. Not filed.
@@ -2111,6 +2226,108 @@ Found 2026-10-21 while writing the how-to guide `docs/guides/write-joins-and-ins
 
 **Summary.** `orderBy(col)` and `groupBy(cols*)` take a bare column name and always render it as `t0."<col>"` (`sql/shared/src/main/scala/zio/blocks/sql/query/QueryRenderer.scala:70-78` for `GROUP BY` and `:85-97` for `ORDER BY`). There is no way to sort or group a join by a column of a joined table: `SqlQuery.from(books).join(bookAuthor).orderBy("t1.name")` throws `java.lang.IllegalArgumentException: Invalid SQL column identifier 't1.name'. Only ASCII letters, digits, and underscores are supported, and the first character must be a letter or underscore.` (`SqlQuery.scala:145-148` validates it as a plain identifier, as `groupBy` does at `:137-140`). A name that exists in the joined table but not in `t0` renders as `t0."<col>"` and fails only when the database runs it. Meanwhile `where` takes a free-form `Frag` that may use any alias, so the API is uneven. Users have to start the query from the table they sort by, or sort in Scala. The H-19 guide documents this in a caution box. A fix would be an `orderBy(alias, col, dir)` overload, or a column reference type returned by the joined table.
 
+### telemetry and scope: wildcard imports of both packages make `Resource` ambiguous
+
+Found 2026-10-21 while writing T-15 (`docs/guides/small-json-backend-from-blocks.md`), on `main` at `1958367d`. The code is the same at tag `v0.0.56`. Verified by running on Scala 3.9.0 and 2.13.18.
+
+**Summary.** `zio.blocks.telemetry` and `zio.blocks.scope` both define a top-level type named `Resource`: telemetry's is the OpenTelemetry resource (a set of attributes that names the service), scope's is the managed resource that `Resource.from` returns. The telemetry guides teach `import zio.blocks.telemetry._` ("brings every type this tutorial uses"), and the scope guides teach `import zio.blocks.scope._`. A program that uses both, which is any service that logs and manages its resources, fails to compile as soon as it mentions `Resource`, and the follow-on error at `allocate` names telemetry's `Resource` as the argument type.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-scope` and `zio-blocks-next-telemetry` 0.0.56, `scala-cli compile Clash.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-scope:0.0.56
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+import zio.blocks.scope._
+import zio.blocks.telemetry._
+
+class Db extends AutoCloseable {
+  def close(): Unit = println("Db: closed")
+}
+
+object Clash {
+  def db: Resource[Db] = Resource.from[Db]
+
+  def main(args: Array[String]): Unit =
+    Scope.global.scoped { scope =>
+      import scope._
+      allocate(db)
+      log.info("started")
+    }
+}
+
+// [error] ./Clash.scala:13:11
+// [error] Reference to Resource is ambiguous.
+// [error] It is both imported by import zio.blocks.scope._
+// [error] and imported subsequently by import zio.blocks.telemetry._
+// [error]   def db: Resource[Db] = Resource.from[Db]
+// [error] ./Clash.scala:13:26
+// [error] Reference to Resource is ambiguous.
+// [error] It is both imported by import zio.blocks.scope._
+// [error] and imported subsequently by import zio.blocks.telemetry._
+// [error]   def db: Resource[Db] = Resource.from[Db]
+// [error] ./Clash.scala:18:7
+// [error] None of the overloaded alternatives of method allocate in class Scope with types
+// [error]  [A <: AutoCloseable](value: => A): scope.$[A]
+// [error]  [A](resource: zio.blocks.scope².Resource[A]): scope.$[A]
+// [error] match arguments ((Clash.db : => zio.blocks.telemetry.Resource²))
+```
+
+On Scala 2.13.18 (`zio-blocks-scope` and `zio-blocks-telemetry` 0.0.56, same imports, `def db: Resource[Db] = Resource.from[Db]`), the error is `reference to Resource is ambiguous; it is imported twice in the same scope by import zio.blocks.telemetry._ and import zio.blocks.scope._`.
+
+**Expected.** The two wildcard imports the guides teach work together, or the guides warn about the clash and show the fix.
+
+**Root cause.** `final case class Resource(attributes: Attributes)` at `telemetry/shared/src/main/scala/zio/blocks/telemetry/Resource.scala:27` and `sealed trait Resource[+A]` at `scope/shared/src/main/scala/zio/blocks/scope/Resource.scala:58` are both top-level members of packages that users import with a wildcard.
+
+**Workaround.** Import telemetry's names one by one, as T-15 does: `import zio.blocks.telemetry.{log, metric, trace, AttributeKey, Counter, MetricData}`. Or rename on import: `import zio.blocks.telemetry.{Resource => OtelResource, _}`.
+
+**Impact.** Every service that combines the two modules, which is the main use of `scope` (build services) together with `telemetry` (observe them). The compiler message is clear for the first error, but the `allocate` error that follows can mislead.
+
+**Test gap.** No test or example compiles `import zio.blocks.scope._` together with `import zio.blocks.telemetry._`.
+
+**Fix.** Rename telemetry's type (for example `TelemetryResource` or `ServiceResource`), keeping `Resource` as a deprecated alias in a sub-object so wildcard imports no longer bring it in. If the OpenTelemetry name must stay, add a caution to the telemetry reference and guides that recommends importing telemetry names one by one.
+
+### Release: a stray version `0.017` on Maven Central is the "latest" release of eleven modules
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/add-zio-blocks-to-your-build.md` (backlog H-01), on `main` at `b4179489`. The current release is `v0.0.56`.
+
+**Summary.** Besides the real `0.0.17` release, version `0.017` (no second dot) was published to Maven Central on 2026-02-07, the same day as tag `v0.0.17`. There is no `v0.017` tag or GitHub release. Maven orders `0.017` above `0.0.56` (its second segment, 17, beats 0), so the `<latest>` and `<release>` fields of `maven-metadata.xml` still point at the February build for every module that existed then: `chunk`, `context`, `schema`, `schema-avro`, `schema-bson`, `schema-messagepack`, `schema-thrift`, `schema-toon`, `scope`, `streams` and `typeid`, under both `zio-blocks-` and `zio-blocks-next-`, on all published platforms and Scala versions. Modules added later (`maybe`, `config`, `jwt`, ...) are not affected.
+
+**Reproduction** (coursier 2.x and scala-cli 1.10.1, against Maven Central):
+
+```bash
+curl -s https://repo1.maven.org/maven2/dev/zio/zio-blocks-schema_3/maven-metadata.xml | grep -E '<latest>|<release>'
+#     <latest>0.017</latest>
+#     <release>0.017</release>
+
+cs resolve 'dev.zio:zio-blocks-schema_3:latest.release' | grep zio-blocks-schema
+# dev.zio:zio-blocks-schema_3:0.017:default
+```
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+```
+
+```
+$ scala-cli compile .
+[hint] ./Main.scala:2:15
+[hint] "zio-blocks-schema is outdated, update to 0.017"
+[hint]      zio-blocks-schema 0.0.56 -> dev.zio::zio-blocks-schema:0.017
+```
+
+**Expected.** `latest.release` resolves to `0.0.56`, and scala-cli reports `0.0.56` as up to date.
+
+**Root cause.** A release was published with the version string `0.017` instead of `0.0.17`. Maven Central does not allow deleting or overwriting a published version, so the metadata will keep ranking it highest until a version that sorts above `0.017` (such as `0.1.0`) is released.
+
+**Impact.** Every scala-cli user of the affected modules sees an "outdated, update to 0.017" hint, and following it downgrades them to February code. Builds that use `latest.release` or a version range get `0.017`. Dependency bots such as Scala Steward may also propose the downgrade, unless they are told to ignore it.
+
+**Test gap.** The release workflow does not check that the version derived from the tag has the `MAJOR.MINOR.PATCH` shape.
+
+**Suggested fix.** Add a check to the release workflow that fails when the version does not match `^\d+\.\d+\.\d+(-.+)?$`. Add a Scala Steward `updates.ignore` entry for version `0.017` under `dev.zio` so the repo's own bots skip it. The metadata only stops pointing at `0.017` once a release sorts above it, such as `0.1.0`. Until then, the install guide pins `@VERSION@` and never suggests `latest.release`.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -2174,6 +2391,10 @@ Found 2026-10-20 while writing H-47. CI's "Compile example projects" step (`proj
 ### Three example builds are not registered in the root build
 
 Found 2026-10-20 while recording H-37. `config-examples` (T-05), `sql-examples` (T-07) and `html-examples` (T-09) are standalone builds with their own `build.sbt` but no `lazy val ... = RootProject(file("..."))` line or root `aggregate(...)` entry in `build.sbt`, unlike the other standalone `*-examples/` builds. (`projection-examples` is deliberately a root subproject, `lazy val \`projection-examples\` = project` at `build.sbt:560`, with no `build.sbt` of its own, so it is not affected.) CI's examples loop still compiles them (it looks for a `build.sbt`), so the gap shows up in the root aggregate and IDE import. AGENTS.md (updated on the `jwt` branch, H-37) now says a new examples build needs both. Add the three missing entries.
+
+### Benchmark manifest provider versions lag `build.sbt`
+
+Found 2026-10-21 while fixing `docs/reference/streams/index.md:78` for M-04. `build.sbt:1484-1487` pins Kyo `1.0.0-RC7` (bumped in #1700) and Ox `1.1.0` (bumped in #1751) for `streams-benchmark`, but `streams-benchmark/benchmark-manifest.json:16-21` still records Kyo `1.0.0-RC6` and Ox `1.0.6`, and `streams-benchmark/tools/validate_matrix.py:14` asserts those old values. A provider run today therefore measures RC7 and 1.1.0 while its manifest claims RC6 and 1.0.6. Scala Steward updates `build.sbt` only. Either bump the manifest and the validator together (and rerun the provider baselines), or have `validate_matrix.py` read the versions from `build.sbt` so the two cannot drift. The reference page now names both sets of versions.
 
 ### Docs build memory with many sbt servers
 
@@ -2418,6 +2639,20 @@ Found 2026-10-20 while writing the how-to guide `docs/guides/stream-large-query-
 
 **Suggested fix.** Either change `db-codec.md:22` to say that only `BigDecimal` and `Char` fail fast, `String` gives `null` and the numeric and `Boolean` types give the JDBC default, or make the primitive codecs check `wasNull` and throw. The second is a behaviour change with a per-column cost.
 
+### docs: `sql-zio.md` and `transactor-zio.md` show code that doesn't compile or blocks ZIO's main threads
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/sql-from-zio.md` (backlog H-21), on `main` at `a44dc6db`. The import order was verified by compiling (see the shadowing entry under Library bugs); the rest is from source.
+
+**Summary.** Both pages are all plain `scala` fences, so nothing on them is compiled. The H-21 branch fixes the import order in every snippet (it was `import zio.blocks.sql.*` before `import zio.blocks.sql.zio.*`, which never compiles), says that `postgresLayer`/`sqliteLayer` need `import zio.blocks.sql.zio.*`, and corrects the "interrupt-safe" bullet in `transactor-zio.md` (interrupting `transactZIO` commits; see Library bugs). These remain:
+
+- `sql-zio.md` "Quick Start" runs `transactor.connect { sql"SELECT 1"... }` inside `ZIO.serviceWith[Transactor]`, which executes the JDBC call on ZIO's default thread pool. It should be `ZIO.serviceWithZIO[Transactor](t => ZIO.attemptBlocking(t.connect(...)))`, or use `TransactorZIO`.
+- `sql-zio.md` uses `userRepo`, `newUser` and `User` without defining them, and calls itself a "guide" although it is a reference page.
+- `transactor-zio.md` builds its examples on `TransactorZIO.fromUrl("jdbc:sqlite::memory:", ...)` and then uses the table in a later call, which its own `fromUrl` section (`:149`) says can't work: every call gets a fresh, empty database.
+- `transactor-zio.md` shows the class shape without the two-argument `transact(isolation, readOnly)` and `transactZIO(isolation, readOnly)` overloads (`TransactorZIO.scala:80`, `:132`).
+- Neither page says that inside `connectZIO`/`transactZIO` the body's statements must be wrapped in `ZIO.attemptBlocking` to leave the default pool, which `TransactorZIO.scala:200` makes necessary.
+
+**Suggested fix.** Turn both pages into `mdoc` pages now that `sql-zio` is on the docs classpath, on a temporary SQLite file, and link `docs/guides/sql-from-zio.md` for the recipes.
+
 ### docs: `csv.md` promises error locations the codec doesn't give, and documents unused API
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/read-and-write-csv-and-tsv-files.md` (backlog H-11), on `main` at `b4179489`. Verified by running. PR #1773 (merged) fixed other parts of this page (TSV "Pattern 2", run-time rejection, `Option` fields); the statements below are still on `main` after it.
@@ -2458,7 +2693,6 @@ object Employee { implicit val schema: Schema[Employee] = Schema.derived }
 
 **Other modules**
 
-- `transactor-zio.md` mentions `JdbcTransactor.postgresLayer` without saying it is an extension that needs `import zio.blocks.sql.zio.*` (sql-zio). Found while writing H-17.
 - `html.md`: artifact name for Scala 3.7+, `Css.Declaration`, `hx-*` URL attributes, `selector""`. Filed as #1766.
 - `streams/index.md:78` lists Kyo RC6 and Ox 1.0.6; the build pins RC7 and 1.1.0.
 - `docs/index.md` and `built-in-codecs/json/index.md:39,45` give `zio-blocks-schema` for every Scala version; Scala 3.7+ uses `zio-blocks-next-schema`. H-01 (stalled) includes this fix.
@@ -2514,6 +2748,7 @@ Fixed in #1796 (H-24).
 
 ## Resolved
 
+- `transactor-zio.md` mentioned `JdbcTransactor.postgresLayer` without saying it is an extension that needs `import zio.blocks.sql.zio.*` (found while writing H-17). Fixed on the H-21 branch `docs/h21-sql-from-zio`.
 - `type-class-derivation.md` "Customizing Derivation with Instance and Modifier Overrides": all four examples were uncompiled plain blocks, one with a `// ... AST overrides ...` placeholder and undefined types. Each is now a self-contained `mdoc:compile-only` block with the real JSON AST overrides. Fixed in #1787.
 - `jwt.md`: audience mismatch documented as `InvalidToken` (it is `InvalidClaim("aud", ...)`), missing `InvalidClaim`/`InvalidKey` rows, no key-format guidance, no frontmatter. Fixed in #1789 (H-37). The `JwtDecodeOptions` Scaladoc (`Jwt.scala:131-132`) still says `InvalidToken`; see the jwt entry above.
 - `sql-transactions.md`: the Hikari recipe, "JDK 25+" virtual-thread claim and "pool size equals database max connections" advice were replaced by a link to H-17's guide (virtual threads are final in JDK 21, JEP 444; JEP 491 shipped in JDK 24; pool sizing must keep the sum of all pools under `max_connections`). Also fixed: `.query[Int].toOne` (no such method; `queryOne[Long]`) and the unsupported "read-only avoids WAL writes" claim. Fixed in #1790 (H-17).

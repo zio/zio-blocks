@@ -453,6 +453,7 @@ const sidebars = {
   ],
   // Guides get their own sidebar, reached from the "Guides" navbar item, so the reference sidebar stays reference-only.
   guides: [
+    "guides/add-zio-blocks-to-your-build",
     "guides/your-first-schema",
     "guides/customize-json-encoding",
     "guides/override-codec-for-one-type",
@@ -469,6 +470,7 @@ const sidebars = {
     "guides/upsert-and-paginate-with-keyset-cursors",
     "guides/stream-large-query-results",
     "guides/write-joins-and-inspect-generated-sql",
+    "guides/sql-from-zio",
     "guides/your-first-html-page",
     "guides/stream-files-and-sockets",
     "guides/async-getting-started",
@@ -476,10 +478,12 @@ const sidebars = {
     "guides/fix-scope-and-wire-compile-errors",
     "guides/resource-and-di-migration",
     "guides/getting-started-with-mux",
+    "guides/small-json-backend-from-blocks",
     "guides/telemetry-guide",
     "guides/zio-schema-migration",
     "guides/config-library-migration",
     "guides/json-library-migration",
+    "guides/streaming-library-migration",
     "guides/generate-json-schema-and-validate-payloads",
     "guides/llm-data-with-toon",
     {

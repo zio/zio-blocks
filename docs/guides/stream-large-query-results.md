@@ -62,7 +62,7 @@ In this guide, we solve this by asking `Frag` for a `Stream` of decoded rows and
 Add the `sql` module, the `streams` module and the SQLite JDBC driver to your `build.sbt`:
 
 ```scala
-// Scala 3.7 and newer; on Scala 3.3 LTS the artifacts are "zio-blocks-sql" and "zio-blocks-streams"
+// Scala 3.9 and newer, with scalacOptions += "-experimental"; on Scala 3.3 to 3.8 the artifacts are "zio-blocks-sql" and "zio-blocks-streams"
 libraryDependencies += "dev.zio"   %% "zio-blocks-next-sql"     % "@VERSION@"
 libraryDependencies += "dev.zio"   %% "zio-blocks-next-streams" % "@VERSION@"
 libraryDependencies += "org.xerial" % "sqlite-jdbc"             % "3.53.4.0"
@@ -79,8 +79,8 @@ import scala.util.Try
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.Schema
-import zio.blocks.sql.*
 import zio.blocks.streams.*
+import zio.blocks.sql.*
 ```
 
 ## The Sales Table

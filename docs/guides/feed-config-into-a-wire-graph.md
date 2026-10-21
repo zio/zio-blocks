@@ -77,13 +77,13 @@ In this guide, the config module turns each settings section into a typed case c
 Add the config module and its YAML format to your `build.sbt`. The config module depends on the scope and context modules, so `Scope`, `Resource`, `Wire` and `Context` come with it:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-blocks-config"      % "@VERSION@",
   "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
 )
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-blocks-next-config"      % "@VERSION@",
   "dev.zio" %% "zio-blocks-next-config-yaml" % "@VERSION@"
@@ -429,3 +429,4 @@ sbt compile
 - [How to Fix Common Scope and Wire Compile Errors](./fix-scope-and-wire-compile-errors.md) explains each error the graph macro can report, such as a missing dependency or two parameters of the same type.
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./resource-and-di-migration.md) maps those libraries onto `Resource`, `Scope` and `Wire`.
 - [How to Roll Out a Feature Gradually with Flags](./roll-out-feature-gradually.md) adds settings that change at runtime, which a `Config.wire` value read once at startup can't do.
+- [Build a Small JSON Backend from Blocks](./small-json-backend-from-blocks.md) is the capstone tutorial that uses a wire graph like this one inside a small JSON backend.

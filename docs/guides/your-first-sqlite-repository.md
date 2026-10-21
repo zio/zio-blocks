@@ -40,14 +40,14 @@ To follow along, add the `sql` module and the SQLite JDBC driver to your `build.
 // Scala 3.3 LTS
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "@VERSION@"
 
 // The SQLite JDBC driver, for every Scala version
 libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 ```
 
-The `sql` module is published for Scala 3 only, and the `JdbcTransactor` we use to talk to the database runs on the JVM. Scala 3.7 and newer use the `zio-blocks-next-sql` artifact name; the code in this tutorial is the same for both.
+The `sql` module is published for Scala 3 only, and the `JdbcTransactor` we use to talk to the database runs on the JVM. Scala 3.9 and newer use the `zio-blocks-next-sql` artifact name; the code in this tutorial is the same for both.
 
 ## 2. Background: One Schema, One Repository
 
@@ -62,6 +62,8 @@ A `JdbcTransactor` is the entry point to a database. It knows how to open a JDBC
 Our bookshelf lives in a SQLite file. SQLite stores a whole database in one file, so there is no server to install:
 
 ```scala mdoc:silent
+import zio.blocks.maybe.Maybe
+import zio.blocks.schema.Schema
 import zio.blocks.sql.*
 
 val dbFile = java.nio.file.Files.createTempFile("bookshelf", ".db")
@@ -71,7 +73,7 @@ val transactor = JdbcTransactor.fromUrl(s"jdbc:sqlite:$dbFile", SqlDialect.SQLit
 
 The code above:
 
-- `import zio.blocks.sql.*` brings in `JdbcTransactor`, `SqlDialect` and every other type we use in this tutorial.
+- `import zio.blocks.sql.*` brings in `JdbcTransactor`, `SqlDialect` and every other type we use in this tutorial except `Schema` and `Maybe`, which we import here for later sections. We keep `import zio.blocks.sql.*` after the other `zio.blocks` imports: if your project also uses the `sql-zio` module, it brings a package named `zio` into scope, and a `zio.blocks` import after it fails to compile.
 - `Files.createTempFile("bookshelf", ".db")` creates a new, empty file in the system's temporary directory, so each run of this tutorial starts with an empty database.
 - `JdbcTransactor.fromUrl(s"jdbc:sqlite:$dbFile", SqlDialect.SQLite)` creates a transactor for that file. It doesn't connect yet; it only remembers how to.
 
@@ -102,8 +104,6 @@ The printed version comes from the SQLite engine bundled with the JDBC driver. W
 Now let's describe a book. We use the same pattern as in [Your First Schema](./your-first-schema.md): a case class with a derived `Schema` in its companion object. Since the `sql` module is Scala 3 only, we write the schema as a `given`, which is the Scala 3 spelling of the `implicit val` from that tutorial:
 
 ```scala mdoc:silent
-import zio.blocks.schema.Schema
-
 case class Book(id: Long, title: String, author: String, year: Int, isbn: Option[String])
 
 object Book {
@@ -263,8 +263,6 @@ The code above builds a `Frag` with `sql"... WHERE year < $publishedBefore"`, wh
 When a query returns at most one row, we use `Frag#queryOne` instead. It returns a `Maybe`, just like `Repo#find`. Let's wrap a title lookup in a method of its own:
 
 ```scala mdoc:silent
-import zio.blocks.maybe.Maybe
-
 def findByTitle(title: String)(using DbCon): Maybe[Book] =
   sql"SELECT id, title, author, year, isbn FROM book WHERE title = $title".queryOne[Book]
 ```
@@ -517,3 +515,4 @@ You now have a solid foundation in the ZIO Blocks `sql` module. The next step is
 - **Using ZIO?** [TransactorZIO](../reference/sql/transactor-zio.md) runs the same work as ZIO effects.
 - **Testing your database code?** [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) gives every test its own SQLite database and rolls back writes.
 - **Want the big picture?** The [SQL Module](../reference/sql/index.md) overview links to every `sql` reference page.
+- **Ready to put it all together?** [Build a Small JSON Backend from Blocks](./small-json-backend-from-blocks.md) is the capstone tutorial that combines schema, config, scope, SQL and telemetry into one small JSON backend.
