@@ -39,8 +39,8 @@ object JdkHttp {
   }
 
   /**
-   * Writes the status, headers and body of a `Response` to an exchange. The
-   * JDK server computes `Content-Length` itself, so the response's own
+   * Writes the status, headers and body of a `Response` to an exchange. The JDK
+   * server computes `Content-Length` itself, so the response's own
    * `content-length` and `transfer-encoding` headers are skipped.
    */
   def writeResponse(exchange: HttpExchange, response: Response): Unit = {
@@ -60,18 +60,18 @@ object JdkHttp {
   }
 
   /**
-   * Turns an application into an `HttpHandler`. A `HEAD` request runs the
-   * `GET` route and drops the body; an exception in the application becomes a
-   * 500 response; the exchange is closed on every path.
+   * Turns an application into an `HttpHandler`. A `HEAD` request runs the `GET`
+   * route and drops the body; an exception in the application becomes a 500
+   * response; the exchange is closed on every path.
    */
   def handler(app: Request => Response): HttpHandler = exchange =>
     try {
       val response =
         try
           toRequest(exchange) match {
-            case Left(error)                               => error
+            case Left(error)                                     => error
             case Right(request) if request.method == Method.HEAD => app(request.copy(method = Method.GET))
-            case Right(request)                            => app(request)
+            case Right(request)                                  => app(request)
           }
         catch {
           case NonFatal(error) =>

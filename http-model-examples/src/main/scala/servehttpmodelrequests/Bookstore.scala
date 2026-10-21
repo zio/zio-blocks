@@ -24,7 +24,7 @@ object Bookstore {
     Book(3, "Functional Programming in Scala", List("Paul Chiusano", "Rúnar Bjarnason"), 2014)
   )
 
-  val bookJson: JsonCodec[Book]        = Schema[Book].jsonCodec
+  val bookJson: JsonCodec[Book]           = Schema[Book].jsonCodec
   val bookListJson: JsonCodec[List[Book]] = Schema[List[Book]].jsonCodec
 
   def catalogPage(books: List[Book]): Dom.Element =

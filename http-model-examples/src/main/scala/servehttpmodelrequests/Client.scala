@@ -21,7 +21,7 @@ object Client {
           .method(method, HttpRequest.BodyPublishers.ofString(body))
           .header("content-type", "application/json")
           .build()
-    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+    val response                     = client.send(request, HttpResponse.BodyHandlers.ofString())
     def header(name: String): String = response.headers.firstValue(name).orElse("none")
     println(s"$method $target -> ${response.statusCode} [${header("content-type")}, ${header("content-length")} bytes]")
     if (response.body.nonEmpty) println(response.body)
