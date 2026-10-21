@@ -57,10 +57,10 @@ In ZIO Blocks, a `Schema[A]` describes the structure of `A`, and a `Deriver[TC]`
 This guide builds on [Your First Schema](./your-first-schema.md): you should know how to derive a `Schema` for a case class. Add the schema module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 ```
 
