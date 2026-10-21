@@ -39,7 +39,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-35 | How to serve http-model requests with the JDK HTTP server                     | In review                               | #1806 (`http-server`); reusable `JdkHttp` adapter |
 | T-12 | Instrument a program with logs, traces and metrics                            | In review                               | #1805 (`docs/t12-instrument-telemetry`), `telemetry-examples/` |
 | H-38 | How to protect an endpoint with JWT bearer tokens                             | Done                                    | #1804, `guides/protect-endpoints-with-jwt.md`, `jwt-examples/` |
-| H-39 | How to write an OpenAPI document and export it as JSON or YAML                | In review                               | #1807 (`openapi`), `openapi-examples/` |
+| H-39 | How to write an OpenAPI document and export it as JSON or YAML                | Done                                    | #1807, `guides/` OpenAPI guide, `openapi-examples/` |
 | H-36 | How to validate query parameters and headers and answer 400                   | In review                               | #1808 (`query-validation`), depends on #1806 (H-35)                                     |
 | T-15 | Build a small JSON backend from blocks (capstone)                             | Done                                    | #1809, `guides/small-json-backend-from-blocks.md`, `capstone-examples/`                  |
 | H-04 | How to define validated newtypes and collect every validation error   | Done                                    | #1811, `guides/validated-newtypes.md`                                                   |
