@@ -513,6 +513,7 @@ sbt "runMain writejoinsandinspectgeneratedsql.CompleteExample"
 ## Going Further
 
 - [Frag](../reference/sql/frag.md) documents `Frag#query`, `Frag#queryOne` and the other ways to run the fragment `SqlQuery#toFrag` returns.
+- [How to Stream Large Query Results](./stream-large-query-results.md) reads a large join as a stream of row chunks: call `Frag#queryStream` or `Frag#queryChunked` on the fragment `SqlQuery#toFrag` returns, instead of `Frag#query`.
 - [DbCodec](../reference/sql/db-codec.md) explains how rows decode into case classes and tuples, and how SQL `NULL` is handled.
 - [sql(table) Checked Interpolation](./sql-checked-interpolation.md) checks table and column names in hand-written SQL at compile time, for joins that `SqlQuery` can't express.
 - [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) gives every test its own database, which suits tests for join queries.
