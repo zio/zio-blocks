@@ -558,6 +558,7 @@ You now know how to take one Scala type to any format ZIO Blocks supports. The n
 
 - **Want an overview of every format?** The [Built-in Codecs](../reference/schema/built-in-codecs/index.md) page lists each format with its codec type, MIME type and module.
 - **Curious how format objects work?** Read [Format](../reference/schema/format.md) for the `Format` abstraction behind `Schema#derive`.
+- **Working with YAML in depth?** Read [How to Read and Write YAML Documents](./read-and-write-yaml.md) to read YAML into case classes, write CI-style YAML and guard against YAML the reader silently misreads.
 - **Ready to tune one format?** Each format has its own reference page: [JSON](../reference/schema/built-in-codecs/json/index.md), [YAML](../reference/schema/built-in-codecs/yaml.md), [XML](../reference/schema/built-in-codecs/xml.md), [TOON](../reference/schema/built-in-codecs/toon.md), [MessagePack](../reference/schema/built-in-codecs/messagepack.md), [Avro](../reference/schema/built-in-codecs/avro.md) and [CSV](../reference/schema/built-in-codecs/csv.md).
 - **Need Thrift or BSON?** Read [Thrift](../reference/schema/built-in-codecs/thrift.md) and [BSON](../reference/schema/built-in-codecs/bson.md).
 - **Want to know how derivation works?** Read [Type Class Derivation](../reference/schema/type-class-derivation.md) to see how a `Deriver` turns a schema into a codec.
