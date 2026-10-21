@@ -72,7 +72,7 @@ In this guide, the config module decodes the settings into a case class from its
 
 ## Prerequisites
 
-Add the config module and the three format modules to your `build.sbt`. Each format module depends only on `zio-blocks-config`, so add only the formats you read:
+Add the config module and the three format modules to your `build.sbt`. `config-hocon` depends only on `zio-blocks-config`; `config-json` and `config-yaml` also bring in the schema and schema-yaml modules, so add only the formats you read:
 
 ```scala
 // Scala 2.13 and Scala 3.3 to 3.8
@@ -296,7 +296,7 @@ Substitutions are resolved after every file is merged, so `db.url` picks up the 
 println(loadBookstore(layeredConf))
 ```
 
-`${?path}` is the optional form: when `path` is not defined anywhere in the files, the key that uses it is left out instead of failing the parse.
+`${?path}` is the optional form: when `path` is not defined anywhere in the files, a key whose whole value is `${?path}` is left out instead of failing the parse. Inside a concatenation such as `"jdbc:postgresql://localhost:5432/"${?db.name}`, the missing part becomes the text `null` in 0.0.56, a known bug, so avoid `${?path}` inside concatenations.
 
 :::warning[Two substitutions Typesafe Config users rely on]
 In 0.0.56, a substitution never falls back to an environment variable: `${DB_PASSWORD}` fails to parse and `${?DB_PASSWORD}` resolves to nothing, even when the variable is set. This is a known bug. Read environment variables with an `EnvSource` layer instead, as [Overriding File Values From the Environment](#overriding-file-values-from-the-environment) shows. A self-reference such as `path = ${path}":/opt/bin"` is also rejected as a circular substitution; `+=`, which appends to a list, works.
