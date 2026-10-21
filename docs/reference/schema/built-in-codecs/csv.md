@@ -59,7 +59,7 @@ The module provides a complete pipeline for CSV codec derivation and usage:
 3. **Parse or serialize** — Call `CsvCodec#decode` or `CsvCodec#encode`
 4. **Handle errors** — Catch `CsvError` with row/column location information
 
-The derivation process is automatic for supported types (all 27 primitives and flat records). Unsupported types (sealed traits, sequences, maps) are rejected at derivation time with clear error messages.
+The derivation process is automatic for supported types (all 27 primitives and flat records). Unsupported types (sealed traits, `Option` fields, sequences, maps) are rejected at derivation time, when `Schema#derive` runs, with an `UnsupportedOperationException`.
 
 ## How They Work Together
 
@@ -131,22 +131,21 @@ val encoded = buffer.toString
 
 ### Pattern 2: Customize CSV Format with CsvConfig
 
-When you need tab-separated values (TSV) or a different delimiter, pass a custom `CsvConfig` to the derivation or directly to encoding/decoding methods.
+A codec derived with `Schema#derive(CsvFormat)` always uses `CsvConfig.default`: a comma between fields, double quotes and a `\r\n` line ending. `CsvFormat` takes no configuration. When you need tab-separated values (TSV) or a different delimiter, pass a `CsvConfig` to `CsvWriter` and `CsvReader`, which work on rows of field strings.
 
-To use a tab-separated format instead of comma-separated:
+To write and read a tab-separated document:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema._
 import zio.blocks.schema.csv._
 
-case class Record(id: Int, value: String)
+val tsv: String = CsvWriter.writeAll(
+  IndexedSeq("id", "value"),
+  List(IndexedSeq("1", "first"), IndexedSeq("2", "second")),
+  CsvConfig.tsv
+)
 
-object Record {
-  implicit val schema: Schema[Record] = Schema.derived
-  // Note: Schema#derive accepts only a single format argument
-  // TSV configuration would be set through the format's configuration API
-  val tsvCodec = schema.derive(CsvFormat) // See CsvConfig for available options
-}
+val parsed: Either[CsvError, (IndexedSeq[String], IndexedSeq[IndexedSeq[String]])] =
+  CsvReader.readAll(tsv, CsvConfig.tsv)
 ```
 
 ### Pattern 3: Handle CSV Errors with Location Information
@@ -291,7 +290,7 @@ Configuration for CSV parsing and generation, controlling delimiters, quoting, l
 
 ### Overview
 
-`CsvConfig` is a case class with sensible RFC 4180 defaults. Customize it when you need different delimiters (e.g., tabs), custom line endings, or different quoting behavior.
+`CsvConfig` is a case class with sensible RFC 4180 defaults. Customize it when you need different delimiters (e.g., tabs), custom line endings, or different quoting behavior. A custom `CsvConfig` applies to `CsvReader` and `CsvWriter`; codecs derived with `CsvFormat` always use `CsvConfig.default`.
 
 ### Defaults and Presets
 
@@ -508,7 +507,7 @@ val csv: String = CsvWriter.writeAll(header, rows, config)
 
 ## CsvCodecDeriver
 
-Implements schema-driven derivation of `CsvCodec[A]` instances. Automatically handles 27 primitive types and flat record types, rejecting unsupported types (sealed traits, sequences, maps) with clear error messages.
+Implements schema-driven derivation of `CsvCodec[A]` instances. Automatically handles 27 primitive types and flat record types, rejecting unsupported types (sealed traits, `Option` fields, sequences, maps) with clear error messages.
 
 ### Primitive Type Support
 
@@ -538,7 +537,7 @@ val headers = codec.headerNames // Vector("street", "city", "zip")
 
 ### Unsupported Types
 
-Attempting to derive a codec for unsupported types (sealed traits, sequences, maps, dynamic types) results in a clear compile-time or derivation-time error. The deriver rejects these to prevent silent failures in CSV processing.
+Attempting to derive a codec for unsupported types (sealed traits, `Option` fields, sequences, maps, dynamic types) throws an `UnsupportedOperationException` at run time, when `Schema#derive` runs; the code still compiles. `Option` is rejected as a variant, with the message `CSV does not support variant/sum types. Use a flat case class instead.` The deriver rejects these to prevent silent failures in CSV processing.
 
 ---
 

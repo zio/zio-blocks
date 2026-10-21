@@ -456,6 +456,7 @@ const sidebars = {
     "guides/your-first-schema",
     "guides/customize-json-encoding",
     "guides/override-codec-for-one-type",
+    "guides/derive-your-own-type-class",
     "guides/nested-data-with-optics",
     "guides/one-type-many-formats",
     "guides/read-and-write-csv-and-tsv-files",
