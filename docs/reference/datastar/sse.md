@@ -230,6 +230,6 @@ Set `PatchElementsBuilder#eventId` when the client should be able to resume with
 
 ## Integration Points
 
-`DatastarEvent#renderSSE` delegates to `ServerSentEvent` from `zio-http-model`, which supplies the SSE envelope, the field ordering, and the terminating blank line — see [ServerSentEvent](../http-model/server-sent-event.md). The Datastar-specific part is the event name and the keyed `data:` body.
+`DatastarEvent#renderSSE` delegates to `ServerSentEvent` from `zio-blocks-http-model`, which supplies the SSE envelope, the field ordering, and the terminating blank line — see [ServerSentEvent](../http-model/server-sent-event.md). The Datastar-specific part is the event name and the keyed `data:` body.
 
 Element patches carry `Dom` values and `CssSelector` targets from [HTML](../html.md), and signal patches carry [SignalUpdate](./signals.md) values whose JSON comes from the type's `Schema`. What the patched page does with the result is determined by the [Attributes](./attributes.md) and [Event Handlers](./events.md) rendered into it.

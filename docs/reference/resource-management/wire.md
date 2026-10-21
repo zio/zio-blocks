@@ -505,7 +505,7 @@ When `Resource.from` composes wires, it respects the sharing strategy:
 
 The macro detects cycles, duplicate providers, and missing dependencies at compile time. For what each error looks like and how to fix it, see [How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md).
 
-The `AppConfig` leaf above is hardcoded, which is rarely what a real graph wants. `Config.wire[A]` produces a `Wire.Shared[ConfigSource, A]` that decodes `A` from an injected `ConfigSource`, so configuration becomes a node in the graph rather than something resolved before it — see [Config](../config/index.md).
+The `AppConfig` leaf above is hardcoded, which is rarely what a real graph wants. `Config.wire[A]` produces a `Wire.Shared[ConfigSource, A]` that decodes `A` from an injected `ConfigSource`, so configuration becomes a node in the graph rather than something resolved before it — see [Config](../config/index.md). For a complete walkthrough, see [How to Feed Configuration into a Wire Dependency Graph](../../guides/feed-config-into-a-wire-graph.md).
 
 ## Comparison with Alternatives
 

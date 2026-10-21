@@ -18,10 +18,10 @@ scalacOptions ++= {
 
 val zioBlocksVersion = "0.0.56"
 
-// Scala 3.7+ artifacts are published as `zio-blocks-next-*`; older Scala versions use `zio-blocks-*`.
+// Scala 3.9+ uses the `zio-blocks-next-*` artifacts (built with Scala 3.9.0, unreadable by older Scala 3 compilers); older Scala versions use `zio-blocks-*`.
 def zioBlocks(module: String) = Def.setting {
   val prefix = CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((3, minor)) if minor >= 7 => "zio-blocks-next"
+    case Some((3, minor)) if minor >= 9 => "zio-blocks-next"
     case _                              => "zio-blocks"
   }
   "dev.zio" %% s"$prefix-$module" % zioBlocksVersion

@@ -40,14 +40,14 @@ To follow along, add the `sql` module and the SQLite JDBC driver to your `build.
 // Scala 3.3 LTS
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "@VERSION@"
 
 // The SQLite JDBC driver, for every Scala version
 libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 ```
 
-The `sql` module is published for Scala 3 only, and the `JdbcTransactor` we use to talk to the database runs on the JVM. Scala 3.7 and newer use the `zio-blocks-next-sql` artifact name; the code in this tutorial is the same for both.
+The `sql` module is published for Scala 3 only, and the `JdbcTransactor` we use to talk to the database runs on the JVM. Scala 3.9 and newer use the `zio-blocks-next-sql` artifact name; the code in this tutorial is the same for both.
 
 ## 2. Background: One Schema, One Repository
 
@@ -517,3 +517,4 @@ You now have a solid foundation in the ZIO Blocks `sql` module. The next step is
 - **Using ZIO?** [TransactorZIO](../reference/sql/transactor-zio.md) runs the same work as ZIO effects.
 - **Testing your database code?** [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) gives every test its own SQLite database and rolls back writes.
 - **Want the big picture?** The [SQL Module](../reference/sql/index.md) overview links to every `sql` reference page.
+- **Ready to put it all together?** [Build a Small JSON Backend from Blocks](./small-json-backend-from-blocks.md) is the capstone tutorial that combines schema, config, scope, SQL and telemetry into one small JSON backend.

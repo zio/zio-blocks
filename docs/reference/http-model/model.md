@@ -3,7 +3,7 @@ id: model
 title: "HTTP Model"
 ---
 
-`zio-http-model` is a **runtime-independent HTTP data model** for building HTTP clients and servers. It provides immutable types representing all HTTP concepts: requests, responses, headers, URLs, paths, query parameters, methods, status codes, versions, cookies, and forms.
+`zio-blocks-http-model` is a **runtime-independent HTTP data model** for building HTTP clients and servers. It provides immutable types representing all HTTP concepts: requests, responses, headers, URLs, paths, query parameters, methods, status codes, versions, cookies, and forms.
 
 Core types: `Request`, `Response`, `URL`, `Headers`, `Body`, `Method`, `Status`, `Version`, `Scheme`, `Path`, `QueryParams`, `ContentType`, `RequestCookie`, `ResponseCookie`, `Form`.
 
@@ -52,7 +52,7 @@ You've built your entire API client around ZIO's HTTP library, but your team dec
 
 ### The Solution: Runtime-Independent HTTP Data
 
-`zio-http-model` separates **protocol concerns** (representing HTTP messages) from **effect concerns** (actually sending/receiving them). It provides:
+`zio-blocks-http-model` separates **protocol concerns** (representing HTTP messages) from **effect concerns** (actually sending/receiving them). It provides:
 
 - **Immutable message values** — `Request`, `Response`, `URL`, and `Headers` are immutable data. `Body` wraps a pull-based byte stream; materializing the complete body is represented by the lightweight `Async` abstraction.
 
@@ -70,16 +70,16 @@ This separation is powerful: you can build, manipulate, serialize, and test HTTP
 Add the following to your `build.sbt`:
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-http-model" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-http-model" % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-http-model" % "@VERSION@"
+libraryDependencies += "dev.zio" %%% "zio-blocks-http-model" % "@VERSION@"
 ```
 
-Supported Scala versions: Scala 2.13 and Scala 3.x. The artifacts are cross-platform for JVM and Scala.js.
+Supported Scala versions: Scala 2.13 and Scala 3.x. On Scala 3.9 and newer the artifact is `zio-blocks-next-http-model` (see [How to Add ZIO Blocks to Your Build](../../guides/add-zio-blocks-to-your-build.md)). The artifacts are cross-platform for JVM and Scala.js.
 
 ## How They Work Together
 
