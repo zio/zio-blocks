@@ -566,3 +566,5 @@ try {
 :::note
 `SchemaError` extends `scala.util.control.NoStackTrace`. Stack traces are suppressed for performance — error location is conveyed through the `DynamicOptic` path inside each `Single`, not the JVM stack.
 :::
+
+See also the [Your First Schema](../../guides/your-first-schema.md) tutorial, which shows how decode failures surface as `SchemaError`, and the [How to Define Validated Newtypes and Collect Every Validation Error](../../guides/validated-newtypes.md) guide, which collects every validation failure into one `SchemaError`.

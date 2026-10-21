@@ -33,8 +33,8 @@ object Table {
 The following example illustrates the core workflow: derive a table from a schema-equipped case class, inspect its column names, generate `CREATE TABLE` DDL, and finally generate `DROP TABLE` DDL:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User {
@@ -69,8 +69,8 @@ object Table {
 The following example derives a table for a two-field case class and checks the resulting name and column list:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class BlogPost(title: String, body: String)
 object BlogPost {
@@ -95,8 +95,8 @@ object Table {
 The following example maps `UserProfile` to a table called `profiles` rather than the default `user_profile`:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class UserProfile(firstName: String, lastName: String)
 object UserProfile {
@@ -125,8 +125,8 @@ object Table {
 The following example uses `TableNamingPolicy.Plural` so that `Category` maps to the table `categories`:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class Category(name: String)
 object Category {
@@ -192,8 +192,8 @@ final case class Table[A](...) {
 The following example shows `columns` reflecting the snake_case field names derived from the schema:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class OrderLine(productId: Int, quantity: Int, unitPrice: BigDecimal)
 object OrderLine {
@@ -210,7 +210,7 @@ The DDL Generation category provides `createTable` and `dropTable`, which produc
 
 #### `createTable` — Generate a CREATE TABLE statement
 
-`Table#createTable` accepts a `SqlDialect` and returns a `Frag` whose SQL text is a `CREATE TABLE IF NOT EXISTS` statement. Each column definition uses the dialect's `typeName` method to convert the column's `DbValue` representative to the appropriate SQL type string (for example, `DbValue.DbString` becomes `TEXT` in PostgreSQL and `TEXT` in SQLite; `DbValue.DbInt` becomes `INTEGER` in both). Non-nullable columns carry a `NOT NULL` constraint; nullable columns do not.
+`Table#createTable` accepts a `SqlDialect` and returns a `Frag` whose SQL text is a `CREATE TABLE IF NOT EXISTS` statement. Each column definition uses the dialect's `typeName` method to convert the column's `DbValue` representative to the appropriate SQL type string (for example, `DbValue.DbString` becomes `TEXT` in PostgreSQL and `TEXT` in SQLite; `DbValue.DbInt` becomes `INTEGER` in both). Non-nullable columns carry a `NOT NULL` constraint; nullable columns do not. The statement declares no `PRIMARY KEY` or `UNIQUE` constraint, not even on the column that a `Repo` uses as its ID, so `Repo#insertOrUpdate` needs a table you create yourself (see [Repo](./repo.md)).
 
 ```scala
 final case class Table[A](...) {
@@ -221,8 +221,8 @@ final case class Table[A](...) {
 The following example demonstrates the DDL generated for a record with a mix of column types and an optional field:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class Product(sku: String, price: BigDecimal, stock: Option[Int])
 object Product {
@@ -251,8 +251,8 @@ final case class Table[A](...) {
 The following example shows the drop statement for a table derived from a simple case class:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class Session(token: String, userId: Int)
 object Session {

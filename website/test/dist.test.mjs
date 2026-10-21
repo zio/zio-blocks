@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import site from '../src/data/site.json' with { type: 'json' };
 import { titleCase } from '../src/lib/title-case.mjs';
+import { RAIL } from '../src/lib/rail.mjs';
+import { JOIN_URL, USERS } from '../src/lib/users.mjs';
 
 const html = readFileSync(new URL('../build/index.html', import.meta.url), 'utf8');
 
@@ -54,10 +56,8 @@ test('hero', () => {
     'Modular Building\u00a0Blocks for Modern Scala Applications',
   );
   assert.equal(text(/<p class="lp-lead"[^>]*>([\s\S]*?)<\/p>/.exec(hero)[1]), text(site.lead.replace(/\*+|`/g, '')));
-  assert.equal(
-    text(/<pre[\s\S]*?<\/pre>/.exec(hero)[0]),
-    `${site.hero.install} ${site.hero.jsonCode} // ${site.hero.jsonResult}`,
-  );
+  // The hero has no code: each deep-dive panel shows its own install line instead.
+  assert.doesNotMatch(hero, /<pre/);
   assert.equal(text(/<p class="lp-stack"[^>]*>([\s\S]*?)<\/p>/.exec(hero)[1]), `Works with ${site.compatibility.join(' · ')}`);
   assert.match(hero, /href="\/overview"/);
   assert.match(hero, /href="https:\/\/github\.com\/zio\/zio-blocks"/);
@@ -65,10 +65,21 @@ test('hero', () => {
 
 test('the navbar and footer carry the brand lockups and the main links', () => {
   assert.match(html, /<img [^>]*src="\/brand\/zio-blocks-logo-on-dark\.svg"[^>]*alt="ZIO Blocks"|<img [^>]*alt="ZIO Blocks"[^>]*src="\/brand\/zio-blocks-logo-on-dark\.svg"/);
+  const navbar = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'));
+  // The Guides item opens the first page of the guides sidebar.
+  for (const href of ['/overview', '/guides/async-getting-started']) {
+    assert.match(navbar, new RegExp(`href="${href.replace(/[./]/g, '\\$&')}"`));
+  }
   const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
   assert.match(footer, /\/brand\/zio-blocks-logo-mono-white\.svg/);
-  for (const href of ['/overview', '/reference/schema/', 'https://github.com/zio/zio-blocks']) {
+  for (const href of ['/overview', '/guides/', '/reference/', '/api/', 'https://github.com/zio/zio-blocks']) {
     assert.match(footer, new RegExp(`href="${href.replace(/[./]/g, '\\$&')}"`));
+  }
+  // The API links point at the Scaladoc in static/api: plain links, not client-side routes, opening in the same tab.
+  for (const part of [navbar, footer]) {
+    const api = /<a [^>]*href="\/api\/"[^>]*>API<\/a>/.exec(part);
+    assert.ok(api, 'missing the API link');
+    assert.doesNotMatch(api[0], /target="_blank"/);
   }
 });
 
@@ -76,6 +87,20 @@ test('principles', () => {
   const s = sec('principles');
   const items = [...s.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
   assert.deepEqual(items, site.principles.map((p, i) => `0${i + 1} ${titleCase(p.name)} ${p.text}`));
+});
+
+test('the section rail links to every landing section and sits outside the landing content', () => {
+  const start = html.indexOf('<nav class="lp-rail"');
+  assert.notEqual(start, -1, 'missing <nav class="lp-rail"');
+  const rail = html.slice(start, html.indexOf('</nav>', start));
+  assert.match(rail.slice(0, rail.indexOf('>')), /aria-label="Sections"/);
+  assert.equal(main.includes('lp-rail'), false, 'the rail must be outside <main id="landing">');
+  const links = [...rail.matchAll(/<a [^>]*>/g)].map((m) => m[0]);
+  assert.deepEqual(links.map((t) => /href="#([^"]+)"/.exec(t)[1]), RAIL.map((s) => s.id));
+  assert.deepEqual(links.map((t) => /aria-label="([^"]+)"/.exec(t)[1]), RAIL.map((s) => s.label));
+  // Server-rendered HTML marks the first section as current; exactly one link is.
+  assert.deepEqual(links.map((t) => /aria-current="true"/.test(t)), RAIL.map((_, i) => i === 0));
+  for (const s of RAIL) assert.ok(main.includes(`<section id="${s.id}"`), `no <section id="${s.id}">`);
 });
 
 test('deep dives render every panel visible without JavaScript', () => {
@@ -93,6 +118,12 @@ test('deep dives render every panel visible without JavaScript', () => {
   assert.deepEqual(tabTags.map((t) => /aria-selected="(true|false)"/.exec(t)[1]), ['true', 'false', 'false', 'false']);
   assert.deepEqual(tabTags.map((t) => /tabindex="(-?\d)"/.exec(t)[1]), ['0', '-1', '-1', '-1']);
   assert.deepEqual(tabTags.map((t) => /aria-controls="([^"]*)"/.exec(t)[1]), site.deepDives.map((d) => `panel-${d.id}`));
+});
+
+test('every deep-dive panel shows its own install snippet', () => {
+  const s = sec('deep-dives');
+  const installs = [...s.matchAll(/<div class="lp-install">([\s\S]*?<\/pre>)/g)].map((m) => text(m[1]));
+  assert.deepEqual(installs, site.deepDives.map((d) => `Installation ${text(d.install)}`));
 });
 
 test('schema panel lists the format chips derived from the catalog', () => {
@@ -149,7 +180,7 @@ test('catalog has no filter controls, counter, empty-state message or buttons', 
 
 test('page order, anchors, images, and leftovers', () => {
   const ids = [...main.matchAll(/<section id="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(ids, ['hero', 'principles', 'deep-dives', 'catalog']);
+  assert.deepEqual(ids, ['hero', 'principles', 'deep-dives', 'catalog', 'users']);
   const allIds = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
   for (const [, target] of html.matchAll(/href="#([^"]+)"/g)) assert.ok(allIds.has(target), `dangling #${target}`);
   for (const img of html.matchAll(/<img\b[^>]*>/g)) assert.match(img[0], /\balt="[^"]+"/);
@@ -199,14 +230,18 @@ test('every title, heading and label on the landing page is in title case', () =
     'Use What You Need, Nothing More',
     'Four Blocks, in Code',
     'Take Only What You Need',
+    'Who Is Using ZIO Blocks?',
   ]);
   assert.deepEqual(
     all(/<p class="lp-label"[^>]*>([\s\S]*?)<\/p>/g)
       .map((l) => l.replace(/\u00a0/g, ' ').replace(/\s+/g, ' '))
-      .filter((l) => !l.startsWith('The ')),
-    ['01 Principles', '02 Deep Dives', 'One Schema, Many Formats', '03 Block Catalog'],
+      .filter((l) => !l.startsWith('The ') && l !== 'Installation'),
+    ['01 Principles', '02 Deep Dives', 'One Schema, Many Formats', '03 Block Catalog', '04 Users'],
   );
-  assert.deepEqual(all(/<p class="lp-label"[^>]*>(The [\s\S]*?)<\/p>/g), site.deepDives.flatMap(() => ['The Problem', 'The Solution']));
+  assert.deepEqual(
+    all(/<p class="lp-label"[^>]*>((?:The |Installation)[\s\S]*?)<\/p>/g),
+    site.deepDives.flatMap(() => ['Installation', 'The Problem', 'The Solution']),
+  );
   assert.deepEqual(all(/<h3[^>]*>([\s\S]*?)<\/h3>/g), [
     ...site.deepDives.map((d) => titleCase(d.title)),
     ...site.categories.map((c) => titleCase(c.name)),
@@ -216,6 +251,50 @@ test('every title, heading and label on the landing page is in title case', () =
   assert.deepEqual(all(/<strong[^>]*>([\s\S]*?)<\/strong>/g, sec('principles')), site.principles.map((p) => titleCase(p.name)));
 });
 
+test('the users section links every organization by its logo and invites new users to join', () => {
+  const s = sec('users');
+  const tiles = [...s.matchAll(/<li class="lp-user">([\s\S]*?)<\/li>/g)].map((m) => m[1]);
+  assert.equal(tiles.length, USERS.length);
+  USERS.forEach((u, i) => {
+    assert.ok(tiles[i].includes(`href="${u.url}"`), `${u.name} links to ${u.url}`);
+    // One image, or a light and a dark one that CSS switches between; every one is named and sized.
+    const imgs = [...tiles[i].matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+    const logos = u.logoDark ? [[u.logo, 'lp-logo-light'], [u.logoDark, 'lp-logo-dark']] : [[u.logo, undefined]];
+    assert.equal(imgs.length, logos.length, `${u.name} logo count`);
+    logos.forEach(([src, cls], k) => {
+      assert.ok(imgs[k].startsWith(`<img src="${src}" alt="${u.name}" width="${u.width}" height="${u.height}"`), imgs[k]);
+      assert.equal(/class="([^"]*)"/.exec(imgs[k])?.[1], cls);
+      assert.equal(/--lp-logo-scale:\s*([\d.]+)/.exec(imgs[k])?.[1], u.logoScale?.toString(), `${u.name} logo scale`);
+      assert.ok(readFileSync(new URL(`../static${src}`, import.meta.url), 'utf8').startsWith('<?xml'), `${src} exists`);
+    });
+    assert.equal(text(tiles[i]), u.description);
+  });
+  const join = /<p class="lp-join">([\s\S]*?)<\/p>/.exec(s)[1];
+  assert.equal(text(join), 'Are you using ZIO Blocks? Let us know and join the list!');
+  assert.ok(join.includes(`href="${JOIN_URL}"`));
+});
+
+test('the footer carries the zio.dev credit line with the build year', () => {
+  const credit = /<div class="footer__copyright">([\s\S]*?)<\/div>/.exec(html)?.[1];
+  assert.ok(credit, 'missing the footer copyright');
+  assert.equal(text(credit), `Copyright © ${new Date().getFullYear()} ZIO Maintainers - Built with Docusaurus`);
+  assert.ok(credit.includes('<a href="https://docusaurus.io/"'));
+});
+
+test('the footer puts the logo and tagline beside three titled link columns', () => {
+  const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
+  assert.match(footer, /^<footer class="[^"]*\bzb-footer\b/);
+  assert.equal(/footer--dark/.test(footer), false, "Infima's grey dark footer is not used");
+  const brand = /<div class="zb-footer-brand">([\s\S]*?)<\/p><\/div>/.exec(footer)?.[1];
+  assert.ok(brand, 'missing the footer brand block');
+  assert.ok(brand.includes('href="/"') && brand.includes('alt="ZIO Blocks"'), 'the footer logo links home');
+  assert.equal(text(brand), 'Type-safe, modular building blocks for Scala.');
+  assert.deepEqual([...footer.matchAll(/<div class="footer__title">([^<]*)<\/div>/g)].map((m) => m[1]), ['Learn', 'Community', 'ZIO ecosystem']);
+  const hrefs = [...footer.matchAll(/class="footer__link-item"[^>]*href="([^"]+)"|href="([^"]+)"[^>]*class="footer__link-item"/g)].map((m) => m[1] ?? m[2]);
+  assert.deepEqual(hrefs, ['/overview', '/guides/', '/reference/', '/api/', 'https://github.com/zio/zio-blocks', 'https://discord.gg/2ccFBr4', 'https://zio.dev', 'https://ziohttp.com']);
+  assert.ok(footer.indexOf('zb-footer-base') > footer.indexOf('footer__links'), 'the credit line comes last');
+});
+
 test('there is no switching-cost section and no guides list on the landing page', () => {
   assert.equal(/switching/i.test(main), false);
 });
@@ -223,4 +302,30 @@ test('there is no switching-cost section and no guides list on the landing page'
 test('version.txt names the commit, links to it and gives the build time', () => {
   const versionTxt = readFileSync(new URL('../build/version.txt', import.meta.url), 'utf8');
   assert.match(versionTxt, /^commit: ([0-9a-f]{40}|unknown)\nurl: (?:https:\/\/github\.com\/zio\/zio-blocks\/commit\/\1|unknown)\nbuilt: \d{4}-\d{2}-\d{2}T[\d:.]+Z\n$/);
+});
+
+test('the production CSS keeps scroll-driven motion behind @supports (animation-timeline: view())', () => {
+  const dir = new URL('../build/assets/css/', import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith('.css'));
+  assert.ok(files.length > 0, 'build/assets/css has no stylesheets');
+  const guard = /@supports\s*\(animation-timeline:\s*view\(\)\)\s*\{/;
+  let guarded = 0;
+  for (const file of files) {
+    let rest = readFileSync(new URL(file, dir), 'utf8');
+    for (let m = guard.exec(rest); m; m = guard.exec(rest)) {
+      const open = m.index + m[0].length - 1;
+      let depth = 0;
+      let close = -1;
+      for (let i = open; i < rest.length; i++) {
+        if (rest[i] === '{') depth++;
+        if (rest[i] === '}' && --depth === 0) { close = i; break; }
+      }
+      assert.notEqual(close, -1, `${file}: unbalanced braces in the @supports (animation-timeline: view()) block`);
+      if (/animation-timeline|view-timeline/.test(rest.slice(open, close))) guarded++;
+      rest = rest.slice(0, m.index) + rest.slice(close + 1);
+    }
+    const leak = rest.match(/[^{};]*(?:animation-timeline|view-timeline)[^;}]*/);
+    assert.ok(leak === null, `${file}: scroll-driven CSS leaked outside @supports (animation-timeline: view()): ${leak && leak[0].slice(0, 120)}`);
+  }
+  assert.ok(guarded > 0, 'no @supports (animation-timeline: view()) block containing animation-timeline or view-timeline was found in the built CSS');
 });

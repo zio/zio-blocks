@@ -17,8 +17,8 @@ sdk install sbt 1.11.7
 sdk use sbt 1.11.7
 set -u
 
-# Generate the docs with mdoc into website/docs
-sbt docs/mdoc
+# Generate the docs with mdoc into website/docs, and the Scaladoc into website/static/api (served at /api)
+sbt docs/mdoc docs/generateApiDocs
 
 # Build the website (the catalog generator runs first, then Docusaurus)
 cd website

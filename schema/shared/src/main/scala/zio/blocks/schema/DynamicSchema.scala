@@ -48,6 +48,10 @@ import java.util.{Currency, UUID}
  *
  * @example
  *   {{{
+ * import zio.blocks.chunk.Chunk
+ *
+ * case class Person(name: String, age: Int)
+ *
  * // Create a DynamicSchema from an existing Schema
  * val personSchema: Schema[Person] = Schema.derived[Person]
  * val dynamicSchema: DynamicSchema = personSchema.toDynamicSchema
@@ -253,9 +257,12 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
    *
    * @example
    *   {{{
+   * import zio.blocks.schema.binding._
+   *
    * case class Person(name: String, age: Int)
    *
-   * val dynamicSchema: DynamicSchema = ...
+   * // Usually loaded at runtime, for example decoded from JSON
+   * val dynamicSchema: DynamicSchema = Schema.derived[Person].toDynamicSchema
    * val resolver = BindingResolver.empty.bind(Binding.of[Person]) ++ BindingResolver.defaults
    * val schema: Schema[Person] = dynamicSchema.rebind[Person](resolver)
    *   }}}

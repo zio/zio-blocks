@@ -22,6 +22,21 @@
   text-wrap: balance;
 }
 
+/*
+ * Scroll: one gesture moves to the next section (useSectionScroll.js). CSS only supplies the geometry: Hero, Principles
+ * and Deep Dives fill one screen under the sticky navbar, and `min-height` lets them grow instead of clipping on short
+ * windows or with large text. Catalog is taller than a screen and scrolls natively until its edge. `scroll-padding-top`
+ * keeps hash links clear of the navbar when JavaScript is off.
+ */
+html:has(.lp-page) { scroll-padding-top: var(--ifm-navbar-height); }
+.lp-hero, .lp-screen {
+  min-height: calc(100svh - var(--ifm-navbar-height));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.lp-hero > .lp-wrap, .lp-screen > .lp-wrap { width: 100%; }
+
 .lp-btn {
   display: inline-block;
   padding: 0.7rem 1.1rem;
@@ -118,7 +133,15 @@
 }
 
 /* Deep dives */
-.lp-tablist { display: flex; flex-wrap: wrap; margin: 1.5rem 0; border-bottom: 1px solid var(--rule); }
+/*
+ * Deep Dives fits one screen on a laptop (1440x900): the title shares a row with the tabs, the intro shares a row with
+ * the install snippet, and the code is set tighter than elsewhere. Unlike the other screens it is top-aligned, not
+ * centred: panels differ in height, and switching tabs must not move the heading or the tabs.
+ */
+#deep-dives { padding-block: clamp(1.5rem, 3vw, 2.5rem); justify-content: flex-start; }
+.lp-dd-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0 2rem; border-bottom: 1px solid var(--rule); }
+.lp-dd-head h2 { margin-bottom: 0.75rem; }
+.lp-tablist { display: flex; flex-wrap: wrap; }
 .lp-tablist[hidden] { display: none; }
 .lp-tablist [role='tab'] {
   padding: 0.75rem 1.25rem;
@@ -130,19 +153,23 @@
   cursor: pointer;
 }
 .lp-tablist [role='tab'][aria-selected='true'] { color: var(--fg); border-bottom-color: var(--accent); }
-.lp-panel { margin-top: 2rem; }
+.lp-panel { margin-top: 1.25rem; }
 .lp-panel h3 { margin: 0 0 0.5rem; font-size: 1.5rem; font-weight: 800; }
 .lp-vh { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.lp-intro { max-width: 46rem; color: var(--fg-soft); font-size: 1.0625rem; }
-.lp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1.5rem; }
+.lp-intro { margin: 0; color: var(--fg-soft); font-size: 1.0625rem; }
+.lp-install { min-width: 0; }
+.lp-install .lp-label { color: var(--label); }
+.lp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+.lp-cols + .lp-cols { margin-top: 1.25rem; }
+#deep-dives .lp-codecard pre { padding: 0.75rem 1rem; font-size: 0.78rem; line-height: 1.5; }
 .lp-col { min-width: 0; }
 .lp-col p { color: var(--fg-soft); }
 .lp-col .lp-label { color: var(--label); }
-.lp-formats { margin-top: 2rem; }
+.lp-formats { margin-top: 1.25rem; }
 .lp-formats ul { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0 0; }
 .lp-chip { padding: 0.25rem 0.75rem; border: 1px solid var(--accent); font-size: 0.875rem; font-weight: 600; }
-.lp-more { margin: 2rem 0 0; color: var(--fg-soft); }
-.lp-more li { padding-block: 0.25rem; }
+.lp-more { margin: 1.25rem 0 0; color: var(--fg-soft); }
+.lp-more li { padding-block: 0.125rem; }
 .lp-more a { text-decoration: underline; text-underline-offset: 0.2em; }
 .lp-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 @media (max-width: 800px) { .lp-cols { grid-template-columns: 1fr; } }
@@ -184,5 +211,86 @@
 }
 .lp-learn:hover { background: var(--accent); color: #fff; text-decoration: none; }
 .lp-badges { margin: 0; color: var(--label); font-size: 0.75rem; letter-spacing: 0.04em; }
+/* Users: one logo tile per organization, on the catalog's tile grid, logo and line centred. The logos keep their own colours. */
+.lp-users { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--seam); margin: 2rem 0 0; }
+.lp-user a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  height: 100%;
+  padding: 1.5rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  color: var(--fg);
+  text-decoration: none;
+}
+.lp-user a:hover { border-color: var(--accent); text-decoration: none; }
+.lp-user img { width: auto; height: calc(2.5rem * var(--lp-logo-scale, 1)); max-width: 100%; }
+.lp-user .lp-desc { flex: none; text-align: center; }
+/* A logo with a dark-mode variant: show the one that matches the colour mode Docusaurus sets on <html>. */
+.lp-user .lp-logo-dark, [data-theme='dark'] .lp-user .lp-logo-light { display: none; }
+[data-theme='dark'] .lp-user .lp-logo-dark { display: block; }
+.lp-join { margin: 2rem 0 0; color: var(--fg-soft); }
+.lp-join a { text-decoration: underline; text-underline-offset: 0.2em; }
+
 /* The onboard button's hover colour is the brand primary, which is too dark on the ink hero: use the lifted tone. */
 .lp-onboard button:hover { border-color: var(--lifted) !important; color: var(--lifted) !important; }
+
+/* Section rail: a column of small squares on the right edge, one per landing section. Hidden on narrow screens. */
+.lp-rail { display: none; }
+@media (min-width: 62.5rem) {
+  .lp-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    position: fixed;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+  }
+}
+.lp-rail-link { position: relative; display: block; width: 1.25rem; height: 1.25rem; padding: 0.25rem; }
+.lp-rail-link::before { content: ''; display: block; width: 100%; height: 100%; border: 2px solid var(--lifted); }
+.lp-rail-link[aria-current='true']::before { background: var(--lifted); }
+.lp-rail-link::after {
+  content: attr(data-label);
+  position: absolute;
+  right: calc(100% + 0.25rem);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0.375rem 0.625rem;
+  background: var(--ink);
+  border: 1px solid var(--ink-rule);
+  color: var(--paper-ink);
+  font: 600 0.75rem/1 var(--ifm-font-family-base);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+.lp-rail-link:hover::after, .lp-rail-link:focus-visible::after { opacity: 1; }
+
+/*
+ * Motion, only where the browser can tie animation to scroll position. Elsewhere the page is static (the squares keep
+ * their load-time rise above). The squares drift down and fade as Hero scrolls out; Principles rows and Catalog
+ * headings fade up once as they enter. Opacity and translate only.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    #hero { view-timeline: --hero-out block; }
+    @keyframes lp-handoff { to { opacity: 0; transform: translateY(6rem); } }
+    #hero .lp-field {
+      animation: lp-handoff linear both;
+      animation-timeline: --hero-out;
+      animation-range: exit 0% exit 70%;
+    }
+    @keyframes lp-settle { from { opacity: 0; transform: translateY(1.5rem); } to { opacity: 1; transform: none; } }
+    .lp-principles li, .lp-cat h3 {
+      animation: lp-settle linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 60%;
+    }
+  }
+}

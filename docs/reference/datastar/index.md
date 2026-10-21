@@ -234,7 +234,7 @@ The module is a thin typed layer over three other blocks, and adds no dependency
 
 - **`zio-blocks-html`** supplies `Dom`, `Dom.Attribute`, `Js`, `CssSelector`, and the `ToJs` type class. Every attribute helper returns a `Dom.Attribute`, so Datastar attributes compose with the HTML DSL exactly like `id` or `class` — see [HTML](../html.md).
 - **`zio-blocks-schema`** supplies the JSON codec behind `Signal#:=`. A signal of type `A` needs a `Schema[A]`, and the serialized form is whatever that schema's JSON codec produces — see [Schema](../schema/index.md).
-- **`zio-http-model`** supplies `ServerSentEvent`, which `DatastarEvent#renderSSE` delegates to for the wire format. The Datastar-specific part is the event name and the structured `data:` body — see [ServerSentEvent](../http-model/server-sent-event.md).
+- **`zio-blocks-http-model`** supplies `ServerSentEvent`, which `DatastarEvent#renderSSE` delegates to for the wire format. The Datastar-specific part is the event name and the structured `data:` body — see [ServerSentEvent](../http-model/server-sent-event.md).
 
 Within the module, the dependency direction is one-way: attributes and events both consume `Signal`, and neither knows about the other. Nothing in the SSE layer reads the attribute DSL.
 

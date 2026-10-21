@@ -27,8 +27,11 @@ trait PositiveNumberCompanionVersionSpecific {
    * overhead.
    *
    * {{{
-   * val mult = PositiveNumber.literal(5)  // Compiles - returns PositiveNumber directly
-   * val bad = PositiveNumber.literal(0)   // Compile error!
+   * // no-check: on Scala 2, the macro calls the package-private constructor, so it compiles only inside `zio.blocks.schema.json` (docs/dev/issues.md)
+   * import zio.blocks.schema.json.PositiveNumber
+   *
+   * val mult: PositiveNumber = PositiveNumber.literal(5) // compiles
+   * // PositiveNumber.literal(0)                         // does not compile
    * }}}
    */
   def literal(n: Int): PositiveNumber = macro PositiveNumberMacros.literalImpl

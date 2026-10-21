@@ -223,6 +223,8 @@ Scope.global.scoped { scope =>
 
 `Config.wire[A](prefix)` re-roots the injected source before decoding, which is how you keep several config sections in one graph without giving each its own source.
 
+See also: [How to Feed Configuration into a Wire Dependency Graph](../../guides/feed-config-into-a-wire-graph.md) for a full walkthrough with several services, layered sources and ordered shutdown.
+
 ### Loading with Provenance
 
 `Config.loadWithProvenance` returns a `ProvenanceMap[A]` alongside the value, which answers per-key origin questions and renders a table for startup logs:
@@ -284,3 +286,5 @@ Within the module, the dependency direction is one-way: sources know nothing abo
 ## Next Steps
 
 Start with [Config Source](./config-source.md) to build and compose sources, then [Config Decoder](./config-decoder.md) for the mapping rules from case classes to keys. [Errors](./errors.md) covers the failure model, [Flags](./flags.md) and [Rollout](./rollout.md) cover runtime switches, and [File Formats](./formats.md) covers YAML, JSON, and HOCON.
+
+See also the [Build a Typed Configuration Loader](../../guides/typed-config-loader.md) tutorial, which layers defaults, a YAML file and environment variables into one typed case class, and the [Coming from PureConfig, Typesafe Config or zio-config](../../guides/config-library-migration.md) guide for porting an existing configuration setup. For runtime switches, see [How to Roll Out a Feature Gradually with Flags](../../guides/roll-out-feature-gradually.md).

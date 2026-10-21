@@ -175,16 +175,35 @@ ZIO Blocks provides three levels of customization, in progressive order:
 
 1. **Type-level override** (`Deriver.withInstance`) — Override the codec for ALL occurrences of a type. Configure once, use everywhere:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.json._
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+
+case class Event(name: String, date: LocalDate)
+object Event {
+  implicit val schema: Schema[Event] = Schema.derived
+}
+
+case class Meeting(topic: String, scheduledOn: LocalDate)
+object Meeting {
+  implicit val schema: Schema[Meeting] = Schema.derived
+}
 
 // Create a custom JsonCodec for LocalDate
 val customDateCodec: JsonCodec[LocalDate] = new JsonCodec[LocalDate] {
   private val fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy")
-  def decodeValue(in: JsonReader): LocalDate = LocalDate.parse(in.readString(), fmt)
+
+  def decodeValue(in: JsonReader): LocalDate           = LocalDate.parse(in.readString(), fmt)
   def encodeValue(x: LocalDate, out: JsonWriter): Unit = out.writeVal(fmt.format(x))
-  // ... AST overrides ...
+
+  // Optional: support for the Json AST, used by `decode(json: Json)` and `encodeToJson`
+  override def decodeValue(json: Json): LocalDate = json match {
+    case s: Json.String => LocalDate.parse(s.value, fmt)
+    case _              => error("expected a JSON string")
+  }
+  override def encodeValue(x: LocalDate): Json = Json.String(fmt.format(x))
 }
 
 // Configure the deriver once
@@ -197,8 +216,26 @@ val codec2 = Schema[Meeting].deriving(myDeriver).derive
 
 2. **Field-level override** (`Deriver.withInstance` with typeId + termName) — Override a specific field only:
 
-```scala
-// Only Event.date uses custom format; other LocalDate fields are unchanged
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+import zio.blocks.typeid.TypeId
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+case class Event(name: String, date: LocalDate, createdOn: LocalDate)
+object Event {
+  implicit val schema: Schema[Event] = Schema.derived
+}
+
+val customDateCodec: JsonCodec[LocalDate] = new JsonCodec[LocalDate] {
+  private val fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+  def decodeValue(in: JsonReader): LocalDate           = LocalDate.parse(in.readString(), fmt)
+  def encodeValue(x: LocalDate, out: JsonWriter): Unit = out.writeVal(fmt.format(x))
+}
+
+// Only Event.date uses the custom format; Event.createdOn and other LocalDate fields are unchanged
 val deriver = JsonCodecDeriver.withInstance[Event, LocalDate](
   TypeId.of[Event], "date", customDateCodec
 )
@@ -206,7 +243,16 @@ val deriver = JsonCodecDeriver.withInstance[Event, LocalDate](
 
 3. **Modifier override** (`Deriver.withModifier`) — Rename fields, add aliases:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+import zio.blocks.typeid.TypeId
+
+case class Person(firstName: String, lastName: String)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+
 val deriver = JsonCodecDeriver.withModifier(
   TypeId.of[Person], "firstName", Modifier.rename("first_name")
 )
@@ -216,7 +262,25 @@ val deriver = JsonCodecDeriver.withModifier(
 
 Overrides compose, allowing you to build complex derivers incrementally:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+import zio.blocks.typeid.TypeId
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+case class Event(name: String, date: LocalDate)
+object Event {
+  implicit val schema: Schema[Event] = Schema.derived
+}
+
+val customDateCodec: JsonCodec[LocalDate] = new JsonCodec[LocalDate] {
+  private val fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+  def decodeValue(in: JsonReader): LocalDate           = LocalDate.parse(in.readString(), fmt)
+  def encodeValue(x: LocalDate, out: JsonWriter): Unit = out.writeVal(fmt.format(x))
+}
+
 val myDeriver = JsonCodecDeriver
   .withInstance[LocalDate](customDateCodec)
   .withModifier(TypeId.of[Event], "name", Modifier.rename("title"))
@@ -228,6 +292,10 @@ val myDeriver = JsonCodecDeriver
 - When combined with `DerivationBuilder`, deriver-level instance overrides take precedence over builder-level instance overrides. Modifier override precedence is order-sensitive and should not be assumed to follow the same rule.
 - Unknown `termName` values are silently ignored.
 - The `B` type parameter in field-level `withInstance` is not statically checked against the actual field type.
+
+See also: [Override the Codec for One Type](../../guides/override-codec-for-one-type.md) for a step-by-step guide to type-level overrides.
+
+See also: [How to Derive Your Own Type Class from a Schema](../../guides/derive-your-own-type-class.md) for a step-by-step guide to writing a `Deriver` for your own type class.
 
 ## Example 1: Deriving a `Show` Type Class Instance
 

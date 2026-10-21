@@ -672,3 +672,5 @@ def toJson[A: Schema](doc: A)(using
 When a type does not satisfy the grammar, the user gets a precise compile-time error naming the violating field and suggesting a fix. No runtime surprises.
 
 See the [`Allows` reference](./allows.md) for the full grammar node table, union syntax, `Self` for recursive types, newtypes, and error message examples.
+
+See also the [Your First Schema](../../guides/your-first-schema.md) tutorial for a hands-on introduction to deriving a `Schema` and round-tripping a type through JSON.

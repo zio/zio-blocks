@@ -51,15 +51,17 @@ import scala.language.implicitConversions
  * val circlePrism2: Prism[Shape, Circle] = Shape.optics.circle
  * }}}
  *
- * For opaque types / value classes:
+ * A value class whose schema is a wrapper (one built with `transform`) gets its
+ * lens like any case class, but only when its single field is named `value`: a
+ * wrapper schema names its field `value` at run time, so a lens for a field
+ * with another name fails with `No optic found`. Opaque types are not supported
+ * yet: an opaque type has no companion class for `DerivedOptics` to find, and
+ * `DerivedOptics.Of` gives lenses of the wrong type for it.
  * {{{
- * opaque type Age = Int
+ * case class Age(value: Int) extends AnyVal
  * object Age extends DerivedOptics {
- *   // Ensure a Wrapper schema is available using transform
- *   given schema: Schema[Age] = Schema[Int].transform(Age.apply, _.value)
- *
- *   def apply(i: Int): Age = i
- *   extension (a: Age) def value: Int = a
+ *   // A wrapper schema, built with `transform`
+ *   given schema: Schema[Age] = Schema[Int].transform(Age(_), _.value)
  * }
  *
  * // Direct access to the wrapper lens:

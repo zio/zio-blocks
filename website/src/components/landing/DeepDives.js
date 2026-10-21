@@ -53,27 +53,31 @@ export default function DeepDives() {
   };
 
   return (
-    <section id="deep-dives" className="lp-section" aria-labelledby="deep-dives-title">
+    <section id="deep-dives" className="lp-section lp-screen" aria-labelledby="deep-dives-title">
       <div className="lp-wrap">
-        <p className="lp-label">02 &nbsp; Deep Dives</p>
-        <h2 id="deep-dives-title">Four Blocks, in Code</h2>
+        <div className="lp-dd-head">
+          <div>
+            <p className="lp-label">02 &nbsp; Deep Dives</p>
+            <h2 id="deep-dives-title">Four Blocks, in Code</h2>
+          </div>
 
-        <div className="lp-tablist" role="tablist" aria-label="Deep dives" hidden={!hydrated}>
-          {site.deepDives.map((d, i) => (
-            <button
-              key={d.id}
-              ref={(el) => { tabs.current[i] = el; }}
-              role="tab"
-              type="button"
-              id={`tab-${d.id}`}
-              aria-controls={`panel-${d.id}`}
-              aria-selected={i === active}
-              tabIndex={i === active ? 0 : -1}
-              onClick={() => select(i)}
-              onKeyDown={(e) => onKeyDown(e, i)}>
-              {titleCase(d.title)}
-            </button>
-          ))}
+          <div className="lp-tablist" role="tablist" aria-label="Deep dives" hidden={!hydrated}>
+            {site.deepDives.map((d, i) => (
+              <button
+                key={d.id}
+                ref={(el) => { tabs.current[i] = el; }}
+                role="tab"
+                type="button"
+                id={`tab-${d.id}`}
+                aria-controls={`panel-${d.id}`}
+                aria-selected={i === active}
+                tabIndex={i === active ? 0 : -1}
+                onClick={() => select(i)}
+                onKeyDown={(e) => onKeyDown(e, i)}>
+                {titleCase(d.title)}
+              </button>
+            ))}
+          </div>
         </div>
 
         {site.deepDives.map((d, i) => (
@@ -85,7 +89,13 @@ export default function DeepDives() {
             aria-labelledby={`tab-${d.id}`}
             hidden={hydrated && i !== active}>
             <h3 className={hydrated ? 'lp-vh' : undefined}>{titleCase(d.title)}</h3>
-            <p className="lp-intro" dangerouslySetInnerHTML={html(renderInline(d.intro))} />
+            <div className="lp-cols">
+              <p className="lp-intro" dangerouslySetInnerHTML={html(renderInline(d.intro))} />
+              <div className="lp-install">
+                <p className="lp-label">Installation</p>
+                <Code source={d.install} lang="scala" />
+              </div>
+            </div>
             <div className="lp-cols">
               <div className="lp-col">
                 <p className="lp-label">The Problem</p>

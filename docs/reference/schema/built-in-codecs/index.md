@@ -22,10 +22,12 @@ Here's a summary of the codecs currently supported by ZIO Blocks. Most codecs pr
 | `XmlFormat`         | `XmlCodec[A]`         | `application/xml`     | `zio-blocks-schema-xml`         | [XML](./xml.md)                 |
 | `YamlFormat`        | `YamlCodec[A]`        | `application/yaml`    | `zio-blocks-schema-yaml`        | [YAML](./yaml.md)               |
 
+The module names above are for Scala 2.13 and Scala 3.3 to 3.8. On Scala 3.9 and newer, use the `zio-blocks-next-` modules instead, for example `zio-blocks-next-schema-yaml`, and add `scalacOptions += "-experimental"` (see [How to Add ZIO Blocks to Your Build](../../../guides/add-zio-blocks-to-your-build.md)).
+
 ## Supported Types
 
 Most formats support the full set of ZIO Blocks Schema primitive types. Some formats have limitations:
-- **CSV** supports only flat records and primitive types (no variants, sequences, maps, or dynamic types)
+- **CSV** supports only flat records and primitive types (no variants, `Option` fields, sequences, maps, or dynamic types)
 - **XML** supports records, sequences, and variants with configurable discriminator strategies
 - Other formats support all composite types listed below
 
@@ -75,3 +77,7 @@ For format-specific limitations, see the dedicated codec documentation.
 ## Error Handling
 
 All formats return `Either[SchemaError, A]` for decoding operations. Errors include path information for debugging, showing exactly where in nested structures a decoding failure occurred. See individual codec documentation for format-specific error details.
+
+## See Also
+
+- [One Type, Many Formats](../../../guides/one-type-many-formats.md) - a tutorial that derives JSON, YAML, XML, TOON, MessagePack, Avro and CSV codecs from one `Schema` and round-trips a catalog through each.

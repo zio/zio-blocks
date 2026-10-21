@@ -215,3 +215,8 @@ val output = json.print(WriterConfig
 2. **Choose MergeStrategy based on use case** — Strict for validation, others for defaults
 3. **Standardize on one NameMapper** across your codebase to avoid confusion
 4. **Cache WriterConfig/ReaderConfig instances** — They're immutable and can be reused
+
+## See Also
+
+- [How to Customize JSON Field Names, ADT Encoding and Optional Fields](../../../../guides/customize-json-encoding.md): a task-oriented guide that applies these settings to a real model.
+- [Coming from circe, zio-json or jsoniter-scala](../../../../guides/json-library-migration.md): maps circe `Configuration`, zio-json annotations and jsoniter-scala `CodecMakerConfig` options onto these settings.

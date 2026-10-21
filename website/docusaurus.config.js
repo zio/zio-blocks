@@ -5,6 +5,11 @@ const prismThemes = require('./src/prism-themes');
 // the docs only warn then. The full build, which CI deploys, never sets it.
 const LANDING_ONLY = process.env.LANDING_ONLY === '1';
 
+// Google Analytics 4 (property "zioblocks.com"). Netlify sets CONTEXT=production only for the production build (build.sh,
+// run by the build hook); PR previews are built in CI without it, so they never send page views.
+const GA_MEASUREMENT_ID = 'G-D1FMWLNJ8K';
+const ANALYTICS = process.env.CONTEXT === 'production';
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'ZIO Blocks',
@@ -42,17 +47,20 @@ const config = {
               // Docs live at the site root (no /docs prefix). The landing page owns `/`, so scripts/set-docs-home.mjs gives the docs home the slug /overview.
               routeBasePath: '/',
               sidebarPath: require.resolve('../docs/sidebars.js'),
-              // docs/plans holds internal planning notes: keep them in the repo but out of the site. This replaces
+              // docs/plans and docs/dev hold internal planning notes: keep them in the repo but out of the site. This replaces
               // Docusaurus' default excludes, so they are repeated here.
-              exclude: ['**/_*.{js,jsx,ts,tsx,md,mdx}', '**/_*/**', '**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**', 'plans/**'],
+              exclude: ['**/_*.{js,jsx,ts,tsx,md,mdx}', '**/_*/**', '**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**', 'plans/**', 'dev/**'],
             },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
         },
         blog: false,
+        gtag: ANALYTICS ? { trackingID: GA_MEASUREMENT_ID, anonymizeIP: true } : undefined,
       },
     ],
   ],
+  // /guides and /reference become /guides/ and /reference/ (src/clientModules/folderIndexes.js).
+  clientModules: [require.resolve('./src/clientModules/folderIndexes.js')],
   plugins: [
     // Tailwind (utilities only, see src/css/custom.css) for the Onboard Agent button.
     async function tailwindPlugin() {
@@ -79,7 +87,7 @@ const config = {
               docsDir: 'docs',
               includeBlog: false,
               // Keep internal planning notes out of llms.txt and the per-page markdown too.
-              ignoreFiles: ['plans/**'],
+              ignoreFiles: ['plans/**', 'dev/**'],
               // Docs are served at the site root, so drop the docs/ directory from the generated markdown paths: the links
               // in llms.txt are then /<page>.md, next to the pages they describe.
               preserveDirectoryStructure: false,
@@ -107,27 +115,55 @@ const config = {
         },
         items: [
           { to: '/overview', label: 'Docs', position: 'right' },
-          { to: '/#catalog', label: 'Blocks', position: 'right' },
+          // A plain link, not a docSidebar item: the landing-only build has no docs plugin. activeBaseRegex keeps it
+          // highlighted on every page of the guides sidebar (docs/sidebars.js).
+          { to: '/guides/async-getting-started', label: 'Guides', position: 'right', activeBaseRegex: '^/guides/' },
+          // The Scaladoc is plain HTML copied into static/api by `sbt docs/generateApiDocs`, outside the Docusaurus
+          // router: pathname:// makes it a full page load and keeps the broken link checker off it.
+          { to: 'pathname:///api/', label: 'API', position: 'right', target: '_self' },
+          // A hash link to the landing page: never mark it active. Docusaurus' default prefix match on `/` would light it
+          // up on every docs page, now that docs are served at the site root. A pathname is never empty, so '^$' never matches.
+          { to: '/#catalog', label: 'Blocks', position: 'right', activeBaseRegex: '^$' },
           { href: 'https://github.com/zio/zio-blocks', label: 'GitHub', position: 'right' },
         ],
       },
+      // Laid out by src/theme/Footer/Layout (logo and tagline beside the columns) and styled by `.zb-footer` in
+      // src/css/custom.css; the colours come from there, not from Infima's footer styles.
       footer: {
-        style: 'dark',
         logo: {
           alt: 'ZIO Blocks',
           src: 'brand/zio-blocks-logo-mono-white.svg',
+          href: '/',
           width: 160,
           height: 37,
         },
         links: [
           {
+            title: 'Learn',
             items: [
               { label: 'Docs', to: '/overview' },
-              { label: 'Reference', to: '/reference/schema/' },
+              { label: 'Guides', to: '/guides/' },
+              { label: 'Reference', to: '/reference/' },
+              { label: 'API', to: 'pathname:///api/', target: '_self' },
+            ],
+          },
+          {
+            title: 'Community',
+            items: [
               { label: 'GitHub', href: 'https://github.com/zio/zio-blocks' },
+              { label: 'Discord', href: 'https://discord.gg/2ccFBr4' },
+            ],
+          },
+          {
+            title: 'ZIO ecosystem',
+            items: [
+              { label: 'ZIO', href: 'https://zio.dev' },
+              { label: 'ZIO HTTP', href: 'https://ziohttp.com' },
             ],
           },
         ],
+        // The same credit line as zio.dev; the year is the build year.
+        copyright: `Copyright © ${new Date().getFullYear()} ZIO Maintainers - Built with <a href="https://docusaurus.io/">Docusaurus</a>`,
       },
       prism: {
         theme: prismThemes.light,

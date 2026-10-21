@@ -10,13 +10,13 @@ keywords:
 `TransactorZIO` is the ZIO-integrated database transactor from the `zio-blocks-sql-zio` module. It wraps a [`JdbcTransactor`](./transactor.md) — the synchronous JDBC transactor from the core `sql` module — and lifts its connection and transaction lifecycle management into the ZIO effect system. The module targets Scala 3 and runs on JVM only.
 
 :::info
-This page is a detailed reference for the `TransactorZIO` class specifically. If you only need `ZLayer`-based dependency injection for the plain synchronous `Transactor` (via `JdbcTransactor.postgresLayer` / `sqliteLayer`), see the [SQL — ZIO Integration](../sql-zio.md) guide instead — it covers both integration styles and when to reach for each.
+This page is a detailed reference for the `TransactorZIO` class specifically. If you only need `ZLayer`-based dependency injection for the plain synchronous `Transactor` (via `JdbcTransactor.postgresLayer` / `sqliteLayer`, extension methods that need `import zio.blocks.sql.zio.*`), see the [SQL — ZIO Integration](../sql-zio.md) guide instead — it covers both integration styles and when to reach for each.
 :::
 
 `TransactorZIO` exposes two pairs of methods. The **blocking wrappers** (`connect`, `transact`) run a synchronous body on ZIO's blocking thread pool via `ZIO.attemptBlocking` and return `Task[A]`. The **effect-aware methods** (`connectZIO`, `transactZIO`) accept a body that itself returns a `ZIO[R, E, A]`, bracket the JDBC connection with `ZIO.acquireRelease`, and return `ZIO[R, E | Throwable, A]` — guaranteeing connection cleanup even under fiber interruption.
 
 - **Immutable** — `TransactorZIO` holds no mutable state; each `connect` or `transact` invocation opens a fresh connection via the provided `connectionFactory`.
-- **Interrupt-safe** — `connectZIO` and `transactZIO` close the underlying JDBC connection even when the enclosing fiber is interrupted, because they use `ZIO.acquireRelease` internally.
+- **Interrupt-safe** — `connectZIO` and `transactZIO` close the underlying JDBC connection even when the enclosing fiber is interrupted, because they use `ZIO.acquireRelease` internally. Closing is not rolling back: in 0.0.56, interrupting a running `transactZIO` (for example with `ZIO#timeout`) commits the statements its body already ran, and so does a statement in the body that throws before the body's effect is returned. [How to Use the sql Module from a ZIO Application](../../guides/sql-from-zio.md#mix-database-writes-with-other-effects-in-one-transaction) shows how to avoid both.
 - **Thread-safe** — the transactor is safe to share across fibers; each invocation manages its own connection.
 - **JDBC-based** — available on JVM only; Scala 3 is required.
 
@@ -48,10 +48,10 @@ The following example demonstrates all four execution modes — a read with `con
 
 ```scala
 import zio._
-import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -117,8 +117,8 @@ object TransactorZIO {
 The following shows how to wrap a pre-existing `DataSource` with a PostgreSQL dialect:
 
 ```scala
-import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql._
 
 val dataSource: javax.sql.DataSource = ???
 val tx: TransactorZIO =
@@ -138,15 +138,15 @@ object TransactorZIO {
 The following creates an in-memory SQLite transactor, a common pattern in unit tests:
 
 ```scala
-import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql._
 
 val tx: TransactorZIO =
   TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 ```
 
 :::caution
-`fromUrl` opens a new physical connection for every `connect` or `transact` call and does no pooling. For applications with concurrent request workloads, prefer `fromDataSource` backed by a pooling `DataSource`.
+`fromUrl` opens a new physical connection for every `connect` or `transact` call and does no pooling. For applications with concurrent request workloads, prefer `fromDataSource` backed by a pooling `DataSource`. Because every call gets a new connection, `jdbc:sqlite::memory:` gives each `TransactorZIO#connect`, `TransactorZIO#transact`, `TransactorZIO#connectZIO` or `TransactorZIO#transactZIO` call its own empty database: tables and rows created in one call are gone in the next. Use a file URL such as `jdbc:sqlite:/path/to/app.db` when data must outlive a single call.
 :::
 
 ### `TransactorZIO.fromUrl` (with credentials) — Create from a JDBC URL with username and password
@@ -162,8 +162,8 @@ object TransactorZIO {
 The following creates a PostgreSQL transactor with explicit credentials:
 
 ```scala
-import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql._
 
 val tx: TransactorZIO = TransactorZIO.fromUrl(
   "jdbc:postgresql://localhost/mydb",
@@ -187,9 +187,9 @@ The following shows how to compose the layer with a ZIO program that reads `Tran
 
 ```scala
 import zio._
-import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 val transactorLayer: ZLayer[Any, Nothing, TransactorZIO] =
   TransactorZIO.layer("jdbc:sqlite::memory:", SqlDialect.SQLite)
@@ -227,9 +227,9 @@ Inside the block, `DbCon` is available as a given, so every [`Frag`](./frag.md) 
 
 ```scala
 import zio._
-import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -266,10 +266,10 @@ Because `DbTx` extends `DbCon`, any method that works inside `connect` also work
 
 ```scala
 import zio._
-import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -303,9 +303,9 @@ Inside the body, `DbCon` is available as a given. `connectZIO` only wraps the co
 
 ```scala
 import zio._
-import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -343,10 +343,10 @@ On success the connection is committed; on failure — whether from an error, a 
 
 ```scala
 import zio._
-import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -397,3 +397,8 @@ JdbcTransactor                         TransactorZIO
 ```
 
 `TransactorZIO` holds a private `JdbcTransactor` field and delegates the synchronous `connect` and `transact` calls to it, wrapping each in `ZIO.attemptBlocking`. The effect-aware `connectZIO` and `transactZIO` bypass `JdbcTransactor` entirely and manage the connection lifecycle with `ZIO.acquireRelease` directly.
+
+## See Also
+
+- [How to Use the sql Module from a ZIO Application](../../guides/sql-from-zio.md) — Guide to running `sql` queries and transactions as ZIO effects with `TransactorZIO`.
+- [SQL — ZIO Integration](../sql-zio.md) — Overview of both ZIO integration styles and when to reach for each.

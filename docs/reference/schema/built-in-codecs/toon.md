@@ -7,6 +7,8 @@ title: "TOON Codec Module"
 
 The module integrates with a pure-Scala TOON parser and writer to provide line-oriented, indentation-based serialization that is 30-60% more compact than JSON. TOON (Token-Oriented Object Notation) appears widely across LLM prompts, configuration files, and data exchange where compactness and human readability matter equally.
 
+See also the [How to Send Compact Data to an LLM with TOON and Parse the Reply](../../../guides/llm-data-with-toon.md) guide, which encodes records as tabular TOON for a prompt and decodes the model's reply into case classes.
+
 ## Motivation
 
 TOON is a compact, line-oriented text format that encodes the JSON data model with explicit structure and minimal quoting. It appears widely in modern LLM applications, configuration management, and streaming data scenarios where bandwidth and readability are both critical. Manually writing TOON encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-toon` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
@@ -697,13 +699,13 @@ val deriver = ToonCodecDeriver.withArrayFormat(ArrayFormat.List)
 
 ### Auto Format
 
-Let the encoder select the best format based on content:
+`Auto` is the default. It chooses the format from the element type: arrays of primitive values are written inline, and arrays of records are written as lists. The one exception is an array of flat records (records whose fields are all primitives) nested inside a list item, which is written as a table. To write record arrays as tables everywhere, use `ArrayFormat.Tabular`:
 
 ```scala
 import zio.blocks.schema.toon._
 
 val deriver = ToonCodecDeriver.withArrayFormat(ArrayFormat.Auto)
-// Inline for primitives, tabular for uniform objects, list for mixed
+// Inline for primitive arrays, list for record arrays
 ```
 
 ---

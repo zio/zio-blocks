@@ -25,7 +25,7 @@ jobs:
   buildDocs:
     name: Build Docs
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     continue-on-error: false
     steps:
     - name: Git Checkout
@@ -53,7 +53,7 @@ jobs:
       run: yarn install --cwd website
     - name: Generate documentation with mdoc
       if: ${{ hashFiles('website/yarn.lock') != '' }}
-      run: sbt docs/mdoc
+      run: sbt docs/mdoc docs/generateApiDocs
     - name: Check website build process
       if: ${{ hashFiles('website/yarn.lock') != '' }}
       run: yarn --cwd website build
@@ -212,7 +212,7 @@ jobs:
       run: sbt ++3.9.0 benchmarks/test
     - name: Compile example projects
       if: ${{ matrix.scala == '3.9.x' }}
-      run: for dir in *-examples; do (cd "$dir" && sbt compile) || exit 1; done
+      run: for dir in *-examples; do [ -f "$dir/build.sbt" ] || continue; (cd "$dir" && sbt compile) || exit 1; done
   testJS:
     name: testJS
     runs-on: ubuntu-latest

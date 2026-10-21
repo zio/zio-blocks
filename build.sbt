@@ -6,6 +6,7 @@ import zio.sbt.githubactions.{CancelInProgress, Concurrency, Condition, DeployPr
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val generateMediaTypes = taskKey[File]("Generate MediaTypes.scala from mime-db")
+lazy val generateApiDocs    = taskKey[File]("Generate the unified Scaladoc into website/static/api")
 
 generateMediaTypes := GenerateMediaTypes.generateMediaTypesTask.value
 
@@ -160,13 +161,13 @@ addCommandAlias(
   "++3.9.0; project streamsJVM; coverage; test; coverageReport"
 )
 lazy val testJVMScala2Command =
-  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
+  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; schema-scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; mediatypeJVM/test; " +
     "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; asyncJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJVMScala3Command =
-  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
+  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; schema-scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
     "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test; projectionJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
@@ -329,6 +330,7 @@ lazy val root = project
     `async-benchmarks-js`,
     scalaNextTests.jvm,
     scalaNextTests.js,
+    `schema-scaladoc-check`,
     benchmarks,
     `scope-benchmarks`,
     `sql-benchmarks`,
@@ -345,8 +347,40 @@ lazy val root = project
     otel,
     dataMigration.jvm,
     dataMigration.js,
-    projection.jvm
+    projection.jvm,
+    asyncExamples,
+    capstoneExamples,
+    endpointExamples,
+    httpModelExamples,
+    jwtExamples,
+    muxExamples,
+    openapiExamples,
+    schemaExamples,
+    scopeExamples,
+    smithyExamples,
+    streamsExamples,
+    telemetryExamples,
+    zioBlocksExamples,
+    zioBlocksHtmxExamples,
+    `projection-examples`
   )
+
+// Example projects are standalone builds (see AGENTS.md) that depend on published artifacts, so the
+// root build only references them, the way zio-http does, instead of defining them as subprojects.
+lazy val asyncExamples         = RootProject(file("async-examples"))
+lazy val capstoneExamples      = RootProject(file("capstone-examples"))
+lazy val endpointExamples      = RootProject(file("endpoint-examples"))
+lazy val httpModelExamples     = RootProject(file("http-model-examples"))
+lazy val jwtExamples           = RootProject(file("jwt-examples"))
+lazy val muxExamples           = RootProject(file("mux-examples"))
+lazy val openapiExamples       = RootProject(file("openapi-examples"))
+lazy val schemaExamples        = RootProject(file("schema-examples"))
+lazy val scopeExamples         = RootProject(file("scope-examples"))
+lazy val smithyExamples        = RootProject(file("smithy-examples"))
+lazy val streamsExamples       = RootProject(file("streams-examples"))
+lazy val telemetryExamples     = RootProject(file("telemetry-examples"))
+lazy val zioBlocksExamples     = RootProject(file("zio-blocks-examples"))
+lazy val zioBlocksHtmxExamples = RootProject(file("zio-blocks-htmx-examples"))
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
@@ -546,6 +580,29 @@ lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
+  )
+
+// Unlike the standalone example builds, this one depends on the local projection module, so its examples
+// always use the latest API instead of waiting for a release (zio-http does the same for its `zio-http-example`).
+lazy val `projection-examples` = project
+  .in(file("projection-examples"))
+  .settings(stdSettings("zio-blocks-projection-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
+  .dependsOn(projection.jvm)
+  // Examples are copy-paste templates and are embedded in the docs, so they carry no licence header. Setting
+  // `headerLicense := None` is not enough: sbt-header then falls back to the licence detected from `licenses`.
+  .disablePlugins(HeaderPlugin)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    scalacOptions -= "-Werror",
+    // The run is forked, so that the examples write their SQLite files into this folder and not the root.
+    Compile / fork := true,
+    // Several examples are runnable on their own, so `projection-examples/run` needs to know which one to start.
+    Compile / mainClass := Some("projection.examples.ProjectionExampleApp"),
+    // The projection module only has the SQLite driver as a test dependency, and the examples run on SQLite files.
+    libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
   )
 
 lazy val projection = crossProject(JVMPlatform)
@@ -1337,6 +1394,50 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   )
   .jsSettings(jsSettings)
 
+// Compiles every code example in the Scaladoc of `schema` (see docs/dev/scaladoc-style.md).
+// Not published. The extractor lives in project/ScaladocSnippets.scala so that sbt can run it as a
+// source generator; the Test configuration compiles that file again to unit-test it.
+lazy val fatalWarningFlags: Set[String] = Set("-Werror", "-Xfatal-warnings")
+
+lazy val `schema-scaladoc-check` = project
+  .in(file("schema-scaladoc-check"))
+  .settings(stdSettings("zio-blocks-schema-scaladoc-check"))
+  .dependsOn(schema.jvm)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
+    ),
+    Test / unmanagedSources += (ThisBuild / baseDirectory).value / "project" / "ScaladocSnippets.scala",
+    // Examples are user code: a warning in one (an unused import, say) must not fail the build.
+    Compile / scalacOptions ~= (_.filterNot(fatalWarningFlags)),
+    // `Test / scalacOptions` delegates to the Compile ones, so put the fatal flags back: the spec and
+    // project/ScaladocSnippets.scala are ordinary code. (The generated snippets are Compile sources.)
+    Test / scalacOptions := (Test / scalacOptions).value ++ (schema.jvm / Compile / scalacOptions).value
+      .filter(fatalWarningFlags),
+    Compile / sourceGenerators += Def.task {
+      val root       = (ThisBuild / baseDirectory).value
+      val outDir     = (Compile / sourceManaged).value / "scaladoc-snippets"
+      val scalaMajor = CrossVersion.partialVersion(scalaVersion.value).fold(3)(_._1.toInt)
+      // `schema.jvm`'s own source list already holds exactly the shared, jvm and version-specific
+      // (scala-2, scala-3, scala-3.5+ ...) files for the current Scala version.
+      val sources = (schema.jvm / Compile / unmanagedSources).value.collect {
+        case file if file.getName.endsWith(".scala") =>
+          (IO.relativize(root, file).getOrElse(file.getPath).replace('\\', '/'), IO.read(file))
+      }
+      IO.delete(outDir) // drop wrappers of snippets that were removed or moved
+      ScaladocSnippets.generate(sources, scalaMajor).map { case (name, content) =>
+        val file = outDir / name
+        IO.write(file, content)
+        file
+      }
+    }.taskValue
+  )
+
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.9.0")))
   .dependsOn(schema.jvm % "compile->compile;test->test")
@@ -1346,7 +1447,7 @@ lazy val benchmarks = project
   .enablePlugins(JmhPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "com.vitthalmirji"                      %% "toon4s-core"           % "0.9.1",
+      "com.vitthalmirji"                      %% "toon4s-core"           % "0.9.3",
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.41.5",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
       "dev.zio"                               %% "zio-json"              % "0.10.0",
@@ -1452,7 +1553,7 @@ lazy val `streams-benchmark` = project
       "io.getkyo" %% "kyo-prelude" % "1.0.0-RC7",
       "io.getkyo" %% "kyo-core"    % "1.0.0-RC7",
       // Ox — direct-style streaming (SoftwareMill, Scala 3 only)
-      "com.softwaremill.ox" %% "core" % "1.0.9"
+      "com.softwaremill.ox" %% "core" % "1.1.0"
     ),
     assembly / assemblyJarName       := "streams-benchmark.jar",
     assembly / assemblyMergeStrategy := {
@@ -1487,14 +1588,132 @@ lazy val docs = project
           |</picture>
           |""".stripMargin
     },
-    mainModuleName                             := (schema.jvm / moduleName).value,
-    projectStage                               := ProjectStage.Development,
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
-    publish / skip                             := true,
+    mainModuleName := (schema.jvm / moduleName).value,
+    projectStage   := ProjectStage.Development,
+    // The API reference served at /api on the website: one unified Scaladoc for every published
+    // module (the JVM side of cross-built ones, since JVM and JS share the public API). A new
+    // published module must be added here too.
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
+      chunk.jvm,
+      maybe.jvm,
+      combinators.jvm,
+      typeid.jvm,
+      context.jvm,
+      scope.jvm,
+      ringbuffer.jvm,
+      streams.jvm,
+      async.jvm,
+      mux.jvm,
+      schema.jvm,
+      `schema-avro`,
+      `schema-bson`,
+      `schema-csv`.jvm,
+      `schema-messagepack`.jvm,
+      `schema-thrift`,
+      `schema-toon`.jvm,
+      `schema-xml`.jvm,
+      `schema-yaml`.jvm,
+      dataMigration.jvm,
+      projection.jvm,
+      mediatype.jvm,
+      `http-model`.jvm,
+      `http-model-schema`.jvm,
+      endpoint.jvm,
+      openapi.jvm,
+      jwt.jvm,
+      markdown.jvm,
+      html.jvm,
+      datastar.jvm,
+      htmx.jvm,
+      smithy,
+      codegen,
+      sql.jvm,
+      `sql-zio`,
+      telemetry.jvm,
+      otel,
+      config.jvm,
+      `config-yaml`.jvm,
+      `config-json`.jvm,
+      `config-hocon`.jvm
+    ),
+    ScalaUnidoc / unidoc / scalacOptions ++= {
+      val root     = (ThisBuild / baseDirectory).value
+      val revision = git.gitHeadCommit.value.getOrElse("main")
+      Seq(
+        "-project",
+        "ZIO Blocks",
+        "-project-version",
+        version.value,
+        "-project-logo",
+        (root / "assets" / "logo" / "zio-blocks-mark.svg").getAbsolutePath,
+        "-sourceroot",
+        root.getAbsolutePath,
+        s"-source-links:github://zio/zio-blocks/$revision",
+        "-social-links:github::https://github.com/zio/zio-blocks",
+        // Load the side menu from one JS file: inlined, it repeats the whole package tree on every
+        // page and the site grows to about 1.5 GB.
+        "-dynamic-side-menu"
+      )
+    },
+    // sbt-api-mappings (via zio-sbt-website) maps every module to its javadoc.io page, so links
+    // between documented types would leave the site for javadoc.io, which has no page for a
+    // snapshot. Every module is documented here, so drop its mappings; other libraries keep theirs.
+    ScalaUnidoc / unidoc / apiMappings ~= (_.filterNot { case (_, url) =>
+      url.toString.startsWith("https://javadoc.io/page/dev.zio/zio-blocks")
+    }),
+    // Copies the unified Scaladoc into website/static/api, so `yarn build` publishes it at /api.
+    generateApiDocs := {
+      val apiDir = websiteDir.value.toFile / "static" / "api"
+      val docDir = (ScalaUnidoc / doc).value
+      IO.delete(apiDir)
+      IO.copyDirectory(docDir, apiDir)
+      // Scaladoc 3.9.0 bugs in scripts/ux.js break navigation; patch them in place.
+      // Each patch fails the task once its target text is gone, so a Scaladoc upgrade that fixes
+      // (or rewrites) the script gets the patch reviewed instead of silently skipped.
+      val uxJsPatches = Seq(
+        // The dynamic side menu interpolates `baseUrl`, an array of path segments, straight into its
+        // links, so JavaScript joins it with commas: under /api every menu link becomes
+        // ",api/zio.html", which resolves against the current page and 404s. (At a site root the
+        // array is [""] and the bug is invisible.) Join it with "/".
+        "return `${baseUrl}/${loc.join(\"/\")}.html`;" ->
+          "return `${baseUrl.join(\"/\")}/${loc.join(\"/\")}.html`;",
+        // Same-origin link clicks are loaded in place with jQuery's `$.get`, but Scaladoc no longer
+        // ships jQuery: the click handler calls preventDefault and then throws "$ is not defined",
+        // so no link on any page navigates. Use fetch, and fall back to a normal page load if the
+        // request fails (the never-settling promise keeps the in-place load from running then).
+        "$.get(href, function (data) {" ->
+          ("fetch(href).then((r) => (r.ok ? r.text() : Promise.reject(r)))" +
+            ".catch(() => { window.location.href = href; return new Promise(() => {}); })" +
+            ".then(function (data) {"),
+        // Back and Forward restore the page content but not the dynamic side menu, which keeps
+        // highlighting the page you left. Update it the way a link click does.
+        "  loadPageState(document, e.state);\n" ->
+          ("  const oldLoc = getRawLoc();\n" +
+            "  loadPageState(document, e.state);\n" +
+            "  if (dynamicSideMenu && updateMenu) updateMenu(oldLoc, getRawLoc());\n"),
+        // A URL naming a section (#attributes) rather than a member expands it with the member's toggle button,
+        // which a section does not have, so the page setup throws there and skips the rest (code highlighting
+        // included). Toggle the button only when there is one.
+        "btn.classList.toggle(\"expand\");\n        btn.classList.toggle(\"expanded\");" ->
+          "btn?.classList.toggle(\"expand\");\n        btn?.classList.toggle(\"expanded\");"
+      )
+      val uxJs        = apiDir / "scripts" / "ux.js"
+      val patchedUxJs = uxJsPatches.foldLeft(IO.read(uxJs)) { case (src, (broken, fixed)) =>
+        if (!src.contains(broken))
+          sys.error(s"$uxJs no longer contains `$broken`: check whether Scaladoc fixed it and drop this patch")
+        src.replace(broken, fixed)
+      }
+      IO.write(uxJs, patchedUxJs)
+      Keys.streams.value.log.info(s"Copied the API docs from $docDir to $apiDir")
+      apiDir
+    },
+    publish / skip := true,
     libraryDependencies ++= Seq(
       "dev.zio"   %% "zio-prelude"    % "1.0.0-RC48",
       "dev.zio"   %% "zio-sbt-source" % "0.8.6",
-      "org.xerial" % "sqlite-jdbc"    % "3.53.2.0"
+      "org.xerial" % "sqlite-jdbc"    % "3.53.2.0",
+      // Lets the PostgreSQL connection-pool guide compile its HikariCP snippets; nothing connects.
+      "com.zaxxer" % "HikariCP" % "7.1.0"
     ),
     // Override @PROJECT_BADGES@ to exclude the javadoc badge and to anchor the Maven Central /
     // Sonatype Snapshot badges on the "zio-blocks-config" artifact instead of "zio-blocks-schema".
@@ -1624,6 +1843,7 @@ lazy val docs = project
     mux.jvm,
     async.jvm,
     sql.jvm,
+    `sql-zio`,
     telemetry.jvm,
     otel,
     config.jvm,
@@ -1633,7 +1853,7 @@ lazy val docs = project
     projection.jvm,
     jwt.jvm
   )
-  .enablePlugins(WebsitePlugin)
+  .enablePlugins(WebsitePlugin, ScalaUnidocPlugin)
 
 lazy val html = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)

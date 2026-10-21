@@ -37,8 +37,8 @@ Key properties:
 The following example shows how `DbCon` is obtained from a `Transactor`, how the context is propagated into helper methods, and how the three members can be accessed when needed:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String)
 object User {
@@ -76,6 +76,12 @@ trait Transactor {
 ```
 
 The following example shows a non-transactional read that uses the supplied `DbCon` to execute a query:
+
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._
@@ -218,15 +224,26 @@ tx.connect {
 
 ## Transactional Scope — `DbTx`
 
-`DbTx` is the only subtype of `DbCon`. It is a marker trait — it adds no new members — whose sole purpose is to distinguish code that runs inside `Transactor#transact` from code that runs inside `Transactor#connect` at the type level:
+`DbTx` is the only subtype of `DbCon`. It distinguishes code that runs inside `Transactor#transact` from code that runs inside `Transactor#connect` at the type level, and it adds the savepoint members that nested transactions are built on:
 
 ```scala
-trait DbTx extends DbCon
+trait DbTx extends DbCon {
+  def savepoint(name: String): Unit
+  def release(name: String): Unit
+  def rollbackTo(name: String): Unit
+  def currentDepth: Int
+}
 ```
 
-Because `DbTx` has no additional members, it exists purely to make the transactional / non-transactional boundary visible in method signatures. A method that requires `DbTx` cannot be called from a `connect` block, but a method that requires `DbCon` can be called from either. This asymmetry is enforced by the compiler: `DbTx <: DbCon` so `DbTx` satisfies a `DbCon` requirement, but a plain `DbCon` does not satisfy a `DbTx` requirement.
+[DbTx](./db-tx.md) documents the savepoint members and nested transactions. For `DbCon` code, the important part is the type itself: it makes the transactional / non-transactional boundary visible in method signatures. A method that requires `DbTx` compiles only inside a `Transactor#transact` block, while a method that requires `DbCon` works inside both `Transactor#connect` and `Transactor#transact`. The compiler enforces this asymmetry: `DbTx <: DbCon`, so `DbTx` satisfies a `DbCon` requirement, but a plain `DbCon` does not satisfy a `DbTx` requirement.
 
 The following example illustrates how to write a helper method that is restricted to transactional scope:
+
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._
@@ -251,8 +268,8 @@ tx.transact {
 When a helper only reads data and should work in both contexts, declare it with `using DbCon`:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 // Usable inside both `connect` and `transact` blocks
 def findUser(id: Int)(using DbCon): Maybe[String] =

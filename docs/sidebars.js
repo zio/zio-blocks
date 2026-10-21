@@ -1,11 +1,7 @@
 const sidebars = {
+  // No "ZIO Blocks" wrapper category: the overview page and the block groups sit at the top level of the sidebar.
   sidebar: [
-    {
-      type: "category",
-      label: "ZIO Blocks",
-      collapsed: false,
-      link: { type: "doc", id: "index" },
-      items: [
+    { type: "doc", id: "index", label: "Overview" },
          {
            type: "category",
            label: "Meta Programming",
@@ -408,7 +404,26 @@ const sidebars = {
             },
                 "reference/sql-zio",
                 "reference/data-migration",
-                "reference/projection",
+                {
+                  type: "category",
+                  label: "Projection",
+                  link: { type: "doc", id: "reference/projection/index" },
+                  items: [
+                    "reference/projection/projection",
+                    "reference/projection/projection-engine",
+                    {
+                      type: "category",
+                      label: "Stores",
+                      collapsed: false,
+                      items: [
+                        "reference/projection/event-store",
+                        "reference/projection/projection-store",
+                      ],
+                    },
+                    "reference/projection/migration",
+                    "reference/projection/testing",
+                  ],
+                },
             ],
           },
           {
@@ -435,24 +450,63 @@ const sidebars = {
               "reference/smithy",
             ]
           },
-        ]
-      },
+  ],
+  // Guides get their own sidebar, reached from the "Guides" navbar item, so the reference sidebar stays reference-only.
+  guides: [
+    "guides/add-zio-blocks-to-your-build",
+    "guides/your-first-schema",
+    "guides/customize-json-encoding",
+    "guides/json-without-case-classes",
+    "guides/override-codec-for-one-type",
+    "guides/validated-newtypes",
+    "guides/derive-your-own-type-class",
+    "guides/nested-data-with-optics",
+    "guides/one-type-many-formats",
+    "guides/read-and-write-csv-and-tsv-files",
+    "guides/typed-config-loader",
+    "guides/feed-config-into-a-wire-graph",
+    "guides/roll-out-feature-gradually",
+    "guides/your-first-sqlite-repository",
+    "guides/test-database-code-against-sqlite",
+    "guides/connect-to-postgresql-with-a-connection-pool",
+    "guides/upsert-and-paginate-with-keyset-cursors",
+    "guides/stream-large-query-results",
+    "guides/write-joins-and-inspect-generated-sql",
+    "guides/sql-from-zio",
+    "guides/your-first-html-page",
+    "guides/serve-http-model-requests",
+    "guides/validate-query-parameters-and-headers",
+    "guides/stream-files-and-sockets",
+    "guides/async-getting-started",
+    "guides/compile-time-resource-safety-with-scope",
+    "guides/fix-scope-and-wire-compile-errors",
+    "guides/resource-and-di-migration",
+    "guides/getting-started-with-mux",
+    "guides/small-json-backend-from-blocks",
+    "guides/instrument-a-program-with-logs-traces-and-metrics",
+    "guides/telemetry-guide",
+    "guides/zio-schema-migration",
+    "guides/config-library-migration",
+    "guides/json-library-migration",
+    "guides/streaming-library-migration",
+    "guides/generate-json-schema-and-validate-payloads",
+    "guides/write-and-export-openapi",
+    "guides/llm-data-with-toon",
     {
       type: "category",
-      label: "Guides",
+      label: "Query DSL",
+      collapsed: false,
       items: [
-        "guides/async-getting-started",
-        "guides/compile-time-resource-safety-with-scope",
-        "guides/getting-started-with-mux",
-        "guides/query-dsl-extending",
-        "guides/query-dsl-fluent-builder",
         "guides/query-dsl-reified-optics",
         "guides/query-dsl-sql",
-        "guides/sql-transactions",
-        "guides/zio-schema-migration",
-        "guides/telemetry-guide",
+        "guides/query-dsl-extending",
+        "guides/query-dsl-fluent-builder",
       ]
-    }
+    },
+    "guides/sql-transactions",
+    "guides/sql-checked-interpolation",
+    "guides/issue-and-verify-jwts",
+    "guides/protect-endpoints-with-jwt",
   ]
 };
 

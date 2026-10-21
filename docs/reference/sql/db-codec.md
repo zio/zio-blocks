@@ -71,8 +71,8 @@ Codecs for JSON/JSONB columns, type conversions, and specialized encoding strate
 The following example shows the core lifecycle of a `DbCodec`: deriving one automatically, inspecting its column metadata, encoding a value, handling nullable columns, and adapting the codec to a newtype:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 // Derive a codec automatically — field names map to snake_case columns by default
 case class User(id: Int, name: String, email: Option[String]) derives DbCodec
@@ -112,6 +112,12 @@ object DbCodec {
 
 The two most common spellings are the `derives` clause on the case class and explicit summoning:
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
+
 ```scala mdoc:compile-only
 import zio.blocks.sql._
 
@@ -148,9 +154,9 @@ object DbCodec {
 The configure function receives a `DerivationBuilder[DbCodec, A]` and returns a modified one. We call `DerivationBuilder#instance` to attach a custom `DbCodec` for a specific field, identified by the enclosing type's `TypeId` and the field name:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.typeid.TypeId
+import zio.blocks.sql._
 
 case class Tags(values: List[String])
 object Tags { implicit val schema: Schema[Tags] = Schema.derived }
@@ -185,9 +191,9 @@ object DbCodec {
 The first overload requires a `JsonCodec[A]` (`zio.blocks.schema.json.JsonCodec`) in implicit scope:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.schema.json.{JsonCodec, JsonCodecDeriver}
+import zio.blocks.sql._
 
 case class Address(street: String, city: String)
 object Address {
@@ -205,8 +211,6 @@ codec.toDbValues(Address("Main St", "NYC"))
 Use the two-argument overload when you supply custom encode/decode logic instead of relying on `JsonCodec`:
 
 ```scala mdoc
-import zio.blocks.sql._
-
 case class Point(x: Double, y: Double)
 
 // Custom JSON encoding using a hand-rolled format
@@ -232,9 +236,6 @@ object DbCodec {
 The codec delegates to `DbCodec[Option[String]]` and applies the JSON encode/decode on the inner `String`, so `NULL` detection uses the underlying `Option[String]` codec's standard null handling:
 
 ```scala mdoc
-import zio.blocks.sql._
-import zio.blocks.schema.json.JsonCodec
-
 // Assume JsonCodec[Address] is in scope from the previous example
 val nullableCodec: DbCodec[Option[Address]] = DbCodec.jsonbOption[Address]
 
@@ -284,9 +285,15 @@ object DbCodec {
 
 `As[A, B]` (from `zio.blocks.schema`) represents a validated conversion from `A` to `B` and from `B` back to `A`. The derived codec applies `As#into` on decode and `As#from` on encode; if either conversion returns a `Left`, an `IllegalStateException` is thrown at runtime:
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
+
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.As
+import zio.blocks.sql._
 
 // Suppose As[String, EmailAddress] is defined and EmailAddress wraps String
 // DbCodec[EmailAddress] is then resolved automatically — no explicit given needed
@@ -329,9 +336,15 @@ object DbCodec {
 
 `DerivationBuilder` exposes `instance` to attach custom codecs for individual fields and `derive` to produce the final codec. `DbCodec.derivedWith` is a one-liner wrapper around `builder`:
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
+
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.typeid.TypeId
+import zio.blocks.sql._
 
 case class Order(id: Long, tags: List[String], metadata: Map[String, String])
 
@@ -385,8 +398,8 @@ trait DbCodec[A] {
 For a case class codec produced by `DbCodec.derived`, each field maps to one column name after the `SqlNameMapper` (default: `SnakeCase`). Annotating a field with `@Modifier.rename("custom_name")` overrides the mapped name:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.{Schema, Modifier}
+import zio.blocks.sql._
 
 case class BlogPost(
   @Modifier.rename("post_id") id: Int,
@@ -409,8 +422,8 @@ trait DbCodec[A] {
 We use `columnCount` to validate multi-column usage and to calculate offsets when composing codecs. For all primitive codecs, `columnCount` is `1`. For a case class, it equals the number of non-transient fields (fields annotated with `@Modifier.transient()` are excluded):
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.{Schema, Modifier}
+import zio.blocks.sql._
 
 case class Event(name: String, @Modifier.transient() internalFlag: Boolean = false) derives DbCodec
 
@@ -432,6 +445,12 @@ trait DbCodec[A] {
 ```
 
 The default implementation converts positional access to label-based access automatically, so implementing only the label-based overload is sufficient when writing a custom `DbCodec`:
+
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._

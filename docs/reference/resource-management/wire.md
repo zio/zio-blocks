@@ -503,9 +503,9 @@ When `Resource.from` composes wires, it respects the sharing strategy:
 - **Shared wires** → reference-counted (single instance in the graph)
 - **Unique wires** → fresh per allocation
 
-The macro detects cycles, duplicate providers, and missing dependencies at compile time.
+The macro detects cycles, duplicate providers, and missing dependencies at compile time. For what each error looks like and how to fix it, see [How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md).
 
-The `AppConfig` leaf above is hardcoded, which is rarely what a real graph wants. `Config.wire[A]` produces a `Wire.Shared[ConfigSource, A]` that decodes `A` from an injected `ConfigSource`, so configuration becomes a node in the graph rather than something resolved before it — see [Config](../config/index.md).
+The `AppConfig` leaf above is hardcoded, which is rarely what a real graph wants. `Config.wire[A]` produces a `Wire.Shared[ConfigSource, A]` that decodes `A` from an injected `ConfigSource`, so configuration becomes a node in the graph rather than something resolved before it — see [Config](../config/index.md). For a complete walkthrough, see [How to Feed Configuration into a Wire Dependency Graph](../../guides/feed-config-into-a-wire-graph.md).
 
 ## Comparison with Alternatives
 
@@ -516,6 +516,8 @@ The `AppConfig` leaf above is hardcoded, which is rarely what a real graph wants
 | **Sharing semantics** | ✓ (configurable) | Manual | ✓ (singleton pattern) |
 | **Finalization** | ✓ (LIFO, automatic) | Manual | Manual |
 | **Performance** | ~0 overhead (macro-generated) | ~0 overhead | ~1 allocation overhead |
+
+Coming from `ZLayer` or macwire? [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](../../guides/resource-and-di-migration.md) maps `ZLayer.make`, `ZLayer.fromFunction`, `wire[A]` and `autowire` onto `Resource.from` and `Wire`.
 
 ## Running the Examples
 

@@ -1,3 +1,4 @@
 src/data/site.json
 static/brand
 .lighthouseci
+static/api

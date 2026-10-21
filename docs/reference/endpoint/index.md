@@ -49,7 +49,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-endpoint" % "@VERSION@"
 libraryDependencies += "dev.zio" %%% "zio-blocks-endpoint" % "@VERSION@"
 ```
 
-**For Scala 3.10+**, the module name is rewritten to `zio-blocks-next-endpoint`:
+**For Scala 3.10+**, use `zio-blocks-next-endpoint` and add `scalacOptions += "-experimental"` (see [How to Add ZIO Blocks to Your Build](../../guides/add-zio-blocks-to-your-build.md)):
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-next-endpoint" % "@VERSION@"  // JVM
 libraryDependencies += "dev.zio" %%% "zio-blocks-next-endpoint" % "@VERSION@" // Scala.js

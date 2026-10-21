@@ -105,7 +105,8 @@ object CiWorkflow {
     Job(
       id = "buildDocs",
       name = "Build Docs",
-      jobTimeout = Some(20),
+      // mdoc plus the fresh-website check take about 14 minutes; the unified Scaladoc adds several more.
+      jobTimeout = Some(30),
       steps = Seq(
         Checkout.value,
         SetupJava("25"),
@@ -125,7 +126,9 @@ object CiWorkflow {
         SingleStep(
           name = "Generate documentation with mdoc",
           condition = Some(HasWebsite),
-          run = Some("sbt docs/mdoc")
+          // generateApiDocs puts the unified Scaladoc in website/static/api, so the preview serves it at /api like
+          // production. One sbt run for both saves loading the build twice.
+          run = Some("sbt docs/mdoc docs/generateApiDocs")
         ),
         SingleStep(
           name = "Check website build process",
@@ -358,7 +361,9 @@ object CiWorkflow {
         SingleStep(
           name = "Compile example projects",
           condition = Some(expr("matrix.scala == '3.9.x'")),
-          run = Some("""for dir in *-examples; do (cd "$dir" && sbt compile) || exit 1; done""")
+          run = Some(
+            """for dir in *-examples; do [ -f "$dir/build.sbt" ] || continue; (cd "$dir" && sbt compile) || exit 1; done"""
+          )
         )
       )
     )

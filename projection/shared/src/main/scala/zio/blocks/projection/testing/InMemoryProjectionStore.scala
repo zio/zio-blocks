@@ -22,6 +22,28 @@ import zio.blocks.projection.{EntityPath, FieldUpdate, ProjectionStore}
 import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
 import zio.blocks.sql.SqlNameMapper
 
+/**
+ * A [[zio.blocks.projection.ProjectionStore]] kept in memory, for tests.
+ * `TestEngine` creates one for each projection.
+ *
+ * The rows are kept in a map from entity ID to row, and the watermark and the
+ * schema hash in two `Ref`s. Nothing is written to disk, so everything is lost
+ * when the program ends.
+ *
+ * `insert` fails if the ID is already taken. `updateFields` changes the row as
+ * a `DynamicValue`. When there is no row yet, it starts from a default one, in
+ * which the ID field holds `entityId` and the other fields hold empty values,
+ * such as `None`, `0`, `""` or `false`. It accepts a field either by its column
+ * name, in snake_case, or by its Scala name. `recreateTable` only removes the
+ * rows, and `addColumn` does nothing, because a map has no columns.
+ *
+ * The constructor is private: create a store with
+ * `InMemoryProjectionStore.make`.
+ *
+ * @tparam A
+ *   the type of a row, with an [[zio.blocks.projection.EntityPath]] that names
+ *   its ID field
+ */
 class InMemoryProjectionStore[A: Schema: EntityPath] private (
   private val mapRef: Ref[Map[String, A]],
   private val seqRef: Ref[Long],
@@ -368,6 +390,9 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
 
 object InMemoryProjectionStore {
 
+  /**
+   * Creates an empty store: no rows, a watermark of `0`, and no schema hash.
+   */
   def make[A: Schema: EntityPath]: Task[InMemoryProjectionStore[A]] =
     for {
       map  <- Ref.make(Map.empty[String, A])
@@ -375,6 +400,17 @@ object InMemoryProjectionStore {
       hash <- Ref.make(Option.empty[String])
     } yield new InMemoryProjectionStore[A](map, seq, hash)
 
+  /**
+   * Creates a store that already holds rows, a watermark and a schema hash, for
+   * a test that starts from a known state.
+   *
+   * @param map
+   *   the rows, keyed by entity ID
+   * @param seq
+   *   the watermark
+   * @param hash
+   *   the schema hash, or `None`
+   */
   def makeWithRefs[A: Schema: EntityPath](
     map: Map[String, A] = Map.empty[String, A],
     seq: Long = 0L,
