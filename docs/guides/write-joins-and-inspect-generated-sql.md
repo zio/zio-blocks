@@ -390,7 +390,11 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/sql-examples
 ```
 
-Each example creates its own temporary SQLite file, so you can run them in any order.
+Each example creates its own temporary SQLite file, so you can run them in any order. To compile all the examples without running them:
+
+```bash
+sbt compile
+```
 
 ### The Library Tables
 
