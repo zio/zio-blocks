@@ -525,6 +525,12 @@ Run it from the `schema-examples` directory:
 sbt "runMain validatednewtypes.CompleteExample"
 ```
 
+To compile every example at once without running them:
+
+```bash
+sbt compile
+```
+
 ## Going Further
 
 - [SchemaError](../reference/schema/schema-error.md) covers every error case, how paths are built, and how to combine errors with `SchemaError#++`.
