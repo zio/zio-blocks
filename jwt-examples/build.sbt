@@ -27,5 +27,7 @@ def zioBlocks(module: String) = Def.setting {
 }
 
 libraryDependencies ++= Seq(
-  zioBlocks("jwt").value
+  zioBlocks("jwt").value,
+  zioBlocks("http-model").value,
+  zioBlocks("config").value
 )

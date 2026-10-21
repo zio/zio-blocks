@@ -491,6 +491,7 @@ const sidebars = {
     "guides/sql-transactions",
     "guides/sql-checked-interpolation",
     "guides/issue-and-verify-jwts",
+    "guides/protect-endpoints-with-jwt",
   ]
 };
 
