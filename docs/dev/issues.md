@@ -4971,11 +4971,11 @@ Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main`
 
 **Suggested fix.** Include the rendered key in the message, or push a `DynamicOptic.Node.AtMapKey` step onto the trace.
 
-### schema (Scala 3): `Binding.of` of a structural type fails with `zio-blocks-schema` on every Scala 3 version, and the error says to upgrade to Scala 3.5
+### schema (Scala 3): `Binding.of` of a structural record type fails with `zio-blocks-schema` on every Scala 3 version, and the error says to upgrade to Scala 3.5
 
 Found 2026-10-21 while writing the Scaladoc of the `binding` package (wave 3 of the schema Scaladoc, branch `scaladoc-wave-3`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: both reproductions below were run with `scala-cli run Repro.scala` against the published `0.0.56`.
 
-**Summary.** The Scaladoc of `Binding.of` listed "Structural types (JVM only)". With the `zio-blocks-schema` artifact, `Binding.of` of a structural type never compiles on Scala 3, whatever the compiler version: that artifact is built with Scala 3.3.7, so it contains the `scala-3.5-` version of the macro support, which always fails. Its error says "requires Scala 3.5+" and suggests upgrading to Scala 3.5, which does not help. Structural types work only with the `zio-blocks-next-schema` artifact, which needs Scala 3.9 and `-experimental`.
+**Summary.** The Scaladoc of `Binding.of` listed "Structural types (JVM only)". With the `zio-blocks-schema` artifact, `Binding.of` of a structural record type never compiles on Scala 3, whatever the compiler version: that artifact is built with Scala 3.3.7, so it contains the `scala-3.5-` version of the macro support, which always fails. Its error says "requires Scala 3.5+" and suggests upgrading to Scala 3.5, which does not help. Structural record types work only with the `zio-blocks-next-schema` artifact, which needs Scala 3.9 and `-experimental`; a union of structural types does not use this macro and compiles with `zio-blocks-schema` too.
 
 **Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
 
@@ -5007,16 +5007,19 @@ object Main {
 // [error]   3. Use Schema[A].structural for structural schema without Binding.of:
 // [error]        given schema: Schema[Person] = Schema.derived
 // [error]        val structuralSchema = schema.structural  // works on all Scala 3 versions
+// [error]     val binding = Binding.of[{ def title: String; def year: Int }]
+// [error]                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// Error compiling project (Scala 3.9.0, JVM (21))
 // Compilation failed
 ```
 
 With `//> using dep dev.zio::zio-blocks-next-schema:0.0.56` and `//> using option -experimental`, the same file compiles and prints `Record(Main$$anon$1@2c8d66b2,Main$$anon$2@5a39699c)`.
 
-**Expected.** Either the error names what works (the `zio-blocks-next-schema` artifact with Scala 3.9 and `-experimental`), or the `zio-blocks-schema` artifact supports structural types.
+**Expected.** Either the error names what works (the `zio-blocks-next-schema` artifact with Scala 3.9 and `-experimental`), or the `zio-blocks-schema` artifact supports structural record types.
 
-**Root cause.** `project/BuildHelper.scala:172-177` publishes the Scala 3.3 build as `zio-blocks-schema` and the 3.7+ build as `zio-blocks-next-schema` (the `zio-blocks-schema_3` 0.0.56 POM depends on `scala3-library_3` 3.3.7). The 3.3 build compiles `schema/shared/src/main/scala-3.5-/zio/blocks/schema/binding/StructuralBindingMacros.scala`, whose `generateAnonymousClassFactory` (`:49`) always fails with the message at `:54`-`:69`. It is called for structural records and unions of structural types (`schema/shared/src/main/scala-3/zio/blocks/schema/binding/BindingCompanionVersionSpecific.scala:1374`, `:1443`).
+**Root cause.** `project/BuildHelper.scala:172-177` publishes the Scala 3.3 build as `zio-blocks-schema` and the Scala 3.7+ build (in practice the 3.9.0 build, so consumers need Scala 3.9+) as `zio-blocks-next-schema` (the `zio-blocks-schema_3` 0.0.56 POM depends on `scala3-library_3` 3.3.7). The 3.3 build compiles `schema/shared/src/main/scala-3.5-/zio/blocks/schema/binding/StructuralBindingMacros.scala`, whose `generateAnonymousClassFactory` (`:49`) always fails with the message at `:54`-`:69`. It is called only for structural record types (`schema/shared/src/main/scala-3/zio/blocks/schema/binding/BindingCompanionVersionSpecific.scala:1376`, through the helper at `:1443-1446`); unions of structural types use `deriveStructuralVariantBindingSimple` (`:1528`), which does not call it.
 
-**Impact.** A Scala 3 user who reads the Scaladoc or the error and upgrades the compiler still gets the same error. The Scaladoc of `Binding.of` and of the `scala-3.5-` `StructuralBindingMacros` now say which artifact supports structural types.
+**Impact.** A Scala 3 user who reads the Scaladoc or the error and upgrades the compiler still gets the same error. The Scaladoc of `Binding.of` and of the `scala-3.5-` `StructuralBindingMacros` now say which artifact supports structural record types.
 
 **Test gap.** The structural `Binding.of` tests are in `schema/jvm/src/test/scala-3.5+/`, so they run only in the 3.9 build; nothing checks what the published 3.3 build does with a newer compiler.
 
