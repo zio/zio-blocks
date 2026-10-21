@@ -75,7 +75,7 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.streams._
 ```
 
-This guide assumes you know one of the three source libraries. It maps their concepts onto ZIO Blocks rather than teaching streams from scratch. The [Streams reference](../reference/streams/index.md) covers `Stream`, `Sink` and `Pipeline` in depth. The tutorial "Build your first streaming pipeline" and the how-to guides "How to stream large query results" and "How to stream files and sockets without leaking resources" are in progress.
+This guide assumes you know one of the three source libraries. It maps their concepts onto ZIO Blocks rather than teaching streams from scratch. The [Streams reference](../reference/streams/index.md) covers `Stream`, `Sink` and `Pipeline` in depth. The how-to guides [How to Stream Large Query Results](./stream-large-query-results.md) and [How to Stream Files and Sockets Without Leaking Resources](./stream-files-and-sockets.md) apply streams to databases and I/O. The tutorial "Build your first streaming pipeline" is in progress.
 
 ## The Bookstore Order Log
 
@@ -748,7 +748,7 @@ pagedOrders
   .runCollect
 ```
 
-Keep the elements as objects until after the stateful operator, and map to the primitive inside each batch:
+Keep the elements as objects until after the stateful operator, and map to the primitive inside each batch. [How to Stream Large Query Results](./stream-large-query-results.md) gives the same advice for database rows:
 
 ```scala mdoc
 println(
@@ -802,7 +802,7 @@ println(bytesPerRun.count)
 println(bytesPerRun.count)
 ```
 
-The same pattern works for a channel with `NioStreams.fromChannelUnmanaged`. In ZIO Streams, `ZStream.fromInputStream` never closes the stream at all.
+The same pattern works for a channel with `NioStreams.fromChannelUnmanaged`; [How to Stream Files and Sockets Without Leaking Resources](./stream-files-and-sockets.md) covers files, channels and sockets in depth. In ZIO Streams, `ZStream.fromInputStream` never closes the stream at all.
 
 ### Primitive Streams Use End-of-Stream Sentinels
 
@@ -826,20 +826,24 @@ What is different:
 - **Parallel operators are unordered.** `mapPar` is `mapParUnordered` under another name.
 - **No `Pull`, `ZChannel` or fibers.** Custom operators use `mapAccum`, `scan` or `start`, and concurrency lives inside the parallel operators.
 
-On Scala.js, run the stream with an asynchronous terminal and convert the `Async` result to a `Future` with `toFuture` (or to a `js.Promise` with `toJsPromise`). This code compiles on both platforms:
+On Scala.js, run the stream with an asynchronous terminal and convert the `Async` result to a `Future` with `toFuture` (or to a `js.Promise` with `toJsPromise`). `totals` is a `def`, so each call builds a new `Async`. This code compiles on both platforms:
 
 ```scala mdoc:silent
-val totalsAsync: Async[Either[String, Map[String, Int]]] =
+def totals: Async[Either[String, Map[String, Int]]] =
   orders.runAsync(Sink.foldLeft[OrderEvent, Map[String, Int]](Map.empty)(addOrder))
 
-val totalsFuture: Future[Either[String, Map[String, Int]]] = totalsAsync.toFuture
+val totalsFuture: Future[Either[String, Map[String, Int]]] = totals.toFuture
 ```
 
 On the JVM, `block` waits for the result instead:
 
 ```scala mdoc
-println(totalsAsync.block)
+println(totals.block)
 ```
+
+:::warning
+Consume each `Async` value once. Calling `toFuture` and `block` on the same value drives it from two places, which is undefined behaviour: one of the two can wait forever. Build a new `Async` for each consumer, as the `def` above does, or call `start` once and share the `Async.Running` it returns. See [Concurrent Fan-Out via Running](../reference/async.md#concurrent-fan-out-via-running).
+:::
 
 ## Migration Checklist
 
@@ -900,4 +904,5 @@ sbt compile
 - [Reader](../reference/streams/primitives/reader.md): manual pulls with `start` and the sentinel protocol.
 - [Async execution](../reference/streams/execution-and-compatibility/async-execution.md) and [platform differences](../reference/streams/execution-and-compatibility/platform-differences.md): the asynchronous terminals and what changes on Scala.js.
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./resource-and-di-migration.md): the resource side of the same migration.
-- The tutorial "Build your first streaming pipeline" and the how-to guides "How to stream large query results" and "How to stream files and sockets without leaking resources" are in progress.
+- [How to Stream Large Query Results](./stream-large-query-results.md) and [How to Stream Files and Sockets Without Leaking Resources](./stream-files-and-sockets.md): streams over database results, files and sockets.
+- The tutorial "Build your first streaming pipeline" is in progress.
