@@ -38,7 +38,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-21 | How to use the sql module from a ZIO application                             | Done                                    | #1803, `guides/sql-from-zio.md`; `sql-zio` now on the docs classpath (import rule in AGENTS.md) |
 | H-35 | How to serve http-model requests with the JDK HTTP server                     | In review                               | #1806 (`http-server`); reusable `JdkHttp` adapter |
 | T-12 | Instrument a program with logs, traces and metrics                            | In review                               | #1805 (`docs/t12-instrument-telemetry`), `telemetry-examples/` |
-| H-38 | How to protect an endpoint with JWT bearer tokens                             | In review                               | #1804 (`jwt-bearer`) |
+| H-38 | How to protect an endpoint with JWT bearer tokens                             | Done                                    | #1804, `guides/protect-endpoints-with-jwt.md`, `jwt-examples/` |
 | H-39 | How to write an OpenAPI document and export it as JSON or YAML                | In review                               | #1807 (`openapi`), `openapi-examples/` |
 | H-36 | How to validate query parameters and headers and answer 400                   | In review                               | #1808 (`query-validation`), depends on #1806 (H-35)                                     |
 | T-15 | Build a small JSON backend from blocks (capstone)                             | Done                                    | #1809, `guides/small-json-backend-from-blocks.md`, `capstone-examples/`                  |
@@ -71,7 +71,7 @@ This table tracks every item that has been written or started. Items not listed 
 
 **Unblocked by H-35 (pushed):** H-36, H-38, H-49, H-40, H-41, T-10, T-11 and the T-15 capstone can reuse its `JdkHttp` adapter (`http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala`).
 
-**Links to add when PRs merge:** `small-json-backend-from-blocks.md` (T-15) names H-35 (#1806, section 9 and Background), H-36 (#1808, end of section 6), T-12 (#1805, end of section 8 and the log source-location caution) and H-38 (#1804, Where to Go Next) without links. Each of those PRs should turn its mention into a link.
+**Links to add when PRs merge:** `small-json-backend-from-blocks.md` (T-15) names H-35 (#1806, section 9 and Background), H-36 (#1808, end of section 6), T-12 (#1805, end of section 8 and the log source-location caution) and H-38 (#1804, Where to Go Next) without links. Each of those PRs should turn its mention into a link. Done: #1804 (merged), #1806. Also `protect-endpoints-with-jwt.md` (H-38) names H-35 unlinked in Prerequisites and Running the Examples; #1806 should link it.
 
 **Doc-fix follow-up:** `csv.md` statements listed in the H-11 Documentation errors entry (Pattern 3, row/column claims, `TypeError`, `nullValue`, nested records) still need fixing; unblocked now that #1773 merged.
 
