@@ -86,7 +86,7 @@ scalacOptions += "-experimental"
 On the JVM, the `telemetry` module needs **JDK 21 or newer**. It is compiled for Java 21, so on JDK 17 the first call fails with `java.lang.UnsupportedClassVersionError`. JDK 21 needs no extra flags such as `--enable-preview`. The code in this tutorial is Scala 3.
 
 :::caution
-In version 0.0.56, the `log.*` calls don't compile on Scala 2.13 outside the library's own package: the compiler reports `object GlobalLogState in package telemetry cannot be accessed`. The bug is recorded in [Known Issues](../dev/issues.md). Spans and metrics are not affected.
+In version 0.0.56, the `log.*` calls don't compile on Scala 2.13 outside the library's own package: the compiler reports `object GlobalLogState in package telemetry cannot be accessed`. This is a known bug in that version. Spans and metrics are not affected.
 :::
 
 ## 2. Background: Three Signals
@@ -122,7 +122,7 @@ The code above:
 The line goes to standard output, shown above as a comment under the call. Each line has four parts: the time in UTC (shown here as `<timestamp>`, because it changes on every run), the severity padded to five characters, the source location in square brackets, and the message. The `log.*` methods are macros, so the source location is filled in at compile time — the class, the method and the line number of the call — at no runtime cost.
 
 :::caution
-The brackets should hold the short class name, the method and the line, such as `[RestockJob$.run:5]`. In version 0.0.56, a class inside a package prints its full name followed by two numbers instead, as in `[(bookstore.RestockJob$,10,21).run:5]`. On this page, the class also sits inside the `repl.MdocSession` wrapper that renders the examples. The bug is recorded in [Known Issues](../dev/issues.md); the message and fields are not affected.
+The brackets should hold the short class name, the method and the line, such as `[RestockJob$.run:5]`. In version 0.0.56, a class inside a package prints its full name followed by two numbers instead, as in `[(bookstore.RestockJob$,10,21).run:5]`. On this page, the class also sits inside the `repl.MdocSession` wrapper that renders the examples. This is a known bug in that version; the message and fields are not affected.
 :::
 
 ## 4. Add Structured Fields
