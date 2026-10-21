@@ -25,11 +25,60 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
 import zio.blocks.docs.Doc
 
+/** Adds `derived` to the [[Schema]] companion. */
 trait SchemaCompanionVersionSpecific {
+
+  /**
+   * Derives the schema of `A` at compile time. It supports case classes and
+   * other classes whose constructor parameters are `val`s, sealed traits and
+   * sealed abstract classes with their cases, case objects, options, arrays and
+   * collections, and ZIO Prelude newtypes. On Scala 3 it also supports enums,
+   * union types, generic and named tuples, opaque types and Neotype newtypes,
+   * and `derives Schema` calls it.
+   *
+   * For each field or case type it uses the implicit `Schema` in scope when
+   * there is one, so an `implicit val` of type `Schema[LocalDate]` changes how
+   * every `LocalDate` field is represented, in every format. An implicit codec
+   * in scope, such as a `JsonCodec`, is not used. Annotations that extend
+   * [[Modifier.Term]] on fields and cases, and [[Modifier.Reflect]] on the
+   * type, become modifiers of the schema.
+   *
+   * Derivation fails to compile for a type it cannot derive (`Cannot derive
+   * schema for ...`), and for a field marked `transient` or `encodeTransient`
+   * that has no default value and is neither an `Option` nor a collection.
+   *
+   * Deriving, from inside a class, a sealed trait declared in that class whose
+   * case classes sit in the trait's companion crashes the compiler. Derive the
+   * trait's schema in its companion instead, or declare the model in an object.
+   *
+   * {{{
+   * sealed trait Format
+   * object Format {
+   *   case object Hardcover                  extends Format
+   *   final case class Ebook(sizeMb: Double) extends Format
+   *   implicit val schema: Schema[Format] = Schema.derived
+   * }
+   *
+   * final case class Book(title: String, format: Format)
+   * object Book {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   * }
+   *
+   * val json = Schema[Book].jsonCodec.encodeToString(Book("Zionomicon", Format.Ebook(2.5)))
+   * // {"title":"Zionomicon","format":{"Ebook":{"sizeMb":2.5
+   * }}}
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/schema/schema/ Schema]]
+   */
   inline def derived[A]: Schema[A] = ${ SchemaCompanionVersionSpecificImpl.derived }
 }
 
+/** The implementation of the `Schema.derived` macro. */
 private object SchemaCompanionVersionSpecificImpl {
+
+  /** Expands `Schema.derived[A]`. */
   def derived[A: Type](using Quotes): Expr[Schema[A]] = new SchemaCompanionVersionSpecificImpl().derived[A]
 
   private implicit val fullTermNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
@@ -46,6 +95,10 @@ private object SchemaCompanionVersionSpecificImpl {
   }
 }
 
+/**
+ * The `Schema.derived` macro for one expansion; it caches the schemas it
+ * derives for nested types.
+ */
 private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   import quotes.reflect._
   import zio.blocks.schema.SchemaCompanionVersionSpecificImpl.fullTermNameOrdering
@@ -1430,6 +1483,10 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
   private def cannotDeriveSchema(tpe: TypeRepr): Nothing = fail(s"Cannot derive schema for '${tpe.show}'.")
 
+  /**
+   * Builds the schema expression for `A`, with the schemas of nested types as
+   * local `val`s.
+   */
   def derived[A: Type]: Expr[Schema[A]] = {
     val aTpe        = TypeRepr.of[A]
     val schema      = deriveSchema[A](aTpe)

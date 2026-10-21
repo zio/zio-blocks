@@ -25,10 +25,57 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer
 
+/** Adds `derived` to the [[Schema]] companion. */
 trait SchemaCompanionVersionSpecific {
+
+  /**
+   * Derives the schema of `A` at compile time. It supports case classes and
+   * other classes whose constructor parameters are `val`s, sealed traits and
+   * sealed abstract classes with their cases, case objects, options, arrays and
+   * collections, and ZIO Prelude newtypes. On Scala 3 it also supports enums,
+   * union types, generic and named tuples, opaque types and Neotype newtypes,
+   * and `derives Schema` calls it.
+   *
+   * For each field or case type it uses the implicit `Schema` in scope when
+   * there is one, so an `implicit val` of type `Schema[LocalDate]` changes how
+   * every `LocalDate` field is represented, in every format. An implicit codec
+   * in scope, such as a `JsonCodec`, is not used. Annotations that extend
+   * [[Modifier.Term]] on fields and cases, and [[Modifier.Reflect]] on the
+   * type, become modifiers of the schema.
+   *
+   * Derivation fails to compile for a type it cannot derive (`Cannot derive
+   * schema for ...`), and for a field marked `transient` or `encodeTransient`
+   * that has no default value and is neither an `Option` nor a collection.
+   *
+   * Deriving, from inside a class, a sealed trait declared in that class whose
+   * case classes sit in the trait's companion crashes the compiler. Derive the
+   * trait's schema in its companion instead, or declare the model in an object.
+   *
+   * {{{
+   * sealed trait Format
+   * object Format {
+   *   case object Hardcover                  extends Format
+   *   final case class Ebook(sizeMb: Double) extends Format
+   *   implicit val schema: Schema[Format] = Schema.derived
+   * }
+   *
+   * final case class Book(title: String, format: Format)
+   * object Book {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   * }
+   *
+   * val json = Schema[Book].jsonCodec.encodeToString(Book("Zionomicon", Format.Ebook(2.5)))
+   * // {"title":"Zionomicon","format":{"Ebook":{"sizeMb":2.5
+   * }}}
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/schema/schema/ Schema]]
+   */
   def derived[A]: Schema[A] = macro SchemaCompanionVersionSpecific.derived[A]
 }
 
+/** The implementation of the `Schema.derived` macro. */
 private object SchemaCompanionVersionSpecific {
   private[this] implicit val fullTermNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
@@ -43,6 +90,7 @@ private object SchemaCompanionVersionSpecific {
     }
   }
 
+  /** Expands `Schema.derived[A]`. */
   def derived[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[Schema[A]] = {
     import c.universe._
 
