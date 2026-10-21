@@ -1375,6 +1375,8 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
 // Compiles every code example in the Scaladoc of `schema` (see docs/dev/scaladoc-style.md).
 // Not published. The extractor lives in project/ScaladocSnippets.scala so that sbt can run it as a
 // source generator; the Test configuration compiles that file again to unit-test it.
+lazy val fatalWarningFlags: Set[String] = Set("-Werror", "-Xfatal-warnings")
+
 lazy val `schema-scaladoc-check` = project
   .in(file("schema-scaladoc-check"))
   .settings(stdSettings("zio-blocks-schema-scaladoc-check"))
@@ -1390,7 +1392,11 @@ lazy val `schema-scaladoc-check` = project
     ),
     Test / unmanagedSources += (ThisBuild / baseDirectory).value / "project" / "ScaladocSnippets.scala",
     // Examples are user code: a warning in one (an unused import, say) must not fail the build.
-    Compile / scalacOptions ~= (_.filterNot(Set("-Werror", "-Xfatal-warnings"))),
+    Compile / scalacOptions ~= (_.filterNot(fatalWarningFlags)),
+    // `Test / scalacOptions` delegates to the Compile ones, so put the fatal flags back: the spec and
+    // project/ScaladocSnippets.scala are ordinary code. (The generated snippets are Compile sources.)
+    Test / scalacOptions := (Test / scalacOptions).value ++ (schema.jvm / Compile / scalacOptions).value
+      .filter(fatalWarningFlags),
     Compile / sourceGenerators += Def.task {
       val root       = (ThisBuild / baseDirectory).value
       val outDir     = (Compile / sourceManaged).value / "scaladoc-snippets"
