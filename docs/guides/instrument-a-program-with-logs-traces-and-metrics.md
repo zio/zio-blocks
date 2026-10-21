@@ -252,7 +252,7 @@ Notice the order: the children come first, because each child ends before its pa
 
 ## 7. Count Restocked Books
 
-Spans describe one run. Many questions are about all runs together: how many copies of Zionomicon did we restock this month? A **counter** answers that. It is a running total that only goes up, and each `add` can carry attributes, so one counter keeps a separate total for each title.
+Spans describe one run. Many questions are about all runs together: how many copies of Zionomicon did we restock this month? A **counter** answers that. It is a running total that only goes up, and each `Counter#add` call can carry attributes, so one counter keeps a separate total for each title.
 
 Let's count the restocked copies:
 
@@ -306,7 +306,7 @@ RestockJob.booksRestocked.collect() match {
 The code above:
 
 - `AttributeKey.string("title")` is a typed key: `attributes.get(titleKey)` returns an `Option[String]`.
-- `collect()` returns a snapshot of the counter's totals.
+- `Counter#collect` returns a snapshot of the counter's totals.
 - `points.sortBy(...)` sorts the series by title, so the output has a stable order.
 
 Each title has its own total. Run the job again and the totals grow: a counter keeps adding up for as long as the program runs.
@@ -540,6 +540,12 @@ To run the complete example:
 
 ```bash
 sbt "runMain instrumentaprogramwithlogstracesandmetrics.CompleteExample"
+```
+
+To check that every example compiles without running any of them:
+
+```bash
+sbt compile
 ```
 
 ## 12. What You've Learned

@@ -3,8 +3,8 @@ package instrumentaprogramwithlogstracesandmetrics
 import zio.blocks.telemetry._
 
 /**
- * Complete example: JSON logs on standard error, a span per step, a counter per title, a histogram per step, and a check
- * on the shape of the trace.
+ * Instrument a Program with Logs, Traces and Metrics: Complete example. JSON logs on standard error, a span per step,
+ * a counter per title, a histogram per step, and a check on the shape of the trace.
  *
  * Run with: sbt "runMain instrumentaprogramwithlogstracesandmetrics.CompleteExample"
  */

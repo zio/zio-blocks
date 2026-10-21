@@ -3,7 +3,9 @@ package instrumentaprogramwithlogstracesandmetrics
 import zio.blocks.telemetry._
 
 /**
- * Trace the job with spans.
+ * Instrument a Program with Logs, Traces and Metrics: Trace the job with spans.
+ *
+ * Wraps the restock job in a root span with one child span per step, then prints the collected spans.
  *
  * Run with: sbt "runMain instrumentaprogramwithlogstracesandmetrics.Concept4SpansExample"
  */

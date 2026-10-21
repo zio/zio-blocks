@@ -3,7 +3,9 @@ package instrumentaprogramwithlogstracesandmetrics
 import zio.blocks.telemetry._
 
 /**
- * Add structured fields.
+ * Instrument a Program with Logs, Traces and Metrics: Add structured fields.
+ *
+ * Attaches `key -> value` fields to log lines and tags a whole unit of work with `log.annotated`.
  *
  * Run with: sbt "runMain instrumentaprogramwithlogstracesandmetrics.Concept2StructuredFieldsExample"
  */

@@ -3,7 +3,9 @@ package instrumentaprogramwithlogstracesandmetrics
 import zio.blocks.telemetry._
 
 /**
- * Test the instrumentation.
+ * Instrument a Program with Logs, Traces and Metrics: Test the instrumentation.
+ *
+ * Runs the job and asserts on the shape of the collected span tree.
  *
  * Run with: sbt "runMain instrumentaprogramwithlogstracesandmetrics.Concept7TestSpansExample"
  */

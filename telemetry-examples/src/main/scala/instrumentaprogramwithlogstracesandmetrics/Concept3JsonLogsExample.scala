@@ -3,7 +3,9 @@ package instrumentaprogramwithlogstracesandmetrics
 import zio.blocks.telemetry._
 
 /**
- * Switch to JSON logs on standard error.
+ * Instrument a Program with Logs, Traces and Metrics: Switch to JSON logs on standard error.
+ *
+ * Installs a fresh logger and adds a JSON output on standard error with `log.install` and `log.writer`.
  *
  * Run with: sbt "runMain instrumentaprogramwithlogstracesandmetrics.Concept3JsonLogsExample"
  */

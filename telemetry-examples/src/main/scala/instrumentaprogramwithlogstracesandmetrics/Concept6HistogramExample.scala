@@ -3,7 +3,9 @@ package instrumentaprogramwithlogstracesandmetrics
 import zio.blocks.telemetry._
 
 /**
- * Time each step.
+ * Instrument a Program with Logs, Traces and Metrics: Time each step.
+ *
+ * Records each step's duration in a histogram and reads the count and bucket numbers back.
  *
  * Run with: sbt "runMain instrumentaprogramwithlogstracesandmetrics.Concept6HistogramExample"
  */

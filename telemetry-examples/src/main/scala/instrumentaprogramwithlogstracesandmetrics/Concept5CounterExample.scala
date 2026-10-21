@@ -3,7 +3,9 @@ package instrumentaprogramwithlogstracesandmetrics
 import zio.blocks.telemetry._
 
 /**
- * Count restocked books.
+ * Instrument a Program with Logs, Traces and Metrics: Count restocked books.
+ *
+ * Counts restocked copies per title with a counter and reads the totals back.
  *
  * Run with: sbt "runMain instrumentaprogramwithlogstracesandmetrics.Concept5CounterExample"
  */
