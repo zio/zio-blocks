@@ -726,6 +726,12 @@ To run the complete example:
 sbt "runMain validatequeryparametersandheaders.CompleteExample"
 ```
 
+To compile all the examples without running them:
+
+```bash
+sbt compile
+```
+
 ## Going Further
 
 - **One value at a time**: The [schema integration reference](../reference/http-model/schema.md) lists every accessor on `QueryParams`, `Headers`, `Request` and `Response`, the supported types and the exact error messages.
