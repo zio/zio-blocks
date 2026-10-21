@@ -118,7 +118,7 @@ object Catalog {
 
 ## Read a YAML Catalog Into Case Classes
 
-`Schema#derive(YamlFormat)` derives a `YamlCodec` from the schema. Its `decode` method takes the YAML text and returns `Either[SchemaError, A]`:
+`Schema#derive(YamlFormat)` derives a `YamlCodec` from the schema. Its `YamlCodec#decode` method takes the YAML text and returns `Either[SchemaError, A]`:
 
 ```scala mdoc:silent
 val catalogCodec: YamlCodec[Catalog] = Catalog.schema.derive(YamlFormat)
@@ -150,6 +150,8 @@ val catalogYaml: String =
     |""".stripMargin
 ```
 
+To decode the catalog and print each book with its authors and price:
+
 ```scala mdoc
 catalogCodec.decode(catalogYaml) match {
   case Right(catalog) => catalog.books.foreach(book => println(s"${book.title}: ${book.authors.mkString(", ")}, ${book.price}"))
@@ -159,12 +161,9 @@ catalogCodec.decode(catalogYaml) match {
 
 The file mixes the two ways YAML writes a list: the authors of Zionomicon are a flow sequence in square brackets, and the authors of Programming in Scala are a block sequence with one `- ` item per line. The codec reads both. It also skips the comment, and ignores keys that the case class doesn't have.
 
-Two rules decide which keys the codec looks for:
+Two rules decide which keys the codec looks for. Keys are the field names in kebab-case: the `pageCount` field is read from the key `page-count`. The YAML codec always converts field names this way, and in @VERSION@ it ignores `@Modifier.rename`, `@Modifier.transient` and the other field annotations that the JSON codec honours, so the [JSON customizations](./customize-json-encoding.md) don't carry over to YAML. A field named `imagePullPolicy` can't be read from a Kubernetes file that spells the key `imagePullPolicy`; [Convert Between YAML and JSON](#convert-between-yaml-and-json) shows a way around this. GitHub issue [#1327](https://github.com/zio/zio-blocks/issues/1327) tracks configurable field names. Scalars are read as text and converted by the field's type: the ISBN of Programming in Scala is quoted because it looks like a number, but an unquoted ISBN is fine too, because a `String` field keeps the text either way and a `Double` field parses it.
 
-- **Keys are the field names in kebab-case.** The `pageCount` field is read from the key `page-count`. The YAML codec always converts field names this way, and in @VERSION@ it ignores `@Modifier.rename`, `@Modifier.transient` and the other field annotations that the JSON codec honours, so the [JSON customizations](./customize-json-encoding.md) don't carry over to YAML. A field named `imagePullPolicy` can't be read from a Kubernetes file that spells the key `imagePullPolicy`; [Convert Between YAML and JSON](#convert-between-yaml-and-json) shows a way around this. GitHub issue [#1327](https://github.com/zio/zio-blocks/issues/1327) tracks configurable field names.
-- **Scalars are read as text and converted by the field's type.** The ISBN of Programming in Scala is quoted because it looks like a number, but an unquoted ISBN is fine too: a `String` field keeps the text either way, and a `Double` field parses it.
-
-If you prefer extension methods, `YamlSyntax` adds `fromYaml` to `String`, and `toYaml`, `toYamlString` and `toYamlBytes` to any value with a `Schema`:
+If you prefer extension methods, `YamlSyntax` adds `String#fromYaml` to `String`, and `toYaml`, `toYamlString` and `toYamlBytes` to any value with a `Schema`:
 
 ```scala mdoc:silent
 import zio.blocks.schema.yaml.YamlSyntax._
@@ -180,6 +179,8 @@ val zionomicon = Book(
 )
 ```
 
+To write the book as YAML and check that it reads back as the same value:
+
 ```scala mdoc
 println(zionomicon.toYamlString)
 println(zionomicon.toYamlString.fromYaml[Book] == Right(zionomicon))
@@ -189,7 +190,7 @@ The codec also decodes from `Array[Byte]` and `java.nio.ByteBuffer`, so you can 
 
 ## Report Decode Errors
 
-When a value is missing or has the wrong type, `decode` returns a `Left` with a `SchemaError`. Its message names what went wrong and the path to the value, written as Scala navigation from the root (`.books.at(1).price` is the `price` field of the second book):
+When a value is missing or has the wrong type, `YamlCodec#decode` returns a `Left` with a `SchemaError`. Its message names what went wrong and the path to the value, written as Scala navigation from the root (`.books.at(1).price` is the `price` field of the second book):
 
 ```scala mdoc
 def report(yaml: String): Unit =
@@ -207,7 +208,7 @@ report(catalogYaml.replace("    isbn: \"9780997148008\"\n", ""))
 The messages read as follows:
 
 - A wrong scalar names the field that holds it. The path uses the Scala field name (`.books.at(0).pageCount`), not the YAML key `page-count`.
-- The `Format` error ends in `.wrapped`, the step that ZIO Blocks adds for a type built with `Schema#transform`. It is an internal detail that shows up in the path.
+- The `Format` error ends in a `wrapped` path step, the step that ZIO Blocks adds for a type built with `Schema#transform`. It is an internal detail that shows up in the path.
 - A missing field is named by its YAML key, and the path points at the record that should contain it, not at the field.
 
 None of the messages has a line or column number: the codec decodes a tree of YAML values, and the tree doesn't remember where each value came from. A path is usually enough to find the value in a file of this size.
@@ -281,18 +282,17 @@ The output follows a few fixed rules:
 - The key `on` is quoted. YAML 1.1 readers read a bare `on`, `off`, `yes` or `no` as a boolean, so the writer quotes these words wherever they appear. GitHub reads `"on"` as the key `on`.
 - Strings that would read back as something else are double-quoted: text that looks like a number, a boolean or `null`, text that starts with a YAML indicator such as `[`, `&` or `!`, and text that contains `: `, ` #` or a line break. `Int`, `Double` and `Boolean` fields are written as plain numbers and booleans.
 
-Two value types are written differently from what you might expect:
-
-- A string with line breaks is written as a double-quoted string with `\n` escapes, never as a `|` block. A multi-line `run:` script is valid YAML in this form, just harder to read.
-- `BigDecimal` and `BigInt` fields are written as quoted strings (`price: "49.99"`), so other YAML readers see a string, not a number. Use `Double`, `Int` or `Long` for numbers that other tools must read as numbers.
+Two value types are written differently from what you might expect. A string with line breaks is written as a double-quoted string with `\n` escapes, never as a `|` block, so a multi-line `run:` script is valid YAML in this form, just harder to read. `BigDecimal` and `BigInt` fields are written as quoted strings (`price: "49.99"`), so other YAML readers see a string, not a number; use `Double`, `Int` or `Long` for numbers that other tools must read as numbers.
 
 ## Control the Output Style
 
-`encodeToString` always uses the default style. To change it, encode the value to the `Yaml` tree with `YamlCodec#encodeValue`, then write the tree with `YamlWriter.write` and a `YamlOptions`:
+`YamlCodec#encodeToString` always uses the default style. To change it, encode the value to the `Yaml` tree with `YamlCodec#encodeValue`, then write the tree with `YamlWriter.write` and a `YamlOptions`:
 
 ```scala mdoc:silent
 val workflowTree: Yaml = workflowCodec.encodeValue(ciWorkflow)
 ```
+
+To write the tree with four-space indentation and a leading `---` line:
 
 ```scala mdoc
 println(YamlWriter.write(workflowTree, YamlOptions(indentStep = 4, documentMarkers = true)))
@@ -300,10 +300,10 @@ println(YamlWriter.write(workflowTree, YamlOptions(indentStep = 4, documentMarke
 
 `YamlOptions` has three settings:
 
-| Setting           | Default | Effect                                                                  |
-|-------------------|---------|-------------------------------------------------------------------------|
-| `indentStep`      | `2`     | Spaces per nesting level                                                |
-| `documentMarkers` | `false` | Start the output with a `---` line                                      |
+| Setting           | Default | Effect                                                                     |
+|-------------------|---------|----------------------------------------------------------------------------|
+| `indentStep`      | `2`     | Spaces per nesting level                                                   |
+| `documentMarkers` | `false` | Start the output with a `---` line                                         |
 | `flowStyle`       | `false` | Write every mapping as `{k: v}` and every sequence as `[a, b]` on one line |
 
 `YamlOptions.default`, `YamlOptions.pretty` (document markers on) and `YamlOptions.flow` (flow style on) are ready-made values, and `Yaml#print` and `Yaml#printPretty` are shortcuts for the first two. Flow style suits short values such as one step:
@@ -311,6 +311,8 @@ println(YamlWriter.write(workflowTree, YamlOptions(indentStep = 4, documentMarke
 ```scala mdoc:silent
 val testStep = Step("Test", run = Some("sbt +test"))
 ```
+
+To write the step in flow style:
 
 ```scala mdoc
 println(YamlWriter.write(Step.schema.derive(YamlFormat).encodeValue(testStep), YamlOptions.flow))
@@ -333,6 +335,8 @@ val deployment: Yaml = Yaml.Mapping.fromStringKeys(
   "regions"  -> Yaml.Sequence(Yaml.Scalar("eu-central"), Yaml.Scalar("us-east"))
 )
 ```
+
+To print the tree in the default block style:
 
 ```scala mdoc
 println(deployment.print)
@@ -366,6 +370,8 @@ object Featured {
 }
 ```
 
+To print the tree and decode it into `Featured`:
+
 ```scala mdoc
 println(featured.print)
 println(Featured.schema.derive(YamlFormat).decodeValue(featured))
@@ -377,7 +383,8 @@ The interpolator builds the text and parses it again with `YamlReader`, so its r
 The interpolator has known bugs in @VERSION@:
 
 - On Scala 2.13 it doesn't compile in user code; the error says that `YamlInterpolatorRuntime` cannot be accessed. Build trees with the `Yaml` constructors there.
-- Splice only scalar values (strings, numbers, booleans, dates). A spliced `List`, case class or `Yaml` tree is written in block style on the line of its key, and the reader drops it and every line after it, without an error.
+- Splice only scalar values (strings, numbers, booleans, dates). A spliced `List`, case class or `Yaml` tree is written in block style on the line of its key, so it is misread without an error: a list loses all but its first item and every line after it, and a record's fields move up to the parent mapping.
+- Escape sequences in the literal are not processed: `yaml"title: Zionomicon\nprice: 49.99"` is one key whose value contains a backslash and an `n`. Write multi-line YAML in a triple-quoted literal, as above.
 - The compile-time check covers the spliced types, not the YAML syntax: a literal with an unclosed `[` still compiles.
 :::
 
@@ -391,13 +398,15 @@ import zio.blocks.schema.json.Json
 val bookJson: Json = Json.from(zionomicon)
 ```
 
+To print the YAML that the JSON value produces:
+
 ```scala mdoc
 println(Yaml.fromJson(bookJson).print)
 ```
 
-Note that this tree came from the JSON codec, so the keys are the JSON field names (`pageCount`), not kebab-case. The price prints as `49.990` because of a known bug in @VERSION@: the JSON codec turns a `Double` into a `Json.Number` with an extra trailing zero. The value is the same.
+This tree came from the JSON codec, so the keys are the JSON field names (`pageCount`), not kebab-case. The price prints as `49.990` because of a known bug in @VERSION@: the JSON codec turns a `Double` into a `Json.Number` with an extra trailing zero. The value is the same.
 
-YAML to JSON has to guess, because `YamlReader` keeps the text of each scalar but not whether it was quoted. `toJson` makes a scalar a JSON number when its text starts with a digit or `-` and parses as a number, and a JSON boolean or `null` when its text is `true`, `false`, `null` or `~` (in lower, title or upper case). Everything else becomes a JSON string:
+YAML to JSON has to guess, because `YamlReader` keeps the text of each scalar but not whether it was quoted. `Yaml#toJson` makes a scalar a JSON number when its text starts with a digit or `-` and parses as a number, and a JSON boolean or `null` when its text is `true`, `false`, `null` or `~` (in lower, title or upper case). Everything else becomes a JSON string:
 
 ```scala mdoc
 println(YamlReader.read("isbn: \"9780997148008\"\nversion: \"1.10\"\nimage-tag: 1.4.2\nin-stock: \"true\"\n").toJson.print)
@@ -422,6 +431,8 @@ val containerYaml =
     |""".stripMargin
 ```
 
+To decode the YAML through the JSON codec, first with a valid container and then with a name that looks like a number:
+
 ```scala mdoc
 println(YamlReader.read(containerYaml).toJson.as[Container])
 println(YamlReader.read(containerYaml.replace("name: bookstore-api", "name: \"2024\"")).toJson.as[Container].left.map(_.getMessage))
@@ -433,22 +444,28 @@ The second call, on a container whose name is `"2024"`, shows the limit of this 
 
 ## What schema-yaml Does Not Support
 
-`YamlReader` implements the parts of YAML that hand-written files use most: block and flow mappings and sequences, plain, single-quoted and double-quoted scalars, `|` and `>` blocks, comments, and one leading `---`. What it doesn't implement, it doesn't reject either. The table lists what @VERSION@ does with each unsupported form, as run:
+`YamlReader` implements the parts of YAML that hand-written files use most: block and flow mappings and sequences, plain, single-quoted and double-quoted scalars, `|` and `>` blocks, comments, and one leading `---`. What it doesn't implement, it doesn't reject either. A sequence at the same indentation as its key is the form hand-written Kubernetes and docker-compose files use most. To see how `YamlReader` reads one:
 
-| YAML form                                                      | What `YamlReader` does in @VERSION@                                                                 |
-|----------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| A sequence at the same indentation as its key (`steps:` then `- name: a` on the next line) | Reads `steps` as `null` and the items as odd keys named `- name`. Common in Kubernetes and docker-compose files. |
-| A sequence nested directly in a sequence (`- - a`)             | Keeps the first item as the text `- a` and drops the rest of the document                          |
-| An anchor on a block value, and `<<` merge keys (`defaults: &defaults` plus an indented block) | Reads the anchor as text and drops the rest of the document                                        |
-| Anchors and aliases on scalars (`&a text`, `*a`)                | Keeps them as part of the text                                                                    |
-| Tags (`!!str 123`, `!Ref name`)                                 | Keeps them as part of the text                                                                    |
-| A second document after `---` or `...`                         | Drops it                                                                                          |
-| A tab used for indentation                                     | Moves the indented keys up to the parent level                                                    |
-| An unterminated `"`, `'`, `[` or `{`                           | Accepts it and drops the last character of the value                                              |
-| A line it can't read, such as `pages:744` with no space after the colon | Drops that line and every line after it                                                    |
-| The final line break of a literal or folded block              | Drops it, and ignores the chomping indicators `-` and `+` that ask to strip or keep line breaks   |
-| `yes`, `no`, `on`, `off`, `True`                               | Reads them as text: a `String` field keeps the word, a `Boolean` field accepts only `true` and `false` |
-| An empty value, `null` or `~` in a `String` field               | Decodes it as the empty string                                                                    |
+```scala mdoc
+println(YamlReader.read("steps:\n- name: Check out\n- name: Test\n"))
+```
+
+The table lists what @VERSION@ does with each unsupported form, as run:
+
+| YAML form                                                                                      | What `YamlReader` does in @VERSION@                                                                              |
+|------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| A sequence at the same indentation as its key (`steps:` then `- name: a` on the next line)     | Reads `steps` as `null` and the items as odd keys named `- name`. Common in Kubernetes and docker-compose files. |
+| A sequence nested directly in a sequence (`- - a`)                                             | Keeps the first item as the text `- a` and drops the rest of the document                                        |
+| An anchor on a block value, and `<<` merge keys (`defaults: &defaults` plus an indented block) | Reads the anchor as text and drops the rest of the document                                                      |
+| Anchors and aliases on scalars (`&a text`, `*a`)                                               | Keeps them as part of the text                                                                                   |
+| Tags (`!!str 123`, `!Ref name`)                                                                | Keeps them as part of the text                                                                                   |
+| A second document after `---` or `...`                                                         | Drops it                                                                                                         |
+| A tab used for indentation                                                                     | Moves the indented keys up to the parent level                                                                   |
+| An unterminated `"`, `'`, `[` or `{`                                                           | Accepts it and drops the last character of the value                                                             |
+| A line it can't read, such as `pages:744` with no space after the colon                        | Drops that line and every line after it                                                                          |
+| The final line break of a literal or folded block                                              | Drops it, and ignores the chomping indicators `-` and `+` that ask to strip or keep line breaks                  |
+| `yes`, `no`, `on`, `off`, `True`                                                               | Reads them as text: a `String` field keeps the word, a `Boolean` field accepts only `true` and `false`           |
+| An empty value, `null` or `~` in a `String` field                                              | Decodes it as the empty string                                                                                   |
 
 The writer has gaps of its own. It quotes most strings that need quoting, but in @VERSION@ it leaves these unquoted:
 
@@ -471,7 +488,7 @@ report(catalogYaml.replace("    isbn: 978-0-9862-0040-6", "\tisbn: 978-0-9862-00
 
 A field with a default or an `Option` type would have quietly taken its default.
 
-**Check that every key in the text was read.** A key that the reader dropped is in the text but not in the tree. Comparing the keys of both catches every case in the table above that loses keys, and it costs a few lines:
+**Check that every key in the text was read.** A key that the reader drops is in the text but not in the tree. Comparing the keys of both catches every case in the table above that loses keys, and it costs a few lines:
 
 ```scala mdoc:silent
 val keyLine = """^\s*(?:-\s+)?([A-Za-z0-9_.-]+):(?:\s|$)""".r
@@ -503,7 +520,7 @@ def decodeChecked[A](codec: YamlCodec[A], text: String): Either[String, A] =
   }
 ```
 
-`List#diff` removes one occurrence per match, so a key that appears in several books is counted once per book. `decodeChecked` decodes the checked tree with `YamlCodec#decodeValue`, which throws on a decode error; in that case it decodes the text again with `decode` to get the `SchemaError` message. Here it is on three documents that `YamlReader` reads without an error:
+`List#diff` removes one occurrence per match, so a key that appears in several books is counted once per book. `decodeChecked` decodes the checked tree with `YamlCodec#decodeValue`, which throws on a decode error; in that case it decodes the text again with `YamlCodec#decode` to get the `SchemaError` message. Here it is on three documents that `YamlReader` reads without an error:
 
 ```scala mdoc
 println(decodeChecked(catalogCodec, catalogYaml).map(_.books.map(_.title)))
@@ -533,6 +550,8 @@ def writeChecked[A](codec: YamlCodec[A], value: A, options: YamlOptions = YamlOp
   else Right(text)
 }
 ```
+
+To run both checks, first on a plain book and then on three values that fail:
 
 ```scala mdoc
 println(writeChecked(Book.schema.derive(YamlFormat), zionomicon).map(_ => "OK"))
