@@ -1724,6 +1724,165 @@ object Shipment { given Schema[Shipment] = Schema.derived }
 
 **Suggested fix.** Quote the validated column in both overloads (`s""" WHERE "$validated" > """` and `s""" ORDER BY "$validated" ASC LIMIT $limit"""`), update the `KeysetSpec` golden strings, and add a `RepoKeysetSpec` case that pages a table with an `order` column through both `keysetAfter` overloads. Update the `keysetAfter` text in `docs/guides/query-dsl-sql.md` and the caution in `docs/guides/upsert-and-paginate-with-keyset-cursors.md` at the same time.
 
+### sql: a tuple row type reads every repeated column name from the first table, so joins of tables that share `id` return wrong values
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-joins-and-inspect-generated-sql.md` (backlog H-19), on `main` at `9447794b`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 main -- sql/` is empty.
+
+**Summary.** A join returns the columns of two tables in one row, and the natural way to read it is a tuple of case classes, `query[(Book, Author)]`. When both tables have a column with the same name, which is the normal case for an `id` primary key, every field with that name is read from the *first* column that has it. Each `Author` then carries its book's ID. Nothing fails: the SQL is correct, the rows have the right length, and the wrong values look like real data. In a left join, the missing side's key comes back as `Some(<other table's id>)` instead of `None`. It happens for `SqlQuery` joins and for hand-written `sql"..."` joins alike, through `query`, `queryOne`, `queryLimit`, `queryStream` and `queryChunked`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql` 0.0.56 + sqlite-jdbc 3.53.4.0, run with `scala-cli run .`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import java.nio.file.Files
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+import zio.blocks.sql.query.*
+
+case class Author(id: Int, name: String)
+object Author { given Schema[Author] = Schema.derived }
+
+case class Book(id: Int, title: String, authorId: Int)
+object Book { given Schema[Book] = Schema.derived }
+
+@main def joinDecodesWrongId(): Unit = {
+  val tx      = JdbcTransactor.fromUrl(s"jdbc:sqlite:${Files.createTempFile("join", ".db")}", SqlDialect.SQLite)
+  val authors = Table.derived[Author]
+  val books   = Table.derived[Book]
+  tx.connect {
+    sql"CREATE TABLE author (id INTEGER PRIMARY KEY, name TEXT NOT NULL)".update
+    sql"CREATE TABLE book (id INTEGER PRIMARY KEY, title TEXT NOT NULL, author_id INTEGER NOT NULL)".update
+    sql"INSERT INTO author VALUES (1, 'Martin Odersky'), (2, 'John A. De Goes')".update
+    sql"INSERT INTO book VALUES (10, 'Zionomicon', 2)".update
+  }
+  val query = SqlQuery.from(books).join(Rel.manyToOne(books, _.authorId, authors, _.id))
+  println(query.sql(SqlDialect.SQLite))
+  tx.connect {
+    println(query.toFrag(SqlDialect.SQLite).query[(Book, Author)])
+    println(sql"SELECT b.id, b.title, b.author_id, a.id, a.name FROM book b JOIN author a ON b.author_id = a.id".query[(Book, Author)])
+  }
+}
+
+// SELECT t0."id", t0."title", t0."author_id", t1."id", t1."name" FROM "book" AS t0 INNER JOIN "author" AS t1 ON t0."author_id" = t1."id"
+// List((Book(10,Zionomicon,2),Author(10,John A. De Goes)))
+// List((Book(10,Zionomicon,2),Author(10,John A. De Goes)))
+```
+
+The author of Zionomicon has ID 2, but the decoded `Author` has ID 10, the book's ID. With a `LEFT JOIN` from `author` to `book`, an author without books decodes its all-`Option` book row as `(Some(<author id>), None, None, ...)`.
+
+**Expected.** `List((Book(10,Zionomicon,2),Author(2,John A. De Goes)))` for both queries: each tuple element reads its own columns, by position.
+
+**Root cause.**
+
+1. The tuple codec names its columns `_1_id`, `_1_title`, ..., `_2_id`, ... (`sql/shared/src/main/scala/zio/blocks/sql/DbCodecTupleMacro.scala:47-62`), so they never match the result set's labels.
+2. `rowDecoder` (`sql/shared/src/main/scala/zio/blocks/sql/Frag.scala:231-240`) only takes the positional path `codec.readValue(r, 1)` (`:235`) when every codec column matches the result label at the same position. Otherwise it calls `selectLabels` (`Frag.scala:213-217`), which replaces each label it can't find with the label at the same position (`:216`). For a join that gives `id, title, author_id, id, name`, with `id` twice.
+3. The tuple codec slices those labels per element (`DbCodecTupleMacro.scala:65-76`), and the case-class codec reads by label: `JdbcResultReader.getInt(label)` (`sql/jvm/src/main/scala/zio/blocks/sql/JdbcResultReader.scala:73-74`) calls `ResultSet.getInt(String)`, and JDBC resolves a repeated label to the first column that has it.
+
+**Impact.** Joins are the main use of tuple row types, and an `id` key in every table is the most common naming convention. Every such join silently returns wrong keys, and code that follows those keys (updates, links, caches) then works on the wrong rows. A left join can't tell a missing row from a present one by its key. The only workarounds are to give every column a name that is unique across the joined tables, or to write the join by hand with `AS` aliases.
+
+**Test gap.** `QueryRenderSpec` (`sql/shared/src/test/scala/zio/blocks/sql/query/QueryRenderSpec.scala`) and `ExplainDumpGoldenSpec` only check the rendered SQL; no test runs a join. No test in `sql/jvm/src/test` decodes a tuple whose elements share a column name (`DbCodecOptionSpec` is the only spec that decodes a tuple at all).
+
+**Suggested fix.** When the codec's labels don't all match the result set by name, decode by position instead of mapping to possibly repeated labels: in `rowDecoder`, fall back to `r => codec.readValue(r, 1)` whenever `selectLabels` would produce a repeated label (or whenever the codec is a tuple codec). Better still, make the tuple codec's label-based `readValue` read its elements by position too. Add a `TransactorSpec` case that joins two tables with an `id` column each and decodes `(A, B)`, for `query` and `queryStream`, plus a left-join case with an all-`Option` row.
+
+### sql: `Dump.dumpQuery` writes a `sql"..."` filter without its `?`, and unnamed dumps in one object overwrite each other
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-joins-and-inspect-generated-sql.md` (backlog H-19), on `main` at `9447794b`. The code is the same at tag `v0.0.56`.
+
+**Summary.** `Dump.dumpQuery` writes a `SqlQuery`'s SQL to `<dumpDir>/<name>_query-<dialect>.sql` at compile time, for review. Two things make the files wrong without any warning:
+
+1. A filter written with the `sql"..."` interpolator, `where(sql"""t0."year" > ${2010}""")`, is dumped as `WHERE t0."year" > ` with no placeholder. The dumped SQL doesn't parse, and it no longer matches what `explain` prints for the same query. Only filters built with the low-level `Frag(IndexedSeq(...), IndexedSeq(DbValue.DbInt(...)))` constructor, which every test uses, keep their `?`.
+2. A `Dump.dumpQuery` call that isn't assigned to a `val` is named after its owner. In an object body that owner is the compiler's local dummy, so the file is called `_local_<Object>__query-<dialect>.sql`, and every other unassigned call in the same object writes the same file: the last one wins. The `sql"..."` interpolator's own dump files (named after the enclosing method) clobber each other the same way.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, sbt 1.13.0). The property must reach the JVM that runs the compiler, so this uses an sbt build rather than `scala-cli`. `build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "0.0.56"
+```
+
+`src/main/scala/DumpRepro.scala`:
+
+```scala
+package dumprepro
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+import zio.blocks.sql.query.*
+
+case class Book(id: Int, title: String, year: Int)
+object Book { given Schema[Book] = Schema.derived }
+
+object Queries {
+  val books = Table.derived[Book]
+
+  inline def recent: SqlQuery[Book] = SqlQuery.from(books).where(sql"""t0."year" > ${2010}""")
+  inline def classic: SqlQuery[Book] = SqlQuery.from(books).where(sql"""t0."year" < ${2010}""")
+}
+
+object Dumps {
+  // Assigned to vals: one file per val
+  val recent = Dump.dumpQuery(Queries.recent)
+
+  // Not assigned: both calls write the same file
+  Dump.dumpQuery(Queries.recent)
+  Dump.dumpQuery(Queries.classic)
+
+  def main(args: Array[String]): Unit = {
+    println(Queries.recent.explain(SqlDialect.SQLite))
+    println(Queries.classic.explain(SqlDialect.SQLite))
+  }
+}
+```
+
+Run `sbt -Dzib.sql.dumpDir=target/sql-dumps clean compile "runMain dumprepro.Dumps"`, then print every file:
+
+```text
+SELECT t0."id", t0."title", t0."year" FROM "book" AS t0 WHERE t0."year" > ?1
+-- params: 1:Int
+SELECT t0."id", t0."title", t0."year" FROM "book" AS t0 WHERE t0."year" < ?1
+-- params: 1:Int
+// target/sql-dumps/_local_Dumps__-postgresql.sql
+//   t0."year" < ?
+// target/sql-dumps/_local_Dumps___query-postgresql.sql
+//   SELECT t0."id", t0."title", t0."year" FROM "book" AS t0 WHERE t0."year" < 
+// target/sql-dumps/_local_Dumps___query-sqlite.sql
+//   SELECT t0."id", t0."title", t0."year" FROM "book" AS t0 WHERE t0."year" < 
+// target/sql-dumps/_local_Dumps__-sqlite.sql
+//   t0."year" < ?
+// target/sql-dumps/main-postgresql.sql
+//   t0."year" < ?
+// target/sql-dumps/main-sqlite.sql
+//   t0."year" < ?
+// target/sql-dumps/recent-postgresql.sql
+//   t0."year" > ?
+// target/sql-dumps/recent_query-postgresql.sql
+//   SELECT t0."id", t0."title", t0."year" FROM "book" AS t0 WHERE t0."year" > 
+// target/sql-dumps/recent_query-sqlite.sql
+//   SELECT t0."id", t0."title", t0."year" FROM "book" AS t0 WHERE t0."year" > 
+// target/sql-dumps/recent-sqlite.sql
+//   t0."year" > ?
+```
+
+The compile prints no warning. `recent_query-*.sql` and `_local_Dumps___query-*.sql` end in `> ` and `< ` with no `?`. The `recent` dump of the unassigned call was overwritten by `classic` (only `<` survives), and `main-*.sql` holds only the second of the two `sql"..."` fragments inlined into `main`.
+
+**Expected.** `WHERE t0."year" > ?`, the same SQL as `explain` without the numbering. Each `Dump.dumpQuery` call writes its own file, or the macro fails (or warns) when two calls would write the same path.
+
+**Root cause.**
+
+1. `decodeFrag` (`sql/shared/src/main/scala/zio/blocks/sql/Dump.scala:408-530`) recognises only the `Frag(...)` constructor and `Frag.literal`. The expansion of the `sql"..."` macro falls through to the "generic fallback" (`:512-528`). It keeps only the string literals that "look like SQL" (`:516-518`), which drops the empty trailing part `""` and with it the boundary where the parameter goes. It counts parameters by looking for `DbValue.DbInt(...)`-style applications (`countParams`, `:435-448`), but the interpolator binds values through `DbParam`, so the count is 0 (`:524`). `tryDecodeIr` then adds `?` only when the count is positive (`:853`).
+2. `ownerDerivedName` (`Dump.scala:74-91`) skips synthetic symbols, `<init>` and `$anon`, but not the local dummy that owns statements in a template body, so the name is the sanitized `<local Dumps$>`. `dumpQueryIrImpl` uses that owner whenever the argument's name is generic (`:596-621`), and `emit` (`:35-72`) overwrites an existing file with different content without checking that it came from the same call. `SqlMacros.sqlImpl` repeats the same owner logic (`SqlMacros.scala:47-68` and `:99-120`).
+
+**Impact.** The dump files are meant for code review and DBA review, so a reviewer reads SQL that is not what runs: a filter with a missing operand, or one query's SQL under another query's file. Neither problem produces a compile warning. The second also makes the set of files depend on declaration order.
+
+**Test gap.** `ExplainDumpGoldenSpec` (`sql/jvm/src/test/scala/zio/blocks/sql/ExplainDumpGoldenSpec.scala`) builds every filter with `Frag(IndexedSeq(...), IndexedSeq(DbValue...))` and puts each dumped query in its own fixture object, so it never covers `sql"..."` filters or two dumps in one owner.
+
+**Suggested fix.** Render the dump from the query value instead of re-implementing the renderer on the syntax tree: evaluate the inline query at compile time where possible, or decode the `sql"..."` expansion by its `StringContext` parts (the parts joined with `?` are already available in `SqlMacros.sqlImpl`). Skip the local dummy in `ownerDerivedName` (use its owner class), and fail when two calls in one compilation unit target the same file. Add golden cases for a `where(sql"...")` filter and for two unassigned dumps in one object.
+
 ### html: `html"..."` escapes interpolated attribute values twice
 
 Filed as #1764. Found 2026-10-20 while writing T-09. Verified on 0.0.56. `&` renders as `&amp;amp;`, which breaks URLs with query strings.
@@ -2732,6 +2891,12 @@ println(order.toJsonString)
 - **`jdbc:sqlite::memory:` gives every connection its own empty database.** Code that opens more than one connection loses its tables. Found while writing T-07; now noted in `transactor.md`.
 - **On Scala 2.13, `case class Isbn private (value: String)` still has a public `apply` and `copy`.** `Isbn("junk")` and `isbn.copy(value = "junk")` compile outside the companion and skip the smart constructor, unless the build adds `-Xsource-features:case-apply-copy-access` (or `-Xsource:3-cross`); Scala 3 makes both private. Every newtype example in `validation.md` relies on the private constructor alone. Verified with scala-cli on 2.13.18 and 3.9.0 while writing H-04; the guide adds the flag to its prerequisites.
 
+### sql: `SqlQuery#orderBy` and `groupBy` can only name columns of the `FROM` table
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-joins-and-inspect-generated-sql.md` (backlog H-19), on `main` at `9447794b`; the same at tag `v0.0.56`. Verified with `zio-blocks-next-sql` 0.0.56.
+
+**Summary.** `orderBy(col)` and `groupBy(cols*)` take a bare column name and always render it as `t0."<col>"` (`sql/shared/src/main/scala/zio/blocks/sql/query/QueryRenderer.scala:70-78` for `GROUP BY` and `:85-97` for `ORDER BY`). There is no way to sort or group a join by a column of a joined table: `SqlQuery.from(books).join(bookAuthor).orderBy("t1.name")` throws `java.lang.IllegalArgumentException: Invalid SQL column identifier 't1.name'. Only ASCII letters, digits, and underscores are supported, and the first character must be a letter or underscore.` (`SqlQuery.scala:145-148` validates it as a plain identifier, as `groupBy` does at `:137-140`). A name that exists in the joined table but not in `t0` renders as `t0."<col>"` and fails only when the database runs it. Meanwhile `where` takes a free-form `Frag` that may use any alias, so the API is uneven. Users have to start the query from the table they sort by, or sort in Scala. The H-19 guide documents this in a caution box. A fix would be an `orderBy(alias, col, dir)` overload, or a column reference type returned by the joined table.
+
 ### telemetry and scope: wildcard imports of both packages make `Resource` ambiguous
 
 Found 2026-10-21 while writing T-15 (`docs/guides/small-json-backend-from-blocks.md`), on `main` at `1958367d`. The code is the same at tag `v0.0.56`. Verified by running on Scala 3.9.0 and 2.13.18.
@@ -3218,6 +3383,7 @@ object Employee { implicit val schema: Schema[Employee] = Schema.derived }
 - `streams/index.md:78` lists Kyo RC6 and Ox 1.0.6; the build pins RC7 and 1.1.0.
 - `docs/index.md` and `built-in-codecs/json/index.md:39,45` give `zio-blocks-schema` for every Scala version; Scala 3.7+ uses `zio-blocks-next-schema`. H-01 (stalled) includes this fix.
 - `combinators.md` documents a `Choices` module that does not exist (research §9.6).
+- `query-dsl-sql.md` "Compile-time SQL Dumps" (around lines 1080-1095) and the `Dump` Scaladoc (`Dump.scala:25-30`, `:547-549`) say query dumps are named `<owner>-<dialect>.sql` and fall back to `query`. `Dump.dumpQuery` writes `<name>_query-<dialect>.sql` (the `-query` suffix is sanitized to `_query`), named after the `val` it is assigned to, else after the owner, else `<type>_query`. Found while writing H-19; see the `Dump.dumpQuery` library bug.
 - `docs/dev/research.md` cites stale line numbers (for example `Transactor.scala:65` is now `:261`/`:275`, `Table.scala:32` is now `:262`).
 
 ### docs: the streams overview marks `fromInputStream` and `fromJavaReader` as JVM-only, but they also run on Scala.js
