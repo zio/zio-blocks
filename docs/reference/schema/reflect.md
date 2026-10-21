@@ -34,9 +34,9 @@ Each of the eight case class nodes of `Reflect` corresponds to a different categ
 ```scala
 case class Record[F[_, _], A](
   fields: IndexedSeq[Term[F, A, ?]],
-  typeName: TypeName[A],
+  typeId: TypeId[A],
   recordBinding: F[BindingType.Record, A],  // Binding info
-  doc: Doc = Doc.Empty,
+  doc: Doc = Doc.empty,
   modifiers: Seq[Modifier.Reflect] = Nil
 ) extends Reflect[F, A]
 ```
@@ -67,17 +67,17 @@ final case class Schema[A](reflect: Reflect.Bound[A])
 ```scala
 case class Record[F[_, _], A](
   fields: IndexedSeq[Term[F, A, ?]],
-  typeName: TypeName[A],
+  typeId: TypeId[A],
   recordBinding: F[BindingType.Record, A],
-  doc: Doc = Doc.Empty,
-  modifiers: Seq[Modifier.Record] = Nil
+  doc: Doc = Doc.empty,
+  modifiers: Seq[Modifier.Reflect] = Nil
 ) extends Reflect[F, A]
 ```
 
 **Key Components:**
 
 - **fields**: An indexed sequence of `Term` objects, each describing a field with its name, type, and nested `Reflect`.
-- **typeName**: The fully qualified type name including namespace.
+- **typeId**: The type ID of `A`, with its name and owner.
 - **recordBinding**: Contains the `Constructor[A]` and `Deconstructor[A]` for building and tearing apart values.
 - **doc**: Optional documentation.
 - **modifiers**: Metadata modifiers for customization.
@@ -146,18 +146,18 @@ object Person {
 
 ```scala
 case class Variant[F[_, _], A](
-  cases: IndexedSeq[Term[F, A, ?]],
-  typeName: TypeName[A],
+  cases: IndexedSeq[Term[F, A, ? <: A]],
+  typeId: TypeId[A],
   variantBinding: F[BindingType.Variant, A],
-  doc: Doc = Doc.Empty,
-  modifiers: Seq[Modifier.Variant] = Nil
+  doc: Doc = Doc.empty,
+  modifiers: Seq[Modifier.Reflect] = Nil
 ) extends Reflect[F, A]
 ```
 
 **Key Components:**
 
 - **cases**: An indexed sequence of `Term` objects, each describing one of the possible cases with its name, type, and nested `Reflect`.
-- **typeName**: The fully qualified type name including namespace.
+- **typeId**: The type ID of `A`, with its name and owner.
 - **variantBinding**: Contains the binding information for the variant, such as a discriminator and matcher functions.
 
 The following example shows a `Shape` sealed trait represented as a `Reflect.Variant`. We assume the schema for the `Circle` and `Rectangle` case classes are defined elsewhere:
@@ -189,7 +189,7 @@ object Shape {
             value = Rectangle.schema.reflect
           )
         ),
-        typeName = TypeName(namespace = Namespace(Seq.empty), name = "Shape"),
+        typeId = TypeId.of[Shape],
         variantBinding = Binding.Variant[Shape](
           discriminator = new Discriminator[Shape] {
             override def discriminate(a: Shape): Int = a match {
@@ -214,9 +214,8 @@ object Shape {
             }
           )
         ),
-        doc = Doc("A geometric shape"),
         modifiers = Seq(Modifier.config("protobuf.field-id", "1"))
-      )
+      ).doc("A geometric shape")
     }
 }
 ```
@@ -228,9 +227,9 @@ object Shape {
 ```scala
 case class Sequence[F[_, _], A, C[_]](
   element: Reflect[F, A],
-  typeName: TypeName[C[A]],
+  typeId: TypeId[C[A]],
   seqBinding: F[BindingType.Seq[C], C[A]],
-  doc: Doc = Doc.Empty,
+  doc: Doc = Doc.empty,
   modifiers: scala.Seq[Modifier.Reflect] = Nil
 ) extends Reflect[F, C[A]]
 ```
@@ -247,9 +246,9 @@ case class Sequence[F[_, _], A, C[_]](
 case class Map[F[_, _], K, V, M[_, _]](
   key: Reflect[F, K],
   value: Reflect[F, V],
-  typeName: TypeName[M[K, V]],
+  typeId: TypeId[M[K, V]],
   mapBinding: F[BindingType.Map[M], M[K, V]],
-  doc: Doc = Doc.Empty,
+  doc: Doc = Doc.empty,
   modifiers: Seq[Modifier.Reflect] = Nil
 ) extends Reflect[F, M[K, V]]
 ```
@@ -267,8 +266,9 @@ case class Map[F[_, _], K, V, M[_, _]](
 ```scala
 case class Dynamic[F[_, _]](
   dynamicBinding: F[BindingType.Dynamic, DynamicValue],
-  doc: Doc = Doc.Empty,
-  modifiers: Seq[Modifier.Dynamic] = Nil
+  typeId: TypeId[DynamicValue] = TypeId.of[DynamicValue],
+  doc: Doc = Doc.empty,
+  modifiers: Seq[Modifier.Reflect] = Nil
 ) extends Reflect[F, DynamicValue]
 ```
 
@@ -279,9 +279,9 @@ case class Dynamic[F[_, _]](
 ```scala
 case class Primitive[F[_, _], A](
   primitiveType: PrimitiveType[A],
-  typeName: TypeName[A],
+  typeId: TypeId[A],
   primitiveBinding: F[BindingType.Primitive, A],
-  doc: Doc = Doc.Empty,
+  doc: Doc = Doc.empty,
   modifiers: Seq[Modifier.Reflect] = Nil
 ) extends Reflect[F, A]
 ```
@@ -313,7 +313,7 @@ case class Wrapper[F[_, _], A, B](
   wrapped: Reflect[F, B],
   typeId: TypeId[A],
   wrapperBinding: F[BindingType.Wrapper[A, B], A],
-  doc: Doc = Doc.Empty,
+  doc: Doc = Doc.empty,
   modifiers: Seq[Modifier.Reflect] = Nil
 ) extends Reflect[F, A]
 ```
@@ -375,7 +375,8 @@ object PosInt {
 
 ```scala
 case class Deferred[F[_, _], A](
-  deferred: () => Reflect[F, A]
+  _value: () => Reflect[F, A],
+  _typeId: Option[TypeId[A]] = None
 ) extends Reflect[F, A]
 ```
 
@@ -468,6 +469,8 @@ println(Schema[Person].reflect)
 | `Wrapper` | `wrapper Name(underlying)` |
 | `Deferred` | `deferred => TypeName` (breaks recursive cycles) |
 | `Dynamic` | `DynamicValue` |
+
+The printer writes `deferred => TypeName` for every node it has already printed in the same `toString` call, not only for a recursive reference. A case class schema used for two fields is printed in full for the first field and as `deferred => TypeName` for the second.
 
 **Variant example:**
 
