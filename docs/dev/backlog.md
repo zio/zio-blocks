@@ -31,7 +31,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-20 | How to stream large query results                                             | Pushed, no PR                           | branch `stream-query`, `guides/stream-large-query-results.md`                           |
 | H-24 | How to stream files and sockets without leaking resources                     | Pushed, no PR                           | branch `stream-resources`, `guides/stream-files-and-sockets.md`                         |
 | H-11 | How to read and write CSV and TSV files                                       | Done                                    | #1793, `guides/read-and-write-csv-and-tsv-files.md` |
-| H-30 | How to feed configuration into a Wire dependency graph                        | Pushed, no PR                           | branch `config-wire`, `guides/feed-config-into-a-wire-graph.md`                         |
+| H-30 | How to feed configuration into a Wire dependency graph                        | In review                               | #1794 (`config-wire`), `guides/feed-config-into-a-wire-graph.md` |
 | M-04 | Coming from fs2, ZIO Streams or Ox                                            | In review                               | #1801 (`streams-migration-guide`) |
 | H-19 | How to write joins and inspect the generated SQL                              | In review                               | #1802 (`sql-joins`) |
 | H-18 | How to upsert rows and paginate with keyset cursors                           | In review                               | #1800 (`upsert-pagination`) |

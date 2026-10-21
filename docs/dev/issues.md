@@ -542,66 +542,6 @@ catch { case e: ConfigLoadException => print(e.getMessage); println(e.errors.len
 
 **Suggested fix.** Return the record errors as a flat list, as the sequence and map decoders already do, and keep `Composite` only for callers that build one themselves. At the least, flatten `Composite` in `formatErrors` (this is what PR #1761 did). Assert the full report string in `ConfigSpec`.
 
-### config: `Config.wire[A](prefix)` reports keys without the prefix, so the report doesn't say which section failed
-
-Found 2026-10-20 while writing the how-to guide `docs/guides/feed-config-into-a-wire-graph.md` (backlog H-30), on `main` at `b4179489`. The code is the same at tag `v0.0.56`. Verified by running.
-
-**Summary.** `Config.wire[A](prefix)` reads one section of a `ConfigSource`, such as `db` or `catalog`, while a `Resource.from` graph is built. When the section is wrong, the `ConfigLoadException` report names the keys relative to the section: `Missing required key 'url'` instead of `'db.url'`. An application usually has several sections with the same field names (`url`, `port`, `host`), so the report can't tell the operator which section to fix. Decoding the same sections as fields of one case class with `Config.load` reports the full paths.
-
-**Reproduction** (`scala-cli run .`):
-
-```scala
-//> using scala 3.9.0
-//> using options -experimental
-//> using dep dev.zio::zio-blocks-next-config:0.0.56
-
-import zio.blocks.config.*
-import zio.blocks.context.Context
-import zio.blocks.schema.Schema
-import zio.blocks.scope.*
-
-case class DbConfig(url: String, poolSize: Int)
-object DbConfig { implicit val schema: Schema[DbConfig] = Schema.derived }
-
-case class CatalogConfig(url: String, pageSize: Int)
-object CatalogConfig { implicit val schema: Schema[CatalogConfig] = Schema.derived }
-
-@main def wirePrefix(): Unit = {
-  val source = ConfigSource.fromMap(Map("db.poolSize" -> "ten", "catalog.url" -> "https://books.example"), "app.yaml")
-
-  for (wire <- List(Config.wire[DbConfig]("db"), Config.wire[CatalogConfig]("catalog")))
-    try Scope.global.scoped(scope => wire.make(scope, Context[ConfigSource](source)): Unit)
-    catch { case e: ConfigLoadException => println(e.getMessage) }
-
-  // The same sections decoded as fields of one class report the full path:
-  case class AppConfig(db: DbConfig, catalog: CatalogConfig)
-  given Schema[AppConfig] = Schema.derived
-  println(Config.load[AppConfig](source).left.map(_.head.message))
-}
-// Configuration loading failed with 1 error(s):
-//   - Missing required key 'url' in source 'app.yaml'
-// Invalid value 'ten' for key 'poolSize' (expected Int) in source 'app.yaml': For input string: "ten"
-//
-// Configuration loading failed with 1 error(s):
-//   - Missing required key 'pageSize' in source 'app.yaml'
-//
-// Left(Missing required key 'db.url' in source 'app.yaml'
-// Invalid value 'ten' for key 'db.poolSize' (expected Int) in source 'app.yaml': For input string: "ten"
-// Missing required key 'catalog.pageSize' in source 'app.yaml')
-```
-
-(The `1 error(s)` count is the separate `Composite` bug above.)
-
-**Expected.** The first report names `db.url` and `db.poolSize`, and the second names `catalog.pageSize`, as `Config.load[AppConfig]` does.
-
-**Root cause.** `Config.wire[A](prefix)` re-roots the source with `ConfigSource#prefix` and then decodes it at the empty path: `loadOrThrow[A](ctx.get[ConfigSource].prefix(prefix))` (`config/shared/src/main/scala/zio/blocks/config/Config.scala:40-43`), which calls `decoder.decode(source, "")` (`Config.scala:66-69`). The decoder builds each error's key from the path it was given (`ConfigDecoderDeriver.scala:396`, `:438`), so the prefix lives only inside the wrapped source and never reaches the error. The prefixed source also keeps the original `sourceId` (`ConfigSource.scala:72`), so nothing in the message shows the section.
-
-**Impact.** Every application that uses `Config.wire` with a prefix, which is the pattern for giving each service its own section, gets startup reports that don't name the section. The guide H-30 tells readers that `pageSize` in the report means `catalog.pageSize`.
-
-**Test gap.** The `Config.wire` suite in `ConfigSpec` tests the prefixed wire only on success (`config/shared/src/test/scala/zio/blocks/config/ConfigSpec.scala:89-95`); its failure test uses the unprefixed wire and checks only `report.contains("error(s)")` (`:103-116`).
-
-**Suggested fix.** Decode the original source at the prefix instead of re-rooting it: `ConfigDecoder.derive[A].decode(ctx.get[ConfigSource], prefix)`, then throw `ConfigLoadException` with the formatted report as `loadOrThrow` does (for example through a `private[config]` overload `loadOrThrow[A](source, prefix)`). Run against 0.0.56, `ConfigDecoder.derive[DbConfig].decode(source, "db")` already reports `Missing required key 'db.url'` and `'db.poolSize'`. Add a failure test for the prefixed wire that asserts the full report.
-
 ### config: layered load errors name the whole chain as the source
 
 Found 2026-10-19 while writing T-05. Verified.
@@ -2042,56 +1982,6 @@ object Repro {
 **Test gap.** None in the library; the shared spec covers both platforms. Nothing checks platform labels in the docs against the source tree.
 
 **Suggested fix.** Drop "- JVM only" from both comments at `docs/reference/streams/index.md:398` and `:402` (done in the H-24 PR).
-
-### docs: `context.md` shows `Wire.make[Config & Logger, Service]`, which does not exist
-
-Found 2026-10-20 while writing the how-to guide `docs/guides/feed-config-into-a-wire-graph.md` (backlog H-30), on `main` at `b4179489`. The same at tag `v0.0.56`. Verified by compiling.
-
-**Summary.** The section "Integration with Wire and Scope" of `docs/reference/context.md:470-493` builds a service with `val buildService = Wire.make[Config & Logger, Service]`. The block is a plain fence labelled pseudocode, so mdoc never compiles it, but it reads as the API. `Wire` has no `make` method on its companion; `make(scope, ctx)` is an instance method of `Wire.Shared` and `Wire.Unique`. The macro that derives a wire from `Service`'s constructor is `Wire.shared[Service]` (or `Wire.unique[Service]`), and it infers the input type `Config & Logger` itself.
-
-**Reproduction** (`scala-cli run .`; the page's code with `Wire.shared`, then the page's line):
-
-```scala
-//> using scala 3.9.0
-//> using options -experimental
-//> using dep dev.zio::zio-blocks-next-scope:0.0.56
-
-import zio.blocks.context.*
-import zio.blocks.scope.*
-
-case class Config(debug: Boolean)
-case class Logger(name: String)
-case class Service(config: Config, logger: Logger)
-
-@main def contextWire(): Unit = {
-  val buildService = Wire.shared[Service]
-  val deps         = Context(Config(debug = true), Logger("app"))
-  Scope.global.scoped { scope =>
-    val service: Service = buildService.make(scope, deps)
-    println(service)
-  }
-}
-// Service(Config(true),Logger(app))
-```
-
-With the page's line instead, `val buildService = Wire.make[Config & Logger, Service]`, compilation fails:
-
-```
-[error] ./ContextWireMake.scala:15:22
-[error] value make is not a member of object zio.blocks.scope.Wire
-[error]   val buildService = Wire.make[Config & Logger, Service]
-[error]                      ^^^^^^^^^
-```
-
-**Expected.** The page shows code that compiles.
-
-**Root cause.** The page was written against an API that doesn't exist: `Wire`'s companion offers `apply`, `shared`, `unique` and `Shared.fromFunction`/`Unique.fromFunction` (`scope/shared/src/main/scala/zio/blocks/scope/Wire.scala:282`, `scope/shared/src/main/scala-3/zio/blocks/scope/WireVersionSpecific.scala:59`, `:72`, `:93`, `:114`), and no `make`.
-
-**Impact.** A reader who copies the snippet gets a compile error with no hint of the right method. The backlog already warns writers not to copy it (`docs/dev/backlog.md`, rows H-30 and the context entry).
-
-**Test gap.** The block is a plain ` ```scala ` fence labelled pseudocode, so mdoc doesn't compile it.
-
-**Suggested fix.** Replace the line with `val buildService = Wire.shared[Service]`, drop the "pseudocode" label, and make the block `mdoc:compile-only` so it stays compiled.
 
 **Other modules**
 
