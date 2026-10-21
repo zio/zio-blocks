@@ -27,6 +27,10 @@ import scala.quoted.*
  */
 private[binding] object StructuralBindingMacros {
 
+  /**
+   * A member of a structural type: its name, its type (a `TypeRepr`, typed
+   * `Any`), its register kind and its position.
+   */
   case class StructuralFieldInfo(name: String, memberTpe: Any, kind: String, index: Int)
 
   /**

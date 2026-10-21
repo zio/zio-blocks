@@ -25,13 +25,21 @@ import scala.quoted.*
  * for structural types because `Symbol.newClass` is marked as @experimental and
  * only available in Scala 3.5+.
  *
- * Users on Scala 3.3 LTS should:
+ * The `zio-blocks-schema` artifact is built with Scala 3.3, so it contains this
+ * version whatever Scala version the user compiles with. Users of that artifact
+ * should:
  *   - Use case classes instead of structural types for `Binding.of`
- *   - Upgrade to Scala 3.5+ to use structural types with `Binding.of`
+ *   - Use the `zio-blocks-next-schema` artifact (Scala 3.9 or later, with
+ *     `-experimental`) to use structural types with `Binding.of`; upgrading the
+ *     compiler alone does not help
  *   - Use `schema.structural` to get structural schemas from case class schemas
  */
 private[binding] object StructuralBindingMacros {
 
+  /**
+   * A member of a structural type: its name, its type (a `TypeRepr`, typed
+   * `Any`), its register kind and its position.
+   */
   case class StructuralFieldInfo(name: String, memberTpe: Any, kind: String, index: Int)
 
   /**
