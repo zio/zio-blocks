@@ -75,7 +75,7 @@ Streaming libraries in the Scala ecosystem typically require an effect system. f
 | Resource safety           | Scope integration       | Resource/bracket     | Kyo resources | try/finally             | Graph lifecycle |
 | Dependencies              | scope, chunk, combinators, ringbuffer, async | fs2-core     | kyo-prelude, kyo-core | ox core         | pekko-stream    |
 
-The provider columns name the artifacts and versions this repository pins for benchmarking — fs2 3.14.0, Pekko 1.7.0, Kyo 1.0.0-RC6, Ox 1.0.6 (`build.sbt`, `streams-benchmark/benchmark-manifest.json`). Nothing outside the ZB Streams column is measured or verified in this repository.
+The provider columns name the artifacts this repository pins for benchmarking. `build.sbt` pins fs2 3.14.0, Pekko 1.7.0, Kyo 1.0.0-RC7 and Ox 1.1.0. `streams-benchmark/benchmark-manifest.json` records the versions its baselines were taken with: fs2 3.14.0, Pekko 1.7.0, Kyo 1.0.0-RC6 and Ox 1.0.6. Nothing outside the ZB Streams column is measured or verified in this repository.
 
 ## Benchmarks
 
