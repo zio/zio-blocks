@@ -50,10 +50,10 @@ The coin flip makes the panel flicker for every reader, a typo such as `RECOMEND
 Add the config module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-config" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config" % "@VERSION@"
 ```
 

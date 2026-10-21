@@ -307,5 +307,6 @@ Scoped, thread-safe propagation of `SpanContext` through call stacks is handled 
 ## See Also
 
 - [Telemetry Guide](../../guides/telemetry-guide.md) — architecture, design trade-offs, and real-world usage patterns
+- [Build a Small JSON Backend from Blocks](../../guides/small-json-backend-from-blocks.md) — capstone tutorial that wraps a request handler with logs, spans and a counter
 - [Common Types](./common/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope` shared across all three pillars
 - [Context](../context.md) — `Context[R]`, which the otel module's `OtelContext` carries an active `SpanContext` through

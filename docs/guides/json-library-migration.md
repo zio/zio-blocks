@@ -50,10 +50,10 @@ In ZIO Blocks, a type derives a `Schema` once. The JSON codec is derived from th
 Add the schema module, which includes the JSON codec:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 ```
 
@@ -716,7 +716,7 @@ What is different:
 
 ## Migration Checklist
 
-1. Add `zio-blocks-schema` (or `zio-blocks-next-schema` on Scala 3.7 and newer) and `import zio.blocks.schema._`.
+1. Add `zio-blocks-schema` (or `zio-blocks-next-schema` on Scala 3.9 and newer) and `import zio.blocks.schema._`.
 2. Replace every `deriveCodec`, `derives Codec.AsObject`, `DeriveJsonCodec.gen` or `JsonCodecMaker.make` with `implicit val schema: Schema[A] = Schema.derived` in the companion.
 3. Replace `asJson.noSpaces`, zio-json `toJson` and `writeToString` with `toJsonString`, and `decode`, `fromJson` and `readFromString` with `fromJson` or `JsonCodec#decode`.
 4. Replace error handling on `io.circe.Error`, `String` or `JsonReaderException` with `SchemaError`.
