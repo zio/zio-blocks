@@ -2022,6 +2022,62 @@ import zio.blocks.schema.json.*
 
 **Suggested fix.** Write `[]` and `{}` directly when the container is empty, before any newline.
 
+### schema: `Json#delete` and `Json#insert` ignore a quoted-key path step, which `get`, `set` and `modify` follow
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`, during the docs-reviewer fact-check. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** A JSON key that is not a Scala identifier, such as `first-edition`, can only be written in `p"..."` as a quoted key, `p"""{"first-edition"}"""`, which parses to a `DynamicOptic.Node.AtMapKey` step. `Json#get`, `Json#set` and `Json#modify` treat that step as an object key. `Json#delete` and `Json#insert` silently return the document unchanged, `Json#deleteOrFail` reports `Path not found` for a key that exists, and `Json#insertOrFail` reports `Insert not supported for path node type: AtMapKey(...)`. The same key built with `DynamicOptic.root.field(...)` works with every method.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run QuotedKeyPath.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  val book = Json.parseUnsafe("""{"title": "Zionomicon", "first-edition": 2021}""")
+  // the only way to name a non-identifier key in p"..." is the quoted-key form
+  val edition = p"""{"first-edition"}"""
+
+  // get, set and modify follow it
+  println(book.get(edition).as[Int])
+  // Right(2021)
+  println(book.set(edition, Json.Number(2022)).print)
+  // {"title":"Zionomicon","first-edition":2022}
+
+  // delete ignores it, and deleteOrFail says the existing key is not there
+  println(book.delete(edition).print)
+  // {"title":"Zionomicon","first-edition":2021}
+  println(book.deleteOrFail(edition))
+  // Left(zio.blocks.schema.SchemaError: Path not found: {"first-edition"})
+
+  // insert ignores it, and insertOrFail rejects the node
+  println(book.insert(p"""{"second-edition"}""", Json.Number(2025)).print)
+  // {"title":"Zionomicon","first-edition":2021}
+  println(book.insertOrFail(p"""{"second-edition"}""", Json.Number(2025)))
+  // Left(zio.blocks.schema.SchemaError: Insert not supported for path node type: AtMapKey("second-edition"))
+
+  // the same keys as field nodes work with every method
+  println(book.delete(DynamicOptic.root.field("first-edition")).print)
+  // {"title":"Zionomicon"}
+  println(book.insert(DynamicOptic.root.field("second-edition"), Json.Number(2025)).print)
+  // {"title":"Zionomicon","first-edition":2021,"second-edition":2025}
+}
+```
+
+**Expected.** `delete` removes `first-edition` and `insert` adds `second-edition`, as `get`, `set` and `modify` already treat the step as an object key; or all five methods reject `AtMapKey` on a `Json` the same way.
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:1600-1623` (`getAtPath`) and `:1747-1768` (`modifyAtPathRecursive`) handle `AtMapKey` with a string key as an object field. `deleteAtPathRecursive` falls through to `case _ => None` at `:1989`; the comment at `:1987` calls `AtMapKey` an "architectural no-op" because "Json has no Map/Variant types", which contradicts the `get`/`modify` handling. The insert helper rejects it at `:2126`. `Json#deleteOrFail` turns the `None` into `Path not found` (`:173`).
+
+**Impact.** A guide or user who removes a field whose name has a dash (common in HTTP-style payloads, for example `content-type`) with the path syntax gets no change and no error, while reads and updates on the same path work.
+
+**Test gap.** `schema/shared/src/test/scala/zio/blocks/schema/json/JsonSpec.scala:1902-1929` ("AtMapKey operations") tests `get` and `modify` only; no test deletes or inserts through `AtMapKey`.
+
+**Suggested fix.** Handle `AtMapKey` with a string key in `deleteAtPathRecursive` and in the insert helpers the same way as `Field`, and add delete/insert cases to the "AtMapKey operations" suite.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
