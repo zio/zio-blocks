@@ -8,6 +8,8 @@ import TabItem from '@theme/TabItem';
 
 `zio-blocks-schema-csv` is a **schema-driven CSV codec module** for serializing and deserializing Scala types to and from CSV format. It provides RFC 4180-compliant parsing and generation with zero dependencies and support for 27 primitive types plus flat record (case class) types. Core types: `CsvCodec`, `CsvConfig`, `CsvError`, `CsvReader`, `CsvWriter`, `CsvFormat`.
 
+See also the [How to Read and Write CSV and TSV Files](../../../guides/read-and-write-csv-and-tsv-files.md) guide, which reads files by header name, reports every bad row, writes TSV through `CsvReader` and `CsvWriter`, and processes large files one row at a time.
+
 The main public API is `CsvCodec[A]`, which extends `TextCodec[A]` and provides CSV-specific header support:
 
 ```scala mdoc:compile-only

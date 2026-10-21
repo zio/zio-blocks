@@ -235,3 +235,8 @@ given DbCon = ???
 
 val keys: List[Long] = sql"INSERT INTO users (name) VALUES (${"Alice"})".updateReturningKeys[Long]
 ```
+
+## See Also
+
+- **[How to Stream Large Query Results](../../guides/stream-large-query-results.md)** — Guide to aggregating, exporting and error-handling the chunked streams that `queryStream` and `queryChunked` return.
+- **[SQL Module Overview](./index.md)** — How `Frag`, `Transactor` and the other SQL types fit together.
