@@ -355,7 +355,7 @@ object TempDb {
 The code above:
 
 - `JdbcTransactor.fromUrl` points at the SQLite file named in `DbConfig`. It opens a connection for each `JdbcTransactor#connect` or `JdbcTransactor#transact` call and closes it afterwards, so `Db#close` has nothing to release here and only reports that it ran. A connection pool, such as the one in [How to Connect to PostgreSQL with a Connection Pool](./connect-to-postgresql-with-a-connection-pool.md), would be closed in `Db#close`.
-- We write the `CREATE TABLE` statement by hand, because it declares `id` as the `PRIMARY KEY`; `Table#createTable` doesn't, as recorded in [Known Issues](../dev/issues.md). The column names are the field names in snake case, which is the naming `Repo.derived` expects.
+- We write the `CREATE TABLE` statement by hand, because it declares `id` as the `PRIMARY KEY`; `Table#createTable` doesn't, a known bug in version 0.0.56. The column names are the field names in snake case, which is the naming `Repo.derived` expects.
 - `Repo.derived[Book, Long]` derives a repository for `Book`, keyed by its `id` field. `BookRepo` fills an empty catalog with three starter books in one transaction.
 - `BookRepo#page` writes its own query, because `LIMIT` and `OFFSET` paging isn't one of the ready-made operations. The `$limit` and `$offset` values become query parameters, not text spliced into the SQL.
 - `BookRepo#add` picks the next free id and inserts the book in one transaction, so two clients adding books at once can't get the same id.
@@ -563,7 +563,7 @@ object RequestTelemetry {
 
 The code above:
 
-- We import `log`, `metric`, `trace` and the few types we need by name. A wildcard `import zio.blocks.telemetry._` would also bring in telemetry's own `Resource` type, which clashes with the `Resource` from the `scope` module that we use in section 10, as recorded in [Known Issues](../dev/issues.md).
+- We import `log`, `metric`, `trace` and the few types we need by name. A wildcard `import zio.blocks.telemetry._` would also bring in telemetry's own `Resource` type, which clashes with the `Resource` from the `scope` module that we use in section 10, a known bug in version 0.0.56.
 - `metric.counter("bookstore.http.requests")` creates the counter once, when `RequestTelemetry` is built. Each call to `metric.counter` registers a new instrument, so calling it per request would scatter the counts over many counters.
 - `trace.span(...)` runs the request inside a span named after the method and the path, and ends the span when the response is ready.
 - `requests.add(1L, "status" -> ...)` adds one to the series for the response's status code.
@@ -781,7 +781,7 @@ The code above:
 - `Wire(settings)` puts the layered `ConfigSource` into the graph, so `Config.wire` can read from it.
 - `Config.wire[ServerConfig]("server")` reads the `server` section as a `ServerConfig` when a service asks for one; the other two lines do the same for the `db` and `catalog` sections.
 - Everything else, `Db`, `BookRepo`, `Routes`, `RequestTelemetry` and `HttpService`, is built from its constructor. We never call `new` on a service.
-- `Bookstore.app` is a `def`, not a `val`. A `Resource` built by `Resource.from` and stored in a `val` can be used only once, as recorded in [Known Issues](../dev/issues.md); a `def` gives each caller a fresh one.
+- `Bookstore.app` is a `def`, not a `val`. A `Resource` built by `Resource.from` and stored in a `val` can be used only once, a known bug in version 0.0.56; a `def` gives each caller a fresh one.
 
 Now let's run the whole backend. The stand-in environment points `db.file` at a fresh temporary file:
 
@@ -834,7 +834,7 @@ try {
 }
 ```
 
-The server never starts. The graph builds `Db` before it reaches the catalog settings, and when `Config.wire` fails, the scope closes the database it has already opened. Then the error report names the bad value, the expected type and the sources it searched. Notice that the key in the report is `pageSize`, not `catalog.pageSize`: `Config.wire` reports keys without their section prefix, as recorded in [Known Issues](../dev/issues.md). Checking every setting at once with `Config.loadWithProvenance[BookstoreConfig]` before building the graph, as the complete example below does, reports full keys and every bad setting at the same time.
+The server never starts. The graph builds `Db` before it reaches the catalog settings, and when `Config.wire` fails, the scope closes the database it has already opened. Then the error report names the bad value, the expected type and the sources it searched. Notice that the key in the report is `pageSize`, not `catalog.pageSize`: `Config.wire` reports keys without their section prefix, a known bug in version 0.0.56. Checking every setting at once with `Config.loadWithProvenance[BookstoreConfig]` before building the graph, as the complete example below does, reports full keys and every bad setting at the same time.
 
 The [How to Feed Configuration into a Wire Dependency Graph](./feed-config-into-a-wire-graph.md) guide shows more of this pattern, and [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md) explains scopes, `$` and `Unscoped` in depth.
 
