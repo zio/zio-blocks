@@ -563,7 +563,7 @@ object RequestTelemetry {
 
 The code above:
 
-- We import `log`, `metric`, `trace` and the few types we need by name. A wildcard `import zio.blocks.telemetry._` would also bring in telemetry's own `Resource` type, which clashes with the `Resource` from the `scope` module that we use in section 10.
+- We import `log`, `metric`, `trace` and the few types we need by name. A wildcard `import zio.blocks.telemetry._` would also bring in telemetry's own `Resource` type, which clashes with the `Resource` from the `scope` module that we use in section 10, as recorded in [Known Issues](../dev/issues.md).
 - `metric.counter("bookstore.http.requests")` creates the counter once, when `RequestTelemetry` is built. Each call to `metric.counter` registers a new instrument, so calling it per request would scatter the counts over many counters.
 - `trace.span(...)` runs the request inside a span named after the method and the path, and ends the span when the response is ready.
 - `requests.add(1L, "status" -> ...)` adds one to the series for the response's status code.
