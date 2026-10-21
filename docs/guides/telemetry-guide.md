@@ -17,7 +17,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-telemetry" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-telemetry-otel" % "@VERSION@"
 ```
 
-The core module also cross-builds for Scala.js:
+On the JVM, the module needs JDK 21 or newer. The core module also cross-builds for Scala.js:
 
 ```scala
 libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
@@ -1029,7 +1029,7 @@ The core telemetry module (`zio-blocks-telemetry`) compiles for JVM and Scala.js
 
 JVM-only:
 - File output: a custom `LogWriter` backed by `java.io` or `FileChannel` works on the JVM only
-- `ContextStorage` using `ScopedValue`: JDK 25+ specific; on Scala.js, a simpler mutable-variable implementation is used
+- `ContextStorage` using `ScopedValue`: final in JDK 25 and a preview API in JDK 21 to 24, which the module calls without needing `--enable-preview`; on Scala.js, a simpler mutable-variable implementation is used
 - `PlatformExecutor`: uses `ScheduledExecutorService` with virtual threads
 - The entire `zio-blocks-telemetry-otel` module (OTLP HTTP export, `BatchProcessor`)
 
@@ -1110,7 +1110,7 @@ The new item is still enqueued. This is a best-effort, head-dropping strategy. Y
 
 **"Is this virtual-thread safe?"**
 
-Yes, in the sense that a span's context is bound to the current call stack whether that stack belongs to a platform or a virtual thread: `ContextStorage` on JDK 25+ uses `ScopedValue`, and reads and writes from the running thread are safe. Inheritance is narrower than an `InheritableThreadLocal`, though — a `ScopedValue` binding reaches a child thread only when the child is forked from a `StructuredTaskScope`. A plain `Thread.ofVirtual().start(...)` inside a span's block sees no span context, so records logged there are not correlated; open the span inside the child, or pass the `SpanContext` across explicitly. The `PlatformExecutor` that drives OTLP export runs its tasks on virtual threads, so retry sleeps don't pin platform threads.
+Yes, in the sense that a span's context is bound to the current call stack whether that stack belongs to a platform or a virtual thread: `ContextStorage` on the JVM uses `ScopedValue`, and reads and writes from the running thread are safe. Inheritance is narrower than an `InheritableThreadLocal`, though — a `ScopedValue` binding reaches a child thread only when the child is forked from a `StructuredTaskScope`. A plain `Thread.ofVirtual().start(...)` inside a span's block sees no span context, so records logged there are not correlated; open the span inside the child, or pass the `SpanContext` across explicitly. The `PlatformExecutor` that drives OTLP export runs its tasks on virtual threads, so retry sleeps don't pin platform threads.
 
 ---
 

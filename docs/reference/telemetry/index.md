@@ -55,7 +55,14 @@ For Scala.js (telemetry core only):
 libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
 ```
 
-Supports Scala 2.13.x and 3.x.
+On Scala 3.9 and newer, use the `zio-blocks-next-telemetry` artifact and enable experimental features:
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry" % "@VERSION@"
+scalacOptions += "-experimental"
+```
+
+Supports Scala 2.13.x and 3.x. On the JVM, the module needs JDK 21 or newer.
 
 
 ## Overview
