@@ -429,3 +429,4 @@ sbt compile
 - [How to Fix Common Scope and Wire Compile Errors](./fix-scope-and-wire-compile-errors.md) explains each error the graph macro can report, such as a missing dependency or two parameters of the same type.
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./resource-and-di-migration.md) maps those libraries onto `Resource`, `Scope` and `Wire`.
 - [How to Roll Out a Feature Gradually with Flags](./roll-out-feature-gradually.md) adds settings that change at runtime, which a `Config.wire` value read once at startup can't do.
+- [Build a Small JSON Backend from Blocks](./small-json-backend-from-blocks.md) is the capstone tutorial that uses a wire graph like this one inside a small JSON backend.
