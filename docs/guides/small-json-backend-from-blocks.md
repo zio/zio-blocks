@@ -101,7 +101,7 @@ libraryDependencies ++= Seq(
 scalacOptions += "-experimental"
 ```
 
-The tutorial is Scala 3 only, because the `sql` module is published for Scala 3 only. Run it on **JDK 21 or newer**: the `telemetry` module is compiled for Java 21, and `http-model` and `sql` depend on the `streams` module, which is too.
+The tutorial is Scala 3 only, because the `sql` module is published for Scala 3 only. Use **JDK 21 or newer**, to compile as well as to run. The `telemetry` module is compiled for Java 21, and its `log.*` macros run inside the compiler, so on JDK 17 code that calls `log.info` doesn't even compile. The `http-model` and `sql` modules depend on the `streams` module, which is compiled for Java 21 too.
 
 ## 2. Background: One Backend, Seven Blocks
 
