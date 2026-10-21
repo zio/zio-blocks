@@ -26,6 +26,10 @@ class ScanTest(unittest.TestCase):
             [("class Book", 2, True), ("def loud", 4, True), ("def quiet", 5, False)],
         )
 
+    def test_private_constructor_does_not_hide_the_class(self):
+        text = "final case class Patch[S] private[schema] (ops: Int)\nprivate[schema] def hidden = 1\n"
+        self.assertEqual([d.name for d in sc.scan(text)], ["class Patch"])
+
     def test_annotation_between_doc_and_declaration_counts_as_documented(self):
         text = '/** Old. */\n@deprecated("use b", "0.1")\ndef a: Int = 1\n'
         self.assertEqual([(d.name, d.doc is not None) for d in sc.scan(text)], [("def a", True)])

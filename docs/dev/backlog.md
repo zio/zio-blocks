@@ -474,7 +474,7 @@ Plan: `docs/superpowers/plans/2026-10-21-schema-scaladoc.md`. Style: `docs/dev/s
 
 | Wave                     | Status      | PR | Coverage before   | Coverage after    |
 |--------------------------|-------------|----|-------------------|-------------------|
-| 0. Tooling               | In progress |    | 1194 / 6902 (17%) | 1194 / 6902 (17%) |
+| 0. Tooling               | In progress |    | 1208 / 6917 (17%) | 1208 / 6917 (17%) |
 | 1. Entry point           | Not started |    |                   |                   |
 | 2. Structure             | Not started |    |                   |                   |
 | 3. Binding               | Not started |    |                   |                   |

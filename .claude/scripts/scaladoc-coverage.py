@@ -16,8 +16,8 @@ import sys
 from typing import Optional
 
 _DECL = re.compile(
-    r"^((final|sealed|abstract|implicit|lazy|inline|transparent|case|override|private|protected|opaque)"
-    r"(\[\w+\])?\s+)*(def|val|var|class|trait|object|type|enum|given)\s+([^\s\[(:=]+)"
+    r"^(?P<mods>(?:(?:final|sealed|abstract|implicit|lazy|inline|transparent|case|override|private|protected|opaque)"
+    r"(?:\[\w+\])?\s+)*)(?P<kind>def|val|var|class|trait|object|type|enum|given)\s+(?P<name>[^\s\[(:=]+)"
 )
 _HIDDEN = re.compile(r"\b(private|protected|override)\b")
 
@@ -40,7 +40,9 @@ def scan(text):
     for i, line in enumerate(lines):
         indent = len(line) - len(line.lstrip())
         m = _DECL.match(line.strip())
-        if indent > 4 or not m or _HIDDEN.search(line.split("(")[0].split("=")[0]):
+        # Privacy is decided by the modifiers before the keyword only: a `private[schema]` constructor
+        # (`class Patch[S] private[schema] (...)`) does not hide the class.
+        if indent > 4 or not m or _HIDDEN.search(m.group("mods")):
             continue
         j = i - 1
         while j >= 0 and lines[j].strip().startswith("@"):
@@ -51,7 +53,7 @@ def scan(text):
             while k >= 0 and "/**" not in lines[k]:
                 k -= 1
             doc = _normalise(lines[k : j + 1])
-        decls.append(Decl(f"{m.group(4)} {m.group(5)}", i + 1, doc))
+        decls.append(Decl(f'{m.group("kind")} {m.group("name")}', i + 1, doc))
     return decls
 
 
