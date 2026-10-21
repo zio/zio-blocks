@@ -469,6 +469,7 @@ const sidebars = {
     "guides/upsert-and-paginate-with-keyset-cursors",
     "guides/stream-large-query-results",
     "guides/your-first-html-page",
+    "guides/stream-files-and-sockets",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
     "guides/fix-scope-and-wire-compile-errors",

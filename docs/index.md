@@ -511,6 +511,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [How to Upsert Rows and Paginate with Keyset Cursors](./guides/upsert-and-paginate-with-keyset-cursors.md) - Insert or update rows in one statement, choose which columns an upsert changes, and walk large tables page by page with keyset cursors
 - [How to Stream Large Query Results](./guides/stream-large-query-results.md) - Read a large result set as a stream of row chunks with `queryStream` and `queryChunked`, aggregate it, export it to a file and handle its errors
 - [Render Your First Server-Side HTML Page](./guides/your-first-html-page.md) - Build a book page with the HTML DSL, escape user input, add CSS and JSON state, and save it as a file
+- [How to Stream Files and Sockets Without Leaking Resources](./guides/stream-files-and-sockets.md) - Read files, NIO channels and sockets as streams that close their handles on success, failure, early stop and missing input
 - [Getting Started with Async](./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
 - [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
 - [How to Fix Common Scope and Wire Compile Errors](./guides/fix-scope-and-wire-compile-errors.md) - Look up a Scope or Wire error message and apply the fix

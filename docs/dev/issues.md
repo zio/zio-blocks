@@ -2300,6 +2300,52 @@ object Employee { implicit val schema: Schema[Employee] = Schema.derived }
 - `combinators.md` documents a `Choices` module that does not exist (research §9.6).
 - `docs/dev/research.md` cites stale line numbers (for example `Transactor.scala:65` is now `:261`/`:275`, `Table.scala:32` is now `:262`).
 
+### docs: the streams overview marks `fromInputStream` and `fromJavaReader` as JVM-only, but they also run on Scala.js
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/stream-files-and-sockets.md` (backlog H-24), on `main` at `b4179489`. The same text is in tag `v0.0.56`; it dates from #1318.
+
+**Summary.** The "Creating Streams" block of `docs/reference/streams/index.md` labels both groups of I/O constructors "JVM only": `Stream.fromInputStream`, `Stream.fromJavaReader`, `Stream.fromInputStreamUnmanaged` and `Stream.fromJavaReaderUnmanaged`. All four are defined in the shared sources and work on Scala.js; only their blocking terminals (`runCollect`, `run`, …) and the NIO helpers (`NioStreams`, `NioSinks`) are JVM-only.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-streams` 0.0.56 for Scala.js, run with `scala-cli run Repro.scala --js-cli-on-jvm` — the default native Scala.js linker of scala-cli 1.10 only reads IR up to 1.20, and the 0.0.56 artifacts are IR 1.22):
+
+```scala
+//> using scala 3.9.0
+//> using platform scala-js
+//> using jsVersion 1.22.0
+//> using option -experimental
+//> using dep dev.zio::zio-blocks-next-streams::0.0.56
+
+import zio.blocks.async._
+import zio.blocks.streams._
+
+import java.io.{ByteArrayInputStream, StringReader}
+import scala.concurrent.ExecutionContext.Implicits.global
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val bytes = new ByteArrayInputStream("Zionomicon".getBytes("UTF-8"))
+    Stream.fromInputStream(bytes).map(_.toChar).runCollectAsync.toFuture.foreach(println)
+
+    val chars = new StringReader("Programming in Scala")
+    Stream.fromJavaReader(chars).runCollectAsync.toFuture.foreach(r => println(r.map(_.mkString)))
+  }
+}
+// Right(Chunk(Z,i,o,n,o,m,i,c,o,n))
+// Right(Programming in Scala)
+```
+
+**Expected.** The overview says these constructors are available on both platforms, as `docs/reference/streams/core/stream.md` already implies (it lists them without a platform note).
+
+**Root cause.** Documentation only. `docs/reference/streams/index.md:398` and `:402` say "JVM only", but the four constructors live in `streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:2997`, `:3010`, `:3067` and `:3080`, and the shared spec `streams/shared/src/test/scala/zio/blocks/streams/NewCombinatorsSpec.scala:612-630` runs them on both platforms.
+
+**Impact.** Low. A Scala.js user reading the overview concludes they cannot stream a `java.io.InputStream` or `Reader` and writes the adapter by hand.
+
+**Test gap.** None in the library; the shared spec covers both platforms. Nothing checks platform labels in the docs against the source tree.
+
+**Suggested fix.** Drop "- JVM only" from both comments at `docs/reference/streams/index.md:398` and `:402`.
+
+Fixed in #1796 (H-24).
+
 ## Resolved
 
 - `type-class-derivation.md` "Customizing Derivation with Instance and Modifier Overrides": all four examples were uncompiled plain blocks, one with a `// ... AST overrides ...` placeholder and undefined types. Each is now a self-contained `mdoc:compile-only` block with the real JSON AST overrides. Fixed in #1787.
