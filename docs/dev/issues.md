@@ -1662,9 +1662,152 @@ object PlusInQuery {
 
 **Suggested fix.** In `QueryParams.fromEncoded`, replace `+` with a space before calling `PercentEncoder.decode`, as `Form` does, and add tests for `q=zio+blocks` and `tag=a%2Bb`. `QueryParams#encode` already writes a space as `%20`; encode a literal `+` in a query key or value as `%2B` (today `+` is in the allowed set for `QueryKey` and `QueryValue`, `PercentEncoder.scala:58-65`) so that encoding and decoding round-trip.
 
+### http-model-schema: `request.header[T](name)` and `response.header[T](name)` do not compile
+
+Not filed on GitHub yet.
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/validate-query-parameters-and-headers.md` (backlog H-36), on `main` at `a44dc6db` plus the unmerged H-35 branch. The http-model and http-model-schema sources are the same at tag `v0.0.56`. Verified by compiling against the published 0.0.56 on Scala 3.9.0 and 2.13.16.
+
+**Summary.** `RequestSchemaOps` and `ResponseSchemaOps` add `header[T](name: String)(implicit Schema[T])` to `Request` and `Response` through an implicit conversion. Both classes already have a member `header[A](headerCodec: Header.Codec[A]): Option[A]`. Scala only looks for an implicit conversion when a member with that name does not exist, so `request.header[Int]("X-Count")` resolves to the member and fails to compile: the string is not a `Header.Codec`. The typed header accessor that the reference page advertises on `Request` and `Response` is unreachable without writing `new RequestSchemaOps(request)`. `headerAll` and `headerOrElse` work, because `Request` has no members with those names.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-http-model-schema` 0.0.56, `scala-cli compile`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+
+import zio.http._
+import zio.http.schema._
+
+object HeaderOnRequest {
+  def main(args: Array[String]): Unit = {
+    val request = Request.get(URL.parse("/books").toOption.get).addHeader("X-Request-Id", "42")
+    println(request.header[Int]("X-Request-Id"))
+  }
+}
+// [error] ./r1/HeaderOnRequest.scala:11:33
+// [error] Found:    ("X-Request-Id" : String)
+// [error] Required: zio.http.Header.Codec[Int]
+// [error]     println(request.header[Int]("X-Request-Id"))
+// [error]                                 ^^^^^^^^^^^^^^
+```
+
+The same file with `//> using scala 2.13.16` and `zio-blocks-http-model-schema` fails the same way:
+
+```
+// [error] type mismatch;
+// [error]  found   : String("X-Request-Id")
+// [error]  required: zio.http.Header.Codec[Int]
+```
+
+**Expected.** `request.header[Int]("X-Request-Id")` returns `Left(HeaderError.Malformed(...))` or `Right(42)`, as `request.headers.header[Int]("X-Request-Id")` does.
+
+**Root cause.** `Request#header` (`http-model/shared/src/main/scala/zio/http/Request.scala:36`) and `Response#header` (`http-model/shared/src/main/scala/zio/http/Response.scala:33`) shadow `RequestSchemaOps#header` (`http-model-schema/shared/src/main/scala/zio/http/schema/RequestSchemaOps.scala:34`) and `ResponseSchemaOps#header` (`ResponseSchemaOps.scala:25`). A member with the right name always wins over an implicit conversion, even when its parameter types don't fit.
+
+**Impact.** Everyone who follows `docs/reference/http-model/schema.md` ("Exposes all methods from `QueryParamsSchemaOps` and `HeadersSchemaOps` directly on `Request`") hits a confusing type error that names `Header.Codec`. The workaround is `request.headers.header[T](name)`. The H-36 guide uses it and explains why in a warning.
+
+**Test gap.** `RequestSchemaSpec` (`http-model-schema/shared/src/test/scala/zio/http/schema/RequestSchemaSpec.scala:51`) and `ResponseSchemaSpec` (`ResponseSchemaSpec.scala:29`) call `new RequestSchemaOps(request)` and `new ResponseSchemaOps(response)` directly, so they never go through the implicit conversion that users rely on.
+
+**Suggested fix.** Either add `header[T](name: String)(implicit Schema[T])` overloads to `Request` and `Response` themselves (http-model would then depend on schema, which it does not today), or rename the extension (for example `headerAs[T]`) and keep `header[T]` only on `Headers`. Change both specs to call the methods through `import zio.http.schema._` so the tests compile the way users write the code.
+
+### http-model-schema: derived `QueryCodec` and `HeaderCodec` ignore field default values
+
+Not filed on GitHub yet.
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/validate-query-parameters-and-headers.md` (backlog H-36), on `main` at `a44dc6db` plus the unmerged H-35 branch. The http-model-schema sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56.
+
+**Summary.** A case class field with a default value, such as `limit: Int = 20`, is still required by a codec derived with `Schema#derive(DefaultQueryFormat)` or `Schema#derive(DefaultHeaderFormat)`. A missing parameter or header fails with `Missing field` instead of taking the default. The schema carries the defaults, and the JSON codec derived from the same schema uses them, so the two formats disagree about the same case class. Paging parameters are the most common case: `?limit=5` without `offset` is rejected.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-http-model-schema` 0.0.56, `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+
+import zio.blocks.schema.Schema
+import zio.blocks.schema.json.JsonCodec
+import zio.http._
+import zio.http.schema._
+
+final case class Paging(limit: Int = 20, offset: Int = 0)
+object Paging { implicit val schema: Schema[Paging] = Schema.derived }
+
+final case class ClientInfo(xApiVersion: Int = 1)
+object ClientInfo { implicit val schema: Schema[ClientInfo] = Schema.derived }
+
+object DefaultsIgnored {
+  def main(args: Array[String]): Unit = {
+    val query = Schema[Paging].derive(DefaultQueryFormat)
+    println(query.decode(QueryParams.fromEncoded("limit=5")))
+    println(query.decode(QueryParams.empty))
+    val headers = Schema[ClientInfo].derive(DefaultHeaderFormat)
+    println(headers.decode(Headers.empty))
+    // The schema knows the defaults, and the JSON codec uses them:
+    println(Schema[Paging].jsonCodec.decode("""{"limit":5}"""))
+  }
+}
+// Left(zio.blocks.schema.SchemaError: Missing field 'offset' at: .)
+// Left(zio.blocks.schema.SchemaError: Missing field 'limit' at: .)
+// Left(zio.blocks.schema.SchemaError: Missing field 'X-API-VERSION' at: .)
+// Right(Paging(5,0))
+```
+
+**Expected.** `Right(Paging(5,0))`, `Right(Paging(20,0))` and `Right(ClientInfo(1))`, as the JSON codec does.
+
+**Root cause.** `QueryCodecDeriver#deriveRecord` (`http-model-schema/shared/src/main/scala/zio/http/schema/QueryCodecDeriver.scala:49-112`) and `HeaderCodecDeriver#deriveRecord` (`HeaderCodecDeriver.scala:48-112`) build one `FieldCodec` per field and never read the field's default (`Reflect#getDefaultValue`, `schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:150`). `SinglePrimitive#decodeAny` returns `SchemaError.missingField` for an absent value (`ParamCodecSupport.scala:53`).
+
+**Impact.** Users who model optional parameters with defaults get 400s for valid requests, or have to switch every such field to `Option` and apply the defaults by hand. The H-36 guide shows the behaviour in a warning and uses `Option` fields.
+
+**Test gap.** `QueryCodecSpec` and `HeaderCodecSpec` have no case class with a default value.
+
+**Suggested fix.** In both `deriveRecord`s, read `field.value.getDefaultValue` and, when the raw value is absent and a default exists, store the default instead of calling `decodeAny`. Add tests for a missing defaulted field, a present defaulted field and a malformed defaulted field (which should still fail).
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
+
+### http-model-schema: `query[T]` and `header[T]` compile for any schema but decode only primitives
+
+Found 2026-10-21 while writing H-36 (`docs/guides/validate-query-parameters-and-headers.md`). Verified against the published 0.0.56.
+
+`request.query[Option[Int]]("limit")`, `query[List[Int]]` and `query[Isbn]` for a wrapper type compile, because any `Schema[T]` is accepted, but always return `Malformed(key, value, "Unsupported schema type for string decoding")`, even for `?limit=5`. `StringDecoder.decode` handles `Reflect.Primitive` only (`http-model-schema/shared/src/main/scala/zio/http/schema/StringDecoder.scala:26-29`). The error blames the client's value for a programming mistake, and a 400 handler sends it back to the client. The reference page says the module "supports decoding to any type with a `Schema[T]` instance". Reproduction (`scala-cli run`, Scala 3.9.0, `zio-blocks-next-http-model-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+
+import zio.blocks.schema.Schema
+import zio.http._
+import zio.http.schema._
+
+final case class Isbn(value: String)
+object Isbn { implicit val schema: Schema[Isbn] = Schema[String].transform(Isbn(_), _.value) }
+
+object OptionQuery {
+  def main(args: Array[String]): Unit = {
+    val request = Request.get(URL.parse("/books?limit=5&isbn=978-0981531687").toOption.get)
+    println(request.query[Option[Int]]("limit"))
+    println(request.query[List[Int]]("limit"))
+    println(request.query[Isbn]("isbn"))
+    println(request.query[Int]("limit"))
+  }
+}
+// Left(Malformed(limit,5,Unsupported schema type for string decoding))
+// Left(Malformed(limit,5,Unsupported schema type for string decoding))
+// Left(Malformed(isbn,978-0981531687,Unsupported schema type for string decoding))
+// Right(5)
+```
+
+Suggested fix: support wrappers (the codec derivers already do, through `ParamCodecSupport.wrapperFieldCodec`) and map `Option[T]` to "missing is `None`". At least document the primitive-only limit on the reference page, and consider reporting it as a distinct error rather than `Malformed`.
+
+### http-model-schema: `queryOrElse` and `headerOrElse` also swallow malformed values, and no decoder applies `Validation`
+
+Found 2026-10-21 while writing H-36. Verified against the published 0.0.56.
+
+`queryOrElse[Int]("limit", 20)` returns `20` for `?limit=abc`, not only for a missing `limit` (`QueryParamsSchemaOps.scala`, `query[T](key).getOrElse(default)`), so a client's typo is silently ignored. The reference page says so ("errors are silently ignored"), but the name suggests "or else, when missing". Separately, none of the decoders checks the `Validation` a `Schema` can carry: a `Schema[Int]` whose primitive type has `Validation.Numeric.Range(Some(1), Some(100))` decodes `?limit=500` to `Right(500)` (`StringDecoder.decodePrimitive` and `ParamCodecSupport.decodePrimitiveString` only parse). The H-36 guide shows a `Missing`-only fallback and range checks written after decoding. Suggested fix: document both on `docs/reference/http-model/schema.md`; consider a `queryOption[T]` that returns `Either[QueryParamError, Option[T]]`.
 
 ### schema-toon: `ArrayFormat.List` still writes a table for a record list inside a list item
 
@@ -1982,6 +2125,12 @@ Pages that contradict the source. None of these were copied into the new guides.
 - Line 191 says `include` directives are resolved through a callback, so includes "come from a classpath, an archive, or a test fixture". Through the public `ConfigSource` API there is no callback (see the dropped-includes bug) and no classpath loader.
 - Line 247 says `HoconError` carries the line and column. That holds only for lexer errors; resolution errors report 0:0. From source.
 - The HOCON section has no warnings for the dropped includes, environment substitutions, array concatenation and duration/size syntax above.
+
+**http-model (`schema.md`)**
+
+- Lines 59-68 use the artifact `zio-http-model-schema` and say "Scala 3.x only". The artifact is `zio-blocks-http-model-schema` (`zio-blocks-next-http-model-schema` on Scala 3.9+), and the module builds for Scala 2.13 too. H-01's branch fixes this.
+- "RequestSchemaOps" says it "exposes all methods from `QueryParamsSchemaOps` and `HeadersSchemaOps` directly on `Request`", "ResponseSchemaOps" says the same for `Response`, and the "How They Work Together" diagram lists `RequestSchemaOps.header[T](name)` and `ResponseSchemaOps.header[T](name)`. `request.header[T](name)` and `response.header[T](name)` do not compile (see Library bugs). The page's own examples quietly use `request.headers.header[T]`. Found while writing H-36.
+- "Supported Types" says the module "supports decoding to any type with a `Schema[T]` instance", and "Custom Types" says to "provide a `Schema[T]` instance". Only primitive schemas decode; `Option`, collections and wrapper types return `Malformed(..., "Unsupported schema type for string decoding")` (see Usability traps). Found while writing H-36.
 
 ### docs: `formats.md` says infinite HOCON numbers keep their `Double` rendering
 
