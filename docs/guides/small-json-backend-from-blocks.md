@@ -431,8 +431,8 @@ object Demo {
 
 The code above:
 
-- `intParam` turns `QueryParamError.Missing` into the default and every other error into an `ApiError` with the error's own message.
-- `check` adds the range checks. No decoder checks ranges for us, so `Paging.from` does it after decoding.
+- `Paging.intParam` turns `QueryParamError.Missing` into the default and every other error into an `ApiError` with the error's own message.
+- `Paging.check` adds the range checks. No decoder checks ranges for us, so `Paging.from` does it after decoding.
 - `Paging.from` chains the steps in a `for` comprehension: the first `Left` stops it, and that error is what the client sees.
 - `Demo` builds requests from strings and prints responses, so we can try code that takes a `Request` without starting a server. A JSON body needs `Body.fromArray` with the `application/json` content type; `Body.fromString` is always `text/plain`.
 
@@ -446,7 +446,7 @@ List("/books", "/books?limit=1&offset=2", "/books?limit=abc", "/books?limit=500"
 A plain `/books` gets the default page, and every bad value gets its own message.
 
 :::caution
-`request.queryOrElse("limit", 20)` looks like a shorter way to write `intParam`, but it also falls back to the default when the value is malformed, so `?limit=abc` would quietly return the first page. Match on `request.query` when bad input must be rejected.
+`request.queryOrElse("limit", 20)` looks like a shorter way to write `Paging.intParam`, but it also falls back to the default when the value is malformed, so `?limit=abc` would quietly return the first page. Match on `request.query` when bad input must be rejected.
 :::
 
 The query-parameter guide, H-36 "How to Validate Query Parameters and Headers", is still being written; until it lands, the [Schema-Based Typed Access](../reference/http-model/schema.md) reference covers `RequestSchemaOps#query`, `RequestSchemaOps#queryAll` and `RequestSchemaOps#queryOrElse`.
@@ -568,7 +568,7 @@ The code above:
 - `trace.span(...)` runs the request inside a span named after the method and the path, and ends the span when the response is ready.
 - `requests.add(1L, "status" -> ...)` adds one to the series for the response's status code.
 - `log.info(message, key -> value, ...)` writes one log line with structured fields that a log tool can search without parsing the text.
-- `countsByStatus` reads the counter back as `(status, count)` pairs, sorted by status.
+- `RequestTelemetry#countsByStatus` reads the counter back as `(status, count)` pairs, sorted by status.
 
 Let's wrap a fresh set of routes:
 
@@ -597,7 +597,7 @@ Each request writes one log line with its fields, just above the response it des
 The brackets of a log line should hold the source location: the short class name, the method and the line, such as `[RequestTelemetry.wrap:20]`. In version 0.0.56, a class inside a package prints its full name followed by two numbers instead, as in `[(smalljsonbackendfromblocks.RequestTelemetry,27,43).wrap:20]` from the companion example. On this page, the class also sits inside the `repl.MdocSession` wrapper that renders the examples. This is a known bug; the message and the fields are not affected.
 :::
 
-The [Telemetry Guide](./telemetry-guide.md) explains how to send logs as JSON, export spans and metrics, and set log levels. The tutorial T-12 "Instrument a Program with Logs, Traces and Metrics" will teach the three signals step by step once it is published.
+The [Telemetry Guide](./telemetry-guide.md) explains how to send logs as JSON, export spans and metrics, and set log levels. The tutorial T-12 "Instrument a Program with Logs, Traces and Metrics" teaches the three signals step by step; it is not published yet.
 
 ## 9. Serve the Routes over HTTP
 
@@ -760,7 +760,7 @@ The server writes its log line before the response goes out, so each log line ap
 
 ## 10. Wire Everything Together and Shut Down
 
-Building the services by hand works, but `main` must know every constructor, call them in the right order, pass each one its settings, and close them in the reverse order. The `scope` module does that job. `Resource.from[HttpService]` reads the constructors of `HttpService` and everything it needs, builds each service once, and registers `close()` for every service that is `AutoCloseable`. The `config` module's `Config.wire` turns one section of the settings into a value the graph can use:
+Building the services by hand works, but `main` must know every constructor, call them in the right order, pass each one its settings, and close them in the reverse order. The `scope` module does that job. `Resource.from[HttpService]` reads the constructors of `HttpService` and everything it needs, builds each service once, and registers `AutoCloseable#close` for every service that is `AutoCloseable`. The `config` module's `Config.wire` turns one section of the settings into a value the graph can use:
 
 ```scala mdoc:silent
 import zio.blocks.scope._
@@ -789,7 +789,7 @@ Now let's run the whole backend. The stand-in environment points `db.file` at a 
 val wiredEnv = ConfigSource.fromMap(Map("db.file" -> TempDb.file()), "env")
 ```
 
-`Scope.global.scoped` opens a scope, `allocate` builds the graph inside it, and when the block ends, the scope closes everything it built, last built first:
+`Scope.global.scoped` opens a scope, `Scope#allocate` builds the graph inside it, and when the block ends, the scope closes everything it built, last built first:
 
 ```scala mdoc
 val counts = Scope.global.scoped { scope =>
@@ -1081,5 +1081,5 @@ You now have a small backend built entirely from ZIO Blocks, and you know where 
 - **Test more of the database code.** [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) covers fixtures, schema setup and rolling back instead of cleaning up.
 - **Go deeper on settings.** [How to Feed Configuration into a Wire Dependency Graph](./feed-config-into-a-wire-graph.md) and [Build a Typed Configuration Loader](./typed-config-loader.md) cover secrets, formats and testing settings.
 - **Go deeper on resources.** [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md) explains how scopes keep services from escaping.
-- **Protect the endpoints.** [How to Issue and Verify JWTs](./issue-and-verify-jwts.md) shows how to sign and check tokens; the guide H-38 "How to Protect an Endpoint with JWT Bearer Tokens" will show how to check them on each request once it is published.
+- **Protect the endpoints.** [How to Issue and Verify JWTs](./issue-and-verify-jwts.md) shows how to sign and check tokens; the guide H-38 "How to Protect an Endpoint with JWT Bearer Tokens" shows how to check them on each request; it is not published yet.
 - **Look up the APIs.** The reference pages for [the HTTP model](../reference/http-model/index.md), [config](../reference/config/index.md), [sql](../reference/sql/index.md), [Resource](../reference/resource-management/resource.md) and [telemetry](../reference/telemetry/index.md) list every operation.
