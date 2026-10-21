@@ -20,13 +20,23 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.quoted._
 
+/**
+ * Helpers shared by the derivation macros of this module, such as
+ * `Schema.derived`.
+ */
 private[schema] object CommonMacroOps {
+
+  /**
+   * Aborts the macro expansion with the compile error `msg` at the expansion
+   * site.
+   */
   def fail(msg: String)(using q: Quotes): Nothing = {
     import q.reflect._
 
     report.errorAndAbort(msg, Position.ofMacroExpansion)
   }
 
+  /** Returns the type arguments of `tpe`, dealiased. */
   def typeArgs(using q: Quotes)(tpe: q.reflect.TypeRepr): List[q.reflect.TypeRepr] = {
     import q.reflect._
 
@@ -150,6 +160,10 @@ private[schema] object CommonMacroOps {
     }
   }
 
+  /**
+   * Dealiases `tpe` when it is an opaque type, a ZIO Prelude newtype or a type
+   * alias, and returns it unchanged otherwise.
+   */
   def dealiasOnDemand(using q: Quotes)(tpe: q.reflect.TypeRepr): q.reflect.TypeRepr =
     if (isOpaque(tpe)) opaqueDealias(tpe)
     else if (isZioPreludeNewtype(tpe)) zioPreludeNewtypeDealias(tpe)
@@ -219,6 +233,10 @@ private[schema] object CommonMacroOps {
     types.toList.sortBy(_.typeSymbol.fullName)
   }
 
+  /**
+   * Returns the direct subtypes (the cases) of the sealed type `tpe`, with
+   * their type parameters filled in from the type arguments of `tpe`.
+   */
   def directSubTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): List[q.reflect.TypeRepr] = {
     import q.reflect._
 
