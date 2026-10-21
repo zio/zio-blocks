@@ -522,6 +522,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Coming from PureConfig, Typesafe Config or zio-config](./guides/config-library-migration.md) - Keep your `application.conf` and move its loader to ZIO Blocks config
 - [Coming from circe, zio-json or jsoniter-scala](./guides/json-library-migration.md) - Move JSON codecs from circe, zio-json or jsoniter-scala to one ZIO Blocks Schema
 - [How to Generate JSON Schema from a Type and Validate Payloads Against It](./guides/generate-json-schema-and-validate-payloads.md) - Derive a JSON Schema from a `Schema`, publish it, and validate incoming JSON payloads
+- [How to Define Validated Newtypes and Collect Every Validation Error](./guides/validated-newtypes.md) - Wrap a primitive in a validated newtype, reject bad values at construction, and collect every validation error in one `SchemaError`
 - [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
 - [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL
 - [Query DSL Part 3: Extending the Expression Language](./guides/query-dsl-extending.md) - Add custom operators beyond `SchemaExpr`
