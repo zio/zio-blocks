@@ -110,7 +110,7 @@ Enter only when fast loop is green. Run in order:
 3. **Cross-platform** — other platform projects, if cross-built and you touched shared/ or platform sources
 4. **Downstream** — all projects that depend on what you changed:
     - `chunk*` → `schema*`, `benchmarks`
-    - `schema*` → `schema-avro`, `schema-bson`, `schema-thrift`, `schema-messagepack*`, `schema-toon*`, `scalaNextTests*`, `benchmarks`, `docs`
+    - `schema*` → `schema-scaladoc-check`, `schema-avro`, `schema-bson`, `schema-thrift`, `schema-messagepack*`, `schema-toon*`, `scalaNextTests*`, `benchmarks`, `docs`
 
     If unsure, check `dependsOn` in `build.sbt` / `project/*.scala`.
 
