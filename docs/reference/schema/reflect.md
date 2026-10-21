@@ -166,18 +166,18 @@ The following example shows a `Shape` sealed trait represented as a `Reflect.Var
 sealed trait Shape extends Product with Serializable
 
 object Shape {
-   case class Circle(radius: Double) extends Shape
-   object Circle {
-      implicit val schema: Schema[Circle] = ???
-   }
-  
-   case class Rectangle(width: Double, height: Double) extends Shape
-   object Rectangle {
-      implicit val schema: Schema[Rectangle] = ???
-   }
-  
+  case class Circle(radius: Double) extends Shape
+  object Circle {
+    implicit val schema: Schema[Circle] = ???
+  }
+
+  case class Rectangle(width: Double, height: Double) extends Shape
+  object Rectangle {
+    implicit val schema: Schema[Rectangle] = ???
+  }
+
   implicit val schema: Schema[Shape] =
-    Schema[Shape] {
+    new Schema[Shape](
       Reflect.Variant[Binding, Shape](
         cases = IndexedSeq(
           Term(
@@ -216,7 +216,7 @@ object Shape {
         ),
         modifiers = Seq(Modifier.config("protobuf.field-id", "1"))
       ).doc("A geometric shape")
-    }
+    )
 }
 ```
 
@@ -470,7 +470,7 @@ println(Schema[Person].reflect)
 | `Deferred` | `deferred => TypeName` (breaks recursive cycles) |
 | `Dynamic` | `DynamicValue` |
 
-The printer writes `deferred => TypeName` for every node it has already printed in the same `toString` call, not only for a recursive reference. A case class schema used for two fields is printed in full for the first field and as `deferred => TypeName` for the second.
+The printer writes `deferred => TypeName` for every record, variant, sequence, map or wrapper node it has already printed in the same `toString` call, not only for a recursive reference; primitives are always printed in full. A case class schema used for two fields is printed in full for the first field and as `deferred => TypeName` for the second.
 
 **Variant example:**
 
