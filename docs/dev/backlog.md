@@ -51,6 +51,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-46 | How to connect zio-blocks streams to ZIO Streams or fs2                       | Skipped (maintainer decision)           | —                                                                                       |
 | H-42 | How to configure log output                                                   | Skipped (maintainer decision)           | —                                                                                       |
 | H-49 | How to test HTTP handlers as pure functions                                   | Skipped (maintainer decision)           | —                                                                                       |
+| H-33 | How to keep secrets out of logs and config dumps                              | Skipped (maintainer decision)           | —                                                                                       |
 | T-08 | Describe a typed HTTP API with Endpoint                                       | Skipped (maintainer decision)           | —                                                                                       |
 
 **Related doc-fix PRs:** #1771 (config parse-error and `EnvSource` contradictions, merged), #1784 (`codec.md` overrides, merged), #1773 (codec reference pages, open), #1787 (`type-class-derivation.md` snippets, merged). #1761 (`loadOrThrow` error count) was closed without merging.
