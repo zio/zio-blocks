@@ -42,6 +42,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-01 | How to add ZIO Blocks to your build                                           | Pushed, no PR                           | branch `adding-zio-block-to-build` (6 commits); fixes the 3.9+ rule across docs        |
 | T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`              | Stalled: uncommitted, session exited    | worktree `evolve-data`; `guides/evolve-your-data.md`                                    |
 | H-25 | How to process a stream in parallel with bounded concurrency                  | Skipped (maintainer decision)           | —                                                                                       |
+| H-46 | How to connect zio-blocks streams to ZIO Streams or fs2                       | Skipped (maintainer decision)           | —                                                                                       |
 | T-08 | Describe a typed HTTP API with Endpoint                                       | Skipped (maintainer decision)           | —                                                                                       |
 
 **Related doc-fix PRs:** #1771 (config parse-error and `EnvSource` contradictions, merged), #1784 (`codec.md` overrides, merged), #1773 (codec reference pages, open), #1787 (`type-class-derivation.md` snippets, merged). #1761 (`loadOrThrow` error count) was closed without merging.
