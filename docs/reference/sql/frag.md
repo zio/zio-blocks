@@ -46,9 +46,9 @@ object Frag {
 Build fragments with the `sql"..."` interpolator and execute them inside a `Transactor` block:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -138,9 +138,15 @@ All execution methods require an implicit `DbCon` (provided by `Transactor#conne
 
 **`query[A]`** — Execute SELECT and return all rows:
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
+
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -153,9 +159,9 @@ val users: List[User] = sql"SELECT id, name FROM users".query[User]
 **`queryOne[A]`** — Execute SELECT and return at most one row:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 case class User(id: Int, name: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -168,8 +174,8 @@ val user: Maybe[User] = sql"SELECT id, name FROM users WHERE id = ${1}".queryOne
 **`queryLimit[A](n)`** — Execute SELECT and return up to n rows (fetched from Scala side):
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -183,9 +189,9 @@ val page: List[User] = sql"SELECT id, name FROM users ORDER BY name".queryLimit[
 
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.streams.Stream
+import zio.blocks.sql._
 
 case class User(id: Int, name: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -201,9 +207,9 @@ val all: Either[Throwable, List[User]] = chunks.runCollect.map(_.toList.flatten)
 
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.streams.Stream
+import zio.blocks.sql._
 
 case class User(id: Int, name: String)
 object User { implicit val schema: Schema[User] = Schema.derived }

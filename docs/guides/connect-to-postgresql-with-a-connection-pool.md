@@ -123,11 +123,17 @@ HikariCP checks the database right away: by default, the constructor opens one c
 
 ```scala mdoc:silent
 import javax.sql.DataSource
+import zio.blocks.schema.Schema
+import zio.blocks.scope.*
 import zio.blocks.sql.*
 
 def bookstoreTransactor(pool: DataSource): JdbcTransactor =
   JdbcTransactor.postgres(pool)
 ```
+
+:::note
+The `Schema` and `scope` imports, used later on this page, come before `import zio.blocks.sql.*` on purpose. When the `sql-zio` module is also on the classpath, `zio.blocks.sql.*` brings its subpackage `zio.blocks.sql.zio` into scope under the name `zio`, and every `import zio.blocks...` after it fails to compile. Keeping `import zio.blocks.sql.*` last avoids this.
+:::
 
 `JdbcTransactor.postgres(pool)` is shorthand for `JdbcTransactor.fromDataSource(pool, SqlDialect.PostgreSQL)` and does nothing else: it runs no setup statements on the connections and changes none of their settings. Each `JdbcTransactor#connect` or `JdbcTransactor#transact` call borrows one connection with `DataSource#getConnection` and closes it at the end of the block, which returns it to the pool.
 
@@ -168,8 +174,6 @@ From here on, we write the database work as functions with a `using DbCon` param
 The repository code from the SQLite tutorial works unchanged on PostgreSQL. We use the same `Book` shape:
 
 ```scala mdoc:silent
-import zio.blocks.schema.Schema
-
 case class Book(id: Long, title: String, author: String, year: Int, isbn: Option[String])
 
 object Book {
@@ -269,8 +273,6 @@ Choose `TransactionIsolation.Serializable` when a transaction must behave as if 
 A `HikariDataSource` holds open connections and a background housekeeping thread until we call `HikariDataSource#close`. A [`Scope`](../reference/resource-management/scope.md) ties that call to a block of code: `Resource.fromAutoCloseable` turns the pool into a resource that the scope closes when the block ends, whether it ends normally or with an exception:
 
 ```scala mdoc:silent
-import zio.blocks.scope.*
-
 def stockShelfWithScopedPool(): List[String] =
   Scope.global.scoped { scope =>
     import scope.*

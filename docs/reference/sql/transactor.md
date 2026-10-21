@@ -54,8 +54,8 @@ object JdbcTransactor {
 The following block demonstrates the complete workflow: create a transactor, open a transactional scope, and execute both `Repo` operations and raw `sql"..."` fragments inside it:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -133,8 +133,6 @@ val sqlite: JdbcTransactor =
 Use the three-argument overload when the database requires a username and password supplied separately:
 
 ```scala mdoc
-import zio.blocks.sql._
-
 // With credentials — typical for PostgreSQL or MySQL
 val postgres: JdbcTransactor =
   JdbcTransactor.fromUrl(
@@ -160,6 +158,12 @@ object JdbcTransactor {
 ```
 
 The factory fixes the dialect to `SqlDialect.PostgreSQL` so DDL type names, parameter placeholders, and dialect-specific SQL all render correctly for PostgreSQL:
+
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._
@@ -206,8 +210,8 @@ trait Transactor {
 Because `DbTx extends DbCon`, a block that compiles under `connect` will also compile under `transact` — so we can promote non-transactional code to transactional scope without changing the body. The following example runs a read query inside `connect` without incurring transaction overhead:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -245,9 +249,9 @@ The no-arg overload preserves driver defaults (e.g. PostgreSQL `READ_COMMITTED`)
 Because `DbTx extends DbCon`, the `DbTx` given satisfies any `DbCon ?=>` requirement inside the block. We can mix `Repo` CRUD calls with raw `sql"..."` fragments freely:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -319,8 +323,8 @@ Choose `JdbcTransactor` when the codebase is synchronous or when ZIO is not on t
 `DbCon` carries three members — `connection`, `dialect`, and `logger` — and is passed implicitly through every SQL operation. This means application-level helper methods can declare `(using DbCon)` and they are automatically satisfied anywhere inside `connect` or `transact` with no explicit argument passing. The same pattern composes across multiple layers:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }

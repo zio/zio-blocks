@@ -745,8 +745,8 @@ provides column names and a codec that extracts `DbValue` parameters.
 `Upsert.insertDoNothing` builds `INSERT ... ON CONFLICT ("id") DO NOTHING`:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.*
 import zio.blocks.schema.Schema
+import zio.blocks.sql.*
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -762,8 +762,8 @@ val frag: Frag = Upsert.insertDoNothing(table, user, conflictColumn = "id")
 for **all** non-conflict columns:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.*
 import zio.blocks.schema.Schema
+import zio.blocks.sql.*
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -779,8 +779,8 @@ val frag: Frag = Upsert.insertDoUpdate(table, user, conflictColumn = "id")
 Pass `updateColumns` to restrict which columns are overwritten on conflict:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.*
 import zio.blocks.schema.Schema
+import zio.blocks.sql.*
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -855,8 +855,8 @@ the repository's validated ID column, and all non-ID columns are overwritten wit
 the entity's values.
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.*
 import zio.blocks.schema.Schema
+import zio.blocks.sql.*
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -896,8 +896,8 @@ not duplicate the boundary row.
 `Repo` exposes this directly for primary-key cursors:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.*
 import zio.blocks.schema.Schema
+import zio.blocks.sql.*
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -923,10 +923,10 @@ For non-ID orderings or ad-hoc queries, `Frag.keysetAfter` builds the
 portable `WHERE col > ? ORDER BY col ASC LIMIT n` fragment without a `Repo`:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.*
 
 case class User(id: Int, name: String, email: String)
 import zio.blocks.schema.Schema
+import zio.blocks.sql.*
 object User { implicit val schema: Schema[User] = Schema.derived }
 val table: Table[User] = Table.derived[User]
 
@@ -947,8 +947,8 @@ val frag2: Frag = Frag.keysetAfter(orderCol = "created_at", lastValue = DbValue.
 Compose with a base `SELECT`:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.*
 import zio.blocks.schema.Schema
+import zio.blocks.sql.*
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }

@@ -3,8 +3,8 @@ package testdatabasecode
 import scala.util.Try
 import zio.*
 import zio.blocks.maybe.Maybe
-import zio.blocks.sql.*
 import zio.test.*
+import zio.blocks.sql.*
 
 import TestDb.*
 
