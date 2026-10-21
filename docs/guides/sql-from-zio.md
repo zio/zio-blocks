@@ -160,9 +160,7 @@ runDemo {
 }
 ```
 
-### A Pooled PostgreSQL Database
-
-In production, connections come from a pool. A pool is a `javax.sql.DataSource` that ZIO opens at startup and closes at shutdown, which is what `ZLayer.scoped` with `ZIO.acquireRelease` expresses. `TransactorZIO.fromDataSource` then builds the transactor on the pool. The pool's settings are the ones from [How to Connect to PostgreSQL with a Connection Pool](./connect-to-postgresql-with-a-connection-pool.md):
+In production, a PostgreSQL database is usually reached through a connection pool. A pool is a `javax.sql.DataSource` that ZIO opens at startup and closes at shutdown, which is what `ZLayer.scoped` with `ZIO.acquireRelease` expresses. `TransactorZIO.fromDataSource` then builds the transactor on the pool. The pool's settings are the ones from [How to Connect to PostgreSQL with a Connection Pool](./connect-to-postgresql-with-a-connection-pool.md):
 
 ```scala mdoc:compile-only
 import com.zaxxer.hikari.{HikariConfig, HikariDataSource}
@@ -308,9 +306,7 @@ Interrupting a running `TransactorZIO#transactZIO` from outside, for example wit
 
 `TransactorZIO#transactZIO` keeps the driver's default isolation level. When a transaction needs a specific one, pass it with the two-argument overload, `transactor.transactZIO(TransactionIsolation.Serializable, readOnly = false) { ... }`. [SQL Transactions: Isolation, Read-Only and Savepoints](./sql-transactions.md) explains the levels.
 
-### Pass the Transaction Down Instead of Opening Another
-
-Every `TransactorZIO#connect`, `TransactorZIO#transact`, `TransactorZIO#connectZIO` and `TransactorZIO#transactZIO` call takes its own connection. Calling one from inside another, for example a service method that calls `BookRepo#add` while it is inside its own `TransactorZIO#transactZIO`, opens a second connection while the first one still holds its locks. On SQLite, the inner write waits for the outer transaction and fails with `SQLITE_BUSY` after the busy timeout; on PostgreSQL, enough concurrent callers doing this use up the pool and wait for each other.
+Operations that belong to one transaction must also share its connection: every `TransactorZIO#connect`, `TransactorZIO#transact`, `TransactorZIO#connectZIO` and `TransactorZIO#transactZIO` call takes its own connection. Calling one from inside another, for example a service method that calls `BookRepo#add` while it is inside its own `TransactorZIO#transactZIO`, opens a second connection while the first one still holds its locks. On SQLite, the inner write waits for the outer transaction and fails with `SQLITE_BUSY` after the busy timeout; on PostgreSQL, enough concurrent callers doing this use up the pool and wait for each other.
 
 Instead, write the operations that should share a transaction as functions with a `(using DbCon)` parameter, like `createBookTable` above, and call them inside one `TransactorZIO#transactZIO`:
 
@@ -525,15 +521,6 @@ runDemo {
 
 The fold reads two rows at a time and adds up the stock across the shelf. The whole fold runs inside `TransactorZIO#connect`, so it runs on the blocking pool. When each row needs a ZIO effect, such as publishing it to a queue, collect the rows you need inside `TransactorZIO#connect` and run the effects after it returns, or read the table in pages with `Repo#pageAfter`.
 
-## Limits
-
-Keep these limits in mind when you plan a ZIO application on the `sql` module:
-
-- `sql` and `sql-zio` are published for Scala 3 only, and the JDBC transactors run on the JVM only.
-- There is no `ZStream` for query results; consume `Frag#queryStream` inside `TransactorZIO#connect` as shown above.
-- A running JDBC statement can't be interrupted; `ZIO#timeout` waits for it to finish.
-- `TransactorZIO` has no logger parameter in its factory methods; to log queries with an `SqlLogger`, call the constructor, `new TransactorZIO(connectionFactory, dialect, logger)`.
-
 ## Putting It Together
 
 The complete example below builds the bookstore application with `ZIOAppDefault`. It provides the transactor, the `BookRepo` service and the payment service as layers, sells books in `TransactorZIO#transactZIO` transactions, and prints the stock after a declined payment:
@@ -556,6 +543,22 @@ cd zio-blocks/sql-examples
 ```
 
 Every example uses a temporary SQLite file and deletes it when it exits, so you can run them in any order.
+
+The examples share the bookstore model from [The Bookstore Model](#the-bookstore-model), defined once in `Bookstore.scala`:
+
+<details>
+<summary><code>Bookstore.scala</code>: the shared <code>Book</code> model, <code>books</code>, <code>shelf</code>, <code>createBookTable</code> and <code>stockOf</code></summary>
+
+```scala mdoc:embed:sql-examples/src/main/scala/sqlfromzio/Bookstore.scala:show-line-numbers
+```
+
+</details>
+
+To check that every example compiles without running any of them:
+
+```bash
+sbt compile
+```
 
 <details>
 <summary><code>BookRepoLayerExample.scala</code>: provide the transactor and the <code>BookRepo</code> service as layers</summary>
