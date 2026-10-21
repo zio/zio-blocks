@@ -45,7 +45,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-04 | How to define validated newtypes and collect every validation error   | Done                                    | #1811, `guides/validated-newtypes.md`                                                   |
 | H-06 | How to read and modify JSON without case classes                            | In review                               | #1812 (`docs/h06-json-without-case-classes`), `guides/json-without-case-classes.md`     |
 | H-34 | How to load configuration files on the JVM and in the browser                | Pushed, no PR                           | branch `docs/h34-config-files`, `guides/load-configuration-files.md`                    |
-| H-22 | How to map custom column types                                                | Writing (green phase pushed, reviews pending) | branch `docs/h22-custom-column-types`, `guides/map-custom-column-types.md`         |
+| H-22 | How to map custom column types                                                | Pushed, no PR                           | branch `docs/h22-custom-column-types`, `guides/map-custom-column-types.md`              |
 | H-07 | How to compute, store and replay changes with diff and Patch                  | Pushed, no PR                           | branch `docs/h07-diff-and-patch`, `guides/diff-and-patch.md`; follow-up `docs/patch-md-fixes` (patch.md to mdoc) in progress |
 | M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
 | H-28 | How to wrap callback and Future-based APIs in Async                           | Committed locally, not pushed           | worktree `async-interop` (2 commits)                                                    |
@@ -75,7 +75,7 @@ This table tracks every item that has been written or started. Items not listed 
 
 **Links to add when PRs merge:** `small-json-backend-from-blocks.md` (T-15) names H-35 (#1806, section 9 and Background), H-36 (#1808, end of section 6), T-12 (#1805, end of section 8 and the log source-location caution) and H-38 (#1804, Where to Go Next) without links. Each of those PRs should turn its mention into a link. Done: #1804 (merged), #1806. Also `protect-endpoints-with-jwt.md` (H-38) names H-35 unlinked in Prerequisites and Running the Examples; #1806 should link it.
 
-**Doc-fix follow-up:** `csv.md` statements listed in the H-11 Documentation errors entry (Pattern 3, row/column claims, `TypeError`, `nullValue`, nested records) still need fixing; unblocked now that #1773 merged.
+**Doc-fix follow-ups:** `table.md` and `db-codec-deriver.md` claim `createTable` handles collection and nested-record fields (H-22 entry). `csv.md` statements listed in the H-11 Documentation errors entry (Pattern 3, row/column claims, `TypeError`, `nullValue`, nested records) still need fixing; unblocked now that #1773 merged.
 
 **Waiting on stalled items:** M-07 needs T-02. H-04 only depends on T-01; it can start now and link to T-02 once T-02 merges.
 
