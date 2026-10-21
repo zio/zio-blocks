@@ -1619,6 +1619,72 @@ println(order.toJsonString)
 - **`defer` on a closed scope is a silent no-op** (`Scope.scala:202`), while `allocate` and `$` throw. Found while writing H-31.
 - **`jdbc:sqlite::memory:` gives every connection its own empty database.** Code that opens more than one connection loses its tables. Found while writing T-07; now noted in `transactor.md`.
 
+### async: driving one `Async` from two consumers (`toFuture` and `block`) can hang forever with no error
+
+Found 2026-10-21 by the M-04 session (`docs/guides/streaming-library-migration.md`, PR #1801): Build Docs hit its 30-minute timeout because mdoc hung. Reproduced again on main `e79a7617` against the published 0.0.56 (scala-cli, Scala 3.9.0, JDK 21).
+
+**Summary.** An `Async` value is a description that its consumer drives. If two consumers drive the same value, for example `toFuture` and then `block`, one of them can wait forever. Nothing is thrown and nothing is logged; the program just stops. It happens only some of the time, so a test can pass locally and hang in CI. `docs/reference/async.md` ("Concurrent Fan-Out via Running") calls this undefined behaviour, but neither `toFuture` nor `block` warns about it, and a `val` holding an `Async` looks reusable like any other value.
+
+**Reproduction** (`scala-cli run AsyncTwice.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+
+import zio.blocks.streams.*
+import zio.blocks.async.*
+import scala.concurrent.Await
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.*
+import java.util.concurrent.*
+
+object AsyncTwice {
+  def main(args: Array[String]): Unit = {
+    val books = Stream("Zionomicon", "Programming in Scala", "Functional Programming in Scala")
+    var hangs = 0
+    val runs = 25
+    (1 to runs).foreach { _ =>
+      val total: Async[Either[Nothing, Long]] = books.runAsync(Sink.count)
+      val fut = total.toFuture
+      val ex  = Executors.newSingleThreadExecutor()
+      val blocked = ex.submit(new Callable[Any] { def call(): Any = total.block })
+      val ok =
+        try { blocked.get(2, TimeUnit.SECONDS); Await.result(fut, 2.seconds); true }
+        catch { case _: TimeoutException => false }
+      if (!ok) hangs += 1
+      ex.shutdownNow()
+    }
+    println(s"same Async consumed twice: $hangs of $runs runs hung")
+    var hangs2 = 0
+    (1 to runs).foreach { _ =>
+      def total: Async[Either[Nothing, Long]] = books.runAsync(Sink.count)
+      val fut = total.toFuture
+      val r1 = total.block
+      val ok = try { Await.result(fut, 2.seconds); true } catch { case _: TimeoutException => false }
+      if (!ok) hangs2 += 1
+    }
+    println(s"new Async per consumer: $hangs2 of $runs runs hung")
+    // same Async consumed twice: 2 of 25 runs hung
+    // new Async per consumer: 0 of 25 runs hung
+  }
+}
+```
+
+The M-04 session saw the same thing at 2 CPUs: `.block` hung in 6 of 15 mdoc runs, and a standalone `toFuture` + `block` repro hung 25 of 25 times, while each call alone passed 25 of 25.
+
+**Expected.** Either both consumers see the result, or the second consumer fails fast with a clear error ("this Async is already being driven; use `start` to share it").
+
+**Root cause.** `toFuture` starts a non-blocking driver on the value (`async/jvm/src/main/scala/zio/blocks/async/AsyncInterop.scala:88-94`), and `block` starts a second one that polls the same `Pollable` with its own parker (`async/shared/src/main/scala/zio/blocks/async/Async.scala:2347` and `awaitSuspended` below it). The two drivers race on one pollable; when the completion wakes only one of them, the other never resumes. (Inferred from the code and the documented contract, not traced line by line.)
+
+**Impact.** A silent, intermittent hang. In the docs it cost a 30-minute CI timeout. In an application it is a stuck request or a frozen `main`.
+
+**Test gap.** No test drives one `Async` from two consumers.
+
+**Suggested fix.** Cheapest: Scaladoc on `toFuture`, `toCompletableFuture`, `toJsPromise` and `block` that says "consume once; use `start` to share". Better: mark a suspended `Async` as claimed when a driver starts and make a second driver fail with an exception that names `start`.
+
+**Workaround.** Use a `def` so each consumer builds its own `Async`, or call `start` once and share the `Async.Running` it returns.
+
 ## Test and CI
 
 ### Release: a stray version `0.017` on Maven Central is the "latest" release of eleven modules
