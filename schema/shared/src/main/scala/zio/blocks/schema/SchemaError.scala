@@ -150,9 +150,9 @@ object SchemaError {
    *
    * Throw it from the `to` function of `Schema#transform`, or from a smart
    * constructor that `to` calls, to reject a value while decoding. The decoder
-   * keeps only the message: the `Left` it returns holds a new
-   * [[ConversionFailed]] whose path ends in `.wrapped`, the step into the
-   * transformed value.
+   * keeps only the message, at a path that ends in `.wrapped`, the step into
+   * the transformed value: `Schema#fromDynamicValue` returns it as a new
+   * [[ConversionFailed]], and the JSON codec as a new [[ExpectationMismatch]].
    *
    * {{{
    * final case class Title(value: String)
@@ -346,7 +346,8 @@ object SchemaError {
    * `expected` was required), `MissingDefault` (the field has no default
    * value), `TransformFailed` and `InvalidValue` (with a `reason`),
    * `FieldNotFound`, `FieldAlreadyExists`, `CaseNotFound`, and `MandateFailed`
-   * (making an optional field mandatory failed).
+   * (making an optional field mandatory failed; not raised by the built-in
+   * migrations).
    */
   object MigrationErrorKind {
     case object PathNotFound                                  extends MigrationErrorKind

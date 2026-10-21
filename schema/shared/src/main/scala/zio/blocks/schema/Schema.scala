@@ -434,7 +434,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
    * `SchemaError.validationFailed`. The decoder then returns `Left` with the
    * message of the exception at a path that ends in `.wrapped`, the step into
    * the wrapped `A`. `from` runs when a value is encoded or converted with
-   * `toDynamicValue`, and an exception it throws propagates to the caller.
+   * `toDynamicValue`, and neither catches an exception it throws:
+   * `toDynamicValue` rethrows it unchanged, and the JSON codec throws it as a
+   * `JsonCodecError` that keeps its message.
    *
    * `DynamicSchema#check` does not run the checks in `to`.
    *
@@ -763,8 +765,10 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas with Doc
    *
    * Every property listed in `"properties"` is treated as required, even when
    * `"required"` leaves it out: an object without it fails to decode with
-   * `missing required field`. Error paths end with an extra `.wrapped` segment,
-   * from the wrapper that runs the check.
+   * `missing required field`. Decode errors carry an extra `.wrapped` step,
+   * from the wrapper that runs the check, and a failed check is reported at
+   * that step, with the place inside the JSON value only in the message text,
+   * as in the example below.
    *
    * {{{
    * import zio.blocks.schema.json.JsonSchema

@@ -21,10 +21,11 @@ package zio.blocks.schema
  * "positive" or "matches a pattern". It is stored in the [[PrimitiveType]] of a
  * primitive schema.
  *
- * Only `DynamicSchema#check` and `DynamicSchema#conforms` enforce it. The JSON
- * codec, `Schema#fromDynamicValue` and `Schema#toJsonSchema` ignore it, and
- * `Schema.derived` never adds one. To reject values while decoding, check them
- * in the `to` function of `Schema#transform` instead.
+ * Only `DynamicSchema` enforces it: `check`, `conforms`, and the decoding of
+ * the schema that `toSchema` returns. The JSON codec, `Schema#fromDynamicValue`
+ * and `Schema#toJsonSchema` ignore it, and `Schema.derived` never adds one. To
+ * reject values while decoding, check them in the `to` function of
+ * `Schema#transform` instead.
  *
  * {{{
  * import zio.blocks.schema.binding.Binding

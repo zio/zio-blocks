@@ -36,6 +36,10 @@ import zio.blocks.typeid.TypeId
  * `Schema#modifier` for the type, or with `DerivationBuilder#modifier` or
  * `Deriver#withModifier` for one derivation.
  *
+ * Which modifiers a codec reads depends on its format: the JSON codec reads all
+ * the built-in ones except `id` and `config`, while the Avro and MessagePack
+ * codecs, for example, ignore `transient`, `rename` and `alias`.
+ *
  * {{{
  * case class Book(
  *   @Modifier.rename("name") title: String,
@@ -67,9 +71,11 @@ object Modifier {
   sealed trait Term extends Modifier
 
   /**
-   * Leaves a field out of the encoded form. When the JSON codec decodes, it
-   * treats the field's key like an unknown key (skipped, or rejected when extra
-   * fields are rejected), and the field gets its default value.
+   * Makes the JSON codec leave a field out when it encodes. The TOON and BSON
+   * codecs also read it; the Avro, MessagePack, Thrift, CSV, XML and YAML
+   * codecs ignore it. When the JSON codec decodes, it treats the field's key
+   * like an unknown key (skipped, or rejected when extra fields are rejected),
+   * and the field gets its default value.
    *
    * The field needs a default value unless it is an `Option` or a collection;
    * otherwise `Schema.derived` fails to compile.
