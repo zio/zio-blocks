@@ -460,7 +460,7 @@ The table lists what @VERSION@ does with each unsupported form, as run:
 | Anchors and aliases on scalars (`&a text`, `*a`)                                               | Keeps them as part of the text                                                                                   |
 | Tags (`!!str 123`, `!Ref name`)                                                                | Keeps them as part of the text                                                                                   |
 | A second document after `---` or `...`                                                         | Drops it                                                                                                         |
-| A tab used for indentation                                                                     | Moves the indented keys up to the parent level                                                                   |
+| A tab as indentation                                                                           | Moves the indented keys up to the parent level                                                                   |
 | An unterminated `"`, `'`, `[` or `{`                                                           | Accepts it and drops the last character of the value                                                             |
 | A line it can't read, such as `pages:744` with no space after the colon                        | Drops that line and every line after it                                                                          |
 | The final line break of a literal or folded block                                              | Drops it, and ignores the chomping indicators `-` and `+` that ask to strip or keep line breaks                  |
@@ -469,16 +469,16 @@ The table lists what @VERSION@ does with each unsupported form, as run:
 
 The writer has gaps of its own. It quotes most strings that need quoting, but in @VERSION@ it leaves these unquoted:
 
-- a string that starts with `#`, such as an OpenAPI `$ref` (`#/components/schemas/Book`);
-- a string that starts with `- ` or ends with `:`;
-- a string with leading or trailing spaces;
-- commas and closing brackets in flow style (see [Control the Output Style](#control-the-output-style)).
+- A string that starts with `#`, such as an OpenAPI `$ref` (`#/components/schemas/Book`).
+- A string that starts with `- ` or ends with `:`.
+- A string with leading or trailing spaces.
+- Commas and closing brackets in flow style (see [Control the Output Style](#control-the-output-style)).
 
 The first two are read back correctly by `YamlReader`, which is lenient, but YAML readers that follow the spec misread them or reject the file: the `#` starts a comment, so the value is lost. Leading and trailing spaces are lost by every reader, including `YamlReader`.
 
 ## Guard Against Silent Data Loss
 
-The codec can't tell you about data the reader never passed to it, so the defence starts before decoding. Three habits cover the cases above.
+The codec can't tell you about data the reader never hands to it, so the defence starts before decoding. Three habits cover the cases above.
 
 **Prefer required fields for data you can't lose.** A field without a default value and without `Option` fails the decode when its key is missing, so a dropped section becomes an error instead of a smaller value. `Catalog` and `Book` follow this rule, so the stray tab below at least causes an error:
 
@@ -582,7 +582,7 @@ Each example builds its YAML in memory, so it runs anywhere without setup.
 
 ### Read a YAML Catalog Into Case Classes
 
-This example decodes the catalog with the derived codec and with the `fromYaml` extension method, and writes a book back out.
+This example decodes the catalog with the derived codec and with the `String#fromYaml` extension method, and writes a book back out.
 
 <details>
   <summary>schema-examples/src/main/scala/readandwriteyaml/Step1ReadCatalogExample.scala</summary>
