@@ -601,12 +601,12 @@ The [Telemetry Guide](./telemetry-guide.md) explains how to send logs as JSON, e
 
 ## 9. Serve the Routes over HTTP
 
-So far we've called the routes ourselves. To serve real clients, something has to accept TCP connections, parse HTTP, and write responses back. ZIO Blocks has no server, but the JDK has one built in: `com.sun.net.httpserver.HttpServer`. A small adapter, `JdkHttp`, converts each exchange of that server into a `Request`, calls our function, and writes the `Response` back. We copy it from the guide H-35 "How to Serve http-model Requests with the JDK HTTP Server", which explains every line; it is about sixty lines, so it is folded here:
+So far we've called the routes ourselves. To serve real clients, something has to accept TCP connections, parse HTTP, and write responses back. ZIO Blocks has no server, but the JDK has one built in: `com.sun.net.httpserver.HttpServer`. A small adapter, `JdkHttp`, converts each exchange of that server into a `Request`, calls our function, and writes the `Response` back. We copy it from the guide [How to Serve http-model Requests with the JDK HTTP Server](./serve-http-model-requests.md), which explains every line; it is about sixty lines, so it is folded here:
 
 <details>
   <summary>The JdkHttp adapter</summary>
 
-The adapter, as H-35 ships it, without its comments:
+The adapter, as the guide ships it, without its comments:
 
 ```scala mdoc:silent
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
@@ -684,12 +684,12 @@ object JdkHttp {
 
 </details>
 
-What matters for the bookstore is `JdkHttp.start(app, port)`: it starts a server on the loopback interface that sends every request to our function, turns an exception thrown by the function into a 500 response, and returns the JDK's `HttpServer`. To call the server, we also copy H-35's tiny test client. `Client.call(port, method, target, body)` sends one request with the JDK's `HttpClient` and prints the status code, the content type and length, and the body:
+What matters for the bookstore is `JdkHttp.start(app, port)`: it starts a server on the loopback interface that sends every request to our function, turns an exception thrown by the function into a 500 response, and returns the JDK's `HttpServer`. To call the server, we also copy the [guide's](./serve-http-model-requests.md) tiny test client. `Client.call(port, method, target, body)` sends one request with the JDK's `HttpClient` and prints the status code, the content type and length, and the body:
 
 <details>
   <summary>The test client</summary>
 
-The client, as H-35 ships it, without its comments:
+The client, as the guide ships it, without its comments:
 
 ```scala mdoc:silent
 import java.net.URI
