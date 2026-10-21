@@ -79,8 +79,8 @@ import scala.util.Try
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.Schema
-import zio.blocks.sql.*
 import zio.blocks.streams.*
+import zio.blocks.sql.*
 ```
 
 ## The Sales Table

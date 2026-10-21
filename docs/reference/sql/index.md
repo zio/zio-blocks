@@ -133,9 +133,9 @@ The `sql"..."` interpolator is defined as an extension on `StringContext`. At co
 A complete end-to-end example showing schema definition, table setup, repository construction, and mixed repository/fragment queries follows:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User {
@@ -181,8 +181,8 @@ The module is designed around a small set of patterns that appear throughout mos
 `DbCodec`, `Table`, and `Repo` all derive from a single `Schema[A]`. Derivation respects `@Modifier` annotations — `@Modifier.rename` overrides a column name, `@Modifier.transient` excludes a field from the codec, and `@Modifier.config("sql.table_name", "my_table")` overrides the table name. This means your Scala type definition is the single source of truth for column names, types, and nullability:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.{Schema, Modifier}
+import zio.blocks.sql._
 
 case class BlogPost(
   @Modifier.rename("post_id") id: Int,
@@ -202,9 +202,15 @@ repo.table.codec.columns
 
 Every SQL operation — `Frag` execution and `Repo` CRUD — requires an implicit `DbCon` (or `DbTx`) in scope. The context carries the connection, dialect, and logger, but you never pass it explicitly. Calling code inside `Transactor#connect` or `Transactor#transact` automatically has the context available, and helper methods can propagate it with a `using` parameter:
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
+
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class Product(id: Int, name: String, price: BigDecimal)
 object Product { implicit val schema: Schema[Product] = Schema.derived }
@@ -224,8 +230,8 @@ tx.connect {
 A single `DbCodec[A]` can span multiple database columns. When you use a multi-column type directly in an `sql"..."` expression, the `fromDbCodec` `DbParam` instance throws at runtime because it cannot collapse multiple values into a single `?` placeholder. Instead, use `Frag.values` for multi-row inserts or write the columns explicitly in the fragment:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class Point(x: Double, y: Double)
 object Point { implicit val schema: Schema[Point] = Schema.derived }
@@ -272,9 +278,15 @@ codec.columns
 
 `Option[A]` and `Maybe[A]` map to a single nullable column. Reading a `NULL` from the database produces `None` or `Maybe.absent`; writing `None` or `Maybe.absent` binds `NULL` to the parameter. For non-optional types, encountering an unexpected `NULL` throws `IllegalStateException` at read time, surfacing schema mismatches immediately rather than silently coercing `NULL` to a default:
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
+
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class Profile(userId: Int, bio: Option[String], avatarUrl: Option[String])
 object Profile { implicit val schema: Schema[Profile] = Schema.derived }
@@ -310,4 +322,6 @@ Queries can also stream: `Frag#queryStream` and `Frag#queryChunked` return a `zi
 - **[How to Test Database Code Against SQLite](../../guides/test-database-code-against-sqlite.md)** — Guide to giving each ZIO Test spec its own SQLite database and rolling back writes.
 - **[How to Connect to PostgreSQL with a Connection Pool](../../guides/connect-to-postgresql-with-a-connection-pool.md)** — Guide that wires a HikariCP pool into `JdbcTransactor` for PostgreSQL.
 - **[How to Stream Large Query Results](../../guides/stream-large-query-results.md)** — Guide to reading a large result set as a stream of row chunks with `queryStream` and `queryChunked`.
+- **[How to Write Joins and Inspect the Generated SQL](../../guides/write-joins-and-inspect-generated-sql.md)** — Guide to joining related tables with `SqlQuery` and `Rel`, reading rows as tuples, and printing or dumping the SQL each join generates.
 - **[Build a Small JSON Backend from Blocks](../../guides/small-json-backend-from-blocks.md)** — Capstone tutorial that combines `schema`, `config`, `scope`, `sql`, `http-model` and `telemetry` into one small JSON backend.
+- **[How to Use the sql Module from a ZIO Application](../../guides/sql-from-zio.md)** — Guide to running queries and transactions as ZIO effects with `TransactorZIO`.

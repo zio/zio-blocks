@@ -1,8 +1,8 @@
 package streamlargequeryresults
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.sql.*
 import zio.blocks.streams.*
+import zio.blocks.sql.*
 
 /**
  * How to Stream Large Query Results — Step 5: Keep the Stream Inside the
