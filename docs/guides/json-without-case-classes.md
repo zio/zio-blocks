@@ -139,10 +139,10 @@ bookstore.get(p".books[0].price").as[BigDecimal]
 bookstore.get(p".books[1].authors[0]").as[String]
 ```
 
-The `p"..."` path is checked when your code compiles, and it accepts only literal text. When the key or the index is only known at run time, chain `get` calls with the runtime values instead, for example `bookstore.get("books")(index).get(field)`.
+The `p"..."` path is checked when your code compiles, and it accepts only literal text. When the key or the index is only known at run time, chain `Json#get` and `JsonSelection#get` calls with the runtime values instead, for example `bookstore.get("books")(index).get(field)`.
 
 :::tip
-A key that is not a Scala identifier, such as `first-name`, can't be written in `p"..."`. Build that path with `DynamicOptic.root.field("first-name")`, which `Json#get` accepts the same way.
+A key that is not a Scala identifier, such as `first-name`, can be written in `p"..."` only as a quoted key, `p"""{"first-name"}"""`, which `Json#get`, `Json#modify` and `Json#set` follow, but `Json#delete` and `Json#insert` ignore it and return the document unchanged. Build a path that works with every method with `DynamicOptic.root.field("first-name")`, which `Json#get` accepts the same way.
 :::
 
 Every read returns an `Either`, so a missing field and a value of the wrong type are ordinary results, not exceptions. When the second book has no `isbn` field, and when we read a title as a number:
@@ -155,7 +155,7 @@ println(bookstore.get(p".books[0].title").as[BigDecimal])
 println(bookstore.get(p".books[5].title").as[String])
 ```
 
-A failed step stops the walk, and the error passes through every later `get`, so we check for errors once at the end. The path in a decode error (`at: .`) is relative to the selected value, not to the document. A not-found error names only the last key, without the path to it, so a long walk is easier to debug when you keep the path at hand.
+A failed step stops the walk, and the error passes through every later `JsonSelection#get`, so we check for errors once at the end. The path in a decode error (`at: .`) is relative to the selected value, not to the document. A not-found error names only the last key, without the path to it, so a long walk is easier to debug when you keep the path at hand.
 
 For a field that may be missing, turn the `Either` into an `Option`. The third book has no `stock`, so we read it with a default:
 
@@ -185,7 +185,7 @@ println(
 )
 ```
 
-`JsonSelection#as[A]` expects exactly one value, so `bookstore.get(p".books[*].title").as[String]` fails with `Expected single value but got 3`. Use `asAll` for a wildcard path, and `as` for a path that names one value.
+`JsonSelection#as[A]` expects exactly one value, so `bookstore.get(p".books[*].title").as[String]` fails with `Expected single value but got 3`. Use `JsonSelection#asAll` for a wildcard path, and `JsonSelection#as` for a path that names one value.
 
 :::warning
 A wildcard path skips the elements that lack the field. `bookstore.get(p".books[*].stock").asAll[Int]` returns `Chunk(12, 0)`, two values for three books, with no error. It fails only when no element has the field at all. When you need one result per element, walk the elements yourself and give each missing field a default:
@@ -228,7 +228,7 @@ val tagged: Json = raised.modify(p".books[0].tags") {
 }
 ```
 
-`Json#set` replaces a value that exists, and `Json#insert` adds a field that doesn't exist yet. To rename the store and give every book an `available` field computed from its `stock`, we insert into each book through `modify`:
+`Json#set` replaces a value that exists, and `Json#insert` adds a field that doesn't exist yet. To rename the store and give every book an `available` field that says whether its `stock` is above zero, we insert into each book through `Json#modify`:
 
 ```scala mdoc:silent
 val withAvailability: Json = tagged
@@ -262,7 +262,7 @@ println(published.set(p".curency", Json.String("EUR")) == published)
 println(published.setOrFail(p".curency", Json.String("EUR")))
 ```
 
-`Json#modifyOrFail` takes a partial function, and it also fails when the function is not defined for a value it finds, so it can replace the `case other => other` fallback above with an error.
+`Json#modifyOrFail` takes a partial function, and it also fails when the function has no case for a value it finds, so it can turn the `case other => other` fallback above into an error.
 
 ## Print JSON Text
 
@@ -393,7 +393,7 @@ Decoding it with `Json#as` reports the price:
 println(badBook.as[Book])
 ```
 
-`Json#as` stops at the first error. To report every problem in a payload at once, convert the tree to a `DynamicValue` with `Json#toDynamicValue` and decode it with `Schema#fromDynamicValue`, the approach the guide "How to Validate Input with Newtypes" uses to collect every decode error:
+`Json#as` stops at the first error. To report every problem in a payload at once, convert the tree to a `DynamicValue` with `Json#toDynamicValue` and decode it with `Schema#fromDynamicValue`, the approach the guide "How to Define Validated Newtypes and Collect Every Validation Error" uses to collect every decode error:
 
 ```scala mdoc
 println(Schema[Book].fromDynamicValue(badBook.toDynamicValue))
@@ -419,7 +419,7 @@ The encoded book replaces the whole element, so fields that `Book` doesn't decla
 
 ## Coming From circe or ujson
 
-If you used circe's cursors and optics, or ujson, most operations have a direct counterpart. This table covers the tree operations on this page; for moving derived codecs, see [Coming from circe, zio-json or jsoniter-scala](./json-library-migration.md).
+If you come from circe's cursors and optics, or from ujson, most operations have a direct counterpart. This table covers the tree operations on this page; for moving derived codecs, see [Coming from circe, zio-json or jsoniter-scala](./json-library-migration.md).
 
 | Task                     | circe / ujson                                                 | ZIO Blocks                                              |
 | ------------------------ | ------------------------------------------------------------- | ------------------------------------------------------- |
@@ -506,7 +506,7 @@ sbt "runMain jsonwithoutcaseclasses.Step3SelectManyExample"
 
 ### Change Values in the Tree
 
-This example raises the prices, adds a tag, sets and inserts fields, removes `stock` from every book, and shows how `setOrFail` catches a misspelled path.
+This example raises the prices, adds a tag, sets and inserts fields, removes `stock` from every book, and shows how `Json#setOrFail` catches a misspelled path.
 
 <details>
   <summary>schema-examples/src/main/scala/jsonwithoutcaseclasses/Step4ChangeTreeExample.scala</summary>
