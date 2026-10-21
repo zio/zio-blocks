@@ -230,6 +230,10 @@ A valid payload decodes to the same `Book` as before, and JSON numbers such as `
 println(decodeAll("""{"isbn":"978-1-61729-065-7","title":"Functional Programming in Scala","price":45,"pages":320}"""))
 ```
 
+:::warning
+On this route, a field that the JSON leaves out is always an error, even where the JSON codec fills it in. A missing `List` field (which the codec decodes as an empty list), a missing `Option` field (`None`) and a missing field with a default value all fail with `Missing field`. This is a known difference in 0.0.56. If your payloads may omit such fields, send them explicitly or decode with the JSON codec instead.
+:::
+
 The same approach works for input that is already a Scala value, such as a row type from a database or a request type with plain fields. Convert it to a `DynamicValue` with its own schema's `Schema#toDynamicValue`, then rebuild it with the validated schema; the field names have to match:
 
 ```scala mdoc
