@@ -47,7 +47,7 @@ val booksHandler: HttpHandler = (exchange: HttpExchange) => {
 }
 ```
 
-This approach mixes protocol details with application logic. A bad `limit` throws before `close`, so the client hangs instead of getting a 400. The handler can't be tested without a socket, and the next handler copies the same lines with new bugs.
+This approach mixes protocol details with application logic. A bad `limit` throws before `HttpExchange#close`, so the client hangs instead of getting a 400. The handler can't be tested without a socket, and the next handler copies the same lines with new bugs.
 
 In this guide, we solve this by writing the plumbing once: one adapter converts an `HttpExchange` to a `Request` and a `Response` back to the exchange. Everything else is an ordinary, socket-free `Request => Response` function.
 
@@ -409,7 +409,7 @@ def htmlResponse(page: String): Response =
   Response.ok(Body.fromArray(page.getBytes("UTF-8"), ContentType.`text/html`))
 ```
 
-`Response.ok(body)` copies the body's content type into the `content-type` header. The `ContentType.text/html` constant carries no charset, so the page declares UTF-8 itself with `<meta charset="utf-8">`. To serve the page:
+`Response.ok(body)` copies the body's content type into the `content-type` header. The `text/html` constant on `ContentType` carries no charset, so the page declares UTF-8 itself with `<meta charset="utf-8">`. To serve the page:
 
 ```scala mdoc
 withServer(_ => htmlResponse(catalogPage(books).render)) { port =>
