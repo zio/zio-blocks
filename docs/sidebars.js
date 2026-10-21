@@ -481,6 +481,7 @@ const sidebars = {
     "guides/config-library-migration",
     "guides/json-library-migration",
     "guides/generate-json-schema-and-validate-payloads",
+    "guides/write-and-export-openapi",
     "guides/llm-data-with-toon",
     {
       type: "category",

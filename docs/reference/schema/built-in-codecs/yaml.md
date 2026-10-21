@@ -550,3 +550,5 @@ result match {
 ### Zero-Overhead Error Handling
 
 Errors use zero-overhead exceptions (no stack traces) for efficient error reporting in scenarios where errors are expected and handled inline.
+
+See also: [How to Write an OpenAPI Document and Export It as JSON or YAML](../../../guides/write-and-export-openapi.md) renders an OpenAPI document as YAML with `Yaml.fromJson`.
