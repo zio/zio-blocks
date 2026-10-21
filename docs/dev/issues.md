@@ -2387,13 +2387,37 @@ import zio.blocks.schema.json.*
 
 **Suggested fix.** Add the path so far to not-found errors (`.atField`/`.atIndex`, as `Json.Array#get` already does with `atIndex`), and document the silent behaviour of the plain change methods in `json.md`.
 
-### schema: `Json#as[A]` and `Schema#fromDynamicValue` disagree on missing collection fields
+### schema: `Schema#fromDynamicValue` rejects missing collection, `Option` and defaulted fields that the JSON codec accepts
 
-Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`; widened the same day with a case from the H-04 session (`docs/guides/validated-newtypes.md`, PR #1811). The code is the same at tag `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0. Not filed.
 
-**Summary.** There are two ways to decode a `Json` sub-tree into a case class: `json.as[Book]` (the JSON codec) and `Schema[Book].fromDynamicValue(json.toDynamicValue)`, which collects every error. They accept different inputs: the JSON codec decodes a missing `List` field as an empty list, the `DynamicValue` route fails with `Missing field 'tags'`. Their messages for the same type mismatch also differ (`expected Json.Number` vs `Expected BigDecimal`).
+**Summary.** There are two ways to decode a `Json` value into a case class: `json.as[A]` (the JSON codec) and `Schema[A].fromDynamicValue(json.toDynamicValue)`, which collects every error instead of stopping at the first. They accept different documents. When a field is absent, the JSON codec uses the field's default value, `None` for an `Option`, or an empty collection. `fromDynamicValue` reports `Missing field '<name>'` for each of them. Their messages for the same type mismatch also differ (`expected Json.Number` vs `Expected BigDecimal`).
 
-**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run AsVersusDynamic.scala`):
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run MissingFieldsScala2.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+final case class Entry(title: String, tags: List[String], subtitle: Option[String], edition: Int = 1)
+object Entry { implicit val schema: Schema[Entry] = Schema.derived }
+
+object MissingFieldsScala2 {
+  def main(args: Array[String]): Unit = {
+    val json = Json.parseUnsafe("""{"title": "Zionomicon"}""")
+    println(json.as[Entry])
+    // Right(Entry(Zionomicon,List(),None,1))
+    println(Schema[Entry].fromDynamicValue(json.toDynamicValue))
+    // Left(zio.blocks.schema.SchemaError: Missing field 'tags' at: .
+    // Missing field 'subtitle' at: .
+    // Missing field 'edition' at: .)
+  }
+}
+```
+
+The same program on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 (`given Schema[Entry] = Schema.derived`, `@main`) prints the same two lines. A second reproduction shows the differing mismatch messages (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run AsVersusDynamic.scala`):
 
 ```scala
 //> using scala 3.9.0
@@ -2422,15 +2446,15 @@ object Book { given Schema[Book] = Schema.derived }
 }
 ```
 
-**Expected.** Both routes accept the same documents, so switching to the error-collecting route (as the newtype validation guide does) doesn't start rejecting payloads that `as[Book]` accepted.
+**Expected.** Both routes accept the same documents, so switching to the error-collecting route (as the H-04 newtype validation guide does) does not start rejecting payloads that `json.as[A]` accepts: `Right(Entry(Zionomicon,List(),None,1))` from both.
 
-**Root cause.** The JSON codec treats absent collections as empty unless `JsonCodecDeriver#withRequireCollectionFields(true)` is set (`JsonCodecDeriver.scala:229`; see the trap above about that setting also changing the encoder); `Reflect#fromDynamicValue` (`schema/shared/src/main/scala/zio/blocks/schema/Schema.scala:82`) has no such default and reports `SchemaError.MissingField` (`SchemaError.scala:171-172`). From source for the codec side.
+**Root cause.** The JSON codec fills absent fields in `JsonFieldInfo#setMissingValueOrError` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:3155-3179` when reading text, `:3182-3204` when decoding a `Json` value): the default value from `Reflect#getDefaultValue` first (`getDefaultValue` at `:3027-3029`), then `None` when `isOptional` (`:616`, unless `withRequireOptionFields`), then `emptyCollectionConstructor()` (`:588-590`, unless `withRequireCollectionFields`), and only then `missing required field`. `Reflect.Record#fromDynamicValue` (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:407-445`) has no such fallback: after reading the record's fields, every field it did not see goes straight to `SchemaError.missingField` (`:437-441`).
 
-**Impact.** A payload that passes `json.as[Book]` in one place fails validation in another. Users have to know which route they are on.
+**Impact.** A payload that passes `json.as[A]` in one place fails validation in another, for the most common optional shapes (absent `Option`, empty list left out, defaulted field). Users of the error-collecting route have to send every field, which the JSON codec's own encoder does not do: it leaves out `None`, empty collections and default values by default. Verified on 2.13.18: `Json.from(Entry("Zionomicon", Nil, None)).print` is `{"title":"Zionomicon"}`, and `fromDynamicValue` of its `toDynamicValue` fails with the same three `Missing field` errors, while `Schema#toDynamicValue` of the same value round-trips.
 
-**Test gap.** No test decodes the same `Json` through both routes.
+**Test gap.** No test decodes the same `Json` through both routes, and no `fromDynamicValue` test covers an absent `Option`, collection or defaulted field.
 
-**Suggested fix.** Either give `fromDynamicValue` the same defaults for missing collections and `Option` fields, or document the difference in `dynamic-value.md` and `json.md`.
+**Suggested fix.** In the missing-field loop of `Reflect.Record#fromDynamicValue`, apply the same order as the codec before reporting `missingField`: the field's default value, `None` for an `Option`/`Maybe` field, an empty collection for a sequence or map field. Or document the difference in `dynamic-value.md` and `json.md` if it is intended.
 
 ## Test and CI
 

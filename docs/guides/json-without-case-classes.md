@@ -399,7 +399,7 @@ println(badBook.as[Book])
 println(Schema[Book].fromDynamicValue(badBook.toDynamicValue))
 ```
 
-This route is stricter than `Json#as`: besides the wrong price, it reports the missing `authors` and `tags` lists, which `Json#as` decodes as empty lists.
+This route is stricter than `Json#as`, a known difference in 0.0.56: besides the wrong price, it reports the missing `authors` and `tags` lists, which `Json#as` decodes as empty lists. It also rejects a missing `Option` field or a missing field that has a default value, which `Json#as` fills with `None` or the default. Send those fields explicitly when you decode this way.
 
 To go the other way and put a typed value back into a document, `Json.from(value)` encodes it with its `Schema`. To replace the first book with a copy that has a new price:
 
