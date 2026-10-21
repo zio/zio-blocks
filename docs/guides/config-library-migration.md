@@ -678,6 +678,7 @@ sbt compile
 ## Going Further
 
 - [Build a Typed Configuration Loader](./typed-config-loader.md) teaches the loader from scratch with the same bookstore: defaults, optional fields, layering and provenance.
+- [How to Load Configuration Files on the JVM and in the Browser](./load-configuration-files.md) goes deeper on includes, safe loading and running the same settings in the browser.
 - [File Formats](../reference/config/formats.md) documents the HOCON adapter's parameters and failures, next to the YAML and JSON adapters.
 - [ConfigSource](../reference/config/config-source.md) covers every source, `ConfigSource#prefix`, key formats and secret redaction.
 - [ConfigDecoder](../reference/config/config-decoder.md) lists how fields map to keys for nested records, sealed traits, lists and maps.

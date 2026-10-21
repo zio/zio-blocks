@@ -227,6 +227,8 @@ ConfigSource.fromFile(
 
 Failures are reported as `ConfigError.ParseError`: a missing file expects `"existing file"`, a path outside `allowedBase` expects `"path inside <base>"`, and a malformed document carries the `HoconError` as its cause. The `sourceId` of a file-loaded source is `hocon:` followed by the file's name.
 
+For a walkthrough that loads a split configuration tree on the JVM and runs the same settings in the browser, see [How to Load Configuration Files on the JVM and in the Browser](../../guides/load-configuration-files.md).
+
 ### HoconValue
 
 `HoconValue` is the parsed tree, exposed for code that needs the structure rather than a flat source:
