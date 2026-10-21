@@ -6,7 +6,7 @@ Date: 2026-10-21. Branch: `schema-scaladoc`.
 
 The Scaladoc of the `schema` module is thin, uneven, and sometimes wrong.
 
-- About 85k lines of main sources hold roughly 6,400 API-level declarations (members of top-level types, excluding `private`/`protected`/`override`). About 19% have a Scaladoc comment (heuristic count, 2026-10-21).
+- About 85k lines of main sources hold 6,917 API-level declarations (members of top-level types, excluding `private`/`protected`/`override`). 1,208 of them (17%) have a Scaladoc comment (count from `.claude/scripts/scaladoc-coverage.py`, 2026-10-21).
 - The core types are the least covered: `Reflect` 3 of 322, `Optic` 4 of 221, `PrimitiveValue` 0 of 193, `Binding` 2 of 102, `Schema` 6 of 98 (`getInstance`, `derive`, `decode` and others have none).
 - Some existing Scaladoc contradicts the code. `docs/dev/issues.md` already lists several cases (`Deriver#withInstance` merge order, `Schema.fromJsonSchema`, toon `ArrayFormat`).
 - Only 18 `@example` tags and 19 files with `{{{ }}}` blocks exist, and nothing compiles those blocks, so they drift.
@@ -51,7 +51,7 @@ No Scaladoc content beyond fixing existing snippets.
    - writes one `object Snippet_<File>_<line> { import zio.blocks.schema._; <code> }` per block, so a compile error names the source file and line.
 
    Snippets are compiled, not run, so `// result` comments in them are not checked.
-3. **CI.** Add `schema-scaladoc-check/compile` to `testJVMScala2Command` and `testJVMScala3Command` in `build.sbt` (the commands behind the `testJVM` alias that CI runs) so a broken example fails CI on both Scala versions.
+3. **CI.** Add `schema-scaladoc-check/test` to `testJVMScala2Command` and `testJVMScala3Command` in `build.sbt` (the commands behind the `testJVM` alias that CI runs) so a broken example fails CI on every Scala version.
 4. **Coverage script** `.claude/scripts/scaladoc-coverage.py`. Prints the share of documented API-level declarations per package and lists cross-version copies whose Scaladoc differs. Report only; no threshold, so nobody games a number.
 5. **Docs.** `docs/dev/scaladoc-style.md` and a link from `AGENTS.md`.
 6. **Seed.** The checker runs over the existing `{{{` blocks (about 19 files). Each failing block is fixed, or marked `// no-check` with an `issues.md` entry when the fix needs real work.
@@ -80,7 +80,7 @@ Progress lives in a new "Scaladoc: schema" section of `docs/dev/backlog.md` with
 2. **Write** the Scaladoc by tier.
 3. **Fact-check.** A `docs-reviewer` pass compares each claim with the source. Contradictions in the code or in reference pages go into `docs/dev/issues.md` in the same PR; trivial reference-page errors are fixed in the same PR.
 4. **Verify.** The change is comments only, so test suites are not rerun. Run:
-   - `schema-scaladoc-check/compile` on Scala 3.9.0, 3.3.7 and 2.13.18;
+   - `schema-scaladoc-check/test` on Scala 3.9.0, 3.3.7 and 2.13.18;
    - `schemaJVM/doc` on both versions, with no new warnings (broken `[[links]]` show up here);
    - `fmtDirty`, then `sbt "++2.13; check"`.
 5. **PR.** The body says in plain English what was documented, the coverage before and after, and any issues filed. The backlog row is updated. Review fixes go in separate commits per related group.

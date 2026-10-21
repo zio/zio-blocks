@@ -61,7 +61,14 @@ def getDefaultValue: Option[A]
   - `// scala-3-only`: compiled on Scala 3 only (`given`, `using`, `derives`, union types in a shared file).
   - `// scala-2-only`: compiled on Scala 2 only.
   - `// no-check: <reason>`: not compiled. The reason is required. Use it only when the block cannot compile on its own; if a library bug is the reason, file it in `docs/dev/issues.md`.
+- A first line that starts like a marker but is not one of these three exact forms (`// scala-3-only: uses given`, `// scala3-only`) is an error, not a plain comment.
 - Markers apply only to the first non-empty line of the block. The opening `{{{` and closing `}}}` must each be on their own line: a closing `}}}` on the `*/` line is an error.
+
+Compiler warnings in examples do not fail the build (deprecations included), so check the sbt log for them.
+
+The extractor also compiles ```` ```scala ```` fences, but the house style is `{{{`.
+
+A compile error names the generated file `Snippet_<path>_L<n>.scala`; the source line is n + (generated line - 6), and the generated file's first line names the source `path:line`.
 
 ## Tracking
 
