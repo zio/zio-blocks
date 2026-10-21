@@ -463,6 +463,7 @@ const sidebars = {
     "guides/your-first-sqlite-repository",
     "guides/test-database-code-against-sqlite",
     "guides/connect-to-postgresql-with-a-connection-pool",
+    "guides/write-joins-and-inspect-generated-sql",
     "guides/your-first-html-page",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
