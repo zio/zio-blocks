@@ -4,8 +4,7 @@ import zio.blocks.telemetry._
 import zio.test._
 
 /**
- * How to Test Code That Logs, Traces and Records Metrics: assert on a
- * counter.
+ * How to Test Code That Logs, Traces and Records Metrics: assert on a counter.
  *
  * Gives the service a meter of its own, runs `placeOrder` and reads the
  * counters back with `Metrics.total`.

@@ -21,7 +21,10 @@ object GlobalTelemetrySpec extends ZIOSpecDefault {
       log.install(LoggerProvider.builder.addLogRecordProcessor(logs).build().get("test"))
       val failedBefore = Metrics.total(Checkout.ordersFailed)
 
-      Checkout.placeOrder(Order("order-2", "Programming in Scala", 2, 5000L), PaymentGateway.declineAll("card declined"))
+      Checkout.placeOrder(
+        Order("order-2", "Programming in Scala", 2, 5000L),
+        PaymentGateway.declineAll("card declined")
+      )
 
       assertTrue(
         trace.collectedSpans.map(s => s.name -> s.status) == List("checkout" -> SpanStatus.Error("card declined")),

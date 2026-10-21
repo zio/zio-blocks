@@ -7,7 +7,10 @@ final case class Order(id: String, title: String, copies: Int, priceCents: Long)
   def totalCents: Long = copies * priceCents
 }
 
-/** Charges a customer and returns a receipt id, or the reason the payment was declined. */
+/**
+ * Charges a customer and returns a receipt id, or the reason the payment was
+ * declined.
+ */
 trait PaymentGateway {
   def charge(orderId: String, amountCents: Long): Either[String, String]
 }
@@ -19,8 +22,8 @@ object PaymentGateway {
 }
 
 /**
- * The code under test. It receives its tracer, logger and meter as
- * constructor parameters, so a test can pass in ones that record into memory.
+ * The code under test. It receives its tracer, logger and meter as constructor
+ * parameters, so a test can pass in ones that record into memory.
  */
 final class OrderService(payments: PaymentGateway, tracer: Tracer, logger: Logger, meter: Meter) {
   val ordersPlaced: Counter = meter.counterBuilder("orders.placed").build()

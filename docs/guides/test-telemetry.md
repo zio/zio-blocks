@@ -395,8 +395,8 @@ object Checkout {
           span.setStatus(SpanStatus.Ok)
         case Left(reason) =>
           ordersFailed.add(1L, "reason" -> reason)
-          log.error("Payment failed", "order.id" -> order.id, "reason" -> reason)
           span.setStatus(SpanStatus.Error(reason))
+          log.error("Payment failed", "order.id" -> order.id, "reason" -> reason)
       }
       charged
     }

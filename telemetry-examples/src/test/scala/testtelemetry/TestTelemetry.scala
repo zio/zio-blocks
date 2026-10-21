@@ -6,7 +6,10 @@ import scala.jdk.CollectionConverters._
 
 import zio.blocks.telemetry._
 
-/** A span processor that keeps every finished span in memory, in the order the spans ended. */
+/**
+ * A span processor that keeps every finished span in memory, in the order the
+ * spans ended.
+ */
 final class SpanRecorder extends SpanProcessor {
   private val ended = new ConcurrentLinkedQueue[SpanData]()
 
@@ -17,14 +20,19 @@ final class SpanRecorder extends SpanProcessor {
 
   def spans: List[SpanData] = ended.asScala.toList
 
-  /** Each span's name paired with its parent's name, or `None` for a root span. */
+  /**
+   * Each span's name paired with its parent's name, or `None` for a root span.
+   */
   def tree: List[(String, Option[String])] = {
     val nameOf = spans.map(s => s.spanContext.spanId -> s.name).toMap
     spans.map(s => s.name -> nameOf.get(s.parentSpanContext.spanId))
   }
 }
 
-/** A log record processor that keeps every log record in memory, in the order they were emitted. */
+/**
+ * A log record processor that keeps every log record in memory, in the order
+ * they were emitted.
+ */
 final class LogRecorder extends LogRecordProcessor {
   private val emitted = new ConcurrentLinkedQueue[LogRecord]()
 
@@ -37,7 +45,10 @@ final class LogRecorder extends LogRecordProcessor {
 
 object Metrics {
 
-  /** The counter's total over the series whose string attributes match `attributes`. */
+  /**
+   * The counter's total over the series whose string attributes match
+   * `attributes`.
+   */
   def total(counter: Counter, attributes: (String, String)*): Long =
     counter.collect() match {
       case MetricData.SumData(points) =>
@@ -51,8 +62,8 @@ object Metrics {
 }
 
 /**
- * A tracer, a logger and a meter that record into memory and belong to one
- * test alone. Create a new one in every test.
+ * A tracer, a logger and a meter that record into memory and belong to one test
+ * alone. Create a new one in every test.
  */
 final class TestTelemetry {
   val spanRecorder = new SpanRecorder
@@ -62,7 +73,7 @@ final class TestTelemetry {
   val logger: Logger = LoggerProvider.builder.addLogRecordProcessor(logRecorder).build().get("test")
   val meter: Meter   = MeterProvider.builder.build().get("test")
 
-  def spans: List[SpanData]  = spanRecorder.spans
-  def logs: List[LogRecord]  = logRecorder.records
+  def spans: List[SpanData]                    = spanRecorder.spans
+  def logs: List[LogRecord]                    = logRecorder.records
   def spanTree: List[(String, Option[String])] = spanRecorder.tree
 }

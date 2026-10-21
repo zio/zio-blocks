@@ -3,9 +3,9 @@ package testtelemetry
 import zio.blocks.telemetry._
 
 /**
- * Application code that records telemetry through the global `log`, `trace`
- * and `metric` objects instead of taking a tracer, logger and meter as
- * parameters. `GlobalTelemetrySpec` shows how to test it.
+ * Application code that records telemetry through the global `log`, `trace` and
+ * `metric` objects instead of taking a tracer, logger and meter as parameters.
+ * `GlobalTelemetrySpec` shows how to test it.
  */
 object Checkout {
   // Created once: every call to `metric.counter` registers a new instrument.
@@ -21,8 +21,8 @@ object Checkout {
           span.setStatus(SpanStatus.Ok)
         case Left(reason) =>
           ordersFailed.add(1L, "reason" -> reason)
-          log.error("Payment failed", "order.id" -> order.id, "reason" -> reason)
           span.setStatus(SpanStatus.Error(reason))
+          log.error("Payment failed", "order.id" -> order.id, "reason" -> reason)
       }
       charged
     }
