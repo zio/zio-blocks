@@ -3,7 +3,7 @@ id: schema
 title: "Schema-Based Typed Access"
 ---
 
-`zio-http-model-schema` adds **type-safe, validated extraction** of query parameters and headers to the core HTTP model. It provides extension methods on `QueryParams`, `Headers`, `Request`, and `Response` that automatically decode string values to typed objects using schema-based decoding with comprehensive error reporting.
+`zio-blocks-http-model-schema` adds **type-safe, validated extraction** of query parameters and headers to the core HTTP model. It provides extension methods on `QueryParams`, `Headers`, `Request`, and `Response` that automatically decode string values to typed objects using schema-based decoding with comprehensive error reporting.
 
 Core features are built on **extension methods** — `QueryParamsSchemaOps`, `HeadersSchemaOps`, `RequestSchemaOps`, `ResponseSchemaOps` — which add typed, schema-based extraction to query parameters and headers. Complemented by error types `QueryParamError` and `HeaderError`, the module provides automatic decoding for 11 primitive types and extensible support for custom types via `Schema[T]`.
 
@@ -39,7 +39,7 @@ val params = QueryParams("userId" -> "550e8400-e29b-41d4-a716-446655440000")
 val userId = params.query[java.util.UUID]("userId")  // 1 line, automatic UUID parsing + errors
 ```
 
-`zio-http-model-schema` separates **extraction logic from business logic**. The module achieves this through:
+`zio-blocks-http-model-schema` separates **extraction logic from business logic**. The module achieves this through:
 
 - **Automatic decoding** — Pass a `Schema[T]`, get `Either[Error, T]` back. Works for 11 primitive types out of the box.
 - **Explicit error handling** — `Either` forces error handling. `QueryParamError` and `HeaderError` distinguish "missing" from "malformed" cases.
@@ -56,23 +56,23 @@ This keeps HTTP request handling clean, testable, and portable across different 
 Add the following to your `build.sbt`:
 
 ```
-libraryDependencies += "dev.zio" %% "zio-http-model-schema" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-http-model-schema" % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
 
 ```
-libraryDependencies += "dev.zio" %%% "zio-http-model-schema" % "@VERSION@"
+libraryDependencies += "dev.zio" %%% "zio-blocks-http-model-schema" % "@VERSION@"
 ```
 
-Supported Scala versions: Scala 3.x only. Requires `zio-http-model` and `zio-blocks-schema` as dependencies.
+Supported Scala versions: Scala 2.13 and Scala 3.x. On Scala 3.9 and newer the artifact is `zio-blocks-next-http-model-schema` (see [How to Add ZIO Blocks to Your Build](../../guides/add-zio-blocks-to-your-build.md)). It brings in `zio-blocks-http-model` and `zio-blocks-schema` transitively.
 
 ## How They Work Together
 
 To understand how the module works, we add a **schema-based extraction layer** on top of core HTTP model types:
 
 ```
-HTTP Model Types (from zio-http-model)
+HTTP Model Types (from zio-blocks-http-model)
     ├─ QueryParams: raw string key-value pairs
     ├─ Headers: raw string header name-value pairs
     ├─ Request: contains queryParams and headers

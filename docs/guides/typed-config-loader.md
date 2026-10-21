@@ -37,16 +37,16 @@ We recommend reading from top to bottom — each section builds on the previous 
 To follow along, add the config module and its YAML adapter to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-config"      % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config"      % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config-yaml" % "@VERSION@"
 ```
 
-Scala 3.7 and newer use the `zio-blocks-next-*` artifact names; the code in this tutorial is the same for every Scala version.
+Scala 3.9 and newer use the `zio-blocks-next-*` artifact names; the code in this tutorial is the same for every Scala version.
 
 ## 2. Background: Configuration Is Just Typed Data
 
@@ -458,6 +458,7 @@ You now have a solid foundation in typed configuration with ZIO Blocks. The next
 - **Curious how fields map to keys?** [Config Decoder](../reference/config/config-decoder.md) documents the rules for nested records, sealed traits, lists and maps.
 - **Want to handle errors by kind?** [Errors](../reference/config/errors.md) lists every `ConfigError` case and how errors are combined.
 - **Using JSON or HOCON instead of YAML?** [File Formats](../reference/config/formats.md) covers all three adapters.
-- **Wiring configuration into a dependency graph?** `Config.wire[A]` turns a `ConfigSource` into a typed value as a node in a `scope` wire graph; the [Configuration & Feature Flags](../reference/config/index.md) overview shows it in action.
+- **Wiring configuration into a dependency graph?** `Config.wire[A]` turns a `ConfigSource` into a typed value as a node in a `scope` wire graph; the [Configuration & Feature Flags](../reference/config/index.md) overview shows it in action, and [How to Feed Configuration into a Wire Dependency Graph](./feed-config-into-a-wire-graph.md) walks through it end to end.
 - **Need runtime switches?** [Flags](../reference/config/flags.md) and [Rollout](../reference/config/rollout.md) cover feature flags with percentage-based rollouts, built on the same sources.
 - **Coming from PureConfig, Typesafe Config or zio-config?** [Coming from PureConfig, Typesafe Config or zio-config](./config-library-migration.md) maps the concepts and APIs you already know onto the ones in this tutorial.
+- **Ready to put it all together?** [Build a Small JSON Backend from Blocks](./small-json-backend-from-blocks.md) is the capstone tutorial that combines schema, config, scope, SQL and telemetry into one small JSON backend.

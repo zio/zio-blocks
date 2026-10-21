@@ -379,6 +379,8 @@ val secondPage: List[User] = firstPage.lastOption.fold(List.empty[User])(last =>
 `Repo#pageAfter` throws `IllegalArgumentException` when `limit` is zero or negative.
 :::
 
+See also the [How to Upsert Rows and Paginate with Keyset Cursors](../../guides/upsert-and-paginate-with-keyset-cursors.md) guide, which walks a table page by page with `Repo#pageAfter` and over your own query with `Frag.keysetAfter`.
+
 ### Write Operations
 
 The write operations insert, update, or delete rows in the database. `Repo#insert`, `Repo#insertBatch`, `Repo#insertAll`, `Repo#insertOrUpdate`, `Repo#insertOrUpdateBatch`, `Repo#update`, `Repo#delete`, `Repo#deleteAll`, and `Repo#clear` each return an `Int` row count (`insertAll` returns the inserted IDs instead); `Repo#insertReturning` is the exception and returns the full inserted entity.
@@ -573,6 +575,8 @@ val rowsAffected: Int = repo.insertOrUpdateBatch(
   )
 )
 ```
+
+See also the [How to Upsert Rows and Paginate with Keyset Cursors](../../guides/upsert-and-paginate-with-keyset-cursors.md) guide, which covers `Repo#insertOrUpdate`, `Repo#insertOrUpdateBatch`, and choosing which columns an upsert changes.
 
 #### `update` — Update an entity's non-ID columns
 

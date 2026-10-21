@@ -356,3 +356,4 @@ Because `DbTx extends DbCon`, `upsertUser` works unchanged inside both `connect`
 - **[How to Test Database Code Against SQLite](../../guides/test-database-code-against-sqlite.md)** — Guide to giving each ZIO Test spec its own SQLite database and rolling back writes.
 - **[How to Connect to PostgreSQL with a Connection Pool](../../guides/connect-to-postgresql-with-a-connection-pool.md)** — Builds a HikariCP pool, passes it to `JdbcTransactor.postgres`, sizes the pool and closes it with a `Scope`.
 - **[SQL Transactions](../../guides/sql-transactions.md)** — Isolation levels, read-only transactions and nested transactions with savepoints for `Transactor#transact`.
+- **[How to Stream Large Query Results](../../guides/stream-large-query-results.md)** — Shows how to consume a `queryStream` inside `connect` or `transact`, before the connection closes.
