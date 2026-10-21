@@ -243,8 +243,10 @@ val updated = Person.age.replace(person, 31)
 ### Learn More
 
 - [Your First Schema](docs/./guides/your-first-schema.md) — a getting-started tutorial: describe a type once, round-trip it through JSON, and read decode errors
+- [One Type, Many Formats](docs/./guides/one-type-many-formats.md) — a tutorial that exports one catalog as JSON, YAML, XML, TOON, MessagePack, Avro and CSV from the same schema
 - [Schema reference](docs/./reference/schema/index.md) — the full API surface, from `Reflect` and `Binding` through optics, validation, and schema evolution
 - [Migrating from ZIO Schema](docs/./guides/zio-schema-migration.md) — a step-by-step port from ZIO Schema 1.x
+- [Coming from circe, zio-json or jsoniter-scala](docs/./guides/json-library-migration.md) — move JSON codecs to one derived `Schema`, keeping field names, discriminators and custom formats
 
 ---
 
@@ -338,6 +340,7 @@ Scope.global.scoped { scope =>
 ### Learn More
 
 - [Compile-Time Resource Safety with Scope](docs/./guides/compile-time-resource-safety-with-scope.md) — the step-by-step tutorial, from basic resource management through dependency injection
+- [How to Fix Common Scope and Wire Compile Errors](docs/./guides/fix-scope-and-wire-compile-errors.md) — every Scope, Wire and `Resource.from` error message, with its cause and its fix
 - [Resource Management reference](docs/./reference/resource-management/index.md) — `Scope`, `Resource`, `Wire`, `Unscoped`, and finalization order
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](docs/./guides/resource-and-di-migration.md) — port `Resource`, `ZLayer`, macwire or `Using` code to `Scope`, `Resource` and `Wire`
 
@@ -501,17 +504,31 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 ## Guides
 
 - [Your First Schema: Round-Trip a Type Through JSON](docs/./guides/your-first-schema.md) - Start here: describe a type once with `Schema`, then encode, decode, and read errors
+- [Navigate and Update Nested Data with Optics](docs/./guides/nested-data-with-optics.md) - Read and update fields deep inside immutable data with lenses, optionals, and traversals instead of nested `copy` calls
+- [One Type, Many Formats](docs/./guides/one-type-many-formats.md) - Derive JSON, YAML, XML, TOON, MessagePack, Avro and CSV codecs from one `Schema` and round-trip a catalog through each
+- [Build a Typed Configuration Loader](docs/./guides/typed-config-loader.md) - Load a typed case class from YAML, environment overrides and defaults, report every error at once, and see where each value came from
+- [How to Roll Out a Feature Gradually with Flags](docs/./guides/roll-out-feature-gradually.md) - Ship a feature to 10% of readers, target one region, widen the rollout at runtime, and test the code that reads the flag
 - [Build Your First Database Repository on SQLite](docs/./guides/your-first-sqlite-repository.md) - Connect to SQLite, derive a table and `Repo` from one schema, write your own queries, and roll back a transaction
+- [How to Test Database Code Against SQLite](docs/./guides/test-database-code-against-sqlite.md) - Give every test its own SQLite database, create the schema from code, seed fixtures and roll back writes in ZIO Test specs
+- [How to Connect to PostgreSQL with a Connection Pool](docs/./guides/connect-to-postgresql-with-a-connection-pool.md) - Set up a HikariCP pool for PostgreSQL, build a `JdbcTransactor` on it, size it for virtual threads and close it with a `Scope`
+- [How to Write Joins and Inspect the Generated SQL](docs/./guides/write-joins-and-inspect-generated-sql.md) - Join related tables with `SqlQuery` and `Rel`, read the rows as tuples, and print or dump the SQL each join generates
+- [Render Your First Server-Side HTML Page](docs/./guides/your-first-html-page.md) - Build a book page with the HTML DSL, escape user input, add CSS and JSON state, and save it as a file
 - [Getting Started with Async](docs/./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
 - [Compile-Time Resource Safety with Scope](docs/./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
+- [How to Fix Common Scope and Wire Compile Errors](docs/./guides/fix-scope-and-wire-compile-errors.md) - Look up a Scope or Wire error message and apply the fix
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](docs/./guides/resource-and-di-migration.md) - Move resource handling and dependency wiring to ZIO Blocks Scope, Resource, and Wire
 - [Getting Started with Mux](docs/./guides/getting-started-with-mux.md) - Manage multiplexed bidirectional message streams with capacity limits
 - [Telemetry: Architecture, Patterns, and Real-World Usage](docs/./guides/telemetry-guide.md) - Wire tracing, logging, and metrics into a running application
 - [Migrating from ZIO Schema](docs/./guides/zio-schema-migration.md) - Step-by-step migration from ZIO Schema 1.x to ZIO Blocks Schema
+- [Coming from PureConfig, Typesafe Config or zio-config](docs/./guides/config-library-migration.md) - Keep your `application.conf` and move its loader to ZIO Blocks config
+- [Coming from circe, zio-json or jsoniter-scala](docs/./guides/json-library-migration.md) - Move JSON codecs from circe, zio-json or jsoniter-scala to one ZIO Blocks Schema
+- [How to Generate JSON Schema from a Type and Validate Payloads Against It](docs/./guides/generate-json-schema-and-validate-payloads.md) - Derive a JSON Schema from a `Schema`, publish it, and validate incoming JSON payloads
 - [Query DSL Part 1: Expressions](docs/./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
 - [Query DSL Part 2: SQL Generation](docs/./guides/query-dsl-sql.md) - Translate query expressions into SQL
 - [Query DSL Part 3: Extending the Expression Language](docs/./guides/query-dsl-extending.md) - Add custom operators beyond `SchemaExpr`
 - [Query DSL Part 4: A Fluent SQL Builder](docs/./guides/query-dsl-fluent-builder.md) - Build type-safe SELECT, UPDATE, INSERT, and DELETE statements
+- [How to Send Compact Data to an LLM with TOON and Parse the Reply](docs/./guides/llm-data-with-toon.md) - Encode records as tabular TOON for a prompt, then decode the model's TOON reply into case classes
+- [How to Issue and Verify JWTs](docs/./guides/issue-and-verify-jwts.md) - Sign JWTs with HMAC, RSA or EdDSA keys, verify `iss`, `aud` and `exp` with a fixed clock, and reject tampered or hostile tokens
 
 ## Full API Reference
 
