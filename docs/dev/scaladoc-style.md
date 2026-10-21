@@ -51,7 +51,7 @@ def getDefaultValue: Option[A]
 
 ## Examples are compiled
 
-`sbt "++<version>; schema-scaladoc-check/test"` turns every multi-line block in the Scaladoc of `schema` into an object and compiles it. CI runs it on Scala 2.13, 3.3 and 3.9.
+`sbt "++<version>; schema-scaladoc-check/test"` turns every multi-line block in the Scaladoc of `schema` into an object and compiles it. CI runs it on Scala 2.13, 3.3 and 3.9. Run it locally on all three: `sbt --client "++3.9.0; schema-scaladoc-check/test; ++3.3.7; schema-scaladoc-check/test; ++2.13.18; schema-scaladoc-check/test"`.
 
 - Each block compiles on its own. The wrapper adds `import zio.blocks.schema._`; import anything else inside the block.
 - Use braces, not indentation syntax.

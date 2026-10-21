@@ -80,7 +80,7 @@ Progress lives in a new "Scaladoc: schema" section of `docs/dev/backlog.md` with
 2. **Write** the Scaladoc by tier.
 3. **Fact-check.** A `docs-reviewer` pass compares each claim with the source. Contradictions in the code or in reference pages go into `docs/dev/issues.md` in the same PR; trivial reference-page errors are fixed in the same PR.
 4. **Verify.** The change is comments only, so test suites are not rerun. Run:
-   - `schema-scaladoc-check/compile` on Scala 3.9.0 and on 2.13;
+   - `schema-scaladoc-check/compile` on Scala 3.9.0, 3.3.7 and 2.13.18;
    - `schemaJVM/doc` on both versions, with no new warnings (broken `[[links]]` show up here);
    - `fmtDirty`, then `sbt "++2.13; check"`.
 5. **PR.** The body says in plain English what was documented, the coverage before and after, and any issues filed. The backlog row is updated. Review fixes go in separate commits per related group.
