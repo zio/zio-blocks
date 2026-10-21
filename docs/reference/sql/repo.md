@@ -38,9 +38,9 @@ When the standard operations — select-all, select-by-id, insert, update, delet
 The example below shows the full lifecycle: deriving a repository from a `Schema`, setting up the table, writing and reading entities, and performing both bulk and single-entity operations — all inside one `transact` block:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User {
@@ -94,8 +94,8 @@ object Repo {
 A `DbCodec[ID]` instance is resolved automatically for all primitive ID types (`Int`, `Long`, `String`, `UUID`, and others) without any additional imports. The typical usage looks like this:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class Article(id: Int, title: String, body: String)
 object Article {
@@ -124,8 +124,8 @@ object Repo {
 The supplied `tableName` is used verbatim (after SQL identifier validation) in all generated statements:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class OrderLine(lineId: Int, qty: Int, unitPrice: BigDecimal)
 object OrderLine {
@@ -157,8 +157,8 @@ object Repo {
 This is the most concise form when the entity type has exactly one field of the `ID` type:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class Tag(id: Long, label: String)
 object Tag {
@@ -186,9 +186,15 @@ object Repo {
 
 Combining `Table.derived` with `Repo.apply` gives access to DDL generation via `createTable` and `dropTable` while also enabling full CRUD:
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
+
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class Category(categoryId: Int, name: String)
 object Category {
@@ -225,8 +231,8 @@ class Repo[E, ID] {
 Inside a `connect` or `transact` block, the call requires no arguments:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -255,8 +261,8 @@ class Repo[E, ID] {
 Use it to batch-fetch a known set of rows in a single round-trip instead of calling `find` in a loop:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -280,9 +286,9 @@ class Repo[E, ID] {
 The ID value is bound as a parameterized `?` — no string formatting or concatenation:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -306,8 +312,8 @@ class Repo[E, ID] {
 Use `exists` when you only need to confirm presence without loading the full entity:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -331,8 +337,8 @@ class Repo[E, ID] {
 The `Long` result avoids boxing and handles tables with more than `Int.MaxValue` rows correctly:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -356,8 +362,8 @@ class Repo[E, ID] {
 To read the table two rows at a time, we pass the ID of the last row on one page as the cursor for the next:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -392,8 +398,8 @@ class Repo[E, ID] {
 Each call uses the pre-built SQL string and binds fresh parameter values from the entity:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -417,8 +423,8 @@ class Repo[E, ID] {
 This method is most useful when the database assigns the primary key — for example, via an auto-increment or sequence column — and the caller needs to read the assigned value back:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -447,8 +453,8 @@ class Repo[E, ID] {
 The method returns 0 immediately when the input is empty, without opening a prepared statement:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -479,8 +485,8 @@ class Repo[E, ID] {
 Because the generated SQL grows with the number of rows, `insertAll` is best suited for moderate-sized batches where the caller controls the primary keys:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -513,8 +519,8 @@ class Repo[E, ID] {
 The same call creates a user the first time and replaces its name and email the second time:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -553,8 +559,8 @@ class Repo[E, ID] {
 To insert new users and update existing ones in one batch:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -585,8 +591,8 @@ class Repo[E, ID] {
 Only non-ID columns appear in the `SET` clause; the ID column appears only in the `WHERE` clause, so it is never overwritten:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -614,8 +620,8 @@ class Repo[E, ID] {
 The ID value is bound as a parameterized `?`, not interpolated into the SQL string:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -641,8 +647,8 @@ class Repo[E, ID] {
 Use it to batch-delete a known set of rows instead of calling `delete` in a loop:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -666,8 +672,8 @@ class Repo[E, ID] {
 Despite the different name, this method issues a `DELETE FROM` statement rather than a SQL `TRUNCATE`, so the operation participates in transactions and the returned row count is exact:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }

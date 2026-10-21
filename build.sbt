@@ -1778,6 +1778,7 @@ lazy val docs = project
     mux.jvm,
     async.jvm,
     sql.jvm,
+    `sql-zio`,
     telemetry.jvm,
     otel,
     config.jvm,

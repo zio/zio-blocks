@@ -27,8 +27,8 @@ Create a `Transactor` layer from a JDBC `DataSource` and pick the dialect-specif
 import javax.sql.DataSource
 import zio.*
 import zio.blocks.maybe.Maybe
-import zio.blocks.sql.*
 import zio.blocks.sql.zio.*
+import zio.blocks.sql.*
 
 val dataSource: DataSource = ???
 val transactorLayer: ZLayer[Any, Nothing, Transactor] =
@@ -51,8 +51,8 @@ operations.
 
 ```scala
 import zio._
-import zio.blocks.sql._
 import zio.blocks.sql.zio._
+import zio.blocks.sql._
 
 val transactor = TransactorZIO.fromUrl(
   "jdbc:postgresql://localhost/mydb",
@@ -110,3 +110,7 @@ val transactorLayer: ZLayer[Any, Nothing, TransactorZIO] =
 
 `TransactorZIO` is safe to share. It creates a new connection per
 `connect` / `transact` invocation.
+
+## See Also
+
+- [How to Use the sql Module from a ZIO Application](../guides/sql-from-zio.md) — Guide to running `sql` queries and transactions as ZIO effects with `TransactorZIO`.

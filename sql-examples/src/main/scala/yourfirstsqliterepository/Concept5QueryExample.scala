@@ -1,8 +1,8 @@
 package yourfirstsqliterepository
 
-import zio.blocks.sql.*
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql.*
 
 /**
  * Build Your First Database Repository on SQLite — Concept 5: Write Your Own Query
