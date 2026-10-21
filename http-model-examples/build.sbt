@@ -28,6 +28,7 @@ def zioBlocks(module: String) = Def.setting {
 
 libraryDependencies ++= Seq(
   zioBlocks("http-model").value,
+  zioBlocks("http-model-schema").value,
   zioBlocks("html").value,
   zioBlocks("schema").value
 )
