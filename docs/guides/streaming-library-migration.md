@@ -132,32 +132,32 @@ None of this code uses a streaming library, so the "before" snippets for fs2, ZI
 
 ## Concept Map
 
-| Task                         | fs2 3.14                                     | ZIO Streams 2.1                            | Ox 1.1                                    | ZIO Blocks                                                           |
-|------------------------------|----------------------------------------------|--------------------------------------------|-------------------------------------------|----------------------------------------------------------------------|
-| Stream type                  | `Stream[F, O]`                               | `ZStream[R, E, A]`                         | `Flow[T]`                                 | `Stream[E, A]`                                                       |
-| Reusable transformation      | `Pipe[F, I, O]`, `through`                   | `ZPipeline[R, E, In, Out]`, `via`          | a function `Flow[A] => Flow[B]`           | `Pipeline[In, Out]`, `via`                                           |
-| Consumer                     | `compile.*`                                  | `ZSink[R, E, In, L, Z]`, `run(sink)`       | `run*` methods                            | `Sink[E, A, Z]`, `run(sink)`                                         |
-| From a collection            | `Stream.emits(xs)`                           | `ZStream.fromIterable(xs)`                 | `Flow.fromIterable(xs)`                   | `Stream.fromIterable(xs)`, `Stream(a, b, c)`                         |
-| From an iterator             | `Stream.fromIterator[F](it, chunkSize)`      | `ZStream.fromIterator(it)`                 | `Flow.fromIterator(it)`                   | `Stream.fromIterator(it)`                                            |
-| Unfold a state               | `Stream.unfold(s)(f)`                        | `ZStream.unfold(s)(f)`                     | `Flow.unfold(s)(f)`                       | `Stream.unfold(s)(f)`                                                |
-| Push elements from a loop    | none covered here                            | none covered here                          | `Flow.usingEmit(emit => ...)`             | `Stream.unfold`, `Stream.fromIterator`, or a `Reader` with `Stream.fromReader` |
-| Call code for each element   | `evalMap(a => IO(f(a)))`                     | `mapZIO(a => ZIO.attempt(f(a)))`           | `map(f)`                                  | `map(f)`; `mapAsync` for code that returns `Async`                    |
-| Parallel map                 | `parEvalMap(n)` (ordered)                    | `mapZIOPar(n)` (ordered)                   | `mapPar(n)` (ordered)                     | `mapPar(n)`, `mapParAsync(n)` (unordered only)                        |
-| Parallel map, unordered      | `parEvalMapUnordered(n)`                     | `mapZIOParUnordered(n)`                    | `mapParUnordered(n)`                      | `mapPar(n)`, `mapParAsync(n)`                                        |
-| Parallel flatMap             | `map(f).parJoin(n)`                          | `flatMapPar(n)(f)`                         | `map(f).flattenPar(n)`                    | `flatMapPar(n)(f)`                                                   |
-| Merge two streams            | `a.merge(b)`                                 | `a.merge(b)`                               | `a.merge(b)`                              | `Stream.mergeAll(2)(Stream(a, b))`                                   |
-| Acquire and release          | `Stream.bracket`, `Stream.resource`          | `ZStream.acquireReleaseWith`, `ZStream.scoped` | `usingEmit` with `try`/`finally`      | `Stream.fromAcquireRelease`, `Stream.fromResource`                   |
-| Fixed-size batches           | `chunkN(n)`                                  | `grouped(n)`                               | `grouped(n)` (a `Seq`)                    | `grouped(n)` or `chunked(n)` (a `Chunk`)                             |
-| Running state                | `scan`, `mapAccumulate`                      | `scan`, `mapAccum`                         | `scan`, `mapStateful`                     | `scan`, `mapAccum`                                                   |
-| Custom pull loop             | `Pull`, `stream.pull.uncons1`                | none covered here                          | none                                      | `start` plus `Reader#read`, or `mapAccum`                            |
-| Typed error                  | none (`Throwable` in `F`)                    | the `E` channel                            | none (exceptions; `either` blocks)        | the `E` channel, `Left` from every terminal                           |
-| Recover from an error        | `handleErrorWith`                            | `catchAll`, `orElse`                       | `recover`, `recoverWith`                  | `catchAll`, `orElse` (alias `||`), `catchDefect`                      |
-| Turn exceptions into errors  | `attempt`                                    | `ZStream.fromZIO(ZIO.attempt(...))`        | `either.catching`                         | `Stream.attempt(f)`                                                  |
-| Collect everything           | `compile.toList`                             | `runCollect`                               | `runToList()`                             | `runCollect`                                                         |
-| Fold                         | `compile.fold(z)(f)`                         | `runFold(z)(f)`                            | `runFold(z)(f)`                           | `runFold(z)(f)`                                                      |
-| Drain                        | `compile.drain`                              | `runDrain`                                 | `runDrain()`                              | `runDrain`                                                           |
-| Count                        | `compile.count`                              | `runCount`                                 | none                                      | `count`                                                              |
-| Run the program              | `IOApp`, `unsafeRunSync()`                   | `ZIOAppDefault`, `Unsafe.unsafe`           | a direct call                             | a direct call on the JVM; `*Async` terminals on Scala.js             |
+| Task                        | fs2 3.14                                | ZIO Streams 2.1                                | Ox 1.1                             | ZIO Blocks                                                                     |
+|-----------------------------|-----------------------------------------|------------------------------------------------|------------------------------------|--------------------------------------------------------------------------------|
+| Stream type                 | `Stream[F, O]`                          | `ZStream[R, E, A]`                             | `Flow[T]`                          | `Stream[E, A]`                                                                 |
+| Reusable transformation     | `Pipe[F, I, O]`, `through`              | `ZPipeline[R, E, In, Out]`, `via`              | a function `Flow[A] => Flow[B]`    | `Pipeline[In, Out]`, `via`                                                     |
+| Consumer                    | `compile.*`                             | `ZSink[R, E, In, L, Z]`, `run(sink)`           | `run*` methods                     | `Sink[E, A, Z]`, `run(sink)`                                                   |
+| From a collection           | `Stream.emits(xs)`                      | `ZStream.fromIterable(xs)`                     | `Flow.fromIterable(xs)`            | `Stream.fromIterable(xs)`, `Stream(a, b, c)`                                   |
+| From an iterator            | `Stream.fromIterator[F](it, chunkSize)` | `ZStream.fromIterator(it)`                     | `Flow.fromIterator(it)`            | `Stream.fromIterator(it)`                                                      |
+| Unfold a state              | `Stream.unfold(s)(f)`                   | `ZStream.unfold(s)(f)`                         | `Flow.unfold(s)(f)`                | `Stream.unfold(s)(f)`                                                          |
+| Push elements from a loop   | none covered here                       | none covered here                              | `Flow.usingEmit(emit => ...)`      | `Stream.unfold`, `Stream.fromIterator`, or a `Reader` with `Stream.fromReader` |
+| Call code for each element  | `evalMap(a => IO(f(a)))`                | `mapZIO(a => ZIO.attempt(f(a)))`               | `map(f)`                           | `map(f)`; `mapAsync` for code that returns `Async`                             |
+| Parallel map                | `parEvalMap(n)` (ordered)               | `mapZIOPar(n)` (ordered)                       | `mapPar(n)` (ordered)              | `mapPar(n)`, `mapParAsync(n)` (unordered only)                                 |
+| Parallel map, unordered     | `parEvalMapUnordered(n)`                | `mapZIOParUnordered(n)`                        | `mapParUnordered(n)`               | `mapPar(n)`, `mapParAsync(n)`                                                  |
+| Parallel flatMap            | `map(f).parJoin(n)`                     | `flatMapPar(n)(f)`                             | `map(f).flattenPar(n)`             | `flatMapPar(n)(f)`                                                             |
+| Merge two streams           | `a.merge(b)`                            | `a.merge(b)`                                   | `a.merge(b)`                       | `Stream.mergeAll(2)(Stream(a, b))`                                             |
+| Acquire and release         | `Stream.bracket`, `Stream.resource`     | `ZStream.acquireReleaseWith`, `ZStream.scoped` | `usingEmit` with `try`/`finally`   | `Stream.fromAcquireRelease`, `Stream.fromResource`                             |
+| Fixed-size batches          | `chunkN(n)`                             | `grouped(n)`                                   | `grouped(n)` (a `Seq`)             | `grouped(n)` or `chunked(n)` (a `Chunk`)                                       |
+| Running state               | `scan`, `mapAccumulate`                 | `scan`, `mapAccum`                             | `scan`, `mapStateful`              | `scan`, `mapAccum`                                                             |
+| Custom pull loop            | `Pull`, `stream.pull.uncons1`           | none covered here                              | none                               | `start` plus `Reader#read`, or `mapAccum`                                      |
+| Typed error                 | none (`Throwable` in `F`)               | the `E` channel                                | none (exceptions; `either` blocks) | the `E` channel, `Left` from every terminal                                    |
+| Recover from an error       | `handleErrorWith`                       | `catchAll`, `orElse`                           | `recover`, `recoverWith`           | `catchAll`, `orElse` (alias `\|\|`), `catchDefect`                             |
+| Turn exceptions into errors | `attempt`                               | `ZStream.fromZIO(ZIO.attempt(...))`            | `either.catching`                  | `Stream.attempt(f)`                                                            |
+| Collect everything          | `compile.toList`                        | `runCollect`                                   | `runToList()`                      | `runCollect`                                                                   |
+| Fold                        | `compile.fold(z)(f)`                    | `runFold(z)(f)`                                | `runFold(z)(f)`                    | `runFold(z)(f)`                                                                |
+| Drain                       | `compile.drain`                         | `runDrain`                                     | `runDrain()`                       | `runDrain`                                                                     |
+| Count                       | `compile.count`                         | `runCount`                                     | none                               | `count`                                                                        |
+| Run the program             | `IOApp`, `unsafeRunSync()`              | `ZIOAppDefault`, `Unsafe.unsafe`               | a direct call                      | a direct call on the JVM; `*Async` terminals on Scala.js                       |
 
 ## Coming from ZIO Streams
 
@@ -802,7 +802,7 @@ println(bytesPerRun.count)
 println(bytesPerRun.count)
 ```
 
-The same pattern works for a channel with `NioStreams.fromChannelUnmanaged`. Note the difference from ZIO Streams, where `ZStream.fromInputStream` never closes the stream at all.
+The same pattern works for a channel with `NioStreams.fromChannelUnmanaged`. In ZIO Streams, `ZStream.fromInputStream` never closes the stream at all.
 
 ### Primitive Streams Use End-of-Stream Sentinels
 
@@ -885,6 +885,12 @@ Run it from the `streams-examples` directory:
 
 ```bash
 sbt "runMain streammigration.BookstoreRevenueMigrated"
+```
+
+To check that the example compiles without running it:
+
+```bash
+sbt compile
 ```
 
 ## See Also

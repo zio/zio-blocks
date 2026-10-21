@@ -12,6 +12,11 @@ import zio.blocks.streams.*
  *
  * The program runs from `main`, not from the body of an `object ... extends
  * App`, so blocking terminals never run inside a class initializer.
+ *
+ * Run it from the `streams-examples` directory:
+ * {{{
+ * sbt "runMain streammigration.BookstoreRevenueMigrated"
+ * }}}
  */
 object BookstoreRevenueMigrated {
 
@@ -65,15 +70,13 @@ object BookstoreRevenueMigrated {
       val parsed: Stream[Nothing, Either[String, OrderEvent]] = orderLog(path).map(parseOrder)
 
       // First run: report the malformed lines
-      parsed
-        .collect { case Left(error) => error }
+      parsed.collect { case Left(error) => error }
         .runForeach(error => println(s"skipped: $error"))
 
       // Second run: the log is opened again, and orders are priced in parallel.
       // mapPar emits in completion order; the fold does not depend on it.
       val revenue: Either[Nothing, Map[String, BigDecimal]] =
-        parsed
-          .collect { case Right(order) => order }
+        parsed.collect { case Right(order) => order }
           .mapPar(4)(order => order.title -> priceOf(order.title) * order.copies)
           .runFold(Map.empty[String, BigDecimal])(addRevenue)
 
