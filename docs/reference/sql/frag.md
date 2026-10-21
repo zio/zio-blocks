@@ -132,6 +132,8 @@ val full   = Frag.sequence(base, where, order)
 full.sql(SqlDialect.SQLite)
 ```
 
+See also the [How to Upsert Rows and Paginate with Keyset Cursors](../../guides/upsert-and-paginate-with-keyset-cursors.md) guide, which builds upsert statements and pages through a query with `Frag.keysetAfter`.
+
 ## Execution Methods
 
 All execution methods require an implicit `DbCon` (provided by `Transactor#connect` or `Transactor#transact`). They render the fragment to SQL, bind parameters, execute, and log the operation.
@@ -236,5 +238,6 @@ val keys: List[Long] = sql"INSERT INTO users (name) VALUES (${"Alice"})".updateR
 
 ## See Also
 
-- **[SQL Module](./index.md)** — Overview of the `zio-blocks-sql` module and its types.
+- **[How to Stream Large Query Results](../../guides/stream-large-query-results.md)** — Guide to aggregating, exporting and error-handling the chunked streams that `queryStream` and `queryChunked` return.
 - **[How to Write Joins and Inspect the Generated SQL](../../guides/write-joins-and-inspect-generated-sql.md)** — Guide that runs join queries and prints or dumps the SQL they generate.
+- **[SQL Module Overview](./index.md)** — How `Frag`, `Transactor` and the other SQL types fit together.

@@ -737,60 +737,11 @@ All identifiers (table name, column names, conflict column) are validated throug
 `Table.columns`. Invalid or unknown names throw `IllegalArgumentException` at
 build time, not at execution time.
 
-### Table-aware builders
-
-The high-level `Upsert` builders accept a `Table[A]` and an entity. The table
-provides column names and a codec that extracts `DbValue` parameters.
-
-`Upsert.insertDoNothing` builds `INSERT ... ON CONFLICT ("id") DO NOTHING`:
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User { implicit val schema: Schema[User] = Schema.derived }
-
-val table: Table[User] = Table.derived[User]
-val user = User(42, "Alice", "alice@example.com")
-
-// INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING
-val frag: Frag = Upsert.insertDoNothing(table, user, conflictColumn = "id")
-```
-
-`Upsert.insertDoUpdate` builds `INSERT ... ON CONFLICT ("id") DO UPDATE SET`
-for **all** non-conflict columns:
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User { implicit val schema: Schema[User] = Schema.derived }
-
-val table: Table[User] = Table.derived[User]
-val user = User(42, "Alice", "alice@example.com")
-
-// INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?)
-//   ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?
-val frag: Frag = Upsert.insertDoUpdate(table, user, conflictColumn = "id")
-```
-
-Pass `updateColumns` to restrict which columns are overwritten on conflict:
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User { implicit val schema: Schema[User] = Schema.derived }
-
-val table: Table[User] = Table.derived[User]
-val user = User(42, "Alice", "alice@example.com")
-
-// Only "name" is updated on conflict; "email" keeps its original value
-val frag: Frag = Upsert.insertDoUpdate(table, user, conflictColumn = "id", updateColumns = Seq("name"))
-```
+For a task-oriented walkthrough of the table-aware builders (`Upsert.insertDoNothing`,
+`Upsert.insertDoUpdate` with and without `updateColumns`) and the `Repo#insertOrUpdate`
+and `Repo#insertOrUpdateBatch` wrappers, run against a real SQLite database, see
+[How to Upsert Rows and Paginate with Keyset Cursors](./upsert-and-paginate-with-keyset-cursors.md).
+The builders below take column names and `DbValue`s directly, without a `Table`.
 
 ### Low-level builders
 
@@ -847,122 +798,11 @@ val withUpdate: Frag = base ++ Upsert.doUpdateSuffix(
 )
 ```
 
-### Repository integration
-
-`Repo` provides `insertOrUpdate` and `insertOrUpdateBatch` as convenience
-wrappers that use `Upsert.insertDoUpdate` under the hood. The conflict target is
-the repository's validated ID column, and all non-ID columns are overwritten with
-the entity's values.
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User { implicit val schema: Schema[User] = Schema.derived }
-
-given DbCon = ???
-
-val table: Table[User] = Table.derived[User]
-val repo: Repo[User, Int] = ???
-
-val user = User(42, "Alice", "alice@example.com")
-
-// Single upsert
-val affected: Int = repo.insertOrUpdate(user)
-
-// Batch upsert
-val users: List[User] = List(user, User(43, "Bob", "bob@example.com"))
-val totalAffected: Int = repo.insertOrUpdateBatch(users)
-```
-
-These generate SQL like:
-
-```sql
-INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?)
-  ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?
-```
-
-`insertOrUpdateBatch` uses a JDBC batch for efficiency, mirroring the pattern of
-`insertBatch`. Both return the total affected row count.
-
 ## Keyset Pagination
 
-Keyset (cursor) pagination avoids the cost and drift of `OFFSET` by seeking
-after the last seen key: `WHERE id > ? ORDER BY id ASC LIMIT n`. The row
-identified by the cursor is excluded (`>` not `>=`) so consecutive pages do
-not duplicate the boundary row.
-
-`Repo` exposes this directly for primary-key cursors:
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User { implicit val schema: Schema[User] = Schema.derived }
-
-given DbCon = ???
-
-val repo: Repo[User, Int] = ??? // e.g. Repo(table, "id", idCodec, _.id)
-
-val firstPage: List[User]  = repo.pageAfter(cursorId = 0, limit = 20)
-val nextPage: List[User]   = repo.pageAfter(cursorId = firstPage.last.id, limit = 20)
-// when cursorId == last id, nextPage is empty
-```
-
-It renders as:
-
-```sql
-SELECT "id", "name", "email" FROM "user" WHERE "id" > ? ORDER BY "id" ASC LIMIT 20
-```
-
-where `?` is bound via `idCodec.toDbValues(cursorId)`. `limit` must be `> 0`.
-
-For non-ID orderings or ad-hoc queries, `Frag.keysetAfter` builds the
-portable `WHERE col > ? ORDER BY col ASC LIMIT n` fragment without a `Repo`:
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-
-case class User(id: Int, name: String, email: String)
-import zio.blocks.schema.Schema
-object User { implicit val schema: Schema[User] = Schema.derived }
-val table: Table[User] = Table.derived[User]
-
-// Table-validated: rejects unknown columns
-val frag: Frag = Frag.keysetAfter(table, orderCol = "id", lastValue = DbValue.DbInt(42), limit = 20)
-// frag.sql(dialect) == " WHERE id > ? ORDER BY id ASC LIMIT 20"
-
-// Without a table: identifier-only validation
-val frag2: Frag = Frag.keysetAfter(orderCol = "created_at", lastValue = DbValue.DbLong(1000L), limit = 10)
-```
-
-- `Frag.keysetAfter(table, orderCol, lastValue, limit)` validates `orderCol`
-  with `SqlIdentifier.validate` and checks membership in `table.columns`;
-  unknown columns throw `IllegalArgumentException`.
-- `Frag.keysetAfter(orderCol, lastValue, limit)` validates the identifier only.
-- `limit` must be `> 0`; single-column cursors only (composite cursors are v2).
-
-Compose with a base `SELECT`:
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User { implicit val schema: Schema[User] = Schema.derived }
-val table: Table[User] = Table.derived[User]
-
-val base     = Frag.literal("SELECT id, name, email FROM user")
-val pageFrag = base ++ Frag.keysetAfter(table, "id", DbValue.DbInt(42), 20)
-// Rendering the SQL does not require a DbCon:
-val sql: String = pageFrag.sql(SqlDialect.SQLite) // SELECT id, name, email FROM user WHERE id > ? ORDER BY id ASC LIMIT 20
-// Executing needs givens at the call site:
-// given DbCon = ???
-// given DbCodec[User] = table.codec
-// val rows: List[User] = pageFrag.query[User]
-```
+Keyset (cursor) pagination with `Repo#pageAfter` and `Frag.keysetAfter`, including how
+to page through a filtered query and why it beats `OFFSET`, is covered in
+[How to Upsert Rows and Paginate with Keyset Cursors](./upsert-and-paginate-with-keyset-cursors.md).
 
 ## Inspecting SQL
 
@@ -1130,5 +970,6 @@ Pair `Dump.dumpTable` with `previewSql()` for a fuller picture: `dumpTable` capt
 - **[SchemaExpr Reference](../reference/schema/schema-expr.md)** -- Full API coverage of expression types
 - **[Optics Reference](../reference/schema/optics.md)** -- Lens, Prism, Optional, and Traversal
 - **[DynamicOptic Reference](../reference/schema/dynamic-optic.md)** -- Runtime optic paths for programmatic field extraction
+- **[How to Upsert Rows and Paginate with Keyset Cursors](./upsert-and-paginate-with-keyset-cursors.md)** -- Insert-or-update rows and page through large tables with keyset cursors
 
 The interpreter pattern shown here extends naturally to other query targets. Because `SchemaExpr` wraps a `DynamicSchemaExpr` sealed trait and `DynamicOptic` carries full path metadata, you can write interpreters for MongoDB filters, Elasticsearch queries, GraphQL filters, or any other query language using the same approach: access `.dynamic`, pattern match on the AST, map operators, and extract field names from optic paths.
