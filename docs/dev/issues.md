@@ -756,6 +756,8 @@ List("name = \"Scala Bookstore\"\ntags = [scala,\n", "a = ${missing}").foreach {
 
 **Suggested fix.** Append the cause message in `ParseError#message` whatever the path, and override `getCause` to return the cause. Record the position of each substitution when parsing, and use it for resolution errors. Add a `HoconConfigSourceSpec` test that asserts the full message of a syntax error.
 
+**Note (2026-10-21, found while writing H-34).** Hiding the cause is partly deliberate: `ParseError#message` drops it so that a cause quoting a line of the document, which may hold a secret, never reaches a log, and `YamlConfigSourceSpec` pins that ("parse error redaction" suite, `config-yaml/shared/src/test/scala/zio/blocks/config/yaml/YamlConfigSourceSpec.scala:174-215`, including "ParseError with empty path hides cause text even if cause contains secret"). A fix should add the line and column to the message without the cause's text, rather than appending the cause as is.
+
 ### Streams: a blocking terminal throws the internal `AsyncBoundaryRequired` signal when `catchAll` sits inside `flatMap` and a stateful operator follows
 
 Found 2026-10-20 while writing the tutorial `docs/guides/your-first-streaming-pipeline.md` (backlog T-06), on `main` at `db589bd0`. The `streams/` and `async/` sources are the same at tag `v0.0.56`.
@@ -1401,6 +1403,239 @@ Found 2026-10-20 while writing T-09. Verified. Not filed.
 
 **Summary.** `import zio.blocks.html._` together with `import zio.blocks.schema._` makes `p(...)` ambiguous on Scala 3, because schema exports the `p"..."` path interpolator. Any code that renders HTML from schema-backed data with wildcard imports hits this. Options: rename one of them, or move the path interpolator out of the package object.
 
+### config-hocon: a self-reference such as `path = ${path}":/opt/bookstore/bin"` is rejected as circular
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** The HOCON spec allows a key to refer to its own earlier value, the usual way to extend a default: `path = ${path}":/extra"`. Typesafe Config resolves it to the previous value plus the suffix. `config-hocon` fails the whole document with `Circular substitution detected`. A substitution of a different key works.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-hocon:0.0.56
+import zio.blocks.config._
+import zio.blocks.config.hocon._
+
+def show(doc: String): Unit =
+  HoconParser.parse(doc) match {
+    case Right(value) => println(HoconValue.flatten(value))
+    case Left(error)  => println(error.getMessage)
+  }
+
+show("path = \"/usr/bin\"\npath = ${path}\":/opt/bookstore/bin\"")
+show("base = \"/usr/bin\"\npath = ${base}\":/opt/bookstore/bin\"")
+// Circular substitution detected for path: path (line 0, column 0)
+// Map(base -> /usr/bin, path -> /usr/bin:/opt/bookstore/bin)
+```
+
+**Expected.** The first document resolves to `Map(path -> /usr/bin:/opt/bookstore/bin)`, as the HOCON spec's "Self-Referential Substitutions" section describes.
+
+**Root cause.** Duplicate keys are merged first, so the later `path` replaces the earlier one in the tree, and substitutions are then resolved against that merged root (`config-hocon/shared/src/main/scala/zio/blocks/config/hocon/HoconParser.scala:620-631`). `${path}` looks up the new `path`, which is the substitution itself, and the `resolving` check reports a cycle (`HoconParser.scala:622-623`). The previous value is gone by then.
+
+**Impact.** A common Typesafe Config idiom, extending a value from an included `defaults.conf`, stops the whole file from loading. `formats.md` says only that circular references are reported, so users don't know the self-referential form is unsupported.
+
+**Test gap.** `HoconParserSpec` "circular substitution produces error" (`config-hocon/shared/src/test/scala/zio/blocks/config/hocon/HoconParserSpec.scala:386`) tests a real cycle; no test covers a self-reference to an earlier value.
+
+**Suggested fix.** While merging, when a later value of a key contains a substitution of that same key, resolve it against the key's previous value (as the spec says), and only then replace it. Until then, document in `formats.md` that self-references are rejected and that `+=` works for lists.
+
+### config-hocon: an undefined `${?path}` inside a concatenation becomes the text `null`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** The HOCON spec says an undefined optional substitution inside a value concatenation contributes nothing, so `"jdbc:postgresql://localhost:5432/"${?db.name}` is `jdbc:postgresql://localhost:5432/` when `db.name` is not set, and Typesafe Config behaves that way. `config-hocon` inserts the four characters `null` instead. A key whose whole value is `${?path}` is left out correctly.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-hocon:0.0.56
+import zio.blocks.config._
+import zio.blocks.config.hocon._
+
+def show(doc: String): Unit =
+  println(ConfigSource.fromHocon(doc).map(_.all("").map { case (k, v) => s"$k=${v.value}" }.toList.sorted))
+
+show("db.password = ${?db.secret}\ndb.user = bookstore")
+show("db.url = \"jdbc:postgresql://localhost:5432/\"${?db.name}")
+show("db.url = \"jdbc:postgresql://localhost:5432/\"${?db.name}\"?ssl=true\"")
+// Right(List(db.user=bookstore))
+// Right(List(db.url=jdbc:postgresql://localhost:5432/null))
+// Right(List(db.url=jdbc:postgresql://localhost:5432/null?ssl=true))
+```
+
+**Expected.** `db.url=jdbc:postgresql://localhost:5432/` and `db.url=jdbc:postgresql://localhost:5432/?ssl=true`.
+
+**Root cause.** An undefined optional substitution resolves to `HoconValue.Null` (`config-hocon/shared/src/main/scala/zio/blocks/config/hocon/HoconParser.scala:629`). The `MConcat` case appends every part with `hoconValueToString` (`HoconParser.scala:634-644`), which renders `Null` as `"null"` (`HoconParser.scala:651`). `HoconValue.flatten` drops a `Null` only when it is the whole value.
+
+**Impact.** A URL, path or name built from an optional part silently contains `null`, and the service connects to the wrong database or reads the wrong folder instead of failing.
+
+**Test gap.** `HoconParserSpec` "optional substitution resolves to null when absent" (`config-hocon/shared/src/test/scala/zio/blocks/config/hocon/HoconParserSpec.scala:378`) tests a whole-value substitution only.
+
+**Suggested fix.** In the `MConcat` case, skip a part that resolved from an undefined optional substitution, and add a concatenation case to the spec.
+
+### config-hocon: `HoconParser.parse` drops an `include` inside an included resource
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `HoconParser.parse(input, includeCallback)` is the only public way to resolve includes without a filesystem (from the classpath, from files embedded in a Scala.js bundle, or in tests). It resolves the includes of the root document only. An `include` inside text the callback returned is skipped without an error, even when the callback can supply that file.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-hocon:0.0.56
+import zio.blocks.config.hocon._
+
+val files = Map(
+  "db.conf"   -> "url = \"jdbc:postgresql://localhost:5432/bookstore\"\ninclude \"pool.conf\"",
+  "pool.conf" -> "poolSize = 10"
+)
+
+println(HoconParser.parse("db { include \"db.conf\" }", files.get).map(HoconValue.flatten))
+println(HoconParser.parse("db { include \"pool.conf\" }", files.get).map(HoconValue.flatten))
+// Right(Map(db.url -> jdbc:postgresql://localhost:5432/bookstore))
+// Right(Map(db.poolSize -> 10))
+```
+
+**Expected.** The first call returns `Map(db.url -> ..., db.poolSize -> 10)`: the callback can supply `pool.conf`, so the nested include is resolved with it, as `ConfigSource.fromFile` resolves nested includes from disk.
+
+**Root cause.** `HoconParser.parse` wraps each callback result as `IncludedResource(content)` (`config-hocon/shared/src/main/scala/zio/blocks/config/hocon/HoconParser.scala:44`), whose `includeResolver` defaults to `_ => None` (`HoconParser.scala:30`). `handleInclude` parses the included text with that resolver (`HoconParser.scala:445-447`), so every nested include resolves to `None` and is ignored (`HoconParser.scala:452`). The JVM file loader passes a real nested resolver through the `private[hocon]` `parseWithResolver`, which is why nesting works there.
+
+**Impact.** A split configuration loaded from the classpath or from a browser bundle silently loses every file that is included from an included file. The missing keys surface later as `Missing required key` errors, far from the include.
+
+**Test gap.** `HoconParserSpec` "includes content via callback" (`HoconParserSpec.scala:531`) has one level of include only.
+
+**Suggested fix.** Wrap the callback recursively: `resource => includeCallback(resource).map(content => IncludedResource(content, nested))`, where `nested` is the same wrapper, and count depth as `fromFile` does to stop cycles. Alternatively make `parseWithResolver` public.
+
+### config-hocon: `ConfigSource.fromFile` looks for an absolute `include` path inside the including folder, so the include is silently skipped
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `include "/etc/bookstore/db.conf"` in a file loaded with `ConfigSource.fromFile` is resolved as `<folder of the including file>/etc/bookstore/db.conf`. That file normally doesn't exist, so the include is skipped like any missing include, and the configuration loads without the included keys and without an error. Typesafe Config reads an absolute include path as given.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-hocon:0.0.56
+import java.nio.file.Files
+import zio.blocks.config._
+import zio.blocks.config.hocon._
+
+val shared  = Files.createTempDirectory("shared")
+val dbConf  = Files.write(shared.resolve("db.conf"), "db.url = \"jdbc:postgresql://localhost:5432/bookstore\"".getBytes("UTF-8"))
+val appDir  = Files.createTempDirectory("app")
+val appConf = Files.write(appDir.resolve("application.conf"), s"include \"$dbConf\"\ncatalog.pageSize = 20".getBytes("UTF-8"))
+
+println(Files.exists(dbConf))
+println(ConfigSource.fromFile(appConf.toString).map(_.all("").keys.toList.sorted))
+// true
+// Right(List(catalog.pageSize))
+```
+
+**Expected.** `Right(List(catalog.pageSize, db.url))`: the absolute path is read as given, and, when `allowedBase` is set, checked against it like any other include.
+
+**Root cause.** The include resolver builds the file with `new java.io.File(baseDir, resource)` (`config-hocon/jvm/src/main/scala/zio/blocks/config/hocon/HoconConfigSourcePlatform.scala:122`). For an absolute `resource`, `java.io.File(File, String)` treats it as relative to `baseDir` on Unix, so the path is joined to the folder instead of replacing it.
+
+**Impact.** A configuration that keeps shared settings in a fixed system path loads without them and without any error; the missing keys show up as `Missing required key` errors or, worse, are filled in by defaults.
+
+**Test gap.** `HoconConfigSourcePlatformSpec` has no test with an absolute include path.
+
+**Suggested fix.** Resolve with `baseDir.toPath.resolve(resource)` (which returns an absolute `resource` unchanged) before canonicalizing, so the `allowedBase` check still applies to the result.
+
+### `YamlReader` stops at the first line it cannot read and drops the rest of the document without an error
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `zio.blocks.schema.yaml.YamlReader` stops parsing a block mapping at the first line that isn't a `key: value` entry at the expected indentation, and returns what it has read so far. The lines after it are never looked at, and no error is raised. A key missing the space after its colon (`pageSize:20`), a line indented one space too far, or a stray plain line each drop the rest of the document. `ConfigSource.fromYaml` in `config-yaml` uses this reader, so a typo in a YAML configuration file removes every setting after it. This is separate from the unterminated flow collection entry above.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-yaml:0.0.56
+import zio.blocks.config._
+import zio.blocks.config.yaml._
+
+def keys(yaml: String): Unit =
+  println(ConfigSource.fromYaml(yaml).map(_.all("").keys.toList.sorted))
+
+keys("catalog:\n  featuredBook: Zionomicon\n  pageSize: 20\ndb:\n  url: jdbc:postgresql://localhost:5432/bookstore\n")
+keys("catalog:\n  featuredBook: Zionomicon\n  pageSize:20\ndb:\n  url: jdbc:postgresql://localhost:5432/bookstore\n")
+keys("catalog:\n  featuredBook: Zionomicon\n   pageSize: 20\ndb:\n  url: jdbc:postgresql://localhost:5432/bookstore\n")
+keys("catalog:\n  featuredBook: Zionomicon\n  Programming in Scala\ndb:\n  url: jdbc:postgresql://localhost:5432/bookstore\n")
+keys("- Zionomicon\ndb:\n  url: jdbc:postgresql://localhost:5432/bookstore\n")
+// Right(List(catalog.featuredBook, catalog.pageSize, db.url))
+// Right(List(catalog.featuredBook))
+// Right(List(catalog.featuredBook))
+// Right(List(catalog.featuredBook))
+// Right(List(0))
+```
+
+**Expected.** The first document loads as shown. Each of the other four is a YAML syntax error, so `fromYaml` returns `Left(ConfigError.ParseError(...))` instead of a source with the rest of the file missing.
+
+**Root cause.** `parseBlockMapping` returns its entries as soon as a line has a different indentation (`schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlReader.scala:107`) or no mapping colon followed by a space (`YamlReader.scala:112`). `YamlParser#parse` returns the value of `parseValue(0)` (`YamlReader.scala:36-48`) without checking that every line was consumed, so the unread lines are dropped silently.
+
+**Impact.** A one-character typo in a YAML configuration file loads as a valid, smaller configuration. Settings with defaults then take their defaults without a trace; only settings without a default show up, as `Missing required key` errors that name the key, not the line.
+
+**Test gap.** `YamlReaderSpec` has no test that malformed block YAML is rejected or that the whole input is consumed.
+
+**Suggested fix.** At the end of `YamlParser#parse`, skip blank and comment lines and throw a parse error naming the line number if any line is left. Inside `parseBlockMapping`, raise an error for a line at greater indentation than the mapping that doesn't belong to a nested value.
+
+### config: `ProvenanceMap` prints the raw value of a `Secret` field
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** A field typed `Secret` prints as `<secret>` in the decoded case class, but the provenance of the same load shows its value in clear: `ProvenanceMap#provenanceOf` returns a `Provenance.Resolved` whose `toString` includes the raw text, and `ProvenanceMap#dump` hides a value only when its key name looks sensitive, whatever the field's type. `docs/reference/config/config-source.md` ("Redaction is name-based only") tells readers to "use `Secret`" for "values that must never be printed regardless of key", which `dump` does not honour.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config:0.0.56
+import zio.blocks.config._
+import zio.blocks.schema.Schema
+
+final case class DbConfig(url: String, signingKeyBlob: Secret)
+object DbConfig {
+  implicit val schema: Schema[DbConfig] = Schema.derived
+}
+
+val source = ConfigSource.fromMap(Map("url" -> "jdbc:postgresql://localhost:5432/bookstore", "signingKeyBlob" -> "hunter2"), "file")
+val loaded = Config.loadWithProvenance[DbConfig](source).toOption.get
+
+println(loaded.value)
+println(loaded.provenanceOf("signingKeyBlob"))
+println(loaded.dump())
+// DbConfig(jdbc:postgresql://localhost:5432/bookstore,<secret>)
+// Resolved(file,signingKeyBlob,hunter2)
+// ┌────────────────┬────────────────────────────────────────────┬────────┐
+// │ Key            │ Value                                      │ Source │
+// ├────────────────┼────────────────────────────────────────────┼────────┤
+// │ signingKeyBlob │ hunter2                                    │ file   │
+// │ url            │ jdbc:postgresql://localhost:5432/bookstore │ file   │
+// └────────────────┴────────────────────────────────────────────┴────────┘
+```
+
+The same happens with a sensitive name: `provenanceOf("db.password")` on a layered `EnvSource` prints `Resolved(env,BOOKSTORE_DB_PASSWORD,<the password>)`, although `dump()` hides that row.
+
+**Expected.** Every value read for a `Secret` field is shown as `<secret>`, in `dump()` and in the `Provenance` returned by `provenanceOf`, as `config-source.md` promises.
+
+**Root cause.** `ProvenanceMap` holds only the source, not the schema, so `dump` can redact by key name alone (`config/shared/src/main/scala/zio/blocks/config/ProvenanceMap.scala:27-30`, used at `:48`). `provenanceOf` returns the source's `Provenance` unchanged (`ProvenanceMap.scala:35-36`), and `Provenance.Resolved` is a case class with the raw value as a field (`config/shared/src/main/scala/zio/blocks/config/Provenance.scala:40`), so its default `toString` prints it.
+
+**Impact.** A startup log line that prints provenance, the module's recommended way to debug a deployment, leaks secrets that the user had protected with the `Secret` type.
+
+**Test gap.** `ConfigSpec` "dump redacts sensitive values by key name" (`config/shared/src/test/scala/zio/blocks/config/ConfigSpec.scala:177`) checks a sensitive key name only; no test loads a `Secret` field under a neutral name, and none checks `provenanceOf` output.
+
+**Suggested fix.** Have `Config.loadWithProvenance` record the paths of `Secret` fields (it has the schema) and pass them to `ProvenanceMap`, so `dump` and `provenanceOf` redact them. Override `Provenance.Resolved#toString` to omit `rawValue`, or redact it when the key is sensitive. Until then, correct the advice in `config-source.md`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -1684,6 +1919,79 @@ The M-04 session saw the same thing at 2 CPUs: `.block` hung in 6 of 15 mdoc run
 **Suggested fix.** Cheapest: Scaladoc on `toFuture`, `toCompletableFuture`, `toJsPromise` and `block` that says "consume once; use `start` to share". Better: mark a suspended `Async` as claimed when a driver starts and make a second driver fail with an exception that names `start`.
 
 **Workaround.** Use a `def` so each consumer builds its own `Async`, or call `start` once and share the `Async.Running` it returns.
+
+### config-hocon: a misspelled include loads without an error, and no include form can make it required
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `ConfigSource.fromFile` skips an `include` whose file doesn't exist, as Typesafe Config does for a plain `include`. Typesafe Config users make an include mandatory with `include required("db.conf")`, but `config-hocon` parses only the plain `include "file"` form: `required(...)`, `file(...)`, `classpath(...)` and `url(...)` are all parse errors. So there is no way to make a misspelled or missing include fail the load.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-hocon:0.0.56
+import java.nio.file.Files
+import zio.blocks.config._
+import zio.blocks.config.hocon._
+
+val dir = Files.createTempDirectory("bookstore")
+Files.write(dir.resolve("db.conf"), "url = \"jdbc:postgresql://localhost:5432/bookstore\"".getBytes("UTF-8"))
+
+def load(doc: String): Unit = {
+  val file = Files.write(dir.resolve("application.conf"), doc.getBytes("UTF-8"))
+  ConfigSource.fromFile(file.toString) match {
+    case Right(source)                                     => println(source.all("").keys.toList.sorted)
+    case Left(ConfigError.ParseError(_, _, _, Some(cause))) => println(cause.getMessage)
+    case Left(error)                                       => println(error.getMessage)
+  }
+}
+
+load("db { include \"db.conf\" }")
+load("db { include \"dbb.conf\" }")
+load("db { include required(\"db.conf\") }")
+load("db { include file(\"db.conf\") }")
+// List(db.url)
+// List()
+// Expected quoted string after 'include' (line 1, column 14)
+// Expected quoted string after 'include' (line 1, column 14)
+```
+
+**Why it's a trap.** The typo `dbb.conf` loads as an empty `db` block. The error appears only when a required key is decoded, as `Missing required key 'db.url'`, which names the key, not the include; a key with a default takes the default silently.
+
+**Where it comes from.** `handleInclude` accepts only a quoted string after `include` (`config-hocon/shared/src/main/scala/zio/blocks/config/hocon/HoconParser.scala:442`) and ignores an unresolved include on purpose (`HoconParser.scala:452`).
+
+**Suggested fix.** Parse `include required("...")` and fail the load when its file is missing; at least parse `file("...")` as a plain include. Document in `formats.md` that a missing plain include is skipped. The guide `load-configuration-files.md` warns about both.
+
+### config-yaml: a YAML document that is not a mapping loads as an empty source
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `ConfigSource.fromYaml` keeps a scalar only when it sits under a key. A document whose top level is a single scalar, such as a file whose only line is `featuredBook:Zionomicon` (no space after the colon, so it is one plain scalar) or a stray sentence, returns `Right` with no keys. A top-level sequence loads under the keys `0`, `1`, ...
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-yaml:0.0.56
+import zio.blocks.config._
+import zio.blocks.config.yaml._
+
+println(ConfigSource.fromYaml("featuredBook:Zionomicon", "config.yaml").map(_.all("")))
+println(ConfigSource.fromYaml("Zionomicon is the featured book", "config.yaml").map(_.all("")))
+println(ConfigSource.fromYaml("- Zionomicon\n- Programming in Scala", "config.yaml").map(_.all("").map { case (k, v) => k -> v.value }))
+// Right(Map())
+// Right(Map())
+// Right(Map(0 -> Zionomicon, 1 -> Programming in Scala))
+```
+
+**Why it's a trap.** The file "loads", and every setting then fails as `Missing required key`, or takes its default, with nothing pointing at the file's shape.
+
+**Where it comes from.** `flattenRec` records a `Yaml.Scalar` only when the prefix is non-empty (`config-yaml/shared/src/main/scala/zio/blocks/config/yaml/YamlConfigSource.scala:84-87`), and the top-level call starts with an empty prefix.
+
+**Suggested fix.** Return `Left(ConfigError.ParseError("", sourceId, "a YAML mapping"))` when the document root is not a mapping (or is a non-null scalar).
 
 ## Test and CI
 
