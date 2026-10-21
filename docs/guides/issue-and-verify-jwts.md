@@ -626,3 +626,4 @@ sbt compile
 
 - The [JWT reference](../reference/jwt.md) lists every algorithm, key size rule, limit and `JwtError` case.
 - Use `JwtHeader(alg, kid = Some("..."))` with the `Jwt.sign` overload that takes a header to label which key signed a token. The module writes `kid` but does not use it to choose a key, so the verifier picks the key itself.
+- [How to Protect an Endpoint with JWT Bearer Tokens](./protect-endpoints-with-jwt.md) wires the verification into an `http-model` endpoint that reads the `Authorization` header and answers 401 or 403.
