@@ -301,9 +301,12 @@ The JDBC layer is isolated behind three abstractions — `DbConnection`, `DbResu
 
 The **`zio-blocks-sql-zio` module** provides `TransactorZIO`, a ZIO-aware wrapper around `JdbcTransactor`. It exposes two execution models: blocking wrappers (`TransactorZIO#connect`, `TransactorZIO#transact`) that run synchronous bodies with `ZIO.attemptBlocking`, and effect-aware methods (`TransactorZIO#connectZIO`, `TransactorZIO#transactZIO`) that bracket connections via `ZIO.acquireRelease` so connections are always released even on fiber interruption. A `ZLayer` constructor (`TransactorZIO.layer`) integrates with ZIO's dependency injection system.
 
+Queries can also stream: `Frag#queryStream` and `Frag#queryChunked` return a `zio.blocks.streams.Stream` of row chunks, so a large result set is read in bounded batches instead of loaded whole. See [How to Stream Large Query Results](../../guides/stream-large-query-results.md).
+
 ## See Also
 
 - **[SQL-ZIO Integration Reference](../sql-zio.md)** — Reference page for `TransactorZIO` and the ZIO `ZLayer` integration.
 - **[Build Your First Database Repository on SQLite](../../guides/your-first-sqlite-repository.md)** — Tutorial that connects to SQLite and builds a `Repo` from a derived schema, end to end.
 - **[How to Test Database Code Against SQLite](../../guides/test-database-code-against-sqlite.md)** — Guide to giving each ZIO Test spec its own SQLite database and rolling back writes.
 - **[How to Connect to PostgreSQL with a Connection Pool](../../guides/connect-to-postgresql-with-a-connection-pool.md)** — Guide that wires a HikariCP pool into `JdbcTransactor` for PostgreSQL.
+- **[How to Stream Large Query Results](../../guides/stream-large-query-results.md)** — Guide to reading a large result set as a stream of row chunks with `queryStream` and `queryChunked`.

@@ -223,6 +223,8 @@ Scope.global.scoped { scope =>
 
 `Config.wire[A](prefix)` re-roots the injected source before decoding, which is how you keep several config sections in one graph without giving each its own source.
 
+See also: [How to Feed Configuration into a Wire Dependency Graph](../../guides/feed-config-into-a-wire-graph.md) for a full walkthrough with several services, layered sources and ordered shutdown.
+
 ### Loading with Provenance
 
 `Config.loadWithProvenance` returns a `ProvenanceMap[A]` alongside the value, which answers per-key origin questions and renders a table for startup logs:

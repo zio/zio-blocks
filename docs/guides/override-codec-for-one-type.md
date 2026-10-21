@@ -365,5 +365,6 @@ sbt compile
 ## Going Further
 
 - [Customizing Derivation with Instance and Modifier Overrides](../reference/schema/type-class-derivation.md#customizing-derivation-with-instance-and-modifier-overrides) covers every `withInstance` and `withModifier` overload and how overrides chain.
+- [How to Derive Your Own Type Class from a Schema](./derive-your-own-type-class.md) writes a `Deriver` for a type class of your own, beyond codecs.
 - [Codec](../reference/schema/codec.md) explains how formats, derivers and codecs fit together.
 - [TOON](../reference/schema/built-in-codecs/toon.md) documents the TOON format and its deriver settings.
