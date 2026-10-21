@@ -59,7 +59,7 @@ Add the `sql` module, the PostgreSQL JDBC driver and HikariCP to your `build.sbt
 // Scala 3.3 LTS
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "@VERSION@"
 
 // The PostgreSQL JDBC driver and the HikariCP pool, for every Scala version

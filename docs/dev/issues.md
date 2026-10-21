@@ -1502,6 +1502,61 @@ xa.connect {
 
 **Related (testing ergonomics).** `JdbcTransactor` has no way to hold one connection open across blocks, so `jdbc:sqlite::memory:` loses its tables between `connect`/`transact` calls, and there is no rollback-only `transact` for tests. The repo's own `RepoIntegrationSpec.withFreshDb` (`sql/jvm/src/test/scala/zio/blocks/sql/RepoIntegrationSpec.scala:58-84`) works around the first by subclassing `JdbcTransactor` and overriding `connect` with the `private[sql]` `JdbcConnection`, which users can't copy; its `transact` (not overridden) would close the shared connection. The H-47 guide uses a temporary file per test and a sentinel-exception `rollingBack` helper instead. A public single-connection transactor for tests (whose `close` is a no-op until the test ends) would make both unnecessary.
 
+### sql: `Frag.keysetAfter` leaves the column unquoted, so a keyword column such as `order` renders invalid SQL
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/upsert-and-paginate-with-keyset-cursors.md` (backlog H-18), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** `Frag.keysetAfter(table, orderCol, lastValue, limit)` and its table-less overload validate `orderCol` with `SqlIdentifier.validate` and then splice it into the SQL without quotes: `WHERE order > ? ORDER BY order ASC LIMIT n`. Every other SQL path in the module double-quotes identifiers since #1656 (`Repo`, `Upsert`, the query renderer), so a column that works everywhere else, such as a case-class field named `order`, passes `keysetAfter`'s validation and then fails at execution with a syntax error. `Repo#pageAfter` on the same table works, because it quotes its ID column.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run KeysetReservedWord.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+import zio.blocks.sql.*
+import zio.blocks.schema.Schema
+import scala.util.Try
+
+final case class Shipment(id: Long, order: Long)
+object Shipment { given Schema[Shipment] = Schema.derived }
+
+@main def run(): Unit = {
+  val dbFile = java.nio.file.Files.createTempFile("keyset", ".db")
+  dbFile.toFile.deleteOnExit()
+  val transactor = JdbcTransactor.fromUrl(s"jdbc:sqlite:$dbFile", SqlDialect.SQLite)
+  val shipments  = Repo.derived[Shipment, Long]
+
+  transactor.connect {
+    sql"""CREATE TABLE shipment ("id" INTEGER PRIMARY KEY, "order" INTEGER NOT NULL)""".update
+    println(shipments.insertBatch(List(Shipment(1, 10), Shipment(2, 20), Shipment(3, 30))))
+    // 3
+
+    // Repo quotes the column: works
+    println(shipments.pageAfter(1L, 10))
+    // List(Shipment(2,20), Shipment(3,30))
+
+    // keysetAfter accepts "order" (valid identifier, in table.columns) but doesn't quote it
+    val page = sql"SELECT * FROM shipment" ++ Frag.keysetAfter(shipments.table, "order", DbValue.DbLong(10L), 10)
+    println(page.sql(SqlDialect.SQLite))
+    // SELECT * FROM shipment WHERE order > ? ORDER BY order ASC LIMIT 10
+    println(Try(page.query[Shipment]))
+    // Failure(org.sqlite.SQLiteException: [SQLITE_ERROR] SQL error or missing database (near "order": syntax error))
+  }
+}
+```
+
+**Expected.** `keysetAfter` renders `WHERE "order" > ? ORDER BY "order" ASC LIMIT 10`, like `Repo#pageAfter` does for its ID column, and the query returns `List(Shipment(2,20), Shipment(3,30))`.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/Frag.scala:169-172` (table overload) and `:187-190` (table-less overload) build the parts as `s" WHERE $validated > "` and `s" ORDER BY $validated ASC LIMIT $limit"`. #1656 ("quoted identifiers") switched `Repo` (`Repo.scala:106-110`, `pageAfter` at `:172-179`) and `Upsert` (`Upsert.scala:35`, `:58`) to double-quoted identifiers but did not touch these two lines. `SqlIdentifier.validate` (`SqlIdentifier.scala:20-29`) only checks the `[A-Za-z_][A-Za-z0-9_]*` shape, so it does not reject keywords.
+
+**Impact.** Any keyset page over a column whose name is an SQL keyword (`order`, `group`, `limit`, `from`, `to` on some databases) fails at run time on both SQLite and PostgreSQL, although the same column works with every other `Repo`/`Upsert` method. Mixed-case column names behave differently from the rest of the module too: unquoted, PostgreSQL folds them to lower case, while `Repo` keeps the exact name.
+
+**Test gap.** `sql/shared/src/test/scala/zio/blocks/sql/KeysetSpec.scala:33-47` asserts the unquoted strings (`" WHERE id > ? ORDER BY id ASC LIMIT 20"`), so the inconsistency is pinned by the tests rather than caught. `sql/jvm/src/test/scala/zio/blocks/sql/RepoKeysetSpec.scala:145-163` runs `keysetAfter` only on the column `id`. No test uses a keyword column.
+
+**Suggested fix.** Quote the validated column in both overloads (`s""" WHERE "$validated" > """` and `s""" ORDER BY "$validated" ASC LIMIT $limit"""`), update the `KeysetSpec` golden strings, and add a `RepoKeysetSpec` case that pages a table with an `order` column through both `keysetAfter` overloads. Update the `keysetAfter` text in `docs/guides/query-dsl-sql.md` and the caution in `docs/guides/upsert-and-paginate-with-keyset-cursors.md` at the same time.
+
 ### html: `html"..."` escapes interpolated attribute values twice
 
 Filed as #1764. Found 2026-10-20 while writing T-09. Verified on 0.0.56. `&` renders as `&amp;amp;`, which breaks URLs with query strings.
@@ -1953,6 +2008,46 @@ On Scala 2.13.18 (`zio-blocks-scope` and `zio-blocks-telemetry` 0.0.56, same imp
 
 **Fix.** Rename telemetry's type (for example `TelemetryResource` or `ServiceResource`), keeping `Resource` as a deprecated alias in a sub-object so wildcard imports no longer bring it in. If the OpenTelemetry name must stay, add a caution to the telemetry reference and guides that recommends importing telemetry names one by one.
 
+### Release: a stray version `0.017` on Maven Central is the "latest" release of eleven modules
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/add-zio-blocks-to-your-build.md` (backlog H-01), on `main` at `b4179489`. The current release is `v0.0.56`.
+
+**Summary.** Besides the real `0.0.17` release, version `0.017` (no second dot) was published to Maven Central on 2026-02-07, the same day as tag `v0.0.17`. There is no `v0.017` tag or GitHub release. Maven orders `0.017` above `0.0.56` (its second segment, 17, beats 0), so the `<latest>` and `<release>` fields of `maven-metadata.xml` still point at the February build for every module that existed then: `chunk`, `context`, `schema`, `schema-avro`, `schema-bson`, `schema-messagepack`, `schema-thrift`, `schema-toon`, `scope`, `streams` and `typeid`, under both `zio-blocks-` and `zio-blocks-next-`, on all published platforms and Scala versions. Modules added later (`maybe`, `config`, `jwt`, ...) are not affected.
+
+**Reproduction** (coursier 2.x and scala-cli 1.10.1, against Maven Central):
+
+```bash
+curl -s https://repo1.maven.org/maven2/dev/zio/zio-blocks-schema_3/maven-metadata.xml | grep -E '<latest>|<release>'
+#     <latest>0.017</latest>
+#     <release>0.017</release>
+
+cs resolve 'dev.zio:zio-blocks-schema_3:latest.release' | grep zio-blocks-schema
+# dev.zio:zio-blocks-schema_3:0.017:default
+```
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+```
+
+```
+$ scala-cli compile .
+[hint] ./Main.scala:2:15
+[hint] "zio-blocks-schema is outdated, update to 0.017"
+[hint]      zio-blocks-schema 0.0.56 -> dev.zio::zio-blocks-schema:0.017
+```
+
+**Expected.** `latest.release` resolves to `0.0.56`, and scala-cli reports `0.0.56` as up to date.
+
+**Root cause.** A release was published with the version string `0.017` instead of `0.0.17`. Maven Central does not allow deleting or overwriting a published version, so the metadata will keep ranking it highest until a version that sorts above `0.017` (such as `0.1.0`) is released.
+
+**Impact.** Every scala-cli user of the affected modules sees an "outdated, update to 0.017" hint, and following it downgrades them to February code. Builds that use `latest.release` or a version range get `0.017`. Dependency bots such as Scala Steward may also propose the downgrade, unless they are told to ignore it.
+
+**Test gap.** The release workflow does not check that the version derived from the tag has the `MAJOR.MINOR.PATCH` shape.
+
+**Suggested fix.** Add a check to the release workflow that fails when the version does not match `^\d+\.\d+\.\d+(-.+)?$`. Add a Scala Steward `updates.ignore` entry for version `0.017` under `dev.zio` so the repo's own bots skip it. The metadata only stops pointing at `0.017` once a release sorts above it, such as `0.1.0`. Until then, the install guide pins `@VERSION@` and never suggests `latest.release`.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -2306,6 +2401,52 @@ object Employee { implicit val schema: Schema[Employee] = Schema.derived }
 - `docs/index.md` and `built-in-codecs/json/index.md:39,45` give `zio-blocks-schema` for every Scala version; Scala 3.7+ uses `zio-blocks-next-schema`. H-01 (stalled) includes this fix.
 - `combinators.md` documents a `Choices` module that does not exist (research §9.6).
 - `docs/dev/research.md` cites stale line numbers (for example `Transactor.scala:65` is now `:261`/`:275`, `Table.scala:32` is now `:262`).
+
+### docs: the streams overview marks `fromInputStream` and `fromJavaReader` as JVM-only, but they also run on Scala.js
+
+Found 2026-10-20 while writing the how-to guide `docs/guides/stream-files-and-sockets.md` (backlog H-24), on `main` at `b4179489`. The same text is in tag `v0.0.56`; it dates from #1318.
+
+**Summary.** The "Creating Streams" block of `docs/reference/streams/index.md` labels both groups of I/O constructors "JVM only": `Stream.fromInputStream`, `Stream.fromJavaReader`, `Stream.fromInputStreamUnmanaged` and `Stream.fromJavaReaderUnmanaged`. All four are defined in the shared sources and work on Scala.js; only their blocking terminals (`runCollect`, `run`, …) and the NIO helpers (`NioStreams`, `NioSinks`) are JVM-only.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-streams` 0.0.56 for Scala.js, run with `scala-cli run Repro.scala --js-cli-on-jvm` — the default native Scala.js linker of scala-cli 1.10 only reads IR up to 1.20, and the 0.0.56 artifacts are IR 1.22):
+
+```scala
+//> using scala 3.9.0
+//> using platform scala-js
+//> using jsVersion 1.22.0
+//> using option -experimental
+//> using dep dev.zio::zio-blocks-next-streams::0.0.56
+
+import zio.blocks.async._
+import zio.blocks.streams._
+
+import java.io.{ByteArrayInputStream, StringReader}
+import scala.concurrent.ExecutionContext.Implicits.global
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val bytes = new ByteArrayInputStream("Zionomicon".getBytes("UTF-8"))
+    Stream.fromInputStream(bytes).map(_.toChar).runCollectAsync.toFuture.foreach(println)
+
+    val chars = new StringReader("Programming in Scala")
+    Stream.fromJavaReader(chars).runCollectAsync.toFuture.foreach(r => println(r.map(_.mkString)))
+  }
+}
+// Right(Chunk(Z,i,o,n,o,m,i,c,o,n))
+// Right(Programming in Scala)
+```
+
+**Expected.** The overview says these constructors are available on both platforms, as `docs/reference/streams/core/stream.md` already implies (it lists them without a platform note).
+
+**Root cause.** Documentation only. `docs/reference/streams/index.md:398` and `:402` say "JVM only", but the four constructors live in `streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:2997`, `:3010`, `:3067` and `:3080`, and the shared spec `streams/shared/src/test/scala/zio/blocks/streams/NewCombinatorsSpec.scala:612-630` runs them on both platforms.
+
+**Impact.** Low. A Scala.js user reading the overview concludes they cannot stream a `java.io.InputStream` or `Reader` and writes the adapter by hand.
+
+**Test gap.** None in the library; the shared spec covers both platforms. Nothing checks platform labels in the docs against the source tree.
+
+**Suggested fix.** Drop "- JVM only" from both comments at `docs/reference/streams/index.md:398` and `:402`.
+
+Fixed in #1796 (H-24).
 
 ## Resolved
 

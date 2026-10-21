@@ -40,14 +40,14 @@ To follow along, add the `sql` module and the SQLite JDBC driver to your `build.
 // Scala 3.3 LTS
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "@VERSION@"
 
 // The SQLite JDBC driver, for every Scala version
 libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 ```
 
-The `sql` module is published for Scala 3 only, and the `JdbcTransactor` we use to talk to the database runs on the JVM. Scala 3.7 and newer use the `zio-blocks-next-sql` artifact name; the code in this tutorial is the same for both.
+The `sql` module is published for Scala 3 only, and the `JdbcTransactor` we use to talk to the database runs on the JVM. Scala 3.9 and newer use the `zio-blocks-next-sql` artifact name; the code in this tutorial is the same for both.
 
 ## 2. Background: One Schema, One Repository
 

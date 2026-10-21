@@ -453,6 +453,7 @@ const sidebars = {
   ],
   // Guides get their own sidebar, reached from the "Guides" navbar item, so the reference sidebar stays reference-only.
   guides: [
+    "guides/add-zio-blocks-to-your-build",
     "guides/your-first-schema",
     "guides/customize-json-encoding",
     "guides/override-codec-for-one-type",
@@ -466,8 +467,10 @@ const sidebars = {
     "guides/your-first-sqlite-repository",
     "guides/test-database-code-against-sqlite",
     "guides/connect-to-postgresql-with-a-connection-pool",
+    "guides/upsert-and-paginate-with-keyset-cursors",
     "guides/stream-large-query-results",
     "guides/your-first-html-page",
+    "guides/stream-files-and-sockets",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
     "guides/fix-scope-and-wire-compile-errors",
