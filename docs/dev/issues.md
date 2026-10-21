@@ -1389,6 +1389,247 @@ Moving the derivation into the companion works around it. With `implicit val sch
 
 **Suggested fix.** In `directSubTypes`, build each case's type from the parent's prefix instead of the owner's `this`: walk from the case's owner up to the parent's owner, and select each module on the way (Scala 3: `prefix.select(owner.companionModule)` and then `.select(symbol)`; Scala 2: `c.internal.singleType(prefix, owner.asClass.module)` and then `c.internal.typeRef(prefix, symbol, Nil)`). For the repro this yields `Bookstore.this.Format.Ebook`. Apply it to the generic branch too, and add tests for both Scala versions: a class-nested sealed trait with companion-held cases derived from the class body and from another companion, a `def`-local variant, and a Scala 3 enum with class cases inside a class.
 
+### schema: on Scala 2, `DerivedOptics#optics` compiles only inside the `zio.blocks.schema` package
+
+Found 2026-10-21 while making the schema Scaladoc examples compile (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `1945f601`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** On Scala 2, every call to `optics` on a companion that extends `DerivedOptics` (or `DerivedOptics.Of`) fails to compile in user code: the macro expansion calls the package-private `DerivedOpticsMacros.getOrCreate`. Scala 3 is not affected.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Book(title: String, pages: Int)
+object Book extends DerivedOptics {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val title: Lens[Book, String] = Book.optics.title
+    println(title.get(Book("Zionomicon", 870)))
+  }
+}
+// [error] ./Repro.scala:12:42
+// [error] object DerivedOpticsMacros in package schema cannot be accessed as a member of package zio.blocks.schema from object Main
+// [error]     val title: Lens[Book, String] = Book.optics.title
+// [error]                                          ^
+// Compilation failed
+```
+
+The same file on Scala 3.3.7 prints `Zionomicon`.
+
+**Expected.** The program compiles and prints `Zionomicon`, as the Scala 2 Scaladoc of `DerivedOptics` shows.
+
+**Root cause.** `DerivedOpticsMacros` and its `getOrCreate` are `private[schema]` (`schema/shared/src/main/scala-2/zio/blocks/schema/DerivedOptics.scala:213`, `:224`), but the trees the macro returns call `_root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(...)` (`:324`, `:359`, `:382`). The wrapper branch also calls the `private[schema]` `DerivedOptics.wrapperAsRecord` (`:107`, used at `:313` and `:387`). Scala 2 macros expand at the call site, where these members are not accessible.
+
+**Impact.** `DerivedOptics` is unusable on Scala 2 outside the library. The two Scala 2 Scaladoc examples on `DerivedOptics` are marked `// no-check` until this is fixed.
+
+**Test gap.** `DerivedOpticsSpec` (`schema/shared/src/test/scala/zio/blocks/schema/DerivedOpticsSpec.scala`) is in package `zio.blocks.schema`, so the private members are visible to it.
+
+**Suggested fix.** Make `DerivedOpticsMacros.getOrCreate` and `DerivedOptics.wrapperAsRecord` public (they can stay out of the user-facing docs), or move the runtime helpers to a public object that the expansion calls. Add a Scala 2 test in a package outside `zio.blocks.schema`, or rely on the `schema-scaladoc-check` examples once the `// no-check` markers are removed.
+
+### schema: on Scala 2, `NonNegativeInt.literal` and `PositiveNumber.literal` compile only inside `zio.blocks.schema.json`
+
+Found 2026-10-21 while making the schema Scaladoc examples compile (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `1945f601`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** On Scala 2, the compile-time `literal` constructors expand to `new NonNegativeInt(...)` and `new PositiveNumber(...)`, whose constructors are `private[json]`. Any call outside the `zio.blocks.schema.json` package fails to compile, even for a valid literal. Scala 3 is not affected.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json.{NonNegativeInt, PositiveNumber}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val minLength: NonNegativeInt  = NonNegativeInt.literal(3)
+    val multipleOf: PositiveNumber = PositiveNumber.literal(5)
+    println((minLength, multipleOf))
+  }
+}
+// [error] ./Repro.scala:7:60
+// [error] constructor NonNegativeInt in class NonNegativeInt cannot be accessed in object Main from object Main
+// [error]     val minLength: NonNegativeInt  = NonNegativeInt.literal(3)
+// [error]                                                            ^
+// [error] ./Repro.scala:8:60
+// [error] constructor PositiveNumber in class PositiveNumber cannot be accessed in object Main from object Main
+// [error]     val multipleOf: PositiveNumber = PositiveNumber.literal(5)
+// [error]                                                            ^
+// Compilation failed
+```
+
+**Expected.** The program compiles and prints the two values.
+
+**Root cause.** The Scala 2 macros emit `q"new _root_.zio.blocks.schema.json.NonNegativeInt($value)"` (`schema/shared/src/main/scala-2/zio/blocks/schema/json/NonNegativeIntCompanionVersionSpecific.scala:47`) and `q"new _root_.zio.blocks.schema.json.PositiveNumber(BigDecimal($value))"` (`.../PositiveNumberCompanionVersionSpecific.scala:47`), but both constructors are `private[json]` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:33`, `:54`). The Scala 3 versions call the public `unsafe` instead (`schema/shared/src/main/scala-3/zio/blocks/schema/json/NonNegativeIntCompanionVersionSpecific.scala:36`, `.../PositiveNumberCompanionVersionSpecific.scala:36`).
+
+**Impact.** `literal` is unusable on Scala 2. The Scala 2 Scaladoc examples of both methods are marked `// no-check` until this is fixed.
+
+**Test gap.** No test calls `literal` on either Scala version.
+
+**Suggested fix.** Emit `_root_.zio.blocks.schema.json.NonNegativeInt.unsafe($value)` and `_root_.zio.blocks.schema.json.PositiveNumber.unsafe(BigDecimal($value))`, as the Scala 3 versions do, and add tests for both versions in a package outside `zio.blocks.schema.json`, including a `typeCheck` test for the rejected literal.
+
+### schema: on Scala 2, `Schema#structural` returns `Schema[ts.StructuralType]`, not the structural type
+
+Found 2026-10-21 while making the schema Scaladoc examples compile (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `1945f601`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** On Scala 2, the `ToStructural` macro is blackbox, so the compiler never sees the refined `StructuralType` of the instance it returns. `Schema#structural` therefore has the type `Schema[ts.StructuralType]`, which cannot be assigned to a `Schema` of the structural type, as the Scaladoc of `Schema#structural` and `ToStructural` showed. On Scala 3 the same code compiles.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Book(title: String, pages: Int)
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val structuralSchema: Schema[{ def title: String; def pages: Int }] =
+      Schema.derived[Book].structural
+    println(structuralSchema)
+  }
+}
+// [error] ./Repro.scala:10:7
+// [error] type mismatch;
+// [error]  found   : zio.blocks.schema.Schema[ts.StructuralType] where val ts: zio.blocks.schema.ToStructural[Book]
+// [error]  required: zio.blocks.schema.Schema[AnyRef{def title: String; def pages: Int}]
+// [error]       Schema.derived[Book].structural
+// [error]       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// Compilation failed
+```
+
+The same file on Scala 3.3.7 prints the record schema `record {pages:Int,title:String}`.
+
+**Expected.** The program compiles, as it does on Scala 3.
+
+**Root cause.** `ToStructural.toStructural` is a blackbox macro (`schema/shared/src/main/scala-2/zio/blocks/schema/ToStructuralVersionSpecific.scala:24`, `:27`, `:31`). A blackbox macro's result keeps the declared type `ToStructural[A]`, so the `type StructuralType = ...` refinement that the expansion defines is lost, and `structural`'s dependent result type `Schema[ts.StructuralType]` (`schema/shared/src/main/scala-2/zio/blocks/schema/SchemaVersionSpecific.scala:48`) stays abstract.
+
+**Impact.** On Scala 2 a structural schema can be created but not used with its structural type. The Scala 2 Scaladoc of `Schema#structural` now shows the untyped form, and the `ToStructural` example is marked `// scala-3-only`.
+
+**Test gap.** The Scala 2 structural tests (`schema/jvm/src/test/scala-2/zio/blocks/schema/structural/`) call `schema.structural` without a type ascription and only check the result at run time.
+
+**Suggested fix.** Make the macro whitebox (`whitebox.Context`), so the implicit's inferred type keeps the `StructuralType` refinement (the usual `Aux` pattern), and add a Scala 2 test that assigns the result to `Schema[{ def name: String; def age: Int }]`.
+
+### schema: on Scala 3.10, direct optic access (`Person.name`) on a `DerivedOptics` companion will stop compiling
+
+Found 2026-10-21 while making the schema Scaladoc examples compile (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `1945f601`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** On Scala 3, `Person.name` on a companion that extends `DerivedOptics` works through a `given Conversion` that needs an `OpticsFor` instance, and `OpticsFor` is `private[schema]`. Scala 3.9 finds the given anyway but warns that Scala 3.10 will not.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using options -deprecation
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Book(title: String, pages: Int)
+object Book extends DerivedOptics {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val title: Lens[Book, String] = Book.title
+    println(title.get(Book("Zionomicon", 870)))
+  }
+}
+// [warn] ./Repro.scala:13:37
+// [warn] Usage of implicit given instance derived defined in object OpticsFor, which is not accessible here. In Scala 3.10, this implicit will no longer be found.
+// [warn]     val title: Lens[Book, String] = Book.title
+// [warn]                                     ^
+// Zionomicon
+```
+
+**Expected.** No warning: the given that direct access depends on is accessible from user code.
+
+**Root cause.** `trait OpticsFor` and `object OpticsFor`, which holds `transparent inline given derived`, are `private[schema]` (`schema/shared/src/main/scala-3/zio/blocks/schema/DerivedOptics.scala:288`, `:293-294`), while the public `DerivedOptics#toDerivedOptics` and `DerivedOptics.Of#toDerivedOptics` take `OpticsFor` as a `using` parameter (`:103-107`, `:163`).
+
+**Impact.** The recommended direct access form (`Person.name`, `Shape.circle`) breaks for every user once they move to Scala 3.10. The `schema-scaladoc-check` build shows the warning on the `DerivedOptics` examples.
+
+**Test gap.** `DerivedOpticsVersionSpecificSpec` is in package `zio.blocks.schema`, where `OpticsFor` is accessible, so it never sees the warning.
+
+**Suggested fix.** Make `OpticsFor` public (documented as an implementation detail), and compile a direct-access test from a package outside `zio.blocks.schema`.
+
+### schema: `DerivedOptics` gives no usable lens for an opaque type
+
+Found 2026-10-21 while making the schema Scaladoc examples compile (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `1945f601`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`, on Scala 3.9.0 and 3.3.7.
+
+**Summary.** The Scala 3 `DerivedOptics` Scaladoc showed an opaque type with a wrapper schema getting a `value` lens. For an opaque type `PageCount = Int` declared in its own object, the lens has the wrong type: the direct form `PageCount.value` is a `Lens[PageCount, PageCount]` on both Scala versions, and `PageCount.optics.value` is a `Lens[PageCount, Int]` on 3.9.0 but a `Lens[Int, Int]` on 3.3.7. `object PageCount extends DerivedOptics` (without `.Of`) does not compile at all.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object Pages {
+  opaque type PageCount = Int
+  object PageCount extends DerivedOptics.Of[PageCount] {
+    def apply(i: Int): PageCount = i
+    extension (p: PageCount) def toInt: Int = p
+
+    given schema: Schema[PageCount] = Schema[Int].transform(PageCount.apply, _.toInt)
+  }
+}
+import Pages.PageCount
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val viaOptics: Lens[PageCount, Int] = PageCount.optics.value
+    println(viaOptics.get(PageCount(870)))
+
+    val direct: Lens[PageCount, Int] = PageCount.value
+    println(direct.get(PageCount(870)))
+  }
+}
+// [error] ./Repro.scala:21:40
+// [error] Found:    (zio.blocks.schema.OpticsHolder{
+// [error]   val value: zio.blocks.schema.Lens[Pages.PageCount, Pages.PageCount]}#value :
+// [error]   zio.blocks.schema.Lens[Pages.PageCount, Pages.PageCount])
+// [error] Required: zio.blocks.schema.Lens[Pages.PageCount, Int]
+// [error]     val direct: Lens[PageCount, Int] = PageCount.value
+// [error]                                        ^^^^^^^^^^^^^^^
+// Compilation failed
+```
+
+On 3.9.0, without the two `direct` lines, the program prints `870`. The same file with `//> using scala 3.3.7` fails on both lines:
+
+```
+[error] ./Repro.scala:18:43
+[error] Found:    (zio.blocks.schema.OpticsHolder{val value: zio.blocks.schema.Lens[Int, Int]}#
+[error]   value : zio.blocks.schema.Lens[Int, Int])
+[error] Required: zio.blocks.schema.Lens[Pages.PageCount, Int]
+[error]     val viaOptics: Lens[PageCount, Int] = PageCount.optics.value
+[error]                                           ^^^^^^^^^^^^^^^^^^^^^^
+[error] ./Repro.scala:21:40
+[error] Found:    (zio.blocks.schema.OpticsHolder{
+[error]   val value: zio.blocks.schema.Lens[Pages.PageCount, Pages.PageCount]}#value :
+[error]   zio.blocks.schema.Lens[Pages.PageCount, Pages.PageCount])
+[error] Required: zio.blocks.schema.Lens[Pages.PageCount, Int]
+[error]     val direct: Lens[PageCount, Int] = PageCount.value
+[error]                                        ^^^^^^^^^^^^^^^
+Compilation failed
+```
+
+**Expected.** Both forms give a `Lens[PageCount, Int]` on every Scala 3 version.
+
+**Root cause** (from source, consistent with the output). `DerivedOpticsMacros.opticsImpl` takes the lens's source type from `S` and the value type from `tpe.dealias` (`schema/shared/src/main/scala-3/zio/blocks/schema/DerivedOptics.scala:365`), and `buildWrapperOptics` builds `Lens[S, u]` from them (`:377-378`, `:391-394`). Through the conversion, `OpticsFor.derived[S]` (`:294`) is inferred at the call site outside `Pages`, where `PageCount` is opaque, so `dealias` returns `PageCount` itself. Through `optics`, `S` is the type argument of the `DerivedOptics.Of[PageCount]` parent, written inside `object Pages` where the alias is visible; 3.9.0 keeps `PageCount` as `S` and dealiases the value type to `Int`, while 3.3.7 dealiases both. Plain `DerivedOptics` looks up the companion class of the type (`:130`, `:339-342`), and an opaque type has none, so it fails with `Cannot find companion class`.
+
+**Impact.** Optics for opaque types cannot be derived portably. The `DerivedOptics` Scaladoc example now uses a value class (`case class Age(value: Int) extends AnyVal` with a `transform` schema), which works on all versions, and says that opaque types are not supported yet.
+
+**Test gap.** No test derives optics for an opaque type.
+
+**Suggested fix.** In `opticsImpl`, when `tpe.typeSymbol` is an opaque type alias, keep `S` as the opaque type and take the underlying type from `tpe.translucentSuperType`, instead of relying on `tpe.dealias`. Support plain `DerivedOptics` on an opaque type's companion by falling back to the companion module's type when there is no companion class. Add tests for both access forms on an opaque type declared in a separate object, on 3.3.x and 3.9.x.
+
 ### sql: `queryStream` throws, instead of returning `Left`, when the `SELECT` has fewer columns than the row type, and logs the failed query as a success
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/stream-large-query-results.md` (backlog H-20), on `main` at `b4179489`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 main -- sql/ streams/` is empty, and the stack trace from the 0.0.56 jar points at the same line numbers as `main`.
