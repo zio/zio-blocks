@@ -32,9 +32,12 @@ import zio.blocks.schema.binding.Binding
  *   reflection.
  */
 trait SchemaAspect[-Upper, +Lower, F[_, _]] {
+
+  /** Returns `reflect` transformed by this aspect. */
   def apply[A >: Lower <: Upper](reflect: Reflect[F, A]): Reflect[F, A]
 }
 
+/** The built-in aspects. Apply one with `Schema#@@`. */
 object SchemaAspect {
 
   /**
