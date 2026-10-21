@@ -1550,7 +1550,7 @@ object Main {
 
 **Expected.** No warning: the given that direct access depends on is accessible from user code.
 
-**Root cause.** `trait OpticsFor` and `object OpticsFor`, which holds `transparent inline given derived`, are `private[schema]` (`schema/shared/src/main/scala-3/zio/blocks/schema/DerivedOptics.scala:288`, `:293-294`), while the public `DerivedOptics#toDerivedOptics` and `DerivedOptics.Of#toDerivedOptics` take `OpticsFor` as a `using` parameter (`:103-107`, `:163`).
+**Root cause.** `trait OpticsFor` and `object OpticsFor`, which holds `transparent inline given derived`, are `private[schema]` (`schema/shared/src/main/scala-3/zio/blocks/schema/DerivedOptics.scala:290`, `:295-296`), while the public `DerivedOptics#toDerivedOptics` and `DerivedOptics.Of#toDerivedOptics` take `OpticsFor` as a `using` parameter (`:105-109`, `:165`).
 
 **Impact.** The recommended direct access form (`Person.name`, `Shape.circle`) breaks for every user once they move to Scala 3.10. The `schema-scaladoc-check` build shows the warning on the `DerivedOptics` examples.
 
@@ -1603,32 +1603,104 @@ object Main {
 
 On 3.9.0, without the two `direct` lines, the program prints `870`. The same file with `//> using scala 3.3.7` fails on both lines:
 
+```scala
+// [error] ./Repro.scala:18:43
+// [error] Found:    (zio.blocks.schema.OpticsHolder{val value: zio.blocks.schema.Lens[Int, Int]}#
+// [error]   value : zio.blocks.schema.Lens[Int, Int])
+// [error] Required: zio.blocks.schema.Lens[Pages.PageCount, Int]
+// [error]     val viaOptics: Lens[PageCount, Int] = PageCount.optics.value
+// [error]                                           ^^^^^^^^^^^^^^^^^^^^^^
+// [error] ./Repro.scala:21:40
+// [error] Found:    (zio.blocks.schema.OpticsHolder{
+// [error]   val value: zio.blocks.schema.Lens[Pages.PageCount, Pages.PageCount]}#value :
+// [error]   zio.blocks.schema.Lens[Pages.PageCount, Pages.PageCount])
+// [error] Required: zio.blocks.schema.Lens[Pages.PageCount, Int]
+// [error]     val direct: Lens[PageCount, Int] = PageCount.value
+// [error]                                        ^^^^^^^^^^^^^^^
+// Compilation failed
 ```
-[error] ./Repro.scala:18:43
-[error] Found:    (zio.blocks.schema.OpticsHolder{val value: zio.blocks.schema.Lens[Int, Int]}#
-[error]   value : zio.blocks.schema.Lens[Int, Int])
-[error] Required: zio.blocks.schema.Lens[Pages.PageCount, Int]
-[error]     val viaOptics: Lens[PageCount, Int] = PageCount.optics.value
-[error]                                           ^^^^^^^^^^^^^^^^^^^^^^
-[error] ./Repro.scala:21:40
-[error] Found:    (zio.blocks.schema.OpticsHolder{
-[error]   val value: zio.blocks.schema.Lens[Pages.PageCount, Pages.PageCount]}#value :
-[error]   zio.blocks.schema.Lens[Pages.PageCount, Pages.PageCount])
-[error] Required: zio.blocks.schema.Lens[Pages.PageCount, Int]
-[error]     val direct: Lens[PageCount, Int] = PageCount.value
-[error]                                        ^^^^^^^^^^^^^^^
-Compilation failed
+
+With plain `DerivedOptics` instead of `DerivedOptics.Of` (Scala 3.9.0, `zio-blocks-schema` 0.0.56), `optics` does not compile:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object Pages {
+  opaque type PageCount = Int
+  object PageCount extends DerivedOptics {
+    def apply(i: Int): PageCount = i
+    extension (p: PageCount) def toInt: Int = p
+
+    given schema: Schema[PageCount] = Schema[Int].transform(PageCount.apply, _.toInt)
+  }
+}
+import Pages.PageCount
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val viaOptics = PageCount.optics.value
+    println(viaOptics)
+  }
+}
+// [error] ./Repro.scala:18:21
+// [error] Cannot find companion class for $proxy1.PageCount
+// [error]     val viaOptics = PageCount.optics.value
+// [error]                     ^^^^^^^^^^^^^^^^
+// Compilation failed
 ```
 
 **Expected.** Both forms give a `Lens[PageCount, Int]` on every Scala 3 version.
 
-**Root cause** (from source, consistent with the output). `DerivedOpticsMacros.opticsImpl` takes the lens's source type from `S` and the value type from `tpe.dealias` (`schema/shared/src/main/scala-3/zio/blocks/schema/DerivedOptics.scala:365`), and `buildWrapperOptics` builds `Lens[S, u]` from them (`:377-378`, `:391-394`). Through the conversion, `OpticsFor.derived[S]` (`:294`) is inferred at the call site outside `Pages`, where `PageCount` is opaque, so `dealias` returns `PageCount` itself. Through `optics`, `S` is the type argument of the `DerivedOptics.Of[PageCount]` parent, written inside `object Pages` where the alias is visible; 3.9.0 keeps `PageCount` as `S` and dealiases the value type to `Int`, while 3.3.7 dealiases both. Plain `DerivedOptics` looks up the companion class of the type (`:130`, `:339-342`), and an opaque type has none, so it fails with `Cannot find companion class`.
+**Root cause** (from source, consistent with the output). `DerivedOpticsMacros.opticsImpl` takes the lens's source type from `S` and the value type from `tpe.dealias` (`schema/shared/src/main/scala-3/zio/blocks/schema/DerivedOptics.scala:367`), and `buildWrapperOptics` builds `Lens[S, u]` from them (`:379-380`, `:393-396`). Through the conversion, `OpticsFor.derived[S]` (`:296`) is inferred at the call site outside `Pages`, where `PageCount` is opaque, so `dealias` returns `PageCount` itself. Through `optics`, `S` is the type argument of the `DerivedOptics.Of[PageCount]` parent, written inside `object Pages` where the alias is visible; 3.9.0 keeps `PageCount` as `S` and dealiases the value type to `Int`, while 3.3.7 dealiases both. Plain `DerivedOptics` looks up the companion class of the type (`:132`, `:341-344`), and an opaque type has none, so it fails with `Cannot find companion class`.
 
 **Impact.** Optics for opaque types cannot be derived portably. The `DerivedOptics` Scaladoc example now uses a value class (`case class Age(value: Int) extends AnyVal` with a `transform` schema), which works on all versions, and says that opaque types are not supported yet.
 
 **Test gap.** No test derives optics for an opaque type.
 
 **Suggested fix.** In `opticsImpl`, when `tpe.typeSymbol` is an opaque type alias, keep `S` as the opaque type and take the underlying type from `tpe.translucentSuperType`, instead of relying on `tpe.dealias`. Support plain `DerivedOptics` on an opaque type's companion by falling back to the companion module's type when there is no companion class. Add tests for both access forms on an opaque type declared in a separate object, on 3.3.x and 3.9.x.
+
+### schema: on Scala 3, a `DerivedOptics` lens for a value class with a wrapper schema works only when its field is named `value`
+
+Found 2026-10-21 in review of the `DerivedOptics` Scaladoc fix (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `79458a88`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`, on Scala 3.9.0 and 3.3.7.
+
+**Summary.** For a value class whose schema is a wrapper (built with `transform`), `DerivedOptics` gives the companion a lens named after the case field, so `Isbn.code` and `Isbn.optics.code` type-check. At run time the wrapper schema's only field is named `value`, so reading the lens throws `No optic found for: code`. The lens works only when the field happens to be named `value`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Isbn(code: String) extends AnyVal
+object Isbn extends DerivedOptics {
+  given schema: Schema[Isbn] = Schema[String].transform(Isbn(_), _.code)
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val zionomicon = Isbn("978-0-9000000-0-1")
+    println(scala.util.Try(Isbn.code.get(zionomicon)))
+    println(scala.util.Try(Isbn.optics.code.get(zionomicon)))
+  }
+}
+// Failure(java.lang.RuntimeException: No optic found for: code)
+// Failure(java.lang.RuntimeException: No optic found for: code)
+```
+
+The same file with `//> using scala 3.3.7` prints the same two lines. (scala-cli also reports one deprecation warning on 3.9.0, the `OpticsFor` one above, and one feature warning on both.)
+
+**Expected.** Both lines print `Success(978-0-9000000-0-1)`: the lens that type-checks as `code` reads the field.
+
+**Root cause.** A value class is a case class, so `opticsImpl` takes the case-class path (`schema/shared/src/main/scala-3/zio/blocks/schema/DerivedOptics.scala:374`, `:377`). That path names each accessor of the refined type after the case field (`:437-438`). At run time it falls back to `DerivedOptics.wrapperAsRecord` for a wrapper schema (`:451`), which always builds a single term named `"value"` (`:171`, `:175`), and registers each lens under its term name (`:458`). `OpticsHolder.selectDynamic("code")` then finds nothing (`:282-283`). The Scala 2 macro looks the lens up by index instead (`schema/shared/src/main/scala-2/zio/blocks/schema/DerivedOptics.scala:316`), so it would not have this problem (from source; Scala 2 `optics` does not compile outside the library, see above).
+
+**Impact.** A value class with a wrapper schema and a field named anything but `value` gets a lens that compiles and always fails at run time. The Scala 3 `DerivedOptics` Scaladoc now says the field must be named `value`.
+
+**Test gap.** The only wrapper test (`DerivedOpticsSpec`, "robustness: wrapperAsRecord strategy works for custom wrapper types", `schema/shared/src/test/scala/zio/blocks/schema/DerivedOpticsSpec.scala:372-393`) uses a field named `value`.
+
+**Suggested fix.** In the case-class path, when the schema is a wrapper and the case class has one field, register the lens under that field's name (or look it up by index, as Scala 2 does), and add a test with a value class whose field is not named `value`.
 
 ### sql: `queryStream` throws, instead of returning `Left`, when the `SELECT` has fewer columns than the row type, and logs the failed query as a success
 
