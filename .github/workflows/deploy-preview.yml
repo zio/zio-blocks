@@ -114,6 +114,21 @@ jobs:
           if (!['admin', 'maintain', 'write'].includes(data.permission)) {
             core.setFailed(`${context.payload.sender.login} has no write access, refusing to deploy preview.`);
           }
+    - name: Acknowledge Request
+      uses: actions/github-script@v9
+      with:
+        script: |
+          const params = {
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: context.payload.comment.id,
+          };
+          const { status, data } = await github.rest.reactions.createForIssueComment({ ...params, content: '+1' });
+          if (status === 200) {
+            await github.rest.reactions.deleteForIssueComment({ ...params, reaction_id: data.id });
+            await github.rest.reactions.createForIssueComment({ ...params, content: '+1' });
+          }
+      continue-on-error: true
     - name: Find CI Run of the Commit
       id: ci
       uses: actions/github-script@v9
