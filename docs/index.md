@@ -30,6 +30,8 @@ type to adopt:
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 
+That line is for Scala 2.13 and Scala 3.3 to 3.8. On Scala 3.9 and newer, use `zio-blocks-next-schema` and add `scalacOptions += "-experimental"`. See [How to Add ZIO Blocks to Your Build](./guides/add-zio-blocks-to-your-build.md) for Scala.js, scala-cli, and cross-building.
+
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 
@@ -503,18 +505,23 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [One Type, Many Formats](./guides/one-type-many-formats.md) - Derive JSON, YAML, XML, TOON, MessagePack, Avro and CSV codecs from one `Schema` and round-trip a catalog through each
 - [How to Derive Your Own Type Class from a Schema](./guides/derive-your-own-type-class.md) - Write a `Deriver` once and get a type class instance for every record, variant and primitive in your model
 - [Build a Typed Configuration Loader](./guides/typed-config-loader.md) - Load a typed case class from YAML, environment overrides and defaults, report every error at once, and see where each value came from
+- [How to Feed Configuration into a Wire Dependency Graph](./guides/feed-config-into-a-wire-graph.md) - Give each service in a Wire graph its own typed, checked settings from one layered `ConfigSource`, and shut everything down in order
 - [How to Roll Out a Feature Gradually with Flags](./guides/roll-out-feature-gradually.md) - Ship a feature to 10% of readers, target one region, widen the rollout at runtime, and test the code that reads the flag
 - [Build Your First Database Repository on SQLite](./guides/your-first-sqlite-repository.md) - Connect to SQLite, derive a table and `Repo` from one schema, write your own queries, and roll back a transaction
 - [How to Test Database Code Against SQLite](./guides/test-database-code-against-sqlite.md) - Give every test its own SQLite database, create the schema from code, seed fixtures and roll back writes in ZIO Test specs
 - [How to Connect to PostgreSQL with a Connection Pool](./guides/connect-to-postgresql-with-a-connection-pool.md) - Set up a HikariCP pool for PostgreSQL, build a `JdbcTransactor` on it, size it for virtual threads and close it with a `Scope`
+- [How to Upsert Rows and Paginate with Keyset Cursors](./guides/upsert-and-paginate-with-keyset-cursors.md) - Insert or update rows in one statement, choose which columns an upsert changes, and walk large tables page by page with keyset cursors
+- [How to Stream Large Query Results](./guides/stream-large-query-results.md) - Read a large result set as a stream of row chunks with `queryStream` and `queryChunked`, aggregate it, export it to a file and handle its errors
 - [Render Your First Server-Side HTML Page](./guides/your-first-html-page.md) - Build a book page with the HTML DSL, escape user input, add CSS and JSON state, and save it as a file
 - [How to Serve http-model Requests with the JDK HTTP Server](./guides/serve-http-model-requests.md) - Turn a JDK `HttpExchange` into an http-model `Request`, write a `Response` back, and run a handler function on the built-in server
 - [How to Validate Query Parameters and Headers and Answer 400](./guides/validate-query-parameters-and-headers.md) - Read query parameters and headers as typed values and answer missing, malformed or out-of-range input with a JSON 400 that names every problem
+- [How to Stream Files and Sockets Without Leaking Resources](./guides/stream-files-and-sockets.md) - Read files, NIO channels and sockets as streams that close their handles on success, failure, early stop and missing input
 - [Getting Started with Async](./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
 - [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
 - [How to Fix Common Scope and Wire Compile Errors](./guides/fix-scope-and-wire-compile-errors.md) - Look up a Scope or Wire error message and apply the fix
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./guides/resource-and-di-migration.md) - Move resource handling and dependency wiring to ZIO Blocks Scope, Resource, and Wire
 - [Getting Started with Mux](./guides/getting-started-with-mux.md) - Manage multiplexed bidirectional message streams with capacity limits
+- [Build a Small JSON Backend from Blocks](./guides/small-json-backend-from-blocks.md) - Capstone: combine schema, config, scope, SQL, the HTTP model and telemetry into one small JSON backend
 - [Telemetry: Architecture, Patterns, and Real-World Usage](./guides/telemetry-guide.md) - Wire tracing, logging, and metrics into a running application
 - [Migrating from ZIO Schema](./guides/zio-schema-migration.md) - Step-by-step migration from ZIO Schema 1.x to ZIO Blocks Schema
 - [Coming from PureConfig, Typesafe Config or zio-config](./guides/config-library-migration.md) - Keep your `application.conf` and move its loader to ZIO Blocks config

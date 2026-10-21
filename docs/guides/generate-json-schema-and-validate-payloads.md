@@ -55,10 +55,10 @@ In this guide, we derive the contract from the case class itself, so it changes 
 Add the schema module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 ```
 

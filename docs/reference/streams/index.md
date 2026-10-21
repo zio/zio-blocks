@@ -395,11 +395,11 @@ Stream.attemptEval(riskyEffect())               // same, for Unit-returning effe
 // Deferred construction (useful for recursion)
 Stream.suspend(expensiveStreamBuilder())
 
-// I/O sources (auto-closing) - JVM only
+// I/O sources (auto-closing)
 Stream.fromInputStream(inputStream)             // Stream[IOException, Byte] (auto-closes)
 Stream.fromJavaReader(javaReader)               // Stream[IOException, Char] (auto-closes)
 
-// I/O sources (borrowing -- caller manages lifetime) - JVM only
+// I/O sources (borrowing -- caller manages lifetime)
 Stream.fromInputStreamUnmanaged(inputStream)    // Stream[IOException, Byte] (does NOT close)
 Stream.fromJavaReaderUnmanaged(javaReader)      // Stream[IOException, Char] (does NOT close)
 ```
@@ -739,3 +739,4 @@ Stream.fromIterable(List("10", "abc", "-3", "7", "0", "25"))
 - [Zero-Boxing Streams](./execution-and-compatibility/zero-boxing.md) -- the primitive lanes and how one is chosen
 - [Async](../async.md) -- the `Async` effect type the cross-platform terminals return
 - [Mux](../mux.mdx) -- coordinating many keyed streams over one shared transport
+- [How to Stream Files and Sockets Without Leaking Resources](../../guides/stream-files-and-sockets.md) -- read files, NIO channels and sockets as streams that close their handles on every exit path

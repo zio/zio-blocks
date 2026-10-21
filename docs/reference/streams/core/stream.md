@@ -2424,3 +2424,4 @@ Each platform ships adapters that turn a native byte source into a `Reader.Async
 - [Async Reference](../../async.md) — `Async.promise` and `Completer` bridge callback-based APIs into async values that can feed stream sources; `Async.Running` carries a synchronous cancellation handle that complements stream resource management
 - [Async](../../async.md#asyncselector) — `AsyncSelector`, the primitive the bounded-concurrency slot machinery is built from
 - [Scope Reference](../../resource-management/scope.md) — compile-time resource safety for stream acquisition and release; `fromAcquireRelease` follows the same ownership rules as Scope-managed resources
+- [How to Stream Files and Sockets Without Leaking Resources](../../../guides/stream-files-and-sockets.md) — `fromAcquireRelease` and the NIO constructors applied to files and sockets, with leak checks for success, failure and early stop

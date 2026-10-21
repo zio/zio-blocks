@@ -37,14 +37,14 @@ At the end, we save the finished page as `book.html` and open it in a browser. W
 To follow along, add the HTML module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-html" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-html" % "@VERSION@"
 ```
 
-Scala 3.7 and newer use the `zio-blocks-next-html` artifact name. The HTML module depends on the schema module, so `Schema` is available without another dependency. The code in this tutorial is the same for every Scala version.
+Scala 3.9 and newer use the `zio-blocks-next-html` artifact name. The HTML module depends on the schema module, so `Schema` is available without another dependency. The code in this tutorial is the same for every Scala version.
 
 Section 7 uses a `Schema`, so you should finish the [Your First Schema](./your-first-schema.md) tutorial first.
 
