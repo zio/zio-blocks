@@ -335,10 +335,12 @@ lazy val root = project
     httpModelExamples,
     jwtExamples,
     muxExamples,
+    openapiExamples,
     schemaExamples,
     scopeExamples,
     smithyExamples,
     streamsExamples,
+    telemetryExamples,
     zioBlocksExamples,
     zioBlocksHtmxExamples,
     `projection-examples`
@@ -352,10 +354,12 @@ lazy val endpointExamples      = RootProject(file("endpoint-examples"))
 lazy val httpModelExamples     = RootProject(file("http-model-examples"))
 lazy val jwtExamples           = RootProject(file("jwt-examples"))
 lazy val muxExamples           = RootProject(file("mux-examples"))
+lazy val openapiExamples       = RootProject(file("openapi-examples"))
 lazy val schemaExamples        = RootProject(file("schema-examples"))
 lazy val scopeExamples         = RootProject(file("scope-examples"))
 lazy val smithyExamples        = RootProject(file("smithy-examples"))
 lazy val streamsExamples       = RootProject(file("streams-examples"))
+lazy val telemetryExamples     = RootProject(file("telemetry-examples"))
 lazy val zioBlocksExamples     = RootProject(file("zio-blocks-examples"))
 lazy val zioBlocksHtmxExamples = RootProject(file("zio-blocks-htmx-examples"))
 
