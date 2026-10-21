@@ -1442,6 +1442,61 @@ xa.connect {
 
 **Related (testing ergonomics).** `JdbcTransactor` has no way to hold one connection open across blocks, so `jdbc:sqlite::memory:` loses its tables between `connect`/`transact` calls, and there is no rollback-only `transact` for tests. The repo's own `RepoIntegrationSpec.withFreshDb` (`sql/jvm/src/test/scala/zio/blocks/sql/RepoIntegrationSpec.scala:58-84`) works around the first by subclassing `JdbcTransactor` and overriding `connect` with the `private[sql]` `JdbcConnection`, which users can't copy; its `transact` (not overridden) would close the shared connection. The H-47 guide uses a temporary file per test and a sentinel-exception `rollingBack` helper instead. A public single-connection transactor for tests (whose `close` is a no-op until the test ends) would make both unnecessary.
 
+### sql: `Frag.keysetAfter` leaves the column unquoted, so a keyword column such as `order` renders invalid SQL
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/upsert-and-paginate-with-keyset-cursors.md` (backlog H-18), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** `Frag.keysetAfter(table, orderCol, lastValue, limit)` and its table-less overload validate `orderCol` with `SqlIdentifier.validate` and then splice it into the SQL without quotes: `WHERE order > ? ORDER BY order ASC LIMIT n`. Every other SQL path in the module double-quotes identifiers since #1656 (`Repo`, `Upsert`, the query renderer), so a column that works everywhere else, such as a case-class field named `order`, passes `keysetAfter`'s validation and then fails at execution with a syntax error. `Repo#pageAfter` on the same table works, because it quotes its ID column.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run KeysetReservedWord.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+import zio.blocks.sql.*
+import zio.blocks.schema.Schema
+import scala.util.Try
+
+final case class Shipment(id: Long, order: Long)
+object Shipment { given Schema[Shipment] = Schema.derived }
+
+@main def run(): Unit = {
+  val dbFile = java.nio.file.Files.createTempFile("keyset", ".db")
+  dbFile.toFile.deleteOnExit()
+  val transactor = JdbcTransactor.fromUrl(s"jdbc:sqlite:$dbFile", SqlDialect.SQLite)
+  val shipments  = Repo.derived[Shipment, Long]
+
+  transactor.connect {
+    sql"""CREATE TABLE shipment ("id" INTEGER PRIMARY KEY, "order" INTEGER NOT NULL)""".update
+    println(shipments.insertBatch(List(Shipment(1, 10), Shipment(2, 20), Shipment(3, 30))))
+    // 3
+
+    // Repo quotes the column: works
+    println(shipments.pageAfter(1L, 10))
+    // List(Shipment(2,20), Shipment(3,30))
+
+    // keysetAfter accepts "order" (valid identifier, in table.columns) but doesn't quote it
+    val page = sql"SELECT * FROM shipment" ++ Frag.keysetAfter(shipments.table, "order", DbValue.DbLong(10L), 10)
+    println(page.sql(SqlDialect.SQLite))
+    // SELECT * FROM shipment WHERE order > ? ORDER BY order ASC LIMIT 10
+    println(Try(page.query[Shipment]))
+    // Failure(org.sqlite.SQLiteException: [SQLITE_ERROR] SQL error or missing database (near "order": syntax error))
+  }
+}
+```
+
+**Expected.** `keysetAfter` renders `WHERE "order" > ? ORDER BY "order" ASC LIMIT 10`, like `Repo#pageAfter` does for its ID column, and the query returns `List(Shipment(2,20), Shipment(3,30))`.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/Frag.scala:169-172` (table overload) and `:187-190` (table-less overload) build the parts as `s" WHERE $validated > "` and `s" ORDER BY $validated ASC LIMIT $limit"`. #1656 ("quoted identifiers") switched `Repo` (`Repo.scala:106-110`, `pageAfter` at `:172-179`) and `Upsert` (`Upsert.scala:35`, `:58`) to double-quoted identifiers but did not touch these two lines. `SqlIdentifier.validate` (`SqlIdentifier.scala:20-29`) only checks the `[A-Za-z_][A-Za-z0-9_]*` shape, so it does not reject keywords.
+
+**Impact.** Any keyset page over a column whose name is an SQL keyword (`order`, `group`, `limit`, `from`, `to` on some databases) fails at run time on both SQLite and PostgreSQL, although the same column works with every other `Repo`/`Upsert` method. Mixed-case column names behave differently from the rest of the module too: unquoted, PostgreSQL folds them to lower case, while `Repo` keeps the exact name.
+
+**Test gap.** `sql/shared/src/test/scala/zio/blocks/sql/KeysetSpec.scala:33-47` asserts the unquoted strings (`" WHERE id > ? ORDER BY id ASC LIMIT 20"`), so the inconsistency is pinned by the tests rather than caught. `sql/jvm/src/test/scala/zio/blocks/sql/RepoKeysetSpec.scala:145-163` runs `keysetAfter` only on the column `id`. No test uses a keyword column.
+
+**Suggested fix.** Quote the validated column in both overloads (`s""" WHERE "$validated" > """` and `s""" ORDER BY "$validated" ASC LIMIT $limit"""`), update the `KeysetSpec` golden strings, and add a `RepoKeysetSpec` case that pages a table with an `order` column through both `keysetAfter` overloads. Update the `keysetAfter` text in `docs/guides/query-dsl-sql.md` and the caution in `docs/guides/upsert-and-paginate-with-keyset-cursors.md` at the same time.
+
 ### html: `html"..."` escapes interpolated attribute values twice
 
 Filed as #1764. Found 2026-10-20 while writing T-09. Verified on 0.0.56. `&` renders as `&amp;amp;`, which breaks URLs with query strings.
