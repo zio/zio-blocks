@@ -1332,6 +1332,8 @@ Found 2026-10-20 while writing H-05 and M-01. Verified on 0.0.56.
 
 **Fix.** Drop the wrapper segment when rendering the error path for wrapper schemas.
 
+**Also seen in H-04** (2026-10-21, `docs/guides/validated-newtypes.md`). `DynamicOptic#toString` renders the same step as `~`, so `SchemaError.Single#source.toString` gives `.isbn.~` while `#message` (which uses `toScalaString`) gives `.isbn.wrapped`; `SchemaError.Message#message` uses `toString` (`SchemaError.scala:194`), the other cases `toScalaString`, so one error can show either spelling. The guide builds field names from the `DynamicOptic.Node.Field` steps to avoid both.
+
 ### schema: `Schema.derived` crashes the compiler for a sealed trait nested in a class when its case classes sit in its companion
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/derive-your-own-type-class.md` (backlog H-08), on `main` at `b4179489`. The code is the same at tag `v0.0.56`.
@@ -1847,9 +1849,274 @@ import zio.blocks.schema.csv._
 
 **Suggested fix.** Remove `nullValue`, or give it a meaning once `Option` fields are supported (write `None` as `nullValue`, read `nullValue` as `None`). Until then, document it as unused.
 
+### schema-csv: a failing `Schema#transform` check makes `CsvCodec#decode` throw instead of returning `Left`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/validated-newtypes.md` (backlog H-04), on `main` at `f87e6beb`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** A newtype whose schema is built with `Schema#transform` signals a failed check by throwing (`SchemaError` is the documented choice). The JSON, TOON and Avro codecs catch that exception and return `Left` with the field path. The derived CSV codec does not: `CsvCodec#decode` throws the `SchemaError` out of a method whose return type is `Either[SchemaError, A]`. The same `Schema[Book]` is safe to decode from JSON and crashes the caller when decoding CSV.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema-csv` 0.0.56, run with `scala-cli run CsvWrapperThrows.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-csv:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.csv._
+import java.nio.CharBuffer
+import scala.util.Try
+
+final case class Isbn private (value: String)
+object Isbn {
+  def parse(s: String): Either[SchemaError, Isbn] =
+    if (s.length == 13 && s.forall(_.isDigit)) Right(new Isbn(s))
+    else Left(SchemaError.validationFailed(s"ISBN must have 13 digits, got '$s'"))
+  implicit val schema: Schema[Isbn] = Schema[String].transform(s => parse(s).fold(e => throw e, identity), _.value)
+}
+final case class Book(isbn: Isbn, title: String)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+@main def repro(): Unit = {
+  val codec = Book.schema.derive(CsvFormat)
+  println(codec.decode(CharBuffer.wrap("9781617290657,Functional Programming in Scala\n")))
+  // Right(Book(Isbn(9781617290657),Functional Programming in Scala))
+
+  println(Try(codec.decode(CharBuffer.wrap("978-ZIO,Zionomicon\n"))))
+  // Failure(zio.blocks.schema.SchemaError: ISBN must have 13 digits, got '978-ZIO')
+
+  // The JSON codec derived from the same schema returns Left:
+  println(Book.schema.jsonCodec.decode("""{"isbn":"978-ZIO","title":"Zionomicon"}"""))
+  // Left(zio.blocks.schema.SchemaError: ISBN must have 13 digits, got '978-ZIO' at: .isbn.wrapped)
+}
+```
+
+**Expected.** `codec.decode` returns `Left(SchemaError)` for the bad row, with the field in the path, as the JSON codec does.
+
+**Root cause.** The wrapper codec in `schema-csv/src/main/scala/zio/blocks/schema/csv/CsvCodecDeriver.scala:271-275` calls `wrap(b)` outside any `try`: `case Right(b) => new Right(wrap(b))`. The JSON deriver wraps the same call in `try ... catch { case err if NonFatal(err) => wrappedError(err) }` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:2914-2918`), and so do TOON (`ToonCodecDeriver.scala:1220`) and Avro (`AvroCodecDeriver.scala:768`).
+
+**Impact.** Any CSV import of a model with validated newtypes crashes on the first bad row instead of reporting it, so one bad line in an uploaded file becomes an uncaught exception (a 500 instead of a 400). The guide tells readers to wrap CSV decoding in `Try` until this is fixed.
+
+**Test gap.** `schema-csv/src/test/scala/zio/blocks/schema/csv/CsvWrapperCodecSpec.scala` covers only `AnyVal` wrappers whose `wrap` cannot fail (round trips and `headerNames`). No test decodes a value that a wrapper rejects.
+
+**Suggested fix.** Catch `NonFatal` around `wrap(b)` and return `Left(SchemaError)` with the wrapper step in the path, matching `JsonCodecDeriver`. Add a `CsvWrapperCodecSpec` case with a validating `Schema#transform`.
+
+### schema: `Into.derived` reports every field error at the root path, so callers cannot tell which field failed
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/validated-newtypes.md` (backlog H-04), on `main` at `f87e6beb`. The code is the same at tag `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0. Not filed.
+
+**Summary.** `Into.derived[Raw, Valid]` collects one error per failing field, which is what makes it attractive for validating a request DTO. But every collected `SchemaError.Single` has `source` = `.` (the root). The field name appears only inside the message text (`converting field BookSubmission.isbn to Book.isbn failed`). Code that builds a per-field error response, or highlights fields in a form, has to parse that English text. `Schema#fromDynamicValue` on the same data reports `.isbn`, `.price` and so on.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run IntoRootPath.scala`; Scala 3.9.0 gives the same paths, with the errors in reverse order):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+
+final case class Isbn private (value: String)
+object Isbn {
+  def parse(s: String): Either[SchemaError, Isbn] =
+    if (s.length == 13 && s.forall(_.isDigit)) Right(new Isbn(s))
+    else Left(SchemaError.validationFailed(s"ISBN must have 13 digits, got '$s'"))
+}
+final case class Price private (amount: BigDecimal)
+object Price {
+  def parse(a: BigDecimal): Either[SchemaError, Price] =
+    if (a > 0) Right(new Price(a)) else Left(SchemaError.validationFailed(s"price must be positive, got $a"))
+}
+final case class BookSubmission(isbn: String, price: BigDecimal)
+final case class Book(isbn: Isbn, price: Price)
+
+object Repro extends App {
+  implicit val isbnInto: Into[String, Isbn]       = (s: String) => Isbn.parse(s)
+  implicit val priceInto: Into[BigDecimal, Price] = (a: BigDecimal) => Price.parse(a)
+
+  Into.derived[BookSubmission, Book].into(BookSubmission("978-ZIO", BigDecimal(-45))).left.foreach { err =>
+    err.errors.foreach(e => println(s"source=${e.source.toScalaString} | ${e.message.replace("\n", " / ")}"))
+  }
+  // source=. | converting field BookSubmission.isbn to Book.isbn failed /   Caused by: ISBN must have 13 digits, got '978-ZIO'
+  // source=. | converting field BookSubmission.price to Book.price failed /   Caused by: price must be positive, got -45
+}
+```
+
+**Expected.** Each error's `source` is the target field (`.isbn`, `.price`), as with `Schema#fromDynamicValue`, so `SchemaError#errors` can be mapped to fields without parsing messages.
+
+**Root cause.** The macros wrap each field failure with `SchemaError.conversionFailed(contextMessage, cause)` (`schema/shared/src/main/scala-2/zio/blocks/schema/IntoVersionSpecific.scala:721` and `:1166`; `scala-3/.../IntoVersionSpecific.scala:1516`), and that overload always uses `DynamicOptic.root` (`schema/shared/src/main/scala/zio/blocks/schema/SchemaError.scala:60-70`). The field is known at that point but only goes into the message.
+
+**Impact.** The guide steers readers to `Schema#fromDynamicValue` for per-field errors and mentions `Into` only in a tip. The Scala 2 and Scala 3 macros also report the errors in opposite orders (declaration order on 2.13, reverse on 3.9), so output that a test pins on one version fails on the other.
+
+**Test gap.** `schema-examples/src/main/scala/into/IntoErrorAccumulationExample.scala` prints the messages but never looks at `source`; no spec asserts the path of an accumulated field error.
+
+**Suggested fix.** Put the target field in the path (for example `SchemaError.conversionFailed(contextMessage, cause).atField(fieldName)`, or a `conversionFailed` overload that takes the trace), and make both macros accumulate in declaration order.
+
+### schema (Scala 3): `Into.derived` to an opaque type fails in the default package, ignores a `given Into`, and puts the error's class name in the message
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/validated-newtypes.md` (backlog H-04), on `main` at `f87e6beb`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** For a field whose target type is an opaque type, `Into.derived` looks for an `apply` (returning `Either`) or `unsafe` method in the opaque type's companion. Three things go wrong. (1) When the opaque type is declared in the default package (scala-cli scripts, worksheets, mdoc pages), the companion is not found and compilation fails with "no 'apply' or 'unsafe' method found in companion object", although the method is there; the same code inside `package shop` compiles. (2) A `given Into[String, Title]` in the companion is never consulted for an opaque target, although case-class targets use such instances; the same compile error results. (3) When `apply` returns `Either[SchemaError, Isbn]`, the error text is built with string interpolation, so the message reads `Validation failed for field 'isbn': zio.blocks.schema.SchemaError: Invalid ISBN: 978-ZIO`.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, three files run with `scala-cli run <file>`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+
+// (1) OpaqueIntoDefaultPackage.scala: no package clause
+import zio.blocks.schema.*
+
+object Domain {
+  opaque type Isbn = String
+  object Isbn {
+    def apply(s: String): Either[String, Isbn] =
+      if (s.length == 13) Right(s) else Left(s"Invalid ISBN: $s")
+  }
+}
+import Domain.*
+
+final case class BookSubmission(isbn: String)
+final case class Book(isbn: Isbn)
+
+@main def repro(): Unit =
+  println(Into.derived[BookSubmission, Book].into(BookSubmission("978-ZIO")))
+// [error] ./OpaqueIntoDefaultPackage.scala:21:11
+// [error] Cannot convert to opaque type Domain.Isbn: no 'apply' or 'unsafe' method found in companion object
+```
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+
+// (2) OpaqueIntoGiven.scala
+package shop
+
+import zio.blocks.schema.*
+
+object Domain {
+  opaque type Title = String
+  object Title {
+    def parse(s: String): Either[SchemaError, Title] =
+      if (s.trim.nonEmpty) Right(s.trim) else Left(SchemaError.validationFailed("title must not be blank"))
+    given Into[String, Title] = (s: String) => parse(s)
+  }
+}
+import Domain.*
+
+final case class TitledSubmission(title: String)
+final case class Titled(title: Title)
+
+@main def repro(): Unit =
+  println(Into.derived[TitledSubmission, Titled].into(TitledSubmission("  ")))
+// [error] ./OpaqueIntoGiven.scala:23:11
+// [error] Cannot convert to opaque type shop.Domain.Title: no 'apply' or 'unsafe' method found in companion object
+```
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+
+// (3) OpaqueIntoPackage.scala: same as (1), but in a package and with a SchemaError error type
+package shop
+
+import zio.blocks.schema.*
+
+object Domain {
+  opaque type Isbn = String
+  object Isbn {
+    def apply(s: String): Either[SchemaError, Isbn] =
+      if (s.length == 13) Right(s) else Left(SchemaError.validationFailed(s"Invalid ISBN: $s"))
+  }
+}
+import Domain.*
+
+final case class BookSubmission(isbn: String)
+final case class Book(isbn: Isbn)
+
+@main def repro(): Unit =
+  println(Into.derived[BookSubmission, Book].into(BookSubmission("978-ZIO")))
+// Left(zio.blocks.schema.SchemaError: converting field BookSubmission.isbn to Book.isbn failed
+//   Caused by: Validation failed for field 'isbn': zio.blocks.schema.SchemaError: Invalid ISBN: 978-ZIO)
+```
+
+**Expected.** (1) compiles and prints the same `Left` as the packaged version. (2) uses the `given Into[String, Title]`, as for a case-class target. (3) keeps the `SchemaError` as the cause (`Caused by: Invalid ISBN: 978-ZIO`) instead of its `toString`.
+
+**Root cause.** All in `schema/shared/src/main/scala-3/zio/blocks/schema/IntoVersionSpecific.scala` at `v0.0.56`. The opaque path (`:2355-2391`) tries only `findOpaqueValidationMethod` (`:2222-2256`, an `apply` returning `Either`) and `findOpaqueUnsafeMethod`, then aborts with `opaqueTypeNoCompanionError`; it never searches for an implicit `Into`, which explains (2). The companion lookup is `getOpaqueCompanion` (`:2279-2335`), which falls back to building a module path from `owner.fullName` when `companionModule` is empty; in the default package that lookup fails while in a named package it succeeds. Which step fails was not traced further (from behaviour). (3) comes from `:2372`, `SchemaError.conversionFailed(Nil, s"Validation failed for field '...': $err")`, which interpolates the error value.
+
+**Impact.** Scala 3 users who model newtypes as opaque types cannot reuse their smart constructors through `Into` the way case-class users can, and every script or doc page in the default package fails to compile. The guide shows opaque types only with `Schema#transform` and `Schema#fromDynamicValue`, which work.
+
+**Test gap.** `schema/shared/src/test/scala-3/zio/blocks/schema/IntoVersionSpecificSpec.scala` defines its opaque types (`OpaqueTypeDefs`, `OpaqueAge`) in `package zio.blocks.schema`, always with both `apply: Either[String, _]` and `unsafe`. No test uses the default package, a `given Into`, or a `SchemaError` error type.
+
+**Suggested fix.** Before the `apply`/`unsafe` search, look for an implicit `Into[Source, Opaque]` (as the case-class path does). Find the companion through `tpe.typeSymbol.companionModule` or the owner's declarations first, and handle the empty package in the `fullName` fallback. When the error type is `SchemaError`, pass it as the cause instead of interpolating it.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
+
+### schema: `Validation` constraints are checked only by `DynamicSchema#check`, and `DynamicSchema#check` skips `Schema#transform` checks
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/validated-newtypes.md` (backlog H-04), on `main` at `f87e6beb`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** The schema module has two ways to state a rule, and each is enforced by a different, non-overlapping path. Built-in `Validation` constraints (`Validation.Numeric.Positive`, `Validation.String.NonEmpty`, ...) live on `PrimitiveType` and are read only by `DynamicSchema#check`/`conforms`: the JSON, TOON and CSV codecs and `Schema#fromDynamicValue` accept values that break them, and `Schema#toJsonSchema` does not emit them. `Schema#transform` checks run in the codecs and `Schema#fromDynamicValue`, but `DynamicSchema#check` never calls them. There is also no public API to attach a `Validation` to a schema: the only way found is to copy the `Reflect.Primitive`.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run ValidationNotEnforced.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.binding.Binding
+
+object Repro extends App {
+  // No public API attaches a Validation to a schema; copying the primitive Reflect is the only way found.
+  val positiveInt: Schema[Int] = Schema[Int].reflect match {
+    case p: Reflect.Primitive[Binding, Int] @unchecked =>
+      new Schema(p.copy(primitiveType = PrimitiveType.Int(Validation.Numeric.Positive)))
+    case _ => sys.error("unexpected")
+  }
+  val minusFive = DynamicValue.Primitive(PrimitiveValue.Int(-5))
+
+  println(positiveInt.jsonCodec.decode("-5"))
+  // Right(-5)
+  println(positiveInt.fromDynamicValue(minusFive))
+  // Right(-5)
+  println(positiveInt.toJsonSchema)
+  // {
+  //   "type": "integer",
+  //   "maximum": 2147483647,
+  //   "minimum": -2147483648
+  // }
+  println(positiveInt.toDynamicSchema.check(minusFive))
+  // Some(zio.blocks.schema.SchemaError: Validation failed: value must be positive)
+
+  // The opposite gap: DynamicSchema#check does not run the check of a Schema#transform wrapper.
+  final case class PageCount private (value: Int)
+  object PageCount {
+    implicit val schema: Schema[PageCount] = Schema[Int].transform(
+      n => if (n > 0) new PageCount(n) else throw SchemaError.validationFailed(s"page count must be positive, got $n"),
+      _.value
+    )
+  }
+  println(PageCount.schema.fromDynamicValue(minusFive))
+  // Left(zio.blocks.schema.SchemaError: page count must be positive, got -5 at: .wrapped)
+  println(PageCount.schema.toDynamicSchema.check(minusFive))
+  // None
+}
+```
+
+**Expected.** Either the codecs, `Schema#fromDynamicValue` and `Schema#toJsonSchema` honour `Validation` (with a public way to attach one, such as a modifier), or the docs say plainly that `Validation` is metadata read only by `DynamicSchema`. `DynamicSchema#check` either runs wrapper checks or says it checks structure and `Validation` only.
+
+**Root cause.** In `schema/shared/src/main`, only `DynamicSchema.scala` (`checkPrimitive` at `:394-412`, `checkValidation` at `:414-516`) reads `PrimitiveType#validation`; `JsonSchemaToReflect.scala:261-285` creates `Validation` values when parsing a JSON Schema, and nothing in the codec derivers or `Reflect#fromDynamicValue` reads them. `DynamicSchema#check` (`DynamicSchema.scala:93`) walks the `Reflect` tree without the `Binding`, so it has no `wrap` function to call for a wrapper.
+
+**Impact.** `validation.md` presents `Validation` as "automatic enforcement during schema-based decoding" (see Documentation errors), so a user who relies on it accepts invalid data. A user who validates incoming `DynamicValue`s with `DynamicSchema#check` misses every newtype rule. The guide recommends smart constructors with `Schema#transform` and says that `Validation` is enforced only by `DynamicSchema#check`.
+
+**Test gap.** No codec spec decodes a value that breaks a `Validation`, and no `DynamicSchema` spec checks a wrapper schema built with `Schema#transform`.
+
+**Suggested fix.** Decide what `Validation` is for. If it is meant to be enforced, check it in `Reflect.Primitive`'s decode paths (or in each deriver's primitive codec), emit it from `toJsonSchema` (`minimum`/`exclusiveMinimum`, `minLength`, `pattern`), and add a public way to attach it. If it is metadata, document that in `validation.md` and in the `Validation` Scaladoc. Document that `DynamicSchema#check` does not run wrapper checks.
 
 ### schema-toon: `ArrayFormat.List` still writes a table for a record list inside a list item
 
@@ -2060,6 +2327,7 @@ println(order.toJsonString)
 - **Scope and Wire error codes never appear in compiler output.** `ErrorMessages.scala` numbers them E1-E17, RE1-RE3 and W1, but the messages users see carry no code, so docs must index errors by message text. Found while writing H-31.
 - **`defer` on a closed scope is a silent no-op** (`Scope.scala:202`), while `allocate` and `$` throw. Found while writing H-31.
 - **`jdbc:sqlite::memory:` gives every connection its own empty database.** Code that opens more than one connection loses its tables. Found while writing T-07; now noted in `transactor.md`.
+- **On Scala 2.13, `case class Isbn private (value: String)` still has a public `apply` and `copy`.** `Isbn("junk")` and `isbn.copy(value = "junk")` compile outside the companion and skip the smart constructor, unless the build adds `-Xsource-features:case-apply-copy-access` (or `-Xsource:3-cross`); Scala 3 makes both private. Every newtype example in `validation.md` relies on the private constructor alone. Verified with scala-cli on 2.13.18 and 3.9.0 while writing H-04; the guide adds the flag to its prerequisites.
 
 ### telemetry and scope: wildcard imports of both packages make `Resource` ambiguous
 
@@ -2250,6 +2518,10 @@ Pages that contradict the source. None of these were copied into the new guides.
 - `Schema.fromJsonSchema` Scaladoc (`Schema.scala:357-358`) says values are validated "during construction"; validation happens at decode time (`:366-370`).
 - `validation.md:356-373` says `Validation` constraints become `minimum`, `maxLength`, `pattern` and so on in `toJsonSchema`. They do not; only parsing a JSON Schema maps them (`JsonSchemaToReflect.scala:261-285`).
 - `validation.md:304` uses `JsonDecoder[Order].decodeString`; `JsonDecoder` was removed in #1240.
+- `validation.md` code blocks that do not compile at 0.0.56 (verified with scala-cli on Scala 2.13.18 while writing H-04; the page has no mdoc blocks, so nothing caught them): `.withTypeName[...]` at lines 218, 235, 252, 401 and 420 (`value withTypeName is not a member of zio.blocks.schema.Schema[...]`; the type name comes from the implicit `TypeId` that `Schema#transform` takes, `Schema.scala:185`); `transform(wrap = ..., unwrap = ...)` at lines 266-273 (`unknown parameter name: wrap`; the parameters are `to` and `from`); `DynamicValue.Record(Vector(...))` at lines 324 and 348 (`overloaded method apply ... cannot be applied`; it takes a `Chunk` or `(String, DynamicValue)*`, `DynamicValue.scala:595`).
+- `validation.md` output comments do not match the real messages (verified while writing H-04): line 177 shows `at: $.user.age`, the real text is `at: .user.age`; line 305 shows `must be positive at $.quantity`, the real text is `must be positive at: .quantity.wrapped`; line 353 shows `Expected String, got Int at $.name`, the real text is `Expected String, got Int at: .name at: .wrapped`.
+- `validation.md:13` ("Automatic enforcement during schema-based decoding") and `:281` apply only to `Schema#transform` wrappers. `Validation` constraints are enforced only by `DynamicSchema#check` (see the Usability traps entry on `Validation`). Its newtype examples (`case class Email private (value: String)` and so on) also keep a public `apply` and `copy` on Scala 2.13, so `Email("junk")` compiles and skips the check (see Usability traps).
+- `schema-error.md:41-43` says multiple independent problems are surfaced all at once and that every `Codec#decode` returns them in one `SchemaError`. The JSON and TOON codecs stop at the first failure; only `Schema#fromDynamicValue` (and `Into.derived`) collect every error. Found while writing H-04, which shows both.
 - `json-schema.md:366` shows an error message without the ` at: <path>` suffix that `SchemaError.message` adds. The page also does not mention the `pattern` anchoring behaviour above.
 - `ValidationOptions` Scaladoc (`JsonSchema.scala:376-377`) says format checks are annotation-only by default; the code defaults to `validateFormats = true`.
 
