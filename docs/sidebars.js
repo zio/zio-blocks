@@ -476,6 +476,7 @@ const sidebars = {
     "guides/fix-scope-and-wire-compile-errors",
     "guides/resource-and-di-migration",
     "guides/getting-started-with-mux",
+    "guides/instrument-a-program-with-logs-traces-and-metrics",
     "guides/telemetry-guide",
     "guides/zio-schema-migration",
     "guides/config-library-migration",

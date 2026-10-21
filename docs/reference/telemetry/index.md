@@ -313,6 +313,7 @@ Scoped, thread-safe propagation of `SpanContext` through call stacks is handled 
 
 ## See Also
 
+- [Instrument a Program with Logs, Traces and Metrics](../../guides/instrument-a-program-with-logs-traces-and-metrics.md) — a step-by-step tutorial for newcomers: logs, nested spans, a counter and a histogram
 - [Telemetry Guide](../../guides/telemetry-guide.md) — architecture, design trade-offs, and real-world usage patterns
 - [Common Types](./common/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope` shared across all three pillars
 - [Context](../context.md) — `Context[R]`, which the otel module's `OtelContext` carries an active `SpanContext` through
