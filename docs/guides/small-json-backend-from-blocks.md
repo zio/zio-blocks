@@ -123,15 +123,15 @@ Here is the bookstore we build. Settings flow down from one layered source; each
    HTTP client
 ```
 
-| Block               | Its job in the bookstore                            | Learn it in depth                                                           |
-| ------------------- | --------------------------------------------------- | --------------------------------------------------------------------------- |
-| `schema`            | JSON codecs for books and errors                    | [Your First Schema](./your-first-schema.md)                                 |
-| `config`            | Typed, layered settings with a clear error report   | [Build a Typed Configuration Loader](./typed-config-loader.md)                        |
-| `scope`             | Builds the services and closes them in order        | [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md) |
-| `sql`               | The SQLite repository                               | [Build Your First Database Repository on SQLite](./your-first-sqlite-repository.md)           |
-| `http-model`        | `Request`, `Response` and routing                   | [HTTP Model reference](../reference/http-model/index.md)                    |
-| `http-model-schema` | Typed query parameters                              | [Schema-Based Typed Access](../reference/http-model/schema.md)              |
-| `telemetry`         | Request logs, spans and a counter                   | [Telemetry Guide](./telemetry-guide.md)                                     |
+| Block               | Its job in the bookstore                          | Learn it in depth                                                                       |
+| ------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `schema`            | JSON codecs for books and errors                  | [Your First Schema](./your-first-schema.md)                                             |
+| `config`            | Typed, layered settings with a clear error report | [Build a Typed Configuration Loader](./typed-config-loader.md)                          |
+| `scope`             | Builds the services and closes them in order      | [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md) |
+| `sql`               | The SQLite repository                             | [Build Your First Database Repository on SQLite](./your-first-sqlite-repository.md)     |
+| `http-model`        | `Request`, `Response` and routing                 | [HTTP Model reference](../reference/http-model/index.md)                                |
+| `http-model-schema` | Typed query parameters                            | [Schema-Based Typed Access](../reference/http-model/schema.md)                          |
+| `telemetry`         | Request logs, spans and a counter                 | [Telemetry Guide](./telemetry-guide.md)                                                 |
 
 :::note
 ZIO Blocks ships no HTTP server. The `http-model` module describes requests and responses; it doesn't open sockets. In section 9 we connect it to the HTTP server built into the JDK through a small adapter. That adapter is glue for examples, tools and small internal services, not a production server: it has no TLS, no HTTP/2 and no limit on request body size.
@@ -449,7 +449,7 @@ A plain `/books` gets the default page, and every bad value gets its own message
 `request.queryOrElse("limit", 20)` looks like a shorter way to write `intParam`, but it also falls back to the default when the value is malformed, so `?limit=abc` would quietly return the first page. Match on `request.query` when bad input must be rejected.
 :::
 
-The query-parameter guide, H-36 "How to Validate Query Parameters and Headers", is still being written; until it lands, the [Schema-Based Typed Access](../reference/http-model/schema.md) reference covers `query`, `queryAll` and `queryOrElse`.
+The query-parameter guide, H-36 "How to Validate Query Parameters and Headers", is still being written; until it lands, the [Schema-Based Typed Access](../reference/http-model/schema.md) reference covers `RequestSchemaOps#query`, `RequestSchemaOps#queryAll` and `RequestSchemaOps#queryOrElse`.
 
 ## 7. Route Requests
 
@@ -717,7 +717,7 @@ object Client {
 
 </details>
 
-The server is our second service with something to close. `HttpService` starts the server with the instrumented routes on the configured port, and stops it in `close()`:
+The server is our second service with something to close. `HttpService` starts the server with the instrumented routes on the configured port, and stops it in `HttpService#close`:
 
 ```scala mdoc:silent
 class HttpService(routes: Routes, val telemetry: RequestTelemetry, config: ServerConfig) extends AutoCloseable {
@@ -756,11 +756,11 @@ service.close()
 serverDb.close()
 ```
 
-The server writes its log line before the response goes out, so each log line appears just above the client's view of the same request. Notice the closing at the end: we had to stop the server before closing the database, or a request could still arrive while the database is closing. Getting that order right by hand is exactly what the next section automates.
+The server writes its log line before the response goes out, so each log line appears just above the client's view of the same request. Notice the closing at the end: we must stop the server before closing the database, or a request could still arrive while the database is closing. Getting that order right by hand is exactly what the next section automates.
 
 ## 10. Wire Everything Together and Shut Down
 
-Building the services by hand worked, but `main` had to know every constructor, call them in the right order, pass each one its settings, and close them in the reverse order. The `scope` module does that job. `Resource.from[HttpService]` reads the constructors of `HttpService` and everything it needs, builds each service once, and registers `close()` for every service that is `AutoCloseable`. The `config` module's `Config.wire` turns one section of the settings into a value the graph can use:
+Building the services by hand works, but `main` must know every constructor, call them in the right order, pass each one its settings, and close them in the reverse order. The `scope` module does that job. `Resource.from[HttpService]` reads the constructors of `HttpService` and everything it needs, builds each service once, and registers `close()` for every service that is `AutoCloseable`. The `config` module's `Config.wire` turns one section of the settings into a value the graph can use:
 
 ```scala mdoc:silent
 import zio.blocks.scope._
@@ -806,11 +806,11 @@ val counts = Scope.global.scoped { scope =>
 println(s"Requests by status: $counts")
 ```
 
-Read the output from the top. `Db: opened` comes first, because everything else depends on the database; `HttpService: started` comes last. After the three requests, the scope closes the services in reverse: the server stops before the database closes, so no request can reach a closed database. That's the order we wrote by hand in section 9, now guaranteed by the graph.
+Read the output from the top. `Db: opened` comes first, because everything else depends on the database; `HttpService: started` comes last. After the three requests, the scope closes the services in reverse: the server stops before the database closes, so no request can reach a closed database. That's the order we write by hand in section 9, now guaranteed by the graph.
 
 A few details are worth a second look:
 
-- `allocate(...)` returns the service wrapped as `$[HttpService]`, a value that can't leave the scope. `$(backend)(_.port)` reads a plain value out of it.
+- `Scope#allocate` returns the service wrapped as `$[HttpService]`, a value that can't leave the scope. `$(backend)(_.port)` reads a plain value out of it.
 - The block returns the request counts, a `List` of numbers. A scope can return plain data, but not a service: the compiler rejects a block that tries to return `backend`, because the service is closed once the block ends.
 - The `POST` adds a fourth book, and `?offset=2` then shows the third and the fourth: the page size from the defaults still applies.
 
@@ -834,7 +834,7 @@ try {
 }
 ```
 
-The server never starts. The graph built `Db` before it reached the catalog settings, and when `Config.wire` failed, the scope closed the database it had already opened. Then the error report names the bad value, the expected type and the sources it searched. Notice that the key in the report is `pageSize`, not `catalog.pageSize`: `Config.wire` reports keys without their section prefix, as recorded in [Known Issues](../dev/issues.md). Checking every setting at once with `Config.loadWithProvenance[BookstoreConfig]` before building the graph, as the complete example below does, reports full keys and every bad setting at the same time.
+The server never starts. The graph builds `Db` before it reaches the catalog settings, and when `Config.wire` fails, the scope closes the database it has already opened. Then the error report names the bad value, the expected type and the sources it searched. Notice that the key in the report is `pageSize`, not `catalog.pageSize`: `Config.wire` reports keys without their section prefix, as recorded in [Known Issues](../dev/issues.md). Checking every setting at once with `Config.loadWithProvenance[BookstoreConfig]` before building the graph, as the complete example below does, reports full keys and every bad setting at the same time.
 
 The [How to Feed Configuration into a Wire Dependency Graph](./feed-config-into-a-wire-graph.md) guide shows more of this pattern, and [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md) explains scopes, `$` and `Unscoped` in depth.
 
@@ -1048,6 +1048,12 @@ Run it from the `capstone-examples` directory:
 
 ```bash
 sbt "runMain smalljsonbackendfromblocks.CompleteExample"
+```
+
+To check that every example compiles without running any of them, use this command from the `capstone-examples` directory:
+
+```bash
+sbt compile
 ```
 
 The tests from section 11 run with:

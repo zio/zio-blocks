@@ -310,3 +310,4 @@ Queries can also stream: `Frag#queryStream` and `Frag#queryChunked` return a `zi
 - **[How to Test Database Code Against SQLite](../../guides/test-database-code-against-sqlite.md)** — Guide to giving each ZIO Test spec its own SQLite database and rolling back writes.
 - **[How to Connect to PostgreSQL with a Connection Pool](../../guides/connect-to-postgresql-with-a-connection-pool.md)** — Guide that wires a HikariCP pool into `JdbcTransactor` for PostgreSQL.
 - **[How to Stream Large Query Results](../../guides/stream-large-query-results.md)** — Guide to reading a large result set as a stream of row chunks with `queryStream` and `queryChunked`.
+- **[Build a Small JSON Backend from Blocks](../../guides/small-json-backend-from-blocks.md)** — Capstone tutorial that combines `schema`, `config`, `scope`, `sql`, `http-model` and `telemetry` into one small JSON backend.
