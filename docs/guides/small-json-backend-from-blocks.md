@@ -449,7 +449,7 @@ A plain `/books` gets the default page, and every bad value gets its own message
 `request.queryOrElse("limit", 20)` looks like a shorter way to write `Paging.intParam`, but it also falls back to the default when the value is malformed, so `?limit=abc` would quietly return the first page. Match on `request.query` when bad input must be rejected.
 :::
 
-The query-parameter guide, H-36 "How to Validate Query Parameters and Headers", is still being written; until it lands, the [Schema-Based Typed Access](../reference/http-model/schema.md) reference covers `RequestSchemaOps#query`, `RequestSchemaOps#queryAll` and `RequestSchemaOps#queryOrElse`.
+[How to Validate Query Parameters and Headers and Answer 400](./validate-query-parameters-and-headers.md) goes further: optional parameters that still reject malformed values, range checks, typed headers, and one JSON 400 that names every bad parameter. The [Schema-Based Typed Access](../reference/http-model/schema.md) reference covers `RequestSchemaOps#query`, `RequestSchemaOps#queryAll` and `RequestSchemaOps#queryOrElse`.
 
 ## 7. Route Requests
 
