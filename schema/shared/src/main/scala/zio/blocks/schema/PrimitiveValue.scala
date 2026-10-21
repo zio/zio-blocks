@@ -62,7 +62,8 @@ sealed trait PrimitiveValue {
   /**
    * Returns a negative number, zero or a positive number when this value is
    * less than, equal to or greater than `that`. Values of the same case are
-   * compared by their value, values of different cases by `typeIndex`.
+   * compared by their value, except as noted on `Int` and `Period`; values of
+   * different cases by `typeIndex`.
    */
   def compare(that: PrimitiveValue): scala.Int
 
@@ -157,6 +158,11 @@ object PrimitiveValue {
 
     def typeIndex: scala.Int = 4
 
+    /**
+     * Compares by subtracting the two values, which overflows:
+     * `Int(Int.MaxValue)` compared with `Int(-1)` is negative. A value of
+     * another case is compared by `typeIndex`.
+     */
     def compare(that: PrimitiveValue): scala.Int = that match {
       case x: Int => value - x.value
       case _      => 4 - that.typeIndex
@@ -425,6 +431,11 @@ object PrimitiveValue {
 
     def typeIndex: scala.Int = 22
 
+    /**
+     * Compares by approximate length in days, counting a month as 30.436875
+     * days, so `P1Y` and `P12M` compare as equal. A value of another case is
+     * compared by `typeIndex`.
+     */
     def compare(that: PrimitiveValue): scala.Int = that match {
       case x: Period =>
         val xv = x.value

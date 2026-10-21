@@ -41,12 +41,15 @@ sealed trait PrimitiveType[A] {
    * Converts `value` into an `A`, or returns an `ExpectationMismatch` error
    * such as `Expected Int`. `value` must be a `DynamicValue.Primitive`. The
    * numeric types and `Char` also accept a primitive value of one of the other
-   * numeric types or `Char` when it converts to this type without loss; every
-   * other type accepts only its own [[PrimitiveValue]] case. At the limits of
-   * the `Int` and `Long` ranges a few lossy conversions pass too: a `Float` or
-   * `Double` of `2^63` decodes as `Long.MaxValue`, a `Float` of `2^31` as
-   * `Int.MaxValue`, `Int.MaxValue` as the `Float` `2^31`, and `Long.MaxValue`
-   * as the `Float` or `Double` `2^63`. The validation is not checked.
+   * numeric types or `Char` when converting it to this type and back gives the
+   * same value; every other type accepts only its own [[PrimitiveValue]] case.
+   * Because the JVM conversions saturate or wrap, a few lossy conversions pass
+   * that check: a `Float` or `Double` of `2^63` decodes as `Long.MaxValue`, a
+   * `Float` of `2^31` as `Int.MaxValue`, `Int.MaxValue` as the `Float` `2^31`,
+   * `Long.MaxValue` as the `Float` or `Double` `2^63`, a `Char` of 32768 or
+   * more as a negative `Short` (65408 or more as a negative `Byte`), and a
+   * negative `Byte` or `Short` as a `Char` of 65408 or 32768 or more (`-1` as
+   * `Char.MaxValue`). The validation is not checked.
    *
    * {{{
    * val year = PrimitiveType.Int(Validation.None)
