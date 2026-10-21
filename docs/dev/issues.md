@@ -2473,6 +2473,30 @@ object Repro extends App {
 
 **Suggested fix.** Put the target field in the path (for example `SchemaError.conversionFailed(contextMessage, cause).atField(fieldName)`, or a `conversionFailed` overload that takes the trace), and make both macros accumulate in declaration order.
 
+**Also: a `ConversionFailed` with a cause never shows its path.** Found 2026-10-21 while writing the Scaladoc of `SchemaError` (wave 1 of the schema Scaladoc, branch `scaladoc-wave-1` at `b0956ec6`); the code is the same at tag `v0.0.56`. Verified with `scala-cli run --server=false CausePath.scala`. `ConversionFailed#message` appends ` at: <path>` only when `cause` is `None`; with a cause it prints `details` and the cause's messages and drops `source` (`schema/shared/src/main/scala/zio/blocks/schema/SchemaError.scala`, the `cause match` in `ConversionFailed#message`). So the suggested `.atField(fieldName)` would fix `source`, but the rendered message would still not name the field.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+
+object Repro extends App {
+  val withCause = SchemaError.conversionFailed("Book is invalid", SchemaError("title must not be blank")).atField("book")
+  println(withCause.errors.head.source.toScalaString)
+  // .book
+  println(withCause.message)
+  // Book is invalid
+  //   Caused by: title must not be blank
+
+  val withoutCause = SchemaError.conversionFailed(Nil, "Book is invalid").atField("book")
+  println(withoutCause.message)
+  // Book is invalid at: .book
+}
+```
+
+Expected: the first line of the message with a cause also ends with ` at: .book` when the path is not the root. Test gap: no spec renders a `ConversionFailed` that has both a cause and a non-root path. Fix: append ` at: ${source.toScalaString}` to `details` in the `Some(causeErr)` branch when `source.nodes` is not empty, as the `None` branch does. The `SchemaError` Scaladoc describes the current behaviour.
+
 ### schema (Scala 3): `Into.derived` to an opaque type fails in the default package, ignores a `given Into`, and puts the error's class name in the message
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/validated-newtypes.md` (backlog H-04), on `main` at `f87e6beb`. The code is the same at tag `v0.0.56`. Verified. Not filed.
@@ -4188,7 +4212,7 @@ Pages that contradict the source. None of these were copied into the new guides.
 - `modifier.md`, `transient`: does not say that a transient field's JSON value is ignored on decode and the default is used.
 - `schema-error.md` (lines 56-57, 171-172, 283-289, 313-316) shows `Missing field 'x' at: .path` as the decode result. JSON decoding reports `missing required field "x" at: .path` (`JsonReader.scala:89`).
 - `syntax.md` shows `show` output as `Record { name = Alice, age = 30 }`; the real output is the EJSON form (`DynamicValue.toString`).
-- `Schema.fromJsonSchema` Scaladoc (`Schema.scala:357-358`) says values are validated "during construction"; validation happens at decode time (`:366-370`).
+- `Schema.fromJsonSchema` Scaladoc (`Schema.scala:357-358`) says values are validated "during construction"; validation happens at decode time (`:366-370`). Fixed in the wave 1 Scaladoc (branch `scaladoc-wave-1`).
 - `validation.md:356-373` says `Validation` constraints become `minimum`, `maxLength`, `pattern` and so on in `toJsonSchema`. They do not; only parsing a JSON Schema maps them (`JsonSchemaToReflect.scala:261-285`).
 - `validation.md:304` uses `JsonDecoder[Order].decodeString`; `JsonDecoder` was removed in #1240.
 - `validation.md` code blocks that do not compile at 0.0.56 (verified with scala-cli on Scala 2.13.18 while writing H-04; the page has no mdoc blocks, so nothing caught them): `.withTypeName[...]` at lines 218, 235, 252, 401 and 420 (`value withTypeName is not a member of zio.blocks.schema.Schema[...]`; the type name comes from the implicit `TypeId` that `Schema#transform` takes, `Schema.scala:185`); `transform(wrap = ..., unwrap = ...)` at lines 266-273 (`unknown parameter name: wrap`; the parameters are `to` and `from`); `DynamicValue.Record(Vector(...))` at lines 324 and 348 (`overloaded method apply ... cannot be applied`; it takes a `Chunk` or `(String, DynamicValue)*`, `DynamicValue.scala:595`).
