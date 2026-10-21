@@ -1674,6 +1674,182 @@ object Shipment { given Schema[Shipment] = Schema.derived }
 
 **Suggested fix.** Quote the validated column in both overloads (`s""" WHERE "$validated" > """` and `s""" ORDER BY "$validated" ASC LIMIT $limit"""`), update the `KeysetSpec` golden strings, and add a `RepoKeysetSpec` case that pages a table with an `order` column through both `keysetAfter` overloads. Update the `keysetAfter` text in `docs/guides/query-dsl-sql.md` and the caution in `docs/guides/upsert-and-paginate-with-keyset-cursors.md` at the same time.
 
+### sql: `Table.derived` and `Repo.derived` flatten a nested case class field that the codec stores as one JSON column, so every insert fails, and they throw for a `List` field
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** The row codec stores a field whose type is a case class (without `@Modifier.config("sql.inline", "true")`) as one JSON column, and a `List`, `Seq`, `Set` or `Map` field the same way. `Table.derived` and `Repo.derived` don't ask the codec for its columns: they compute them separately with `TableMetadata.columnsFor`, which flattens every nested record into `<field>_<subfield>` columns and throws for a collection. So for `case class Book(id: Long, title: String, metadata: Metadata)` the table lists five columns while the codec writes three values, and `Repo#insert` fails its own `require`. For a `List[String]` field, `Table.derived` and `Repo.derived` throw before any SQL runs. `Table#createTable` emits the flattened columns too, so a table it creates doesn't match the codec either. A one-field case class used as a newtype with a derived `Schema` hits the same path: the table expects `isbn_value`, while the codec writes `{"value":"..."}` into a column named `isbn`.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run TableColumns.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Metadata(publisher: String, edition: Int, pages: Int)
+object Metadata { given Schema[Metadata] = Schema.derived }
+
+case class Book(id: Long, title: String, metadata: Metadata)
+object Book { given Schema[Book] = Schema.derived }
+
+case class TaggedBook(id: Long, title: String, tags: List[String])
+object TaggedBook { given Schema[TaggedBook] = Schema.derived }
+
+@main def run(): Unit = {
+  println(Table.derived[Book].columns)
+  // Vector(id, title, metadata_publisher, metadata_edition, metadata_pages)
+  println(DbCodec.derived[Book].columns)
+  // Vector(id, title, metadata)
+
+  val file = java.nio.file.Files.createTempFile("repro", ".db")
+  val xa   = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+  xa.connect {
+    Table.derived[Book].createTable(SqlDialect.SQLite).update
+    println(Try(Repo.derived[Book, Long].insert(Book(1L, "Zionomicon", Metadata("Ziverge", 1, 700)))))
+    // Failure(java.lang.IllegalArgumentException: requirement failed: Repo.buildInsertFrag: columns/value count mismatch)
+  }
+
+  println(Try(Table.derived[TaggedBook]))
+  // Failure(java.lang.UnsupportedOperationException: Typed DDL does not support reflect node List[String])
+  println(Try(Repo.derived[TaggedBook, Long]))
+  // Failure(java.lang.UnsupportedOperationException: Typed DDL does not support reflect node List[String])
+}
+```
+
+**Expected.** `Table.derived[Book].columns` equals `DbCodec.derived[Book].columns` (`id, title, metadata`), `Repo#insert` writes the JSON column, `Table.derived[TaggedBook]` succeeds with a `tags` column, and `createTable` declares one `TEXT` column (SQLite) or `JSONB` column (PostgreSQL) for each JSON field.
+
+**Root cause.** `DbCodecDeriver#deriveRecord` falls back to `jsonbCodec` for every non-inline record field (`sql/shared/src/main/scala/zio/blocks/sql/DbCodecDeriver.scala:134-136`), and `deriveSequence` / `deriveMap` do the same for collections. `TableMetadata.fromReflect` (`sql/shared/src/main/scala/zio/blocks/sql/TableMetadata.scala:60-80`) recurses into every record field without checking `sql.inline`, and `dbValueFor` throws for any node that isn't a primitive, an enum or a wrapper (`TableMetadata.scala:126-128`). `Table.derived` (`Table.scala:93,105`) and every `Repo.derived` overload (`Repo.scala:432,446,499`) pair the codec with these columns, and `Repo#insert` / `Repo#insertReturning` / `Repo#insertBatch` name `table.columns` in the `INSERT` (`Repo.scala:189,201,222`).
+
+**Impact.** A model with a nested record or a collection field can't use `Repo.derived` at all, although the codec handles it. The error (`columns/value count mismatch` or `Typed DDL does not support reflect node List[String]`) doesn't say why. The H-22 guide works around it by building the `Table` from `codec.columns` and passing it to `Repo.apply`.
+
+**Test gap.** `DbCodecSpec.scala:881,1062` check that the codec produces one JSON column for a `List[Int]` and for a non-inline record field, but no test derives a `Table` or a `Repo` for such a type or compares `Table#columns` with `codec.columns`.
+
+**Suggested fix.** Derive the column list from the same decisions as the codec: in `TableMetadata.fromReflect`, recurse into a record only when the field (or the parent) has `sql.inline` / `sql.inline_fields`, and map non-inline records, sequences, maps and non-simple variants to one `DbValue.DbString` column (or a new JSON marker so PostgreSQL's dialect can emit `JSONB`). Add a property test that `Table.derived[A].columns == DbCodec.derived[A].columns` for every type in `DbCodecSpec`.
+
+### sql: an `Option` field of a `Schema#transform` newtype or of an enum fails on SQL `NULL`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** The derived codec for an `Option` field checks `DbResultReader#isNull` before it reads the column. `JdbcResultReader#isNull` only knows about columns that have already been read in the current row, so the check is always `false` and the inner codec reads the `NULL`. For `Option[String]` or `Option[Int]` that is harmless, because the inner value is checked with `wasNull` afterwards. For a newtype whose `Schema` is `Schema[String].transform(...)`, the inner codec first calls the user's function with `null`, which throws (an NPE, or the smart constructor's error). For an enum, the inner codec looks up the case named `null` and throws `Unknown enum variant 'null'`. So a nullable column of either type can't be read when it holds `NULL`. Writing `None` works.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run OptionNewtypeNull.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+final case class Isbn(value: String) {
+  require(value.length == 13, s"ISBN must have 13 characters, got $value")
+}
+object Isbn { given Schema[Isbn] = Schema[String].transform(Isbn(_), _.value) }
+
+enum Format { case Hardcover, Paperback, Ebook }
+object Format { given Schema[Format] = Schema.derived }
+
+case class Book(id: Long, isbn: Option[Isbn], format: Option[Format])
+object Book { given Schema[Book] = Schema.derived }
+
+@main def run(): Unit = {
+  val file = java.nio.file.Files.createTempFile("repro", ".db")
+  val xa   = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+  xa.connect {
+    sql"CREATE TABLE book (id INTEGER PRIMARY KEY, isbn TEXT, format TEXT)".update
+    sql"INSERT INTO book VALUES (1, '9780981531601', 'Paperback')".update
+    sql"INSERT INTO book VALUES (2, NULL, 'Ebook')".update
+    sql"INSERT INTO book VALUES (3, '9781617290657', NULL)".update
+    println(sql"SELECT id, isbn, format FROM book WHERE id = 1".query[Book])
+    // List(Book(1,Some(Isbn(9780981531601)),Some(Paperback)))
+    println(Try(sql"SELECT id, isbn, format FROM book WHERE id = 2".query[Book]))
+    // Failure(java.lang.NullPointerException: Cannot invoke "String.length()" because "value" is null)
+    println(Try(sql"SELECT id, isbn, format FROM book WHERE id = 3".query[Book]))
+    // Failure(java.lang.IllegalArgumentException: Unknown enum variant 'null'. Expected one of: Hardcover, Paperback, Ebook)
+    println(sql"SELECT isbn FROM book WHERE id = 2".query[Option[String]])
+    // List(None)
+  }
+}
+```
+
+**Expected.** Rows 2 and 3 read back as `Book(2,None,Some(Ebook))` and `Book(3,Some(Isbn(9781617290657)),None)`.
+
+**Root cause.** The `Option` branch of `DbCodecDeriver#deriveVariant` returns `None` only if `reader.isNull(...)` is `true` before reading (`sql/shared/src/main/scala/zio/blocks/sql/DbCodecDeriver.scala:367,379`), and only then falls back to `optionalValue(typeId, innerValue, reader.wasNull)`. `JdbcResultReader` fills its null bitmap inside each getter (`sql/jvm/src/main/scala/zio/blocks/sql/JdbcResultReader.scala:41-62`), so `isNull` (`JdbcResultReader.scala:283-285`) is `false` for a column not yet read. The inner codec runs first: the wrapper codec calls `binding.wrap` on the `null` it read (`DbCodecDeriver.scala:328,331`), and the enum codec throws for the unknown name (`DbCodecDeriver.scala:425,436`). `DbCodec.optionCodec` has the same pre-read check but no user code between the read and the `wasNull` fallback, which is why `Option[String]` works.
+
+**Impact.** A nullable column of a validated newtype or an enum, which is common (an optional ISBN, an optional status), fails every query that returns a `NULL` in it, with an error that points at the user's own constructor. The H-22 guide works around it by overriding the field with `DbCodec[Option[String]].transform(_.map(Isbn.unsafe))(_.map(_.value))` through `DbCodec.derivedWith`.
+
+**Test gap.** `DbCodecOptionSpec` tests `Option[String]`, `Option[Int]` and `Maybe[String]` only; no test reads `NULL` into an `Option` of a wrapper or of an enum.
+
+**Suggested fix.** In the `Option` branch, read the inner column through a null-aware step: probe the column with a cheap getter (for example `getString`) and `wasNull` before calling the inner codec, or add a `DbResultReader#isNullAt` that calls `getObject` + `wasNull` for an unread column. Add `DbCodecOptionSpec` cases for an `Option` of a `Schema#transform` newtype and of an enum.
+
+### sql: on SQLite, an `Instant` column that `Table#createTable` declares can't be read back
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** On SQLite, `Table#createTable` declares an `Instant` field as `TEXT`. The codec writes the value with `setTimestamp`, and the SQLite JDBC driver stores a timestamp as epoch milliseconds, so the `TEXT` column holds the text `1626341400123`. Reading it back with `getTimestamp` fails with `Error parsing time stamp`, so every query on a table that `createTable` made with an `Instant` field fails. An `INTEGER` column works, but drops everything below the millisecond.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run SqliteInstant.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import java.time.Instant
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Book(id: Long, title: String, publishedAt: Instant)
+object Book { given Schema[Book] = Schema.derived }
+
+@main def run(): Unit = {
+  val books = Repo.derived[Book, Long]
+  val file  = java.nio.file.Files.createTempFile("repro", ".db")
+  val xa    = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+  xa.connect {
+    books.table.createTable(SqlDialect.SQLite).update
+    println(books.table.createTable(SqlDialect.SQLite).sql(SqlDialect.SQLite))
+    // CREATE TABLE IF NOT EXISTS book (
+    //   id INTEGER NOT NULL,
+    //   title TEXT NOT NULL,
+    //   published_at TEXT NOT NULL
+    // )
+    books.insert(Book(1L, "Zionomicon", Instant.parse("2021-07-15T09:30:00.123456Z")))
+    println(sql"SELECT published_at, typeof(published_at) FROM book".query[(String, String)])
+    // List((1626341400123,text))
+    println(Try(books.all))
+    // Failure(java.sql.SQLException: Error parsing time stamp)
+
+    sql"DROP TABLE book".update
+    sql"CREATE TABLE book (id INTEGER PRIMARY KEY, title TEXT NOT NULL, published_at INTEGER NOT NULL)".update
+    books.insert(Book(1L, "Zionomicon", Instant.parse("2021-07-15T09:30:00.123456Z")))
+    println(books.all)
+    // List(Book(1,Zionomicon,2021-07-15T09:30:00.123Z))
+  }
+}
+```
+
+**Expected.** A table created by `createTable` round-trips the `Instant`. Microseconds survive, or the docs say SQLite keeps milliseconds.
+
+**Root cause.** `SqlDialect.SQLite#typeName` maps `DbValue.DbInstant` to `TEXT` (`sql/shared/src/main/scala/zio/blocks/sql/SqlDialect.scala:73`), but `JdbcParamWriter#setInstant` writes with `setTimestamp(index, Timestamp.from(value), utcCal)` (`sql/jvm/src/main/scala/zio/blocks/sql/JdbcParamWriter.scala:49-52`), which sqlite-jdbc stores as milliseconds (its default `date_class` is `INTEGER`), and `JdbcResultReader#getInstant` reads with `getTimestamp(index, utcCalendar)` (`JdbcResultReader.scala:223-233`), which can't parse a number stored as text.
+
+**Impact.** The first `Instant` field in a SQLite table built with `createTable` breaks every read of that table. `docs/reference/sql/sql-dialect.md:65` documents the `TEXT` mapping as correct.
+
+**Test gap.** No SQLite test round-trips an `Instant` through a `createTable` table; `JdbcInstantTimezoneSpec` runs on PostgreSQL only.
+
+**Suggested fix.** Map `DbInstant` to `INTEGER` in the SQLite dialect, or write SQLite `Instant`s as ISO-8601 text (`setString(value.toString)`) and parse them on read, which also keeps the nanoseconds. Add a SQLite round-trip test.
+
 ### html: `html"..."` escapes interpolated attribute values twice
 
 Filed as #1764. Found 2026-10-20 while writing T-09. Verified on 0.0.56. `&` renders as `&amp;amp;`, which breaks URLs with query strings.
@@ -2477,6 +2653,153 @@ $ scala-cli compile .
 
 **Suggested fix.** Add a check to the release workflow that fails when the version does not match `^\d+\.\d+\.\d+(-.+)?$`. Add a Scala Steward `updates.ignore` entry for version `0.017` under `dev.zio` so the repo's own bots skip it. The metadata only stops pointing at `0.017` once a release sorts above it, such as `0.1.0`. Until then, the install guide pins `@VERSION@` and never suggests `latest.release`.
 
+### sql (PostgreSQL): `Repo#insert` into a `jsonb` column fails unless the URL has `stringtype=unspecified`, and `PgCodec` string arrays bind as `varchar[]` and read `NULL` as `null`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** The JSON codecs (`DbCodec.jsonb` and the deriver's fallback for nested records and collections) bind the JSON with `setString`. The PostgreSQL JDBC driver sends that as `character varying`, which PostgreSQL won't assign to a `jsonb` column, so `Repo#insert` fails with `column "metadata" is of type jsonb but expression is of type character varying`. It works once the JDBC URL has `stringtype=unspecified`. `PgCodec.listStringCodec` and the `PgCodec` string-list parameters bind a `varchar[]`: assignment to a `text[]` column works, but an operator such as `&&` against a `text[]` column needs a `::text[]` cast. `PgCodec.listStringCodec` reads a SQL `NULL` array as a `null` `List`.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `postgresql` 42.7.14, PostgreSQL 16 in Docker, run with `scala-cli run PgJsonbArrays.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.postgresql:postgresql:42.7.14
+
+// docker run --rm -d -p 5432:5432 -e POSTGRES_USER=bookstore -e POSTGRES_PASSWORD=bookstore -e POSTGRES_DB=bookstore postgres:16
+
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.typeid.TypeId
+import zio.blocks.sql.*
+
+case class Metadata(publisher: String, edition: Int, pages: Int)
+object Metadata { given Schema[Metadata] = Schema.derived }
+
+case class Book(id: Long, metadata: Metadata, tags: List[String])
+object Book { given Schema[Book] = Schema.derived }
+
+@main def run(): Unit = {
+  val url   = sys.env.getOrElse("DB_URL", "jdbc:postgresql://localhost:5432/bookstore")
+  val codec = DbCodec.derivedWith[Book](_.instance(TypeId.of[Book], "tags", PgCodec.listStringCodec))
+  // Columns from the codec, to avoid the Table.derived column mismatch
+  val books = Repo(Table("book", codec, codec.columns.map(ColumnMeta(_, DbValue.DbString(""), false))), "id", DbCodec[Long], (b: Book) => b.id)
+  val zionomicon = Book(1L, Metadata("Ziverge", 1, 700), List("zio", "effects"))
+
+  JdbcTransactor.fromUrl(url, "bookstore", "bookstore", SqlDialect.PostgreSQL).connect {
+    sql"DROP TABLE IF EXISTS book".update
+    sql"CREATE TABLE book (id BIGINT PRIMARY KEY, metadata JSONB NOT NULL, tags TEXT[])".update
+    println(Try(books.insert(zionomicon)).fold(_.getMessage.linesIterator.next(), _.toString))
+    // ERROR: column "metadata" is of type jsonb but expression is of type character varying
+  }
+
+  JdbcTransactor.fromUrl(url + "?stringtype=unspecified", "bookstore", "bookstore", SqlDialect.PostgreSQL).connect {
+    println(books.insert(zionomicon))
+    // 1
+    import PgCodec.given
+    val wanted = List("effects")
+    println(Try(sql"SELECT id FROM book WHERE tags && $wanted".query[Long]).fold(_.getMessage.linesIterator.next(), _.toString))
+    // ERROR: operator does not exist: text[] && character varying[]
+    println(sql"SELECT id FROM book WHERE tags && $wanted::text[]".query[Long])
+    // List(1)
+    sql"""INSERT INTO book VALUES (2, '{"publisher":"Artima","edition":1,"pages":776}', NULL)""".update
+    println(books.find(2L))
+    // Book(2,Metadata(Artima,1,776),null)
+    sql"DROP TABLE book".update
+  }
+}
+```
+
+**Expected.** Either the JSON codecs bind a value PostgreSQL accepts for `jsonb` (a `PGobject` of type `jsonb`, or `setObject(..., Types.OTHER)`), or the docs say to add `stringtype=unspecified`. The `NULL` array either fails clearly or the docs say to use `NOT NULL`.
+
+**Root cause.** `DbCodec.jsonb` is `DbCodec[String].transform(...)` (`sql/shared/src/main/scala/zio/blocks/sql/DbCodec.scala:164-165`), and `JdbcParamWriter#setString` calls `PreparedStatement#setString` (`sql/jvm/src/main/scala/zio/blocks/sql/JdbcParamWriter.scala:33`). `PgCodec` writes string arrays as `"varchar"` (`sql/jvm/src/main/scala/zio/blocks/sql/PgCodec.scala:69,72`) and returns `null` for a `NULL` array (`PgCodec.scala:53,60,65`).
+
+**Impact.** Every PostgreSQL user who stores JSON in a `jsonb` column hits the insert error first. No page mentions `stringtype=unspecified`; the H-22 guide does.
+
+**Suggested fix.** Add a PostgreSQL `jsonb` write path (a `DbValue` variant or a dialect hook that binds `Types.OTHER`), bind string arrays as `text`, and give `PgCodec` an `Option[List[String]]` codec. At minimum, document `stringtype=unspecified` in `db-codec.md`.
+
+### sql: a newtype with a private constructor can't be an `sql"..."` parameter, although its `Schema` is in scope
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** `sql"... = $isbn"` with `isbn: Isbn`, where `Isbn` is the validated newtype from the H-04 guide (private constructor, `given Schema[Isbn] = Schema[String].transform(...)`), fails to compile with `No DbParam/Frag/SqlLiteral/DbValue instance found for type Isbn`. The interpolator looks for `DbParam.fromDbCodec`, which needs a `DbCodec[Isbn]`, and `DbCodec.derived` derives a new `Schema` for `Isbn` instead of using the given one. That new `Schema` needs the private constructor, so no `DbCodec[Isbn]` exists. The same `Isbn` works as a `Repo` field, because `Repo.derived` uses the given `Schema`.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, run with `scala-cli compile PrivateNewtypeParam.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+final case class Isbn private (value: String)
+object Isbn {
+  def unsafe(s: String): Isbn = new Isbn(s)
+  given Schema[Isbn] = Schema[String].transform(unsafe, _.value)
+}
+
+@main def run(): Unit = {
+  val isbn = Isbn.unsafe("9780981531601")
+  println(sql"SELECT title FROM book WHERE isbn = $isbn".sql(SqlDialect.SQLite))
+  // [error] No DbParam/Frag/SqlLiteral/DbValue instance found for type Isbn. Supported: DbParam[T], Frag (verbatim), SqlLiteral (verbatim), DbValue. Use sql"..." or StringContext(...).sql(table)(...) accordingly.
+  summon[DbCodec[Isbn]]
+  // [error] constructor Isbn cannot be accessed as a member of Isbn from anonymous class zio.blocks.schema.binding.Constructor[Isbn] {...}.
+}
+```
+
+**Expected.** The interpolator binds `isbn` as its underlying `String`, using the `Schema[Isbn]` in scope.
+
+**Root cause.** `DbCodec.derived` is `Schema.derived[A].deriving(DbCodecDeriver).derive` (`sql/shared/src/main/scala/zio/blocks/sql/DbCodec.scala:190-191`), which ignores a `Schema[A]` in scope. `DbParam.fromDbCodec` (`sql/shared/src/main/scala/zio/blocks/sql/SqlInterpolator.scala:112`) is the only parameter instance for user types, and the macro reports the summon failure without the underlying cause (`sql/shared/src/main/scala/zio/blocks/sql/SqlMacros.scala:247-256`).
+
+**Impact.** Users pass `isbn.value` instead, which works but drops the type safety the newtype exists for. The error message doesn't hint at the cause.
+
+**Suggested fix.** Make `DbCodec.derived` use a `Schema[A]` in scope when there is one (`summonFrom`), or add a `DbParam` derived from `Schema[A]`.
+
+### sql: an `Option` field of a nested case class is rejected, although the same field without `Option` is stored as JSON
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** A `metadata: Metadata` field is stored as one JSON column, but `metadata: Option[Metadata]` makes derivation throw `Option[A] where A has 3 columns is not supported`. The `Option` branch derives the record's own multi-column codec instead of the JSON fallback the non-optional field gets.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, run with `scala-cli run OptionRecordField.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Metadata(publisher: String, edition: Int, pages: Int)
+object Metadata { given Schema[Metadata] = Schema.derived }
+
+case class Book(id: Long, title: String, metadata: Metadata)
+object Book { given Schema[Book] = Schema.derived }
+
+case class DraftBook(id: Long, title: String, metadata: Option[Metadata])
+object DraftBook { given Schema[DraftBook] = Schema.derived }
+
+@main def run(): Unit = {
+  println(DbCodec.derived[Book].columns)
+  // Vector(id, title, metadata)
+  println(Try(DbCodec.derived[DraftBook]))
+  // Failure(java.lang.UnsupportedOperationException: Option[A] where A has 3 columns is not supported. Option is only supported for single-column types.)
+}
+```
+
+**Expected.** `Option[Metadata]` is one nullable JSON column, as `DbCodec.jsonbOption[Metadata]` provides.
+
+**Root cause.** The `Option` branch of `DbCodecDeriver#deriveVariant` takes the inner field's codec from `D.instance(innerField.value.metadata)` and rejects multi-column codecs (`sql/shared/src/main/scala/zio/blocks/sql/DbCodecDeriver.scala:352-360`), while `deriveRecord` picks `jsonbCodec` for a record field only when the field's own type is a record (`DbCodecDeriver.scala:134-136`).
+
+**Impact.** Users must override the field with `DbCodec.jsonbOption` through `DbCodec.derivedWith`, which needs a `JsonCodec` for the record, and then build the `Table` by hand (see the `Table.derived` entry above).
+
+**Suggested fix.** In the `Option` branch, use `jsonbOption`-style wrapping when the inner type is a non-inline record, a collection or a non-simple variant.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -2805,6 +3128,14 @@ Found 2026-10-21 while writing the how-to guide `docs/guides/sql-from-zio.md` (b
 - Neither page says that inside `connectZIO`/`transactZIO` the body's statements must be wrapped in `ZIO.attemptBlocking` to leave the default pool, which `TransactorZIO.scala:200` makes necessary.
 
 **Suggested fix.** Turn both pages into `mdoc` pages now that `sql-zio` is on the docs classpath, on a temporary SQLite file, and link `docs/guides/sql-from-zio.md` for the recipes.
+
+### docs: `table.md` and `db-codec-deriver.md` say `createTable` handles collection and nested-record fields
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** `docs/reference/sql/table.md:238` says fields that fall back to JSONB "such as `List[A]`" produce "a `TEXT` or `JSONB` column", and that "nested records that are flattened into multiple columns are fully supported". `Table.derived` throws for a `List[A]` field, and it flattens every nested record even though the codec stores a non-inline record as one JSON column (see the `Table.derived` entry under Library bugs). `table.md:273` repeats "nested records are flattened". `docs/reference/sql/db-codec-deriver.md:23` says the fallback is "a single `TEXT` / `JSONB` column"; no code path emits `JSONB`, since `SqlDialect` maps `DbString` to `TEXT` on both dialects (`sql/shared/src/main/scala/zio/blocks/sql/SqlDialect.scala:36,64`).
+
+**Suggested fix.** Until the library bug is fixed, say that `Table.derived`, `Repo.derived` and `createTable` work only for records whose nested record fields carry `sql.inline`, and that a JSON column on PostgreSQL must be declared `JSONB` by hand.
 
 ### docs: `csv.md` promises error locations the codec doesn't give, and documents unused API
 
