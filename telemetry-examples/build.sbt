@@ -26,7 +26,20 @@ def zioBlocks(module: String) = Def.setting {
   "dev.zio" %% s"$prefix-$module" % zioBlocksVersion
 }
 
-// The telemetry module is compiled for Java 21, so running these examples needs JDK 21 or newer.
 libraryDependencies ++= Seq(
   zioBlocks("telemetry").value
 )
+
+// The telemetry module is compiled for Java 21, and its `log.*` macros run inside the compiler, so
+// even compiling these examples needs JDK 21 or newer. CI also compiles every example build on
+// JDK 17; there the sources are skipped with a warning instead of failing the build.
+val javaMajor = System.getProperty("java.specification.version").split('.').last.toInt
+
+Compile / unmanagedSources := {
+  val sources = (Compile / unmanagedSources).value
+  if (javaMajor >= 21) sources
+  else {
+    streams.value.log.warn(s"telemetry-examples needs JDK 21 or newer (running on JDK $javaMajor); skipping compilation")
+    Nil
+  }
+}
