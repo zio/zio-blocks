@@ -18,6 +18,8 @@ Most applications never implement one, because the module ships the common desti
 
 Write your own to reach somewhere the module doesn't cover — an OTLP collector, a vendor's API, or an existing logging framework you're migrating from.
 
+To capture log records in memory and assert on their severity, message and fields in tests, see [How to Test Code That Logs, Traces and Records Metrics](../../../guides/test-telemetry.md).
+
 ```scala
 trait LogRecordProcessor extends AutoCloseable {
   def onEmit(logRecord: LogRecord): Unit   // fires for every record the Logger lets through
