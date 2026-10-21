@@ -115,7 +115,7 @@ println(catalogBytes.length)
 
 ### Decode From an Array of Bytes
 
-`JsonCodec#decode(input: Array[Byte])` is the cheapest entry point. The reader parses the array in place: it borrows our array for the duration of the call instead of copying it into a buffer of its own. `JsonCodec#decode(input: String)`, by contrast, first calls `getBytes(UTF_8)` on the string and then decodes the new array, so text input always costs one extra full copy.
+`JsonCodec#decode(input: Array[Byte])` is the cheapest entry point. The reader parses the array in place: it borrows our array for the duration of the call instead of copying it into a buffer of its own. `JsonCodec#decode(input: String)`, by contrast, first calls `String#getBytes` with `UTF_8` on the string and then decodes the new array, so text input always costs one extra full copy.
 
 To decode the whole catalog straight from its bytes:
 
@@ -157,7 +157,7 @@ println(Book.codec.decode(twoBooks, oneValueAtATime).map(_.title))
 println(twoBooks.remaining())
 ```
 
-A failed decode also moves the position, to just past the byte where the error was found. If you want to retry or skip the value, or call `flip()` on the buffer afterwards, save `ByteBuffer#position` before the call and restore it afterwards.
+A failed decode also moves the position, to just past the byte where the error was found. If you want to retry or skip the value, or call `ByteBuffer#flip` on the buffer afterwards, save `ByteBuffer#position` before the call and restore it afterwards.
 
 ### Decode From an InputStream
 
@@ -190,7 +190,7 @@ Encoding has the same choice of targets. Unlike `JsonCodec#decode`, the `JsonCod
 
 ### Encode to an Array of Bytes
 
-`JsonCodec#encode(value)` writes into the writer's internal buffer and returns a copy trimmed to the exact length, so it makes one copy. `JsonCodec#encodeToString` writes the same bytes and then decodes them into a `String`, and calling `getBytes(UTF_8)` on that string copies them once more. When the result goes to the network, encode to bytes:
+`JsonCodec#encode(value)` writes into the writer's internal buffer and returns a copy trimmed to the exact length, so it makes one copy. `JsonCodec#encodeToString` writes the same bytes and then decodes them into a `String`, and calling `String#getBytes` with `UTF_8` on that string copies them once more. When the result goes to the network, encode to bytes:
 
 ```scala mdoc
 println(Book.catalogCodec.encode(catalog).length)
@@ -198,7 +198,7 @@ println(Book.catalogCodec.encode(catalog).length)
 
 ### Encode Into a ByteBuffer
 
-`JsonCodec#encode(value, output: ByteBuffer)` writes at `ByteBuffer#position` and moves the position past the JSON. A heap buffer receives the bytes straight into its backing array; a direct buffer receives them in chunks through the writer's internal buffer. Either way, call `flip()` before reading the buffer back, or the reader starts at the end of the JSON:
+`JsonCodec#encode(value, output: ByteBuffer)` writes at `ByteBuffer#position` and moves the position past the JSON. A heap buffer receives the bytes straight into its backing array; a direct buffer receives them in chunks through the writer's internal buffer. Either way, call `ByteBuffer#flip` before reading the buffer back, or the reader starts at the end of the JSON:
 
 ```scala mdoc:silent
 val out = ByteBuffer.allocate(1024)
@@ -212,7 +212,7 @@ println(out.position())
 println(Book.codec.decode(out.duplicate()))
 ```
 
-After `flip()`, the limit is the end of the JSON and the position is back at the start:
+After `ByteBuffer#flip`, the limit is the end of the JSON and the position is back at the start:
 
 ```scala mdoc:silent
 out.flip()
@@ -264,7 +264,7 @@ println(small.position())
 
 ### Encode to an OutputStream
 
-`JsonCodec#encode(value, output: OutputStream)` writes the JSON in chunks through the writer's internal buffer, so a large reply never exists as one array. The codec neither closes nor flushes the stream. If you wrap the stream in a `BufferedOutputStream`, or your server buffers the response body, call `flush()` when you are done, or the bytes may never leave the buffer:
+`JsonCodec#encode(value, output: OutputStream)` writes the JSON in chunks through the writer's internal buffer, so a large reply never exists as one array. The codec neither closes nor flushes the stream. If you wrap the stream in a `BufferedOutputStream`, or your server buffers the response body, call `OutputStream#flush` when you are done, or the bytes may never leave the buffer:
 
 ```scala mdoc:silent
 val sink     = new ByteArrayOutputStream()
@@ -300,7 +300,7 @@ println(Schema[List[Book]].jsonCodec eq Schema[List[Book]].jsonCodec)
 println(derivedOnce eq derivedTwice)
 ```
 
-The second and third lines print `false`: each of those expressions derives a new codec every time it runs. That is why `fromJson[List[Book]]` and `toJsonString` on a `List[Book]` in [The Problem](#the-problem) paid for two derivations per request.
+The second and third lines print `false`: each of those expressions derives a new codec every time it runs. That is why `fromJson[List[Book]]` and `toJsonString` on a `List[Book]` in [The Problem](#the-problem) pay for two derivations per request.
 
 The fix is to derive each codec you use on a hot path once and keep it in a `val`, as the `Book` companion in [The Book Catalog Model](#the-book-catalog-model) does with `Book.codec` and `Book.catalogCodec`. The same applies to a codec with custom settings from `JsonCodecDeriver`, as in [How to Customize JSON Field Names, ADT Encoding and Optional Fields](./customize-json-encoding.md):
 
@@ -390,9 +390,13 @@ Leave `ReaderConfig#checkForEndOfInput` on for request bodies. It costs little, 
 
 `WriterConfig#withIndentionStep` pretty-prints JSON with that many spaces per level, and `WriterConfig#withEscapeUnicode` writes every non-ASCII character as an ASCII escape sequence of at least six bytes, instead of its two to four UTF-8 bytes. Both make the output larger, and every extra byte is written, sent and parsed again on the other side. We can compare the sizes for *Functional Programming in Scala*, whose author list contains a non-ASCII `ú`:
 
-```scala mdoc
+```scala mdoc:silent
 val fpInScala = classics(2)
+```
 
+The three sizes are the default compact output, two-space indentation and escaped Unicode:
+
+```scala mdoc
 println(Book.codec.encode(fpInScala).length)
 println(Book.codec.encode(fpInScala, WriterConfig.withIndentionStep(2)).length)
 println(Book.codec.encode(fpInScala, WriterConfig.withEscapeUnicode(true)).length)
