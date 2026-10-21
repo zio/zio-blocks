@@ -37,6 +37,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-18 | How to upsert rows and paginate with keyset cursors                           | Pushed, no PR                           | branch `upsert-pagination`, `guides/upsert-and-paginate-with-keyset-cursors.md`; trims `query-dsl-sql.md` |
 | H-21 | How to use the sql module from a ZIO application                             | Pushed, no PR                           | branch `docs/h21-sql-from-zio`, `guides/sql-from-zio.md`; adds `sql-zio` to the docs classpath |
 | H-35 | How to serve http-model requests with the JDK HTTP server                     | Pushed, no PR                           | branch `http-server`, `guides/serve-http-model-requests.md`; reusable `JdkHttp` adapter in `http-model-examples/` |
+| T-12 | Instrument a program with logs, traces and metrics                            | Pushed, no PR                           | branch `docs/t12-instrument-telemetry`, `guides/instrument-a-program-with-logs-traces-and-metrics.md`, `telemetry-examples/` |
 | M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
 | H-28 | How to wrap callback and Future-based APIs in Async                           | Committed locally, not pushed           | worktree `async-interop` (2 commits)                                                    |
 | H-01 | How to add ZIO Blocks to your build                                           | Pushed, no PR                           | branch `adding-zio-block-to-build` (6 commits); fixes the 3.9+ rule across docs        |
@@ -55,6 +56,8 @@ This table tracks every item that has been written or started. Items not listed 
 - PR #1742 (projection docs) merged on 2026-10-20. T-14 now waits only on issue #1744, which has grown to sixteen engine problems.
 
 **Unblocked by T-06 (pushed):** H-20, H-24, H-25 and M-04 can start once it merges. H-24 should cover `Stream.fromResource`, which T-06 left out.
+
+**Unblocked by T-12 (pushed):** H-42, H-48 and H-43. For H-42, don't call `log.removeAll()` before adding writers (writers never resume output afterwards).
 
 **Unblocked by H-35 (pushed):** H-36, H-38, H-49, H-40, H-41, T-10, T-11 and the T-15 capstone can reuse its `JdkHttp` adapter (`http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala`).
 
