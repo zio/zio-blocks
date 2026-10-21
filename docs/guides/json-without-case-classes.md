@@ -333,7 +333,6 @@ Build decimal numbers from a `BigDecimal` or a `String`, not from a `Double`. In
 
 On Scala 3, the `json"..."` interpolator from `zio.blocks.schema.json` writes the same document as JSON text, with Scala values spliced in. The text is checked when your code compiles: a malformed literal such as `json"""{"title": }"""` fails with `Invalid JSON literal: expected JSON value at: .title`.
 
-
 To build the same fourth book from text, with its title, price and tags spliced in from Scala values:
 
 ```scala mdoc:silent
@@ -355,9 +354,7 @@ handsOnScalaFromText == handsOnScala
 
 A spliced value is encoded as JSON, not pasted into the text, so a `String` with a quote or a backslash in it is escaped correctly, and a `List` becomes an array. A `Json` value is spliced as it is. Any other type needs an implicit `Schema` for it: a `case class` with a derived `Schema` becomes an object.
 
-:::note
 On Scala 2.13, `json"..."` does not compile in this release: every call fails with `object JsonInterpolatorRuntime in package json cannot be accessed as a member of package zio.blocks.schema.json`, a known bug in 0.0.56. On Scala 2.13, build JSON with the constructors above, or parse a string with `Json.parse`.
-:::
 
 ## Decode Part of the Tree Into a Case Class
 
@@ -434,7 +431,7 @@ If you come from circe's cursors and optics, or from ujson, most operations have
 
 ## Putting It Together
 
-The complete example handles a bookstore webhook end to end: it parses the payload, reads the store name and every title, raises the prices, tags the first book, removes the internal `stock` field, decodes the books into case classes, and prints the document it would publish:
+The complete example handles a bookstore webhook end to end: it parses the payload, reads the store name and every title, raises the prices, tags the first book, removes the internal `stock` field, decodes the books into case classes, and prints the document it would publish. It carries its own copy of the document, so it does not need `Bookstore.scala`, the support file that the step examples under [Running the Examples](#running-the-examples) share:
 
 ```scala mdoc:embed:schema-examples/src/main/scala/jsonwithoutcaseclasses/CompleteExample.scala
 ```
@@ -448,7 +445,15 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/schema-examples
 ```
 
-The step examples share the bookstore document in `Bookstore.scala`, next to them.
+The step examples share the bookstore document, which `Bookstore.scala` next to them parses once. The complete example has its own copy and doesn't need it.
+
+<details>
+  <summary>schema-examples/src/main/scala/jsonwithoutcaseclasses/Bookstore.scala</summary>
+
+```scala mdoc:embed:schema-examples/src/main/scala/jsonwithoutcaseclasses/Bookstore.scala:show-line-numbers
+```
+
+</details>
 
 ### Parse JSON Text
 
