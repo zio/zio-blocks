@@ -63,6 +63,7 @@ def getDefaultValue: Option[A]
   - `// no-check: <reason>`: not compiled. The reason is required. Use it only when the block cannot compile on its own; if a library bug is the reason, file it in `docs/dev/issues.md`.
 - A first line that starts like a marker but is not one of these three exact forms (`// scala-3-only: uses given`, `// scala3-only`) is an error, not a plain comment.
 - Markers apply only to the first non-empty line of the block. The opening `{{{` and closing `}}}` must each be on their own line: a closing `}}}` on the `*/` line is an error.
+- A code line inside a `{{{` block must not contain `}}}`, for example in an output comment such as `// {"a":{"b":1}}}`: Scaladoc ends the code block at the first `}}}`, so the extractor reports an error. Reword the line or drop the output comment.
 
 Compiler warnings in examples do not fail the build (deprecations included), so check the sbt log for them.
 

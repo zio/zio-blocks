@@ -73,6 +73,14 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         )
       )
     },
+    test("extract rejects a {{{ code line that contains }}}") {
+      val content = source("/**", " * {{{", " * val json = 1 // {\"a\":{\"b\":1}}}", " * }}}", " */")
+      assertTrue(
+        failure(content) == Some(
+          s"$path:2: a code line contains }}}, which ends the Scaladoc code block early; reword it (e.g. split the braces or drop the output comment)"
+        )
+      )
+    },
     test("extract rejects a marker-like first line that is not an exact marker") {
       val content = source("/**", " * {{{", " * // scala-3-only: uses given", " * given Int = 1", " * }}}", " */")
       assertTrue(

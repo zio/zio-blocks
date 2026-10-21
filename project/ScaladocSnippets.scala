@@ -49,6 +49,12 @@ object ScaladocSnippets {
             i += 1
             while (i < lines.length && stripMargin(lines(i)).trim != close) {
               if (lines(i).contains("*/")) fail(sourcePath, start, "code block is never closed")
+              if (close == "}}}" && stripMargin(lines(i)).contains("}}}"))
+                fail(
+                  sourcePath,
+                  start,
+                  "a code line contains }}}, which ends the Scaladoc code block early; reword it (e.g. split the braces or drop the output comment)"
+                )
               code += stripMargin(lines(i))
               i += 1
             }
