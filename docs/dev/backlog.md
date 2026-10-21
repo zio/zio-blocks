@@ -28,7 +28,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-32 | How to roll out a feature gradually with flags                                | Done                                    | #1788, `guides/roll-out-feature-gradually.md`                                           |
 | H-08 | How to derive your own type class from a Schema                               | Done                                    | #1792, `guides/derive-your-own-type-class.md`                                           |
 | T-06 | Build your first streaming pipeline                                           | Pushed, no PR                           | branch `streaming-pipeline`, `guides/your-first-streaming-pipeline.md`                  |
-| H-20 | How to stream large query results                                             | Pushed, no PR                           | branch `stream-query`, `guides/stream-large-query-results.md`                           |
+| H-20 | How to stream large query results                                             | Merged (#1795)                          | `guides/stream-large-query-results.md`                                                  |
 | H-24 | How to stream files and sockets without leaking resources                     | Pushed, no PR                           | branch `stream-resources`, `guides/stream-files-and-sockets.md`                         |
 | H-11 | How to read and write CSV and TSV files                                       | Done                                    | #1793, `guides/read-and-write-csv-and-tsv-files.md` |
 | H-30 | How to feed configuration into a Wire dependency graph                        | Done                                    | #1794, `guides/feed-config-into-a-wire-graph.md` |
