@@ -32,7 +32,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-24 | How to stream files and sockets without leaking resources                     | Merged (#1796)                          | `guides/stream-files-and-sockets.md`                                                    |
 | H-11 | How to read and write CSV and TSV files                                       | Done                                    | #1793, `guides/read-and-write-csv-and-tsv-files.md` |
 | H-30 | How to feed configuration into a Wire dependency graph                        | Done                                    | #1794, `guides/feed-config-into-a-wire-graph.md` |
-| M-04 | Coming from fs2, ZIO Streams or Ox                                            | In review                               | #1801 (`streams-migration-guide`) |
+| M-04 | Coming from fs2, ZIO Streams or Ox                                            | Done                                    | #1801, `guides/streaming-library-migration.md` |
 | H-19 | How to write joins and inspect the generated SQL                              | In review                               | #1802 (`sql-joins`) |
 | H-18 | How to upsert rows and paginate with keyset cursors                           | Merged (#1800)                          | `guides/upsert-and-paginate-with-keyset-cursors.md` |
 | H-21 | How to use the sql module from a ZIO application                             | Done                                    | #1803, `guides/sql-from-zio.md`; `sql-zio` now on the docs classpath (import rule in AGENTS.md) |
