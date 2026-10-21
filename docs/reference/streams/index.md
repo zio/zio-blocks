@@ -77,6 +77,8 @@ Streaming libraries in the Scala ecosystem typically require an effect system. f
 
 The provider columns name the artifacts this repository pins for benchmarking. `build.sbt` pins fs2 3.14.0, Pekko 1.7.0, Kyo 1.0.0-RC7 and Ox 1.1.0. `streams-benchmark/benchmark-manifest.json` records the versions its baselines were taken with: fs2 3.14.0, Pekko 1.7.0, Kyo 1.0.0-RC6 and Ox 1.0.6. Nothing outside the ZB Streams column is measured or verified in this repository.
 
+If you are porting existing code, the [migration guide](../../guides/streaming-library-migration.md) maps fs2, ZIO Streams and Ox code onto ZIO Blocks.
+
 ## Benchmarks
 
 The repository carries a JMH benchmark suite under `streams-benchmark`. Provider comparisons are
@@ -739,3 +741,4 @@ Stream.fromIterable(List("10", "abc", "-3", "7", "0", "25"))
 - [Zero-Boxing Streams](./execution-and-compatibility/zero-boxing.md) -- the primitive lanes and how one is chosen
 - [Async](../async.md) -- the `Async` effect type the cross-platform terminals return
 - [Mux](../mux.mdx) -- coordinating many keyed streams over one shared transport
+- [Coming from fs2, ZIO Streams or Ox](../../guides/streaming-library-migration.md) -- a guide that maps fs2, ZIO Streams and Ox code onto ZIO Blocks streams
