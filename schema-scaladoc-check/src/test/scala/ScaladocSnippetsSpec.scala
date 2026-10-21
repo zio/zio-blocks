@@ -73,6 +73,22 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         )
       )
     },
+    test("extract rejects a marker-like first line that is not an exact marker") {
+      val content = source("/**", " * {{{", " * // scala-3-only: uses given", " * given Int = 1", " * }}}", " */")
+      assertTrue(
+        failure(content) == Some(
+          s"$path:2: unknown marker `// scala-3-only: uses given`; use `// scala-3-only`, `// scala-2-only` or `// no-check: <reason>`"
+        )
+      )
+    },
+    test("extract rejects a misspelled marker") {
+      val content = source("/**", " * {{{", " * // scala3-only", " * given Int = 1", " * }}}", " */")
+      assertTrue(
+        failure(content) == Some(
+          s"$path:2: unknown marker `// scala3-only`; use `// scala-3-only`, `// scala-2-only` or `// no-check: <reason>`"
+        )
+      )
+    },
     test("extract fails with path and line when the comment ends before the block closes") {
       val content = source("/**", " * {{{", " * val x = 1", " */", "object A")
       assertTrue(failure(content) == Some(s"$path:2: code block is never closed"))

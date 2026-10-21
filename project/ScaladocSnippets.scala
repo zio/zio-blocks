@@ -106,6 +106,12 @@ object ScaladocSnippets {
       None
     } else if (marker == "// scala-3-only") Some(Snippet(sourcePath, line, code, Some(3)))
     else if (marker == "// scala-2-only") Some(Snippet(sourcePath, line, code, Some(2)))
+    else if (marker.startsWith("// scala") || marker.startsWith("// no-"))
+      fail(
+        sourcePath,
+        line,
+        s"unknown marker `$marker`; use `// scala-3-only`, `// scala-2-only` or `// no-check: <reason>`"
+      )
     else Some(Snippet(sourcePath, line, code, None))
   }
 
