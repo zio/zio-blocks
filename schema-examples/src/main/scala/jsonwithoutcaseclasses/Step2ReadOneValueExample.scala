@@ -7,8 +7,8 @@ import zio.blocks.schema.json._
  * How to Read and Modify JSON Without Case Classes — Read One Value Deep in the
  * Tree
  *
- * Reads single values by key, by index and by path, and prints the errors for
- * a missing field, a wrong type and an index out of range.
+ * Reads single values by key, by index and by path, and prints the errors for a
+ * missing field, a wrong type and an index out of range.
  *
  * Run with: cd schema-examples && sbt "runMain
  * jsonwithoutcaseclasses.Step2ReadOneValueExample"
