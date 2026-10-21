@@ -456,3 +456,5 @@ def validate(input: Input): Either[SchemaError, ValidInput] = {
   else Left(allErrors.reduce(_ ++ _))
 }
 ```
+
+See also the [How to Define Validated Newtypes and Collect Every Validation Error](../../guides/validated-newtypes.md) guide, which builds validated wrapper types with smart constructors and collects every failing field into one `SchemaError`.

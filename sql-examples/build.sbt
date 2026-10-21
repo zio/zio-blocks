@@ -29,6 +29,7 @@ def zioBlocks(module: String) = Def.setting {
 libraryDependencies ++= Seq(
   zioBlocks("sql").value,
   zioBlocks("streams").value,
+  zioBlocks("sql-zio").value,
   "org.xerial"      % "sqlite-jdbc"  % "3.53.4.0",
   "org.postgresql"  % "postgresql"   % "42.7.14",
   "com.zaxxer"      % "HikariCP"     % "7.1.0",

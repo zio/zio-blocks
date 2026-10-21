@@ -1,8 +1,8 @@
 package yourfirstsqliterepository
 
-import zio.blocks.sql.*
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql.*
 import scala.util.{Failure, Success, Try}
 
 /**

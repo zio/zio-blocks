@@ -43,8 +43,8 @@ upper("firstName")
 Use a custom mapper when deriving codecs:
 
 ```scala mdoc:reset
-import zio.blocks.sql.{DbCodec, DbCodecDeriver, SqlNameMapper}
 import zio.blocks.schema.Schema
+import zio.blocks.sql.{DbCodec, DbCodecDeriver, SqlNameMapper}
 
 case class Order(orderId: Int, totalAmount: BigDecimal)
 object Order { given schema: Schema[Order] = Schema.derived }

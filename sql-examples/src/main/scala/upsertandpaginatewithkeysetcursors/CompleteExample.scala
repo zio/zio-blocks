@@ -1,7 +1,7 @@
 package upsertandpaginatewithkeysetcursors
 
-import zio.blocks.sql.*
 import zio.blocks.schema.Schema
+import zio.blocks.sql.*
 import scala.annotation.tailrec
 
 /**

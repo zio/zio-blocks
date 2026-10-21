@@ -1,7 +1,7 @@
 package upsertandpaginatewithkeysetcursors
 
-import zio.blocks.sql.*
 import zio.blocks.schema.Schema
+import zio.blocks.sql.*
 
 /**
  * How to Upsert Rows and Paginate with Keyset Cursors — Step 5: Compare the
