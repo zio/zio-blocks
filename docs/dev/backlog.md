@@ -41,7 +41,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-38 | How to protect an endpoint with JWT bearer tokens                             | In review                               | #1804 (`jwt-bearer`) |
 | H-39 | How to write an OpenAPI document and export it as JSON or YAML                | In review                               | #1807 (`openapi`), `openapi-examples/` |
 | H-36 | How to validate query parameters and headers and answer 400                   | In review                               | #1808 (`query-validation`), depends on #1806 (H-35)                                     |
-| T-15 | Build a small JSON backend from blocks (capstone)                             | In review                               | #1809 (`docs/t15-capstone-json-backend`), new `capstone-examples/` build; merge after #1806, #1808, #1805, #1804 |
+| T-15 | Build a small JSON backend from blocks (capstone)                             | Done                                    | #1809, `guides/small-json-backend-from-blocks.md`, `capstone-examples/`                  |
 | H-04 | How to define validated newtypes and collect every validation error   | In review                               | #1811 (`docs/h04-validated-newtypes`), `guides/validated-newtypes.md`                   |
 | H-06 | How to read and modify JSON without case classes                            | In review                               | #1812 (`docs/h06-json-without-case-classes`), `guides/json-without-case-classes.md`     |
 | M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
@@ -69,6 +69,8 @@ This table tracks every item that has been written or started. Items not listed 
 **Unblocked by T-12 (pushed):** H-42, H-48 and H-43. For H-42, don't call `log.removeAll()` before adding writers (writers never resume output afterwards).
 
 **Unblocked by H-35 (pushed):** H-36, H-38, H-49, H-40, H-41, T-10, T-11 and the T-15 capstone can reuse its `JdkHttp` adapter (`http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala`).
+
+**Links to add when PRs merge:** `small-json-backend-from-blocks.md` (T-15) names H-35 (#1806, section 9 and Background), H-36 (#1808, end of section 6), T-12 (#1805, end of section 8 and the log source-location caution) and H-38 (#1804, Where to Go Next) without links. Each of those PRs should turn its mention into a link.
 
 **Waiting on stalled items:** M-07 needs T-02. H-04 only depends on T-01; it can start now and link to T-02 once T-02 merges.
 
