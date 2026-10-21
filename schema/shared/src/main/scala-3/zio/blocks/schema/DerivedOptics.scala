@@ -286,13 +286,17 @@ final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic with S
 /**
  * Type class that provides derived optics for type S. Used internally to enable
  * the `given Conversion` pattern for direct field access.
+ *
+ * It is public because Scala 3.10 only finds givens in a type's companion that
+ * are accessible where the search happens: with `private[schema]`,
+ * `Person.name` stops compiling outside the `zio.blocks.schema` package.
  */
-private[schema] trait OpticsFor[S] {
+trait OpticsFor[S] {
   type Out
   def optics: Out
 }
 
-private[schema] object OpticsFor {
+object OpticsFor {
   transparent inline given derived[S](using schema: Schema[S]): OpticsFor[S] = ${ opticsForImpl[S]('schema) }
 
   private def opticsForImpl[S: Type](schema: Expr[Schema[S]])(using Quotes): Expr[OpticsFor[S]] = {
