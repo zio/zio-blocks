@@ -1052,6 +1052,8 @@ This gives you a dry run of the migration SQL before any schema changes are appl
 
 ## Compile-time SQL Dumps
 
+To run joins against a real database and dump their SQL, see [How to Write Joins and Inspect the Generated SQL](./write-joins-and-inspect-generated-sql.md).
+
 The `Dump` object emits SQL files at compile time. When the JVM property `zib.sql.dumpDir` is set, inline macro calls to `Dump.dumpTable` or `Dump.dumpQuery` write `.sql` files to that directory. When the property is absent, the calls become no-ops with zero runtime cost.
 
 ### Enabling Dumps

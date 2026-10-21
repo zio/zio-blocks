@@ -233,3 +233,8 @@ given DbCon = ???
 
 val keys: List[Long] = sql"INSERT INTO users (name) VALUES (${"Alice"})".updateReturningKeys[Long]
 ```
+
+## See Also
+
+- **[SQL Module](./index.md)** — Overview of the `zio-blocks-sql` module and its types.
+- **[How to Write Joins and Inspect the Generated SQL](../../guides/write-joins-and-inspect-generated-sql.md)** — Guide that runs join queries and prints or dumps the SQL they generate.
