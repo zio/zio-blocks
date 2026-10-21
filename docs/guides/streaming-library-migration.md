@@ -151,7 +151,7 @@ None of this code uses a streaming library, so the "before" snippets for fs2, ZI
 | Running state                | `scan`, `mapAccumulate`                      | `scan`, `mapAccum`                         | `scan`, `mapStateful`                     | `scan`, `mapAccum`                                                   |
 | Custom pull loop             | `Pull`, `stream.pull.uncons1`                | none covered here                          | none                                      | `start` plus `Reader#read`, or `mapAccum`                            |
 | Typed error                  | none (`Throwable` in `F`)                    | the `E` channel                            | none (exceptions; `either` blocks)        | the `E` channel, `Left` from every terminal                           |
-| Recover from an error        | `handleErrorWith`                            | `catchAll`, `orElse`                       | `recover`, `recoverWith`, `orElse`        | `catchAll`, `orElse` (alias `||`), `catchDefect`                      |
+| Recover from an error        | `handleErrorWith`                            | `catchAll`, `orElse`                       | `recover`, `recoverWith`                  | `catchAll`, `orElse` (alias `||`), `catchDefect`                      |
 | Turn exceptions into errors  | `attempt`                                    | `ZStream.fromZIO(ZIO.attempt(...))`        | `either.catching`                         | `Stream.attempt(f)`                                                  |
 | Collect everything           | `compile.toList`                             | `runCollect`                               | `runToList()`                             | `runCollect`                                                         |
 | Fold                         | `compile.fold(z)(f)`                         | `runFold(z)(f)`                            | `runFold(z)(f)`                           | `runFold(z)(f)`                                                      |
@@ -643,7 +643,7 @@ println(orders.runFold(Map.empty[String, Int])(addOrder))
 println(Stream.attempt("not-a-number".toInt).runCollect)
 ```
 
-Ox's `recover` and `recoverWith` map to `catchDefect` for exceptions, and `orElse` keeps its name (alias `||`) but switches on typed errors only.
+Ox's `recover` and `recoverWith` map to `catchDefect` for exceptions. Ox's `orElse` is a different operator: it substitutes a flow only when the flow is empty. ZIO Blocks' `orElse` (alias `||`) falls back on the first typed error and does not handle defects.
 
 ### Merging and Structured Concurrency
 
