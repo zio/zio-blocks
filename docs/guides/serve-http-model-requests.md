@@ -359,7 +359,7 @@ withServer(listBooks) { port =>
 ```
 
 :::note
-`QueryParams` decodes `%20` to a space but leaves `+` as a plus sign, unlike HTML form encoding. Clients that encode spaces as `+` in query strings need `%20` instead.
+`QueryParams` decodes `%20` to a space but keeps `+` as a plus sign. Browsers encode a space as `+` when they submit an HTML form with `method="get"`, so a search for `zio blocks` arrives as `zio+blocks`. If your page has such a form, decode the raw query string (`URI#getRawQuery` in `toRequest`) with `Form.fromString`, which treats `+` as a space.
 :::
 
 ## Decoding a JSON Body
