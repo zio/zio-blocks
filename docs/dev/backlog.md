@@ -36,7 +36,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-19 | How to write joins and inspect the generated SQL                              | Done                                    | #1802, `guides/write-joins-and-inspect-generated-sql.md` |
 | H-18 | How to upsert rows and paginate with keyset cursors                           | Merged (#1800)                          | `guides/upsert-and-paginate-with-keyset-cursors.md` |
 | H-21 | How to use the sql module from a ZIO application                             | Done                                    | #1803, `guides/sql-from-zio.md`; `sql-zio` now on the docs classpath (import rule in AGENTS.md) |
-| H-35 | How to serve http-model requests with the JDK HTTP server                     | In review                               | #1806 (`http-server`); reusable `JdkHttp` adapter |
+| H-35 | How to serve http-model requests with the JDK HTTP server                     | Done                                    | #1806, `guides/serve-http-model-requests.md`; reusable `JdkHttp` adapter |
 | T-12 | Instrument a program with logs, traces and metrics                            | Done                                    | #1805, `guides/instrument-a-program-with-logs-traces-and-metrics.md`, `telemetry-examples/` |
 | H-38 | How to protect an endpoint with JWT bearer tokens                             | Done                                    | #1804, `guides/protect-endpoints-with-jwt.md`, `jwt-examples/` |
 | H-39 | How to write an OpenAPI document and export it as JSON or YAML                | Done                                    | #1807, `guides/write-and-export-openapi.md`, `openapi-examples/` |
@@ -72,7 +72,7 @@ This table tracks every item that has been written or started. Items not listed 
 
 **Unblocked by T-12 (merged #1805):** H-48 and H-43 (H-42 was skipped). For H-42, don't call `log.removeAll()` before adding writers (writers never resume output afterwards).
 
-**Unblocked by H-35 (pushed):** H-36, H-38, H-49, H-40, H-41, T-10, T-11 and the T-15 capstone can reuse its `JdkHttp` adapter (`http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala`).
+**Unblocked by H-35 (merged #1806):** H-36, H-38, H-49, H-40, H-41, T-10, T-11 and the T-15 capstone can reuse its `JdkHttp` adapter (`http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala`).
 
 **Links to add when PRs merge:** `small-json-backend-from-blocks.md` (T-15) names H-35 (#1806, section 9 and Background), H-36 (#1808, end of section 6), T-12 (#1805, end of section 8 and the log source-location caution) and H-38 (#1804, Where to Go Next) without links. Each of those PRs should turn its mention into a link. Done: #1804 (merged), #1806. Also `protect-endpoints-with-jwt.md` (H-38) names H-35 unlinked in Prerequisites and Running the Examples; #1806 should link it.
 
