@@ -31,15 +31,15 @@ This table tracks every item that has been written or started. Items not listed 
 | H-20 | How to stream large query results                                             | Pushed, no PR                           | branch `stream-query`, `guides/stream-large-query-results.md`                           |
 | H-24 | How to stream files and sockets without leaking resources                     | Pushed, no PR                           | branch `stream-resources`, `guides/stream-files-and-sockets.md`                         |
 | H-11 | How to read and write CSV and TSV files                                       | Done                                    | #1793, `guides/read-and-write-csv-and-tsv-files.md` |
-| H-30 | How to feed configuration into a Wire dependency graph                        | In review                               | #1794 (`config-wire`), `guides/feed-config-into-a-wire-graph.md` |
+| H-30 | How to feed configuration into a Wire dependency graph                        | Done                                    | #1794, `guides/feed-config-into-a-wire-graph.md` |
 | M-04 | Coming from fs2, ZIO Streams or Ox                                            | In review                               | #1801 (`streams-migration-guide`) |
 | H-19 | How to write joins and inspect the generated SQL                              | In review                               | #1802 (`sql-joins`) |
 | H-18 | How to upsert rows and paginate with keyset cursors                           | In review                               | #1800 (`upsert-pagination`) |
 | H-21 | How to use the sql module from a ZIO application                             | In review                               | #1803 (`docs/h21-sql-from-zio`); adds `sql-zio` to the docs classpath |
-| H-35 | How to serve http-model requests with the JDK HTTP server                     | Pushed, no PR                           | branch `http-server`, `guides/serve-http-model-requests.md`; reusable `JdkHttp` adapter in `http-model-examples/` |
-| T-12 | Instrument a program with logs, traces and metrics                            | Pushed, no PR                           | branch `docs/t12-instrument-telemetry`, `guides/instrument-a-program-with-logs-traces-and-metrics.md`, `telemetry-examples/` |
-| H-38 | How to protect an endpoint with JWT bearer tokens                             | Pushed, no PR                           | branch `jwt-bearer`, `guides/protect-endpoints-with-jwt.md`; adds http-model + config to `jwt-examples/` |
-| H-39 | How to write an OpenAPI document and export it as JSON or YAML                | Pushed, no PR                           | branch `openapi`, `guides/write-and-export-openapi.md`, `openapi-examples/`             |
+| H-35 | How to serve http-model requests with the JDK HTTP server                     | In review                               | #1806 (`http-server`); reusable `JdkHttp` adapter |
+| T-12 | Instrument a program with logs, traces and metrics                            | In review                               | #1805 (`docs/t12-instrument-telemetry`), `telemetry-examples/` |
+| H-38 | How to protect an endpoint with JWT bearer tokens                             | In review                               | #1804 (`jwt-bearer`) |
+| H-39 | How to write an OpenAPI document and export it as JSON or YAML                | In review                               | #1807 (`openapi`), `openapi-examples/` |
 | M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
 | H-28 | How to wrap callback and Future-based APIs in Async                           | Committed locally, not pushed           | worktree `async-interop` (2 commits)                                                    |
 | H-01 | How to add ZIO Blocks to your build                                           | Pushed, no PR                           | branch `adding-zio-block-to-build` (6 commits); fixes the 3.9+ rule across docs        |
