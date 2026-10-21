@@ -392,7 +392,7 @@ Decoding it with `Json#as` reports the price:
 println(badBook.as[Book])
 ```
 
-`Json#as` stops at the first error. To report every problem in a payload at once, convert the tree to a `DynamicValue` with `Json#toDynamicValue` and decode it with `Schema#fromDynamicValue`, the approach the guide "How to Define Validated Newtypes and Collect Every Validation Error" uses to collect every decode error:
+`Json#as` stops at the first error. To report every problem in a payload at once, convert the tree to a `DynamicValue` with `Json#toDynamicValue` and decode it with `Schema#fromDynamicValue`, the approach the guide [How to Define Validated Newtypes and Collect Every Validation Error](./validated-newtypes.md) uses to collect every decode error:
 
 ```scala mdoc
 println(Schema[Book].fromDynamicValue(badBook.toDynamicValue))
