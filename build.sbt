@@ -312,6 +312,7 @@ lazy val root = project
     `async-benchmarks-js`,
     scalaNextTests.jvm,
     scalaNextTests.js,
+    `schema-scaladoc-check`,
     benchmarks,
     `scope-benchmarks`,
     `sql-benchmarks`,
@@ -1370,6 +1371,25 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumBranchTotal := 0
   )
   .jsSettings(jsSettings)
+
+// Compiles every code example in the Scaladoc of `schema` (see docs/dev/scaladoc-style.md).
+// Not published. The extractor lives in project/ScaladocSnippets.scala so that sbt can run it as a
+// source generator; the Test configuration compiles that file again to unit-test it.
+lazy val `schema-scaladoc-check` = project
+  .in(file("schema-scaladoc-check"))
+  .settings(stdSettings("zio-blocks-schema-scaladoc-check"))
+  .dependsOn(schema.jvm)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
+    ),
+    Test / unmanagedSources += (ThisBuild / baseDirectory).value / "project" / "ScaladocSnippets.scala"
+  )
 
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.9.0")))
