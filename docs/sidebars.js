@@ -467,6 +467,7 @@ const sidebars = {
     "guides/connect-to-postgresql-with-a-connection-pool",
     "guides/your-first-html-page",
     "guides/serve-http-model-requests",
+    "guides/validate-query-parameters-and-headers",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
     "guides/fix-scope-and-wire-compile-errors",

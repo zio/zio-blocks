@@ -34,16 +34,22 @@ object Step5SpacesExample {
     JdkHttp.handler(request => app(request.updateUrl(_.copy(queryParams = params)))).handle(exchange)
   }
 
+  def withFormServer[A](app: Request => Response)(use: Int => A): A = {
+    val server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress, 0), 0)
+    server.createContext("/", formQueryHandler(app))
+    server.start()
+    try use(server.getAddress.getPort)
+    finally server.stop(0)
+  }
+
   def main(args: Array[String]): Unit = {
     JdkHttp.withServer(byAuthor) { port =>
       Client.call(port, "GET", "/books?author=Martin%20Odersky")
       Client.call(port, "GET", "/books?author=Martin+Odersky")
     }
 
-    val server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress, 0), 0)
-    server.createContext("/", formQueryHandler(byAuthor))
-    server.start()
-    try Client.call(server.getAddress.getPort, "GET", "/books?author=Martin+Odersky")
-    finally server.stop(0)
+    withFormServer(byAuthor) { port =>
+      Client.call(port, "GET", "/books?author=Martin+Odersky")
+    }
   }
 }
