@@ -520,7 +520,7 @@ object PositiveInt {
 }
 ```
 
-When `make` throws a `SchemaError`, the codec catches it, preserves the full error (including any path already annotated), and surfaces it as `Left(schemaError)` from `Schema#fromDynamicValue` or `Codec#decode`. See [Schema](./schema.md) for the full `transform` API.
+When `make` throws, `Schema#fromDynamicValue` and `Codec#decode` catch the exception and return `Left` with a new `SchemaError.ConversionFailed` that keeps only the exception's message, at a path that ends in `.wrapped` (`must be positive at: .wrapped`). See [Schema](./schema.md) for the full `transform` API.
 
 A runnable version of this example, including composite types and error aggregation, is available in the `schema-examples` module:
 
@@ -530,7 +530,7 @@ cd schema-examples && sbt "runMain schemaerror.SchemaErrorExample"
 
 ### With Validation
 
-The [Validation](./validation.md) system uses `SchemaError` to report constraint violations. When a `PrimitiveType` carries a `Validation` and the value fails the check, the codec surfaces a `SchemaError.ConversionFailed` at the appropriate path.
+The [Validation](./validation.md) system uses `SchemaError` to report constraint violations. When a `PrimitiveType` carries a `Validation`, `DynamicSchema#check` reports a value that breaks it as a `SchemaError.ConversionFailed` (`Validation failed: value must be positive`) at the value's path. Codecs and `Schema#fromDynamicValue` do not check `Validation` constraints.
 
 ### With DynamicOptic and Optics
 
