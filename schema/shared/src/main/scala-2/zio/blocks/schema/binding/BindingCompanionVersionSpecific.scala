@@ -41,13 +41,15 @@ trait BindingCompanionVersionSpecific {
    *   - Structural types, on the JVM only
    *   - zio-prelude newtypes (derives [[Binding.Wrapper]])
    *   - On Scala 3 only: named tuples (derives [[Binding.Record]]), union types
-   *     (derives [[Binding.Variant]], with the cases in the order of the union)
-   *     and opaque types (derives [[Binding.Wrapper]])
+   *     (derives [[Binding.Variant]], with the cases sorted by the full name of
+   *     each case's type, not in the order the union is written) and opaque
+   *     types (derives [[Binding.Wrapper]])
    *
-   * On Scala 3, structural types need a build of this library with Scala 3.5 or
-   * later: the `zio-blocks-next-schema` artifact supports them, and the
-   * `zio-blocks-schema` artifact, which is built with Scala 3.3, rejects them
-   * at compile time.
+   * On Scala 3, a structural record type needs a build of this library with
+   * Scala 3.5 or later: the `zio-blocks-next-schema` artifact (Scala 3.9 or
+   * later, with `-experimental`) supports it, and the `zio-blocks-schema`
+   * artifact, which is built with Scala 3.3, rejects it at compile time. A
+   * union of structural types works with both artifacts.
    *
    * For sequence types (List, Vector, etc.) and map types, use the overloads
    * that take type constructors: `Binding.of[List]`, `Binding.of[Map]`;

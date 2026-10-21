@@ -60,7 +60,9 @@ trait SeqConstructor[C[_]] {
    * Adds the `Boolean` `a` to `builder`. This and the other primitive adders
    * (`addByte`, `addShort`, `addInt`, `addLong`, `addFloat`, `addDouble` and
    * `addChar`) call `add` by default, which boxes the value. The array-backed
-   * constructors override them to write into a primitive array without boxing.
+   * constructors override them to write into a primitive array without boxing,
+   * and `chunkConstructor` overrides all eight to forward the value to
+   * `ChunkBuilder.addOne`.
    */
   def addBoolean(builder: Builder[Boolean], a: Boolean): Unit = add(builder, a)
 

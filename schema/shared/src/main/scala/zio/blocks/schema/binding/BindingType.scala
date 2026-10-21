@@ -23,7 +23,10 @@ package zio.blocks.schema.binding
  */
 final abstract class BindingType
 
-/** One binding kind per `Reflect` node kind. */
+/**
+ * One binding kind per `Reflect` node kind (a `Reflect.Deferred` node uses the
+ * binding of the node it defers to).
+ */
 object BindingType {
 
   /** The kind of [[Binding.Record]], for `Reflect.Record` nodes. */

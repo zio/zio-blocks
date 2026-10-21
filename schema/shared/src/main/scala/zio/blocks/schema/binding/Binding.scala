@@ -38,8 +38,9 @@ import java.util.{Currency, UUID}
  * serialized, and `DynamicSchema#rebind` gets its bindings back from a
  * [[BindingResolver]].
  *
- * There is one binding kind per node kind, and the phantom type `T` names it
- * (see [[BindingType]]):
+ * There is one binding kind per node kind (a `Reflect.Deferred` node uses the
+ * binding of the node it defers to), and the phantom type `T` names it (see
+ * [[BindingType]]):
  *   - [[Binding.Record]]: a [[Constructor]] and a [[Deconstructor]] that move a
  *     record's fields in and out of [[Registers]].
  *   - [[Binding.Variant]]: a [[Discriminator]] that returns the case index of a
