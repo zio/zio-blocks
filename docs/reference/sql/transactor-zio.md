@@ -397,3 +397,8 @@ JdbcTransactor                         TransactorZIO
 ```
 
 `TransactorZIO` holds a private `JdbcTransactor` field and delegates the synchronous `connect` and `transact` calls to it, wrapping each in `ZIO.attemptBlocking`. The effect-aware `connectZIO` and `transactZIO` bypass `JdbcTransactor` entirely and manage the connection lifecycle with `ZIO.acquireRelease` directly.
+
+## See Also
+
+- [How to Use the sql Module from a ZIO Application](../../guides/sql-from-zio.md) — Guide to running `sql` queries and transactions as ZIO effects with `TransactorZIO`.
+- [SQL — ZIO Integration](../sql-zio.md) — Overview of both ZIO integration styles and when to reach for each.

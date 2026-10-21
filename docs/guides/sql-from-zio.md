@@ -54,7 +54,7 @@ def sell(id: Long): Task[Int] =
   ZIO.attemptBlocking(transactor.transact(sql"UPDATE book SET stock = stock - 1 WHERE id = $id".update))
 ```
 
-Every query needs the right wrapper, and one forgotten `attemptBlocking` slows down the whole application without failing a test. The transaction body is synchronous, so a sale that must also charge a customer through a ZIO service can't do both in one transaction.
+Every query needs the right wrapper, and one forgotten `ZIO.attemptBlocking` slows down the whole application without failing a test. The transaction body is synchronous, so a sale that must also charge a customer through a ZIO service can't do both in one transaction.
 
 In this guide, we solve this with the `sql-zio` module. Its `TransactorZIO` returns ZIO effects that already run on the blocking pool, comes as a `ZLayer`, and has `TransactorZIO#transactZIO` for transactions whose body is a ZIO effect.
 
@@ -126,7 +126,7 @@ def createBookTable()(using DbCon): Unit =
   )""".update
 ```
 
-We write the `CREATE TABLE` statement by hand instead of using `Table#createTable`, because the derived statement has no `PRIMARY KEY`, as [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md#create-the-schema-from-code) explains. `createBookTable` takes a `(using DbCon)`, so it runs inside any `connect` or `transact` block.
+We write the `CREATE TABLE` statement by hand instead of using `Table#createTable`, because the derived statement has no `PRIMARY KEY`, as [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md#create-the-schema-from-code) explains. `createBookTable` takes a `(using DbCon)`, so it runs inside any `TransactorZIO#connect` or `TransactorZIO#transact` block.
 
 ## Provide the Database as a ZLayer
 
@@ -140,7 +140,7 @@ val transactorLayer: ZLayer[Any, Nothing, TransactorZIO] =
   TransactorZIO.layer(s"jdbc:sqlite:$dbFile", SqlDialect.SQLite)
 ```
 
-The layer can't fail because it opens nothing: `TransactorZIO` opens a new JDBC connection for each `connect` or `transact` call and closes it afterwards. A wrong URL shows up at the first query, not at startup.
+The layer can't fail because it opens nothing: `TransactorZIO` opens a new JDBC connection for each `TransactorZIO#connect` or `TransactorZIO#transact` call and closes it afterwards. A wrong URL shows up at the first query, not at startup.
 
 :::warning
 Don't use `jdbc:sqlite::memory:` here. Each new connection to `:memory:` gets its own empty database, so the table we create in one call is gone in the next. Use a file, as above.
@@ -223,7 +223,7 @@ object BookRepoLive {
 }
 ```
 
-`BookRepoLive` takes the transactor as a constructor parameter, and `ZLayer.fromFunction` turns that constructor into a layer that needs a `TransactorZIO`. Each method is one `connect` or `transact` call, so each one runs on the blocking pool and fails with the JDBC exception as a `Task` error. `TransactorZIO#transact` turns off auto-commit, commits when its body returns and rolls back when it throws.
+`BookRepoLive` takes the transactor as a constructor parameter, and `ZLayer.fromFunction` turns that constructor into a layer that needs a `TransactorZIO`. Each method is one `TransactorZIO#connect` or `TransactorZIO#transact` call, so each one runs on the blocking pool and fails with the JDBC exception as a `Task` error. `TransactorZIO#transact` turns off auto-commit, commits when its body returns and rolls back when it throws.
 
 Callers ask ZIO for the service and provide both layers:
 
@@ -256,7 +256,7 @@ val paymentsLayer: ZLayer[Any, Nothing, Payments] =
   })
 ```
 
-The sale lowers the stock, fails with `OutOfStock` if there weren't enough copies, then charges the customer, all inside one `transactZIO`:
+The sale lowers the stock, fails with `OutOfStock` if there weren't enough copies, then charges the customer, all inside one `TransactorZIO#transactZIO`:
 
 ```scala mdoc:silent
 def sell(bookId: Long, copies: Int, customer: String): ZIO[TransactorZIO & Payments, Throwable, Unit] =
@@ -296,23 +296,23 @@ runDemo {
 }
 ```
 
-Alice's sale committed and took two copies. Mallory's `UPDATE` ran, but the declined charge failed the body, so `transactZIO` rolled the `UPDATE` back and the stock only dropped by Alice's two copies. The error type is `Throwable` here because both of our errors extend `Exception`; in general `transactZIO` returns `ZIO[R, E | Throwable, A]`, adding `Throwable` for the JDBC errors to whatever error type the body has.
+Alice's sale committed and took two copies. Mallory's `UPDATE` ran, but the declined charge failed the body, so `TransactorZIO#transactZIO` rolled the `UPDATE` back and the stock only dropped by Alice's two copies. The error type is `Throwable` here because both of our errors extend `Exception`; in general `TransactorZIO#transactZIO` returns `ZIO[R, E | Throwable, A]`, adding `Throwable` for the JDBC errors to whatever error type the body has.
 
-Inside `transactZIO`, wrap every statement in `ZIO.attemptBlocking`. `transactZIO` runs only the connection setup, the commit and the rollback on the blocking pool, and the body's effect runs on whatever thread the fiber is on. `ZIO.attemptBlocking` moves the statement to the blocking pool and turns its exception into a typed failure that triggers the rollback.
+Inside `TransactorZIO#transactZIO`, wrap every statement in `ZIO.attemptBlocking`. `TransactorZIO#transactZIO` runs only the connection setup, the commit and the rollback on the blocking pool, and the body's effect runs on whatever thread the fiber is on. `ZIO.attemptBlocking` moves the statement to the blocking pool and turns its exception into a typed failure that triggers the rollback.
 
-:::danger[Two ways `transactZIO` 0.0.56 commits instead of rolling back]
-A statement written directly in the body, such as `transactZIO { sql"...".update; ZIO.unit }`, runs while the body's effect is being built, before `transactZIO` watches it for failures. If such a statement throws, `transactZIO` does not roll back, and the statements before it in the same body are committed. Wrapping each statement in `ZIO.attemptBlocking`, as above, avoids this.
+:::danger[Two ways `TransactorZIO#transactZIO` 0.0.56 commits instead of rolling back]
+A statement written directly in the body, such as `transactZIO { sql"...".update; ZIO.unit }`, runs while the body's effect is being built, before `TransactorZIO#transactZIO` watches it for failures. If such a statement throws, `TransactorZIO#transactZIO` does not roll back, and the statements before it in the same body are committed. Wrapping each statement in `ZIO.attemptBlocking`, as above, avoids this.
 
-Interrupting a running `transactZIO` from outside, for example with `ZIO#timeout`, `ZIO#race` or by interrupting its fiber, also commits the statements that already ran. Don't put `timeout` around a `transactZIO`; put a time limit on the slow effect inside the body with `ZIO#timeoutFail`, which fails the body and so rolls the transaction back, as shown in [Limit How Long an Effect Waits](#limit-how-long-an-effect-waits).
+Interrupting a running `TransactorZIO#transactZIO` from outside, for example with `ZIO#timeout`, `ZIO#race` or by interrupting its fiber, also commits the statements that already ran. Don't put `ZIO#timeout` around a `TransactorZIO#transactZIO`; put a time limit on the slow effect inside the body with `ZIO#timeoutFail`, which fails the body and so rolls the transaction back, as shown in [Limit How Long an Effect Waits](#limit-how-long-an-effect-waits).
 :::
 
-`transactZIO` keeps the driver's default isolation level. When a transaction needs a specific one, pass it with the two-argument overload, `transactor.transactZIO(TransactionIsolation.Serializable, readOnly = false) { ... }`. [SQL Transactions: Isolation, Read-Only and Savepoints](./sql-transactions.md) explains the levels.
+`TransactorZIO#transactZIO` keeps the driver's default isolation level. When a transaction needs a specific one, pass it with the two-argument overload, `transactor.transactZIO(TransactionIsolation.Serializable, readOnly = false) { ... }`. [SQL Transactions: Isolation, Read-Only and Savepoints](./sql-transactions.md) explains the levels.
 
 ### Pass the Transaction Down Instead of Opening Another
 
-Every `connect`, `transact`, `connectZIO` and `transactZIO` call takes its own connection. Calling one from inside another, for example a service method that calls `BookRepo#add` while it is inside its own `transactZIO`, opens a second connection while the first one still holds its locks. On SQLite, the inner write waits for the outer transaction and fails with `SQLITE_BUSY` after the busy timeout; on PostgreSQL, enough concurrent callers doing this use up the pool and wait for each other.
+Every `TransactorZIO#connect`, `TransactorZIO#transact`, `TransactorZIO#connectZIO` and `TransactorZIO#transactZIO` call takes its own connection. Calling one from inside another, for example a service method that calls `BookRepo#add` while it is inside its own `TransactorZIO#transactZIO`, opens a second connection while the first one still holds its locks. On SQLite, the inner write waits for the outer transaction and fails with `SQLITE_BUSY` after the busy timeout; on PostgreSQL, enough concurrent callers doing this use up the pool and wait for each other.
 
-Instead, write the operations that should share a transaction as functions with a `(using DbCon)` parameter, like `createBookTable` above, and call them inside one `transactZIO`:
+Instead, write the operations that should share a transaction as functions with a `(using DbCon)` parameter, like `createBookTable` above, and call them inside one `TransactorZIO#transactZIO`:
 
 ```scala mdoc:silent
 def restock(bookId: Long, copies: Int)(using DbCon): Int =
@@ -324,7 +324,7 @@ def restockAll(copies: Int): ZIO[TransactorZIO, Throwable, Int] =
   })
 ```
 
-Both `restock` calls use the `DbTx` that `transactZIO` passes to its body, so they run on one connection and commit together.
+Both `restock` calls use the `DbTx` that `TransactorZIO#transactZIO` passes to its body, so they run on one connection and commit together.
 
 ## Handle Errors, Retries and Timeouts the ZIO Way
 
@@ -356,7 +356,7 @@ runDemo {
 
 ### Retry Transient Failures
 
-Some failures go away on their own: the database is restarting, the network dropped a connection, or another writer held a lock. `ZIO#retry` reruns the effect with a `Schedule`. Retrying a whole `connect` or `transact` is safe, because each attempt takes a new connection and a failed `transact` has already rolled back.
+Some failures go away on their own: the database is restarting, the network dropped a connection, or another writer held a lock. `ZIO#retry` reruns the effect with a `Schedule`. Retrying a whole `TransactorZIO#connect` or `TransactorZIO#transact` is safe, because each attempt takes a new connection and a failed `TransactorZIO#transact` has already rolled back.
 
 To see a retry without a real outage, we build a `TransactorZIO` whose connection factory fails twice before it connects, the way a database that is still starting up would:
 
@@ -382,7 +382,7 @@ runDemo {
 }
 ```
 
-Retry only what is safe to repeat. A `transactZIO` body that calls a payment service would charge the customer again on every retry; retry the database part inside the body instead, or make the charge idempotent.
+Retry only what is safe to repeat. A `TransactorZIO#transactZIO` body that calls a payment service would charge the customer again on every retry; retry the database part inside the body instead, or make the charge idempotent.
 
 ### Limit How Long an Effect Waits
 
@@ -424,7 +424,7 @@ runDemo {
 
 To stop the statement itself, set a limit in the database, such as PostgreSQL's `statement_timeout` on the pool's connections.
 
-Inside a `transactZIO`, put the time limit on the non-database effect with `ZIO#timeoutFail`. The timeout becomes a typed failure of the body, and the transaction rolls back. Here the payment provider hangs, so the sale fails after 50 milliseconds and the stock stays as it was:
+Inside a `TransactorZIO#transactZIO`, put the time limit on the non-database effect with `ZIO#timeoutFail`. The timeout becomes a typed failure of the body, and the transaction rolls back. Here the payment provider hangs, so the sale fails after 50 milliseconds and the stock stays as it was:
 
 ```scala mdoc:silent
 val hangingPayments: ZLayer[Any, Nothing, Payments] =
@@ -495,7 +495,7 @@ List("first test", "second test").foreach { name =>
 }
 ```
 
-In a spec, `Spec#provide` builds the layer once for each test, so every test gets its own database, and `Spec#provideShared` builds it once for the whole suite. The companion spec below uses `provide`, so its tests can run in any order and in parallel:
+In a spec, `Spec#provide` builds the layer once for each test, so every test gets its own database, and `Spec#provideShared` builds it once for the whole suite. The companion spec below uses `Spec#provide`, so its tests can run in any order and in parallel:
 
 <details>
 <summary><code>BookRepoSpec.scala</code></summary>
@@ -523,7 +523,7 @@ runDemo {
 }
 ```
 
-The fold reads two rows at a time and adds up the stock across the shelf. The whole fold runs inside `connect`, so it runs on the blocking pool. When each row needs a ZIO effect, such as publishing it to a queue, collect the rows you need inside `connect` and run the effects after it returns, or read the table in pages with `Repo#pageAfter`.
+The fold reads two rows at a time and adds up the stock across the shelf. The whole fold runs inside `TransactorZIO#connect`, so it runs on the blocking pool. When each row needs a ZIO effect, such as publishing it to a queue, collect the rows you need inside `TransactorZIO#connect` and run the effects after it returns, or read the table in pages with `Repo#pageAfter`.
 
 ## Limits
 
@@ -536,7 +536,7 @@ Keep these limits in mind when you plan a ZIO application on the `sql` module:
 
 ## Putting It Together
 
-The complete example below builds the bookstore application with `ZIOAppDefault`. It provides the transactor, the `BookRepo` service and the payment service as layers, sells books in `transactZIO` transactions, and prints the stock after a declined payment:
+The complete example below builds the bookstore application with `ZIOAppDefault`. It provides the transactor, the `BookRepo` service and the payment service as layers, sells books in `TransactorZIO#transactZIO` transactions, and prints the stock after a declined payment:
 
 <details>
 <summary><code>CompleteExample.scala</code></summary>
