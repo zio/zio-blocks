@@ -20,6 +20,7 @@ We start with one HOCON file and add one capability per section:
 - [Reusing Values With Substitutions and Overrides](#reusing-values-with-substitutions-and-overrides)
 - [Loading Files Safely](#loading-files-safely)
 - [Loading JSON and YAML Files](#loading-json-and-yaml-files)
+- [Guarding Against Lenient YAML](#guarding-against-lenient-yaml)
 - [Overriding File Values From the Environment](#overriding-file-values-from-the-environment)
 - [Loading application.conf From the Classpath](#loading-applicationconf-from-the-classpath)
 - [Loading the Same Settings in the Browser](#loading-the-same-settings-in-the-browser)
@@ -406,7 +407,7 @@ println(decode(readConfigFile(configYaml)(ConfigSource.fromYaml(_, _))))
 
 Reading the file yourself means the limits of `ConfigSource.fromFile` don't apply: `Files.readAllBytes` throws `NoSuchFileException` for a missing file and reads a file of any size. Check `Files.size` first when the path comes from outside your team.
 
-### Guarding Against Lenient YAML
+## Guarding Against Lenient YAML
 
 The YAML reader accepts malformed documents without an error: it stops at the first line it can't read and drops that line and everything after it. Here `pageSize` is missing the space after its colon:
 
