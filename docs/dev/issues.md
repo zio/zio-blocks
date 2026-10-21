@@ -4029,6 +4029,61 @@ object Main extends App {
 
 **Suggested fix.** Render the value on one line (`Json#print` / a compact `DynamicValue` rendering), or indent every line after the first by the current indent.
 
+### schema (Scala 3): `BindingResolver.reflection` reads the wrong fields of a case class that extends a trait with a `val`
+
+Found 2026-10-21 while writing the Scaladoc of the `binding` package (wave 3 of the schema Scaladoc, branch `scaladoc-wave-3`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56` on Scala 3.3.7 and 2.13.18.
+
+**Summary.** On the JVM, `BindingResolver.reflection` builds a case class's deconstructor from the first N entries of `Class#getDeclaredFields`, where N is the number of constructor parameters. On Scala 3, the field of a `val` that the case class inherits from a trait comes first in that array, so the deconstructor reads the trait's field in place of the first constructor field and shifts the others by one. When the types happen to match, encoding silently writes the wrong values; otherwise it throws `IllegalArgumentException`. Decoding is not affected, because the constructor takes its arguments from the registers in parameter order. On Scala 2 the trait's field comes after the constructor fields, so the same code works.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.binding._
+
+trait Catalogued { val catalogue: String = "Scala books" }
+
+case class Book(title: String, author: String) extends Catalogued
+object Book {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+case class Edition(title: String, year: Int) extends Catalogued
+object Edition {
+  implicit val schema: Schema[Edition] = Schema.derived
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val resolver = BindingResolver.reflection ++ BindingResolver.defaults
+    val book     = Book.schema.toDynamicSchema.rebind[Book](resolver)
+    println(book.toDynamicValue(Book("Zionomicon", "John A. De Goes")))
+    println(book.fromDynamicValue(Schema[Book].toDynamicValue(Book("Zionomicon", "John A. De Goes"))))
+    val edition = Edition.schema.toDynamicSchema.rebind[Edition](resolver)
+    println(scala.util.Try(edition.toDynamicValue(Edition("Zionomicon", 2021))))
+  }
+}
+// {
+//   title: "Scala books",
+//   author: "Zionomicon"
+// }
+// Right(Book(Zionomicon,John A. De Goes))
+// Failure(java.lang.IllegalArgumentException: Attempt to get java.lang.String field "Edition.title" with illegal data type conversion to int)
+```
+
+The same file with `//> using scala 2.13.18` prints `{ title: "Zionomicon", author: "John A. De Goes" }`, the same `Right(...)`, and `Success({ title: "Zionomicon", year: 2021 })`. On Scala 3.3.7, `classOf[Edition].getDeclaredFields.map(_.getName)` is `catalogue, title, year`.
+
+**Expected.** The rebound schemas encode `Book("Zionomicon", "John A. De Goes")` as `{ title: "Zionomicon", author: "John A. De Goes" }` and `Edition("Zionomicon", 2021)` as `{ title: "Zionomicon", year: 2021 }`, as on Scala 2.
+
+**Root cause.** `schema/jvm/src/main/scala/zio/blocks/schema/binding/BindingResolverPlatformSpecific.scala:127` takes `clazz.getDeclaredFields.take(paramCount)`, and the deconstructor reads `fields(idx)` for parameter `idx` (`:162`-`:173`). `getDeclaredFields` returns the fields in no particular order (its Javadoc says so), and the Scala 3 compiler emits the fields of mixed-in trait `val`s first. The constructor is also picked as `clazz.getConstructors` head (`:121`), which is likewise not ordered.
+
+**Impact.** Any Scala 3 case class that mixes in a trait with a `val` (a common way to share constants) is encoded wrongly, or fails to encode, after `DynamicSchema#rebind` with `BindingResolver.reflection`. When the types line up there is no error at all.
+
+**Test gap.** `BindingResolverSpec` (`schema/shared/src/test/scala/zio/blocks/schema/BindingResolverSpec.scala:230-297`) round-trips only case classes without a parent trait.
+
+**Suggested fix.** Read each field by its constructor parameter: for a case class, deconstruct through `Product#productElement(idx)`, which follows the parameter order, or look the fields up by the parameter names. Pick the constructor whose parameters match the case class's fields instead of the first one, and add a Scala 3 test with a trait that has a `val`.
 
 ### schema: `JsonCodec#encode` into a too-small `ByteBuffer` throws after writing part of the value, and leaves `position` past the partial JSON
 
@@ -4916,6 +4971,56 @@ Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main`
 
 **Suggested fix.** Include the rendered key in the message, or push a `DynamicOptic.Node.AtMapKey` step onto the trace.
 
+### schema (Scala 3): `Binding.of` of a structural type fails with `zio-blocks-schema` on every Scala 3 version, and the error says to upgrade to Scala 3.5
+
+Found 2026-10-21 while writing the Scaladoc of the `binding` package (wave 3 of the schema Scaladoc, branch `scaladoc-wave-3`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: both reproductions below were run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** The Scaladoc of `Binding.of` listed "Structural types (JVM only)". With the `zio-blocks-schema` artifact, `Binding.of` of a structural type never compiles on Scala 3, whatever the compiler version: that artifact is built with Scala 3.3.7, so it contains the `scala-3.5-` version of the macro support, which always fails. Its error says "requires Scala 3.5+" and suggests upgrading to Scala 3.5, which does not help. Structural types work only with the `zio-blocks-next-schema` artifact, which needs Scala 3.9 and `-experimental`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.binding._
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val binding = Binding.of[{ def title: String; def year: Int }]
+    println(binding)
+  }
+}
+// [error] ./Repro.scala:7:19
+// [error] Binding.of for structural types requires Scala 3.5+.
+// [error]
+// [error] The macro API `Symbol.newClass` used to generate structural type
+// [error] constructors is marked @experimental and unavailable in Scala 3.3 LTS.
+// [error]
+// [error] Alternatives:
+// [error]   1. Use a case class instead:
+// [error]        case class Person(name: String, age: Int)
+// [error]        Binding.of[Person]  // works on all Scala 3 versions
+// [error]
+// [error]   2. Upgrade to Scala 3.5+ to use structural types:
+// [error]        Binding.of[{ def name: String; def age: Int }]
+// [error]
+// [error]   3. Use Schema[A].structural for structural schema without Binding.of:
+// [error]        given schema: Schema[Person] = Schema.derived
+// [error]        val structuralSchema = schema.structural  // works on all Scala 3 versions
+// Compilation failed
+```
+
+With `//> using dep dev.zio::zio-blocks-next-schema:0.0.56` and `//> using option -experimental`, the same file compiles and prints `Record(Main$$anon$1@2c8d66b2,Main$$anon$2@5a39699c)`.
+
+**Expected.** Either the error names what works (the `zio-blocks-next-schema` artifact with Scala 3.9 and `-experimental`), or the `zio-blocks-schema` artifact supports structural types.
+
+**Root cause.** `project/BuildHelper.scala:172-177` publishes the Scala 3.3 build as `zio-blocks-schema` and the 3.7+ build as `zio-blocks-next-schema` (the `zio-blocks-schema_3` 0.0.56 POM depends on `scala3-library_3` 3.3.7). The 3.3 build compiles `schema/shared/src/main/scala-3.5-/zio/blocks/schema/binding/StructuralBindingMacros.scala`, whose `generateAnonymousClassFactory` (`:49`) always fails with the message at `:54`-`:69`. It is called for structural records and unions of structural types (`schema/shared/src/main/scala-3/zio/blocks/schema/binding/BindingCompanionVersionSpecific.scala:1374`, `:1443`).
+
+**Impact.** A Scala 3 user who reads the Scaladoc or the error and upgrades the compiler still gets the same error. The Scaladoc of `Binding.of` and of the `scala-3.5-` `StructuralBindingMacros` now say which artifact supports structural types.
+
+**Test gap.** The structural `Binding.of` tests are in `schema/jvm/src/test/scala-3.5+/`, so they run only in the 3.9 build; nothing checks what the published 3.3 build does with a newer compiler.
+
+**Suggested fix.** Reword the error: say that structural types need the `zio-blocks-next-schema` artifact (Scala 3.9+, `-experimental`), and drop "Upgrade to Scala 3.5+".
 
 ### schema: `toJsonString`, `toJsonBytes` and `fromJson` on a `List`, `Option` or `Map` derive a new JSON codec on every call
 
@@ -5174,6 +5279,13 @@ Found while writing H-39 (`docs/guides/write-and-export-openapi.md`, 2026-10-21)
 
 - "RequestSchemaOps" says it "exposes all methods from `QueryParamsSchemaOps` and `HeadersSchemaOps` directly on `Request`", "ResponseSchemaOps" says the same for `Response`, and the "How They Work Together" diagram lists `RequestSchemaOps.header[T](name)` and `ResponseSchemaOps.header[T](name)`. `request.header[T](name)` and `response.header[T](name)` do not compile (see Library bugs). The page's own examples quietly use `request.headers.header[T]`. Found while writing H-36.
 - "Supported Types" says the module "supports decoding to any type with a `Schema[T]` instance", and "Custom Types" says to "provide a `Schema[T]` instance". Only primitive schemas decode; `Option`, collections and wrapper types return `Malformed(..., "Unsupported schema type for string decoding")` (see Usability traps). Found while writing H-36.
+
+**schema / binding** (found and fixed while writing the `binding` Scaladoc, wave 3)
+
+- `binding.md` showed `defaultValue` and `examples` fields on every `Binding` case class, a `Wrapper` with `wrap: B => Either[SchemaError, A]`, `Binding[T <: BindingType, A]`, a `SeqConstructor.Boxed` class with `ObjectBuilder`/`newObjectBuilder`/`addObject`, field names `seqConstructor`/`mapConstructor`, an `ArraySeq` binding in `Binding.Seq`'s companion and "stack-allocated" arrays. None of these match `Binding.scala`, `SeqConstructor.scala` or `MapConstructor.scala`; the page now shows the real signatures.
+- `registers.md` said a `RegisterOffset` is an `Int` with 16-bit halves; it is a `Long` with 32-bit halves (`schema/shared/src/main/scala-2/zio/blocks/schema/binding/RegisterOffset.scala:44`, `:73`, the same lines in the `scala-3` copy). Its list said `RegisterOffset(bytes = 4, ints = 2, objects = 3)` points at byte 8; it is byte 12, as the page's own `getBytes` example shows.
+- `binding-resolver.md` bound `Binding.of[Email]` and then called `resolveWrapper[Email]`, which returns `None`: for a plain single-field case class, `Binding.of` derives a `Binding.Record` (verified with 0.0.56; rebinding the `Schema#transform` schema with it throws `RebindException: Missing Wrapper binding for type Email`). The `UserId` example in "Combining Resolvers" had the same mistake. Both now bind a `Binding.Wrapper` explicitly.
+- Scaladoc: `Registry#bind` said `Binding.of[A]` returns `Any` on Scala 2 (its static type is `Binding[_, A]`); `StructuralReflection` said the `Binding.of` macro uses it (only tests do; the macros generate their own `getMethod` calls).
 
 ### docs: `formats.md` says infinite HOCON numbers keep their `Double` rendering
 
