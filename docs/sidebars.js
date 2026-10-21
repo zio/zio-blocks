@@ -458,6 +458,7 @@ const sidebars = {
     "guides/customize-json-encoding",
     "guides/json-without-case-classes",
     "guides/override-codec-for-one-type",
+    "guides/tune-json-throughput",
     "guides/validated-newtypes",
     "guides/diff-and-patch",
     "guides/derive-your-own-type-class",

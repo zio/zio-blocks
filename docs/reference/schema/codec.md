@@ -281,7 +281,7 @@ val lineItemCodec: JsonCodec[LineItem] = Schema[LineItem].deriving(billingDerive
 - When the deriver and a `DerivationBuilder` override the same type or field, the deriver's override wins.
 - `toJsonString` and `fromJson` always use the default codec from `Schema#jsonCodec`, so call `JsonCodec#encodeToString` and `JsonCodec#decode` on the codec derived through your deriver.
 
-See also: [Customizing Derivation with Instance and Modifier Overrides](./type-class-derivation.md#customizing-derivation-with-instance-and-modifier-overrides) for every override and its resolution order, and the guide [How to Override the Codec for One Type Everywhere](../../guides/override-codec-for-one-type.md) for a step-by-step walkthrough.
+See also: [Customizing Derivation with Instance and Modifier Overrides](./type-class-derivation.md#customizing-derivation-with-instance-and-modifier-overrides) for every override and its resolution order, and the guide [How to Override the Codec for One Type Everywhere](../../guides/override-codec-for-one-type.md) for a step-by-step walkthrough. For decoding and encoding speed, see [How to Tune JSON Encoding and Decoding for Throughput](../../guides/tune-json-throughput.md).
 
 ## Convenience Methods on Format-Specific Codecs
 
