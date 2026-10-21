@@ -132,6 +132,8 @@ val full   = Frag.sequence(base, where, order)
 full.sql(SqlDialect.SQLite)
 ```
 
+See also the [How to Upsert Rows and Paginate with Keyset Cursors](../../guides/upsert-and-paginate-with-keyset-cursors.md) guide, which builds upsert statements and pages through a query with `Frag.keysetAfter`.
+
 ## Execution Methods
 
 All execution methods require an implicit `DbCon` (provided by `Transactor#connect` or `Transactor#transact`). They render the fragment to SQL, bind parameters, execute, and log the operation.
