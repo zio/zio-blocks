@@ -606,5 +606,6 @@ To support custom types, provide a `Schema[T]` instance. The module automaticall
 
 ## See Also
 
+- [How to Validate Query Parameters and Headers and Answer 400](../../guides/validate-query-parameters-and-headers.md) — A worked bookstore API that reads typed query parameters and headers, checks ranges, and answers bad input with a JSON 400 that names every problem
 - [Codecs](./schema-codecs.md) — `QueryCodec` and `HeaderCodec`, derived from a schema, for encoding and decoding a whole value rather than one field
 - [Combinators](../combinators.md) — Systematically compose and canonicalize Either types for uniform error handling across multiple query parameter or header extractions. The `Eithers` combinator canonicalizes nested Either types, making error accumulation consistent.
