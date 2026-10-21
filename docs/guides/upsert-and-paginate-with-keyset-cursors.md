@@ -390,6 +390,12 @@ Keep these limits in mind when you choose a cursor column:
 - **Ascending, forward only.** Both helpers emit `ORDER BY ... ASC` and `>`. There is no descending order and no "previous page".
 - **`keysetAfter` brings its own `WHERE`.** Put your filters in a subquery, as shown above.
 
+The fragment below is the SQL `keysetAfter` produces: always `>`, always `ASC`, with one bound parameter, the cursor value:
+
+```scala mdoc
+println(Frag.keysetAfter("id", DbValue.DbLong(50L), 5).sql(SqlDialect.SQLite))
+```
+
 :::caution
 `Frag.keysetAfter` writes the column name without quotes, unlike `Repo` and `Upsert`, which double-quote every identifier. A column whose name is an SQL keyword, such as `order`, passes validation but produces invalid SQL (`near "order": syntax error` on SQLite). `Repo#pageAfter` quotes its ID column and isn't affected; for `keysetAfter`, use a column name that isn't a keyword.
 :::
@@ -528,6 +534,12 @@ sbt "runMain upsertandpaginatewithkeysetcursors.Step7KeysetAfterExample"
 
 ```bash
 sbt "runMain upsertandpaginatewithkeysetcursors.CompleteExample"
+```
+
+To compile every example at once without running them:
+
+```bash
+sbt compile
 ```
 
 ## Going Further
