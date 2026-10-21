@@ -112,6 +112,56 @@ println(ConfigSource.fromYaml("tags: [scala", "bookstore.yaml"))
 
 **Suggested fix.** Before stripping delimiters, check that the value ends with the matching closing character (taking quotes into account), and fail with a parse error otherwise. Make `collectFlowContent` fail when it reaches the end of input with `depth > 0`. Add `YamlReaderSpec` tests for each unterminated form, including the multi-line flow sequence.
 
+### schema-yaml: `YamlWriter` leaves a value that starts with `#` unquoted, so YAML readers drop it as a comment
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-and-export-openapi.md` (backlog H-39), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `Yaml#print` and `Yaml#printPretty` write a string scalar that starts with `#` without quotes. In YAML, a `#` that follows whitespace starts a comment, so `key: #value` means `key` with a null value. Any YAML reader that follows the spec loses the value. This breaks every OpenAPI document exported through `Yaml.fromJson`, because every local reference is a `$ref` whose value starts with `#` (`#/components/schemas/Book`): Swagger UI and client generators see `$ref: null`. ZIO Blocks' own `YamlReader` is lenient about this case and keeps the value, so a round trip inside ZIO Blocks does not show the problem.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-schema-yaml` 0.0.56; SnakeYAML 2.3 only to read the output with a spec-following reader):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-yaml:0.0.56
+//> using dep org.yaml:snakeyaml:2.3
+
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.yaml.{Yaml, YamlReader}
+
+@main def yamlHash(): Unit = {
+  val json = Json.Object(
+    "$ref"   -> Json.String("#/components/schemas/Book"),
+    "hashtag" -> Json.String("#scala"),
+    "inside" -> Json.String("C# and F#")
+  )
+  val text = Yaml.fromJson(json).printPretty
+  println(text)
+  // ---
+  // $ref: #/components/schemas/Book
+  // hashtag: #scala
+  // inside: C# and F#
+
+  // Read the text with SnakeYAML, a YAML 1.1 reader that follows the spec on comments
+  println(new org.yaml.snakeyaml.Yaml().load[Object](text))
+  // {$ref=null, hashtag=null, inside=C# and F#}
+
+  // ZIO Blocks' own reader keeps the values, so a round trip inside ZIO Blocks hides the problem
+  println(YamlReader.read(text).toJson.print)
+  // {"$ref":"#/components/schemas/Book","hashtag":"#scala","inside":"C# and F#"}
+}
+```
+
+**Expected.** `$ref: "#/components/schemas/Book"` and `hashtag: "#scala"`, so that every YAML reader reads the strings back.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlWriter.scala`, `needsQuoting` (`:203`). The list of first characters that force quotes (`:213-214`) has no `#`, and the loop quotes a `#` only when a space comes before it (`:223`). The same list also misses the other YAML indicators that cannot start a plain scalar, such as `,`, `]`, `}`, and `-`, `:` or `?` followed by a space (from source, not run). The lenient reader matches the writer: `YamlReader.scala:508` treats `#` as a comment only when a space comes before it inside the value, which hides the bug from round-trip tests.
+
+**Impact.** Silent data loss for any YAML consumer outside ZIO Blocks. For OpenAPI documents, every `$ref` is lost, so the documented way to export an OpenAPI document as YAML (`Yaml.fromJson(openAPICodec.encodeValue(api))`) produces a broken document. The H-39 guide works around it by quoting `$ref` values with a regular expression after printing.
+
+**Test gap.** `YamlWriterSpec` tests a `#` after a space (`"value #comment"`, `:281`) but no value that starts with `#` or with another indicator character, and no test reads the writer's output with a reader other than `YamlReader`.
+
+**Suggested fix.** In `needsQuoting`, quote a value whose first character is any YAML indicator (`#`, `,`, `[`, `]`, `{`, `}`, `&`, `*`, `!`, `|`, `>`, `'`, `"`, `%`, `@`, `` ` ``), or that starts with `-`, `?` or `:` followed by a space, and a value with leading or trailing spaces. Make `YamlReader` treat `#` at the start of a value as a comment, as the spec says. Add writer tests for each indicator and a test that the OpenAPI petstore document survives `Yaml.fromJson(...).printPretty` and a spec-following read.
+
 ### schema-toon: `ArrayFormat.Tabular` with a non-primitive field writes output it cannot decode
 
 Filed as #1778. Found 2026-10-20 while writing H-12 (`docs/guides/llm-data-with-toon.md`). Verified on 0.0.56; schema-toon is unchanged since.
@@ -1732,6 +1782,156 @@ import zio.blocks.schema.csv._
 
 **Suggested fix.** Remove `nullValue`, or give it a meaning once `Option` fields are supported (write `None` as `nullValue`, read `nullValue` as `None`). Until then, document it as unused.
 
+### openapi: `openAPICodec.encodeToString` and `encode` throw `NotImplementedError`, and `decode` on a `String` returns a `Left`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-and-export-openapi.md` (backlog H-39), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `openAPICodec` is a `JsonCodec[OpenAPI]`, so it offers all of `JsonCodec`'s text and byte methods. Only the `Json` methods work. `encodeToString` and every `encode` overload throw `scala.NotImplementedError: an implementation is missing`, and `decode(input: String)` returns `Left(SchemaError("an implementation is missing"))` for a valid document. The codecs of every OpenAPI type behave the same way. The working path is `encodeValue(api): Json` with `Json#print`, and `Json.parse(text).flatMap(openAPICodec.decode)`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-openapi` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-openapi:0.0.56
+
+import zio.blocks.openapi._
+import zio.blocks.openapi.OpenAPICodec._
+import zio.blocks.schema.json.Json
+
+@main def openApiText(): Unit = {
+  val api = OpenAPI(openapi = "3.1.0", info = Info(title = "Bookstore API", version = "1.0.0"))
+
+  println(openAPICodec.encodeValue(api).print)
+  // {"openapi":"3.1.0","info":{"title":"Bookstore API","version":"1.0.0"}}
+  println(scala.util.Try(openAPICodec.encodeToString(api)))
+  // Failure(scala.NotImplementedError: an implementation is missing)
+  println(scala.util.Try(openAPICodec.encode(api)))
+  // Failure(scala.NotImplementedError: an implementation is missing)
+  println(openAPICodec.decode("""{"openapi":"3.1.0","info":{"title":"Bookstore API","version":"1.0.0"}}"""))
+  // Left(zio.blocks.schema.SchemaError: an implementation is missing at: .)
+  println(Json.parse("""{"openapi":"3.1.0","info":{"title":"Bookstore API","version":"1.0.0"}}""").flatMap(openAPICodec.decode))
+  // Right(OpenAPI(3.1.0,Info(Bookstore API,1.0.0,None,None,None,None,None,ChunkMap()),None,Chunk(),None,ChunkMap(),None,Chunk(),Chunk(),None,ChunkMap()))
+}
+```
+
+**Expected.** `encodeToString(api)` returns the same text as `encodeValue(api).print`, and `decode(text)` returns the same `Right` as `Json.parse(text).flatMap(decode)`.
+
+**Root cause.** `openapi/shared/src/main/scala/zio/blocks/openapi/OpenAPICodec.scala:204-208`: the base class `JsonASTCodec` implements the streaming methods as `def decodeValue(in: JsonReader): A = ???` (`:205`) and `def encodeValue(x: A, out: JsonWriter): Unit = ???` (`:207`). `JsonCodec#encodeToString` and `encode` write through a `JsonWriter` (`JsonCodec.scala:366`, `:402`), which calls the streaming `encodeValue` and hits `???`. `JsonCodec#decode(String)` reads through a `JsonReader` and catches the error into a `Left` (`JsonCodec.scala:381`). The stubs came in with #1240, which removed `JsonEncoder`/`JsonDecoder`.
+
+**Impact.** The obvious way to produce the text of a document fails at run time, with an error that doesn't say what to do instead, and `decode` on a string reports a valid document as an error. `docs/reference/openapi.md` never prints a document as text, so a reader has no working example to copy.
+
+**Test gap.** The openapi tests use only `encodeValue(api): Json` and `decodeValue(json)`; none calls `encodeToString`, `encode` or `decode(String)`.
+
+**Suggested fix.** Implement the streaming methods in `JsonASTCodec` by going through the AST: `encodeValue(x, out)` writes `encodeValue(x)` with `Json.jsonCodec.encodeValue(_, out)`, and `decodeValue(in)` reads a `Json` with `Json.jsonCodec.decodeValue(in, ...)` and calls `decodeValue(json)`. Add tests that `encodeToString` and `decode(String)` agree with the `Json` path for the petstore document.
+
+### openapi: a document with `md"..."` descriptions is not `==` to itself after a JSON round trip
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-and-export-openapi.md` (backlog H-39), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** Encoding an `OpenAPI` value with `openAPICodec.encodeValue` and decoding the result gives a value that is not `==` to the original when a description was written with the `md"..."` interpolator or `Parser.parse`, which is how the reference page and the guides write descriptions. The JSON of both values is the same. The `markdown` module has two classes for plain text, the top-level `zio.blocks.docs.Text` (made by `md"..."` and `Parser.parse`) and `zio.blocks.docs.Inline.Text`. The OpenAPI decoder converts every `Text` into `Inline.Text`, and `Doc#equals` does not treat the two as equal.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-openapi` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-openapi:0.0.56
+
+import zio.blocks.docs._
+import zio.blocks.openapi._
+import zio.blocks.openapi.OpenAPICodec._
+
+@main def openApiDocEq(): Unit = {
+  val api = OpenAPI(
+    openapi = "3.1.0",
+    info = Info(title = "Bookstore API", version = "1.0.0", description = Some(md"Books about Scala."))
+  )
+  val json     = openAPICodec.encodeValue(api)
+  val reloaded = openAPICodec.decode(json)
+
+  println(json.print)
+  // {"openapi":"3.1.0","info":{"title":"Bookstore API","version":"1.0.0","description":"Books about Scala.\n\n"}}
+  println(reloaded == Right(api))
+  // false
+  println(reloaded.map(r => openAPICodec.encodeValue(r) == json))
+  // Right(true)
+  println(api.info.description.get.blocks.head.asInstanceOf[Paragraph].content.head.getClass.getName)
+  // zio.blocks.docs.Text
+  println(reloaded.toOption.get.info.description.get.blocks.head.asInstanceOf[Paragraph].content.head.getClass.getName)
+  // zio.blocks.docs.Inline$Text
+  println(md"Books about Scala." == Parser.parse("Books about Scala.").toOption.get)
+  // true
+}
+```
+
+**Expected.** `reloaded == Right(api)` is `true`, as it is for documents whose descriptions are built from `Inline.Text`.
+
+**Root cause.** `openapi/shared/src/main/scala/zio/blocks/openapi/OpenAPICodec.scala`: `docCodec` (`:212`) parses the string and passes the result through `normalizeDoc`, whose `normalizeInline` maps the top-level `Text` to `Inline.Text` (`:179`) and likewise for the other inline types. `Doc#equals` (`markdown/shared/src/main/scala/zio/blocks/docs/Doc.scala:84`) compares normalized blocks, but `Doc.normalize` does not unify the top-level and `Inline` classes, so the values differ. The underlying cause is the duplicated inline hierarchy in `markdown/shared/src/main/scala/zio/blocks/docs/Inline.scala` (`Inline.Text` at `:37`, top-level `Text` at `:126`).
+
+**Impact.** Tests that check `decode(encode(api)) == api`, and code that compares a loaded document with an expected one, fail for documents written the way the docs show. The H-39 guide compares the re-encoded JSON instead.
+
+**Test gap.** The openapi round-trip tests build every `Doc` with a helper that uses `Inline.Text` (`OpenAPIJsonSerializationSpec.scala:28`); no openapi test uses `md"..."` or `Parser.parse`.
+
+**Suggested fix.** Make `Doc.normalize` (or `Doc#equals`) map the top-level inline classes to their `Inline` counterparts, the way `normalizeInline` in `OpenAPICodec` does, so that equal Markdown compares equal whichever class built it. Longer term, keep one inline hierarchy in `markdown`. Add an openapi round-trip test with `md"..."` descriptions.
+
+### openapi: every description in the exported JSON ends with `\n\n`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-and-export-openapi.md` (backlog H-39), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `Doc` fields (descriptions and summaries) are encoded with the Markdown renderer, which ends every paragraph with a blank line. A one-line description therefore appears as `"description": "Books about Scala.\n\n"` in the JSON, and as a quoted string with escapes in the YAML. Markdown readers such as Swagger UI ignore the newlines, but the exported file is noisier than a hand-written one and differs from what other OpenAPI tools write.
+
+**Reproduction.** The program in the round-trip entry above prints `{"openapi":"3.1.0","info":{"title":"Bookstore API","version":"1.0.0","description":"Books about Scala.\n\n"}}` (Scala 3.9.0, `zio-blocks-next-openapi` 0.0.56).
+
+**Expected.** `"description": "Books about Scala."`.
+
+**Root cause.** `docCodec.encodeValue` writes `Renderer.render(x)` as is (`openapi/shared/src/main/scala/zio/blocks/openapi/OpenAPICodec.scala:222`), and `Renderer` renders a `Paragraph` as `s"${renderInlines(content)}\n\n"` (`markdown/shared/src/main/scala/zio/blocks/docs/Renderer.scala:57-58`).
+
+**Impact.** Cosmetic, but it shows up in every exported document, and string comparisons in tests have to include the newlines.
+
+**Test gap.** The openapi serialization tests do not assert the encoded text of a description.
+
+**Suggested fix.** Strip trailing newlines in `docCodec.encodeValue` (`Renderer.render(x).stripTrailing`, or a renderer option that does not end the last block with a blank line). Decoding is unaffected, because the parser accepts both forms.
+
+### schema: indented `Json#print` writes a whitespace-only line inside an empty array or object
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-and-export-openapi.md` (backlog H-39), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** With an indenting `WriterConfig`, an empty array prints as `[`, a line of spaces, and `]` instead of `[]`, and an empty object likewise. The output is valid JSON, but it has trailing whitespace and looks like a missing value. In an OpenAPI document it shows up for every bearer-token security requirement, whose scope list is empty.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-schema` 0.0.56; spaces shown as `·`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+
+import zio.blocks.schema.json.{Json, WriterConfig}
+
+@main def emptyIndent(): Unit = {
+  val json = Json.Object("scopes" -> Json.Array(), "extensions" -> Json.Object())
+  println(json.print(WriterConfig.withIndentionStep2).replace(" ", "·"))
+  // {
+  // ··"scopes":·[
+  // ····
+  // ··],
+  // ··"extensions":·{
+  // ····
+  // ··}
+  // }
+}
+```
+
+**Expected.** `"scopes": []` and `"extensions": {}`.
+
+**Root cause.** `JsonWriter.writeNestedStart` writes the opening bracket followed at once by a newline and the deeper indentation, and `writeNestedEnd` writes another newline and indentation before the closing bracket, without checking whether anything was written in between (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:1237`, `:1248`; the Scala.js copy at `schema/js/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:1290`, `:1301`).
+
+**Impact.** Cosmetic. Every indented document with an empty collection has whitespace-only lines, which linters and `git diff` flag.
+
+**Test gap.** No `Json` printer test covers an empty array or object with indentation (from a search of the schema tests).
+
+**Suggested fix.** Defer the newline and indentation after an opening bracket until the first element or key is written, and write the closing bracket directly when nothing was written.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -2086,6 +2286,17 @@ Pages that contradict the source. None of these were copied into the new guides.
 - Line 693 shows `items:` for `ArrayFormat.List`; the output is `items[N]:`.
 - Line 1044 shows `Expected sequence, got: invalid`; the source message is `Expected array header with [`.
 - Lines 14 and 659 say there are three array formats; there are four.
+
+**openapi (`openapi.md`)**
+
+Found while writing H-39 (`docs/guides/write-and-export-openapi.md`, 2026-10-21) and fixed in the same PR:
+
+- The signature at the top of the page showed `servers` and `security` as `Option[Chunk[...]] = None`; both are `Chunk[...] = Chunk.empty`, and the signature left out `jsonSchemaDialect`, `webhooks`, `tags`, `externalDocs` and `extensions` (`OpenAPI.scala:58-70`). The type diagram had the same `Option` types, `requestBody` without its `Option`, and `Map` where the source uses `ChunkMap`.
+- Installation showed only `zio-blocks-openapi`, without the `zio-blocks-next-openapi` artifact for Scala 3.9 and newer or the `schema-yaml` module for YAML.
+- "Integration Points" said Markdown descriptions round-trip correctly; a document with `md"..."` descriptions is not `==` to itself after a round trip (see Library bugs), and the page never said that `encodeToString` throws.
+- "Parameter" listed `schema` as required; it is `Option[ReferenceOr[SchemaObject]] = None` (`OpenAPI.scala:589`).
+- "Operation" called `responses` required; it defaults to `Responses()` (`OpenAPI.scala:311`).
+- "Common Extension Fields" said all types have `x-*` extensions; `Reference`, `XML`, `Discriminator` and `SecurityRequirement` have no `extensions` field.
 
 **config (`formats.md`, HOCON section)**
 
