@@ -67,7 +67,7 @@ This table tracks every item that has been written or started. Items not listed 
 
 **Unblocked by H-35 (pushed):** H-36, H-38, H-49, H-40, H-41, T-10, T-11 and the T-15 capstone can reuse its `JdkHttp` adapter (`http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala`).
 
-**Waiting on stalled items:** H-04 and M-07 need T-02.
+**Waiting on stalled items:** M-07 needs T-02. H-04 only depends on T-01; it can start now and link to T-02 once T-02 merges.
 
 **Library follow-ups found while writing** (full write-ups, ready to file, are in `docs/dev/issues.md`):
 
