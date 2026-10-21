@@ -1674,6 +1674,7 @@ println(order.toJsonString)
 - **`Stream.fromInputStream` and `NioStreams.fromChannel` take an already-open handle.** If the stream never runs, the handle leaks; if it runs twice, the second run fails with `Left(ClosedChannelException)`, because the first run closed it. Wrap the open in `fromAcquireRelease(open)(...Unmanaged)` to get a re-runnable stream. The Scaladoc says the instance is reused. Verified while writing H-24.
 - **`withModifier` silently ignores an unknown field name.** `Deriver#withModifier(TypeId.of[Customer], "nmae", ...)` with a typo applies nothing and reports nothing. Found while writing H-08.
 - **Parallel stream operators emit in completion order.** `mapPar`, `mapParAsync`, `flatMapPar` and `mergeAll` emit results as they finish, while fs2 `parEvalMap`, ZIO `mapZIOPar` and Ox `mapPar` keep input order. Code migrated from those libraries silently changes order. Sort, or carry an index, when order matters. Verified with scala-cli against 0.0.56 while writing M-04.
+- **`Jwt.decode` accepts a token with no `exp` claim.** A token without an expiry never expires unless the caller requires `exp` itself. The H-38 guide checks for `sub` and `exp` explicitly. Found while writing H-38.
 - **Scope and Wire error codes never appear in compiler output.** `ErrorMessages.scala` numbers them E1-E17, RE1-RE3 and W1, but the messages users see carry no code, so docs must index errors by message text. Found while writing H-31.
 - **`defer` on a closed scope is a silent no-op** (`Scope.scala:202`), while `allocate` and `$` throw. Found while writing H-31.
 - **`jdbc:sqlite::memory:` gives every connection its own empty database.** Code that opens more than one connection loses its tables. Found while writing T-07; now noted in `transactor.md`.
@@ -1811,7 +1812,7 @@ Found 2026-10-21 while writing H-01 (`docs/guides/add-zio-blocks-to-your-build.m
 - `http-model-schema` is not Scala 3 only.
 - `docs/index.md` is right that sql and data-migration support Scala.js: their `_sjs1_3` 0.0.56 artifacts are on Maven Central.
 
-**Fix.** H-01's branch corrects 15 guides, `jwt.md`, the wrong `zio-http-model`/`zio-http-model-schema` artifact names, and the `zioBlocks` helper in 14 example builds (`minor >= 9`). Six pushed-but-unmerged guide branches add new "3.7" install lines and need the same fix before merging: `streaming-pipeline`, `stream-query`, `stream-resources`, `csv-files`, `derive-typeclass` and `config-wire`.
+**Fix.** The comments in `project/BuildHelper.scala` and the example builds still say "Scala 3.7+ artifacts are published as zio-blocks-next-*", which reviewers misread as the user rule (seen in H-38's review); reword them to say the published `-next-` build targets 3.9.0. H-01's branch corrects 15 guides, `jwt.md`, the wrong `zio-http-model`/`zio-http-model-schema` artifact names, and the `zioBlocks` helper in 14 example builds (`minor >= 9`). Six pushed-but-unmerged guide branches add new "3.7" install lines and need the same fix before merging: `streaming-pipeline`, `stream-query`, `stream-resources`, `csv-files`, `derive-typeclass` and `config-wire`.
 
 **schema / JSON**
 
