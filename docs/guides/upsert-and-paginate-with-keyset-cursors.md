@@ -94,8 +94,8 @@ For the database setup itself, see [How to Test Database Code Against SQLite](./
 Our inventory is one `Book` per title. `isbn` is optional because Zionomicon has none in our records, so the inventory is keyed by `id` instead. The prices and stock counts are made up:
 
 ```scala mdoc:silent
-import zio.blocks.sql.*
 import zio.blocks.schema.Schema
+import zio.blocks.sql.*
 import scala.util.Try
 
 case class Book(id: Long, title: String, isbn: Option[String], price: BigDecimal, stock: Int)

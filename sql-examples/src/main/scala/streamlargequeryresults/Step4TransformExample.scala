@@ -2,8 +2,8 @@ package streamlargequeryresults
 
 import java.nio.file.Files
 
-import zio.blocks.sql.*
 import zio.blocks.streams.*
+import zio.blocks.sql.*
 
 /**
  * How to Stream Large Query Results — Step 4: Filter and Reshape Rows on the
