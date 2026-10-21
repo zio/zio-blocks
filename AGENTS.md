@@ -134,7 +134,7 @@ When you change, rename or move an example, update the docs that embed it (`grep
 
 For version-specific code: ONE shared `package.scala` extending a trait with per-version implementations in `scala-2/` and `scala-3/`. See `markdown/` module (`MdInterpolator`). Never separate package objects per version.
 
-**Streams exception:** `Stream`, `Sink`, `Reader`, `Writer`, `Pipeline`, and `Interpreter` are fully split across `scala-2/` and `scala-3/`. Keep both in sync.
+**Streams:** `Stream`, `Sink`, `Pipeline`, `Reader` and `Writer` live once in `streams/shared/src/main/scala/` (unified in #1396). Only `LowPriorityJvmTypeInferPlatform.scala` and `internal/InternalVersionSpecific.scala` have `scala-2/` and `scala-3/` copies; keep those in sync.
 
 ## Testing
 

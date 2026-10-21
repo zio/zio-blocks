@@ -2227,6 +2227,10 @@ Found 2026-10-20 while writing H-47. CI's "Compile example projects" step (`proj
 
 Found 2026-10-20 while recording H-37. `config-examples` (T-05), `sql-examples` (T-07) and `html-examples` (T-09) are standalone builds with their own `build.sbt` but no `lazy val ... = RootProject(file("..."))` line or root `aggregate(...)` entry in `build.sbt`, unlike the other standalone `*-examples/` builds. (`projection-examples` is deliberately a root subproject, `lazy val \`projection-examples\` = project` at `build.sbt:560`, with no `build.sbt` of its own, so it is not affected.) CI's examples loop still compiles them (it looks for a `build.sbt`), so the gap shows up in the root aggregate and IDE import. AGENTS.md (updated on the `jwt` branch, H-37) now says a new examples build needs both. Add the three missing entries.
 
+### Benchmark manifest provider versions lag `build.sbt`
+
+Found 2026-10-21 while fixing `docs/reference/streams/index.md:78` for M-04. `build.sbt:1484-1487` pins Kyo `1.0.0-RC7` (bumped in #1700) and Ox `1.1.0` (bumped in #1751) for `streams-benchmark`, but `streams-benchmark/benchmark-manifest.json:16-21` still records Kyo `1.0.0-RC6` and Ox `1.0.6`, and `streams-benchmark/tools/validate_matrix.py:14` asserts those old values. A provider run today therefore measures RC7 and 1.1.0 while its manifest claims RC6 and 1.0.6. Scala Steward updates `build.sbt` only. Either bump the manifest and the validator together (and rerun the provider baselines), or have `validate_matrix.py` read the versions from `build.sbt` so the two cannot drift. The reference page now names both sets of versions.
+
 ### Docs build memory with many sbt servers
 
 Seen 2026-10-20: a full `sbt check` was OOM-killed while several worktrees each ran an sbt server (about 4 GB free). Shut down idle servers in finished worktrees with `sbt --client shutdown`.
