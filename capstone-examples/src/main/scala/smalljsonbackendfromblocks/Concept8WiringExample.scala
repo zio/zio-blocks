@@ -15,7 +15,7 @@ import zio.blocks.scope._
  */
 object Concept8WiringExample {
   def main(args: Array[String]): Unit = {
-    val env = ConfigSource.fromMap(Map("db.file" -> Demo.tempDbFile()), "env")
+    val env = ConfigSource.fromMap(Map("db.file" -> TempDb.file()), "env")
 
     val counts = Scope.global.scoped { scope =>
       import scope._
@@ -35,7 +35,7 @@ object Concept8WiringExample {
     }
     println(s"Requests by status: $counts")
 
-    val badEnv = ConfigSource.fromMap(Map("db.file" -> Demo.tempDbFile(), "catalog.pageSize" -> "ten"), "env")
+    val badEnv = ConfigSource.fromMap(Map("db.file" -> TempDb.file(), "catalog.pageSize" -> "ten"), "env")
     try {
       Scope.global.scoped { scope =>
         import scope._

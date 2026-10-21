@@ -15,7 +15,7 @@ class Routes(repo: BookRepo, catalog: CatalogConfig) {
     (request.method, request.path.segments.toList) match {
       case (Method.GET, List("books")) =>
         Paging.from(request, catalog.pageSize) match {
-          case Right(paging) => Response.json(Json.books.encodeToString(repo.page(paging)))
+          case Right(paging) => Response.json(Json.books.encodeToString(repo.page(paging.limit, paging.offset)))
           case Left(error)   => Routes.error(Status.BadRequest, error)
         }
 

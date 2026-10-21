@@ -11,10 +11,10 @@ package smalljsonbackendfromblocks
  */
 object Concept3StorageExample {
   def main(args: Array[String]): Unit = {
-    val db   = new Db(DbConfig(Demo.tempDbFile()))
+    val db   = new Db(DbConfig(TempDb.file()))
     val repo = new BookRepo(db)
 
-    repo.page(Paging(limit = 2, offset = 0)).foreach(println)
+    repo.page(limit = 2, offset = 0).foreach(println)
     println(repo.find(3))
     println(repo.find(42))
     println(repo.add(NewBook("Scala with Cats", "Noel Welsh", 2017, None, 2, 3500)))

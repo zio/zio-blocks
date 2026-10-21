@@ -11,7 +11,7 @@ package smalljsonbackendfromblocks
  */
 object Concept5RoutesExample {
   def main(args: Array[String]): Unit = {
-    val db     = new Db(DbConfig(Demo.tempDbFile()))
+    val db     = new Db(DbConfig(TempDb.file()))
     val routes = new Routes(new BookRepo(db), CatalogConfig(pageSize = 2))
 
     Demo.show(routes.handle(Demo.get("/books")))

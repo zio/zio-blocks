@@ -1,6 +1,6 @@
 package smalljsonbackendfromblocks
 
-import zio.blocks.sql.*
+import zio.blocks.sql._
 
 /**
  * Build a Small JSON Backend from Blocks — the SQLite storage
@@ -35,10 +35,10 @@ class BookRepo(db: Db) {
     if (books.count == 0) books.insertBatch(BookRepo.starterCatalog)
   }
 
-  def page(paging: Paging): List[Book] =
+  def page(limit: Int, offset: Int): List[Book] =
     db.transactor.connect {
       sql"""SELECT id, title, first_author, year, isbn, stock, price_cents FROM book
-            ORDER BY id LIMIT ${paging.limit} OFFSET ${paging.offset}""".query[Book]
+            ORDER BY id LIMIT $limit OFFSET $offset""".query[Book]
     }
 
   def find(id: Long): Option[Book] =

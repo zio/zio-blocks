@@ -13,7 +13,7 @@ import zio.blocks.telemetry.trace
  */
 object Concept6TelemetryExample {
   def main(args: Array[String]): Unit = {
-    val db        = new Db(DbConfig(Demo.tempDbFile()))
+    val db        = new Db(DbConfig(TempDb.file()))
     val telemetry = new RequestTelemetry
     val app       = telemetry.wrap(new Routes(new BookRepo(db), CatalogConfig(pageSize = 2)).handle)
 

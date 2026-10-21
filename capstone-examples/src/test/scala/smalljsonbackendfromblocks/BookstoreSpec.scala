@@ -18,7 +18,7 @@ import zio.test._
 object BookstoreSpec extends ZIOSpecDefault {
 
   def withRoutes[A](use: Routes => A): A = {
-    val db = new Db(DbConfig(Demo.tempDbFile()))
+    val db = new Db(DbConfig(TempDb.file()))
     try use(new Routes(new BookRepo(db), CatalogConfig(pageSize = 2)))
     finally db.close()
   }
@@ -62,7 +62,7 @@ object BookstoreSpec extends ZIOSpecDefault {
       )
     },
     test("the server built from the settings answers over HTTP") {
-      val env    = ConfigSource.fromMap(Map("db.file" -> Demo.tempDbFile()), "env")
+      val env    = ConfigSource.fromMap(Map("db.file" -> TempDb.file()), "env")
       val result = Scope.global.scoped { scope =>
         import scope._
         val service = allocate(Bookstore.app(Settings.layered(env)))
