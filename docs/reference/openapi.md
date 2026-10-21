@@ -11,12 +11,19 @@ Core types: `OpenAPI`, `Info`, `Paths`, `PathItem`, `Operation`, `Parameter`, `R
 final case class OpenAPI(
   openapi: String,
   info: Info,
-  servers: Option[Chunk[Server]] = None,
+  jsonSchemaDialect: Option[String] = None,
+  servers: Chunk[Server] = Chunk.empty,
   paths: Option[Paths] = None,
+  webhooks: ChunkMap[String, ReferenceOr[PathItem]] = ChunkMap.empty,
   components: Option[Components] = None,
-  security: Option[Chunk[SecurityRequirement]] = None
+  security: Chunk[SecurityRequirement] = Chunk.empty,
+  tags: Chunk[Tag] = Chunk.empty,
+  externalDocs: Option[ExternalDocumentation] = None,
+  extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 ```
+
+See also: [How to Write an OpenAPI Document and Export It as JSON or YAML](../guides/write-and-export-openapi.md) walks through a complete document, from component schemas to JSON and YAML output.
 
 ## Introduction
 
@@ -27,19 +34,15 @@ The OpenAPI module bridges the gap by letting you author API specs as Scala code
 ## Installation
 
 ```scala
+// Scala 2.13, and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-openapi" % "@VERSION@"
 
-// You'll also need the schema module for Schema[A] integration:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
+// Scala 3.9 and newer
+libraryDependencies += "dev.zio" %% "zio-blocks-next-openapi" % "@VERSION@"
+scalacOptions += "-experimental"
 ```
 
-For Scala.js:
-
-```scala
-libraryDependencies += "dev.zio" %%% "zio-blocks-openapi" % "@VERSION@"
-```
-
-Supported Scala versions: 2.13.x and 3.x.
+The module brings in `zio-blocks-schema`, which provides `Schema[A]` integration. For Scala.js, use `%%%` instead of `%%`. To export documents as YAML, also add `zio-blocks-schema-yaml` (`zio-blocks-next-schema-yaml` on Scala 3.9 and newer).
 
 ## How They Work Together
 
@@ -162,7 +165,7 @@ val jsonString = Json.jsonCodec.encodeToString(json, WriterConfig.withIndentionS
 ```
 OpenAPI (root document)
 ├─ info: Info (metadata)
-├─ servers: Option[Chunk[Server]]
+├─ servers: Chunk[Server]
 ├─ paths: Option[Paths] (map of path strings to PathItem)
 │  └─ PathItem
 │     ├─ get: Operation
@@ -170,19 +173,19 @@ OpenAPI (root document)
 │     ├─ put: Operation
 │     └─ ... (other HTTP methods)
 │        ├─ parameters: Chunk[ReferenceOr[Parameter]]
-│        ├─ requestBody: ReferenceOr[RequestBody]
-│        │  └─ content: Map[String, MediaType]
+│        ├─ requestBody: Option[ReferenceOr[RequestBody]]
+│        │  └─ content: ChunkMap[String, MediaType]
 │        │     └─ schema: ReferenceOr[SchemaObject]
 │        └─ responses: Responses
-│           └─ Map[statusCode, ReferenceOr[Response]]
-│              └─ content: Map[String, MediaType]
+│           └─ ChunkMap[statusCode, ReferenceOr[Response]]
+│              └─ content: ChunkMap[String, MediaType]
 │                 └─ schema: ReferenceOr[SchemaObject]
 ├─ components: Option[Components]
 │  ├─ schemas: ChunkMap[String, ReferenceOr[SchemaObject]]
 │  ├─ responses: ChunkMap[String, ReferenceOr[Response]]
 │  ├─ parameters: ChunkMap[String, ReferenceOr[Parameter]]
 │  └─ securitySchemes: ChunkMap[String, ReferenceOr[SecurityScheme]]
-└─ security: Option[Chunk[SecurityRequirement]]
+└─ security: Chunk[SecurityRequirement]
 ```
 
 ## Common Patterns
@@ -301,8 +304,8 @@ val headerParam = Parameter(
 The OpenAPI module integrates tightly with other ZIO Blocks components:
 
 - **Schema Integration**: All OpenAPI types have `Schema.derived` instances, enabling round-trip serialization via `DynamicValue`. Use `Schema[A].toOpenAPISchema` to convert any schema to an OpenAPI component.
-- **Markdown Support**: Description fields use the in-house `Doc` type, which supports CommonMark rendering. This ensures markdown descriptions round-trip correctly.
-- **JSON AST**: All codecs operate on the `Json` AST from `zio-blocks-schema`, not external JSON libraries. To render as YAML, pipe the `Json` through `zio-blocks-schema-yaml` separately.
+- **Markdown Support**: Description fields use the in-house `Doc` type, which supports CommonMark rendering. The encoder writes each description as Markdown text, which ends with a blank line (`\n\n`).
+- **JSON AST**: All codecs operate on the `Json` AST from `zio-blocks-schema`, not external JSON libraries. Encode with `openAPICodec.encodeValue` and print the `Json`; `openAPICodec.encodeToString` and `encode` throw `NotImplementedError` in this release. To render as YAML, convert the `Json` with `Yaml.fromJson` from `zio-blocks-schema-yaml`, as shown in [How to Write an OpenAPI Document and Export It as JSON or YAML](../guides/write-and-export-openapi.md).
 
 ---
 
@@ -515,7 +518,7 @@ val userPaths = Paths(ChunkMap(
 ### Definition
 
 Key fields:
-- **`responses`**: Required. Map of status codes to response definitions
+- **`responses`**: Map of status codes to response definitions. OpenAPI requires it; the constructor defaults it to an empty `Responses()`, which is encoded as `{}`
 - **`operationId`**: Unique operation identifier
 - **`summary`**: Short description
 - **`description`**: Detailed markdown description
@@ -576,11 +579,11 @@ val getUser = Operation(
 Required fields:
 - **`name`**: Parameter name (e.g., `"id"`, `"limit"`)
 - **`in`**: Location—`Path`, `Query`, `Header`, or `Cookie` (`ParameterLocation`)
-- **`schema`**: Data type of the parameter (`ReferenceOr[SchemaObject]`)
 
 Optional fields:
+- **`schema`**: Data type of the parameter (`Option[ReferenceOr[SchemaObject]]`, default: `None`)
 - **`description`**: Markdown description
-- **`required`**: Whether the parameter is mandatory (default: `false`)
+- **`required`**: Whether the parameter is mandatory (default: `false`, also for path parameters, which OpenAPI requires to be `true`)
 - **`deprecated`**: Whether the parameter is deprecated
 - **`allowEmptyValue`**: Whether empty string values are allowed
 
@@ -1253,7 +1256,7 @@ val productsTag = Tag(
 
 ## Common Extension Fields
 
-All types support custom `x-*` extension fields for vendor-specific metadata. These extensions are preserved during encoding/decoding:
+Most types have an `extensions` field for custom `x-*` vendor-specific metadata; `Reference`, `XML`, `Discriminator` and `SecurityRequirement` do not. These extensions are preserved during encoding/decoding:
 
 ```scala mdoc:compile-only
 import zio.blocks.openapi._

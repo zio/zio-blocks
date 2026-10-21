@@ -10,10 +10,10 @@ title: "JWT"
 Add the dependency to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-jwt" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-jwt" % "@VERSION@"
 ```
 
@@ -226,3 +226,4 @@ All errors are represented as `JwtError` subtypes (no stack traces). Limits and 
 ## See Also
 
 - [How to Issue and Verify JWTs](../guides/issue-and-verify-jwts.md): sign and verify with HMAC, RSA and EdDSA keys, fix the clock in tests, load PEM keys, and reject hostile tokens.
+- [How to Protect an Endpoint with JWT Bearer Tokens](../guides/protect-endpoints-with-jwt.md): read the bearer token from a request, verify it, and answer 401 or 403 correctly.

@@ -26,8 +26,10 @@ trait NonNegativeIntCompanionVersionSpecific {
    * overhead.
    *
    * {{{
-   * val min = NonNegativeInt.literal(3)   // Compiles - returns NonNegativeInt directly
-   * val bad = NonNegativeInt.literal(-1)  // Compile error!
+   * import zio.blocks.schema.json.NonNegativeInt
+   *
+   * val min: NonNegativeInt = NonNegativeInt.literal(3) // compiles
+   * // NonNegativeInt.literal(-1)                       // does not compile
    * }}}
    */
   inline def literal(inline n: Int): NonNegativeInt =

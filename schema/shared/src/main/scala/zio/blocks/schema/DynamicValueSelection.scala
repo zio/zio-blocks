@@ -25,6 +25,13 @@ import zio.blocks.chunk.Chunk
  * DynamicValueSelection enables a fluent API style for navigating through
  * DynamicValue structures:
  * {{{
+ * val dv = DynamicValue.Record(
+ *   "users" -> DynamicValue.Sequence(
+ *     DynamicValue.Record("name" -> DynamicValue.string("Alice"))
+ *   )
+ * )
+ *
+ * val names: DynamicValueSelection =
  *   dv.get("users").sequences.apply(0).get("name").primitives
  * }}}
  *

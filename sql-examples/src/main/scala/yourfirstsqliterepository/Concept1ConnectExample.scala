@@ -1,7 +1,7 @@
 package yourfirstsqliterepository
 
-import zio.blocks.sql.*
 import zio.blocks.schema.Schema
+import zio.blocks.sql.*
 
 /**
  * Build Your First Database Repository on SQLite — Concept 1: Connect to SQLite

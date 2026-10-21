@@ -37,14 +37,14 @@ At the end, we save the finished page as `book.html` and open it in a browser. W
 To follow along, add the HTML module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-html" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-html" % "@VERSION@"
 ```
 
-Scala 3.7 and newer use the `zio-blocks-next-html` artifact name. The HTML module depends on the schema module, so `Schema` is available without another dependency. The code in this tutorial is the same for every Scala version.
+Scala 3.9 and newer use the `zio-blocks-next-html` artifact name. The HTML module depends on the schema module, so `Schema` is available without another dependency. The code in this tutorial is the same for every Scala version.
 
 Section 7 uses a `Schema`, so you should finish the [Your First Schema](./your-first-schema.md) tutorial first.
 
@@ -473,5 +473,6 @@ You now have a solid foundation in server-side HTML with ZIO Blocks. The next st
 
 - **Want the full HTML API?** Read the [HTML](../reference/html.md) reference page, which covers the `html"..."` template interpolator, the `Css` data type, `Dom#transform`, and every `DomSelection` operation.
 - **Ready to make the page interactive?** [HTMX](../reference/htmx/index.md) adds typed `hx-*` attributes to the same DSL, so links and forms can fetch new HTML from the server without a full reload.
+- **Want to serve the page over HTTP?** [How to Serve http-model Requests with the JDK HTTP Server](./serve-http-model-requests.md) shows how to hand an http-model `Response` to the server built into the JDK.
 - **Prefer reactive signals?** [Datastar](../reference/datastar/index.md) builds on the HTML module with typed `data-*` attributes and server-sent events.
 - **Want more from your schemas?** Return to [Your First Schema](./your-first-schema.md) and follow its links to the JSON codec and the other formats one `Schema` can produce.

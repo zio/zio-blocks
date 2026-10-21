@@ -143,13 +143,13 @@ addCommandAlias(
   "++3.9.0; project streamsJVM; coverage; test; coverageReport"
 )
 lazy val testJVMScala2Command =
-  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
+  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; schema-scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; mediatypeJVM/test; " +
     "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; asyncJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJVMScala3Command =
-  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
+  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; schema-scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
     "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test; projectionJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
@@ -312,6 +312,7 @@ lazy val root = project
     `async-benchmarks-js`,
     scalaNextTests.jvm,
     scalaNextTests.js,
+    `schema-scaladoc-check`,
     benchmarks,
     `scope-benchmarks`,
     `sql-benchmarks`,
@@ -330,14 +331,17 @@ lazy val root = project
     dataMigration.js,
     projection.jvm,
     asyncExamples,
+    capstoneExamples,
     endpointExamples,
     httpModelExamples,
     jwtExamples,
     muxExamples,
+    openapiExamples,
     schemaExamples,
     scopeExamples,
     smithyExamples,
     streamsExamples,
+    telemetryExamples,
     zioBlocksExamples,
     zioBlocksHtmxExamples,
     `projection-examples`
@@ -346,14 +350,17 @@ lazy val root = project
 // Example projects are standalone builds (see AGENTS.md) that depend on published artifacts, so the
 // root build only references them, the way zio-http does, instead of defining them as subprojects.
 lazy val asyncExamples         = RootProject(file("async-examples"))
+lazy val capstoneExamples      = RootProject(file("capstone-examples"))
 lazy val endpointExamples      = RootProject(file("endpoint-examples"))
 lazy val httpModelExamples     = RootProject(file("http-model-examples"))
 lazy val jwtExamples           = RootProject(file("jwt-examples"))
 lazy val muxExamples           = RootProject(file("mux-examples"))
+lazy val openapiExamples       = RootProject(file("openapi-examples"))
 lazy val schemaExamples        = RootProject(file("schema-examples"))
 lazy val scopeExamples         = RootProject(file("scope-examples"))
 lazy val smithyExamples        = RootProject(file("smithy-examples"))
 lazy val streamsExamples       = RootProject(file("streams-examples"))
+lazy val telemetryExamples     = RootProject(file("telemetry-examples"))
 lazy val zioBlocksExamples     = RootProject(file("zio-blocks-examples"))
 lazy val zioBlocksHtmxExamples = RootProject(file("zio-blocks-htmx-examples"))
 
@@ -1369,6 +1376,50 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   )
   .jsSettings(jsSettings)
 
+// Compiles every code example in the Scaladoc of `schema` (see docs/dev/scaladoc-style.md).
+// Not published. The extractor lives in project/ScaladocSnippets.scala so that sbt can run it as a
+// source generator; the Test configuration compiles that file again to unit-test it.
+lazy val fatalWarningFlags: Set[String] = Set("-Werror", "-Xfatal-warnings")
+
+lazy val `schema-scaladoc-check` = project
+  .in(file("schema-scaladoc-check"))
+  .settings(stdSettings("zio-blocks-schema-scaladoc-check"))
+  .dependsOn(schema.jvm)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
+    ),
+    Test / unmanagedSources += (ThisBuild / baseDirectory).value / "project" / "ScaladocSnippets.scala",
+    // Examples are user code: a warning in one (an unused import, say) must not fail the build.
+    Compile / scalacOptions ~= (_.filterNot(fatalWarningFlags)),
+    // `Test / scalacOptions` delegates to the Compile ones, so put the fatal flags back: the spec and
+    // project/ScaladocSnippets.scala are ordinary code. (The generated snippets are Compile sources.)
+    Test / scalacOptions := (Test / scalacOptions).value ++ (schema.jvm / Compile / scalacOptions).value
+      .filter(fatalWarningFlags),
+    Compile / sourceGenerators += Def.task {
+      val root       = (ThisBuild / baseDirectory).value
+      val outDir     = (Compile / sourceManaged).value / "scaladoc-snippets"
+      val scalaMajor = CrossVersion.partialVersion(scalaVersion.value).fold(3)(_._1.toInt)
+      // `schema.jvm`'s own source list already holds exactly the shared, jvm and version-specific
+      // (scala-2, scala-3, scala-3.5+ ...) files for the current Scala version.
+      val sources = (schema.jvm / Compile / unmanagedSources).value.collect {
+        case file if file.getName.endsWith(".scala") =>
+          (IO.relativize(root, file).getOrElse(file.getPath).replace('\\', '/'), IO.read(file))
+      }
+      IO.delete(outDir) // drop wrappers of snippets that were removed or moved
+      ScaladocSnippets.generate(sources, scalaMajor).map { case (name, content) =>
+        val file = outDir / name
+        IO.write(file, content)
+        file
+      }
+    }.taskValue
+  )
+
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.9.0")))
   .dependsOn(schema.jvm % "compile->compile;test->test")
@@ -1378,7 +1429,7 @@ lazy val benchmarks = project
   .enablePlugins(JmhPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "com.vitthalmirji"                      %% "toon4s-core"           % "0.9.1",
+      "com.vitthalmirji"                      %% "toon4s-core"           % "0.9.3",
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.41.5",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
       "dev.zio"                               %% "zio-json"              % "0.10.0",
@@ -1774,6 +1825,7 @@ lazy val docs = project
     mux.jvm,
     async.jvm,
     sql.jvm,
+    `sql-zio`,
     telemetry.jvm,
     otel,
     config.jvm,

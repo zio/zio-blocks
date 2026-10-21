@@ -2,6 +2,18 @@
 
 Utility scripts for documentation maintenance and quality assurance.
 
+## Scaladoc Coverage Report
+
+- **scaladoc-coverage.py** — Reports the share of documented API-level declarations per package of a module, and with `--drift` lists members whose Scaladoc differs between `scala-2/` and `scala-3/` (or `jvm/` and `js/`) copies. It reports only and never fails a build.
+- **test_scaladoc_coverage.py** — Unit tests for it.
+
+```bash
+python3 .claude/scripts/scaladoc-coverage.py schema --drift
+python3 -I .claude/scripts/test_scaladoc_coverage.py
+```
+
+---
+
 ## mdoc Code Block Scanner & Fixer Tools
 
 ### Overview

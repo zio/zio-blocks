@@ -699,13 +699,13 @@ val deriver = ToonCodecDeriver.withArrayFormat(ArrayFormat.List)
 
 ### Auto Format
 
-Let the encoder select the best format based on content:
+`Auto` is the default. It chooses the format from the element type: arrays of primitive values are written inline, and arrays of records are written as lists. The one exception is an array of flat records (records whose fields are all primitives) nested inside a list item, which is written as a table. To write record arrays as tables everywhere, use `ArrayFormat.Tabular`:
 
 ```scala
 import zio.blocks.schema.toon._
 
 val deriver = ToonCodecDeriver.withArrayFormat(ArrayFormat.Auto)
-// Inline for primitives, tabular for uniform objects, list for mixed
+// Inline for primitive arrays, list for record arrays
 ```
 
 ---

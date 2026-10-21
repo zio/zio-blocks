@@ -26,14 +26,22 @@ import zio.blocks.docs.Doc
  * A `DerivationBuilder` is capable of deriving a type class instance for any
  * data type that has a schema. Though instances for all substructures can be
  * derived automatically, you can also specify instances for specific
- * substructures using the `withOverride` method.
+ * substructures using the `instance` method, and modifiers for them using the
+ * `modifier` method.
  *
  * {{{
- * val personSchema = Schema.derive[Person]
+ * import zio.blocks.schema.json._
  *
- * val personEq: Eq[Person] = personSchema
- *   .deriving[Eq]
- *   .instance(Person.age, Eq[Int])
+ * case class Person(name: String, age: Int)
+ * object Person extends CompanionOptics[Person] {
+ *   implicit val schema: Schema[Person] = Schema.derived
+ *   val name: Lens[Person, String] = $(_.name)
+ *   val age: Lens[Person, Int]     = $(_.age)
+ * }
+ *
+ * val personCodec: JsonCodec[Person] = Person.schema
+ *   .deriving(JsonCodecDeriver)
+ *   .instance(Person.age, JsonCodec.intCodec)
  *   .modifier(Person.name, Modifier.rename("fullName"))
  *   .derive
  * }}}

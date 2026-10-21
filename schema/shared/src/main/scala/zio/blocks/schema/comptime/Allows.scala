@@ -37,6 +37,7 @@ package zio.blocks.schema.comptime
  *
  * ==Usage (Scala 3)==
  * {{{
+ * // scala-3-only
  * import zio.blocks.schema.comptime.Allows
  * import Allows._
  *
@@ -117,6 +118,8 @@ object Allows extends AllowsCompanionVersionSpecific {
    * the union check; no special subtype relationship is required.
    *
    * {{{
+   * import zio.blocks.schema.comptime.Allows._
+   *
    * // Allow only JSON-representable numbers:
    * type JsonNumber = Primitive.Int | Primitive.Long | Primitive.Double
    *
@@ -362,14 +365,17 @@ object Allows extends AllowsCompanionVersionSpecific {
    * written with the parent still accepts all collections.
    *
    * {{{
+   * import zio.blocks.schema.comptime.Allows
+   * import Allows._
+   *
    * // Any collection of primitives:
-   * Allows[List[Int], Sequence[Primitive]]
+   * implicitly[Allows[List[Int], Sequence[Primitive]]]
    *
    * // Only a Set, not a List:
-   * Allows[Set[Int], Sequence.Set[Primitive]]
+   * implicitly[Allows[Set[Int], Sequence.Set[Primitive]]]
    *
    * // Only a Set, and the element type must be exactly Int:
-   * Allows[Set[Int], Sequence.Set[IsType[Int]]]
+   * implicitly[Allows[Set[Int], Sequence.Set[IsType[Int]]]]
    * }}}
    *
    * @tparam A
@@ -484,17 +490,25 @@ object Allows extends AllowsCompanionVersionSpecific {
    * class) is needed:
    *
    * {{{
+   * import zio.blocks.schema.comptime.Allows
+   * import Allows._
    * import zio.blocks.typeid.IsNominalType
    *
-   * // `To` must be a Set whose element type is exactly `A`.
-   * // `IsNominalType[A]` ensures A is concrete at the call site.
-   * def contains[A: IsNominalType](a: A)(implicit
-   *   ev: Allows[To, Sequence.Set[IsType[A]]]
-   * ): ConditionExpression[From]
+   * trait ConditionExpression[From]
+   *
+   * trait Column[From, To] {
+   *   // `To` must be a Set whose element type is exactly `A`.
+   *   // `IsNominalType[A]` ensures A is concrete at the call site.
+   *   def contains[A: IsNominalType](a: A)(implicit
+   *     ev: Allows[To, Sequence.Set[IsType[A]]]
+   *   ): ConditionExpression[From]
+   * }
    * }}}
    *
    * `IsType[A]` can also replace specific primitive nodes as type aliases:
    * {{{
+   * import zio.blocks.schema.comptime.Allows._
+   *
    * type MyInt = IsType[scala.Int]  // equivalent to Primitive.Int semantically
    * }}}
    *
@@ -523,7 +537,13 @@ object Allows extends AllowsCompanionVersionSpecific {
    *
    * Example (both Scala 2 infix and Scala 3 native produce the same grammar):
    * {{{
-   * Allows[Person, Record[Primitive | Sequence[Primitive] | Map[Primitive, Primitive]]]
+   * import zio.blocks.schema.comptime.Allows
+   * import Allows._
+   *
+   * // `Allows._` brings the `Map` grammar node into scope, so name Scala's `Map` as `Predef.Map`
+   * case class Person(name: String, emails: List[String], phones: Predef.Map[String, String])
+   *
+   * implicitly[Allows[Person, Record[Primitive | Sequence[Primitive] | Map[Primitive, Primitive]]]]
    * }}}
    */
   sealed abstract class `|`[A <: Structural, B <: Structural] extends Structural

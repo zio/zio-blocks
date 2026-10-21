@@ -295,6 +295,8 @@ val myDeriver = JsonCodecDeriver
 
 See also: [Override the Codec for One Type](../../guides/override-codec-for-one-type.md) for a step-by-step guide to type-level overrides.
 
+See also: [How to Derive Your Own Type Class from a Schema](../../guides/derive-your-own-type-class.md) for a step-by-step guide to writing a `Deriver` for your own type class.
+
 ## Example 1: Deriving a `Show` Type Class Instance
 
 Let's say we want to derive a `Show` type class instance for any type of type `A`:
