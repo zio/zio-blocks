@@ -245,4 +245,5 @@ val keys: List[Long] = sql"INSERT INTO users (name) VALUES (${"Alice"})".updateR
 ## See Also
 
 - **[How to Stream Large Query Results](../../guides/stream-large-query-results.md)** — Guide to aggregating, exporting and error-handling the chunked streams that `queryStream` and `queryChunked` return.
+- **[How to Write Joins and Inspect the Generated SQL](../../guides/write-joins-and-inspect-generated-sql.md)** — Guide that runs join queries and prints or dumps the SQL they generate.
 - **[SQL Module Overview](./index.md)** — How `Frag`, `Transactor` and the other SQL types fit together.
