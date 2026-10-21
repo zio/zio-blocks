@@ -28,6 +28,7 @@ def zioBlocks(module: String) = Def.setting {
 
 libraryDependencies ++= Seq(
   zioBlocks("config").value,
+  zioBlocks("config-json").value,
   zioBlocks("config-yaml").value,
   zioBlocks("config-hocon").value
 )
