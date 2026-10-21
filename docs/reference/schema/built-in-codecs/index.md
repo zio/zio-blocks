@@ -22,10 +22,12 @@ Here's a summary of the codecs currently supported by ZIO Blocks. Most codecs pr
 | `XmlFormat`         | `XmlCodec[A]`         | `application/xml`     | `zio-blocks-schema-xml`         | [XML](./xml.md)                 |
 | `YamlFormat`        | `YamlCodec[A]`        | `application/yaml`    | `zio-blocks-schema-yaml`        | [YAML](./yaml.md)               |
 
+The module names above are for Scala 2.13 and Scala 3.3. On Scala 3.7 and newer, each module is published with the `zio-blocks-next-` prefix instead, for example `zio-blocks-next-schema-yaml`.
+
 ## Supported Types
 
 Most formats support the full set of ZIO Blocks Schema primitive types. Some formats have limitations:
-- **CSV** supports only flat records and primitive types (no variants, sequences, maps, or dynamic types)
+- **CSV** supports only flat records and primitive types (no variants, `Option` fields, sequences, maps, or dynamic types)
 - **XML** supports records, sequences, and variants with configurable discriminator strategies
 - Other formats support all composite types listed below
 
