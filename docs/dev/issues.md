@@ -2098,6 +2098,64 @@ import zio.http.Header
 
 **Suggested fix.** Add one shared helper for auth-param lists: render each value as a quoted string with `\` and `"` escaped, and parse with a small scanner that respects quoted strings and unescapes them, instead of `split(",")`. Use it from all four headers. Add round-trip property tests with values that contain `"`, `\`, `,` and `=`.
 
+### schema: `DynamicPatch#toString` and `JsonPatch#toString` don't indent a multi-line value added to a map or object
+
+Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Verified on Scala 2.13.18 (`zio-blocks-schema` 0.0.56) and Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`); the renderers are the same at tag `v0.0.56`.
+
+**Summary.** When a patch adds a map entry (or a JSON object key) whose value is a record, `toString` appends the value's own multi-line rendering without indenting it. The value's lines start at column 0, and the closing `}}` is not aligned with the `+`, so the patch is hard to read. The guide's catalog patch shows it.
+
+**Reproduction** (run with scala-cli; the same output on both versions, the Scala 3 file uses `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-schema`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+import zio.blocks.schema.patch._
+
+final case class Book(title: String, tags: List[String])
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+final case class Catalog(books: Map[String, Book])
+object Catalog { implicit val schema: Schema[Catalog] = Schema.derived }
+
+object Main extends App {
+  val zio    = Book("Zionomicon", List("zio"))
+  val pis    = Book("Programming in Scala", List("scala"))
+  val before = Catalog(Map("zionomicon" -> zio))
+  val after  = Catalog(Map("zionomicon" -> zio, "programming-in-scala" -> pis))
+  println(Catalog.schema.diff(before, after))
+  // DynamicPatch {
+  //   .books:
+  //     + {"programming-in-scala": {
+  //   title: "Programming in Scala",
+  //   tags: ["scala"]
+  // }}
+  // }
+  println(Json.from(before).diff(Json.from(after)))
+  // JsonPatch {
+  //   root:
+  //     ~ {"books"}:
+  //       root:
+  //         + {"programming-in-scala": {
+  //   "title": "Programming in Scala",
+  //   "tags": [
+  //     "scala"
+  //   ]
+  // }}
+  // }
+}
+```
+
+**Expected.** The value's lines are indented under the `+` line, for example `    + {"programming-in-scala": {` followed by `        title: "Programming in Scala",`.
+
+**Root cause.** `DynamicPatch.renderMapOp` appends `a.value` (the `DynamicValue`'s multi-line `toString`) as is (`schema/shared/src/main/scala/zio/blocks/schema/patch/DynamicPatch.scala:213`); `JsonPatch.renderObjectOp` does the same with the `Json` value (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonPatch.scala:683-684`). The sequence renderers (`renderSeqOp`) have the same pattern for inserted records.
+
+**Impact.** Cosmetic, but patches are printed for audit logs and debugging, and a catalog-sized patch becomes hard to read.
+
+**Test gap.** `DynamicPatchSpec` "DynamicPatch.toString" (`DynamicPatchSpec.scala:1626-1654`) asserts only with `.contains` on primitive deltas; no test renders a map or sequence insert of a record.
+
+**Suggested fix.** Render the value on one line (`Json#print` / a compact `DynamicValue` rendering), or indent every line after the first by the current indent.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -2476,6 +2534,119 @@ $ scala-cli compile .
 **Test gap.** The release workflow does not check that the version derived from the tag has the `MAJOR.MINOR.PATCH` shape.
 
 **Suggested fix.** Add a check to the release workflow that fails when the version does not match `^\d+\.\d+\.\d+(-.+)?$`. Add a Scala Steward `updates.ignore` entry for version `0.017` under `dev.zio` so the repo's own bots skip it. The metadata only stops pointing at `0.017` once a release sorts above it, such as `0.1.0`. Until then, the install guide pins `@VERSION@` and never suggests `latest.release`.
+
+### schema: `PatchMode.Strict` does not detect that the target changed, so a diff's list removal deletes whatever sits at the index
+
+Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Verified on Scala 2.13.18 (`zio-blocks-schema` 0.0.56) and Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`); the patch code is the same at tag `v0.0.56`.
+
+**Summary.** `Schema#diff` records list removals by index (`- [1]`), numbers as deltas (`-= 5.00`) and string changes as edits at a position. `PatchMode.Strict` only checks that each operation *fits* the value it is applied to (the index is in range, the map key exists or is absent). It never checks that the value still holds what it held when the patch was made. Applied to a value that changed in the meantime, a Strict patch returns `Right` and silently removes the wrong list element or produces a price nobody set. `PatchMode`'s Scaladoc says only "Fail on precondition violations", and `patch.md` says Strict "fails immediately if any operation cannot be applied" and to use it "when you need to know if every operation succeeded", which readers take to mean conflict detection.
+
+**Reproduction** (run with scala-cli; the same output on both versions, the Scala 3 file uses `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-schema`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.patch._
+
+final case class Book(id: String, title: String, price: BigDecimal, tags: List[String])
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+object Main extends App {
+  val base = Book("zionomicon", "Zionomicon", BigDecimal("44.99"), List("zio", "scala", "effects"))
+
+  // The editor removes the "scala" tag (index 1) and lowers the price to 39.99.
+  val patch = Book.schema.diff(base, base.copy(price = BigDecimal("39.99"), tags = List("zio", "effects")))
+  println(patch)
+  // DynamicPatch {
+  //   .price -= 5.00
+  //   .tags:
+  //     - [1]
+  // }
+
+  // Meanwhile someone else removed "scala" and set the price to 42.00.
+  val current = base.copy(price = BigDecimal("42.00"), tags = List("zio", "effects"))
+  println(patch(current, PatchMode.Strict))
+  // Right(Book(zionomicon,Zionomicon,37.00,List(zio)))
+}
+```
+
+The `effects` tag is gone although nobody removed it, and the price is 37.00 although nobody set it.
+
+**Expected.** Either Strict detects the conflict (a removal that carries the removed value, like RFC 6902's `test`, or a check of the old value before a delta), or the documentation says plainly that no mode detects a changed target.
+
+**Root cause.** `SeqOp.Delete` carries only `index` and `count` (`schema/shared/src/main/scala/zio/blocks/schema/patch/DynamicPatch.scala:877`), and `applySeqOp` checks only the bounds (`DynamicPatch.scala:705-712`). Numeric deltas and string edits likewise check only types and bounds (`DynamicPatch.scala:619-657`). `Differ` emits these operations for every changed list, number and string (`schema/shared/src/main/scala/zio/blocks/schema/patch/Differ.scala`).
+
+**Impact.** Silent data corruption in exactly the cases patches are used for: syncing an offline client, merging two editors' changes, replaying a stored patch.
+
+**Test gap.** `PatchLawsSpec` checks `diff(a, b)(a) == b` only on the value the patch was computed from; no test applies a diff to a changed value.
+
+**Suggested fix.** Document the limitation on `PatchMode` and in `patch.md`, and show the safe pattern (check that the value is unchanged, e.g. a version number, before applying; the guide does this). Optionally, add a value-checking operation (a `Test(path, expected)` op) and have `Differ` emit it before index-based removals.
+
+### schema: a stored `DynamicPatch` cannot be turned back into a `Patch[A]` on Scala 3, but can on Scala 2.13
+
+Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Verified on Scala 2.13.18 (`zio-blocks-schema` 0.0.56) and Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`).
+
+**Summary.** `Patch[A]` has no `Schema`, so the way to store a patch is its `DynamicPatch` (which has one). After decoding, there is no public way to wrap the `DynamicPatch` in a `Patch[A]` again: the constructor is `private[schema]`. On Scala 2.13 the case class's synthetic `Patch.apply` stays public, so `Patch(stored, schema)` compiles there and fails on Scala 3, which makes the synthetic `apply` as private as the constructor.
+
+**Reproduction** (run with scala-cli):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.patch._
+
+final case class Book(id: String, title: String, price: BigDecimal)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+object Main extends App {
+  val book   = Book("zionomicon", "Zionomicon", BigDecimal("44.99"))
+  val stored = Book.schema.diff(book, book.copy(price = BigDecimal("39.99"))).dynamicPatch
+  val typed: Patch[Book] = Patch(stored, Book.schema)
+  println(typed(book, PatchMode.Strict))
+  // Right(Book(zionomicon,Zionomicon,39.99))
+}
+```
+
+The same file with `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-schema` fails to compile:
+
+```
+-- [E050] Type Error: B.scala:13:27
+13 |  val typed: Patch[Book] = Patch(stored, Book.schema)
+   |                           ^^^^^
+   |object Patch in package zio.blocks.schema.patch does not take parameters
+```
+
+**Expected.** A public, cross-version way to get a `Patch[A]` from a `DynamicPatch`, such as `Patch.fromDynamic(patch: DynamicPatch)(implicit schema: Schema[A])` or `Schema#patch(value, patch: DynamicPatch)`.
+
+**Root cause.** `final case class Patch[S] private[schema] (dynamicPatch: DynamicPatch, schema: Schema[S])` (`schema/shared/src/main/scala/zio/blocks/schema/patch/Patch.scala:49`) and no factory in the companion takes a `DynamicPatch`.
+
+**Impact.** Code that stores patches works on Scala 2.13 and breaks when the project moves to Scala 3. The portable workaround is `dynamicPatch(schema.toDynamicValue(a), mode).flatMap(schema.fromDynamicValue)`, which the guide wraps in an `applyStored` helper; `patch.md`'s serialization section shows neither.
+
+**Test gap.** `SerializationSpec` round-trips `DynamicPatch` but never applies a decoded patch to a typed value.
+
+**Suggested fix.** Add the factory, and compile with `-Xsource-features:case-apply-copy-access` on Scala 2.13 so the synthetic `apply` follows the constructor's access.
+
+### schema: map patch errors don't name the key
+
+Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Verified on Scala 2.13.18 and 3.9.0 against 0.0.56.
+
+**Summary.** When a map operation fails in `PatchMode.Strict`, the error names the map but not the key: `Key not found in map at: .books` or `Key already exists in map at: .books`. With a catalog of many books, the reader cannot tell which book caused the conflict.
+
+**Reproduction.** Add these lines to the reproducer of the `toString` entry under Library bugs:
+
+```scala
+  val removePis = Catalog.schema.diff(after, before)
+  println(removePis(before, PatchMode.Strict))
+  // Left(zio.blocks.schema.SchemaError: Key not found in map at: .books)
+```
+
+**Expected.** `Key "programming-in-scala" not found in map at: .books`, or a path that ends in the key (`.books("programming-in-scala")`).
+
+**Root cause.** The messages are fixed strings (`schema/shared/src/main/scala/zio/blocks/schema/patch/DynamicPatch.scala:329,767,774,779`), and the trace stops at the map.
+
+**Suggested fix.** Include the rendered key in the message, or push a `DynamicOptic.Node.AtMapKey` step onto the trace.
 
 ## Test and CI
 
@@ -2898,8 +3069,35 @@ object Repro {
 
 Fixed in #1796 (H-24).
 
+### docs: `patch.md` has six snippets that don't compile and several claims the source contradicts
+
+Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Every snippet in `docs/reference/schema/patch.md` sits in a plain ```` ```scala ```` fence, so none was ever compiled. Each was run with scala-cli on Scala 2.13.18 against `zio-blocks-schema` 0.0.56 (a few also on Scala 3); the patch code is the same at tag `v0.0.56`.
+
+**Snippets that don't compile.**
+
+- Lines 162-203 (String Edits): `Patch.editString(Document.content, Vector(Patch.StringOp.Insert(0, "Hello ")))` and four more `Vector(...)` calls fail with `type mismatch; found: Vector[Patch.StringOp.Insert] required: zio.blocks.chunk.Chunk[Patch.StringOp]`. `editString` takes a `Chunk` (`Patch.scala:412`). Fix: `import zio.blocks.chunk.Chunk` and `Chunk(...)`; the shown results are then right. The table at line 605 should also give the type, `edits: Chunk[Patch.StringOp]`.
+- Lines 362-368 (modifyKey): `implicit val intSchema: Schema[Int] = Schema[Int]` fails with `forward reference to value intSchema ... extends over definition of value intSchema`, and the `Patch(DynamicPatch.root(...), Schema[Int])` that follows compiles only on Scala 2.13 (see the Usability traps entry on rebuilding a `Patch`). Fix: `val incrementValue: Patch[Int] = Schema[Int].diff(0, 10)`, which gives the page's `UserSettings(Map(volume -> 60, brightness -> 80))` on both versions.
+- Lines 463-471 (Lenient): `patch1 ++ patch2` combines a `Patch[Data]` with a `Patch[Counter]` and fails with `type mismatch; found: Patch[Counter] required: Patch[Data]`. Fix: `val patch2 = Patch.append(Data.items, Vector(4))`; then Lenient gives `Right(Data(Vector(1, 2, 3, 4)))` and Strict `Left(... Delete range [10, 11) out of bounds for sequence of length 3 at: .items)`.
+- Lines 507-519 (Diffing Values): `val new = Person("Alice", 26)` fails (`new` is a keyword: `illegal start of simple pattern`). It also needs the `Person(name, age)` of line 26, which line 61 redefined as `Person(name, address)`. Fix: `oldValue` / `newValue`; better, show the typed `Schema#diff` and `Schema#patch` (`Schema.scala:122-125`), which the page never mentions.
+- Lines 565-573 (Serializable Operations): `JsonEncoder.encode(patch.dynamicPatch)` fails with `not found: value JsonEncoder`; no such object exists. Fix: `Schema[DynamicPatch].jsonCodec.encodeToString(patch.dynamicPatch)` and `Schema[DynamicPatch].jsonCodec.decode(json)`.
+
+**Claims the source contradicts.**
+
+- Lines 433-457 (`PatchMode.Strict` "fails immediately if any operation cannot be applied"; "use Strict when you need to know if every operation succeeded"): Strict checks only structural preconditions and never that the target is unchanged (see the Usability traps entry on `PatchMode.Strict`).
+- Lines 475-491 (`Clobber` "attempts to force operations through, using fallback behaviors"; "force updates regardless of preconditions"): Clobber differs from Lenient in three places only: a map `Add` of an existing key overwrites it (`DynamicPatch.scala:766`), a map `Remove` of a missing key is a no-op (`:773`), and out-of-range sequence inserts and deletes are clamped (`:700`, `:708`). `modifyAt` out of range, `modifyKey` on a missing key, out-of-range string edits and a prism case mismatch are skipped exactly as in Lenient.
+- Line 416 (`apply` "uses Lenient mode and returns the original value on failure"): under Lenient the failing operations are skipped and the rest are applied; the original comes back only if the final `fromDynamicValue` fails (`Patch.scala:59-66`). `(Patch.deleteAt(Data.items, 10, 1) ++ Patch.append(Data.items, Vector(4)))(Data(Vector(1, 2, 3)))` gives `Data(Vector(1, 2, 3, 4))`.
+- Lines 80-84 (`set` works with all optic types): `Patch.set` with a Prism does not switch cases. On a `Square`, `Patch.set(Shape.circle, Circle(5.0))` gives `Left(SchemaError: Expected case Circle but got Square at: .when[Circle])` under Strict and the unchanged `Square` otherwise (`DynamicPatch.scala:342-356`). A Traversal over an empty sequence fails under Strict with `encountered an empty sequence at: .items.each`.
+- Lines 556-558 (Diff Example comment): `metadata["level"]: increment from "1" to "2"` is wrong; strings never get a delta. The real patch is `.metadata: ~ {"level"}: . = "2"` (`Differ.scala:135-147`).
+- Line 16 (Overview, "Schema Evolution — Patches ... adapting as data structures evolve"): patches address fields by name; applying a patch to a type whose field was renamed gives `Left(SchemaError: Missing field 'title' at: .)`.
+- Lines 224-302 and 154 (the `CollectionDummy` and `DurationDummy` imports): unnecessary; the implicits resolve without any import. Line 235's LazyList support cannot be used: `Schema.derived` fails for a case class with a `LazyList` field on both versions (`type mismatch; found: Schema[Seq[Int]] required: Schema[LazyList[Int]]`), as `DynamicPatch.scala:936` admits.
+
+**Impact.** A reader copying the page hits compile errors in five sections, and the PatchMode section suggests Strict protects against concurrent changes, which it does not.
+
+**Suggested fix.** Convert the page to mdoc (one scope per section, distinct names; `Person` and `patch` are redefined across blocks today), apply the fixes above, and link the H-07 guide for the end-to-end diff, store and replay workflow.
+
 ## Resolved
 
+- `json-patch.md:608` said that converting a `JsonPatch` to RFC 6902 is a matter of encoding it with its `Schema` and reformatting. The encoded patch holds number deltas and string edits that RFC 6902 cannot express, so the conversion needs the source document to compute `replace` values and must track list indices as earlier operations shift them. No other page or Scaladoc claims RFC 6902 compatibility. The sentence now says this and links the H-07 guide's converter. Fixed in the H-07 PR (`docs/h07-diff-and-patch`).
 - `transactor-zio.md` mentioned `JdbcTransactor.postgresLayer` without saying it is an extension that needs `import zio.blocks.sql.zio.*` (found while writing H-17). Fixed on the H-21 branch `docs/h21-sql-from-zio`.
 - `type-class-derivation.md` "Customizing Derivation with Instance and Modifier Overrides": all four examples were uncompiled plain blocks, one with a `// ... AST overrides ...` placeholder and undefined types. Each is now a self-contained `mdoc:compile-only` block with the real JSON AST overrides. Fixed in #1787.
 - `jwt.md`: audience mismatch documented as `InvalidToken` (it is `InvalidClaim("aud", ...)`), missing `InvalidClaim`/`InvalidKey` rows, no key-format guidance, no frontmatter. Fixed in #1789 (H-37). The `JwtDecodeOptions` Scaladoc (`Jwt.scala:131-132`) still says `InvalidToken`; see the jwt entry above.
