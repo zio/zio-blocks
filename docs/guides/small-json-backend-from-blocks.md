@@ -352,6 +352,12 @@ object TempDb {
 }
 ```
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the blocks below
+import _root_.zio
+```
+
 The code above:
 
 - `JdbcTransactor.fromUrl` points at the SQLite file named in `DbConfig`. It opens a connection for each `JdbcTransactor#connect` or `JdbcTransactor#transact` call and closes it afterwards, so `Db#close` has nothing to release here and only reports that it ran. A connection pool, such as the one in [How to Connect to PostgreSQL with a Connection Pool](./connect-to-postgresql-with-a-connection-pool.md), would be closed in `Db#close`.
@@ -1081,5 +1087,5 @@ You now have a small backend built entirely from ZIO Blocks, and you know where 
 - **Test more of the database code.** [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) covers fixtures, schema setup and rolling back instead of cleaning up.
 - **Go deeper on settings.** [How to Feed Configuration into a Wire Dependency Graph](./feed-config-into-a-wire-graph.md) and [Build a Typed Configuration Loader](./typed-config-loader.md) cover secrets, formats and testing settings.
 - **Go deeper on resources.** [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md) explains how scopes keep services from escaping.
-- **Protect the endpoints.** [How to Issue and Verify JWTs](./issue-and-verify-jwts.md) shows how to sign and check tokens; the guide H-38 "How to Protect an Endpoint with JWT Bearer Tokens" shows how to check them on each request; it is not published yet.
+- **Protect the endpoints.** [How to Issue and Verify JWTs](./issue-and-verify-jwts.md) shows how to sign and check tokens; [How to Protect an Endpoint with JWT Bearer Tokens](./protect-endpoints-with-jwt.md) shows how to check them on each request.
 - **Look up the APIs.** The reference pages for [the HTTP model](../reference/http-model/index.md), [config](../reference/config/index.md), [sql](../reference/sql/index.md), [Resource](../reference/resource-management/resource.md) and [telemetry](../reference/telemetry/index.md) list every operation.

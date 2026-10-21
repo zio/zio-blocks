@@ -457,6 +457,7 @@ const sidebars = {
     "guides/your-first-schema",
     "guides/customize-json-encoding",
     "guides/override-codec-for-one-type",
+    "guides/validated-newtypes",
     "guides/derive-your-own-type-class",
     "guides/nested-data-with-optics",
     "guides/one-type-many-formats",
@@ -469,6 +470,7 @@ const sidebars = {
     "guides/connect-to-postgresql-with-a-connection-pool",
     "guides/upsert-and-paginate-with-keyset-cursors",
     "guides/stream-large-query-results",
+    "guides/sql-from-zio",
     "guides/your-first-html-page",
     "guides/serve-http-model-requests",
     "guides/stream-files-and-sockets",
@@ -482,6 +484,7 @@ const sidebars = {
     "guides/zio-schema-migration",
     "guides/config-library-migration",
     "guides/json-library-migration",
+    "guides/streaming-library-migration",
     "guides/generate-json-schema-and-validate-payloads",
     "guides/llm-data-with-toon",
     {
@@ -498,6 +501,7 @@ const sidebars = {
     "guides/sql-transactions",
     "guides/sql-checked-interpolation",
     "guides/issue-and-verify-jwts",
+    "guides/protect-endpoints-with-jwt",
   ]
 };
 
