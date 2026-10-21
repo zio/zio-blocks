@@ -453,6 +453,7 @@ const sidebars = {
   ],
   // Guides get their own sidebar, reached from the "Guides" navbar item, so the reference sidebar stays reference-only.
   guides: [
+    "guides/add-zio-blocks-to-your-build",
     "guides/your-first-schema",
     "guides/customize-json-encoding",
     "guides/override-codec-for-one-type",

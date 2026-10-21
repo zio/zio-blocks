@@ -41,13 +41,13 @@ In this guide, we solve this with `zio-blocks-schema-csv`: `CsvReader` and `CsvW
 To follow along, add the schema and CSV modules to your build:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-blocks-schema"     % "@VERSION@",
   "dev.zio" %% "zio-blocks-schema-csv" % "@VERSION@"
 )
 
-// Scala 3.7 and newer: the same modules with the zio-blocks-next- prefix
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental"): the same modules with the zio-blocks-next- prefix
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-blocks-next-schema"     % "@VERSION@",
   "dev.zio" %% "zio-blocks-next-schema-csv" % "@VERSION@"
