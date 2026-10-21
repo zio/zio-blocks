@@ -19,7 +19,7 @@ A `Patch[S]` represents a sequence of operations that transform a value of type 
 For **untyped JSON patching** without a schema, use [`JsonPatch`](./built-in-codecs/json/json-patch.md) instead. `JsonPatch` is optimized for diff-and-apply workflows on raw JSON values and provides compact delta representations without requiring typed optics.
 :::
 
-To build a patch, we point smart constructors at fields through optics, compose the results with `Patch#++`, and apply the composed patch to a value:
+To build a patch, we point smart constructors at fields through [optics](./optics.md), compose the results with `Patch#++`, and apply the composed patch to a value:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema._
@@ -263,8 +263,8 @@ val replaceWorld = Patch.editString(
 val edits = Patch.editString(
   Document.content,
   Chunk(
-    Patch.StringOp.Delete(5, 6),      // "Hello World" -> "Hello"
-    Patch.StringOp.Append(" there!")  // "Hello" -> "Hello there!"
+    Patch.StringOp.Delete(5, 6),
+    Patch.StringOp.Append(" there!")
   )
 )
 
@@ -283,10 +283,10 @@ edits(doc)
 
 String edit operations:
 
-- `Insert(index, text)` — Insert text at the given position
-- `Delete(index, length)` — Delete characters starting at index
-- `Append(text)` — Append text to the end
-- `Modify(index, length, text)` — Replace a range with new text
+- `Patch.StringOp.Insert(index, text)` — Insert text at the given position
+- `Patch.StringOp.Delete(index, length)` — Delete characters starting at index
+- `Patch.StringOp.Append(text)` — Append text to the end
+- `Patch.StringOp.Modify(index, length, text)` — Replace a range with new text
 
 ## Working with Collections
 
@@ -552,7 +552,7 @@ addHundred(testAccount)
 
 ### Application Modes
 
-For more control, use the overload that takes a `PatchMode`. It returns `Either[SchemaError, S]`:
+For more control, use the overload that takes a `PatchMode`. It returns an `Either` of a [`SchemaError`](./schema-error.md) or the patched value:
 
 ```scala mdoc
 addHundred(testAccount, PatchMode.Strict)
@@ -667,7 +667,7 @@ combined.applyOption(data)
 
 ## Diffing Values
 
-`Schema#diff(oldValue: A, newValue: A): Patch[A]` computes a minimal patch that transforms one value into another, and `Schema#patch(value: A, patch: Patch[A]): Either[SchemaError, A]` applies a patch in `Strict` mode. We diff two versions of a person whose age changed:
+[`Schema`](./schema.md) provides `Schema#diff(oldValue: A, newValue: A): Patch[A]`, which computes a minimal patch that transforms one value into another, and `Schema#patch(value: A, patch: Patch[A]): Either[SchemaError, A]`, which applies a patch in `Strict` mode. We diff two versions of a person whose age changed:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema._
@@ -691,7 +691,7 @@ println(patch)
 Schema[Person].patch(oldValue, patch)
 ```
 
-The same diff is available one level down, on `DynamicValue`, where `DynamicValue#diff` returns a `DynamicPatch`:
+The same diff is available one level down, on [`DynamicValue`](./dynamic-value.md), where `DynamicValue#diff` returns a `DynamicPatch`:
 
 ```scala mdoc:silent
 val dynamicOld = Schema[Person].toDynamicValue(oldValue)
@@ -712,8 +712,6 @@ The differ produces minimal patches using type-appropriate operations:
 - **Records** — Only includes changed fields
 - **Sequences** — Uses LCS algorithm to compute minimal insert/delete operations
 - **Maps** — Produces add/remove/modify operations for changed entries
-
-### Diff Example
 
 A user whose scores and metadata both changed shows the sequence and map operations together:
 
@@ -839,10 +837,10 @@ The tables below list every smart constructor on the `Patch` companion object, g
 | Operation                                               | Description                  |
 |---------------------------------------------------------|------------------------------|
 | `Patch.editString(optic, edits: Chunk[Patch.StringOp])` | Apply string edit operations |
-| `StringOp.Insert(index, text)`                          | Insert text at position      |
-| `StringOp.Delete(index, length)`                        | Delete characters            |
-| `StringOp.Append(text)`                                 | Append text                  |
-| `StringOp.Modify(index, length, text)`                  | Replace range                |
+| `Patch.StringOp.Insert(index, text)`                    | Insert text at position      |
+| `Patch.StringOp.Delete(index, length)`                  | Delete characters            |
+| `Patch.StringOp.Append(text)`                           | Append text                  |
+| `Patch.StringOp.Modify(index, length, text)`            | Replace range                |
 
 ### Sequence Operations
 
