@@ -1939,63 +1939,9 @@ Found 2026-10-20 while writing the how-to guide `docs/guides/stream-large-query-
 
 **Suggested fix.** Either change `db-codec.md:22` to say that only `BigDecimal` and `Char` fail fast, `String` gives `null` and the numeric and `Boolean` types give the JDBC default, or make the primitive codecs check `wasNull` and throw. The second is a behaviour change with a per-column cost.
 
-### docs: the streams overview marks `fromInputStream` and `fromJavaReader` as JVM-only, but they also run on Scala.js
-
-Found 2026-10-20 while writing the how-to guide `docs/guides/stream-files-and-sockets.md` (backlog H-24), on `main` at `b4179489`. The same text is in tag `v0.0.56`; it dates from #1318.
-
-**Summary.** The "Creating Streams" block of `docs/reference/streams/index.md` labels both groups of I/O constructors "JVM only": `Stream.fromInputStream`, `Stream.fromJavaReader`, `Stream.fromInputStreamUnmanaged` and `Stream.fromJavaReaderUnmanaged`. All four are defined in the shared sources and work on Scala.js; only their blocking terminals (`runCollect`, `run`, …) and the NIO helpers (`NioStreams`, `NioSinks`) are JVM-only.
-
-**Reproduction** (Scala 3.9.0, `zio-blocks-next-streams` 0.0.56 for Scala.js, run with `scala-cli run Repro.scala --js-cli-on-jvm` — the default native Scala.js linker of scala-cli 1.10 only reads IR up to 1.20, and the 0.0.56 artifacts are IR 1.22):
-
-```scala
-//> using scala 3.9.0
-//> using platform scala-js
-//> using jsVersion 1.22.0
-//> using option -experimental
-//> using dep dev.zio::zio-blocks-next-streams::0.0.56
-
-import zio.blocks.async._
-import zio.blocks.streams._
-
-import java.io.{ByteArrayInputStream, StringReader}
-import scala.concurrent.ExecutionContext.Implicits.global
-
-object Repro {
-  def main(args: Array[String]): Unit = {
-    val bytes = new ByteArrayInputStream("Zionomicon".getBytes("UTF-8"))
-    Stream.fromInputStream(bytes).map(_.toChar).runCollectAsync.toFuture.foreach(println)
-
-    val chars = new StringReader("Programming in Scala")
-    Stream.fromJavaReader(chars).runCollectAsync.toFuture.foreach(r => println(r.map(_.mkString)))
-  }
-}
-// Right(Chunk(Z,i,o,n,o,m,i,c,o,n))
-// Right(Programming in Scala)
-```
-
-**Expected.** The overview says these constructors are available on both platforms, as `docs/reference/streams/core/stream.md` already implies (it lists them without a platform note).
-
-**Root cause.** Documentation only. `docs/reference/streams/index.md:398` and `:402` say "JVM only", but the four constructors live in `streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:2997`, `:3010`, `:3067` and `:3080`, and the shared spec `streams/shared/src/test/scala/zio/blocks/streams/NewCombinatorsSpec.scala:612-630` runs them on both platforms.
-
-**Impact.** Low. A Scala.js user reading the overview concludes they cannot stream a `java.io.InputStream` or `Reader` and writes the adapter by hand.
-
-**Test gap.** None in the library; the shared spec covers both platforms. Nothing checks platform labels in the docs against the source tree.
-
-**Suggested fix.** Drop "- JVM only" from both comments at `docs/reference/streams/index.md:398` and `:402` (done in the H-24 PR).
-
-**Other modules**
-
-- `transactor-zio.md` mentions `JdbcTransactor.postgresLayer` without saying it is an extension that needs `import zio.blocks.sql.zio.*` (sql-zio). Found while writing H-17.
-- `html.md`: artifact name for Scala 3.9+ (see the `zio-blocks-next-*` entry), `Css.Declaration`, `hx-*` URL attributes, `selector""`. Filed as #1766.
-- `streams/index.md:78` lists Kyo RC6 and Ox 1.0.6; the build pins RC7 and 1.1.0.
-- `streams/index.md` "Installation" shows only `zio-blocks-streams`. That artifact (built with Scala 3.3.7) also works on 3.9, so this is incomplete rather than wrong; add the `zio-blocks-next-streams` line for Scala 3.9+. `streams/index.md:462` and `zero-boxing.md:95-113` claim, unverified, that fs2 and ZIO Streams box every `Int`. Found while writing M-04.
-- `repo.md:15` says all SQL is assembled when the `Repo` is built and each call only binds parameters. `Repo#insertOrUpdate` rebuilds its upsert fragment on every call (`Repo.scala:263-265`), and `insertOrUpdateBatch` builds it once per batch. `repo.md:348` (and the old `query-dsl-sql.md` text) call the `pageAfter`/`insertOrUpdate` column the "primary key"; the source uses `Repo`'s `idColumn`, which need not be a declared key (`RepoKeysetSpec`'s table has none), although upserts do need a PRIMARY KEY or UNIQUE constraint on it. Found while writing H-18.
-- `docs/index.md` and `built-in-codecs/json/index.md:39,45` give `zio-blocks-schema` for every Scala version; Scala 3.9+ uses `zio-blocks-next-schema` (the earlier "3.7+" was wrong; see the `zio-blocks-next-*` entry). H-01 (stalled) includes this fix.
-- `combinators.md` documents a `Choices` module that does not exist (research §9.6).
-- `docs/dev/research.md` cites stale line numbers (for example `Transactor.scala:65` is now `:261`/`:275`, `Table.scala:32` is now `:262`).
-
 ## Resolved
 
+- streams overview (`streams/index.md`) marked `fromInputStream` and `fromJavaReader` as JVM-only, but both run on Scala.js. Fixed in #1796 (H-24).
 - `type-class-derivation.md` "Customizing Derivation with Instance and Modifier Overrides": all four examples were uncompiled plain blocks, one with a `// ... AST overrides ...` placeholder and undefined types. Each is now a self-contained `mdoc:compile-only` block with the real JSON AST overrides. Fixed in #1787.
 - `jwt.md`: audience mismatch documented as `InvalidToken` (it is `InvalidClaim("aud", ...)`), missing `InvalidClaim`/`InvalidKey` rows, no key-format guidance, no frontmatter. Fixed in #1789 (H-37). The `JwtDecodeOptions` Scaladoc (`Jwt.scala:131-132`) still says `InvalidToken`; see the jwt entry above.
 - `sql-transactions.md`: the Hikari recipe, "JDK 25+" virtual-thread claim and "pool size equals database max connections" advice were replaced by a link to H-17's guide (virtual threads are final in JDK 21, JEP 444; JEP 491 shipped in JDK 24; pool sizing must keep the sum of all pools under `max_connections`). Also fixed: `.query[Int].toOne` (no such method; `queryOne[Long]`) and the unsupported "read-only avoids WAL writes" claim. Fixed in #1790 (H-17).
