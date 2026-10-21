@@ -131,7 +131,7 @@ println(Table.derived[PlainBook].columns)
 println(DbCodec.derived[PlainBook].toDbValues(PlainBook(2L, PlainIsbn("9780981531601"))))
 ```
 
-What we want is a `TEXT` column that holds `9780981531601`. The fix is to describe `Isbn` as a `String` with a check on the way in. This is the validated newtype from [How to Define Validated Newtypes](./validated-newtypes.md): a private constructor, a smart constructor `parse` that returns `Either[SchemaError, Isbn]`, and a `Schema` built with `Schema#transform`, which takes a function from `String` to `Isbn` and one back:
+What we want is a `TEXT` column that holds `9780981531601`. The fix is to describe `Isbn` as a `String` with a check on the way in. This is the validated newtype from [How to Define Validated Newtypes](./validated-newtypes.md): a private constructor, a smart constructor `Isbn.parse` that returns `Either[SchemaError, Isbn]`, and a `Schema` built with `Schema#transform`, which takes a function from `String` to `Isbn` and one back:
 
 ```scala mdoc:silent
 final case class Isbn private (value: String)
@@ -392,7 +392,7 @@ transactor.connect {
 To store the record's fields as separate columns instead, annotate the field with `@Modifier.config("sql.inline", "true")`. The codec then writes `metadata_publisher`, `metadata_edition` and `metadata_pages`, the same columns `Table.derived` lists, and `Repo.derived` works unchanged.
 :::
 
-### Use a jsonb Column on PostgreSQL
+## Use a jsonb Column on PostgreSQL
 
 On PostgreSQL, the natural column type for a JSON document is `jsonb`: it is stored parsed, so the server can index it and query inside it. The codec binds the JSON as a string parameter, and by default the PostgreSQL JDBC driver sends string parameters as `character varying`, which PostgreSQL refuses to put into a `jsonb` column without a cast. The driver's `stringtype=unspecified` URL setting sends them untyped instead, and PostgreSQL then converts the text to `jsonb` itself. The same `books` repository works on PostgreSQL once the URL has that setting:
 
@@ -794,6 +794,12 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/sql-examples
 ```
 
+To check that every example compiles without running any of them, use `sbt compile` instead of `sbt "runMain ..."`:
+
+```bash
+sbt compile
+```
+
 The SQLite examples each create their own temporary database file, so you can run them in any order. The PostgreSQL examples need the server from the [Prerequisites](#prerequisites) and the `BOOKSTORE_DB_PASSWORD` environment variable; set `BOOKSTORE_DB_URL` and `BOOKSTORE_DB_USER` too if they differ from `jdbc:postgresql://localhost:5432/bookstore` and `bookstore`. Each PostgreSQL example drops the tables it creates.
 
 ### Store a Newtype or an Opaque Type in One Column
@@ -938,6 +944,22 @@ This example reads `NULL` into non-optional fields, shows the two `Option` field
 
 ```bash
 sbt "runMain mapcustomcolumntypes.Step9NullableExample"
+```
+
+### The Complete Example on SQLite
+
+This example puts every column type from this guide into one `books` table on SQLite, inserts three books, checks that they read back equal and runs one query per column type.
+
+<details>
+  <summary>sql-examples/src/main/scala/mapcustomcolumntypes/CompleteExample.scala</summary>
+
+```scala mdoc:embed:sql-examples/src/main/scala/mapcustomcolumntypes/CompleteExample.scala:show-line-numbers
+```
+
+</details>
+
+```bash
+sbt "runMain mapcustomcolumntypes.CompleteExample"
 ```
 
 ### The Complete Example on PostgreSQL
