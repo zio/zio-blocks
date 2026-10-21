@@ -55,6 +55,8 @@ libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 
+For scala-cli, Scala.js, or cross-building, see [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md).
+
 The code on this page compiles on Scala 2.13 and Scala 3, except the `json"..."` interpolator in [Build JSON in Code](#build-json-in-code), which works only on Scala 3 in this release. No knowledge of `Schema` is needed until the last section, [Decode Part of the Tree Into a Case Class](#decode-part-of-the-tree-into-a-case-class), which assumes you can derive a `Schema` as shown in [Your First Schema](./your-first-schema.md).
 
 ## The Bookstore Document
