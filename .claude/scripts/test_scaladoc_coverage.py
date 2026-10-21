@@ -67,6 +67,25 @@ class DriftTest(unittest.TestCase):
                 ["shared/src/main/{scala-2,scala-3}/zio/blocks/schema/X.scala: def derived"],
             )
 
+    def test_drift_compares_overloads_by_occurrence(self):
+        with tempfile.TemporaryDirectory() as root:
+            for version, first in (("scala-2", "One."), ("scala-3", "Uno.")):
+                d = pathlib.Path(root, "shared/src/main", version, "zio/blocks/schema")
+                d.mkdir(parents=True)
+                (d / "Y.scala").write_text(f"/** {first} */\ndef f(a: Int) = 1\n/** Two. */\ndef f(a: String) = 2\n")
+            self.assertEqual(
+                sc.drift(root),
+                ["shared/src/main/{scala-2,scala-3}/zio/blocks/schema/Y.scala: def f"],
+            )
+            for version, second in (("scala-2", "Two."), ("scala-3", "Dos.")):
+                (pathlib.Path(root, "shared/src/main", version, "zio/blocks/schema") / "Y.scala").write_text(
+                    f"/** Same. */\ndef f(a: Int) = 1\n/** {second} */\ndef f(a: String) = 2\n"
+                )
+            self.assertEqual(
+                sc.drift(root),
+                ["shared/src/main/{scala-2,scala-3}/zio/blocks/schema/Y.scala: def f #2"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

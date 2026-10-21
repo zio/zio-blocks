@@ -84,6 +84,17 @@ def coverage(root):
 _PAIRS = ((r"/scala-2/", "/scala-3/", "{scala-2,scala-3}"), (r"^jvm/", "js/", "{jvm,js}"))
 
 
+def _keyed(decls):
+    """Key each declaration by (name, occurrence index) so overloads are compared pairwise."""
+    seen = {}
+    keyed = {}
+    for d in decls:
+        k = seen.get(d.name, 0)
+        seen[d.name] = k + 1
+        keyed[(d.name, k)] = d.doc
+    return keyed
+
+
 def drift(root):
     files = {rel: path for rel, path in _main_sources(root)}
     report = []
@@ -95,12 +106,13 @@ def drift(root):
             if other not in files:
                 continue
             with open(files[rel], encoding="utf-8") as a, open(files[other], encoding="utf-8") as b:
-                docs_a = {d.name: d.doc for d in scan(a.read())}
-                docs_b = {d.name: d.doc for d in scan(b.read())}
+                docs_a = _keyed(scan(a.read()))
+                docs_b = _keyed(scan(b.read()))
             shown = re.sub(left, "/" + label + "/" if left.startswith("/") else label + "/", rel, count=1)
-            for name in sorted(docs_a.keys() & docs_b.keys()):
-                if docs_a[name] != docs_b[name]:
-                    report.append(f"{shown}: {name}")
+            for key in sorted(docs_a.keys() & docs_b.keys()):
+                if docs_a[key] != docs_b[key]:
+                    name, k = key
+                    report.append(f"{shown}: {name}" + (f" #{k + 1}" if k else ""))
     return report
 
 
