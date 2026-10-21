@@ -2103,6 +2103,68 @@ println(order.toJsonString)
 - **`defer` on a closed scope is a silent no-op** (`Scope.scala:202`), while `allocate` and `$` throw. Found while writing H-31.
 - **`jdbc:sqlite::memory:` gives every connection its own empty database.** Code that opens more than one connection loses its tables. Found while writing T-07; now noted in `transactor.md`.
 
+### telemetry and scope: wildcard imports of both packages make `Resource` ambiguous
+
+Found 2026-10-21 while writing T-15 (`docs/guides/small-json-backend-from-blocks.md`), on `main` at `1958367d`. The code is the same at tag `v0.0.56`. Verified by running on Scala 3.9.0 and 2.13.18.
+
+**Summary.** `zio.blocks.telemetry` and `zio.blocks.scope` both define a top-level type named `Resource`: telemetry's is the OpenTelemetry resource (a set of attributes that names the service), scope's is the managed resource that `Resource.from` returns. The telemetry guides teach `import zio.blocks.telemetry._` ("brings every type this tutorial uses"), and the scope guides teach `import zio.blocks.scope._`. A program that uses both, which is any service that logs and manages its resources, fails to compile as soon as it mentions `Resource`, and the follow-on error at `allocate` names telemetry's `Resource` as the argument type.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-scope` and `zio-blocks-next-telemetry` 0.0.56, `scala-cli compile Clash.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-scope:0.0.56
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+import zio.blocks.scope._
+import zio.blocks.telemetry._
+
+class Db extends AutoCloseable {
+  def close(): Unit = println("Db: closed")
+}
+
+object Clash {
+  def db: Resource[Db] = Resource.from[Db]
+
+  def main(args: Array[String]): Unit =
+    Scope.global.scoped { scope =>
+      import scope._
+      allocate(db)
+      log.info("started")
+    }
+}
+
+// [error] ./Clash.scala:13:11
+// [error] Reference to Resource is ambiguous.
+// [error] It is both imported by import zio.blocks.scope._
+// [error] and imported subsequently by import zio.blocks.telemetry._
+// [error]   def db: Resource[Db] = Resource.from[Db]
+// [error] ./Clash.scala:13:26
+// [error] Reference to Resource is ambiguous.
+// [error] It is both imported by import zio.blocks.scope._
+// [error] and imported subsequently by import zio.blocks.telemetry._
+// [error]   def db: Resource[Db] = Resource.from[Db]
+// [error] ./Clash.scala:18:7
+// [error] None of the overloaded alternatives of method allocate in class Scope with types
+// [error]  [A <: AutoCloseable](value: => A): scope.$[A]
+// [error]  [A](resource: zio.blocks.scope².Resource[A]): scope.$[A]
+// [error] match arguments ((Clash.db : => zio.blocks.telemetry.Resource²))
+```
+
+On Scala 2.13.18 (`zio-blocks-scope` and `zio-blocks-telemetry` 0.0.56, same imports, `def db: Resource[Db] = Resource.from[Db]`), the error is `reference to Resource is ambiguous; it is imported twice in the same scope by import zio.blocks.telemetry._ and import zio.blocks.scope._`.
+
+**Expected.** The two wildcard imports the guides teach work together, or the guides warn about the clash and show the fix.
+
+**Root cause.** `final case class Resource(attributes: Attributes)` at `telemetry/shared/src/main/scala/zio/blocks/telemetry/Resource.scala:27` and `sealed trait Resource[+A]` at `scope/shared/src/main/scala/zio/blocks/scope/Resource.scala:58` are both top-level members of packages that users import with a wildcard.
+
+**Workaround.** Import telemetry's names one by one, as T-15 does: `import zio.blocks.telemetry.{log, metric, trace, AttributeKey, Counter, MetricData}`. Or rename on import: `import zio.blocks.telemetry.{Resource => OtelResource, _}`.
+
+**Impact.** Every service that combines the two modules, which is the main use of `scope` (build services) together with `telemetry` (observe them). The compiler message is clear for the first error, but the `allocate` error that follows can mislead.
+
+**Test gap.** No test or example compiles `import zio.blocks.scope._` together with `import zio.blocks.telemetry._`.
+
+**Fix.** Rename telemetry's type (for example `TelemetryResource` or `ServiceResource`), keeping `Resource` as a deprecated alias in a sub-object so wildcard imports no longer bring it in. If the OpenTelemetry name must stay, add a caution to the telemetry reference and guides that recommends importing telemetry names one by one.
+
 ### Release: a stray version `0.017` on Maven Central is the "latest" release of eleven modules
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/add-zio-blocks-to-your-build.md` (backlog H-01), on `main` at `b4179489`. The current release is `v0.0.56`.
