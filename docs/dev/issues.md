@@ -1617,6 +1617,52 @@ import zio.blocks.schema.csv._
 
 **Suggested fix.** Remove `nullValue`, or give it a meaning once `Option` fields are supported (write `None` as `nullValue`, read `nullValue` as `None`). Until then, document it as unused.
 
+### http-model: `WWW-Authenticate` and the other auth-parameter headers neither escape nor parse quoted strings
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/protect-endpoints-with-jwt.md` (backlog H-38), on `main` at `a44dc6db`. The http-model sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `Header.WWWAuthenticate(scheme, params)` renders every parameter as `key="value"` with the value copied as is. RFC 7235 §2.1 makes an auth-param value a token or a `quoted-string`, and RFC 7230 §3.2.6 requires a `"` or `\` inside a quoted string to be escaped with a backslash. A value that contains `"` therefore renders an invalid header. Parsing has the mirror problem: it splits the parameter list on every comma, including commas inside quoted strings, and keeps backslash escapes in the value. A bearer API that sends RFC 6750's `error_description` (a free-text, quoted parameter) hits both: a description with a quote makes a malformed challenge, and one with a comma does not survive `render` then `parse`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-http-model` 0.0.56, run with `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model:0.0.56
+
+import zio.http.Header
+
+@main def run(): Unit = {
+  // RFC 6750 §3: error_description is a quoted-string; a quote inside must be escaped as \"
+  val quoted = Header.WWWAuthenticate("Bearer", Map("error_description" -> "token \"abc\" expired"))
+  println(quoted.renderedValue)
+
+  // A comma inside a quoted value does not survive render then parse
+  val comma = Header.WWWAuthenticate("Bearer", Map("realm" -> "bookstore", "error_description" -> "expired, sign in again"))
+  println(comma.renderedValue)
+  println(Header.WWWAuthenticate.parse(comma.renderedValue))
+  println(Header.WWWAuthenticate.parse(comma.renderedValue) == Right(comma))
+
+  // An RFC 7235 escaped quote is kept with its backslash
+  println(Header.WWWAuthenticate.parse("""Bearer error_description="token \"abc\" expired""""))
+}
+// Bearer error_description="token "abc" expired"
+// Bearer realm="bookstore", error_description="expired, sign in again"
+// Right(WWWAuthenticate(Bearer,Map(realm -> bookstore, error_description -> "expired)))
+// false
+// Right(WWWAuthenticate(Bearer,Map(error_description -> token \"abc\" expired)))
+```
+
+**Expected.** The first line is `Bearer error_description="token \"abc\" expired"`. Parsing the second line gives back `comma` (`error_description -> expired, sign in again`), so the round trip is `true`. Parsing the last header gives `error_description -> token "abc" expired`, without backslashes.
+
+**Root cause.** `WWWAuthenticate.render` interpolates the raw value between quotes (`http-model/shared/src/main/scala/zio/http/Header.scala:213-215`), and `WWWAuthenticate.parseParams` splits on `","` and strips only the outer quotes (`Header.scala:217-232`). The same code is copied into `Authorization` for `Digest` (`renderParams` at `Header.scala:120-121`, `parseParams` at `Header.scala:102-118`), `ProxyAuthorization` and `ProxyAuthenticate` (`Header.scala:256-276`); those copies are from source, not run.
+
+**Impact.** A server that puts a dynamic message in a challenge (an error description, a realm read from config) can send a header that clients reject or split differently, and a client that reads challenges loses or corrupts values with commas. The H-38 guide works around it by using fixed parameter values and warns readers not to put request data or `JwtError` messages in the challenge. Header injection is not possible this way, because CR and LF are not touched and the JDK server rejects them, but the quote breaks the parameter structure.
+
+**Test gap.** `AuthHeadersSpec` tests `WWWAuthenticate` only with `Map.empty` and `realm="example"` (`http-model/shared/src/test/scala/zio/http/headers/AuthHeadersSpec.scala:153-185`), and the render test checks only `startsWith("Bearer ")`. No test has a quote, a backslash or a comma in a value, and none round-trips more than one parameter.
+
+**Suggested fix.** Add one shared helper for auth-param lists: render each value as a quoted string with `\` and `"` escaped, and parse with a small scanner that respects quoted strings and unescapes them, instead of `split(",")`. Use it from all four headers. Add round-trip property tests with values that contain `"`, `\`, `,` and `=`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
