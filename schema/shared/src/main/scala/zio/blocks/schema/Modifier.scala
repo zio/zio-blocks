@@ -24,47 +24,76 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.TypeId
 
 /**
- * A sealed trait that represents a modifier used to annotate terms or reflect
- * values. Modifiers are used to provide metadata or additional configuration
- * associated with terms or reflect values.
+ * A `Modifier` is metadata on a schema, or on one of its fields or cases, that
+ * codecs and other derivations read: it renames a field in JSON, accepts an old
+ * name, leaves a field out, or carries format-specific configuration. Modifiers
+ * are plain data with schemas of their own, so they can be serialized together
+ * with a schema.
+ *
+ * Every modifier is also an annotation. `Schema.derived` reads
+ * [[Modifier.Term]] annotations on fields and cases, and [[Modifier.Reflect]]
+ * annotations on the type. To leave the type unannotated, add them with
+ * `Schema#modifier` for the type, or with `DerivationBuilder#modifier` or
+ * `Deriver#withModifier` for one derivation.
+ *
+ * Which modifiers a codec reads depends on its format: the JSON codec reads all
+ * the built-in ones except `id` and `config`, while the Avro and MessagePack
+ * codecs, for example, ignore `transient`, `rename` and `alias`.
+ *
+ * {{{
+ * case class Book(
+ *   @Modifier.rename("name") title: String,
+ *   @Modifier.alias("published") year: Int,
+ *   @Modifier.transient() notes: String = ""
+ * )
+ * object Book {
+ *   implicit val schema: Schema[Book] = Schema.derived
+ * }
+ *
+ * val json = Book("Zionomicon", 2021, "signed copy").toJsonString
+ * // {"name":"Zionomicon","year":2021}
+ * val book = """{"name":"Zionomicon","published":2021}""".fromJson[Book]
+ * // Right(Book(Zionomicon,2021,))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/modifier/ Modifier]]
  */
 sealed trait Modifier extends StaticAnnotation
 
+/** The built-in modifiers and their schemas. */
 object Modifier {
 
   /**
-   * `Term` represents a sealed trait for modifiers that annotate terms: record
-   * fields or variant cases.
-   *
-   * The following are the known subtypes of `Term`:
-   *   - `transient`: Used to indicate that a field should not be persisted or
-   *     serialized.
-   *   - `encodeTransient`: Used to indicate that a field should not be encoded.
-   *   - `rename`: Used to specify a new name for a term, typically useful in
-   *     serialization scenarios.
-   *   - `id`: Used to explicitly mark a field as the primary key, resolving
-   *     ambiguity when auto-detection would be inconclusive.
-   *   - `alias`: Provides an alternative name (alias) for a term.
-   *   - `config`: Represents a key-value pair for attaching additional
-   *     configuration metadata to terms.
+   * Modifiers of a record field or a variant case: `transient`,
+   * `encodeTransient`, `rename`, `alias`, `id` and `config`.
    */
   sealed trait Term extends Modifier
 
   /**
-   * A modifier that marks a term (such as a field) as transient.
+   * Makes the JSON codec leave a field out when it encodes. The TOON and BSON
+   * codecs also read it; the Avro, MessagePack, Thrift, CSV, XML and YAML
+   * codecs ignore it. When the JSON codec decodes, it treats the field's key
+   * like an unknown key (skipped, or rejected when extra fields are rejected),
+   * and the field gets its default value.
+   *
+   * The field needs a default value unless it is an `Option` or a collection;
+   * otherwise `Schema.derived` fails to compile.
    */
   @field case class transient() extends Term
 
   /**
-   * A modifier that marks a term (such as a field) as excluded from encoding.
+   * Leaves a field out when the JSON codec encodes, but still reads it when it
+   * decodes. Like `transient`, it needs a default value unless the field is an
+   * `Option` or a collection.
    */
   @field case class encodeTransient() extends Term
 
   /**
-   * A modifier used to specify a new name for a term.
-   *
-   * @param name
-   *   The new name to apply to the term.
+   * Makes the JSON codec use `name` for a field or a case instead of its Scala
+   * name, both when encoding and when decoding: the Scala name is no longer
+   * accepted, so add an `alias` to accept it too. It takes precedence over
+   * `fieldNaming` and `caseNaming`.
    */
   @field case class rename(name: String) extends Term
 
@@ -76,35 +105,45 @@ object Modifier {
   @field case class id() extends Term
 
   /**
-   * A modifier representing an alias for a term.
-   *
-   * @param name
-   *   The alias name for the term.
+   * Makes the JSON codec also accept `name` for a field or a case when
+   * decoding. Encoding still uses the main name: the `rename` name, or the
+   * Scala name after any naming strategy. A field or case can have several
+   * aliases.
    */
   @field case class alias(name: String) extends Term
 
   /**
-   * Represents a sealed trait for modifiers that annotate reflect values.
+   * Modifiers of a type, that is, of a schema node: `config`, `discriminator`,
+   * `noExtraFields`, `fieldNaming` and `caseNaming`.
    */
   sealed trait Reflect extends Modifier
 
   /**
-   * A modifier that specifies the discriminator field name for JSON variants.
+   * Makes the JSON codec of a variant write the case name in the field `name`
+   * of the case's object, as in `{"type":"Hardcover"}`, instead of wrapping the
+   * case in an object keyed by its name. It takes precedence over the
+   * discriminator setting of the deriver.
    */
   case class discriminator(name: String) extends Reflect
 
   /**
-   * A modifier that rejects unrecognized fields during decoding.
+   * Makes the JSON codec of a record reject keys that match no field, as
+   * `JsonCodecDeriver.withRejectExtraFields(true)` does for every record.
    */
   case class noExtraFields() extends Reflect
 
   /**
-   * A modifier that configures field name transformation for JSON records.
+   * Makes the JSON codec of a record map its field names with the naming
+   * strategy `strategy`: `identity`, `snake_case`, `camelCase`, `kebab-case` or
+   * `PascalCase`. Another value makes the derivation of the codec throw an
+   * `IllegalArgumentException`. A field with a `rename` keeps that name.
    */
   case class fieldNaming(strategy: String) extends Reflect
 
   /**
-   * A modifier that configures case name transformation for JSON variants.
+   * Makes the JSON codec of a variant map its case names with the naming
+   * strategy `strategy`, one of the values that `fieldNaming` accepts. A case
+   * with a `rename` keeps that name.
    */
   case class caseNaming(strategy: String) extends Reflect
 
@@ -116,6 +155,7 @@ object Modifier {
    */
   @field case class config(key: String, value: String) extends Term with Reflect
 
+  /** The schema of `transient`. */
   implicit lazy val transientSchema: Schema[transient] = new Schema(
     reflect = new Reflect.Record[Binding, transient](
       fields = Chunk.empty,
@@ -128,6 +168,7 @@ object Modifier {
     )
   )
 
+  /** The schema of `encodeTransient`. */
   implicit lazy val encodeTransientSchema: Schema[encodeTransient] = new Schema(
     reflect = new Reflect.Record[Binding, encodeTransient](
       fields = Chunk.empty,
@@ -140,6 +181,7 @@ object Modifier {
     )
   )
 
+  /** The schema of `rename`. */
   implicit lazy val renameSchema: Schema[rename] = new Schema(
     reflect = new Reflect.Record[Binding, rename](
       fields = Chunk.single(Schema[String].reflect.asTerm("name")),
@@ -160,6 +202,7 @@ object Modifier {
     )
   )
 
+  /** The schema of `id`. */
   implicit lazy val idSchema: Schema[id] = new Schema(
     reflect = new Reflect.Record[Binding, id](
       fields = Chunk.empty,
@@ -172,6 +215,7 @@ object Modifier {
     )
   )
 
+  /** The schema of `alias`. */
   implicit lazy val aliasSchema: Schema[alias] = new Schema(
     reflect = new Reflect.Record[Binding, alias](
       fields = Chunk.single(Schema[String].reflect.asTerm("name")),
@@ -192,6 +236,7 @@ object Modifier {
     )
   )
 
+  /** The schema of `discriminator`. */
   implicit lazy val discriminatorSchema: Schema[discriminator] = new Schema(
     reflect = new Reflect.Record[Binding, discriminator](
       fields = Chunk.single(Schema[String].reflect.asTerm("name")),
@@ -212,6 +257,7 @@ object Modifier {
     )
   )
 
+  /** The schema of `noExtraFields`. */
   implicit lazy val noExtraFieldsSchema: Schema[noExtraFields] = new Schema(
     reflect = new Reflect.Record[Binding, noExtraFields](
       fields = Chunk.empty,
@@ -224,6 +270,7 @@ object Modifier {
     )
   )
 
+  /** The schema of `fieldNaming`. */
   implicit lazy val fieldNamingSchema: Schema[fieldNaming] = new Schema(
     reflect = new Reflect.Record[Binding, fieldNaming](
       fields = Chunk.single(Schema[String].reflect.asTerm("strategy")),
@@ -244,6 +291,7 @@ object Modifier {
     )
   )
 
+  /** The schema of `caseNaming`. */
   implicit lazy val caseNamingSchema: Schema[caseNaming] = new Schema(
     reflect = new Reflect.Record[Binding, caseNaming](
       fields = Chunk.single(Schema[String].reflect.asTerm("strategy")),
@@ -264,6 +312,7 @@ object Modifier {
     )
   )
 
+  /** The schema of `config`. */
   implicit lazy val configSchema: Schema[config] = new Schema(
     reflect = new Reflect.Record[Binding, config](
       fields = Chunk(
@@ -292,6 +341,7 @@ object Modifier {
     )
   )
 
+  /** The schema of [[Modifier.Term]], a variant of the term modifiers. */
   implicit lazy val termSchema: Schema[Term] = new Schema(
     reflect = new Reflect.Variant[Binding, Term](
       cases = Chunk(
@@ -357,6 +407,7 @@ object Modifier {
     )
   )
 
+  /** The schema of [[Modifier.Reflect]], a variant of the type modifiers. */
   implicit lazy val reflectSchema: Schema[Reflect] = new Schema(
     reflect = new Reflect.Variant[Binding, Reflect](
       cases = Chunk(
@@ -414,6 +465,7 @@ object Modifier {
     )
   )
 
+  /** The schema of [[Modifier]], a variant of all built-in modifiers. */
   implicit lazy val schema: Schema[Modifier] = new Schema(
     reflect = new Reflect.Variant[Binding, Modifier](
       cases = Chunk(
