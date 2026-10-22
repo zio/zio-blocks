@@ -21,10 +21,30 @@ import java.util.regex.PatternSyntaxException
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * An untyped expression evaluated on a [[DynamicValue]]: the tree inside a
+ * [[SchemaExpr]], and the form migrations use. Interpreters, such as a
+ * translation to SQL, match on its cases.
+ *
+ * Every expression yields a sequence of values. A unary node yields one result
+ * for each value of its operand, and a binary node one result for each pair of
+ * left and right values, the left one varying slowest. A node fails with the
+ * first error it meets: when the left operand fails, its error is returned, and
+ * otherwise the right operand is evaluated whatever the left values are (there
+ * is no short-circuit).
+ */
 sealed trait DynamicSchemaExpr {
+
+  /**
+   * Evaluates this expression on `input`, returning its results or the first
+   * error.
+   */
   def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]]
 }
 
+/**
+ * The cases of [[DynamicSchemaExpr]] and the operators they take.
+ */
 object DynamicSchemaExpr {
 
   private val MaxSafeExponent: Int = 10000
@@ -97,11 +117,27 @@ object DynamicSchemaExpr {
 
   // ==================== Leaf Expressions ====================
 
+  /**
+   * Yields `value`, whatever the input. `schema` is the schema `value` was
+   * encoded with.
+   */
   final case class Literal(value: DynamicValue, schema: Schema[_]) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       Right(Seq(value))
   }
 
+  /**
+   * Yields the values `path` reaches in the input. A field that a record lacks,
+   * or that a value which is not a record cannot have, yields nothing, and so
+   * do `atIndices` and `atKeys` entries that are missing. It fails with an
+   * error whose message starts with `UnexpectedCase:` when a variant has
+   * another case (an `Option` case is reported as `Option`),
+   * `SequenceIndexOutOfBounds:` when an index is out of bounds, `MissingKey:`
+   * when no map has the key, `EmptySequence` when `elements` finds sequences
+   * but no element, and `EmptyMap` when `mapKeys` or `mapValues` finds maps but
+   * no entry. [[SchemaExpr]] turns these into the matching [[OpticCheck]]
+   * cases. A search step fails with a conversion error.
+   */
   final case class Select(path: DynamicOptic) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] = {
       val result = walkPath(Chunk(input), path.nodes, 0)
@@ -244,6 +280,10 @@ object DynamicSchemaExpr {
     }
   }
 
+  /**
+   * Converts the input itself with `conversionType`, failing with the message
+   * of the conversion. It has no operand, so it applies to the whole input.
+   */
   final case class PrimitiveConversion(conversionType: SchemaExpr.ConversionType) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       conversionType.convert(input).map(Seq(_)).left.map(SchemaError.conversionFailed(Nil, _))
@@ -251,6 +291,10 @@ object DynamicSchemaExpr {
 
   // ==================== Relational Operators ====================
 
+  /**
+   * Compares every result of `left` with every result of `right` with
+   * `operator`, yielding `Boolean` primitives.
+   */
   final case class Relational(
     left: DynamicSchemaExpr,
     right: DynamicSchemaExpr,
@@ -263,36 +307,69 @@ object DynamicSchemaExpr {
       } yield for { x <- xs; y <- ys } yield operator.apply(x, y)
   }
 
+  /**
+   * A comparison of two values, yielding a `Boolean` primitive.
+   */
   sealed trait RelationalOperator {
+
+    /**
+     * Compares `x` with `y`.
+     */
     def apply(x: DynamicValue, y: DynamicValue): DynamicValue
   }
 
+  /**
+   * The cases of [[RelationalOperator]].
+   */
   object RelationalOperator {
+
+    /**
+     * `x < y`, in the order of `DynamicValue#compare`, where primitives of
+     * different types compare by type.
+     */
     case object LessThan extends RelationalOperator {
       def apply(x: DynamicValue, y: DynamicValue): DynamicValue =
         DynamicValue.Primitive(PrimitiveValue.Boolean(x < y))
     }
 
+    /**
+     * `x <= y`, in the order of `DynamicValue#compare`, where primitives of
+     * different types compare by type.
+     */
     case object LessThanOrEqual extends RelationalOperator {
       def apply(x: DynamicValue, y: DynamicValue): DynamicValue =
         DynamicValue.Primitive(PrimitiveValue.Boolean(x <= y))
     }
 
+    /**
+     * `x > y`, in the order of `DynamicValue#compare`, where primitives of
+     * different types compare by type.
+     */
     case object GreaterThan extends RelationalOperator {
       def apply(x: DynamicValue, y: DynamicValue): DynamicValue =
         DynamicValue.Primitive(PrimitiveValue.Boolean(x > y))
     }
 
+    /**
+     * `x >= y`, in the order of `DynamicValue#compare`, where primitives of
+     * different types compare by type.
+     */
     case object GreaterThanOrEqual extends RelationalOperator {
       def apply(x: DynamicValue, y: DynamicValue): DynamicValue =
         DynamicValue.Primitive(PrimitiveValue.Boolean(x >= y))
     }
 
+    /**
+     * `x == y`, structural equality.
+     */
     case object Equal extends RelationalOperator {
       def apply(x: DynamicValue, y: DynamicValue): DynamicValue =
         DynamicValue.Primitive(PrimitiveValue.Boolean(x == y))
     }
 
+    /**
+     * `x != y`.
+     */
     case object NotEqual extends RelationalOperator {
       def apply(x: DynamicValue, y: DynamicValue): DynamicValue =
         DynamicValue.Primitive(PrimitiveValue.Boolean(x != y))
@@ -301,6 +378,13 @@ object DynamicSchemaExpr {
 
   // ==================== Logical Operators ====================
 
+  /**
+   * Combines every result of `left` with every result of `right` with
+   * `operator`, and a value that is not a `Boolean` makes it fail. There is no
+   * short-circuit: the right side is evaluated whatever the left values are, so
+   * `false && e` fails when `e` fails; when the left side fails, its error is
+   * returned.
+   */
   final case class Logical(
     left: DynamicSchemaExpr,
     right: DynamicSchemaExpr,
@@ -314,11 +398,26 @@ object DynamicSchemaExpr {
       } yield result
   }
 
+  /**
+   * A logical operator applied to every pair of left and right values.
+   */
   sealed trait LogicalOperator {
+
+    /**
+     * Combines every value of `xs` with every value of `ys`, failing when one
+     * of them is not a `Boolean`.
+     */
     def apply(xs: Seq[DynamicValue], ys: Seq[DynamicValue]): Either[SchemaError, Seq[DynamicValue]]
   }
 
+  /**
+   * The cases of [[LogicalOperator]].
+   */
   object LogicalOperator {
+
+    /**
+     * Logical and.
+     */
     case object And extends LogicalOperator {
       def apply(xs: Seq[DynamicValue], ys: Seq[DynamicValue]): Either[SchemaError, Seq[DynamicValue]] = {
         val results = for { x <- xs; y <- ys } yield {
@@ -331,6 +430,9 @@ object DynamicSchemaExpr {
       }
     }
 
+    /**
+     * Logical or.
+     */
     case object Or extends LogicalOperator {
       def apply(xs: Seq[DynamicValue], ys: Seq[DynamicValue]): Either[SchemaError, Seq[DynamicValue]] = {
         val results = for { x <- xs; y <- ys } yield {
@@ -344,6 +446,9 @@ object DynamicSchemaExpr {
     }
   }
 
+  /**
+   * Negates every result of `expr`, failing when one is not a `Boolean`.
+   */
   final case class Not(expr: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
@@ -359,16 +464,59 @@ object DynamicSchemaExpr {
 
   // ==================== Arithmetic Operators ====================
 
+  /**
+   * The numeric type an [[Arithmetic]] node works on. Each operation needs both
+   * values to be primitives of that type and returns `Left` with a message
+   * otherwise. `NumericPrimitiveType#toTag` gives the tag of a type.
+   */
   sealed trait NumericTypeTag {
+
+    /**
+     * Returns `x + y`; `Byte`, `Short`, `Int` and `Long` wrap on overflow.
+     */
     def add(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue]
+
+    /**
+     * Returns `x - y`; `Byte`, `Short`, `Int` and `Long` wrap on overflow.
+     */
     def subtract(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue]
+
+    /**
+     * Returns `x * y`; `Byte`, `Short`, `Int` and `Long` wrap on overflow.
+     */
     def multiply(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue]
+
+    /**
+     * Returns `x / y`, failing when `y` is zero (for `Float` and `Double`,
+     * positive zero).
+     */
     def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue]
+
+    /**
+     * Returns `x` to the power `y`. Up to `Double`, it computes `Math.pow` on
+     * `Double`s and converts the result back: an `Int` or `Long` result that is
+     * too large or infinite saturates at the type's limit, `Byte` and `Short`
+     * results go through `Int` and then wrap, and a negative exponent on an
+     * integer type gives 0 except for the bases 1, -1 and 0. For `BigInt` and
+     * `BigDecimal`, `y` must be a whole number from 0 to 10000.
+     */
     def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue]
+
+    /**
+     * Returns `x % y`, failing when `y` is zero (for `Float` and `Double`,
+     * positive zero).
+     */
     def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue]
   }
 
+  /**
+   * The tags of the eight numeric types.
+   */
   object NumericTypeTag {
+
+    /**
+     * Arithmetic on `Byte` values.
+     */
     case object ByteTag extends NumericTypeTag {
       def add(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Byte((a + b).toByte)) }
@@ -401,6 +549,9 @@ object DynamicSchemaExpr {
         }
     }
 
+    /**
+     * Arithmetic on `Short` values.
+     */
     case object ShortTag extends NumericTypeTag {
       def add(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Short((a + b).toShort)) }
@@ -433,6 +584,9 @@ object DynamicSchemaExpr {
         }
     }
 
+    /**
+     * Arithmetic on `Int` values.
+     */
     case object IntTag extends NumericTypeTag {
       def add(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Int(a + b)) }
@@ -461,6 +615,9 @@ object DynamicSchemaExpr {
         }
     }
 
+    /**
+     * Arithmetic on `Long` values.
+     */
     case object LongTag extends NumericTypeTag {
       def add(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Long(a + b)) }
@@ -493,6 +650,9 @@ object DynamicSchemaExpr {
         }
     }
 
+    /**
+     * Arithmetic on `Float` values.
+     */
     case object FloatTag extends NumericTypeTag {
       def add(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Float(a + b)) }
@@ -525,6 +685,9 @@ object DynamicSchemaExpr {
         }
     }
 
+    /**
+     * Arithmetic on `Double` values.
+     */
     case object DoubleTag extends NumericTypeTag {
       def add(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Double(a + b)) }
@@ -555,6 +718,9 @@ object DynamicSchemaExpr {
         }
     }
 
+    /**
+     * Arithmetic on `BigInt` values.
+     */
     case object BigIntTag extends NumericTypeTag {
       def add(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.BigInt(a + b)) }
@@ -589,6 +755,9 @@ object DynamicSchemaExpr {
         }
     }
 
+    /**
+     * Arithmetic on `BigDecimal` values.
+     */
     case object BigDecimalTag extends NumericTypeTag {
       def add(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.BigDecimal(a + b)) }
@@ -627,6 +796,10 @@ object DynamicSchemaExpr {
     }
   }
 
+  /**
+   * Applies `operator` to every pair of results of `left` and `right`, with the
+   * arithmetic of `numericType`.
+   */
   final case class Arithmetic(
     left: DynamicSchemaExpr,
     right: DynamicSchemaExpr,
@@ -650,36 +823,66 @@ object DynamicSchemaExpr {
       } yield results
   }
 
+  /**
+   * An arithmetic operation, delegated to a [[NumericTypeTag]].
+   */
   sealed trait ArithmeticOperator {
+
+    /**
+     * Applies this operation to `x` and `y` with the arithmetic of
+     * `numericType`.
+     */
     def apply(x: DynamicValue, y: DynamicValue, numericType: NumericTypeTag): Either[String, DynamicValue]
   }
 
+  /**
+   * The cases of [[ArithmeticOperator]].
+   */
   object ArithmeticOperator {
+
+    /**
+     * Calls `NumericTypeTag#add`.
+     */
     case object Add extends ArithmeticOperator {
       def apply(x: DynamicValue, y: DynamicValue, numericType: NumericTypeTag): Either[String, DynamicValue] =
         numericType.add(x, y)
     }
 
+    /**
+     * Calls `NumericTypeTag#subtract`.
+     */
     case object Subtract extends ArithmeticOperator {
       def apply(x: DynamicValue, y: DynamicValue, numericType: NumericTypeTag): Either[String, DynamicValue] =
         numericType.subtract(x, y)
     }
 
+    /**
+     * Calls `NumericTypeTag#multiply`.
+     */
     case object Multiply extends ArithmeticOperator {
       def apply(x: DynamicValue, y: DynamicValue, numericType: NumericTypeTag): Either[String, DynamicValue] =
         numericType.multiply(x, y)
     }
 
+    /**
+     * Calls `NumericTypeTag#divide`.
+     */
     case object Divide extends ArithmeticOperator {
       def apply(x: DynamicValue, y: DynamicValue, numericType: NumericTypeTag): Either[String, DynamicValue] =
         numericType.divide(x, y)
     }
 
+    /**
+     * Calls `NumericTypeTag#pow`.
+     */
     case object Pow extends ArithmeticOperator {
       def apply(x: DynamicValue, y: DynamicValue, numericType: NumericTypeTag): Either[String, DynamicValue] =
         numericType.pow(x, y)
     }
 
+    /**
+     * Calls `NumericTypeTag#modulo`.
+     */
     case object Modulo extends ArithmeticOperator {
       def apply(x: DynamicValue, y: DynamicValue, numericType: NumericTypeTag): Either[String, DynamicValue] =
         numericType.modulo(x, y)
@@ -688,6 +891,10 @@ object DynamicSchemaExpr {
 
   // ==================== Bitwise Operators ====================
 
+  /**
+   * Applies `operator` to every pair of results of `left` and `right`, which
+   * must be `Byte`, `Short`, `Int` or `Long` values.
+   */
   final case class Bitwise(
     left: DynamicSchemaExpr,
     right: DynamicSchemaExpr,
@@ -704,33 +911,64 @@ object DynamicSchemaExpr {
       } yield results
   }
 
+  /**
+   * A bitwise operation. The result is a `Long` when either value is a `Long`
+   * (for a shift, when the left one is) and an `Int` otherwise, also for `Byte`
+   * and `Short` values.
+   */
   sealed trait BitwiseOperator {
+
+    /**
+     * Applies this operation to `x` and `y`.
+     */
     def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue]
   }
 
+  /**
+   * The cases of [[BitwiseOperator]].
+   */
   object BitwiseOperator {
+
+    /**
+     * Bitwise and.
+     */
     case object And extends BitwiseOperator {
       def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] = applyOp(x, y, _ & _)
     }
 
+    /**
+     * Bitwise or.
+     */
     case object Or extends BitwiseOperator {
       def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] = applyOp(x, y, _ | _)
     }
 
+    /**
+     * Bitwise exclusive or.
+     */
     case object Xor extends BitwiseOperator {
       def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] = applyOp(x, y, _ ^ _)
     }
 
+    /**
+     * `x << y`.
+     */
     case object LeftShift extends BitwiseOperator {
       def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] =
         applyShift(x, y, (a, b) => a << b)
     }
 
+    /**
+     * `x >> y`, keeping the sign.
+     */
     case object RightShift extends BitwiseOperator {
       def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] =
         applyShift(x, y, (a, b) => a >> b)
     }
 
+    /**
+     * `x >>> y`, filling with zeros.
+     */
     case object UnsignedRightShift extends BitwiseOperator {
       def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] =
         applyShift(x, y, (a, b) => a >>> b)
@@ -765,6 +1003,10 @@ object DynamicSchemaExpr {
       }
   }
 
+  /**
+   * Inverts the bits of every result of `expr`, which must be a `Byte`,
+   * `Short`, `Int` or `Long`; the type is kept.
+   */
   final case class BitwiseNot(expr: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
@@ -788,6 +1030,9 @@ object DynamicSchemaExpr {
 
   // ==================== String Operations ====================
 
+  /**
+   * Concatenates every pair of results of `left` and `right`.
+   */
   final case class StringConcat(
     left: DynamicSchemaExpr,
     right: DynamicSchemaExpr
@@ -808,6 +1053,11 @@ object DynamicSchemaExpr {
       } yield results
   }
 
+  /**
+   * Yields `true` where the whole of a result of `string` matches a result of
+   * `regex`, as `java.util.regex.Pattern.matches` does. An invalid pattern
+   * makes it fail.
+   */
   final case class StringRegexMatch(
     regex: DynamicSchemaExpr,
     string: DynamicSchemaExpr
@@ -829,6 +1079,9 @@ object DynamicSchemaExpr {
       } yield results
   }
 
+  /**
+   * Yields the length of every result of `string`.
+   */
   final case class StringLength(string: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
@@ -842,6 +1095,11 @@ object DynamicSchemaExpr {
       } yield result
   }
 
+  /**
+   * Yields the part of a result of `string` from `start` (inclusive) to `end`
+   * (exclusive), for every combination of results. A negative index, a `start`
+   * after `end` or an `end` past the length makes it fail.
+   */
   final case class StringSubstring(
     string: DynamicSchemaExpr,
     start: DynamicSchemaExpr,
@@ -866,6 +1124,10 @@ object DynamicSchemaExpr {
       } yield results
   }
 
+  /**
+   * Removes leading and trailing whitespace from every result of `string`, as
+   * `String#trim` does.
+   */
   final case class StringTrim(string: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
@@ -879,6 +1141,9 @@ object DynamicSchemaExpr {
       } yield result
   }
 
+  /**
+   * Upper-cases every result of `string` with the default locale.
+   */
   final case class StringToUpperCase(string: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
@@ -892,6 +1157,9 @@ object DynamicSchemaExpr {
       } yield result
   }
 
+  /**
+   * Lower-cases every result of `string` with the default locale.
+   */
   final case class StringToLowerCase(string: DynamicSchemaExpr) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       for {
@@ -905,6 +1173,11 @@ object DynamicSchemaExpr {
       } yield result
   }
 
+  /**
+   * Replaces every occurrence of a result of `target` (as plain text) with a
+   * result of `replacement` in a result of `string`, for every combination of
+   * results.
+   */
   final case class StringReplace(
     string: DynamicSchemaExpr,
     target: DynamicSchemaExpr,
@@ -928,6 +1201,9 @@ object DynamicSchemaExpr {
       } yield results
   }
 
+  /**
+   * Yields `true` where a result of `string` starts with a result of `prefix`.
+   */
   final case class StringStartsWith(
     string: DynamicSchemaExpr,
     prefix: DynamicSchemaExpr
@@ -948,6 +1224,9 @@ object DynamicSchemaExpr {
       } yield results
   }
 
+  /**
+   * Yields `true` where a result of `string` ends with a result of `suffix`.
+   */
   final case class StringEndsWith(
     string: DynamicSchemaExpr,
     suffix: DynamicSchemaExpr
@@ -968,6 +1247,9 @@ object DynamicSchemaExpr {
       } yield results
   }
 
+  /**
+   * Yields `true` where a result of `string` contains a result of `substring`.
+   */
   final case class StringContains(
     string: DynamicSchemaExpr,
     substring: DynamicSchemaExpr
@@ -988,6 +1270,10 @@ object DynamicSchemaExpr {
       } yield results
   }
 
+  /**
+   * Yields the index of the first occurrence of a result of `substring` in a
+   * result of `string`, or -1.
+   */
   final case class StringIndexOf(
     string: DynamicSchemaExpr,
     substring: DynamicSchemaExpr
