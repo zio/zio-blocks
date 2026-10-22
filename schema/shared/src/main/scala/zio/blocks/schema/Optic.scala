@@ -132,9 +132,11 @@ sealed trait Optic[S, A] { self =>
    * Returns `None` when this optic reaches its focus in `s`, and otherwise an
    * [[OpticCheck]] that says why not. The possible problems are another case of
    * a variant, a wrapper whose `unwrap` throws a [[SchemaError]] (both errors),
-   * an index past the end, a missing map key, and an empty collection (all
-   * three warnings). `check` never runs a wrapper's `wrap`, so it does not see
-   * failures that only `replace` or `modify` meet.
+   * an index past the end, a missing map key, an empty collection, and, for
+   * `searchFor`, no match at all (all four warnings). Except for `searchFor`,
+   * which decodes every candidate with its schema, `check` never runs a
+   * wrapper's `wrap`, so it does not see failures that only `replace` or
+   * `modify` meet.
    *
    * A [[Lens]] always returns `None`. A [[Prism]] and an [[Optional]] report
    * the first problem on the path. A [[Traversal]] reports the problems in
@@ -148,8 +150,9 @@ sealed trait Optic[S, A] { self =>
    * there is nothing to focus on, the result equals `s`: a [[Prism]] on another
    * case, an [[Optional]] on a missing index or key, a [[Traversal]] over an
    * empty collection. It also equals `s` when a `wrapped` step on the path
-   * throws a [[SchemaError]]; other exceptions, and exceptions from `f`,
-   * propagate. `modifyOption` and `modifyOrFail` say when nothing was modified.
+   * throws a [[SchemaError]], including one that `f` throws below that step;
+   * other exceptions, from the path or from `f`, propagate. `modifyOption` and
+   * `modifyOrFail` say when nothing was modified.
    *
    * {{{
    * case class Book(title: String, tags: List[String])
@@ -167,17 +170,18 @@ sealed trait Optic[S, A] { self =>
   /**
    * Like `modify`, but returns `None` instead of an unchanged value when there
    * is nothing to focus on, and when a `wrapped` step on the path throws a
-   * [[SchemaError]]. A [[Lens]] always returns `Some`.
+   * [[SchemaError]], including one that `f` throws below that step. A [[Lens]]
+   * always returns `Some`.
    */
   def modifyOption(s: S, f: A => A): Option[S]
 
   /**
    * Like `modify`, but returns `Left` with an [[OpticCheck]] that says why
    * nothing was modified, as `check` does, and a [[OpticCheck.WrappingError]]
-   * when a `wrapped` step on the path throws a [[SchemaError]]. A [[Lens]]
-   * always returns `Right`. A [[Traversal]] returns `Right` once it has
-   * modified at least one part, even when other parts are missing; `check`
-   * reports those.
+   * when a `wrapped` step on the path throws a [[SchemaError]], including one
+   * that `f` throws below that step. A [[Lens]] always returns `Right`. A
+   * [[Traversal]] returns `Right` once it has modified at least one part, even
+   * when other parts are missing; `check` reports those.
    */
   def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S]
 
@@ -668,8 +672,9 @@ object Lens {
    * Creates a lens on the field `focusTerm` of the record `source`. The field
    * is looked up by the term's name, so `focusTerm` must be one of `source`'s
    * fields. If it is not, the lens throws `ArrayIndexOutOfBoundsException` the
-   * first time it reads or writes a value. `Reflect.Record#lensByName` and the
-   * `$` macro of [[CompanionOptics]] check the field for you.
+   * first time it reads or writes a value (see `docs/dev/issues.md`).
+   * `Reflect.Record#lensByName` and the `$` macro of [[CompanionOptics]] check
+   * the field for you.
    *
    * @throws java.lang.IllegalArgumentException
    *   if `source` or `focusTerm` is null
@@ -939,8 +944,9 @@ object Prism {
   /**
    * Creates a prism on the case `focusTerm` of the variant `source`. The case
    * is looked up by the term's name, so `focusTerm` must be one of `source`'s
-   * cases. `Reflect.Variant#prismByName` and the `$` macro of
-   * [[CompanionOptics]] check the case for you.
+   * cases. If it is not, this method throws `ArrayIndexOutOfBoundsException`
+   * (see `docs/dev/issues.md`). `Reflect.Variant#prismByName` and the `$` macro
+   * of [[CompanionOptics]] check the case for you.
    *
    * @throws java.lang.IllegalArgumentException
    *   if `source` or `focusTerm` is null
@@ -1986,7 +1992,10 @@ object Traversal {
    * Creates a traversal on the elements at `indices` of a sequence, visited in
    * increasing index order whatever the order of `indices`. Indices past the
    * end of a sequence are skipped; `check` reports them as
-   * [[OpticCheck.SequenceIndexOutOfBounds]].
+   * [[OpticCheck.SequenceIndexOutOfBounds]]. When another step follows
+   * `atIndices` and the sequence is not indexed (a `List`, for example),
+   * `check` also reports reachable indices after the first as out of bounds;
+   * `fold` and `modify` are not affected (a bug, see `docs/dev/issues.md`).
    *
    * @throws java.lang.IllegalArgumentException
    *   if `seq` or `indices` is null, `indices` is empty, or it holds a negative
@@ -4054,14 +4063,15 @@ object Traversal {
  * Constructors for search traversals, which the `searchFor[T]` step of
  * [[CompanionOptics]] builds.
  *
- * A search traversal converts the value to a [[DynamicValue]] and visits it
- * depth first, left to right: the value itself, then record fields, case
- * values, sequence elements, and both the keys and the values of maps. Every
- * node that decodes with the focus schema is a match, and the children of a
- * match are searched too. `modify` applies `f` to each match and decodes the
- * result with the source schema; if that decoding fails, it returns `s`
- * unchanged. `check` reports an [[OpticCheck.EmptySequence]] when nothing
- * matches.
+ * A search traversal converts the value to a [[DynamicValue]]. `fold` and
+ * `check` visit it depth first, left to right: the value itself, then record
+ * fields, case values, sequence elements, and both the keys and the values of
+ * maps. `modify` visits the same nodes except map keys, so a match that is a
+ * map key is read but never modified (see `docs/dev/issues.md`). Every node
+ * that decodes with the focus schema is a match, and the children of a match
+ * are searched too. `modify` applies `f` to each match and decodes the result
+ * with the source schema; if that decoding fails, it returns `s` unchanged.
+ * `check` reports an [[OpticCheck.EmptySequence]] when nothing matches.
  */
 object SearchTraversal {
 
