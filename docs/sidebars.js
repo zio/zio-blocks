@@ -465,6 +465,7 @@ const sidebars = {
     "guides/nested-data-with-optics",
     "guides/one-type-many-formats",
     "guides/read-and-write-csv-and-tsv-files",
+    "guides/read-and-write-yaml",
     "guides/typed-config-loader",
     "guides/feed-config-into-a-wire-graph",
     "guides/load-configuration-files",
