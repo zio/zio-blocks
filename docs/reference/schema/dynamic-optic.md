@@ -517,7 +517,7 @@ The eight cases cover every shape the grammar recognizes:
 | `Optional(inner)`       | `option(...)`                        | `Null`, or a value matching the inner pattern |
 | `Wildcard`              | `_`                                   | anything |
 
-Parsing a `#Pattern` string is itself layered: the path interpolator recognizes the `#` prefix and hands the substring after it to a small recursive-descent parser, which reports a specific error (unexpected character, an empty `record {}`/`variant {}`, an unterminated expression) at the exact offset where parsing failed — that's what turns a typo like `#record { name: strnig }` into a compile-time interpolator error rather than a pattern that silently matches nothing.
+Parsing a `#Pattern` string is itself layered: the path interpolator recognizes the `#` prefix and hands the substring after it to a small recursive-descent parser, which reports a specific error (unexpected character, an empty `record {}`/`variant {}`, an unterminated expression) at the exact offset where parsing failed — that's what turns a malformed pattern like `#record { name string }` into a compile-time interpolator error. A misspelled type name is not an error: `#record { name: strnig }` parses, with `strnig` as a `Nominal` type that matches nothing.
 
 ### Supported Patterns
 
@@ -531,7 +531,7 @@ Search optics support both **type-based** and **schema-based** patterns:
 | `#variant { ... }`             | Variant cases with matching content    | `#variant { Error: string }` |
 | `#list(...)`, `#set(...)`, `#vector(...)` | Sequences with a matching element type, regardless of which of the three keywords appears | `#list(string)` |
 | `#map(...)`                    | Maps with key and value types          | `#map(string, int)`        |
-| `#option(...)`                 | Optional values with inner type       | `#option(int)`             |
+| `#option(...)`                 | `null`, or values of the inner type (a `Schema`-encoded `Option` is a `Some`/`None` variant, which it does not match) | `#option(int)`             |
 
 ### Traversal Order
 
