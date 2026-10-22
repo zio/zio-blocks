@@ -288,7 +288,7 @@ println(s"Open warehouse requests after cancel: ${slowWarehouse.openRequests}")
 
 You rarely need to extend `Pollable` directly. It is the low-level extension point for custom suspended computations, and `Async.promise` covers callbacks that cannot be cancelled. A callback with a cancel handle is the case for a custom `Pollable`: when a running `Async` is cancelled, the driver calls `Pollable#cancel` on the pending `Pollable` it is waiting on. The `Completer` that `Async.promise` waits on inherits the default `Pollable#cancel`, which does nothing.
 
-To build a reusable `cancellable` helper that keeps a `Completer` for the result and forwards cancellation to the handle:
+`cancellable` is not part of ZIO Blocks; it is a helper you add to your own code. To build it, keep a `Completer` for the result and forward cancellation to the handle:
 
 ```scala mdoc:silent
 def cancellable[A](register: Completer[A] => (() => Unit)): Async[A] =
@@ -341,7 +341,7 @@ Cancellation reaches the helper through `Async#map` and through `Async.async` bl
 
 ## Putting It Together
 
-The complete example quotes a book by combining all three clients in an `Async.async` block: the price from the `Future`-based service, the stock level through the `cancellable` bridge, and the shipping estimate from the `CompletableFuture`. It hands each quote back as a `Future` to a storefront that has not moved to `Async`, recovers from unknown titles, and cancels one quote to show that its warehouse request is withdrawn:
+The complete example uses the three clients from `Bookstore.scala`, which the Running the Examples section embeds, and quotes a book by combining them in an `Async.async` block: the price from the `Future`-based service, the stock level through the `cancellable` bridge, and the shipping estimate from the `CompletableFuture`. It hands each quote back as a `Future` to a storefront that has not moved to `Async`, recovers from unknown titles, and cancels one quote to show that its warehouse request is withdrawn:
 
 ```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/wrapcallbackandfutureapis/CompleteExample.scala
 ```
@@ -368,6 +368,12 @@ Every snippet in this guide has a standalone companion file in the `async-exampl
 ```bash
 git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/async-examples
+```
+
+To check that every example compiles without running any of them:
+
+```bash
+sbt compile
 ```
 
 Each example uses the sample clients from one shared file:
