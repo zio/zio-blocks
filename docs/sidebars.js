@@ -471,6 +471,7 @@ const sidebars = {
     "guides/test-database-code-against-sqlite",
     "guides/connect-to-postgresql-with-a-connection-pool",
     "guides/upsert-and-paginate-with-keyset-cursors",
+    "guides/map-custom-column-types",
     "guides/stream-large-query-results",
     "guides/write-joins-and-inspect-generated-sql",
     "guides/sql-from-zio",
