@@ -1566,48 +1566,6 @@ The same file on Scala 3.3.7 prints the record schema `record {pages:Int,title:S
 
 **Suggested fix.** Make the macro whitebox (`whitebox.Context`), so the implicit's inferred type keeps the `StructuralType` refinement (the usual `Aux` pattern), and add a Scala 2 test that assigns the result to `Schema[{ def name: String; def age: Int }]`.
 
-### schema: on Scala 3.10, direct optic access (`Person.name`) on a `DerivedOptics` companion will stop compiling
-
-Found 2026-10-21 while making the schema Scaladoc examples compile (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `1945f601`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
-
-**Summary.** On Scala 3, `Person.name` on a companion that extends `DerivedOptics` works through a `given Conversion` that needs an `OpticsFor` instance, and `OpticsFor` is `private[schema]`. Scala 3.9 finds the given anyway but warns that Scala 3.10 will not.
-
-**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
-
-```scala
-//> using scala 3.9.0
-//> using options -deprecation
-//> using dep dev.zio::zio-blocks-schema:0.0.56
-import zio.blocks.schema._
-
-case class Book(title: String, pages: Int)
-object Book extends DerivedOptics {
-  implicit val schema: Schema[Book] = Schema.derived
-}
-
-object Main {
-  def main(args: Array[String]): Unit = {
-    val title: Lens[Book, String] = Book.title
-    println(title.get(Book("Zionomicon", 870)))
-  }
-}
-// [warn] ./Repro.scala:13:37
-// [warn] Usage of implicit given instance derived defined in object OpticsFor, which is not accessible here. In Scala 3.10, this implicit will no longer be found.
-// [warn]     val title: Lens[Book, String] = Book.title
-// [warn]                                     ^
-// Zionomicon
-```
-
-**Expected.** No warning: the given that direct access depends on is accessible from user code.
-
-**Root cause.** `trait OpticsFor` and `object OpticsFor`, which holds `transparent inline given derived`, are `private[schema]` (`schema/shared/src/main/scala-3/zio/blocks/schema/DerivedOptics.scala:290`, `:295-296`), while the public `DerivedOptics#toDerivedOptics` and `DerivedOptics.Of#toDerivedOptics` take `OpticsFor` as a `using` parameter (`:105-109`, `:165`).
-
-**Impact.** The recommended direct access form (`Person.name`, `Shape.circle`) breaks for every user once they move to Scala 3.10. The `schema-scaladoc-check` build shows the warning on the `DerivedOptics` examples.
-
-**Test gap.** `DerivedOpticsVersionSpecificSpec` is in package `zio.blocks.schema`, where `OpticsFor` is accessible, so it never sees the warning.
-
-**Suggested fix.** Make `OpticsFor` public (documented as an implementation detail), and compile a direct-access test from a package outside `zio.blocks.schema`.
-
 ### schema: `DerivedOptics` gives no usable lens for an opaque type
 
 Found 2026-10-21 while making the schema Scaladoc examples compile (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `1945f601`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`, on Scala 3.9.0 and 3.3.7.
@@ -1740,7 +1698,7 @@ object Main {
 // Failure(java.lang.RuntimeException: No optic found for: code)
 ```
 
-The same file with `//> using scala 3.3.7` prints the same two lines. (scala-cli also reports one deprecation warning on 3.9.0, the `OpticsFor` one above, and one feature warning on both.)
+The same file with `//> using scala 3.3.7` prints the same two lines. (scala-cli also reports one deprecation warning on 3.9.0, the `OpticsFor` one, since fixed in #1743 (see Resolved), and one feature warning on both.)
 
 **Expected.** Both lines print `Success(978-0-9000000-0-1)`: the lens that type-checks as `code` reads the field.
 
@@ -1754,14 +1712,14 @@ The same file with `//> using scala 3.3.7` prints the same two lines. (scala-cli
 
 ### schema: `DynamicOptic#toString` prints paths that `p"..."` rejects: wrapper steps, the root, and `Char` keys with an escape
 
-Found 2026-10-21 while writing the Scaladoc of `DynamicOptic` and `p"..."` (wave 4 of the schema Scaladoc, branch `scaladoc-wave-4`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproductions below were run with `scala-cli` against the published `0.0.56`.
+Found 2026-10-21 while writing the Scaladoc of `DynamicOptic` and `p"..."` (wave 4 of the schema Scaladoc, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproductions below were run with `scala-cli` against the published `0.0.56`.
 
 **Summary.** `DynamicOptic#toString` is documented as the `p"..."` syntax, so its output can be pasted back into the interpolator (`docs/reference/schema/dynamic-optic.md`, "Dual rendering"; `docs/reference/schema/path-interpolator.md`, "Debug-Friendly toString"). Three renderings cannot: a wrapper step prints `.~` and the empty path prints `.`, which the parser rejects, and a `Char` map key with an escape prints with a doubled backslash, `{'\\n'}` for a newline. The doubled backslash also appears in `toScalaString`, as `.atKey('\\n')`, which is not the Scala literal for a newline. `String` keys are escaped correctly.
 
-**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56; the same file with `//> using scala 2.13.18` prints the same five lines):
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56; the same file with `//> using scala 2.13.18` prints the same five lines):
 
 ```scala
-//> using scala 3.3.7
+//> using scala 3.9.0
 //> using dep dev.zio::zio-blocks-schema:0.0.56
 import zio.blocks.schema._
 
@@ -1781,10 +1739,10 @@ object Main {
 // true
 ```
 
-Pasting the three renderings back into the interpolator (Scala 3.3.7, `zio-blocks-schema` 0.0.56; `scala-cli compile` output, with the scratch directory removed from the file paths):
+Pasting the three renderings back into the interpolator (Scala 3.9.0, `zio-blocks-schema` 0.0.56; `scala-cli compile` output, with the scratch directory removed from the file paths):
 
 ```scala
-//> using scala 3.3.7
+//> using scala 3.9.0
 //> using dep dev.zio::zio-blocks-schema:0.0.56
 import zio.blocks.schema._
 
@@ -1813,7 +1771,7 @@ object Main {
 
 **Expected.** Every `toString` output parses back with `p"..."` to an equal path, and a `Char` key renders like a `String` key: `{'\n'}` and `.atKey('\n')`.
 
-**Root cause.** `DynamicOptic.renderString` prints `.~` for `Node.Wrapped` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicOptic.scala:181`) and `.` for an empty path (`:144`), but `PathParser.parseNode` requires an identifier after `.` (`schema/shared/src/main/scala/zio/blocks/schema/PathParser.scala:147-149`) and has no syntax for a wrapper step. In `renderDynamicValue`, the `Char` branch appends `"\\\\n"`, `"\\\\t"`, `"\\\\r"`, `"\\\\'"` and `"\\\\\\\\"` (`DynamicOptic.scala:262-266`), one level of escaping more than the `String` branch (`:248-252`), so it prints two backslashes where `parseChar` expects one (`PathParser.scala:460-490`).
+**Root cause.** `DynamicOptic.renderString` prints `.~` for `Node.Wrapped` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicOptic.scala:210`) and `.` for an empty path (`:173`), but `PathParser.parseNode` requires an identifier after `.` (`schema/shared/src/main/scala/zio/blocks/schema/PathParser.scala:154-156`) and has no syntax for a wrapper step. In `renderDynamicValue`, the `Char` branch appends `"\\\\n"`, `"\\\\t"`, `"\\\\r"`, `"\\\\'"` and `"\\\\\\\\"` (`DynamicOptic.scala:291-295`), one level of escaping more than the `String` branch (`:277-281`), so it prints two backslashes where `parseChar` expects one (`PathParser.scala:467-496`).
 
 **Impact.** A path copied from a log, an error message or `toString` into `p"..."` fails to compile when it contains a wrapper step, which `toDynamic` produces for every `.wrapped[...]` step and which the error paths of transformed fields contain (see the `.wrapped` entry above), or a `Char` key with an escape. `docs/reference/schema/path-interpolator.md` listed `p".~"` as the syntax for `DynamicOptic.wrapped`; that row is corrected in the same PR.
 
@@ -5226,6 +5184,7 @@ Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main`
 
 ## Resolved
 
+- schema: on Scala 3.10, direct optic access (`Person.name`) on a `DerivedOptics` companion stopped compiling outside `zio.blocks.schema`, because the `given Conversion` behind it needed the `private[schema]` `OpticsFor`; Scala 3.9 only warned. `OpticsFor` is now public. Fixed in #1743. The `DerivedOptics` Scaladoc no longer warns about it (wave 4 of the schema Scaladoc).
 - `json-patch.md:608` said that converting a `JsonPatch` to RFC 6902 is a matter of encoding it with its `Schema` and reformatting. The encoded patch holds number deltas and string edits that RFC 6902 cannot express, so the conversion needs the source document to compute `replace` values and must track list indices as earlier operations shift them. No other page or Scaladoc claims RFC 6902 compatibility. The sentence now says this and links the H-07 guide's converter. Fixed in #1815 (H-07).
 - `transactor-zio.md` mentioned `JdbcTransactor.postgresLayer` without saying it is an extension that needs `import zio.blocks.sql.zio.*` (found while writing H-17). Fixed on the H-21 branch `docs/h21-sql-from-zio`.
 - `type-class-derivation.md` "Customizing Derivation with Instance and Modifier Overrides": all four examples were uncompiled plain blocks, one with a `// ... AST overrides ...` placeholder and undefined types. Each is now a self-contained `mdoc:compile-only` block with the real JSON AST overrides. Fixed in #1787.

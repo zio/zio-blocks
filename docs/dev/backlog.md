@@ -479,7 +479,7 @@ Plan: `docs/superpowers/plans/2026-10-21-schema-scaladoc.md`. Style: `docs/dev/s
 | 1. Entry point           | Done        | #1818 | 1208 / 6917 (17%) | 1402 / 6917 (20%) |
 | 2. Structure             | In review   | #1819 | 1403 / 6919 (20%) | 1743 / 6919 (25%) |
 | 3. Binding               | Not started |       |                   |                   |
-| 4. Optics                | In review   |       | 1208 / 6917 (17%) | 1450 / 6917 (20%) |
+| 4. Optics                | In review   |       | 1209 / 6919 (17%) | 1451 / 6919 (20%) |
 | 5. Dynamic               | Not started |       |                   |                   |
 | 6. Derivation and codecs | Not started |       |                   |                   |
 | 7. Transform and evolve  | Not started |       |                   |                   |
