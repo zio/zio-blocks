@@ -5240,7 +5240,7 @@ Found 2026-10-22 while writing the Scaladoc of `DerivationBuilder` (schema Scala
 
 Found 2026-10-22 while writing the Scaladoc of `Into.derived` (wave 7 of the schema Scaladoc, branch `scaladoc-wave-7` on top of `6c264853`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0 with the reproducer below.
 
-**Summary.** For sealed traits and Scala 3 enums, `Into.derived` maps each source case to the target case with the same name. When there is none, it tries the first target case whose field types match, and then simply takes the target case at the same index. A case that was renamed or removed in the new version therefore converts, without any compile error or `Left`, to whatever case now sits at its old position. `As.derived` inherits this (from the code: it calls `Into.derived` in both directions). The compile error the macro prints when it finds nothing lists only "Name" and "Field signature" as matching rules, and `into.md` said that "the macro requires only that every source case has a corresponding target case by name".
+**Summary.** For sealed traits and Scala 3 enums, `Into.derived` maps each source case to the target case with the same name. When there is none, it tries the first target case whose fields, position by position, have the same types or types that convert (an implicit `Into`, and on Scala 3 also an opaque type or a newtype; case objects skip this step), and then simply takes the target case at the same index. A case that was renamed or removed in the new version therefore converts, without any compile error or `Left`, to whatever case now sits at its old position. `As.derived` inherits this (from the code: it calls `Into.derived` in both directions). The compile error the macro prints when it finds nothing lists only "Name" and "Field signature" as matching rules, and `into.md` said that "the macro requires only that every source case has a corresponding target case by name".
 
 **Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false IntoCaseByPosition.scala`; the same file with `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-schema` prints the same):
 
@@ -5270,9 +5270,9 @@ object Repro extends App {
 
 **Expected.** A compile error saying that `Ebook` has no matching case in `FormatV2`, as the error text already describes ("Cases are matched by: 1. Name ... 2. Field signature").
 
-**Root cause.** `findMatchingTargetSubtype`, "Priority 3: Match by position if same count" (`schema/shared/src/main/scala-2/zio/blocks/schema/IntoVersionSpecific.scala:1051-1055`, `schema/shared/src/main/scala-3/zio/blocks/schema/IntoVersionSpecific.scala:1055-1059`). Despite the comment, it does not check that the two types have the same number of cases; it returns the target case at the source case's index whenever one exists.
+**Root cause.** `findMatchingTargetSubtype`, "Priority 3: Match by position if same count" (`schema/shared/src/main/scala-2/zio/blocks/schema/IntoVersionSpecific.scala:1057-1061`, `schema/shared/src/main/scala-3/zio/blocks/schema/IntoVersionSpecific.scala:1061-1065`); the signature step is `signaturesMatch` (scala-2 `:1029-1032`, scala-3 `:1094-1097`). Despite the comment, it does not check that the two types have the same number of cases; it returns the target case at the source case's index whenever one exists.
 
-**Impact.** Silent data corruption in the exact situation `Into` is meant for, migrating data across versions: an e-book becomes a paperback. The signature fallback has a milder form of the same problem: a renamed case class goes to the first target case with the same field types, which may be the wrong one.
+**Impact.** Silent data corruption in the exact situation `Into` is meant for, migrating data across versions: an e-book becomes a paperback. The signature fallback has a milder form of the same problem: a renamed case class goes to the first target case whose fields have the same or convertible types, which may be the wrong one.
 
 **Test gap.** No spec converts a coproduct whose source has a case with no same-named target case; the coproduct tests in `IntoSpec` all keep the case names.
 
@@ -5360,6 +5360,8 @@ On Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`), `Book.schema.
 
 **Test gap.** The structural specs that encode anonymous values (`schema/jvm/src/test/scala-3/zio/blocks/schema/structural/`) are Scala 3 only; no Scala 2 test encodes a value that is not an instance of the case class.
 
+**Related.** The entry "schema: on Scala 2, `Schema#structural` returns `Schema[ts.StructuralType]`, not the structural type" covers the other Scala 2 limitation of the same type class.
+
 **Suggested fix.** Port `ReflectiveDeconstructor` (it uses only `getClass.getMethod`) to the Scala 2 copy and use it in `transformProductSchema`.
 
 ### schema (Scala 2): the migration builder does not compile outside `zio.blocks.schema.migration`
@@ -5394,7 +5396,7 @@ With `package zio.blocks.schema.migration` added at the top, the same file print
 
 **Expected.** The builder compiles in user code on Scala 2, as it does on Scala 3.
 
-**Root cause.** `private[migration] val actions` and `private[migration] def unsafeCreate` (`schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilder.scala:138` and `:343`). The whitebox macros in `schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilderSyntax.scala` splice `${c.prefix}.actions` (for example `:128`) and `MigrationComplete.unsafeCreate` (`:552`) into the caller's code, where Scala 2 checks access. Scala 3 quotes are typed where the macro is defined, so the same members work there.
+**Root cause.** `private[migration] val actions` and `private[migration] def unsafeCreate` (`schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilder.scala:140` and `:346`). The whitebox macros in `schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilderSyntax.scala` splice `${c.prefix}.actions` (for example `:128`) and `MigrationComplete.unsafeCreate` (`:552`) into the caller's code, where Scala 2 checks access. Scala 3 quotes are typed where the macro is defined, so the same members work there.
 
 **Impact.** The whole typed migration API is unusable on Scala 2.13 except through `Migration.fromDynamic` with hand-built `MigrationAction`s. `migration.md` shows only the builder, in `mdoc:compile-only` blocks, which the docs build compiles on Scala 3 only.
 
@@ -5453,7 +5455,7 @@ object BookV2 { implicit val schema: Schema[BookV2] = Schema.derived }
 
 **Expected.** `Right(BookV2(Zionomicon,Functional Effects,Some(600)))`: `subtitle` is the string itself and `pages` is `Some` holding a `value` record, as the target schema encodes it.
 
-**Root cause.** `ActionExecutor.executeMandate` matches `DynamicValue.Variant("Some", inner) => Right(inner)` and `executeOptionalize` returns `DynamicValue.Variant("Some", v)` (`schema/shared/src/main/scala/zio/blocks/schema/migration/DynamicMigration.scala:387` and `:400`), while `Reflect.option` builds `Some` as a record with the single field `value` (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:2329-2336`).
+**Root cause.** `ActionExecutor.executeMandate` matches `DynamicValue.Variant("Some", inner) => Right(inner)` and `executeOptionalize` returns `DynamicValue.Variant("Some", v)` (`schema/shared/src/main/scala/zio/blocks/schema/migration/DynamicMigration.scala:389` and `:402`), while `Reflect.option` builds `Some` as a record with the single field `value` (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:2329-2336`).
 
 **Impact.** `mandateField` and `optionalizeField`, two of the seven record operations in `migration.md`, fail for every value they are meant for (except a mandated `None`). The page's `userMigration` example uses `mandateField` in an `mdoc:compile-only` block, so the failure never shows.
 
@@ -5465,7 +5467,7 @@ object BookV2 { implicit val schema: Schema[BookV2] = Schema.derived }
 
 Found 2026-10-22 while writing the Scaladoc of `MigrationSelectorSyntax` (wave 7 of the schema Scaladoc, branch `scaladoc-wave-7` on top of `6c264853`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified with the two reproducers below.
 
-**Summary.** `MigrationSelectorSyntax` (mixed into the `migration` package object) adds `each`, `eachKey`, `eachValue`, `at`, `atKey`, `when` and `wrapped` for use inside builder selectors, and `SelectorMacros.toPath` has cases for all of them. None of them works. On Scala 3, the methods are `inline def`s whose body is `compiletime.error`, and the error fires while the selector is typed, before `toPath` sees it. On Scala 2, `toPath` matches the field-access case first, treats `.each` as a field named `each`, and then rejects the extension call under it. The record methods (`addField`, `migrateField`, ...) reject the syntax anyway: they accept only field accesses.
+**Summary.** `MigrationSelectorSyntax` (mixed into the `migration` package object) adds `each`, `eachKey`, `eachValue`, `at`, `atKey`, `when` and `wrapped` for use inside builder selectors, and `SelectorMacros.toPath` has cases for all of them. None of them works. On Scala 3, the methods are `inline def`s whose body is `compiletime.error`, and `toPath` is a plain `inline` macro, so the compiler inlines the `error` placeholders in its argument before the macro runs; `transparent inline` macros such as `$` see the placeholder call unexpanded. On Scala 2, `toPath` matches the field-access case first, treats `.each` as a field named `each`, and then rejects the extension call under it; this fails inside `zio.blocks.schema.migration` too. The record methods (`addField`, `migrateField`, ...) reject the syntax anyway: they accept only field accesses.
 
 **Reproduction, Scala 3** (Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, `scala-cli run --server=false SelectorSyntax.scala`):
 
@@ -6226,13 +6228,51 @@ object Repro extends App {
 
 **Expected.** The path `.books.each.tags` (`DynamicOptic.root.field("books").elements.field("tags")`), and a migration that sets every tag of every book to `scala`.
 
-**Root cause.** Scala 3: the members of `schema/shared/src/main/scala-3/zio/blocks/schema/migration/MigrationSelectorSyntax.scala:34-50` are `inline def`s whose body is `compiletime.error`, and `SelectorMacros.toPath` (`schema/shared/src/main/scala-3/zio/blocks/schema/migration/SelectorMacros.scala:35`, cases from `:156`) is a plain `inline def`. The optics macros `$` and `optic` use the same placeholders successfully, but they are `transparent inline` (`schema/shared/src/main/scala-3/zio/blocks/schema/CompanionOptics.scala:153` and `:161`), so they expand while the selector is typed. A plain inline method expands later, after the placeholders in its argument have been inlined and their error reported (from behaviour and the Scala 3 inlining rules; not tested with a patched build). Scala 2: the `case q"$parent.$fieldName"` at `schema/shared/src/main/scala-2/zio/blocks/schema/migration/SelectorMacros.scala:62` comes before the `.each` case at `:68` and matches `Select(<extension call>, each)`.
+**Root cause.** Scala 3: the members of `schema/shared/src/main/scala-3/zio/blocks/schema/migration/MigrationSelectorSyntax.scala:34-46` are `inline def`s whose body is `compiletime.error`, and `SelectorMacros.toPath` (`schema/shared/src/main/scala-3/zio/blocks/schema/migration/SelectorMacros.scala:35`, cases from `:156`) is a plain `inline def`. The optics macros `$` and `optic` use the same placeholders successfully, but they are `transparent inline` (`schema/shared/src/main/scala-3/zio/blocks/schema/CompanionOptics.scala:153` and `:161`), so they expand while the selector is typed. A plain inline method expands later, after the placeholders in its argument have been inlined and their error reported. A two-macro probe confirms it on Scala 3.3.7 (`zio-blocks-schema` 0.0.56) and 3.9.0: a `transparent inline` macro whose implementation returns `s.asTerm.show` prints `((_$2: probe.Shelf) => zio.blocks.schema.migration.each[scala.collection.immutable.List, probe.Book](_$2.books))` for `_.books.each`, while the same macro declared plain `inline` fails with `Can only be used inside migration selector macros`. Scala 2: the `case q"$parent.$fieldName"` at `schema/shared/src/main/scala-2/zio/blocks/schema/migration/SelectorMacros.scala:62` comes before the `.each` case at `:68` and matches `Select(<extension call>, each)`. The same call fails with the same error when the file is in `package zio.blocks.schema.migration`, so it is not the access problem of the builder entry.
 
 **Impact.** `migration.md` presents `_.items.each` and `_.data.eachValue` as builder selectors; neither compiles. Nested collections can only be migrated through `migrateField` or hand-built `MigrationAction`s.
 
 **Test gap.** No test uses any of the seven methods in a selector.
 
 **Suggested fix.** On Scala 3, make `toPath` and the builder methods that call it `transparent inline`, as `$` and `optic` are. On Scala 2, move the field-access case after the extension cases. Add a test per method on both versions.
+
+### schema: `Into` from `Float` to `Int` or `Long`, and from `Double` to `Long`, accepts exactly 2^31 or 2^63 and returns the maximum value
+
+Found 2026-10-22 during the fact-check of the wave 7 schema Scaladoc (`Into` numeric instances, branch `scaladoc-wave-7` on top of `6c264853`; line numbers are those of the commit that adds this entry). The code is the same at tag `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0 with the reproducer below.
+
+**Summary.** `floatToInt`, `floatToLong` and `doubleToLong` promise to fail unless the value is a whole number in the target range. For the one value just above the range, 2^31 (`2147483648.0f`) or 2^63 (`9.223372036854775807E18`), they return `Right(Int.MaxValue)` or `Right(Long.MaxValue)` instead: an off-by-one value with no error. `doubleToInt` is correct, because `Int.MaxValue` is exact as a `Double`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false NarrowingUpperBound.scala`; the same file with `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-schema` prints the same):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+
+object Repro extends App {
+  println(Into[Float, Int].into(2147483648.0f))
+  // Right(2147483647)
+  println(Into[Float, Long].into(9.223372036854775807e18f))
+  // Right(9223372036854775807)
+  println(Into[Double, Long].into(9.223372036854775807e18))
+  // Right(9223372036854775807)
+  println(Into[Double, Int].into(2147483648.0))
+  // Left(zio.blocks.schema.SchemaError: Value 2.147483648E9 cannot be precisely converted to Int)
+  println(Into[Float, Int].into(4294967296.0f))
+  // Left(zio.blocks.schema.SchemaError: Value 4.2949673E9 cannot be precisely converted to Int)
+}
+```
+
+**Expected.** `Left(... cannot be precisely converted to Int)` (or `Long`) for the first three lines, as for every other value outside the range.
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/Into.scala:225`, `:235` and `:253`. The upper-bound test `a <= Int.MaxValue` (or `Long.MaxValue`) widens the bound to `Float` or `Double`, where it rounds up to 2^31 or 2^63, so 2^31 or 2^63 passes. Then `a.toInt` (or `toLong`) saturates to the maximum, and the precision test `a == a.toInt.toFloat` passes too, because the maximum widens back to the same rounded value.
+
+**Impact.** A value one past the range converts silently to the maximum, the kind of error narrowing conversions exist to catch. It is a single value per conversion, so it shows up rarely, but it also affects derived conversions (`Into.derived`, `As.derived`) whose fields use these instances.
+
+**Test gap.** `IntoSpec` checks fractional `Float`s; no test uses the exact boundary 2^31 or 2^63.
+
+**Suggested fix.** Compare against the exclusive bound in the source type: `a < 2147483648.0f` for `floatToInt`, `a < 9.223372036854775807E18f` for `floatToLong`, and `a < 9.223372036854775807E18` for `doubleToLong` (the lower bounds `-2^31` and `-2^63` are exact and correct). Add boundary tests.
 
 ## Usability traps
 
@@ -8598,6 +8638,8 @@ AddField(.edition,Literal(1,Schema {
 **Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/DynamicSchemaExpr.scala:100` (`final case class Literal(value: DynamicValue, schema: Schema[_])`); no schema instance exists in `DynamicMigration.scala` or `MigrationAction.scala`.
 
 **Impact.** Readers plan to store or send migrations, as `migration.md` suggests, and find no way to encode them. The Scaladoc of `Migration`, `DynamicMigration` and `MigrationAction` now describes the actions as data that cannot be encoded yet.
+
+**Test gap.** No test encodes a `DynamicMigration` or `MigrationAction`; `DynamicMigrationSpec` builds them in memory only.
 
 **Suggested fix.** Add schemas for `DynamicSchemaExpr`, `MigrationAction` and `DynamicMigration` (dropping the `Schema` from `Literal`, or rebuilding it from a type tag), then restore the claim; until then, correct `migration.md`.
 
