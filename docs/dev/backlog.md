@@ -480,7 +480,7 @@ Plan: `docs/superpowers/plans/2026-10-21-schema-scaladoc.md`. Style: `docs/dev/s
 | 2. Structure             | Done        | #1819 | 1403 / 6919 (20%) | 1743 / 6919 (25%) |
 | 3. Binding               | In review   | #1820 | 1985 / 6919 (28%) | 2345 / 6919 (33%) |
 | 4. Optics                | Done        | #1827 | 1743 / 6919 (25%) | 1985 / 6919 (28%) |
-| 5. Dynamic               | Not started |       |                   |                   |
+| 5. Dynamic               | In review   |       | 1985 / 6919 (28%) | 2227 / 6919 (32%) |
 | 6. Derivation and codecs | Not started |       |                   |                   |
 | 7. Transform and evolve  | Not started |       |                   |                   |
 | 8a. JSON model           | Not started |       |                   |                   |
