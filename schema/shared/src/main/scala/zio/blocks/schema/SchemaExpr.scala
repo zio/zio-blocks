@@ -205,9 +205,11 @@ final case class SchemaExpr[A, B](
 
 /**
  * Constructors for [[SchemaExpr]] and the operator types they take. The
- * operators of [[Optic]] call these; call them directly to build an expression
- * from parts, such as a literal on the left of a comparison. A binary
- * constructor takes the input schema from its left (or first) operand.
+ * operators of [[Optic]] call these. A binary constructor converts the input
+ * with the input schema of its left (or first) operand (`stringRegexMatch` uses
+ * its `string` operand), so put a `literal` on the right: with a literal on the
+ * left, the other side sees no input and the expression yields no results (see
+ * `docs/dev/issues.md`).
  */
 object SchemaExpr {
 
@@ -236,9 +238,11 @@ object SchemaExpr {
 
     /**
      * Returns an expression that is true where both this and `that` are true.
-     * Both sides are evaluated; every result of this is combined with every
-     * result of `that`, and a result that is not a `Boolean` makes evaluation
-     * fail.
+     * Every result of this is combined with every result of `that`, and a
+     * result that is not a `Boolean` makes evaluation fail. There is no
+     * short-circuit: the right side is evaluated whatever the left values are,
+     * so `false && e` fails when `e` fails; when the left side fails, its error
+     * is returned.
      */
     def and(that: SchemaExpr[A, Boolean])(implicit
       @scala.annotation.unused ev: B <:< Boolean
@@ -250,9 +254,11 @@ object SchemaExpr {
       )
 
     /**
-     * Returns an expression that is true where this or `that` is true. Both
-     * sides are evaluated; every result of this is combined with every result
-     * of `that`, and a result that is not a `Boolean` makes evaluation fail.
+     * Returns an expression that is true where this or `that` is true. Every
+     * result of this is combined with every result of `that`, and a result that
+     * is not a `Boolean` makes evaluation fail. There is no short-circuit: the
+     * right side is evaluated whatever the left values are, so `false && e`
+     * fails when `e` fails; when the left side fails, its error is returned.
      */
     def or(that: SchemaExpr[A, Boolean])(implicit
       @scala.annotation.unused ev: B <:< Boolean
@@ -353,7 +359,9 @@ object SchemaExpr {
   /**
    * Returns an expression that ignores its input and yields `value`, encoded
    * with `schema`. `S` is the input type of the expressions it is combined
-   * with.
+   * with. Put it on the right of a binary constructor: its input schema
+   * discards the input, so on the left it leaves the other side with no input
+   * and the expression yields no results (see `docs/dev/issues.md`).
    */
   def literal[S, A](value: A)(implicit schema: Schema[A]): SchemaExpr[S, A] =
     SchemaExpr(
@@ -436,11 +444,14 @@ object SchemaExpr {
   /**
    * Returns an expression that applies `operator` to every pair of results of
    * `left` and `right`. Both must be primitives of `numericType`. `Byte`,
-   * `Short`, `Int` and `Long` results wrap on overflow, and a division or
-   * modulo by zero fails evaluation. `Pow` on `Byte` to `Double` uses
-   * `Math.pow` and converts the result back to the type, truncating for the
-   * integer types, so a negative exponent on them gives 0; on `BigInt` and
-   * `BigDecimal` the exponent must be a whole number from 0 to 10000.
+   * `Short`, `Int` and `Long` results of `Add`, `Subtract` and `Multiply` wrap
+   * on overflow, and a division or modulo by zero fails evaluation. `Pow` on
+   * `Byte` to `Double` computes `Math.pow` on `Double`s and converts the result
+   * back: an `Int` or `Long` result that is too large or infinite (0 to a
+   * negative power) saturates at the type's limit, `Byte` and `Short` results
+   * go through `Int` and then wrap, and a negative exponent on an integer type
+   * gives 0 except for the bases 1, -1 and 0. On `BigInt` and `BigDecimal` the
+   * exponent must be a whole number from 0 to 10000.
    */
   def arithmetic[S, A](
     left: SchemaExpr[S, A],
@@ -723,8 +734,10 @@ object SchemaExpr {
    * A conversion of a primitive [[DynamicValue]] from one primitive type to
    * another, used by [[DynamicSchemaExpr.PrimitiveConversion]]. A conversion
    * that can lose information checks that it does not and fails otherwise,
-   * except the conversions to `Float` from `Int` and `Long` and to `Double`
-   * from `Long`, which round to the nearest representable number.
+   * except the conversions to `Float` from `Int`, `Long` and `String` and to
+   * `Double` from `Long` and `String`, which round to the nearest representable
+   * number; `StringToFloat` and `StringToDouble` also accept `NaN` and turn an
+   * out-of-range number into an infinity.
    */
   sealed trait ConversionType {
 
@@ -1029,8 +1042,9 @@ object SchemaExpr {
     }
 
     /**
-     * Converts a `String` to a `Double`, failing when the string is not a valid
-     * number of that type.
+     * Converts a `String` to a `Double` with `String#toDouble`, failing when
+     * the string is not a number. It rounds to the nearest `Double`, accepts
+     * `NaN`, and turns an out-of-range number into an infinity.
      */
     case object StringToDouble extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
@@ -1221,8 +1235,9 @@ object SchemaExpr {
     }
 
     /**
-     * Converts a `String` to a `Float`, failing when the string is not a valid
-     * number of that type.
+     * Converts a `String` to a `Float` with `String#toFloat`, failing when the
+     * string is not a number. It rounds to the nearest `Float`, accepts `NaN`,
+     * and turns an out-of-range number into an infinity.
      */
     case object StringToFloat extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {

@@ -28,8 +28,10 @@ import zio.blocks.chunk.Chunk
  *
  * Every expression yields a sequence of values. A unary node yields one result
  * for each value of its operand, and a binary node one result for each pair of
- * left and right values, the left one varying slowest. Both operands are always
- * evaluated, and a node fails with the first error it meets.
+ * left and right values, the left one varying slowest. A node fails with the
+ * first error it meets: when the left operand fails, its error is returned, and
+ * otherwise the right operand is evaluated whatever the left values are (there
+ * is no short-circuit).
  */
 sealed trait DynamicSchemaExpr {
 
@@ -378,8 +380,10 @@ object DynamicSchemaExpr {
 
   /**
    * Combines every result of `left` with every result of `right` with
-   * `operator`. Both sides are always evaluated, and a value that is not a
-   * `Boolean` makes it fail.
+   * `operator`, and a value that is not a `Boolean` makes it fail. There is no
+   * short-circuit: the right side is evaluated whatever the left values are, so
+   * `false && e` fails when `e` fails; when the left side fails, its error is
+   * returned.
    */
   final case class Logical(
     left: DynamicSchemaExpr,
@@ -489,10 +493,12 @@ object DynamicSchemaExpr {
     def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue]
 
     /**
-     * Returns `x` to the power `y`. Up to `Double`, it uses `Math.pow` and
-     * converts the result back to the type, truncating for the integer types;
-     * for `BigInt` and `BigDecimal`, `y` must be a whole number from 0 to
-     * 10000.
+     * Returns `x` to the power `y`. Up to `Double`, it computes `Math.pow` on
+     * `Double`s and converts the result back: an `Int` or `Long` result that is
+     * too large or infinite saturates at the type's limit, `Byte` and `Short`
+     * results go through `Int` and then wrap, and a negative exponent on an
+     * integer type gives 0 except for the bases 1, -1 and 0. For `BigInt` and
+     * `BigDecimal`, `y` must be a whole number from 0 to 10000.
      */
     def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue]
 
