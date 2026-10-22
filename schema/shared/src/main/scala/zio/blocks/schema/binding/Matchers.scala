@@ -16,10 +16,27 @@
 
 package zio.blocks.schema.binding
 
+/**
+ * The [[Matcher]]s of a [[Binding.Variant]], one per case, in the order of the
+ * variant node's cases.
+ *
+ * @tparam A
+ *   the sum type
+ */
 final case class Matchers[+A](matchers: IndexedSeq[Matcher[? <: A]]) {
+
+  /**
+   * Returns the matcher of the case at `index`, which must be a valid case
+   * index.
+   */
   def apply(index: Int): Matcher[? <: A] = matchers(index)
 }
 
+/** Creates [[Matchers]]. */
 object Matchers {
+
+  /**
+   * Creates the matchers of a variant from one matcher per case, in case order.
+   */
   def apply[A](matchers: Matcher[? <: A]*): Matchers[A] = new Matchers(matchers.toIndexedSeq)
 }
