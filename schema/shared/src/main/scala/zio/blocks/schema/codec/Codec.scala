@@ -21,8 +21,9 @@ import zio.blocks.schema.SchemaError
  * Encodes values of type `Value` into an `EncodeOutput` and decodes them from a
  * `DecodeInput`. It is the base class of every format's codec, such as
  * `JsonCodec`, through [[BinaryCodec]] and [[TextCodec]]. Get one from a schema
- * with `Schema#derive` and a [[Format]] or a deriver; format-specific codecs
- * add overloads for byte arrays, strings and streams.
+ * with `Schema#derive` and a [[Format]] or a deriver. Some format-specific
+ * codecs add overloads, such as `JsonCodec` for byte arrays, strings and
+ * streams.
  *
  * {{{
  * import java.nio.ByteBuffer

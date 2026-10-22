@@ -33,7 +33,9 @@ import zio.blocks.docs.Doc
  * the schema's `Reflect` tree and calls the method for each node, passing the
  * node's children with their instances, which a method reads with `instance`. A
  * node whose instance is overridden is not derived: its method is not called
- * for it.
+ * for it. A child behind a `Reflect.Deferred` node, such as a field with a
+ * default value or a recursive field, is derived only when its instance is
+ * first forced, which can be after `derive` returns.
  *
  * Every method returns a [[zio.blocks.schema.Lazy Lazy]]. A recursive type,
  * such as `case class Tree(value: Int, children: List[Tree])`, reaches the

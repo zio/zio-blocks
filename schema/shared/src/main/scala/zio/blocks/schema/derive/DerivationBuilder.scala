@@ -214,6 +214,12 @@ final case class DerivationBuilder[TC[_], A](
    * as `JsonCodecDeriver` rejecting an unknown `Modifier.fieldNaming` strategy,
    * is thrown from this read.
    *
+   * A part of `A` behind a `Reflect.Deferred` node, such as a field with a
+   * default value, is derived when the deriver first forces its instance:
+   * `JsonCodecDeriver` does that during this read, while a deriver that forces
+   * children on first use derives that part, and evaluates its overrides,
+   * later.
+   *
    * {{{
    * import zio.blocks.schema.json.JsonCodecDeriver
    *
