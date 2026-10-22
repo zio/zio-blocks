@@ -34,7 +34,7 @@ package zio.blocks.schema
  *     of a map;
  *   - `.wrapped[B]`: the value of type `B` inside a wrapper;
  *   - `.searchFor[T]`: every value at or below this point that decodes as a `T`
- *     (needs an implicit `Schema[T]`).
+ *     (needs an implicit `Schema[T]`; `modify` skips map keys).
  *
  * On Scala 3, a path can also select a tuple element by index, as in `$(_(0))`,
  * and `when` also takes a case of a union type. The step methods compile only
@@ -95,8 +95,9 @@ trait CompanionOptics[S] {
 
     /**
      * In a path, focuses on every value at or below this point that decodes as
-     * a `B`, found depth first. It needs an implicit `Schema[B]`. Compiles only
-     * inside `$` and `optic`.
+     * a `B`, found depth first. It needs an implicit `Schema[B]`. Map keys are
+     * read by `fold` and `check` but skipped by `modify` (see
+     * `docs/dev/issues.md`). Compiles only inside `$` and `optic`.
      */
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def searchFor[B]: B = ???

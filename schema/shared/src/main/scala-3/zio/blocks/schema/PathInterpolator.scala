@@ -33,7 +33,7 @@ trait PathInterpolator {
      *     and goes on with letters, digits or `_`);
      *   - `<Case>`: a variant case;
      *   - `[0]`, `[0,2,5]`, `[1:4]` (indices 1, 2 and 3; empty when the end is
-     *     not above the start), and `[*]` or `[:*]`: one index, several
+     *     not above the start), and `[*]`, `[:*]` or `[*:]`: one index, several
      *     indices, a range of indices, or every element;
      *   - `{"key"}`, `{'c'}`, `{42}`, `{-1}`, `{true}` and `{"a", "b"}`: one
      *     map key, which is a string, char, `Int` or boolean literal, or
@@ -47,8 +47,9 @@ trait PathInterpolator {
      * `[]`, `{}` and `<>`, and inside a search pattern, but not between steps.
      * String keys accept the escapes `\"`, `\\`, `\n`, `\t` and `\r`, and char
      * keys `\'`, `\\`, `\n`, `\t` and `\r`. The macro reads the literal as
-     * written, without processing escapes first, so write a key that contains a
-     * quote in a triple-quoted literal: `p"""{"api.key"}"""`.
+     * written, without processing escapes first, so `\"` reaches the parser and
+     * is rejected: write string keys in a triple-quoted literal,
+     * `p"""{"api.key"}"""`, or with the `$"` escape for a quote.
      *
      * A malformed path is a compile error, and so is a literal with
      * interpolated arguments. There is no syntax for a wrapper step, so

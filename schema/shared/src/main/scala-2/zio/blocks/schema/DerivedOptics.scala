@@ -41,8 +41,11 @@ import scala.reflect.macros.whitebox
  * not supported yet.
  *
  * The optics are built the first time `optics` is evaluated and kept in a
- * global cache keyed by the type's name, so every companion for the same type
- * gets the optics built from the first schema used.
+ * global cache keyed by the type's printed name. Every companion for the same
+ * type shares the optics built from the first schema used, and so do different
+ * types that print the same, such as two local classes named `Book` in
+ * different methods: the second then fails with a `ClassCastException` or
+ * `No optic found` (a bug, see `docs/dev/issues.md`).
  *
  * A known problem, described in `docs/dev/issues.md`: on Scala 2, `optics`
  * compiles only inside the `zio.blocks.schema` package, so the examples below
