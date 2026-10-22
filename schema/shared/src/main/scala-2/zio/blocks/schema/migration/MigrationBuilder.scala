@@ -243,7 +243,7 @@ final class MigrationBuilder[A, B, Changeset](
    * Renames the case `from` of `A` to `to`; values in other cases are left as
    * they are. It acts on `A` itself, which must be the sealed trait or enum:
    * for a field of an enum type, build a migration of the enum and apply it
-   * with [[migrateField]].
+   * with `migrateField`.
    */
   def renameCase(
     from: String,
