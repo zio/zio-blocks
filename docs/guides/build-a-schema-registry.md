@@ -634,3 +634,4 @@ sbt compile
 - A JSON Schema document describes the same kind of shape, but for JSON only and for any tool that speaks JSON Schema. [How to Generate JSON Schema from a Type and Validate Payloads Against It](./generate-json-schema-and-validate-payloads.md) shows that route. A `DynamicSchema` registry keeps the full ZIO Blocks shape, including sealed traits and type names, and turns back into a typed `Schema` that works with every format.
 - To send the same events as JSON, Avro, MessagePack and more from one schema, see [One Type, Many Formats](./one-type-many-formats.md).
 - To work with JSON events whose shape you don't model at all, see [How to Read and Modify JSON Without Case Classes](./json-without-case-classes.md).
+- To record what changed between two versions of a value, rather than of its schema, see [How to Compute, Store and Replay Changes with Diff and Patch](./diff-and-patch.md).
