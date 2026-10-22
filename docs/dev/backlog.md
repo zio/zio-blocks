@@ -473,15 +473,15 @@ The ten P0 items, in the order to write them. As of 2026-10-20 all ten are done,
 
 Plan: `docs/superpowers/plans/2026-10-21-schema-scaladoc.md`. Style: `docs/dev/scaladoc-style.md`. Coverage: `python3 .claude/scripts/scaladoc-coverage.py schema` (TOTAL row, documented / declarations).
 
-| Wave                     | Status      | PR | Coverage before   | Coverage after    |
-|--------------------------|-------------|----|-------------------|-------------------|
-| 0. Tooling               | In progress |    | 1208 / 6917 (17%) | 1208 / 6917 (17%) |
-| 1. Entry point           | In review   |    | 1208 / 6917 (17%) | 1402 / 6917 (20%) |
-| 2. Structure             | Not started |    |                   |                   |
-| 3. Binding               | Not started |    |                   |                   |
-| 4. Optics                | Not started |    |                   |                   |
-| 5. Dynamic               | Not started |    |                   |                   |
-| 6. Derivation and codecs | Not started |    |                   |                   |
-| 7. Transform and evolve  | Not started |    |                   |                   |
-| 8a. JSON model           | Not started |    |                   |                   |
-| 8b. JSON I/O             | Not started |    |                   |                   |
+| Wave                     | Status      | PR    | Coverage before   | Coverage after    |
+|--------------------------|-------------|-------|-------------------|-------------------|
+| 0. Tooling               | Done        | #1813 | 1208 / 6917 (17%) | 1208 / 6917 (17%) |
+| 1. Entry point           | Done        | #1818 | 1208 / 6917 (17%) | 1402 / 6917 (20%) |
+| 2. Structure             | In review   | #1819 | 1403 / 6919 (20%) | 1743 / 6919 (25%) |
+| 3. Binding               | Not started |       |                   |                   |
+| 4. Optics                | Not started |       |                   |                   |
+| 5. Dynamic               | Not started |       |                   |                   |
+| 6. Derivation and codecs | Not started |       |                   |                   |
+| 7. Transform and evolve  | Not started |       |                   |                   |
+| 8a. JSON model           | Not started |       |                   |                   |
+| 8b. JSON I/O             | Not started |       |                   |                   |

@@ -19,27 +19,79 @@ package zio.blocks.schema
 import zio.blocks.chunk.Chunk
 import zio.blocks.typeid.TypeId
 
+/**
+ * A `PrimitiveValue` is a scalar value inside a [[DynamicValue]], which
+ * `DynamicValue.Primitive` wraps. There is one case per [[PrimitiveType]], and
+ * each case keeps the exact Scala or Java type of its value: `Int(2021)` and
+ * `Long(2021L)` are different values.
+ *
+ * Primitive values are ordered: two values of the same case by their value, and
+ * values of different cases by the order of the cases, from `Unit` to `UUID`
+ * (see `typeIndex`). `PrimitiveValue.ordering` and `DynamicValue#compare` use
+ * this order. `Int` values are compared by subtraction, which overflows, so two
+ * `Int` values that are more than `Int.MaxValue` apart compare the wrong way
+ * round.
+ *
+ * {{{
+ * val title = PrimitiveValue.String("Zionomicon")
+ * val year  = PrimitiveValue.Int(2021)
+ *
+ * val kind   = year.primitiveType                       // Int(None)
+ * val before = year < PrimitiveValue.Int(2024)          // true
+ * val sorted = List[PrimitiveValue](title, year).sorted // List(Int(2021), String(Zionomicon))
+ * val value  = DynamicValue.Primitive(title)            // "Zionomicon"
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/dynamic-value/ DynamicValue]]
+ */
 sealed trait PrimitiveValue {
+
+  /** The Scala or Java type of the value. */
   type Type
 
+  /** Returns the [[PrimitiveType]] of the value, without validation. */
   def primitiveType: PrimitiveType[Type]
 
+  /**
+   * Returns the position of this case in the list of cases, from 0 for `Unit`
+   * to 29 for `UUID`. Values of different cases are ordered by it.
+   */
   def typeIndex: scala.Int
 
+  /**
+   * Returns a negative number, zero or a positive number when this value is
+   * less than, equal to or greater than `that`. Values of the same case are
+   * compared by their value, except as noted on `Int` and `Period`; values of
+   * different cases by `typeIndex`.
+   */
   def compare(that: PrimitiveValue): scala.Int
 
+  /** Returns `true` when this value is greater than `that` by `compare`. */
   final def >(that: PrimitiveValue): Boolean = compare(that) > 0
 
+  /**
+   * Returns `true` when this value is greater than or equal to `that` by
+   * `compare`.
+   */
   final def >=(that: PrimitiveValue): Boolean = compare(that) >= 0
 
+  /** Returns `true` when this value is less than `that` by `compare`. */
   final def <(that: PrimitiveValue): Boolean = compare(that) < 0
 
+  /**
+   * Returns `true` when this value is less than or equal to `that` by
+   * `compare`.
+   */
   final def <=(that: PrimitiveValue): Boolean = compare(that) <= 0
 }
 
+/** The cases of [[PrimitiveValue]], their ordering and their schemas. */
 object PrimitiveValue {
   import zio.blocks.schema.binding._
   import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+
+  /** The `Unit` value. It is the smallest primitive value. */
   case object Unit extends PrimitiveValue {
     type Type = scala.Unit
 
@@ -53,6 +105,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `Boolean` value; `false` is less than `true`. */
   case class Boolean(value: scala.Boolean) extends PrimitiveValue {
     type Type = scala.Boolean
 
@@ -66,6 +119,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `Byte` value. */
   case class Byte(value: scala.Byte) extends PrimitiveValue {
     type Type = scala.Byte
 
@@ -79,6 +133,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `Short` value. */
   case class Short(value: scala.Short) extends PrimitiveValue {
     type Type = scala.Short
 
@@ -92,6 +147,10 @@ object PrimitiveValue {
     }
   }
 
+  /**
+   * An `Int` value. It is compared by subtracting the two values, which
+   * overflows: `Int(Int.MaxValue) > Int(-1)` is `false`.
+   */
   case class Int(value: scala.Int) extends PrimitiveValue {
     type Type = scala.Int
 
@@ -99,12 +158,18 @@ object PrimitiveValue {
 
     def typeIndex: scala.Int = 4
 
+    /**
+     * Compares by subtracting the two values, which overflows:
+     * `Int(Int.MaxValue)` compared with `Int(-1)` is negative. A value of
+     * another case is compared by `typeIndex`.
+     */
     def compare(that: PrimitiveValue): scala.Int = that match {
       case x: Int => value - x.value
       case _      => 4 - that.typeIndex
     }
   }
 
+  /** A `Long` value. */
   case class Long(value: scala.Long) extends PrimitiveValue {
     type Type = scala.Long
 
@@ -118,6 +183,10 @@ object PrimitiveValue {
     }
   }
 
+  /**
+   * A `Float` value, compared as `java.lang.Float.compare` does: `NaN` is the
+   * largest value, and `-0.0f` is less than `0.0f`.
+   */
   case class Float(value: scala.Float) extends PrimitiveValue {
     type Type = scala.Float
 
@@ -131,6 +200,10 @@ object PrimitiveValue {
     }
   }
 
+  /**
+   * A `Double` value, compared as `java.lang.Double.compare` does: `NaN` is the
+   * largest value, and `-0.0` is less than `0.0`.
+   */
   case class Double(value: scala.Double) extends PrimitiveValue {
     type Type = scala.Double
 
@@ -144,6 +217,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `Char` value. */
   case class Char(value: scala.Char) extends PrimitiveValue {
     type Type = scala.Char
 
@@ -157,6 +231,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `String` value, compared with `String#compareTo`. */
   case class String(value: Predef.String) extends PrimitiveValue {
     type Type = Predef.String
 
@@ -170,6 +245,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `scala.BigInt` value. */
   case class BigInt(value: scala.BigInt) extends PrimitiveValue {
     type Type = scala.BigInt
 
@@ -183,6 +259,10 @@ object PrimitiveValue {
     }
   }
 
+  /**
+   * A `scala.BigDecimal` value, compared by numeric value, so `2.0` and `2.00`
+   * compare as equal.
+   */
   case class BigDecimal(value: scala.BigDecimal) extends PrimitiveValue {
     type Type = scala.BigDecimal
 
@@ -196,6 +276,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.time.DayOfWeek` value, from `MONDAY` to `SUNDAY`. */
   case class DayOfWeek(value: java.time.DayOfWeek) extends PrimitiveValue {
     type Type = java.time.DayOfWeek
 
@@ -209,6 +290,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.time.Duration` value. */
   case class Duration(value: java.time.Duration) extends PrimitiveValue {
     type Type = java.time.Duration
 
@@ -222,6 +304,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.time.Instant` value. */
   case class Instant(value: java.time.Instant) extends PrimitiveValue {
     type Type = java.time.Instant
 
@@ -235,6 +318,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.time.LocalDate` value. */
   case class LocalDate(value: java.time.LocalDate) extends PrimitiveValue {
     type Type = java.time.LocalDate
 
@@ -248,6 +332,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.time.LocalDateTime` value. */
   case class LocalDateTime(value: java.time.LocalDateTime) extends PrimitiveValue {
     type Type = java.time.LocalDateTime
 
@@ -261,6 +346,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.time.LocalTime` value. */
   case class LocalTime(value: java.time.LocalTime) extends PrimitiveValue {
     type Type = java.time.LocalTime
 
@@ -274,6 +360,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.time.Month` value, from `JANUARY` to `DECEMBER`. */
   case class Month(value: java.time.Month) extends PrimitiveValue {
     type Type = java.time.Month
 
@@ -287,6 +374,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.time.MonthDay` value. */
   case class MonthDay(value: java.time.MonthDay) extends PrimitiveValue {
     type Type = java.time.MonthDay
 
@@ -300,6 +388,10 @@ object PrimitiveValue {
     }
   }
 
+  /**
+   * A `java.time.OffsetDateTime` value, compared with
+   * `OffsetDateTime#compareTo`: by instant, then by local date-time.
+   */
   case class OffsetDateTime(value: java.time.OffsetDateTime) extends PrimitiveValue {
     type Type = java.time.OffsetDateTime
 
@@ -313,6 +405,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.time.OffsetTime` value, compared with `OffsetTime#compareTo`. */
   case class OffsetTime(value: java.time.OffsetTime) extends PrimitiveValue {
     type Type = java.time.OffsetTime
 
@@ -326,6 +419,11 @@ object PrimitiveValue {
     }
   }
 
+  /**
+   * A `java.time.Period` value. Periods are compared by their approximate
+   * length in days, counting a month as 30.436875 days, so `P1Y` and `P12M`
+   * compare as equal although they are not equal values.
+   */
   case class Period(value: java.time.Period) extends PrimitiveValue {
     type Type = java.time.Period
 
@@ -333,6 +431,11 @@ object PrimitiveValue {
 
     def typeIndex: scala.Int = 22
 
+    /**
+     * Compares by approximate length in days, counting a month as 30.436875
+     * days, so `P1Y` and `P12M` compare as equal. A value of another case is
+     * compared by `typeIndex`.
+     */
     def compare(that: PrimitiveValue): scala.Int = that match {
       case x: Period =>
         val xv = x.value
@@ -341,6 +444,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.time.Year` value. */
   case class Year(value: java.time.Year) extends PrimitiveValue {
     type Type = java.time.Year
 
@@ -354,6 +458,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.time.YearMonth` value. */
   case class YearMonth(value: java.time.YearMonth) extends PrimitiveValue {
     type Type = java.time.YearMonth
 
@@ -367,6 +472,10 @@ object PrimitiveValue {
     }
   }
 
+  /**
+   * A `java.time.ZoneId` value, compared by its ID string, such as
+   * `Europe/Paris`.
+   */
   case class ZoneId(value: java.time.ZoneId) extends PrimitiveValue {
     type Type = java.time.ZoneId
 
@@ -380,6 +489,10 @@ object PrimitiveValue {
     }
   }
 
+  /**
+   * A `java.time.ZoneOffset` value, compared with `ZoneOffset#compareTo`, which
+   * puts larger offsets first.
+   */
   case class ZoneOffset(value: java.time.ZoneOffset) extends PrimitiveValue {
     type Type = java.time.ZoneOffset
 
@@ -393,6 +506,10 @@ object PrimitiveValue {
     }
   }
 
+  /**
+   * A `java.time.ZonedDateTime` value, compared with `ZonedDateTime#compareTo`:
+   * by instant, then by local date-time, then by zone ID.
+   */
   case class ZonedDateTime(value: java.time.ZonedDateTime) extends PrimitiveValue {
     type Type = java.time.ZonedDateTime
 
@@ -406,6 +523,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.util.Currency` value, compared by its ISO 4217 currency code. */
   case class Currency(value: java.util.Currency) extends PrimitiveValue {
     type Type = java.util.Currency
 
@@ -419,6 +537,7 @@ object PrimitiveValue {
     }
   }
 
+  /** A `java.util.UUID` value, compared with `UUID#compareTo`. */
   case class UUID(value: java.util.UUID) extends PrimitiveValue {
     type Type = java.util.UUID
 
@@ -432,10 +551,12 @@ object PrimitiveValue {
     }
   }
 
+  /** Orders primitive values with `compare`. */
   implicit val ordering: Ordering[PrimitiveValue] = new Ordering[PrimitiveValue] {
     def compare(x: PrimitiveValue, y: PrimitiveValue): scala.Int = x.compare(y)
   }
 
+  /** The schema of `PrimitiveValue.Unit`: a record without fields. */
   implicit lazy val unitSchema: Schema[Unit.type] = new Schema(
     reflect = new Reflect.Record[Binding, Unit.type](
       fields = Chunk.empty,
@@ -448,6 +569,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Boolean`: a record with the single field
+   * `value`.
+   */
   implicit lazy val booleanSchema: Schema[Boolean] = new Schema(
     reflect = new Reflect.Record[Binding, Boolean](
       fields = Chunk.single(Schema[scala.Boolean].reflect.asTerm("value")),
@@ -467,6 +592,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Byte`: a record with the single field
+   * `value`.
+   */
   implicit lazy val byteSchema: Schema[Byte] = new Schema(
     reflect = new Reflect.Record[Binding, Byte](
       fields = Chunk.single(Schema[scala.Byte].reflect.asTerm("value")),
@@ -486,6 +615,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Short`: a record with the single field
+   * `value`.
+   */
   implicit lazy val shortSchema: Schema[Short] = new Schema(
     reflect = new Reflect.Record[Binding, Short](
       fields = Chunk.single(Schema[scala.Short].reflect.asTerm("value")),
@@ -505,6 +638,9 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Int`: a record with the single field `value`.
+   */
   implicit lazy val intSchema: Schema[Int] = new Schema(
     reflect = new Reflect.Record[Binding, Int](
       fields = Chunk.single(Schema[scala.Int].reflect.asTerm("value")),
@@ -524,6 +660,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Long`: a record with the single field
+   * `value`.
+   */
   implicit lazy val longSchema: Schema[Long] = new Schema(
     reflect = new Reflect.Record[Binding, Long](
       fields = Chunk.single(Schema[scala.Long].reflect.asTerm("value")),
@@ -543,6 +683,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Float`: a record with the single field
+   * `value`.
+   */
   implicit lazy val floatSchema: Schema[Float] = new Schema(
     reflect = new Reflect.Record[Binding, Float](
       fields = Chunk.single(Schema[scala.Float].reflect.asTerm("value")),
@@ -562,6 +706,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Double`: a record with the single field
+   * `value`.
+   */
   implicit lazy val doubleSchema: Schema[Double] = new Schema(
     reflect = new Reflect.Record[Binding, Double](
       fields = Chunk.single(Schema[scala.Double].reflect.asTerm("value")),
@@ -581,6 +729,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Char`: a record with the single field
+   * `value`.
+   */
   implicit lazy val charSchema: Schema[Char] = new Schema(
     reflect = new Reflect.Record[Binding, Char](
       fields = Chunk.single(Schema[scala.Char].reflect.asTerm("value")),
@@ -600,6 +752,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.String`: a record with the single field
+   * `value`.
+   */
   implicit lazy val stringSchema: Schema[String] = new Schema(
     reflect = new Reflect.Record[Binding, String](
       fields = Chunk.single(Schema[java.lang.String].reflect.asTerm("value")),
@@ -620,6 +776,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.BigInt`: a record with the single field
+   * `value`.
+   */
   implicit lazy val bigIntSchema: Schema[BigInt] = new Schema(
     reflect = new Reflect.Record[Binding, BigInt](
       fields = Chunk.single(Schema[scala.BigInt].reflect.asTerm("value")),
@@ -640,6 +800,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.BigDecimal`: a record with the single field
+   * `value`.
+   */
   implicit lazy val bigDecimalSchema: Schema[BigDecimal] = new Schema(
     reflect = new Reflect.Record[Binding, BigDecimal](
       fields = Chunk.single(Schema[scala.BigDecimal].reflect.asTerm("value")),
@@ -660,6 +824,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.DayOfWeek`: a record with the single field
+   * `value`.
+   */
   implicit lazy val dayOfWeekSchema: Schema[DayOfWeek] = new Schema(
     reflect = new Reflect.Record[Binding, DayOfWeek](
       fields = Chunk.single(Schema[java.time.DayOfWeek].reflect.asTerm("value")),
@@ -680,6 +848,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Duration`: a record with the single field
+   * `value`.
+   */
   implicit lazy val durationSchema: Schema[Duration] = new Schema(
     reflect = new Reflect.Record[Binding, Duration](
       fields = Chunk.single(Schema[java.time.Duration].reflect.asTerm("value")),
@@ -700,6 +872,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Instant`: a record with the single field
+   * `value`.
+   */
   implicit lazy val instantSchema: Schema[Instant] = new Schema(
     reflect = new Reflect.Record[Binding, Instant](
       fields = Chunk.single(Schema[java.time.Instant].reflect.asTerm("value")),
@@ -720,6 +896,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.LocalDate`: a record with the single field
+   * `value`.
+   */
   implicit lazy val localDateSchema: Schema[LocalDate] = new Schema(
     reflect = new Reflect.Record[Binding, LocalDate](
       fields = Chunk.single(Schema[java.time.LocalDate].reflect.asTerm("value")),
@@ -740,6 +920,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.LocalDateTime`: a record with the single
+   * field `value`.
+   */
   implicit lazy val localDateTimeSchema: Schema[LocalDateTime] = new Schema(
     reflect = new Reflect.Record[Binding, LocalDateTime](
       fields = Chunk.single(Schema[java.time.LocalDateTime].reflect.asTerm("value")),
@@ -760,6 +944,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.LocalTime`: a record with the single field
+   * `value`.
+   */
   implicit lazy val localTimeSchema: Schema[LocalTime] = new Schema(
     reflect = new Reflect.Record[Binding, LocalTime](
       fields = Chunk.single(Schema[java.time.LocalTime].reflect.asTerm("value")),
@@ -780,6 +968,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Month`: a record with the single field
+   * `value`.
+   */
   implicit lazy val monthSchema: Schema[Month] = new Schema(
     reflect = new Reflect.Record[Binding, Month](
       fields = Chunk.single(Schema[java.time.Month].reflect.asTerm("value")),
@@ -800,6 +992,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.MonthDay`: a record with the single field
+   * `value`.
+   */
   implicit lazy val monthDaySchema: Schema[MonthDay] = new Schema(
     reflect = new Reflect.Record[Binding, MonthDay](
       fields = Chunk.single(Schema[java.time.MonthDay].reflect.asTerm("value")),
@@ -820,6 +1016,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.OffsetDateTime`: a record with the single
+   * field `value`.
+   */
   implicit lazy val offsetDateTimeSchema: Schema[OffsetDateTime] = new Schema(
     reflect = new Reflect.Record[Binding, OffsetDateTime](
       fields = Chunk.single(Schema[java.time.OffsetDateTime].reflect.asTerm("value")),
@@ -840,6 +1040,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.OffsetTime`: a record with the single field
+   * `value`.
+   */
   implicit lazy val offsetTimeSchema: Schema[OffsetTime] = new Schema(
     reflect = new Reflect.Record[Binding, OffsetTime](
       fields = Chunk.single(Schema[java.time.OffsetTime].reflect.asTerm("value")),
@@ -860,6 +1064,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Period`: a record with the single field
+   * `value`.
+   */
   implicit lazy val periodSchema: Schema[Period] = new Schema(
     reflect = new Reflect.Record[Binding, Period](
       fields = Chunk.single(Schema[java.time.Period].reflect.asTerm("value")),
@@ -880,6 +1088,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Year`: a record with the single field
+   * `value`.
+   */
   implicit lazy val yearSchema: Schema[Year] = new Schema(
     reflect = new Reflect.Record[Binding, Year](
       fields = Chunk.single(Schema[java.time.Year].reflect.asTerm("value")),
@@ -900,6 +1112,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.YearMonth`: a record with the single field
+   * `value`.
+   */
   implicit lazy val yearMonthSchema: Schema[YearMonth] = new Schema(
     reflect = new Reflect.Record[Binding, YearMonth](
       fields = Chunk.single(Schema[java.time.YearMonth].reflect.asTerm("value")),
@@ -920,6 +1136,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.ZoneId`: a record with the single field
+   * `value`.
+   */
   implicit lazy val zoneIdSchema: Schema[ZoneId] = new Schema(
     reflect = new Reflect.Record[Binding, ZoneId](
       fields = Chunk.single(Schema[java.time.ZoneId].reflect.asTerm("value")),
@@ -940,6 +1160,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.ZoneOffset`: a record with the single field
+   * `value`.
+   */
   implicit lazy val zoneOffsetSchema: Schema[ZoneOffset] = new Schema(
     reflect = new Reflect.Record[Binding, ZoneOffset](
       fields = Chunk.single(Schema[java.time.ZoneOffset].reflect.asTerm("value")),
@@ -960,6 +1184,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.ZonedDateTime`: a record with the single
+   * field `value`.
+   */
   implicit lazy val zonedDateTimeSchema: Schema[ZonedDateTime] = new Schema(
     reflect = new Reflect.Record[Binding, ZonedDateTime](
       fields = Chunk.single(Schema[java.time.ZonedDateTime].reflect.asTerm("value")),
@@ -980,6 +1208,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.Currency`: a record with the single field
+   * `value`.
+   */
   implicit lazy val currencySchema: Schema[Currency] = new Schema(
     reflect = new Reflect.Record[Binding, Currency](
       fields = Chunk.single(Schema[java.util.Currency].reflect.asTerm("value")),
@@ -1000,6 +1232,10 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue.UUID`: a record with the single field
+   * `value`.
+   */
   implicit lazy val uuidSchema: Schema[UUID] = new Schema(
     reflect = new Reflect.Record[Binding, UUID](
       fields = Chunk.single(Schema[java.util.UUID].reflect.asTerm("value")),
@@ -1020,6 +1256,11 @@ object PrimitiveValue {
     )
   )
 
+  /**
+   * The schema of `PrimitiveValue`: a variant with one case per
+   * [[PrimitiveValue]] case, named after it and in `typeIndex` order, whose
+   * schemas are the ones above.
+   */
   implicit lazy val schema: Schema[PrimitiveValue] = new Schema(
     reflect = new Reflect.Variant[Binding, PrimitiveValue](
       cases = Chunk(
