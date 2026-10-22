@@ -19,19 +19,45 @@ package zio.blocks.schema
 import scala.util.Try
 
 /**
- * A typed wrapper around DynamicSchemaExpr that provides compile-time type
- * safety.
+ * An expression that computes values of type `B` from a value of type `A`, kept
+ * as a tree of [[DynamicSchemaExpr]] nodes instead of a function, so it can be
+ * evaluated and also inspected. A query library can translate it into SQL or
+ * another query language, and migrations evaluate the tree directly.
+ *
+ * Build one with the operators of [[Optic]] (`===`, `>`, `+`, `&&`, `!`,
+ * `concat`, `matches`, `length` and others), or with the constructors of the
+ * companion, and run it with `eval`. An expression yields a `Seq`, because an
+ * optic such as a [[Traversal]] can focus on several values: a unary operator
+ * yields one result per value, and a binary operator one result for each pair
+ * of left and right values.
+ *
+ * {{{
+ * case class Book(title: String, year: Int)
+ * object Book extends CompanionOptics[Book] {
+ *   implicit val schema: Schema[Book] = Schema.derived
+ *   val title: Lens[Book, String] = $(_.title)
+ *   val year: Lens[Book, Int]     = $(_.year)
+ * }
+ *
+ * val recentZio: SchemaExpr[Book, Boolean] = (Book.year >= 2020) && Book.title.matches("Zio.*")
+ *
+ * recentZio.eval(Book("Zionomicon", 2021))           // Right(Chunk(true))
+ * recentZio.eval(Book("Programming in Scala", 2008)) // Right(Chunk(false))
+ * }}}
  *
  * @tparam A
- *   The input type
+ *   the input type
  * @tparam B
- *   The output type
+ *   the type of the results
  * @param dynamic
- *   The underlying serializable expression
+ *   the expression tree
  * @param inputSchema
- *   Schema for converting A to DynamicValue
+ *   converts the input to a [[DynamicValue]] before evaluation
  * @param outputSchema
- *   Schema for converting DynamicValue back to B
+ *   the schema of the results. `eval` converts them with its own implicit
+ *   schema instead, and [[SchemaExpr.optic]] sets this to `Schema[Unit]`
+ * @see
+ *   [[https://zioblocks.com/reference/schema/schema-expr/ SchemaExpr]]
  */
 final case class SchemaExpr[A, B](
   dynamic: DynamicSchemaExpr,
@@ -40,7 +66,35 @@ final case class SchemaExpr[A, B](
 ) {
 
   /**
-   * Evaluate the expression on a typed input.
+   * Evaluates this expression on `input` and converts each result with `schema`
+   * (not with `outputSchema`).
+   *
+   * Returns `Left` with an [[OpticCheck]]:
+   *   - when an optic step fails: `UnexpectedCase` (the actual case of an
+   *     `Option` is reported as `Option`), `SequenceIndexOutOfBounds`,
+   *     `EmptySequence`, `MissingKey` or `EmptyMap`;
+   *   - with a `DynamicConversionError` when an operator fails, for example on
+   *     a division by zero, a value of the wrong type or an invalid regular
+   *     expression;
+   *   - with one `DynamicConversionError` for each result that `schema` cannot
+   *     convert.
+   *
+   * {{{
+   * case class Author(name: String)
+   * case class Book(title: String, authors: List[Author])
+   * object Book extends CompanionOptics[Book] {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   *   val authorNames: Traversal[Book, String] = $(_.authors.each.name)
+   * }
+   *
+   * val zionomicon = Book("Zionomicon", List(Author("John A. De Goes"), Author("Adam Fraser")))
+   *
+   * Book.authorNames.length.eval(zionomicon)                // Right(Chunk(15,11))
+   * Book.authorNames.length.eval(zionomicon.copy(authors = Nil)).isLeft // true, an EmptySequence
+   * }}}
+   *
+   * @tparam B1
+   *   the type to convert the results to, `B` or a supertype
    */
   def eval[B1 >: B](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]] = {
     val dynamicInput = inputSchema.toDynamicValue(input)
@@ -60,7 +114,9 @@ final case class SchemaExpr[A, B](
   }
 
   /**
-   * Evaluate the expression and return DynamicValue results.
+   * Evaluates this expression on `input` and returns the results as
+   * [[DynamicValue]]s, without converting them. Errors are reported as in
+   * `eval`.
    */
   def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] = {
     val dynamicInput = inputSchema.toDynamicValue(input)
@@ -142,11 +198,17 @@ final case class SchemaExpr[A, B](
   }
 
   /**
-   * Get the underlying dynamic expression.
+   * Returns `dynamic`, the expression tree.
    */
   def toDynamic: DynamicSchemaExpr = dynamic
 }
 
+/**
+ * Constructors for [[SchemaExpr]] and the operator types they take. The
+ * operators of [[Optic]] call these; call them directly to build an expression
+ * from parts, such as a literal on the left of a comparison. A binary
+ * constructor takes the input schema from its left (or first) operand.
+ */
 object SchemaExpr {
 
   /**
@@ -172,6 +234,12 @@ object SchemaExpr {
    */
   implicit final class BooleanOps[A, B](private val self: SchemaExpr[A, B]) extends AnyVal {
 
+    /**
+     * Returns an expression that is true where both this and `that` are true.
+     * Both sides are evaluated; every result of this is combined with every
+     * result of `that`, and a result that is not a `Boolean` makes evaluation
+     * fail.
+     */
     def and(that: SchemaExpr[A, Boolean])(implicit
       @scala.annotation.unused ev: B <:< Boolean
     ): SchemaExpr[A, Boolean] =
@@ -181,6 +249,11 @@ object SchemaExpr {
         Schema[Boolean]
       )
 
+    /**
+     * Returns an expression that is true where this or `that` is true. Both
+     * sides are evaluated; every result of this is combined with every result
+     * of `that`, and a result that is not a `Boolean` makes evaluation fail.
+     */
     def or(that: SchemaExpr[A, Boolean])(implicit
       @scala.annotation.unused ev: B <:< Boolean
     ): SchemaExpr[A, Boolean] =
@@ -190,7 +263,14 @@ object SchemaExpr {
         Schema[Boolean]
       )
 
+    /**
+     * The same as `and`.
+     */
     def &&(that: SchemaExpr[A, Boolean])(implicit ev: B <:< Boolean): SchemaExpr[A, Boolean] = and(that)
+
+    /**
+     * The same as `or`.
+     */
     def ||(that: SchemaExpr[A, Boolean])(implicit ev: B <:< Boolean): SchemaExpr[A, Boolean] = or(that)
   }
 
@@ -255,9 +335,10 @@ object SchemaExpr {
     }
 
   /**
-   * Create a Literal expression from the schema's default value. Gets the
-   * default value from the schema and wraps it in a Literal. Returns None if
-   * the schema has no default value.
+   * Returns a literal expression of the default value of `schema`, or `None`
+   * when the schema has no default value. Its type says it takes any input, but
+   * it converts its input with `schema`, so evaluating it on a value that is
+   * not an `A` throws a `ClassCastException` (see `docs/dev/issues.md`).
    */
   def schemaDefault[A](implicit schema: Schema[A]): Option[SchemaExpr[Any, A]] =
     schema.getDefaultValue.map { defaultValue =>
@@ -269,6 +350,11 @@ object SchemaExpr {
       )
     }
 
+  /**
+   * Returns an expression that ignores its input and yields `value`, encoded
+   * with `schema`. `S` is the input type of the expressions it is combined
+   * with.
+   */
   def literal[S, A](value: A)(implicit schema: Schema[A]): SchemaExpr[S, A] =
     SchemaExpr(
       DynamicSchemaExpr.Literal(schema.toDynamicValue(value), schema),
@@ -276,6 +362,15 @@ object SchemaExpr {
       schema
     )
 
+  /**
+   * Returns an expression that yields the values `path` reaches in its input,
+   * which `sourceSchema` converts to a [[DynamicValue]] first. A field that the
+   * value lacks yields nothing; a different case, an index out of bounds, a
+   * missing map key, an `elements` step that finds only empty sequences and a
+   * `mapKeys` or `mapValues` step that finds only empty maps make evaluation
+   * fail (see [[DynamicSchemaExpr.Select]]), and so does a search step. Its
+   * `outputSchema` is `Schema[Unit]` whatever `A` is; `eval` does not use it.
+   */
   def optic[S, A](path: DynamicOptic, sourceSchema: Schema[S]): SchemaExpr[S, A] =
     SchemaExpr(
       DynamicSchemaExpr.Select(path),
@@ -283,6 +378,9 @@ object SchemaExpr {
       Schema[Unit].asInstanceOf[Schema[A]]
     )
 
+  /**
+   * Returns `left && right` or `left || right`, as `operator` says.
+   */
   def logical[S](
     left: SchemaExpr[S, Boolean],
     right: SchemaExpr[S, Boolean],
@@ -299,6 +397,12 @@ object SchemaExpr {
     )
   }
 
+  /**
+   * Returns an expression that compares every result of `left` with every
+   * result of `right`. `Equal` and `NotEqual` use `==`; the others use the
+   * order of `DynamicValue#compare`, so values of different primitive types
+   * compare by type, not by number.
+   */
   def relational[S, A](
     left: SchemaExpr[S, A],
     right: SchemaExpr[S, A],
@@ -319,6 +423,9 @@ object SchemaExpr {
     )
   }
 
+  /**
+   * Returns an expression that negates every result of `expr`.
+   */
   def not[S](expr: SchemaExpr[S, Boolean]): SchemaExpr[S, Boolean] =
     SchemaExpr(
       DynamicSchemaExpr.Not(expr.dynamic),
@@ -326,6 +433,15 @@ object SchemaExpr {
       Schema[Boolean]
     )
 
+  /**
+   * Returns an expression that applies `operator` to every pair of results of
+   * `left` and `right`. Both must be primitives of `numericType`. `Byte`,
+   * `Short`, `Int` and `Long` results wrap on overflow, and a division or
+   * modulo by zero fails evaluation. `Pow` on `Byte` to `Double` uses
+   * `Math.pow` and truncates the result back to the type, so a negative
+   * exponent on an integer type gives 0; on `BigInt` and `BigDecimal` the
+   * exponent must be a whole number from 0 to 10000.
+   */
   def arithmetic[S, A](
     left: SchemaExpr[S, A],
     right: SchemaExpr[S, A],
@@ -347,6 +463,12 @@ object SchemaExpr {
     )
   }
 
+  /**
+   * Returns an expression that applies `operator` to every pair of results of
+   * `left` and `right`, which must be `Byte`, `Short`, `Int` or `Long` values.
+   * The result is a `Long` when either value is a `Long` (for a shift, when the
+   * left one is) and an `Int` otherwise, also for `Byte` and `Short`.
+   */
   def bitwise[S, A](
     left: SchemaExpr[S, A],
     right: SchemaExpr[S, A],
@@ -367,6 +489,10 @@ object SchemaExpr {
     )
   }
 
+  /**
+   * Returns an expression that inverts the bits of every result of `expr`,
+   * which must be a `Byte`, `Short`, `Int` or `Long`; the type is kept.
+   */
   def bitwiseNot[S, A](expr: SchemaExpr[S, A]): SchemaExpr[S, A] =
     SchemaExpr(
       DynamicSchemaExpr.BitwiseNot(expr.dynamic),
@@ -374,6 +500,10 @@ object SchemaExpr {
       expr.outputSchema
     )
 
+  /**
+   * Returns an expression that concatenates every pair of results of `left` and
+   * `right`.
+   */
   def stringConcat[S](left: SchemaExpr[S, String], right: SchemaExpr[S, String]): SchemaExpr[S, String] =
     SchemaExpr(
       DynamicSchemaExpr.StringConcat(left.dynamic, right.dynamic),
@@ -381,6 +511,11 @@ object SchemaExpr {
       Schema[String]
     )
 
+  /**
+   * Returns an expression that is true where the whole of a result of `string`
+   * matches a result of `regex`, as `java.util.regex.Pattern.matches` does. An
+   * invalid pattern makes evaluation fail.
+   */
   def stringRegexMatch[S](regex: SchemaExpr[S, String], string: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
     SchemaExpr(
       DynamicSchemaExpr.StringRegexMatch(regex.dynamic, string.dynamic),
@@ -388,6 +523,9 @@ object SchemaExpr {
       Schema[Boolean]
     )
 
+  /**
+   * Returns an expression that yields the length of every result of `string`.
+   */
   def stringLength[S](string: SchemaExpr[S, String]): SchemaExpr[S, Int] =
     SchemaExpr(
       DynamicSchemaExpr.StringLength(string.dynamic),
@@ -395,6 +533,12 @@ object SchemaExpr {
       Schema[Int]
     )
 
+  /**
+   * Returns an expression that yields the part of every result of `string` from
+   * `start` (inclusive) to `end` (exclusive), for every combination of results.
+   * A negative index, a `start` after `end` or an `end` past the length makes
+   * evaluation fail.
+   */
   def stringSubstring[S](
     string: SchemaExpr[S, String],
     start: SchemaExpr[S, Int],
@@ -406,6 +550,10 @@ object SchemaExpr {
       Schema[String]
     )
 
+  /**
+   * Returns an expression that removes leading and trailing whitespace from
+   * every result of `string`, as `String#trim` does.
+   */
   def stringTrim[S](string: SchemaExpr[S, String]): SchemaExpr[S, String] =
     SchemaExpr(
       DynamicSchemaExpr.StringTrim(string.dynamic),
@@ -413,6 +561,10 @@ object SchemaExpr {
       Schema[String]
     )
 
+  /**
+   * Returns an expression that upper-cases every result of `string` with the
+   * default locale.
+   */
   def stringToUpperCase[S](string: SchemaExpr[S, String]): SchemaExpr[S, String] =
     SchemaExpr(
       DynamicSchemaExpr.StringToUpperCase(string.dynamic),
@@ -420,6 +572,10 @@ object SchemaExpr {
       Schema[String]
     )
 
+  /**
+   * Returns an expression that lower-cases every result of `string` with the
+   * default locale.
+   */
   def stringToLowerCase[S](string: SchemaExpr[S, String]): SchemaExpr[S, String] =
     SchemaExpr(
       DynamicSchemaExpr.StringToLowerCase(string.dynamic),
@@ -427,6 +583,11 @@ object SchemaExpr {
       Schema[String]
     )
 
+  /**
+   * Returns an expression that replaces every occurrence of a result of
+   * `target` (as plain text, not a pattern) with a result of `replacement`, in
+   * every result of `string`.
+   */
   def stringReplace[S](
     string: SchemaExpr[S, String],
     target: SchemaExpr[S, String],
@@ -438,6 +599,10 @@ object SchemaExpr {
       Schema[String]
     )
 
+  /**
+   * Returns an expression that is true where a result of `string` starts with a
+   * result of `prefix`.
+   */
   def stringStartsWith[S](string: SchemaExpr[S, String], prefix: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
     SchemaExpr(
       DynamicSchemaExpr.StringStartsWith(string.dynamic, prefix.dynamic),
@@ -445,6 +610,10 @@ object SchemaExpr {
       Schema[Boolean]
     )
 
+  /**
+   * Returns an expression that is true where a result of `string` ends with a
+   * result of `suffix`.
+   */
   def stringEndsWith[S](string: SchemaExpr[S, String], suffix: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
     SchemaExpr(
       DynamicSchemaExpr.StringEndsWith(string.dynamic, suffix.dynamic),
@@ -452,6 +621,10 @@ object SchemaExpr {
       Schema[Boolean]
     )
 
+  /**
+   * Returns an expression that is true where a result of `string` contains a
+   * result of `substring`.
+   */
   def stringContains[S](string: SchemaExpr[S, String], substring: SchemaExpr[S, String]): SchemaExpr[S, Boolean] =
     SchemaExpr(
       DynamicSchemaExpr.StringContains(string.dynamic, substring.dynamic),
@@ -459,6 +632,10 @@ object SchemaExpr {
       Schema[Boolean]
     )
 
+  /**
+   * Returns an expression that yields the index of the first occurrence of a
+   * result of `substring` in a result of `string`, or -1.
+   */
   def stringIndexOf[S](string: SchemaExpr[S, String], substring: SchemaExpr[S, String]): SchemaExpr[S, Int] =
     SchemaExpr(
       DynamicSchemaExpr.StringIndexOf(string.dynamic, substring.dynamic),
@@ -466,13 +643,29 @@ object SchemaExpr {
       Schema[Int]
     )
 
+  /**
+   * The operator of [[SchemaExpr.logical]]: `And` or `Or`.
+   */
   sealed trait LogicalOperator
+
+  /**
+   * The cases of [[LogicalOperator]].
+   */
   object LogicalOperator {
     case object And extends LogicalOperator
     case object Or  extends LogicalOperator
   }
 
+  /**
+   * The operator of [[SchemaExpr.relational]]: `LessThan` (`<`), `GreaterThan`
+   * (`>`), `LessThanOrEqual` (`<=`), `GreaterThanOrEqual` (`>=`), `Equal` or
+   * `NotEqual`.
+   */
   sealed trait RelationalOperator
+
+  /**
+   * The cases of [[RelationalOperator]].
+   */
   object RelationalOperator {
     case object LessThan           extends RelationalOperator
     case object GreaterThan        extends RelationalOperator
@@ -482,7 +675,16 @@ object SchemaExpr {
     case object NotEqual           extends RelationalOperator
   }
 
+  /**
+   * The operator of [[SchemaExpr.arithmetic]]: `Add`, `Subtract`, `Multiply`,
+   * `Divide` (integer division truncates), `Pow` or `Modulo` (the remainder,
+   * with the sign of the dividend).
+   */
   sealed trait ArithmeticOperator
+
+  /**
+   * The cases of [[ArithmeticOperator]].
+   */
   object ArithmeticOperator {
     case object Add      extends ArithmeticOperator
     case object Subtract extends ArithmeticOperator
@@ -492,7 +694,16 @@ object SchemaExpr {
     case object Modulo   extends ArithmeticOperator
   }
 
+  /**
+   * The operator of [[SchemaExpr.bitwise]]: `And`, `Or`, `Xor`, `LeftShift`
+   * (`<<`), `RightShift` (`>>`, keeping the sign) or `UnsignedRightShift`
+   * (`>>>`, filling with zeros).
+   */
   sealed trait BitwiseOperator
+
+  /**
+   * The cases of [[BitwiseOperator]].
+   */
   object BitwiseOperator {
     case object And                extends BitwiseOperator
     case object Or                 extends BitwiseOperator
@@ -502,14 +713,36 @@ object SchemaExpr {
     case object UnsignedRightShift extends BitwiseOperator
   }
 
+  /**
+   * Returns `conversionType` unchanged. To use a conversion in an expression,
+   * wrap it in [[DynamicSchemaExpr.PrimitiveConversion]].
+   */
   def PrimitiveConversion[S](conversionType: ConversionType): ConversionType = conversionType
 
+  /**
+   * A conversion of a primitive [[DynamicValue]] from one primitive type to
+   * another, used by [[DynamicSchemaExpr.PrimitiveConversion]]. A conversion
+   * that can lose information checks that it does not and fails otherwise,
+   * except the conversions to `Float` from `Int` and `Long` and to `Double`
+   * from `Long`, which round to the nearest representable number.
+   */
   sealed trait ConversionType {
+
+    /**
+     * Converts `value`, or returns `Left` with a message when `value` is not a
+     * primitive of the source type or the conversion fails.
+     */
     def convert(value: DynamicValue): Either[Predef.String, DynamicValue]
   }
 
+  /**
+   * The available conversions.
+   */
   object ConversionType {
     // Numeric widening conversions (lossless)
+    /**
+     * Converts a `Byte` to a `Short`.
+     */
     case object ByteToShort extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
@@ -518,6 +751,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Byte` to an `Int`.
+     */
     case object ByteToInt extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
@@ -526,6 +762,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Byte` to a `Long`.
+     */
     case object ByteToLong extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
@@ -534,6 +773,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Short` to an `Int`.
+     */
     case object ShortToInt extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
@@ -542,6 +784,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Short` to a `Long`.
+     */
     case object ShortToLong extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
@@ -550,6 +795,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts an `Int` to a `Long`.
+     */
     case object IntToLong extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
@@ -558,6 +806,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Float` to a `Double`.
+     */
     case object FloatToDouble extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Float(v)) =>
@@ -567,6 +818,9 @@ object SchemaExpr {
     }
 
     // Numeric narrowing conversions (potentially lossy)
+    /**
+     * Converts a `Short` to a `Byte`, failing when the value is out of range.
+     */
     case object ShortToByte extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
@@ -577,6 +831,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts an `Int` to a `Byte`, failing when the value is out of range.
+     */
     case object IntToByte extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
@@ -587,6 +844,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts an `Int` to a `Short`, failing when the value is out of range.
+     */
     case object IntToShort extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
@@ -597,6 +857,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Long` to a `Byte`, failing when the value is out of range.
+     */
     case object LongToByte extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
@@ -607,6 +870,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Long` to a `Short`, failing when the value is out of range.
+     */
     case object LongToShort extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
@@ -617,6 +883,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Long` to an `Int`, failing when the value is out of range.
+     */
     case object LongToInt extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
@@ -627,6 +896,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Double` to a `Float`, failing when the value is not finite or
+     * a `Float` cannot hold it exactly.
+     */
     case object DoubleToFloat extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
@@ -636,6 +909,10 @@ object SchemaExpr {
     }
 
     // Integer to floating point
+    /**
+     * Converts an `Int` to a `Float`, rounding to the nearest representable
+     * number.
+     */
     case object IntToFloat extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
@@ -644,6 +921,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts an `Int` to a `Double`.
+     */
     case object IntToDouble extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
@@ -652,6 +932,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Long` to a `Float`, rounding to the nearest representable
+     * number.
+     */
     case object LongToFloat extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
@@ -660,6 +944,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Long` to a `Double`, rounding to the nearest representable
+     * number.
+     */
     case object LongToDouble extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
@@ -669,6 +957,9 @@ object SchemaExpr {
     }
 
     // String conversions
+    /**
+     * Converts an `Int` to a `String` with `toString`.
+     */
     case object IntToString extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
@@ -677,6 +968,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Long` to a `String` with `toString`.
+     */
     case object LongToString extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
@@ -685,6 +979,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Double` to a `String` with `toString`.
+     */
     case object DoubleToString extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
@@ -693,6 +990,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Boolean` to a `String` with `toString`.
+     */
     case object BooleanToString extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Boolean(v)) =>
@@ -702,6 +1002,10 @@ object SchemaExpr {
     }
 
     // String parsing (may fail)
+    /**
+     * Converts a `String` to an `Int`, failing when the string is not a valid
+     * number of that type.
+     */
     case object StringToInt extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
@@ -711,6 +1015,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `String` to a `Long`, failing when the string is not a valid
+     * number of that type.
+     */
     case object StringToLong extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
@@ -720,6 +1028,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `String` to a `Double`, failing when the string is not a valid
+     * number of that type.
+     */
     case object StringToDouble extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
@@ -729,6 +1041,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `String` to a `Boolean`: `true` or `false`, ignoring case, and
+     * failing otherwise.
+     */
     case object StringToBoolean extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v: Predef.String)) =>
@@ -742,6 +1058,9 @@ object SchemaExpr {
     }
 
     // Char conversions
+    /**
+     * Converts a `Char` to an `Int`: its UTF-16 code unit.
+     */
     case object CharToInt extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Char(v)) =>
@@ -750,6 +1069,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts an `Int` to a `Char`, failing when the value is out of range.
+     */
     case object IntToChar extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
@@ -760,6 +1082,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Char` to a `String` with `toString`.
+     */
     case object CharToString extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Char(v)) =>
@@ -769,6 +1094,9 @@ object SchemaExpr {
     }
 
     // Byte/Short to Float/Double
+    /**
+     * Converts a `Byte` to a `Float`.
+     */
     case object ByteToFloat extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
@@ -777,6 +1105,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Byte` to a `Double`.
+     */
     case object ByteToDouble extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
@@ -785,6 +1116,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Short` to a `Float`.
+     */
     case object ShortToFloat extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
@@ -793,6 +1127,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Short` to a `Double`.
+     */
     case object ShortToDouble extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
@@ -801,6 +1138,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Float` to an `Int`, failing when the value is not finite, out
+     * of range or not a whole number.
+     */
     case object FloatToInt extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Float(v)) =>
@@ -809,6 +1150,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Float` to a `Long`, failing when the value is not finite, out
+     * of range or not a whole number.
+     */
     case object FloatToLong extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Float(v)) =>
@@ -817,6 +1162,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Double` to an `Int`, failing when the value is not finite,
+     * out of range or not a whole number.
+     */
     case object DoubleToInt extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
@@ -825,6 +1174,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Double` to a `Long`, failing when the value is not finite,
+     * out of range or not a whole number.
+     */
     case object DoubleToLong extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
@@ -834,6 +1187,9 @@ object SchemaExpr {
     }
 
     // More String conversions
+    /**
+     * Converts a `Float` to a `String` with `toString`.
+     */
     case object FloatToString extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Float(v)) =>
@@ -842,6 +1198,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Short` to a `String` with `toString`.
+     */
     case object ShortToString extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
@@ -850,6 +1209,9 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `Byte` to a `String` with `toString`.
+     */
     case object ByteToString extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
@@ -858,6 +1220,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `String` to a `Float`, failing when the string is not a valid
+     * number of that type.
+     */
     case object StringToFloat extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
@@ -867,6 +1233,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `String` to a `Short`, failing when the string is not a valid
+     * number of that type.
+     */
     case object StringToShort extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
@@ -876,6 +1246,10 @@ object SchemaExpr {
       }
     }
 
+    /**
+     * Converts a `String` to a `Byte`, failing when the string is not a valid
+     * number of that type.
+     */
     case object StringToByte extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
