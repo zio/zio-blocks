@@ -4291,6 +4291,56 @@ The Scala 3 run uses the same file with the header changed to
 
 **Suggested fix.** Track the `TypeId`s on the current path in `reflectToDynamicValue`; when a `Deferred` resolves to one of them, emit a `Ref(typeId)` node, and have `dynamicValueToReflect` build a `Reflect.Deferred` for it from a table of the records it has read. Add a round-trip test for a recursive record and a recursive sealed trait.
 
+### schema: `Into.derived` silently drops a value when a same-name field changes from `A` to `Option[A]`
+
+Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (backlog T-02), on `main` at `2f73284b`; same at tag `v0.0.56`. Verified by running (re-run by the coordinator with the same output).
+
+**Severity:** high (silent data loss in the "make a field optional" evolution step).
+
+**Summary.** Deriving `Into[Src, Dst]` where `Src.isbn: String` and `Dst.isbn: Option[String]` compiles, but the conversion returns `isbn = None`: the source value is dropped without an error. Users expect `Some(value)`, or a compile error.
+
+**Reproduction** (save as `Repro.scala` and run `scala-cli run Repro.scala`; line `B` is this bug, lines `A` and `C` belong to the two entries that refer to this script):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.{As, Into}
+object Repro {
+  case class TypeA(name: String, nickname: Option[String]); case class TypeB(name: String)
+  case class Src(name: String, isbn: String); case class Dst(name: String, isbn: Option[String])
+  case class Raw(a: Double, b: Double, c: Double); case class Clean(a: Int, b: Int, c: Int)
+  def main(args: Array[String]): Unit = {
+    val ab = As.derived[TypeA, TypeB]
+    println("A: " + ab.into(TypeA("x", Some("n"))).flatMap(ab.from))
+    println("B: " + Into.derived[Src, Dst].into(Src("Zionomicon", "978-0000000000")))
+    Into.derived[Raw, Clean].into(Raw(1.5, 2.5, 3.5)) match {
+      case Left(e) => println("C:\n" + e.message)
+      case Right(v) => println("C: " + v)
+    }
+  }
+}
+// A: Right(TypeA(x,None))
+// B: Right(Dst(Zionomicon,None))
+// C:
+// converting field Raw.c to Clean.c failed
+//   Caused by: Value 3.5 cannot be precisely converted to Int
+// converting field Raw.b to Clean.b failed
+//   Caused by: Value 2.5 cannot be precisely converted to Int
+// converting field Raw.a to Clean.a failed
+//   Caused by: Value 1.5 cannot be precisely converted to Int
+```
+
+**Expected.** `B: Right(Dst(Zionomicon,Some(978-0000000000)))`, or a compile error.
+
+**Root cause.** There is no `Into[A, Option[A]]` instance; `Into.scala:132` has only `optionInto: Into[Option[A], Option[B]]`. So `matchFields` in `schema/shared/src/main/scala-3/zio/blocks/schema/IntoVersionSpecific.scala` finds no match at any priority and falls through to the "target is `Option` → use `None`" branch (`:1286-1288`), which is meant for target fields that have no source field at all.
+
+**Impact.** Silent data loss exactly in the "add `Option` to a field" evolution step that `Into` is meant for.
+
+**Test gap.** `IntoSpec.scala:678-691` ("succeeds when non-Option maps to Option with compatible type") says in a comment that a predefined `Into[A, Option[A]]` wraps values in `Some`, but only asserts that `typeCheck` is `Right`; it never checks the value.
+
+**Suggested fix.** Add `implicit def someInto[A, B](implicit into: Into[A, B]): Into[A, Option[B]]`, or special-case `A → Option[A]` in `matchFields`, and make the test assert the value. Check the Scala 2 macro too.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -5493,6 +5543,20 @@ StringContext("SELECT titel FROM book WHERE year < ", "").sql(bookTable)(2010)
 
 **Suggested fix.** On a tie, prefer known tables and columns over allowlist entries: search tables and columns first, and fall back to the allowlist only when they give no candidate within distance 2.
 
+### schema: `Into` lists accumulated field errors in reverse field order
+
+Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (backlog T-02, section 4), on `main` at `2f73284b`; same at tag `v0.0.56`. Verified by running.
+
+**Summary.** When several fields fail, `SchemaError#message` lists them last field first: with bad fields `a`, `b`, `c` it prints `c`, `b`, `a`. Readers who compare the message with their case class see the fields "upside down". The T-02 page shows `edition` before `year` for this reason, and its prose doesn't promise an order.
+
+**Reproduction.** Line `C` of the script in "schema: `Into.derived` silently drops a value when a same-name field changes from `A` to `Option[A]`" above (`scala-cli run Repro.scala`, Scala 3.9.0, `zio-blocks-next-schema` 0.0.56).
+
+**Expected.** Errors in field declaration order: `a`, `b`, `c`.
+
+**Root cause.** `sequenceEithers` in `schema/shared/src/main/scala-3/zio/blocks/schema/IntoVersionSpecific.scala:1615-1633` folds with `foldRight` and builds `Left(err ++ err2)`, where `err` holds the errors of the later fields.
+
+**Suggested fix.** Build `Left(err2 ++ err)`. The exact-message test at `IntoVersionSpecificSpec.scala:213-220` expects the reversed order and needs updating with it.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -6086,6 +6150,14 @@ object RestoreRepro {
 ### docs: the `Frag#queryChunked` Scaladoc example calls `Transactor.connect(transactor)`, which does not exist
 
 Found 2026-10-22 by the M-03 session, checked against source on `main` (same at `v0.0.56`). `sql/shared/src/main/scala/zio/blocks/sql/Frag.scala:375` shows `Transactor.connect(transactor) { ... }`, and `:370` mentions `Transactor.connect`. There is no `object Transactor`: `Transactor` is a trait (`Transactor.scala:65`) whose `connect` is an instance method (`:68`). The example should read `transactor.connect { ... }`.
+
+### docs: `as.md` calls dropping an `Option` field "round-trips cleanly"
+
+Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (backlog T-02), on `main` at `2f73284b`.
+
+**Summary.** `docs/reference/schema/schema-evolution/as.md:359` says an `Option` field that is absent from the other type "round-trips cleanly: `Some(v)` becomes `None` after a round-trip". That is data loss, not a clean round trip: line `A` of the script in "schema: `Into.derived` silently drops a value when a same-name field changes from `A` to `Option[A]`" shows `TypeA(x,Some(n))` coming back as `TypeA(x,None)`.
+
+**Suggested text.** "**`Option` fields on one side are allowed.** An `Option` field absent from the other type is dropped on the way out and comes back as `None`, so `Some(v)` does not survive a round trip:"
 
 ## Resolved
 
