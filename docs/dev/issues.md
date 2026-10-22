@@ -1752,6 +1752,75 @@ The same file with `//> using scala 3.3.7` prints the same two lines. (scala-cli
 
 **Suggested fix.** In the case-class path, when the schema is a wrapper and the case class has one field, register the lens under that field's name (or look it up by index, as Scala 2 does), and add a test with a value class whose field is not named `value`.
 
+### schema: `DynamicOptic#toString` prints paths that `p"..."` rejects: wrapper steps, the root, and `Char` keys with an escape
+
+Found 2026-10-21 while writing the Scaladoc of `DynamicOptic` and `p"..."` (wave 4 of the schema Scaladoc, branch `scaladoc-wave-4`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproductions below were run with `scala-cli` against the published `0.0.56`.
+
+**Summary.** `DynamicOptic#toString` is documented as the `p"..."` syntax, so its output can be pasted back into the interpolator (`docs/reference/schema/dynamic-optic.md`, "Dual rendering"; `docs/reference/schema/path-interpolator.md`, "Debug-Friendly toString"). Three renderings cannot: a wrapper step prints `.~` and the empty path prints `.`, which the parser rejects, and a `Char` map key with an escape prints with a doubled backslash, `{'\\n'}` for a newline. The doubled backslash also appears in `toScalaString`, as `.atKey('\\n')`, which is not the Scala literal for a newline. `String` keys are escaped correctly.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56; the same file with `//> using scala 2.13.18` prints the same five lines):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    println(DynamicOptic.root.field("isbn").wrapped)
+    println(DynamicOptic.root)
+    println(DynamicOptic.root.atKey('\n'))
+    println(DynamicOptic.root.atKey('\n').toScalaString)
+    println(p"""{'\n'}""" == DynamicOptic.root.atKey('\n'))
+  }
+}
+// .isbn.~
+// .
+// {'\\n'}
+// .atKey('\\n')
+// true
+```
+
+Pasting the three renderings back into the interpolator (Scala 3.3.7, `zio-blocks-schema` 0.0.56; `scala-cli compile` output, with the scratch directory removed from the file paths):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    println(p".isbn.~")
+    println(p".")
+    println(p"""{'\\n'}""")
+  }
+}
+// -- Error: Repro.scala:7:12
+// 7 |    println(p".isbn.~")
+//   |            ^^^^^^^^^^
+//   |            Invalid identifier at position 6
+// -- Error: Repro.scala:8:12
+// 8 |    println(p".")
+//   |            ^^^^
+//   |            Invalid identifier at position 1
+// -- Error: Repro.scala:9:12
+// 9 |    println(p"""{'\\n'}""")
+//   |            ^^^^^^^^^^^^^^
+//   |            Char literal contains multiple characters at position 1
+// 3 errors found
+// Compilation failed
+```
+
+**Expected.** Every `toString` output parses back with `p"..."` to an equal path, and a `Char` key renders like a `String` key: `{'\n'}` and `.atKey('\n')`.
+
+**Root cause.** `DynamicOptic.renderString` prints `.~` for `Node.Wrapped` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicOptic.scala:181`) and `.` for an empty path (`:144`), but `PathParser.parseNode` requires an identifier after `.` (`schema/shared/src/main/scala/zio/blocks/schema/PathParser.scala:147-149`) and has no syntax for a wrapper step. In `renderDynamicValue`, the `Char` branch appends `"\\\\n"`, `"\\\\t"`, `"\\\\r"`, `"\\\\'"` and `"\\\\\\\\"` (`DynamicOptic.scala:262-266`), one level of escaping more than the `String` branch (`:248-252`), so it prints two backslashes where `parseChar` expects one (`PathParser.scala:460-490`).
+
+**Impact.** A path copied from a log, an error message or `toString` into `p"..."` fails to compile when it contains a wrapper step, which `toDynamic` produces for every `.wrapped[...]` step and which the error paths of transformed fields contain (see the `.wrapped` entry above), or a `Char` key with an escape. `docs/reference/schema/path-interpolator.md` listed `p".~"` as the syntax for `DynamicOptic.wrapped`; that row is corrected in the same PR.
+
+**Test gap.** `DynamicOpticSpec` checks `toString` for a plain `Char` key only (`'A'`), and `PathInterpolatorSpec`'s round-trip tests cover search steps only; no test parses `toString` output of the other node kinds back.
+
+**Suggested fix.** Give the parser a wrapper step that matches the rendering (accept `.~`), and render the empty path as the empty string or accept `.` as the root. In the `Char` branch, append `"\\n"`, `"\\t"`, `"\\r"`, `"\\'"` and `"\\\\"`, as the `String` branch does. Add a property test that `p`-parses `toString` of every node kind back to an equal `DynamicOptic` (through `PathParser.parse`).
+
 ### sql: `queryStream` throws, instead of returning `Left`, when the `SELECT` has fewer columns than the row type, and logs the failed query as a success
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/stream-large-query-results.md` (backlog H-20), on `main` at `b4179489`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 main -- sql/ streams/` is empty, and the stack trace from the 0.0.56 jar points at the same line numbers as `main`.
