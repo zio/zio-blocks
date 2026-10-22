@@ -23,12 +23,18 @@ private[typeid] trait IsNominalTypeVersionSpecific {
 }
 
 private[typeid] object IsNominalTypeMacros {
-  def deriveImpl[A: Type](using Quotes): Expr[IsNominalType[A]] = {
-    import quotes.reflect.*
+  /**
+   * Whether `t` is a nominal type: a class, trait, object, enum or opaque type,
+   * a singleton of a value of one, or such a type applied to arguments. A type parameter or
+   * an abstract type member is not nominal: its `TypeRef` names no concrete
+   * type, so a `TypeId` derived for it would describe the parameter, not the
+   * type the caller passes (#1172). Aliases are followed. This matches the
+   * Scala 2 macro, which accepts a type only when its symbol is a class.
+   */
+  def isNominal(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
+    import q.reflect.*
 
-    val tpe = TypeRepr.of[A].dealias
-
-    def isNominal(t: TypeRepr): Boolean = t match {
+    t match {
       case AndType(_, _)                => false
       case OrType(_, _)                 => false
       case Refinement(_, _, _)          => false
@@ -38,8 +44,14 @@ private[typeid] object IsNominalTypeMacros {
       case NoPrefix()                   => false
       case MatchType(_, _, _)           => false
       case AppliedType(tycon, _)        => isNominal(tycon)
-      case TermRef(_, _)                => true
-      case TypeRef(_, _)                => true
+      case ref @ TermRef(_, _)          => isNominal(ref.widen) // `x.type` is nominal when `x`'s type is
+      case ref @ TypeRef(_, _)          =>
+        val sym = ref.typeSymbol
+        if (sym.isClassDef || sym.flags.is(Flags.Opaque)) true
+        else if (sym.isAliasType) {
+          val underlying = ref.dealias
+          underlying != ref && isNominal(underlying)
+        } else false // a type parameter or an abstract type member
       case ConstantType(_)              => false
       case ParamRef(_, _)               => false
       case ThisType(_)                  => true
@@ -48,6 +60,12 @@ private[typeid] object IsNominalTypeMacros {
       case AnnotatedType(underlying, _) => isNominal(underlying)
       case _                            => false
     }
+  }
+
+  def deriveImpl[A: Type](using Quotes): Expr[IsNominalType[A]] = {
+    import quotes.reflect.*
+
+    val tpe = TypeRepr.of[A].dealias
 
     if (!isNominal(tpe)) {
       val typeName = tpe.show
