@@ -6770,6 +6770,56 @@ Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (b
 
 **Suggested fix.** Build `Left(err2 ++ err)`. The exact-message test at `IntoVersionSpecificSpec.scala:213-220` expects the reversed order and needs updating with it.
 
+### async: cancelling an `Async` never reaches the underlying call for `fromFuture`, `fromCompletionStage`, `fromJsPromise` or `Async.promise`
+
+Found 2026-10-22 while writing the how-to guide `docs/guides/wrap-callback-and-future-apis.md` (backlog H-28), on branch `async-interop` at `94080050`. Same at tag `v0.0.56`: `async/` differs from the tag only by an import cleanup in `scala-3/AsyncSyntaxVersionSpecific.scala`. Verified by running.
+
+**Summary.** Cancelling a running `Async` (`Running#cancel`) stops the driver and calls `Pollable#cancel` on the pending leaf. Every built-in bridge's leaf is a `Completer`, which is `final` and inherits the no-op `Pollable#cancel`, so the source keeps running: a `CompletableFuture` is not cancelled, and a callback API's cancel handle can't be passed anywhere, because `Async.promise` only hands the body a `Completer`. `docs/reference/async.md` doesn't say so.
+
+**Reproduction** (save as `CancelRepro.scala` and run `scala-cli run CancelRepro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-async:0.0.56
+//> using option -experimental
+
+import zio.blocks.async._
+
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.atomic.AtomicInteger
+
+object CancelRepro {
+  def main(args: Array[String]): Unit = {
+    val stage = new CompletableFuture[Int]()
+    Async.fromCompletionStage(stage).start.cancel()
+    println(s"CompletableFuture cancelled after Async cancel: ${stage.isCancelled}")
+    // CompletableFuture cancelled after Async cancel: false
+
+    val open = new AtomicInteger(0)
+    def callbackApi(onDone: Int => Unit): () => Unit = {
+      open.incrementAndGet()
+      () => open.decrementAndGet() // the API's cancel handle
+    }
+    Async.promise[Int] { c ?=>
+      callbackApi(n => c.succeed(n))
+      ()
+    }.start.cancel()
+    println(s"Open callback requests after Async cancel: ${open.get()}")
+    // Open callback requests after Async cancel: 1
+  }
+}
+```
+
+**Expected.** Either the bridges forward cancellation to their source (`CompletableFuture#cancel`, and an `Async.promise` overload that accepts a cancel handle), or the reference page states plainly that they don't.
+
+**Root cause.** `async/shared/src/main/scala/zio/blocks/async/Completer.scala:31` (`final class Completer[A] extends Pollable[A]`, with no `cancel` override); `Pollable.scala:72` (`def cancel(): Unit = ()`); `async/jvm/src/main/scala/zio/blocks/async/AsyncInterop.scala:47-80` (`fromFuture`/`fromCompletionStage` build on `promiseInternal`, and nothing calls `cf.cancel`); `Async.scala:1705` (`promiseInternal` returns `c.peek`, the `Completer`).
+
+**Impact.** Users who rely on cancel to free resources leak in-flight requests (sockets, timers, server work). The workaround is not obvious: a custom `Pollable` that keeps the `Completer` for the result, answers `this` from `poll` while pending, and overrides `cancel`. The H-28 guide documents it as a `cancellable` helper.
+
+**Test gap.** No test checks what happens to the source when a bridged `Async` is cancelled. `AsyncInteropSpec` covers the reverse direction only: a cancelled source gives a `CancellationException`.
+
+**Suggested fix.** Add an `Async.promise` variant whose body returns a cancel callback, e.g. `def cancellable[A](register: Completer[A] => (() => Unit)): Async[A]` (essentially the guide's helper, run-verified through `map` and `Async.async`). Make `fromCompletionStage` call `toCompletableFuture.cancel(false)` on cancel, or make that opt-in. Then state the semantics in `docs/reference/async.md` under "Integration Points" and "Callback Bridge".
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -6857,6 +6907,21 @@ Found 2026-10-20 while writing H-03. The standalone `schema-examples/` build has
 ### A subagent killed every sbt server on the machine
 
 Seen 2026-10-20 around 23:40 (+0330) while H-30 was written: its examples-builder subagent ran `pkill -f sbt-launch`, which stops the sbt servers of every session on the machine, not only its own. Any session that lost its server around then should rerun its last sbt step. H-30 added a "never kill sbt by pattern" rule to the docs-examples skill; stop a server with `sbt --client shutdown` from its own worktree instead.
+
+### async tests: 64 test names still refer to the removed `unsafeRunAsync`
+
+Found 2026-10-22 while writing the how-to guide `docs/guides/wrap-callback-and-future-apis.md` (backlog H-28), on branch `async-interop` at `94080050`; same at tag `v0.0.56`.
+
+**Summary.** 64 test names under `async/*/src/test` start with "unsafeRunAsync: ..." (e.g. `async/js/src/test/scala/zio/blocks/async/AsyncJsSpec.scala:122`, `:139`, `:149`), but `unsafeRunAsync` no longer exists in `async/*/src/main`; commit `7c49fb91a` removed it. Readers who grep the tests for cancel semantics find an API that doesn't exist.
+
+**Reproduction** (from the repository root):
+
+```bash
+grep -rn "unsafeRunAsync" async/*/src/test | wc -l   # 64
+grep -rn "unsafeRunAsync" async/*/src/main | wc -l   # 0
+```
+
+**Suggested fix.** Rename the test labels to the runner they exercise (`start`/`Running`).
 
 ## Documentation errors
 
