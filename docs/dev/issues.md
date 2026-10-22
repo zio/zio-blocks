@@ -4375,6 +4375,52 @@ object CounterRepro {
 
 **Suggested fix.** Cache instruments by name, kind and unit in `Meter`, or document the "create once" rule on the `metric` reference pages and change the inline examples to `val`s. The T-12 tutorial creates each instrument once and says why.
 
+### telemetry: after `trace.install` or `trace.removeAll()`, `trace.collectedSpans` stays empty for the rest of the JVM
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/test-telemetry.md` (backlog H-48), on `main` at `7e8ac787`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56 on JDK 21. Not filed on GitHub yet.
+
+**Summary.** `trace.collectedSpans` and `trace.clearSpans()` read the in-memory buffer of the default tracer provider. `trace.install(provider)` and `trace.removeAll()` replace that provider, and no public call ever puts it back, so from then on `trace.collectedSpans` returns an empty list in every part of the program. In a test suite, sbt runs every spec in one JVM, so a single test that installs its own provider, or "cleans up" with `trace.removeAll()` (whose Scaladoc says spans are no-ops "until you install a provider"), makes every later test that reads `trace.collectedSpans` fail, and which tests fail depends on the order the specs run in.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 21, run with `scala-cli run --server=false --jvm temurin:21 NoWayBack.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package bookstore
+
+import zio.blocks.telemetry._
+
+object NoWayBack {
+  def main(args: Array[String]): Unit = {
+    trace.span("before-install")(_ => ())
+    println(s"1: ${trace.collectedSpans.map(_.name)}")
+
+    // A test that collects spans through its own provider
+    trace.install(TracerProvider.builder.build())
+    trace.span("during-test")(_ => ())
+
+    // Its teardown: the closest public calls to "put the default back"
+    trace.removeAll()
+    trace.clearSpans()
+    trace.span("later-test")(_ => ())
+    println(s"2: ${trace.collectedSpans.map(_.name)}")
+  }
+}
+// 1: List(before-install)
+// 2: List()
+```
+
+**Expected.** Some public way to return `trace` to its default, in-memory state, such as a `trace.reset()`, so that a test can undo an `install`. Failing that, the Scaladoc of `trace.removeAll()`, `trace.install` and `trace.collectedSpans` should say that the in-memory buffer is disconnected for good.
+
+**Root cause.** The default provider and its buffer are private vals (`telemetry/shared/src/main/scala/zio/blocks/telemetry/trace.scala:28-35`). `install` (`:53`) and `removeAll` (`:59`) replace the provider in `ref`, while `collectedSpans` (`:62`) and `clearSpans` (`:65`) keep reading `spanStore`, which no other provider feeds. `InMemorySpanProcessor` is `private[telemetry]`, so users can't add it to a provider of their own either.
+
+**Impact.** Order-dependent test failures in any suite that mixes tests using `trace.collectedSpans` with a test that installs a provider. `docs/reference/telemetry/tracing/index.md:120` warns that the methods "stop seeing new spans" after `install`, but not that there is no way back. The same holds for logging: after `log.install` no public call restores the default console output. The H-48 guide tells readers to test through injected tracers, and to never call `trace.install` or `trace.removeAll()` in tests that share the globals.
+
+**Test gap.** The library's own tests call `trace.removeAll()` in `finally` blocks (`telemetry/jvm/src/test/scala/zio/blocks/telemetry/AdditionalCoverageSpec.scala:203-240`); no test reads `trace.collectedSpans` after that.
+
+**Suggested fix.** Add `trace.reset()` (and `log.reset()`, `metric.reset()`) that reinstall the default provider, or make `collectedSpans` read from whatever `InMemorySpanProcessor` the current provider has. Making `InMemorySpanProcessor` public would also let tests build an isolated in-memory provider without writing their own processor.
+
 ### schema: `Validation` constraints are checked only by `DynamicSchema#check`, and `DynamicSchema#check` skips `Schema#transform` checks
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/validated-newtypes.md` (backlog H-04), on `main` at `f87e6beb`. The code is the same at tag `v0.0.56`. Verified. Not filed.
@@ -5944,6 +5990,67 @@ Also misleading: `dynamic-schema.md:410` recommends `DynamicSchema#toSchema` for
 **Test gap.** The examples only compile in CI; none checks its claims.
 
 **Suggested fix.** Correct the five sentences, add a "Storing a DynamicSchema" subsection to `dynamic-schema.md` that uses Avro, and link the H-09 guide (it now has a See-also line there). Update the three example comments.
+
+### docs: `telemetry-guide.md` tells tests to "restore state" with `log.removeAll()`, which silences later tests
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/test-telemetry.md` (backlog H-48), on `main` at `7e8ac787` (same at `v0.0.56`). Verified by running against the published 0.0.56 on JDK 21. Not fixed here.
+
+**Summary.** The "Testing with telemetry" section of `docs/guides/telemetry-guide.md:334-376` captures logs with a `CapturingLogProcessor` installed through `log.install`, then says "Don't forget to restore state between tests" and shows `log.removeAll()`. `removeAll` restores nothing. It calls `shutdown()` on the test's processor, which in the guide's own processor clears the captured records; it leaves no output at all instead of the default console output; and, because of the `log.removeAll()` bug in the Library bugs section, a later test that adds its processor with `log.addProcessor` (or an output with `log.writer`) captures nothing. Line 1099 repeats the pattern.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 21, run with `scala-cli run --server=false --jvm temurin:21 RestoreRepro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package bookstore
+
+import java.util.concurrent.CopyOnWriteArrayList
+import zio.blocks.telemetry._
+
+// The processor from telemetry-guide.md, "Testing with telemetry"
+class CapturingLogProcessor extends LogRecordProcessor {
+  val records = new CopyOnWriteArrayList[LogRecord]()
+
+  def onEmit(record: LogRecord): Unit = records.add(record)
+  def shutdown(): Unit = records.clear()
+  def forceFlush(): Unit = ()
+}
+
+object RestoreRepro {
+  def main(args: Array[String]): Unit = {
+    // Test 1, as the guide shows it
+    val first = new CapturingLogProcessor
+    log.install(LoggerProvider.builder.addLogRecordProcessor(first).build().get("test"))
+    log.warn("payment retried")
+    println(s"test 1 captured: ${first.records.size}")
+
+    // "Don't forget to restore state between tests"
+    log.removeAll()
+
+    // Test 2 adds its processor to the global logger
+    val second = new CapturingLogProcessor
+    log.addProcessor(second)
+    log.warn("payment retried")
+    println(s"test 2 captured: ${second.records.size}")
+
+    // Code that expects the default console output
+    log.info("printed by the default output?")
+    println("end")
+  }
+}
+// test 1 captured: 1
+// test 2 captured: 0
+// end
+```
+
+**Expected.** The guide's teardown leaves logging working: test 2 captures one record, and the last `log.info` prints a line.
+
+**Root cause.** Documentation. `log.removeAll()` shuts down every processor and installs the silent state (`telemetry/shared/src/main/scala/zio/blocks/telemetry/log.scala:65-73`, `GlobalLogState.scala:130-132`); there is no public call that restores the default console logger.
+
+**Impact.** Readers who follow the guide get tests that pass alone and fail, capturing nothing, when another test ran first.
+
+**Suggested fix.** Replace the teardown with "install a fresh capturing logger with `log.install` at the start of each test, and run such tests sequentially", or recommend passing a `Logger` to the code under test, as `docs/guides/test-telemetry.md` does. Drop the `records.clear()` from `shutdown()` in the example processor.
 
 ## Resolved
 
