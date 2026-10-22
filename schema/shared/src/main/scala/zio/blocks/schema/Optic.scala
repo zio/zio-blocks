@@ -150,9 +150,10 @@ sealed trait Optic[S, A] { self =>
    * there is nothing to focus on, the result equals `s`: a [[Prism]] on another
    * case, an [[Optional]] on a missing index or key, a [[Traversal]] over an
    * empty collection. It also equals `s` when a `wrapped` step on the path
-   * throws a [[SchemaError]], including one that `f` throws below that step;
-   * other exceptions, from the path or from `f`, propagate. `modifyOption` and
-   * `modifyOrFail` say when nothing was modified.
+   * throws a [[SchemaError]], including one that `f` throws below that step
+   * (a bug, see `docs/dev/issues.md`); other exceptions, from the path or from
+   * `f`, propagate. `modifyOption` and `modifyOrFail` say when nothing was
+   * modified.
    *
    * {{{
    * case class Book(title: String, tags: List[String])
@@ -170,8 +171,8 @@ sealed trait Optic[S, A] { self =>
   /**
    * Like `modify`, but returns `None` instead of an unchanged value when there
    * is nothing to focus on, and when a `wrapped` step on the path throws a
-   * [[SchemaError]], including one that `f` throws below that step. A [[Lens]]
-   * always returns `Some`.
+   * [[SchemaError]], including one that `f` throws below that step (a bug, see
+   * `docs/dev/issues.md`). A [[Lens]] always returns `Some`.
    */
   def modifyOption(s: S, f: A => A): Option[S]
 
@@ -179,9 +180,10 @@ sealed trait Optic[S, A] { self =>
    * Like `modify`, but returns `Left` with an [[OpticCheck]] that says why
    * nothing was modified, as `check` does, and a [[OpticCheck.WrappingError]]
    * when a `wrapped` step on the path throws a [[SchemaError]], including one
-   * that `f` throws below that step. A [[Lens]] always returns `Right`. A
-   * [[Traversal]] returns `Right` once it has modified at least one part, even
-   * when other parts are missing; `check` reports those.
+   * that `f` throws below that step (a bug, see `docs/dev/issues.md`). A
+   * [[Lens]] always returns `Right`. A [[Traversal]] returns `Right` once it
+   * has modified at least one part, even when other parts are missing; `check`
+   * reports those.
    */
   def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S]
 

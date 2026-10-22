@@ -1781,7 +1781,7 @@ object Main {
 
 ### schema: a `searchFor` traversal reads map keys but `modify` never updates them
 
-Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that last edits this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
 
 **Summary.** A `searchFor` traversal reads a different set of values than it modifies. `fold` and `check` also visit the keys of maps, so a key that decodes with the focus schema is a match. `modify`, `modifyOption` and `modifyOrFail` skip map keys, so the same match is read but never updated.
 
@@ -1811,7 +1811,7 @@ object Main {
 
 **Expected.** `fold` and `modify` agree on the matches. Either `modify` also gives `Map(ISBN -> ZIONOMICON)`, or `fold` leaves out `isbn`.
 
-**Root cause.** `SearchTraversal.searchCollectDecoded` and `searchHasMatch` push both the key and the value of each map entry (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:3654`, `:3684`). `searchModify` (`:3708-3709`) uses `DynamicValue.iterativeTransform`, which visits only map values (`schema/shared/src/main/scala/zio/blocks/schema/DynamicValue.scala:1423`). The `DynamicValue`-level search skips keys on purpose (`DynamicValue.scala:1354`: "Search map values only (not keys), consistent with iterativeTransform"), so the typed traversal is the odd one out.
+**Root cause.** `SearchTraversal.searchCollectDecoded` and `searchHasMatch` push both the key and the value of each map entry (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:3656`, `:3686`). `searchModify` (`:3710-3711`) uses `DynamicValue.iterativeTransform`, which visits only map values (`schema/shared/src/main/scala/zio/blocks/schema/DynamicValue.scala:1423`). The `DynamicValue`-level search skips keys on purpose (`DynamicValue.scala:1354`: "Search map values only (not keys), consistent with iterativeTransform"), so the typed traversal is the odd one out.
 
 **Impact.** For `searchFor[String]` over any type with a `Map[String, _]`, `fold` returns keys that `modify` does not change. A caller that counts matches with `fold` and then updates them with `modify` gets inconsistent results.
 
@@ -1821,7 +1821,7 @@ object Main {
 
 ### schema: `DerivedOptics` gives one type the cached optics of another type with the same printed name
 
-Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that adds this entry). The cache code is the same at tag `v0.0.56`. Verified: the reproductions below were run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that last edits this entry). The cache code is the same at tag `v0.0.56`. Verified: the reproductions below were run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
 
 **Summary.** `DerivedOptics` caches the optics of each type in a global map keyed by the type's printed name. Two different types that print the same name share one entry, for example local case classes named `Book` in two methods, or same-named classes in two mdoc pages built in one JVM (all under `repl.MdocSession.MdocApp.`). The second type gets the first type's optics, and using them fails with a `ClassCastException` or `No optic found`.
 
@@ -1909,7 +1909,7 @@ scala-cli also prints `warning: 2 feature warnings; re-run with -feature for det
 
 ### schema: `Traversal#check` reports `atIndices` elements of a `List` as out of bounds when another step follows
 
-Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that last edits this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
 
 **Summary.** `Traversal#check` on `atIndices(i, j)` followed by another step wrongly reports every index after the first as out of bounds when the sequence is not indexed, for example a `List`. `fold` and `modify` reach those elements correctly, so the optic works while `check` (and the `Left` of a failing `modifyOrFail`, which comes from `check`) describes a problem that does not exist.
 
@@ -1947,13 +1947,120 @@ object Main {
 
 **Expected.** `check` returns `None` for both optics: the list has three elements, and `fold` reaches indices 0 and 2.
 
-**Root cause.** In `TraversalImpl.checkRecursive`, the non-indexed branch for `AtIndicesBinding` skips ahead with `currIdx`, then reads the element with `it.next()` for the next step without incrementing `currIdx` (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:2475`). For the next index, `currIdx` is one behind the iterator, so the loop runs out one element early. `foldRecursive` increments `currIdx` after the same call (`:2615-2616`). When `atIndices` is the last step, no element is consumed, so the count stays right.
+**Root cause.** In `TraversalImpl.checkRecursive`, the non-indexed branch for `AtIndicesBinding` skips ahead with `currIdx`, then reads the element with `it.next()` for the next step without incrementing `currIdx` (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:2477`). For the next index, `currIdx` is one behind the iterator, so the loop runs out one element early. `foldRecursive` increments `currIdx` after the same call (`:2617-2618`). When `atIndices` is the last step, no element is consumed, so the count stays right.
 
 **Impact.** `check` and `modifyOrFail` report false `SequenceIndexOutOfBounds` warnings for `atIndices` on lists followed by a field or any other step.
 
 **Test gap.** The `OpticSpec` tests that compose `atIndices` with a following step use collections too short for the first index (`"index is 1, but size is 1"`, `schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2773`, `:2794`), so the missing increment never shows.
 
 **Suggested fix.** Add `currIdx += 1` after the recursive `checkRecursive` call in that branch, as `foldRecursive` does, and add a test that composes `atIndices(0, 2)` with a field on a three-element `List`.
+
+### schema: a `SchemaError` thrown by `f` below a `wrapped` step is reported as a wrapper failure, and `modify` ignores it
+
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that last edits this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`, on Scala 3.9.0 and 2.13.18.
+
+**Summary.** When an `Optional` or a `Traversal` has a `wrapped` step, a `SchemaError` thrown by the user's `f` in `modify`, `modifyOption` or `modifyOrFail` is caught as if the wrapper's `wrap` had thrown it. `modify` returns the value unchanged, `modifyOption` returns `None`, and `modifyOrFail` returns a `WrappingError` at `.wrapped`, with `f`'s message. On a plain lens the same `f` throws. A caller cannot tell an `f` that rejects its input from a wrapper that rejects the result.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import scala.util.Try
+
+case class Isbn(value: String)
+object Isbn {
+  implicit val schema: Schema[Isbn] = Schema[String].transform(Isbn(_), _.value)
+}
+
+case class Book(title: String, isbn: Isbn)
+object Book extends CompanionOptics[Book] {
+  implicit val schema: Schema[Book] = Schema.derived
+  val isbnValue: Optional[Book, String] = $(_.isbn.wrapped[String])
+  val title: Lens[Book, String]         = $(_.title)
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val b                            = Book("Zionomicon", Isbn("978-0-9000000-0-1"))
+    val reject: String => String     = _ => throw SchemaError("bad")
+    println(Try(Book.isbnValue.modify(b, reject)))
+    println(Try(Book.isbnValue.modifyOrFail(b, reject)))
+    println(Try(Book.title.modify(b, reject)))
+  }
+}
+// Success(Book(Zionomicon,Isbn(978-0-9000000-0-1)))
+// Success(Left(zio.blocks.schema.OpticCheck: During attempted access at .isbn.wrapped, encountered an error at .isbn.wrapped: bad))
+// Failure(zio.blocks.schema.SchemaError: bad)
+```
+
+On Scala 2.13.18 (the same file with `//> using scala 2.13.18`) the output is the same three lines, once `import zio.blocks.schema.binding.Binding` is added; without that import the `wrapped` step does not compile on Scala 2 (see the next entry).
+
+**Expected.** The `SchemaError` from `f` propagates, as it does on a plain lens: all three calls print `Failure(zio.blocks.schema.SchemaError: bad)`. Only a `SchemaError` thrown by the wrapper's own `wrap` or `unwrap` should become a `WrappingError`.
+
+**Root cause.** In `OptionalImpl.modifyRecursive` (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:1689-1696`) and `TraversalImpl.modifyRecursive` (`:3091-3098`), the whole block that calls `f` (or recurses into the next steps, which call `f`) is the argument of `wrapperBinding.wrap(...)`, inside `try ... catch { case error: SchemaError => throw toOpticCheckBuilder(idx, error) }`. The argument is evaluated inside the `try`, so the `catch` also sees exceptions from `f`. `modify` and `modifyOption` then turn the `OpticCheckBuilder` into "unchanged" or `None`.
+
+**Impact.** Validation code that throws a `SchemaError` from `f` (a natural choice in this library) is silently ignored by `modify` and misreported by `modifyOrFail` whenever the path goes through a `wrapped` step, such as a field of a `transform` schema reached with `.wrapped[...]`. The Scaladoc of `Optic#modify`, `modifyOption` and `modifyOrFail` describes the current behaviour and points here.
+
+**Test gap.** No test has an `f` that throws. The `SchemaError` uses in `OpticSpec` (`schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2043`, `:2399`, `:3519-3525`) are all wrapper fixtures.
+
+**Suggested fix.** Evaluate the inner block before the `try`, so that only the `wrap` call is guarded:
+
+```scala
+val inner =
+  if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
+  else modifyRecursive(registers, idx + 1, x1, f)
+try wrapperBinding.wrap(inner.asInstanceOf[Wrapped])
+catch { case error: SchemaError => throw toOpticCheckBuilder(idx, error) }
+```
+
+Add tests for `modify`, `modifyOption` and `modifyOrFail` with an `f` that throws a `SchemaError` below a `wrapped` step.
+
+### schema: on Scala 2, a `.wrapped[B]` step in `$`/`optic` compiles only when `Binding` is imported
+
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that last edits this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+
+**Summary.** On Scala 2, the `CompanionOptics` macro expands a `.wrapped[B]` step to code that names `Reflect.Wrapper[Binding, ...]` without a package prefix. With only `import zio.blocks.schema._` in scope, `Binding` (in `zio.blocks.schema.binding`) is not found and the optic does not compile. Scala 3 is not affected.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56; the file from the previous entry with `//> using scala 2.13.18`; output of `scala-cli run --server=false Repro.scala`, with the scratch directory removed from the file path):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import scala.util.Try
+
+case class Isbn(value: String)
+object Isbn {
+  implicit val schema: Schema[Isbn] = Schema[String].transform(Isbn(_), _.value)
+}
+
+case class Book(title: String, isbn: Isbn)
+object Book extends CompanionOptics[Book] {
+  implicit val schema: Schema[Book] = Schema.derived
+  val isbnValue: Optional[Book, String] = $(_.isbn.wrapped[String])
+  val title: Lens[Book, String]         = $(_.title)
+}
+// (Main as in the previous entry)
+// Repro.scala:14: error: not found: type Binding
+//   val isbnValue: Optional[Book, String] = $(_.isbn.wrapped[String])
+//                                            ^
+// 1 error
+// Compilation failed
+```
+
+Adding `import zio.blocks.schema.binding.Binding` makes the file compile, and it prints the same three lines as on Scala 3.
+
+**Expected.** The program compiles with `import zio.blocks.schema._` only, as on Scala 3.
+
+**Root cause.** Both `.wrapped` branches of the Scala 2 macro emit `x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, $parentTpe, $wrappedTpe]]` (`schema/shared/src/main/scala-2/zio/blocks/schema/CompanionOptics.scala:283`, `:290`), with unqualified `Reflect` and `Binding`. Every other tree in the macro uses `_root_.zio.blocks.schema...` names.
+
+**Impact.** `.wrapped[...]` steps fail to compile on Scala 2 in user code, with an error that does not point at the missing import. `Reflect` also resolves only through the user's wildcard import.
+
+**Test gap.** The tests that use `.wrapped` in `$`/`optic` are in package `zio.blocks.schema` and import `zio.blocks.schema.binding._`, so the unqualified names resolve there.
+
+**Suggested fix.** Emit `_root_.zio.blocks.schema.Reflect.Wrapper[_root_.zio.blocks.schema.binding.Binding, $parentTpe, $wrappedTpe]` in both branches, and add a Scala 2 test of `.wrapped` in a package outside `zio.blocks.schema` that imports only `zio.blocks.schema._`.
 
 ### sql: `queryStream` throws, instead of returning `Left`, when the `SELECT` has fewer columns than the row type, and logs the failed query as a success
 
@@ -4057,7 +4164,7 @@ These behave as designed but surprise users. Each should at least be documented 
 
 ### schema: `Lens.apply` and `Prism.apply` accept a term of another type and fail later with `Index -1`
 
-Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that adds this entry). The code is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that last edits this entry). The code is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
 
 **Summary.** `Lens.apply(source, focusTerm)` and `Prism.apply(source, focusTerm)` look the term up in `source` by name and do not check that it is there. A term from another record or variant gives index -1. A lens builds without complaint and throws `ArrayIndexOutOfBoundsException: Index -1` the first time it is used; a prism throws the same exception at construction. Neither message names the term.
 
@@ -4103,7 +4210,7 @@ object Main {
 
 **Expected.** Both constructors fail at once with an `IllegalArgumentException` that names the term and the type: "`name` is not a field of `Book`".
 
-**Root cause.** `Lens.apply` and `Prism.apply` check only for null (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:683-684`, `:957-958`). `LensImpl.init`, which runs on first use, indexes `source.registers` with `fieldIndexByName(name)` (`:719`), and the `PrismImpl` constructor indexes `source.matchers` with `caseIndexByName(name)` (`:990`). Both return -1 for an unknown name (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:405`, `:619`, `:2112`).
+**Root cause.** `Lens.apply` and `Prism.apply` check only for null (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:685-686`, `:959-960`). `LensImpl.init`, which runs on first use, indexes `source.registers` with `fieldIndexByName(name)` (`:721`), and the `PrismImpl` constructor indexes `source.matchers` with `caseIndexByName(name)` (`:992`). Both return -1 for an unknown name (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:405`, `:619`, `:2112`).
 
 **Impact.** A hand-built optic with a wrong term fails late (the lens) or with an index error that does not say what is wrong. `Reflect.Record#lensByName`, `Reflect.Variant#prismByName` and the `$` macro avoid the problem.
 

@@ -87,8 +87,9 @@ trait CompanionOptics[S] {
 
     /**
      * In a path, focuses on the value of type `B` inside a wrapper, such as a
-     * schema built with `Schema#transform`. Compiles only inside `$` and
-     * `optic`.
+     * schema built with `Schema#transform`. On Scala 2 the expansion also needs
+     * `import zio.blocks.schema.binding.Binding` (a bug, see
+     * `docs/dev/issues.md`). Compiles only inside `$` and `optic`.
      */
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def wrapped[B]: B = ???
