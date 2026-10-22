@@ -15,6 +15,17 @@ object BuildHelper {
   // `golemStreamsAsyncVersion` in build.sbt) — zio-blocks itself has no Golem-specific code.
   val Scala3Golem: String = "3.8.3"
 
+  // The first Scala 3 minor version of the next line. From it on, modules are published as
+  // `zio-blocks-next-*` and compiled with -experimental; below it, Scala 3 builds are the main
+  // line (`zio-blocks-*`), which must not use -experimental (see `stdSettings`).
+  val Scala3NextMinor: Int = 10
+
+  def isScala3NextLine(scalaVersion: String): Boolean =
+    CrossVersion.partialVersion(scalaVersion) match {
+      case Some((3, minor)) => minor >= Scala3NextMinor
+      case _                => false
+    }
+
   def removeOptionWithValue(options: Seq[String], option: String): Seq[String] =
     options
       .foldLeft((Vector.empty[String], false)) {
@@ -172,12 +183,11 @@ object BuildHelper {
   ): Seq[Def.Setting[?]] =
     Seq(
       name := prjName,
-      // For Scala 3.10+, publish this module/artifact as "zio-blocks-next-*" (project name remains prjName)
+      // On the next line (Scala 3.10+), publish this module/artifact as "zio-blocks-next-*"
+      // (project name remains prjName)
       moduleName := {
-        CrossVersion.partialVersion(scalaVersion.value) match {
-          case Some((3, minor)) if minor >= 10 => prjName.replace("zio-blocks-", "zio-blocks-next-")
-          case _                               => prjName
-        }
+        if (isScala3NextLine(scalaVersion.value)) prjName.replace("zio-blocks-", "zio-blocks-next-")
+        else prjName
       },
       crossScalaVersions       := scalaVersions,
       ThisBuild / scalaVersion := scalaVersions.head,
@@ -225,13 +235,20 @@ object BuildHelper {
             "-Wconf:msg=the type test for NamedTuple.*cannot be checked at runtime.*&src=.*zio/test/Macros.scala:s", // zio-test macro TASTY inlined on 3.9 (NamedTuple became abstract-membered); lib-internal, same phantom-path class
             "-Werror"
           ) ++ {
+            // -experimental is only for the next line (3.10+, published as
+            // `zio-blocks-next-*`). The main line (3.9.x, and the Golem 3.8.3 build of
+            // streams/async) must not carry it: scalac marks every top-level definition of a
+            // module compiled with -experimental as `@experimental("Added by -experimental")`,
+            // so every Scala 3 user of that artifact would need -experimental too.
+            // `schema-scaladoc-check` compiles consumer code without the flag to guard this.
+            //
             // Scala 3.10.0's backend optimizer crashes on some macro shapes
             // (scope/LeakMacros hits `AssertionError: NoType` in
             // BTypeLoader.buildInlineInfo), so the next line builds without
-            // -opt until the compiler is fixed. -experimental is unaffected.
-            if (minor >= 8) {
-              Seq("-experimental") ++ (if (minor >= 10) Seq.empty else Seq("-opt"))
-            } else Seq.empty
+            // -opt until the compiler is fixed.
+            if (minor >= Scala3NextMinor) Seq("-experimental")
+            else if (minor >= 8) Seq("-opt")
+            else Seq.empty
           } ++ {
             // E230 exists only on Scala 3.9+; older compilers reject the unknown id and the
             // parse warning itself is fatal under -Werror (bare `sbt docs/mdoc` and the Golem

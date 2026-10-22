@@ -1415,6 +1415,25 @@ lazy val `schema-scaladoc-check` = project
     Test / unmanagedSources += (ThisBuild / baseDirectory).value / "project" / "ScaladocSnippets.scala",
     // Examples are user code: a warning in one (an unused import, say) must not fail the build.
     Compile / scalacOptions ~= (_.filterNot(fatalWarningFlags)),
+    // Examples are also compiled the way a user compiles them. A Scala 3 user of the main line
+    // (3.9.x, `zio-blocks-*`) does not enable experimental mode, so drop -experimental and
+    // -language:experimental.* below the next line: if a main-line module is ever built with
+    // them again, scalac marks every top-level definition in it @experimental and these examples
+    // fail with "... is marked @experimental". The next line (3.10+, `zio-blocks-next-*`) is
+    // built with -experimental, so its users need the flag too: keep it.
+    Compile / scalacOptions := {
+      val options = (Compile / scalacOptions).value
+      if (scalaVersion.value.startsWith("3.") && !BuildHelper.isScala3NextLine(scalaVersion.value))
+        options.flatMap {
+          case "-experimental"                               => None
+          case language if language.startsWith("-language:") =>
+            // `-language:a,experimental.b` keeps `a` and drops `experimental.b`
+            val features = language.stripPrefix("-language:").split(',').filterNot(_.startsWith("experimental."))
+            if (features.isEmpty) None else Some(features.mkString("-language:", ",", ""))
+          case option => Some(option)
+        }
+      else options
+    },
     // `Test / scalacOptions` delegates to the Compile ones, so put the fatal flags back: the spec and
     // project/ScaladocSnippets.scala are ordinary code. (The generated snippets are Compile sources.)
     Test / scalacOptions := (Test / scalacOptions).value ++ (schema.jvm / Compile / scalacOptions).value
