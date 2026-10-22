@@ -1,9 +1,9 @@
 package migratefrommagnumordoobie
 
-import zio.blocks.sql.*
-import zio.blocks.sql.query.SqlQuery
-import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.schema.Schema
+import zio.blocks.sql.query.SqlQuery
+import zio.blocks.sql.*
 import scala.util.{Failure, Success, Try}
 
 /**

@@ -56,11 +56,12 @@ Every method returns a `ConnectionIO`, every caller composes them in a for-compr
 Replace the Magnum or doobie dependencies with the ZIO Blocks `sql` module and your JDBC driver. The `sql` module is published for Scala 3 only:
 
 ```scala
-// Scala 3.3 LTS
+// Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer, which also needs -experimental
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "@VERSION@"
+scalacOptions += "-experimental"
 
 // Your JDBC driver, for example SQLite
 libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
@@ -102,9 +103,10 @@ The table below lists the constructs you use every day, with the name each libra
 Both migration paths end at the same ZIO Blocks code, so the setup comes first. It reuses the bookshelf from [the SQLite tutorial](./your-first-sqlite-repository.md): a `Book` with a derived `Schema`, a transactor for a temporary SQLite file, the table and the repository:
 
 ```scala mdoc:silent
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.schema.{Modifier, Schema}
+import zio.blocks.sql.query.SqlQuery
+import zio.blocks.sql.*
 
 case class Book(id: Long, title: String, author: String, year: Int, isbn: Option[String])
 
@@ -122,7 +124,7 @@ val books     = Repo.derived[Book, Long]
 The `author` field holds each book's first author. Each run of this page creates a new temporary file, so the database always starts empty.
 
 :::caution
-Every `JdbcTransactor#connect` and `JdbcTransactor#transact` call opens a new connection. With `jdbc:sqlite::memory:`, each new connection gets its own empty database, so use a file, or a `DataSource` that hands out the same connection, when you move SQLite tests over.
+Every `JdbcTransactor#connect` and `JdbcTransactor#transact` call opens a new connection. With `jdbc:sqlite::memory:`, each new connection gets its own empty database, so use a file, or a `DataSource` that hands out the same connection, when you move SQLite tests over. [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) shows both.
 :::
 
 ## Coming from Magnum
@@ -165,8 +167,6 @@ The generated statement declares no `PRIMARY KEY`, not even on the ID column. If
 When the defaults don't fit, annotations from `zio.blocks.schema.Modifier` take over the job of Magnum's `@SqlName`, `@Table` name mapper and `@Id`:
 
 ```scala mdoc:silent
-import zio.blocks.schema.Modifier
-
 @Modifier.config("sql.table_name", "library_books")
 case class LibraryBook(
   @Modifier.id bookNumber: Long,
@@ -221,7 +221,7 @@ The ZIO Blocks repository is the `books` value from the shared bookshelf. Most m
 `findAll` means different things in the two libraries. Magnum's `ImmutableRepo#findAll` returns every row; ZIO Blocks' `Repo#findAll(ids)` returns the rows with the given IDs, and `Repo#all` returns every row.
 :::
 
-ZIO Blocks has no `ImmutableRepo`. To hand out a read-only view, expose a trait of your own with only the read methods. In return, `Repo` adds `Repo#insertOrUpdate` and `Repo#insertOrUpdateBatch` for upserts, and `Repo#pageAfter` for keyset pagination.
+ZIO Blocks has no `ImmutableRepo`. To hand out a read-only view, expose a trait of your own with only the read methods. In return, `Repo` adds `Repo#insertOrUpdate` and `Repo#insertOrUpdateBatch` for upserts, and `Repo#pageAfter` for keyset pagination, described in [How to Upsert Rows and Paginate with Keyset Cursors](./upsert-and-paginate-with-keyset-cursors.md).
 
 ### Connections and Transactions
 
@@ -320,8 +320,6 @@ val classics: Vector[Book] = connect(xa)(bookRepo.findAll(spec))
 The closest ZIO Blocks construct is `SqlQuery`, a query builder over a `Table`. Like `Spec`, it takes its conditions as `Frag`s and its column names as strings. `SqlQuery#toFrag` renders it for a dialect, and the result runs like any other `Frag`:
 
 ```scala mdoc:silent
-import zio.blocks.sql.query.SqlQuery
-
 val classicsQuery =
   SqlQuery
     .from(bookTable)
@@ -340,7 +338,7 @@ transactor.connect {
 }
 ```
 
-For Magnum's `Spec#seek`, which pages by key, use `Repo#pageAfter(cursorId, limit)`. To build `WHERE` clauses from typed Scala expressions instead of SQL strings, see [Query DSL with Reified Optics — Part 2: SQL Generation](./query-dsl-sql.md), which also covers `SqlQuery` joins and `SqlQuery#explain`.
+For Magnum's `Spec#seek`, which pages by key, use `Repo#pageAfter(cursorId, limit)`. For joins between tables, see [How to Write Joins and Inspect the Generated SQL](./write-joins-and-inspect-generated-sql.md). To build `WHERE` clauses from typed Scala expressions instead of SQL strings, see [Query DSL with Reified Optics — Part 2: SQL Generation](./query-dsl-sql.md).
 
 ### Custom Column Types
 
@@ -369,7 +367,7 @@ transactor.connect {
 }
 ```
 
-Scala 3 opaque types usually need no codec at all, because ZIO Blocks derives one from the underlying type; see [DbCodec](../reference/sql/db-codec.md) for the rules.
+Scala 3 opaque types usually need no codec at all, because ZIO Blocks derives one from the underlying type; see [How to Map Custom Column Types](./map-custom-column-types.md) for opaque types, enums and JSON columns, and [DbCodec](../reference/sql/db-codec.md) for the rules.
 
 ## Coming from doobie
 
@@ -452,7 +450,7 @@ A `JdbcTransactor` has no effect type and no driver class name, and takes a `Sql
 | `HikariTransactor.fromHikariConfig[IO](config)`                             | `JdbcTransactor.fromDataSource(new HikariDataSource(config), dialect)` |
 | `logHandler = Some(handler)`                                                | `new JdbcTransactor(connectionFactory, dialect, sqlLogger)`            |
 
-With Hikari, you now own the pool: create the `HikariDataSource` at startup and close it at shutdown, which the `Resource` used to do for you.
+With Hikari, you now own the pool: create the `HikariDataSource` at startup and close it at shutdown, which the `Resource` used to do for you. [How to Connect to PostgreSQL with a Connection Pool](./connect-to-postgresql-with-a-connection-pool.md) shows the whole setup.
 
 ### Read, Write and Meta
 
@@ -556,7 +554,7 @@ transactor.connect {
 }
 ```
 
-The code above reads the books in chunks of two and counts them; `Right(4)` means the stream finished without an error and saw four rows.
+The code above reads the books in chunks of two and counts them; `Right(4)` means the stream finished without an error and saw four rows. [How to Stream Large Query Results](./stream-large-query-results.md) covers aggregating, exporting and handling errors in such streams.
 
 ### Checking Queries
 
@@ -576,12 +574,11 @@ ZIO Blocks runs database work as blocking calls, so in an effect system you run 
 
 ZIO users add the `zio-blocks-sql-zio` module, which provides `TransactorZIO`. Its `TransactorZIO#connect` and `TransactorZIO#transact` take the same blocks as `JdbcTransactor` and return a `Task`, running the block with `ZIO.attemptBlocking`. `TransactorZIO#connectZIO` and `TransactorZIO#transactZIO` take a block that returns a `ZIO`, and close the connection even when the fiber is interrupted. Magnum's `magnumzio` users will recognize the class name:
 
-```scala
-// ZIO integration (not compiled here: zio-blocks-sql-zio is not on this site's build)
+```scala mdoc:reset:silent
 import zio.*
 import zio.blocks.schema.Schema
 import zio.blocks.sql.zio.TransactorZIO
-import zio.blocks.sql.* // keep last: it brings the zio.blocks.sql.zio package into scope as `zio`
+import zio.blocks.sql.*
 
 case class Book(id: Long, title: String, author: String, year: Int, isbn: Option[String])
 
@@ -596,7 +593,7 @@ val countBooks: Task[Long] = xa.connect(books.count)
 val addBook: Task[Int]     = xa.transact(books.insert(Book(5L, "Zionomicon", "John A. De Goes", 2024, None)))
 ```
 
-`TransactorZIO.layer(url, dialect)` provides the transactor as a `ZLayer`. See [ZIO Integration](../reference/sql-zio.md) and [TransactorZIO](../reference/sql/transactor-zio.md) for both.
+Keep `import zio.blocks.sql.*` after every other `zio` import, as above: once `sql-zio` is on the classpath, it brings the subpackage `zio.blocks.sql.zio` into scope under the name `zio`, and a later `import zio.blocks...` fails to compile. `TransactorZIO.layer(url, dialect)` provides the transactor as a `ZLayer`. [How to Use the sql Module from a ZIO Application](./sql-from-zio.md) covers layers and mixing database writes with other effects, and [TransactorZIO](../reference/sql/transactor-zio.md) lists every method.
 
 cats-effect users don't get an integration module: ZIO Blocks has no counterpart to doobie's `Transactor[IO]` or Magnum's `TransactorCats`. Wrap each `JdbcTransactor#connect` or `JdbcTransactor#transact` call in `IO.blocking` yourself:
 
@@ -636,7 +633,7 @@ Things that work differently, or don't exist yet:
 Work through these steps in order; each one leaves the project compiling:
 
 1. Upgrade to Scala 3 if you are coming from doobie on Scala 2.
-2. Replace the Magnum or doobie dependencies with `zio-blocks-sql` (or `zio-blocks-next-sql` on Scala 3.7 and newer), and add `zio-blocks-sql-zio` if you use ZIO.
+2. Replace the Magnum or doobie dependencies with `zio-blocks-sql` (or `zio-blocks-next-sql` with `-experimental` on Scala 3.9 and newer), and add `zio-blocks-sql-zio` if you use ZIO.
 3. Give every entity a `given Schema[E] = Schema.derived`, and remove `@Table`, `@Id`, `derives DbCodec`, `Read` and `Write`.
 4. Replace `@SqlName` with `@Modifier.rename`, `@Id` on a field that isn't named `id` with `@Modifier.id`, and custom table names with `@Modifier.config("sql.table_name", ...)`.
 5. Port custom column types from `biMap` or `Meta#timap` to `DbCodec#transform`.
