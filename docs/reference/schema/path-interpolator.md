@@ -762,7 +762,7 @@ val same = p".users[*].email"
 | `DynamicOptic.root.at(0)`                             | `p"[0]"`             |
 | `DynamicOptic.root.atIndices(0, 2, 5)`                 | `p"[0,2,5]"`         |
 | `DynamicOptic.elements`                                | `p"[*]"`             |
-| `DynamicOptic.root.atKey("host")`                      | `p"{"host"}"`        |
+| `DynamicOptic.root.atKey("host")`                      | `p"""{"host"}"""`    |
 | `DynamicOptic.root.atKey(80)`                          | `p"{80}"`            |
 | `DynamicOptic.mapValues`                               | `p"{*}"`             |
 | `DynamicOptic.mapKeys`                                 | `p"{*:}"`            |
