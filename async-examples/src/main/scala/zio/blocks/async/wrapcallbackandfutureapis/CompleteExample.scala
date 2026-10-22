@@ -12,8 +12,7 @@ import scala.concurrent.duration._
  * Combines a `Future`-based price service, a callback-based inventory client
  * (through a cancellable bridge) and a `CompletableFuture`-based shipping SDK
  * in one `Async.async` block, hands the result back to a `Future`-based
- * storefront, and cancels one quote to show its warehouse request is
- * withdrawn.
+ * storefront, and cancels one quote to show its warehouse request is withdrawn.
  *
  * Run with:
  * {{{
