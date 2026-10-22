@@ -98,7 +98,7 @@ sealed trait DynamicValue {
 
   /**
    * Returns `true` when this value comes after `that` in the order of
-   * [[compare]], or is equal to it.
+   * [[compare]], or compares equal to it.
    */
   final def >=(that: DynamicValue): Boolean = compare(that) >= 0
 
@@ -110,7 +110,7 @@ sealed trait DynamicValue {
 
   /**
    * Returns `true` when this value comes before `that` in the order of
-   * [[compare]], or is equal to it.
+   * [[compare]], or compares equal to it.
    */
   final def <=(that: DynamicValue): Boolean = compare(that) <= 0
 
