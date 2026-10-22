@@ -496,6 +496,7 @@ const sidebars = {
     "guides/config-library-migration",
     "guides/json-library-migration",
     "guides/streaming-library-migration",
+    "guides/migrate-from-magnum-or-doobie",
     "guides/generate-json-schema-and-validate-payloads",
     "guides/write-and-export-openapi",
     "guides/llm-data-with-toon",
