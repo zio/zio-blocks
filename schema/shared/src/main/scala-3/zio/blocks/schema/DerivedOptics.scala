@@ -29,7 +29,9 @@ import scala.language.implicitConversions
  * `optics`. On Scala 3 they are also members of the companion itself
  * (`Book.title`), through a given conversion. A member that the companion
  * defines itself takes precedence there, and the derived optic stays available
- * on `optics`.
+ * on `optics`. Direct access goes through an implicit conversion, so Scala 3
+ * gives a feature warning at each use unless
+ * `scala.language.implicitConversions` is imported, as the first example does.
  *
  * An implicit `Schema` of the class must be in scope where `optics` is used; a
  * schema defined in the companion is. For a type that is not the class of a
@@ -42,13 +44,14 @@ import scala.language.implicitConversions
  * global cache keyed by the type's name, so every companion for the same type
  * gets the optics built from the first schema used.
  *
- * Known problems, described in `docs/dev/issues.md`: on Scala 2, `optics`
+ * A known problem, described in `docs/dev/issues.md`: on Scala 2, `optics`
  * compiles only inside the `zio.blocks.schema` package, so the examples below
- * are compiled on Scala 3 only; on Scala 3.9, direct access such as
- * `Book.title` warns that it will stop compiling on Scala 3.10.
+ * are compiled on Scala 3 only.
  *
  * {{{
  * // scala-3-only
+ * import scala.language.implicitConversions
+ *
  * case class Book(title: String, pages: Int)
  * object Book extends DerivedOptics {
  *   implicit val schema: Schema[Book] = Schema.derived
@@ -100,9 +103,8 @@ trait DerivedOptics {
   /**
    * Scala 3 only: the conversion that makes the derived optics members of the
    * companion itself, so that `Book.title` works like `Book.optics.title`. It
-   * needs an `OpticsFor` instance, which is `private[schema]`, so Scala 3.9
-   * warns at each use that Scala 3.10 will no longer find it (see
-   * `docs/dev/issues.md`).
+   * takes the optics from an [[OpticsFor]] instance, which the `optics` macro
+   * derives.
    *
    * Credit: Kit Langton discovered this companion-object conversion trick.
    */
@@ -193,9 +195,8 @@ object DerivedOptics {
     /**
      * Scala 3 only: the conversion that makes the derived optics of `S` members
      * of the object itself, so that `BoxInt.value` works like
-     * `BoxInt.optics.value`. It needs an `OpticsFor` instance, which is
-     * `private[schema]`, so Scala 3.9 warns at each use that Scala 3.10 will no
-     * longer find it (see `docs/dev/issues.md`).
+     * `BoxInt.optics.value`. It takes the optics from an [[OpticsFor]]
+     * instance, which the `optics` macro derives.
      */
     given toDerivedOptics(using opticsFor: OpticsFor[S]): Conversion[this.type, opticsFor.Out] =
       _ => opticsFor.optics
