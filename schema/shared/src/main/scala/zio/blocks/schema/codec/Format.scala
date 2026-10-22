@@ -47,6 +47,12 @@ sealed trait Format {
  *
  * e.g.:
  * {{{
+ * import zio.blocks.schema.codec._
+ * import zio.blocks.schema.derive.Deriver
+ *
+ * abstract class AvroCodec[A] extends BinaryCodec[A]
+ * lazy val AvroDeriver: Deriver[AvroCodec] = ??? // the deriver of your codecs
+ *
  * sealed abstract class Avro extends BinaryFormat[AvroCodec]("application/avro", AvroDeriver)
  * case object Avro extends Avro
  * }}}
@@ -70,8 +76,14 @@ abstract class BinaryFormat[TC[A] <: BinaryCodec[A]](val mimeType: String, val d
  *
  * e.g.:
  * {{{
+ * import zio.blocks.schema.codec._
+ * import zio.blocks.schema.derive.Deriver
+ *
+ * abstract class ZioJsonCodec[A] extends TextCodec[A]
+ * lazy val ZioJsonDeriver: Deriver[ZioJsonCodec] = ??? // the deriver of your codecs
+ *
  * sealed abstract class ZioJson extends TextFormat[ZioJsonCodec]("application/zio-json", ZioJsonDeriver)
- * case object ZioJson extends Json
+ * case object ZioJson extends ZioJson
  * }}}
  */
 abstract class TextFormat[TC[A] <: TextCodec[A]](val mimeType: String, val deriver: Deriver[TC]) extends Format {

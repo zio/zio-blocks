@@ -244,3 +244,15 @@ build is killed for memory, lower it for that build.
 
 Alternative: point the domain's GoDaddy nameservers at Netlify DNS (Netlify shows them in Domain management) and let
 Netlify manage every record and renew certificates itself.
+
+### Google Analytics and Search Console
+
+`GA_MEASUREMENT_ID` at the top of `docusaurus.config.js` is the GA4 web stream for `https://zioblocks.com`. The `gtag`
+tag is added only when Netlify sets `CONTEXT=production`, which it does for the production build; PR previews are built
+in CI without it and send nothing. To check a build locally:
+`CONTEXT=production yarn build:landing && grep gtag/js build/index.html`.
+
+Search Console verifies the URL-prefix property `https://zioblocks.com/` through that tag (**Google Analytics** method,
+which needs an admin of the GA4 property), so the site carries no separate verification token. Removing the `gtag` tag
+loses the ownership. After the property is verified, submit `https://zioblocks.com/sitemap.xml` under **Sitemaps**
+(`robots.txt` already points at it).

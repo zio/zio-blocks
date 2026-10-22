@@ -435,7 +435,18 @@ object ReflectSpec extends SchemaBaseSpec {
       },
       test("creates prism by name") {
         assert(eitherReflect.prismByName("Left"): Option[Any])(
-          isSome(equalTo(Prism(eitherReflect, eitherReflect.cases(0).value.asTerm[Either[Int, Long]]("Left"))))
+          isSome(
+            equalTo(
+              Prism(
+                eitherReflect,
+                eitherReflect
+                  .cases(0)
+                  .value
+                  .asTerm[Either[Int, Long]]("Left")
+                  .asInstanceOf[Term.Bound[Either[Int, Long], Either[Int, Long]]]
+              )
+            )
+          )
         ) &&
         assert(eitherReflect.prismByName("Middle"))(isNone)
       },

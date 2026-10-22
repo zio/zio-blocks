@@ -33,6 +33,15 @@ import zio.blocks.schema.binding.Binding
  * behavior. Empty patches act as identity (no-op).
  *
  * {{{
+ * import zio.blocks.schema.patch.Patch
+ *
+ * case class Person(name: String, age: Int)
+ * object Person extends CompanionOptics[Person] {
+ *   implicit val schema: Schema[Person] = Schema.derived
+ *   val name: Lens[Person, String] = $(_.name)
+ *   val age: Lens[Person, Int]     = $(_.age)
+ * }
+ *
  * val patch1 = Patch.set(Person.name, "John")
  * val patch2 = Patch.increment(Person.age, 1)
  *

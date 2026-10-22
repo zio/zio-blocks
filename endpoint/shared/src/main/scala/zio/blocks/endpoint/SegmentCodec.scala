@@ -222,12 +222,6 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     implicit def unknown[L, R]: CombinePathVars[L, R, HasPathVars] =
       new CombinePathVars[L, R, HasPathVars] {}
   }
-  def bool[N <: String with Singleton](name: N): BoolSeg[N]     = BoolSeg(name)
-  def int[N <: String with Singleton](name: N): IntSeg[N]       = IntSeg(name)
-  def long[N <: String with Singleton](name: N): LongSeg[N]     = LongSeg(name)
-  def string[N <: String with Singleton](name: N): StringSeg[N] = StringSeg(name)
-  def uuid[N <: String with Singleton](name: N): UUIDSeg[N]     = UUIDSeg(name)
-
   private[endpoint] def combineValidated[A, B, C](
     left: SegmentCodec[A],
     right: SegmentCodec[B],

@@ -26,6 +26,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-37 | How to issue and verify JWTs (plus `jwt.md` fixes)                            | Done                                    | #1789, `guides/issue-and-verify-jwts.md`, `jwt-examples/`                               |
 | H-17 | How to connect to PostgreSQL with a connection pool                           | Done                                    | #1790, `guides/connect-to-postgresql-with-a-connection-pool.md`                         |
 | H-32 | How to roll out a feature gradually with flags                                | Done                                    | #1788, `guides/roll-out-feature-gradually.md`                                           |
+| H-39 | How to write an OpenAPI document and export it as JSON or YAML                | In review                               | #1807, `guides/write-and-export-openapi.md`, `openapi-examples/`                        |
 | T-06 | Build your first streaming pipeline                                           | Pushed, no PR                           | branch `streaming-pipeline`, `guides/your-first-streaming-pipeline.md`                  |
 | H-20 | How to stream large query results                                             | Pushed, no PR                           | branch `stream-query`, `guides/stream-large-query-results.md`                           |
 | M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
@@ -467,3 +468,20 @@ The ten P0 items, in the order to write them. As of 2026-10-20 all ten are done,
 - [smithy4s sbt codegen](https://index.scala-lang.org/disneystreaming/smithy4s/artifacts/smithy4s-sbt-codegen/0.18.4)
 - [guardrail](https://github.com/twilio/guardrail/)
 - [Zuplo: API-first development in Scala](https://zuplo.com/blog/2025/04/11/api-first-development-in-scala)
+
+## 11. Scaladoc: schema module
+
+Plan: `docs/superpowers/plans/2026-10-21-schema-scaladoc.md`. Style: `docs/dev/scaladoc-style.md`. Coverage: `python3 .claude/scripts/scaladoc-coverage.py schema` (TOTAL row, documented / declarations).
+
+| Wave                     | Status      | PR | Coverage before   | Coverage after    |
+|--------------------------|-------------|----|-------------------|-------------------|
+| 0. Tooling               | In progress |    | 1208 / 6917 (17%) | 1208 / 6917 (17%) |
+| 1. Entry point           | Not started |    |                   |                   |
+| 2. Structure             | Not started |    |                   |                   |
+| 3. Binding               | Not started |    |                   |                   |
+| 4. Optics                | Not started |    |                   |                   |
+| 5. Dynamic               | Not started |    |                   |                   |
+| 6. Derivation and codecs | Not started |    |                   |                   |
+| 7. Transform and evolve  | Not started |    |                   |                   |
+| 8a. JSON model           | Not started |    |                   |                   |
+| 8b. JSON I/O             | Not started |    |                   |                   |

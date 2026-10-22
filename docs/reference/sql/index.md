@@ -322,5 +322,6 @@ Queries can also stream: `Frag#queryStream` and `Frag#queryChunked` return a `zi
 - **[How to Test Database Code Against SQLite](../../guides/test-database-code-against-sqlite.md)** — Guide to giving each ZIO Test spec its own SQLite database and rolling back writes.
 - **[How to Connect to PostgreSQL with a Connection Pool](../../guides/connect-to-postgresql-with-a-connection-pool.md)** — Guide that wires a HikariCP pool into `JdbcTransactor` for PostgreSQL.
 - **[How to Stream Large Query Results](../../guides/stream-large-query-results.md)** — Guide to reading a large result set as a stream of row chunks with `queryStream` and `queryChunked`.
+- **[How to Write Joins and Inspect the Generated SQL](../../guides/write-joins-and-inspect-generated-sql.md)** — Guide to joining related tables with `SqlQuery` and `Rel`, reading rows as tuples, and printing or dumping the SQL each join generates.
 - **[Build a Small JSON Backend from Blocks](../../guides/small-json-backend-from-blocks.md)** — Capstone tutorial that combines `schema`, `config`, `scope`, `sql`, `http-model` and `telemetry` into one small JSON backend.
 - **[How to Use the sql Module from a ZIO Application](../../guides/sql-from-zio.md)** — Guide to running queries and transactions as ZIO effects with `TransactorZIO`.

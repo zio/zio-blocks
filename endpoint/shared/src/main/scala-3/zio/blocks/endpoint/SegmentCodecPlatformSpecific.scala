@@ -22,6 +22,14 @@ private[endpoint] trait SegmentCodecPlatformSpecific {
 
   inline def literal(inline value: String): SegmentCodec.Literal =
     ${ SegmentCodecPlatformSpecificMacros.literalImpl('value) }
+
+  // `String & Singleton` preserves literal singletons on Scala 3.
+  // (Scala 2.13 has no `&` types; it uses `with`.)
+  def bool[N <: String & Singleton](name: N): SegmentCodec.BoolSeg[N]     = SegmentCodec.BoolSeg(name)
+  def int[N <: String & Singleton](name: N): SegmentCodec.IntSeg[N]       = SegmentCodec.IntSeg(name)
+  def long[N <: String & Singleton](name: N): SegmentCodec.LongSeg[N]     = SegmentCodec.LongSeg(name)
+  def string[N <: String & Singleton](name: N): SegmentCodec.StringSeg[N] = SegmentCodec.StringSeg(name)
+  def uuid[N <: String & Singleton](name: N): SegmentCodec.UUIDSeg[N]     = SegmentCodec.UUIDSeg(name)
 }
 
 private[endpoint] object SegmentCodecPlatformSpecificMacros {

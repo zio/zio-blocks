@@ -3385,8 +3385,8 @@ object Stream {
 
   private[streams] def compileChildStackSafe[E, A](stream: Stream[E, A], bufferSize: Int): Reader[A] =
     stream match {
-      case node: StackCompileNode =>
-        compileStackSafe(node.asInstanceOf[Stream[_, A] with StackCompileNode], bufferSize)
+      case _: StackCompileNode =>
+        compileStackSafe(stream.asInstanceOf[Stream[_, A]], bufferSize)
       case _ => stream.compile(0, bufferSize)
     }
 
@@ -3526,7 +3526,7 @@ object Stream {
     def fusableSource: Stream[_, _]
   }
 
-  private[streams] def compileStackSafe[A](start: Stream[_, A] with StackCompileNode, bufferSize: Int): Reader[A] = {
+  private[streams] def compileStackSafe[A](start: Stream[_, A], bufferSize: Int): Reader[A] = {
     val frames                = new scala.collection.mutable.ArrayBuffer[CompileFrame]
     var current: Stream[_, _] = start
     var currentBufferSize     = bufferSize

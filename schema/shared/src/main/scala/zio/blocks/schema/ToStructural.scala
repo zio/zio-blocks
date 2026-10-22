@@ -24,11 +24,16 @@ package zio.blocks.schema
  *
  * Example:
  * {{{
+ * // scala-3-only
  * case class Person(name: String, age: Int)
  *
  * val nominalSchema: Schema[Person] = Schema.derived[Person]
  * val structuralSchema: Schema[{ def name: String; def age: Int }] = nominalSchema.structural
  * }}}
+ *
+ * In Scala 2 the compiler does not see the refined `StructuralType`, so
+ * `nominalSchema.structural` has type `Schema[ts.StructuralType]` and cannot be
+ * assigned to a `Schema` of the structural type.
  *
  * Note: This is JVM-only due to reflection requirements for structural types.
  */
