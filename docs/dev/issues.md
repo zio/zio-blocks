@@ -3424,6 +3424,95 @@ object Main extends App {
 
 **Suggested fix.** Render the value on one line (`Json#print` / a compact `DynamicValue` rendering), or indent every line after the first by the current indent.
 
+### build (Scala 3): every main-line artifact was built with -experimental after #1743, so every Scala 3 user needed -experimental
+
+Found 2026-10-22 while reviewing the Scaladoc wave 3 branch, on `main` at `bffadae7` and still at `4a142547`. Introduced by #1743 (`3defefab`). Not in the release: `v0.0.56` builds its main line with Scala 3.3, and its artifacts need no flag on Scala 3.3.7 or 3.9.0. Verified by running against local publishes of `main` and of the fix.
+
+**Summary.** #1743 moved the main line (`zio-blocks-*`) to Scala 3.9 and the next line (`zio-blocks-next-*`) to Scala 3.10, but kept passing `-experimental` to every Scala 3 compile from 3.8 up. When a module is compiled with `-experimental`, scalac marks each of its top-level definitions `@experimental`. So every main-line Scala 3 artifact on `main` was experimental for its users: `Chunk(1, 2, 3)`, `Schema[Int]`, `derives Schema` and `Schema.derived` did not compile without `-experimental`.
+
+**Reproduction** (Scala 3.9.0 and scala-cli 1.10.1, against a local publish of `main` at `4a142547`: `sbt 'set ThisBuild / version := "0.0.0-exp1743"; ++3.9.0; chunkJVM/publishLocal; typeidJVM/publishLocal; markdownJVM/publishLocal; maybeJVM/publishLocal; schemaJVM/publishLocal'`, then `scala-cli run --server=false <file>`):
+
+```scala
+//> using scala 3.9.0
+//> using repository ivy2Local
+//> using dep dev.zio::zio-blocks-schema:0.0.0-exp1743
+import zio.blocks.schema._
+
+case class Book(title: String, year: Int) derives Schema
+
+object Main {
+  def main(args: Array[String]): Unit =
+    println(Schema[Book].jsonCodec.encodeToString(Book("Zionomicon", 2021)))
+}
+// -- Error: CaseClass.scala:6:50
+// 6 |case class Book(title: String, year: Int) derives Schema
+//   |                                                  ^
+//   |trait SchemaCompanionVersionSpecific is marked @experimental: Added by -experimental
+//   |
+//   |Experimental definition may only be used under experimental mode:
+//   |  1. in a definition marked as @experimental, or
+//   |  2. an experimental feature is imported at the package level, or
+//   |  3. compiling with the -experimental compiler flag.
+// -- Error: CaseClass.scala:6:50
+//    6 |case class Book(title: String, year: Int) derives Schema
+//      |                                                  ^
+//      |   object TypeId is marked @experimental: Added by -experimental
+//      ...
+//      |This location contains code that was inlined from SchemaCompanionVersionSpecific.scala:1186
+// 2 errors found
+// Compilation failed
+```
+
+Code that does not derive fails the same way, on every main-line object it touches:
+
+```scala
+//> using scala 3.9.0
+//> using repository ivy2Local
+//> using dep dev.zio::zio-blocks-schema:0.0.0-exp1743
+import zio.blocks.schema._
+import zio.blocks.chunk.Chunk
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    println(Chunk(1, 2, 3))
+    println(Schema[Int].jsonCodec.encodeToString(42))
+    println(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+  }
+}
+// -- Error: Plain.scala:9:12
+// 9 |    println(Chunk(1, 2, 3))
+//   |            ^^^^^
+//   |         object Chunk is marked @experimental: Added by -experimental
+//   ...
+// -- Error: Plain.scala:10:12
+// 10 |    println(Schema[Int].jsonCodec.encodeToString(42))
+//    |            ^^^^^^
+//    |       object Schema is marked @experimental: Added by -experimental
+//    ...
+// -- Error: Plain.scala:11:12
+// 11 |    println(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+//    |            ^^^^^^^^^^^^
+//    |     object DynamicValue is marked @experimental: Added by -experimental
+//    ...
+// -- Error: Plain.scala:11:35
+//    |   object PrimitiveValue is marked @experimental: Added by -experimental
+//    ...
+// 5 errors found
+// Compilation failed
+```
+
+With `-O -experimental` the second file prints `Chunk(1,2,3)`, `42` and `1`. The same two files against the published `0.0.56` on Scala 3.9.0 compile without the flag and print `{"title":"Zionomicon","year":2021}`, then `Chunk(1,2,3)`, `42` and `1`.
+
+**Expected.** A Scala 3.9 user of `zio-blocks-*` compiles without `-experimental`, as with 0.0.56. Only the next line (`zio-blocks-next-*`, Scala 3.10+) needs the flag.
+
+**Root cause.** `stdSettings` passed `-experimental` for every Scala 3 minor from 8 up (`project/BuildHelper.scala:232-234` at `4a142547`: `if (minor >= 8) { Seq("-experimental") ++ (if (minor >= 10) Seq.empty else Seq("-opt")) }`). That threshold dates from when 3.8+ was only the next line. #1743 moved the `zio-blocks-next-` rename to `minor >= 10` (`BuildHelper.scala:178`) but left `-experimental` at `minor >= 8`, so the 3.9 main line (and the Golem 3.8.3 build of streams and async) got it too. scalac 3.9.0 then adds `@experimental("Added by -experimental")` to every top-level definition of each compiled file (`Checking.checkAndAdaptExperimentalImports`, `dotty/tools/dotc/typer/Checking.scala:956-965` in `scala3-compiler_3-3.9.0`). No main-line source needs the flag: the whole build compiles on 3.9.0 without it, including the structural `Binding.of` macro, whose `Symbol.newClass` is no longer `@experimental` in scala-library 3.9.0.
+
+**Impact.** Release blocker. The next release would break every Scala 3 user of the main line: every call into chunk, schema, typeid and the other main-line modules would fail to compile until the user added `-experimental`, which also opts their own code into experimental mode.
+
+**Test gap.** Nothing compiled user code against the main line without `-experimental`. The in-build consumers (tests, `schema-scaladoc-check`) inherit the library's scalac options, `docs` adds `-experimental` itself (`build.sbt:1590`), and the examples builds use the published 0.0.56 and pass `-experimental` themselves.
+
+**Fix.** Pass `-experimental` only for Scala 3.10+ (`-opt` stays on 3.8 and 3.9), and compile `schema-scaladoc-check`'s Scaladoc examples without `-experimental` below 3.10, so the build fails if a main-line module ever gets the flag again. On the unfixed rule, `++3.9.0; schema-scaladoc-check/compile` fails with 23 `... is marked @experimental: Added by -experimental` errors; with the fix it passes, and both files above compile without the flag. Fixed on branch `fix-experimental-flag`.
+
 
 ## Usability traps
 
@@ -4627,3 +4716,4 @@ Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main`
 - Config: `formats.md:97` (YAML parse error type) and `config-source.md` (`EnvSource` and `keyFormat`). Fixed in #1771.
 - sql: `sql-transactions.md` default isolation and PostgreSQL facts; `repo.md`/`table.md`/`ddl.md` upserts, `pageAfter` and the missing `PRIMARY KEY` caveat; `:memory:` warnings in `transactor.md` and `transactor-zio.md`; `db-con.md` `DbTx` members; the backlog's "sql has no JS backend" note. Fixed in #1760.
 - Codecs: `format.md` (`sealed trait`, real `BinaryFormat`/`TextFormat` signatures, which formats are binary); TOON `ArrayFormat.Auto` Scaladoc and `toon.md:706`; `csv.md` (`CsvConfig` ignored by derived codecs, runtime rejection, `Option` rejected); `xml.md` stale version; `built-in-codecs/index.md` artifact prefix. In PR #1773 (open).
+- Build: every Scala 3 main-line artifact was compiled with `-experimental` after #1743, so every Scala 3 user would have needed the flag (see the build entry under Library bugs). Fixed on branch `fix-experimental-flag`.
