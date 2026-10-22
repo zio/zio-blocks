@@ -4221,6 +4221,16 @@ Found 2026-10-22 while writing the Scaladoc of `DynamicValue#retain` and `partit
 
 **Summary.** `retain(p)` is documented as keeping only the parts that satisfy `p`, and `partition(p)` as splitting a value into `(retain(p), prune(p))`. `retain` never drops a variant: when nothing inside a variant is kept, it keeps the variant whole, payload included. `prune` keeps it too, so `partition` returns the same variant in both halves, and `retain` returns values that do not satisfy `p`.
 
+### schema: `JsonCodecDeriver` gives every occurrence of a recursive record, or of a record with a defaulted field, the optic overrides of one occurrence
+
+Found 2026-10-22 while writing the Scaladoc of `DerivationBuilder` (schema Scaladoc wave 6, branch `scaladoc-wave-6`, on top of `2f73284b`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false` against the published 0.0.56 on Scala 2.13.18 and, with `zio-blocks-next-schema` and `-experimental`, on Scala 3.9.0, with the same output.
+
+**Summary.** `DerivationBuilder#instance(optic, ...)` and `DerivationBuilder#modifier(optic, ...)` should change only the part of the type at that path. `JsonCodecDeriver` derives a record type that is recursive, or that has a field with a default value, once per type ID and reuses those field codecs and field names at every other occurrence of the type in the same derivation. So an optic override inside such a type applies to every occurrence of it, or to none:
+
+- an override of `book.author.name` also changes `book.editor.name` when `Person` has a defaulted field;
+- a `rename` of the author's name is lost, while a `rename` of the editor's name renames both, because the occurrence derived last sets the shared field name;
+- in a recursive type, an override below the root is ignored, and an override of a root field applies at every depth.
+
 **Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
 
 ```scala
@@ -4660,6 +4670,165 @@ object Repro {
 **Test gap.** `SchemaExprSpec` builds every expression from literals of input type `Any` (`schema/shared/src/test/scala/zio/blocks/schema/SchemaExprSpec.scala:24-36`), so no test mixes a literal with an optic.
 
 **Suggested fix.** Take the input schema from an operand that is not a literal (for example, from whichever operand's tree contains a `Select`), or give `SchemaExpr` a way to carry "no input needed", and add tests with a literal on each side.
+
+import zio.blocks.schema.json._
+
+case class Person(name: String, born: Int = 1970)
+object Person { implicit val schema: Schema[Person] = Schema.derived }
+
+case class Book(title: String, author: Person, editor: Person)
+object Book extends CompanionOptics[Book] {
+  implicit val schema: Schema[Book] = Schema.derived
+  val authorName: Lens[Book, String] = $(_.author.name)
+  val editorName: Lens[Book, String] = $(_.editor.name)
+}
+
+case class Category(name: String, subcategories: List[Category])
+object Category extends CompanionOptics[Category] {
+  implicit val schema: Schema[Category] = Schema.derived
+  val name: Lens[Category, String]                  = $(_.name)
+  val subcategoryNames: Traversal[Category, String] = $(_.subcategories.each.name)
+}
+
+object Main {
+  val upper: JsonCodec[String] = new JsonCodec[String] {
+    def decodeValue(in: JsonReader): String           = in.readString().toLowerCase
+    def encodeValue(x: String, out: JsonWriter): Unit = out.writeVal(x.toUpperCase)
+  }
+
+  def main(args: Array[String]): Unit = {
+    val book = Book("Zionomicon", Person("John De Goes", 1980), Person("Adam Fraser", 1985))
+
+    // Only the author's name should be upper-cased
+    println(Book.schema.deriving(JsonCodecDeriver).instance(Book.authorName, upper).derive.encodeToString(book))
+
+    // Only the author's name should be renamed
+    val renameAuthor = Book.schema.deriving(JsonCodecDeriver).modifier(Book.authorName, Modifier.rename("fullName")).derive
+    val json         = renameAuthor.encodeToString(book)
+    println(json)
+    println(renameAuthor.decode(json))
+
+    // Only the editor's name should be renamed
+    println(Book.schema.deriving(JsonCodecDeriver).modifier(Book.editorName, Modifier.rename("fullName")).derive.encodeToString(book))
+
+    val books = Category("books", List(Category("scala", List(Category("zio", Nil)))))
+    // Only "scala", one level below the root, should be upper-cased
+    println(Category.schema.deriving(JsonCodecDeriver).instance(Category.subcategoryNames, upper).derive.encodeToString(books))
+    // Only the root name, "books", should be upper-cased
+    println(Category.schema.deriving(JsonCodecDeriver).instance(Category.name, upper).derive.encodeToString(books))
+  }
+}
+// {"title":"Zionomicon","author":{"name":"JOHN DE GOES","born":1980},"editor":{"name":"ADAM FRASER","born":1985}}
+// {"title":"Zionomicon","author":{"name":"John De Goes","born":1980},"editor":{"name":"Adam Fraser","born":1985}}
+// Right(Book(Zionomicon,Person(John De Goes,1980),Person(Adam Fraser,1985)))
+// {"title":"Zionomicon","author":{"fullName":"John De Goes","born":1980},"editor":{"fullName":"Adam Fraser","born":1985}}
+// {"name":"books","subcategories":[{"name":"scala","subcategories":[{"name":"zio"}]}]}
+// {"name":"BOOKS","subcategories":[{"name":"SCALA","subcategories":[{"name":"ZIO"}]}]}
+```
+
+The output is identical on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 and `//> using options -experimental`.
+
+**Expected.**
+
+```
+{"title":"Zionomicon","author":{"name":"JOHN DE GOES","born":1980},"editor":{"name":"Adam Fraser","born":1985}}
+{"title":"Zionomicon","author":{"fullName":"John De Goes","born":1980},"editor":{"name":"Adam Fraser","born":1985}}
+{"title":"Zionomicon","author":{"name":"John De Goes","born":1980},"editor":{"fullName":"Adam Fraser","born":1985}}
+{"name":"books","subcategories":[{"name":"SCALA","subcategories":[{"name":"zio"}]}]}
+{"name":"BOOKS","subcategories":[{"name":"scala","subcategories":[{"name":"zio"}]}]}
+```
+
+**Root cause.** `JsonCodecDeriver#deriveRecord` treats a record as recursive when any field is a `Reflect.Deferred` node (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:576`). For such a record it looks up the field infos of an earlier occurrence by type ID in the thread-local `recursiveRecordCache` (`:578`, `:2983`), and skips deriving the field codecs when it finds them (`:580`, `:630`). The first occurrence stores its infos before it derives its fields (`:622`), so every nested occurrence reuses them. Every occurrence still calls `fieldInfo.setName(name)` on the shared infos (`:643`), so the last one sets the encoded field name. `Schema.derived` wraps every field that has a default value in a `Reflect.Deferred` (`schema/shared/src/main/scala-3/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:613`, Scala 2 at `schema/shared/src/main/scala-2/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:471`), so a record with a defaulted field counts as recursive even when it is not. `DerivationBuilder#derive` keys optic overrides by path (`schema/shared/src/main/scala/zio/blocks/schema/derive/DerivationBuilder.scala`, `getCustomInstance`), which is right; the cache throws that per-path result away. The derivers of Avro, CSV, MessagePack, Thrift, TOON, XML and YAML use the same cache keyed by type ID (`recursiveRecordCache` in each `*CodecDeriver.scala`), so they probably behave the same; that is not verified.
+
+**Impact.** An optic override, the most precise override the derivation API offers, silently changes other parts of the output or does nothing, depending on whether a record type has a default value somewhere, which the user of the optic may not know or control. Overrides by type, or by type and field name, are not affected, because they are the same at every occurrence.
+
+**Test gap.** The optic-override tests in `JsonCodecDeriverSpec` (from `schema/shared/src/test/scala/zio/blocks/schema/json/JsonCodecDeriverSpec.scala:1626`) use `Record1`, which has no default values and no recursion. The recursive-record test at `:2447` overrides by type and field name. No test puts an optic override inside a type that occurs twice and has a defaulted field, or inside a recursive type.
+
+**Suggested fix.** Cache by type ID only the records that really recur on the current derivation path, not every record with a `Deferred` field, and do not reuse cached infos for an occurrence whose path has an optic override below it (or key the cache by type ID and path). Keep the field name per codec instance instead of mutating the shared `FieldInfo`. Apply the same change to the other derivers that copy this cache.
+
+### schema: `Allows` accepts mutually recursive types but rejects a recursive type that is not the checked type
+
+Found 2026-10-22 while reviewing the Scaladoc of `Allows.Self` (schema Scaladoc wave 6, branch `scaladoc-wave-6`, on top of `2f73284b`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: both files below were run with `scala-cli run --server=false` against the published 0.0.56 on Scala 2.13.18 and, with `zio-blocks-next-schema` and `-experimental`, on Scala 3.9.0.
+
+**Summary.** The Scaladoc of `Allows.Self` and `docs/reference/schema/allows.md` ("The `Self` Grammar Node") say that mutual recursion between two or more types is a compile-time error. The macro does the opposite of what that suggests. It accepts any cycle that leads back to the checked type `A`, including mutual recursion such as `Forest` and `Tree`. It rejects a type below `A` that refers to itself, such as a `Topic(subtopics: List[Topic])` field of a `Library`, although `Self` would accept `Topic` on its own. On Scala 3 the error is a generic shape violation rather than the "Mutually recursive types" message the reference page shows; on Scala 2 it is only "could not find implicit value".
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56). `Accepted.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+// Forest and Tree refer to each other
+case class Forest(trees: List[Tree])
+case class Tree(value: Int, children: Forest)
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val ev = implicitly[Allows[Forest, Record[Primitive | Sequence[Self] | Self]]]
+    println(s"mutually recursive Forest accepted: ${ev ne null}")
+  }
+}
+// mutually recursive Forest accepted: true
+```
+
+`Rejected.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+// Topic refers only to itself; Library is not recursive
+case class Topic(name: String, subtopics: List[Topic])
+case class Library(name: String, topics: Topic)
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val topic = implicitly[Allows[Topic, Record[Primitive | Sequence[Self] | Self]]]
+    println(s"Topic accepted: ${topic ne null}")
+    val library = implicitly[Allows[Library, Record[Primitive | Sequence[Self] | Self]]]
+    println(s"Library accepted: ${library ne null}")
+  }
+}
+// Scala 2.13.18:
+// Rejected.scala:14: error: could not find implicit value for parameter e: zio.blocks.schema.comptime.Allows[Library,zio.blocks.schema.comptime.Allows.Record[zio.blocks.schema.comptime.Allows.Primitive | zio.blocks.schema.comptime.Allows.Sequence[zio.blocks.schema.comptime.Allows.Self] | zio.blocks.schema.comptime.Allows.Self]]
+//     val library = implicitly[Allows[Library, Record[Primitive | Sequence[Self] | Self]]]
+//                             ^
+// 1 error
+```
+
+On Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`), `Accepted.scala` prints the same line, and `Rejected.scala` fails to compile on the `Library` line only (the `Topic` line compiles). The scratch directory is left out of the file paths in both error outputs:
+
+```
+// Scala 3.9.0:
+// -- Error: Rejected.scala:15:88
+// 15 |    val library = implicitly[Allows[Library, Record[Primitive | Sequence[Self] | Self]]]
+//    |                                                                                        ^
+//    |── Allows Error ────────────────────────────────────────────────────────────────
+//    |
+//    |  Shape violation at Library.topics
+//    |
+//    |    Found:    Record(Topic)
+//    |    Required: Primitive | Sequence[Self] | Self
+//    |
+//    |  Hint: Type 'Topic' does not match any allowed shape
+//    |
+//    |────────────────────────────────────────────────────────────────────────────────
+// 1 error found
+```
+
+**Expected.** Either both are accepted, since every recursive position is covered by `Self` and `Self` accepts `Topic` on its own, or the documented rule holds and the mutually recursive `Forest` is rejected with the "Mutually recursive types" message.
+
+**Root cause.** The check keeps the set of types on the current path in `seen`. Checking a record's fields adds the record to it, and `Self` expands to the root grammar but adds the type to `seen` only when it is the root type (`schema/shared/src/main/scala-3/zio/blocks/schema/comptime/AllowsCompanionVersionSpecific.scala:448`; Scala 2 at `schema/shared/src/main/scala-2/zio/blocks/schema/comptime/AllowsCompanionVersionSpecific.scala:417`). When a type in `seen` comes back and it is the root type, the check accepts it (Scala 3 `:408-422`); when it is any other type, the check records the mutual-recursion error (Scala 3 `:402-406`, Scala 2 `:375-382`). So `Forest -> Tree -> Forest` passes, because the cycle closes on the root, and `Library -> Topic -> Topic` fails, because it closes on `Topic`. Inside a union, `checkAgainstUnion` collects the errors of each branch and, when every branch fails, reports one generic "does not match any allowed shape" error instead (Scala 3 `:563-576`, Scala 2 `:532-545`), which hides the mutual-recursion message.
+
+**Impact.** A grammar with `Self` cannot accept a non-recursive record that contains a recursive one, such as a library of topic trees, and the error does not say that recursion is the reason. Users who read the reference page expect mutually recursive types to be rejected and may rely on that.
+
+**Test gap.** `AllowsNegativeSpec` "Mutually recursive types produce compile-time error" (`schema/shared/src/test/scala/zio/blocks/schema/comptime/AllowsNegativeSpec.scala:430-452`) checks `Forest`/`Tree` against `Record[Primitive | Sequence[Self]]`, which fails because a `Forest` field is not a `Primitive` or a `Sequence`, not because of the cycle, and the test accepts several unrelated messages, including "could not find". No test checks a cycle through the root with `| Self`, or a recursive type below the root.
+
+**Suggested fix.** Track recursion per type rather than per root: when a type reached through `Self` comes back while it is being checked, accept it as the root case does. Then update the `Self` Scaladoc and the reference page, and change the negative test to assert the message it means to test.
 
 ## Usability traps
 
