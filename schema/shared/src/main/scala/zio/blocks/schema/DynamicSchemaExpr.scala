@@ -490,8 +490,9 @@ object DynamicSchemaExpr {
 
     /**
      * Returns `x` to the power `y`. Up to `Double`, it uses `Math.pow` and
-     * truncates the result back to the type; for `BigInt` and `BigDecimal`, `y`
-     * must be a whole number from 0 to 10000.
+     * converts the result back to the type, truncating for the integer types;
+     * for `BigInt` and `BigDecimal`, `y` must be a whole number from 0 to
+     * 10000.
      */
     def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue]
 

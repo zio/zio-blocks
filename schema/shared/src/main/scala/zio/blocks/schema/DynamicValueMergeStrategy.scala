@@ -99,9 +99,9 @@ object DynamicValueMergeStrategy {
   }
 
   /**
-   * Shallow merge: goes inside the two values only at the root. Top-level
-   * record fields, sequence indices and map keys are merged, but every value
-   * below them is taken from the right (right wins).
+   * Shallow merge: goes inside the two values only at the root. The top-level
+   * record fields, sequence indices and map keys of both are kept, and where
+   * both have one, the right value wins without merging further.
    */
   case object Shallow extends DynamicValueMergeStrategy {
 

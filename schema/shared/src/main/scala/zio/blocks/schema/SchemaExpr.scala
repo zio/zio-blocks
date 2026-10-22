@@ -438,9 +438,9 @@ object SchemaExpr {
    * `left` and `right`. Both must be primitives of `numericType`. `Byte`,
    * `Short`, `Int` and `Long` results wrap on overflow, and a division or
    * modulo by zero fails evaluation. `Pow` on `Byte` to `Double` uses
-   * `Math.pow` and truncates the result back to the type, so a negative
-   * exponent on an integer type gives 0; on `BigInt` and `BigDecimal` the
-   * exponent must be a whole number from 0 to 10000.
+   * `Math.pow` and converts the result back to the type, truncating for the
+   * integer types, so a negative exponent on them gives 0; on `BigInt` and
+   * `BigDecimal` the exponent must be a whole number from 0 to 10000.
    */
   def arithmetic[S, A](
     left: SchemaExpr[S, A],
