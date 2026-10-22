@@ -35,19 +35,24 @@ trait IntoVersionSpecific {
    * `Into.derived[Int, String]` fails.
    *
    * Each target field takes the first source field that matches, in this order:
-   * the same name and type; the same name and a convertible type; the only
-   * field of that type on both sides; the field at the same position with a
-   * matching or convertible type. A type is convertible when an implicit `Into`
-   * or `As` exists for it, including the built-in numeric and container
-   * instances; the macro does not derive conversions of nested case classes, so
-   * define those as implicits first. A target field that matches no source
-   * field takes its default value, or `None` if it is an `Option`; otherwise
-   * compilation fails. Source fields that match no target field are dropped.
+   * the same name and type; the same name and a convertible type; when the
+   * target field's type occurs once in the target, the source field whose type
+   * occurs once in the source and is the same or, failing that, converts; the
+   * field at the same position with a matching or convertible type. A type is
+   * convertible when an implicit `Into` or `As` exists for it, including the
+   * built-in numeric and container instances; the macro does not derive
+   * conversions of nested case classes, so define those as implicits first. A
+   * target field that matches no source field takes its default value, or
+   * `None` if it is an `Option`; otherwise compilation fails. Source fields
+   * that match no target field are dropped.
    *
    * Each source case goes to the target case with the same name; failing that,
-   * to the first target case whose field types match; failing that, to the
-   * target case at the same position. A renamed or removed case can therefore
-   * convert to an unrelated case without any error (see `docs/dev/issues.md`).
+   * to the first target case whose fields, position by position, have the same
+   * types or types that convert (an implicit `Into`, and on Scala 3 also an
+   * opaque type or a newtype), a step that case objects skip; failing that, to
+   * the target case at the same position. A renamed or removed case can
+   * therefore convert to an unrelated case without any error (see
+   * `docs/dev/issues.md`).
    *
    * At run time, the conversion returns `Left` when a narrowing conversion, an
    * implicit `Into` it uses, a newtype or opaque-type smart constructor, or
