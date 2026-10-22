@@ -293,5 +293,5 @@ Errors carry a [`DynamicOptic`](./dynamic-optic.md) path so failures can be trac
 - use `Migration` when you need explicit, inspectable, serializable transformation steps
 
 :::tip
-If you want a practical migration walkthrough rather than a reference, start with [`MigrationSpec`](https://github.com/zio/zio-blocks/blob/main/schema/shared/src/test/scala/zio/blocks/schema/migration/MigrationSpec.scala) and [`DynamicMigrationSpec`](https://github.com/zio/zio-blocks/blob/main/schema/shared/src/test/scala/zio/blocks/schema/migration/DynamicMigrationSpec.scala) in the repository until a dedicated migration guide lands.
+For a step-by-step walkthrough rather than a reference, follow the [Evolve Your Data](../../guides/evolve-your-data.md) tutorial, which builds a `Migration` that renames a field and shows the compile-time completeness check.
 :::

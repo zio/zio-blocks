@@ -160,7 +160,7 @@ println(v1AndV2.into(programmingInScalaV1).flatMap(v1AndV2.from))
 The code above chains `into` and `from` with `flatMap`, so the result is `Right` only if both steps succeed. Notice that we get back exactly the `BookV1` we started with.
 
 :::note
-`As` checks at compile time that every field can travel in both directions. A field that exists only in the newer type must be an `Option`, so the conversion back has nothing to invent. A field that is renamed between the two types breaks that check, because `As` pairs fields by name.
+`As` checks at compile time that every field can travel in both directions. A field that exists only in the newer type must be an `Option`, so the conversion back has nothing to invent. `As` pairs fields by name, so a renamed field looks like one field removed and a new one added — and when the new one is not an `Option`, such as an `Int`, `As.derived` refuses to compile.
 :::
 
 ## 6. Rename a Field with Migration

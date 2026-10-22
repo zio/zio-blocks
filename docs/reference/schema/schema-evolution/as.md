@@ -501,3 +501,7 @@ result
 `As[A, B]` is defined in `zio.blocks.schema` alongside `Into[A, B]`. Because `As` is a subtype of `Into`, the two type classes compose naturally: you can derive an outer `As` from inner `As` instances, or mix `As` and custom `Into` instances when some fields need one-way or custom logic.
 
 For a full reference on one-way conversions and the derivation rules that `As` builds on, see [Into](into.md).
+
+## See Also
+
+- [Evolve Your Data](../../../guides/evolve-your-data.md) - a tutorial that converts a book record between two versions with `As` and checks the round trip in both directions.
