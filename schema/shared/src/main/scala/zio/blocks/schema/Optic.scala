@@ -150,8 +150,8 @@ sealed trait Optic[S, A] { self =>
    * there is nothing to focus on, the result equals `s`: a [[Prism]] on another
    * case, an [[Optional]] on a missing index or key, a [[Traversal]] over an
    * empty collection. It also equals `s` when a `wrapped` step on the path
-   * throws a [[SchemaError]], including one that `f` throws below that step
-   * (a bug, see `docs/dev/issues.md`); other exceptions, from the path or from
+   * throws a [[SchemaError]], including one that `f` throws below that step (a
+   * bug, see `docs/dev/issues.md`); other exceptions, from the path or from
    * `f`, propagate. `modifyOption` and `modifyOrFail` say when nothing was
    * modified.
    *
