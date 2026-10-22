@@ -64,7 +64,8 @@ abstract class Codec[DecodeInput, EncodeOutput, Value] {
 
   /**
    * Decodes a value from `input`, or returns `Left` with a [[SchemaError]] when
-   * the input does not decode.
+   * the input does not decode (`CsvCodec` throws instead when a
+   * `Schema#transform` check fails; see `docs/dev/issues.md`).
    */
   def decode(input: DecodeInput): Either[SchemaError, Value]
 }

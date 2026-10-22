@@ -134,7 +134,9 @@ object NameMapper {
    * stays with the word before it: `address2Line` becomes `address2_line` and
    * `isbn13` stays `isbn13`. An existing `_` or `-` becomes `_`, except one
    * inside the name that a digit or symbol follows, which is dropped:
-   * `version_2` becomes `version2`.
+   * `version_2` becomes `version2`. A capital right after an existing `_` or
+   * `-` gets a second separator when a lower-case letter follows it, so
+   * `my_Field` becomes `my__field` (see `docs/dev/issues.md`).
    */
   case object SnakeCase extends NameMapper {
     override def apply(memberName: String): String = enforceSnakeOrKebabCase(memberName, '_')
@@ -167,8 +169,8 @@ object NameMapper {
   /**
    * Converts a name to kebab-case: lower-case words joined by `-`, as in
    * `publishedIn` to `published-in`. It splits words like [[SnakeCase]], so
-   * `parseHTTPResponse` becomes `parse-http-response` and `address2Line`
-   * becomes `address2-line`.
+   * `parseHTTPResponse` becomes `parse-http-response`, `address2Line` becomes
+   * `address2-line`, and `my_Field` becomes `my--field`.
    */
   case object KebabCase extends NameMapper {
     override def apply(memberName: String): String = enforceSnakeOrKebabCase(memberName, '-')

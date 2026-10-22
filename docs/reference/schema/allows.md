@@ -424,7 +424,7 @@ val ev2: Allows[List[String], Allows.Sequence[Allows.IsType[String]]] = implicit
 
 `Self` refers back to the entire enclosing `Allows[A, S]` grammar. It allows the grammar to describe recursive data structures.
 
-**Non-recursive types** satisfy `Self`-containing grammars without issue: if no field ever recurses back to the root type, the `Self` position is never reached, and the constraint is vacuously satisfied.
+**Non-recursive types** satisfy a `Self`-containing grammar whenever their parts match: `Self` checks the part at its position against the whole grammar again, and since no type comes back, the check ends. For example, `Allows[Book, Record[Primitive | Self]]` checks an `Author` field of `Book` through `Self` as a `Record[Primitive | Self]`.
 
 **Recursion** is accepted when it leads back to the checked type `A`, directly or through other types: mutually recursive `Forest` and `Tree` checked as `Allows[Forest, Record[Primitive | Sequence[Self] | Self]]` are accepted. A recursive type below `A` is rejected, even when `Self` accepts it on its own: a non-recursive `Library` with a field of type `Topic(name: String, subtopics: List[Topic])` fails that grammar; on Scala 3 the error is a shape violation at `Library.topics`.
 

@@ -498,9 +498,10 @@ object Allows extends AllowsCompanionVersionSpecific {
    * such as a self-recursive `Category` field of a record that is not
    * recursive, is rejected (see `docs/dev/issues.md`).
    *
-   * Non-recursive types satisfy `Self`-containing grammars without issue: since
-   * the `Self` position is never reached, the constraint is vacuously
-   * satisfied.
+   * A type that contains no recursive type satisfies a `Self`-containing
+   * grammar whenever its parts match: `Self` checks the part at its position
+   * against the whole grammar again, and since no type comes back, the check
+   * ends.
    */
   sealed abstract class Self extends Structural
 

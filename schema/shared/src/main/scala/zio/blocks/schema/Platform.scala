@@ -42,8 +42,9 @@ trait Platform {
   def idnToAscii(idn: String): Option[String]
 
   /**
-   * Whether reflection is available, which deriving a schema for a structural
-   * type needs: true on the JVM only.
+   * Whether reflection is available, which structural types need: deriving
+   * their schemas and bindings, `ToStructural`, and `Into` to or from a
+   * structural type. It is true on the JVM only.
    */
   final def supportsReflection: Boolean = isJVM
 }

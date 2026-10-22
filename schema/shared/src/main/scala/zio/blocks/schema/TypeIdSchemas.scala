@@ -25,10 +25,11 @@ import zio.blocks.chunk.Chunk
  * for example when a [[DynamicSchema]] is serialized. [[Schema]] and
  * [[DynamicSchema]] extend this trait, so the schemas are found implicitly.
  *
- * Except for `ownerSchema` and `termPathSchema`, which are lists of segments,
- * each one converts its type to and from a [[DynamicValue]] record. A sum type
- * is a record whose `type` field names the case. Decoding fails when a field is
- * missing or the `type` field names no case.
+ * Except for `varianceSchema`, which is a string, and `ownerSchema` and
+ * `termPathSchema`, which are lists of segments, each one converts its type to
+ * and from a [[DynamicValue]] record. A sum type is a record whose `type` field
+ * names the case. Decoding fails when a field is missing or the `type` field
+ * names no case.
  */
 trait TypeIdSchemas {
 
@@ -845,8 +846,8 @@ trait TypeIdSchemas {
   // ============================================================================
 
   /**
-   * The schema of `TypeBounds`: a record with optional `lower` and `upper`
-   * fields.
+   * The schema of `TypeBounds`: a record with `lower` and `upper` fields, each
+   * holding an optional type; both fields must be present.
    */
   implicit lazy val typeBoundsSchema: Schema[TypeBounds] =
     Schema[DynamicValue].transform(
