@@ -162,6 +162,29 @@ import zio.blocks.schema.yaml.{Yaml, YamlReader}
 
 **Suggested fix.** In `needsQuoting`, quote a value whose first character is any YAML indicator (`#`, `,`, `[`, `]`, `{`, `}`, `&`, `*`, `!`, `|`, `>`, `'`, `"`, `%`, `@`, `` ` ``), or that starts with `-`, `?` or `:` followed by a space, and a value with leading or trailing spaces. Make `YamlReader` treat `#` at the start of a value as a comment, as the spec says. Add writer tests for each indicator and a test that the OpenAPI petstore document survives `Yaml.fromJson(...).printPretty` and a spec-following read.
 
+**Addendum (2026-10-21, H-15).** Its suggested fix already names the other cases from source; they are now verified by running. A value that starts with `- ` or ends with `:` is written unquoted and rejected by SnakeYAML, and leading or trailing spaces are lost by every reader, including `YamlReader`. Found 2026-10-21 while writing H-15 (`docs/guides/read-and-write-yaml.md`), `main` at `4ec6dd90`, same at `v0.0.56`.
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+//> using dep org.yaml:snakeyaml:2.3
+import zio.blocks.schema.yaml._
+
+@main def writerQuoting(): Unit = {
+  val snake = new org.yaml.snakeyaml.Yaml()
+  for (value <- List("- Zionomicon", "Zionomicon:", " Zionomicon", "Zionomicon ")) {
+    val text = Yaml.Mapping.fromStringKeys("title" -> Yaml.Scalar(value)).print
+    val read = scala.util.Try(snake.load[Object](text)).fold(e => "error: " + e.getMessage.linesIterator.next(), v => s"'$v'")
+    println(s"[$value] is written as <$text>; SnakeYAML reads $read; YamlReader reads ${YamlReader.read(text)}")
+  }
+}
+// Output:
+// [- Zionomicon] is written as <title: - Zionomicon>; SnakeYAML reads error: sequence entries are not allowed here; YamlReader reads Mapping(Chunk((Scalar(title,None),Scalar(- Zionomicon,None))))
+// [Zionomicon:] is written as <title: Zionomicon:>; SnakeYAML reads error: mapping values are not allowed here; YamlReader reads Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon:,None))))
+// [ Zionomicon] is written as <title:  Zionomicon>; SnakeYAML reads '{title=Zionomicon}'; YamlReader reads Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon,None))))
+// [Zionomicon ] is written as <title: Zionomicon >; SnakeYAML reads '{title=Zionomicon}'; YamlReader reads Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon,None))))
+```
+
 ### schema-toon: `ArrayFormat.Tabular` with a non-primitive field writes output it cannot decode
 
 Filed as #1778. Found 2026-10-20 while writing H-12 (`docs/guides/llm-data-with-toon.md`). Verified on 0.0.56; schema-toon is unchanged since.
@@ -865,6 +888,8 @@ List("name = \"Scala Bookstore\"\ntags = [scala,\n", "a = ${missing}").foreach {
 **Test gap.** `ConfigErrorSpec` tests `ParseError` messages only with a non-empty path, and no test checks the message of a HOCON parse failure.
 
 **Suggested fix.** Append the cause message in `ParseError#message` whatever the path, and override `getCause` to return the cause. Record the position of each substitution when parsing, and use it for resolution errors. Add a `HoconConfigSourceSpec` test that asserts the full message of a syntax error.
+
+**Note (2026-10-21, found while writing H-34).** Hiding the cause is partly deliberate: `ParseError#message` drops it so that a cause quoting a line of the document, which may hold a secret, never reaches a log, and `YamlConfigSourceSpec` pins that ("parse error redaction" suite, `config-yaml/shared/src/test/scala/zio/blocks/config/yaml/YamlConfigSourceSpec.scala:174-215`, including "ParseError with empty path hides cause text even if cause contains secret"). A fix should add the line and column to the message without the cause's text, rather than appending the cause as is.
 
 ### Streams: a blocking terminal throws the internal `AsyncBoundaryRequired` signal when `catchAll` sits inside `flatMap` and a stateful operator follows
 
@@ -4215,6 +4240,984 @@ object MaxBufSizeRepro {
 
 **Suggested fix.** On entry to the stream and direct-buffer `read` overloads, reallocate when `buf.length > config.maxBufSize` (not only when it is smaller than `preferredBufSize`), and make `growBuf` raise `tooLongInputError` when `bufLen >= maxBufSize`.
 
+### config-hocon: a self-reference such as `path = ${path}":/opt/bookstore/bin"` is rejected as circular
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** The HOCON spec allows a key to refer to its own earlier value, the usual way to extend a default: `path = ${path}":/extra"`. Typesafe Config resolves it to the previous value plus the suffix. `config-hocon` fails the whole document with `Circular substitution detected`. A substitution of a different key works.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-hocon:0.0.56
+import zio.blocks.config._
+import zio.blocks.config.hocon._
+
+def show(doc: String): Unit =
+  HoconParser.parse(doc) match {
+    case Right(value) => println(HoconValue.flatten(value))
+    case Left(error)  => println(error.getMessage)
+  }
+
+show("path = \"/usr/bin\"\npath = ${path}\":/opt/bookstore/bin\"")
+show("base = \"/usr/bin\"\npath = ${base}\":/opt/bookstore/bin\"")
+// Circular substitution detected for path: path (line 0, column 0)
+// Map(base -> /usr/bin, path -> /usr/bin:/opt/bookstore/bin)
+```
+
+**Expected.** The first document resolves to `Map(path -> /usr/bin:/opt/bookstore/bin)`, as the HOCON spec's "Self-Referential Substitutions" section describes.
+
+**Root cause.** Duplicate keys are merged first, so the later `path` replaces the earlier one in the tree, and substitutions are then resolved against that merged root (`config-hocon/shared/src/main/scala/zio/blocks/config/hocon/HoconParser.scala:620-631`). `${path}` looks up the new `path`, which is the substitution itself, and the `resolving` check reports a cycle (`HoconParser.scala:622-623`). The previous value is gone by then.
+
+**Impact.** A common Typesafe Config idiom, extending a value from an included `defaults.conf`, stops the whole file from loading. `formats.md` says only that circular references are reported, so users don't know the self-referential form is unsupported.
+
+**Test gap.** `HoconParserSpec` "circular substitution produces error" (`config-hocon/shared/src/test/scala/zio/blocks/config/hocon/HoconParserSpec.scala:386`) tests a real cycle; no test covers a self-reference to an earlier value.
+
+**Suggested fix.** While merging, when a later value of a key contains a substitution of that same key, resolve it against the key's previous value (as the spec says), and only then replace it. Until then, document in `formats.md` that self-references are rejected and that `+=` works for lists.
+
+### config-hocon: an undefined `${?path}` inside a concatenation becomes the text `null`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** The HOCON spec says an undefined optional substitution inside a value concatenation contributes nothing, so `"jdbc:postgresql://localhost:5432/"${?db.name}` is `jdbc:postgresql://localhost:5432/` when `db.name` is not set, and Typesafe Config behaves that way. `config-hocon` inserts the four characters `null` instead. A key whose whole value is `${?path}` is left out correctly.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-hocon:0.0.56
+import zio.blocks.config._
+import zio.blocks.config.hocon._
+
+def show(doc: String): Unit =
+  println(ConfigSource.fromHocon(doc).map(_.all("").map { case (k, v) => s"$k=${v.value}" }.toList.sorted))
+
+show("db.password = ${?db.secret}\ndb.user = bookstore")
+show("db.url = \"jdbc:postgresql://localhost:5432/\"${?db.name}")
+show("db.url = \"jdbc:postgresql://localhost:5432/\"${?db.name}\"?ssl=true\"")
+// Right(List(db.user=bookstore))
+// Right(List(db.url=jdbc:postgresql://localhost:5432/null))
+// Right(List(db.url=jdbc:postgresql://localhost:5432/null?ssl=true))
+```
+
+**Expected.** `db.url=jdbc:postgresql://localhost:5432/` and `db.url=jdbc:postgresql://localhost:5432/?ssl=true`.
+
+**Root cause.** An undefined optional substitution resolves to `HoconValue.Null` (`config-hocon/shared/src/main/scala/zio/blocks/config/hocon/HoconParser.scala:629`). The `MConcat` case appends every part with `hoconValueToString` (`HoconParser.scala:634-644`), which renders `Null` as `"null"` (`HoconParser.scala:651`). `HoconValue.flatten` drops a `Null` only when it is the whole value.
+
+**Impact.** A URL, path or name built from an optional part silently contains `null`, and the service connects to the wrong database or reads the wrong folder instead of failing.
+
+**Test gap.** `HoconParserSpec` "optional substitution resolves to null when absent" (`config-hocon/shared/src/test/scala/zio/blocks/config/hocon/HoconParserSpec.scala:378`) tests a whole-value substitution only.
+
+**Suggested fix.** In the `MConcat` case, skip a part that resolved from an undefined optional substitution, and add a concatenation case to the spec.
+
+### config-hocon: `HoconParser.parse` drops an `include` inside an included resource
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `HoconParser.parse(input, includeCallback)` is the only public way to resolve includes without a filesystem (from the classpath, from files embedded in a Scala.js bundle, or in tests). It resolves the includes of the root document only. An `include` inside text the callback returned is skipped without an error, even when the callback can supply that file.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-hocon:0.0.56
+import zio.blocks.config.hocon._
+
+val files = Map(
+  "db.conf"   -> "url = \"jdbc:postgresql://localhost:5432/bookstore\"\ninclude \"pool.conf\"",
+  "pool.conf" -> "poolSize = 10"
+)
+
+println(HoconParser.parse("db { include \"db.conf\" }", files.get).map(HoconValue.flatten))
+println(HoconParser.parse("db { include \"pool.conf\" }", files.get).map(HoconValue.flatten))
+// Right(Map(db.url -> jdbc:postgresql://localhost:5432/bookstore))
+// Right(Map(db.poolSize -> 10))
+```
+
+**Expected.** The first call returns `Map(db.url -> ..., db.poolSize -> 10)`: the callback can supply `pool.conf`, so the nested include is resolved with it, as `ConfigSource.fromFile` resolves nested includes from disk.
+
+**Root cause.** `HoconParser.parse` wraps each callback result as `IncludedResource(content)` (`config-hocon/shared/src/main/scala/zio/blocks/config/hocon/HoconParser.scala:44`), whose `includeResolver` defaults to `_ => None` (`HoconParser.scala:30`). `handleInclude` parses the included text with that resolver (`HoconParser.scala:445-447`), so every nested include resolves to `None` and is ignored (`HoconParser.scala:452`). The JVM file loader passes a real nested resolver through the `private[hocon]` `parseWithResolver`, which is why nesting works there.
+
+**Impact.** A split configuration loaded from the classpath or from a browser bundle silently loses every file that is included from an included file. The missing keys surface later as `Missing required key` errors, far from the include.
+
+**Test gap.** `HoconParserSpec` "includes content via callback" (`HoconParserSpec.scala:531`) has one level of include only.
+
+**Suggested fix.** Wrap the callback recursively: `resource => includeCallback(resource).map(content => IncludedResource(content, nested))`, where `nested` is the same wrapper, and count depth as `fromFile` does to stop cycles. Alternatively make `parseWithResolver` public.
+
+### config-hocon: `ConfigSource.fromFile` looks for an absolute `include` path inside the including folder, so the include is silently skipped
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `include "/etc/bookstore/db.conf"` in a file loaded with `ConfigSource.fromFile` is resolved as `<folder of the including file>/etc/bookstore/db.conf`. That file normally doesn't exist, so the include is skipped like any missing include, and the configuration loads without the included keys and without an error. Typesafe Config reads an absolute include path as given.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-hocon:0.0.56
+import java.nio.file.Files
+import zio.blocks.config._
+import zio.blocks.config.hocon._
+
+val shared  = Files.createTempDirectory("shared")
+val dbConf  = Files.write(shared.resolve("db.conf"), "db.url = \"jdbc:postgresql://localhost:5432/bookstore\"".getBytes("UTF-8"))
+val appDir  = Files.createTempDirectory("app")
+val appConf = Files.write(appDir.resolve("application.conf"), s"include \"$dbConf\"\ncatalog.pageSize = 20".getBytes("UTF-8"))
+
+println(Files.exists(dbConf))
+println(ConfigSource.fromFile(appConf.toString).map(_.all("").keys.toList.sorted))
+// true
+// Right(List(catalog.pageSize))
+```
+
+**Expected.** `Right(List(catalog.pageSize, db.url))`: the absolute path is read as given, and, when `allowedBase` is set, checked against it like any other include.
+
+**Root cause.** The include resolver builds the file with `new java.io.File(baseDir, resource)` (`config-hocon/jvm/src/main/scala/zio/blocks/config/hocon/HoconConfigSourcePlatform.scala:122`). For an absolute `resource`, `java.io.File(File, String)` treats it as relative to `baseDir` on Unix, so the path is joined to the folder instead of replacing it.
+
+**Impact.** A configuration that keeps shared settings in a fixed system path loads without them and without any error; the missing keys show up as `Missing required key` errors or, worse, are filled in by defaults.
+
+**Test gap.** `HoconConfigSourcePlatformSpec` has no test with an absolute include path.
+
+**Suggested fix.** Resolve with `baseDir.toPath.resolve(resource)` (which returns an absolute `resource` unchanged) before canonicalizing, so the `allowedBase` check still applies to the result.
+
+### `YamlReader` stops at the first line it cannot read and drops the rest of the document without an error
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `zio.blocks.schema.yaml.YamlReader` stops parsing a block mapping at the first line that isn't a `key: value` entry at the expected indentation, and returns what it has read so far. The lines after it are never looked at, and no error is raised. A key missing the space after its colon (`pageSize:20`), a line indented one space too far, or a stray plain line each drop the rest of the document. `ConfigSource.fromYaml` in `config-yaml` uses this reader, so a typo in a YAML configuration file removes every setting after it. This is separate from the unterminated flow collection entry above.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-yaml:0.0.56
+import zio.blocks.config._
+import zio.blocks.config.yaml._
+
+def keys(yaml: String): Unit =
+  println(ConfigSource.fromYaml(yaml).map(_.all("").keys.toList.sorted))
+
+keys("catalog:\n  featuredBook: Zionomicon\n  pageSize: 20\ndb:\n  url: jdbc:postgresql://localhost:5432/bookstore\n")
+keys("catalog:\n  featuredBook: Zionomicon\n  pageSize:20\ndb:\n  url: jdbc:postgresql://localhost:5432/bookstore\n")
+keys("catalog:\n  featuredBook: Zionomicon\n   pageSize: 20\ndb:\n  url: jdbc:postgresql://localhost:5432/bookstore\n")
+keys("catalog:\n  featuredBook: Zionomicon\n  Programming in Scala\ndb:\n  url: jdbc:postgresql://localhost:5432/bookstore\n")
+keys("- Zionomicon\ndb:\n  url: jdbc:postgresql://localhost:5432/bookstore\n")
+// Right(List(catalog.featuredBook, catalog.pageSize, db.url))
+// Right(List(catalog.featuredBook))
+// Right(List(catalog.featuredBook))
+// Right(List(catalog.featuredBook))
+// Right(List(0))
+```
+
+**Expected.** The first document loads as shown. Each of the other four is a YAML syntax error, so `fromYaml` returns `Left(ConfigError.ParseError(...))` instead of a source with the rest of the file missing.
+
+**Root cause.** `parseBlockMapping` returns its entries as soon as a line has a different indentation (`schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlReader.scala:107`) or no mapping colon followed by a space (`YamlReader.scala:112`). `YamlParser#parse` returns the value of `parseValue(0)` (`YamlReader.scala:36-48`) without checking that every line was consumed, so the unread lines are dropped silently.
+
+**Impact.** A one-character typo in a YAML configuration file loads as a valid, smaller configuration. Settings with defaults then take their defaults without a trace; only settings without a default show up, as `Missing required key` errors that name the key, not the line.
+
+**Test gap.** `YamlReaderSpec` has no test that malformed block YAML is rejected or that the whole input is consumed.
+
+**Suggested fix.** At the end of `YamlParser#parse`, skip blank and comment lines and throw a parse error naming the line number if any line is left. Inside `parseBlockMapping`, raise an error for a line at greater indentation than the mapping that doesn't belong to a nested value.
+
+### config: `ProvenanceMap` prints the raw value of a `Secret` field
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** A field typed `Secret` prints as `<secret>` in the decoded case class, but the provenance of the same load shows its value in clear: `ProvenanceMap#provenanceOf` returns a `Provenance.Resolved` whose `toString` includes the raw text, and `ProvenanceMap#dump` hides a value only when its key name looks sensitive, whatever the field's type. `docs/reference/config/config-source.md` ("Redaction is name-based only") tells readers to "use `Secret`" for "values that must never be printed regardless of key", which `dump` does not honour.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config:0.0.56
+import zio.blocks.config._
+import zio.blocks.schema.Schema
+
+final case class DbConfig(url: String, signingKeyBlob: Secret)
+object DbConfig {
+  implicit val schema: Schema[DbConfig] = Schema.derived
+}
+
+val source = ConfigSource.fromMap(Map("url" -> "jdbc:postgresql://localhost:5432/bookstore", "signingKeyBlob" -> "hunter2"), "file")
+val loaded = Config.loadWithProvenance[DbConfig](source).toOption.get
+
+println(loaded.value)
+println(loaded.provenanceOf("signingKeyBlob"))
+println(loaded.dump())
+// DbConfig(jdbc:postgresql://localhost:5432/bookstore,<secret>)
+// Resolved(file,signingKeyBlob,hunter2)
+// ┌────────────────┬────────────────────────────────────────────┬────────┐
+// │ Key            │ Value                                      │ Source │
+// ├────────────────┼────────────────────────────────────────────┼────────┤
+// │ signingKeyBlob │ hunter2                                    │ file   │
+// │ url            │ jdbc:postgresql://localhost:5432/bookstore │ file   │
+// └────────────────┴────────────────────────────────────────────┴────────┘
+```
+
+The same happens with a sensitive name: `provenanceOf("db.password")` on a layered `EnvSource` prints `Resolved(env,BOOKSTORE_DB_PASSWORD,<the password>)`, although `dump()` hides that row.
+
+**Expected.** Every value read for a `Secret` field is shown as `<secret>`, in `dump()` and in the `Provenance` returned by `provenanceOf`, as `config-source.md` promises.
+
+**Root cause.** `ProvenanceMap` holds only the source, not the schema, so `dump` can redact by key name alone (`config/shared/src/main/scala/zio/blocks/config/ProvenanceMap.scala:27-30`, used at `:48`). `provenanceOf` returns the source's `Provenance` unchanged (`ProvenanceMap.scala:35-36`), and `Provenance.Resolved` is a case class with the raw value as a field (`config/shared/src/main/scala/zio/blocks/config/Provenance.scala:40`), so its default `toString` prints it.
+
+**Impact.** A startup log line that prints provenance, the module's recommended way to debug a deployment, leaks secrets that the user had protected with the `Secret` type.
+
+**Test gap.** `ConfigSpec` "dump redacts sensitive values by key name" (`config/shared/src/test/scala/zio/blocks/config/ConfigSpec.scala:177`) checks a sensitive key name only; no test loads a `Secret` field under a neutral name, and none checks `provenanceOf` output.
+
+**Suggested fix.** Have `Config.loadWithProvenance` record the paths of `Secret` fields (it has the schema) and pass them to `ProvenanceMap`, so `dump` and `provenanceOf` redact them. Override `Provenance.Resolved#toString` to omit `rawValue`, or redact it when the key is sensitive. Until then, correct the advice in `config-source.md`.
+
+### schema-yaml: `YamlReader` silently misreads or drops valid YAML that it does not support
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** `YamlReader.read` never fails, so YAML forms it does not implement are not rejected: they are misread, or they end the document early, and the rest of the file is dropped without an error. This is separate from the "stops at the first line it cannot read" entry (typos such as `pageSize:20`): every input below is valid YAML that other readers accept. The affected forms are common in real files: a block sequence at the same indentation as its key is the usual Kubernetes and docker-compose style, anchors and merge keys are how CI files share defaults, and multi-document streams are how `kubectl` files bundle several objects.
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema.yaml.YamlReader
+
+@main def unsupportedYaml(): Unit = {
+  // 1. A sequence at the same indentation as its key (the usual Kubernetes and docker-compose style)
+  println(YamlReader.read("steps:\n- name: checkout\n- name: test\ntimeout: 30\n"))
+  // 2. A sequence nested directly in a sequence
+  println(YamlReader.read("matrix:\n  - - '2.13'\n    - '3.3'\n  - - jdk17\nfail-fast: true\n"))
+  // 3. An anchor on a block mapping, then a merge key
+  println(YamlReader.read("defaults: &defaults\n  image: sbt:1.10\n  timeout: 30\ntest:\n  <<: *defaults\n  script: sbt test\n"))
+  // 4. A stream of two documents
+  println(YamlReader.read("title: Zionomicon\n---\ntitle: Programming in Scala\n"))
+  // 5. Anchors, aliases and tags on scalars
+  println(YamlReader.read("author: &a John A. De Goes\nreviewer: *a\nisbn: !!str 9780986200406\n"))
+  // 6. A tab used for indentation
+  println(YamlReader.read("db:\n\turl: jdbc:postgresql://localhost/books\nport: 5432\n"))
+}
+// Output:
+// Mapping(Chunk((Scalar(steps,None),NullValue),(Scalar(- name,None),Scalar(checkout,None)),(Scalar(- name,None),Scalar(test,None)),(Scalar(timeout,None),Scalar(30,None))))
+// Mapping(Chunk((Scalar(matrix,None),Sequence(Chunk(Scalar(- '2.13',None))))))
+// Mapping(Chunk((Scalar(defaults,None),Scalar(&defaults,None))))
+// Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon,None))))
+// Mapping(Chunk((Scalar(author,None),Scalar(&a John A. De Goes,None)),(Scalar(reviewer,None),Scalar(*a,None)),(Scalar(isbn,None),Scalar(!!str 9780986200406,None))))
+// Mapping(Chunk((Scalar(db,None),NullValue),(Scalar(url,None),Scalar(jdbc:postgresql://localhost/books,None)),(Scalar(port,None),Scalar(5432,None))))
+```
+
+**Expected.** Either the YAML 1.2 meaning, or a parse error that names the unsupported construct and its line:
+
+1. `steps: [{name: checkout}, {name: test}]` plus `timeout: 30`, not `steps: null` followed by two keys named `- name`.
+2. `matrix: [['2.13', '3.3'], [jdk17]]` plus `fail-fast: true`.
+3. `test` with `image`, `timeout` and `script` (the merge key), and `defaults` as a mapping.
+4. Both documents (for example a `readAll` that returns a `Chunk[Yaml]`), or an error when `read` meets a second document.
+5. `reviewer: John A. De Goes` and `isbn: "9780986200406"` (a string), not the anchor, alias and tag kept as text.
+6. A parse error: YAML forbids tabs for indentation. Today `url` silently moves up to the root mapping.
+
+**Root cause.** In `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlReader.scala`:
+- Indentless sequence: `parseBlockMapping` parses a value on the following lines only when they are indented further than the key (`:120-123`, `currentIndent > indent` at `:122`); otherwise the value is `NullValue`. The next line, `- name: checkout`, is then at the mapping's own indentation, and `findMappingColon` (`:85-101`) finds the colon after `- name`, so it becomes a key.
+- Anchor on a block value: `&defaults` is not empty, so it is read as an inline scalar (`:128`, `parseInlineValue` at `:445-453`), and the indented block that follows makes `parseBlockMapping` return (`:107-108`).
+- Nested sequence: the output shows the first item read as the plain scalar `- '2.13'` and the sequence ending at the next line; the branch inside `parseBlockSequence` (`:136-212`) was not traced.
+- Multi-document: `parse()` (`:36-48`) skips one leading `---`, returns the value of `parseValue(0)`, and never looks at the remaining lines.
+- Anchors, aliases and tags: `parseInlineValue` (`:445-453`) has no case for `&`, `*` or `!`. `YamlTag.fromString` (`YamlTag.scala`) exists but no reader code calls it.
+- Tabs: `countLeadingSpaces` (`:62-66`) counts only spaces, so a tab-indented line has indentation 0.
+
+**Impact.** Silent data loss or silently wrong structure for real-world YAML. A Kubernetes manifest with `containers:` followed by `- name: ...` at the same indentation loses its containers, and every key after them. `config-yaml` uses this reader, so the same files load as smaller configurations. A typed decode reports the problem only when a required field happens to be in the lost part, and then names the field, not the line.
+
+**Test gap.** `YamlReaderSpec` has no test for an indentless sequence, a nested sequence, an anchor or alias, a merge key, a tag, a second document or a tab, and no test that the whole input was consumed.
+
+**Suggested fix.** Treat a `- ` line at the key's own indentation as the key's sequence value (as YAML allows). Parse `- - ` items recursively. Either implement anchors, aliases, merge keys and tags, or reject them with a parse error naming the line. After `parse()`, fail if any non-blank, non-comment line is left (or add a multi-document `readAll`). Reject tab indentation.
+
+### schema-yaml: `YamlReader` drops the final line break of `|` and `>` blocks and ignores chomping indicators
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** YAML's default "clip" chomping keeps one final line break in a literal (`|`) or folded (`>`) block, `-` (strip) removes it, and `+` (keep) keeps all trailing line breaks. `YamlReader` removes the last line break in every case, so `|` reads like `|-`, and `|+` loses one of its line breaks. A shell script in a CI `run: |` block, a PEM certificate or a Markdown description read through `YamlReader` therefore differs from what every other YAML reader returns.
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema.yaml.{Yaml, YamlReader}
+
+@main def blockScalars(): Unit = {
+  def value(text: String): String = YamlReader.read(text) match {
+    case Yaml.Mapping(entries) => entries.head._2 match {
+      case Yaml.Scalar(v, _) => v.replace("\n", "\\n")
+      case other             => other.toString
+    }
+    case other => other.toString
+  }
+  println(value("run: |\n  sbt compile\n  sbt test\n"))
+  println(value("run: |-\n  sbt compile\n  sbt test\n"))
+  println(value("run: |+\n  sbt compile\n  sbt test\n\n"))
+  println(value("run: >\n  sbt compile\n  sbt test\n"))
+}
+// Output:
+// sbt compile\nsbt test
+// sbt compile\nsbt test
+// sbt compile\nsbt test\n
+// sbt compile sbt test
+```
+
+**Expected.** `sbt compile\nsbt test\n` for `|`, `sbt compile\nsbt test` for `|-`, `sbt compile\nsbt test\n\n` for `|+`, and `sbt compile sbt test\n` for `>`.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlReader.scala`: the block header is only checked for its first character (`:124-127`, `afterColon.charAt(0) == '|'`), so the chomping and indentation indicators are never read. `parseLiteralBlockContent` (`:287-322`) always strips one trailing `'\n'` (`:304-305` and `:319-320`).
+
+**Impact.** Small but silent changes to multi-line strings: a value that must end in a newline (a certificate, a file body, a script that is concatenated with another) no longer does. Round trips through other tools change the text.
+
+**Test gap.** `YamlReaderSpec` asserts the stripped form for a plain `|` block (`"line1\nline2"`), which is the bug, and tests `|+` only with `isRight`.
+
+**Suggested fix.** Parse the block header's chomping (`-`, `+`) and indentation indicators, keep one final line break by default, all of them for `+`, none for `-`. Update the existing test to the YAML result.
+
+### schema-yaml: `YamlReader` forgets which scalars were quoted, so `Yaml#print` quotes every number it read and `Yaml#toJson` turns quoted strings into numbers and booleans
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** `YamlReader` keeps the text of each scalar but not whether it was quoted, and it never sets a `YamlTag`. Two things go wrong as a result. Printing a tree that was read from text quotes every number and boolean (`replicas: 3` comes back as `replicas: "3"`), so a read-modify-write of a Kubernetes manifest changes the types of its fields. `Yaml#toJson` guesses the types from the text alone, so a quoted `"9780986200406"`, `"1.10"` or `"true"` becomes a JSON number or boolean.
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema.yaml.YamlReader
+
+@main def scalarTypes(): Unit = {
+  val manifest = "replicas: 3\npaused: false\nversion: \"1.10\"\nisbn: \"9780986200406\"\nlabel: \"true\"\n"
+  val yaml     = YamlReader.read(manifest)
+  println(yaml)
+  println(yaml.print)
+  println(yaml.toJson.print)
+}
+// Output:
+// Mapping(Chunk((Scalar(replicas,None),Scalar(3,None)),(Scalar(paused,None),Scalar(false,None)),(Scalar(version,None),Scalar(1.10,None)),(Scalar(isbn,None),Scalar(9780986200406,None)),(Scalar(label,None),Scalar(true,None))))
+// replicas: "3"
+// paused: "false"
+// version: "1.10"
+// isbn: "9780986200406"
+// label: "true"
+// {"replicas":3,"paused":false,"version":1.10,"isbn":9780986200406,"label":true}
+```
+
+**Expected.** `print` writes `replicas: 3` and `paused: false` unquoted and keeps the quotes on `version`, `isbn` and `label`. `toJson` gives `{"replicas":3,"paused":false,"version":"1.10","isbn":"9780986200406","label":"true"}`.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlReader.scala:445-453` (`parseInlineValue`) builds `new Yaml.Scalar(...)` with no tag for plain and quoted scalars alike. `YamlWriter.needsQuoting` (`schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlWriter.scala:203-227`) leaves numbers and booleans unquoted only when they carry a `Bool`, `Int`, `Float` or `Null` tag (`:205-208`). `YamlJsonInterop.yamlToJson` (`schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlJsonInterop.scala:24-44`) ignores tags and quoting and converts any scalar that starts with a digit or `-` and parses as a number to `Json.Number`, and `true`/`false`/`null` in three spellings to JSON literals.
+
+**Impact.** A program that reads YAML, changes a value and writes it back turns every number into a string, which tools such as the Kubernetes API reject (`replicas: "3"`). YAML converted to JSON changes the type of quoted values; decoding that JSON into a `String` field then fails (`expected Json.String`), and JSON written out silently has a number where the file had a string, for example for an ISBN.
+
+**Test gap.** `YamlJsonInteropSpec` converts only hand-built `Yaml` values and JSON, never text read by `YamlReader` with quoted numbers or booleans; no test prints a tree that came from `YamlReader`.
+
+**Suggested fix.** In `parseInlineValue`, tag quoted scalars `YamlTag.Str` and resolve plain scalars with the YAML 1.2 core schema (`Int`, `Float`, `Bool`, `Null`). In `yamlToJson`, keep `Str`-tagged scalars as JSON strings. In the writer, quote a `Str`-tagged scalar whenever it would otherwise resolve to another type.
+
+### schema-yaml: flow style leaves commas and closing brackets unquoted, and `YamlReader` splits the value
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** With `YamlOptions.flow` (or `flowStyle = true`), `YamlWriter` writes strings that contain `,`, `]` or `}` without quotes. Inside a flow collection these characters end the item, so the output is invalid YAML for spec-following readers, and `YamlReader` reads it back as different data without an error: a book title `Scala, the Language` comes back as `Scala`.
+
+**Reproduction** (scala-cli, run exactly as written; SnakeYAML 2.3 only to read the output with a spec-following reader; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+//> using dep org.yaml:snakeyaml:2.3
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+case class Book(title: String, tags: List[String])
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+@main def flowCommas(): Unit = {
+  val codec = Schema[Book].derive(YamlFormat)
+  val book  = Book("Scala, the Language", List("fp, effects", "zio]", "a: b"))
+  val text  = YamlWriter.write(codec.encodeValue(book), YamlOptions.flow)
+  println(text)
+  println(codec.decode(text))
+  println(scala.util.Try(new org.yaml.snakeyaml.Yaml().load[Object](text)).fold(_.getMessage.linesIterator.next(), _.toString))
+}
+// Output:
+// {title: Scala, the Language, tags: [fp, effects, zio], "a: b"]}
+// Right(Book(Scala,List(fp, effects, zio)))
+// while parsing a flow mapping
+```
+
+**Expected.** `{title: "Scala, the Language", tags: ["fp, effects", "zio]", "a: b"]}`, which every reader, including `YamlReader`, reads back as the original value.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlWriter.scala`: the flow writers (`:141-174`) call `writeScalar` with the same `needsQuoting` as block style (`:203-227`), which does not know about the flow indicators `,`, `[`, `]`, `{`, `}` inside a value. `YamlReader.splitFlowItems` (`YamlReader.scala:409`) splits at every unquoted comma, so the reader cannot recover.
+
+**Impact.** Silent data loss whenever flow style is used for free text: titles, author lists ("Odersky, Spoon"), descriptions.
+
+**Test gap.** `YamlWriterSpec` tests flow style only with values that contain no flow indicators, and has no flow-style round trip.
+
+**Suggested fix.** Pass a flow flag to `needsQuoting` and quote any value that contains `,`, `[`, `]`, `{` or `}` in flow context (or always quote strings in flow style). Add a flow round-trip property test.
+
+### schema-yaml: `BigDecimal` and `BigInt` fields are written as quoted strings
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** The YAML codec writes `BigDecimal` and `BigInt` values without a numeric tag, so `YamlWriter` quotes them because they look like numbers: `amount: "49.99"`. Every other YAML reader then sees a string. The JSON codec writes the same values as numbers, and the YAML codec writes `Double`, `Int` and `Long` as plain numbers.
+
+**Reproduction** (scala-cli, run exactly as written; SnakeYAML 2.3 only to show the types another reader sees; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+//> using dep org.yaml:snakeyaml:2.3
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+case class Price(amount: BigDecimal, copiesSold: BigInt, rating: Double)
+object Price { implicit val schema: Schema[Price] = Schema.derived }
+
+@main def bigNumbers(): Unit = {
+  val text = Schema[Price].derive(YamlFormat).encodeToString(Price(BigDecimal("49.99"), BigInt(120000), 4.8))
+  println(text)
+  val loaded = new org.yaml.snakeyaml.Yaml().load[java.util.Map[String, Any]](text)
+  loaded.forEach((k, v) => println(s"$k -> ${v.getClass.getSimpleName}"))
+  println(Schema[Price].jsonCodec.encodeToString(Price(BigDecimal("49.99"), BigInt(120000), 4.8)))
+}
+// Output:
+// amount: "49.99"
+// copies-sold: "120000"
+// rating: 4.8
+// amount -> String
+// copies-sold -> String
+// rating -> Double
+// {"amount":49.99,"copiesSold":120000,"rating":4.8}
+```
+
+**Expected.** `amount: 49.99` and `copies-sold: 120000`, read by SnakeYAML as numbers.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodec.scala:267` (`bigIntCodec.encodeValue`) and `:278` (`bigDecimalCodec.encodeValue`) build `Yaml.Scalar(...)` with no tag, while the other numeric codecs pass `tag = Some(YamlTag.Int)` or `Some(YamlTag.Float)` (for example `:205`, `:238-239`). `YamlWriter.needsQuoting` quotes any untagged value that starts with a digit (`YamlWriter.scala:239-252`).
+
+**Impact.** Money and other exact decimals, the usual reason to pick `BigDecimal`, are exported as strings to tools that read the YAML (Kubernetes, Ansible, Python services). The values still round-trip inside ZIO Blocks, so tests don't notice.
+
+**Test gap.** No `YamlCodecSpec` or `YamlWriterSpec` test asserts the written text of a `BigDecimal` or `BigInt`.
+
+**Suggested fix.** Tag `BigInt` scalars `YamlTag.Int`, and `BigDecimal` scalars `YamlTag.Float` (or `Int` when whole).
+
+### schema-yaml: derived codecs always use kebab-case keys and ignore `@Modifier.rename`, `@Modifier.transient` and the other field modifiers
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** `YamlCodecDeriver` converts every field name to kebab-case and never reads the `modifiers` it is given. `@Modifier.rename("name")` is ignored, `@Modifier.transient` fields are written and read, and there is no way to choose another naming: a field `imagePullPolicy` is always the key `image-pull-policy`. YAML formats that use camelCase keys (Kubernetes, OpenAPI, docker-compose's `snake_case`) cannot be decoded into case classes with the YAML codec at all. The JSON codec honours all of these modifiers, so the same schema behaves differently in the two formats. GitHub issue #1327 asks for configurable field names, and PR #1747 (open) adds a `fieldNameMapper` and support for `@Modifier.rename` and `@Modifier.fieldNaming`; it does not mention `@Modifier.transient`.
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+case class Container(
+  @Modifier.rename("name") containerName: String,
+  imagePullPolicy: String,
+  @Modifier.transient cachedDigest: String = ""
+)
+object Container { implicit val schema: Schema[Container] = Schema.derived }
+
+@main def fieldNames(): Unit = {
+  val codec = Schema[Container].derive(YamlFormat)
+  val c     = Container("bookstore", "IfNotPresent", "sha256:abc")
+  println(codec.encodeToString(c))
+  println(Schema[Container].jsonCodec.encodeToString(c))
+  println(codec.decode("name: bookstore\nimagePullPolicy: IfNotPresent\n"))
+  println(codec.decode("container-name: bookstore\nimage-pull-policy: IfNotPresent\n"))
+}
+// Output:
+// container-name: bookstore
+// image-pull-policy: IfNotPresent
+// cached-digest: sha256:abc
+// {"name":"bookstore","imagePullPolicy":"IfNotPresent"}
+// Left(zio.blocks.schema.SchemaError: Missing required field: container-name at: .)
+// Right(Container(bookstore,IfNotPresent,))
+```
+
+**Expected.** The same keys as the JSON codec (`name`, `imagePullPolicy`, no `cachedDigest`), or at least a way to choose the naming and honour `rename` and `transient`.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodecDeriver.scala:121` (`name = NameMapper.KebabCase.apply(name)`); none of the seven `derive*` methods reads its `modifiers: Seq[Modifier.Reflect]` parameter (for example `:99`, `:257`). Variant case names are used as written (`:299`).
+
+**Impact.** Kubernetes manifests, OpenAPI documents and any camelCase YAML can't be read into case classes; JSON customizations don't carry over; a `@Modifier.transient` secret is written to YAML files. The reference page `docs/reference/schema/built-in-codecs/yaml.md` never mentions the kebab-case conversion (see the documentation entry).
+
+**Test gap.** `YamlCodecDeriverExtendedSpec` pins the kebab-case output for `firstName`; no test uses a field modifier.
+
+**Suggested fix.** Merge PR #1747, and extend it to `@Modifier.transient` (and `@Modifier.alias` on decode) so YAML follows the JSON codec's modifier semantics.
+
+### schema-yaml: `yaml"..."` does not compile on Scala 2.13 outside the `zio.blocks.schema` package
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** Same bug as the `json"..."` entry above, in the YAML module. On Scala 2.13, every use of the `yaml"..."` interpolator in user code fails to compile, with or without spliced values, because the macro expansion calls `YamlInterpolatorRuntime`, which is `private[schema]`. On Scala 3 the interpolator compiles (see the next entry for what it does).
+
+**Reproduction** (scala-cli, run exactly as written; the compiler output is pasted at the end):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema.yaml._
+
+object YamlInterpolatorScala2 {
+  def main(args: Array[String]): Unit = {
+    val title = "Zionomicon"
+    println(yaml"title: $title".print)
+    println(yaml"title: Zionomicon".print)
+  }
+}
+// Output:
+// ./g.scala:8: error: object YamlInterpolatorRuntime in package yaml cannot be accessed as a member of package zio.blocks.schema.yaml from object YamlInterpolatorScala2
+//     println(yaml"title: $title".print)
+//             ^
+// ./g.scala:9: error: object YamlInterpolatorRuntime in package yaml cannot be accessed as a member of package zio.blocks.schema.yaml from object YamlInterpolatorScala2
+//     println(yaml"title: Zionomicon".print)
+//             ^
+// 2 errors
+```
+
+**Expected.** Both lines compile and print `title: Zionomicon`.
+
+**Root cause.** `schema-yaml/shared/src/main/scala-2/zio/blocks/schema/yaml/package.scala:92` emits `reify(YamlInterpolatorRuntime.yamlWithContexts(...))` into the caller's code, and `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlInterpolatorRuntime.scala:22` declares `private[schema] object YamlInterpolatorRuntime`. Scala 2 checks the expansion with the call site's access rights.
+
+**Impact.** The interpolator is unusable on Scala 2.13; users have to build trees with the `Yaml` constructors or `YamlReader.read`.
+
+**Test gap.** `YamlInterpolatorSpec` is in `package zio.blocks.schema.yaml`, so the private reference resolves there; no test calls `yaml"..."` from another package.
+
+**Suggested fix.** Make `YamlInterpolatorRuntime` public (it can be marked internal in Scaladoc), as for `JsonInterpolatorRuntime`, and add a test in a package outside `zio.blocks.schema`.
+
+### schema-yaml: on Scala 3, `yaml"..."` loses spliced collections and records, ignores escape sequences, and accepts malformed literals
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** The Scala 3 `yaml"..."` interpolator builds YAML text from the literal parts and the spliced values, then parses it with `YamlReader`. That design has four visible problems:
+1. A spliced `List`, case class or `Yaml` tree is rendered in block style on the line of its key, so the text is invalid and the reader misreads it without an error: a list keeps only its first item and the rest of the literal is dropped, a record's fields move up into the parent mapping, and a `Yaml` mapping becomes a string.
+2. A splice inside a quoted string is inserted in its quoted form, so the quotes become part of the text.
+3. Escape sequences in the literal are not processed, unlike `s"..."`: `yaml"a: 1\nb: 2"` is one key whose value contains a backslash and `n`.
+4. The compile-time check only validates the spliced types: the literal is parsed with the lenient `YamlReader`, so unclosed brackets and `price:49.99` compile and load as different data.
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+case class Author(name: String, born: Int)
+object Author { implicit val schema: Schema[Author] = Schema.derived }
+
+@main def yamlInterpolatorScala3(): Unit = {
+  val tags   = List("zio", "effects")
+  val author = Author("John A. De Goes", 1978)
+  val inner  = Yaml.Mapping.fromStringKeys("city" -> Yaml.Scalar("Berlin"))
+  val note   = "Fraser: co-author"
+  // 1. A spliced List: the list and every later line are lost
+  println(yaml"""title: Zionomicon
+tags: $tags
+price: 49.99""")
+  // 2. A spliced record
+  println(yaml"""title: Zionomicon
+author: $author
+price: 49.99""")
+  // 3. A spliced Yaml mapping becomes a string
+  println(yaml"store: $inner")
+  // 4. A string-position splice of a value that needs quoting keeps the quotes in the text
+  println(yaml"""note: "Written with $note"""")
+  // 5. Escape sequences in the literal are not processed: one key, not two
+  println(yaml"title: Zionomicon\nprice: 49.99")
+  // 6. Malformed literals compile and load
+  println(yaml"tags: [zio, effects")
+  println(yaml"""title: Zionomicon
+price:49.99
+pages: 744""")
+}
+// Output:
+// Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon,None)),(Scalar(tags,None),Scalar(- zio,None))))
+// Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon,None)),(Scalar(author,None),Scalar(name: John A. De Goes,None)),(Scalar(born,None),Scalar(1978,None)),(Scalar(price,None),Scalar(49.99,None))))
+// Mapping(Chunk((Scalar(store,None),Scalar(city: Berlin,None))))
+// Mapping(Chunk((Scalar(note,None),Scalar(Written with "Fraser: co-author",None))))
+// Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon\nprice: 49.99,None))))
+// Mapping(Chunk((Scalar(tags,None),Sequence(Chunk(Scalar(zio,None),Scalar(effect,None))))))
+// Mapping(Chunk((Scalar(title,None),Scalar(Zionomicon,None))))
+```
+
+**Expected.** 1: `tags: [zio, effects]` and `price: 49.99` both present; `author` a nested mapping; `store` a nested mapping. 2: `note: Written with Fraser: co-author`. 3: two keys, as with `s"..."`. 4: compile errors for the unclosed `[` and for `price:49.99` (or at least for the first).
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlInterpolatorRuntime.scala`: `writeValue` renders a `Yaml` (which every Schema-typed splice becomes in the Scala 3 macro) with `YamlWriter.write(y, YamlOptions.default)`, which is block style (`:98`), and the text is parsed again (`:57`). `writeInString` inserts the value raw (`:156`), and the macro passes it `encodeKey(...)`, which is already quoted (`schema-yaml/shared/src/main/scala-3/zio/blocks/schema/yaml/package.scala`). The macro takes the literal parts as written (`rawParts.map(... valueOrAbort)`, scala-3 `package.scala:31-34`) and never calls `StringContext.processEscapes`. `validateYamlLiteral` (`YamlInterpolatorRuntime.scala:24-39`) relies on `YamlReader.read`, which does not throw on malformed input.
+
+**Impact.** Values silently disappear from documents built with the interpolator, which is meant to be the convenient way to build YAML in code. Only literals of scalar splices are safe.
+
+**Test gap.** `YamlInterpolatorSpec` splices collections only in flow or single-line positions where the rendered block happens to parse, has no multi-line literal followed by more keys after a collection splice, and no test with `\n` in a literal or a malformed literal.
+
+**Suggested fix.** Splice values into the parsed tree instead of re-parsing text (parse the literal with placeholders, then replace the placeholder nodes with the encoded `Yaml`), or render spliced values in flow style. Process escapes in the parts. Make `validateYamlLiteral` use a strict parse once the reader can fail.
+
+### sql: `Table.derived` and `Repo.derived` flatten a nested case class field that the codec stores as one JSON column, so every insert fails, and they throw for a `List` field
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** The row codec stores a field whose type is a case class (without `@Modifier.config("sql.inline", "true")`) as one JSON column, and a `List`, `Seq`, `Set` or `Map` field the same way. `Table.derived` and `Repo.derived` don't ask the codec for its columns: they compute them separately with `TableMetadata.columnsFor`, which flattens every nested record into `<field>_<subfield>` columns and throws for a collection. So for `case class Book(id: Long, title: String, metadata: Metadata)` the table lists five columns while the codec writes three values, and `Repo#insert` fails its own `require`. For a `List[String]` field, `Table.derived` and `Repo.derived` throw before any SQL runs. `Table#createTable` emits the flattened columns too, so a table it creates doesn't match the codec either. A one-field case class used as a newtype with a derived `Schema` hits the same path: the table expects `isbn_value`, while the codec writes `{"value":"..."}` into a column named `isbn`.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run TableColumns.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Metadata(publisher: String, edition: Int, pages: Int)
+object Metadata { given Schema[Metadata] = Schema.derived }
+
+case class Book(id: Long, title: String, metadata: Metadata)
+object Book { given Schema[Book] = Schema.derived }
+
+case class TaggedBook(id: Long, title: String, tags: List[String])
+object TaggedBook { given Schema[TaggedBook] = Schema.derived }
+
+@main def run(): Unit = {
+  println(Table.derived[Book].columns)
+  // Vector(id, title, metadata_publisher, metadata_edition, metadata_pages)
+  println(DbCodec.derived[Book].columns)
+  // Vector(id, title, metadata)
+
+  val file = java.nio.file.Files.createTempFile("repro", ".db")
+  val xa   = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+  xa.connect {
+    Table.derived[Book].createTable(SqlDialect.SQLite).update
+    println(Try(Repo.derived[Book, Long].insert(Book(1L, "Zionomicon", Metadata("Ziverge", 1, 700)))))
+    // Failure(java.lang.IllegalArgumentException: requirement failed: Repo.buildInsertFrag: columns/value count mismatch)
+  }
+
+  println(Try(Table.derived[TaggedBook]))
+  // Failure(java.lang.UnsupportedOperationException: Typed DDL does not support reflect node List[String])
+  println(Try(Repo.derived[TaggedBook, Long]))
+  // Failure(java.lang.UnsupportedOperationException: Typed DDL does not support reflect node List[String])
+}
+```
+
+**Expected.** `Table.derived[Book].columns` equals `DbCodec.derived[Book].columns` (`id, title, metadata`), `Repo#insert` writes the JSON column, `Table.derived[TaggedBook]` succeeds with a `tags` column, and `createTable` declares one `TEXT` column (SQLite) or `JSONB` column (PostgreSQL) for each JSON field.
+
+**Root cause.** `DbCodecDeriver#deriveRecord` falls back to `jsonbCodec` for every non-inline record field (`sql/shared/src/main/scala/zio/blocks/sql/DbCodecDeriver.scala:134-136`), and `deriveSequence` / `deriveMap` do the same for collections. `TableMetadata.fromReflect` (`sql/shared/src/main/scala/zio/blocks/sql/TableMetadata.scala:60-80`) recurses into every record field without checking `sql.inline`, and `dbValueFor` throws for any node that isn't a primitive, an enum or a wrapper (`TableMetadata.scala:126-128`). `Table.derived` (`Table.scala:93,105`) and every `Repo.derived` overload (`Repo.scala:432,446,499`) pair the codec with these columns, and `Repo#insert` / `Repo#insertReturning` / `Repo#insertBatch` name `table.columns` in the `INSERT` (`Repo.scala:189,201,222`).
+
+**Impact.** A model with a nested record or a collection field can't use `Repo.derived` at all, although the codec handles it. The error (`columns/value count mismatch` or `Typed DDL does not support reflect node List[String]`) doesn't say why. The H-22 guide works around it by building the `Table` from `codec.columns` and passing it to `Repo.apply`.
+
+**Test gap.** `DbCodecSpec.scala:881,1062` check that the codec produces one JSON column for a `List[Int]` and for a non-inline record field, but no test derives a `Table` or a `Repo` for such a type or compares `Table#columns` with `codec.columns`.
+
+**Suggested fix.** Derive the column list from the same decisions as the codec: in `TableMetadata.fromReflect`, recurse into a record only when the field (or the parent) has `sql.inline` / `sql.inline_fields`, and map non-inline records, sequences, maps and non-simple variants to one `DbValue.DbString` column (or a new JSON marker so PostgreSQL's dialect can emit `JSONB`). Add a property test that `Table.derived[A].columns == DbCodec.derived[A].columns` for every type in `DbCodecSpec`.
+
+### sql: an `Option` field of a `Schema#transform` newtype or of an enum fails on SQL `NULL`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** The derived codec for an `Option` field checks `DbResultReader#isNull` before it reads the column. `JdbcResultReader#isNull` only knows about columns that have already been read in the current row, so the check is always `false` and the inner codec reads the `NULL`. For `Option[String]` or `Option[Int]` that is harmless, because the inner value is checked with `wasNull` afterwards. For a newtype whose `Schema` is `Schema[String].transform(...)`, the inner codec first calls the user's function with `null`, which throws (an NPE, or the smart constructor's error). For an enum, the inner codec looks up the case named `null` and throws `Unknown enum variant 'null'`. So a nullable column of either type can't be read when it holds `NULL`. Writing `None` works.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run OptionNewtypeNull.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+final case class Isbn(value: String) {
+  require(value.length == 13, s"ISBN must have 13 characters, got $value")
+}
+object Isbn { given Schema[Isbn] = Schema[String].transform(Isbn(_), _.value) }
+
+enum Format { case Hardcover, Paperback, Ebook }
+object Format { given Schema[Format] = Schema.derived }
+
+case class Book(id: Long, isbn: Option[Isbn], format: Option[Format])
+object Book { given Schema[Book] = Schema.derived }
+
+@main def run(): Unit = {
+  val file = java.nio.file.Files.createTempFile("repro", ".db")
+  val xa   = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+  xa.connect {
+    sql"CREATE TABLE book (id INTEGER PRIMARY KEY, isbn TEXT, format TEXT)".update
+    sql"INSERT INTO book VALUES (1, '9780981531601', 'Paperback')".update
+    sql"INSERT INTO book VALUES (2, NULL, 'Ebook')".update
+    sql"INSERT INTO book VALUES (3, '9781617290657', NULL)".update
+    println(sql"SELECT id, isbn, format FROM book WHERE id = 1".query[Book])
+    // List(Book(1,Some(Isbn(9780981531601)),Some(Paperback)))
+    println(Try(sql"SELECT id, isbn, format FROM book WHERE id = 2".query[Book]))
+    // Failure(java.lang.NullPointerException: Cannot invoke "String.length()" because "value" is null)
+    println(Try(sql"SELECT id, isbn, format FROM book WHERE id = 3".query[Book]))
+    // Failure(java.lang.IllegalArgumentException: Unknown enum variant 'null'. Expected one of: Hardcover, Paperback, Ebook)
+    println(sql"SELECT isbn FROM book WHERE id = 2".query[Option[String]])
+    // List(None)
+  }
+}
+```
+
+**Expected.** Rows 2 and 3 read back as `Book(2,None,Some(Ebook))` and `Book(3,Some(Isbn(9781617290657)),None)`.
+
+**Root cause.** The `Option` branch of `DbCodecDeriver#deriveVariant` returns `None` only if `reader.isNull(...)` is `true` before reading (`sql/shared/src/main/scala/zio/blocks/sql/DbCodecDeriver.scala:367,379`), and only then falls back to `optionalValue(typeId, innerValue, reader.wasNull)`. `JdbcResultReader` fills its null bitmap inside each getter (`sql/jvm/src/main/scala/zio/blocks/sql/JdbcResultReader.scala:41-62`), so `isNull` (`JdbcResultReader.scala:283-285`) is `false` for a column not yet read. The inner codec runs first: the wrapper codec calls `binding.wrap` on the `null` it read (`DbCodecDeriver.scala:328,331`), and the enum codec throws for the unknown name (`DbCodecDeriver.scala:425,436`). `DbCodec.optionCodec` has the same pre-read check but no user code between the read and the `wasNull` fallback, which is why `Option[String]` works.
+
+**Impact.** A nullable column of a validated newtype or an enum, which is common (an optional ISBN, an optional status), fails every query that returns a `NULL` in it, with an error that points at the user's own constructor. The H-22 guide works around it by overriding the field with `DbCodec[Option[String]].transform(_.map(Isbn.unsafe))(_.map(_.value))` through `DbCodec.derivedWith`.
+
+**Test gap.** `DbCodecOptionSpec` tests `Option[String]`, `Option[Int]` and `Maybe[String]` only; no test reads `NULL` into an `Option` of a wrapper or of an enum.
+
+**Suggested fix.** In the `Option` branch, read the inner column through a null-aware step: probe the column with a cheap getter (for example `getString`) and `wasNull` before calling the inner codec, or add a `DbResultReader#isNullAt` that calls `getObject` + `wasNull` for an unread column. Add `DbCodecOptionSpec` cases for an `Option` of a `Schema#transform` newtype and of an enum.
+
+### sql: on SQLite, an `Instant` column that `Table#createTable` declares can't be read back
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** On SQLite, `Table#createTable` declares an `Instant` field as `TEXT`. The codec writes the value with `setTimestamp`, and the SQLite JDBC driver stores a timestamp as epoch milliseconds, so the `TEXT` column holds the text `1626341400123`. Reading it back with `getTimestamp` fails with `Error parsing time stamp`, so every query on a table that `createTable` made with an `Instant` field fails. An `INTEGER` column works, but drops everything below the millisecond.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run SqliteInstant.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import java.time.Instant
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Book(id: Long, title: String, publishedAt: Instant)
+object Book { given Schema[Book] = Schema.derived }
+
+@main def run(): Unit = {
+  val books = Repo.derived[Book, Long]
+  val file  = java.nio.file.Files.createTempFile("repro", ".db")
+  val xa    = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+  xa.connect {
+    books.table.createTable(SqlDialect.SQLite).update
+    println(books.table.createTable(SqlDialect.SQLite).sql(SqlDialect.SQLite))
+    // CREATE TABLE IF NOT EXISTS book (
+    //   id INTEGER NOT NULL,
+    //   title TEXT NOT NULL,
+    //   published_at TEXT NOT NULL
+    // )
+    books.insert(Book(1L, "Zionomicon", Instant.parse("2021-07-15T09:30:00.123456Z")))
+    println(sql"SELECT published_at, typeof(published_at) FROM book".query[(String, String)])
+    // List((1626341400123,text))
+    println(Try(books.all))
+    // Failure(java.sql.SQLException: Error parsing time stamp)
+
+    sql"DROP TABLE book".update
+    sql"CREATE TABLE book (id INTEGER PRIMARY KEY, title TEXT NOT NULL, published_at INTEGER NOT NULL)".update
+    books.insert(Book(1L, "Zionomicon", Instant.parse("2021-07-15T09:30:00.123456Z")))
+    println(books.all)
+    // List(Book(1,Zionomicon,2021-07-15T09:30:00.123Z))
+  }
+}
+```
+
+**Expected.** A table created by `createTable` round-trips the `Instant`. Microseconds survive, or the docs say SQLite keeps milliseconds.
+
+**Root cause.** `SqlDialect.SQLite#typeName` maps `DbValue.DbInstant` to `TEXT` (`sql/shared/src/main/scala/zio/blocks/sql/SqlDialect.scala:73`), but `JdbcParamWriter#setInstant` writes with `setTimestamp(index, Timestamp.from(value), utcCal)` (`sql/jvm/src/main/scala/zio/blocks/sql/JdbcParamWriter.scala:49-52`), which sqlite-jdbc stores as milliseconds (its default `date_class` is `INTEGER`), and `JdbcResultReader#getInstant` reads with `getTimestamp(index, utcCalendar)` (`JdbcResultReader.scala:223-233`), which can't parse a number stored as text.
+
+**Impact.** The first `Instant` field in a SQLite table built with `createTable` breaks every read of that table. `docs/reference/sql/sql-dialect.md:65` documents the `TEXT` mapping as correct.
+
+**Test gap.** No SQLite test round-trips an `Instant` through a `createTable` table; `JdbcInstantTimezoneSpec` runs on PostgreSQL only.
+
+**Suggested fix.** Map `DbInstant` to `INTEGER` in the SQLite dialect, or write SQLite `Instant`s as ISO-8601 text (`setString(value.toString)`) and parse them on read, which also keeps the nanoseconds. Add a SQLite round-trip test.
+
+### schema: a `DynamicSchema` written as JSON, YAML, TOON or MessagePack reads back as an accept-anything schema
+
+**Severity:** high (silent accept-anything after a round trip).
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
+
+**Summary.** `Schema[DynamicSchema]` exists so a schema can be stored and sent, but only its Avro codec round-trips it. Through the JSON, YAML, TOON and MessagePack codecs, and through `Json.fromDynamicValue(DynamicSchema.toDynamicValue(ds))` and back, the decoded value is `DynamicSchema(Reflect.Dynamic)`: decoding returns `Right`, no error is reported, and `check` then accepts every value. A registry that stores schemas as JSON validates nothing, silently.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema`, `-schema-avro`, `-schema-messagepack`, `-schema-toon`, `-schema-yaml` 0.0.56, run with `scala-cli run LossyRoundTrip213.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+//> using dep dev.zio::zio-blocks-schema-avro:0.0.56
+//> using dep dev.zio::zio-blocks-schema-messagepack:0.0.56
+//> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.avro.AvroFormat
+import zio.blocks.schema.json.{Json, JsonFormat}
+import zio.blocks.schema.msgpack.MessagePackFormat
+import zio.blocks.schema.toon.ToonFormat
+import zio.blocks.schema.yaml.YamlFormat
+
+final case class BookPublished(isbn: String, title: String, price: BigDecimal)
+object BookPublished { implicit val schema: Schema[BookPublished] = Schema.derived }
+
+object LossyRoundTrip213 {
+  def main(args: Array[String]): Unit = {
+    val stored = Schema[BookPublished].toDynamicSchema
+    val bad    = Json.parseUnsafe("""{"isbn":7,"price":"free","extra":true}""").toDynamicValue
+
+    println(stored.check(bad))
+    // Some(zio.blocks.schema.SchemaError: Expected String, got Int at: .isbn)
+
+    val json     = Schema[DynamicSchema].derive(JsonFormat)
+    val fromJson = json.decode(json.encode(stored))
+    println(fromJson.map(_ == stored))
+    // Right(false)
+    println(fromJson.map(_.reflect.isDynamic))
+    // Right(true)
+    println(fromJson.map(_.check(bad)))
+    // Right(None)
+
+    // The same through Json values: DynamicSchema.toDynamicValue -> Json -> DynamicSchema.fromDynamicValue
+    val viaJson = DynamicSchema.fromDynamicValue(Json.fromDynamicValue(DynamicSchema.toDynamicValue(stored)).toDynamicValue)
+    println(viaJson.reflect.isDynamic)
+    // true
+
+    // MessagePack, TOON and YAML lose it the same way
+    val msgpack = Schema[DynamicSchema].derive(MessagePackFormat)
+    println(msgpack.decode(msgpack.encode(stored)).map(_.reflect.isDynamic))
+    // Right(true)
+    val toon = Schema[DynamicSchema].derive(ToonFormat)
+    println(toon.decode(toon.encode(stored)).map(_.reflect.isDynamic))
+    // Right(true)
+    val yaml = Schema[DynamicSchema].derive(YamlFormat)
+    println(yaml.decode(yaml.encode(stored)).map(_.reflect.isDynamic))
+    // Right(true)
+
+    // Avro keeps the variant tags and primitive types, so it round-trips
+    val avro = Schema[DynamicSchema].derive(AvroFormat)
+    println(avro.decode(avro.encode(stored)).map(_ == stored))
+    // Right(true)
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to
+`//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** Every format that `Schema[DynamicSchema]` can be derived for round-trips it (`decode(encode(ds)) == Right(ds)`), or decoding fails with an error. It never succeeds with a different, accept-anything schema.
+
+**Root cause.** Three things combine.
+1. `Schema[DynamicSchema]` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicSchema.scala:1386-1404`; `:1379` at v0.0.56) is a record with one `Schema[DynamicValue]` field, so every format writes the schema through its generic `DynamicValue` codec.
+2. That codec is lossy for JSON. `JsonCodec.dynamicValueCodec` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodec.scala:1423`, same at v0.0.56) writes a `DynamicValue.Variant` as a one-key object `{"Case": value}` (`:1522-1526`) but reads every object back as a `DynamicValue.Record` (`:1461-1471`), and it narrows every number to `Int`, `Long` or `BigDecimal` (`:1439-1448`). `Json#toDynamicValue` does the same (`Json.scala:1026-1043`). The serialized schema is made of variants (`{"Record": ...}`, `{"Primitive": ...}`, `{"None": {}}`), so all its tags are lost. MessagePack, TOON and YAML give the same result (verified by run; their codecs not traced). Avro writes a tag for each `DynamicValue` case (`schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodecDeriver.scala:996-1007`, case 2 builds `DynamicValue.Variant`), so it round-trips.
+3. `DynamicSchema.dynamicValueToReflect` falls back instead of failing: an unrecognised node becomes `new Reflect.Dynamic[NoBinding](NoBinding())` (`DynamicSchema.scala:1926-1927`; `:1919-1920` at v0.0.56), an unreadable term becomes a `Dynamic` term named `unknown` (`:1749`), and an unreadable `TypeId` becomes `TypeId.nominal[Any]("Unknown", Owner.Root)` (`:1664-1668`). `DynamicSchema.fromDynamicValue` returns `DynamicSchema`, not `Either`, so it has no way to report the problem (`:1415`).
+
+**Impact.** High. The reference page and two examples present the serialized form as storable (see the Documentation errors entry), and JSON is the obvious format for a registry. The result validates nothing and nothing warns. The H-09 guide stores Avro bytes, writes the JSON only as a human-readable view, and guards against a root `Reflect.Dynamic` after loading.
+
+**Test gap.** `DynamicSchemaSpec` "Schema[DynamicSchema] round-trip" (`schema/shared/src/test/scala-3/zio/blocks/schema/DynamicSchemaSpec.scala:1795-1902`) round-trips only through `DynamicSchema.toDynamicValue`/`fromDynamicValue` in memory and asserts only `typeId.name` and field presence. No test encodes a `DynamicSchema` with any format codec, and no test checks that a malformed blob is rejected.
+
+**Suggested fix.** Give `DynamicSchema` a format-independent schema instead of a `Schema[DynamicValue]` field: a derived structural schema for the serialized `Reflect` tree (records and variants with real tags), so every codec writes tags its own way. Separately, make `DynamicSchema.fromDynamicValue` (or a new `DynamicSchema.decode`) return `Either[SchemaError, DynamicSchema]` and fail on unknown nodes instead of producing `Reflect.Dynamic`/`Unknown`. Add a round-trip test per format comparing with `==`.
+
+**Related.** The Scaladoc wave 5 entry "schema: `DynamicSchema.fromDynamicValue` never fails, so a damaged stored schema accepts values it should reject" (below) covers the same defect from the API side; file them as one GitHub issue.
+
+### schema: storing the `DynamicSchema` of a recursive type overflows the stack
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
+
+**Summary.** `DynamicSchema.toDynamicValue`, and with it every `Schema[DynamicSchema]` codec, recurses forever on a recursive type such as `Chapter(title: String, sections: List[Chapter])` and throws `StackOverflowError`. `DynamicSchema#check` works on the same schema, so the type is supported everywhere except storage.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run RecursiveOverflow.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+final case class Chapter(title: String, sections: List[Chapter])
+object Chapter { implicit val schema: Schema[Chapter] = Schema.derived }
+
+object RecursiveOverflow {
+  def main(args: Array[String]): Unit = {
+    val stored = Schema[Chapter].toDynamicSchema
+    val value  = Schema[Chapter].toDynamicValue(Chapter("Fibers", List(Chapter("Forking", Nil))))
+
+    println(stored.check(value))
+    // None
+
+    try println(DynamicSchema.toDynamicValue(stored))
+    catch { case e: StackOverflowError => println(e) }
+    // java.lang.StackOverflowError
+
+    try println(Schema[DynamicSchema].jsonCodec.encodeToString(stored))
+    catch { case e: StackOverflowError => println(e) }
+    // java.lang.StackOverflowError
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to
+`//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** A recursive schema serializes, with a back-reference node for the recursive occurrence, and reads back to an equal schema.
+
+**Root cause.** `reflectToDynamicValue` unwraps `Reflect.Deferred` by recursing into it with no cycle guard: `case d: Reflect.Deferred[NoBinding, _] => reflectToDynamicValue(d.value)` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicSchema.scala:1659`; `:1652` at v0.0.56). The serialized format has no node for "the type `X` seen above", so there is nothing to emit instead.
+
+**Impact.** Any event with a tree-shaped field (a table of contents, a category tree, a comment thread) can't go in a `DynamicSchema` registry. PR #888 lists "Recursive schema support via `Deferred` handling" as a feature. The H-09 guide warns about it.
+
+**Test gap.** `DynamicSchemaSpec` tests recursive schemas only for `check` and defaults (`:727-790`, `:2437`); "coverage - Deferred serialization" (`:2436`) does not use a self-referencing type.
+
+**Suggested fix.** Track the `TypeId`s on the current path in `reflectToDynamicValue`; when a `Deferred` resolves to one of them, emit a `Ref(typeId)` node, and have `dynamicValueToReflect` build a `Reflect.Deferred` for it from a table of the records it has read. Add a round-trip test for a recursive record and a recursive sealed trait.
+
+**Related.** The Scaladoc wave 5 entry "schema: `DynamicSchema.toDynamicValue` overflows the stack for a recursive type, so its schema cannot be stored" (below) covers the same defect from the API side; file them as one GitHub issue.
+
+### schema: `Into.derived` silently drops a value when a same-name field changes from `A` to `Option[A]`
+
+Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (backlog T-02), on `main` at `2f73284b`; same at tag `v0.0.56`. Verified by running (re-run by the coordinator with the same output).
+
+**Severity:** high (silent data loss in the "make a field optional" evolution step).
+
+**Summary.** Deriving `Into[Src, Dst]` where `Src.isbn: String` and `Dst.isbn: Option[String]` compiles, but the conversion returns `isbn = None`: the source value is dropped without an error. Users expect `Some(value)`, or a compile error.
+
+**Reproduction** (save as `Repro.scala` and run `scala-cli run Repro.scala`; line `B` is this bug, lines `A` and `C` belong to the two entries that refer to this script):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.{As, Into}
+object Repro {
+  case class TypeA(name: String, nickname: Option[String]); case class TypeB(name: String)
+  case class Src(name: String, isbn: String); case class Dst(name: String, isbn: Option[String])
+  case class Raw(a: Double, b: Double, c: Double); case class Clean(a: Int, b: Int, c: Int)
+  def main(args: Array[String]): Unit = {
+    val ab = As.derived[TypeA, TypeB]
+    println("A: " + ab.into(TypeA("x", Some("n"))).flatMap(ab.from))
+    println("B: " + Into.derived[Src, Dst].into(Src("Zionomicon", "978-0000000000")))
+    Into.derived[Raw, Clean].into(Raw(1.5, 2.5, 3.5)) match {
+      case Left(e) => println("C:\n" + e.message)
+      case Right(v) => println("C: " + v)
+    }
+  }
+}
+// A: Right(TypeA(x,None))
+// B: Right(Dst(Zionomicon,None))
+// C:
+// converting field Raw.c to Clean.c failed
+//   Caused by: Value 3.5 cannot be precisely converted to Int
+// converting field Raw.b to Clean.b failed
+//   Caused by: Value 2.5 cannot be precisely converted to Int
+// converting field Raw.a to Clean.a failed
+//   Caused by: Value 1.5 cannot be precisely converted to Int
+```
+
+**Expected.** `B: Right(Dst(Zionomicon,Some(978-0000000000)))`, or a compile error.
+
+**Root cause.** There is no `Into[A, Option[A]]` instance; `Into.scala:132` has only `optionInto: Into[Option[A], Option[B]]`. So `matchFields` in `schema/shared/src/main/scala-3/zio/blocks/schema/IntoVersionSpecific.scala` finds no match at any priority and falls through to the "target is `Option` → use `None`" branch (`:1286-1288`), which is meant for target fields that have no source field at all.
+
+**Impact.** Silent data loss exactly in the "add `Option` to a field" evolution step that `Into` is meant for.
+
+**Test gap.** `IntoSpec.scala:678-691` ("succeeds when non-Option maps to Option with compatible type") says in a comment that a predefined `Into[A, Option[A]]` wraps values in `Some`, but only asserts that `typeCheck` is `Right`; it never checks the value.
+
+**Suggested fix.** Add `implicit def someInto[A, B](implicit into: Into[A, B]): Into[A, Option[B]]`, or special-case `A → Option[A]` in `matchFields`, and make the test assert the value. Check the Scala 2 macro too.
+
 ### schema: `DynamicValue#partition` puts a variant in both halves, because `retain` keeps every variant
 
 Found 2026-10-22 while writing the Scaladoc of `DynamicValue#retain` and `partition` (wave 5 of the schema Scaladoc, branch `scaladoc-wave-5`, on top of `6cd3c787`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0` prints the same lines. Not filed on GitHub yet.
@@ -5590,6 +6593,685 @@ object StreamReadAheadRepro {
 
 **Suggested fix.** Add a `JsonCodec#decodeAll(input: InputStream, config)` (or a callback-based scan) that keeps one reader over the stream and decodes values until end of input, and document the one-value rule on the existing overload.
 
+### telemetry: after `trace.install` or `trace.removeAll()`, `trace.collectedSpans` stays empty for the rest of the JVM
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/test-telemetry.md` (backlog H-48), on `main` at `7e8ac787`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56 on JDK 21. Not filed on GitHub yet.
+
+**Summary.** `trace.collectedSpans` and `trace.clearSpans()` read the in-memory buffer of the default tracer provider. `trace.install(provider)` and `trace.removeAll()` replace that provider, and no public call ever puts it back, so from then on `trace.collectedSpans` returns an empty list in every part of the program. In a test suite, sbt runs every spec in one JVM, so a single test that installs its own provider, or "cleans up" with `trace.removeAll()` (whose Scaladoc says spans are no-ops "until you install a provider"), makes every later test that reads `trace.collectedSpans` fail, and which tests fail depends on the order the specs run in.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 21, run with `scala-cli run --server=false --jvm temurin:21 NoWayBack.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package bookstore
+
+import zio.blocks.telemetry._
+
+object NoWayBack {
+  def main(args: Array[String]): Unit = {
+    trace.span("before-install")(_ => ())
+    println(s"1: ${trace.collectedSpans.map(_.name)}")
+
+    // A test that collects spans through its own provider
+    trace.install(TracerProvider.builder.build())
+    trace.span("during-test")(_ => ())
+
+    // Its teardown: the closest public calls to "put the default back"
+    trace.removeAll()
+    trace.clearSpans()
+    trace.span("later-test")(_ => ())
+    println(s"2: ${trace.collectedSpans.map(_.name)}")
+  }
+}
+// 1: List(before-install)
+// 2: List()
+```
+
+**Expected.** Some public way to return `trace` to its default, in-memory state, such as a `trace.reset()`, so that a test can undo an `install`. Failing that, the Scaladoc of `trace.removeAll()`, `trace.install` and `trace.collectedSpans` should say that the in-memory buffer is disconnected for good.
+
+**Root cause.** The default provider and its buffer are private vals (`telemetry/shared/src/main/scala/zio/blocks/telemetry/trace.scala:28-35`). `install` (`:53`) and `removeAll` (`:59`) replace the provider in `ref`, while `collectedSpans` (`:62`) and `clearSpans` (`:65`) keep reading `spanStore`, which no other provider feeds. `InMemorySpanProcessor` is `private[telemetry]`, so users can't add it to a provider of their own either.
+
+**Impact.** Order-dependent test failures in any suite that mixes tests using `trace.collectedSpans` with a test that installs a provider. `docs/reference/telemetry/tracing/index.md:120` warns that the methods "stop seeing new spans" after `install`, but not that there is no way back. The same holds for logging: after `log.install` no public call restores the default console output. The H-48 guide tells readers to test through injected tracers, and to never call `trace.install` or `trace.removeAll()` in tests that share the globals.
+
+**Test gap.** The library's own tests call `trace.removeAll()` in `finally` blocks (`telemetry/jvm/src/test/scala/zio/blocks/telemetry/AdditionalCoverageSpec.scala:203-240`); no test reads `trace.collectedSpans` after that.
+
+**Suggested fix.** Add `trace.reset()` (and `log.reset()`, `metric.reset()`) that reinstall the default provider, or make `collectedSpans` read from whatever `InMemorySpanProcessor` the current provider has. Making `InMemorySpanProcessor` public would also let tests build an isolated in-memory provider without writing their own processor.
+
+### async: driving one `Async` from two consumers (`toFuture` and `block`) can hang forever with no error
+
+Found 2026-10-21 by the M-04 session (`docs/guides/streaming-library-migration.md`, PR #1801): Build Docs hit its 30-minute timeout because mdoc hung. Reproduced again on main `e79a7617` against the published 0.0.56 (scala-cli, Scala 3.9.0, JDK 21).
+
+**Summary.** An `Async` value is a description that its consumer drives. If two consumers drive the same value, for example `toFuture` and then `block`, one of them can wait forever. Nothing is thrown and nothing is logged; the program just stops. It happens only some of the time, so a test can pass locally and hang in CI. `docs/reference/async.md` ("Concurrent Fan-Out via Running") calls this undefined behaviour, but neither `toFuture` nor `block` warns about it, and a `val` holding an `Async` looks reusable like any other value.
+
+**Reproduction** (`scala-cli run AsyncTwice.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+
+import zio.blocks.streams.*
+import zio.blocks.async.*
+import scala.concurrent.Await
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.*
+import java.util.concurrent.*
+
+object AsyncTwice {
+  def main(args: Array[String]): Unit = {
+    val books = Stream("Zionomicon", "Programming in Scala", "Functional Programming in Scala")
+    var hangs = 0
+    val runs = 25
+    (1 to runs).foreach { _ =>
+      val total: Async[Either[Nothing, Long]] = books.runAsync(Sink.count)
+      val fut = total.toFuture
+      val ex  = Executors.newSingleThreadExecutor()
+      val blocked = ex.submit(new Callable[Any] { def call(): Any = total.block })
+      val ok =
+        try { blocked.get(2, TimeUnit.SECONDS); Await.result(fut, 2.seconds); true }
+        catch { case _: TimeoutException => false }
+      if (!ok) hangs += 1
+      ex.shutdownNow()
+    }
+    println(s"same Async consumed twice: $hangs of $runs runs hung")
+    var hangs2 = 0
+    (1 to runs).foreach { _ =>
+      def total: Async[Either[Nothing, Long]] = books.runAsync(Sink.count)
+      val fut = total.toFuture
+      val r1 = total.block
+      val ok = try { Await.result(fut, 2.seconds); true } catch { case _: TimeoutException => false }
+      if (!ok) hangs2 += 1
+    }
+    println(s"new Async per consumer: $hangs2 of $runs runs hung")
+    // same Async consumed twice: 2 of 25 runs hung
+    // new Async per consumer: 0 of 25 runs hung
+  }
+}
+```
+
+The M-04 session saw the same thing at 2 CPUs: `.block` hung in 6 of 15 mdoc runs, and a standalone `toFuture` + `block` repro hung 25 of 25 times, while each call alone passed 25 of 25.
+
+**Expected.** Either both consumers see the result, or the second consumer fails fast with a clear error ("this Async is already being driven; use `start` to share it").
+
+**Root cause.** `toFuture` starts a non-blocking driver on the value (`async/jvm/src/main/scala/zio/blocks/async/AsyncInterop.scala:88-94`), and `block` starts a second one that polls the same `Pollable` with its own parker (`async/shared/src/main/scala/zio/blocks/async/Async.scala:2347` and `awaitSuspended` below it). The two drivers race on one pollable; when the completion wakes only one of them, the other never resumes. (Inferred from the code and the documented contract, not traced line by line.)
+
+**Impact.** A silent, intermittent hang. In the docs it cost a 30-minute CI timeout. In an application it is a stuck request or a frozen `main`.
+
+**Test gap.** No test drives one `Async` from two consumers.
+
+**Suggested fix.** Cheapest: Scaladoc on `toFuture`, `toCompletableFuture`, `toJsPromise` and `block` that says "consume once; use `start` to share". Better: mark a suspended `Async` as claimed when a driver starts and make a second driver fail with an exception that names `start`.
+
+**Workaround.** Use a `def` so each consumer builds its own `Async`, or call `start` once and share the `Async.Running` it returns.
+
+### config-hocon: a misspelled include loads without an error, and no include form can make it required
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `ConfigSource.fromFile` skips an `include` whose file doesn't exist, as Typesafe Config does for a plain `include`. Typesafe Config users make an include mandatory with `include required("db.conf")`, but `config-hocon` parses only the plain `include "file"` form: `required(...)`, `file(...)`, `classpath(...)` and `url(...)` are all parse errors. So there is no way to make a misspelled or missing include fail the load.
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-hocon:0.0.56
+import java.nio.file.Files
+import zio.blocks.config._
+import zio.blocks.config.hocon._
+
+val dir = Files.createTempDirectory("bookstore")
+Files.write(dir.resolve("db.conf"), "url = \"jdbc:postgresql://localhost:5432/bookstore\"".getBytes("UTF-8"))
+
+def load(doc: String): Unit = {
+  val file = Files.write(dir.resolve("application.conf"), doc.getBytes("UTF-8"))
+  ConfigSource.fromFile(file.toString) match {
+    case Right(source)                                     => println(source.all("").keys.toList.sorted)
+    case Left(ConfigError.ParseError(_, _, _, Some(cause))) => println(cause.getMessage)
+    case Left(error)                                       => println(error.getMessage)
+  }
+}
+
+load("db { include \"db.conf\" }")
+load("db { include \"dbb.conf\" }")
+load("db { include required(\"db.conf\") }")
+load("db { include file(\"db.conf\") }")
+// List(db.url)
+// List()
+// Expected quoted string after 'include' (line 1, column 14)
+// Expected quoted string after 'include' (line 1, column 14)
+```
+
+**Why it's a trap.** The typo `dbb.conf` loads as an empty `db` block. The error appears only when a required key is decoded, as `Missing required key 'db.url'`, which names the key, not the include; a key with a default takes the default silently.
+
+**Where it comes from.** `handleInclude` accepts only a quoted string after `include` (`config-hocon/shared/src/main/scala/zio/blocks/config/hocon/HoconParser.scala:442`) and ignores an unresolved include on purpose (`HoconParser.scala:452`).
+
+**Suggested fix.** Parse `include required("...")` and fail the load when its file is missing; at least parse `file("...")` as a plain include. Document in `formats.md` that a missing plain include is skipped. The guide `load-configuration-files.md` warns about both.
+
+### config-yaml: a YAML document that is not a mapping loads as an empty source
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `ConfigSource.fromYaml` keeps a scalar only when it sits under a key. A document whose top level is a single scalar, such as a file whose only line is `featuredBook:Zionomicon` (no space after the colon, so it is one plain scalar) or a stray sentence, returns `Right` with no keys. A top-level sequence loads under the keys `0`, `1`, ...
+
+**Reproduction** (save as `Repro.sc` and run `scala-cli run Repro.sc`; the script has top-level statements):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-config-yaml:0.0.56
+import zio.blocks.config._
+import zio.blocks.config.yaml._
+
+println(ConfigSource.fromYaml("featuredBook:Zionomicon", "config.yaml").map(_.all("")))
+println(ConfigSource.fromYaml("Zionomicon is the featured book", "config.yaml").map(_.all("")))
+println(ConfigSource.fromYaml("- Zionomicon\n- Programming in Scala", "config.yaml").map(_.all("").map { case (k, v) => k -> v.value }))
+// Right(Map())
+// Right(Map())
+// Right(Map(0 -> Zionomicon, 1 -> Programming in Scala))
+```
+
+**Why it's a trap.** The file "loads", and every setting then fails as `Missing required key`, or takes its default, with nothing pointing at the file's shape.
+
+**Where it comes from.** `flattenRec` records a `Yaml.Scalar` only when the prefix is non-empty (`config-yaml/shared/src/main/scala/zio/blocks/config/yaml/YamlConfigSource.scala:84-87`), and the top-level call starts with an empty prefix.
+
+**Suggested fix.** Return `Left(ConfigError.ParseError("", sourceId, "a YAML mapping"))` when the document root is not a mapping (or is a non-null scalar).
+
+### schema-yaml: a derived sealed trait or enum is written as `Ebook: {}`, and a plain `Ebook` fails to decode
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** The YAML codec encodes every variant as a mapping with one key, the case name, so an enumeration value such as `Format.Ebook` is written as `- Ebook: {}`. YAML files list such values as plain words (`formats: [Ebook, Paperback]`), and decoding those fails with `Expected mapping with single key for variant`. The JSON codec has the same shape by default (`{"Ebook":{}}`) but offers configuration; the YAML deriver has none. The workaround, used in the H-15 guide, is a `Schema[String].transform` schema for the enum, which then adds a `.wrapped` step to error paths (see the `.wrapped` entry).
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+enum Format { case Paperback, Ebook }
+object Format { implicit val schema: Schema[Format] = Schema.derived }
+case class Book(title: String, formats: List[Format])
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+@main def enumCases(): Unit = {
+  val codec = Schema[Book].derive(YamlFormat)
+  println(codec.encodeToString(Book("Zionomicon", List(Format.Ebook, Format.Paperback))))
+  println(codec.decode("title: Zionomicon\nformats: [Ebook, Paperback]\n"))
+  println(codec.decode("title: Zionomicon\nformats:\n  - Ebook: {}\n  - Paperback: {}\n"))
+}
+// Output:
+// title: Zionomicon
+// formats:
+//   - Ebook: {}
+//   - Paperback: {}
+// Left(zio.blocks.schema.SchemaError: Expected mapping with single key for variant at: .formats.at(0))
+// Right(Book(Zionomicon,List(Ebook, Paperback)))
+```
+
+**Expected.** At least an option to encode case objects (enum cases without fields) as their name, as YAML users expect; ideally that as the default for case-object-only enums.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodecDeriver.scala:304-331`: `decodeValue` accepts only a one-entry mapping (`:308`, error at `:322`), and `encodeValue` always writes `Yaml.Mapping.fromStringKeys((caseName, inner))` (`:328`).
+
+**Impact.** Every model with an enum field needs a hand-written `transform` schema before it can read ordinary YAML, and the written files look odd to anyone else (`Ebook: {}`).
+
+**Test gap.** Not a gap; the shape is tested and intended. The trap is that nothing documents it and there is no option.
+
+**Suggested fix.** Encode a case with no fields as a plain scalar of its name (and accept both forms on decode), or add a `caseObjectsAsStrings` style option to `YamlCodecDeriver`. Document the shape on the YAML reference page.
+
+### schema-yaml: a `String` field decodes an empty value, `null` or `~` as `""`, and a `Boolean` field rejects `True`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
+
+**Summary.** A required `String` field whose key is present with an empty value, `null` or `~` decodes as the empty string instead of failing, so a missing title in a file is not reported. A `Boolean` field accepts only lowercase `true` and `false`; `True`, which the YAML 1.2 core schema allows and which `Yaml#toJson` converts to `true`, is an error. (`yes`, `no`, `on`, `off` being rejected is fine: it avoids the YAML 1.1 "Norway problem".)
+
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+case class Book(title: String, inStock: Boolean)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+@main def scalarDecoding(): Unit = {
+  val codec = Schema[Book].derive(YamlFormat)
+  println(codec.decode("title:\nin-stock: true\n"))
+  println(codec.decode("title: null\nin-stock: true\n"))
+  println(codec.decode("title: ~\nin-stock: true\n"))
+  println(codec.decode("title: Zionomicon\nin-stock: True\n"))
+  println(YamlReader.read("in-stock: True").toJson.print)
+}
+// Output:
+// Right(Book(,true))
+// Right(Book(,true))
+// Right(Book(,true))
+// Left(zio.blocks.schema.SchemaError: Invalid boolean value: True at: .inStock)
+// {"in-stock":true}
+```
+
+**Expected.** `Left(... title ...)` for the first three (a `String` field can't be null; `Option[String]` is how YAML files mark an absent value), and `Right(Book(Zionomicon,true))` for `True`, consistent with `toJson`.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodec.scala:251-256` (`stringCodec` maps `Yaml.NullValue` to `""`, `:253`); `YamlReader.parseInlineValue` turns an empty value, `null` and `~` into `NullValue` (`YamlReader.scala:447`). `booleanCodec` (`YamlCodec.scala:162-172`) matches only `"true"` and `"false"`, while `YamlJsonInterop.yamlToJson` accepts `True`/`TRUE` and `False`/`FALSE` (`YamlJsonInterop.scala:33-34`).
+
+**Impact.** A typo or an unfinished line in a file (`title:`) loads as a record with an empty string, which passes the codec and fails later, if at all. The `Boolean` mismatch makes files from tools that write `True` (Python's `str(True)`) fail.
+
+**Test gap.** No test decodes `NullValue` into a required `String` field or `True` into a `Boolean`.
+
+**Suggested fix.** Make `stringCodec` fail on `NullValue` (an `Option[String]` field already maps it to `None`), and accept the YAML 1.2 core spellings `True`/`TRUE`/`False`/`FALSE` in `booleanCodec`.
+
+### sql (PostgreSQL): `Repo#insert` into a `jsonb` column fails unless the URL has `stringtype=unspecified`, and `PgCodec` string arrays bind as `varchar[]` and read `NULL` as `null`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** The JSON codecs (`DbCodec.jsonb` and the deriver's fallback for nested records and collections) bind the JSON with `setString`. The PostgreSQL JDBC driver sends that as `character varying`, which PostgreSQL won't assign to a `jsonb` column, so `Repo#insert` fails with `column "metadata" is of type jsonb but expression is of type character varying`. It works once the JDBC URL has `stringtype=unspecified`. `PgCodec.listStringCodec` and the `PgCodec` string-list parameters bind a `varchar[]`: assignment to a `text[]` column works, but an operator such as `&&` against a `text[]` column needs a `::text[]` cast. `PgCodec.listStringCodec` reads a SQL `NULL` array as a `null` `List`.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `postgresql` 42.7.14, PostgreSQL 16 in Docker, run with `scala-cli run PgJsonbArrays.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.postgresql:postgresql:42.7.14
+
+// docker run --rm -d -p 5432:5432 -e POSTGRES_USER=bookstore -e POSTGRES_PASSWORD=bookstore -e POSTGRES_DB=bookstore postgres:16
+
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.typeid.TypeId
+import zio.blocks.sql.*
+
+case class Metadata(publisher: String, edition: Int, pages: Int)
+object Metadata { given Schema[Metadata] = Schema.derived }
+
+case class Book(id: Long, metadata: Metadata, tags: List[String])
+object Book { given Schema[Book] = Schema.derived }
+
+@main def run(): Unit = {
+  val url   = sys.env.getOrElse("DB_URL", "jdbc:postgresql://localhost:5432/bookstore")
+  val codec = DbCodec.derivedWith[Book](_.instance(TypeId.of[Book], "tags", PgCodec.listStringCodec))
+  // Columns from the codec, to avoid the Table.derived column mismatch
+  val books = Repo(Table("book", codec, codec.columns.map(ColumnMeta(_, DbValue.DbString(""), false))), "id", DbCodec[Long], (b: Book) => b.id)
+  val zionomicon = Book(1L, Metadata("Ziverge", 1, 700), List("zio", "effects"))
+
+  JdbcTransactor.fromUrl(url, "bookstore", "bookstore", SqlDialect.PostgreSQL).connect {
+    sql"DROP TABLE IF EXISTS book".update
+    sql"CREATE TABLE book (id BIGINT PRIMARY KEY, metadata JSONB NOT NULL, tags TEXT[])".update
+    println(Try(books.insert(zionomicon)).fold(_.getMessage.linesIterator.next(), _.toString))
+    // ERROR: column "metadata" is of type jsonb but expression is of type character varying
+  }
+
+  JdbcTransactor.fromUrl(url + "?stringtype=unspecified", "bookstore", "bookstore", SqlDialect.PostgreSQL).connect {
+    println(books.insert(zionomicon))
+    // 1
+    import PgCodec.given
+    val wanted = List("effects")
+    println(Try(sql"SELECT id FROM book WHERE tags && $wanted".query[Long]).fold(_.getMessage.linesIterator.next(), _.toString))
+    // ERROR: operator does not exist: text[] && character varying[]
+    println(sql"SELECT id FROM book WHERE tags && $wanted::text[]".query[Long])
+    // List(1)
+    sql"""INSERT INTO book VALUES (2, '{"publisher":"Artima","edition":1,"pages":776}', NULL)""".update
+    println(books.find(2L))
+    // Book(2,Metadata(Artima,1,776),null)
+    sql"DROP TABLE book".update
+  }
+}
+```
+
+**Expected.** Either the JSON codecs bind a value PostgreSQL accepts for `jsonb` (a `PGobject` of type `jsonb`, or `setObject(..., Types.OTHER)`), or the docs say to add `stringtype=unspecified`. The `NULL` array either fails clearly or the docs say to use `NOT NULL`.
+
+**Root cause.** `DbCodec.jsonb` is `DbCodec[String].transform(...)` (`sql/shared/src/main/scala/zio/blocks/sql/DbCodec.scala:164-165`), and `JdbcParamWriter#setString` calls `PreparedStatement#setString` (`sql/jvm/src/main/scala/zio/blocks/sql/JdbcParamWriter.scala:33`). `PgCodec` writes string arrays as `"varchar"` (`sql/jvm/src/main/scala/zio/blocks/sql/PgCodec.scala:69,72`) and returns `null` for a `NULL` array (`PgCodec.scala:53,60,65`).
+
+**Impact.** Every PostgreSQL user who stores JSON in a `jsonb` column hits the insert error first. No page mentions `stringtype=unspecified`; the H-22 guide does.
+
+**Suggested fix.** Add a PostgreSQL `jsonb` write path (a `DbValue` variant or a dialect hook that binds `Types.OTHER`), bind string arrays as `text`, and give `PgCodec` an `Option[List[String]]` codec. At minimum, document `stringtype=unspecified` in `db-codec.md`.
+
+### sql: a newtype with a private constructor can't be an `sql"..."` parameter, although its `Schema` is in scope
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** `sql"... = $isbn"` with `isbn: Isbn`, where `Isbn` is the validated newtype from the H-04 guide (private constructor, `given Schema[Isbn] = Schema[String].transform(...)`), fails to compile with `No DbParam/Frag/SqlLiteral/DbValue instance found for type Isbn`. The interpolator looks for `DbParam.fromDbCodec`, which needs a `DbCodec[Isbn]`, and `DbCodec.derived` derives a new `Schema` for `Isbn` instead of using the given one. That new `Schema` needs the private constructor, so no `DbCodec[Isbn]` exists. The same `Isbn` works as a `Repo` field, because `Repo.derived` uses the given `Schema`.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, run with `scala-cli compile PrivateNewtypeParam.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+final case class Isbn private (value: String)
+object Isbn {
+  def unsafe(s: String): Isbn = new Isbn(s)
+  given Schema[Isbn] = Schema[String].transform(unsafe, _.value)
+}
+
+@main def run(): Unit = {
+  val isbn = Isbn.unsafe("9780981531601")
+  println(sql"SELECT title FROM book WHERE isbn = $isbn".sql(SqlDialect.SQLite))
+  // [error] No DbParam/Frag/SqlLiteral/DbValue instance found for type Isbn. Supported: DbParam[T], Frag (verbatim), SqlLiteral (verbatim), DbValue. Use sql"..." or StringContext(...).sql(table)(...) accordingly.
+  summon[DbCodec[Isbn]]
+  // [error] constructor Isbn cannot be accessed as a member of Isbn from anonymous class zio.blocks.schema.binding.Constructor[Isbn] {...}.
+}
+```
+
+**Expected.** The interpolator binds `isbn` as its underlying `String`, using the `Schema[Isbn]` in scope.
+
+**Root cause.** `DbCodec.derived` is `Schema.derived[A].deriving(DbCodecDeriver).derive` (`sql/shared/src/main/scala/zio/blocks/sql/DbCodec.scala:190-191`), which ignores a `Schema[A]` in scope. `DbParam.fromDbCodec` (`sql/shared/src/main/scala/zio/blocks/sql/SqlInterpolator.scala:112`) is the only parameter instance for user types, and the macro reports the summon failure without the underlying cause (`sql/shared/src/main/scala/zio/blocks/sql/SqlMacros.scala:247-256`).
+
+**Impact.** Users pass `isbn.value` instead, which works but drops the type safety the newtype exists for. The error message doesn't hint at the cause.
+
+**Suggested fix.** Make `DbCodec.derived` use a `Schema[A]` in scope when there is one (`summonFrom`), or add a `DbParam` derived from `Schema[A]`.
+
+### sql: an `Option` field of a nested case class is rejected, although the same field without `Option` is stored as JSON
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** A `metadata: Metadata` field is stored as one JSON column, but `metadata: Option[Metadata]` makes derivation throw `Option[A] where A has 3 columns is not supported`. The `Option` branch derives the record's own multi-column codec instead of the JSON fallback the non-optional field gets.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, run with `scala-cli run OptionRecordField.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Metadata(publisher: String, edition: Int, pages: Int)
+object Metadata { given Schema[Metadata] = Schema.derived }
+
+case class Book(id: Long, title: String, metadata: Metadata)
+object Book { given Schema[Book] = Schema.derived }
+
+case class DraftBook(id: Long, title: String, metadata: Option[Metadata])
+object DraftBook { given Schema[DraftBook] = Schema.derived }
+
+@main def run(): Unit = {
+  println(DbCodec.derived[Book].columns)
+  // Vector(id, title, metadata)
+  println(Try(DbCodec.derived[DraftBook]))
+  // Failure(java.lang.UnsupportedOperationException: Option[A] where A has 3 columns is not supported. Option is only supported for single-column types.)
+}
+```
+
+**Expected.** `Option[Metadata]` is one nullable JSON column, as `DbCodec.jsonbOption[Metadata]` provides.
+
+**Root cause.** The `Option` branch of `DbCodecDeriver#deriveVariant` takes the inner field's codec from `D.instance(innerField.value.metadata)` and rejects multi-column codecs (`sql/shared/src/main/scala/zio/blocks/sql/DbCodecDeriver.scala:352-360`), while `deriveRecord` picks `jsonbCodec` for a record field only when the field's own type is a record (`DbCodecDeriver.scala:134-136`).
+
+**Impact.** Users must override the field with `DbCodec.jsonbOption` through `DbCodec.derivedWith`, which needs a `JsonCodec` for the record, and then build the `Table` by hand (see the `Table.derived` entry above).
+
+**Suggested fix.** In the `Option` branch, use `jsonbOption`-style wrapping when the inner type is a non-inline record, a collection or a non-simple variant.
+
+### schema: `DynamicSchema#check` rejects JSON numbers and `Option` values that the JSON codec accepts
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
+
+**Summary.** `DynamicSchema#check` compares primitive types exactly, and `Json#toDynamicValue` reads a whole number as `Int` (or `Long`), every other number as `BigDecimal`, and an `Option` as a bare value or `null`. So `check` rejects JSON that the typed JSON codec decodes: a whole-number `BigDecimal` price, any `Double`/`Float` field, a small `Long`, and every `Option` field. `Schema#fromDynamicValue` sits in between: it widens numbers but also rejects the bare `Option`. A JSON document written by the typed codec itself fails `check`. Separately, `check`'s messages print `<function1>` where they mean the value's kind.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run CheckVsDecode.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+final case class BookPublished(isbn: String, price: BigDecimal, rating: Double, edition: Option[Int])
+object BookPublished { implicit val schema: Schema[BookPublished] = Schema.derived }
+
+object CheckVsDecode {
+  def main(args: Array[String]): Unit = {
+    val stored = Schema[BookPublished].toDynamicSchema
+    val text   = """{"isbn":"978-0","price":50,"rating":4.5,"edition":2}"""
+    val dv     = Json.parseUnsafe(text).toDynamicValue
+
+    println(Schema[BookPublished].jsonCodec.decode(text))
+    // Right(BookPublished(978-0,50,4.5,Some(2)))
+    println(Schema[BookPublished].fromDynamicValue(dv))
+    // Left(zio.blocks.schema.SchemaError: Expected a variant at: .edition)
+    println(stored.check(dv))
+    // Some(zio.blocks.schema.SchemaError: Expected BigDecimal, got Int at: .price)
+
+    val fixedPrice = Json.parseUnsafe("""{"isbn":"978-0","price":50.5,"rating":4.5,"edition":2}""").toDynamicValue
+    println(stored.check(fixedPrice))
+    // Some(zio.blocks.schema.SchemaError: Expected Double, got BigDecimal at: .rating)
+
+    val fixedRating = Json.parseUnsafe("""{"isbn":"978-0","price":50.5,"rating":4,"edition":2}""").toDynamicValue
+    println(stored.check(fixedRating))
+    // Some(zio.blocks.schema.SchemaError: Expected Double, got Int at: .rating)
+
+    // Even the typed codec's own output fails: an Option is written as a bare value
+    val own = Json.parseUnsafe(Schema[BookPublished].jsonCodec.encodeToString(BookPublished("978-0", BigDecimal("50.5"), 4.5, Some(2))))
+    println(own.print)
+    // {"isbn":"978-0","price":50.5,"rating":4.5,"edition":2}
+    println(stored.check(own.toDynamicValue))
+    // Some(zio.blocks.schema.SchemaError: Expected Double, got BigDecimal at: .rating)
+
+    // DynamicValueType has no readable toString, so messages say <function1>
+    val optOnly = DynamicSchema(Schema[Option[Int]].reflect.noBinding)
+    println(optOnly.check(DynamicValue.int(2)))
+    // Some(zio.blocks.schema.SchemaError: Expected Variant, got <function1> at: .)
+    println(DynamicValueType.Variant)
+    // <function1>
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to
+`//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** Either `check` accepts what the codecs accept (widen numbers the way `PrimitiveType#fromDynamicValue` does, and accept a bare value or `null` for an `Option`), or the docs say plainly that `check` is for `DynamicValue`s made by `Schema#toDynamicValue`, not for JSON. Error messages name the kind: `Expected Variant, got Primitive`.
+
+**Root cause.** `checkPrimitive` requires `pt.typeId == pv.primitiveType.typeId` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicSchema.scala:401-419`; `:394-412` at v0.0.56), while decoding widens: `PrimitiveType.BigDecimal#fromDynamicValue` accepts `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, `Double` and `BigInt` (`schema/shared/src/main/scala/zio/blocks/schema/PrimitiveType.scala:424-445`; `:427` at v0.0.56). `Json#toDynamicValue` narrows numbers (`json/Json.scala:1026-1043`). `Option` is a `Variant` of `None`/`Some(value)` (`Reflect.scala:1654-1663`), and the JSON codec writes it bare. The `<function1>`: `sealed trait DynamicValueType extends (DynamicValue => Boolean)` (`DynamicValueType.scala:33`) inherits `Function1#toString`, and Scala does not generate a `toString` for a case object whose parent already overrides it; the messages interpolate `${value.valueType}` (`DynamicSchema.scala:300, 305, 310, 315, 416`).
+
+**Impact.** A gateway that validates incoming JSON events with a stored `DynamicSchema` — the use the `toSchema` section of `dynamic-schema.md` recommends — rejects valid events for the most common field types. The H-09 guide warns readers to use `check` on JSON only for string, boolean, `Int`, list and record fields, and to rebind and decode otherwise.
+
+**Test gap.** `DynamicSchemaSpec` builds every checked value by hand with exact primitive types; no test checks a value produced by `Json#toDynamicValue` or the JSON codec. No test asserts the text of an "Expected Variant/Record/Sequence/Map" message.
+
+**Suggested fix.** In `checkPrimitive`, accept a value when `pt.fromDynamicValue` accepts it (or an explicit lossless-widening table). In `checkValue`, when the schema node is an `Option` variant, accept `Null` as `None` and any other value as `Some`. Add `override def toString` to `DynamicValueType`'s case objects (or interpolate a name).
+
+### schema: `BindingResolver.defaults` has no binding for `Option`, so rebinding any schema with an `Option` field fails
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
+
+**Summary.** `BindingResolver.defaults` covers primitives, `java.time`, collections and `Map`, but not `Option`. Rebinding a schema with an `Option[A]` field therefore throws `RebindException: Missing Record binding for type scala.Some at path: .<field><Some>`, which names `Some` rather than `Option`. The fix is three extra bindings per element type (`Binding.of[Option[A]]`, `Binding.Record.someInt` / `Binding.Record.some[A]`, `Binding.Record.none`), which only one test shows.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run OptionRebind.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.binding._
+
+final case class BookPublished(isbn: String, edition: Option[Int], subtitle: Option[String])
+object BookPublished { implicit val schema: Schema[BookPublished] = Schema.derived }
+
+object OptionRebind {
+  def main(args: Array[String]): Unit = {
+    val stored = Schema[BookPublished].toDynamicSchema
+
+    try stored.rebind[BookPublished](BindingResolver.empty.bind(Binding.of[BookPublished]) ++ BindingResolver.defaults)
+    catch { case e: RebindException => println(e.getMessage) }
+    // Missing Record binding for type scala.Some at path: .subtitle<Some>
+
+    val resolver = BindingResolver.empty
+      .bind(Binding.of[BookPublished])
+      .bind(Binding.of[Option[Int]])
+      .bind(Binding.Record.someInt)
+      .bind(Binding.of[Option[String]])
+      .bind(Binding.Record.some[String])
+      .bind(Binding.Record.none) ++ BindingResolver.defaults
+    val rebound = stored.rebind[BookPublished](resolver)
+    println(rebound.jsonCodec.decode("""{"isbn":"978-0","edition":2,"subtitle":"Functional Effects"}"""))
+    // Right(BookPublished(978-0,Some(2),Some(Functional Effects)))
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to
+`//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** `BindingResolver.defaults` rebinds `Option[A]` for any `A`, as it does `List[A]`: an `Option` entry keyed by the type constructor plus `Some`/`None`, so `BindingResolver.empty.bind(Binding.of[BookPublished]) ++ BindingResolver.defaults` is enough.
+
+**Root cause.** `defaults` (`schema/shared/src/main/scala/zio/blocks/schema/binding/BindingResolver.scala:225-271`; `:215-261` at v0.0.56) binds no `Option`, `Some` or `None`. `RebindTransformer#transformRecord` reaches the `Some` case record first and throws with its `TypeId` (`RebindTransformer.scala:47-50`).
+
+**Impact.** Every real event schema has an optional field, so every registry consumer hits this on its first rebind. `dynamic-schema.md` and an example say the opposite (see the Documentation errors entry). The H-09 guide shows the three bindings.
+
+**Test gap.** Only `DynamicSchemaRebindSpec` "rebinds option schema" (`schema/shared/src/test/scala/zio/blocks/schema/DynamicSchemaRebindSpec.scala:243-262`) covers it, with the manual bindings; `BindingResolverSpec`'s "contains ... in defaults" suites (`:345-401`) don't list `Option`.
+
+**Suggested fix.** Add `Option` (variant), `Some` (record, generic in its element) and `None` to `defaults`, keyed by type constructor like the sequence bindings; or document the three bindings in `binding-resolver.md` and make the `RebindException` message mention `Option` when the missing type is `scala.Some`.
+
+### schema: case-class default values are not part of a `DynamicSchema`
+
+**Severity:** low.
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
+
+**Summary.** For `BookPublished(isbn: String, edition: Int = 1)`, the field `edition` in `Schema[BookPublished].toDynamicSchema` has no default: `DynamicSchema(field.value).getDefaultValue` is `None`. A consumer that only has the stored schema can't tell that the field is safe to add, so a user-written compatibility check (as in the H-09 guide) must treat it as breaking. Rebinding with `Binding.of` brings the default back, so decoding is not affected.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run DefaultNotStored.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+final case class BookPublished(isbn: String, edition: Int = 1)
+object BookPublished { implicit val schema: Schema[BookPublished] = Schema.derived }
+
+object DefaultNotStored {
+  def main(args: Array[String]): Unit = {
+    println(Schema[BookPublished].jsonCodec.decode("""{"isbn":"978-0"}"""))
+    // Right(BookPublished(978-0,1))
+
+    val edition = Schema[BookPublished].toDynamicSchema.reflect.asRecord.get.fields.find(_.name == "edition").get
+    println(DynamicSchema(edition.value).getDefaultValue)
+    // None
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to
+`//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** `Schema#toDynamicSchema` turns each field's binding default into the stored default (`storedDefaultValue`, as `Reflect#defaultValue` does), so `getDefaultValue` returns `Some(1)` as a `DynamicValue`, and it survives storage.
+
+**Root cause.** The derived default lives in the field's `Binding` (the field's reflect is a `Reflect.Deferred`), and `Reflect#noBinding` (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:202-203`) drops bindings without copying the default into `storedDefaultValue`. Not traced further.
+
+**Impact.** Low; affects schema comparison and documentation tools that read a stored schema. The H-09 guide says its `compare` reports a defaulted field as breaking for this reason.
+
+**Test gap.** `DynamicSchemaSpec` "defaultValue and examples" (`:705-760`) sets defaults with `DynamicSchema#defaultValue`; no test derives a case class with a default parameter and reads it from `toDynamicSchema`.
+
+**Suggested fix.** In `noBinding`, convert a binding's default value to a `DynamicValue` and keep it as the stored default.
+
+**Related.** The Scaladoc wave 5 entry "schema: `Schema#toDynamicSchema` drops the default values of case class fields" (below) covers the same defect from the API side; file them as one GitHub issue.
+
+### sql: the `sql` identifier check suggests an SQL keyword instead of the misspelled column
+
+Found 2026-10-20 while writing the migration guide `docs/guides/migrate-from-magnum-or-doobie.md` (backlog M-03), on `main` at `78694917`. `SqlIdentifierChecker.scala` is unchanged at tag `v0.0.56` and at `main` `2f73284b`. Verified by running mdoc (Scala 3.9.0, docs project, `sql.jvm`).
+
+**Summary.** When a misspelled identifier is the same edit distance from a column of the table and from an allowlisted SQL keyword, the compile error suggests the keyword. For `titel` it suggests `time`, not the column `title`. A misspelled `auther` correctly suggests `author`, because no keyword is equally close.
+
+**Reproduction** (an mdoc block on the docs project, Scala 3.9.0; the error is the exact output mdoc rendered):
+
+```scala
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Book(id: Long, title: String, author: String, year: Int, isbn: Option[String])
+object Book { given Schema[Book] = Schema.derived }
+val bookTable = Table.derived[Book]
+
+StringContext("SELECT titel FROM book WHERE year < ", "").sql(bookTable)(2010)
+// error:
+// Unknown identifier 'titel' at position 7; did you mean 'time'?
+```
+
+**Expected.** "did you mean 'title'?": the caller passed `bookTable`, so its columns are the likely targets.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/SqlIdentifierChecker.scala:278-288` puts known tables, known columns and the ~160-entry keyword allowlist into one `suggestionPool`. `findSuggestion` (`:451-466`) breaks a tie at equal Levenshtein distance by taking the lexicographically smaller candidate. levenshtein("titel", "title") = 2 = levenshtein("titel", "time"), and "time" < "title".
+
+**Impact.** The suggestion points the user at the wrong fix.
+
+**Test gap.** No checker test covers a tie between a column and a keyword.
+
+**Suggested fix.** On a tie, prefer known tables and columns over allowlist entries: search tables and columns first, and fall back to the allowlist only when they give no candidate within distance 2.
+
+### schema: `Into` lists accumulated field errors in reverse field order
+
+Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (backlog T-02, section 4), on `main` at `2f73284b`; same at tag `v0.0.56`. Verified by running.
+
+**Summary.** When several fields fail, `SchemaError#message` lists them last field first: with bad fields `a`, `b`, `c` it prints `c`, `b`, `a`. Readers who compare the message with their case class see the fields "upside down". The T-02 page shows `edition` before `year` for this reason, and its prose doesn't promise an order.
+
+**Reproduction.** Line `C` of the script in "schema: `Into.derived` silently drops a value when a same-name field changes from `A` to `Option[A]`" above (`scala-cli run Repro.scala`, Scala 3.9.0, `zio-blocks-next-schema` 0.0.56).
+
+**Expected.** Errors in field declaration order: `a`, `b`, `c`.
+
+**Root cause.** `sequenceEithers` in `schema/shared/src/main/scala-3/zio/blocks/schema/IntoVersionSpecific.scala:1615-1633` folds with `foldRight` and builds `Left(err ++ err2)`, where `err` holds the errors of the later fields.
+
+**Suggested fix.** Build `Left(err2 ++ err)`. The exact-message test at `IntoVersionSpecificSpec.scala:213-220` expects the reversed order and needs updating with it.
+
+### async: cancelling an `Async` never reaches the underlying call for `fromFuture`, `fromCompletionStage`, `fromJsPromise` or `Async.promise`
+
+Found 2026-10-22 while writing the how-to guide `docs/guides/wrap-callback-and-future-apis.md` (backlog H-28), on branch `async-interop` at `94080050`. Same at tag `v0.0.56`: `async/` differs from the tag only by an import cleanup in `scala-3/AsyncSyntaxVersionSpecific.scala`. Verified by running.
+
+**Summary.** Cancelling a running `Async` (`Running#cancel`) stops the driver and calls `Pollable#cancel` on the pending leaf. Every built-in bridge's leaf is a `Completer`, which is `final` and inherits the no-op `Pollable#cancel`, so the source keeps running: a `CompletableFuture` is not cancelled, and a callback API's cancel handle can't be passed anywhere, because `Async.promise` only hands the body a `Completer`. `docs/reference/async.md` doesn't say so.
+
+**Reproduction** (save as `CancelRepro.scala` and run `scala-cli run CancelRepro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-async:0.0.56
+//> using option -experimental
+
+import zio.blocks.async._
+
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.atomic.AtomicInteger
+
+object CancelRepro {
+  def main(args: Array[String]): Unit = {
+    val stage = new CompletableFuture[Int]()
+    Async.fromCompletionStage(stage).start.cancel()
+    println(s"CompletableFuture cancelled after Async cancel: ${stage.isCancelled}")
+    // CompletableFuture cancelled after Async cancel: false
+
+    val open = new AtomicInteger(0)
+    def callbackApi(onDone: Int => Unit): () => Unit = {
+      open.incrementAndGet()
+      () => open.decrementAndGet() // the API's cancel handle
+    }
+    Async.promise[Int] { c ?=>
+      callbackApi(n => c.succeed(n))
+      ()
+    }.start.cancel()
+    println(s"Open callback requests after Async cancel: ${open.get()}")
+    // Open callback requests after Async cancel: 1
+  }
+}
+```
+
+**Expected.** Either the bridges forward cancellation to their source (`CompletableFuture#cancel`, and an `Async.promise` overload that accepts a cancel handle), or the reference page states plainly that they don't.
+
+**Root cause.** `async/shared/src/main/scala/zio/blocks/async/Completer.scala:31` (`final class Completer[A] extends Pollable[A]`, with no `cancel` override); `Pollable.scala:72` (`def cancel(): Unit = ()`); `async/jvm/src/main/scala/zio/blocks/async/AsyncInterop.scala:47-80` (`fromFuture`/`fromCompletionStage` build on `promiseInternal`, and nothing calls `cf.cancel`); `Async.scala:1705` (`promiseInternal` returns `c.peek`, the `Completer`).
+
+**Impact.** Users who rely on cancel to free resources leak in-flight requests (sockets, timers, server work). The workaround is not obvious: a custom `Pollable` that keeps the `Completer` for the result, answers `this` from `poll` while pending, and overrides `cancel`. The H-28 guide documents it as a `cancellable` helper.
+
+**Test gap.** No test checks what happens to the source when a bridged `Async` is cancelled. `AsyncInteropSpec` covers the reverse direction only: a cancelled source gives a `CancellationException`.
+
+**Suggested fix.** Add an `Async.promise` variant whose body returns a cancel callback, e.g. `def cancellable[A](register: Completer[A] => (() => Unit)): Async[A]` (essentially the guide's helper, run-verified through `map` and `Async.async`). Make `fromCompletionStage` call `toCompletableFuture.cancel(false)` on cancel, or make that opt-in. Then state the semantics in `docs/reference/async.md` under "Integration Points" and "Callback Bridge".
+
 ### schema: `DynamicSchema.fromDynamicValue` never fails, so a damaged stored schema accepts values it should reject
 
 Found 2026-10-22 while writing the Scaladoc of `DynamicSchema.fromDynamicValue` (wave 5 of the schema Scaladoc, branch `scaladoc-wave-5`, on top of `6cd3c787`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0` prints the same lines. Not filed on GitHub yet.
@@ -5689,6 +7371,14 @@ Seen 2026-10-20 on PR #1773 (docs only, touches nothing in `streams/` or `async/
 
 Seen again 2026-10-20 on PR #1774 (H-12, docs only): an async-reader test hit the same 30 s timeout in `testJVM (17, JVM, 3.9.x)`. Later pushes replaced that run. Two sightings on unrelated docs PRs in one day suggest the timeouts are too tight for loaded CI runners.
 
+Seen 2026-10-21 on four more docs-only PRs, each with exactly 1 of 12,761 tests failing and a different test each time:
+
+- #1814 (H-22), `testJVM (25, JVM, 3.9.x)`: `unfoldAsync - reset invalidates a stale completion and restarts from initial state` (job 119294098388). Also hit once on #1807 (H-39), passed on rerun.
+- #1802 (H-19), `testJVM (17, JVM, 3.3.x)`: `MergeInnerErrorSpec - error in inner stream does not hang (InnerDone-in-finally regression) - Long mergeAll: error in inner terminates without hang` (job 119256732852).
+- #1808 (H-36), `testJVM (25, JVM, 3.9.x)`: `async reader reachable coverage - nested concat rejected reset closes its nested head` (job 119164951462).
+
+All three are hang-detection tests in the streams async paths. Docs PRs now fail CI about once per run on these, so either the timeouts need headroom on shared runners or one of these paths has a real race. Worth one investigation pass with the tests looped locally under CPU load (`taskset -c 0,1`).
+
 ### mdoc: `mdoc:fail` on Scala 3 ignores earlier `:reset` sections
 
 Seen 2026-10-20 while writing H-02. A `mdoc:fail` block after a `mdoc:silent:reset` reports bogus "already defined" errors for names from before the reset, so the expected compile error cannot be shown. H-02 described that error in prose instead. Pages that rely on `mdoc:fail` (H-31) should check their rendered output.
@@ -5752,6 +7442,29 @@ Found 2026-10-21 while fixing `docs/reference/streams/index.md:78` for M-04. `bu
 ### Docs build memory with many sbt servers
 
 Seen 2026-10-20: a full `sbt check` was OOM-killed while several worktrees each ran an sbt server (about 4 GB free). Shut down idle servers in finished worktrees with `sbt --client shutdown`.
+
+### `schema-examples` and `streams-examples` have no scalafmt setup
+
+Found 2026-10-20 while writing H-03. The standalone `schema-examples/` build has no scalafmt plugin or config, so `sbt scalafmtAll` in the root build does not format it. Sessions format example files by hand or with `cs launch scalafmt -- --config .scalafmt.conf`. The same gap exists in `streams-examples` (seen while writing M-04). Add the plugin (or a `.scalafmt.conf` symlink) to the example builds, or document the command in AGENTS.md.
+
+### A subagent killed every sbt server on the machine
+
+Seen 2026-10-20 around 23:40 (+0330) while H-30 was written: its examples-builder subagent ran `pkill -f sbt-launch`, which stops the sbt servers of every session on the machine, not only its own. Any session that lost its server around then should rerun its last sbt step. H-30 added a "never kill sbt by pattern" rule to the docs-examples skill; stop a server with `sbt --client shutdown` from its own worktree instead.
+
+### async tests: 64 test names still refer to the removed `unsafeRunAsync`
+
+Found 2026-10-22 while writing the how-to guide `docs/guides/wrap-callback-and-future-apis.md` (backlog H-28), on branch `async-interop` at `94080050`; same at tag `v0.0.56`.
+
+**Summary.** 64 test names under `async/*/src/test` start with "unsafeRunAsync: ..." (e.g. `async/js/src/test/scala/zio/blocks/async/AsyncJsSpec.scala:122`, `:139`, `:149`), but `unsafeRunAsync` no longer exists in `async/*/src/main`; commit `7c49fb91a` removed it. Readers who grep the tests for cancel semantics find an API that doesn't exist.
+
+**Reproduction** (from the repository root):
+
+```bash
+grep -rn "unsafeRunAsync" async/*/src/test | wc -l   # 64
+grep -rn "unsafeRunAsync" async/*/src/main | wc -l   # 0
+```
+
+**Suggested fix.** Rename the test labels to the runner they exercise (`start`/`Running`).
 
 ## Documentation errors
 
@@ -6092,52 +7805,6 @@ object Employee { implicit val schema: Schema[Employee] = Schema.derived }
 - `query-dsl-sql.md` "Compile-time SQL Dumps" (around lines 1080-1095) and the `Dump` Scaladoc (`Dump.scala:25-30`, `:547-549`) say query dumps are named `<owner>-<dialect>.sql` and fall back to `query`. `Dump.dumpQuery` writes `<name>_query-<dialect>.sql` (the `-query` suffix is sanitized to `_query`), named after the `val` it is assigned to, else after the owner, else `<type>_query`. Found while writing H-19; see the `Dump.dumpQuery` library bug.
 - `docs/dev/research.md` cites stale line numbers (for example `Transactor.scala:65` is now `:261`/`:275`, `Table.scala:32` is now `:262`).
 
-### docs: the streams overview marks `fromInputStream` and `fromJavaReader` as JVM-only, but they also run on Scala.js
-
-Found 2026-10-20 while writing the how-to guide `docs/guides/stream-files-and-sockets.md` (backlog H-24), on `main` at `b4179489`. The same text is in tag `v0.0.56`; it dates from #1318.
-
-**Summary.** The "Creating Streams" block of `docs/reference/streams/index.md` labels both groups of I/O constructors "JVM only": `Stream.fromInputStream`, `Stream.fromJavaReader`, `Stream.fromInputStreamUnmanaged` and `Stream.fromJavaReaderUnmanaged`. All four are defined in the shared sources and work on Scala.js; only their blocking terminals (`runCollect`, `run`, …) and the NIO helpers (`NioStreams`, `NioSinks`) are JVM-only.
-
-**Reproduction** (Scala 3.9.0, `zio-blocks-next-streams` 0.0.56 for Scala.js, run with `scala-cli run Repro.scala --js-cli-on-jvm` — the default native Scala.js linker of scala-cli 1.10 only reads IR up to 1.20, and the 0.0.56 artifacts are IR 1.22):
-
-```scala
-//> using scala 3.9.0
-//> using platform scala-js
-//> using jsVersion 1.22.0
-//> using option -experimental
-//> using dep dev.zio::zio-blocks-next-streams::0.0.56
-
-import zio.blocks.async._
-import zio.blocks.streams._
-
-import java.io.{ByteArrayInputStream, StringReader}
-import scala.concurrent.ExecutionContext.Implicits.global
-
-object Repro {
-  def main(args: Array[String]): Unit = {
-    val bytes = new ByteArrayInputStream("Zionomicon".getBytes("UTF-8"))
-    Stream.fromInputStream(bytes).map(_.toChar).runCollectAsync.toFuture.foreach(println)
-
-    val chars = new StringReader("Programming in Scala")
-    Stream.fromJavaReader(chars).runCollectAsync.toFuture.foreach(r => println(r.map(_.mkString)))
-  }
-}
-// Right(Chunk(Z,i,o,n,o,m,i,c,o,n))
-// Right(Programming in Scala)
-```
-
-**Expected.** The overview says these constructors are available on both platforms, as `docs/reference/streams/core/stream.md` already implies (it lists them without a platform note).
-
-**Root cause.** Documentation only. `docs/reference/streams/index.md:398` and `:402` say "JVM only", but the four constructors live in `streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:2997`, `:3010`, `:3067` and `:3080`, and the shared spec `streams/shared/src/test/scala/zio/blocks/streams/NewCombinatorsSpec.scala:612-630` runs them on both platforms.
-
-**Impact.** Low. A Scala.js user reading the overview concludes they cannot stream a `java.io.InputStream` or `Reader` and writes the adapter by hand.
-
-**Test gap.** None in the library; the shared spec covers both platforms. Nothing checks platform labels in the docs against the source tree.
-
-**Suggested fix.** Drop "- JVM only" from both comments at `docs/reference/streams/index.md:398` and `:402`.
-
-Fixed in #1796 (H-24).
-
 ### docs: telemetry pages give the wrong JDK requirement, no Scala 3.9 artifact, and a double-printing example
 
 Found 2026-10-21 while writing T-12, on `main` at `a44dc6db` (same at `v0.0.56`). Verified against the published 0.0.56 on JDK 17, 21 and 25.
@@ -6150,35 +7817,184 @@ Found 2026-10-21 while writing T-12, on `main` at `a44dc6db` (same at `v0.0.56`)
 - **Histogram boundaries.** The `HistogramDataPoint` Scaladoc calls `boundaries` "upper exclusive boundaries for each bucket" (`telemetry/shared/src/main/scala/zio/blocks/telemetry/MetricData.scala:68`), but `Histogram.findBucketIndex` puts a value in the first bucket whose boundary is `>=` the value (`value <= boundaries(i)`, `Histogram.scala:98-105`), so the boundaries are inclusive upper bounds, as in OpenTelemetry. From source; not fixed here.
 - **Missing ADR.** `ContextStorage.scala:28` links `docs/adr/0001-scoped-context-no-set.md`, which never existed (already noted in `backlog.md`).
 
-### docs: `patch.md` has six snippets that don't compile and several claims the source contradicts
+### `docs/reference/schema/built-in-codecs/yaml.md` shows output the codec does not produce and omits kebab-case keys
 
-Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Every snippet in `docs/reference/schema/patch.md` sits in a plain ```` ```scala ```` fence, so none was ever compiled. Each was run with scala-cli on Scala 2.13.18 against `zio-blocks-schema` 0.0.56 (a few also on Scala 3); the patch code is the same at tag `v0.0.56`.
+Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
 
-**Snippets that don't compile.**
+**Summary.** The YAML reference page has no mdoc blocks, and several of its plain-fence examples and claims contradict 0.0.56:
+1. "Pattern 3: Pretty-Print with Configuration" (`yaml.md:176-202`) says `YamlOptions` controls the output, but its code calls `codec.encodeToString(server)`, which takes no options and never writes `---`; the comment shows a `---` line that is not printed. `YamlCodec` has no method that takes `YamlOptions`; options apply only to `YamlWriter.write` and `Yaml#print`/`printPretty`.
+2. The `Yaml.print` example (`yaml.md:285-304`) shows `active: true` for `Yaml.Scalar("true")`; the writer prints `active: "true"` because the scalar has no `Bool` tag.
+3. "Each field becomes a named key" (`yaml.md:446`) doesn't say the key is the field name in kebab-case: `zipCode` is written as `zip-code`. The page never mentions this, nor that field modifiers are ignored.
+4. "Sealed traits and sum types are encoded as YAML mappings with discriminator information" (`yaml.md:463`, also `:65`) — there is no discriminator: a case is a one-key mapping named after the case (`Stopped:` / `  exit-code: 1`).
+5. "27 primitive types" (`yaml.md:6`, `:51`, `:417`); the deriver handles 30 (by reading `YamlCodecDeriver.scala`, not run).
+6. The page never mentions `YamlReader`, `YamlWriter`, `YamlSyntax`, the `yaml"..."` interpolator, `YamlTag`, or that the reader is lenient and never reports syntax errors.
 
-- Lines 162-203 (String Edits): `Patch.editString(Document.content, Vector(Patch.StringOp.Insert(0, "Hello ")))` and four more `Vector(...)` calls fail with `type mismatch; found: Vector[Patch.StringOp.Insert] required: zio.blocks.chunk.Chunk[Patch.StringOp]`. `editString` takes a `Chunk` (`Patch.scala:412`). Fix: `import zio.blocks.chunk.Chunk` and `Chunk(...)`; the shown results are then right. The table at line 605 should also give the type, `edits: Chunk[Patch.StringOp]`.
-- Lines 362-368 (modifyKey): `implicit val intSchema: Schema[Int] = Schema[Int]` fails with `forward reference to value intSchema ... extends over definition of value intSchema`, and the `Patch(DynamicPatch.root(...), Schema[Int])` that follows compiles only on Scala 2.13 (see the Usability traps entry on rebuilding a `Patch`). Fix: `val incrementValue: Patch[Int] = Schema[Int].diff(0, 10)`, which gives the page's `UserSettings(Map(volume -> 60, brightness -> 80))` on both versions.
-- Lines 463-471 (Lenient): `patch1 ++ patch2` combines a `Patch[Data]` with a `Patch[Counter]` and fails with `type mismatch; found: Patch[Counter] required: Patch[Data]`. Fix: `val patch2 = Patch.append(Data.items, Vector(4))`; then Lenient gives `Right(Data(Vector(1, 2, 3, 4)))` and Strict `Left(... Delete range [10, 11) out of bounds for sequence of length 3 at: .items)`.
-- Lines 507-519 (Diffing Values): `val new = Person("Alice", 26)` fails (`new` is a keyword: `illegal start of simple pattern`). It also needs the `Person(name, age)` of line 26, which line 61 redefined as `Person(name, address)`. Fix: `oldValue` / `newValue`; better, show the typed `Schema#diff` and `Schema#patch` (`Schema.scala:122-125`), which the page never mentions.
-- Lines 565-573 (Serializable Operations): `JsonEncoder.encode(patch.dynamicPatch)` fails with `not found: value JsonEncoder`; no such object exists. Fix: `Schema[DynamicPatch].jsonCodec.encodeToString(patch.dynamicPatch)` and `Schema[DynamicPatch].jsonCodec.decode(json)`.
+**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
 
-**Claims the source contradicts.**
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
 
-- Lines 433-457 (`PatchMode.Strict` "fails immediately if any operation cannot be applied"; "use Strict when you need to know if every operation succeeded"): Strict checks only structural preconditions and never that the target is unchanged (see the Usability traps entry on `PatchMode.Strict`).
-- Lines 475-491 (`Clobber` "attempts to force operations through, using fallback behaviors"; "force updates regardless of preconditions"): Clobber differs from Lenient in three places only: a map `Add` of an existing key overwrites it (`DynamicPatch.scala:766`), a map `Remove` of a missing key is a no-op (`:773`), and out-of-range sequence inserts and deletes are clamped (`:700`, `:708`). `modifyAt` out of range, `modifyKey` on a missing key, out-of-range string edits and a prism case mismatch are skipped exactly as in Lenient.
-- Line 416 (`apply` "uses Lenient mode and returns the original value on failure"): under Lenient the failing operations are skipped and the rest are applied; the original comes back only if the final `fromDynamicValue` fails (`Patch.scala:59-66`). `(Patch.deleteAt(Data.items, 10, 1) ++ Patch.append(Data.items, Vector(4)))(Data(Vector(1, 2, 3)))` gives `Data(Vector(1, 2, 3, 4))`.
-- Lines 80-84 (`set` works with all optic types): `Patch.set` with a Prism does not switch cases. On a `Square`, `Patch.set(Shape.circle, Circle(5.0))` gives `Left(SchemaError: Expected case Circle but got Square at: .when[Circle])` under Strict and the unchanged `Square` otherwise (`DynamicPatch.scala:342-356`). A Traversal over an empty sequence fails under Strict with `encountered an empty sequence at: .items.each`.
-- Lines 556-558 (Diff Example comment): `metadata["level"]: increment from "1" to "2"` is wrong; strings never get a delta. The real patch is `.metadata: ~ {"level"}: . = "2"` (`Differ.scala:135-147`).
-- Line 16 (Overview, "Schema Evolution — Patches ... adapting as data structures evolve"): patches address fields by name; applying a patch to a type whose field was renamed gives `Left(SchemaError: Missing field 'title' at: .)`.
-- Lines 224-302 and 154 (the `CollectionDummy` and `DurationDummy` imports): unnecessary; the implicits resolve without any import. Line 235's LazyList support cannot be used: `Schema.derived` fails for a case class with a `LazyList` field on both versions (`type mismatch; found: Schema[Seq[Int]] required: Schema[LazyList[Int]]`), as `DynamicPatch.scala:936` admits.
+case class Server(name: String, endpoints: List[String], timeout: Int)
+object Server { implicit val schema: Schema[Server] = Schema.derived }
 
-**Impact.** A reader copying the page hits compile errors in five sections, and the PatchMode section suggests Strict protects against concurrent changes, which it does not.
+case class Address(street: String, city: String, zipCode: String)
+object Address { implicit val schema: Schema[Address] = Schema.derived }
 
-**Suggested fix.** Convert the page to mdoc (one scope per section, distinct names; `Person` and `patch` are redefined across blocks today), apply the fixes above, and link the H-07 guide for the end-to-end diff, store and replay workflow.
+sealed trait Status
+case class Running(pid: Int) extends Status
+case class Stopped(exitCode: Int) extends Status
+object Status { implicit val schema: Schema[Status] = Schema.derived }
 
+@main def referencePage(): Unit = {
+  // Pattern 3: "Pretty-Print with Configuration"
+  println(Server.schema.derive(YamlFormat).encodeToString(Server("api-server", List("GET /health", "POST /data"), 30)))
+  // "Format YAML nodes using compact or pretty-printed output"
+  val yaml = Yaml.Mapping.fromStringKeys("name" -> Yaml.Scalar("Bob"), "active" -> Yaml.Scalar("true"))
+  println(yaml.print)
+  // Record support: "Each field becomes a named key"
+  println(Address.schema.derive(YamlFormat).encodeToString(Address("Unter den Linden 1", "Berlin", "10117")))
+  // Variant support: "encoded as YAML mappings with discriminator information"
+  println(Status.schema.derive(YamlFormat).encodeToString(Stopped(1)))
+}
+// Output:
+// name: api-server
+// endpoints:
+//   - GET /health
+//   - POST /data
+// timeout: 30
+// name: Bob
+// active: "true"
+// street: Unter den Linden 1
+// city: Berlin
+// zip-code: "10117"
+// Stopped:
+//   exit-code: 1
+```
+
+**Expected.** The page's comments match this output; Pattern 3 uses `YamlWriter.write(codec.encodeValue(server), YamlOptions.pretty)` (or `codec.encodeValue(server).printPretty`); the records section states the kebab-case rule; the variants section shows the wrapper shape.
+
+**Root cause.** Hand-written, never-compiled examples (`yaml.md` has 0 mdoc blocks).
+
+**Impact.** Readers copy Pattern 3 and get no document marker; expect camelCase keys and fail to read their files; expect a discriminator field.
+
+**Test gap.** The page isn't checked by mdoc.
+
+**Suggested fix.** Convert the page's examples to `mdoc` blocks so the output is generated, fix the five statements above, and add sections on `YamlReader`/`YamlWriter`, `YamlSyntax`, the interpolator (with its Scala 2.13 limitation) and the unsupported YAML features. The H-15 guide (`docs/guides/read-and-write-yaml.md`) has a verified table of unsupported features that can be linked.
+
+### docs: `table.md` and `db-codec-deriver.md` say `createTable` handles collection and nested-record fields
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** `docs/reference/sql/table.md:238` says fields that fall back to JSONB "such as `List[A]`" produce "a `TEXT` or `JSONB` column", and that "nested records that are flattened into multiple columns are fully supported". `Table.derived` throws for a `List[A]` field, and it flattens every nested record even though the codec stores a non-inline record as one JSON column (see the `Table.derived` entry under Library bugs). `table.md:273` repeats "nested records are flattened". `docs/reference/sql/db-codec-deriver.md:23` says the fallback is "a single `TEXT` / `JSONB` column"; no code path emits `JSONB`, since `SqlDialect` maps `DbString` to `TEXT` on both dialects (`sql/shared/src/main/scala/zio/blocks/sql/SqlDialect.scala:36,64`).
+
+**Suggested fix.** Until the library bug is fixed, say that `Table.derived`, `Repo.derived` and `createTable` work only for records whose nested record fields carry `sql.inline`, and that a JSON column on PostgreSQL must be declared `JSONB` by hand.
+
+### schema: `dynamic-schema.md` and three examples say a `DynamicSchema` can be stored as JSON and that `BindingResolver.defaults` covers `Option`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
+
+**Summary.** Five places contradict the code at 0.0.56:
+- `docs/reference/schema/dynamic-schema.md:16`: "Can be serialized to a `DynamicValue` and deserialized back, making it storable in databases or transmittable over the network". True in memory, but no format except Avro stores that `DynamicValue` losslessly (see the Library bugs entry on JSON round trips).
+- `schema-examples/src/main/scala/dynamicschema/DynamicSchemaRegistryExample.scala:30-32`: "the blob can be stored as JSON or bytes without any issue". Stored as JSON, it reads back as an accept-anything schema.
+- `schema-examples/src/main/scala/bindingresolvers/BindingResolverSchemaRegistryExample.scala:12-14`: "DynamicSchema carries only field names, type names, and annotations, so it can be stored as JSON or bytes". Same problem. (This example is linked from no page.)
+- `docs/reference/schema/dynamic-schema.md:267`: "`BindingResolver.defaults` covers all standard primitives, `java.time` types, `List`, `Map`, `Option`, and other standard collections." It has no `Option` binding (see the Usability traps entry), so a reader who follows it gets `Missing Record binding for type scala.Some`. `binding-resolver.md:88-96` lists the defaults correctly, without `Option`.
+- `schema-examples/src/main/scala/dynamicschema/DynamicSchemaRebindExample.scala:39`: "BindingResolver.defaults covers all primitives, java.time, List, Map, Option, etc." Same error; the example works only because its types have no `Option` field.
+
+Also misleading: `dynamic-schema.md:410` recommends `DynamicSchema#toSchema` for "validation gateway[s] or format converter[s]". Used with JSON input, its `check` rejects valid events with `Double`, `Float`, small `Long`, whole-number `BigDecimal` or `Option` fields (see the Usability traps entry on `check`).
+
+**Reproduction.** The `LossyRoundTrip213.scala`, `OptionRebind.scala` and `CheckVsDecode.scala` reproductions in the entries above (Verified on Scala 2.13.18 and 3.9.0 against 0.0.56).
+
+**Expected.** The page and the examples say that only `Schema[DynamicSchema].derive(AvroFormat)` round-trips a `DynamicSchema` in 0.0.56, that `defaults` has no `Option`, how to bind one, and that `check`/`toSchema` expect `DynamicValue`s built by `Schema#toDynamicValue`.
+
+**Root cause.** The page and examples were written from the API's intent; no test round-trips through a format or rebinds `Option` with `defaults` alone.
+
+**Impact.** Readers build registries that validate nothing, or hit a `RebindException` they were told can't happen.
+
+**Test gap.** The examples only compile in CI; none checks its claims.
+
+**Suggested fix.** Correct the five sentences, add a "Storing a DynamicSchema" subsection to `dynamic-schema.md` that uses Avro, and link the H-09 guide (it now has a See-also line there). Update the three example comments.
+
+### docs: `telemetry-guide.md` tells tests to "restore state" with `log.removeAll()`, which silences later tests
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/test-telemetry.md` (backlog H-48), on `main` at `7e8ac787` (same at `v0.0.56`). Verified by running against the published 0.0.56 on JDK 21. Not fixed here.
+
+**Summary.** The "Testing with telemetry" section of `docs/guides/telemetry-guide.md:334-376` captures logs with a `CapturingLogProcessor` installed through `log.install`, then says "Don't forget to restore state between tests" and shows `log.removeAll()`. `removeAll` restores nothing. It calls `shutdown()` on the test's processor, which in the guide's own processor clears the captured records; it leaves no output at all instead of the default console output; and, because of the `log.removeAll()` bug in the Library bugs section, a later test that adds its processor with `log.addProcessor` (or an output with `log.writer`) captures nothing. Line 1099 repeats the pattern.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 21, run with `scala-cli run --server=false --jvm temurin:21 RestoreRepro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package bookstore
+
+import java.util.concurrent.CopyOnWriteArrayList
+import zio.blocks.telemetry._
+
+// The processor from telemetry-guide.md, "Testing with telemetry"
+class CapturingLogProcessor extends LogRecordProcessor {
+  val records = new CopyOnWriteArrayList[LogRecord]()
+
+  def onEmit(record: LogRecord): Unit = records.add(record)
+  def shutdown(): Unit = records.clear()
+  def forceFlush(): Unit = ()
+}
+
+object RestoreRepro {
+  def main(args: Array[String]): Unit = {
+    // Test 1, as the guide shows it
+    val first = new CapturingLogProcessor
+    log.install(LoggerProvider.builder.addLogRecordProcessor(first).build().get("test"))
+    log.warn("payment retried")
+    println(s"test 1 captured: ${first.records.size}")
+
+    // "Don't forget to restore state between tests"
+    log.removeAll()
+
+    // Test 2 adds its processor to the global logger
+    val second = new CapturingLogProcessor
+    log.addProcessor(second)
+    log.warn("payment retried")
+    println(s"test 2 captured: ${second.records.size}")
+
+    // Code that expects the default console output
+    log.info("printed by the default output?")
+    println("end")
+  }
+}
+// test 1 captured: 1
+// test 2 captured: 0
+// end
+```
+
+**Expected.** The guide's teardown leaves logging working: test 2 captures one record, and the last `log.info` prints a line.
+
+**Root cause.** Documentation. `log.removeAll()` shuts down every processor and installs the silent state (`telemetry/shared/src/main/scala/zio/blocks/telemetry/log.scala:65-73`, `GlobalLogState.scala:130-132`); there is no public call that restores the default console logger.
+
+**Impact.** Readers who follow the guide get tests that pass alone and fail, capturing nothing, when another test ran first.
+
+**Suggested fix.** Replace the teardown with "install a fresh capturing logger with `log.install` at the start of each test, and run such tests sequentially", or recommend passing a `Logger` to the code under test, as `docs/guides/test-telemetry.md` does. Drop the `records.clear()` from `shutdown()` in the example processor.
+
+### docs: the `Frag#queryChunked` Scaladoc example calls `Transactor.connect(transactor)`, which does not exist
+
+Found 2026-10-22 by the M-03 session, checked against source on `main` (same at `v0.0.56`). `sql/shared/src/main/scala/zio/blocks/sql/Frag.scala:375` shows `Transactor.connect(transactor) { ... }`, and `:370` mentions `Transactor.connect`. There is no `object Transactor`: `Transactor` is a trait (`Transactor.scala:65`) whose `connect` is an instance method (`:68`). The example should read `transactor.connect { ... }`.
+
+### docs: `as.md` calls dropping an `Option` field "round-trips cleanly"
+
+Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (backlog T-02), on `main` at `2f73284b`.
+
+**Summary.** `docs/reference/schema/schema-evolution/as.md:359` says an `Option` field that is absent from the other type "round-trips cleanly: `Some(v)` becomes `None` after a round-trip". That is data loss, not a clean round trip: line `A` of the script in "schema: `Into.derived` silently drops a value when a same-name field changes from `A` to `Option[A]`" shows `TypeA(x,Some(n))` coming back as `TypeA(x,None)`.
+
+**Suggested text.** "**`Option` fields on one side are allowed.** An `Option` field absent from the other type is dropped on the way out and comes back as `None`, so `Some(v)` does not survive a round trip:"
 
 ## Resolved
 
+- streams overview (`streams/index.md`) marked `fromInputStream` and `fromJavaReader` as JVM-only, but both run on Scala.js. Fixed in #1796 (H-24).
+- docs: `zio-blocks-next-*` needs Scala 3.9+ (plus `-experimental`), not 3.7+. Fixed across 20 guides and 14 example builds in #1810 (H-01). Leftovers on `main`: `guides/stream-files-and-sockets.md:80` still says "Scala 3.7 and newer", and 14 example builds still turn on `-experimental` at `minor >= 8`.
+- Codecs: `format.md` (`sealed trait`, real `BinaryFormat`/`TextFormat` signatures, which formats are binary); TOON `ArrayFormat.Auto` Scaladoc and `toon.md:706`; `csv.md` (`CsvConfig` ignored by derived codecs, runtime rejection, `Option` rejected); `xml.md` stale version; `built-in-codecs/index.md` artifact prefix. Fixed in #1773.
 - schema: on Scala 3.10, direct optic access (`Person.name`) on a `DerivedOptics` companion stopped compiling outside `zio.blocks.schema`, because the `given Conversion` behind it needed the `private[schema]` `OpticsFor`; Scala 3.9 only warned. `OpticsFor` is now public. Fixed in #1743. The `DerivedOptics` Scaladoc no longer warns about it (wave 4 of the schema Scaladoc).
 - `json-patch.md:608` said that converting a `JsonPatch` to RFC 6902 is a matter of encoding it with its `Schema` and reformatting. The encoded patch holds number deltas and string edits that RFC 6902 cannot express, so the conversion needs the source document to compute `replace` values and must track list indices as earlier operations shift them. No other page or Scaladoc claims RFC 6902 compatibility. The sentence now says this and links the H-07 guide's converter. Fixed in #1815 (H-07).
 - `transactor-zio.md` mentioned `JdbcTransactor.postgresLayer` without saying it is an extension that needs `import zio.blocks.sql.zio.*` (found while writing H-17). Fixed on the H-21 branch `docs/h21-sql-from-zio`.

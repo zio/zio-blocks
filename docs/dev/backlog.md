@@ -1,6 +1,6 @@
 # ZIO Blocks: tutorials and how-to guides backlog
 
-Compiled 2026-10-19 on branch `tutorials-and-guides-lists` (HEAD `b5f9fb71`). Status last updated 2026-10-20.
+Compiled 2026-10-19 on branch `tutorials-and-guides-lists` (HEAD `b5f9fb71`). Status last updated 2026-10-21.
 
 ## Status
 
@@ -26,17 +26,43 @@ This table tracks every item that has been written or started. Items not listed 
 | H-37 | How to issue and verify JWTs (plus `jwt.md` fixes)                            | Done                                    | #1789, `guides/issue-and-verify-jwts.md`, `jwt-examples/`                               |
 | H-17 | How to connect to PostgreSQL with a connection pool                           | Done                                    | #1790, `guides/connect-to-postgresql-with-a-connection-pool.md`                         |
 | H-32 | How to roll out a feature gradually with flags                                | Done                                    | #1788, `guides/roll-out-feature-gradually.md`                                           |
-| H-39 | How to write an OpenAPI document and export it as JSON or YAML                | In review                               | #1807, `guides/write-and-export-openapi.md`, `openapi-examples/`                        |
-| T-06 | Build your first streaming pipeline                                           | Pushed, no PR                           | branch `streaming-pipeline`, `guides/your-first-streaming-pipeline.md`                  |
-| H-20 | How to stream large query results                                             | Pushed, no PR                           | branch `stream-query`, `guides/stream-large-query-results.md`                           |
-| M-03 | Coming from Magnum or doobie                                                  | Committed locally, not pushed           | worktree `magnum-migration` (2 commits)                                                 |
-| H-28 | How to wrap callback and Future-based APIs in Async                           | Committed locally, not pushed           | worktree `async-interop` (2 commits)                                                    |
-| H-01 | How to add ZIO Blocks to your build                                           | Stalled: uncommitted, session exited    | worktree `adding-zio-block-to-build`; `guides/add-zio-blocks-to-your-build.md` + artifact fixes |
-| T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`              | Stalled: uncommitted, session exited    | worktree `evolve-data`; `guides/evolve-your-data.md`                                    |
+| H-08 | How to derive your own type class from a Schema                               | Done                                    | #1792, `guides/derive-your-own-type-class.md`                                           |
+| T-06 | Build your first streaming pipeline                                           | Done                                    | #1832, `guides/your-first-streaming-pipeline.md`                                        |
+| H-20 | How to stream large query results                                             | Merged (#1795)                          | `guides/stream-large-query-results.md`                                                  |
+| H-24 | How to stream files and sockets without leaking resources                     | Merged (#1796)                          | `guides/stream-files-and-sockets.md`                                                    |
+| H-11 | How to read and write CSV and TSV files                                       | Done                                    | #1793, `guides/read-and-write-csv-and-tsv-files.md` |
+| H-30 | How to feed configuration into a Wire dependency graph                        | Done                                    | #1794, `guides/feed-config-into-a-wire-graph.md` |
+| M-04 | Coming from fs2, ZIO Streams or Ox                                            | Done                                    | #1801, `guides/streaming-library-migration.md` |
+| H-19 | How to write joins and inspect the generated SQL                              | Done                                    | #1802, `guides/write-joins-and-inspect-generated-sql.md` |
+| H-18 | How to upsert rows and paginate with keyset cursors                           | Merged (#1800)                          | `guides/upsert-and-paginate-with-keyset-cursors.md` |
+| H-21 | How to use the sql module from a ZIO application                             | Done                                    | #1803, `guides/sql-from-zio.md`; `sql-zio` now on the docs classpath (import rule in AGENTS.md) |
+| H-35 | How to serve http-model requests with the JDK HTTP server                     | Done                                    | #1806, `guides/serve-http-model-requests.md`; reusable `JdkHttp` adapter |
+| T-12 | Instrument a program with logs, traces and metrics                            | Done                                    | #1805, `guides/instrument-a-program-with-logs-traces-and-metrics.md`, `telemetry-examples/` |
+| H-38 | How to protect an endpoint with JWT bearer tokens                             | Done                                    | #1804, `guides/protect-endpoints-with-jwt.md`, `jwt-examples/` |
+| H-39 | How to write an OpenAPI document and export it as JSON or YAML                | Done                                    | #1807, `guides/write-and-export-openapi.md`, `openapi-examples/` |
+| H-36 | How to validate query parameters and headers and answer 400                   | Done                                    | #1808, `guides/validate-query-parameters-and-headers.md`                                |
+| T-15 | Build a small JSON backend from blocks (capstone)                             | Done                                    | #1809, `guides/small-json-backend-from-blocks.md`, `capstone-examples/`                  |
+| H-04 | How to define validated newtypes and collect every validation error   | Done                                    | #1811, `guides/validated-newtypes.md`                                                   |
+| H-06 | How to read and modify JSON without case classes                            | Done                                    | #1812, `guides/json-without-case-classes.md`                                            |
+| H-34 | How to load configuration files on the JVM and in the browser                | Done                                    | #1816, `guides/load-configuration-files.md`                                             |
+| H-22 | How to map custom column types                                                | Done                                    | #1814, `guides/map-custom-column-types.md`                                              |
+| H-07 | How to compute, store and replay changes with diff and Patch                  | Done                                    | #1815, `guides/diff-and-patch.md`; follow-up #1828 (`patch.md` to mdoc) merged |
+| H-48 | How to test code that logs, traces and records metrics                       | Done                                    | #1823, `guides/test-telemetry.md`; zio-test added to `telemetry-examples` (user approved) |
+| H-50 | How to tune JSON encoding and decoding for throughput                        | Done                                    | #1824, `guides/tune-json-throughput.md`                                                 |
+| H-15 | How to read and write YAML documents                                         | Done                                    | #1822, `guides/read-and-write-yaml.md`                                                  |
+| H-09 | How to build a schema registry with DynamicSchema                            | Done                                    | #1825, `guides/build-a-schema-registry.md` (JVM only; stores Avro) |
+| M-03 | Coming from Magnum or doobie                                                  | Done                                    | #1830, `guides/migrate-from-magnum-or-doobie.md`                                        |
+| H-28 | How to wrap callback and Future-based APIs in Async                           | In review                               | #1834 (`async-interop`), `guides/wrap-callback-and-future-apis.md`                      |
+| H-01 | How to add ZIO Blocks to your build                                           | Merged (#1810)                          | `guides/add-zio-blocks-to-your-build.md`; fixed the 3.9+ rule across docs               |
+| T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`              | Done                                    | #1831, `guides/evolve-your-data.md` ("Evolve Your Data: Change Your Types with Into, As and Migration") |
 | H-25 | How to process a stream in parallel with bounded concurrency                  | Skipped (maintainer decision)           | —                                                                                       |
+| H-46 | How to connect zio-blocks streams to ZIO Streams or fs2                       | Skipped (maintainer decision)           | —                                                                                       |
+| H-42 | How to configure log output                                                   | Skipped (maintainer decision)           | —                                                                                       |
+| H-49 | How to test HTTP handlers as pure functions                                   | Skipped (maintainer decision)           | —                                                                                       |
+| H-33 | How to keep secrets out of logs and config dumps                              | Skipped (maintainer decision)           | —                                                                                       |
 | T-08 | Describe a typed HTTP API with Endpoint                                       | Skipped (maintainer decision)           | —                                                                                       |
 
-**Related doc-fix PRs:** #1771 (config parse-error and `EnvSource` contradictions, merged), #1784 (`codec.md` overrides, merged), #1773 (codec reference pages, open), #1787 (`type-class-derivation.md` snippets, merged). #1761 (`loadOrThrow` error count) was closed without merging.
+**Related doc-fix PRs:** #1771 (config parse-error and `EnvSource` contradictions, merged), #1784 (`codec.md` overrides, merged), #1773 (codec reference pages, merged), #1787 (`type-class-derivation.md` snippets, merged). #1761 (`loadOrThrow` error count) was closed without merging.
 
 **Unblocked since this backlog was compiled:**
 
@@ -45,9 +71,19 @@ This table tracks every item that has been written or started. Items not listed 
 - T-09 merged, so T-10 (HTMX) and T-11 (Datastar) have their prerequisite, but both still need an HTTP adapter (H-35).
 - PR #1742 (projection docs) merged on 2026-10-20. T-14 now waits only on issue #1744, which has grown to sixteen engine problems.
 
-**Unblocked by T-06 (pushed):** H-20, H-24, H-25 and M-04 can start once it merges. H-24 should cover `Stream.fromResource`, which T-06 left out.
+**T-06 merged (#1832).** H-20, H-24 and M-04 were written and merged before it; H-25 was skipped.
 
-**Waiting on stalled items:** H-04 and M-07 need T-02.
+**Unblocked by T-12 (merged #1805):** H-48 and H-43 (H-42 was skipped). For H-42, don't call `log.removeAll()` before adding writers (writers never resume output afterwards).
+
+**Unblocked by H-35 (merged #1806):** H-36, H-38, H-49, H-40, H-41, T-10, T-11 and the T-15 capstone can reuse its `JdkHttp` adapter (`http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala`).
+
+**Links to add when PRs merge:** `small-json-backend-from-blocks.md` (T-15) names H-35 (#1806, section 9 and Background), H-36 (#1808, end of section 6), T-12 (#1805, end of section 8 and the log source-location caution) and H-38 (#1804, Where to Go Next) without links. Each of those PRs should turn its mention into a link. Done: #1804 (merged), #1806. Also `protect-endpoints-with-jwt.md` (H-38) names H-35 unlinked in Prerequisites and Running the Examples; #1806 should link it.
+
+**Install-rule pass after the next release:** #1743 (merged 2026-10-22) moves `zio-blocks-*_3` to Scala 3.9 and `zio-blocks-next-*` to Scala 3.10, and drops 3.3. Published 0.0.56 still follows the old rule (3.3–3.8 → `zio-blocks-*`, 3.9+ → `zio-blocks-next-*`), which is what about 42 docs pages say. When the release that includes #1743 ships, do one docs-wide pass (H-01's page first) and make every example build consistent: on main some use `minor >= 10` for the `-next` prefix, some `>= 9` (capstone, config, html, http-model, jwt, openapi, sql, telemetry), and the `-experimental` switch is `>= 8` in some and `>= 9` in others.
+
+**Doc-fix follow-ups:** `telemetry-guide.md:334-376` and `:1099` teach `log.removeAll()` as test teardown (H-48 entry). `json.md` and `json-selection.md` (8 "schema / JSON" docs-error bullets from H-06). `reference/http-model/schema.md` contradicts H-36's `header[T]` compile bug and the primitives-only `query[T]`/`header[T]` trap. `json-config.md` (wrong `preferredCharBufSize` default, missing buffer limits, `checkForEndOfInput` claim) and `json/index.md:66-67` (non-existent config options), from H-50. `docs/index.md` Guides list has no entry for T-12 (`instrument-a-program-with-logs-traces-and-metrics.md`, merged in #1805); add it in the main cleanup PR. no reference page for `SqlQuery`/`Rel`/`Dump` yet (`reference/sql/sql-query.md`, from H-19). `small-json-backend-from-blocks.md` says the Telemetry Guide explains how to "export spans and metrics", but the OTLP exporters are `private[otel]` in 0.0.56. after H-07 and `docs/patch-md-fixes` both merge, fix `patch.md:16` (the "Schema Evolution" overview bullet the later caution contradicts) and drop or resolve H-07's open `patch.md` Documentation-errors entry. `table.md` and `db-codec-deriver.md` claim `createTable` handles collection and nested-record fields (H-22 entry). `csv.md` statements listed in the H-11 Documentation errors entry (Pattern 3, row/column claims, `TypeError`, `nullValue`, nested records) still need fixing; unblocked now that #1773 merged.
+
+**Unblocked by T-02 (merged #1831):** M-07 (coming from chimney or ducktape) can start and link T-02.
 
 **Library follow-ups found while writing** (full write-ups, ready to file, are in `docs/dev/issues.md`):
 
@@ -104,7 +140,7 @@ Each topic is scored from 1 (low) to 3 (high) on five criteria. The score is sho
 
 **Constraints that apply to every item** (§1.2, §9.5):
 
-- Every install step must show both `zio-blocks-*` and the Scala 3.7+ name `zio-blocks-next-*`.
+- Every install step must show both `zio-blocks-*` and the Scala 3.9+ name `zio-blocks-next-*` (plus `-experimental`). The earlier "3.7+" rule was wrong; see `docs/dev/issues.md`.
 - sql, sql-zio, dataMigration, projection, datastar and htmx are Scala 3 only.
 - `*-examples/` projects pin the published 0.0.56. A newer API can appear only in mdoc snippets until the next release.
 - Telemetry needs JDK 21 or later on the JVM (the guide says 25 for `ScopedValue`). State it in the install step.
@@ -189,7 +225,7 @@ Fifty-one how-to guides, grouped by area. Within each group, rows are ordered by
 | H-04 | How to define validated newtypes and collect every validation error | schema | Wrap primitives in validated types with `Schema.transform`, attach `Validation` constraints, report all failures through `SchemaError` | T-01 | **P1** · 12 (2/3/3/3/1) | Feasible. `validation.md` has 0 mdoc blocks; write compiled snippets | chimney recommends "parse, don't validate" with newtypes and partial transformers ([chimney troubleshooting](https://chimney.readthedocs.io/en/stable/troubleshooting/)); zio-blocks [#193](https://github.com/zio/zio-blocks/issues/193) newtypes | `schemaerror/SchemaErrorExample.scala`; `into/IntoErrorAccumulationExample.scala` |
 | H-05 | How to generate JSON Schema from a type and validate payloads against it | schema | Emit draft 2020-12 JSON Schema for an API contract; load an external schema with `Schema.fromJsonSchema`; validate an untyped payload | T-01 | **P1** · 11 (2/2/3/3/1) | Feasible. No JSON Schema example exists (§3.7). The official test suite passes (§3.4) | Several Scala libraries exist only for this ([scala-jsonschema](https://index-dev.scala-lang.org/andyglow/scala-jsonschema)); tapir documents it as a separate how-to ([tapir](https://tapir.softwaremill.com/en/latest/docs/json-schema.html)) | `json/json-schema.md`; `dynamicschema/DynamicSchemaValidationExample.scala` |
 | H-06 | How to read and modify JSON without case classes | schema | Parse into the `Json` ADT, build with `json"..."`, navigate with `JsonSelection`, convert to and from `DynamicValue` | T-01 | **P2** · 10 (2/2/2/3/1) | Feasible | circe `Json` cursors and ujson are standard tools (§3.9) | `json/json.md`; `json/json-selection.md`; `dynamic-value.md` |
-| H-07 | How to compute, store and replay changes with diff, Patch and JSON Patch | schema | Diff two values, serialize the patch, apply it later, choose a `PatchMode`; produce RFC 6902-style JSON Patches | T-01 | **P2** · 10 (1/2/3/3/1) | Feasible. `patch.md` has 0 mdoc blocks | zio-schema [#81](https://github.com/zio/zio-schema/issues/81) "Patch value with Diff"; diffson is the comparable library (§3.9) | `jsonpatch/CompleteJsonPatchExample.scala` (310 lines); `json-patch.md`, `json-differ.md` |
+| H-07 | How to compute, store and replay changes with diff, Patch and JSON Patch | schema | Diff two values, serialize the patch, apply it later, choose a `PatchMode`; produce JSON Patches (zio-blocks' own format, not RFC 6902; the guide adds an outbound RFC 6902 helper) | T-01 | **P2** · 10 (1/2/3/3/1) | Feasible. `patch.md` has 0 mdoc blocks | zio-schema [#81](https://github.com/zio/zio-schema/issues/81) "Patch value with Diff"; diffson is the comparable library (§3.9) | `jsonpatch/CompleteJsonPatchExample.scala` (310 lines); `json-patch.md`, `json-differ.md` |
 | H-08 | How to derive your own type class from a Schema | schema (+ markdown) | Write a `Deriver` for a `Show` or test-data generator; add per-type overrides | T-01 | **P1** · 11 (2/3/2/3/1) | Feasible. Different angle from the 2005-line reference: one task, start to finish | zio-blocks [#94](https://github.com/zio/zio-blocks/issues/94) "as a library developer, how do I integrate…", [#836](https://github.com/zio/zio-blocks/issues/836) derivation docs | `typeclassderivation/DeriveShowExample.scala`, `DeriveGenExample.scala`; `type-class-derivation.md` |
 | H-09 | How to build a schema registry with DynamicSchema | schema (+ typeid) | Store a `DynamicSchema` as JSON, load it later, check data against it, rebind it to a Scala type with a `BindingResolver` | T-01 | **P2** · 10 (2/1/3/3/1) | Feasible | Scala users build registry glue for Avro and Kafka ([registravka4s](https://index-dev.scala-lang.org/maxstreese/registravka4s), [kaa](https://scaladex.scala-lang.org/davideicardi/kaa)) | Unreferenced `bindingresolvers/BindingResolverSchemaRegistryExample.scala`; `dynamicschema/*` |
 | H-10 | How to use Scala 3 named tuples with Schema | schema | Derive schemas, codecs and optics for named tuples, including more than 22 fields | T-01, T-03 | **P2** · 9 (2/1/3/2/1) | Scala 3.7+ only. Evidence is tests only (§4.12); confirm against a release | zio-blocks [#213](https://github.com/zio/zio-blocks/issues/213); few JSON libraries support named tuples ([tupson](https://index-dev.scala-lang.org/sake92/tupson)) | `scalaNextTests/.../SchemaVersionSpecificScalaNextSpec.scala` |
