@@ -518,6 +518,6 @@ Plan: `docs/superpowers/plans/2026-10-21-schema-scaladoc.md`. Style: `docs/dev/s
 | 4. Optics                | Done        | #1827 | 1743 / 6919 (25%) | 1985 / 6919 (28%) |
 | 5. Dynamic               | Done        | #1829 | 2345 / 6919 (33%) | 2587 / 6919 (37%) |
 | 6. Derivation and codecs | In review   | #1833 | 2587 / 6919 (37%) | 2729 / 6919 (39%) |
-| 7. Transform and evolve  | In review   |       | 2345 / 6919 (33%) | 2588 / 6919 (37%) |
+| 7. Transform and evolve  | In review   |       | 2587 / 6919 (37%) | 2830 / 6919 (40%) |
 | 8a. JSON model           | Not started |       |                   |                   |
 | 8b. JSON I/O             | Not started |       |                   |                   |
