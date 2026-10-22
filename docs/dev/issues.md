@@ -3101,7 +3101,7 @@ import zio.blocks.schema.Lazy
 
 **Root cause.** `force` checks the cache only of the instance it is called on (`schema/shared/src/main/scala/zio/blocks/schema/Lazy.scala:123`). Its loop walks into `FlatMap#first` and calls `Defer#thunk()` directly (`:110-120`), without looking at the cached `value` or `error` of those inner instances.
 
-**Impact.** Work is repeated, and side effects run more than once, whenever a forced `Lazy` is reused in a chain. The JSON codec deriver builds the instance of a node from the instances of its children with `D.instance(...).map` and `.zip` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:933`, `:1437`, `:2788`, `:2908`), so a child instance that was forced elsewhere would run again; this was not observed in practice. The Scaladoc of `Lazy` now states that the cache belongs to the instance. A related detail, documented but not a bug: `Lazy.collectAll` forces its elements from the last to the first.
+**Impact.** Work is repeated, and side effects run more than once, whenever a forced `Lazy` is reused in a chain. The JSON codec deriver builds the instance of a node from the instances of its children with `D.instance(...).map` and `.zip` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:933`, `:1437`, `:2788`, `:2908`), so a child instance that was forced elsewhere runs again. This is observed with overrides (wave 6 of the schema Scaladoc, 2026-10-22, run on Scala 2.13.18 against 0.0.56): an override given to `DerivationBuilder#instance` or `Deriver#withInstance` is one `Lazy` shared by every node it matches, and it is evaluated again once per sequence, `Option`, map or wrapper codec that chains it after it was first forced. A deriver-level override is also evaluated again on each later `Schema#derive` with that deriver. Counting evaluations of a `TypeId.of[String]` override: a record with a `String` field and a `List[String]` field evaluates it 2 times on the first derive and 1 more time on a second derive with the same deriver; a record with two `List[String]` fields, 2 times and then 2 more. An override with side effects, or an expensive one, runs that many times. The Scaladoc of `Lazy` now states that the cache belongs to the instance. A related detail, documented but not a bug: `Lazy.collectAll` forces its elements from the last to the first.
 
 **Test gap.** `LazySpec` checks memoization only by forcing the same instance twice (`schema/shared/src/test/scala/zio/blocks/schema/LazySpec.scala:47`).
 
@@ -4738,7 +4738,7 @@ The output is identical on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 and 
 {"name":"BOOKS","subcategories":[{"name":"scala","subcategories":[{"name":"zio"}]}]}
 ```
 
-**Root cause.** `JsonCodecDeriver#deriveRecord` treats a record as recursive when any field is a `Reflect.Deferred` node (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:576`). For such a record it looks up the field infos of an earlier occurrence by type ID in the thread-local `recursiveRecordCache` (`:578`, `:2983`), and skips deriving the field codecs when it finds them (`:580`, `:630`). The first occurrence stores its infos before it derives its fields (`:622`), so every nested occurrence reuses them. Every occurrence still calls `fieldInfo.setName(name)` on the shared infos (`:643`), so the last one sets the encoded field name. `Schema.derived` wraps every field that has a default value in a `Reflect.Deferred` (`schema/shared/src/main/scala-3/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:613`, Scala 2 at `schema/shared/src/main/scala-2/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:471`), so a record with a defaulted field counts as recursive even when it is not. `DerivationBuilder#derive` keys optic overrides by path (`schema/shared/src/main/scala/zio/blocks/schema/derive/DerivationBuilder.scala`, `getCustomInstance`), which is right; the cache throws that per-path result away. The derivers of Avro, CSV, MessagePack, Thrift, TOON, XML and YAML use the same cache keyed by type ID (`recursiveRecordCache` in each `*CodecDeriver.scala`), so they probably behave the same; that is not verified.
+**Root cause.** `JsonCodecDeriver#deriveRecord` treats a record as recursive when any field is a `Reflect.Deferred` node (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:576`). For such a record it looks up the field infos of an earlier occurrence by type ID in the thread-local `recursiveRecordCache` (`:578`, `:2983`), and skips deriving the field codecs when it finds them (`:580`, `:630`). The first occurrence stores its infos before it derives its fields (`:622`), so every nested occurrence reuses them. Every occurrence still calls `fieldInfo.setName(name)` on the shared infos (`:643`), so the last one sets the encoded field name. `Schema.derived` wraps every field that has a default value in a `Reflect.Deferred` (`schema/shared/src/main/scala-3/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:613`, Scala 2 at `schema/shared/src/main/scala-2/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:471`), so a record with a defaulted field counts as recursive even when it is not. `DerivationBuilder#derive` keys optic overrides by path (`schema/shared/src/main/scala/zio/blocks/schema/derive/DerivationBuilder.scala`, `getCustomInstance`), which is right; the cache throws that per-path result away. The derivers of Avro, CSV, MessagePack, Thrift, TOON and XML keep the same per-type-ID `recursiveRecordCache` and reset it at the start of each derivation (their `instanceOverrides` override, for example `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodecDeriver.scala:779-780`), so optic overrides should leak the same way within one derivation (not verified). `YamlCodecDeriver` never resets its cache (`schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodecDeriver.scala:107`, `:113`, `:499`), so a later derivation on the same thread reuses the codecs of an earlier one (see the entry below).
 
 **Impact.** An optic override, the most precise override the derivation API offers, silently changes other parts of the output or does nothing, depending on whether a record type has a default value somewhere, which the user of the optic may not know or control. Overrides by type, or by type and field name, are not affected, because they are the same at every occurrence.
 
@@ -4829,6 +4829,171 @@ On Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`), `Accepted.sca
 **Test gap.** `AllowsNegativeSpec` "Mutually recursive types produce compile-time error" (`schema/shared/src/test/scala/zio/blocks/schema/comptime/AllowsNegativeSpec.scala:430-452`) checks `Forest`/`Tree` against `Record[Primitive | Sequence[Self]]`, which fails because a `Forest` field is not a `Primitive` or a `Sequence`, not because of the cycle, and the test accepts several unrelated messages, including "could not find". No test checks a cycle through the root with `| Self`, or a recursive type below the root.
 
 **Suggested fix.** Track recursion per type rather than per root: when a type reached through `Self` comes back while it is being checked, accept it as the root case does. Then update the `Self` Scaladoc and the reference page, and change the negative test to assert the message it means to test.
+
+### schema: overriding a record, or a field by parent type and name, still derives the parts the override replaces
+
+Found 2026-10-22 during review 1 of the wave 6 Scaladoc of `Deriver` and `DerivationBuilder` (branch `scaladoc-wave-6`, on top of `2f73284b`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false` against the published 0.0.56 on Scala 2.13.18 and, with `zio-blocks-next-schema` and `-experimental`, on Scala 3.9.0, with the same output.
+
+**Summary.** An instance override is meant to replace derivation. For a node overridden by type or by optic, the deriver is indeed not called for that node, but it is still called for every node below it, and the result is thrown away. A field or case overridden by parent type and name is derived in full first, and only then swapped for the override. So derivation does work it discards, and an error in a part that the override replaces still fails `derive`: here a modifier that `JsonCodecDeriver` rejects (an unknown `Modifier.fieldNaming` strategy) on `Person` makes `derive` throw although no `Person` codec is used.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+import zio.blocks.typeid.TypeId
+
+case class Person(name: String)
+object Person { implicit val schema: Schema[Person] = Schema.derived }
+
+case class Book(title: String, author: Person)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+object Main {
+  val personCodec: JsonCodec[Person] = new JsonCodec[Person] {
+    def decodeValue(in: JsonReader): Person           = Person(in.readString())
+    def encodeValue(x: Person, out: JsonWriter): Unit = out.writeVal(x.name)
+  }
+  val bookCodec: JsonCodec[Book] = new JsonCodec[Book] {
+    def decodeValue(in: JsonReader): Book           = Book(in.readString(), Person("unknown"))
+    def encodeValue(x: Book, out: JsonWriter): Unit = out.writeVal(x.title)
+  }
+
+  def attempt(label: String)(codec: => JsonCodec[Book]): Unit =
+    try println(s"$label: ${codec.encodeToString(Book("Zionomicon", Person("John De Goes")))}")
+    catch { case e: Throwable => println(s"$label: threw $e") }
+
+  def main(args: Array[String]): Unit = {
+    // A modifier that makes JsonCodecDeriver throw when it derives a Person
+    val bogus = Modifier.fieldNaming("bogus")
+
+    // Person replaced by type: Person is not derived
+    attempt("Person by type")(
+      Book.schema.deriving(JsonCodecDeriver).instance(TypeId.of[Person], personCodec).modifier(TypeId.of[Person], bogus).derive
+    )
+    // Book.author replaced by parent type and field name: Person is still derived
+    attempt("Book.author by name")(
+      Book.schema.deriving(JsonCodecDeriver).instance(TypeId.of[Book], "author", personCodec).modifier(TypeId.of[Person], bogus).derive
+    )
+    // The whole Book replaced by type: its Person field is still derived
+    attempt("Book by type")(
+      Book.schema.deriving(JsonCodecDeriver).instance(TypeId.of[Book], bookCodec).modifier(TypeId.of[Person], bogus).derive
+    )
+  }
+}
+// Person by type: {"title":"Zionomicon","author":"John De Goes"}
+// Book.author by name: threw java.lang.IllegalArgumentException: Unknown naming strategy 'bogus'. Expected one of: identity, snake_case, camelCase, kebab-case, PascalCase
+// Book by type: threw java.lang.IllegalArgumentException: Unknown naming strategy 'bogus'. Expected one of: identity, snake_case, camelCase, kebab-case, PascalCase
+```
+
+The output is identical on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 and `//> using options -experimental`.
+
+**Expected.** The first two print `{"title":"Zionomicon","author":"John De Goes"}` and the third prints `"Zionomicon"`: the overridden `Person` (and, in the third case, the whole `Book`) is never derived, so its modifiers never run.
+
+**Root cause.** `Reflect.Record#transform` transforms the fields before it calls `transformRecord` for the record (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:924-929`), and the same holds for the children of variants, sequences, maps and wrappers. `DerivationBuilder#derive` decides on an override only inside `transformRecord` (`schema/shared/src/main/scala/zio/blocks/schema/derive/DerivationBuilder.scala:371`, `:430` for variants), after the children have been derived; a parent type and name override replaces the already derived field afterwards (`applyTypeAndTermNameOverrides`, `:320-343`). `JsonCodecDeriver#deriveRecord` resolves `Modifier.fieldNaming` in the method body, outside its `Lazy` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:345`), so the exception escapes while the discarded part is derived.
+
+**Impact.** Wasted derivation work for every overridden subtree, and spurious failures: an override cannot be used to work around a part of the schema that a deriver cannot derive. Users reading "uses `instance` instead of deriving one" expect the opposite. The Scaladoc of `Deriver` and `DerivationBuilder` now states the actual behaviour.
+
+**Test gap.** `DeriverWithInstanceSpec` and the override tests in `JsonCodecDeriverSpec` check the output of overridden codecs only; none checks that the replaced part is not derived, for example with a deriver that counts calls or fails on the replaced type.
+
+**Suggested fix.** In `DerivationBuilder#derive`, check for an optic or type override before transforming a node's children (for example with a transformer that short-circuits on a match, keeping the original children in the result), and apply parent type and name overrides before the field is transformed instead of swapping its result afterwards.
+
+### schema-yaml: `YamlCodecDeriver` reuses record codecs from an earlier derivation on the same thread, including its overrides
+
+Found 2026-10-22 during review 1 of the wave 6 Scaladoc (branch `scaladoc-wave-6`, on top of `2f73284b`; line numbers are those of the commit that adds this entry). The code is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false` against the published 0.0.56 on Scala 2.13.18 and, with `zio-blocks-next-schema-yaml` and `-experimental`, on Scala 3.9.0, with the same output.
+
+**Summary.** Like `JsonCodecDeriver` (see the entry about optic overrides above), `YamlCodecDeriver` caches the field infos of a record that has a `Reflect.Deferred` field (a recursive record, or one with a defaulted field) in a thread-local map keyed by type ID. Unlike the other derivers, it never clears that map. A later derivation of the same type on the same thread therefore reuses the field codecs of the first one, including any instance override it had. Here a plain `Category.schema.derive(YamlFormat)` writes upper-cased names because an earlier derivation overrode `String`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema-yaml` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+import zio.blocks.typeid.TypeId
+
+case class Category(name: String, subcategories: List[Category])
+object Category { implicit val schema: Schema[Category] = Schema.derived }
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val books = Category("books", List(Category("scala", Nil)))
+    val upper: YamlCodec[String] = Schema[String].transform[String](s => s.toLowerCase, s => s.toUpperCase).derive(YamlFormat)
+
+    // A derivation that overrides every String
+    val overridden = Category.schema.deriving(YamlCodecDeriver).instance(TypeId.of[String], upper).derive
+    println(overridden.encodeToString(books))
+
+    // A later, plain derivation on the same thread
+    val plain = Category.schema.derive(YamlFormat)
+    println(plain.encodeToString(books))
+  }
+}
+// name: BOOKS
+// subcategories:
+//   - name: SCALA
+//     subcategories: []
+// name: BOOKS
+// subcategories:
+//   - name: SCALA
+//     subcategories: []
+```
+
+The output is identical on Scala 3.9.0 with `zio-blocks-next-schema-yaml` 0.0.56 and `//> using options -experimental`.
+
+**Expected.** The second derivation has no override, so it prints `name: books` and `name: scala`.
+
+**Root cause.** `YamlCodecDeriver#deriveRecord` looks up and stores field infos in `recursiveRecordCache` by type ID (`schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodecDeriver.scala:105-113`, map at `:499`). The JSON, Avro, CSV, MessagePack, Thrift, TOON and XML derivers clear their cache in an `instanceOverrides` override, which `DerivationBuilder#derive` calls at the start of every derivation (for example `schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:2970-2971`); `YamlCodecDeriver` has no such override, so the map lives as long as the thread.
+
+**Impact.** Codecs for recursive types, or types with default values, depend on what the same thread derived before: an override, or a configured deriver's options (such as a name mapper) used once, can leak into codecs derived later, including `Schema#getInstance(YamlFormat)` and the default YAML codec. The map also keeps those codecs alive for the life of the thread.
+
+**Test gap.** No YAML test derives the same recursive or defaulted type twice on one thread with different overrides or options.
+
+**Suggested fix.** Clear `recursiveRecordCache` at the start of each derivation, as the other derivers do (override `instanceOverrides` to call `recursiveRecordCache.remove()`), or better, keep the cache in the derivation instead of a thread-local. The fix for the optic-override entry above applies here too.
+
+### schema: `NameMapper.SnakeCase` and `KebabCase` double the separator before a capital that follows `_` or `-`
+
+Found 2026-10-22 during review 1 of the wave 6 Scaladoc of `NameMapper` (branch `scaladoc-wave-6`, on top of `2f73284b`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false` against the published 0.0.56 on Scala 2.13.18 and, with `zio-blocks-next-schema` and `-experimental`, on Scala 3.9.0, with the same output.
+
+**Summary.** A name that already has a separator before a capital letter followed by a lower-case letter, such as `my_Field`, gets two separators: `my__field` in snake_case and `my--field` in kebab-case. `my_field` and `myField` both give `my_field`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.NameMapper
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    println(NameMapper.SnakeCase("my_Field"))
+    println(NameMapper.KebabCase("my_Field"))
+    println(NameMapper.SnakeCase("first_Edition_Year"))
+    println(NameMapper.SnakeCase("my_field"))
+    println(NameMapper.SnakeCase("myField"))
+  }
+}
+// my__field
+// my--field
+// first__edition__year
+// my_field
+// my_field
+```
+
+The output is identical on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 and `//> using options -experimental`.
+
+**Expected.** `my_field`, `my-field` and `first_edition_year`.
+
+**Root cause.** In `enforceSnakeOrKebabCase` (`schema/shared/src/main/scala/zio/blocks/schema/NameMapper.scala:92-116`), an existing `_` or `-` appends the separator and sets `isPrecedingNotUpperCased` to false (`:100-105`). The next character, a capital, then gets a separator of its own from the second condition, `idx > 1 && idx < len && isLowerCase(s.charAt(idx))` (`:110`), which is meant to split an acronym from the word after it (`HTTPServer`), but does not check that the previous character was a separator.
+
+**Impact.** Fields and cases named in mixed style, such as `my_Field` or Java-style constants converted by hand, get keys with a doubled separator in JSON, BSON and every other format that uses `withFieldNameMapper`, `withCaseNameMapper` or `Modifier.fieldNaming`. The output looks like a typo and does not match what other libraries produce.
+
+**Test gap.** `NameMapperSpec` (`schema/shared/src/test/scala/zio/blocks/schema/NameMapperSpec.scala`) tests separators followed by lower-case letters, digits and symbols, and upper-case runs, but no separator followed by a capital and then a lower-case letter.
+
+**Suggested fix.** Do not append a separator before a capital when the previous output character is already the separator (for example, track whether the last appended character was a separator), and add `my_Field` and `first_Edition_Year` to `NameMapperSpec`.
 
 ## Usability traps
 
