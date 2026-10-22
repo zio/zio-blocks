@@ -289,7 +289,7 @@ val myDeriver = JsonCodecDeriver
 ### Important Notes
 
 - `withInstance` and `withModifier` return a NEW deriver (they are immutable).
-- When combined with `DerivationBuilder`, deriver-level instance overrides take precedence over builder-level instance overrides. Modifier override precedence is order-sensitive and should not be assumed to follow the same rule.
+- When combined with `DerivationBuilder`, deriver-level instance overrides take precedence over builder-level instance overrides for the same target. Modifier overrides do not replace each other: the deriver receives the builder's modifiers before the deriver's, and `JsonCodecDeriver` uses the first `Modifier.rename` it finds, so for renames the builder's override wins.
 - Unknown `termName` values are silently ignored.
 - The `B` type parameter in field-level `withInstance` is not statically checked against the actual field type.
 
