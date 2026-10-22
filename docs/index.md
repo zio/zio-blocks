@@ -520,6 +520,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Render Your First Server-Side HTML Page](./guides/your-first-html-page.md) - Build a book page with the HTML DSL, escape user input, add CSS and JSON state, and save it as a file
 - [How to Serve http-model Requests with the JDK HTTP Server](./guides/serve-http-model-requests.md) - Turn a JDK `HttpExchange` into an http-model `Request`, write a `Response` back, and run a handler function on the built-in server
 - [How to Validate Query Parameters and Headers and Answer 400](./guides/validate-query-parameters-and-headers.md) - Read query parameters and headers as typed values and answer missing, malformed or out-of-range input with a JSON 400 that names every problem
+- [Your First Streaming Pipeline: Turn a Sales Log into a Report](./guides/your-first-streaming-pipeline.md) - Read a sales log with a `Stream`, parse, filter and batch it, sum it with a `Sink`, and recover from a bad line
 - [How to Stream Files and Sockets Without Leaking Resources](./guides/stream-files-and-sockets.md) - Read files, NIO channels and sockets as streams that close their handles on success, failure, early stop and missing input
 - [Getting Started with Async](./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
 - [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles

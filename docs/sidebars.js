@@ -482,6 +482,7 @@ const sidebars = {
     "guides/your-first-html-page",
     "guides/serve-http-model-requests",
     "guides/validate-query-parameters-and-headers",
+    "guides/your-first-streaming-pipeline",
     "guides/stream-files-and-sockets",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",

@@ -741,5 +741,6 @@ Stream.fromIterable(List("10", "abc", "-3", "7", "0", "25"))
 - [Zero-Boxing Streams](./execution-and-compatibility/zero-boxing.md) -- the primitive lanes and how one is chosen
 - [Async](../async.md) -- the `Async` effect type the cross-platform terminals return
 - [Mux](../mux.mdx) -- coordinating many keyed streams over one shared transport
+- [Your First Streaming Pipeline](../../guides/your-first-streaming-pipeline.md) -- a newcomer tutorial: read a sales log, parse, filter and batch it, sum it with a `Sink`, and recover from a bad line
 - [How to Stream Files and Sockets Without Leaking Resources](../../guides/stream-files-and-sockets.md) -- read files, NIO channels and sockets as streams that close their handles on every exit path
 - [Coming from fs2, ZIO Streams or Ox](../../guides/streaming-library-migration.md) -- a guide that maps fs2, ZIO Streams and Ox code onto ZIO Blocks streams
