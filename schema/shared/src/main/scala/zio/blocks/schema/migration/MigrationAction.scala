@@ -35,7 +35,9 @@ sealed trait MigrationAction {
    * `TransformCase` and `MigrateField` have an inverse; the other actions
    * reverse to an [[MigrationAction.Irreversible]], which fails when it runs. A
    * reversed `DropField` adds the field back with its `defaultForReverse`, not
-   * with the value it dropped.
+   * with the value it dropped, and a reversed `MandateField` is an
+   * `OptionalizeField`, which has the `Some`-shape bug described on
+   * [[MigrationAction.OptionalizeField]].
    */
   def reverse: MigrationAction
 }
@@ -148,7 +150,8 @@ object MigrationAction {
    * on, unwraps a `Some`, and leaves any other value as it is. A `Some` unwraps
    * to the record that holds its `value` field rather than to the value itself,
    * so a typed migration from `Option[A]` to `A` fails for every `Some` (see
-   * `docs/dev/issues.md`).
+   * `docs/dev/issues.md`). Its reverse is an [[OptionalizeField]], which has
+   * the same problem the other way round.
    *
    * @param at
    *   the path of the optional value

@@ -26,6 +26,8 @@ import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
  */
 object Changeset {
 
+  // Wrapping a name in FieldName[N] keeps its literal type when the macros use
+  // appliedType/appliedTo; a bare ConstantType widens to String.
   /**
    * A field the builder handles and provides, recorded by `migrateField` for
    * each nested field of the migrated value. The name is a literal string type.
@@ -184,7 +186,8 @@ final class MigrationBuilder[A, B, Changeset](
    * Turns the `Option` field that `source` selects into a required field, using
    * the value of `default` for a `None`. `source` and `target` must select
    * fields with the same name, or compilation fails. The migration currently
-   * fails for every `Some` (see `docs/dev/issues.md`).
+   * fails for every `Some`, and so does its reverse, an `OptionalizeField` (see
+   * `docs/dev/issues.md`).
    */
   transparent inline def mandateField(
     inline source: A => Option[?],

@@ -36,19 +36,24 @@ import zio.blocks.schema.{Schema, SchemaError}
  * structural one (JVM only), so an old version can be described without keeping
  * its case class.
  *
- * {{ // scala-3-only import zio.blocks.schema.migration._
+ * {{{
+ * // scala-3-only
+ * import zio.blocks.schema.migration._
  *
- * case class BookV1(title: String, pages: Int) object BookV1 { implicit val
- * schema: Schema[BookV1] = Schema.derived } case class BookV2(name: String,
- * pages: Int, edition: Int) object BookV2 { implicit val schema: Schema[BookV2] =
- * Schema.derived }
+ * case class BookV1(title: String, pages: Int)
+ * object BookV1 { implicit val schema: Schema[BookV1] = Schema.derived }
+ * case class BookV2(name: String, pages: Int, edition: Int)
+ * object BookV2 { implicit val schema: Schema[BookV2] = Schema.derived }
  *
- * val migration = Migration .newBuilder[BookV1, BookV2] .renameField(_.title,
- * _.name) .addField(_.edition, SchemaExpr.literal(1)) .build
+ * val migration = Migration
+ *   .newBuilder[BookV1, BookV2]
+ *   .renameField(_.title, _.name)
+ *   .addField(_.edition, SchemaExpr.literal(1))
+ *   .build
  *
- * migration(BookV1("Zionomicon", 600)) // Right(BookV2("Zionomicon", 600, 1))
- * migration.reverse(BookV2("Zionomicon", 600, 2)) // Right(BookV1("Zionomicon",
- * 600)) }}
+ * migration(BookV1("Zionomicon", 600))            // Right(BookV2("Zionomicon", 600, 1))
+ * migration.reverse(BookV2("Zionomicon", 600, 2)) // Right(BookV1("Zionomicon", 600))
+ * }}}
  *
  * @tparam A
  *   the source type
@@ -97,8 +102,9 @@ final case class Migration[A, B](
    * one, in reverse order (see [[MigrationAction#reverse]]). It is computed
    * from the actions alone, so it can fail at run time: a reversed
    * `TransformField`, `ChangeFieldType`, `OptionalizeField` or collection
-   * transform always fails, and a dropped field comes back with its
-   * `defaultForReverse`, not its old value.
+   * transform always fails, a reversed `MandateField` is an `OptionalizeField`,
+   * which fails to decode (see `docs/dev/issues.md`), and a dropped field comes
+   * back with its `defaultForReverse`, not its old value.
    */
   def reverse: Migration[B, A] =
     new Migration(targetSchema, sourceSchema, dynamicMigration.reverse)

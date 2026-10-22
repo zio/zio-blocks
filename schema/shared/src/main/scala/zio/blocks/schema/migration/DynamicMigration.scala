@@ -64,7 +64,9 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
    * Returns the migration with every action reversed (see
    * [[MigrationAction#reverse]]), in reverse order. Running it fails at the
    * first action that has no inverse, and a dropped field comes back with its
-   * `defaultForReverse`, not its old value.
+   * `defaultForReverse`, not its old value. A reversed `MandateField` is an
+   * `OptionalizeField`, which builds a `Some` that the schema of `Option`
+   * cannot decode (see `docs/dev/issues.md`).
    */
   def reverse: DynamicMigration =
     new DynamicMigration(Chunk.fromIterator(actions.reverseIterator.map(_.reverse)))
