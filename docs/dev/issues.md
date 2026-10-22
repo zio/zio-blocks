@@ -3424,147 +3424,6 @@ object Main extends App {
 
 **Suggested fix.** Render the value on one line (`Json#print` / a compact `DynamicValue` rendering), or indent every line after the first by the current indent.
 
-### build (Scala 3): every main-line artifact was built with -experimental after #1743, so every Scala 3 user needed -experimental
-
-Found 2026-10-22 while reviewing the Scaladoc wave 3 branch, on `main` at `bffadae7` and still at `4a142547`. Introduced by #1743 (`3defefab`). Not in the release: `v0.0.56` builds its main line with Scala 3.3, and its artifacts need no flag on Scala 3.3.7 or 3.9.0. Verified by running against local publishes of `main` and of the fix.
-
-**Summary.** #1743 moved the main line (`zio-blocks-*`) to Scala 3.9 and the next line (`zio-blocks-next-*`) to Scala 3.10, but kept passing `-experimental` to every Scala 3 compile from 3.8 up. When a module is compiled with `-experimental`, scalac marks each of its top-level definitions `@experimental`. So every main-line Scala 3 artifact on `main` was experimental for its users: `Chunk(1, 2, 3)`, `Schema[Int]`, `derives Schema` and `Schema.derived` did not compile without `-experimental`.
-
-**Reproduction** (Scala 3.9.0 and scala-cli 1.10.1, against a local publish of `main` at `4a142547`: `sbt 'set ThisBuild / version := "0.0.0-exp1743"; ++3.9.0; chunkJVM/publishLocal; typeidJVM/publishLocal; markdownJVM/publishLocal; maybeJVM/publishLocal; schemaJVM/publishLocal'`, then `scala-cli run --server=false <file>`):
-
-```scala
-//> using scala 3.9.0
-//> using repository ivy2Local
-//> using dep dev.zio::zio-blocks-schema:0.0.0-exp1743
-import zio.blocks.schema._
-
-case class Book(title: String, year: Int) derives Schema
-
-object Main {
-  def main(args: Array[String]): Unit =
-    println(Schema[Book].jsonCodec.encodeToString(Book("Zionomicon", 2021)))
-}
-// -- Error: CaseClass.scala:6:50
-// 6 |case class Book(title: String, year: Int) derives Schema
-//   |                                                  ^
-//   |trait SchemaCompanionVersionSpecific is marked @experimental: Added by -experimental
-//   |
-//   |Experimental definition may only be used under experimental mode:
-//   |  1. in a definition marked as @experimental, or
-//   |  2. an experimental feature is imported at the package level, or
-//   |  3. compiling with the -experimental compiler flag.
-// -- Error: CaseClass.scala:6:50
-//    6 |case class Book(title: String, year: Int) derives Schema
-//      |                                                  ^
-//      |   object TypeId is marked @experimental: Added by -experimental
-//      ...
-//      |This location contains code that was inlined from SchemaCompanionVersionSpecific.scala:1186
-// 2 errors found
-// Compilation failed
-```
-
-Code that does not derive fails the same way, on every main-line object it touches:
-
-```scala
-//> using scala 3.9.0
-//> using repository ivy2Local
-//> using dep dev.zio::zio-blocks-schema:0.0.0-exp1743
-import zio.blocks.schema._
-import zio.blocks.chunk.Chunk
-
-object Main {
-  def main(args: Array[String]): Unit = {
-    println(Chunk(1, 2, 3))
-    println(Schema[Int].jsonCodec.encodeToString(42))
-    println(DynamicValue.Primitive(PrimitiveValue.Int(1)))
-  }
-}
-// -- Error: Plain.scala:9:12
-// 9 |    println(Chunk(1, 2, 3))
-//   |            ^^^^^
-//   |         object Chunk is marked @experimental: Added by -experimental
-//   ...
-// -- Error: Plain.scala:10:12
-// 10 |    println(Schema[Int].jsonCodec.encodeToString(42))
-//    |            ^^^^^^
-//    |       object Schema is marked @experimental: Added by -experimental
-//    ...
-// -- Error: Plain.scala:10:23
-// 10 |    println(Schema[Int].jsonCodec.encodeToString(42))
-//    |                       ^
-//    |       object Schema is marked @experimental: Added by -experimental
-//    ...
-// -- Error: Plain.scala:11:12
-// 11 |    println(DynamicValue.Primitive(PrimitiveValue.Int(1)))
-//    |            ^^^^^^^^^^^^
-//    |     object DynamicValue is marked @experimental: Added by -experimental
-//    ...
-// -- Error: Plain.scala:11:35
-//    |   object PrimitiveValue is marked @experimental: Added by -experimental
-//    ...
-// 5 errors found
-// Compilation failed
-```
-
-With `-O -experimental` the second file prints `Chunk(1,2,3)`, `42` and `1`. The same two files against the published `0.0.56` on Scala 3.9.0 compile without the flag and print `{"title":"Zionomicon","year":2021}`, then `Chunk(1,2,3)`, `42` and `1`.
-
-**Expected.** A Scala 3.9 user of `zio-blocks-*` compiles without `-experimental`, as with 0.0.56. Only the next line (`zio-blocks-next-*`, Scala 3.10+) needs the flag.
-
-**Root cause.** `stdSettings` passed `-experimental` for every Scala 3 minor from 8 up (`project/BuildHelper.scala:232-234` at `4a142547`: `if (minor >= 8) { Seq("-experimental") ++ (if (minor >= 10) Seq.empty else Seq("-opt")) }`). That threshold dates from when 3.8+ was only the next line. #1743 moved the `zio-blocks-next-` rename to `minor >= 10` (`BuildHelper.scala:178`) but left `-experimental` at `minor >= 8`, so the 3.9 main line (and the Golem 3.8.3 build of streams and async) got it too. scalac 3.9.0 then adds `@experimental("Added by -experimental")` to every top-level definition of each compiled file (`Checking.checkAndAdaptExperimentalImports`, `dotty/tools/dotc/typer/Checking.scala:956-965` in `scala3-compiler_3-3.9.0`). No main-line source needs the flag: the whole build compiles on 3.9.0 without it, including the structural `Binding.of` macro, whose `Symbol.newClass` is no longer `@experimental` in scala-library 3.9.0.
-
-**Impact.** Release blocker. The next release would break every Scala 3 user of the main line: every call into chunk, schema, typeid and the other main-line modules would fail to compile until the user added `-experimental`, which also opts their own code into experimental mode.
-
-**Test gap.** Nothing compiled user code against the main line without `-experimental`. The in-build consumers (tests, `schema-scaladoc-check`) inherit the library's scalac options, `docs` adds `-experimental` itself (`build.sbt:1590`), and the examples builds use the published 0.0.56 and pass `-experimental` themselves.
-
-**Fix.** Pass `-experimental` only for Scala 3.10+ (`-opt` stays on 3.8 and 3.9), and compile `schema-scaladoc-check`'s Scaladoc examples without `-experimental` or `-language:experimental.*` below 3.10 (`BuildHelper.Scala3NextMinor` holds the one threshold for the `zio-blocks-next-` rename, the flag and this check), so the build fails if a main-line module ever gets the flag again. On the unfixed rule, `++3.9.0; schema-scaladoc-check/compile` fails with 23 `... is marked @experimental: Added by -experimental` errors; with the fix it passes, and both files above compile without the flag. Fixed in #1826.
-
-
-### typeid (Scala 3): `IsNominalType` and `IsNominalIntersection` accept an abstract type parameter, and the negative tests passed only because of `-experimental`
-
-Found 2026-10-22 by CI on #1826 (the `-experimental` fix above), on `main` at `4a142547`. The code is the same at tag `v0.0.56`. Verified by running against the published 0.0.56 on Scala 3.3.7 and 3.9.0, and against local publishes of #1826 before and after the fix.
-
-**Summary.** On Scala 3, `IsNominalType[A]` can be summoned for an unresolved type parameter `A`, which issue #1172 says must not compile. The derived `TypeId` then describes the parameter (`A`), not the type the caller passes. `IsNominalIntersection` accepts a type-parameter member the same way. Scala 2 rejects both. `IsNominalTypeNegativeSpec` checks exactly this, but passed only because the build compiled with `-experimental` (see Root cause); #1826 removed the flag and the spec failed.
-
-**Reproduction** (Scala 3.9.0, scala-cli 1.10.1, `scala-cli run --server=false Probe.scala`):
-
-```scala
-//> using scala 3.9.0
-//> using dep dev.zio::zio-blocks-typeid:0.0.56
-import zio.blocks.typeid.IsNominalType
-
-def foo[A]: IsNominalType[A] = summon[IsNominalType[A]]
-
-@main def run() = {
-  println(foo[String].typeId)
-  println(foo[String].typeId.fullName)
-}
-// A
-// Probe$package.A
-```
-
-`//> using scala 3.3.7` prints the same.
-
-**Expected.** `foo` does not compile. With the fix (a local publish of #1826 as `0.0.0-nominalfix`, plus `//> using repository ivy2Local`):
-
-```
--- Error: Probe.scala:6:55
-6 |def foo[A]: IsNominalType[A] = summon[IsNominalType[A]]
-  |                                                       ^
-  |Cannot derive IsNominalType for non-nominal type: A. Only classes, traits, objects, enums, and applied types are supported. Intersection types (A & B), union types (A | B), structural types, and type lambdas are not allowed.
-1 error found
-Compilation failed
-```
-
-**Root cause.** The Scala 3 macro's `isNominal` returns `true` for every `TypeRef` and every `TermRef` (`typeid/shared/src/main/scala-3/zio/blocks/typeid/IsNominalTypeVersionSpecific.scala:41-42`), and the `TypeRef` of a type parameter or an abstract type member is one of them; `F[Int]` with `F` a type parameter passes through `AppliedType` the same way. `IsNominalIntersectionVersionSpecific.scala:46-47` has a copy of the same function. The Scala 2 macro accepts a type only when `typeSymbol.isClass` or `isModuleClass` (`typeid/shared/src/main/scala-2/zio/blocks/typeid/IsNominalTypeVersionSpecific.scala:39-40`), so it rejects them.
-
-The negative tests hid it. Each did `val compiles = typeChecks("""...""")` and `assertTrue(!compiles)` (`typeid/shared/src/test/scala-3.4+/zio/blocks/typeid/IsNominalTypeNegativeSpec.scala:39-56` at `4a142547`). With `-experimental`, the snippet failed for an unrelated reason: `typeCheckErrors` on the same snippet returns only `Recursive value errs needs type ... while trying to compute the signature of value errs` (a cyclic reference on the untyped `val` that holds the result). So `typeChecks` returned `false` and the tests passed while the macro accepted the type. The third test, whose snippet expands no `IsNominalType` macro, passed either way.
-
-**Impact.** The #1172 guarantee does not hold on Scala 3: a DSL method `def contains[A: IsNominalType](a: A)` can be called from unconstrained generic code, and gets a `TypeId` for the type parameter instead of the real type. Any code that relies on `IsNominalType` to rule out abstract types, as the #1172 DSL pattern does, is affected.
-
-**Test gap.** The negative tests asserted only `!typeChecks(...)`, which passes for any compile error, including ones unrelated to the macro. No test covered abstract type members, applied type parameters or `IsNominalIntersection` with a type-parameter member.
-
-**Fix.** In #1826: `isNominal` accepts a `TypeRef` only when its symbol is a class, trait, object or enum (`isClassDef`) or an opaque type, follows aliases, and widens a `TermRef` (`x.type` is nominal when `x`'s type is). Both macros share it. The negative tests now assert the macro's own error message with `typeCheckErrors` (with an explicit `List[Error]` type, which also avoids the cyclic reference on 3.10, where `-experimental` is still on), and cover abstract type members, applied type parameters, the singleton type of a parameter's value and `IsNominalIntersection`, plus Scala 3 positives for an opaque type, an alias and an object singleton.
-
 
 ## Usability traps
 
@@ -4768,5 +4627,143 @@ Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main`
 - Config: `formats.md:97` (YAML parse error type) and `config-source.md` (`EnvSource` and `keyFormat`). Fixed in #1771.
 - sql: `sql-transactions.md` default isolation and PostgreSQL facts; `repo.md`/`table.md`/`ddl.md` upserts, `pageAfter` and the missing `PRIMARY KEY` caveat; `:memory:` warnings in `transactor.md` and `transactor-zio.md`; `db-con.md` `DbTx` members; the backlog's "sql has no JS backend" note. Fixed in #1760.
 - Codecs: `format.md` (`sealed trait`, real `BinaryFormat`/`TextFormat` signatures, which formats are binary); TOON `ArrayFormat.Auto` Scaladoc and `toon.md:706`; `csv.md` (`CsvConfig` ignored by derived codecs, runtime rejection, `Option` rejected); `xml.md` stale version; `built-in-codecs/index.md` artifact prefix. In PR #1773 (open).
-- Build: every Scala 3 main-line artifact was compiled with `-experimental` after #1743, so every Scala 3 user would have needed the flag (see the build entry under Library bugs). Fixed in #1826.
-- typeid (Scala 3): `IsNominalType` and `IsNominalIntersection` accepted abstract type parameters, and the negative tests passed only because of `-experimental` (see the typeid entry under Library bugs). Fixed in #1826.
+
+### build (Scala 3): every main-line artifact was built with -experimental after #1743, so every Scala 3 user needed -experimental
+
+Found 2026-10-22 while reviewing the Scaladoc wave 3 branch, on `main` at `bffadae7` and still at `4a142547`. Introduced by #1743 (`3defefab`). Not in the release: `v0.0.56` builds its main line with Scala 3.3, and its artifacts need no flag on Scala 3.3.7 or 3.9.0. Verified by running against local publishes of `main` and of the fix.
+
+**Summary.** #1743 moved the main line (`zio-blocks-*`) to Scala 3.9 and the next line (`zio-blocks-next-*`) to Scala 3.10, but kept passing `-experimental` to every Scala 3 compile from 3.8 up. When a module is compiled with `-experimental`, scalac marks each of its top-level definitions `@experimental`. So every main-line Scala 3 artifact on `main` was experimental for its users: `Chunk(1, 2, 3)`, `Schema[Int]`, `derives Schema` and `Schema.derived` did not compile without `-experimental`.
+
+**Reproduction** (Scala 3.9.0 and scala-cli 1.10.1, against a local publish of `main` at `4a142547`: `sbt 'set ThisBuild / version := "0.0.0-exp1743"; ++3.9.0; chunkJVM/publishLocal; typeidJVM/publishLocal; markdownJVM/publishLocal; maybeJVM/publishLocal; schemaJVM/publishLocal'`, then `scala-cli run --server=false <file>`):
+
+```scala
+//> using scala 3.9.0
+//> using repository ivy2Local
+//> using dep dev.zio::zio-blocks-schema:0.0.0-exp1743
+import zio.blocks.schema._
+
+case class Book(title: String, year: Int) derives Schema
+
+object Main {
+  def main(args: Array[String]): Unit =
+    println(Schema[Book].jsonCodec.encodeToString(Book("Zionomicon", 2021)))
+}
+// -- Error: CaseClass.scala:6:50
+// 6 |case class Book(title: String, year: Int) derives Schema
+//   |                                                  ^
+//   |trait SchemaCompanionVersionSpecific is marked @experimental: Added by -experimental
+//   |
+//   |Experimental definition may only be used under experimental mode:
+//   |  1. in a definition marked as @experimental, or
+//   |  2. an experimental feature is imported at the package level, or
+//   |  3. compiling with the -experimental compiler flag.
+// -- Error: CaseClass.scala:6:50
+//    6 |case class Book(title: String, year: Int) derives Schema
+//      |                                                  ^
+//      |   object TypeId is marked @experimental: Added by -experimental
+//      ...
+//      |This location contains code that was inlined from SchemaCompanionVersionSpecific.scala:1186
+// 2 errors found
+// Compilation failed
+```
+
+Code that does not derive fails the same way, on every main-line object it touches:
+
+```scala
+//> using scala 3.9.0
+//> using repository ivy2Local
+//> using dep dev.zio::zio-blocks-schema:0.0.0-exp1743
+import zio.blocks.schema._
+import zio.blocks.chunk.Chunk
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    println(Chunk(1, 2, 3))
+    println(Schema[Int].jsonCodec.encodeToString(42))
+    println(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+  }
+}
+// -- Error: Plain.scala:9:12
+// 9 |    println(Chunk(1, 2, 3))
+//   |            ^^^^^
+//   |         object Chunk is marked @experimental: Added by -experimental
+//   ...
+// -- Error: Plain.scala:10:12
+// 10 |    println(Schema[Int].jsonCodec.encodeToString(42))
+//    |            ^^^^^^
+//    |       object Schema is marked @experimental: Added by -experimental
+//    ...
+// -- Error: Plain.scala:10:23
+// 10 |    println(Schema[Int].jsonCodec.encodeToString(42))
+//    |                       ^
+//    |       object Schema is marked @experimental: Added by -experimental
+//    ...
+// -- Error: Plain.scala:11:12
+// 11 |    println(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+//    |            ^^^^^^^^^^^^
+//    |     object DynamicValue is marked @experimental: Added by -experimental
+//    ...
+// -- Error: Plain.scala:11:35
+//    |   object PrimitiveValue is marked @experimental: Added by -experimental
+//    ...
+// 5 errors found
+// Compilation failed
+```
+
+With `-O -experimental` the second file prints `Chunk(1,2,3)`, `42` and `1`. The same two files against the published `0.0.56` on Scala 3.9.0 compile without the flag and print `{"title":"Zionomicon","year":2021}`, then `Chunk(1,2,3)`, `42` and `1`.
+
+**Expected.** A Scala 3.9 user of `zio-blocks-*` compiles without `-experimental`, as with 0.0.56. Only the next line (`zio-blocks-next-*`, Scala 3.10+) needs the flag.
+
+**Root cause.** `stdSettings` passed `-experimental` for every Scala 3 minor from 8 up (`project/BuildHelper.scala:232-234` at `4a142547`: `if (minor >= 8) { Seq("-experimental") ++ (if (minor >= 10) Seq.empty else Seq("-opt")) }`). That threshold dates from when 3.8+ was only the next line. #1743 moved the `zio-blocks-next-` rename to `minor >= 10` (`BuildHelper.scala:178`) but left `-experimental` at `minor >= 8`, so the 3.9 main line (and the Golem 3.8.3 build of streams and async) got it too. scalac 3.9.0 then adds `@experimental("Added by -experimental")` to every top-level definition of each compiled file (`Checking.checkAndAdaptExperimentalImports`, `dotty/tools/dotc/typer/Checking.scala:956-965` in `scala3-compiler_3-3.9.0`). No main-line source needs the flag: the whole build compiles on 3.9.0 without it, including the structural `Binding.of` macro, whose `Symbol.newClass` is no longer `@experimental` in scala-library 3.9.0.
+
+**Impact.** Release blocker. The next release would break every Scala 3 user of the main line: every call into chunk, schema, typeid and the other main-line modules would fail to compile until the user added `-experimental`, which also opts their own code into experimental mode.
+
+**Test gap.** Nothing compiled user code against the main line without `-experimental`. The in-build consumers (tests, `schema-scaladoc-check`) inherit the library's scalac options, `docs` adds `-experimental` itself (`build.sbt:1590`), and the examples builds use the published 0.0.56 and pass `-experimental` themselves.
+
+**Fix.** Pass `-experimental` only for Scala 3.10+ (`-opt` stays on 3.8 and 3.9), and compile `schema-scaladoc-check`'s Scaladoc examples without `-experimental` or `-language:experimental.*` below 3.10 (`BuildHelper.Scala3NextMinor` holds the one threshold for the `zio-blocks-next-` rename, the flag and this check), so the build fails if a main-line module ever gets the flag again. On the unfixed rule, `++3.9.0; schema-scaladoc-check/compile` fails with 23 `... is marked @experimental: Added by -experimental` errors; with the fix it passes, and both files above compile without the flag. Fixed in #1826.
+
+### typeid (Scala 3): `IsNominalType` and `IsNominalIntersection` accept an abstract type parameter, and the negative tests passed only because of `-experimental`
+
+Found 2026-10-22 by CI on #1826 (the `-experimental` fix above), on `main` at `4a142547`. The code is the same at tag `v0.0.56`. Verified by running against the published 0.0.56 on Scala 3.3.7 and 3.9.0, and against local publishes of #1826 before and after the fix.
+
+**Summary.** On Scala 3, `IsNominalType[A]` can be summoned for an unresolved type parameter `A`, which issue #1172 says must not compile. The derived `TypeId` then describes the parameter (`A`), not the type the caller passes. `IsNominalIntersection` accepts a type-parameter member the same way. Scala 2 rejects both. `IsNominalTypeNegativeSpec` checks exactly this, but passed only because the build compiled with `-experimental` (see Root cause); #1826 removed the flag and the spec failed.
+
+**Reproduction** (Scala 3.9.0, scala-cli 1.10.1, `scala-cli run --server=false Probe.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+import zio.blocks.typeid.IsNominalType
+
+def foo[A]: IsNominalType[A] = summon[IsNominalType[A]]
+
+@main def run() = {
+  println(foo[String].typeId)
+  println(foo[String].typeId.fullName)
+}
+// A
+// Probe$package.A
+```
+
+`//> using scala 3.3.7` prints the same.
+
+**Expected.** `foo` does not compile. With the fix (a local publish of #1826 as `0.0.0-nominalfix`, plus `//> using repository ivy2Local`):
+
+```
+-- Error: Probe.scala:6:55
+6 |def foo[A]: IsNominalType[A] = summon[IsNominalType[A]]
+  |                                                       ^
+  |Cannot derive IsNominalType for non-nominal type: A. Only classes, traits, objects, enums, and applied types are supported. Intersection types (A & B), union types (A | B), structural types, and type lambdas are not allowed.
+1 error found
+Compilation failed
+```
+
+**Root cause.** The Scala 3 macro's `isNominal` returns `true` for every `TypeRef` and every `TermRef` (`typeid/shared/src/main/scala-3/zio/blocks/typeid/IsNominalTypeVersionSpecific.scala:41-42`), and the `TypeRef` of a type parameter or an abstract type member is one of them; `F[Int]` with `F` a type parameter passes through `AppliedType` the same way. `IsNominalIntersectionVersionSpecific.scala:46-47` has a copy of the same function. The Scala 2 macro accepts a type only when `typeSymbol.isClass` or `isModuleClass` (`typeid/shared/src/main/scala-2/zio/blocks/typeid/IsNominalTypeVersionSpecific.scala:39-40`), so it rejects them.
+
+The negative tests hid it. Each did `val compiles = typeChecks("""...""")` and `assertTrue(!compiles)` (`typeid/shared/src/test/scala-3.4+/zio/blocks/typeid/IsNominalTypeNegativeSpec.scala:39-56` at `4a142547`). With `-experimental`, the snippet failed for an unrelated reason: `typeCheckErrors` on the same snippet returns only `Recursive value errs needs type ... while trying to compute the signature of value errs` (a cyclic reference on the untyped `val` that holds the result). So `typeChecks` returned `false` and the tests passed while the macro accepted the type. The third test, whose snippet expands no `IsNominalType` macro, passed either way.
+
+**Impact.** The #1172 guarantee does not hold on Scala 3: a DSL method `def contains[A: IsNominalType](a: A)` can be called from unconstrained generic code, and gets a `TypeId` for the type parameter instead of the real type. Any code that relies on `IsNominalType` to rule out abstract types, as the #1172 DSL pattern does, is affected. An applied type with an abstract argument is still accepted on both Scala 2 and 3, before and after this fix: `IsNominalType[List[A]]` derives, so `def f[A](xs: List[A]) = contains(xs)` still compiles.
+
+**Test gap.** The negative tests asserted only `!typeChecks(...)`, which passes for any compile error, including ones unrelated to the macro. No test covered abstract type members, applied type parameters or `IsNominalIntersection` with a type-parameter member.
+
+**Fix.** In #1826: `isNominal` accepts a `TypeRef` only when its symbol is a class, trait, object or enum (`isClassDef`) or an opaque type, follows aliases, and widens and dealiases a `TermRef` (`x.type` is nominal when `x`'s type is, so `pair.type` for `val pair: Pair[Int]` with `type Pair[X] = (X, X)` still works). Both macros share it. Two differences from Scala 2 remain: `x.type` for a value of an intersection type (`x: A & B`) is rejected on Scala 3 and accepted on Scala 2, and `lit.type` for `final val lit = 1` is accepted on Scala 3 and rejected on Scala 2 (as before this fix). The negative tests now assert the macro's own error message with `typeCheckErrors` (with an explicit `List[Error]` type, which also avoids the cyclic reference on 3.10, where `-experimental` is still on), and cover abstract type members, applied type parameters, the singleton type of a parameter's value and `IsNominalIntersection`, plus Scala 3 positives for an opaque type, an alias, an object singleton and the singleton types of a `Pair[Int]` and a `String` value. A shared `IsNominalTypeSpec` test checks the bare type parameter on Scala 2 and 3.
