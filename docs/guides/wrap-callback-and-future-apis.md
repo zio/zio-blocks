@@ -52,8 +52,14 @@ In this guide, we bring each of these shapes into `Async` with one bridge per sh
 To add the async module to your project, include this dependency in your `build.sbt`:
 
 ```scala
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %%% "zio-blocks-async" % "@VERSION@"
+
+// Scala 3.9 and newer (also needs scalacOptions += "-experimental"): the same module with the zio-blocks-next- prefix
+libraryDependencies += "dev.zio" %%% "zio-blocks-next-async" % "@VERSION@"
 ```
+
+[How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains the two artifact names and how to choose one per Scala version. Use `%%%` for a cross-built JVM and Scala.js project, and `%%` for a JVM-only one.
 
 This guide assumes you have worked through [Getting Started with Async](./async-getting-started.md), so `Async#map`, `Async#block`, `Async#either`, `Async.async` with `await`, and `Async#start` are familiar. The [Async reference](../reference/async.md) lists every operation with its full signature.
 
