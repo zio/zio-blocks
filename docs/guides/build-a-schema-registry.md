@@ -11,7 +11,7 @@ keywords:
   - "Avro"
 ---
 
-In this guide, we will build a small schema registry for a bookshop's `BookPublished` events, using `DynamicSchema` and `BindingResolver` from ZIO Blocks Schema. By the end, you will have a registry that stores every version of an event's shape in a directory, a consumer that loads a stored shape and checks incoming events against it without the event's class, a consumer that turns a stored shape back into a typed `Schema` to decode events, and a small comparison that tells you what changed between version 1 and version 2.
+In this guide, we will build a small schema registry for a bookshop's `BookPublished` events, using [`DynamicSchema`](../reference/schema/dynamic-schema.md) and [`BindingResolver`](../reference/schema/binding-resolver.md) from ZIO Blocks Schema. By the end, you will have a registry that stores every version of an event's shape in a directory, a consumer that loads a stored shape and checks incoming events against it without the event's class, a consumer that turns a stored shape back into a typed `Schema` to decode events, and a small comparison that tells you what changed between version 1 and version 2.
 
 Services that exchange data through a message broker, an event store or an API see the shape of that data change over time. A schema registry is a central store of those shapes: it answers "what does version 3 of `BookPublished` look like?", so producers and consumers can check data against it. We start from a `Schema` derived for a case class and build the registry step by step:
 
@@ -160,7 +160,7 @@ The JSON codec loses two kinds of information that the stored schema depends on.
 
 Our registry keeps each subject in its own directory, with one file per version: `v1.avro`, `v2.avro`, and so on. A subject is the name the registry files schemas under, such as `book-published`. Next to each Avro file it writes the same schema as indented JSON, for people to read. A map in memory caches the schemas it has already read.
 
-The registry has four operations. `register` stores a schema and returns its version number; registering a schema that is already stored returns the existing version instead of adding a new one. `versions` lists the stored versions of a subject, `load` reads one version, and `latest` reads the newest one:
+The registry has four operations. `SchemaRegistry#register` stores a schema and returns its version number; registering a schema that is already stored returns the existing version instead of adding a new one. `SchemaRegistry#versions` lists the stored versions of a subject, `SchemaRegistry#load` reads one version, and `SchemaRegistry#latest` reads the newest one:
 
 ```scala mdoc:silent
 final class SchemaRegistry(root: Path) {
@@ -205,10 +205,10 @@ final class SchemaRegistry(root: Path) {
 
 Here is what each part does:
 
-- `Schema[DynamicSchema].derive(AvroFormat)` builds the Avro codec that `register` writes with and `read` reads with.
-- `register` compares the new schema with every stored version using `==`, which compares the two shapes field by field.
-- `read` throws when a schema reads back as `Dynamic`. Avro never does this, but the check costs two lines and turns a silent accept-anything registry into an error if someone later swaps the format.
-- `jsonView` turns the schema into a `DynamicValue` with `DynamicSchema.toDynamicValue` and prints it as JSON.
+- `Schema[DynamicSchema].derive(AvroFormat)` builds the Avro codec that `SchemaRegistry#register` writes with and `SchemaRegistry#read` reads with.
+- `SchemaRegistry#register` compares the new schema with every stored version using `==`, which compares the two shapes field by field.
+- `SchemaRegistry#read` throws when a schema reads back as `Dynamic`. Avro never does this, but the check costs two lines and turns a silent accept-anything registry into an error if someone later swaps the format.
+- `SchemaRegistry#jsonView` turns the schema into a `DynamicValue` with `DynamicSchema.toDynamicValue` and prints it as JSON.
 
 :::warning
 The `.json` file is for people only. In 0.0.56 neither `Schema[DynamicSchema]`'s JSON codec nor `DynamicSchema.fromDynamicValue` reads it back correctly, so the registry never loads it. Load schemas from the `.avro` files.
@@ -617,6 +617,14 @@ This example runs the whole guide in one program:
 
 ```bash
 sbt "runMain buildaschemaregistry.CompleteExample"
+```
+
+### Compile All Examples
+
+To compile every example without running one, run this from the `schema-examples` directory:
+
+```bash
+sbt compile
 ```
 
 ## Going Further
