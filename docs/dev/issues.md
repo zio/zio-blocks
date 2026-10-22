@@ -1739,7 +1739,7 @@ object Main {
 // true
 ```
 
-Pasting the three renderings back into the interpolator (Scala 3.9.0, `zio-blocks-schema` 0.0.56; `scala-cli compile` output, with the scratch directory removed from the file paths):
+Pasting the three renderings back into the interpolator (Scala 3.9.0, `zio-blocks-schema` 0.0.56; output of `scala-cli compile --server=false Repro.scala`, with the scratch directory removed from the file paths):
 
 ```scala
 //> using scala 3.9.0
@@ -1778,6 +1778,182 @@ object Main {
 **Test gap.** `DynamicOpticSpec` checks `toString` for a plain `Char` key only (`'A'`), and `PathInterpolatorSpec`'s round-trip tests cover search steps only; no test parses `toString` output of the other node kinds back.
 
 **Suggested fix.** Give the parser a wrapper step that matches the rendering (accept `.~`), and render the empty path as the empty string or accept `.` as the root. In the `Char` branch, append `"\\n"`, `"\\t"`, `"\\r"`, `"\\'"` and `"\\\\"`, as the `String` branch does. Add a property test that `p`-parses `toString` of every node kind back to an equal `DynamicOptic` (through `PathParser.parse`).
+
+### schema: a `searchFor` traversal reads map keys but `modify` never updates them
+
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+
+**Summary.** A `searchFor` traversal reads a different set of values than it modifies. `fold` and `check` also visit the keys of maps, so a key that decodes with the focus schema is a match. `modify`, `modifyOption` and `modifyOrFail` skip map keys, so the same match is read but never updated.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56; the same file with `//> using scala 2.13.18` prints the same two lines):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Library(index: Map[String, String], titles: List[String])
+object Library extends CompanionOptics[Library] {
+  implicit val schema: Schema[Library] = Schema.derived
+  val strings: Traversal[Library, String] = $(_.searchFor[String])
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val library = Library(Map("isbn" -> "zionomicon"), List("Programming in Scala"))
+    println(Library.strings.fold[List[String]](library)(Nil, (acc, s) => s :: acc).reverse)
+    println(Library.strings.modify(library, _.toUpperCase))
+  }
+}
+// List(isbn, zionomicon, Programming in Scala)
+// Library(Map(isbn -> ZIONOMICON),List(PROGRAMMING IN SCALA))
+```
+
+**Expected.** `fold` and `modify` agree on the matches. Either `modify` also gives `Map(ISBN -> ZIONOMICON)`, or `fold` leaves out `isbn`.
+
+**Root cause.** `SearchTraversal.searchCollectDecoded` and `searchHasMatch` push both the key and the value of each map entry (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:3654`, `:3684`). `searchModify` (`:3708-3709`) uses `DynamicValue.iterativeTransform`, which visits only map values (`schema/shared/src/main/scala/zio/blocks/schema/DynamicValue.scala:1423`). The `DynamicValue`-level search skips keys on purpose (`DynamicValue.scala:1354`: "Search map values only (not keys), consistent with iterativeTransform"), so the typed traversal is the odd one out.
+
+**Impact.** For `searchFor[String]` over any type with a `Map[String, _]`, `fold` returns keys that `modify` does not change. A caller that counts matches with `fold` and then updates them with `modify` gets inconsistent results.
+
+**Test gap.** `SearchTraversalSpec` searches maps only for record values (`"searches through Map values"`, `"modifies values in Map"`). No test has a match among the keys.
+
+**Suggested fix.** Make `searchCollectDecoded` and `searchHasMatch` skip map keys, consistent with `iterativeTransform` and `DynamicValue`'s own search. Rewriting keys could merge entries, so skipping them is the safer choice. Add a test with a `Map[String, String]` that checks `fold` and `modify` agree.
+
+### schema: `DerivedOptics` gives one type the cached optics of another type with the same printed name
+
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that adds this entry). The cache code is the same at tag `v0.0.56`. Verified: the reproductions below were run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+
+**Summary.** `DerivedOptics` caches the optics of each type in a global map keyed by the type's printed name. Two different types that print the same name share one entry, for example local case classes named `Book` in two methods, or same-named classes in two mdoc pages built in one JVM (all under `repl.MdocSession.MdocApp.`). The second type gets the first type's optics, and using them fails with a `ClassCastException` or `No optic found`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import scala.util.Try
+
+object Main {
+  def first(): Unit = {
+    case class Book(title: String, pages: Int)
+    object Book extends DerivedOptics {
+      implicit val schema: Schema[Book] = Schema.derived
+    }
+    println(Try(Book.optics.title.get(Book("Zionomicon", 870))))
+  }
+
+  def second(): Unit = {
+    case class Book(isbn: String, title: String)
+    object Book extends DerivedOptics {
+      implicit val schema: Schema[Book] = Schema.derived
+    }
+    println(Try(Book.optics.title.get(Book("978-0-9000000-0-1", "Programming in Scala"))))
+    println(Try(Book.optics.isbn.get(Book("978-0-9000000-0-1", "Programming in Scala"))))
+  }
+
+  def main(args: Array[String]): Unit = {
+    first()
+    second()
+  }
+}
+// Success(Zionomicon)
+// Failure(java.lang.ClassCastException: class Main$Book$4 cannot be cast to class Main$Book$1 (Main$Book$4 and Main$Book$1 are in unnamed module of loader 'app'))
+// Failure(java.lang.RuntimeException: No optic found for: isbn)
+```
+
+Scala 2 behaves the same (Scala 2.13.18, `zio-blocks-schema` 0.0.56). The file is in package `zio.blocks.schema` because `optics` compiles only there on Scala 2 (see the entry above):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+// In package zio.blocks.schema because of the Scala 2 `optics` access bug (see its own entry).
+package zio.blocks.schema
+
+import scala.util.Try
+
+object Main {
+  def first(): Unit = {
+    case class Book(title: String, pages: Int)
+    implicit val schema: Schema[Book] = Schema.derived
+    object BookOptics extends DerivedOptics.Of[Book]
+    println(Try(BookOptics.optics.title.get(Book("Zionomicon", 870))))
+  }
+
+  def second(): Unit = {
+    case class Book(isbn: String, title: String)
+    implicit val schema: Schema[Book] = Schema.derived
+    object BookOptics extends DerivedOptics.Of[Book]
+    println(Try(BookOptics.optics.title.get(Book("978-0-9000000-0-1", "Programming in Scala"))))
+  }
+
+  def main(args: Array[String]): Unit = {
+    first()
+    second()
+  }
+}
+// Success(Zionomicon)
+// Failure(java.lang.ClassCastException: class zio.blocks.schema.Main$Book$4 cannot be cast to class zio.blocks.schema.Main$Book$1 (zio.blocks.schema.Main$Book$4 and zio.blocks.schema.Main$Book$1 are in unnamed module of loader 'app'))
+```
+
+scala-cli also prints `warning: 2 feature warnings; re-run with -feature for details` for the Scala 2 file.
+
+**Expected.** Each type gets its own optics: `second()` prints `Success(Programming in Scala)` and `Success(978-0-9000000-0-1)`.
+
+**Root cause.** On Scala 3 the cache key is `tpe.show` (`schema/shared/src/main/scala-3/zio/blocks/schema/DerivedOptics.scala:457`, `:497`, `:555`), stored in a global `ConcurrentHashMap` (`:379-381`). On Scala 2 it is `tpe.toString` (`schema/shared/src/main/scala-2/zio/blocks/schema/DerivedOptics.scala:379`, `:414`, `:437`, cache at `:279-281`). Both print a local class without its enclosing method, so `getOrCreate` returns the first type's optics for the second.
+
+**Impact.** Two same-named types in one program silently share optics, which then fail at run time far from the cause. mdoc wraps every page in `repl.MdocSession.MdocApp`, so two documentation pages that both declare a `Book` with `DerivedOptics` can break each other in one docs build.
+
+**Test gap.** `DerivedOpticsSpec` checks that `Box[Int]` and `Box[String]` get different optics (`!(BoxInt.optics eq BoxString.optics)`), but never two distinct types with the same printed name.
+
+**Suggested fix.** Key the cache by something that identifies the type: the class's runtime `Class` object (from a `ClassTag`, generated by the macro) plus the printed type arguments. Or drop the global cache and keep the optics in a `lazy val` of the companion, which the macro can generate. Add a test with two local case classes of the same name.
+
+### schema: `Traversal#check` reports `atIndices` elements of a `List` as out of bounds when another step follows
+
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+
+**Summary.** `Traversal#check` on `atIndices(i, j)` followed by another step wrongly reports every index after the first as out of bounds when the sequence is not indexed, for example a `List`. `fold` and `modify` reach those elements correctly, so the optic works while `check` (and the `Left` of a failing `modifyOrFail`, which comes from `check`) describes a problem that does not exist.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56; the same file with `//> using scala 2.13.18` prints the same three lines):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Book(title: String, year: Int)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+case class Shelf(books: List[Book])
+object Shelf extends CompanionOptics[Shelf] {
+  implicit val schema: Schema[Shelf] = Schema.derived
+  val firstAndThirdTitle: Traversal[Shelf, String] = $(_.books.atIndices(0, 2).title)
+  val firstAndThird: Traversal[Shelf, Book]        = $(_.books.atIndices(0, 2))
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val shelf = Shelf(
+      List(Book("Zionomicon", 2021), Book("Programming in Scala", 2021), Book("Functional Programming in Scala", 2014))
+    )
+    println(Shelf.firstAndThirdTitle.fold[List[String]](shelf)(Nil, (acc, t) => t :: acc).reverse)
+    println(Shelf.firstAndThirdTitle.check(shelf).map(_.message))
+    println(Shelf.firstAndThird.check(shelf).map(_.message))
+  }
+}
+// List(Zionomicon, Functional Programming in Scala)
+// Some(During attempted access at .books.atIndices(0, 2).title, encountered a sequence out of bounds at .books.atIndices(0, 2): index is 2, but size is 2)
+// None
+```
+
+**Expected.** `check` returns `None` for both optics: the list has three elements, and `fold` reaches indices 0 and 2.
+
+**Root cause.** In `TraversalImpl.checkRecursive`, the non-indexed branch for `AtIndicesBinding` skips ahead with `currIdx`, then reads the element with `it.next()` for the next step without incrementing `currIdx` (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:2475`). For the next index, `currIdx` is one behind the iterator, so the loop runs out one element early. `foldRecursive` increments `currIdx` after the same call (`:2615-2616`). When `atIndices` is the last step, no element is consumed, so the count stays right.
+
+**Impact.** `check` and `modifyOrFail` report false `SequenceIndexOutOfBounds` warnings for `atIndices` on lists followed by a field or any other step.
+
+**Test gap.** The `OpticSpec` tests that compose `atIndices` with a following step use collections too short for the first index (`"index is 1, but size is 1"`, `schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2773`, `:2794`), so the missing increment never shows.
+
+**Suggested fix.** Add `currIdx += 1` after the recursive `checkRecursive` call in that branch, as `foldRecursive` does, and add a test that composes `atIndices(0, 2)` with a field on a three-element `List`.
 
 ### sql: `queryStream` throws, instead of returning `Left`, when the `SELECT` has fewer columns than the row type, and logs the failed query as a success
 
@@ -3878,6 +4054,62 @@ object MaxBufSizeRepro {
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
+
+### schema: `Lens.apply` and `Prism.apply` accept a term of another type and fail later with `Index -1`
+
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that adds this entry). The code is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+
+**Summary.** `Lens.apply(source, focusTerm)` and `Prism.apply(source, focusTerm)` look the term up in `source` by name and do not check that it is there. A term from another record or variant gives index -1. A lens builds without complaint and throws `ArrayIndexOutOfBoundsException: Index -1` the first time it is used; a prism throws the same exception at construction. Neither message names the term.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import scala.util.Try
+
+case class Author(name: String)
+object Author { implicit val schema: Schema[Author] = Schema.derived }
+case class Book(title: String, year: Int)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+sealed trait Format
+case class Paperback(pages: Int) extends Format
+case class Ebook(sizeMb: Double) extends Format
+object Format { implicit val schema: Schema[Format] = Schema.derived }
+
+sealed trait Genre
+case class Fiction(rating: Int) extends Genre
+object Genre { implicit val schema: Schema[Genre] = Schema.derived }
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val book       = Book.schema.reflect.asRecord.get
+    val authorName = Author.schema.reflect.asRecord.get.fields(0).asInstanceOf[Term.Bound[Book, String]]
+    val lens       = Lens(book, authorName)
+    println(lens)
+    println(Try(lens.get(Book("Zionomicon", 2021))))
+
+    val format  = Format.schema.reflect.asVariant.get
+    val fiction = Genre.schema.reflect.asVariant.get.cases(0).asInstanceOf[Term.Bound[Format, Paperback]]
+    println(Try(Prism(format, fiction)))
+  }
+}
+// Lens(_.name)
+// Failure(java.lang.ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 2)
+// Failure(java.lang.ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 2)
+```
+
+**Expected.** Both constructors fail at once with an `IllegalArgumentException` that names the term and the type: "`name` is not a field of `Book`".
+
+**Root cause.** `Lens.apply` and `Prism.apply` check only for null (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:683-684`, `:957-958`). `LensImpl.init`, which runs on first use, indexes `source.registers` with `fieldIndexByName(name)` (`:719`), and the `PrismImpl` constructor indexes `source.matchers` with `caseIndexByName(name)` (`:990`). Both return -1 for an unknown name (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:405`, `:619`, `:2112`).
+
+**Impact.** A hand-built optic with a wrong term fails late (the lens) or with an index error that does not say what is wrong. `Reflect.Record#lensByName`, `Reflect.Variant#prismByName` and the `$` macro avoid the problem.
+
+**Test gap.** No test builds a lens or prism from a term that does not belong to the source.
+
+**Suggested fix.** In both constructors, `require(source.fieldIndexByName(focusTerm.name) >= 0, ...)` (or `caseIndexByName`) with a message that names the term and `source.typeId`.
 
 ### http-model-schema: `query[T]` and `header[T]` compile for any schema but decode only primitives
 
