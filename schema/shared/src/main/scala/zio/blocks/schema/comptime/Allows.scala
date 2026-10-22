@@ -99,6 +99,10 @@ package zio.blocks.schema.comptime
  */
 sealed abstract class Allows[A, S <: Allows.Structural]
 
+/**
+ * The grammar nodes that describe shapes, and `derived`, the macro that proves
+ * `Allows` evidence (from `AllowsCompanionVersionSpecific`).
+ */
 object Allows extends AllowsCompanionVersionSpecific {
 
   /**
@@ -133,6 +137,10 @@ object Allows extends AllowsCompanionVersionSpecific {
    */
   sealed abstract class Primitive extends Structural
 
+  /**
+   * One grammar node per primitive type, such as `Primitive.Int`, each an alias
+   * of [[IsType]] for that type.
+   */
   object Primitive {
 
     /**
@@ -386,6 +394,10 @@ object Allows extends AllowsCompanionVersionSpecific {
    */
   sealed abstract class Sequence[A <: Structural] extends Structural
 
+  /**
+   * The grammar nodes for one kind of collection, such as `Sequence.List`, each
+   * a subtype of [[Sequence]].
+   */
   object Sequence {
 
     /**
