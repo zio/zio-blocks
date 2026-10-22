@@ -4256,7 +4256,7 @@ object Repro {
 
 **Test gap.** `DynamicValueSpec` "retain on Variant where predicate fails and child empty" (`schema/shared/src/test/scala/zio/blocks/schema/DynamicValueSpec.scala:2015-2024`) asserts the current behaviour, the whole variant, for a variant at the root. No test partitions a value that contains a variant.
 
-**Suggested fix.** In the `Variant` branch, return `Null` (so the parent drops it) when neither the predicate nor the payload keeps anything, and make `hasContent` look at the payload of a variant. Change the test above and add a `partition` test with a variant field.
+**Suggested fix.** In the `Variant` branch, return `Null` (so the parent drops it) when neither the predicate nor the payload keeps anything, and make `hasContent` look at the payload of a variant. A variant at the root that keeps nothing then becomes `Null`, as a primitive root does. Change the test above and add a `partition` test with a variant field.
 
 ### schema: `DynamicValue#modifyOrFail` ignores a partial function that is not defined, except at the root
 
@@ -4426,7 +4426,7 @@ object Repro {
 
 **Suggested fix.** Build it with `literal(defaultValue)` (or the same `Schema[Unit]` transform), and add a test that evaluates it on an input of another type.
 
-### schema: `DynamicValue#toString` throws for a `Float` or `Double` that is NaN or infinite
+### schema: `DynamicValue#toString` and `toJson` throw for a `Float` or `Double` that is NaN or infinite
 
 Found 2026-10-22 while writing the Scaladoc of `DynamicValue#toString` and `toEjson` (wave 5 of the schema Scaladoc, branch `scaladoc-wave-5`, on top of `6cd3c787`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0` prints the same lines. Not filed on GitHub yet.
 
@@ -4455,7 +4455,26 @@ object Repro {
 // Failure(zio.blocks.schema.json.JsonCodecError: illegal number: NaN)
 ```
 
-**Expected.** `NaN`, `Infinity` and `-Infinity` in the output (or quoted strings), and `Left(... Expected Boolean, got: NaN)` from the expression.
+`DynamicValue#toJson` fails on the same values with another exception (found in review 1 of wave 5; same versions, the same file with `//> using scala 3.9.0` prints the same lines):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import scala.util.Try
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val rating = DynamicValue.Record("title" -> DynamicValue.string("Zionomicon"), "rating" -> DynamicValue.double(Double.NaN))
+    println(Try(rating.toJson))
+    println(Try(DynamicValue.float(Float.NegativeInfinity).toJson))
+  }
+}
+// Failure(java.lang.IllegalArgumentException: Infinity or NaN)
+// Failure(java.lang.IllegalArgumentException: Infinity or NaN)
+```
+
+**Expected.** `NaN`, `Infinity` and `-Infinity` in the output (or quoted strings), and `Left(... Expected Boolean, got: NaN)` from the expression. `toJson` either rejects such a value with a clear error or writes it as JSON can hold it (for example as a string); today it throws from `Json.Number`, which converts the number with `JsonWriter.toBigDecimal` (`schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:829`, `:837`, called from `:997-998`).
 
 **Root cause.** `primitiveToEjson` calls `JsonCodec.floatCodec.encodeToString` and `JsonCodec.doubleCodec.encodeToString` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicValue.scala:2872-2873`). The expression's message is built in `extractBoolean` from `$dv` (`DynamicSchemaExpr.scala:52`); other messages built the same way include `DynamicValue#get(key)` (`DynamicValue.scala:209`) and the conversions of `SchemaExpr.ConversionType`.
 
@@ -4506,6 +4525,141 @@ object Repro {
 **Test gap.** The `DynamicSchemaSpec` default-value tests set defaults with `DynamicSchema#defaultValue` or on the `Reflect` (`schema/shared/src/test/scala-3/zio/blocks/schema/DynamicSchemaSpec.scala:727`, `:736`, `:2000`); none uses a case class parameter default.
 
 **Suggested fix.** When dropping bindings, evaluate a `Deferred`'s default value with the bound schema and store it as `storedDefaultValue` (a `DynamicValue`), so both `getDefaultValue` and `toDynamicValue` see it. Add a test with a case class parameter default.
+
+### schema: `DynamicValue#setOrFail` and `modifyOrFail` return `Right` unchanged when the path stops after a matching field or map key
+
+Found 2026-10-22 in review 1 of the wave 5 Scaladoc of `DynamicValue#setOrFail` and `modifyOrFail` (branch `scaladoc-wave-5`, on top of `6cd3c787`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** `setOrFail` and `modifyOrFail` return `Left` with `Path not found` when the path reaches nothing, but only when the step that fails is the first one, or comes after a step other than a field or a map key. When a field or map-key step matches and a later step reaches nothing, they return `Right` with the value unchanged, although `get` on the same path fails. `DynamicValueSelection#setOrFail` and `modifyOrFail` inherit this.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val book = DynamicValue.Record(
+      "title"   -> DynamicValue.string("Zionomicon"),
+      "details" -> DynamicValue.Record("year" -> DynamicValue.int(2021))
+    )
+    val missing = DynamicOptic.root.field("details").field("pages")
+    println(book.get(missing).either)
+    println(book.setOrFail(missing, DynamicValue.int(700)) == Right(book))
+    println(book.modifyOrFail(missing) { case v => v } == Right(book))
+    println(book.select.setOrFail(missing, DynamicValue.int(700)).either.isRight)
+    val editions = DynamicValue.Map(DynamicValue.string("first") -> DynamicValue.Record.empty)
+    println(editions.setOrFail(DynamicOptic.root.atKey("first").field("year"), DynamicValue.int(2021)) == Right(editions))
+    println(book.setOrFail(DynamicOptic.root.field("pages"), DynamicValue.int(700)))
+  }
+}
+// Left(zio.blocks.schema.SchemaError: Path not found at: .details.pages)
+// true
+// true
+// true
+// true
+// Left(zio.blocks.schema.SchemaError: Path not found at: .pages)
+```
+
+**Expected.** `Left(... Path not found at: .details.pages)` from every `...OrFail` call above, as `get` reports.
+
+**Root cause.** In `modifyAtPath`, the `Field` and `AtMapKey` branches set `found = true` as soon as the name or key matches, before the recursive call (`schema/shared/src/main/scala/zio/blocks/schema/DynamicValue.scala:1173` and `:1208`). When the recursion returns `None`, the entry is kept and the branch still returns `Some` of a rebuilt, unchanged container. The other branches (`AtIndices`, `AtMapKeys`, `Elements`, `MapKeys`, `MapValues`) set `found` only when the recursion returns `Some`, and `deleteAtPath` and `insertAtPath` do the same in their `Field` and `AtMapKey` branches.
+
+**Impact.** Code that uses `setOrFail` to detect a missing nested field, for example to fall back to `insert`, silently loses the write. The Scaladoc of both methods now describes the current behaviour.
+
+**Test gap.** `DynamicValueSpec` tests `setOrFail` and `modifyOrFail` only with a one-step missing path (`schema/shared/src/test/scala/zio/blocks/schema/DynamicValueSpec.scala:384`, `:409`).
+
+**Suggested fix.** Set `found = true` only when the recursive call returns `Some`, as the other branches do, and add tests with a two-step path through a record and through a map key.
+
+### schema: `DynamicValue#diff` never removes a record field, so applying the patch does not give `that`
+
+Found 2026-10-22 in review 1 of the wave 5 Scaladoc of `DynamicValue#diff` (branch `scaladoc-wave-5`, on top of `6cd3c787`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** `diff(that)` is meant to return a patch that turns a value into `that`. For records it only sets the fields of `that`: a field that the old record has and `that` lacks is ignored. The patch can even be empty for two different records, and applying it leaves the field in place. Maps do get `Remove` operations for missing keys.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.patch.PatchMode
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val before = DynamicValue.Record("title" -> DynamicValue.string("Zionomicon"), "subtitle" -> DynamicValue.string("Draft"))
+    val after  = DynamicValue.Record("title" -> DynamicValue.string("Zionomicon"))
+    val patch  = before.diff(after)
+    println(patch.isEmpty)
+    println(patch.apply(before, PatchMode.Strict).map(_ == after))
+    val editionsBefore = DynamicValue.Map(DynamicValue.string("first") -> DynamicValue.int(2021), DynamicValue.string("draft") -> DynamicValue.int(2020))
+    val editionsAfter  = DynamicValue.Map(DynamicValue.string("first") -> DynamicValue.int(2021))
+    println(editionsBefore.diff(editionsAfter).apply(editionsBefore, PatchMode.Strict).map(_ == editionsAfter))
+  }
+}
+// true
+// Right(false)
+// Right(true)
+```
+
+**Expected.** A patch that removes `subtitle`, so the second line prints `Right(true)`, as it does for the map.
+
+**Root cause.** `Differ.diffRecord` walks only the new fields (`schema/shared/src/main/scala/zio/blocks/schema/patch/Differ.scala:203-245`); the comment at `:242-243` says "Fields that exist in old but not in new are ignored (Records are immutable, we can't delete fields)". A `DynamicValue.Record` can lose fields, and `DynamicValue#delete` removes them, so nothing prevents a removal operation.
+
+**Impact.** Syncing or auditing data with `diff` and `apply` keeps stale fields, and `diff` reports no change between records that differ by a removed field. The Scaladoc of `DynamicValue#diff` now says so.
+
+**Test gap.** `DiffSpec` "Record diffing" (`schema/shared/src/test/scala/zio/blocks/schema/patch/DiffSpec.scala:377`) and the roundtrip law tests (`:704`, `:713`) use records with the same field names on both sides.
+
+**Suggested fix.** Emit a removal for each old field that `that` lacks (a field-removal operation, or `Set` of the whole record when no such operation exists), and add a roundtrip test where `that` has fewer fields.
+
+### schema: a `SchemaExpr` with a `literal` on the left yields no results
+
+Found 2026-10-22 in review 1 of the wave 5 Scaladoc of `SchemaExpr` (branch `scaladoc-wave-5`, on top of `6cd3c787`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** Every binary `SchemaExpr` constructor converts the input with the input schema of its left (or first) operand. `SchemaExpr.literal`'s input schema discards the input, so with a literal on the left the right operand sees a `Unit` value instead of the input, its optic reaches nothing, and the expression evaluates to `Right` of an empty sequence instead of a result. The companion's Scaladoc suggested exactly this pattern ("a literal on the left of a comparison").
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Book(title: String, year: Int)
+object Book extends CompanionOptics[Book] {
+  implicit val schema: Schema[Book] = Schema.derived
+  val title: Lens[Book, String] = $(_.title)
+  val year: Lens[Book, Int]     = $(_.year)
+}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val zionomicon = Book("Zionomicon", 2021)
+    val year       = SchemaExpr.optic[Book, Int](Book.year.toDynamic, Book.schema)
+    val title      = SchemaExpr.optic[Book, String](Book.title.toDynamic, Book.schema)
+    println(SchemaExpr.relational(year, SchemaExpr.literal[Book, Int](2020), SchemaExpr.RelationalOperator.GreaterThan).eval(zionomicon))
+    println(SchemaExpr.relational(SchemaExpr.literal[Book, Int](2020), year, SchemaExpr.RelationalOperator.LessThan).eval(zionomicon))
+    println(SchemaExpr.stringConcat(SchemaExpr.literal[Book, String]("Title: "), title).eval(zionomicon))
+    println(SchemaExpr.stringConcat(title, SchemaExpr.literal[Book, String]("!")).eval(zionomicon))
+  }
+}
+// Right(Chunk(true))
+// Right(List())
+// Right(List())
+// Right(Chunk(Zionomicon!))
+```
+
+**Expected.** `Right(List(true))` for `2020 < year` and `Right(List(Title: Zionomicon))` for the concatenation, as with the literal on the right.
+
+**Root cause.** `relational`, `logical`, `arithmetic`, `bitwise` and `stringConcat` pass `left.inputSchema` (`schema/shared/src/main/scala/zio/blocks/schema/SchemaExpr.scala:403`, `:429`, `:472`, `:498`, `:521`); the other string constructors pass the input schema of their `string` operand. `literal`'s input schema is `Schema[Unit].transform[S](_ => null, _ => ())` (`:369`), so `eval` and `evalDynamic` (`:100`, `:122`) turn the input into a `Unit` value before evaluating the whole tree, and the `Select` on the right finds no field in it.
+
+**Impact.** A filter written as `literal op optic` silently matches nothing: `eval` returns `Right(Seq())` rather than an error, which a caller that checks for `true` reads as `false`. The Scaladoc of the companion and of `literal` now say to put literals on the right.
+
+**Test gap.** `SchemaExprSpec` builds every expression from literals of input type `Any` (`schema/shared/src/test/scala/zio/blocks/schema/SchemaExprSpec.scala:24-36`), so no test mixes a literal with an optic.
+
+**Suggested fix.** Take the input schema from an operand that is not a literal (for example, from whichever operand's tree contains a `Select`), or give `SchemaExpr` a way to carry "no input needed", and add tests with a literal on each side.
 
 ## Usability traps
 
