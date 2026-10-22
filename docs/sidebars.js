@@ -465,6 +465,7 @@ const sidebars = {
     "guides/read-and-write-csv-and-tsv-files",
     "guides/typed-config-loader",
     "guides/feed-config-into-a-wire-graph",
+    "guides/load-configuration-files",
     "guides/roll-out-feature-gradually",
     "guides/your-first-sqlite-repository",
     "guides/test-database-code-against-sqlite",
