@@ -27,7 +27,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-17 | How to connect to PostgreSQL with a connection pool                           | Done                                    | #1790, `guides/connect-to-postgresql-with-a-connection-pool.md`                         |
 | H-32 | How to roll out a feature gradually with flags                                | Done                                    | #1788, `guides/roll-out-feature-gradually.md`                                           |
 | H-08 | How to derive your own type class from a Schema                               | Done                                    | #1792, `guides/derive-your-own-type-class.md`                                           |
-| T-06 | Build your first streaming pipeline                                           | In review                               | #1832 (`streaming-pipeline`), `guides/your-first-streaming-pipeline.md`                 |
+| T-06 | Build your first streaming pipeline                                           | Done                                    | #1832, `guides/your-first-streaming-pipeline.md`                                        |
 | H-20 | How to stream large query results                                             | Merged (#1795)                          | `guides/stream-large-query-results.md`                                                  |
 | H-24 | How to stream files and sockets without leaking resources                     | Merged (#1796)                          | `guides/stream-files-and-sockets.md`                                                    |
 | H-11 | How to read and write CSV and TSV files                                       | Done                                    | #1793, `guides/read-and-write-csv-and-tsv-files.md` |
@@ -52,7 +52,7 @@ This table tracks every item that has been written or started. Items not listed 
 | H-15 | How to read and write YAML documents                                         | Done                                    | #1822, `guides/read-and-write-yaml.md`                                                  |
 | H-09 | How to build a schema registry with DynamicSchema                            | Done                                    | #1825, `guides/build-a-schema-registry.md` (JVM only; stores Avro) |
 | M-03 | Coming from Magnum or doobie                                                  | Done                                    | #1830, `guides/migrate-from-magnum-or-doobie.md`                                        |
-| H-28 | How to wrap callback and Future-based APIs in Async                           | Pushed, no PR                           | branch `async-interop`, `guides/wrap-callback-and-future-apis.md`                       |
+| H-28 | How to wrap callback and Future-based APIs in Async                           | In review                               | #1834 (`async-interop`), `guides/wrap-callback-and-future-apis.md`                      |
 | H-01 | How to add ZIO Blocks to your build                                           | Merged (#1810)                          | `guides/add-zio-blocks-to-your-build.md`; fixed the 3.9+ rule across docs               |
 | T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`              | Pushed, no PR                           | branch `evolve-data`, `guides/evolve-your-data.md` ("Evolve Your Data: Change Your Types with Into, As and Migration") |
 | H-25 | How to process a stream in parallel with bounded concurrency                  | Skipped (maintainer decision)           | —                                                                                       |
@@ -71,7 +71,7 @@ This table tracks every item that has been written or started. Items not listed 
 - T-09 merged, so T-10 (HTMX) and T-11 (Datastar) have their prerequisite, but both still need an HTTP adapter (H-35).
 - PR #1742 (projection docs) merged on 2026-10-20. T-14 now waits only on issue #1744, which has grown to sixteen engine problems.
 
-**Unblocked by T-06 (pushed):** H-20, H-24, H-25 and M-04 can start once it merges. H-24 should cover `Stream.fromResource`, which T-06 left out.
+**T-06 merged (#1832).** H-20, H-24 and M-04 were written and merged before it; H-25 was skipped.
 
 **Unblocked by T-12 (merged #1805):** H-48 and H-43 (H-42 was skipped). For H-42, don't call `log.removeAll()` before adding writers (writers never resume output afterwards).
 
