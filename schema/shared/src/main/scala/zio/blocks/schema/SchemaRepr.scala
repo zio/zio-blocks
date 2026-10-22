@@ -22,11 +22,10 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.TypeId
 
 /**
- * A lightweight representation of schema structure for pattern matching in
- * search optics.
- *
- * SchemaRepr captures the shape of a type without runtime bindings, enabling
- * structural matching against DynamicValue instances.
+ * A pattern for the shape of a value, used by `searchSchema` steps of a
+ * [[DynamicOptic]] and matched by [[SchemaMatch]]. Write one in a path as
+ * `#pattern`, for example `p"#record { title: string }"`, or build it from the
+ * cases. `toString` renders it in the pattern syntax, without the leading `#`.
  */
 sealed trait SchemaRepr {
 
@@ -46,40 +45,47 @@ sealed trait SchemaRepr {
   override def toString: String = SchemaRepr.render(this)
 }
 
+/**
+ * The cases of [[SchemaRepr]], `render` and their schemas.
+ */
 object SchemaRepr {
 
   /**
-   * A named type reference (e.g., `Person`, `Address`).
+   * A named type, such as `Book`. It matches nothing in a [[DynamicValue]],
+   * which does not record its type.
    */
   final case class Nominal(name: String) extends SchemaRepr
 
   /**
-   * A primitive type (e.g., `string`, `int`, `boolean`).
+   * A primitive type, such as `string`, `int` or `boolean`. Names are compared
+   * ignoring case.
    */
   final case class Primitive(name: String) extends SchemaRepr
 
   /**
-   * A structural record type with named fields.
+   * A record with at least these fields.
    */
   final case class Record(fields: IndexedSeq[(String, SchemaRepr)]) extends SchemaRepr
 
   /**
-   * A structural variant (sum) type with named cases.
+   * A variant with one of these cases.
    */
   final case class Variant(cases: IndexedSeq[(String, SchemaRepr)]) extends SchemaRepr
 
   /**
-   * A sequence type (list, set, array).
+   * A sequence (a list, set or vector) of `element`. It renders as `list(...)`,
+   * whichever of `list`, `set` or `vector` it was parsed from.
    */
   final case class Sequence(element: SchemaRepr) extends SchemaRepr
 
   /**
-   * A map type with key and value schemas.
+   * A map with keys of `key` and values of `value`.
    */
   final case class Map(key: SchemaRepr, value: SchemaRepr) extends SchemaRepr
 
   /**
-   * An optional type.
+   * `Null` or a value of `inner`; see [[SchemaMatch]] for how it treats
+   * `Option`.
    */
   final case class Optional(inner: SchemaRepr) extends SchemaRepr
 
@@ -89,7 +95,8 @@ object SchemaRepr {
   case object Wildcard extends SchemaRepr
 
   /**
-   * Renders a SchemaRepr to its string representation.
+   * Renders `repr` in the pattern syntax, without the leading `#`, the same as
+   * `repr.toString`.
    */
   def render(repr: SchemaRepr): String = {
     val sb = new java.lang.StringBuilder
@@ -165,6 +172,9 @@ object SchemaRepr {
     )
   )
 
+  /**
+   * The schema of [[Nominal]].
+   */
   implicit lazy val nominalSchema: Schema[Nominal] = new Schema(
     reflect = new Reflect.Record[Binding, Nominal](
       fields = Chunk.single(Schema[String].reflect.asTerm("name")),
@@ -185,6 +195,9 @@ object SchemaRepr {
     )
   )
 
+  /**
+   * The schema of [[Primitive]].
+   */
   implicit lazy val primitiveSchema: Schema[Primitive] = new Schema(
     reflect = new Reflect.Record[Binding, Primitive](
       fields = Chunk.single(Schema[String].reflect.asTerm("name")),
@@ -205,6 +218,9 @@ object SchemaRepr {
     )
   )
 
+  /**
+   * The schema of [[Record]].
+   */
   implicit lazy val recordSchema: Schema[Record] = new Schema(
     reflect = new Reflect.Record[Binding, Record](
       fields = Chunk.single(Reflect.Deferred(() => Schema[IndexedSeq[(String, SchemaRepr)]].reflect).asTerm("fields")),
@@ -225,6 +241,9 @@ object SchemaRepr {
     )
   )
 
+  /**
+   * The schema of [[Variant]].
+   */
   implicit lazy val variantSchema: Schema[Variant] = new Schema(
     reflect = new Reflect.Record[Binding, Variant](
       fields = Chunk.single(Reflect.Deferred(() => Schema[IndexedSeq[(String, SchemaRepr)]].reflect).asTerm("cases")),
@@ -245,6 +264,9 @@ object SchemaRepr {
     )
   )
 
+  /**
+   * The schema of [[Sequence]].
+   */
   implicit lazy val sequenceSchema: Schema[Sequence] = new Schema(
     reflect = new Reflect.Record[Binding, Sequence](
       fields = Chunk.single(Reflect.Deferred(() => schemaReprSchema.reflect).asTerm("element")),
@@ -265,6 +287,9 @@ object SchemaRepr {
     )
   )
 
+  /**
+   * The schema of [[Map]].
+   */
   implicit lazy val mapSchema: Schema[Map] = new Schema(
     reflect = new Reflect.Record[Binding, Map](
       fields = Chunk(
@@ -293,6 +318,9 @@ object SchemaRepr {
     )
   )
 
+  /**
+   * The schema of [[Optional]].
+   */
   implicit lazy val optionalSchema: Schema[Optional] = new Schema(
     reflect = new Reflect.Record[Binding, Optional](
       fields = Chunk.single(Reflect.Deferred(() => schemaReprSchema.reflect).asTerm("inner")),
@@ -313,6 +341,9 @@ object SchemaRepr {
     )
   )
 
+  /**
+   * The schema of [[Wildcard]].
+   */
   implicit lazy val wildcardSchema: Schema[Wildcard.type] = new Schema(
     reflect = new Reflect.Record[Binding, Wildcard.type](
       fields = Chunk.empty,
@@ -326,6 +357,9 @@ object SchemaRepr {
   )
 
   // Schema for SchemaRepr sealed trait
+  /**
+   * The schema of [[SchemaRepr]], a variant of its eight cases.
+   */
   implicit lazy val schemaReprSchema: Schema[SchemaRepr] = new Schema(
     reflect = new Reflect.Variant[Binding, SchemaRepr](
       cases = Chunk(

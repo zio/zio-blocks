@@ -27,72 +27,68 @@ import java.time._
 import java.util.{Currency, UUID}
 
 /**
- * A type-erased schema representation that can validate [[DynamicValue]]
- * instances at runtime.
+ * The structure of a type without its bindings: field names, cases, type ids,
+ * `Validation` constraints, modifiers, docs and stored examples, but no
+ * functions that build or take apart values. Use it to check [[DynamicValue]]s
+ * against a structure that is not known at compile time, and to store or send a
+ * schema as data, for example in a schema registry.
  *
- * `DynamicSchema` wraps an unbound [[Reflect]] structure (one with no runtime
- * binding), enabling schema-based validation and manipulation without
- * compile-time type information. This is useful for scenarios where schemas are
- * loaded dynamically, such as from configuration files, databases, or network
- * services.
+ * Get one from a typed schema with `Schema#toDynamicSchema`, or from stored
+ * data with [[DynamicSchema.fromDynamicValue]] or the codecs of
+ * `DynamicSchema.schema`. Then:
+ *   - `check` and `conforms` test a value against the structure. `check` is the
+ *     only place that enforces `Validation` constraints; it does not run the
+ *     checks of `Schema#transform`, which live in the dropped bindings;
+ *   - `toSchema` gives a `Schema[DynamicValue]` that checks values when it
+ *     decodes them;
+ *   - `rebind` attaches bindings again and gives a `Schema[A]`.
  *
- * Key capabilities:
- *   - '''Validation''': Check whether a [[DynamicValue]] conforms to this
- *     schema's structure and constraints using [[check]] or [[conforms]]
- *   - '''Schema Conversion''': Convert to a `Schema[DynamicValue]` that only
- *     accepts conforming values via [[toSchema]]
- *   - '''Metadata Access''': Access documentation, type names, modifiers,
- *     defaults, and examples
- *   - '''Structure Navigation''': Navigate the schema structure using
- *     [[DynamicOptic]] paths
+ * `Schema#toDynamicSchema` does not keep the default values of case class
+ * fields, and a schema of a recursive type cannot be converted to a
+ * [[DynamicValue]] (see `docs/dev/issues.md`).
  *
- * @example
- *   {{{
- * import zio.blocks.chunk.Chunk
+ * {{{
+ * case class Book(title: String, year: Int)
+ * object Book {
+ *   implicit val schema: Schema[Book] = Schema.derived
+ * }
  *
- * case class Person(name: String, age: Int)
+ * val dynamicSchema = Schema[Book].toDynamicSchema
+ * val zionomicon    = DynamicValue.Record("title" -> DynamicValue.string("Zionomicon"), "year" -> DynamicValue.int(2021))
  *
- * // Create a DynamicSchema from an existing Schema
- * val personSchema: Schema[Person] = Schema.derived[Person]
- * val dynamicSchema: DynamicSchema = personSchema.toDynamicSchema
- *
- * // Validate a DynamicValue against the schema
- * val value = DynamicValue.Record(Chunk(
- *   "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
- *   "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
- * ))
- *
- * dynamicSchema.check(value) // None if valid, Some(SchemaError) if invalid
- * dynamicSchema.conforms(value) // true if valid
- *   }}}
+ * dynamicSchema.conforms(zionomicon) // true
+ * dynamicSchema.check(DynamicValue.Record("title" -> DynamicValue.string("Zionomicon")))
+ * // Some(zio.blocks.schema.SchemaError: Missing field 'year' at: .)
+ * }}}
  *
  * @param reflect
- *   The underlying unbound reflect structure representing the schema
- *
+ *   the structure, a [[Reflect]] tree with no bindings
  * @see
- *   [[Schema.toDynamicSchema]] for creating a DynamicSchema from a typed Schema
- * @see
- *   [[DynamicValue]] for the runtime value representation
+ *   [[https://zioblocks.com/reference/schema/dynamic-schema/ DynamicSchema]]
  */
 final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
   /**
-   * Validates a [[DynamicValue]] against this schema.
+   * Checks `value` against this schema and returns the first problem found, or
+   * `None` when it conforms. It checks that:
+   *   - a record has exactly the schema's fields: an unknown or repeated field
+   *     is an error, and so is a missing one, including an `Option` field or a
+   *     field with a default value;
+   *   - a variant uses one of the schema's cases, and its payload conforms;
+   *   - every sequence element, map key and map value conforms;
+   *   - a primitive has the schema's primitive type (an `Int` where a `Long` is
+   *     expected is an error) and passes its `Validation`.
    *
-   * Performs recursive structural validation, checking that:
-   *   - Record fields match expected names and types (extra fields are
-   *     rejected)
-   *   - Variant case names are valid and case values match their schemas
-   *   - Sequence elements conform to the element schema
-   *   - Map keys and values conform to their respective schemas
-   *   - Primitive values have matching types and pass any validation
-   *     constraints
+   * `Null` conforms only to `Unit`, a `Reflect.Dynamic` node accepts any value,
+   * and a wrapper checks the value it wraps. The checks of `Schema#transform`
+   * are not run, because they live in the bindings. Fields are checked in the
+   * order of `value`; when several fields are missing, which one is reported is
+   * not specified. Messages that name the kind of a value print it as
+   * `<function1>` (see `docs/dev/issues.md`).
    *
-   * @param value
-   *   The dynamic value to validate
    * @return
-   *   `None` if the value conforms to this schema, or `Some(SchemaError)`
-   *   describing the first validation failure encountered
+   *   `None` if the value conforms, or `Some(SchemaError)` describing the first
+   *   problem found
    */
   def check(value: DynamicValue): Option[SchemaError] = DynamicSchema.checkValue(reflect, value, Nil)
 
@@ -107,16 +103,10 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
   def conforms(value: DynamicValue): Boolean = check(value).isEmpty
 
   /**
-   * Creates a `Schema[DynamicValue]` that only accepts values conforming to
-   * this schema.
-   *
-   * The returned schema wraps the base `Schema[DynamicValue]` with a validation
-   * layer that rejects any `DynamicValue` that doesn't conform to this schema's
-   * structure.
-   *
-   * @return
-   *   A schema that validates incoming dynamic values against this schema's
-   *   structure
+   * Returns a `Schema[DynamicValue]` that checks values with [[check]] when it
+   * decodes them: its `fromDynamicValue` and the codecs derived from it return
+   * the error of [[check]] as `Left`, at the `.wrapped` path. Encoding does not
+   * check, so `toDynamicValue` and encoders accept any value.
    */
   def toSchema: Schema[DynamicValue] = Schema[DynamicValue].transform(
     to = dv =>
@@ -130,7 +120,9 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
   /** Returns the documentation associated with this schema. */
   def doc: Doc = reflect.doc
 
-  /** Returns a copy of this schema with updated documentation. */
+  /**
+   * Returns a copy whose root node has the documentation `value`.
+   */
   def doc(value: String): DynamicSchema = copy(reflect = reflect.doc(value))
 
   /** Returns the type id of the schema's root type. */
@@ -139,20 +131,27 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
   /** Returns the modifiers attached to this schema. */
   def modifiers: Seq[Modifier.Reflect] = reflect.modifiers
 
-  /** Returns a copy of this schema with an additional modifier. */
+  /**
+   * Returns a copy with `m` added to the modifiers of the root node.
+   */
   def modifier(m: Modifier.Reflect): DynamicSchema = copy(reflect = reflect.modifier(m))
 
   /**
-   * Navigates to a nested schema element using a [[DynamicOptic]] path.
+   * Returns the part of the structure at `optic`, or `None` when the path does
+   * not exist. Wrap the result in `DynamicSchema` to check values against that
+   * part.
    *
    * @param optic
-   *   The path to navigate (e.g., `DynamicOptic.root.field("name")`)
-   * @return
-   *   The nested reflect structure if the path is valid, `None` otherwise
+   *   the path, such as `DynamicOptic.root.field("title")`
    */
   def get(optic: DynamicOptic): Option[Reflect.Unbound[_]] = reflect.get(optic)
 
-  /** Returns the default value for this schema, if one is defined. */
+  /**
+   * Returns the default value stored on the root node, if any. The default
+   * values of case class fields that `Schema.derived` records are not kept by
+   * `Schema#toDynamicSchema`, so they are `None` here. A `Reflect.Dynamic` root
+   * has none.
+   */
   @tailrec
   def getDefaultValue: Option[DynamicValue] = reflect match {
     case r: Reflect.Record[NoBinding, _]                 => r.storedDefaultValue
@@ -165,7 +164,9 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
     case d: Reflect.Deferred[NoBinding, _]               => new DynamicSchema(d.value).getDefaultValue
   }
 
-  /** Returns the example values for this schema, if any are defined. */
+  /**
+   * Returns the examples stored on the root node.
+   */
   @tailrec
   def examples: Seq[DynamicValue] = reflect match {
     case r: Reflect.Record[NoBinding, _]                 => r.storedExamples
@@ -178,7 +179,11 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
     case d: Reflect.Deferred[NoBinding, _]               => new DynamicSchema(d.value).examples
   }
 
-  /** Returns a copy of this schema with the specified default value. */
+  /**
+   * Returns a copy whose root node stores `value` as its default value. `value`
+   * is not checked against the schema. For a `Reflect.Dynamic` root, it returns
+   * an equal schema, without a default.
+   */
   def defaultValue(value: DynamicValue): DynamicSchema = {
     val updatedReflect = reflect match {
       case r: Reflect.Record[NoBinding, _]                 => r.copy(storedDefaultValue = new Some(value))
@@ -198,7 +203,11 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
     new DynamicSchema(updatedReflect.asInstanceOf[Reflect.Unbound[_]])
   }
 
-  /** Returns a copy of this schema with the specified example values. */
+  /**
+   * Returns a copy whose root node stores `value` and `values` as its examples,
+   * replacing any it had. They are not checked against the schema. For a
+   * `Reflect.Dynamic` root, it returns an equal schema, without examples.
+   */
   def examples(value: DynamicValue, values: DynamicValue*): DynamicSchema = {
     val allExamples    = values.prepended(value)
     val updatedReflect = reflect match {
@@ -220,52 +229,46 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
   }
 
   /**
-   * Derives a JSON Schema from this schema.
-   *
-   * Note: Currently returns the generic `Schema[DynamicValue]` JSON Schema,
-   * which represents the DynamicValue ADT structure rather than this specific
-   * schema's structure. A future enhancement could derive structure-specific
-   * JSON Schema directly from the unbound reflect.
+   * Returns the JSON Schema of `Schema[DynamicValue]`, the JSON form of any
+   * [[DynamicValue]], and not of this schema's structure.
    */
   def toJsonSchema: JsonSchema = Schema[DynamicValue].toJsonSchema
 
   /**
-   * Rebinds this unbound schema using bindings from a
-   * [[zio.blocks.schema.binding.BindingResolver BindingResolver]].
+   * Attaches the bindings of `resolver` to this structure and returns a
+   * `Schema[A]` that can build and take apart values again.
    *
-   * This converts the structural schema information (types, fields, cases,
-   * validations) into a fully operational `Schema[A]` by attaching runtime
-   * bindings (constructors, deconstructors, matchers) from the resolver.
-   *
-   * The resolver must provide bindings for all types referenced in this schema:
-   *   - Record types need `Binding.Record` entries
-   *   - Variant types need `Binding.Variant` entries
-   *   - Primitive types need `Binding.Primitive` entries (provided by
-   *     `BindingResolver.defaults`)
-   *   - Sequence types need `Binding.Seq` entries (provided by
-   *     `BindingResolver.defaults`)
-   *   - Map types need `Binding.Map` entries (provided by
-   *     `BindingResolver.defaults`)
-   *   - Wrapper types need `Binding.Wrapper` entries
+   * The resolver must have a binding for every type in the structure:
+   *   - records need `Binding.Record` entries and variants `Binding.Variant`
+   *     entries; `Option` is a variant, so it needs `Option[A]`, `Some[A]` and
+   *     `None.type` bindings, which `BindingResolver.defaults` does not have;
+   *   - primitives, `java.time` types, the standard sequences and `Map` are in
+   *     `BindingResolver.defaults`;
+   *   - wrappers need `Binding.Wrapper` entries.
    *
    * @param resolver
-   *   The BindingResolver providing bindings for all types in this schema
+   *   provides the bindings for the types in this schema
    * @return
-   *   A bound Schema that can construct and deconstruct values
+   *   a schema that can construct and deconstruct values
    * @throws RebindException
-   *   If any required binding is missing from the resolver
+   *   when a binding is missing for a node that is not behind a
+   *   `Reflect.Deferred`. A binding missing behind a `Deferred`, such as the
+   *   recursive field of a recursive type, throws when that node is first used
+   *   (see `docs/dev/issues.md`).
    *
-   * @example
-   *   {{{
+   * {{{
    * import zio.blocks.schema.binding._
    *
-   * case class Person(name: String, age: Int)
+   * case class Book(title: String, year: Int)
+   * object Book {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   * }
    *
    * // Usually loaded at runtime, for example decoded from JSON
-   * val dynamicSchema: DynamicSchema = Schema.derived[Person].toDynamicSchema
-   * val resolver = BindingResolver.empty.bind(Binding.of[Person]) ++ BindingResolver.defaults
-   * val schema: Schema[Person] = dynamicSchema.rebind[Person](resolver)
-   *   }}}
+   * val dynamicSchema: DynamicSchema = Schema[Book].toDynamicSchema
+   * val resolver = BindingResolver.empty.bind(Binding.of[Book]) ++ BindingResolver.defaults
+   * val schema: Schema[Book] = dynamicSchema.rebind[Book](resolver)
+   * }}}
    */
   def rebind[A](resolver: BindingResolver): Schema[A] = {
     val bound = Reflect.withTransformCache(reflect.transform(DynamicOptic.root, new RebindTransformer(resolver)).force)
@@ -273,6 +276,10 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
   }
 }
 
+/**
+ * Converts a [[DynamicSchema]] to and from [[DynamicValue]], and provides the
+ * schemas that make that possible.
+ */
 object DynamicSchema extends TypeIdSchemas {
   private[this] val zioBlocksSchemaOwner: Owner   = Owner.fromPackagePath("zio.blocks.schema")
   private[this] val validationOwner: Owner        = zioBlocksSchemaOwner.tpe("Validation")
@@ -1377,11 +1384,9 @@ object DynamicSchema extends TypeIdSchemas {
   )
 
   /**
-   * Schema for [[DynamicSchema]].
-   *
-   * Serializes the schema structure by converting the underlying
-   * [[Reflect.Unbound]] to a [[DynamicValue]] representation and back. This
-   * enables round-trip serialization while preserving full structural fidelity.
+   * The schema of [[DynamicSchema]]: a record with one `reflect` field, holding
+   * the [[DynamicValue]] of `toDynamicValue`. Its codecs store and load
+   * schemas, with the limits of [[toDynamicValue]] and [[fromDynamicValue]].
    */
   implicit lazy val schema: Schema[DynamicSchema] = new Schema(
     reflect = new Reflect.Record[Binding, DynamicSchema](
@@ -1404,13 +1409,20 @@ object DynamicSchema extends TypeIdSchemas {
   )
 
   /**
-   * Converts a [[DynamicSchema]] to a [[DynamicValue]] representation for
-   * serialization.
+   * Converts `ds` to a [[DynamicValue]], to store or send it. The structure,
+   * type ids, docs, modifiers, `Validation` constraints, stored default values
+   * and examples are kept. It follows every `Reflect.Deferred`, so a schema of
+   * a recursive type never ends and throws `StackOverflowError` (see
+   * `docs/dev/issues.md`).
    */
   def toDynamicValue(ds: DynamicSchema): DynamicValue = reflectToDynamicValue(ds.reflect)
 
   /**
-   * Reconstructs a [[DynamicSchema]] from a [[DynamicValue]] representation.
+   * Reads back a [[DynamicSchema]] written by [[toDynamicValue]]. It never
+   * fails: a part it does not recognize becomes a `Reflect.Dynamic` node, which
+   * accepts any value, an unreadable type id becomes `Unknown`, and an unknown
+   * primitive type becomes `String`. A malformed input therefore gives a schema
+   * whose `check` accepts more than intended (see `docs/dev/issues.md`).
    */
   def fromDynamicValue(dv: DynamicValue): DynamicSchema = new DynamicSchema(dynamicValueToReflect(dv))
 

@@ -17,25 +17,23 @@
 package zio.blocks.schema
 
 /**
- * Strategy for merging two DynamicValue structures.
+ * Decides how `DynamicValue#merge` combines two values. A strategy is a
+ * function `(path, left, right) => merged` plus [[recurse]], which says whether
+ * the merge goes inside two containers of the same kind at a path instead of
+ * calling [[apply]] on them.
  *
- * A `DynamicValueMergeStrategy` is a function
- * `(DynamicOptic, DynamicValue, DynamicValue) => DynamicValue` that determines
- * how to merge two DynamicValue values at a given path. The [[recurse]] method
- * controls whether the merge driver should descend into containers
- * (Record/Sequence/Map) or call [[apply]] directly.
+ * When [[recurse]] returns `true` for the kind of the two values:
+ *   - records are merged by field name, keeping the fields of both (left first)
+ *     and merging the values of shared fields;
+ *   - sequences are merged by index, merging the elements at shared indices and
+ *     keeping the extra elements of the longer one;
+ *   - maps are merged by key, like records;
+ *   - variants of the same case are merged by payload.
  *
- * When [[recurse]] returns `true` for a container type:
- *   - Records are merged by field name (union of fields, recursive merge on
- *     shared fields)
- *   - Sequences are merged by index (union of indices, recursive merge on
- *     shared indices)
- *   - Maps are merged by key (union of keys, recursive merge on shared keys)
- *   - Variants with same case name merge inner values; different cases: right
- *     wins
- *
- * When [[recurse]] returns `false`, [[apply]] is called with the container
- * values directly.
+ * Otherwise, and for two variants of different cases, two values of different
+ * kinds, two primitives or two `Null`s, [[apply]] returns the merged value. The
+ * trait is sealed: use [[DynamicValueMergeStrategy.Custom]] for your own rules.
+ * Its `toString` is `<function3>` (see `docs/dev/issues.md`).
  */
 sealed trait DynamicValueMergeStrategy extends ((DynamicOptic, DynamicValue, DynamicValue) => DynamicValue) {
 
@@ -51,61 +49,86 @@ sealed trait DynamicValueMergeStrategy extends ((DynamicOptic, DynamicValue, Dyn
   def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean
 }
 
+/**
+ * The built-in merge strategies.
+ */
 object DynamicValueMergeStrategy {
 
   /**
-   * Deep merge: recursively merge all containers. Records merge by field name,
-   * Sequences merge by index, Maps merge by key. At leaves, right value wins.
+   * Deep merge, the default: goes inside records, sequences, maps and variants
+   * of the same case at every depth. At leaves, and for values of different
+   * kinds, the right value wins.
    */
   case object Auto extends DynamicValueMergeStrategy {
+
+    /** Returns `true` for records, sequences, maps and variants. */
     def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean =
       valueType == DynamicValueType.Record ||
         valueType == DynamicValueType.Sequence ||
         valueType == DynamicValueType.Map ||
         valueType == DynamicValueType.Variant
 
+    /** Returns `right`. */
     def apply(path: DynamicOptic, left: DynamicValue, right: DynamicValue): DynamicValue = right
   }
 
   /**
-   * Complete replacement: no merging at any level. Right value completely
-   * replaces left value.
+   * Complete replacement: no merging at any level. The right value replaces the
+   * left value.
    */
   case object Replace extends DynamicValueMergeStrategy {
+
+    /** Returns `false`. */
     def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean = false
 
+    /** Returns `right`. */
     def apply(path: DynamicOptic, left: DynamicValue, right: DynamicValue): DynamicValue = right
   }
 
   /**
-   * Always take left value, never recurse.
+   * Keeps the left value and never goes inside it, so merging with it returns
+   * the left value unchanged.
    */
   case object KeepLeft extends DynamicValueMergeStrategy {
+
+    /** Returns `false`. */
     def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean = false
 
+    /** Returns `left`. */
     def apply(path: DynamicOptic, left: DynamicValue, right: DynamicValue): DynamicValue = left
   }
 
   /**
-   * Shallow merge: merge only at the root level, no recursion. Top-level record
-   * fields, sequence indices, or map keys are merged, but nested containers are
-   * replaced (right wins).
+   * Shallow merge: goes inside the two values only at the root. The top-level
+   * record fields, sequence indices and map keys of both are kept, and where
+   * both have one, the right value wins without merging further.
    */
   case object Shallow extends DynamicValueMergeStrategy {
+
+    /** Returns `true` only at the root path. */
     def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean =
       path.nodes.isEmpty
 
+    /** Returns `right`. */
     def apply(path: DynamicOptic, left: DynamicValue, right: DynamicValue): DynamicValue = right
   }
 
   /**
-   * Concatenate sequences instead of merging by index. Records and Maps are
-   * still merged by key recursively.
+   * Like [[Auto]] for records and maps, but concatenates two sequences (left
+   * elements first) instead of merging them by index. It does not go inside
+   * variants: the right variant wins, even for the same case. At leaves, and
+   * for values of different kinds, the right value wins.
    */
   case object Concat extends DynamicValueMergeStrategy {
+
+    /** Returns `true` for records and maps. */
     def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean =
       valueType == DynamicValueType.Record || valueType == DynamicValueType.Map
 
+    /**
+     * Returns the two sequences concatenated when both are sequences, and
+     * `right` otherwise.
+     */
     def apply(path: DynamicOptic, left: DynamicValue, right: DynamicValue): DynamicValue =
       (left, right) match {
         case (ls: DynamicValue.Sequence, rs: DynamicValue.Sequence) =>
@@ -115,14 +138,14 @@ object DynamicValueMergeStrategy {
   }
 
   /**
-   * Custom merge strategy with full control over recursion and merging.
+   * A strategy built from two functions.
    *
    * @param f
-   *   A function that takes (path, left, right) and returns the merged
-   *   DynamicValue
+   *   returns the merged value for `(path, left, right)` wherever the merge
+   *   does not go inside the two values
    * @param r
-   *   A function that determines whether to recurse into containers (default:
-   *   always recurse for containers)
+   *   says whether to go inside two values of the given kind at the given path
+   *   (default: always, for records, sequences, maps and variants)
    */
   final case class Custom(
     f: (DynamicOptic, DynamicValue, DynamicValue) => DynamicValue,
@@ -132,8 +155,11 @@ object DynamicValueMergeStrategy {
         t == DynamicValueType.Map ||
         t == DynamicValueType.Variant
   ) extends DynamicValueMergeStrategy {
+
+    /** Returns `r(path, valueType)`. */
     def recurse(path: DynamicOptic, valueType: DynamicValueType): Boolean = r(path, valueType)
 
+    /** Returns `f(path, left, right)`. */
     def apply(path: DynamicOptic, left: DynamicValue, right: DynamicValue): DynamicValue = f(path, left, right)
   }
 }

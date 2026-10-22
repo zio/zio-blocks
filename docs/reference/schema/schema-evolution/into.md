@@ -879,3 +879,7 @@ personMigrate.into(oldPerson)
 | Structural types | JVM only (reflection) | JVM only (reflection) |
 | ZIO Prelude newtypes | ✅ `assert { between(...) }` | ✅ `override def assertion` |
 | Error messages | Detailed macro errors | Detailed macro errors |
+
+## See Also
+
+- [Evolve Your Data](../../../guides/evolve-your-data.md) - a tutorial that validates incoming data with `Into`, converts between versions with `As` and renames a field with a `Migration`.

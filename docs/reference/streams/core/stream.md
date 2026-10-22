@@ -2425,4 +2425,5 @@ Each platform ships adapters that turn a native byte source into a `Reader.Async
 - [Async](../../async.md#asyncselector) — `AsyncSelector`, the primitive the bounded-concurrency slot machinery is built from
 - [Coming from fs2, ZIO Streams or Ox](../../../guides/streaming-library-migration.md) — a guide that maps fs2, ZIO Streams and Ox code onto ZIO Blocks streams
 - [Scope Reference](../../resource-management/scope.md) — compile-time resource safety for stream acquisition and release; `fromAcquireRelease` follows the same ownership rules as Scope-managed resources
+- [Your First Streaming Pipeline](../../../guides/your-first-streaming-pipeline.md) — a step-by-step tutorial that builds a sales-log report with a `Stream`, from reading a file to recovering from a bad line
 - [How to Stream Files and Sockets Without Leaking Resources](../../../guides/stream-files-and-sockets.md) — `fromAcquireRelease` and the NIO constructors applied to files and sockets, with leak checks for success, failure and early stop

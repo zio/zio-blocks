@@ -32,7 +32,7 @@ DynamicSchema         ←── serializable, no closures
        ▼
 DynamicValue          ←── uniform, format-neutral blob
        │
-       │  DynamicSchema#fromDynamicValue (on the consumer side)
+       │  DynamicSchema.fromDynamicValue (on the consumer side)
        ▼
 DynamicSchema         ←── reconstructed from storage
        │
@@ -57,7 +57,7 @@ trait Schema[A] {
 }
 ```
 
-This is the standard entry point. All structural information — field names, case names, type IDs, `Validation` constraints, `Modifier` annotations, docs, default values, and examples — is preserved:
+This is the standard entry point. The structural information — field names, case names, type IDs, `Validation` constraints, `Modifier` annotations, docs, and stored examples and default values — is preserved. The default values of case class fields (`edition: Int = 1`) are not:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema._
@@ -264,7 +264,7 @@ rebound.fromDynamicValue(encoded)
 ```
 
 :::warning
-If `DynamicSchema#rebind` cannot find a binding for any type in the unbound schema tree, it throws a `RebindException` at runtime. Ensure the resolver covers every concrete type — records, variants, wrappers, primitives, and standard collections — that appears in the schema. `BindingResolver.defaults` covers all standard primitives, `java.time` types, `List`, `Map`, `Option`, and other standard collections.
+If `DynamicSchema#rebind` cannot find a binding for any type in the unbound schema tree, it throws a `RebindException` at runtime. Ensure the resolver covers every concrete type — records, variants, wrappers, primitives, and standard collections — that appears in the schema. `BindingResolver.defaults` covers all standard primitives, `java.time` types, `List`, `Vector`, `Set`, `Map` and the other standard collections, but not `Option`: an `Option` field needs `Binding.of[Option[A]]`, `Binding.of[Some[A]]` and `Binding.of[None.type]`.
 :::
 
 See [BindingResolver](binding-resolver.md) for the full resolver API including `BindingResolver.reflection` for automatic binding via reflection.

@@ -455,6 +455,7 @@ const sidebars = {
   guides: [
     "guides/add-zio-blocks-to-your-build",
     "guides/your-first-schema",
+    "guides/evolve-your-data",
     "guides/customize-json-encoding",
     "guides/json-without-case-classes",
     "guides/build-a-schema-registry",
@@ -482,6 +483,7 @@ const sidebars = {
     "guides/your-first-html-page",
     "guides/serve-http-model-requests",
     "guides/validate-query-parameters-and-headers",
+    "guides/your-first-streaming-pipeline",
     "guides/stream-files-and-sockets",
     "guides/async-getting-started",
     "guides/compile-time-resource-safety-with-scope",
