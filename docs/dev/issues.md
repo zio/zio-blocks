@@ -5462,6 +5462,37 @@ The Scala 3 run uses the same file with the header changed to
 
 **Suggested fix.** In `noBinding`, convert a binding's default value to a `DynamicValue` and keep it as the stored default.
 
+### sql: the `sql` identifier check suggests an SQL keyword instead of the misspelled column
+
+Found 2026-10-20 while writing the migration guide `docs/guides/migrate-from-magnum-or-doobie.md` (backlog M-03), on `main` at `78694917`. `SqlIdentifierChecker.scala` is unchanged at tag `v0.0.56` and at `main` `2f73284b`. Verified by running mdoc (Scala 3.9.0, docs project, `sql.jvm`).
+
+**Summary.** When a misspelled identifier is the same edit distance from a column of the table and from an allowlisted SQL keyword, the compile error suggests the keyword. For `titel` it suggests `time`, not the column `title`. A misspelled `auther` correctly suggests `author`, because no keyword is equally close.
+
+**Reproduction** (an mdoc block on the docs project, Scala 3.9.0; the error is the exact output mdoc rendered):
+
+```scala
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Book(id: Long, title: String, author: String, year: Int, isbn: Option[String])
+object Book { given Schema[Book] = Schema.derived }
+val bookTable = Table.derived[Book]
+
+StringContext("SELECT titel FROM book WHERE year < ", "").sql(bookTable)(2010)
+// error:
+// Unknown identifier 'titel' at position 7; did you mean 'time'?
+```
+
+**Expected.** "did you mean 'title'?": the caller passed `bookTable`, so its columns are the likely targets.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/SqlIdentifierChecker.scala:278-288` puts known tables, known columns and the ~160-entry keyword allowlist into one `suggestionPool`. `findSuggestion` (`:451-466`) breaks a tie at equal Levenshtein distance by taking the lexicographically smaller candidate. levenshtein("titel", "title") = 2 = levenshtein("titel", "time"), and "time" < "title".
+
+**Impact.** The suggestion points the user at the wrong fix.
+
+**Test gap.** No checker test covers a tie between a column and a keyword.
+
+**Suggested fix.** On a tie, prefer known tables and columns over allowlist entries: search tables and columns first, and fall back to the allowlist only when they give no candidate within distance 2.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -6051,6 +6082,10 @@ object RestoreRepro {
 **Impact.** Readers who follow the guide get tests that pass alone and fail, capturing nothing, when another test ran first.
 
 **Suggested fix.** Replace the teardown with "install a fresh capturing logger with `log.install` at the start of each test, and run such tests sequentially", or recommend passing a `Logger` to the code under test, as `docs/guides/test-telemetry.md` does. Drop the `records.clear()` from `shutdown()` in the example processor.
+
+### docs: the  Scaladoc example calls , which does not exist
+
+Found 2026-10-22 by the M-03 session, checked against source on `main` (same at `v0.0.56`). `sql/shared/src/main/scala/zio/blocks/sql/Frag.scala:375` shows `Transactor.connect(transactor) { ... }`, and `:370` mentions `Transactor.connect`. There is no `object Transactor`: `Transactor` is a trait (`Transactor.scala:65`) whose `connect` is an instance method (`:68`). The example should read `transactor.connect { ... }`.
 
 ## Resolved
 
