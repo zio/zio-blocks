@@ -25,7 +25,7 @@ import zio.blocks.typeid.TypeId
  * A pattern for the shape of a value, used by `searchSchema` steps of a
  * [[DynamicOptic]] and matched by [[SchemaMatch]]. Write one in a path as
  * `#pattern`, for example `p"#record { title: string }"`, or build it from the
- * cases. `toString` renders it in that syntax.
+ * cases. `toString` renders it in the pattern syntax, without the leading `#`.
  */
 sealed trait SchemaRepr {
 
@@ -95,7 +95,8 @@ object SchemaRepr {
   case object Wildcard extends SchemaRepr
 
   /**
-   * Renders `repr` in the `#pattern` syntax, the same as `repr.toString`.
+   * Renders `repr` in the pattern syntax, without the leading `#`, the same as
+   * `repr.toString`.
    */
   def render(repr: SchemaRepr): String = {
     val sb = new java.lang.StringBuilder
