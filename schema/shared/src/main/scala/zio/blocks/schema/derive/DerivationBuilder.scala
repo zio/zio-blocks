@@ -23,28 +23,46 @@ import zio.blocks.typeid.TypeId
 import zio.blocks.docs.Doc
 
 /**
- * A `DerivationBuilder` is capable of deriving a type class instance for any
- * data type that has a schema. Though instances for all substructures can be
- * derived automatically, you can also specify instances for specific
- * substructures using the `instance` method, and modifiers for them using the
- * `modifier` method.
+ * Customizes one derivation of `TC[A]` from a schema: start it with
+ * `Schema#deriving`, override the instance or add modifiers for parts of `A`
+ * with `instance` and `modifier`, then read `derive`. The overrides apply to
+ * this derivation only and leave the schema unchanged; to apply the same ones
+ * to every derivation, add them to the deriver with `Deriver#withInstance` and
+ * `Deriver#withModifier`. Each method returns a new builder.
+ *
+ * For a node, an instance override by optic wins over one by type. An override
+ * by parent type and field name replaces that field's instance and wins over a
+ * type override of the field's type, unless an optic override targets the same
+ * field. For the same target, an override on the deriver wins over one given
+ * here (see `docs/dev/issues.md`), and among those given here the last one
+ * wins. A node whose instance is overridden is not derived, so modifiers added
+ * for it, or for the fields of an overridden record, have no effect.
  *
  * {{{
  * import zio.blocks.schema.json._
+ * import zio.blocks.typeid.TypeId
  *
- * case class Person(name: String, age: Int)
- * object Person extends CompanionOptics[Person] {
- *   implicit val schema: Schema[Person] = Schema.derived
- *   val name: Lens[Person, String] = $(_.name)
- *   val age: Lens[Person, Int]     = $(_.age)
+ * case class Book(title: String, year: Int)
+ * object Book {
+ *   implicit val schema: Schema[Book] = Schema.derived
  * }
  *
- * val personCodec: JsonCodec[Person] = Person.schema
+ * val yearAsString: JsonCodec[Int] = new JsonCodec[Int] {
+ *   def decodeValue(in: JsonReader): Int           = in.readString().toInt
+ *   def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x.toString)
+ * }
+ *
+ * val codec: JsonCodec[Book] = Book.schema
  *   .deriving(JsonCodecDeriver)
- *   .instance(Person.age, JsonCodec.intCodec)
- *   .modifier(Person.name, Modifier.rename("fullName"))
+ *   .instance(TypeId.of[Int], yearAsString)
+ *   .modifier(TypeId.of[Book], "title", Modifier.rename("name"))
  *   .derive
+ *
+ * val json = codec.encodeToString(Book("Zionomicon", 2021)) // {"name":"Zionomicon","year":"2021"}
  * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/type-class-derivation/ Type-Class Derivation]]
  */
 final case class DerivationBuilder[TC[_], A](
   schema: Schema[A],
@@ -54,31 +72,64 @@ final case class DerivationBuilder[TC[_], A](
 ) {
 
   /**
-   * Overrides the type class instance at an exact path in the schema tree
-   * identified by `optic`. This is the most precise override: it targets one
-   * specific location.
+   * Uses `instance` for the part of `A` that `optic` focuses on, instead of
+   * deriving one. Only that path matches, so other occurrences of the same type
+   * are derived as usual; a path through `each` matches every element of that
+   * sequence. `derive` evaluates `instance`, not this call, and may evaluate it
+   * more than once.
+   *
+   * With `JsonCodecDeriver`, an override inside a record type that is recursive
+   * or has a field with a default value applies to every occurrence of that
+   * type, or to none (see `docs/dev/issues.md`).
+   *
+   * {{{
+   * import zio.blocks.schema.json._
+   *
+   * case class Book(title: String, author: String)
+   * object Book extends CompanionOptics[Book] {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   *   val title: Lens[Book, String]     = $(_.title)
+   * }
+   *
+   * val upperCase: JsonCodec[String] = new JsonCodec[String] {
+   *   def decodeValue(in: JsonReader): String           = in.readString()
+   *   def encodeValue(x: String, out: JsonWriter): Unit = out.writeVal(x.toUpperCase)
+   * }
+   *
+   * val codec = Book.schema.deriving(JsonCodecDeriver).instance(Book.title, upperCase).derive
+   * val json  = codec.encodeToString(Book("Zionomicon", "John De Goes"))
+   * // {"title":"ZIONOMICON","author":"John De Goes"}
+   * }}}
    */
   def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides = instanceOverrides.appended(new InstanceOverrideByOptic(optic.toDynamic, Lazy(instance))))
 
   /**
-   * Overrides the type class instance for every occurrence of the type
-   * identified by `typeId`, regardless of where it appears in the schema tree.
-   * This is the least precise override.
+   * Uses `instance` for every occurrence of the type whose type ID is `typeId`,
+   * at any depth, instead of deriving one. Occurrences match by equality with
+   * `typeId`, so an override for `Option[Int]` leaves `Option[String]` derived
+   * as usual.
+   *
+   * An override by optic or by field name wins over this one for the nodes it
+   * targets, and a later override for the same type replaces this one. When the
+   * deriver has a `Deriver#withInstance` override for the same type, that one
+   * wins and this one is ignored without a warning (see `docs/dev/issues.md`).
    */
   def instance[B](typeId: TypeId[B], instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides = instanceOverrides.appended(new InstanceOverrideByType(typeId, Lazy(instance))))
 
   /**
-   * Overrides the type class instance for a term (record field or variant case)
-   * identified by `termName` inside a parent record or variant identified by
-   * `typeId`. This is a medium-precision override between optic-based (exact
-   * path) and type-based (all occurrences).
+   * Uses `instance` for the field or case named `termName` of the record or
+   * variant whose type ID is `typeId`, wherever that type appears in `A`,
+   * instead of deriving one. `typeId` identifies the parent type, not the
+   * field's type.
    *
-   * The `typeId` refers to the parent record/variant type, not the field type.
-   * The field type `B` is not statically checked against the actual term type.
-   * If no term with the given name exists in the parent type, the override is
-   * silently ignored.
+   * The compiler does not check `B` against the field's type: a mismatch fails
+   * with a `ClassCastException` when the instance is used. A name that the
+   * parent type does not have is ignored. This override wins over a type
+   * override of the field's type, an optic override of the same field wins over
+   * it, and a `Deriver#withInstance` override for the same parent and name wins
+   * over it.
    */
   def instance[P, B](typeId: TypeId[P], termName: String, instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides =
@@ -86,17 +137,41 @@ final case class DerivationBuilder[TC[_], A](
     )
 
   /**
-   * Adds a reflect-level modifier for every occurrence of the type identified
-   * by `typeId`.
+   * Adds the reflect-level `modifier` to every node whose type ID is `typeId`.
+   * Which modifiers take effect depends on the deriver: for example,
+   * `JsonCodecDeriver` reads `Modifier.fieldNaming` on a record. The deriver
+   * receives it in front of the node's own modifiers and behind modifiers added
+   * by optic.
    */
   def modifier[B](typeId: TypeId[B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] =
     copy(modifierOverrides = modifierOverrides.appended(new ModifierReflectOverrideByType(typeId, modifier)))
 
   /**
-   * Adds a modifier at an exact path in the schema tree identified by `optic`.
-   * Accepts both [[Modifier.Reflect]] (applied to the node itself) and
-   * [[Modifier.Term]] (applied to the terminal field or case at the end of the
-   * optic path).
+   * Adds `modifier` at the path of `optic`. A [[Modifier.Reflect]] goes to the
+   * node at that path. A [[Modifier.Term]], such as `Modifier.rename`, goes to
+   * the field or case that the optic's last step names; when the last step is
+   * neither, for example `each`, the modifier is ignored and this builder is
+   * returned unchanged.
+   *
+   * Modifiers add up instead of replacing each other. The deriver receives
+   * those added by optic first, in the order they were added, then those added
+   * by type, then the schema's own, and `JsonCodecDeriver` uses the first
+   * `rename` it finds. With `JsonCodecDeriver`, a modifier inside a record type
+   * that is recursive or has a field with a default value can apply to every
+   * occurrence of that type, or to none (see `docs/dev/issues.md`).
+   *
+   * {{{
+   * import zio.blocks.schema.json.JsonCodecDeriver
+   *
+   * case class Book(title: String, year: Int)
+   * object Book extends CompanionOptics[Book] {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   *   val title: Lens[Book, String]     = $(_.title)
+   * }
+   *
+   * val codec = Book.schema.deriving(JsonCodecDeriver).modifier(Book.title, Modifier.rename("name")).derive
+   * val json  = codec.encodeToString(Book("Zionomicon", 2021)) // {"name":"Zionomicon","year":2021}
+   * }}}
    */
   def modifier[B](optic: Optic[A, B], modifier: Modifier): DerivationBuilder[TC, A] = modifier match {
     case mr: Modifier.Reflect =>
@@ -120,15 +195,38 @@ final case class DerivationBuilder[TC[_], A](
   }
 
   /**
-   * Adds a term-level modifier for a field or variant case identified by
-   * `termName` inside a parent type identified by `typeId`. The `typeId` refers
-   * to the parent record/variant type that owns the term, not the term's own
-   * type. If no term with the given name exists in the parent type, the
-   * modifier is silently ignored.
+   * Adds the term-level `modifier`, such as `Modifier.rename`, to the field or
+   * case named `termName` of the record or variant whose type ID is `typeId`,
+   * wherever that type appears in `A`. `typeId` identifies the parent type, not
+   * the term's own type, and a name that the parent type does not have is
+   * ignored. The deriver receives it behind modifiers added by optic and in
+   * front of those added with `Deriver#withModifier` and the term's own, such
+   * as a `@Modifier.rename` annotation.
    */
   def modifier[B](typeId: TypeId[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] =
     copy(modifierOverrides = modifierOverrides.appended(new ModifierTermOverrideByType(typeId, termName, modifier)))
 
+  /**
+   * Derives the instance of `TC[A]` with the overrides added so far. It is a
+   * `lazy val`: the first read derives the instance, and later reads of this
+   * builder return the same one. `Schema#derive` starts a new builder on every
+   * call, so it derives again each time. An error that the deriver throws, such
+   * as `JsonCodecDeriver` rejecting an unknown `Modifier.fieldNaming` strategy,
+   * is thrown from this read.
+   *
+   * {{{
+   * import zio.blocks.schema.json.JsonCodecDeriver
+   *
+   * case class Book(title: String, year: Int)
+   * object Book {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   * }
+   *
+   * val builder = Book.schema.deriving(JsonCodecDeriver)
+   * val same    = builder.derive eq builder.derive                         // true
+   * val json    = builder.derive.encodeToString(Book("Zionomicon", 2021)) // {"title":"Zionomicon","year":2021}
+   * }}}
+   */
   lazy val derive: TC[A] = Reflect.withTransformCache {
     val allInstanceOverrides = instanceOverrides ++ deriver.instanceOverrides
     val allModifierOverrides = modifierOverrides ++ deriver.modifierOverrides
