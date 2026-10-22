@@ -32,10 +32,10 @@ private[typeid] object IsNominalTypeMacros {
    * not the type the caller passes (#1172). Aliases are followed.
    *
    * This matches the Scala 2 macro, which accepts a type only when its symbol
-   * is a class, with two differences. The singleton type `x.type` of a value of
-   * an intersection type (`x: A & B`) is rejected here but accepted on Scala
-   *   2. The singleton type `lit.type` of `final val lit = 1` is accepted here
-   *      (it widens to `Int`) but rejected on Scala 2.
+   * is a class, with two differences: the singleton type `x.type` of a value of
+   * an intersection type (`x: A & B`) is rejected here and accepted by the
+   * Scala 2 macro, and the singleton type `lit.type` of `final val lit = 1` is
+   * accepted here (it widens to `Int`) and rejected by the Scala 2 macro.
    */
   def isNominal(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
     import q.reflect.*
