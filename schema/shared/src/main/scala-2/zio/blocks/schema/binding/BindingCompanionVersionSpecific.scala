@@ -47,12 +47,10 @@ trait BindingCompanionVersionSpecific {
    *
    * On Scala 3, a structural record type needs a build of this library with
    * Scala 3.5 or later; a union of structural types does not. Both Scala 3
-   * artifacts are such builds: `zio-blocks-schema` is built with Scala 3.9 and
-   * `zio-blocks-next-schema` with Scala 3.10. Both builds compile with
-   * `-experimental`, which marks `Binding.of` as experimental, so Scala 3 code
-   * that calls it must also compile with `-experimental`. (In 0.0.56,
-   * `zio-blocks-schema` was built with Scala 3.3 and rejected structural record
-   * types at compile time.)
+   * artifacts are such builds (`zio-blocks-schema` with Scala 3.9,
+   * `zio-blocks-next-schema` with Scala 3.10). (In 0.0.56, `zio-blocks-schema`
+   * was built with Scala 3.3 and rejected structural record types at compile
+   * time.)
    *
    * For sequence types (List, Vector, etc.) and map types, use the overloads
    * that take type constructors: `Binding.of[List]`, `Binding.of[Map]`;

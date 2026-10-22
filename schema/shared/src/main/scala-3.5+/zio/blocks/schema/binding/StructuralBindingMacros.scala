@@ -22,8 +22,8 @@ import scala.quoted.*
  * Version-specific macro support for structural type bindings.
  *
  * This version (Scala 3.5+) provides full support for deriving Binding
- * instances for structural types using `Symbol.newClass` which is marked as @experimental
- * and requires Scala 3.5+.
+ * instances for structural types using `Symbol.newClass`, which needs Scala 3.5
+ * or later and is experimental in Scala 3.7 and earlier.
  */
 private[binding] object StructuralBindingMacros {
 
@@ -37,9 +37,9 @@ private[binding] object StructuralBindingMacros {
    * Generates a factory function that creates anonymous class instances for
    * structural types.
    *
-   * Uses `Symbol.newClass` (experimental API, Scala 3.5+) to create a class at
-   * compile time with real methods that satisfy the structural type
-   * requirements.
+   * Uses `Symbol.newClass` (Scala 3.5+, experimental in Scala 3.7 and earlier)
+   * to create a class at compile time with real methods that satisfy the
+   * structural type requirements.
    *
    * @param fields
    *   field metadata including name, type, and register kind

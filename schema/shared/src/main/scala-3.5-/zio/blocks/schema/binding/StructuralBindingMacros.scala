@@ -22,8 +22,8 @@ import scala.quoted.*
  * Version-specific macro support for structural type bindings.
  *
  * This version (Scala before 3.5) does NOT support deriving Binding instances
- * for structural record types, because `Symbol.newClass` is marked as @experimental
- * and only available in Scala 3.5+. Unions of structural types do not use it.
+ * for structural record types, because `Symbol.newClass` is only available in
+ * Scala 3.5 or later. Unions of structural types do not use it.
  *
  * No build compiles this version any more: `zio-blocks-schema` is built with
  * Scala 3.9 and `zio-blocks-next-schema` with Scala 3.10, and both use the
