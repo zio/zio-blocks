@@ -11,9 +11,9 @@ A `Patch[S]` represents a sequence of operations that transform a value of type 
 
 - **Remote Patching** — Send patches over the network to update remote state without transmitting entire objects
 - **Audit Logs** — Record patches as a log of changes for compliance, debugging, or undo functionality
-- **CRDT-like Operations** — Use commutative operations like `increment` that can be safely applied in any order
+- **CRDT-like Operations** — Use commutative operations like `Patch.increment` that can be safely applied in any order
 - **Optimistic Updates** — Apply patches locally while syncing with a server
-- **Schema Evolution** — Patches work with the schema system, adapting as data structures evolve
+- **Schema Evolution** — Patches address fields by name, so a stored patch still applies after a field is added, but fails in `Strict` mode once a field it touches is renamed or removed
 
 :::note
 For **untyped JSON patching** without a schema, use [`JsonPatch`](./built-in-codecs/json/json-patch.md) instead. `JsonPatch` is optimized for diff-and-apply workflows on raw JSON values and provides compact delta representations without requiring typed optics.
