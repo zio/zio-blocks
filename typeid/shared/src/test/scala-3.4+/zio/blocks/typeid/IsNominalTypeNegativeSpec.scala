@@ -17,6 +17,7 @@
 package zio.blocks.typeid
 
 import scala.compiletime.testing.{Error, typeCheckErrors, typeChecks}
+import zio.blocks.chunk.Chunk
 import zio.test._
 
 // Scala 3 only fixtures: an opaque type and a type alias are nominal.
@@ -27,6 +28,11 @@ object NominalScala3Fixtures {
   }
 
   type Title = String
+
+  type Pair[X] = (X, X)
+  val pair: Pair[Int] = (1, 2)
+
+  val title: String = "Zionomicon"
 }
 
 /**
@@ -122,7 +128,7 @@ object IsNominalTypeNegativeSpec extends ZIOSpecDefault {
       )
     },
     test("IsNominalType CAN be summoned when the caller also requires it") {
-      val compiles = typeChecks(
+      val compiles: Boolean = typeChecks(
         """
         import zio.blocks.typeid.IsNominalType
         def constrained[A: IsNominalType](a: A): String =
@@ -143,11 +149,27 @@ object IsNominalTypeNegativeSpec extends ZIOSpecDefault {
     },
     test("IsNominalType derives for the singleton type of an object") {
       val ev = IsNominalType[NominalScala3Fixtures.BookId.type]
-      assertTrue(ev.typeId.name == "BookId")
+      assertTrue(ev.typeId.name == "BookId", ev.typeId.isObject)
+    },
+    test("IsNominalType derives for the singleton type of a value whose type is an applied alias") {
+      val ev = IsNominalType[NominalScala3Fixtures.pair.type]
+      assertTrue(
+        ev.typeId.toString == "Pair[+T1, +T2]",
+        ev.typeId.fullName == "zio.blocks.typeid.NominalScala3Fixtures.Pair"
+      )
+    },
+    test("IsNominalType derives for the singleton type of a String value") {
+      val ev = IsNominalType[NominalScala3Fixtures.title.type]
+      assertTrue(ev.typeId.fullName == "scala.Predef.String")
     },
     test("IsNominalIntersection derives when every member is nominal") {
       val ev = IsNominalIntersection[NominalScala3Fixtures.BookId & NominalScala3Fixtures.Title]
-      assertTrue(ev.typeIdsErased.length == 2)
+      assertTrue(
+        ev.typeIdsErased == Chunk(
+          IsNominalType[NominalScala3Fixtures.BookId].typeIdErased,
+          IsNominalType[String].typeIdErased
+        )
+      )
     }
   )
 }

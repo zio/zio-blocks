@@ -23,29 +23,35 @@ private[typeid] trait IsNominalTypeVersionSpecific {
 }
 
 private[typeid] object IsNominalTypeMacros {
+
   /**
    * Whether `t` is a nominal type: a class, trait, object, enum or opaque type,
-   * a singleton of a value of one, or such a type applied to arguments. A type parameter or
-   * an abstract type member is not nominal: its `TypeRef` names no concrete
-   * type, so a `TypeId` derived for it would describe the parameter, not the
-   * type the caller passes (#1172). Aliases are followed. This matches the
-   * Scala 2 macro, which accepts a type only when its symbol is a class.
+   * a singleton of a value of one, or such a type applied to arguments. A type
+   * parameter or an abstract type member is not nominal: its `TypeRef` names no
+   * concrete type, so a `TypeId` derived for it would describe the parameter,
+   * not the type the caller passes (#1172). Aliases are followed.
+   *
+   * This matches the Scala 2 macro, which accepts a type only when its symbol
+   * is a class, with two differences. The singleton type `x.type` of a value of
+   * an intersection type (`x: A & B`) is rejected here but accepted on Scala
+   *   2. The singleton type `lit.type` of `final val lit = 1` is accepted here
+   *      (it widens to `Int`) but rejected on Scala 2.
    */
   def isNominal(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
     import q.reflect.*
 
     t match {
-      case AndType(_, _)                => false
-      case OrType(_, _)                 => false
-      case Refinement(_, _, _)          => false
-      case TypeLambda(_, _, _)          => false
-      case ByNameType(_)                => false
-      case TypeBounds(_, _)             => false
-      case NoPrefix()                   => false
-      case MatchType(_, _, _)           => false
-      case AppliedType(tycon, _)        => isNominal(tycon)
-      case ref @ TermRef(_, _)          => isNominal(ref.widen) // `x.type` is nominal when `x`'s type is
-      case ref @ TypeRef(_, _)          =>
+      case AndType(_, _)         => false
+      case OrType(_, _)          => false
+      case Refinement(_, _, _)   => false
+      case TypeLambda(_, _, _)   => false
+      case ByNameType(_)         => false
+      case TypeBounds(_, _)      => false
+      case NoPrefix()            => false
+      case MatchType(_, _, _)    => false
+      case AppliedType(tycon, _) => isNominal(tycon)
+      case ref @ TermRef(_, _)   => isNominal(ref.widen.dealias) // `x.type` is nominal when `x`'s type is
+      case ref @ TypeRef(_, _)   =>
         val sym = ref.typeSymbol
         if (sym.isClassDef || sym.flags.is(Flags.Opaque)) true
         else if (sym.isAliasType) {
