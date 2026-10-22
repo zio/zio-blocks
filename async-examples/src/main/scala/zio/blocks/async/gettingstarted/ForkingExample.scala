@@ -12,7 +12,7 @@ import zio.blocks.async._
  *
  * Run with:
  * {{{
- *   sbt "async-examples/runMain zio.blocks.async.gettingstarted.ForkingExample"
+ *   cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.ForkingExample"
  * }}}
  */
 object ForkingExample {

@@ -525,6 +525,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Your First Streaming Pipeline: Turn a Sales Log into a Report](./guides/your-first-streaming-pipeline.md) - Read a sales log with a `Stream`, parse, filter and batch it, sum it with a `Sink`, and recover from a bad line
 - [How to Stream Files and Sockets Without Leaking Resources](./guides/stream-files-and-sockets.md) - Read files, NIO channels and sockets as streams that close their handles on success, failure, early stop and missing input
 - [Getting Started with Async](./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
+- [How to Wrap Callback and Future-Based APIs in Async](./guides/wrap-callback-and-future-apis.md) - Bring `Future`, `CompletionStage`, `js.Promise` and callback APIs into `Async`, and cancel the underlying call when the `Async` is cancelled
 - [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
 - [How to Fix Common Scope and Wire Compile Errors](./guides/fix-scope-and-wire-compile-errors.md) - Look up a Scope or Wire error message and apply the fix
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./guides/resource-and-di-migration.md) - Move resource handling and dependency wiring to ZIO Blocks Scope, Resource, and Wire

@@ -12,7 +12,7 @@ import zio.blocks.async._
  *
  * Run with:
  * {{{
- *   sbt "async-examples/runMain zio.blocks.async.gettingstarted.DirectStyleExample"
+ *   cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.DirectStyleExample"
  * }}}
  */
 object DirectStyleExample {

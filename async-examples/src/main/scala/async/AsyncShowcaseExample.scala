@@ -16,7 +16,7 @@ import scala.concurrent.{Await, Future}
  * Run with:
  *
  * {{{
- *   sbt "golemStreamsAsyncVersion; ++3.8.3; async-examples/run"
+ *   cd async-examples && sbt "runMain async.AsyncShowcaseExample"
  * }}}
  */
 object AsyncShowcaseExample extends App {
