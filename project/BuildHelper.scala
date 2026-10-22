@@ -7,9 +7,9 @@ import sbtcrossproject.CrossPlugin.autoImport.*
 import scoverage.ScoverageKeys._
 
 object BuildHelper {
-  val Scala213: String = "2.13.18"
-  val Scala33: String  = "3.3.7" // LTS
-  val Scala3: String   = "3.9.0"
+  val Scala213: String   = "2.13.18"
+  val Scala3: String     = "3.9.0"  // LTS
+  val Scala3Next: String = "3.10.0" // Scala Next
   // The Scala version pinned by the external golemcloud/golem Scala SDK (which depends on this
   // repo's schema/streams). Used only to cross-test streams/async against it (see
   // `golemStreamsAsyncVersion` in build.sbt) — zio-blocks itself has no Golem-specific code.
@@ -166,14 +166,17 @@ object BuildHelper {
     }
   )
 
-  def stdSettings(prjName: String, scalaVersions: Seq[String] = Seq(Scala3, Scala33, Scala213)): Seq[Def.Setting[?]] =
+  def stdSettings(
+    prjName: String,
+    scalaVersions: Seq[String] = Seq(Scala3, Scala3Next, Scala213)
+  ): Seq[Def.Setting[?]] =
     Seq(
       name := prjName,
-      // For Scala 3.7+, publish this module/artifact as "zio-blocks-next-*" (project name remains prjName)
+      // For Scala 3.10+, publish this module/artifact as "zio-blocks-next-*" (project name remains prjName)
       moduleName := {
         CrossVersion.partialVersion(scalaVersion.value) match {
-          case Some((3, minor)) if minor >= 7 => prjName.replace("zio-blocks-", "zio-blocks-next-")
-          case _                              => prjName
+          case Some((3, minor)) if minor >= 10 => prjName.replace("zio-blocks-", "zio-blocks-next-")
+          case _                               => prjName
         }
       },
       crossScalaVersions       := scalaVersions,
@@ -222,11 +225,12 @@ object BuildHelper {
             "-Wconf:msg=the type test for NamedTuple.*cannot be checked at runtime.*&src=.*zio/test/Macros.scala:s", // zio-test macro TASTY inlined on 3.9 (NamedTuple became abstract-membered); lib-internal, same phantom-path class
             "-Werror"
           ) ++ {
+            // Scala 3.10.0's backend optimizer crashes on some macro shapes
+            // (scope/LeakMacros hits `AssertionError: NoType` in
+            // BTypeLoader.buildInlineInfo), so the next line builds without
+            // -opt until the compiler is fixed. -experimental is unaffected.
             if (minor >= 8) {
-              Seq(
-                "-experimental",
-                "-opt"
-              )
+              Seq("-experimental") ++ (if (minor >= 10) Seq.empty else Seq("-opt"))
             } else Seq.empty
           } ++ {
             // E230 exists only on Scala 3.9+; older compilers reject the unknown id and the
