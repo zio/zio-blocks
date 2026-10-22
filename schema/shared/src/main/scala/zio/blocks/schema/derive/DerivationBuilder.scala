@@ -28,15 +28,20 @@ import zio.blocks.docs.Doc
  * with `instance` and `modifier`, then read `derive`. The overrides apply to
  * this derivation only and leave the schema unchanged; to apply the same ones
  * to every derivation, add them to the deriver with `Deriver#withInstance` and
- * `Deriver#withModifier`. Each method returns a new builder.
+ * `Deriver#withModifier`. Each method returns a new builder, except `modifier`
+ * with an optic whose term modifier it ignores, which returns this builder.
  *
  * For a node, an instance override by optic wins over one by type. An override
  * by parent type and field name replaces that field's instance and wins over a
  * type override of the field's type, unless an optic override targets the same
  * field. For the same target, an override on the deriver wins over one given
  * here (see `docs/dev/issues.md`), and among those given here the last one
- * wins. A node whose instance is overridden is not derived, so modifiers added
- * for it, or for the fields of an overridden record, have no effect.
+ * wins. A node overridden by optic or by type is not derived, so modifiers
+ * added for it, and term modifiers for its fields, have no effect. Its
+ * descendants, and a field overridden by parent type and name, are still
+ * derived and the result discarded, so modifiers added for them still run: an
+ * unknown `Modifier.fieldNaming` on one still makes `derive` throw (see
+ * `docs/dev/issues.md`).
  *
  * {{{
  * import zio.blocks.schema.json._
@@ -75,8 +80,10 @@ final case class DerivationBuilder[TC[_], A](
    * Uses `instance` for the part of `A` that `optic` focuses on, instead of
    * deriving one. Only that path matches, so other occurrences of the same type
    * are derived as usual; a path through `each` matches every element of that
-   * sequence. `derive` evaluates `instance`, not this call, and may evaluate it
-   * more than once.
+   * sequence. The override is evaluated when the deriver first forces it, not
+   * here: during `derive` for `JsonCodecDeriver`, possibly later for a deriver
+   * that forces children on first use. It may be evaluated more than once (see
+   * `docs/dev/issues.md`).
    *
    * With `JsonCodecDeriver`, an override inside a record type that is recursive
    * or has a field with a default value applies to every occurrence of that
@@ -215,8 +222,8 @@ final case class DerivationBuilder[TC[_], A](
    * is thrown from this read.
    *
    * A part of `A` behind a `Reflect.Deferred` node, such as a field with a
-   * default value, is derived when the deriver first forces its instance:
-   * `JsonCodecDeriver` does that during this read, while a deriver that forces
+   * default value, is derived when the deriver first reads it:
+   * `JsonCodecDeriver` does that during this read, while a deriver that reads
    * children on first use derives that part, and evaluates its overrides,
    * later.
    *

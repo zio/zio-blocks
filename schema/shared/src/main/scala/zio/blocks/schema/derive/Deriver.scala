@@ -32,10 +32,12 @@ import zio.blocks.docs.Doc
  * sequence, map, dynamic value and wrapper. `DerivationBuilder#derive` walks
  * the schema's `Reflect` tree and calls the method for each node, passing the
  * node's children with their instances, which a method reads with `instance`. A
- * node whose instance is overridden is not derived: its method is not called
- * for it. A child behind a `Reflect.Deferred` node, such as a field with a
- * default value or a recursive field, is derived only when its instance is
- * first forced, which can be after `derive` returns.
+ * node overridden by optic or by type is not derived: its method is not called
+ * for it. The nodes below it, and a field or case overridden by parent type and
+ * name, are still derived; the field's result is then replaced by the override.
+ * A child behind a `Reflect.Deferred` node, such as a field with a default
+ * value or a recursive field, is derived only when the deriver first reads that
+ * child, which can be after `derive` returns.
  *
  * Every method returns a [[zio.blocks.schema.Lazy Lazy]]. A recursive type,
  * such as `case class Tree(value: Int, children: List[Tree])`, reaches the
@@ -212,9 +214,11 @@ trait Deriver[TC[_]] { self =>
    * Returns a deriver that uses `instance` for every occurrence of the type
    * `A`, at any depth, in each derivation it runs, instead of deriving one.
    * Occurrences match by equality with the implicit `typeId`, so an override
-   * for `Option[Int]` leaves `Option[String]` derived as usual. The deriver
-   * evaluates `instance` while deriving, not here, and may evaluate it more
-   * than once.
+   * for `Option[Int]` leaves `Option[String]` derived as usual. The override is
+   * evaluated when the deriver first forces it, not here: during `derive` for
+   * `JsonCodecDeriver`, possibly later for a deriver that forces children on
+   * first use. It may be evaluated more than once, and again on each derivation
+   * that uses this deriver (see `docs/dev/issues.md`).
    *
    * An override by optic or by field name wins over this one for the nodes it
    * targets. For the same type, a later `withInstance` wins over an earlier
@@ -288,8 +292,11 @@ trait Deriver[TC[_]] { self =>
    *
    * The deriver receives it in front of the node's own modifiers, behind
    * modifiers added by optic and those added for the same type with
-   * `DerivationBuilder#modifier`. A node whose instance is overridden is not
-   * derived, so the modifier has no effect there.
+   * `DerivationBuilder#modifier`. On a node overridden by optic or by type the
+   * modifier has no effect, since the node is not derived. A field overridden
+   * by parent type and name is still derived with it, so a modifier that fails
+   * derivation, such as an unknown `Modifier.fieldNaming`, still throws,
+   * although the output uses the override.
    */
   final def withModifier[A](typeId: TypeId[A], modifier: Modifier.Reflect): Deriver[TC] =
     new DeriverWithOverrides[TC](
