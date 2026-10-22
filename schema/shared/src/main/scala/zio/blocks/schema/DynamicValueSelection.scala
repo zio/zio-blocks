@@ -19,11 +19,13 @@ package zio.blocks.schema
 import zio.blocks.chunk.Chunk
 
 /**
- * A wrapper around `Either[SchemaError, Chunk[DynamicValue]]` that provides
- * fluent chaining for DynamicValue navigation and querying operations.
+ * The result of selecting parts of a [[DynamicValue]]: zero or more values, or
+ * the [[SchemaError]] that explains why the selection failed.
+ * `DynamicValue#get` and `DynamicValue#select` return one, and its methods
+ * chain further steps. Navigation steps apply to every selected value; when a
+ * step fails for any of them, the whole selection fails with the first error.
+ * An empty selection is a success, not a failure.
  *
- * DynamicValueSelection enables a fluent API style for navigating through
- * DynamicValue structures:
  * {{{
  * val dv = DynamicValue.Record(
  *   "users" -> DynamicValue.Sequence(
@@ -34,9 +36,6 @@ import zio.blocks.chunk.Chunk
  * val names: DynamicValueSelection =
  *   dv.get("users").sequences.apply(0).get("name").primitives
  * }}}
- *
- * The selection can contain zero, one, or multiple DynamicValue values,
- * supporting both single-value navigation and multi-value queries.
  */
 final case class DynamicValueSelection(either: Either[SchemaError, Chunk[DynamicValue]]) extends AnyVal {
 
@@ -44,7 +43,10 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   // Basic operations
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Returns true if the selection is successful (contains values). */
+  /**
+   * Returns `true` unless the selection failed. An empty selection is a
+   * success.
+   */
   def isSuccess: Boolean = either.isRight
 
   /** Returns true if the selection is a failure. */
@@ -86,8 +88,8 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Returns any single value from the selection. Fails if the selection is
-   * empty or an error.
+   * Returns the first selected value. Fails when the selection is empty or
+   * failed.
    */
   def any: Either[SchemaError, DynamicValue] = either.flatMap { v =>
     v.headOption match {
@@ -111,7 +113,8 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   }
 
   /**
-   * Returns all selected values as a DynamicValue.Sequence.
+   * Returns all selected values as a [[DynamicValue.Sequence]], also when there
+   * is one value or none. A failed selection gives its error.
    */
   def toSequence: Either[SchemaError, DynamicValue] = either.map(v => new DynamicValue.Sequence(v))
 
@@ -161,25 +164,46 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   // Navigation
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Navigates to a field in each record. */
+  /**
+   * Selects the field `fieldName` of every selected value. Fails when any of
+   * them is not a record or lacks the field.
+   */
   def get(fieldName: String): DynamicValueSelection = flatMap(_.get(fieldName))
 
-  /** Navigates to an index in each sequence. */
+  /**
+   * Selects the element at `index` of every selected value. Fails when any of
+   * them is not a sequence or is too short.
+   */
   def apply(index: Int): DynamicValueSelection = flatMap(_.get(index))
 
-  /** Navigates to a field in each record (alias for get). */
+  /**
+   * Selects the field `fieldName` of every selected value, the same as
+   * `get(fieldName)`.
+   */
   def apply(fieldName: String): DynamicValueSelection = get(fieldName)
 
-  /** Navigates to a map entry by key. */
+  /**
+   * Selects the value at `key` of every selected value. Fails when any of them
+   * is not a map or lacks the key.
+   */
   def get(key: DynamicValue): DynamicValueSelection = flatMap(_.get(key))
 
-  /** Navigates using a DynamicOptic path. */
+  /**
+   * Selects what `path` reaches in every selected value, as `DynamicValue#get`
+   * does. Fails when the path reaches nothing in any of them.
+   */
   def get(path: DynamicOptic): DynamicValueSelection = flatMap(_.get(path))
 
-  /** Navigates using a DynamicOptic path (alias for get). */
+  /**
+   * Selects what `path` reaches in every selected value, the same as
+   * `get(path)`.
+   */
   def apply(path: DynamicOptic): DynamicValueSelection = get(path)
 
-  /** Navigates into a variant case. */
+  /**
+   * Selects the payload of every selected value. Fails when any of them is not
+   * a variant of the case `caseName`.
+   */
   def getCase(caseName: String): DynamicValueSelection = flatMap(_.getCase(caseName))
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -189,7 +213,11 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   /** Maps a function over all selected values. */
   def map(f: DynamicValue => DynamicValue): DynamicValueSelection = new DynamicValueSelection(either.map(_.map(f)))
 
-  /** FlatMaps a function over all selected values, combining results. */
+  /**
+   * Applies `f` to every selected value and concatenates the values of the
+   * selections it returns, in order. Fails with the first failure among them; a
+   * failed selection stays failed.
+   */
   def flatMap(f: DynamicValue => DynamicValueSelection): DynamicValueSelection =
     new DynamicValueSelection(either.flatMap { dvs =>
       val results    = dvs.map(dv => f(dv).either)
@@ -214,7 +242,10 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   /** Returns this selection's values, or the default on failure. */
   def getOrElse(default: => Chunk[DynamicValue]): Chunk[DynamicValue] = either.getOrElse(default)
 
-  /** Combines two selections, concatenating their values. */
+  /**
+   * Concatenates the values of the two selections. When both failed, the result
+   * fails with both errors; when one failed, with its error.
+   */
   def ++(other: DynamicValueSelection): DynamicValueSelection = new DynamicValueSelection((either, other.either) match {
     case (Right(v1), Right(v2)) => new Right(v1 ++ v2)
     case (Left(e1), Left(e2))   => new Left(e1 ++ e2)
@@ -227,22 +258,24 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Recursively searches each DynamicValue in the selection, collecting all
-   * values for which the predicate returns true.
+   * Searches every selected value and everything inside it, and selects the
+   * values that satisfy `p`. The search visits a value before its children
+   * (record fields, variant payloads, sequence elements and map values; map
+   * keys are not visited), so the selected values themselves are tested first.
    */
   def query(p: DynamicValue => Boolean): DynamicValueSelection =
     flatMap(dv => DynamicValueSelection.succeedMany(DynamicValue.query(dv, DynamicOptic.root, (_, v) => p(v))))
 
   /**
-   * Recursively searches each DynamicValue in the selection, collecting all
-   * values at paths for which the predicate returns true.
+   * Like `query`, testing the path of each value instead. Paths start at the
+   * root for every selected value.
    */
   def queryPath(p: DynamicOptic => Boolean): DynamicValueSelection =
     flatMap(dv => DynamicValueSelection.succeedMany(DynamicValue.query(dv, DynamicOptic.root, (path, _) => p(path))))
 
   /**
-   * Recursively searches each DynamicValue in the selection, collecting all
-   * values for which the predicate on both path and value returns true.
+   * Like `query`, testing both the path and the value. Paths start at the root
+   * for every selected value.
    */
   def queryBoth(p: (DynamicOptic, DynamicValue) => Boolean): DynamicValueSelection =
     flatMap(dv => DynamicValueSelection.succeedMany(DynamicValue.query(dv, DynamicOptic.root, p)))
@@ -360,9 +393,10 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Merges each value in this selection with each value in `that` selection.
-   * Uses cartesian product semantics: if this has N values and that has M
-   * values, the result has N × M values.
+   * Merges each value of this selection with each value of `that`, with
+   * `DynamicValue#merge`. The result has N × M values for N and M values: the
+   * first value of this selection merged with every value of `that`, in order,
+   * then the second, and so on. Fails when either selection failed.
    */
   def merge(
     that: DynamicValueSelection,
@@ -384,8 +418,10 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Modifies values at the given path using a partial function. Fails if the
-   * path doesn't exist or the partial function is not defined.
+   * Applies `DynamicValue#modifyOrFail` to every selected value. Fails when the
+   * path reaches nothing in any of them. Values at which `pf` is not defined
+   * are left unchanged, except at the root path (see
+   * `DynamicValue#modifyOrFail`).
    */
   def modifyOrFail(path: DynamicOptic)(pf: PartialFunction[DynamicValue, DynamicValue]): DynamicValueSelection =
     flatMap { dv =>
@@ -431,8 +467,9 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Narrows the single selected value to the specified DynamicValue type. Fails
-   * if there are 0 or more than 1 values, or if the value doesn't match.
+   * Narrows the single selected value to the type `t`. Fails if there are 0 or
+   * more than 1 values, or if the value is of another type. The error message
+   * names both types as `<function1>` (see `docs/dev/issues.md`).
    */
   def as(t: DynamicValueType): Either[SchemaError, t.Type] = one.flatMap { dv =>
     dv.as(t).toRight(SchemaError(s"Expected $t but got ${dv.valueType}"))
@@ -445,8 +482,10 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   def asAll(t: DynamicValueType): Either[SchemaError, Chunk[t.Type]] = either.map(_.flatMap(_.as(t)))
 
   /**
-   * Extracts the underlying Scala value from the single selected DynamicValue.
-   * Fails if there are 0 or more than 1 values, or if the value doesn't match.
+   * Returns the contents of the single selected value (see
+   * `DynamicValue#unwrap`). Fails if there are 0 or more than 1 values, or if
+   * the value is not of type `t`; the error message names the types as
+   * `<function1>` (see `docs/dev/issues.md`).
    */
   def unwrap(t: DynamicValueType): Either[SchemaError, t.Unwrap] = one.flatMap { dv =>
     dv.unwrap(t).toRight(SchemaError(s"Cannot unwrap ${dv.valueType} as $t"))
@@ -459,21 +498,24 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   def unwrapAll(t: DynamicValueType): Either[SchemaError, Chunk[t.Unwrap]] = either.map(_.flatMap(_.unwrap(t)))
 
   /**
-   * Extracts a primitive value of type A from the single selected value. Fails
-   * if there are 0 or more than 1 values, or if the value isn't the expected
-   * primitive.
+   * Converts the single selected value to an `A` with `pt`, as
+   * `DynamicValue#asPrimitive` does. Fails if there are 0 or more than 1
+   * values, or if `pt` does not accept the value.
    */
   def asPrimitive[A](pt: PrimitiveType[A]): Either[SchemaError, A] = one.flatMap { dv =>
     dv.asPrimitive(pt).toRight(SchemaError(s"Expected primitive $pt but got ${dv.valueType}"))
   }
 
   /**
-   * Extracts primitive values of type A from all selected values. Values not
-   * matching the type are silently dropped.
+   * Converts every selected value to an `A` with `pt`, as
+   * `DynamicValue#asPrimitive` does, and drops the values it does not accept.
    */
   def asPrimitiveAll[A](pt: PrimitiveType[A]): Either[SchemaError, Chunk[A]] = either.map(_.flatMap(_.asPrimitive(pt)))
 }
 
+/**
+ * Constructors for [[DynamicValueSelection]].
+ */
 object DynamicValueSelection {
 
   /** Creates a successful selection with a single value. */

@@ -23,33 +23,50 @@ import zio.blocks.schema.patch.{Differ, DynamicPatch}
 import java.util
 
 /**
- * A schema-less, dynamically-typed representation of any value.
+ * A value of any type held as plain data, with no Scala type attached: a
+ * primitive, a record, a variant, a sequence, a map or `Null`. Use it to work
+ * with data whose type is not known at compile time, such as a payload checked
+ * against a [[DynamicSchema]], and as the common form that codecs, patches and
+ * migrations read and write.
  *
- * `DynamicValue` provides a universal data model that can represent any
- * structured value without requiring compile-time type information. It serves
- * as an intermediate representation for serialization, schema evolution, data
- * transformation, and cross-format conversion.
+ * A [[Schema]] converts between a typed value and a `DynamicValue`.
+ * `Schema#toDynamicValue` encodes a value, and `Schema#fromDynamicValue`
+ * decodes one, returning `Left` when it does not fit the schema. A case class
+ * becomes a [[DynamicValue.Record]], a case of a sealed trait a
+ * [[DynamicValue.Variant]] (`None` is `Variant("None", Record())`, not
+ * [[DynamicValue.Null]]), and a collection a [[DynamicValue.Sequence]] or a
+ * [[DynamicValue.Map]].
  *
- * The ADT consists of six cases:
- *   - [[DynamicValue.Primitive]] - Scalar values (strings, numbers, booleans,
- *     temporal types, etc.)
- *   - [[DynamicValue.Record]] - Named fields, analogous to case classes or JSON
- *     objects
- *   - [[DynamicValue.Variant]] - Tagged unions, analogous to sealed traits
- *   - [[DynamicValue.Sequence]] - Ordered collections (lists, arrays, vectors)
- *   - [[DynamicValue.Map]] - Key-value pairs where keys are also DynamicValues
- *   - [[DynamicValue.Null]] - Represents absence of a value
+ * The six cases:
+ *   - [[DynamicValue.Primitive]]: a scalar, held as a [[PrimitiveValue]];
+ *   - [[DynamicValue.Record]]: named fields, like a case class or a JSON
+ *     object;
+ *   - [[DynamicValue.Variant]]: a case name with its payload, like a case of a
+ *     sealed trait;
+ *   - [[DynamicValue.Sequence]]: ordered elements, like a `List`;
+ *   - [[DynamicValue.Map]]: key-value entries whose keys are values too;
+ *   - [[DynamicValue.Null]]: no value, like JSON `null`.
  *
- * Navigation and modification use [[DynamicOptic]], a path-based lens system
- * for traversing and updating nested structures.
+ * Read parts of a value with `get`, which takes a [[DynamicOptic]] path, and
+ * query it with `select`. Change it with `modify`, `set`, `delete` and
+ * `insert`, which return a new value. Equality is structural, and the order of
+ * record fields and map entries counts. `toString` renders the value in a
+ * JSON-like format (see `toEjson`).
+ *
+ * {{{
+ * case class Book(title: String, year: Int)
+ * object Book {
+ *   implicit val schema: Schema[Book] = Schema.derived
+ * }
+ *
+ * val dynamic = Schema[Book].toDynamicValue(Book("Zionomicon", 2021))
+ * val updated = dynamic.set(DynamicOptic.root.field("year"), DynamicValue.int(2024))
+ *
+ * Schema[Book].fromDynamicValue(updated) // Right(Book(Zionomicon,2024))
+ * }}}
  *
  * @see
- *   [[Schema.toDynamicValue]] for converting typed values to DynamicValue
- * @see
- *   [[Schema.fromDynamicValue]] for converting DynamicValue back to typed
- *   values
- * @see
- *   [[DynamicOptic]] for path-based navigation
+ *   [[https://zioblocks.com/reference/schema/dynamic-value/ DynamicValue]]
  */
 sealed trait DynamicValue {
 
@@ -60,24 +77,50 @@ sealed trait DynamicValue {
    */
   def typeIndex: Int
 
+  /**
+   * Compares this value with `that`, returning a negative number, zero or a
+   * positive number. Values of different kinds compare by [[typeIndex]].
+   * Primitives compare with `PrimitiveValue#compare`, so two primitives of
+   * different types, such as an `Int` and a `Long`, compare by their type and
+   * not by their numbers. Records and maps compare entry by entry (the field
+   * name or key first, then the value) and sequences element by element; when
+   * one runs out first, it is the smaller. Variants compare by case name, then
+   * by payload. Two `Int` primitives more than `Int.MaxValue` apart compare the
+   * wrong way round (see `docs/dev/issues.md`).
+   */
   def compare(that: DynamicValue): Int
 
+  /**
+   * Returns `true` when this value comes after `that` in the order of
+   * [[compare]].
+   */
   final def >(that: DynamicValue): Boolean = compare(that) > 0
 
+  /**
+   * Returns `true` when this value comes after `that` in the order of
+   * [[compare]], or is equal to it.
+   */
   final def >=(that: DynamicValue): Boolean = compare(that) >= 0
 
+  /**
+   * Returns `true` when this value comes before `that` in the order of
+   * [[compare]].
+   */
   final def <(that: DynamicValue): Boolean = compare(that) < 0
 
+  /**
+   * Returns `true` when this value comes before `that` in the order of
+   * [[compare]], or is equal to it.
+   */
   final def <=(that: DynamicValue): Boolean = compare(that) <= 0
 
   /**
-   * Computes the difference between this DynamicValue and another, producing a
-   * [[zio.blocks.schema.patch.DynamicPatch]] that can transform this value into
-   * `that`.
-   *
-   * The diff algorithm produces minimal patches using type-appropriate
-   * operations: numeric deltas for numbers, string edit operations for text,
-   * and structural diffs for records, sequences, and maps.
+   * Returns a [[zio.blocks.schema.patch.DynamicPatch]] that turns this value
+   * into `that`. The patch is empty when the two are equal. It uses deltas for
+   * numbers and temporal values, an edit list for a string when that is shorter
+   * than the new string, and field, element and entry operations for records,
+   * sequences and maps. When the two values are of different kinds, or are
+   * variants of different cases, the patch replaces the whole value.
    */
   def diff(that: DynamicValue): DynamicPatch = DynamicValue.diff(this, that)
 
@@ -100,14 +143,20 @@ sealed trait DynamicValue {
   def as(t: DynamicValueType): Option[t.Type] = None
 
   /**
-   * Extracts the underlying value from this DynamicValue if it matches the
-   * specified type.
+   * Returns the contents of this value when it is of type `t`: the
+   * [[PrimitiveValue]] of a primitive, the fields of a record, the case name
+   * and payload of a variant, the elements of a sequence, the entries of a map,
+   * or `()` for `Null`. Returns `None` for any other type.
    */
   def unwrap(t: DynamicValueType): Option[t.Unwrap] = None
 
   /**
-   * Extracts a primitive value of type A if this is a Primitive with matching
-   * type.
+   * Converts this value to an `A` with `pt`, or returns `None` when this is not
+   * a primitive that `pt` accepts. `pt` also accepts another numeric type or a
+   * `Char` when converting there and back gives the same value, so
+   * `DynamicValue.int(42).asPrimitive(PrimitiveType.Long(Validation.None))` is
+   * `Some(42L)` (`docs/dev/issues.md` lists conversions that still change the
+   * value). The `Validation` of `pt` is not checked.
    */
   def asPrimitive[A](pt: PrimitiveType[A]): Option[A] = pt.fromDynamicValue(this).toOption
 
@@ -138,36 +187,55 @@ sealed trait DynamicValue {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Navigates to a field in a Record by name. Returns a DynamicValueSelection
-   * containing all matching values.
+   * Selects the value of the field `fieldName` of this record, or every value
+   * when the record repeats the name. The selection fails when the field is
+   * missing or this is not a record.
    */
   def get(fieldName: String): DynamicValueSelection =
     DynamicValueSelection.fail(SchemaError(s"Cannot get field '$fieldName' from non-Record value"))
 
   /**
-   * Navigates to an element in a Sequence by index. Returns a
-   * DynamicValueSelection containing the value, or an error if index is out of
-   * bounds.
+   * Selects the element at `index` of this sequence. The selection fails when
+   * the index is out of bounds or this is not a sequence.
    */
   def get(index: Int): DynamicValueSelection =
     DynamicValueSelection.fail(SchemaError(s"Cannot get index $index from non-Sequence value"))
 
   /**
-   * Navigates to an entry in a Map by key. Returns a DynamicValueSelection
-   * containing all matching values.
+   * Selects the value at `key` in this map, or every value when the map repeats
+   * the key. The selection fails when the key is missing or this is not a map.
    */
   def get(key: DynamicValue): DynamicValueSelection =
     DynamicValueSelection.fail(SchemaError(s"Cannot get key $key from non-Map value"))
 
   /**
-   * Navigates to the value(s) at the given path. Returns a
-   * DynamicValueSelection that may contain zero or more values.
+   * Selects every value that `path` reaches. Each step applies to every value
+   * the previous step reached and skips the values it does not fit, so a path
+   * with an `elements`, `mapValues` or search step can reach many values. The
+   * selection fails with `Path not found` when no value is left. A `searchFor`
+   * step (`TypeSearch`) reaches nothing, because it needs a schema; a `wrapped`
+   * step keeps the values as they are; a `searchSchema` step reaches every
+   * value at or below the current one that matches its pattern, depth first,
+   * skipping map keys. The root path selects this value.
+   *
+   * {{{
+   * val library = DynamicValue.Record(
+   *   "books" -> DynamicValue.Sequence(
+   *     DynamicValue.Record("title" -> DynamicValue.string("Zionomicon"), "year" -> DynamicValue.int(2021)),
+   *     DynamicValue.Record("title" -> DynamicValue.string("Programming in Scala"), "year" -> DynamicValue.int(2008))
+   *   )
+   * )
+   *
+   * library.get(DynamicOptic.root.field("books").elements.field("title")).toChunk
+   * // Chunk("Zionomicon","Programming in Scala")
+   * library.get(DynamicOptic.root.field("books").at(5)).isFailure // true
+   * }}}
    */
   def get(path: DynamicOptic): DynamicValueSelection = DynamicValue.getAtPath(this, path)
 
   /**
-   * Navigates into a Variant case by name. Returns a DynamicValueSelection
-   * containing the case value if the case matches.
+   * Selects the payload of this variant when its case is `name`. The selection
+   * fails when the case differs or this is not a variant.
    */
   def getCase(name: String): DynamicValueSelection =
     DynamicValueSelection.fail(SchemaError(s"Cannot get case '$name' from non-Variant value"))
@@ -177,8 +245,10 @@ sealed trait DynamicValue {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Modifies the value at the given path using a function. If the path doesn't
-   * exist, returns the original DynamicValue unchanged.
+   * Replaces every value that `path` reaches with the result of `f` on it, and
+   * returns this value unchanged when the path reaches nothing. Paths reach
+   * values as in `get`, except that a `mapKeys` step reaches the keys
+   * themselves. The root path applies `f` to this value.
    */
   def modify(path: DynamicOptic)(f: DynamicValue => DynamicValue): DynamicValue =
     DynamicValue.modifyAtPath(this, path, f) match {
@@ -187,30 +257,36 @@ sealed trait DynamicValue {
     }
 
   /**
-   * Modifies the value at the given path using a partial function. Returns Left
-   * with an error if the path doesn't exist or the partial function is not
-   * defined.
+   * Like `modify`, with a partial function. Returns `Left` with
+   * `Path not found` when the path reaches nothing. Values at which `pf` is not
+   * defined are left unchanged and the result is `Right`; only for the root
+   * path does an undefined `pf` give `Left` (see `docs/dev/issues.md`).
    */
   def modifyOrFail(path: DynamicOptic)(
     pf: PartialFunction[DynamicValue, DynamicValue]
   ): Either[SchemaError, DynamicValue] = DynamicValue.modifyAtPathOrFail(this, path, pf)
 
   /**
-   * Sets a value at the given path. If the path doesn't exist, returns the
-   * original DynamicValue unchanged.
+   * Replaces every value that `path` reaches with `value`, and returns this
+   * value unchanged when the path reaches nothing. It never adds a missing
+   * field, element or entry; use `insert` for that.
    */
   def set(path: DynamicOptic, value: DynamicValue): DynamicValue = modify(path)(_ => value)
 
   /**
-   * Sets a value at the given path. Returns Left with an error if the path
-   * doesn't exist.
+   * Like `set`, but returns `Left` with `Path not found` when the path reaches
+   * nothing.
    */
   def setOrFail(path: DynamicOptic, value: DynamicValue): Either[SchemaError, DynamicValue] =
     DynamicValue.modifyAtPathOrFail(this, path, { case _ => value })
 
   /**
-   * Deletes the value at the given path. If the path doesn't exist, returns the
-   * original DynamicValue unchanged.
+   * Removes what the last step of `path` names: a record field (every field
+   * with that name), a sequence element or a map entry. When the last step is
+   * `elements`, `mapKeys` or `mapValues`, the whole collection is emptied; when
+   * it is a case, the variant is replaced by an empty record. Returns this
+   * value unchanged when nothing is removed, which is always the case for the
+   * root path.
    */
   def delete(path: DynamicOptic): DynamicValue =
     DynamicValue.deleteAtPath(this, path) match {
@@ -219,8 +295,8 @@ sealed trait DynamicValue {
     }
 
   /**
-   * Deletes the value at the given path. Returns Left with an error if the path
-   * doesn't exist.
+   * Like `delete`, but returns `Left` with `Path not found` when nothing is
+   * removed.
    */
   def deleteOrFail(path: DynamicOptic): Either[SchemaError, DynamicValue] =
     DynamicValue.deleteAtPath(this, path) match {
@@ -229,8 +305,12 @@ sealed trait DynamicValue {
     }
 
   /**
-   * Inserts a value at the given path. If the path already exists, returns the
-   * original DynamicValue unchanged.
+   * Adds `value` at `path`, whose parents must already exist. Every step must
+   * be a field, a case, an index or a map key, and the last one must name a
+   * field the record does not have yet (it is appended), an index from 0 to the
+   * length of the sequence (the value goes before the element at that index) or
+   * a key the map does not have (it is appended). Returns this value unchanged
+   * otherwise, including for the root path.
    */
   def insert(path: DynamicOptic, value: DynamicValue): DynamicValue =
     DynamicValue.insertAtPath(this, path, value) match {
@@ -239,8 +319,7 @@ sealed trait DynamicValue {
     }
 
   /**
-   * Inserts a value at the given path. Returns Left with an error if the path
-   * already exists or the parent doesn't exist.
+   * Like `insert`, but returns `Left` when it cannot insert.
    */
   def insertOrFail(path: DynamicOptic, value: DynamicValue): Either[SchemaError, DynamicValue] =
     DynamicValue.insertAtPath(this, path, value) match {
@@ -253,7 +332,31 @@ sealed trait DynamicValue {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Merges this DynamicValue with another using the specified strategy.
+   * Merges this value with `that`, using `strategy` to decide what happens at
+   * each pair of values. With the default, `Auto`, two records are merged by
+   * field name and two maps by key, keeping the entries of both (this value's
+   * first, then the new ones of `that`); two sequences are merged by index,
+   * keeping the extra elements of the longer one; and two variants of the same
+   * case are merged by payload. For every other pair, including values of
+   * different kinds, `that` wins. When two records or maps are merged, a name
+   * or key that one of them repeats appears once, with its last value. See
+   * [[DynamicValueMergeStrategy]] for the other strategies.
+   *
+   * {{{
+   * val stored = DynamicValue.Record(
+   *   "title" -> DynamicValue.string("Zionomicon"),
+   *   "tags"  -> DynamicValue.Sequence(DynamicValue.string("zio"))
+   * )
+   * val update = DynamicValue.Record(
+   *   "tags" -> DynamicValue.Sequence(DynamicValue.string("effects")),
+   *   "year" -> DynamicValue.int(2021)
+   * )
+   *
+   * stored.merge(update).toJson.print
+   * // {"title":"Zionomicon","tags":["effects"],"year":2021}
+   * stored.merge(update, DynamicValueMergeStrategy.Concat).toJson.print
+   * // {"title":"Zionomicon","tags":["zio","effects"],"year":2021}
+   * }}}
    */
   def merge(that: DynamicValue, strategy: DynamicValueMergeStrategy = DynamicValueMergeStrategy.Auto): DynamicValue =
     DynamicValue.merge(this, that, strategy)
@@ -262,22 +365,43 @@ sealed trait DynamicValue {
   // Normalization
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Recursively sorts all Record fields alphabetically. */
+  /**
+   * Returns a copy in which the fields of every record, at any depth, are
+   * sorted by name. The sort is stable, so repeated names keep their order.
+   */
   def sortFields: DynamicValue = DynamicValue.sortFields(this)
 
-  /** Recursively sorts all Map entries by key. */
+  /**
+   * Returns a copy in which the entries of every map, at any depth, are sorted
+   * by key in the order of [[compare]].
+   */
   def sortMapKeys: DynamicValue = DynamicValue.sortMapKeys(this)
 
-  /** Recursively removes all Null values from containers. */
+  /**
+   * Returns a copy without `Null` record fields, sequence elements and map
+   * entries (an entry goes when its key or its value is `Null`), at any depth.
+   * A variant whose payload is `Null` is kept, and so is a `Null` root.
+   */
   def dropNulls: DynamicValue = DynamicValue.dropNulls(this)
 
-  /** Recursively removes all Primitive(Unit) values from containers. */
+  /**
+   * Like `dropNulls`, for `Unit` primitives instead of `Null`.
+   */
   def dropUnits: DynamicValue = DynamicValue.dropUnits(this)
 
-  /** Recursively removes empty Records, Sequences, and Maps. */
+  /**
+   * Returns a copy without the record fields, sequence elements and map entries
+   * that are empty records, sequences or maps, at any depth. It makes one pass,
+   * testing each child before cleaning it, so a record that becomes empty
+   * because its own empty children are removed stays. A variant with an empty
+   * payload, such as `None`, is kept.
+   */
   def dropEmpty: DynamicValue = DynamicValue.dropEmpty(this)
 
-  /** Applies sortFields, sortMapKeys, dropNulls, dropUnits, and dropEmpty. */
+  /**
+   * Applies `sortFields`, `sortMapKeys`, `dropNulls`, `dropUnits` and
+   * `dropEmpty`, in that order.
+   */
   def normalize: DynamicValue = sortFields.sortMapKeys.dropNulls.dropUnits.dropEmpty
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -285,25 +409,19 @@ sealed trait DynamicValue {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Validates this value against a [[DynamicSchema]].
+   * Checks this value against `schema`, the same as `schema.check(this)`.
    *
-   * @param schema
-   *   The schema to validate against
    * @return
    *   `None` if this value conforms to the schema, or `Some(SchemaError)`
-   *   describing the validation failure
+   *   describing the first problem found
    * @see
-   *   [[DynamicSchema.check]] for the underlying validation logic
+   *   [[DynamicSchema#check]] for what is checked
    */
   def check(schema: DynamicSchema): Option[SchemaError] = schema.check(this)
 
   /**
-   * Tests whether this value conforms to a [[DynamicSchema]].
-   *
-   * @param schema
-   *   The schema to validate against
-   * @return
-   *   `true` if this value passes all validation checks, `false` otherwise
+   * Returns `true` when this value conforms to `schema`, the same as
+   * `schema.conforms(this)`.
    */
   def conforms(schema: DynamicSchema): Boolean = check(schema).isEmpty
 
@@ -312,31 +430,35 @@ sealed trait DynamicValue {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Transforms this DynamicValue bottom-up using the given function. The
-   * function receives the current path and the DynamicValue at that path. Child
-   * values are transformed before their parents.
+   * Rebuilds this value bottom-up: `f` gets the path and each value after the
+   * children of that value have been transformed, and its result replaces the
+   * value. It visits record fields, variant payloads, sequence elements, and
+   * both the keys and the values of maps (a key at the map's path followed by
+   * `mapKeys`, a value at the map's path followed by `atKey` of the original
+   * key), and this value last, at the root path.
    */
   def transformUp(f: (DynamicOptic, DynamicValue) => DynamicValue): DynamicValue =
     DynamicValue.transformUp(this, DynamicOptic.root, f)
 
   /**
-   * Transforms this DynamicValue top-down using the given function. The
-   * function receives the current path and the DynamicValue at that path.
-   * Parent values are transformed before their children.
+   * Like `transformUp`, but top-down: `f` runs on a value before its children,
+   * and the children of its result are visited next.
    */
   def transformDown(f: (DynamicOptic, DynamicValue) => DynamicValue): DynamicValue =
     DynamicValue.transformDown(this, DynamicOptic.root, f)
 
   /**
-   * Transforms all Record field names using the given function. The function
-   * receives the current path and the field name at that path.
+   * Renames the fields of every record at any depth with `f`, which gets the
+   * path of the record and the field name. Paths below a renamed field use the
+   * new name, and values inside a map get the path of the map.
    */
   def transformFields(f: (DynamicOptic, String) => String): DynamicValue =
     DynamicValue.transformFields(this, DynamicOptic.root, f)
 
   /**
-   * Transforms all Map keys using the given function. The function receives the
-   * current path and the key at that path.
+   * Replaces the keys of every map at any depth with the result of `f`, which
+   * gets the path of the map followed by `mapKeys` and the key. Maps nested
+   * inside a key are left alone, and keys that become equal are not merged.
    */
   def transformMapKeys(f: (DynamicOptic, DynamicValue) => DynamicValue): DynamicValue =
     DynamicValue.transformMapKeys(this, DynamicOptic.root, f)
@@ -346,13 +468,25 @@ sealed trait DynamicValue {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Wraps this DynamicValue in a [[DynamicValueSelection]].
+   * Returns a selection that holds this value, to start a chain of
+   * [[DynamicValueSelection]] operations such as `query`.
+   *
+   * {{{
+   * val book = DynamicValue.Record(
+   *   "title"   -> DynamicValue.string("Zionomicon"),
+   *   "year"    -> DynamicValue.int(2021),
+   *   "authors" -> DynamicValue.Sequence(DynamicValue.string("John A. De Goes"), DynamicValue.string("Adam Fraser"))
+   * )
+   *
+   * book.select.query(_.primitiveValue.exists(_.isInstanceOf[PrimitiveValue.String])).toChunk
+   * // Chunk("Zionomicon","John A. De Goes","Adam Fraser")
+   * }}}
    */
   def select: DynamicValueSelection = DynamicValueSelection.succeed(this)
 
   /**
-   * Wraps this DynamicValue in a [[DynamicValueSelection]] if its type matches
-   * the specified [[DynamicValueType]], otherwise returns an empty selection.
+   * Returns a selection that holds this value when it is of type `t`, and an
+   * empty, successful selection otherwise.
    */
   def select(t: DynamicValueType): DynamicValueSelection =
     if (this.valueType eq t) DynamicValueSelection.succeed(this)
@@ -363,69 +497,79 @@ sealed trait DynamicValue {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Recursively removes elements/fields for which the predicate returns true.
+   * Returns a copy without the record fields, sequence elements and map entries
+   * whose value satisfies `p`, at any depth. `p` is never applied to this value
+   * itself, and a variant's payload is searched but never removed.
    */
   def prune(p: DynamicValue => Boolean): DynamicValue =
     DynamicValue.prune(this, DynamicOptic.root, (_, dv) => p(dv))
 
   /**
-   * Recursively removes elements/fields at paths for which the predicate
-   * returns true.
+   * Like `prune`, testing the path of each field, element or entry instead of
+   * its value. The path of a map entry ends with `atKey` of its key.
    */
   def prunePath(p: DynamicOptic => Boolean): DynamicValue =
     DynamicValue.prune(this, DynamicOptic.root, (path, _) => p(path))
 
   /**
-   * Recursively removes elements/fields for which the predicate on both path
-   * and value returns true.
+   * Like `prune`, testing both the path and the value of each field, element or
+   * entry.
    */
   def pruneBoth(p: (DynamicOptic, DynamicValue) => Boolean): DynamicValue =
     DynamicValue.prune(this, DynamicOptic.root, p)
 
   /**
-   * Recursively keeps only elements/fields for which the predicate returns
-   * true.
+   * Returns a copy that keeps only the record fields, sequence elements and map
+   * entries whose value satisfies `p`, at any depth, and the containers on the
+   * way to them. A container that satisfies `p` is kept, but keeps only its own
+   * children that are kept, so a matching record whose fields do not match
+   * becomes an empty record. A primitive or `Null` root that does not satisfy
+   * `p` becomes `Null`. A variant is always kept, and kept whole when nothing
+   * in it is kept (see `docs/dev/issues.md`).
    */
   def retain(p: DynamicValue => Boolean): DynamicValue =
     DynamicValue.retain(this, DynamicOptic.root, (_, dv) => p(dv))
 
   /**
-   * Recursively keeps only elements/fields at paths for which the predicate
-   * returns true.
+   * Like `retain`, testing the path of each field, element or entry instead of
+   * its value.
    */
   def retainPath(p: DynamicOptic => Boolean): DynamicValue =
     DynamicValue.retain(this, DynamicOptic.root, (path, _) => p(path))
 
   /**
-   * Recursively keeps only elements/fields for which the predicate on both path
-   * and value returns true.
+   * Like `retain`, testing both the path and the value of each field, element
+   * or entry.
    */
   def retainBoth(p: (DynamicOptic, DynamicValue) => Boolean): DynamicValue =
     DynamicValue.retain(this, DynamicOptic.root, p)
 
   /**
-   * Projects only the specified paths from this DynamicValue. Creates a new
-   * DynamicValue containing only values at the given paths.
+   * Returns a copy that keeps only what is at `paths`, with everything below
+   * those paths and the containers on the way to them, like `retainPath`. The
+   * paths are compared step by step with the field, index, map key and case
+   * steps that lead to each value, so a path with an `elements` or search step
+   * keeps only the containers before that step. With no paths the result is
+   * empty; variants are kept as described in `retain`.
    */
   def project(paths: DynamicOptic*): DynamicValue = DynamicValue.project(this, paths)
 
   /**
-   * Partitions elements/fields based on a predicate on the value. Returns a
-   * tuple of (matching, non-matching) DynamicValues.
+   * Returns `(retain(p), prune(p))`: the parts that satisfy `p` and the parts
+   * that do not. Because `retain` always keeps variants, a variant can appear
+   * in both (see `docs/dev/issues.md`).
    */
   def partition(p: DynamicValue => Boolean): (DynamicValue, DynamicValue) =
     DynamicValue.partition(this, DynamicOptic.root, (_, dv) => p(dv))
 
   /**
-   * Partitions elements/fields based on a predicate on the path. Returns a
-   * tuple of (matching, non-matching) DynamicValues.
+   * Returns `(retainPath(p), prunePath(p))`.
    */
   def partitionPath(p: DynamicOptic => Boolean): (DynamicValue, DynamicValue) =
     DynamicValue.partition(this, DynamicOptic.root, (path, _) => p(path))
 
   /**
-   * Partitions elements/fields based on a predicate on both path and value.
-   * Returns a tuple of (matching, non-matching) DynamicValues.
+   * Returns `(retainBoth(p), pruneBoth(p))`.
    */
   def partitionBoth(p: (DynamicOptic, DynamicValue) => Boolean): (DynamicValue, DynamicValue) =
     DynamicValue.partition(this, DynamicOptic.root, p)
@@ -435,36 +579,39 @@ sealed trait DynamicValue {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Folds over the DynamicValue structure bottom-up. The function receives the
-   * current path, the DynamicValue, and the accumulator. Child values are
-   * folded before their parents.
+   * Folds over this value and everything in it, bottom-up: the children of a
+   * value before the value, record fields, sequence elements and map entries in
+   * order, the key of a map entry before its value, and this value last, at the
+   * root path. `f` gets the path, the value and the accumulator.
    */
   def foldUp[B](z: B)(f: (DynamicOptic, DynamicValue, B) => B): B =
     DynamicValue.foldUp(this, DynamicOptic.root, z, f)
 
   /**
-   * Folds over the DynamicValue structure top-down. The function receives the
-   * current path, the DynamicValue, and the accumulator. Parent values are
-   * folded before their children.
+   * Like `foldUp`, but top-down: a value before its children, and this value
+   * first.
    */
   def foldDown[B](z: B)(f: (DynamicOptic, DynamicValue, B) => B): B =
     DynamicValue.foldDown(this, DynamicOptic.root, z, f)
 
   /**
-   * Folds over the DynamicValue structure bottom-up, allowing failure.
+   * Like `foldUp`, but stops at the first `Left` that `f` returns and returns
+   * it.
    */
   def foldUpOrFail[B](z: B)(f: (DynamicOptic, DynamicValue, B) => Either[SchemaError, B]): Either[SchemaError, B] =
     DynamicValue.foldUpOrFail(this, DynamicOptic.root, z, f)
 
   /**
-   * Folds over the DynamicValue structure top-down, allowing failure.
+   * Like `foldDown`, but stops at the first `Left` that `f` returns and returns
+   * it.
    */
   def foldDownOrFail[B](z: B)(f: (DynamicOptic, DynamicValue, B) => Either[SchemaError, B]): Either[SchemaError, B] =
     DynamicValue.foldDownOrFail(this, DynamicOptic.root, z, f)
 
   /**
-   * Converts this DynamicValue to a Chunk of path-value pairs. Each pair
-   * contains the path to a leaf value and the value itself.
+   * Flattens this value into `(path, value)` pairs, one for each primitive and
+   * `Null` at any depth, in order. Empty records, sequences and maps give no
+   * pair, so [[DynamicValue.fromKV]] cannot restore them.
    */
   def toKV: Chunk[(DynamicOptic, DynamicValue)] = DynamicValue.toKV(this, DynamicOptic.root)
 
@@ -472,18 +619,45 @@ sealed trait DynamicValue {
   // Conversion
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Converts this DynamicValue to a Json value. */
+  /**
+   * Converts this value to [[json.Json]]. Records become objects, a variant
+   * becomes an object with one field named after its case, sequences become
+   * arrays, and a map becomes an object when all its keys are strings and an
+   * array of objects with a `key` and a `value` field otherwise. Primitive
+   * types are not kept (temporal values become strings), so converting back
+   * does not always give the same value.
+   */
   def toJson: Json = Json.fromDynamicValue(this)
 
+  /**
+   * Renders this value in the format of `toString`. Nested lines are indented
+   * by two spaces per level, starting at `indent` levels; the first line is not
+   * indented.
+   */
   def toEjson(indent: Int = 0): String = {
     val sb = new java.lang.StringBuilder
     DynamicValue.toEjson(this, indent, sb)
     sb.toString
   }
 
+  /**
+   * Renders this value in EJSON, a JSON-like format for reading. Record fields
+   * are unquoted (in backquotes when the name is not a valid identifier or is a
+   * Scala keyword), string map keys are quoted, a variant is its payload
+   * followed by `@ {tag: "<case>"}`, and `Instant`, `LocalDate`, `Period` and
+   * `Duration` values are followed by `@ {type: ...}`. An `Instant` prints as
+   * epoch milliseconds, so smaller units are lost; a `Char` prints as a string
+   * and `Unit` as `null`. A `Float` or `Double` that is NaN or infinite makes
+   * it throw (see `docs/dev/issues.md`). Nothing parses this format back; use
+   * `toJson` or a codec to exchange values.
+   */
   override def toString: String = toEjson()
 }
 
+/**
+ * The cases of [[DynamicValue]], constructors for primitives, the `Ordering`,
+ * `diff` and the `fromKV` builders.
+ */
 object DynamicValue {
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -491,11 +665,9 @@ object DynamicValue {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * A scalar value wrapped in a [[PrimitiveValue]].
-   *
-   * Primitives include strings, booleans, all numeric types (Int, Long, Double,
-   * Float, Short, Byte, BigInt, BigDecimal), temporal types (Instant, Duration,
-   * LocalDate, etc.), UUID, Char, and Unit.
+   * A scalar value, held as a [[PrimitiveValue]]: a `Unit`, a `Boolean`, a
+   * number, a `Char`, a `String`, a `java.time` value, a `UUID` or a
+   * `Currency`.
    */
   case class Primitive(value: PrimitiveValue) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
@@ -526,10 +698,9 @@ object DynamicValue {
   }
 
   /**
-   * A collection of named fields, analogous to a case class or JSON object.
-   *
-   * Field order is preserved and significant for equality comparison. Use
-   * sortFields to normalize field ordering for order-independent comparison.
+   * Named fields, like a case class or a JSON object. Field order is kept and
+   * counts for equality; `sortFields` normalizes it. A record may repeat a
+   * name, and `get` then returns every value.
    */
   final case class Record(override val fields: Chunk[(String, DynamicValue)]) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
@@ -590,16 +761,24 @@ object DynamicValue {
   }
 
   object Record {
+
+    /**
+     * A record with no fields.
+     */
     val empty: Record = Record(Chunk.empty)
 
+    /**
+     * Builds a record from `fields`, in order.
+     */
     def apply(fields: (String, DynamicValue)*): Record = new Record(Chunk.from(fields))
   }
 
   /**
-   * A tagged union value, analogous to a sealed trait with case classes.
-   *
-   * Contains a case name identifying which variant is active and the associated
-   * value for that case.
+   * One case of a sum type, like a case of a sealed trait: `caseNameValue`
+   * names the case and `value` is its payload. A `Schema` gives a case class
+   * case a record payload, so `Some(x)` is
+   * `Variant("Some", Record("value" -> x))` and `None` is
+   * `Variant("None", Record())`.
    */
   final case class Variant(caseNameValue: String, value: DynamicValue) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
@@ -639,9 +818,8 @@ object DynamicValue {
   }
 
   /**
-   * An ordered collection of values, analogous to a List, Array, or Chunk.
-   *
-   * Element order is preserved and significant for equality comparison.
+   * Ordered elements, like a `List`, a `Vector` or a `Set`. Element order is
+   * kept and counts for equality.
    */
   final case class Sequence(override val elements: Chunk[DynamicValue]) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
@@ -695,18 +873,22 @@ object DynamicValue {
   }
 
   object Sequence {
+
+    /**
+     * A sequence with no elements.
+     */
     val empty: Sequence = Sequence(Chunk.empty)
 
+    /**
+     * Builds a sequence from `elements`, in order.
+     */
     def apply(elements: DynamicValue*): Sequence = new Sequence(Chunk.from(elements))
   }
 
   /**
-   * A collection of key-value pairs where both keys and values are
-   * DynamicValues.
-   *
-   * Unlike [[Record]] which uses String keys, Map supports arbitrary
-   * DynamicValue keys. Entry order is preserved and significant for equality
-   * comparison. Use sortMapKeys to normalize key ordering.
+   * Key-value entries whose keys are values too, so unlike a [[Record]] a map
+   * can have keys of any kind. Entry order is kept and counts for equality;
+   * `sortMapKeys` normalizes it.
    */
   final case class Map(override val entries: Chunk[(DynamicValue, DynamicValue)]) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
@@ -768,16 +950,22 @@ object DynamicValue {
   }
 
   object Map {
+
+    /**
+     * A map with no entries.
+     */
     val empty: Map = Map(Chunk.empty)
 
+    /**
+     * Builds a map from `entries`, in order.
+     */
     def apply(entries: (DynamicValue, DynamicValue)*): Map = new Map(Chunk.from(entries))
   }
 
   /**
-   * Represents the absence of a value.
-   *
-   * Analogous to JSON null or Scala's None. Use dropNulls to recursively remove
-   * Null values from containers.
+   * No value, like JSON `null`; `Json#toDynamicValue` turns a JSON `null` into
+   * it. A `Schema` does not use it for `None`, which is a [[Variant]] named
+   * `None`. `dropNulls` removes it from containers.
    */
   case object Null extends DynamicValue {
     def typeIndex: Int = 5
@@ -801,41 +989,80 @@ object DynamicValue {
   // Convenience Constructors
   // ─────────────────────────────────────────────────────────────────────────
 
+  /**
+   * The `Unit` primitive.
+   */
   val unit: DynamicValue = new Primitive(PrimitiveValue.Unit)
 
+  /**
+   * Wraps `s` in a `String` primitive.
+   */
   def string(s: String): DynamicValue = new Primitive(new PrimitiveValue.String(s))
 
+  /**
+   * Wraps `i` in an `Int` primitive.
+   */
   def int(i: Int): DynamicValue = new Primitive(new PrimitiveValue.Int(i))
 
+  /**
+   * Wraps `l` in a `Long` primitive.
+   */
   def long(l: Long): DynamicValue = new Primitive(new PrimitiveValue.Long(l))
 
+  /**
+   * Wraps `b` in a `Boolean` primitive.
+   */
   def boolean(b: Boolean): DynamicValue = new Primitive(new PrimitiveValue.Boolean(b))
 
+  /**
+   * Wraps `d` in a `Double` primitive.
+   */
   def double(d: Double): DynamicValue = new Primitive(new PrimitiveValue.Double(d))
 
+  /**
+   * Wraps `f` in a `Float` primitive.
+   */
   def float(f: Float): DynamicValue = new Primitive(new PrimitiveValue.Float(f))
 
+  /**
+   * Wraps `s` in a `Short` primitive.
+   */
   def short(s: Short): DynamicValue = new Primitive(new PrimitiveValue.Short(s))
 
+  /**
+   * Wraps `b` in a `Byte` primitive.
+   */
   def byte(b: Byte): DynamicValue = new Primitive(new PrimitiveValue.Byte(b))
 
+  /**
+   * Wraps `c` in a `Char` primitive.
+   */
   def char(c: Char): DynamicValue = new Primitive(new PrimitiveValue.Char(c))
 
+  /**
+   * Wraps `b` in a `BigInt` primitive.
+   */
   def bigInt(b: BigInt): DynamicValue = new Primitive(new PrimitiveValue.BigInt(b))
 
+  /**
+   * Wraps `b` in a `BigDecimal` primitive.
+   */
   def bigDecimal(b: BigDecimal): DynamicValue = new Primitive(new PrimitiveValue.BigDecimal(b))
 
   // ─────────────────────────────────────────────────────────────────────────
   // Ordering
   // ─────────────────────────────────────────────────────────────────────────
 
+  /**
+   * Orders values with [[DynamicValue#compare]].
+   */
   implicit val ordering: Ordering[DynamicValue] = new Ordering[DynamicValue] {
     def compare(x: DynamicValue, y: DynamicValue): Int = x.compare(y)
   }
 
   /**
-   * Compute the difference between two DynamicValues. Returns a DynamicPatch
-   * that transforms oldValue into newValue.
+   * Returns a patch that turns `oldValue` into `newValue`; see
+   * [[DynamicValue#diff]].
    */
   def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch = Differ.diff(oldValue, newValue)
 
@@ -2330,6 +2557,17 @@ object DynamicValue {
   // KV Reconstruction
   // ─────────────────────────────────────────────────────────────────────────
 
+  /**
+   * Builds a value from `(path, value)` pairs, such as those of
+   * [[DynamicValue#toKV]], by setting each pair in order, starting from an
+   * empty record. Missing parents are created: a record for a field step, a
+   * sequence for an index step (padded with `Null` up to the index) and a map
+   * for a map key step, while a case step makes a variant. A step that meets a
+   * value of another kind replaces it, a later pair at the same path replaces
+   * the earlier value, and steps of other kinds (such as `elements`) are
+   * skipped. With no pairs the result is an empty record. Building throws no
+   * `SchemaError`, so the result is always `Right`.
+   */
   def fromKV(kvs: Seq[(DynamicOptic, DynamicValue)]): Either[SchemaError, DynamicValue] =
     if (kvs.isEmpty) new Right(Record.empty)
     else {
@@ -2339,6 +2577,9 @@ object DynamicValue {
       }
     }
 
+  /**
+   * Like [[fromKV]], returning the value without the `Either`.
+   */
   def fromKVUnsafe(kvs: Seq[(DynamicOptic, DynamicValue)]): DynamicValue = {
     var result: DynamicValue = Record.empty
     kvs.foreach(kv => result = upsertAtPathCreatingParents(result, kv._1, kv._2))
