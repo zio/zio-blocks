@@ -19,9 +19,8 @@ package zio.blocks.schema
 import scala.quoted.*
 
 /**
- * Common macro utilities trait providing path-dependent types and helper
- * methods for macro implementations. Both SchemaVersionSpecificImpl and
- * IntoVersionSpecificImpl extend this trait to share common infrastructure.
+ * Helpers shared by the Scala 3 macro implementations of `Into` and `As`
+ * (`IntoVersionSpecificImpl` and `AsVersionSpecificImpl` extend it).
  */
 private[schema] trait MacroUtils(using val quotes: Quotes) {
   import quotes.reflect.*

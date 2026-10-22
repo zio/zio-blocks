@@ -232,7 +232,7 @@ object UserId {
 
 // Custom bindings shadow matching entries in defaults
 val resolver: BindingResolver =
-  BindingResolver.empty.bind(Binding.of[UserId]) ++ BindingResolver.defaults
+  BindingResolver.empty.bind(Binding.Wrapper[UserId, Long](UserId(_), _.value)) ++ BindingResolver.defaults
 ```
 
 `BindingResolver#++` is associative for resolution outcomes: `(a ++ b) ++ c` and `a ++ (b ++ c)` always resolve to the same binding for any type.
@@ -311,7 +311,7 @@ val binding: Option[Binding.Primitive[Int]] = BindingResolver.defaults.resolvePr
 
 ### `BindingResolver#resolveWrapper`
 
-`BindingResolver#resolveWrapper` returns the `Binding.Wrapper` for newtype patterns—single-field case classes and smart-constructor wrappers. The binding holds a `wrap: B => A` and an `unwrap: A => B` function, converting between the inner type `B` and the outer type `A`:
+`BindingResolver#resolveWrapper` returns the `Binding.Wrapper` for wrapper types, such as the result of `Schema#transform`. The binding holds a `wrap: B => A` and an `unwrap: A => B` function, converting between the inner type `B` and the outer type `A`:
 
 ```scala
 trait BindingResolver {
@@ -330,9 +330,12 @@ object Email {
     Schema[String].transform(Email(_), _.value)
 }
 
-val registry = BindingResolver.empty.bind(Binding.of[Email])
+// Binding.of[Email] would derive a Binding.Record, so we bind the wrapper explicitly
+val registry = BindingResolver.empty.bind(Binding.Wrapper[Email, String](Email(_), _.value))
 val binding: Option[Binding.Wrapper[Email, _]] = registry.resolveWrapper[Email]
 ```
+
+`Binding.of` derives a `Binding.Wrapper` only for a class with a smart constructor (a companion `apply` that returns `Either`), a zio-prelude newtype or, on Scala 3, an opaque type. For a plain single-field case class such as `Email` it derives a `Binding.Record`, which `resolveWrapper` does not return, so a schema built with `Schema#transform` needs an explicit `Binding.Wrapper`.
 
 ### `BindingResolver#resolveDynamic`
 
@@ -467,3 +470,5 @@ If `DynamicSchema#rebind` cannot find a binding for any type present in the unbo
 :::
 
 See [Binding](binding.md) for details on each binding kind, and [Schema](schema.md) for the overall structure of the schema system.
+
+See also: [How to Build a Schema Registry with DynamicSchema](../../guides/build-a-schema-registry.md), a guide that rebinds stored schemas to Scala types with a `BindingResolver`.

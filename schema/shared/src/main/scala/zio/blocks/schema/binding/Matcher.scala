@@ -17,13 +17,17 @@
 package zio.blocks.schema.binding
 
 /**
- * A `Matcher` is a typeclass that can match a value of type `A` with a specific
- * term of its sum type.
+ * A `Matcher` downcasts a value of a sum type to one of its cases: a
+ * [[Binding.Variant]] has one per case, in [[Matchers]].
+ *
+ * @tparam A
+ *   the case type
  */
 trait Matcher[+A] {
 
   /**
-   * Downcasts a value of type `Any` to a value of type `A` or return `null`.
+   * Returns `any` as an `A` when it is a value of this case, and `null`
+   * otherwise.
    */
   def downcastOrNull(any: Any): A
 }

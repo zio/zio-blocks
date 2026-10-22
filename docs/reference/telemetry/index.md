@@ -316,5 +316,6 @@ Scoped, thread-safe propagation of `SpanContext` through call stacks is handled 
 - [Instrument a Program with Logs, Traces and Metrics](../../guides/instrument-a-program-with-logs-traces-and-metrics.md) — a step-by-step tutorial for newcomers: logs, nested spans, a counter and a histogram
 - [Telemetry Guide](../../guides/telemetry-guide.md) — architecture, design trade-offs, and real-world usage patterns
 - [Build a Small JSON Backend from Blocks](../../guides/small-json-backend-from-blocks.md) — capstone tutorial that wraps a request handler with logs, spans and a counter
+- [How to Test Code That Logs, Traces and Records Metrics](../../guides/test-telemetry.md) — capture spans, log records and counter values in memory and assert on them in tests
 - [Common Types](./common/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope` shared across all three pillars
 - [Context](../context.md) — `Context[R]`, which the otel module's `OtelContext` carries an active `SpanContext` through

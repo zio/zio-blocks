@@ -151,7 +151,7 @@ While manual lens construction gives you fine-grained control, ZIO Blocks provid
 The `optic` macro inside the `CompanionOptics` trait creates a lens using intuitive selector syntax that mirrors standard Scala field access. In the rest of the schema docs you may also see the symbolic `$(_.field)` form; it is the same optic-construction API presented with symbolic syntax instead of the named `optic(_.field)` helper.
 
 ```scala
-import zio.blocks.schema.optic
+import zio.blocks.schema._
 
 case class Person(name: String, age: Int)
 
@@ -171,7 +171,7 @@ For nested structures, the `optic` macro can create composed lenses by chaining 
 case class Address(street: String, city: String)
 case class Person(name: String, address: Address)
 
-object Person {
+object Person extends CompanionOptics[Person] {
   implicit val schema: Schema[Person] = Schema.derived[Person]
   
   // Lens directly to the nested street field

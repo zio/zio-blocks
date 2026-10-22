@@ -116,23 +116,41 @@ addCommandAlias(
   // the shared `Scala3Golem` constant so a future version bump only has to change one
   // place — `set`'s own expression compiler doesn't see build.sbt's `import
   // BuildHelper.*`, so the reference has to be fully qualified here.
+  // The full project-dependency closure (scope, chunk, combinators, ringbuffer,
+  // context, typeid) is included, not just streams/async: under `++3.8.3` any
+  // project not listing 3.8.3 is excluded from the switch and falls back to its
+  // default (3.9.0), whose TASTy the 3.8.3 compiler cannot read. This only
+  // became load-bearing once 3.3.7 left the cross lists (3.8.3 could read 3.3
+  // TASTy, so the old fallback was harmless).
   "; set Seq(" +
     "LocalProject(\"streamsJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
     "LocalProject(\"streamsJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
     "LocalProject(\"asyncJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
-    "LocalProject(\"asyncJS\") / crossScalaVersions += BuildHelper.Scala3Golem)"
+    "LocalProject(\"asyncJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"scopeJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"scopeJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"chunkJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"chunkJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"combinatorsJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"combinatorsJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"ringbufferJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"ringbufferJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"contextJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"contextJS\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"typeidJVM\") / crossScalaVersions += BuildHelper.Scala3Golem, " +
+    "LocalProject(\"typeidJS\") / crossScalaVersions += BuildHelper.Scala3Golem)"
 )
 addCommandAlias(
   "asyncTestPr",
-  "++2.13.18; streamsJVM/test; streamsJS/test; ++3.3.7; streamsJVM/test; streamsJS/test; ++3.9.0; streamsJVM/test"
+  "++2.13.18; streamsJVM/test; streamsJS/test; ++3.9.0; streamsJVM/test; streamsJS/test; ++3.10.0; streamsJVM/test"
 )
 addCommandAlias(
   "asyncTestNightly",
-  "asyncTestPr; ++2.13.18; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec; ++3.3.7; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec; streamsJS/testOnly zio.blocks.streams.ResourceLeakSpec; ++3.9.0; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec"
+  "asyncTestPr; ++2.13.18; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec; ++3.9.0; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec; streamsJS/testOnly zio.blocks.streams.ResourceLeakSpec; ++3.10.0; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec"
 )
 addCommandAlias(
   "asyncTestSoak",
-  "asyncTestNightly; ++2.13.18; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec; streamsJS/testOnly zio.blocks.streams.ReadableStreamReadersSpec; ++3.3.7; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec; streamsJS/testOnly zio.blocks.streams.ReadableStreamReadersSpec; ++3.9.0; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec"
+  "asyncTestNightly; ++2.13.18; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec; streamsJS/testOnly zio.blocks.streams.ReadableStreamReadersSpec; ++3.9.0; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec; streamsJS/testOnly zio.blocks.streams.ReadableStreamReadersSpec; ++3.10.0; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec"
 )
 addCommandAlias(
   "asyncReplay",
@@ -512,7 +530,7 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
 lazy val sql = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(schema, scope, streams)
-  .settings(stdSettings("zio-blocks-sql", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(stdSettings("zio-blocks-sql", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.sql"))
   .enablePlugins(BuildInfoPlugin)
@@ -520,8 +538,8 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
@@ -547,7 +565,7 @@ lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.data.migration"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .settings(crossScalaVersions := Seq("3.9.0", "3.3.7"))
+  .settings(crossScalaVersions := Seq("3.9.0", "3.10.0"))
   .jvmSettings(
     libraryDependencies ++= Seq(
       "org.xerial"     % "sqlite-jdbc" % "3.53.2.0" % Test,
@@ -568,7 +586,7 @@ lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
 // always use the latest API instead of waiting for a release (zio-http does the same for its `zio-http-example`).
 lazy val `projection-examples` = project
   .in(file("projection-examples"))
-  .settings(stdSettings("zio-blocks-projection-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(stdSettings("zio-blocks-projection-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
   .dependsOn(projection.jvm)
   // Examples are copy-paste templates and are embedded in the docs, so they carry no licence header. Setting
   // `headerLicense := None` is not enough: sbt-header then falls back to the licence detected from `licenses`.
@@ -590,7 +608,7 @@ lazy val `projection-examples` = project
 lazy val projection = crossProject(JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(schema, sql, scope)
-  .settings(stdSettings("zio-blocks-projection", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(stdSettings("zio-blocks-projection", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.projection"))
   .enablePlugins(BuildInfoPlugin)
@@ -612,15 +630,15 @@ lazy val projection = crossProject(JVMPlatform)
   )
 
 lazy val `sql-zio` = project
-  .settings(stdSettings("zio-blocks-sql-zio", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(stdSettings("zio-blocks-sql-zio", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
   .dependsOn(sql.jvm)
   .settings(buildInfoSettings("zio.blocks.sql.zio"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio"          % "2.1.27",
-      "dev.zio" %% "zio-test"     % "2.1.24" % Test,
-      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
+      "dev.zio" %% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
@@ -726,8 +744,8 @@ lazy val telemetry = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
@@ -771,8 +789,8 @@ lazy val otel = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.27" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
@@ -1360,7 +1378,7 @@ lazy val `schema-csv` = crossProject(JSPlatform, JVMPlatform)
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
-  .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.9.0")))
+  .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.10.0")))
   .dependsOn(schema % "compile->compile;test->test")
   .settings(crossProjectSettings)
   .settings(
@@ -1397,6 +1415,25 @@ lazy val `schema-scaladoc-check` = project
     Test / unmanagedSources += (ThisBuild / baseDirectory).value / "project" / "ScaladocSnippets.scala",
     // Examples are user code: a warning in one (an unused import, say) must not fail the build.
     Compile / scalacOptions ~= (_.filterNot(fatalWarningFlags)),
+    // Examples are also compiled the way a user compiles them. A Scala 3 user of the main line
+    // (3.9.x, `zio-blocks-*`) does not enable experimental mode, so drop -experimental and
+    // -language:experimental.* below the next line: if a main-line module is ever built with
+    // them again, scalac marks every top-level definition in it @experimental and these examples
+    // fail with "... is marked @experimental". The next line (3.10+, `zio-blocks-next-*`) is
+    // built with -experimental, so its users need the flag too: keep it.
+    Compile / scalacOptions := {
+      val options = (Compile / scalacOptions).value
+      if (scalaVersion.value.startsWith("3.") && !BuildHelper.isScala3NextLine(scalaVersion.value))
+        options.flatMap {
+          case "-experimental"                               => None
+          case language if language.startsWith("-language:") =>
+            // `-language:a,experimental.b` keeps `a` and drops `experimental.b`
+            val features = language.stripPrefix("-language:").split(',').filterNot(_.startsWith("experimental."))
+            if (features.isEmpty) None else Some(features.mkString("-language:", ",", ""))
+          case option => Some(option)
+        }
+      else options
+    },
     // `Test / scalacOptions` delegates to the Compile ones, so put the fatal flags back: the spec and
     // project/ScaladocSnippets.scala are ordinary code. (The generated snippets are Compile sources.)
     Test / scalacOptions := (Test / scalacOptions).value ++ (schema.jvm / Compile / scalacOptions).value
@@ -1430,7 +1467,7 @@ lazy val benchmarks = project
   .settings(
     libraryDependencies ++= Seq(
       "com.vitthalmirji"                      %% "toon4s-core"           % "0.9.3",
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.41.5",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.41.7",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
       "dev.zio"                               %% "zio-json"              % "0.10.0",
       "dev.zio"                               %% "zio-schema-avro"       % "1.8.6",
@@ -1865,7 +1902,7 @@ lazy val html = crossProject(JSPlatform, JVMPlatform)
 
 lazy val datastar = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-datastar", Seq(Scala3, Scala33)))
+  .settings(stdSettings("zio-blocks-datastar", Seq(Scala3, Scala3Next)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.datastar"))
   .enablePlugins(BuildInfoPlugin)
@@ -2022,15 +2059,14 @@ lazy val `async-benchmarks-scala2` = project
 // chooses the cell under test: `golemStreamsAsyncVersion; ++3.8.3; async-benchmarks-js/run`
 // exercises the native `js.async`/`js.await` backend (the alias is required so
 // `async.js` itself actually rebuilds at 3.8.3 instead of falling back — see
-// `golemStreamsAsyncVersion`'s own doc comment); `++3.3.7; async-benchmarks-js/run`
-// exercises the dotty-cps-async backend. The `jsEnv` passes Node `--expose-gc`
+// `golemStreamsAsyncVersion`'s own doc comment). The `jsEnv` passes Node `--expose-gc`
 // so the harness can force a GC between heap reads. No Kyo / Cats Effect deps:
 // JMH-grade cross-runtime throughput comparison is JVM-only (see
 // `async-benchmarks`); this gate is about the JS hot-path allocation profile.
 lazy val `async-benchmarks-js` = project
   .in(file("async-benchmarks-js"))
   .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin)
-  .settings(stdSettings("zio-blocks-async-benchmarks-js", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(stdSettings("zio-blocks-async-benchmarks-js", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
   .settings(jsSettings)
   .dependsOn(async.js)
   .settings(
@@ -2059,7 +2095,7 @@ lazy val `async-benchmarks-js` = project
 
 lazy val htmx = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-http-htmx", Seq(Scala3, Scala33)))
+  .settings(stdSettings("zio-blocks-http-htmx", Seq(Scala3, Scala3Next)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.http.htmx"))
   .enablePlugins(BuildInfoPlugin)

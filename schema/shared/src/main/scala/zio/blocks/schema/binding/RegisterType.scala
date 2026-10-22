@@ -16,8 +16,19 @@
 
 package zio.blocks.schema.binding
 
+/**
+ * The kind of register that holds a value of type `A`: one case object for each
+ * of `Unit`, `Char`, `Byte`, `Short`, `Int`, `Long`, `Float`, `Double` and
+ * `Boolean`, and `Object` for reference types.
+ * `SeqDeconstructor.SpecializedIndexed#elementType` returns one to say how the
+ * elements of an array-backed collection are stored.
+ *
+ * @tparam A
+ *   the type of the values
+ */
 sealed trait RegisterType[A]
 
+/** The register kinds. */
 object RegisterType {
   case object Unit                 extends RegisterType[Unit]
   case object Char                 extends RegisterType[Char]
@@ -30,6 +41,10 @@ object RegisterType {
   case object Boolean              extends RegisterType[Boolean]
   sealed trait Object[A <: AnyRef] extends RegisterType[A]
 
+  /**
+   * Returns the `Object` register kind for the reference type `A`. Every call
+   * returns the same instance, whose `toString` is `Object`.
+   */
   def Object[A <: AnyRef](): Object[A] = _object.asInstanceOf[Object[A]]
 
   private[this] val _object = new Object[AnyRef] {

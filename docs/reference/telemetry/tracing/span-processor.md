@@ -12,6 +12,8 @@ sidebar_label: "SpanProcessor"
 
 `SpanProcessor` is the extension point exporter authors implement to do something with finished spans — ship them to a backend, buffer them, or collect them for tests. A [`Tracer`](./tracer.md) calls `onStart` when a recorded span begins — `RecordOnly` as well as `RecordAndSample` — and `onEnd` with the immutable [`SpanData`](./span-data.md) snapshot when it finishes. You rarely implement this directly: `SpanProcessor.noop` and the built-in in-memory collector cover development and testing, so you write one only to bridge spans to an export target such as OTLP.
 
+To capture finished spans in memory and assert on them in tests, see [How to Test Code That Logs, Traces and Records Metrics](../../../guides/test-telemetry.md).
+
 ```scala
 trait SpanProcessor extends AutoCloseable {
   def onStart(span: Span): Unit         // span still mutable; RecordOnly + RecordAndSample

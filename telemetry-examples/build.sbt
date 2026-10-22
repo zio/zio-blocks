@@ -27,7 +27,9 @@ def zioBlocks(module: String) = Def.setting {
 }
 
 libraryDependencies ++= Seq(
-  zioBlocks("telemetry").value
+  zioBlocks("telemetry").value,
+  "dev.zio" %% "zio-test"     % "2.1.27" % Test,
+  "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
 )
 
 // The telemetry module is compiled for Java 21, and its `log.*` macros run inside the compiler, so
@@ -35,11 +37,12 @@ libraryDependencies ++= Seq(
 // JDK 17; there the sources are skipped with a warning instead of failing the build.
 val javaMajor = System.getProperty("java.specification.version").split('.').last.toInt
 
-Compile / unmanagedSources := {
-  val sources = (Compile / unmanagedSources).value
+def skipBelowJdk21(sources: Seq[File], log: Logger): Seq[File] =
   if (javaMajor >= 21) sources
   else {
-    streams.value.log.warn(s"telemetry-examples needs JDK 21 or newer (running on JDK $javaMajor); skipping compilation")
+    log.warn(s"telemetry-examples needs JDK 21 or newer (running on JDK $javaMajor); skipping compilation")
     Nil
   }
-}
+
+Compile / unmanagedSources := skipBelowJdk21((Compile / unmanagedSources).value, streams.value.log)
+Test / unmanagedSources    := skipBelowJdk21((Test / unmanagedSources).value, streams.value.log)

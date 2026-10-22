@@ -433,11 +433,13 @@ Context only accepts **nominal types**—concrete classes, case classes, traits,
 - Objects: `object Registry`
 - Applied types: `List[Int]`, `Map[String, Int]`
 - Enums (Scala 3): `enum Color { case Red, Green, Blue }`
+- Opaque types (Scala 3): `opaque type UserId = Long`
 
 **Not supported (compile error):**
 - Intersection types: `A & B` (use the context type parameter instead)
 - Union types: `A | B`
 - Structural types: `{ def foo: Int }`
+- Type parameters and abstract type members (require `IsNominalType[A]` from the caller instead)
 
 Attempting to store an unsupported type:
 

@@ -21,17 +21,23 @@ import scala.quoted.*
 /**
  * Version-specific macro support for structural type bindings.
  *
- * This version (Scala 3.3/3.4 LTS) does NOT support deriving Binding instances
- * for structural types because `Symbol.newClass` is marked as @experimental and
- * only available in Scala 3.5+.
+ * This version (Scala before 3.5) does NOT support deriving Binding instances
+ * for structural record types, because `Symbol.newClass` is only available in
+ * Scala 3.5 or later. Unions of structural types do not use it.
  *
- * Users on Scala 3.3 LTS should:
- *   - Use case classes instead of structural types for `Binding.of`
- *   - Upgrade to Scala 3.5+ to use structural types with `Binding.of`
- *   - Use `schema.structural` to get structural schemas from case class schemas
+ * No build compiles this version any more: `zio-blocks-schema` is built with
+ * Scala 3.9 and `zio-blocks-next-schema` with Scala 3.10, and both use the
+ * `scala-3.5+` version. In 0.0.56, `zio-blocks-schema` was built with Scala 3.3
+ * and contained this version, so its `Binding.of` rejected structural record
+ * types whatever Scala version the user compiled with, and the error's advice
+ * to upgrade to Scala 3.5 did not help.
  */
 private[binding] object StructuralBindingMacros {
 
+  /**
+   * A member of a structural type: its name, its type (a `TypeRepr`, typed
+   * `Any`), its register kind and its position.
+   */
   case class StructuralFieldInfo(name: String, memberTpe: Any, kind: String, index: Int)
 
   /**

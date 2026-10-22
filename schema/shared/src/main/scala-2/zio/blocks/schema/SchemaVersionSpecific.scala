@@ -16,34 +16,33 @@
 
 package zio.blocks.schema
 
-/**
- * Scala 2 version-specific methods for Schema instances.
- */
+/** Adds `structural` to [[Schema]]. */
 trait SchemaVersionSpecific[A] { self: Schema[A] =>
 
   /**
-   * Convert this schema to a structural type schema.
+   * Converts this schema to a schema of the structural type of `A`: a
+   * refinement with one member per field, such as
+   * `{ def title: String; def year: Int }` for
+   * `case class Book(title: String, year: Int)`. Use it to work with values by
+   * their shape rather than by their nominal type.
    *
-   * The structural type represents the "shape" of A without its nominal
-   * identity. This enables duck typing and structural validation.
+   * On Scala 3 the result has the structural type. On Scala 2 its static type
+   * is `Schema[ts.StructuralType]`: the compiler does not see the refinement,
+   * so the result cannot be assigned to a `Schema` of the structural type.
    *
-   * Example:
+   * The conversion is available on the JVM only, because structural types need
+   * reflection.
+   *
    * {{{
-   * case class Person(name: String, age: Int)
-   * val structuralSchema = Schema.derived[Person].structural
+   * case class Book(title: String, year: Int)
+   *
+   * val structural = Schema.derived[Book].structural
    * }}}
    *
-   * In Scala 2 the static type of the result is `Schema[ts.StructuralType]`:
-   * the compiler does not see that `ts.StructuralType` is
-   * `{ def name: String; def age: Int }`, so the result cannot be assigned to a
-   * `Schema` of the structural type.
-   *
-   * Note: This is JVM-only due to reflection requirements for structural types.
-   *
    * @param ts
-   *   Macro-generated conversion to structural representation
-   * @return
-   *   Schema for the structural type corresponding to A
+   *   the macro-generated conversion to the structural type
+   * @see
+   *   [[https://zioblocks.com/reference/schema/structural-types/ Structural Types]]
    */
   def structural(implicit ts: ToStructural[A]): Schema[ts.StructuralType] = ts(this)
 }

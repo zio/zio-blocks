@@ -39,7 +39,9 @@ object AsyncOwnershipLaneSpec extends StreamsBaseSpec {
       Async.succeed(Reader.fromIterable(values))
     }
 
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("Async ownership lanes")(
+  // Note: no explicit Spec ascription so the Env intersection compiles on both
+  // Scala 2.13 (`with`) and Scala 3.10 (`&`, where `with` is an error).
+  def spec = suite("Async ownership lanes")(
     test("source-owned map preserves every physical lane and remains lazy") {
       val acquisitions = new AtomicInteger
       val longs        = source(Vector(1L, 2L), acquisitions).map(_ + 10L)

@@ -298,4 +298,6 @@ val dynamicPatch: DynamicPatch = jsonPatch.toDynamicPatch
 
 See also the [Your First Schema](../../../../guides/your-first-schema.md) tutorial, which round-trips a type through JSON end to end.
 
+For throughput, see [How to Tune JSON Encoding and Decoding for Throughput](../../../../guides/tune-json-throughput.md).
+
 Coming from another JSON library? [Coming from circe, zio-json or jsoniter-scala](../../../../guides/json-library-migration.md) maps their codecs, configuration and annotations onto ZIO Blocks.

@@ -18,8 +18,18 @@ package zio.blocks.schema
 
 import zio.blocks.docs.Doc
 
+/**
+ * Something that carries documentation and modifiers: a [[Reflect]] node or a
+ * [[Term]].
+ */
 trait Reflectable[A] {
+
+  /** Returns the modifiers attached to this node or term. */
   def modifiers: Seq[Modifier]
 
+  /**
+   * Returns the documentation of this node or term, or `Doc.empty` when it has
+   * none.
+   */
   def doc: Doc
 }
