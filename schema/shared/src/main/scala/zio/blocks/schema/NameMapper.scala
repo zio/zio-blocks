@@ -20,33 +20,29 @@ import java.lang
 import java.lang.Character._
 
 /**
- * A sealed trait that represents a generic contract for mapping string input to
- * string output. Classes or objects that extend `NameMapper` provide an
- * implementation of the `apply` method, which specifies how a string
- * transformation is applied. This transformation can be used for enforcing
- * naming conventions or other string-based manipulations.
+ * Maps a Scala name, such as a field or case name, to the name a codec writes
+ * and reads, such as `published_in` for `publishedIn`. Pass one to
+ * `JsonCodecDeriver#withFieldNameMapper` or `#withCaseNameMapper`, or to the
+ * options of the same names on other derivers. The strategies are in the
+ * companion; wrap any other function in [[NameMapper.Custom]]. The built-in
+ * strategies never throw, and their `toString` is `<function1>`.
+ *
+ * {{{
+ * val snake  = NameMapper.SnakeCase("parseHTTPResponse") // parse_http_response
+ * val kebab  = NameMapper.KebabCase("address2Line")      // address2-line
+ * val camel  = NameMapper.CamelCase("published_in")      // publishedIn
+ * val pascal = NameMapper.PascalCase("HTTPServer")       // HttpServer
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/codec/ Codec]]
  */
 sealed trait NameMapper extends (String => String)
 
 /**
- * The `NameMapper` object provides a set of predefined strategies for
- * transforming string names into common naming conventions, such as snake_case,
- * camelCase, PascalCase, and kebab-case. Additionally, it allows for custom
- * transformations via the `Custom` case class.
- *
- * This object defines several `NameMapper` implementations:
- *
- *   - `SnakeCase`: Transforms strings to snake_case (e.g., "exampleName" →
- *     "example_name").
- *   - `CamelCase`: Transforms strings to camelCase (e.g., "example_name" →
- *     "exampleName").
- *   - `PascalCase`: Transforms strings to PascalCase (e.g., "example_name" →
- *     "ExampleName").
- *   - `KebabCase`: Transforms strings to kebab-case (e.g., "exampleName" →
- *     "example-name").
- *   - `Identity`: Returns the input string as-is, performing no transformation.
- *   - `Custom`: Allows for user-defined transformations by applying a given
- *     function to the input string.
+ * The naming strategies: [[NameMapper.SnakeCase]], [[NameMapper.KebabCase]],
+ * [[NameMapper.CamelCase]], [[NameMapper.PascalCase]], [[NameMapper.Identity]]
+ * and [[NameMapper.Custom]], and `fromString`, which picks one by name.
  */
 object NameMapper {
   private[this] val validStrategies = "identity, snake_case, camelCase, kebab-case, PascalCase"
@@ -120,102 +116,80 @@ object NameMapper {
   }
 
   /**
-   * A case class that provides a custom implementation of the `NameMapper`
-   * trait.
-   *
-   * The `Custom` class allows for the transformation of strings (typically
-   * member names) using a user-defined function. This transformation logic is
-   * encapsulated in the function `f` provided at instantiation.
-   *
-   * @param f
-   *   A function that defines how to transform a string. The function takes a
-   *   string (e.g., a member name) as input and returns the transformed string
-   *   as output.
+   * Maps a name with the function `f`, such as
+   * `NameMapper.Custom(_.toUpperCase)`. It throws whatever `f` throws.
    */
   case class Custom(f: String => String) extends NameMapper {
     override def apply(memberName: String): String = f(memberName)
   }
 
   /**
-   * A predefined implementation of the [[NameMapper]] trait that converts a
-   * given string into snake_case format by replacing transitions between
-   * uppercase and lowercase letters with underscores (`_`) and converting all
-   * characters to lowercase.
+   * Converts a name to snake_case: lower-case words joined by `_`, as in
+   * `publishedIn` to `published_in`.
    *
-   * For example, "memberName" would be transformed into "member_name".
+   * A word starts at a capital letter that follows any character other than a
+   * capital, `_` or `-`, and at the last capital of a run of capitals that a
+   * lower-case letter follows, so an acronym stays one word: `userID` becomes
+   * `user_id` and `parseHTTPResponse` becomes `parse_http_response`. A digit
+   * stays with the word before it: `address2Line` becomes `address2_line` and
+   * `isbn13` stays `isbn13`. An existing `_` or `-` becomes `_`, except one
+   * inside the name that a digit or symbol follows, which is dropped:
+   * `version_2` becomes `version2`.
    */
   case object SnakeCase extends NameMapper {
     override def apply(memberName: String): String = enforceSnakeOrKebabCase(memberName, '_')
   }
 
   /**
-   * A `NameMapper` implementation that transforms a string into camelCase
-   * format.
+   * Converts a name to camelCase, as in `published_in` to `publishedIn`.
    *
-   * This object overrides the `apply` method to enforce the camelCase
-   * convention on the input string, while leaving the rest of the characters
-   * unmodified, except for case adjustments as required by the camelCase
-   * format.
-   *
-   * The transformation is applied using an internal implementation that ensures
-   * the following:
-   *   - Underscores (`_`) and dashes (`-`) are treated as delimiters and are
-   *     removed.
-   *   - The character immediately following a delimiter is converted to
-   *     uppercase.
-   *   - The first character is always converted to lowercase unless the input
-   *     string already conforms to camelCase.
+   * A name that contains `_` or `-` is split there: the separators are dropped,
+   * the first character after each one is upper-cased and every other character
+   * is lower-cased, so `my_HTTPServer` becomes `myHttpserver`. A name without
+   * separators keeps its characters, except that its first character and a run
+   * of capitals at its start are lower-cased, apart from the last capital of
+   * the run when a lower-case letter follows it: `HTTPServer` becomes
+   * `httpServer`, `URL` becomes `url`, and `userID` stays `userID`.
    */
   case object CamelCase extends NameMapper {
     override def apply(memberName: String): String = enforceCamelOrPascalCase(memberName, toPascal = false)
   }
 
   /**
-   * A `NameMapper` implementation that converts string names to PascalCase.
-   * PascalCase is a naming convention where each word starts with an uppercase
-   * letter and is concatenated without any separators.
+   * Converts a name to PascalCase, as in `published_in` to `PublishedIn`. It
+   * works like [[CamelCase]], except that the first character is upper-cased:
+   * `HTTPServer` becomes `HttpServer` and `URL` becomes `Url`.
    */
   case object PascalCase extends NameMapper {
     override def apply(memberName: String): String = enforceCamelOrPascalCase(memberName, toPascal = true)
   }
 
   /**
-   * A `NameMapper` implementation that converts member names to kebab-case.
-   *
-   * By overriding the `apply` method, this object enforces a kebab-case naming
-   * convention for input strings. It uses a helper function to normalize the
-   * member name, replacing uppercase letters or existing separators with
-   * lowercase letters and a hyphen (`-`) as the separator.
+   * Converts a name to kebab-case: lower-case words joined by `-`, as in
+   * `publishedIn` to `published-in`. It splits words like [[SnakeCase]], so
+   * `parseHTTPResponse` becomes `parse-http-response` and `address2Line`
+   * becomes `address2-line`.
    */
   case object KebabCase extends NameMapper {
     override def apply(memberName: String): String = enforceSnakeOrKebabCase(memberName, '-')
   }
 
   /**
-   * An implementation of the `NameMapper` trait that performs no transformation
-   * on the provided member name. The identity operation is applied, where the
-   * input string is returned unchanged.
-   *
-   * It is a default implementation of the `NameMapper` trait, which can be used
-   * in the JSON codec derivation.
-   *
-   * Also, this is useful in cases where there is a need to override field or
-   * case names during custom codec derivation to be different from the
-   * top-level one (e.g., when using a custom codec for a nested case class).
+   * Returns a name unchanged. It is the default field and case name mapper of
+   * `JsonCodecDeriver`.
    */
   case object Identity extends NameMapper {
     override def apply(memberName: String): String = memberName
   }
 
   /**
-   * Parses a built-in naming strategy string into a [[NameMapper]].
-   *
-   * Accepted values are `identity`, `snake_case`, `camelCase`, `kebab-case`,
-   * and `PascalCase`.
+   * Returns the built-in strategy named `s`: `identity`, `snake_case`,
+   * `camelCase`, `kebab-case` or `PascalCase`, spelled exactly so.
+   * `JsonCodecDeriver` resolves the strategy of `Modifier.fieldNaming` and
+   * `Modifier.caseNaming` with it while deriving.
    *
    * @throws java.lang.IllegalArgumentException
-   *   if the provided strategy name does not match one of the supported
-   *   built-in strategies.
+   *   when `s` is any other string, such as `SnakeCase` or `pascalcase`.
    */
   def fromString(s: String): NameMapper = s match {
     case "identity"   => Identity

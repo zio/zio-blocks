@@ -17,26 +17,36 @@
 package zio.blocks.schema
 
 /**
- * Type class for integral types that support bitwise operations. Only Byte,
- * Short, Int, and Long are supported.
+ * Evidence that `A` is `Byte`, `Short`, `Int` or `Long`, the types for which
+ * the bitwise operators of [[Optic]], such as `&`, `|`, `<<` and `unary_~`,
+ * build a [[SchemaExpr]]. It is sealed: those four types are the only
+ * instances.
  */
 sealed trait IsIntegral[A] {
+
+  /** The schema of `A`. */
   def schema: Schema[A]
 }
 
+/** The four instances of [[IsIntegral]]. */
 object IsIntegral {
+
+  /** `Byte` is integral. */
   implicit val IsByte: IsIntegral[Byte] = new IsIntegral[Byte] {
     def schema: Schema[Byte] = Schema[Byte]
   }
 
+  /** `Short` is integral. */
   implicit val IsShort: IsIntegral[Short] = new IsIntegral[Short] {
     def schema: Schema[Short] = Schema[Short]
   }
 
+  /** `Int` is integral. */
   implicit val IsInt: IsIntegral[Int] = new IsIntegral[Int] {
     def schema: Schema[Int] = Schema[Int]
   }
 
+  /** `Long` is integral. */
   implicit val IsLong: IsIntegral[Long] = new IsIntegral[Long] {
     def schema: Schema[Long] = Schema[Long]
   }
