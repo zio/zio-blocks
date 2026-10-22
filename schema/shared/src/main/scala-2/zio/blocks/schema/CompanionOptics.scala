@@ -16,56 +16,182 @@
 
 package zio.blocks.schema
 
+/**
+ * Mix this trait into a companion object to build optics for `S` from a
+ * selector lambda: `$(_.title)`, or the same with a name, `optic(_.title)`. A
+ * macro reads the lambda at compile time and builds the optic from the implicit
+ * `Schema[S]`. The kind of optic follows from the path: a [[Lens]] when every
+ * step is a field, a [[Prism]] when every step is `when`, a [[Traversal]] when
+ * any step is `each`, `eachKey`, `eachValue`, `atIndices`, `atKeys` or
+ * `searchFor`, and an [[Optional]] otherwise.
+ *
+ * A path is a chain of these steps:
+ *
+ *   - `.field`: a field of a record;
+ *   - `.when[C]`: the case `C` of a variant;
+ *   - `.at(i)`, `.atIndices(i, j)`, `.each`: elements of a sequence;
+ *   - `.atKey(k)`, `.atKeys(k1, k2)`, `.eachKey`, `.eachValue`: keys and values
+ *     of a map;
+ *   - `.wrapped[B]`: the value of type `B` inside a wrapper;
+ *   - `.searchFor[T]`: every value at or below this point that decodes as a `T`
+ *     (needs an implicit `Schema[T]`).
+ *
+ * On Scala 3, a path can also select a tuple element by index, as in `$(_(0))`,
+ * and `when` also takes a case of a union type. The step methods compile only
+ * inside `$` and `optic`, and any other expression in the lambda is a compile
+ * error.
+ *
+ * The macro checks the path against the types, and the schema is checked when
+ * the optic is built: if the schema at a step has another shape than the step
+ * needs, for example a `.field` step where the schema is a wrapper built with
+ * `Schema#transform`, building the optic throws a `RuntimeException` such as
+ * `Expected a record`.
+ *
+ * {{{
+ * sealed trait Format
+ * case class Paperback(pages: Int) extends Format
+ * case class Ebook(sizeMb: Double) extends Format
+ *
+ * case class Book(title: String, tags: List[String], format: Format)
+ * object Book extends CompanionOptics[Book] {
+ *   implicit val schema: Schema[Book] = Schema.derived
+ *   val title: Lens[Book, String]     = $(_.title)
+ *   val pages: Optional[Book, Int]    = $(_.format.when[Paperback].pages)
+ *   val tags: Traversal[Book, String] = optic(_.tags.each)
+ * }
+ *
+ * val zionomicon = Book("Zionomicon", List("zio", "scala"), Paperback(870))
+ * Book.pages.getOption(zionomicon)   // Some(870)
+ * Book.pages.toString              // Optional(_.format.when[Paperback].pages)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/optics/ Optics]]
+ */
 trait CompanionOptics[S] {
   import scala.annotation.compileTimeOnly
   import scala.language.experimental.macros
 
+  /**
+   * Scala 2 only: adds the `when`, `wrapped` and `searchFor` steps to any value
+   * inside a `$` or `optic` lambda. On Scala 3 they are extension methods.
+   */
   implicit class ValueExtension[A](a: A) {
+
+    /**
+     * In a path, focuses on the case `B` of a variant. Compiles only inside `$`
+     * and `optic`.
+     */
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def when[B <: A]: B = ???
 
+    /**
+     * In a path, focuses on the value of type `B` inside a wrapper, such as a
+     * schema built with `Schema#transform`. Compiles only inside `$` and
+     * `optic`.
+     */
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def wrapped[B]: B = ???
 
+    /**
+     * In a path, focuses on every value at or below this point that decodes as
+     * a `B`, found depth first. It needs an implicit `Schema[B]`. Compiles only
+     * inside `$` and `optic`.
+     */
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def searchFor[B]: B = ???
   }
 
+  /**
+   * Scala 2 only: adds the `at`, `atIndices` and `each` steps to a sequence
+   * inside a `$` or `optic` lambda. On Scala 3 they are extension methods.
+   */
   implicit class SequenceExtension[C[_], A](c: C[A]) {
+
+    /**
+     * In a path, focuses on the element at `index` of a sequence. Compiles only
+     * inside `$` and `optic`.
+     */
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def at(index: Int): A = ???
 
+    /**
+     * In a path, focuses on the elements at `indices` of a sequence. Compiles
+     * only inside `$` and `optic`.
+     */
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def atIndices(indices: Int*): A = ???
 
+    /**
+     * In a path, focuses on every element of a sequence. Compiles only inside
+     * `$` and `optic`.
+     */
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def each: A = ???
   }
 
+  /**
+   * Scala 2 only: adds the `atKey`, `atKeys`, `eachKey` and `eachValue` steps
+   * to a map inside a `$` or `optic` lambda. On Scala 3 they are extension
+   * methods.
+   */
   implicit class MapExtension[M[_, _], K, V](m: M[K, V]) {
+
+    /**
+     * In a path, focuses on the value at `key` in a map. Compiles only inside
+     * `$` and `optic`.
+     */
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def atKey(key: K): V = ???
 
+    /**
+     * In a path, focuses on the values at `keys` in a map. Compiles only inside
+     * `$` and `optic`.
+     */
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def atKeys(keys: K*): V = ???
 
+    /**
+     * In a path, focuses on every key of a map. Compiles only inside `$` and
+     * `optic`.
+     */
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def eachKey: K = ???
 
+    /**
+     * In a path, focuses on every value of a map. Compiles only inside `$` and
+     * `optic`.
+     */
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def eachValue: V = ???
   }
 
+  /**
+   * Builds the optic that `path` describes (see [[CompanionOptics]]). The
+   * result has the exact optic type, such as `Lens[S, String]`. `$` and `optic`
+   * are the same macro.
+   */
   def $[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
 
+  /**
+   * Builds the optic that `path` describes (see [[CompanionOptics]]). The
+   * result has the exact optic type, such as `Lens[S, String]`. `$` and `optic`
+   * are the same macro.
+   */
   def optic[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
 }
 
+/**
+ * Macro implementation of `CompanionOptics#$` and `CompanionOptics#optic`.
+ */
 private object CompanionOptics {
   import scala.reflect.macros.whitebox
   import scala.reflect.NameTransformer
   import zio.blocks.schema.CommonMacroOps
 
+  /**
+   * Macro implementation of `CompanionOptics#$` and `CompanionOptics#optic`.
+   */
   def optic[S, A](c: whitebox.Context)(path: c.Expr[S => A])(schema: c.Expr[Schema[S]]): c.Tree = {
     import c.universe._
 
