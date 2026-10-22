@@ -3720,6 +3720,134 @@ object Main extends App {
 **Suggested fix.** Render the value on one line (`Json#print` / a compact `DynamicValue` rendering), or indent every line after the first by the current indent.
 
 
+### schema: `JsonCodec#encode` into a too-small `ByteBuffer` throws after writing part of the value, and leaves `position` past the partial JSON
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/tune-json-throughput.md` (backlog H-50), on `main` at `7e8ac787`. `JsonCodec`, `JsonReader`, `JsonWriter`, `ReaderConfig`, `WriterConfig` and `Schema` are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `JsonCodec#encode(value, output: ByteBuffer)` throws `java.nio.BufferOverflowException` when the value doesn't fit, which is the JDK convention. The JDK's own bulk `ByteBuffer#put` also leaves the buffer unchanged when it throws: `position` stays where it was. The codec doesn't. For a heap buffer it has already written the bytes that fit into the backing array and moves `position` to the end of them. For a direct buffer and a value larger than the writer's internal buffer (`WriterConfig#preferredBufSize`, 32 KiB by default), it has already copied whole chunks into the buffer, and `position` is left after them. Either way the buffer now ends with a truncated JSON value, and a caller that catches the exception and moves on, for example to flush the buffer and retry, sends the fragment.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import java.nio.{BufferOverflowException, ByteBuffer}
+import zio.blocks.schema._
+
+case class Book(title: String, authors: List[String], year: Int)
+object Book {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+object OverflowRepro {
+  def attempt(buffer: ByteBuffer, value: Book): Unit =
+    try Book.schema.jsonCodec.encode(value, buffer)
+    catch {
+      case e: BufferOverflowException =>
+        println(s"${e.getClass.getSimpleName}: position ${buffer.position()} of limit ${buffer.limit()}")
+    }
+
+  def main(args: Array[String]): Unit = {
+    val book = Book("Zionomicon", List("John A. De Goes", "Adam Fraser"), 2024)
+    println(s"JSON size: ${Book.schema.jsonCodec.encode(book).length}")
+
+    val heap = ByteBuffer.allocate(20)
+    attempt(heap, book)
+    heap.flip()
+    println("heap buffer now holds: " + new String(heap.array(), 0, heap.limit(), "UTF-8"))
+
+    // The JDK's own bulk put leaves the position unchanged on overflow
+    val jdk = ByteBuffer.allocate(20)
+    try jdk.put(new Array[Byte](60))
+    catch { case _: BufferOverflowException => println(s"ByteBuffer#put: position ${jdk.position()}") }
+
+    // A direct buffer is written in chunks once the value is larger than the writer's 32 KiB buffer
+    val big    = (1 to 8000).toList.map(i => s"Author $i")
+    val large  = book.copy(authors = big)
+    val size   = Book.schema.jsonCodec.encode(large).length
+    val direct = ByteBuffer.allocateDirect(size - 1)
+    println(s"large JSON size: $size")
+    attempt(direct, large)
+  }
+}
+// JSON size: 78
+// BufferOverflowException: position 9 of limit 20
+// heap buffer now holds: {"title":
+// ByteBuffer#put: position 0
+// large JSON size: 110939
+// BufferOverflowException: position 98283 of limit 110938
+```
+
+A direct buffer and a value smaller than 32 KiB are not affected: the writer encodes into its own buffer and copies it in one `put` at the end, which throws before writing anything.
+
+**Expected.** On overflow, `position` is where it was before the call, as with `ByteBuffer#put`, so the caller can flush or grow the buffer and encode again. At least the Scaladoc of `JsonCodec#encode(value, output: ByteBuffer)` should say that the buffer is left with partial output.
+
+**Root cause.** Heap buffer: `JsonWriter.write(codec, x, bbuf, config)` writes straight into `bbuf.array` and, in its `finally` block, sets `bbuf.position(count - offset)` whether or not encoding succeeded (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:1171-1188`); the `ArrayIndexOutOfBoundsException` from `flushAndGrowBuf` (`:2798`) becomes `BufferOverflowException` at `:1182`, after `count` has advanced. Direct buffer: `flushAndGrowBuf` calls `bbuf.put(buf, 0, pos)` each time the internal buffer fills (`:2790-2793`), so earlier chunks are already in the target when the last `put` (`:1197`) throws. `JsonCodec#encode(value, output, config)` delegates without a `try` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodec.scala:171-175`). The Scala.js writer has the same structure.
+
+**Impact.** Code that encodes several messages into one reusable `ByteBuffer`, or that sizes a buffer optimistically and falls back on overflow, writes corrupt output unless it saves and restores `position` itself. The H-50 guide shows that workaround (`encodeOrRewind`).
+
+**Test gap.** No test in `schema` encodes into a `ByteBuffer` that is too small; `BufferOverflowException` appears in no test file.
+
+**Suggested fix.** Remember `bbuf.position()` on entry and restore it before rethrowing (heap path: set `bbuf.position(start)` in the `catch`; direct path: catch `BufferOverflowException` and reset to the saved position). Add tests for both buffer kinds, with values smaller and larger than `preferredBufSize`.
+
+### schema: `ReaderConfig#maxBufSize` below 32 KiB depends on the thread's earlier calls, and can fail with an internal index error
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/tune-json-throughput.md` (backlog H-50), on `main` at `7e8ac787`. `JsonReader` and `ReaderConfig` are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** For `InputStream` and `ByteBuffer` input, `ReaderConfig#maxBufSize` caps how far the reader's byte buffer may grow, for example while it holds a whole object to find a discriminator field that comes last. The pooled reader of each thread starts with a 32768-byte buffer, and a call only ever grows that buffer to the config's preferred size, never shrinks it on entry. A `maxBufSize` smaller than the current buffer is therefore not applied: on a thread's first call, or after any call with a larger config, input that should hit the limit decodes successfully. When such input is also larger than the current buffer, the reader "grows" the buffer down to `maxBufSize` and fails with a leaked internal message (`Range [32768, 32768 + -30720) out of bounds for length 2048`) instead of `too long part of input exceeded 'maxBufSize'`. The same request can pass on one thread and fail on another.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import java.io.ByteArrayInputStream
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+sealed trait Edition
+object Edition {
+  case class Print(isbn: String, pages: Int) extends Edition
+  case class Ebook(url: String)              extends Edition
+  implicit val schema: Schema[Edition] = Schema.derived
+}
+
+object MaxBufSizeRepro {
+  // The discriminator comes last, so the reader must buffer the whole object
+  def print(isbnLength: Int): Array[Byte] =
+    s"""{"isbn":"${"9" * isbnLength}","pages":1,"type":"Print"}""".getBytes("UTF-8")
+
+  def main(args: Array[String]): Unit = {
+    val codec  = Edition.schema.derive(JsonCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type")))
+    val strict = ReaderConfig.withPreferredBufSize(1024).withMaxBufSize(2048)
+
+    // The same 5 KB input and config, twice on one thread
+    println(codec.decode(new ByteArrayInputStream(print(5000)), strict).isRight)
+    println(codec.decode(new ByteArrayInputStream(print(5000)), strict))
+
+    // A call with the default config, then a 40 KB input with the strict config
+    println(codec.decode(new ByteArrayInputStream(print(5000))).isRight)
+    println(codec.decode(new ByteArrayInputStream(print(40000)), strict))
+  }
+}
+// true
+// Left(zio.blocks.schema.SchemaError: too long part of input exceeded 'maxBufSize' at: .)
+// true
+// Left(zio.blocks.schema.SchemaError: Range [32768, 32768 + -30720) out of bounds for length 2048 at: .)
+```
+
+**Expected.** The first two calls give the same result (`Left` with `too long part of input exceeded 'maxBufSize'`), whatever the thread did before, and the last call fails with that message too.
+
+**Root cause.** `JsonReader.read(codec, in, config)` reallocates the buffer only when it is smaller than `config.preferredBufSize` (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonReader.scala:1747`; the direct `ByteBuffer` path does the same at `:1809`), and shrinks it only in the `finally` block (`:1753`). `growBuf` (`:5061-5068`) raises `tooLongInputError` only when `buf.length == maxBufSize`; when the buffer is already larger, it doubles the length, clamps it to `maxBufSize` and copies the buffer into a smaller array, so the next `loadMore` read fails with `IndexOutOfBoundsException`, which `JsonCodec#decode` turns into a `Left` with the exception's message. The reader's buffer starts at 32768 bytes (`JsonReader.scala:62`).
+
+**Impact.** Low for the defaults (32 MiB), but the setting exists to protect public endpoints, and a service that lowers it below 32 KiB gets a limit that applies only some of the time. The H-50 guide tells readers to keep `maxBufSize` at 32768 or more.
+
+**Test gap.** `ReaderConfigSpec` checks the setters' validation only. No test decodes from a stream with a `maxBufSize` smaller than the reader's initial buffer, or on a fresh thread.
+
+**Suggested fix.** On entry to the stream and direct-buffer `read` overloads, reallocate when `buf.length > config.maxBufSize` (not only when it is smaller than `preferredBufSize`), and make `growBuf` raise `tooLongInputError` when `bufLen >= maxBufSize`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -4423,6 +4551,121 @@ Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main`
 **Suggested fix.** Include the rendered key in the message, or push a `DynamicOptic.Node.AtMapKey` step onto the trace.
 
 
+### schema: `toJsonString`, `toJsonBytes` and `fromJson` on a `List`, `Option` or `Map` derive a new JSON codec on every call
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/tune-json-throughput.md` (backlog H-50), on `main` at `7e8ac787`. `JsonCodec`, `JsonReader`, `JsonWriter`, `ReaderConfig`, `WriterConfig` and `Schema` are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `Schema#jsonCodec` is a `lazy val`, so a codec is derived once per `Schema` instance. That works for a case class whose companion has `implicit val schema = Schema.derived`. But the schemas for collections and options are `implicit def`s that build a new `Schema` each time the compiler summons one, so the cache is always empty. Every `books.toJsonString`, `books.toJsonBytes` or `json.fromJson[List[Book]]` therefore derives a new `List[Book]` codec, including the codec for `Book` inside it, and throws it away. For small payloads the derivation costs far more than the encoding.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run`; timings from one run on scala-cli's default JVM, and they vary):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+
+case class Book(title: String, year: Int)
+object Book {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+object RederiveRepro {
+  def main(args: Array[String]): Unit = {
+    println(Schema[Book].jsonCodec eq Schema[Book].jsonCodec)
+    println(Schema[List[Book]] eq Schema[List[Book]])
+    println(Schema[List[Book]].jsonCodec eq Schema[List[Book]].jsonCodec)
+    println(Schema[Option[Book]].jsonCodec eq Schema[Option[Book]].jsonCodec)
+    println(Schema[Map[String, Book]].jsonCodec eq Schema[Map[String, Book]].jsonCodec)
+
+    // So every call of these extension methods derives a new List[Book] codec
+    val books = List(Book("Zionomicon", 2024), Book("Programming in Scala", 2008), Book("Scala with Cats", 2017))
+    val json  = books.toJsonString
+    def time(label: String)(f: => Any): Unit = {
+      (1 to 2000).foreach(_ => f) // warm-up
+      val start = System.nanoTime()
+      (1 to 2000).foreach(_ => f)
+      println(f"$label: ${(System.nanoTime() - start) / 2000 / 1000.0}%.0f us per call")
+    }
+    val held = Schema[List[Book]].jsonCodec
+    time("books.toJsonString       ")(books.toJsonString)
+    time("held codec encodeToString")(held.encodeToString(books))
+    time("json.fromJson[List[Book]]")(json.fromJson[List[Book]])
+    time("held codec decode        ")(held.decode(json))
+  }
+}
+// true
+// false
+// false
+// false
+// false
+// books.toJsonString       : 34 us per call
+// held codec encodeToString: 1 us per call
+// json.fromJson[List[Book]]: 20 us per call
+// held codec decode        : 1 us per call
+```
+
+**Expected.** Either the extension methods reuse one codec per element type, or the docs say plainly that `toJsonString` and `fromJson` on a collection type re-derive the codec on each call and should not be used on a hot path.
+
+**Root cause.** `Schema.list`, `Schema.option` and the other collection schemas are `implicit def`s returning `new Schema(...)` (`schema/shared/src/main/scala/zio/blocks/schema/Schema.scala:261`, `:314`, `:321` and the following definitions). The codec cache is a per-instance `ConcurrentHashMap` behind `lazy val jsonCodec` (`Schema.scala:36-43`). The extension methods call `schema.jsonCodec` on whatever instance the compiler supplies (`schema/shared/src/main/scala-2/zio/blocks/schema/syntax.scala:32-44`, and the same in `scala-3/`). `Schema#derive` (`Schema.scala:54`) never caches, by design.
+
+**Impact.** The shortest JSON code in the docs (`toJsonString`, `fromJson`) is the slowest on collection types, and nothing warns about it. A service that answers with `books.toJsonString` pays for a derivation on every request. The H-50 guide shows the check and tells readers to keep codecs in `val`s.
+
+**Test gap.** No test checks that summoning the same collection schema twice reuses its codec.
+
+**Suggested fix.** Cache derived codecs by the `Reflect` structure rather than by `Schema` instance (for example, memoize `getInstance` per element schema for the built-in collection schemas), or make the common collection schemas stable per element schema. If neither is wanted, document the cost on `syntax.md` and on the JSON codec reference page, and recommend `val listCodec = Schema[List[A]].jsonCodec`.
+
+### schema: decoding from an `InputStream` discards the bytes it read past the first value, so one stream can't hold several values
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/tune-json-throughput.md` (backlog H-50), on `main` at `7e8ac787`. `JsonCodec`, `JsonReader`, `JsonWriter`, `ReaderConfig`, `WriterConfig` and `Schema` are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `JsonCodec#decode(input: InputStream)` fills its internal buffer with as much as the stream offers, decodes one value, and returns. Bytes that it read past the end of that value are dropped. With `ReaderConfig#withCheckForEndOfInput(false)`, decoding the same `ByteBuffer` twice returns two values, because the reader moves `position` back to the end of the first value. Decoding the same `InputStream` twice returns the first value and then fails, because the stream is already exhausted. Newline-delimited JSON or a sequence of concatenated documents can't be read from a stream one value at a time.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import java.io.ByteArrayInputStream
+import java.nio.ByteBuffer
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+case class Book(title: String, year: Int)
+object Book {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+object StreamReadAheadRepro {
+  def main(args: Array[String]): Unit = {
+    val codec  = Book.schema.jsonCodec
+    val bytes  = codec.encode(Book("Zionomicon", 2024)) ++ codec.encode(Book("Programming in Scala", 2008))
+    val config = ReaderConfig.withCheckForEndOfInput(false)
+
+    val buffer = ByteBuffer.wrap(bytes)
+    println(s"ByteBuffer: ${codec.decode(buffer, config)}, ${codec.decode(buffer, config)}")
+
+    val stream = new ByteArrayInputStream(bytes)
+    println(s"InputStream: ${codec.decode(stream, config)}, ${codec.decode(stream, config)}")
+    println(s"bytes left in the stream: ${stream.available()} of ${bytes.length}")
+  }
+}
+// ByteBuffer: Right(Book(Zionomicon,2024)), Right(Book(Programming in Scala,2008))
+// InputStream: Right(Book(Zionomicon,2024)), Left(zio.blocks.schema.SchemaError: unexpected end of input at: .)
+// bytes left in the stream: 0 of 78
+```
+
+**Expected.** Either a way to read several values from one stream (jsoniter-scala, which this reader resembles, has `scanJsonValuesFromStream` for this), or a note in the Scaladoc of `JsonCodec#decode(input: InputStream)` that the stream must hold exactly one value and is read past it.
+
+**Root cause.** `loadMore` reads up to `buf.length - tail` bytes per call (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonReader.scala:5049-5053`), so the reader routinely holds bytes past the current value. The `InputStream` overload of `read` only clears `this.in` when it returns (`JsonReader.scala:1752`); it has no way to push the extra bytes back. The `ByteBuffer` overloads restore the position instead (`JsonReader.scala:1798`, `:1817`).
+
+**Impact.** Users porting jsoniter-scala code that scans a stream of values, or reading NDJSON logs, must read the whole stream into a `ByteBuffer` or split lines themselves. The H-50 guide documents the limitation.
+
+**Test gap.** The stream round-trip helpers in `JsonTestUtils` (`schema/shared/src/test/scala/zio/blocks/schema/json/JsonTestUtils.scala:73`, `:97`, `:134`) always decode exactly one value per stream.
+
+**Suggested fix.** Add a `JsonCodec#decodeAll(input: InputStream, config)` (or a callback-based scan) that keeps one reader over the stream and decodes values until end of input, and document the one-value rule on the existing overload.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -4516,6 +4759,9 @@ Pages that contradict the source. None of these were copied into the new guides.
 - `schema-error.md:41-43` says multiple independent problems are surfaced all at once and that every `Codec#decode` returns them in one `SchemaError`. The JSON and TOON codecs stop at the first failure; only `Schema#fromDynamicValue` (and `Into.derived`) collect every error. Found while writing H-04, which shows both.
 - `json-schema.md:366` shows an error message without the ` at: <path>` suffix that `SchemaError.message` adds. The page also does not mention the `pattern` anchoring behaviour above.
 - `ValidationOptions` Scaladoc (`JsonSchema.scala:376-377`) says format checks are annotation-only by default; the code defaults to `validateFormats = true`.
+- `json-config.md:89-92`: the `ReaderConfig` table gives `preferredCharBufSize` a default of `8192`; the default is `4096` (`ReaderConfig.scala:108`). The table also leaves out `preferredBufSize` (32768), `maxBufSize` (33554432) and `maxCharBufSize` (4194304), so the two safety limits are undocumented on the reference page. Found while writing H-50.
+- `json-config.md:208` says "`checkForEndOfInput` adds one comparison". After the value, the reader skips all trailing whitespace and, for an `InputStream` or `ByteBuffer`, keeps reading input to do it (`JsonReader.scala:1831-1850`). `:207` ("minimal performance impact" of indentation) and `:214` ("compact output is faster") are not backed by any benchmark in the repo. Found while writing H-50.
+- `json/index.md:66-67` lists "order" as a `WriterConfig` option and "number handling" as a `ReaderConfig` option. Neither exists: `WriterConfig` has `indentionStep`, `preferredBufSize` and `escapeUnicode` (`WriterConfig.scala:42-44`), and `ReaderConfig` has only buffer sizes and `checkForEndOfInput` (`ReaderConfig.scala:50-54`). Found while writing H-50.
 
 - `json.md:25` says "Objects use `Vector[(String, Json)]`". `Json.Object` holds a `Chunk[(String, Json)]` (`Json.scala:493`). Found while writing H-06; verified.
 - `json.md:66-86` ("String Interpolators") says the `json"..."` interpolator is compile-time validated, without saying it does not compile on Scala 2.13 in user code (see Library bugs).

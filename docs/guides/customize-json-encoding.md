@@ -728,5 +728,6 @@ sbt compile
 
 - [Modifier](../reference/schema/modifier.md) documents every modifier, including the JSON modifiers used in this guide.
 - [JSON Configuration](../reference/schema/built-in-codecs/json/json-config.md) covers `WriterConfig` for pretty-printing, `ReaderConfig` and `NameMapper`.
+- [How to Tune JSON Encoding and Decoding for Throughput](./tune-json-throughput.md) shows how to decode from bytes and streams, reuse codecs and size buffers for speed.
 - [Your First Schema](./your-first-schema.md) is the tutorial this guide builds on.
 - To change how one type is encoded everywhere, such as a custom `LocalDate` format, see the instance overrides in [Type-Class Derivation](../reference/schema/type-class-derivation.md).
