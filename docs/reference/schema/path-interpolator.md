@@ -721,7 +721,7 @@ val dynamicPath = p".email"
 4. **Use raw strings for map keys**: Triple-quoted strings avoid escape hell:
 
    ```scala mdoc:compile-only
-   p"""config{"api.key"}"""  // Better than p"config{\"api.key\"}"
+   p"""config{"api.key"}"""  // p"config{\"api.key\"}" does not compile: the macro does not process escapes
    ```
 
 5. **Document complex paths**: Add comments explaining what nested paths navigate:
@@ -742,7 +742,7 @@ These limitations ensure compile-time safety and zero runtime overhead.
 
 ## Debug-Friendly toString
 
-`DynamicOptic` instances have a custom `toString` that produces output matching the `p"..."` interpolator syntax. This makes debugging easier because you can copy the output directly into your code:
+`DynamicOptic` instances have a custom `toString` that produces output matching the `p"..."` interpolator syntax. This makes debugging easier because you can copy the output directly into your code, except for wrapper steps (`.~`), the empty path (`.`) and `Char` keys with an escape, which the interpolator rejects:
 
 ```scala mdoc
 val optic = DynamicOptic.root.field("users").elements.field("email")
@@ -766,7 +766,7 @@ val same = p".users[*].email"
 | `DynamicOptic.root.atKey(80)`                          | `p"{80}"`            |
 | `DynamicOptic.mapValues`                               | `p"{*}"`             |
 | `DynamicOptic.mapKeys`                                 | `p"{*:}"`            |
-| `DynamicOptic.wrapped`                                 | `p".~"`              |
+| `DynamicOptic.wrapped`                                 | none (`toString` prints `.~`, which `p"..."` rejects) |
 | `DynamicOptic.root.searchSchema(SchemaRepr.Nominal("Person"))` | `p"#Person"` |
 | `DynamicOptic.root.searchSchema(SchemaRepr.Primitive("string"))` | `p"#string"` |
 
