@@ -467,3 +467,5 @@ If `DynamicSchema#rebind` cannot find a binding for any type present in the unbo
 :::
 
 See [Binding](binding.md) for details on each binding kind, and [Schema](schema.md) for the overall structure of the schema system.
+
+See also: [How to Build a Schema Registry with DynamicSchema](../../guides/build-a-schema-registry.md), a guide that rebinds stored schemas to Scala types with a `BindingResolver`.

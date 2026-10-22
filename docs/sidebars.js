@@ -457,6 +457,7 @@ const sidebars = {
     "guides/your-first-schema",
     "guides/customize-json-encoding",
     "guides/json-without-case-classes",
+    "guides/build-a-schema-registry",
     "guides/override-codec-for-one-type",
     "guides/validated-newtypes",
     "guides/diff-and-patch",

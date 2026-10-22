@@ -466,6 +466,8 @@ The primary consumer of `DynamicSchema` in a type-safe context is `DynamicSchema
 
 `Schema[A]#toDynamicSchema` is defined on `Schema` and is the standard way to obtain a `DynamicSchema`. See [Schema](./schema.md).
 
+See also: [How to Build a Schema Registry with DynamicSchema](../../guides/build-a-schema-registry.md), a guide that stores versioned schemas as data and checks incoming events against them.
+
 ## Running the Examples
 
 All code from this guide is available as runnable examples in the `schema-examples` module.
