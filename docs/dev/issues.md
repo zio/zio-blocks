@@ -4073,6 +4073,8 @@ object Main {
 // Failure(java.lang.IllegalArgumentException: Attempt to get java.lang.String field "Edition.title" with illegal data type conversion to int)
 ```
 
+Still present on `main` (checked 2026-10-22 at `bffadae7` plus the wave 3 commits, with a local publish of `zio-blocks-schema` built with Scala 3.9.0, consumed on 3.9.0 with `-experimental`): the output is the same three lines.
+
 The same file with `//> using scala 2.13.18` prints `{ title: "Zionomicon", author: "John A. De Goes" }`, the same `Right(...)`, and `Success({ title: "Zionomicon", year: 2021 })`. On Scala 3.3.7, `classOf[Edition].getDeclaredFields.map(_.getName)` is `catalogue, title, year`.
 
 **Expected.** The rebound schemas encode `Book("Zionomicon", "John A. De Goes")` as `{ title: "Zionomicon", author: "John A. De Goes" }` and `Edition("Zionomicon", 2021)` as `{ title: "Zionomicon", year: 2021 }`, as on Scala 2.
@@ -4971,11 +4973,13 @@ Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main`
 
 **Suggested fix.** Include the rendered key in the message, or push a `DynamicOptic.Node.AtMapKey` step onto the trace.
 
-### schema (Scala 3): `Binding.of` of a structural record type fails with `zio-blocks-schema` on every Scala 3 version, and the error says to upgrade to Scala 3.5
+### schema (Scala 3): `Binding.of` of a structural record type fails with `zio-blocks-schema` on every Scala 3 version, and the error says to upgrade to Scala 3.5 (0.0.56; fixed on `main` by #1743)
 
 Found 2026-10-21 while writing the Scaladoc of the `binding` package (wave 3 of the schema Scaladoc, branch `scaladoc-wave-3`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: both reproductions below were run with `scala-cli run Repro.scala` against the published `0.0.56`.
 
-**Summary.** The Scaladoc of `Binding.of` listed "Structural types (JVM only)". With the `zio-blocks-schema` artifact, `Binding.of` of a structural record type never compiles on Scala 3, whatever the compiler version: that artifact is built with Scala 3.3.7, so it contains the `scala-3.5-` version of the macro support, which always fails. Its error says "requires Scala 3.5+" and suggests upgrading to Scala 3.5, which does not help. Structural record types work only with the `zio-blocks-next-schema` artifact, which needs Scala 3.9 and `-experimental`; a union of structural types does not use this macro and compiles with `zio-blocks-schema` too.
+**Status on `main` (checked 2026-10-22 at `bffadae7` plus the wave 3 commits).** #1743 (`3defefab`) fixes this for the next release. `zio-blocks-schema` is now built with Scala 3.9.0 (`project/BuildHelper.scala:11`; the `zio-blocks-next-*` rename now needs `minor >= 10`, `:176-181`), so it compiles the `scala-3.5+` version of the macro support (`findApplicableScala3MinorDirs`, `:97`). Verified with a local publish of `main` (`set ThisBuild / version := "0.0.0-wave3probe"; ++3.9.0; chunkJVM/publishLocal; maybeJVM/publishLocal; markdownJVM/publishLocal; typeidJVM/publishLocal; schemaJVM/publishLocal`): the reproduction below, with `//> using repository ivy2Local`, `//> using dep dev.zio::zio-blocks-schema:0.0.0-wave3probe` and `//> using option -experimental`, compiles and prints `Record`. Without `-experimental` it fails with `trait BindingCompanionVersionSpecific is marked @experimental: Added by -experimental`, because the 3.9 build compiles with `-experimental` (`:233`). The same happens for `Binding.of[Book]` of a case class and for `Schema.derived` (`trait SchemaCompanionVersionSpecific is marked @experimental`), so on `main` every Scala 3 user of `zio-blocks-schema` needs `-experimental`. No build compiles the `scala-3.5-` sources, with their misleading message, any more.
+
+**Summary (0.0.56).** The Scaladoc of `Binding.of` listed "Structural types (JVM only)". With the `zio-blocks-schema` artifact, `Binding.of` of a structural record type never compiles on Scala 3, whatever the compiler version: that artifact is built with Scala 3.3.7, so it contains the `scala-3.5-` version of the macro support, which always fails. Its error says "requires Scala 3.5+" and suggests upgrading to Scala 3.5, which does not help. Structural record types work only with the `zio-blocks-next-schema` artifact, which needs Scala 3.9 and `-experimental`; a union of structural types does not use this macro and compiles with `zio-blocks-schema` too.
 
 **Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
 
@@ -5017,13 +5021,13 @@ With `//> using dep dev.zio::zio-blocks-next-schema:0.0.56` and `//> using optio
 
 **Expected.** Either the error names what works (the `zio-blocks-next-schema` artifact with Scala 3.9 and `-experimental`), or the `zio-blocks-schema` artifact supports structural record types.
 
-**Root cause.** `project/BuildHelper.scala:172-177` publishes the Scala 3.3 build as `zio-blocks-schema` and the Scala 3.7+ build (in practice the 3.9.0 build, so consumers need Scala 3.9+) as `zio-blocks-next-schema` (the `zio-blocks-schema_3` 0.0.56 POM depends on `scala3-library_3` 3.3.7). The 3.3 build compiles `schema/shared/src/main/scala-3.5-/zio/blocks/schema/binding/StructuralBindingMacros.scala`, whose `generateAnonymousClassFactory` (`:49`) always fails with the message at `:54`-`:69`. It is called only for structural record types (`schema/shared/src/main/scala-3/zio/blocks/schema/binding/BindingCompanionVersionSpecific.scala:1376`, through the helper at `:1443-1446`); unions of structural types use `deriveStructuralVariantBindingSimple` (`:1528`), which does not call it.
+**Root cause (0.0.56; historical since #1743).** At `v0.0.56`, `project/BuildHelper.scala` (`stdSettings`, the `moduleName` rule `minor >= 7`) published the Scala 3.3 build as `zio-blocks-schema` and the Scala 3.7+ build (in practice the 3.9.0 build, so consumers needed Scala 3.9+) as `zio-blocks-next-schema` (the `zio-blocks-schema_3` 0.0.56 POM depends on `scala3-library_3` 3.3.7). The 3.3 build compiled `schema/shared/src/main/scala-3.5-/zio/blocks/schema/binding/StructuralBindingMacros.scala`, whose `generateAnonymousClassFactory` (`:47` at HEAD) always fails with the message at `:52`-`:67`. It is called only for structural record types (`schema/shared/src/main/scala-3/zio/blocks/schema/binding/BindingCompanionVersionSpecific.scala:1379` at HEAD, through the helper at `:1446-1449`); unions of structural types use `deriveStructuralVariantBindingSimple` (`:1531`), which does not call it.
 
-**Impact.** A Scala 3 user who reads the Scaladoc or the error and upgrades the compiler still gets the same error. The Scaladoc of `Binding.of` and of the `scala-3.5-` `StructuralBindingMacros` now say which artifact supports structural record types.
+**Impact.** A Scala 3 user who reads the Scaladoc or the error and upgrades the compiler still gets the same error. The Scaladoc of `Binding.of` and of the `scala-3.5-` `StructuralBindingMacros` now describe the `main` build and mention the 0.0.56 behaviour.
 
-**Test gap.** The structural `Binding.of` tests are in `schema/jvm/src/test/scala-3.5+/`, so they run only in the 3.9 build; nothing checks what the published 3.3 build does with a newer compiler.
+**Test gap.** The structural `Binding.of` tests are in `schema/jvm/src/test/scala-3.5+/`, so at 0.0.56 they ran only in the 3.9 build, and nothing checked what the published 3.3 build did with a newer compiler. On `main` every Scala 3 build uses `scala-3.5+`.
 
-**Suggested fix.** Reword the error: say that structural types need the `zio-blocks-next-schema` artifact (Scala 3.9+, `-experimental`), and drop "Upgrade to Scala 3.5+".
+**Suggested fix.** Fixed for the next release by #1743. What remains: the `scala-3.5-` `StructuralBindingMacros` (and its "Upgrade to Scala 3.5+" error) is now unreachable, so delete it, or, if a pre-3.5 build is ever brought back, reword the error to name an artifact that works. The release notes and the install guide (`docs/guides/add-zio-blocks-to-your-build.md`, `docs/index.md:33`, which still say to use `zio-blocks-next-*` on Scala 3.9) need to say that `zio-blocks-schema` on Scala 3.9 now needs `-experimental`.
 
 ### schema: `toJsonString`, `toJsonBytes` and `fromJson` on a `List`, `Option` or `Map` derive a new JSON codec on every call
 
