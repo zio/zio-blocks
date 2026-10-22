@@ -1416,16 +1416,16 @@ lazy val `schema-scaladoc-check` = project
     // Examples are user code: a warning in one (an unused import, say) must not fail the build.
     Compile / scalacOptions ~= (_.filterNot(fatalWarningFlags)),
     // Examples are also compiled the way a user compiles them. A Scala 3 user of the main line
-    // (3.9.x, `zio-blocks-*`) does not pass -experimental, so drop it below 3.10: if a main-line
-    // module is ever built with it again, scalac marks every definition in it @experimental and
-    // these examples fail with "... is marked @experimental". The next line (3.10+,
-    // `zio-blocks-next-*`) is built with -experimental, so its users need the flag too: keep it.
+    // (3.9.x, `zio-blocks-*`) does not enable experimental mode, so drop -experimental and
+    // -language:experimental.* below the next line: if a main-line module is ever built with
+    // them again, scalac marks every top-level definition in it @experimental and these examples
+    // fail with "... is marked @experimental". The next line (3.10+, `zio-blocks-next-*`) is
+    // built with -experimental, so its users need the flag too: keep it.
     Compile / scalacOptions := {
       val options = (Compile / scalacOptions).value
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((3, minor)) if minor < 10 => options.filterNot(_ == "-experimental")
-        case _                              => options
-      }
+      if (scalaVersion.value.startsWith("3.") && !BuildHelper.isScala3NextLine(scalaVersion.value))
+        options.filterNot(option => option == "-experimental" || option.startsWith("-language:experimental."))
+      else options
     },
     // `Test / scalacOptions` delegates to the Compile ones, so put the fatal flags back: the spec and
     // project/ScaladocSnippets.scala are ordinary code. (The generated snippets are Compile sources.)
