@@ -8,7 +8,8 @@ import zio.blocks.schema._
  * Converts a feed record with two bad fields and prints the single
  * `SchemaError` that lists both.
  *
- * Run with: cd schema-examples && sbt "runMain evolveyourdata.Concept2ErrorAccumulationExample"
+ * Run with: cd schema-examples && sbt "runMain
+ * evolveyourdata.Concept2ErrorAccumulationExample"
  */
 object Concept2ErrorAccumulationExample extends App {
 

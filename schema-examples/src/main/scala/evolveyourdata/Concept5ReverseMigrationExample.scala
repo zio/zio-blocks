@@ -9,7 +9,8 @@ import zio.blocks.schema.migration.Migration
  * Reverses the migration, applies it to a `BookV3` and prints the migration's
  * actions.
  *
- * Run with: cd schema-examples && sbt "runMain evolveyourdata.Concept5ReverseMigrationExample"
+ * Run with: cd schema-examples && sbt "runMain
+ * evolveyourdata.Concept5ReverseMigrationExample"
  */
 object Concept5ReverseMigrationExample extends App {
 

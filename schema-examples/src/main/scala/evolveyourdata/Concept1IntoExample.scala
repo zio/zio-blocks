@@ -7,7 +7,8 @@ import zio.blocks.schema._
  *
  * Derives an `Into[BookDto, BookV1]` and converts a book from the feed.
  *
- * Run with: cd schema-examples && sbt "runMain evolveyourdata.Concept1IntoExample"
+ * Run with: cd schema-examples && sbt "runMain
+ * evolveyourdata.Concept1IntoExample"
  */
 object Concept1IntoExample extends App {
 

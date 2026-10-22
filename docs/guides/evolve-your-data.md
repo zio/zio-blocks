@@ -37,14 +37,15 @@ We recommend reading from top to bottom — each section builds on the previous 
 To follow along, add the schema module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
+scalacOptions += "-experimental"
 ```
 
-The code in this tutorial is compiled with Scala 3.
+The code in this tutorial is compiled with Scala 3. For scala-cli, Scala.js, or cross-building, see [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md).
 
 ## 2. Background: Data Outlives Its Types
 

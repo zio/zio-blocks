@@ -9,7 +9,8 @@ import zio.blocks.schema.migration.Migration
  * Builds a `Migration[BookV2, BookV3]` that renames `year` to `publishedYear`
  * and applies it.
  *
- * Run with: cd schema-examples && sbt "runMain evolveyourdata.Concept4MigrationExample"
+ * Run with: cd schema-examples && sbt "runMain
+ * evolveyourdata.Concept4MigrationExample"
  */
 object Concept4MigrationExample extends App {
 

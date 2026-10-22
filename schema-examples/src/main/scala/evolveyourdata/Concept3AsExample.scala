@@ -8,7 +8,8 @@ import zio.blocks.schema._
  * Derives an `As[BookV1, BookV2]`, converts in both directions and checks the
  * round trip.
  *
- * Run with: cd schema-examples && sbt "runMain evolveyourdata.Concept3AsExample"
+ * Run with: cd schema-examples && sbt "runMain
+ * evolveyourdata.Concept3AsExample"
  */
 object Concept3AsExample extends App {
 

@@ -8,8 +8,8 @@ import zio.blocks.schema.migration.Migration
  * Example
  *
  * Validates feed data with `Into`, collects several errors at once, converts
- * between two versions with `As`, renames a field with `Migration` and runs
- * the migration backwards.
+ * between two versions with `As`, renames a field with `Migration` and runs the
+ * migration backwards.
  *
  * Run with: cd schema-examples && sbt "runMain evolveyourdata.CompleteExample"
  */
