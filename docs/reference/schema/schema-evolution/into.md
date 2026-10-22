@@ -180,9 +180,9 @@ Into[Celsius, Fahrenheit].into(Celsius(100.0))
 
 ZIO Blocks ships built-in `Into` instances for all standard numeric types and common container types. These are resolved automatically from implicit scope — no import or explicit call is needed.
 
-### Numeric Widening (Lossless)
+### Numeric Widening
 
-These instances always succeed because the conversion cannot lose information:
+These instances always succeed. Most cannot lose information, but `Int` to `Float`, `Long` to `Float` and `Long` to `Double` round a value with more significant digits than the target holds: `Into[Int, Float].into(16777217)` gives `Right(1.6777216E7)`.
 
 | From \ To | `Short` | `Int` | `Long` | `Float` | `Double` |
 |-----------|---------|-------|--------|---------|----------|
@@ -430,7 +430,7 @@ personConv.into(PersonV1("Alice", AddressV1("123 Main St", 10001)))
 
 ### Coproducts (Sealed Traits and Enums)
 
-Cases are matched by name; for case classes, field types must be convertible. Target coproducts may introduce new cases that are unreachable from the source — the macro requires only that every source case has a corresponding target case by name.
+Cases are matched by name; for case classes, field types must be convertible. Target coproducts may introduce new cases that are unreachable from the source. A source case with no target case of the same name is not an error: it goes to the first target case with the same field types or, failing that, to the target case at the same position, so a renamed or removed case can convert to an unrelated one. The macro fails only when no target case is found at all.
 
 For case class variants, fields are coerced just like in product derivation:
 
