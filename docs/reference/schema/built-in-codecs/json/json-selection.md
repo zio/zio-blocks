@@ -320,3 +320,7 @@ val allUsers: Either[SchemaError, Chunk[User]] = JsonSelection.succeedMany(users
 - **Lazy chaining:** Operations chain without intermediate allocations; only final extraction materializes values
 - **Error short-circuiting:** Failed selections don't execute further operations
 - **Streaming-friendly:** For large JSON, use `JsonSelection#get` selectively rather than iterating over all values
+
+## See Also
+
+- [How to Read and Modify JSON Without Case Classes](../../../../guides/json-without-case-classes.md) - A task-oriented guide to navigating and changing JSON by path, then decoding only the part you need

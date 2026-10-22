@@ -311,7 +311,7 @@ println(ProvenanceMap((), withSecret).dump())
 ```
 
 :::warning[Redaction is name-based only]
-`ProvenanceMap#dump` redacts by key name, not by type. A secret stored under a key like `db.credentials_blob` is redacted; the same secret under `db.blob` is printed in full. For values that must never be printed regardless of key, use `Secret`.
+`ProvenanceMap#dump` redacts by key name, not by type. A secret stored under a key like `db.credentials_blob` is redacted; the same secret under `db.blob` is printed in full, even when the field it decodes into is a `Secret`. `ProvenanceMap#provenanceOf` returns the raw value inside its `Provenance` whatever the key. In 0.0.56 this is a known bug: give secret keys a name that contains one of the words above, and don't log their provenance.
 :::
 
 ## Secrets

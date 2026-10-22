@@ -5,6 +5,11 @@ const prismThemes = require('./src/prism-themes');
 // the docs only warn then. The full build, which CI deploys, never sets it.
 const LANDING_ONLY = process.env.LANDING_ONLY === '1';
 
+// Google Analytics 4 (property "zioblocks.com"). Netlify sets CONTEXT=production only for the production build (build.sh,
+// run by the build hook); PR previews are built in CI without it, so they never send page views.
+const GA_MEASUREMENT_ID = 'G-D1FMWLNJ8K';
+const ANALYTICS = process.env.CONTEXT === 'production';
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'ZIO Blocks',
@@ -50,6 +55,7 @@ const config = {
           customCss: require.resolve('./src/css/custom.css'),
         },
         blog: false,
+        gtag: ANALYTICS ? { trackingID: GA_MEASUREMENT_ID, anonymizeIP: true } : undefined,
       },
     ],
   ],

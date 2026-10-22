@@ -26,8 +26,10 @@ trait PositiveNumberCompanionVersionSpecific {
    * overhead.
    *
    * {{{
-   * val mult = PositiveNumber.literal(5)  // Compiles - returns PositiveNumber directly
-   * val bad = PositiveNumber.literal(0)   // Compile error!
+   * import zio.blocks.schema.json.PositiveNumber
+   *
+   * val mult: PositiveNumber = PositiveNumber.literal(5) // compiles
+   * // PositiveNumber.literal(0)                         // does not compile
    * }}}
    */
   inline def literal(inline n: Int): PositiveNumber =

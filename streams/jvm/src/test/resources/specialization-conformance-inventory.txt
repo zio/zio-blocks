@@ -2321,7 +2321,7 @@ shared/src/main/scala/zio/blocks/streams/Stream.scala|factory|Reader|Stream|9f8a
 shared/src/main/scala/zio/blocks/streams/Stream.scala|factory|Reader|Stream|a4ff081ab53c5103
 shared/src/main/scala/zio/blocks/streams/Stream.scala|factory|Reader|Stream|a607dd996b6603ae
 shared/src/main/scala/zio/blocks/streams/Stream.scala|factory|Reader|Stream|a9719d909c4aa39e
-shared/src/main/scala/zio/blocks/streams/Stream.scala|factory|Reader|Stream|ab699cc828508f58
+shared/src/main/scala/zio/blocks/streams/Stream.scala|factory|Reader|Stream|85a7d488657838f2
 shared/src/main/scala/zio/blocks/streams/Stream.scala|factory|Reader|Stream|ad17f81c019cf5be
 shared/src/main/scala/zio/blocks/streams/Stream.scala|factory|Reader|Stream|ae99341315702216
 shared/src/main/scala/zio/blocks/streams/Stream.scala|factory|Reader|Stream|b23d7a9d87244db6

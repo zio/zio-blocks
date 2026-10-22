@@ -36,6 +36,11 @@ import zio.blocks.typeid.TypeId
  *
  * @example
  *   {{{
+ * import zio.blocks.schema.binding._
+ *
+ * case class Person(name: String, age: Int)
+ * val customRegistry = BindingResolver.empty.bind(Binding.of[Person])
+ *
  * // Use defaults for primitives and collections, with custom bindings
  * val resolver = customRegistry ++ BindingResolver.defaults
  *
@@ -186,6 +191,11 @@ trait BindingResolver { self =>
    *
    * @example
    *   {{{
+   * import zio.blocks.schema.binding._
+   *
+   * case class Person(name: String, age: Int)
+   * val customRegistry = BindingResolver.empty.bind(Binding.of[Person])
+   *
    * // customRegistry overrides defaults
    * val resolver = customRegistry ++ BindingResolver.defaults
    *   }}}
@@ -270,6 +280,8 @@ object BindingResolver extends BindingResolverPlatformSpecific {
    *
    * @example
    *   {{{
+   * import zio.blocks.schema.binding._
+   *
    * case class Person(name: String, age: Int)
    *
    * val registry = BindingResolver.empty
@@ -302,6 +314,8 @@ object BindingResolver extends BindingResolverPlatformSpecific {
      *
      * @example
      *   {{{
+     * import zio.blocks.schema.binding._
+     *
      * case class Person(name: String, age: Int)
      * val registry = BindingResolver.empty.bind(Binding.of[Person])
      *   }}}
