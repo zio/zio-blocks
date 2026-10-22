@@ -419,7 +419,8 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
 
   /**
    * Applies `DynamicValue#modifyOrFail` to every selected value. Fails when the
-   * path reaches nothing in any of them. Values at which `pf` is not defined
+   * path reaches nothing in any of them; a path that stops after a matching
+   * field or map-key step does not fail. Values at which `pf` is not defined
    * are left unchanged, except at the root path (see
    * `DynamicValue#modifyOrFail`).
    */
@@ -432,7 +433,9 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
     }
 
   /**
-   * Sets a value at the given path. Fails if the path doesn't exist.
+   * Applies `DynamicValue#setOrFail` to every selected value. Fails when the
+   * path reaches nothing in any of them; a path that stops after a matching
+   * field or map-key step does not fail (see `DynamicValue#setOrFail`).
    */
   def setOrFail(path: DynamicOptic, value: DynamicValue): DynamicValueSelection = flatMap { dv =>
     dv.setOrFail(path, value) match {

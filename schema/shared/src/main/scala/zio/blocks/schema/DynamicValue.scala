@@ -115,12 +115,15 @@ sealed trait DynamicValue {
   final def <=(that: DynamicValue): Boolean = compare(that) <= 0
 
   /**
-   * Returns a [[zio.blocks.schema.patch.DynamicPatch]] that turns this value
+   * Returns a [[zio.blocks.schema.patch.DynamicPatch]] meant to turn this value
    * into `that`. The patch is empty when the two are equal. It uses deltas for
-   * numbers and temporal values, an edit list for a string when that is shorter
-   * than the new string, and field, element and entry operations for records,
-   * sequences and maps. When the two values are of different kinds, or are
-   * variants of different cases, the patch replaces the whole value.
+   * numbers and for `Instant`, `Duration`, `LocalDate`, `LocalDateTime` and
+   * `Period` values, an edit list for a string when that is shorter than the
+   * new string, and field, element and entry operations for records, sequences
+   * and maps; other primitives, values of different kinds and variants of
+   * different cases are replaced whole. A record diff only sets the fields of
+   * `that` and never removes a field that `that` lacks, so applying it does not
+   * remove fields (see `docs/dev/issues.md`).
    */
   def diff(that: DynamicValue): DynamicPatch = DynamicValue.diff(this, that)
 
@@ -247,8 +250,8 @@ sealed trait DynamicValue {
   /**
    * Replaces every value that `path` reaches with the result of `f` on it, and
    * returns this value unchanged when the path reaches nothing. Paths reach
-   * values as in `get`, except that a `mapKeys` step reaches the keys
-   * themselves. The root path applies `f` to this value.
+   * values as in `get`; a `mapKeys` step replaces the keys. The root path
+   * applies `f` to this value.
    */
   def modify(path: DynamicOptic)(f: DynamicValue => DynamicValue): DynamicValue =
     DynamicValue.modifyAtPath(this, path, f) match {
@@ -260,7 +263,9 @@ sealed trait DynamicValue {
    * Like `modify`, with a partial function. Returns `Left` with
    * `Path not found` when the path reaches nothing. Values at which `pf` is not
    * defined are left unchanged and the result is `Right`; only for the root
-   * path does an undefined `pf` give `Left` (see `docs/dev/issues.md`).
+   * path does an undefined `pf` give `Left` (see `docs/dev/issues.md`). When a
+   * field or map-key step matches but a later step reaches nothing, it returns
+   * `Right` with this value unchanged (see `docs/dev/issues.md`).
    */
   def modifyOrFail(path: DynamicOptic)(
     pf: PartialFunction[DynamicValue, DynamicValue]
@@ -275,7 +280,9 @@ sealed trait DynamicValue {
 
   /**
    * Like `set`, but returns `Left` with `Path not found` when the path reaches
-   * nothing.
+   * nothing. When a field or map-key step matches but a later step reaches
+   * nothing, it returns `Right` with this value unchanged (see
+   * `docs/dev/issues.md`).
    */
   def setOrFail(path: DynamicOptic, value: DynamicValue): Either[SchemaError, DynamicValue] =
     DynamicValue.modifyAtPathOrFail(this, path, { case _ => value })
@@ -625,7 +632,8 @@ sealed trait DynamicValue {
    * arrays, and a map becomes an object when all its keys are strings and an
    * array of objects with a `key` and a `value` field otherwise. Primitive
    * types are not kept (temporal values become strings), so converting back
-   * does not always give the same value.
+   * does not always give the same value. A `Float` or `Double` that is NaN or
+   * infinite makes it throw `IllegalArgumentException`.
    */
   def toJson: Json = Json.fromDynamicValue(this)
 
