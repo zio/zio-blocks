@@ -21,86 +21,96 @@ import scala.language.dynamics
 import scala.language.implicitConversions
 
 /**
- * A trait that can be extended by companion objects to automatically derive
- * optics (Lens for case class fields, Prism for sealed trait/enum variants).
+ * Mix this trait into the companion object of a case class or a sealed trait to
+ * get the class's optics without writing them: a [[Lens]] for each field of a
+ * case class, named after the field, and a [[Prism]] for each case of a sealed
+ * trait (or, on Scala 3, an enum), named after the case with its first letter
+ * in lower case (`Paperback` gives `paperback`). They are the members of
+ * `optics`. On Scala 3 they are also members of the companion itself
+ * (`Book.title`), through a given conversion. A member that the companion
+ * defines itself takes precedence there, and the derived optic stays available
+ * on `optics`. Direct access goes through an implicit conversion, so Scala 3
+ * gives a feature warning at each use unless
+ * `scala.language.implicitConversions` is imported, as the first example does.
  *
- * Usage:
+ * An implicit `Schema` of the class must be in scope where `optics` is used; a
+ * schema defined in the companion is. For a type that is not the class of a
+ * companion, such as `Box[Int]` or a type alias, use [[DerivedOptics.Of]]. On
+ * Scala 3, a value class whose schema is a wrapper (built with `transform`)
+ * gets a working lens only when its field is named `value`. Opaque types are
+ * not supported yet.
+ *
+ * The optics are built the first time `optics` is evaluated and kept in a
+ * global cache keyed by the type's printed name. Every companion for the same
+ * type shares the optics built from the first schema used, and so do different
+ * types that print the same, such as two local classes named `Book` in
+ * different methods: the second then fails with a `ClassCastException` or
+ * `No optic found` (a bug, see `docs/dev/issues.md`).
+ *
+ * A known problem, described in `docs/dev/issues.md`: on Scala 2, `optics`
+ * compiles only inside the `zio.blocks.schema` package, so the examples below
+ * are compiled on Scala 3 only.
+ *
  * {{{
- * case class Person(name: String, age: Int) derives Schema
- * object Person extends DerivedOptics
+ * // scala-3-only
+ * import scala.language.implicitConversions
  *
- * // Direct access to optics (recommended):
- * val nameLens: Lens[Person, String] = Person.name
- * val ageLens: Lens[Person, Int] = Person.age
- *
- * // Alternative explicit access (backward compatible):
- * val nameLens2: Lens[Person, String] = Person.optics.name
- * }}}
- *
- * For sealed traits/enums:
- * {{{
- * sealed trait Shape derives Schema
- * case class Circle(radius: Double) extends Shape
- * case class Rectangle(width: Double, height: Double) extends Shape
- * object Shape extends DerivedOptics
- *
- * // Direct access to prisms (recommended):
- * val circlePrism: Prism[Shape, Circle] = Shape.circle
- *
- * // Alternative explicit access (backward compatible):
- * val circlePrism2: Prism[Shape, Circle] = Shape.optics.circle
- * }}}
- *
- * A value class whose schema is a wrapper (one built with `transform`) gets its
- * lens like any case class, but only when its single field is named `value`: a
- * wrapper schema names its field `value` at run time, so a lens for a field
- * with another name fails with `No optic found`. Opaque types are not supported
- * yet: an opaque type has no companion class for `DerivedOptics` to find, and
- * `DerivedOptics.Of` gives lenses of the wrong type for it.
- * {{{
- * case class Age(value: Int) extends AnyVal
- * object Age extends DerivedOptics {
- *   // A wrapper schema, built with `transform`
- *   given schema: Schema[Age] = Schema[Int].transform(Age(_), _.value)
+ * case class Book(title: String, pages: Int)
+ * object Book extends DerivedOptics {
+ *   implicit val schema: Schema[Book] = Schema.derived
  * }
  *
- * // Direct access to the wrapper lens:
- * val valueLens: Lens[Age, Int] = Age.value
- *
- * // Alternative explicit access (backward compatible):
- * val valueLens2: Lens[Age, Int] = Age.optics.value
+ * val title: Lens[Book, String] = Book.optics.title
+ * val pages: Lens[Book, Int]    = Book.pages // direct access, Scala 3 only
  * }}}
  *
- * User-defined members on the companion object always take precedence over
- * derived optics. For example, if you define `def name: String` in your
- * companion, `Person.name` will return your custom implementation, and the lens
- * remains accessible via `Person.optics.name`.
+ * {{{
+ * // scala-3-only
+ * sealed trait Format
+ * case class Paperback(pages: Int) extends Format
+ * case class Ebook(sizeMb: Double) extends Format
+ * object Format extends DerivedOptics {
+ *   implicit val schema: Schema[Format] = Schema.derived
+ * }
  *
- * Credit: Kit Langton discovered the companion-object conversion trick used to
- * enable direct field access in Scala 3.
+ * val paperback: Prism[Format, Paperback] = Format.optics.paperback
+ * }}}
  *
- * The optics object is cached to avoid recreation on every access.
+ * {{{
+ * // scala-3-only
+ * case class PageCount(value: Int) extends AnyVal
+ * object PageCount extends DerivedOptics {
+ *   // a wrapper schema, built with `transform`
+ *   implicit val schema: Schema[PageCount] = Schema[Int].transform(PageCount(_), _.value)
+ * }
+ *
+ * val value: Lens[PageCount, Int] = PageCount.optics.value
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/optics/ Optics]]
  */
 trait DerivedOptics {
 
   /**
-   * Provides access to the derived optics for the companion class type. For
-   * case classes, returns an object with Lens accessors for each field. For
-   * sealed traits/enums, returns an object with Prism accessors for each
-   * variant.
-   *
-   * The returned object uses structural typing, so you get compile-time type
-   * checking and IDE completion for the accessor names.
+   * Returns the derived optics of the companion's class: an object with one
+   * [[Lens]] per field or one [[Prism]] per case, whose type gives each member
+   * its exact optic type. It fails to compile when the object is not the
+   * companion of a class, or when no implicit `Schema` of the class is in
+   * scope. When the schema does not have the shape of the class (a record or
+   * wrapper for a case class, a variant for a sealed trait), using the optics
+   * throws a `RuntimeException`.
    */
   transparent inline def optics: Any = ${ DerivedOpticsMacros.opticsFromThisTypeImpl('this) }
 
   /**
-   * Enables direct field access: `Person.name` instead of `Person.optics.name`.
-   * User-defined members on the companion object always take precedence.
+   * Scala 3 only: the conversion that makes the derived optics members of the
+   * companion itself, so that `Book.title` works like `Book.optics.title`. It
+   * takes the optics from an [[OpticsFor]] instance, which the `optics` macro
+   * derives. Like `optics`, it needs an implicit `Schema` of the class where it
+   * is used.
    *
-   * This uses Kit Langton's companion-object conversion trick: a regular given
-   * conversion with type class parameters that carry the refined type
-   * information.
+   * Credit: Kit Langton discovered this companion-object conversion trick.
    */
   given toDerivedOptics(using
     cc: CompanionClass[this.type],
@@ -111,14 +121,22 @@ trait DerivedOptics {
 }
 
 /**
- * Type class that extracts the companion class type from a companion object
- * type. For example, for `Person.type` (the companion object), this extracts
- * `Person` (the case class).
+ * Scala 3 only: a type class that gives the class whose companion object has
+ * the type `A`. For `Book.type`, the type of the companion object, `Type` is
+ * `Book`.
  */
 trait CompanionClass[A] {
+
+  /**
+   * The class whose companion object has the type `A`.
+   */
   type Type
 }
 
+/**
+ * Scala 3 only: derives a [[CompanionClass]] for a companion object type with a
+ * macro. It fails to compile for a type that has no companion class.
+ */
 object CompanionClass {
   transparent inline given [A]: CompanionClass[A] = ${ companionClassImpl[A] }
 
@@ -144,24 +162,47 @@ object CompanionClass {
   }
 }
 
+/**
+ * Holds [[DerivedOptics.Of]] and the runtime helpers that the `optics` macros
+ * call.
+ */
 object DerivedOptics {
 
   /**
-   * Use `DerivedOptics.Of[T]` when you need to explicitly specify the type, for
-   * example with generic types or type aliases.
+   * Mix `DerivedOptics.Of[S]` into any object to get the optics of `S` when `S`
+   * is not the class of that object's companion: a generic instantiation such
+   * as `Box[Int]`, a type alias, or a type whose companion you cannot change.
+   * It works like [[DerivedOptics]], with `S` given explicitly. `optics` needs
+   * an implicit `Schema[S]` where it is called, so a schema defined in the
+   * object has to be imported there.
    *
-   * Example:
    * {{{
+   * // scala-3-only
    * case class Box[A](value: A)
    * object BoxInt extends DerivedOptics.Of[Box[Int]] {
-   *   given schema: Schema[Box[Int]] = Schema.derived
+   *   implicit val schema: Schema[Box[Int]] = Schema.derived
    * }
+   *
+   * import BoxInt.schema
+   * val value: Lens[Box[Int], Int] = BoxInt.optics.value
    * }}}
    */
   trait Of[S] {
+
+    /**
+     * Returns the derived optics of `S`, like `DerivedOptics#optics`. It needs
+     * an implicit `Schema[S]` where it is called.
+     */
     transparent inline def optics(using schema: Schema[S]): Any =
       ${ DerivedOpticsMacros.opticsImpl[S]('schema, false) }
 
+    /**
+     * Scala 3 only: the conversion that makes the derived optics of `S` members
+     * of the object itself, so that `BoxInt.value` works like
+     * `BoxInt.optics.value`. It takes the optics from an [[OpticsFor]]
+     * instance, which the `optics` macro derives. Like `optics`, it needs an
+     * implicit `Schema[S]` where it is used.
+     */
     given toDerivedOptics(using opticsFor: OpticsFor[S]): Conversion[this.type, opticsFor.Out] =
       _ => opticsFor.optics
   }
@@ -275,10 +316,22 @@ object DerivedOptics {
 }
 
 /**
- * An optics holder that stores lenses/prisms in a map and provides dynamic
- * access. This is an implementation detail and should not be used directly.
+ * The runtime object behind `optics`: it holds the derived optics by name, and
+ * the type of `optics` gives each member its type. It is an implementation
+ * detail; use the members of `optics`. On Scala 2 it is
+ * `DerivedOptics.OpticsHolder` and backs only the optics of types that are
+ * neither case classes nor sealed traits (the others are anonymous classes); on
+ * Scala 3 it is `zio.blocks.schema.OpticsHolder`, backs every `optics`, and is
+ * also a `Selectable`.
  */
 final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic with Selectable {
+
+  /**
+   * Returns the optic named `name`.
+   *
+   * @throws java.lang.RuntimeException
+   *   (`No optic found for: <name>`) if there is no optic with that name
+   */
   def selectDynamic(name: String): Any =
     members.getOrElse(name, throw new RuntimeException(s"No optic found for: $name"))
 }

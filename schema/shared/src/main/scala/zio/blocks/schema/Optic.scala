@@ -25,43 +25,184 @@ import scala.reflect.ClassTag
 import scala.util.control.NoStackTrace
 
 /**
- * Represents an optic that provides a generic interface for traversing,
- * selecting, and updating data structures in a functional way. The `Optic`
- * trait is parameterized by the source type `S`, and the focus type `A`.
+ * An optic is a first-class path into a value of type `S` that focuses on parts
+ * of type `A`. It reads, replaces and modifies those parts without rebuilding
+ * the enclosing value by hand. It also carries the schemas of both ends
+ * (`source` and `focus`), so a failed access can say where and why it failed,
+ * and the path can be turned into a [[DynamicOptic]] or a [[SchemaExpr]] query.
  *
- * The optic can operate over various its types such as lens, prism, optional,
- * and traversal, and supports composition of them.
+ * Every optic is one of four kinds:
+ *
+ *   - [[Lens]]: a part that is always there, such as a field of a case class;
+ *   - [[Prism]]: one case of a sealed trait or enum;
+ *   - [[Optional]]: a part that may be missing, such as a field inside one
+ *     case, the element at an index or the value at a map key;
+ *   - [[Traversal]]: zero or more parts, such as every element of a collection.
+ *
+ * Get optics from the `$` (or `optic`) macro of [[CompanionOptics]], or from
+ * the `optics` member of [[DerivedOptics]]. Compose them with `apply`. Two
+ * lenses give a lens, two prisms give a prism, anything composed with a
+ * traversal gives a traversal, and every other pair gives an optional.
+ *
+ * This trait has the operations that every kind supports: `modify`,
+ * `modifyOption`, `modifyOrFail`, `check` and `toDynamic`, plus operators such
+ * as `===`, `>`, `+` and `&&` that build a [[SchemaExpr]]. Reading and
+ * replacing depend on the kind: `get` and `replace` on [[Lens]], `getOption`
+ * and `replace` on [[Prism]] and [[Optional]], and `fold` on [[Traversal]].
+ *
+ * {{{
+ * case class Author(name: String)
+ * case class Book(title: String, author: Author)
+ * object Book extends CompanionOptics[Book] {
+ *   implicit val schema: Schema[Book] = Schema.derived
+ *   val authorName: Lens[Book, String] = $(_.author.name)
+ * }
+ *
+ * val zionomicon = Book("Zionomicon", Author("John A. De Goes"))
+ * Book.authorName.modify(zionomicon, _.toUpperCase) // Book(Zionomicon,Author(JOHN A. DE GOES))
+ * Book.authorName.toDynamic.toString                 // .author.name
+ * }}}
  *
  * @tparam S
- *   The source type from which data is accessed or modified.
+ *   the type of the value the optic reads from and updates
  * @tparam A
- *   The focus type or target type of this optic.
+ *   the type of the parts it focuses on
+ * @see
+ *   [[https://zioblocks.com/reference/schema/optics/ Optics]]
  */
 sealed trait Optic[S, A] { self =>
+
+  /**
+   * The schema of the value this optic starts from. For a composed optic, it is
+   * the source of the first step.
+   */
   def source: Reflect.Bound[S]
 
+  /**
+   * The schema of the parts this optic focuses on. For a composed optic, it is
+   * the focus of the last step.
+   */
   def focus: Reflect.Bound[A]
 
+  /**
+   * Composes this optic with a lens on its focus. The result focuses on the
+   * lens's focus `B` inside every part this optic focuses on. It is a [[Lens]]
+   * when this optic is a lens, a [[Traversal]] when this optic is a traversal,
+   * and an [[Optional]] otherwise.
+   *
+   * {{{
+   * case class Author(name: String)
+   * object Author extends CompanionOptics[Author] {
+   *   implicit val schema: Schema[Author] = Schema.derived
+   *   val name: Lens[Author, String] = $(_.name)
+   * }
+   * case class Book(title: String, author: Author)
+   * object Book extends CompanionOptics[Book] {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   *   val author: Lens[Book, Author] = $(_.author)
+   * }
+   *
+   * val authorName: Lens[Book, String] = Book.author(Author.name)
+   * authorName.get(Book("Zionomicon", Author("John A. De Goes"))) // "John A. De Goes"
+   * }}}
+   */
   def apply[B](that: Lens[A, B]): Optic[S, B]
 
+  /**
+   * Composes this optic with a prism on its focus. The result is a [[Prism]]
+   * when this optic is a prism, a [[Traversal]] when this optic is a traversal,
+   * and an [[Optional]] otherwise.
+   */
   def apply[B <: A](that: Prism[A, B]): Optic[S, B]
 
+  /**
+   * Composes this optic with an optional on its focus. The result is a
+   * [[Traversal]] when this optic is a traversal, and an [[Optional]]
+   * otherwise.
+   */
   def apply[B](that: Optional[A, B]): Optic[S, B]
 
+  /**
+   * Composes this optic with a traversal on its focus. The result is always a
+   * [[Traversal]].
+   */
   def apply[B](that: Traversal[A, B]): Traversal[S, B]
 
+  /**
+   * Returns `None` when this optic reaches its focus in `s`, and otherwise an
+   * [[OpticCheck]] that says why not. The possible problems are another case of
+   * a variant, a wrapper whose `unwrap` throws a [[SchemaError]] (both errors),
+   * an index past the end, a missing map key, an empty collection, and, for
+   * `searchFor`, no match at all (all four warnings). Except for `searchFor`,
+   * which decodes every candidate with its schema, `check` never runs a
+   * wrapper's `wrap`, so it does not see failures that only `replace` or
+   * `modify` meet.
+   *
+   * A [[Lens]] always returns `None`. A [[Prism]] and an [[Optional]] report
+   * the first problem on the path. A [[Traversal]] reports the problems in
+   * every branch it visits, even when it reaches other parts: `atIndices(0, 2)`
+   * on a one-element list reports index 2.
+   */
   def check(s: S): Option[OpticCheck]
 
+  /**
+   * Returns `s` with `f` applied to every part this optic focuses on. When
+   * there is nothing to focus on, the result equals `s`: a [[Prism]] on another
+   * case, an [[Optional]] on a missing index or key, a [[Traversal]] over an
+   * empty collection. It also equals `s` when a `wrapped` step on the path
+   * throws a [[SchemaError]], including one that `f` throws below that step (a
+   * bug, see `docs/dev/issues.md`); other exceptions, from the path or from
+   * `f`, propagate. `modifyOption` and `modifyOrFail` say when nothing was
+   * modified.
+   *
+   * {{{
+   * case class Book(title: String, tags: List[String])
+   * object Book extends CompanionOptics[Book] {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   *   val tags: Traversal[Book, String] = $(_.tags.each)
+   * }
+   *
+   * Book.tags.modify(Book("Zionomicon", List("zio", "scala")), _.toUpperCase)
+   * // Book(Zionomicon,List(ZIO, SCALA))
+   * }}}
+   */
   def modify(s: S, f: A => A): S
 
+  /**
+   * Like `modify`, but returns `None` instead of an unchanged value when there
+   * is nothing to focus on, and when a `wrapped` step on the path throws a
+   * [[SchemaError]], including one that `f` throws below that step (a bug, see
+   * `docs/dev/issues.md`). A [[Lens]] always returns `Some`.
+   */
   def modifyOption(s: S, f: A => A): Option[S]
 
+  /**
+   * Like `modify`, but returns `Left` with an [[OpticCheck]] that says why
+   * nothing was modified, as `check` does, and a [[OpticCheck.WrappingError]]
+   * when a `wrapped` step on the path throws a [[SchemaError]], including one
+   * that `f` throws below that step (a bug, see `docs/dev/issues.md`). A
+   * [[Lens]] always returns `Right`. A [[Traversal]] returns `Right` once it
+   * has modified at least one part, even when other parts are missing; `check`
+   * reports those.
+   */
   def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S]
 
+  /**
+   * Returns the path of this optic as a [[DynamicOptic]], with one node per
+   * step. For example, `$(_.format.when[Paperback].pages).toDynamic.toString`
+   * is `.format<Paperback>.pages`.
+   */
   def toDynamic: DynamicOptic
 
   private[schema] def toDynamic(index: Int): DynamicOptic = new DynamicOptic(toDynamic.nodes.take(index + 1))
 
+  /**
+   * Composes this optic, whose focus is a `List`, with a traversal over every
+   * element of that list.
+   *
+   * @throws java.lang.RuntimeException
+   *   ("Expected List") if the focus schema is not a `List` sequence schema
+   */
   final def listValues[B](implicit ev: A =:= List[B]): Traversal[S, B] = {
     import Reflect.Extractors.List
 
@@ -72,6 +213,13 @@ sealed trait Optic[S, A] { self =>
     }
   }
 
+  /**
+   * Composes this optic, whose focus is a `Vector`, with a traversal over every
+   * element of that vector.
+   *
+   * @throws java.lang.RuntimeException
+   *   ("Expected Vector") if the focus schema is not a `Vector` sequence schema
+   */
   final def vectorValues[B](implicit ev: A =:= Vector[B]): Traversal[S, B] = {
     import Reflect.Extractors.Vector
 
@@ -82,6 +230,13 @@ sealed trait Optic[S, A] { self =>
     }
   }
 
+  /**
+   * Composes this optic, whose focus is a `Set`, with a traversal over every
+   * element of that set.
+   *
+   * @throws java.lang.RuntimeException
+   *   ("Expected Set") if the focus schema is not a `Set` sequence schema
+   */
   final def setValues[B](implicit ev: A =:= Set[B]): Traversal[S, B] = {
     import Reflect.Extractors.Set
 
@@ -92,6 +247,10 @@ sealed trait Optic[S, A] { self =>
     }
   }
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where the focus of this optic equals
+   * the literal `that`. Evaluate it on an `S` with `SchemaExpr#eval`.
+   */
   final def ===(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
       SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
@@ -99,6 +258,10 @@ sealed trait Optic[S, A] { self =>
       SchemaExpr.RelationalOperator.Equal
     )
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where the focus of this optic equals
+   * the focus of `that`.
+   */
   final def ===(that: Optic[S, A]): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
       SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
@@ -106,6 +269,10 @@ sealed trait Optic[S, A] { self =>
       SchemaExpr.RelationalOperator.Equal
     )
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where the focus of this optic is
+   * greater than the focus of `that`.
+   */
   final def >(that: Optic[S, A]): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
       SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
@@ -113,24 +280,40 @@ sealed trait Optic[S, A] { self =>
       SchemaExpr.RelationalOperator.GreaterThan
     )
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where the focus of this optic is
+   * greater than the literal `that`.
+   */
   final def >(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that),
     SchemaExpr.RelationalOperator.GreaterThan
   )
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where the focus of this optic is
+   * greater than or equal to the focus of `that`.
+   */
   final def >=(that: Optic[S, A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
     SchemaExpr.RelationalOperator.GreaterThanOrEqual
   )
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where the focus of this optic is
+   * greater than or equal to the literal `that`.
+   */
   final def >=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that),
     SchemaExpr.RelationalOperator.GreaterThanOrEqual
   )
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where the focus of this optic is less
+   * than the focus of `that`.
+   */
   final def <(that: Optic[S, A]): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
       SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
@@ -138,12 +321,20 @@ sealed trait Optic[S, A] { self =>
       SchemaExpr.RelationalOperator.LessThan
     )
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where the focus of this optic is less
+   * than the literal `that`.
+   */
   final def <(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that),
     SchemaExpr.RelationalOperator.LessThan
   )
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where the focus of this optic is less
+   * than or equal to the focus of `that`.
+   */
   final def <=(that: Optic[S, A]): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
       SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
@@ -151,12 +342,20 @@ sealed trait Optic[S, A] { self =>
       SchemaExpr.RelationalOperator.LessThanOrEqual
     )
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where the focus of this optic is less
+   * than or equal to the literal `that`.
+   */
   final def <=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that),
     SchemaExpr.RelationalOperator.LessThanOrEqual
   )
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where the focus of this optic differs
+   * from the focus of `that`.
+   */
   final def !=(that: Optic[S, A]): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
       SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
@@ -164,6 +363,10 @@ sealed trait Optic[S, A] { self =>
       SchemaExpr.RelationalOperator.NotEqual
     )
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where the focus of this optic differs
+   * from the literal `that`.
+   */
   final def !=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
       SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
@@ -171,12 +374,20 @@ sealed trait Optic[S, A] { self =>
       SchemaExpr.RelationalOperator.NotEqual
     )
 
+  /**
+   * Builds a [[SchemaExpr]] for the logical and of this optic's `Boolean` focus
+   * and the focus of `that`.
+   */
   final def &&(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.logical(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
     SchemaExpr.LogicalOperator.And
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for the logical and of this optic's `Boolean` focus
+   * and the literal `that`.
+   */
   final def &&(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.logical(
       SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
@@ -184,12 +395,20 @@ sealed trait Optic[S, A] { self =>
       SchemaExpr.LogicalOperator.And
     )
 
+  /**
+   * Builds a [[SchemaExpr]] for the logical or of this optic's `Boolean` focus
+   * and the focus of `that`.
+   */
   final def ||(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.logical(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
     SchemaExpr.LogicalOperator.Or
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for the logical or of this optic's `Boolean` focus
+   * and the literal `that`.
+   */
   final def ||(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.logical(
       SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
@@ -197,15 +416,31 @@ sealed trait Optic[S, A] { self =>
       SchemaExpr.LogicalOperator.Or
     )
 
+  /**
+   * Builds a [[SchemaExpr]] for the negation of this optic's `Boolean` focus.
+   */
   final def unary_!(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.not(SchemaExpr.optic(this.toDynamic, new Schema(this.source)))
 
+  /**
+   * Builds a [[SchemaExpr]] for this optic's `String` focus followed by the
+   * literal `that`.
+   */
   final def concat(that: String)(implicit ev: A =:= String): SchemaExpr[S, String] =
     SchemaExpr.stringConcat(SchemaExpr.optic(this.toDynamic, new Schema(this.source)), SchemaExpr.literal(that))
 
+  /**
+   * Builds a [[SchemaExpr]] that is true where this optic's `String` focus
+   * matches the Java regular expression `that` as a whole
+   * (`java.util.regex.Pattern.matches`).
+   */
   final def matches(that: String)(implicit ev: A =:= String): SchemaExpr[S, Boolean] =
     SchemaExpr.stringRegexMatch(SchemaExpr.literal(that), SchemaExpr.optic(this.toDynamic, new Schema(this.source)))
 
+  /**
+   * Builds a [[SchemaExpr]] for this optic's numeric focus plus the literal
+   * `that`.
+   */
   final def +(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that)(isNumeric.schema),
@@ -213,6 +448,10 @@ sealed trait Optic[S, A] { self =>
     isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for this optic's numeric focus minus the literal
+   * `that`.
+   */
   final def -(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that)(isNumeric.schema),
@@ -220,6 +459,10 @@ sealed trait Optic[S, A] { self =>
     isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for this optic's numeric focus times the literal
+   * `that`.
+   */
   final def *(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that)(isNumeric.schema),
@@ -227,6 +470,10 @@ sealed trait Optic[S, A] { self =>
     isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for this optic's numeric focus divided by the
+   * literal `that`.
+   */
   final def /(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that)(isNumeric.schema),
@@ -234,6 +481,10 @@ sealed trait Optic[S, A] { self =>
     isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for the remainder of this optic's numeric focus
+   * divided by the literal `that`.
+   */
   final def %(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that)(isNumeric.schema),
@@ -241,6 +492,10 @@ sealed trait Optic[S, A] { self =>
     isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for this optic's numeric focus raised to the power
+   * of the literal `that`.
+   */
   final def pow(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that)(isNumeric.schema),
@@ -249,73 +504,195 @@ sealed trait Optic[S, A] { self =>
   )
 
   // Bitwise operations
+  /**
+   * Builds a [[SchemaExpr]] for the bitwise and of this optic's integral focus
+   * and the literal `that`.
+   */
   final def &(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that)(ev.schema),
     SchemaExpr.BitwiseOperator.And
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for the bitwise or of this optic's integral focus
+   * and the literal `that`.
+   */
   final def |(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that)(ev.schema),
     SchemaExpr.BitwiseOperator.Or
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for the bitwise exclusive or of this optic's
+   * integral focus and the literal `that`.
+   */
   final def ^(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that)(ev.schema),
     SchemaExpr.BitwiseOperator.Xor
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for this optic's integral focus shifted left by the
+   * literal `that`.
+   */
   final def <<(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that)(ev.schema),
     SchemaExpr.BitwiseOperator.LeftShift
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for this optic's integral focus shifted right by
+   * the literal `that`, keeping the sign.
+   */
   final def >>(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that)(ev.schema),
     SchemaExpr.BitwiseOperator.RightShift
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for this optic's integral focus shifted right by
+   * the literal `that`, filling with zeros.
+   */
   final def >>>(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
     SchemaExpr.literal(that)(ev.schema),
     SchemaExpr.BitwiseOperator.UnsignedRightShift
   )
 
+  /**
+   * Builds a [[SchemaExpr]] for the bitwise complement of this optic's integral
+   * focus.
+   */
   final def unary_~(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = {
     val _ = ev
     SchemaExpr.bitwiseNot(SchemaExpr.optic(this.toDynamic, new Schema(this.source)))
   }
 
+  /**
+   * Builds a [[SchemaExpr]] for the length of this optic's `String` focus.
+   */
   final def length(implicit ev: A =:= String): SchemaExpr[S, Int] =
     SchemaExpr.stringLength(SchemaExpr.optic(this.toDynamic, new Schema(this.source)))
 
+  /**
+   * Returns this optic with its focus type changed to `B`, which `ev` proves is
+   * the same type. The optic is cast, not copied.
+   */
   final def asEquivalent[B](implicit ev: A =:= B): Optic[S, B] = self.asInstanceOf[Optic[S, B]]
 }
 
+/**
+ * A lens focuses on a part of `S` that is always there, such as a field of a
+ * case class, or a field of a field. Use it to read or replace that part
+ * without rebuilding the record by hand. A lens never reports a missing focus:
+ * `check` always returns `None`, `modifyOption` always returns `Some`, and
+ * `modifyOrFail` always returns `Right`.
+ *
+ * Get a lens from the `$` macro of [[CompanionOptics]], from [[DerivedOptics]],
+ * from `Reflect.Record#lensByName`, or with the `Lens.apply` constructor.
+ *
+ * {{{
+ * case class Book(title: String, year: Int)
+ * object Book extends CompanionOptics[Book] {
+ *   implicit val schema: Schema[Book] = Schema.derived
+ *   val year: Lens[Book, Int] = $(_.year)
+ * }
+ *
+ * val zionomicon = Book("Zionomicon", 2021)
+ * Book.year.get(zionomicon)          // 2021
+ * Book.year.replace(zionomicon, 2024) // Book(Zionomicon,2024)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/optics/ Optics]]
+ */
 sealed trait Lens[S, A] extends Optic[S, A] {
+
+  /**
+   * Returns the part of `s` that this lens focuses on.
+   *
+   * {{{
+   * case class Book(title: String, year: Int)
+   * object Book extends CompanionOptics[Book] {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   *   val title: Lens[Book, String] = $(_.title)
+   * }
+   *
+   * Book.title.get(Book("Zionomicon", 2021)) // "Zionomicon"
+   * }}}
+   */
   def get(s: S): A
 
+  /**
+   * Returns a copy of `s` with the part this lens focuses on replaced by `a`.
+   *
+   * {{{
+   * case class Book(title: String, year: Int)
+   * object Book extends CompanionOptics[Book] {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   *   val title: Lens[Book, String] = $(_.title)
+   * }
+   *
+   * Book.title.replace(Book("Programming in Scala", 2021), "Programming in Scala, Fifth Edition")
+   * // Book(Programming in Scala, Fifth Edition,2021)
+   * }}}
+   */
   def replace(s: S, a: A): S
 
+  /**
+   * Composes this lens with `that` lens. The result is a [[Lens]].
+   */
   def apply[B](that: Lens[A, B]): Lens[S, B] = Lens(this, that)
 
+  /**
+   * Composes this lens with `that` prism. The result is an [[Optional]].
+   */
   def apply[B <: A](that: Prism[A, B]): Optional[S, B] = Optional(this, that)
 
+  /**
+   * Composes this lens with `that` optional. The result is an [[Optional]].
+   */
   def apply[B](that: Optional[A, B]): Optional[S, B] = Optional(this, that)
 
+  /**
+   * Composes this lens with `that` traversal. The result is a [[Traversal]].
+   */
   def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
 }
 
+/**
+ * Constructors for [[Lens]].
+ */
 object Lens {
+
+  /**
+   * Creates a lens on the field `focusTerm` of the record `source`. The field
+   * is looked up by the term's name, so `focusTerm` must be one of `source`'s
+   * fields. If it is not, the lens throws `ArrayIndexOutOfBoundsException` the
+   * first time it reads or writes a value (see `docs/dev/issues.md`).
+   * `Reflect.Record#lensByName` and the `$` macro of [[CompanionOptics]] check
+   * the field for you.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `source` or `focusTerm` is null
+   */
   def apply[S, A](source: Reflect.Record.Bound[S], focusTerm: Term.Bound[S, A]): Lens[S, A] = {
     require((source ne null) && (focusTerm ne null))
     new LensImpl(Array(source), Array(focusTerm))
   }
 
+  /**
+   * Composes two lenses: the result focuses on `second`'s focus inside
+   * `first`'s focus. It is the same as `first(second)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `first` or `second` is null
+   */
   def apply[S, T, A](first: Lens[S, T], second: Lens[T, A]): Lens[S, A] = {
     require((first ne null) && (second ne null))
     val lens1 = first.asInstanceOf[LensImpl[?, ?]]
@@ -445,42 +822,151 @@ object Lens {
   }
 }
 
+/**
+ * A prism focuses on one case `A` of a sealed trait, enum or other variant `S`.
+ * On a value of another case, `getOption` returns `None`, and `replace` and
+ * `modify` return the value unchanged. The `*OrFail` methods return an
+ * [[OpticCheck.UnexpectedCase]] instead, which names the expected and the
+ * actual case.
+ *
+ * {{{
+ * sealed trait Format
+ * case class Paperback(pages: Int) extends Format
+ * case class Ebook(sizeMb: Double) extends Format
+ * object Format extends CompanionOptics[Format] {
+ *   implicit val schema: Schema[Format] = Schema.derived
+ *   val paperback: Prism[Format, Paperback] = $(_.when[Paperback])
+ * }
+ *
+ * Format.paperback.getOption(Paperback(870))  // Some(Paperback(870))
+ * Format.paperback.getOption(Ebook(5.2))      // None
+ * Format.paperback.reverseGet(Paperback(870)) // Paperback(870), typed as a Format
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/optics/ Optics]]
+ */
 sealed trait Prism[S, A <: S] extends Optic[S, A] {
+
+  /**
+   * Returns `s` as the case `A` when it is that case, and `None` otherwise.
+   *
+   * {{{
+   * sealed trait Format
+   * case class Paperback(pages: Int) extends Format
+   * case class Ebook(sizeMb: Double) extends Format
+   * object Format extends CompanionOptics[Format] {
+   *   implicit val schema: Schema[Format] = Schema.derived
+   *   val paperback: Prism[Format, Paperback] = $(_.when[Paperback])
+   * }
+   *
+   * Format.paperback.getOption(Paperback(870)) // Some(Paperback(870))
+   * Format.paperback.getOption(Ebook(5.2))     // None
+   * }}}
+   */
   def getOption(s: S): Option[A]
 
+  /**
+   * Like `getOption`, but returns `Left` with an [[OpticCheck.UnexpectedCase]]
+   * when `s` is another case, for example
+   * `During attempted access at .when[Paperback], encountered an unexpected case at .when[Paperback]: expected Paperback, but got Ebook`.
+   * For a composed prism, it names the first step that does not match.
+   */
   def getOrFail(s: S): Either[OpticCheck, A] =
     getOption(s) match {
       case Some(a) => new Right(a)
       case _       => new Left(check(s).get)
     }
 
+  /**
+   * Returns `a` as a value of the variant `S`. It never fails, because a case
+   * is always a value of its variant.
+   */
   def reverseGet(a: A): S
 
+  /**
+   * Returns `a` when `s` is the case `A`, and `s` unchanged otherwise.
+   *
+   * {{{
+   * sealed trait Format
+   * case class Paperback(pages: Int) extends Format
+   * case class Ebook(sizeMb: Double) extends Format
+   * object Format extends CompanionOptics[Format] {
+   *   implicit val schema: Schema[Format] = Schema.derived
+   *   val paperback: Prism[Format, Paperback] = $(_.when[Paperback])
+   * }
+   *
+   * Format.paperback.replace(Paperback(870), Paperback(920)) // Paperback(920)
+   * Format.paperback.replace(Ebook(5.2), Paperback(920))     // Ebook(5.2)
+   * }}}
+   */
   def replace(s: S, a: A): S
 
+  /**
+   * Like `replace`, but returns `None` when `s` is another case.
+   */
   def replaceOption(s: S, a: A): Option[S]
 
+  /**
+   * Like `replace`, but returns `Left` with an [[OpticCheck.UnexpectedCase]]
+   * when `s` is another case.
+   */
   def replaceOrFail(s: S, a: A): Either[OpticCheck, S] =
     replaceOption(s, a) match {
       case Some(s) => new Right(s)
       case _       => new Left(check(s).get)
     }
 
+  /**
+   * Composes this prism with `that` prism. The result is a [[Prism]].
+   */
   def apply[B <: A](that: Prism[A, B]): Prism[S, B] = Prism(this, that)
 
+  /**
+   * Composes this prism with `that` lens. The result is an [[Optional]].
+   */
   def apply[B](that: Lens[A, B]): Optional[S, B] = Optional(this, that)
 
+  /**
+   * Composes this prism with `that` optional. The result is an [[Optional]].
+   */
   def apply[B](that: Optional[A, B]): Optional[S, B] = Optional(this, that)
 
+  /**
+   * Composes this prism with `that` traversal. The result is a [[Traversal]].
+   */
   def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
 }
 
+/**
+ * Constructors for [[Prism]].
+ */
 object Prism {
+
+  /**
+   * Creates a prism on the case `focusTerm` of the variant `source`. The case
+   * is looked up by the term's name, so `focusTerm` must be one of `source`'s
+   * cases. If it is not, this method throws `ArrayIndexOutOfBoundsException`
+   * (see `docs/dev/issues.md`). `Reflect.Variant#prismByName` and the `$` macro
+   * of [[CompanionOptics]] check the case for you.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `source` or `focusTerm` is null
+   * @throws java.lang.ArrayIndexOutOfBoundsException
+   *   if `source` has no case named like `focusTerm`
+   */
   def apply[S, A <: S](source: Reflect.Variant.Bound[S], focusTerm: Term.Bound[S, A]): Prism[S, A] = {
     require((source ne null) && (focusTerm ne null))
     new PrismImpl(Array(source), Array(focusTerm))
   }
 
+  /**
+   * Composes two prisms: the result focuses on the case `A` of `first`'s case
+   * `T`. It is the same as `first(second)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `first` or `second` is null
+   */
   def apply[S, T <: S, A <: T](first: Prism[S, T], second: Prism[T, A]): Prism[S, A] = {
     require((first ne null) && (second ne null))
     val prism1 = first.asInstanceOf[PrismImpl[?, ?]]
@@ -631,31 +1117,129 @@ object Prism {
   }
 }
 
+/**
+ * An optional focuses on a part of `S` that may be missing: a field inside one
+ * case of a variant, the element at an index of a sequence, the value at a key
+ * of a map, or the value inside a wrapper. Composing a [[Lens]] with a
+ * [[Prism]], in either order, gives an optional.
+ *
+ * When the part is missing, `getOption` returns `None`, and `replace` and
+ * `modify` return a value equal to `s`. The `*OrFail` methods say why in an
+ * [[OpticCheck]]: another case ([[OpticCheck.UnexpectedCase]]), an index past
+ * the end ([[OpticCheck.SequenceIndexOutOfBounds]]), a missing key
+ * ([[OpticCheck.MissingKey]]), or a wrapper whose `wrap` or `unwrap` throws a
+ * [[SchemaError]] ([[OpticCheck.WrappingError]]). `replace` never adds a
+ * missing element or key.
+ *
+ * {{{
+ * case class Book(title: String, tags: List[String])
+ * object Book extends CompanionOptics[Book] {
+ *   implicit val schema: Schema[Book] = Schema.derived
+ *   val firstTag: Optional[Book, String] = $(_.tags.at(0))
+ * }
+ *
+ * Book.firstTag.getOption(Book("Zionomicon", List("zio", "scala"))) // Some(zio)
+ * Book.firstTag.getOption(Book("Zionomicon", Nil))                  // None
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/optics/ Optics]]
+ */
 sealed trait Optional[S, A] extends Optic[S, A] {
+
+  /**
+   * Returns the part of `s` that this optional focuses on, or `None` when it is
+   * missing.
+   *
+   * {{{
+   * case class Book(title: String, tags: List[String])
+   * object Book extends CompanionOptics[Book] {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   *   val firstTag: Optional[Book, String] = $(_.tags.at(0))
+   * }
+   *
+   * Book.firstTag.getOption(Book("Zionomicon", List("zio", "scala"))) // Some(zio)
+   * Book.firstTag.getOption(Book("Zionomicon", Nil))                  // None
+   * }}}
+   */
   def getOption(s: S): Option[A]
 
+  /**
+   * Like `getOption`, but returns `Left` with an [[OpticCheck]] that says why
+   * the part is missing, for example
+   * `During attempted access at .tags.at(0), encountered a sequence out of bounds at .tags.at(0): index is 0, but size is 0`.
+   */
   def getOrFail(s: S): Either[OpticCheck, A] =
     getOption(s) match {
       case Some(a) => new Right(a)
       case _       => new Left(check(s).get)
     }
 
+  /**
+   * Returns a copy of `s` with the part this optional focuses on replaced by
+   * `a`. When the part is missing, or a `wrapped` step on the path throws a
+   * [[SchemaError]], the result equals `s`.
+   *
+   * {{{
+   * case class Book(title: String, tags: List[String])
+   * object Book extends CompanionOptics[Book] {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   *   val firstTag: Optional[Book, String] = $(_.tags.at(0))
+   * }
+   *
+   * Book.firstTag.replace(Book("Zionomicon", List("zio", "scala")), "effects") // Book(Zionomicon,List(effects, scala))
+   * Book.firstTag.replace(Book("Zionomicon", Nil), "effects")                  // Book(Zionomicon,List())
+   * }}}
+   */
   def replace(s: S, a: A): S
 
+  /**
+   * Like `replace`, but returns `None` when the part is missing or a `wrapped`
+   * step on the path throws a [[SchemaError]].
+   */
   def replaceOption(s: S, a: A): Option[S]
 
+  /**
+   * Like `replace`, but returns `Left` with an [[OpticCheck]] when the part is
+   * missing, or with an [[OpticCheck.WrappingError]] when a `wrapped` step on
+   * the path throws a [[SchemaError]].
+   */
   def replaceOrFail(s: S, a: A): Either[OpticCheck, S]
 
+  /**
+   * Composes this optional with `that` lens. The result is an [[Optional]].
+   */
   def apply[B](that: Lens[A, B]): Optional[S, B] = Optional(this, that)
 
+  /**
+   * Composes this optional with `that` prism. The result is an [[Optional]].
+   */
   def apply[B <: A](that: Prism[A, B]): Optional[S, B] = Optional(this, that)
 
+  /**
+   * Composes this optional with `that` optional. The result is an [[Optional]].
+   */
   def apply[B](that: Optional[A, B]): Optional[S, B] = Optional(this, that)
 
+  /**
+   * Composes this optional with `that` traversal. The result is a
+   * [[Traversal]].
+   */
   def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
 }
 
+/**
+ * Constructors for [[Optional]]: compositions of two optics that give an
+ * optional, and optionals on an index, a map key or a wrapped value.
+ */
 object Optional {
+
+  /**
+   * Composes an optional with a lens. The same as `first(second)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `first` or `second` is null
+   */
   def apply[S, T, A](first: Optional[S, T], second: Lens[T, A]): Optional[S, A] = {
     require((first ne null) && (second ne null))
     val optional1 = first.asInstanceOf[OptionalImpl[?, ?]]
@@ -667,6 +1251,12 @@ object Optional {
     )
   }
 
+  /**
+   * Composes an optional with a prism. The same as `first(second)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `first` or `second` is null
+   */
   def apply[S, T, A <: T](first: Optional[S, T], second: Prism[T, A]): Optional[S, A] = {
     require((first ne null) && (second ne null))
     val optional1 = first.asInstanceOf[OptionalImpl[?, ?]]
@@ -678,6 +1268,12 @@ object Optional {
     )
   }
 
+  /**
+   * Composes two optionals. The same as `first(second)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `first` or `second` is null
+   */
   def apply[S, T, A](first: Optional[S, T], second: Optional[T, A]): Optional[S, A] = {
     require((first ne null) && (second ne null))
     val optional1 = first.asInstanceOf[OptionalImpl[?, ?]]
@@ -689,6 +1285,12 @@ object Optional {
     )
   }
 
+  /**
+   * Composes a lens with a prism. The same as `first(second)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `first` or `second` is null
+   */
   def apply[S, T, A <: T](first: Lens[S, T], second: Prism[T, A]): Optional[S, A] = {
     require((first ne null) && (second ne null))
     val lens1  = first.asInstanceOf[Lens.LensImpl[?, ?]]
@@ -700,6 +1302,12 @@ object Optional {
     )
   }
 
+  /**
+   * Composes a lens with an optional. The same as `first(second)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `first` or `second` is null
+   */
   def apply[S, T, A](first: Lens[S, T], second: Optional[T, A]): Optional[S, A] = {
     require((first ne null) && (second ne null))
     val lens1     = first.asInstanceOf[Lens.LensImpl[?, ?]]
@@ -711,6 +1319,12 @@ object Optional {
     )
   }
 
+  /**
+   * Composes a prism with a lens. The same as `first(second)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `first` or `second` is null
+   */
   def apply[S, T <: S, A](first: Prism[S, T], second: Lens[T, A]): Optional[S, A] = {
     require((first ne null) && (second ne null))
     val prism1 = first.asInstanceOf[Prism.PrismImpl[?, ?]]
@@ -721,6 +1335,13 @@ object Optional {
       new Array[Any](prism1.sources.length + lens2.sources.length)
     )
   }
+
+  /**
+   * Composes a prism with an optional. The same as `first(second)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `first` or `second` is null
+   */
   def apply[S, T <: S, A](first: Prism[S, T], second: Optional[T, A]): Optional[S, A] = {
     require((first ne null) && (second ne null))
     val prism1    = first.asInstanceOf[Prism.PrismImpl[?, ?]]
@@ -732,16 +1353,40 @@ object Optional {
     )
   }
 
+  /**
+   * Creates an optional on the element at `index` of a sequence. A sequence
+   * with `index` elements or fewer has no focus
+   * ([[OpticCheck.SequenceIndexOutOfBounds]]).
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `seq` is null or `index` is negative
+   */
   def at[A, C[_]](seq: Reflect.Sequence.Bound[A, C], index: Int): Optional[C[A], A] = {
     require((seq ne null) && index >= 0)
     new OptionalImpl(Array(seq), Array(seq.element.asTerm("at")), Array[Any](index))
   }
 
+  /**
+   * Creates an optional on the value at `key` in a map. A map without `key` has
+   * no focus ([[OpticCheck.MissingKey]]), and `replace` does not add the key.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `map` is null
+   */
   def atKey[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], key: K): Optional[M[K, V], V] = {
     require(map ne null)
     new OptionalImpl(Array(map), Array(map.value.asTerm("atKey")), Array[Any](key))
   }
 
+  /**
+   * Creates an optional on the value inside a wrapper, such as a schema built
+   * with `Schema#transform`. It reads with the wrapper's `unwrap` and writes
+   * with its `wrap`. When either throws a [[SchemaError]], the focus counts as
+   * missing ([[OpticCheck.WrappingError]]); other exceptions propagate.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `wrapper` is null
+   */
   def wrapped[A, B](wrapper: Reflect.Wrapper.Bound[A, B]): Optional[A, B] = {
     require(wrapper ne null)
     new OptionalImpl(Array(wrapper), Array(wrapper.wrapped.asTerm("wrapped")), Array[Any](null))
@@ -1246,9 +1891,59 @@ object Optional {
   }
 }
 
+/**
+ * A traversal focuses on zero or more parts of `S` at once: every element of a
+ * collection, the elements at some indices, every key or value of a map, the
+ * values at some keys, or every value of a type found anywhere in `S`
+ * (`searchFor`). Composing any optic with a traversal gives a traversal.
+ *
+ * `fold` and `reduceOrFail` read the parts, and `modify` updates all of them.
+ * When there are no parts, for example in an empty collection, `fold` returns
+ * its `zero`, `modify` returns a value equal to `s`, `modifyOption` returns
+ * `None`, and `modifyOrFail` and `reduceOrFail` return `Left` with an
+ * [[OpticCheck]] ([[OpticCheck.EmptySequence]] for an empty sequence).
+ *
+ * {{{
+ * case class Book(title: String, tags: List[String])
+ * object Book extends CompanionOptics[Book] {
+ *   implicit val schema: Schema[Book] = Schema.derived
+ *   val tags: Traversal[Book, String] = $(_.tags.each)
+ * }
+ *
+ * val zionomicon = Book("Zionomicon", List("zio", "scala"))
+ * Book.tags.fold[Int](zionomicon)(0, (count, _) => count + 1) // 2
+ * Book.tags.modify(zionomicon, _.toUpperCase)                 // Book(Zionomicon,List(ZIO, SCALA))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/optics/ Optics]]
+ */
 sealed trait Traversal[S, A] extends Optic[S, A] { self =>
+
+  /**
+   * Combines the parts of `s` that this traversal focuses on with `f`, starting
+   * from `zero`, in the order of the underlying collections. Returns `zero`
+   * when there are no parts. On Scala 2, give `Z` explicitly, as in
+   * `fold[Int](s)(0, ...)`: Scala 2 cannot infer the parameter types of `f`
+   * from `zero` in the same parameter list.
+   *
+   * {{{
+   * case class Book(title: String, tags: List[String])
+   * object Book extends CompanionOptics[Book] {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   *   val tags: Traversal[Book, String] = $(_.tags.each)
+   * }
+   *
+   * Book.tags.fold[List[String]](Book("Zionomicon", List("zio", "scala")))(Nil, (acc, tag) => tag :: acc)
+   * // List(scala, zio)
+   * }}}
+   */
   def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z
 
+  /**
+   * Combines the parts of `s` with `f`, starting from the first part. Returns
+   * `Left` with the [[OpticCheck]] from `check` when there are no parts.
+   */
   def reduceOrFail(s: S)(f: (A, A) => A): Either[OpticCheck, A] = {
     var one     = false
     val reduced = fold[A](s)(
@@ -1265,16 +1960,49 @@ sealed trait Traversal[S, A] extends Optic[S, A] { self =>
     else new Left(check(s).get)
   }
 
+  /**
+   * Composes this traversal with `that` lens. The result is a [[Traversal]].
+   */
   def apply[B](that: Lens[A, B]): Traversal[S, B] = Traversal(this, that)
 
+  /**
+   * Composes this traversal with `that` prism. The result is a [[Traversal]]
+   * over the parts that are the case `B`.
+   */
   def apply[B <: A](that: Prism[A, B]): Traversal[S, B] = Traversal(this, that)
 
+  /**
+   * Composes this traversal with `that` optional. The result is a [[Traversal]]
+   * over the parts where `that` finds its focus.
+   */
   def apply[B](that: Optional[A, B]): Traversal[S, B] = Traversal(this, that)
 
+  /**
+   * Composes this traversal with `that` traversal. The result is a
+   * [[Traversal]].
+   */
   def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
 }
 
+/**
+ * Constructors for [[Traversal]]: compositions of two optics that give a
+ * traversal, and traversals over sequences and maps.
+ */
 object Traversal {
+
+  /**
+   * Creates a traversal on the elements at `indices` of a sequence, visited in
+   * increasing index order whatever the order of `indices`. Indices past the
+   * end of a sequence are skipped; `check` reports them as
+   * [[OpticCheck.SequenceIndexOutOfBounds]]. When another step follows
+   * `atIndices` and the sequence is not indexed (a `List`, for example),
+   * `check` also reports reachable indices after the first as out of bounds;
+   * `fold` and `modify` are not affected (a bug, see `docs/dev/issues.md`).
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `seq` or `indices` is null, `indices` is empty, or it holds a negative
+   *   or a repeated index
+   */
   def atIndices[A, C[_]](seq: Reflect.Sequence.Bound[A, C], indices: Seq[Int]): Traversal[C[A], A] = {
     require((seq ne null) && (indices ne null) && indices.nonEmpty)
     val sortedIndices = indices.toArray
@@ -1291,11 +2019,22 @@ object Traversal {
     new TraversalImpl(Array(seq), Array(seq.element.asTerm("atIndices")), Array[Any](sortedIndices))
   }
 
+  /**
+   * Creates a traversal on the values at `keys` in a map, visited in the order
+   * of `keys`. Keys the map does not have are skipped; `check` reports them as
+   * [[OpticCheck.MissingKey]].
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `map` or `keys` is null, or `keys` is empty
+   */
   def atKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], keys: Seq[K]): Traversal[M[K, V], V] = {
     require((map ne null) && (keys ne null) && keys.nonEmpty)
     new TraversalImpl(Array(map), Array(map.value.asTerm("atKeys")), Array[Any](keys))
   }
 
+  /**
+   * Composes two traversals. The same as `first(second)`.
+   */
   def apply[S, T, A](first: Traversal[S, T], second: Traversal[T, A]): Traversal[S, A] =
     // Handle search-based traversal composition specially
     // Note: ComposedSearchTraversal and PrefixedSearchTraversal also extend Traversal but are not TraversalImpl
@@ -1332,6 +2071,9 @@ object Traversal {
         )
     }
 
+  /**
+   * Composes a traversal with a lens. The same as `first(second)`.
+   */
   def apply[S, T, A](first: Traversal[S, T], second: Lens[T, A]): Traversal[S, A] =
     // Handle search-based traversal composition specially
     first match {
@@ -1351,6 +2093,9 @@ object Traversal {
         )
     }
 
+  /**
+   * Composes a traversal with a prism. The same as `first(second)`.
+   */
   def apply[S, T, A <: T](first: Traversal[S, T], second: Prism[T, A]): Traversal[S, A] =
     // Handle search-based traversal composition specially
     first match {
@@ -1370,6 +2115,9 @@ object Traversal {
         )
     }
 
+  /**
+   * Composes a traversal with an optional. The same as `first(second)`.
+   */
   def apply[S, T, A](first: Traversal[S, T], second: Optional[T, A]): Traversal[S, A] =
     // Handle search-based traversal composition specially
     first match {
@@ -1389,6 +2137,9 @@ object Traversal {
         )
     }
 
+  /**
+   * Composes a lens with a traversal. The same as `first(second)`.
+   */
   def apply[S, T, A](first: Lens[S, T], second: Traversal[T, A]): Traversal[S, A] =
     // Handle search-based traversal composition specially
     second match {
@@ -1408,6 +2159,9 @@ object Traversal {
         )
     }
 
+  /**
+   * Composes a prism with a traversal. The same as `first(second)`.
+   */
   def apply[S, T <: S, A](first: Prism[S, T], second: Traversal[T, A]): Traversal[S, A] =
     // Handle search-based traversal composition specially
     second match {
@@ -1427,6 +2181,9 @@ object Traversal {
         )
     }
 
+  /**
+   * Composes an optional with a traversal. The same as `first(second)`.
+   */
   def apply[S, T, A](first: Optional[S, T], second: Traversal[T, A]): Traversal[S, A] =
     // Handle search-based traversal composition specially
     second match {
@@ -1446,31 +2203,72 @@ object Traversal {
         )
     }
 
+  /**
+   * Creates a traversal over every element of a `List` whose elements have the
+   * schema `reflect`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `reflect` is null
+   */
   def listValues[A](reflect: Reflect.Bound[A]): Traversal[List[A], A] = {
     require(reflect ne null)
     seqValues(Reflect.list(reflect))
   }
 
+  /**
+   * Creates a traversal over every key of a map. `modify` rebuilds the map with
+   * the new keys.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `map` is null
+   */
   def mapKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M]): Traversal[M[K, V], K] = {
     require(map ne null)
     new TraversalImpl(Array(map), Array(map.key.asTerm("key")), Array[Any](null))
   }
 
+  /**
+   * Creates a traversal over every value of a map.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `map` is null
+   */
   def mapValues[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M]): Traversal[M[K, V], V] = {
     require(map ne null)
     new TraversalImpl(Array(map), Array(map.value.asTerm("value")), Array[Any](null))
   }
 
+  /**
+   * Creates a traversal over every element of a sequence, such as a `List`,
+   * `Vector`, `Set` or `Chunk`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `seq` is null
+   */
   def seqValues[A, C[_]](seq: Reflect.Sequence.Bound[A, C]): Traversal[C[A], A] = {
     require(seq ne null)
     new TraversalImpl(Array(seq), Array(seq.element.asTerm("element")), Array[Any](null))
   }
 
+  /**
+   * Creates a traversal over every element of a `Set` whose elements have the
+   * schema `reflect`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `reflect` is null
+   */
   def setValues[A](reflect: Reflect.Bound[A]): Traversal[Set[A], A] = {
     require(reflect ne null)
     seqValues(Reflect.set(reflect))
   }
 
+  /**
+   * Creates a traversal over every element of a `Vector` whose elements have
+   * the schema `reflect`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `reflect` is null
+   */
   def vectorValues[A](reflect: Reflect.Bound[A]): Traversal[Vector[A], A] = {
     require(reflect ne null)
     seqValues(Reflect.vector(reflect))
@@ -3263,16 +4061,28 @@ object Traversal {
   }
 }
 
+/**
+ * Constructors for search traversals, which the `searchFor[T]` step of
+ * [[CompanionOptics]] builds.
+ *
+ * A search traversal converts the value to a [[DynamicValue]]. `fold` and
+ * `check` visit it depth first, left to right: the value itself, then record
+ * fields, case values, sequence elements, and both the keys and the values of
+ * maps. `modify` visits the same nodes except map keys, so a match that is a
+ * map key is read but never modified (see `docs/dev/issues.md`). Every node
+ * that decodes with the focus schema is a match, and the children of a match
+ * are searched too. `modify` applies `f` to each match and decodes the result
+ * with the source schema; if that decoding fails, it returns `s` unchanged.
+ * `check` reports an [[OpticCheck.EmptySequence]] when nothing matches.
+ */
 object SearchTraversal {
 
   /**
-   * Creates a SearchTraversal that finds all values of type A within a
-   * structure of type S.
+   * Creates a traversal over every value inside an `S` (described by `source`)
+   * that decodes with the schema `focus`.
    *
-   * @tparam S
-   *   The source type to search within
-   * @tparam A
-   *   The focus type to search for
+   * @throws java.lang.IllegalArgumentException
+   *   if `source` or `focus` is null
    */
   def apply[S, A](source: Reflect.Bound[S], focus: Reflect.Bound[A]): Traversal[S, A] = {
     require((source ne null) && (focus ne null))
@@ -3280,12 +4090,8 @@ object SearchTraversal {
   }
 
   /**
-   * Creates a SearchTraversal using Schema instances.
-   *
-   * @tparam S
-   *   The source type to search within
-   * @tparam A
-   *   The focus type to search for
+   * Creates a traversal over every value inside an `S` that decodes as an `A`,
+   * with both schemas taken from implicit scope.
    */
   def apply[S, A](implicit sourceSchema: Schema[S], focusSchema: Schema[A]): Traversal[S, A] =
     apply(sourceSchema.reflect, focusSchema.reflect)
