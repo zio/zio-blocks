@@ -20,91 +20,151 @@ import scala.language.experimental.macros
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, Schema, SchemaExpr}
 
+/**
+ * Marker types that record, in a [[MigrationBuilder]]'s `Changeset` type, which
+ * operations it has added. [[MigrationComplete]] reads them at compile time;
+ * they have no values.
+ */
 object Changeset {
 
   /**
-   * Phantom type wrapper to preserve literal string types through macro
-   * expansion. Direct use of ConstantType causes literal types to widen to
-   * String. By wrapping in FieldName[N], the type argument is preserved when
-   * using appliedType.
+   * A field the builder handles and provides, recorded by `migrateField` for
+   * each nested field of the migrated value. The name is a literal string type.
    */
   sealed trait FieldName[N]
 
   // Field operations (tracked for validation)
+  /** Records that `addField` provides the target field `N`. */
   sealed trait AddField[N]
+
+  /** Records that `dropField` handles the source field `N`. */
   sealed trait DropField[N]
+
+  /**
+   * Records that `renameField` handles the source field `From` and provides the
+   * target field `To`.
+   */
   sealed trait RenameField[From, To]
+
+  /**
+   * Records that `transformField` handles the source field `From` and provides
+   * the target field `To`.
+   */
   sealed trait TransformField[From, To]
+
+  /**
+   * Records that `mandateField` handles the source field `Source` and provides
+   * the target field `Target`.
+   */
   sealed trait MandateField[Source, Target]
+
+  /**
+   * Records that `optionalizeField` handles the source field `Source` and
+   * provides the target field `Target`.
+   */
   sealed trait OptionalizeField[Source, Target]
+
+  /** Records that `changeFieldType` handles and provides the field `Name`. */
   sealed trait ChangeFieldType[Name]
+
+  /** Records that `migrateField` handles and provides the field `Name`. */
   sealed trait MigrateField[Name]
 
   // Case operations (tracked but not field-validated)
+  /**
+   * Marker for `renameCase`; not part of the completeness check and not added
+   * by the builder.
+   */
   sealed trait RenameCase[From, To]
+
+  /**
+   * Marker for `transformCase`; not part of the completeness check and not
+   * added by the builder.
+   */
   sealed trait TransformCase[CaseName]
 
   // Collection operations (tracked but not field-validated)
+  /**
+   * Marker for `transformElements`; not part of the completeness check and not
+   * added by the builder.
+   */
   sealed trait TransformElements[FieldName]
+
+  /**
+   * Marker for `transformKeys`; not part of the completeness check and not
+   * added by the builder.
+   */
   sealed trait TransformKeys[FieldName]
+
+  /**
+   * Marker for `transformValues`; not part of the completeness check and not
+   * added by the builder.
+   */
   sealed trait TransformValues[FieldName]
 }
 
 /**
- * A builder for constructing migrations from type `A` to type `B`.
+ * Builds a [[Migration]] from `A` to `B` one action at a time. Start with
+ * [[Migration.newBuilder]], add actions with selector lambdas such as `_.title`
+ * or `_.author.name`, and finish with [[build]]; [[Migration]] shows an
+ * example. Each method returns a new builder.
  *
- * All selector-accepting methods are implemented via macros that:
- *   1. Inspect the selector expression
- *   2. Validate it is a supported projection
- *   3. Convert it into a `DynamicOptic`
- *   4. Store that optic in the migration action
+ * The record methods take selectors made of field accesses only, and record the
+ * fields they touch in the `Changeset` type. [[build]] uses it to check at
+ * compile time that the migration is complete: every field of `B` is provided
+ * and every field of `A` handled, either by an action or because both types
+ * have a field of that name whose types are equal or one a subtype of the
+ * other. The case and collection methods are not part of that check. The
+ * selector syntax of [[MigrationSelectorSyntax]], such as `_.books.each`, does
+ * not compile in any method (see `docs/dev/issues.md`).
  *
- * `DynamicOptic` is never exposed publicly in the builder API.
+ * On Scala 2 the macro methods and `build` expand to code that uses
+ * package-private members, so they compile only inside
+ * `zio.blocks.schema.migration` (see `docs/dev/issues.md`).
  *
  * @tparam A
- *   The source type
+ *   the source type
  * @tparam B
- *   The target type
+ *   the target type
  * @tparam Changeset
- *   Intersection type tracking which operations have been performed
+ *   the record operations added so far, as an intersection of the types in
+ *   [[Changeset]]
  */
 final class MigrationBuilder[A, B, Changeset](
+  /** The schema of the source type. */
   val sourceSchema: Schema[A],
+  /** The schema of the target type. */
   val targetSchema: Schema[B],
   private[migration] val actions: Chunk[MigrationAction]
 ) {
 
   // ----- Record operations -----
 
-  /**
-   * Add a new field to the target with a default value.
-   *
-   * @param target
-   *   Selector for the field to add
-   * @param default
-   *   Expression providing the default value
-   */
   // format: off
+  /**
+   * Adds the field that `target` selects in `B`, with the value of `default`; a
+   * nested selector such as `_.author.born` adds the field to the nested
+   * record. `default` is evaluated against the whole value being migrated, not
+   * against the record that gets the field. [[Migration#reverse]] drops the
+   * field again.
+   */
   def addField(target: B => Any, default: SchemaExpr[_, _]): MigrationBuilder[A, B, _] =
     macro MigrationBuilderMacros.addFieldImpl[A, B, Changeset]
   // format: on
 
-  /**
-   * Drop a field from the source.
-   *
-   * @param source
-   *   Selector for the field to drop
-   * @param defaultForReverse
-   *   Default value to use when reversing the migration (for re-adding the
-   *   field)
-   */
   // format: off
+  /**
+   * Removes the field that `source` selects in `A`. [[Migration#reverse]] adds
+   * it back with the value of `defaultForReverse`.
+   */
   def dropField(source: A => Any, defaultForReverse: SchemaExpr[_, _]): MigrationBuilder[A, B, _] =
     macro MigrationBuilderMacros.dropFieldImpl[A, B, Changeset]
   // format: on
 
   /**
-   * Rename a field from source to target.
+   * Renames the field that `from` selects in `A` to the last field name of
+   * `to`, in the same parent record. To change a field's value and its name,
+   * call [[changeFieldType]] with the old name first.
    */
   def renameField(
     from: A => Any,
@@ -112,14 +172,10 @@ final class MigrationBuilder[A, B, Changeset](
   ): MigrationBuilder[A, B, _] = macro MigrationBuilderMacros.renameFieldImpl[A, B, Changeset]
 
   /**
-   * Transform a field value.
-   *
-   * @param from
-   *   Selector for the source field
-   * @param to
-   *   Selector for the target field (used for validation)
-   * @param transform
-   *   Expression that computes the new value
+   * Replaces the value of the field that `from` selects with the value of
+   * `transform`, evaluated against the value it replaces. `from` and `to` must
+   * select fields with the same name, or compilation fails.
+   * [[Migration#reverse]] fails at this step.
    */
   def transformField(
     from: A => Any,
@@ -128,14 +184,10 @@ final class MigrationBuilder[A, B, Changeset](
   ): MigrationBuilder[A, B, _] = macro MigrationBuilderMacros.transformFieldImpl[A, B, Changeset]
 
   /**
-   * Convert an optional field in source to a required field in target.
-   *
-   * @param source
-   *   Selector for the optional source field
-   * @param target
-   *   Selector for the required target field (used for validation)
-   * @param default
-   *   Expression providing the default value when source is None
+   * Turns the `Option` field that `source` selects into a required field, using
+   * the value of `default` for a `None`. `source` and `target` must select
+   * fields with the same name, or compilation fails. The migration currently
+   * fails for every `Some` (see `docs/dev/issues.md`).
    */
   def mandateField(
     source: A => Option[_],
@@ -143,34 +195,44 @@ final class MigrationBuilder[A, B, Changeset](
     default: SchemaExpr[_, _]
   ): MigrationBuilder[A, B, _] = macro MigrationBuilderMacros.mandateFieldImpl[A, B, Changeset]
 
-  /**
-   * Convert a required field in source to an optional field in target.
-   */
   // format: off
+  /**
+   * Turns the field that `source` selects into an `Option` field. `source` and
+   * `target` must select fields with the same name, or compilation fails. The
+   * migration currently fails to decode the result (see `docs/dev/issues.md`).
+   */
   def optionalizeField(source: A => Any, target: B => Option[_]): MigrationBuilder[A, B, _] =
     macro MigrationBuilderMacros.optionalizeFieldImpl[A, B, Changeset]
   // format: on
 
-  /**
-   * Change the type of a field (primitive-to-primitive only).
-   *
-   * @param source
-   *   Selector for the source field
-   * @param converter
-   *   Expression that converts between types
-   */
   // format: off
+  /**
+   * Replaces the value of the field that `source` selects with the value of
+   * `converter`, evaluated against the value it replaces. The field counts as
+   * both handled and provided, so this fits a field whose type differs between
+   * `A` and `B`. Nothing restricts it to primitive types. [[Migration#reverse]]
+   * fails at this step.
+   */
   def changeFieldType(source: A => Any, converter: SchemaExpr[_, _]): MigrationBuilder[A, B, _] =
     macro MigrationBuilderMacros.changeFieldTypeImpl[A, B, Changeset]
   // format: on
 
 
   // format: off
+  /**
+   * Runs `migration` on the field that `selector` selects. The field and all
+   * its nested fields count as handled and provided, so this fits a field whose
+   * type changes between `A` and `B`.
+   */
   def migrateField[F1, F2](selector: A => F1, migration: Migration[F1, F2]): MigrationBuilder[A, B, _] =
     macro MigrationBuilderMacros.migrateFieldExplicitImpl[A, B, F1, F2, Changeset]
   // format: on
 
   // format: off
+  /**
+   * Runs the implicit `migration` on the field that `selector` selects, as the
+   * overload that takes the migration does.
+   */
   def migrateField[F1, F2](selector: A => F1)(implicit migration: Migration[F1, F2]): MigrationBuilder[A, B, _] =
     macro MigrationBuilderMacros.migrateFieldImplicitImpl[A, B, F1, F2, Changeset]
   // format: on
@@ -178,7 +240,10 @@ final class MigrationBuilder[A, B, Changeset](
   // ----- Enum operations -----
 
   /**
-   * Rename an enum case.
+   * Renames the case `from` of `A` to `to`; values in other cases are left as
+   * they are. It acts on `A` itself, which must be the sealed trait or enum:
+   * for a field of an enum type, build a migration of the enum and apply it
+   * with [[migrateField]].
    */
   def renameCase(
     from: String,
@@ -187,7 +252,11 @@ final class MigrationBuilder[A, B, Changeset](
     appendAction(MigrationAction.RenameCase(DynamicOptic.root, from, to))
 
   /**
-   * Transform the fields within an enum case.
+   * Applies to values of `A` in the case `caseName` the actions that
+   * `caseMigration` adds to an empty builder from `CaseA` to `CaseB`, and
+   * renames that case to the name of `CaseB`'s type. Like [[renameCase]], it
+   * acts on `A` itself. The inner builder's changes are not checked for
+   * completeness.
    */
   def transformCase[CaseA, CaseB](
     caseName: String
@@ -205,43 +274,31 @@ final class MigrationBuilder[A, B, Changeset](
 
   // ----- Collections -----
 
-  /**
-   * Transform each element in a collection.
-   *
-   * @param at
-   *   Selector for the collection field
-   * @param transform
-   *   Expression that transforms each element
-   */
   // format: off
+  /**
+   * Replaces every element of the collection that `at` selects with the value
+   * of `transform`, evaluated against that element.
+   */
   def transformElements(at: A => Iterable[_], transform: SchemaExpr[_, _]): MigrationBuilder[A, B, Changeset] =
     macro MigrationBuilderMacros.transformElementsImpl[A, B, Changeset]
   // format: on
 
   // ----- Maps -----
 
-  /**
-   * Transform each key in a map.
-   *
-   * @param at
-   *   Selector for the map field
-   * @param transform
-   *   Expression that transforms each key
-   */
   // format: off
+  /**
+   * Replaces every key of the map that `at` selects with the value of
+   * `transform`, evaluated against that key.
+   */
   def transformKeys(at: A => Map[_, _], transform: SchemaExpr[_, _]): MigrationBuilder[A, B, Changeset] =
     macro MigrationBuilderMacros.transformKeysImpl[A, B, Changeset]
   // format: on
 
-  /**
-   * Transform each value in a map.
-   *
-   * @param at
-   *   Selector for the map field
-   * @param transform
-   *   Expression that transforms each value
-   */
   // format: off
+  /**
+   * Replaces every value of the map that `at` selects with the value of
+   * `transform`, evaluated against that value.
+   */
   def transformValues(at: A => Map[_, _], transform: SchemaExpr[_, _]): MigrationBuilder[A, B, Changeset] =
     macro MigrationBuilderMacros.transformValuesImpl[A, B, Changeset]
   // format: on
@@ -249,8 +306,9 @@ final class MigrationBuilder[A, B, Changeset](
   // ----- Build -----
 
   /**
-   * Build migration with full macro validation. Requires implicit evidence that
-   * all source fields are handled and all target fields are provided.
+   * Returns the migration. It compiles only when the actions make the migration
+   * complete; otherwise the [[MigrationComplete]] macro fails compilation with
+   * the target fields not provided and the source fields not handled.
    */
   def build(implicit ev: MigrationComplete[A, B, Changeset]): Migration[A, B] =
     new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))
@@ -259,7 +317,12 @@ final class MigrationBuilder[A, B, Changeset](
     new MigrationBuilder(sourceSchema, targetSchema, actions :+ action)
 }
 
+/** The [[MigrationBuilder]] entry point. */
 object MigrationBuilder {
+
+  /**
+   * Starts an empty builder from `A` to `B`, as [[Migration.newBuilder]] does.
+   */
   def apply[A, B](implicit
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
@@ -268,11 +331,14 @@ object MigrationBuilder {
 }
 
 /**
- * Evidence that a migration is complete. All source fields must be handled and
- * all target fields must be provided.
+ * Evidence that a builder's `Changeset` makes the migration from `A` to `B`
+ * complete. A macro derives it; when fields are missing, compilation fails with
+ * a message that lists the target fields not provided and the source fields not
+ * handled.
  */
 trait MigrationComplete[-A, -B, -Changeset]
 
+/** Derives [[MigrationComplete]]. */
 object MigrationComplete {
   private[migration] def unsafeCreate[A, B, CS]: MigrationComplete[A, B, CS] =
     instance.asInstanceOf[MigrationComplete[A, B, CS]]
@@ -281,6 +347,9 @@ object MigrationComplete {
     new MigrationComplete[Any, Any, Any] {}
 
   // format: off
+  /**
+   * Checks the changeset at compile time, as [[MigrationComplete]] describes.
+   */
   implicit def derive[A, B, CS]: MigrationComplete[A, B, CS] =
     macro MigrationValidationMacros.validateMigrationImpl[A, B, CS]
   // format: on

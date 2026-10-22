@@ -21,90 +21,75 @@ import zio.blocks.schema.{DynamicValue, DynamicSchemaExpr, SchemaError}
 import scala.util.control.NonFatal
 
 /**
- * A pure, serializable migration that operates on `DynamicValue`. This is the
- * untyped core of the migration system, containing a sequence of
- * `MigrationAction`s that are applied in order.
+ * An untyped migration: a list of [[MigrationAction]]s applied in order to a
+ * [[zio.blocks.schema.DynamicValue]]. [[Migration]] wraps one together with a
+ * source and a target schema.
  *
- * `DynamicMigration` is fully serializable because:
- *   - It contains no closures or functions
- *   - All transformations are represented as `DynamicSchemaExpr`
- *   - All paths are represented as data (`DynamicOptic`)
+ * The actions are data, with paths as [[zio.blocks.schema.DynamicOptic]]s and
+ * values computed by [[zio.blocks.schema.DynamicSchemaExpr]]s, so a migration
+ * can be inspected, compared, reversed and composed. ZIO Blocks provides no
+ * `Schema` for `DynamicMigration`, though, and a literal expression holds the
+ * `Schema` of its value, so a migration cannot be encoded with a codec the way
+ * a `DynamicPatch` can (see `docs/dev/issues.md`).
  *
- * This enables migrations to be:
- *   - Stored in registries
- *   - Transmitted over the network
- *   - Applied dynamically
- *   - Inspected and transformed
- *   - Used to generate SQL DDL, upgraders, etc.
+ * @param actions
+ *   the actions, applied in order
  */
 final case class DynamicMigration(actions: Chunk[MigrationAction]) {
 
   /**
-   * Apply this migration to a `DynamicValue`.
-   *
-   * @param value
-   *   The input value to migrate
-   * @return
-   *   Either a `SchemaError` or the migrated value
+   * Applies the actions to `value` in order, each to the result of the previous
+   * one, and stops at the first that fails. The errors are
+   * [[zio.blocks.schema.SchemaError.MigrationError]]s at the action's path: a
+   * path through a missing field or case fails with `FieldNotFound` or
+   * `CaseNotFound`, an index or map key that is not there with `PathNotFound`,
+   * a value of the wrong kind with `TypeMismatch`, and adding or renaming to a
+   * field that exists with `FieldAlreadyExists`. An exception thrown while an
+   * action runs becomes a `TransformFailed` error.
    */
   def apply(value: DynamicValue): Either[SchemaError, DynamicValue] =
     DynamicMigration.execute(actions, value)
 
   /**
-   * Compose this migration with another, applying this migration first, then
-   * the other.
-   *
-   * @param that
-   *   The migration to apply after this one
-   * @return
-   *   A new migration that applies both in sequence
+   * Returns a migration that applies the actions of this migration, then those
+   * of `that`.
    */
   def ++(that: DynamicMigration): DynamicMigration =
     new DynamicMigration(actions ++ that.actions)
 
-  /**
-   * Alias for `++`.
-   */
+  /** Same as `++`. */
   def andThen(that: DynamicMigration): DynamicMigration = this ++ that
 
   /**
-   * Returns the structural reverse of this migration. The reverse migration has
-   * all actions reversed and in reverse order.
-   *
-   * Note: Runtime execution of the reverse migration is best-effort. It may
-   * fail if information was lost during the forward migration (e.g., dropping a
-   * field without capturing its value).
+   * Returns the migration with every action reversed (see
+   * [[MigrationAction#reverse]]), in reverse order. Running it fails at the
+   * first action that has no inverse, and a dropped field comes back with its
+   * `defaultForReverse`, not its old value.
    */
   def reverse: DynamicMigration =
     new DynamicMigration(Chunk.fromIterator(actions.reverseIterator.map(_.reverse)))
 
   /**
-   * Returns true if this migration has no actions (identity migration).
+   * Returns `true` when this migration has no actions; applying it returns the
+   * value unchanged.
    */
   def isEmpty: Boolean = actions.isEmpty
 
-  /**
-   * Returns the number of actions in this migration.
-   */
+  /** Returns the number of actions. */
   def size: Int = actions.size
 }
 
+/** Constructors of [[DynamicMigration]]. */
 object DynamicMigration {
 
-  /**
-   * An empty migration that performs no transformations.
-   */
+  /** The migration with no actions. */
   val empty: DynamicMigration = new DynamicMigration(Chunk.empty)
 
-  /**
-   * Create a migration from a single action.
-   */
+  /** Creates a migration with the one action `action`. */
   def single(action: MigrationAction): DynamicMigration =
     new DynamicMigration(Chunk(action))
 
-  /**
-   * Create a migration from multiple actions.
-   */
+  /** Creates a migration that runs `actions` in order. */
   def apply(actions: MigrationAction*): DynamicMigration =
     new DynamicMigration(Chunk.fromIterable(actions))
 

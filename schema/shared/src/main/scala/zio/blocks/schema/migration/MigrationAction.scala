@@ -20,37 +20,42 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr}
 
 /**
- * Represents a single migration action that operates at a specific path. All
- * actions are fully serializable (no closures or functions) and support
- * structural reversal.
+ * One step of a [[DynamicMigration]], at the path [[at]]. Actions are plain
+ * data: paths are [[zio.blocks.schema.DynamicOptic]]s and computed values are
+ * [[zio.blocks.schema.DynamicSchemaExpr]]s, evaluated when the action runs.
  */
 sealed trait MigrationAction {
 
-  /**
-   * The path at which this action operates.
-   */
+  /** The path the action works at. */
   def at: DynamicOptic
 
   /**
-   * Returns the structural inverse of this action. Note: Runtime reversal is
-   * best-effort and may fail if information was lost during the forward
-   * migration.
+   * Returns the action that undoes this one, computed from the action alone.
+   * Adding and dropping a field, renaming a field or a case, `MandateField`,
+   * `TransformCase` and `MigrateField` have an inverse; the other actions
+   * reverse to an [[MigrationAction.Irreversible]], which fails when it runs. A
+   * reversed `DropField` adds the field back with its `defaultForReverse`, not
+   * with the value it dropped.
    */
   def reverse: MigrationAction
 }
 
+/** The kinds of [[MigrationAction]]. */
 object MigrationAction {
 
   // ==================== Record Actions ====================
 
   /**
-   * Add a new field to a record with a default value. The field name is the
-   * last component of the `at` path.
+   * Adds the field named by the last node of `at` to the record at the rest of
+   * the path, with the value of `default`. The expression is evaluated against
+   * the whole value the action runs on, not against the record that gets the
+   * field. Fails when the record already has the field or `at` does not end
+   * with a field.
    *
    * @param at
-   *   The path to the field to add (must end with a Field node)
+   *   the path of the new field
    * @param default
-   *   The default value expression for the new field
+   *   the expression whose value the field gets
    */
   final case class AddField(
     at: DynamicOptic,
@@ -58,7 +63,7 @@ object MigrationAction {
   ) extends MigrationAction {
     override def reverse: MigrationAction = DropField(at, default)
 
-    /** The field name, extracted from the path */
+    /** The name of the field, or `None` when `at` does not end with a field. */
     def fieldName: Option[String] = at.nodes.lastOption match {
       case Some(DynamicOptic.Node.Field(name)) => Some(name)
       case _                                   => None
@@ -66,13 +71,15 @@ object MigrationAction {
   }
 
   /**
-   * Drop a field from a record. The field name is the last component of the
-   * `at` path.
+   * Removes the field named by the last node of `at` from the record at the
+   * rest of the path. Fails when the field is missing or `at` does not end with
+   * a field.
    *
    * @param at
-   *   The path to the field to drop (must end with a Field node)
+   *   the path of the field to remove
    * @param defaultForReverse
-   *   Default value expression to use when reversing (adding the field back)
+   *   the expression whose value the field gets back when the action is
+   *   reversed
    */
   final case class DropField(
     at: DynamicOptic,
@@ -80,7 +87,7 @@ object MigrationAction {
   ) extends MigrationAction {
     override def reverse: MigrationAction = AddField(at, defaultForReverse)
 
-    /** The field name, extracted from the path */
+    /** The name of the field, or `None` when `at` does not end with a field. */
     def fieldName: Option[String] = at.nodes.lastOption match {
       case Some(DynamicOptic.Node.Field(name)) => Some(name)
       case _                                   => None
@@ -88,12 +95,13 @@ object MigrationAction {
   }
 
   /**
-   * Rename a field in a record.
+   * Renames the field at `at` to `to`. Fails when the field is missing, the
+   * record already has a field named `to`, or `at` does not end with a field.
    *
    * @param at
-   *   The path to the field to rename (must end with a Field node)
+   *   the path of the field to rename
    * @param to
-   *   The new field name
+   *   the new name
    */
   final case class RenameField(
     at: DynamicOptic,
@@ -108,7 +116,10 @@ object MigrationAction {
       }
     }
 
-    /** The original field name, extracted from the path */
+    /**
+     * The current name of the field, or `None` when `at` does not end with a
+     * field.
+     */
     def from: Option[String] = at.nodes.lastOption match {
       case Some(DynamicOptic.Node.Field(name)) => Some(name)
       case _                                   => None
@@ -116,12 +127,13 @@ object MigrationAction {
   }
 
   /**
-   * Transform a value at a path using a pure expression.
+   * Replaces the value at `at` with the value of `transform`, evaluated against
+   * the value it replaces. It has no inverse.
    *
    * @param at
-   *   The path to the value to transform
+   *   the path of the value
    * @param transform
-   *   The transformation expression
+   *   the expression that computes the new value
    */
   final case class TransformField(
     at: DynamicOptic,
@@ -131,12 +143,17 @@ object MigrationAction {
   }
 
   /**
-   * Convert an optional field to a required field.
+   * Turns an optional value into a required one: replaces a `None` at `at` with
+   * the value of `default`, evaluated against the whole value the action runs
+   * on, unwraps a `Some`, and leaves any other value as it is. A `Some` unwraps
+   * to the record that holds its `value` field rather than to the value itself,
+   * so a typed migration from `Option[A]` to `A` fails for every `Some` (see
+   * `docs/dev/issues.md`).
    *
    * @param at
-   *   The path to the optional value
+   *   the path of the optional value
    * @param default
-   *   The default value expression to use if the optional is None
+   *   the expression whose value replaces a `None`
    */
   final case class MandateField(
     at: DynamicOptic,
@@ -146,10 +163,13 @@ object MigrationAction {
   }
 
   /**
-   * Convert a required field to an optional field.
+   * Turns a required value into an optional one by wrapping the value at `at`
+   * in a `Some` case. The `Some` it builds lacks the `value` field that the
+   * schema of `Option` expects, so a typed migration to an `Option` field fails
+   * to decode the result (see `docs/dev/issues.md`). It has no inverse.
    *
    * @param at
-   *   The path to the required value
+   *   the path of the value
    */
   final case class OptionalizeField(
     at: DynamicOptic
@@ -158,12 +178,15 @@ object MigrationAction {
   }
 
   /**
-   * Change the type of a value at a path (primitive-to-primitive only).
+   * Replaces the value at `at` with the value of `converter`, evaluated against
+   * the value it replaces. It is meant for a change of primitive type, but runs
+   * exactly as [[TransformField]] does: nothing checks the types. It has no
+   * inverse.
    *
    * @param at
-   *   The path to the value
+   *   the path of the value
    * @param converter
-   *   The conversion expression
+   *   the expression that computes the converted value
    */
   final case class ChangeFieldType(
     at: DynamicOptic,
@@ -175,14 +198,16 @@ object MigrationAction {
   // ==================== Enum Actions ====================
 
   /**
-   * Rename an enum case.
+   * Renames the case `from` of the variant at `at` to `to`. A value in another
+   * case is left as it is. Fails when the value at `at` is not a variant or
+   * either name is empty.
    *
    * @param at
-   *   The path to the enum value
+   *   the path of the variant
    * @param from
-   *   The current case name
+   *   the current case name
    * @param to
-   *   The new case name
+   *   the new case name
    */
   final case class RenameCase(
     at: DynamicOptic,
@@ -193,12 +218,16 @@ object MigrationAction {
   }
 
   /**
-   * Transform the fields within an enum case.
+   * Runs `actions` on the inner value of the variant at the rest of `at` when
+   * it is in the case named by the last node of `at`, and renames that case to
+   * `targetCaseName`. A value in another case is left as it is.
    *
    * @param at
-   *   The path to the enum value
+   *   the path of the variant, ending with the case to transform
+   * @param targetCaseName
+   *   the name of the case after the transformation
    * @param actions
-   *   The actions to apply to the case's record
+   *   the actions to run on the case's inner value
    */
   final case class TransformCase(
     at: DynamicOptic,
@@ -217,13 +246,13 @@ object MigrationAction {
   }
 
   /**
-   * Apply an existing migration to a nested field. This is used for migration
-   * composition where a pre-built Migration is applied to a field.
+   * Runs `migration` on the value at `at`, as [[Migration]] composition does
+   * for a nested field. Its inverse runs the reverse of `migration`.
    *
    * @param at
-   *   The path to the nested field
+   *   the path of the nested value
    * @param migration
-   *   The DynamicMigration to apply to the nested value
+   *   the migration to run on it
    */
   final case class MigrateField(
     at: DynamicOptic,
@@ -236,13 +265,14 @@ object MigrationAction {
   // ==================== Collection Actions ====================
 
   /**
-   * Replace each element in a collection with the result of evaluating the
-   * expression against that element.
+   * Replaces each element of the sequence at `at` with the value of
+   * `transform`, evaluated against that element. Fails at the first element
+   * whose evaluation fails. It has no inverse.
    *
    * @param at
-   *   The path to the collection
+   *   the path of the sequence
    * @param transform
-   *   The expression whose result replaces each element
+   *   the expression whose value replaces each element
    */
   final case class TransformElements(
     at: DynamicOptic,
@@ -254,13 +284,14 @@ object MigrationAction {
   // ==================== Map Actions ====================
 
   /**
-   * Replace each key in a map with the result of evaluating the expression
-   * against that key.
+   * Replaces each key of the map at `at` with the value of `transform`,
+   * evaluated against that key. Fails at the first key whose evaluation fails.
+   * It has no inverse.
    *
    * @param at
-   *   The path to the map
+   *   the path of the map
    * @param transform
-   *   The expression whose result replaces each key
+   *   the expression whose value replaces each key
    */
   final case class TransformKeys(
     at: DynamicOptic,
@@ -270,13 +301,14 @@ object MigrationAction {
   }
 
   /**
-   * Replace each value in a map with the result of evaluating the expression
-   * against that value.
+   * Replaces each value of the map at `at` with the value of `transform`,
+   * evaluated against that value. Fails at the first value whose evaluation
+   * fails. It has no inverse.
    *
    * @param at
-   *   The path to the map
+   *   the path of the map
    * @param transform
-   *   The expression whose result replaces each value
+   *   the expression whose value replaces each value
    */
   final case class TransformValues(
     at: DynamicOptic,
@@ -286,25 +318,21 @@ object MigrationAction {
   }
 
   /**
-   * Sentinel action representing a non-invertible operation. Executing this
-   * action always fails with a descriptive error. This is returned by
-   * `.reverse` on actions that cannot be structurally reversed (e.g.,
-   * `TransformField`, `ChangeFieldType`, `OptionalizeField`).
+   * The reverse of an action that has no inverse, such as `TransformField`.
+   * Running it always fails with a `TransformFailed` error naming
+   * `originalAction`.
    *
    * @param at
-   *   The path where the original action operated
+   *   the path where the original action worked
    * @param originalAction
-   *   The name of the original non-invertible action
+   *   the name of the original action
    */
   final case class Irreversible(
     at: DynamicOptic,
     originalAction: String
   ) extends MigrationAction {
 
-    /**
-     * Reversing an irreversible action returns itself — it always fails at
-     * runtime.
-     */
+    /** Returns this action: an irreversible action stays irreversible. */
     override def reverse: MigrationAction = this
   }
 }
