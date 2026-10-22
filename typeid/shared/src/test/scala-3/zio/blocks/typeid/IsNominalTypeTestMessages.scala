@@ -16,13 +16,13 @@
 
 package zio.blocks.typeid
 
-// What `typeCheck("def foo[A] = zio.blocks.typeid.IsNominalType[A]")` reports on Scala 3: the failed
-// implicit search for `IsNominalType.apply`'s parameter, which hides the macro's own message
-// (IsNominalTypeNegativeSpec checks that message through `summon`).
+// Whether a `typeCheck("def foo[A] = zio.blocks.typeid.IsNominalType[A]")` error is the expected one.
+// On Scala 3 it is the compiler's failed-implicit-search text for `IsNominalType.apply`'s parameter,
+// which hides the macro's own message and whose wording changes between compiler versions, so match
+// only the type it could not find. (IsNominalTypeNegativeSpec checks the macro's message through
+// `summon`.) An unrelated failure, such as "trait IsNominalTypeVersionSpecific is marked
+// @experimental", does not name `IsNominalType[A]`.
 object IsNominalTypeTestMessages {
-  val bareTypeParameter: String =
-    "No given instance of type zio.blocks.typeid.IsNominalType[A] was found for parameter ev of method apply in object IsNominalType.\n" +
-      "I found:\n\n" +
-      "    zio.blocks.typeid.IsNominalType.derived[A]\n\n" +
-      "But method derived in trait IsNominalTypeVersionSpecific does not match type zio.blocks.typeid.IsNominalType[A]."
+  def isBareTypeParameterError(message: String): Boolean =
+    message.contains("zio.blocks.typeid.IsNominalType[A]")
 }

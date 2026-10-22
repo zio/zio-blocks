@@ -16,10 +16,10 @@
 
 package zio.blocks.typeid
 
-// What `typeCheck("def foo[A] = zio.blocks.typeid.IsNominalType[A]")` reports on Scala 2: the macro's
-// own message, from `c.abort`.
+// Whether a `typeCheck("def foo[A] = zio.blocks.typeid.IsNominalType[A]")` error is the expected one.
+// On Scala 2 it is the macro's own `c.abort` message, so match it exactly.
 object IsNominalTypeTestMessages {
-  val bareTypeParameter: String =
-    "Cannot derive IsNominalType for non-nominal type: A. Only classes, traits, objects, and applied types are supported. " +
+  def isBareTypeParameterError(message: String): Boolean =
+    message == "Cannot derive IsNominalType for non-nominal type: A. Only classes, traits, objects, and applied types are supported. " +
       "Intersection types (A with B), structural types, and type lambdas are not allowed."
 }

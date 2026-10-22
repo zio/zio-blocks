@@ -107,7 +107,7 @@ object IsNominalTypeSpec extends ZIOSpecDefault {
       },
       test("does not compile for a bare type parameter") {
         typeCheck("def foo[A] = zio.blocks.typeid.IsNominalType[A]").map(result =>
-          assertTrue(result == Left(IsNominalTypeTestMessages.bareTypeParameter))
+          assertTrue(result.left.exists(IsNominalTypeTestMessages.isBareTypeParameterError))
         )
       },
       test("error message mentions the type name") {

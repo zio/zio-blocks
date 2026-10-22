@@ -33,6 +33,10 @@ object NominalScala3Fixtures {
   val pair: Pair[Int] = (1, 2)
 
   val title: String = "Zionomicon"
+
+  trait Repo { type Key = String }
+  val repo: Repo   = new Repo {}
+  val rk: repo.Key = "zionomicon"
 }
 
 /**
@@ -113,6 +117,19 @@ object IsNominalTypeNegativeSpec extends ZIOSpecDefault {
       )
       assertTrue(messages(errors) == List(nominalTypeError("a")))
     },
+    test("IsNominalType cannot be summoned for the singleton type of an intersection-typed value") {
+      // Scala 2 accepts this (the refinement class of `A1 with B1` is a class); Scala 3 rejects it.
+      val errors: List[Error] = typeCheckErrors(
+        """
+        import zio.blocks.typeid.IsNominalType
+        trait A1
+        trait B1
+        val ab: A1 & B1 = new A1 with B1 {}
+        def abType: IsNominalType[ab.type] = summon[IsNominalType[ab.type]]
+        """
+      )
+      assertTrue(messages(errors) == List(nominalTypeError("ab")))
+    },
     test("IsNominalIntersection cannot be summoned when a member is a type parameter") {
       val errors: List[Error] = typeCheckErrors(
         """
@@ -157,6 +174,10 @@ object IsNominalTypeNegativeSpec extends ZIOSpecDefault {
         ev.typeId.toString == "Pair[+T1, +T2]",
         ev.typeId.fullName == "zio.blocks.typeid.NominalScala3Fixtures.Pair"
       )
+    },
+    test("IsNominalType derives for the singleton type of a value whose type is a path-dependent alias") {
+      val ev = IsNominalType[NominalScala3Fixtures.rk.type]
+      assertTrue(ev.typeId.fullName == "zio.blocks.typeid.NominalScala3Fixtures.Repo.Key")
     },
     test("IsNominalType derives for the singleton type of a String value") {
       val ev = IsNominalType[NominalScala3Fixtures.title.type]
