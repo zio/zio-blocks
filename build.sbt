@@ -1424,7 +1424,14 @@ lazy val `schema-scaladoc-check` = project
     Compile / scalacOptions := {
       val options = (Compile / scalacOptions).value
       if (scalaVersion.value.startsWith("3.") && !BuildHelper.isScala3NextLine(scalaVersion.value))
-        options.filterNot(option => option == "-experimental" || option.startsWith("-language:experimental."))
+        options.flatMap {
+          case "-experimental"                               => None
+          case language if language.startsWith("-language:") =>
+            // `-language:a,experimental.b` keeps `a` and drops `experimental.b`
+            val features = language.stripPrefix("-language:").split(',').filterNot(_.startsWith("experimental."))
+            if (features.isEmpty) None else Some(features.mkString("-language:", ",", ""))
+          case option => Some(option)
+        }
       else options
     },
     // `Test / scalacOptions` delegates to the Compile ones, so put the fatal flags back: the spec and
