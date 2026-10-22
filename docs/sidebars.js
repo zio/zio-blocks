@@ -459,6 +459,7 @@ const sidebars = {
     "guides/json-without-case-classes",
     "guides/override-codec-for-one-type",
     "guides/validated-newtypes",
+    "guides/diff-and-patch",
     "guides/derive-your-own-type-class",
     "guides/nested-data-with-optics",
     "guides/one-type-many-formats",

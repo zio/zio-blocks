@@ -605,7 +605,7 @@ ZIO Blocks' `JsonPatch` is **not** an implementation of [RFC 6902](https://datat
 | Serialization | Via ZIO Blocks `Schema` in any format | Always JSON |
 | Composition | `++` operator | Array concatenation |
 
-Use `JsonPatch` when working within ZIO Blocks. For interoperability with RFC 6902 tooling, convert the patch to JSON using the built-in `Schema` instances and reformat as needed.
+Use `JsonPatch` when working within ZIO Blocks. Its `Schema` JSON is not RFC 6902, and reformatting it is not enough: number deltas and string edits must become `replace` operations whose values come from the source document, and list indices shift as earlier operations apply. [How to Compute, Store and Replay Changes with Diff and Patch](../../../../guides/diff-and-patch.md#convert-a-jsonpatch-to-rfc-6902) shows a converter that does this.
 
 ## Advanced Usage
 
