@@ -4159,6 +4159,138 @@ object Book { given Schema[Book] = Schema.derived }
 
 **Suggested fix.** Map `DbInstant` to `INTEGER` in the SQLite dialect, or write SQLite `Instant`s as ISO-8601 text (`setString(value.toString)`) and parse them on read, which also keeps the nanoseconds. Add a SQLite round-trip test.
 
+### schema: a `DynamicSchema` written as JSON, YAML, TOON or MessagePack reads back as an accept-anything schema
+
+**Severity:** high (silent accept-anything after a round trip).
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
+
+**Summary.** `Schema[DynamicSchema]` exists so a schema can be stored and sent, but only its Avro codec round-trips it. Through the JSON, YAML, TOON and MessagePack codecs, and through `Json.fromDynamicValue(DynamicSchema.toDynamicValue(ds))` and back, the decoded value is `DynamicSchema(Reflect.Dynamic)`: decoding returns `Right`, no error is reported, and `check` then accepts every value. A registry that stores schemas as JSON validates nothing, silently.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema`, `-schema-avro`, `-schema-messagepack`, `-schema-toon`, `-schema-yaml` 0.0.56, run with `scala-cli run LossyRoundTrip213.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+//> using dep dev.zio::zio-blocks-schema-avro:0.0.56
+//> using dep dev.zio::zio-blocks-schema-messagepack:0.0.56
+//> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.avro.AvroFormat
+import zio.blocks.schema.json.{Json, JsonFormat}
+import zio.blocks.schema.msgpack.MessagePackFormat
+import zio.blocks.schema.toon.ToonFormat
+import zio.blocks.schema.yaml.YamlFormat
+
+final case class BookPublished(isbn: String, title: String, price: BigDecimal)
+object BookPublished { implicit val schema: Schema[BookPublished] = Schema.derived }
+
+object LossyRoundTrip213 {
+  def main(args: Array[String]): Unit = {
+    val stored = Schema[BookPublished].toDynamicSchema
+    val bad    = Json.parseUnsafe("""{"isbn":7,"price":"free","extra":true}""").toDynamicValue
+
+    println(stored.check(bad))
+    // Some(zio.blocks.schema.SchemaError: Expected String, got Int at: .isbn)
+
+    val json     = Schema[DynamicSchema].derive(JsonFormat)
+    val fromJson = json.decode(json.encode(stored))
+    println(fromJson.map(_ == stored))
+    // Right(false)
+    println(fromJson.map(_.reflect.isDynamic))
+    // Right(true)
+    println(fromJson.map(_.check(bad)))
+    // Right(None)
+
+    // The same through Json values: DynamicSchema.toDynamicValue -> Json -> DynamicSchema.fromDynamicValue
+    val viaJson = DynamicSchema.fromDynamicValue(Json.fromDynamicValue(DynamicSchema.toDynamicValue(stored)).toDynamicValue)
+    println(viaJson.reflect.isDynamic)
+    // true
+
+    // MessagePack, TOON and YAML lose it the same way
+    val msgpack = Schema[DynamicSchema].derive(MessagePackFormat)
+    println(msgpack.decode(msgpack.encode(stored)).map(_.reflect.isDynamic))
+    // Right(true)
+    val toon = Schema[DynamicSchema].derive(ToonFormat)
+    println(toon.decode(toon.encode(stored)).map(_.reflect.isDynamic))
+    // Right(true)
+    val yaml = Schema[DynamicSchema].derive(YamlFormat)
+    println(yaml.decode(yaml.encode(stored)).map(_.reflect.isDynamic))
+    // Right(true)
+
+    // Avro keeps the variant tags and primitive types, so it round-trips
+    val avro = Schema[DynamicSchema].derive(AvroFormat)
+    println(avro.decode(avro.encode(stored)).map(_ == stored))
+    // Right(true)
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to
+`//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** Every format that `Schema[DynamicSchema]` can be derived for round-trips it (`decode(encode(ds)) == Right(ds)`), or decoding fails with an error. It never succeeds with a different, accept-anything schema.
+
+**Root cause.** Three things combine.
+1. `Schema[DynamicSchema]` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicSchema.scala:1386-1404`; `:1379` at v0.0.56) is a record with one `Schema[DynamicValue]` field, so every format writes the schema through its generic `DynamicValue` codec.
+2. That codec is lossy for JSON. `JsonCodec.dynamicValueCodec` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodec.scala:1423`, same at v0.0.56) writes a `DynamicValue.Variant` as a one-key object `{"Case": value}` (`:1522-1526`) but reads every object back as a `DynamicValue.Record` (`:1461-1471`), and it narrows every number to `Int`, `Long` or `BigDecimal` (`:1439-1448`). `Json#toDynamicValue` does the same (`Json.scala:1026-1043`). The serialized schema is made of variants (`{"Record": ...}`, `{"Primitive": ...}`, `{"None": {}}`), so all its tags are lost. MessagePack, TOON and YAML give the same result (verified by run; their codecs not traced). Avro writes a tag for each `DynamicValue` case (`schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodecDeriver.scala:996-1007`, case 2 builds `DynamicValue.Variant`), so it round-trips.
+3. `DynamicSchema.dynamicValueToReflect` falls back instead of failing: an unrecognised node becomes `new Reflect.Dynamic[NoBinding](NoBinding())` (`DynamicSchema.scala:1926-1927`; `:1919-1920` at v0.0.56), an unreadable term becomes a `Dynamic` term named `unknown` (`:1749`), and an unreadable `TypeId` becomes `TypeId.nominal[Any]("Unknown", Owner.Root)` (`:1664-1668`). `DynamicSchema.fromDynamicValue` returns `DynamicSchema`, not `Either`, so it has no way to report the problem (`:1415`).
+
+**Impact.** High. The reference page and two examples present the serialized form as storable (see the Documentation errors entry), and JSON is the obvious format for a registry. The result validates nothing and nothing warns. The H-09 guide stores Avro bytes, writes the JSON only as a human-readable view, and guards against a root `Reflect.Dynamic` after loading.
+
+**Test gap.** `DynamicSchemaSpec` "Schema[DynamicSchema] round-trip" (`schema/shared/src/test/scala-3/zio/blocks/schema/DynamicSchemaSpec.scala:1795-1902`) round-trips only through `DynamicSchema.toDynamicValue`/`fromDynamicValue` in memory and asserts only `typeId.name` and field presence. No test encodes a `DynamicSchema` with any format codec, and no test checks that a malformed blob is rejected.
+
+**Suggested fix.** Give `DynamicSchema` a format-independent schema instead of a `Schema[DynamicValue]` field: a derived structural schema for the serialized `Reflect` tree (records and variants with real tags), so every codec writes tags its own way. Separately, make `DynamicSchema.fromDynamicValue` (or a new `DynamicSchema.decode`) return `Either[SchemaError, DynamicSchema]` and fail on unknown nodes instead of producing `Reflect.Dynamic`/`Unknown`. Add a round-trip test per format comparing with `==`.
+
+### schema: storing the `DynamicSchema` of a recursive type overflows the stack
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
+
+**Summary.** `DynamicSchema.toDynamicValue`, and with it every `Schema[DynamicSchema]` codec, recurses forever on a recursive type such as `Chapter(title: String, sections: List[Chapter])` and throws `StackOverflowError`. `DynamicSchema#check` works on the same schema, so the type is supported everywhere except storage.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run RecursiveOverflow.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+final case class Chapter(title: String, sections: List[Chapter])
+object Chapter { implicit val schema: Schema[Chapter] = Schema.derived }
+
+object RecursiveOverflow {
+  def main(args: Array[String]): Unit = {
+    val stored = Schema[Chapter].toDynamicSchema
+    val value  = Schema[Chapter].toDynamicValue(Chapter("Fibers", List(Chapter("Forking", Nil))))
+
+    println(stored.check(value))
+    // None
+
+    try println(DynamicSchema.toDynamicValue(stored))
+    catch { case e: StackOverflowError => println(e) }
+    // java.lang.StackOverflowError
+
+    try println(Schema[DynamicSchema].jsonCodec.encodeToString(stored))
+    catch { case e: StackOverflowError => println(e) }
+    // java.lang.StackOverflowError
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to
+`//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** A recursive schema serializes, with a back-reference node for the recursive occurrence, and reads back to an equal schema.
+
+**Root cause.** `reflectToDynamicValue` unwraps `Reflect.Deferred` by recursing into it with no cycle guard: `case d: Reflect.Deferred[NoBinding, _] => reflectToDynamicValue(d.value)` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicSchema.scala:1659`; `:1652` at v0.0.56). The serialized format has no node for "the type `X` seen above", so there is nothing to emit instead.
+
+**Impact.** Any event with a tree-shaped field (a table of contents, a category tree, a comment thread) can't go in a `DynamicSchema` registry. PR #888 lists "Recursive schema support via `Deferred` handling" as a feature. The H-09 guide warns about it.
+
+**Test gap.** `DynamicSchemaSpec` tests recursive schemas only for `check` and defaults (`:727-790`, `:2437`); "coverage - Deferred serialization" (`:2436`) does not use a self-referencing type.
+
+**Suggested fix.** Track the `TypeId`s on the current path in `reflectToDynamicValue`; when a `Deferred` resolves to one of them, emit a `Ref(typeId)` node, and have `dynamicValueToReflect` build a `Reflect.Deferred` for it from a table of the records it has read. Add a round-trip test for a recursive record and a recursive sealed trait.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -5121,6 +5253,169 @@ object DraftBook { given Schema[DraftBook] = Schema.derived }
 
 **Suggested fix.** In the `Option` branch, use `jsonbOption`-style wrapping when the inner type is a non-inline record, a collection or a non-simple variant.
 
+### schema: `DynamicSchema#check` rejects JSON numbers and `Option` values that the JSON codec accepts
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
+
+**Summary.** `DynamicSchema#check` compares primitive types exactly, and `Json#toDynamicValue` reads a whole number as `Int` (or `Long`), every other number as `BigDecimal`, and an `Option` as a bare value or `null`. So `check` rejects JSON that the typed JSON codec decodes: a whole-number `BigDecimal` price, any `Double`/`Float` field, a small `Long`, and every `Option` field. `Schema#fromDynamicValue` sits in between: it widens numbers but also rejects the bare `Option`. A JSON document written by the typed codec itself fails `check`. Separately, `check`'s messages print `<function1>` where they mean the value's kind.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run CheckVsDecode.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+final case class BookPublished(isbn: String, price: BigDecimal, rating: Double, edition: Option[Int])
+object BookPublished { implicit val schema: Schema[BookPublished] = Schema.derived }
+
+object CheckVsDecode {
+  def main(args: Array[String]): Unit = {
+    val stored = Schema[BookPublished].toDynamicSchema
+    val text   = """{"isbn":"978-0","price":50,"rating":4.5,"edition":2}"""
+    val dv     = Json.parseUnsafe(text).toDynamicValue
+
+    println(Schema[BookPublished].jsonCodec.decode(text))
+    // Right(BookPublished(978-0,50,4.5,Some(2)))
+    println(Schema[BookPublished].fromDynamicValue(dv))
+    // Left(zio.blocks.schema.SchemaError: Expected a variant at: .edition)
+    println(stored.check(dv))
+    // Some(zio.blocks.schema.SchemaError: Expected BigDecimal, got Int at: .price)
+
+    val fixedPrice = Json.parseUnsafe("""{"isbn":"978-0","price":50.5,"rating":4.5,"edition":2}""").toDynamicValue
+    println(stored.check(fixedPrice))
+    // Some(zio.blocks.schema.SchemaError: Expected Double, got BigDecimal at: .rating)
+
+    val fixedRating = Json.parseUnsafe("""{"isbn":"978-0","price":50.5,"rating":4,"edition":2}""").toDynamicValue
+    println(stored.check(fixedRating))
+    // Some(zio.blocks.schema.SchemaError: Expected Double, got Int at: .rating)
+
+    // Even the typed codec's own output fails: an Option is written as a bare value
+    val own = Json.parseUnsafe(Schema[BookPublished].jsonCodec.encodeToString(BookPublished("978-0", BigDecimal("50.5"), 4.5, Some(2))))
+    println(own.print)
+    // {"isbn":"978-0","price":50.5,"rating":4.5,"edition":2}
+    println(stored.check(own.toDynamicValue))
+    // Some(zio.blocks.schema.SchemaError: Expected Double, got BigDecimal at: .rating)
+
+    // DynamicValueType has no readable toString, so messages say <function1>
+    val optOnly = DynamicSchema(Schema[Option[Int]].reflect.noBinding)
+    println(optOnly.check(DynamicValue.int(2)))
+    // Some(zio.blocks.schema.SchemaError: Expected Variant, got <function1> at: .)
+    println(DynamicValueType.Variant)
+    // <function1>
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to
+`//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** Either `check` accepts what the codecs accept (widen numbers the way `PrimitiveType#fromDynamicValue` does, and accept a bare value or `null` for an `Option`), or the docs say plainly that `check` is for `DynamicValue`s made by `Schema#toDynamicValue`, not for JSON. Error messages name the kind: `Expected Variant, got Primitive`.
+
+**Root cause.** `checkPrimitive` requires `pt.typeId == pv.primitiveType.typeId` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicSchema.scala:401-419`; `:394-412` at v0.0.56), while decoding widens: `PrimitiveType.BigDecimal#fromDynamicValue` accepts `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, `Double` and `BigInt` (`schema/shared/src/main/scala/zio/blocks/schema/PrimitiveType.scala:424-445`; `:427` at v0.0.56). `Json#toDynamicValue` narrows numbers (`json/Json.scala:1026-1043`). `Option` is a `Variant` of `None`/`Some(value)` (`Reflect.scala:1654-1663`), and the JSON codec writes it bare. The `<function1>`: `sealed trait DynamicValueType extends (DynamicValue => Boolean)` (`DynamicValueType.scala:33`) inherits `Function1#toString`, and Scala does not generate a `toString` for a case object whose parent already overrides it; the messages interpolate `${value.valueType}` (`DynamicSchema.scala:300, 305, 310, 315, 416`).
+
+**Impact.** A gateway that validates incoming JSON events with a stored `DynamicSchema` — the use the `toSchema` section of `dynamic-schema.md` recommends — rejects valid events for the most common field types. The H-09 guide warns readers to use `check` on JSON only for string, boolean, `Int`, list and record fields, and to rebind and decode otherwise.
+
+**Test gap.** `DynamicSchemaSpec` builds every checked value by hand with exact primitive types; no test checks a value produced by `Json#toDynamicValue` or the JSON codec. No test asserts the text of an "Expected Variant/Record/Sequence/Map" message.
+
+**Suggested fix.** In `checkPrimitive`, accept a value when `pt.fromDynamicValue` accepts it (or an explicit lossless-widening table). In `checkValue`, when the schema node is an `Option` variant, accept `Null` as `None` and any other value as `Some`. Add `override def toString` to `DynamicValueType`'s case objects (or interpolate a name).
+
+### schema: `BindingResolver.defaults` has no binding for `Option`, so rebinding any schema with an `Option` field fails
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
+
+**Summary.** `BindingResolver.defaults` covers primitives, `java.time`, collections and `Map`, but not `Option`. Rebinding a schema with an `Option[A]` field therefore throws `RebindException: Missing Record binding for type scala.Some at path: .<field><Some>`, which names `Some` rather than `Option`. The fix is three extra bindings per element type (`Binding.of[Option[A]]`, `Binding.Record.someInt` / `Binding.Record.some[A]`, `Binding.Record.none`), which only one test shows.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run OptionRebind.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.binding._
+
+final case class BookPublished(isbn: String, edition: Option[Int], subtitle: Option[String])
+object BookPublished { implicit val schema: Schema[BookPublished] = Schema.derived }
+
+object OptionRebind {
+  def main(args: Array[String]): Unit = {
+    val stored = Schema[BookPublished].toDynamicSchema
+
+    try stored.rebind[BookPublished](BindingResolver.empty.bind(Binding.of[BookPublished]) ++ BindingResolver.defaults)
+    catch { case e: RebindException => println(e.getMessage) }
+    // Missing Record binding for type scala.Some at path: .subtitle<Some>
+
+    val resolver = BindingResolver.empty
+      .bind(Binding.of[BookPublished])
+      .bind(Binding.of[Option[Int]])
+      .bind(Binding.Record.someInt)
+      .bind(Binding.of[Option[String]])
+      .bind(Binding.Record.some[String])
+      .bind(Binding.Record.none) ++ BindingResolver.defaults
+    val rebound = stored.rebind[BookPublished](resolver)
+    println(rebound.jsonCodec.decode("""{"isbn":"978-0","edition":2,"subtitle":"Functional Effects"}"""))
+    // Right(BookPublished(978-0,Some(2),Some(Functional Effects)))
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to
+`//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** `BindingResolver.defaults` rebinds `Option[A]` for any `A`, as it does `List[A]`: an `Option` entry keyed by the type constructor plus `Some`/`None`, so `BindingResolver.empty.bind(Binding.of[BookPublished]) ++ BindingResolver.defaults` is enough.
+
+**Root cause.** `defaults` (`schema/shared/src/main/scala/zio/blocks/schema/binding/BindingResolver.scala:225-271`; `:215-261` at v0.0.56) binds no `Option`, `Some` or `None`. `RebindTransformer#transformRecord` reaches the `Some` case record first and throws with its `TypeId` (`RebindTransformer.scala:47-50`).
+
+**Impact.** Every real event schema has an optional field, so every registry consumer hits this on its first rebind. `dynamic-schema.md` and an example say the opposite (see the Documentation errors entry). The H-09 guide shows the three bindings.
+
+**Test gap.** Only `DynamicSchemaRebindSpec` "rebinds option schema" (`schema/shared/src/test/scala/zio/blocks/schema/DynamicSchemaRebindSpec.scala:243-262`) covers it, with the manual bindings; `BindingResolverSpec`'s "contains ... in defaults" suites (`:345-401`) don't list `Option`.
+
+**Suggested fix.** Add `Option` (variant), `Some` (record, generic in its element) and `None` to `defaults`, keyed by type constructor like the sequence bindings; or document the three bindings in `binding-resolver.md` and make the `RebindException` message mention `Option` when the missing type is `scala.Some`.
+
+### schema: case-class default values are not part of a `DynamicSchema`
+
+**Severity:** low.
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
+
+**Summary.** For `BookPublished(isbn: String, edition: Int = 1)`, the field `edition` in `Schema[BookPublished].toDynamicSchema` has no default: `DynamicSchema(field.value).getDefaultValue` is `None`. A consumer that only has the stored schema can't tell that the field is safe to add, so a user-written compatibility check (as in the H-09 guide) must treat it as breaking. Rebinding with `Binding.of` brings the default back, so decoding is not affected.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run DefaultNotStored.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+final case class BookPublished(isbn: String, edition: Int = 1)
+object BookPublished { implicit val schema: Schema[BookPublished] = Schema.derived }
+
+object DefaultNotStored {
+  def main(args: Array[String]): Unit = {
+    println(Schema[BookPublished].jsonCodec.decode("""{"isbn":"978-0"}"""))
+    // Right(BookPublished(978-0,1))
+
+    val edition = Schema[BookPublished].toDynamicSchema.reflect.asRecord.get.fields.find(_.name == "edition").get
+    println(DynamicSchema(edition.value).getDefaultValue)
+    // None
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to
+`//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** `Schema#toDynamicSchema` turns each field's binding default into the stored default (`storedDefaultValue`, as `Reflect#defaultValue` does), so `getDefaultValue` returns `Some(1)` as a `DynamicValue`, and it survives storage.
+
+**Root cause.** The derived default lives in the field's `Binding` (the field's reflect is a `Reflect.Deferred`), and `Reflect#noBinding` (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:202-203`) drops bindings without copying the default into `storedDefaultValue`. Not traced further.
+
+**Impact.** Low; affects schema comparison and documentation tools that read a stored schema. The H-09 guide says its `compare` reports a defaulted field as breaking for this reason.
+
+**Test gap.** `DynamicSchemaSpec` "defaultValue and examples" (`:705-760`) sets defaults with `DynamicSchema#defaultValue`; no test derives a case class with a default parameter and reads it from `toDynamicSchema`.
+
+**Suggested fix.** In `noBinding`, convert a binding's default value to a `DynamicValue` and keep it as the stored default.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -5624,6 +5919,31 @@ Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-t
 **Summary.** `docs/reference/sql/table.md:238` says fields that fall back to JSONB "such as `List[A]`" produce "a `TEXT` or `JSONB` column", and that "nested records that are flattened into multiple columns are fully supported". `Table.derived` throws for a `List[A]` field, and it flattens every nested record even though the codec stores a non-inline record as one JSON column (see the `Table.derived` entry under Library bugs). `table.md:273` repeats "nested records are flattened". `docs/reference/sql/db-codec-deriver.md:23` says the fallback is "a single `TEXT` / `JSONB` column"; no code path emits `JSONB`, since `SqlDialect` maps `DbString` to `TEXT` on both dialects (`sql/shared/src/main/scala/zio/blocks/sql/SqlDialect.scala:36,64`).
 
 **Suggested fix.** Until the library bug is fixed, say that `Table.derived`, `Repo.derived` and `createTable` work only for records whose nested record fields carry `sql.inline`, and that a JSON column on PostgreSQL must be declared `JSONB` by hand.
+
+### schema: `dynamic-schema.md` and three examples say a `DynamicSchema` can be stored as JSON and that `BindingResolver.defaults` covers `Option`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
+
+**Summary.** Five places contradict the code at 0.0.56:
+- `docs/reference/schema/dynamic-schema.md:16`: "Can be serialized to a `DynamicValue` and deserialized back, making it storable in databases or transmittable over the network". True in memory, but no format except Avro stores that `DynamicValue` losslessly (see the Library bugs entry on JSON round trips).
+- `schema-examples/src/main/scala/dynamicschema/DynamicSchemaRegistryExample.scala:30-32`: "the blob can be stored as JSON or bytes without any issue". Stored as JSON, it reads back as an accept-anything schema.
+- `schema-examples/src/main/scala/bindingresolvers/BindingResolverSchemaRegistryExample.scala:12-14`: "DynamicSchema carries only field names, type names, and annotations, so it can be stored as JSON or bytes". Same problem. (This example is linked from no page.)
+- `docs/reference/schema/dynamic-schema.md:267`: "`BindingResolver.defaults` covers all standard primitives, `java.time` types, `List`, `Map`, `Option`, and other standard collections." It has no `Option` binding (see the Usability traps entry), so a reader who follows it gets `Missing Record binding for type scala.Some`. `binding-resolver.md:88-96` lists the defaults correctly, without `Option`.
+- `schema-examples/src/main/scala/dynamicschema/DynamicSchemaRebindExample.scala:39`: "BindingResolver.defaults covers all primitives, java.time, List, Map, Option, etc." Same error; the example works only because its types have no `Option` field.
+
+Also misleading: `dynamic-schema.md:410` recommends `DynamicSchema#toSchema` for "validation gateway[s] or format converter[s]". Used with JSON input, its `check` rejects valid events with `Double`, `Float`, small `Long`, whole-number `BigDecimal` or `Option` fields (see the Usability traps entry on `check`).
+
+**Reproduction.** The `LossyRoundTrip213.scala`, `OptionRebind.scala` and `CheckVsDecode.scala` reproductions in the entries above (Verified on Scala 2.13.18 and 3.9.0 against 0.0.56).
+
+**Expected.** The page and the examples say that only `Schema[DynamicSchema].derive(AvroFormat)` round-trips a `DynamicSchema` in 0.0.56, that `defaults` has no `Option`, how to bind one, and that `check`/`toSchema` expect `DynamicValue`s built by `Schema#toDynamicValue`.
+
+**Root cause.** The page and examples were written from the API's intent; no test round-trips through a format or rebinds `Option` with `defaults` alone.
+
+**Impact.** Readers build registries that validate nothing, or hit a `RebindException` they were told can't happen.
+
+**Test gap.** The examples only compile in CI; none checks its claims.
+
+**Suggested fix.** Correct the five sentences, add a "Storing a DynamicSchema" subsection to `dynamic-schema.md` that uses Avro, and link the H-09 guide (it now has a See-also line there). Update the three example comments.
 
 ## Resolved
 
