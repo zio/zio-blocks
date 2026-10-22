@@ -17,11 +17,60 @@
 package zio.blocks.schema
 
 import scala.quoted.*
+
+/** The [[Into.derived]] macro. */
 trait IntoVersionSpecific {
+
+  /**
+   * Derives an `Into[A, B]` at compile time.
+   *
+   * It supports case classes and tuples (in any combination), sealed traits and
+   * Scala 3 enums, case objects, a primitive to a single-field case class and
+   * back, ZIO Prelude newtypes, Scala 3 opaque types, structural types (JVM
+   * only), and any type with a [[Schema]] to or from [[DynamicValue]]. Between
+   * two primitive types it uses the implicit `Into` in scope, such as the
+   * built-in numeric ones, and does not compile when there is none:
+   * `Into.derived[Int, String]` fails.
+   *
+   * Each target field takes the first source field that matches, in this order:
+   * the same name and type; the same name and a convertible type; the only
+   * field of that type on both sides; the field at the same position with a
+   * matching or convertible type. A type is convertible when an implicit `Into`
+   * or `As` exists for it, including the built-in numeric and container
+   * instances; the macro does not derive conversions of nested case classes, so
+   * define those as implicits first. A target field that matches no source
+   * field takes its default value, or `None` if it is an `Option`; otherwise
+   * compilation fails. Source fields that match no target field are dropped.
+   *
+   * Each source case goes to the target case with the same name; failing that,
+   * to the first target case whose field types match; failing that, to the
+   * target case at the same position. A renamed or removed case can therefore
+   * convert to an unrelated case without any error (see `docs/dev/issues.md`).
+   *
+   * At run time, the conversion returns `Left` when a narrowing conversion, an
+   * implicit `Into` it uses, a newtype or opaque-type smart constructor, or
+   * decoding from a `DynamicValue` fails.
+   *
+   * {{{
+   * case class Draft(title: String, pages: Long)
+   * case class Book(title: String, pages: Int)
+   *
+   * val publish = Into.derived[Draft, Book]
+   * publish.into(Draft("Zionomicon", 600L)) // Right(Book("Zionomicon", 600))
+   * publish.into(Draft("Zionomicon", Long.MaxValue))
+   * // Left(SchemaError: converting field Draft.pages to Book.pages failed
+   * //   Caused by: Value 9223372036854775807 is out of range for Int [-2147483648, 2147483647])
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/schema/schema-evolution/into/ Into]]
+   */
   inline def derived[A, B]: Into[A, B] = ${ IntoVersionSpecificImpl.derived[A, B] }
 }
 
 private object IntoVersionSpecificImpl {
+
+  /** Expands [[IntoVersionSpecific#derived]]. */
   def derived[A: Type, B: Type](using Quotes): Expr[Into[A, B]] =
     new IntoVersionSpecificImpl().derive[A, B]
 }
