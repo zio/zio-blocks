@@ -41,14 +41,15 @@ We recommend reading from top to bottom — each section builds on the previous 
 To follow along, add the streams module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-streams" % "@VERSION@"
+scalacOptions += "-experimental"
 ```
 
-Scala 3.7 and newer use the `zio-blocks-next-streams` artifact name; the code in this tutorial is the same for every Scala version. On the JVM, the streams module needs JDK 21 or newer.
+Scala 3.9 and newer use the `zio-blocks-next-streams` artifact name; the code in this tutorial is the same for every Scala version. On the JVM, the streams module needs JDK 21 or newer. For scala-cli, Scala.js, or cross-building, see [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md).
 
 ## 2. Background: A Stream Is a Recipe
 
@@ -558,6 +559,8 @@ You now have a solid foundation in ZIO Blocks Streams. The next step is to explo
 ## 15. Where to Go Next
 
 - **Want the big picture?** The [Streams overview](../reference/streams/index.md) explains the core mental model and how `Stream`, `Sink` and `Pipeline` fit together.
+- **Ready to read real files and sockets?** [How to Stream Files and Sockets Without Leaking Resources](./stream-files-and-sockets.md) applies `Stream.fromAcquireRelease` and the NIO constructors to files, channels and sockets, and closes every handle on success, failure and early stop.
+- **Coming from another streaming library?** [Coming from fs2, ZIO Streams or Ox](./streaming-library-migration.md) maps fs2, ZIO Streams and Ox code onto ZIO Blocks streams.
 - **Want to see every operator?** The [Stream](../reference/streams/core/stream.md) reference page documents every constructor, transformation and terminal, including `Stream.fromAcquireRelease`, `Stream#grouped` and `Stream#catchAll`.
 - **Need another way to consume a stream?** The [Sink](../reference/streams/core/sink.md) reference page lists every predefined sink and shows how to transform sinks with `Sink#contramap` and `Sink#map`.
 - **Want to reuse a chain of transformations?** Read [Pipeline](../reference/streams/core/pipeline.md), which turns a chain like our `Stream#filter` and `Stream#map` into a value you can apply to any stream.
