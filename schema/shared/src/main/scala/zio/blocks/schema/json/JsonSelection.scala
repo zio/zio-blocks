@@ -26,7 +26,16 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder}
  * JsonSelection enables a fluent API style for navigating through JSON
  * structures:
  * {{{
- *   json.get("users").asArrays.apply(0).get("name").asStrings
+ * import zio.blocks.schema.json._
+ *
+ * val json = Json.Object(
+ *   "users" -> Json.Array(
+ *     Json.Object("name" -> Json.String("Alice"))
+ *   )
+ * )
+ *
+ * val names: JsonSelection =
+ *   json.get("users").arrays.apply(0).get("name").strings
  * }}}
  *
  * The selection can contain zero, one, or multiple JSON values, supporting both

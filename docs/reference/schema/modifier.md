@@ -13,7 +13,7 @@ object Modifier {
   sealed trait Term    extends Modifier
   // ... term modifiers (transient, encodeTransient, rename, alias, id, config) ...
   sealed trait Reflect extends Modifier
-  // ... reflect modifiers (config) ...
+  // ... reflect modifiers (config, discriminator, noExtraFields, fieldNaming, caseNaming) ...
 }
 ```
 
@@ -126,7 +126,11 @@ Modifier
  │    ├── id()               : mark a primary-key field
  │    └── config(key, val)   : attach key-value metadata
  └── Modifier.Reflect  (annotates reflect values / types)
-      └── config(key, val)   : attach key-value metadata
+      ├── config(key, val)       : attach key-value metadata
+      ├── discriminator(name)    : JSON discriminator field of a variant
+      ├── noExtraFields()        : reject unknown JSON fields of a record
+      ├── fieldNaming(strategy)  : JSON naming strategy for record fields
+      └── caseNaming(strategy)   : JSON naming strategy for variant cases
 ```
 
 As you can see, `config` is the only modifier that extends both `Term` and `Reflect`, allowing it to be used on both fields and types.

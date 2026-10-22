@@ -19,8 +19,26 @@ package zio.blocks.schema.binding
 import zio.blocks.schema.DynamicValue
 import zio.blocks.typeid.TypeId
 
+/**
+ * Adds `reflection` to the [[BindingResolver]] companion; its implementation
+ * differs between the JVM and Scala.js.
+ */
 private[binding] trait BindingResolverPlatformSpecific {
 
+  /**
+   * A resolver that derives [[Binding.Record]]s for case classes at run time,
+   * with Java reflection. On the JVM, `resolveRecord` builds the binding from
+   * the class's public constructor and its fields, and caches the result, found
+   * or not, per normalized `TypeId`; every other `resolve` method returns
+   * `None`. On Scala.js there is no reflection, so every method returns `None`.
+   * Combine it with [[BindingResolver.defaults]] for primitives and
+   * collections.
+   *
+   * The constructor used is the first that `getConstructors` returns, and the
+   * fields are the first of `getDeclaredFields`, as many as the constructor has
+   * parameters. On Scala 3, when a case class extends a trait that has a `val`,
+   * that `val`'s field comes first, so the binding reads the wrong fields.
+   */
   val reflection: BindingResolver = NoOpReflection
 
   private object NoOpReflection extends BindingResolver {

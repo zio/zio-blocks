@@ -21,13 +21,49 @@ import scala.collection.mutable.ListBuffer
 import scala.reflect.ClassTag
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
+/**
+ * Builds a collection of type `C[A]` element by element through a mutable
+ * builder: the construction half of a [[Binding.Seq]]. A codec decodes a
+ * sequence by calling `newBuilder`, one of the `add` methods for each element,
+ * and then `result`.
+ *
+ * The companion object has an instance for each standard collection. The
+ * array-backed ones (`arraySeqConstructor`, `arrayConstructor` and, on Scala 3
+ * only, `iArrayConstructor`) store the elements in an array of the element
+ * type, so `addInt` and the other primitive adders write a primitive element
+ * without boxing it.
+ *
+ * @tparam C
+ *   the collection type constructor
+ */
 trait SeqConstructor[C[_]] {
+
+  /** The mutable builder that collects the elements. */
   type Builder[_]
 
+  /**
+   * Creates an empty builder. `sizeHint` is the expected number of elements:
+   * the array-backed constructors use it as the initial capacity (at least 1),
+   * `chunkConstructor` passes it to its builder, and the others ignore it. Only
+   * the array-backed constructors use `ct`, to create arrays of the element
+   * type.
+   */
   def newBuilder[A](sizeHint: Int = 4)(implicit ct: ClassTag[A]): Builder[A]
 
+  /**
+   * Adds `a` to `builder`. For `setConstructor`, an element equal to one added
+   * before is dropped.
+   */
   def add[A](builder: Builder[A], a: A): Unit
 
+  /**
+   * Adds the `Boolean` `a` to `builder`. This and the other primitive adders
+   * (`addByte`, `addShort`, `addInt`, `addLong`, `addFloat`, `addDouble` and
+   * `addChar`) call `add` by default, which boxes the value. The array-backed
+   * constructors override them to write into a primitive array without boxing,
+   * and `chunkConstructor` overrides all eight to forward the value to
+   * `ChunkBuilder.addOne`.
+   */
   def addBoolean(builder: Builder[Boolean], a: Boolean): Unit = add(builder, a)
   def addByte(builder: Builder[Byte], a: Byte): Unit          = add(builder, a)
   def addShort(builder: Builder[Short], a: Short): Unit       = add(builder, a)
@@ -37,14 +73,28 @@ trait SeqConstructor[C[_]] {
   def addDouble(builder: Builder[Double], a: Double): Unit    = add(builder, a)
   def addChar(builder: Builder[Char], a: Char): Unit          = add(builder, a)
 
+  /**
+   * Returns the collection of the elements added to `builder`. The array-backed
+   * constructors trim the array to the number of elements.
+   */
   def result[A](builder: Builder[A]): C[A]
 
+  /** Returns an empty collection. */
   def empty[A](implicit ct: ClassTag[A]): C[A]
 }
 
+/** The sequence constructors for the standard collections. */
 object SeqConstructor {
+
+  /**
+   * The builder of the array-backed constructors: the first `size` elements of
+   * `buffer` are the ones added so far. When `buffer` is full, adding an
+   * element replaces it with a copy of twice the length. `ct` creates arrays of
+   * the element type.
+   */
   class ArrayBuilder[A](var buffer: Array[A], var size: Int, val ct: ClassTag[A])
 
+  /** Builds an immutable `Set`. */
   implicit val setConstructor: SeqConstructor[Set] = new SeqConstructor[Set] {
     type Builder[A] = scala.collection.mutable.Builder[A, Set[A]]
 
@@ -57,6 +107,7 @@ object SeqConstructor {
     def empty[A](implicit ct: ClassTag[A]): Set[A] = Set.empty
   }
 
+  /** Builds a `List`. */
   implicit val listConstructor: SeqConstructor[List] = new SeqConstructor[List] {
     type Builder[A] = scala.collection.mutable.ListBuffer[A]
 
@@ -69,6 +120,7 @@ object SeqConstructor {
     def empty[A](implicit ct: ClassTag[A]): List[A] = Nil
   }
 
+  /** Builds a `Vector`. */
   implicit val vectorConstructor: SeqConstructor[Vector] = new SeqConstructor[Vector] {
     type Builder[A] = scala.collection.mutable.Builder[A, Vector[A]]
 
@@ -200,12 +252,17 @@ object SeqConstructor {
     }
   }
 
+  /**
+   * Builds an immutable `ArraySeq` that wraps the builder's array, trimmed to
+   * size, without copying it again.
+   */
   implicit val arraySeqConstructor: SeqConstructor[ArraySeq] = new PrimitiveArraySeqConstructor[ArraySeq] {
     def result[A](builder: Builder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray(trimArray(builder))
 
     def empty[A](implicit ct: ClassTag[A]): ArraySeq[A] = ArraySeq.empty[A]
   }
 
+  /** Builds an immutable `IndexedSeq`, which is a `Vector`. */
   implicit val indexedSeqConstructor: SeqConstructor[IndexedSeq] = new SeqConstructor[IndexedSeq] {
     type Builder[A] = scala.collection.mutable.Builder[A, IndexedSeq[A]]
 
@@ -218,6 +275,7 @@ object SeqConstructor {
     def empty[A](implicit ct: ClassTag[A]): IndexedSeq[A] = Vector.empty
   }
 
+  /** Builds an immutable `Seq`, which is a `List`. */
   implicit val seqConstructor: SeqConstructor[collection.immutable.Seq] = new SeqConstructor[collection.immutable.Seq] {
     type Builder[A] = scala.collection.mutable.Builder[A, collection.immutable.Seq[A]]
 
@@ -230,6 +288,7 @@ object SeqConstructor {
     def empty[A](implicit ct: ClassTag[A]): Seq[A] = Nil
   }
 
+  /** Builds a `Chunk`. */
   implicit val chunkConstructor: SeqConstructor[Chunk] = new SeqConstructor[Chunk] {
     type Builder[A] = ChunkBuilder[A]
 
@@ -251,6 +310,9 @@ object SeqConstructor {
     def empty[A](implicit ct: ClassTag[A]): Chunk[A] = Chunk.empty
   }
 
+  /**
+   * Builds an `Array` of the element type, trimmed to the number of elements.
+   */
   implicit val arrayConstructor: SeqConstructor[Array] = new PrimitiveArraySeqConstructor[Array] {
     def result[A](builder: Builder[A]): Array[A] = trimArray(builder)
 

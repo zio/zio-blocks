@@ -19,7 +19,16 @@ package zio.blocks.schema
 import zio.blocks.chunk.Chunk
 import scala.reflect.macros.blackbox
 
+/**
+ * Macro implementation of the `p"..."` interpolator: it parses the literal with
+ * `PathParser` and builds the [[DynamicOptic]] expression.
+ */
 object PathMacros {
+
+  /**
+   * Expands `p"..."`, or reports a compile error for interpolated arguments or
+   * a malformed path.
+   */
   def pImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[DynamicOptic] = {
     import c.universe._
 

@@ -102,7 +102,9 @@ object AsyncSourceMappedIntIntUseSpec extends StreamsBaseSpec {
     case _                  => false
   }
 
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("AsyncSourceMappedIntIntUse")(
+  // Note: no explicit Spec ascription so the Env intersection compiles on both
+  // Scala 2.13 (`with`) and Scala 3.10 (`&`, where `with` is an error).
+  def spec = suite("AsyncSourceMappedIntIntUse")(
     test("uses the physical Int lane for ready values and EOF with Int and reference maps") {
       val ints = ready(1, 2, 3)
       val refs = ready(4, 5)

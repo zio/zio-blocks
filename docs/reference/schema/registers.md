@@ -123,15 +123,15 @@ One powerful aspect of the register system is that you can reuse registers. If y
 
 ## RegisterOffset: Tracking Positions
 
-`RegisterOffset` is a compact way to track positions within the `Registers` structure. It uses a single `Int` to encode two pieces of information:
-1. Byte offset (for primitives) in the upper 16 bits
-2. Object offset (for references) in the lower 16 bits
+`RegisterOffset` is a compact way to track positions within the `Registers` structure. It uses a single `Long` to encode two pieces of information:
+1. Byte offset (for primitives) in the upper 32 bits
+2. Object offset (for references) in the lower 32 bits
 
 You can think of `RegisterOffset` as a cursor that tells you where to read/write the next primitive or object value. For example:
 1. `RegisterOffset.Zero` represents the starting position with zero indexes for both primitives and objects.
 2. `RegisterOffset(objects = 1)` indicates that the next object reference should be stored at index 1 in the object array, with zero byte offset for primitives.
 3. `RegisterOffset(bytes = 10, objects = 3)` indicates that the next primitive value should be retrieved/stored starting at byte index 10 in the byte array, and the next object reference should be stored at index 3 in the object array.
-4. `RegisterOffset(bytes = 4, ints = 2, objects = 3)` indicates that the next primitive value should be retrieved/stored starting at byte index 8 (4 bytes + 2 ints × 4 bytes each) in the byte array, and the next object reference should be stored at index 3 in the object array.
+4. `RegisterOffset(bytes = 4, ints = 2, objects = 3)` indicates that the next primitive value should be retrieved/stored starting at byte index 12 (4 bytes + 2 ints × 4 bytes each) in the byte array, and the next object reference should be stored at index 3 in the object array.
 
 The byte offset is calculated by weighting each type by its size:
 

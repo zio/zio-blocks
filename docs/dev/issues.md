@@ -112,6 +112,56 @@ println(ConfigSource.fromYaml("tags: [scala", "bookstore.yaml"))
 
 **Suggested fix.** Before stripping delimiters, check that the value ends with the matching closing character (taking quotes into account), and fail with a parse error otherwise. Make `collectFlowContent` fail when it reaches the end of input with `depth > 0`. Add `YamlReaderSpec` tests for each unterminated form, including the multi-line flow sequence.
 
+### schema-yaml: `YamlWriter` leaves a value that starts with `#` unquoted, so YAML readers drop it as a comment
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-and-export-openapi.md` (backlog H-39), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `Yaml#print` and `Yaml#printPretty` write a string scalar that starts with `#` without quotes. In YAML, a `#` that follows whitespace starts a comment, so `key: #value` means `key` with a null value. Any YAML reader that follows the spec loses the value. This breaks every OpenAPI document exported through `Yaml.fromJson`, because every local reference is a `$ref` whose value starts with `#` (`#/components/schemas/Book`): Swagger UI and client generators see `$ref: null`. ZIO Blocks' own `YamlReader` is lenient about this case and keeps the value, so a round trip inside ZIO Blocks does not show the problem.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-schema-yaml` 0.0.56; SnakeYAML 2.3 only to read the output with a spec-following reader):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-yaml:0.0.56
+//> using dep org.yaml:snakeyaml:2.3
+
+import zio.blocks.schema.json.Json
+import zio.blocks.schema.yaml.{Yaml, YamlReader}
+
+@main def yamlHash(): Unit = {
+  val json = Json.Object(
+    "$ref"   -> Json.String("#/components/schemas/Book"),
+    "hashtag" -> Json.String("#scala"),
+    "inside" -> Json.String("C# and F#")
+  )
+  val text = Yaml.fromJson(json).printPretty
+  println(text)
+  // ---
+  // $ref: #/components/schemas/Book
+  // hashtag: #scala
+  // inside: C# and F#
+
+  // Read the text with SnakeYAML, a YAML 1.1 reader that follows the spec on comments
+  println(new org.yaml.snakeyaml.Yaml().load[Object](text))
+  // {$ref=null, hashtag=null, inside=C# and F#}
+
+  // ZIO Blocks' own reader keeps the values, so a round trip inside ZIO Blocks hides the problem
+  println(YamlReader.read(text).toJson.print)
+  // {"$ref":"#/components/schemas/Book","hashtag":"#scala","inside":"C# and F#"}
+}
+```
+
+**Expected.** `$ref: "#/components/schemas/Book"` and `hashtag: "#scala"`, so that every YAML reader reads the strings back.
+
+**Root cause.** `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlWriter.scala`, `needsQuoting` (`:203`). The list of first characters that force quotes (`:213-214`) has no `#`, and the loop quotes a `#` only when a space comes before it (`:223`). The same list also misses the other YAML indicators that cannot start a plain scalar, such as `,`, `]`, `}`, and `-`, `:` or `?` followed by a space (from source, not run). The lenient reader matches the writer: `YamlReader.scala:508` treats `#` as a comment only when a space comes before it inside the value, which hides the bug from round-trip tests.
+
+**Impact.** Silent data loss for any YAML consumer outside ZIO Blocks. For OpenAPI documents, every `$ref` is lost, so the documented way to export an OpenAPI document as YAML (`Yaml.fromJson(openAPICodec.encodeValue(api))`) produces a broken document. The H-39 guide works around it by quoting `$ref` values with a regular expression after printing.
+
+**Test gap.** `YamlWriterSpec` tests a `#` after a space (`"value #comment"`, `:281`) but no value that starts with `#` or with another indicator character, and no test reads the writer's output with a reader other than `YamlReader`.
+
+**Suggested fix.** In `needsQuoting`, quote a value whose first character is any YAML indicator (`#`, `,`, `[`, `]`, `{`, `}`, `&`, `*`, `!`, `|`, `>`, `'`, `"`, `%`, `@`, `` ` ``), or that starts with `-`, `?` or `:` followed by a space, and a value with leading or trailing spaces. Make `YamlReader` treat `#` at the start of a value as a comment, as the spec says. Add writer tests for each indicator and a test that the OpenAPI petstore document survives `Yaml.fromJson(...).printPretty` and a spec-following read.
+
 ### schema-toon: `ArrayFormat.Tabular` with a non-primitive field writes output it cannot decode
 
 Filed as #1778. Found 2026-10-20 while writing H-12 (`docs/guides/llm-data-with-toon.md`). Verified on 0.0.56; schema-toon is unchanged since.
@@ -1389,6 +1439,629 @@ Moving the derivation into the companion works around it. With `implicit val sch
 
 **Suggested fix.** In `directSubTypes`, build each case's type from the parent's prefix instead of the owner's `this`: walk from the case's owner up to the parent's owner, and select each module on the way (Scala 3: `prefix.select(owner.companionModule)` and then `.select(symbol)`; Scala 2: `c.internal.singleType(prefix, owner.asClass.module)` and then `c.internal.typeRef(prefix, symbol, Nil)`). For the repro this yields `Bookstore.this.Format.Ebook`. Apply it to the generic branch too, and add tests for both Scala versions: a class-nested sealed trait with companion-held cases derived from the class body and from another companion, a `def`-local variant, and a Scala 3 enum with class cases inside a class.
 
+### schema: on Scala 2, `DerivedOptics#optics` compiles only inside the `zio.blocks.schema` package
+
+Found 2026-10-21 while making the schema Scaladoc examples compile (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `1945f601`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** On Scala 2, every call to `optics` on a companion that extends `DerivedOptics` (or `DerivedOptics.Of`) fails to compile in user code: the macro expansion calls the package-private `DerivedOpticsMacros.getOrCreate`. Scala 3 is not affected.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Book(title: String, pages: Int)
+object Book extends DerivedOptics {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val title: Lens[Book, String] = Book.optics.title
+    println(title.get(Book("Zionomicon", 870)))
+  }
+}
+// [error] ./Repro.scala:12:42
+// [error] object DerivedOpticsMacros in package schema cannot be accessed as a member of package zio.blocks.schema from object Main
+// [error]     val title: Lens[Book, String] = Book.optics.title
+// [error]                                          ^
+// Compilation failed
+```
+
+The same file on Scala 3.3.7 prints `Zionomicon`.
+
+**Expected.** The program compiles and prints `Zionomicon`, as the Scala 2 Scaladoc of `DerivedOptics` shows.
+
+**Root cause.** `DerivedOpticsMacros` and its `getOrCreate` are `private[schema]` (`schema/shared/src/main/scala-2/zio/blocks/schema/DerivedOptics.scala:213`, `:224`), but the trees the macro returns call `_root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(...)` (`:324`, `:359`, `:382`). The wrapper branch also calls the `private[schema]` `DerivedOptics.wrapperAsRecord` (`:107`, used at `:313` and `:387`). Scala 2 macros expand at the call site, where these members are not accessible.
+
+**Impact.** `DerivedOptics` is unusable on Scala 2 outside the library. The two Scala 2 Scaladoc examples on `DerivedOptics` are marked `// no-check` until this is fixed.
+
+**Test gap.** `DerivedOpticsSpec` (`schema/shared/src/test/scala/zio/blocks/schema/DerivedOpticsSpec.scala`) is in package `zio.blocks.schema`, so the private members are visible to it.
+
+**Suggested fix.** Make `DerivedOpticsMacros.getOrCreate` and `DerivedOptics.wrapperAsRecord` public (they can stay out of the user-facing docs), or move the runtime helpers to a public object that the expansion calls. Add a Scala 2 test in a package outside `zio.blocks.schema`, or rely on the `schema-scaladoc-check` examples once the `// no-check` markers are removed.
+
+### schema: on Scala 2, `NonNegativeInt.literal` and `PositiveNumber.literal` compile only inside `zio.blocks.schema.json`
+
+Found 2026-10-21 while making the schema Scaladoc examples compile (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `1945f601`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** On Scala 2, the compile-time `literal` constructors expand to `new NonNegativeInt(...)` and `new PositiveNumber(...)`, whose constructors are `private[json]`. Any call outside the `zio.blocks.schema.json` package fails to compile, even for a valid literal. Scala 3 is not affected.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json.{NonNegativeInt, PositiveNumber}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val minLength: NonNegativeInt  = NonNegativeInt.literal(3)
+    val multipleOf: PositiveNumber = PositiveNumber.literal(5)
+    println((minLength, multipleOf))
+  }
+}
+// [error] ./Repro.scala:7:60
+// [error] constructor NonNegativeInt in class NonNegativeInt cannot be accessed in object Main from object Main
+// [error]     val minLength: NonNegativeInt  = NonNegativeInt.literal(3)
+// [error]                                                            ^
+// [error] ./Repro.scala:8:60
+// [error] constructor PositiveNumber in class PositiveNumber cannot be accessed in object Main from object Main
+// [error]     val multipleOf: PositiveNumber = PositiveNumber.literal(5)
+// [error]                                                            ^
+// Compilation failed
+```
+
+**Expected.** The program compiles and prints the two values.
+
+**Root cause.** The Scala 2 macros emit `q"new _root_.zio.blocks.schema.json.NonNegativeInt($value)"` (`schema/shared/src/main/scala-2/zio/blocks/schema/json/NonNegativeIntCompanionVersionSpecific.scala:47`) and `q"new _root_.zio.blocks.schema.json.PositiveNumber(BigDecimal($value))"` (`.../PositiveNumberCompanionVersionSpecific.scala:47`), but both constructors are `private[json]` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:33`, `:54`). The Scala 3 versions call the public `unsafe` instead (`schema/shared/src/main/scala-3/zio/blocks/schema/json/NonNegativeIntCompanionVersionSpecific.scala:36`, `.../PositiveNumberCompanionVersionSpecific.scala:36`).
+
+**Impact.** `literal` is unusable on Scala 2. The Scala 2 Scaladoc examples of both methods are marked `// no-check` until this is fixed.
+
+**Test gap.** No test calls `literal` on either Scala version.
+
+**Suggested fix.** Emit `_root_.zio.blocks.schema.json.NonNegativeInt.unsafe($value)` and `_root_.zio.blocks.schema.json.PositiveNumber.unsafe(BigDecimal($value))`, as the Scala 3 versions do, and add tests for both versions in a package outside `zio.blocks.schema.json`, including a `typeCheck` test for the rejected literal.
+
+### schema: on Scala 2, `Schema#structural` returns `Schema[ts.StructuralType]`, not the structural type
+
+Found 2026-10-21 while making the schema Scaladoc examples compile (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `1945f601`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** On Scala 2, the `ToStructural` macro is blackbox, so the compiler never sees the refined `StructuralType` of the instance it returns. `Schema#structural` therefore has the type `Schema[ts.StructuralType]`, which cannot be assigned to a `Schema` of the structural type, as the Scaladoc of `Schema#structural` and `ToStructural` showed. On Scala 3 the same code compiles.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Book(title: String, pages: Int)
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val structuralSchema: Schema[{ def title: String; def pages: Int }] =
+      Schema.derived[Book].structural
+    println(structuralSchema)
+  }
+}
+// [error] ./Repro.scala:10:7
+// [error] type mismatch;
+// [error]  found   : zio.blocks.schema.Schema[ts.StructuralType] where val ts: zio.blocks.schema.ToStructural[Book]
+// [error]  required: zio.blocks.schema.Schema[AnyRef{def title: String; def pages: Int}]
+// [error]       Schema.derived[Book].structural
+// [error]       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// Compilation failed
+```
+
+The same file on Scala 3.3.7 prints the record schema `record {pages:Int,title:String}`.
+
+**Expected.** The program compiles, as it does on Scala 3.
+
+**Root cause.** `ToStructural.toStructural` is a blackbox macro (`schema/shared/src/main/scala-2/zio/blocks/schema/ToStructuralVersionSpecific.scala:24`, `:27`, `:31`). A blackbox macro's result keeps the declared type `ToStructural[A]`, so the `type StructuralType = ...` refinement that the expansion defines is lost, and `structural`'s dependent result type `Schema[ts.StructuralType]` (`schema/shared/src/main/scala-2/zio/blocks/schema/SchemaVersionSpecific.scala:48`) stays abstract.
+
+**Impact.** On Scala 2 a structural schema can be created but not used with its structural type. The Scala 2 Scaladoc of `Schema#structural` now shows the untyped form, and the `ToStructural` example is marked `// scala-3-only`.
+
+**Test gap.** The Scala 2 structural tests (`schema/jvm/src/test/scala-2/zio/blocks/schema/structural/`) call `schema.structural` without a type ascription and only check the result at run time.
+
+**Suggested fix.** Make the macro whitebox (`whitebox.Context`), so the implicit's inferred type keeps the `StructuralType` refinement (the usual `Aux` pattern), and add a Scala 2 test that assigns the result to `Schema[{ def name: String; def age: Int }]`.
+
+### schema: `DerivedOptics` gives no usable lens for an opaque type
+
+Found 2026-10-21 while making the schema Scaladoc examples compile (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `1945f601`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`, on Scala 3.9.0 and 3.3.7.
+
+**Summary.** The Scala 3 `DerivedOptics` Scaladoc showed an opaque type with a wrapper schema getting a `value` lens. For an opaque type `PageCount = Int` declared in its own object, the lens has the wrong type: the direct form `PageCount.value` is a `Lens[PageCount, PageCount]` on both Scala versions, and `PageCount.optics.value` is a `Lens[PageCount, Int]` on 3.9.0 but a `Lens[Int, Int]` on 3.3.7. `object PageCount extends DerivedOptics` (without `.Of`) does not compile at all.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object Pages {
+  opaque type PageCount = Int
+  object PageCount extends DerivedOptics.Of[PageCount] {
+    def apply(i: Int): PageCount = i
+    extension (p: PageCount) def toInt: Int = p
+
+    given schema: Schema[PageCount] = Schema[Int].transform(PageCount.apply, _.toInt)
+  }
+}
+import Pages.PageCount
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val viaOptics: Lens[PageCount, Int] = PageCount.optics.value
+    println(viaOptics.get(PageCount(870)))
+
+    val direct: Lens[PageCount, Int] = PageCount.value
+    println(direct.get(PageCount(870)))
+  }
+}
+// [error] ./Repro.scala:21:40
+// [error] Found:    (zio.blocks.schema.OpticsHolder{
+// [error]   val value: zio.blocks.schema.Lens[Pages.PageCount, Pages.PageCount]}#value :
+// [error]   zio.blocks.schema.Lens[Pages.PageCount, Pages.PageCount])
+// [error] Required: zio.blocks.schema.Lens[Pages.PageCount, Int]
+// [error]     val direct: Lens[PageCount, Int] = PageCount.value
+// [error]                                        ^^^^^^^^^^^^^^^
+// Compilation failed
+```
+
+On 3.9.0, without the two `direct` lines, the program prints `870`. The same file with `//> using scala 3.3.7` fails on both lines:
+
+```scala
+// [error] ./Repro.scala:18:43
+// [error] Found:    (zio.blocks.schema.OpticsHolder{val value: zio.blocks.schema.Lens[Int, Int]}#
+// [error]   value : zio.blocks.schema.Lens[Int, Int])
+// [error] Required: zio.blocks.schema.Lens[Pages.PageCount, Int]
+// [error]     val viaOptics: Lens[PageCount, Int] = PageCount.optics.value
+// [error]                                           ^^^^^^^^^^^^^^^^^^^^^^
+// [error] ./Repro.scala:21:40
+// [error] Found:    (zio.blocks.schema.OpticsHolder{
+// [error]   val value: zio.blocks.schema.Lens[Pages.PageCount, Pages.PageCount]}#value :
+// [error]   zio.blocks.schema.Lens[Pages.PageCount, Pages.PageCount])
+// [error] Required: zio.blocks.schema.Lens[Pages.PageCount, Int]
+// [error]     val direct: Lens[PageCount, Int] = PageCount.value
+// [error]                                        ^^^^^^^^^^^^^^^
+// Compilation failed
+```
+
+With plain `DerivedOptics` instead of `DerivedOptics.Of` (Scala 3.9.0, `zio-blocks-schema` 0.0.56), `optics` does not compile:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object Pages {
+  opaque type PageCount = Int
+  object PageCount extends DerivedOptics {
+    def apply(i: Int): PageCount = i
+    extension (p: PageCount) def toInt: Int = p
+
+    given schema: Schema[PageCount] = Schema[Int].transform(PageCount.apply, _.toInt)
+  }
+}
+import Pages.PageCount
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val viaOptics = PageCount.optics.value
+    println(viaOptics)
+  }
+}
+// [error] ./Repro.scala:18:21
+// [error] Cannot find companion class for $proxy1.PageCount
+// [error]     val viaOptics = PageCount.optics.value
+// [error]                     ^^^^^^^^^^^^^^^^
+// Compilation failed
+```
+
+**Expected.** Both forms give a `Lens[PageCount, Int]` on every Scala 3 version.
+
+**Root cause** (from source, consistent with the output). `DerivedOpticsMacros.opticsImpl` takes the lens's source type from `S` and the value type from `tpe.dealias` (`schema/shared/src/main/scala-3/zio/blocks/schema/DerivedOptics.scala:367`), and `buildWrapperOptics` builds `Lens[S, u]` from them (`:379-380`, `:393-396`). Through the conversion, `OpticsFor.derived[S]` (`:296`) is inferred at the call site outside `Pages`, where `PageCount` is opaque, so `dealias` returns `PageCount` itself. Through `optics`, `S` is the type argument of the `DerivedOptics.Of[PageCount]` parent, written inside `object Pages` where the alias is visible; 3.9.0 keeps `PageCount` as `S` and dealiases the value type to `Int`, while 3.3.7 dealiases both. Plain `DerivedOptics` looks up the companion class of the type (`:132`, `:341-344`), and an opaque type has none, so it fails with `Cannot find companion class`.
+
+**Impact.** Optics for opaque types cannot be derived portably. The `DerivedOptics` Scaladoc example now uses a value class (`case class Age(value: Int) extends AnyVal` with a `transform` schema), which works on all versions, and says that opaque types are not supported yet.
+
+**Test gap.** No test derives optics for an opaque type.
+
+**Suggested fix.** In `opticsImpl`, when `tpe.typeSymbol` is an opaque type alias, keep `S` as the opaque type and take the underlying type from `tpe.translucentSuperType`, instead of relying on `tpe.dealias`. Support plain `DerivedOptics` on an opaque type's companion by falling back to the companion module's type when there is no companion class. Add tests for both access forms on an opaque type declared in a separate object, on 3.3.x and 3.9.x.
+
+### schema: on Scala 3, a `DerivedOptics` lens for a value class with a wrapper schema works only when its field is named `value`
+
+Found 2026-10-21 in review of the `DerivedOptics` Scaladoc fix (`schema-scaladoc-check`, branch `schema-scaladoc`, on top of `79458a88`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`, on Scala 3.9.0 and 3.3.7.
+
+**Summary.** For a value class whose schema is a wrapper (built with `transform`), `DerivedOptics` gives the companion a lens named after the case field, so `Isbn.code` and `Isbn.optics.code` type-check. At run time the wrapper schema's only field is named `value`, so reading the lens throws `No optic found for: code`. The lens works only when the field happens to be named `value`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Isbn(code: String) extends AnyVal
+object Isbn extends DerivedOptics {
+  given schema: Schema[Isbn] = Schema[String].transform(Isbn(_), _.code)
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val zionomicon = Isbn("978-0-9000000-0-1")
+    println(scala.util.Try(Isbn.code.get(zionomicon)))
+    println(scala.util.Try(Isbn.optics.code.get(zionomicon)))
+  }
+}
+// Failure(java.lang.RuntimeException: No optic found for: code)
+// Failure(java.lang.RuntimeException: No optic found for: code)
+```
+
+The same file with `//> using scala 3.3.7` prints the same two lines. (scala-cli also reports one deprecation warning on 3.9.0, the `OpticsFor` one, since fixed in #1743 (see Resolved), and one feature warning on both.)
+
+**Expected.** Both lines print `Success(978-0-9000000-0-1)`: the lens that type-checks as `code` reads the field.
+
+**Root cause.** A value class is a case class, so `opticsImpl` takes the case-class path (`schema/shared/src/main/scala-3/zio/blocks/schema/DerivedOptics.scala:374`, `:377`). That path names each accessor of the refined type after the case field (`:437-438`). At run time it falls back to `DerivedOptics.wrapperAsRecord` for a wrapper schema (`:451`), which always builds a single term named `"value"` (`:171`, `:175`), and registers each lens under its term name (`:458`). `OpticsHolder.selectDynamic("code")` then finds nothing (`:282-283`). The Scala 2 macro looks the lens up by index instead (`schema/shared/src/main/scala-2/zio/blocks/schema/DerivedOptics.scala:316`), so it would not have this problem (from source; Scala 2 `optics` does not compile outside the library, see above).
+
+**Impact.** A value class with a wrapper schema and a field named anything but `value` gets a lens that compiles and always fails at run time. The Scala 3 `DerivedOptics` Scaladoc now says the field must be named `value`.
+
+**Test gap.** The only wrapper test (`DerivedOpticsSpec`, "robustness: wrapperAsRecord strategy works for custom wrapper types", `schema/shared/src/test/scala/zio/blocks/schema/DerivedOpticsSpec.scala:372-393`) uses a field named `value`.
+
+**Suggested fix.** In the case-class path, when the schema is a wrapper and the case class has one field, register the lens under that field's name (or look it up by index, as Scala 2 does), and add a test with a value class whose field is not named `value`.
+
+### schema: `DynamicOptic#toString` prints paths that `p"..."` rejects: wrapper steps, the root, and `Char` keys with an escape
+
+Found 2026-10-21 while writing the Scaladoc of `DynamicOptic` and `p"..."` (wave 4 of the schema Scaladoc, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproductions below were run with `scala-cli` against the published `0.0.56`.
+
+**Summary.** `DynamicOptic#toString` is documented as the `p"..."` syntax, so its output can be pasted back into the interpolator (`docs/reference/schema/dynamic-optic.md`, "Dual rendering"; `docs/reference/schema/path-interpolator.md`, "Debug-Friendly toString"). Three renderings cannot: a wrapper step prints `.~` and the empty path prints `.`, which the parser rejects, and a `Char` map key with an escape prints with a doubled backslash, `{'\\n'}` for a newline. The doubled backslash also appears in `toScalaString`, as `.atKey('\\n')`, which is not the Scala literal for a newline. `String` keys are escaped correctly.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56; the same file with `//> using scala 2.13.18` prints the same five lines):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    println(DynamicOptic.root.field("isbn").wrapped)
+    println(DynamicOptic.root)
+    println(DynamicOptic.root.atKey('\n'))
+    println(DynamicOptic.root.atKey('\n').toScalaString)
+    println(p"""{'\n'}""" == DynamicOptic.root.atKey('\n'))
+  }
+}
+// .isbn.~
+// .
+// {'\\n'}
+// .atKey('\\n')
+// true
+```
+
+Pasting the three renderings back into the interpolator (Scala 3.9.0, `zio-blocks-schema` 0.0.56; output of `scala-cli compile --server=false Repro.scala`, with the scratch directory removed from the file paths):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    println(p".isbn.~")
+    println(p".")
+    println(p"""{'\\n'}""")
+  }
+}
+// -- Error: Repro.scala:7:12
+// 7 |    println(p".isbn.~")
+//   |            ^^^^^^^^^^
+//   |            Invalid identifier at position 6
+// -- Error: Repro.scala:8:12
+// 8 |    println(p".")
+//   |            ^^^^
+//   |            Invalid identifier at position 1
+// -- Error: Repro.scala:9:12
+// 9 |    println(p"""{'\\n'}""")
+//   |            ^^^^^^^^^^^^^^
+//   |            Char literal contains multiple characters at position 1
+// 3 errors found
+// Compilation failed
+```
+
+**Expected.** Every `toString` output parses back with `p"..."` to an equal path, and a `Char` key renders like a `String` key: `{'\n'}` and `.atKey('\n')`.
+
+**Root cause.** `DynamicOptic.renderString` prints `.~` for `Node.Wrapped` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicOptic.scala:210`) and `.` for an empty path (`:173`), but `PathParser.parseNode` requires an identifier after `.` (`schema/shared/src/main/scala/zio/blocks/schema/PathParser.scala:154-156`) and has no syntax for a wrapper step. In `renderDynamicValue`, the `Char` branch appends `"\\\\n"`, `"\\\\t"`, `"\\\\r"`, `"\\\\'"` and `"\\\\\\\\"` (`DynamicOptic.scala:291-295`), one level of escaping more than the `String` branch (`:277-281`), so it prints two backslashes where `parseChar` expects one (`PathParser.scala:467-496`).
+
+**Impact.** A path copied from a log, an error message or `toString` into `p"..."` fails to compile when it contains a wrapper step, which `toDynamic` produces for every `.wrapped[...]` step and which the error paths of transformed fields contain (see the `.wrapped` entry above), or a `Char` key with an escape. `docs/reference/schema/path-interpolator.md` listed `p".~"` as the syntax for `DynamicOptic.wrapped`; that row is corrected in the same PR.
+
+**Test gap.** `DynamicOpticSpec` checks `toString` for a plain `Char` key only (`'A'`), and `PathInterpolatorSpec`'s round-trip tests cover search steps only; no test parses `toString` output of the other node kinds back.
+
+**Suggested fix.** Give the parser a wrapper step that matches the rendering (accept `.~`), and render the empty path as the empty string or accept `.` as the root. In the `Char` branch, append `"\\n"`, `"\\t"`, `"\\r"`, `"\\'"` and `"\\\\"`, as the `String` branch does. Add a property test that `p`-parses `toString` of every node kind back to an equal `DynamicOptic` (through `PathParser.parse`).
+
+### schema: a `searchFor` traversal reads map keys but `modify` never updates them
+
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that last edits this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+
+**Summary.** A `searchFor` traversal reads a different set of values than it modifies. `fold` and `check` also visit the keys of maps, so a key that decodes with the focus schema is a match. `modify`, `modifyOption` and `modifyOrFail` skip map keys, so the same match is read but never updated.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56; the same file with `//> using scala 2.13.18` prints the same two lines):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Library(index: Map[String, String], titles: List[String])
+object Library extends CompanionOptics[Library] {
+  implicit val schema: Schema[Library] = Schema.derived
+  val strings: Traversal[Library, String] = $(_.searchFor[String])
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val library = Library(Map("isbn" -> "zionomicon"), List("Programming in Scala"))
+    println(Library.strings.fold[List[String]](library)(Nil, (acc, s) => s :: acc).reverse)
+    println(Library.strings.modify(library, _.toUpperCase))
+  }
+}
+// List(isbn, zionomicon, Programming in Scala)
+// Library(Map(isbn -> ZIONOMICON),List(PROGRAMMING IN SCALA))
+```
+
+**Expected.** `fold` and `modify` agree on the matches. Either `modify` also gives `Map(ISBN -> ZIONOMICON)`, or `fold` leaves out `isbn`.
+
+**Root cause.** `SearchTraversal.searchCollectDecoded` and `searchHasMatch` push both the key and the value of each map entry (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:3656`, `:3686`). `searchModify` (`:3710-3711`) uses `DynamicValue.iterativeTransform`, which visits only map values (`schema/shared/src/main/scala/zio/blocks/schema/DynamicValue.scala:1423`). The `DynamicValue`-level search skips keys on purpose (`DynamicValue.scala:1354`: "Search map values only (not keys), consistent with iterativeTransform"), so the typed traversal is the odd one out.
+
+**Impact.** For `searchFor[String]` over any type with a `Map[String, _]`, `fold` returns keys that `modify` does not change. A caller that counts matches with `fold` and then updates them with `modify` gets inconsistent results.
+
+**Test gap.** `SearchTraversalSpec` searches maps only for record values (`"searches through Map values"`, `"modifies values in Map"`). No test has a match among the keys.
+
+**Suggested fix.** Make `searchCollectDecoded` and `searchHasMatch` skip map keys, consistent with `iterativeTransform` and `DynamicValue`'s own search. Rewriting keys could merge entries, so skipping them is the safer choice. Add a test with a `Map[String, String]` that checks `fold` and `modify` agree.
+
+### schema: `DerivedOptics` gives one type the cached optics of another type with the same printed name
+
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that last edits this entry). The cache code is the same at tag `v0.0.56`. Verified: the reproductions below were run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+
+**Summary.** `DerivedOptics` caches the optics of each type in a global map keyed by the type's printed name. Two different types that print the same name share one entry, for example local case classes named `Book` in two methods, or same-named classes in two mdoc pages built in one JVM (all under `repl.MdocSession.MdocApp.`). The second type gets the first type's optics, and using them fails with a `ClassCastException` or `No optic found`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import scala.util.Try
+
+object Main {
+  def first(): Unit = {
+    case class Book(title: String, pages: Int)
+    object Book extends DerivedOptics {
+      implicit val schema: Schema[Book] = Schema.derived
+    }
+    println(Try(Book.optics.title.get(Book("Zionomicon", 870))))
+  }
+
+  def second(): Unit = {
+    case class Book(isbn: String, title: String)
+    object Book extends DerivedOptics {
+      implicit val schema: Schema[Book] = Schema.derived
+    }
+    println(Try(Book.optics.title.get(Book("978-0-9000000-0-1", "Programming in Scala"))))
+    println(Try(Book.optics.isbn.get(Book("978-0-9000000-0-1", "Programming in Scala"))))
+  }
+
+  def main(args: Array[String]): Unit = {
+    first()
+    second()
+  }
+}
+// Success(Zionomicon)
+// Failure(java.lang.ClassCastException: class Main$Book$4 cannot be cast to class Main$Book$1 (Main$Book$4 and Main$Book$1 are in unnamed module of loader 'app'))
+// Failure(java.lang.RuntimeException: No optic found for: isbn)
+```
+
+Scala 2 behaves the same (Scala 2.13.18, `zio-blocks-schema` 0.0.56). The file is in package `zio.blocks.schema` because `optics` compiles only there on Scala 2 (see the entry above):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+// In package zio.blocks.schema because of the Scala 2 `optics` access bug (see its own entry).
+package zio.blocks.schema
+
+import scala.util.Try
+
+object Main {
+  def first(): Unit = {
+    case class Book(title: String, pages: Int)
+    implicit val schema: Schema[Book] = Schema.derived
+    object BookOptics extends DerivedOptics.Of[Book]
+    println(Try(BookOptics.optics.title.get(Book("Zionomicon", 870))))
+  }
+
+  def second(): Unit = {
+    case class Book(isbn: String, title: String)
+    implicit val schema: Schema[Book] = Schema.derived
+    object BookOptics extends DerivedOptics.Of[Book]
+    println(Try(BookOptics.optics.title.get(Book("978-0-9000000-0-1", "Programming in Scala"))))
+  }
+
+  def main(args: Array[String]): Unit = {
+    first()
+    second()
+  }
+}
+// Success(Zionomicon)
+// Failure(java.lang.ClassCastException: class zio.blocks.schema.Main$Book$4 cannot be cast to class zio.blocks.schema.Main$Book$1 (zio.blocks.schema.Main$Book$4 and zio.blocks.schema.Main$Book$1 are in unnamed module of loader 'app'))
+```
+
+scala-cli also prints `warning: 2 feature warnings; re-run with -feature for details` for the Scala 2 file.
+
+**Expected.** Each type gets its own optics: `second()` prints `Success(Programming in Scala)` and `Success(978-0-9000000-0-1)`.
+
+**Root cause.** On Scala 3 the cache key is `tpe.show` (`schema/shared/src/main/scala-3/zio/blocks/schema/DerivedOptics.scala:457`, `:497`, `:555`), stored in a global `ConcurrentHashMap` (`:379-381`). On Scala 2 it is `tpe.toString` (`schema/shared/src/main/scala-2/zio/blocks/schema/DerivedOptics.scala:379`, `:414`, `:437`, cache at `:279-281`). Both print a local class without its enclosing method, so `getOrCreate` returns the first type's optics for the second.
+
+**Impact.** Two same-named types in one program silently share optics, which then fail at run time far from the cause. mdoc wraps every page in `repl.MdocSession.MdocApp`, so two documentation pages that both declare a `Book` with `DerivedOptics` can break each other in one docs build.
+
+**Test gap.** `DerivedOpticsSpec` checks that `Box[Int]` and `Box[String]` get different optics (`!(BoxInt.optics eq BoxString.optics)`), but never two distinct types with the same printed name.
+
+**Suggested fix.** Key the cache by something that identifies the type: the class's runtime `Class` object (from a `ClassTag`, generated by the macro) plus the printed type arguments. Or drop the global cache and keep the optics in a `lazy val` of the companion, which the macro can generate. Add a test with two local case classes of the same name.
+
+### schema: `Traversal#check` reports `atIndices` elements of a `List` as out of bounds when another step follows
+
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that last edits this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+
+**Summary.** `Traversal#check` on `atIndices(i, j)` followed by another step wrongly reports every index after the first as out of bounds when the sequence is not indexed, for example a `List`. `fold` and `modify` reach those elements correctly, so the optic works while `check` (and the `Left` of a failing `modifyOrFail`, which comes from `check`) describes a problem that does not exist.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56; the same file with `//> using scala 2.13.18` prints the same three lines):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Book(title: String, year: Int)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+case class Shelf(books: List[Book])
+object Shelf extends CompanionOptics[Shelf] {
+  implicit val schema: Schema[Shelf] = Schema.derived
+  val firstAndThirdTitle: Traversal[Shelf, String] = $(_.books.atIndices(0, 2).title)
+  val firstAndThird: Traversal[Shelf, Book]        = $(_.books.atIndices(0, 2))
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val shelf = Shelf(
+      List(Book("Zionomicon", 2021), Book("Programming in Scala", 2021), Book("Functional Programming in Scala", 2014))
+    )
+    println(Shelf.firstAndThirdTitle.fold[List[String]](shelf)(Nil, (acc, t) => t :: acc).reverse)
+    println(Shelf.firstAndThirdTitle.check(shelf).map(_.message))
+    println(Shelf.firstAndThird.check(shelf).map(_.message))
+  }
+}
+// List(Zionomicon, Functional Programming in Scala)
+// Some(During attempted access at .books.atIndices(0, 2).title, encountered a sequence out of bounds at .books.atIndices(0, 2): index is 2, but size is 2)
+// None
+```
+
+**Expected.** `check` returns `None` for both optics: the list has three elements, and `fold` reaches indices 0 and 2.
+
+**Root cause.** In `TraversalImpl.checkRecursive`, the non-indexed branch for `AtIndicesBinding` skips ahead with `currIdx`, then reads the element with `it.next()` for the next step without incrementing `currIdx` (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:2477`). For the next index, `currIdx` is one behind the iterator, so the loop runs out one element early. `foldRecursive` increments `currIdx` after the same call (`:2617-2618`). When `atIndices` is the last step, no element is consumed, so the count stays right.
+
+**Impact.** `check` and `modifyOrFail` report false `SequenceIndexOutOfBounds` warnings for `atIndices` on lists followed by a field or any other step.
+
+**Test gap.** The `OpticSpec` tests that compose `atIndices` with a following step use collections too short for the first index (`"index is 1, but size is 1"`, `schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2773`, `:2794`), so the missing increment never shows.
+
+**Suggested fix.** Add `currIdx += 1` after the recursive `checkRecursive` call in that branch, as `foldRecursive` does, and add a test that composes `atIndices(0, 2)` with a field on a three-element `List`.
+
+### schema: a `SchemaError` thrown by `f` below a `wrapped` step is reported as a wrapper failure, and `modify` ignores it
+
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that last edits this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`, on Scala 3.9.0 and 2.13.18.
+
+**Summary.** When an `Optional` or a `Traversal` has a `wrapped` step, a `SchemaError` thrown by the user's `f` in `modify`, `modifyOption` or `modifyOrFail` is caught as if the wrapper's `wrap` had thrown it. `modify` returns the value unchanged, `modifyOption` returns `None`, and `modifyOrFail` returns a `WrappingError` at `.wrapped`, with `f`'s message. On a plain lens the same `f` throws. A caller cannot tell an `f` that rejects its input from a wrapper that rejects the result.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import scala.util.Try
+
+case class Isbn(value: String)
+object Isbn {
+  implicit val schema: Schema[Isbn] = Schema[String].transform(Isbn(_), _.value)
+}
+
+case class Book(title: String, isbn: Isbn)
+object Book extends CompanionOptics[Book] {
+  implicit val schema: Schema[Book] = Schema.derived
+  val isbnValue: Optional[Book, String] = $(_.isbn.wrapped[String])
+  val title: Lens[Book, String]         = $(_.title)
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val b                            = Book("Zionomicon", Isbn("978-0-9000000-0-1"))
+    val reject: String => String     = _ => throw SchemaError("bad")
+    println(Try(Book.isbnValue.modify(b, reject)))
+    println(Try(Book.isbnValue.modifyOrFail(b, reject)))
+    println(Try(Book.title.modify(b, reject)))
+  }
+}
+// Success(Book(Zionomicon,Isbn(978-0-9000000-0-1)))
+// Success(Left(zio.blocks.schema.OpticCheck: During attempted access at .isbn.wrapped, encountered an error at .isbn.wrapped: bad))
+// Failure(zio.blocks.schema.SchemaError: bad)
+```
+
+On Scala 2.13.18 (the same file with `//> using scala 2.13.18`) the output is the same three lines, once `import zio.blocks.schema.binding.Binding` is added; without that import the `wrapped` step does not compile on Scala 2 (see the next entry).
+
+**Expected.** The `SchemaError` from `f` propagates, as it does on a plain lens: all three calls print `Failure(zio.blocks.schema.SchemaError: bad)`. Only a `SchemaError` thrown by the wrapper's own `wrap` or `unwrap` should become a `WrappingError`.
+
+**Root cause.** In `OptionalImpl.modifyRecursive` (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:1689-1696`) and `TraversalImpl.modifyRecursive` (`:3091-3098`), the whole block that calls `f` (or recurses into the next steps, which call `f`) is the argument of `wrapperBinding.wrap(...)`, inside `try ... catch { case error: SchemaError => throw toOpticCheckBuilder(idx, error) }`. The argument is evaluated inside the `try`, so the `catch` also sees exceptions from `f`. `modify` and `modifyOption` then turn the `OpticCheckBuilder` into "unchanged" or `None`.
+
+**Impact.** Validation code that throws a `SchemaError` from `f` (a natural choice in this library) is silently ignored by `modify` and misreported by `modifyOrFail` whenever the path goes through a `wrapped` step, such as a field of a `transform` schema reached with `.wrapped[...]`. The Scaladoc of `Optic#modify`, `modifyOption` and `modifyOrFail` describes the current behaviour and points here.
+
+**Test gap.** No test has an `f` that throws. The `SchemaError` uses in `OpticSpec` (`schema/shared/src/test/scala/zio/blocks/schema/OpticSpec.scala:2043`, `:2399`, `:3519-3525`) are all wrapper fixtures.
+
+**Suggested fix.** Evaluate the inner block before the `try`, so that only the `wrap` call is guarded:
+
+```scala
+val inner =
+  if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
+  else modifyRecursive(registers, idx + 1, x1, f)
+try wrapperBinding.wrap(inner.asInstanceOf[Wrapped])
+catch { case error: SchemaError => throw toOpticCheckBuilder(idx, error) }
+```
+
+Add tests for `modify`, `modifyOption` and `modifyOrFail` with an `f` that throws a `SchemaError` below a `wrapped` step.
+
+### schema: on Scala 2, a `.wrapped[B]` step in `$`/`optic` compiles only when `Binding` is imported
+
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that last edits this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+
+**Summary.** On Scala 2, the `CompanionOptics` macro expands a `.wrapped[B]` step to code that names `Reflect.Wrapper[Binding, ...]` without a package prefix. With only `import zio.blocks.schema._` in scope, `Binding` (in `zio.blocks.schema.binding`) is not found and the optic does not compile. Scala 3 is not affected.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56; the file from the previous entry with `//> using scala 2.13.18`; output of `scala-cli run --server=false Repro.scala`, with the scratch directory removed from the file path):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import scala.util.Try
+
+case class Isbn(value: String)
+object Isbn {
+  implicit val schema: Schema[Isbn] = Schema[String].transform(Isbn(_), _.value)
+}
+
+case class Book(title: String, isbn: Isbn)
+object Book extends CompanionOptics[Book] {
+  implicit val schema: Schema[Book] = Schema.derived
+  val isbnValue: Optional[Book, String] = $(_.isbn.wrapped[String])
+  val title: Lens[Book, String]         = $(_.title)
+}
+// (Main as in the previous entry)
+// Repro.scala:14: error: not found: type Binding
+//   val isbnValue: Optional[Book, String] = $(_.isbn.wrapped[String])
+//                                            ^
+// 1 error
+// Compilation failed
+```
+
+Adding `import zio.blocks.schema.binding.Binding` makes the file compile, and it prints the same three lines as on Scala 3.
+
+**Expected.** The program compiles with `import zio.blocks.schema._` only, as on Scala 3.
+
+**Root cause.** Both `.wrapped` branches of the Scala 2 macro emit `x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, $parentTpe, $wrappedTpe]]` (`schema/shared/src/main/scala-2/zio/blocks/schema/CompanionOptics.scala:283`, `:290`), with unqualified `Reflect` and `Binding`. Every other tree in the macro uses `_root_.zio.blocks.schema...` names.
+
+**Impact.** `.wrapped[...]` steps fail to compile on Scala 2 in user code, with an error that does not point at the missing import. `Reflect` also resolves only through the user's wildcard import.
+
+**Test gap.** The tests that use `.wrapped` in `$`/`optic` are in package `zio.blocks.schema` and import `zio.blocks.schema.binding._`, so the unqualified names resolve there.
+
+**Suggested fix.** Emit `_root_.zio.blocks.schema.Reflect.Wrapper[_root_.zio.blocks.schema.binding.Binding, $parentTpe, $wrappedTpe]` in both branches, and add a Scala 2 test of `.wrapped` in a package outside `zio.blocks.schema` that imports only `zio.blocks.schema._`.
+
 ### sql: `queryStream` throws, instead of returning `Left`, when the `SELECT` has fewer columns than the row type, and logs the failed query as a success
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/stream-large-query-results.md` (backlog H-20), on `main` at `b4179489`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 main -- sql/ streams/` is empty, and the stack trace from the 0.0.56 jar points at the same line numbers as `main`.
@@ -1674,6 +2347,165 @@ object Shipment { given Schema[Shipment] = Schema.derived }
 
 **Suggested fix.** Quote the validated column in both overloads (`s""" WHERE "$validated" > """` and `s""" ORDER BY "$validated" ASC LIMIT $limit"""`), update the `KeysetSpec` golden strings, and add a `RepoKeysetSpec` case that pages a table with an `order` column through both `keysetAfter` overloads. Update the `keysetAfter` text in `docs/guides/query-dsl-sql.md` and the caution in `docs/guides/upsert-and-paginate-with-keyset-cursors.md` at the same time.
 
+### sql: a tuple row type reads every repeated column name from the first table, so joins of tables that share `id` return wrong values
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-joins-and-inspect-generated-sql.md` (backlog H-19), on `main` at `9447794b`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 main -- sql/` is empty.
+
+**Summary.** A join returns the columns of two tables in one row, and the natural way to read it is a tuple of case classes, `query[(Book, Author)]`. When both tables have a column with the same name, which is the normal case for an `id` primary key, every field with that name is read from the *first* column that has it. Each `Author` then carries its book's ID. Nothing fails: the SQL is correct, the rows have the right length, and the wrong values look like real data. In a left join, the missing side's key comes back as `Some(<other table's id>)` instead of `None`. It happens for `SqlQuery` joins and for hand-written `sql"..."` joins alike, through `query`, `queryOne`, `queryLimit`, `queryStream` and `queryChunked`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql` 0.0.56 + sqlite-jdbc 3.53.4.0, run with `scala-cli run .`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import java.nio.file.Files
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+import zio.blocks.sql.query.*
+
+case class Author(id: Int, name: String)
+object Author { given Schema[Author] = Schema.derived }
+
+case class Book(id: Int, title: String, authorId: Int)
+object Book { given Schema[Book] = Schema.derived }
+
+@main def joinDecodesWrongId(): Unit = {
+  val tx      = JdbcTransactor.fromUrl(s"jdbc:sqlite:${Files.createTempFile("join", ".db")}", SqlDialect.SQLite)
+  val authors = Table.derived[Author]
+  val books   = Table.derived[Book]
+  tx.connect {
+    sql"CREATE TABLE author (id INTEGER PRIMARY KEY, name TEXT NOT NULL)".update
+    sql"CREATE TABLE book (id INTEGER PRIMARY KEY, title TEXT NOT NULL, author_id INTEGER NOT NULL)".update
+    sql"INSERT INTO author VALUES (1, 'Martin Odersky'), (2, 'John A. De Goes')".update
+    sql"INSERT INTO book VALUES (10, 'Zionomicon', 2)".update
+  }
+  val query = SqlQuery.from(books).join(Rel.manyToOne(books, _.authorId, authors, _.id))
+  println(query.sql(SqlDialect.SQLite))
+  tx.connect {
+    println(query.toFrag(SqlDialect.SQLite).query[(Book, Author)])
+    println(sql"SELECT b.id, b.title, b.author_id, a.id, a.name FROM book b JOIN author a ON b.author_id = a.id".query[(Book, Author)])
+  }
+}
+
+// SELECT t0."id", t0."title", t0."author_id", t1."id", t1."name" FROM "book" AS t0 INNER JOIN "author" AS t1 ON t0."author_id" = t1."id"
+// List((Book(10,Zionomicon,2),Author(10,John A. De Goes)))
+// List((Book(10,Zionomicon,2),Author(10,John A. De Goes)))
+```
+
+The author of Zionomicon has ID 2, but the decoded `Author` has ID 10, the book's ID. With a `LEFT JOIN` from `author` to `book`, an author without books decodes its all-`Option` book row as `(Some(<author id>), None, None, ...)`.
+
+**Expected.** `List((Book(10,Zionomicon,2),Author(2,John A. De Goes)))` for both queries: each tuple element reads its own columns, by position.
+
+**Root cause.**
+
+1. The tuple codec names its columns `_1_id`, `_1_title`, ..., `_2_id`, ... (`sql/shared/src/main/scala/zio/blocks/sql/DbCodecTupleMacro.scala:47-62`), so they never match the result set's labels.
+2. `rowDecoder` (`sql/shared/src/main/scala/zio/blocks/sql/Frag.scala:231-240`) only takes the positional path `codec.readValue(r, 1)` (`:235`) when every codec column matches the result label at the same position. Otherwise it calls `selectLabels` (`Frag.scala:213-217`), which replaces each label it can't find with the label at the same position (`:216`). For a join that gives `id, title, author_id, id, name`, with `id` twice.
+3. The tuple codec slices those labels per element (`DbCodecTupleMacro.scala:65-76`), and the case-class codec reads by label: `JdbcResultReader.getInt(label)` (`sql/jvm/src/main/scala/zio/blocks/sql/JdbcResultReader.scala:73-74`) calls `ResultSet.getInt(String)`, and JDBC resolves a repeated label to the first column that has it.
+
+**Impact.** Joins are the main use of tuple row types, and an `id` key in every table is the most common naming convention. Every such join silently returns wrong keys, and code that follows those keys (updates, links, caches) then works on the wrong rows. A left join can't tell a missing row from a present one by its key. The only workarounds are to give every column a name that is unique across the joined tables, or to write the join by hand with `AS` aliases.
+
+**Test gap.** `QueryRenderSpec` (`sql/shared/src/test/scala/zio/blocks/sql/query/QueryRenderSpec.scala`) and `ExplainDumpGoldenSpec` only check the rendered SQL; no test runs a join. No test in `sql/jvm/src/test` decodes a tuple whose elements share a column name (`DbCodecOptionSpec` is the only spec that decodes a tuple at all).
+
+**Suggested fix.** When the codec's labels don't all match the result set by name, decode by position instead of mapping to possibly repeated labels: in `rowDecoder`, fall back to `r => codec.readValue(r, 1)` whenever `selectLabels` would produce a repeated label (or whenever the codec is a tuple codec). Better still, make the tuple codec's label-based `readValue` read its elements by position too. Add a `TransactorSpec` case that joins two tables with an `id` column each and decodes `(A, B)`, for `query` and `queryStream`, plus a left-join case with an all-`Option` row.
+
+### sql: `Dump.dumpQuery` writes a `sql"..."` filter without its `?`, and unnamed dumps in one object overwrite each other
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-joins-and-inspect-generated-sql.md` (backlog H-19), on `main` at `9447794b`. The code is the same at tag `v0.0.56`.
+
+**Summary.** `Dump.dumpQuery` writes a `SqlQuery`'s SQL to `<dumpDir>/<name>_query-<dialect>.sql` at compile time, for review. Two things make the files wrong without any warning:
+
+1. A filter written with the `sql"..."` interpolator, `where(sql"""t0."year" > ${2010}""")`, is dumped as `WHERE t0."year" > ` with no placeholder. The dumped SQL doesn't parse, and it no longer matches what `explain` prints for the same query. Only filters built with the low-level `Frag(IndexedSeq(...), IndexedSeq(DbValue.DbInt(...)))` constructor, which every test uses, keep their `?`.
+2. A `Dump.dumpQuery` call that isn't assigned to a `val` is named after its owner. In an object body that owner is the compiler's local dummy, so the file is called `_local_<Object>__query-<dialect>.sql`, and every other unassigned call in the same object writes the same file: the last one wins. The `sql"..."` interpolator's own dump files (named after the enclosing method) clobber each other the same way.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, sbt 1.13.0). The property must reach the JVM that runs the compiler, so this uses an sbt build rather than `scala-cli`. `build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "0.0.56"
+```
+
+`src/main/scala/DumpRepro.scala`:
+
+```scala
+package dumprepro
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+import zio.blocks.sql.query.*
+
+case class Book(id: Int, title: String, year: Int)
+object Book { given Schema[Book] = Schema.derived }
+
+object Queries {
+  val books = Table.derived[Book]
+
+  inline def recent: SqlQuery[Book] = SqlQuery.from(books).where(sql"""t0."year" > ${2010}""")
+  inline def classic: SqlQuery[Book] = SqlQuery.from(books).where(sql"""t0."year" < ${2010}""")
+}
+
+object Dumps {
+  // Assigned to vals: one file per val
+  val recent = Dump.dumpQuery(Queries.recent)
+
+  // Not assigned: both calls write the same file
+  Dump.dumpQuery(Queries.recent)
+  Dump.dumpQuery(Queries.classic)
+
+  def main(args: Array[String]): Unit = {
+    println(Queries.recent.explain(SqlDialect.SQLite))
+    println(Queries.classic.explain(SqlDialect.SQLite))
+  }
+}
+```
+
+Run `sbt -Dzib.sql.dumpDir=target/sql-dumps clean compile "runMain dumprepro.Dumps"`, then print every file:
+
+```text
+SELECT t0."id", t0."title", t0."year" FROM "book" AS t0 WHERE t0."year" > ?1
+-- params: 1:Int
+SELECT t0."id", t0."title", t0."year" FROM "book" AS t0 WHERE t0."year" < ?1
+-- params: 1:Int
+// target/sql-dumps/_local_Dumps__-postgresql.sql
+//   t0."year" < ?
+// target/sql-dumps/_local_Dumps___query-postgresql.sql
+//   SELECT t0."id", t0."title", t0."year" FROM "book" AS t0 WHERE t0."year" < 
+// target/sql-dumps/_local_Dumps___query-sqlite.sql
+//   SELECT t0."id", t0."title", t0."year" FROM "book" AS t0 WHERE t0."year" < 
+// target/sql-dumps/_local_Dumps__-sqlite.sql
+//   t0."year" < ?
+// target/sql-dumps/main-postgresql.sql
+//   t0."year" < ?
+// target/sql-dumps/main-sqlite.sql
+//   t0."year" < ?
+// target/sql-dumps/recent-postgresql.sql
+//   t0."year" > ?
+// target/sql-dumps/recent_query-postgresql.sql
+//   SELECT t0."id", t0."title", t0."year" FROM "book" AS t0 WHERE t0."year" > 
+// target/sql-dumps/recent_query-sqlite.sql
+//   SELECT t0."id", t0."title", t0."year" FROM "book" AS t0 WHERE t0."year" > 
+// target/sql-dumps/recent-sqlite.sql
+//   t0."year" > ?
+```
+
+The compile prints no warning. `recent_query-*.sql` and `_local_Dumps___query-*.sql` end in `> ` and `< ` with no `?`. The `recent` dump of the unassigned call was overwritten by `classic` (only `<` survives), and `main-*.sql` holds only the second of the two `sql"..."` fragments inlined into `main`.
+
+**Expected.** `WHERE t0."year" > ?`, the same SQL as `explain` without the numbering. Each `Dump.dumpQuery` call writes its own file, or the macro fails (or warns) when two calls would write the same path.
+
+**Root cause.**
+
+1. `decodeFrag` (`sql/shared/src/main/scala/zio/blocks/sql/Dump.scala:408-530`) recognises only the `Frag(...)` constructor and `Frag.literal`. The expansion of the `sql"..."` macro falls through to the "generic fallback" (`:512-528`). It keeps only the string literals that "look like SQL" (`:516-518`), which drops the empty trailing part `""` and with it the boundary where the parameter goes. It counts parameters by looking for `DbValue.DbInt(...)`-style applications (`countParams`, `:435-448`), but the interpolator binds values through `DbParam`, so the count is 0 (`:524`). `tryDecodeIr` then adds `?` only when the count is positive (`:853`).
+2. `ownerDerivedName` (`Dump.scala:74-91`) skips synthetic symbols, `<init>` and `$anon`, but not the local dummy that owns statements in a template body, so the name is the sanitized `<local Dumps$>`. `dumpQueryIrImpl` uses that owner whenever the argument's name is generic (`:596-621`), and `emit` (`:35-72`) overwrites an existing file with different content without checking that it came from the same call. `SqlMacros.sqlImpl` repeats the same owner logic (`SqlMacros.scala:47-68` and `:99-120`).
+
+**Impact.** The dump files are meant for code review and DBA review, so a reviewer reads SQL that is not what runs: a filter with a missing operand, or one query's SQL under another query's file. Neither problem produces a compile warning. The second also makes the set of files depend on declaration order.
+
+**Test gap.** `ExplainDumpGoldenSpec` (`sql/jvm/src/test/scala/zio/blocks/sql/ExplainDumpGoldenSpec.scala`) builds every filter with `Frag(IndexedSeq(...), IndexedSeq(DbValue...))` and puts each dumped query in its own fixture object, so it never covers `sql"..."` filters or two dumps in one owner.
+
+**Suggested fix.** Render the dump from the query value instead of re-implementing the renderer on the syntax tree: evaluate the inline query at compile time where possible, or decode the `sql"..."` expansion by its `StringContext` parts (the parts joined with `?` are already available in `SqlMacros.sqlImpl`). Skip the local dummy in `ownerDerivedName` (use its owner class), and fail when two calls in one compilation unit target the same file. Add golden cases for a `where(sql"...")` filter and for two unassigned dumps in one object.
+
 ### html: `html"..."` escapes interpolated attribute values twice
 
 Filed as #1764. Found 2026-10-20 while writing T-09. Verified on 0.0.56. `&` renders as `&amp;amp;`, which breaks URLs with query strings.
@@ -1951,6 +2783,30 @@ object Repro extends App {
 
 **Suggested fix.** Put the target field in the path (for example `SchemaError.conversionFailed(contextMessage, cause).atField(fieldName)`, or a `conversionFailed` overload that takes the trace), and make both macros accumulate in declaration order.
 
+**Also: a `ConversionFailed` with a cause never shows its path.** Found 2026-10-21 while writing the Scaladoc of `SchemaError` (wave 1 of the schema Scaladoc, branch `scaladoc-wave-1` at `b0956ec6`); the code is the same at tag `v0.0.56`. Verified with `scala-cli run --server=false CausePath.scala`. `ConversionFailed#message` appends ` at: <path>` only when `cause` is `None`; with a cause it prints `details` and the cause's messages and drops `source`. So the suggested `.atField(fieldName)` would fix `source`, but the rendered message would still not name the field.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+
+object Repro extends App {
+  val withCause = SchemaError.conversionFailed("Book is invalid", SchemaError("title must not be blank")).atField("book")
+  println(withCause.errors.head.source.toScalaString)
+  // .book
+  println(withCause.message)
+  // Book is invalid
+  //   Caused by: title must not be blank
+
+  val withoutCause = SchemaError.conversionFailed(Nil, "Book is invalid").atField("book")
+  println(withoutCause.message)
+  // Book is invalid at: .book
+}
+```
+
+Expected: the first line of the message with a cause also ends with ` at: .book` when the path is not the root. Root cause: `schema/shared/src/main/scala/zio/blocks/schema/SchemaError.scala:255-273` (the `cause match` in `ConversionFailed#message`); the path is appended only in the `case _` branch at `:270-272`. Impact: errors from `Into.derived` and other wrapped conversions never show where they happened, even after the suggested `.atField` fix. Test gap: no spec renders a `ConversionFailed` that has both a cause and a non-root path. Fix: append ` at: ${source.toScalaString}` to `details` in the `Some(causeErr)` branch when `source.nodes` is not empty, as the `None` branch does. The `SchemaError` Scaladoc describes the current behaviour.
+
 ### schema (Scala 3): `Into.derived` to an opaque type fails in the default package, ignores a `given Into`, and puts the error's class name in the message
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/validated-newtypes.md` (backlog H-04), on `main` at `f87e6beb`. The code is the same at tag `v0.0.56`. Verified. Not filed.
@@ -2052,6 +2908,301 @@ final case class Book(isbn: Isbn)
 
 **Suggested fix.** Before the `apply`/`unsafe` search, look for an implicit `Into[Source, Opaque]` (as the case-class path does). Find the companion through `tpe.typeSymbol.companionModule` or the owner's declarations first, and handle the empty package in the `fullName` fallback. When the error type is `SchemaError`, pass it as the cause instead of interpolating it.
 
+### schema: `PrimitiveValue.Int#compare` overflows, so `Int` values far apart compare the wrong way round
+
+Found 2026-10-21 while writing the Scaladoc of `PrimitiveValue` (schema Scaladoc wave 2, branch `scaladoc-wave-2`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** `PrimitiveValue.Int#compare` returns `value - x.value`. The subtraction overflows when the two values are more than `Int.MaxValue` apart, so `>`, `<`, `PrimitiveValue.ordering` and `DynamicValue#compare` give the wrong answer: `Int(Int.MaxValue) > Int(-1)` is `false`, and the maximum of `0`, `Int.MaxValue` and `-1` is `-1`.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+@main def run(): Unit = {
+  val max   = PrimitiveValue.Int(Int.MaxValue)
+  val minus = PrimitiveValue.Int(-1)
+  println(max.compare(minus))
+  println(max > minus)
+  println(List[PrimitiveValue](PrimitiveValue.Int(0), max, minus).max)
+  println(DynamicValue.Primitive(max) > DynamicValue.Primitive(minus))
+}
+// -2147483648
+// false
+// Int(-1)
+// false
+```
+
+**Expected.** A positive number, `true`, `Int(2147483647)` and `true`.
+
+**Root cause.** `case x: Int => value - x.value` (`schema/shared/src/main/scala/zio/blocks/schema/PrimitiveValue.scala:167`). The `Byte` and `Short` cases subtract too, but their values widen to `Int` first, so they cannot overflow; `Long` and the other cases use `compare` or `compareTo`. `DynamicValue.Primitive#compare` delegates to it (`DynamicValue.scala:523`).
+
+**Impact.** Sorting, `min`/`max` and comparisons of `PrimitiveValue`s or `DynamicValue`s that hold `Int`s can be wrong, and the ordering is not transitive. The Scaladoc of `PrimitiveValue` and `PrimitiveValue.Int` now states the overflow.
+
+**Test gap.** `PrimitiveValueSpec` compares only `Int(1)` with `Int(0)` (`schema/shared/src/test/scala/zio/blocks/schema/PrimitiveValueSpec.scala:76-78`).
+
+**Suggested fix.** Use `java.lang.Integer.compare(value, x.value)`, and add a test with `Int.MaxValue` and `Int.MinValue`.
+
+### schema: `PrimitiveType#fromDynamicValue` accepts lossy conversions between numeric types and `Char`
+
+Found 2026-10-21 while writing the Scaladoc of `PrimitiveType` (schema Scaladoc wave 2, branch `scaladoc-wave-2`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`. The four `Char` cases were added after review 1 of wave 2.
+
+**Summary.** The numeric `PrimitiveType`s and `Char` accept a value of another numeric type or `Char` only when converting it there and back gives the same value. Because the JVM conversions saturate or wrap, that check passes for some values that change:
+
+- From floating point to `Int` and `Long`, the conversion saturates: a `Float` of `2^31` decodes as `Int.MaxValue`, a `Float` or `Double` of `2^63` as `Long.MaxValue`.
+- `Int.MaxValue` and `Long.MaxValue` round up when converted to `Float` or `Double`: `Int.MaxValue` decodes as the `Float` `2^31`, `Long.MaxValue` as the `Float` or `Double` `2^63`.
+- `Char` is unsigned and `Byte`/`Short` are signed, and the conversions between them wrap: a `Char` of 65408 or more decodes as a negative `Byte`, a `Char` of 32768 or more as a negative `Short`, and a negative `Byte` or `Short` as a `Char` of 65408 or 32768 or more (`-1` as `Char.MaxValue`, 65535).
+
+A `Double` of `2^31` is rejected, as it should be, because `Int.MaxValue` is exact in a `Double`, and so is an `Int` of `-1` for `Char`, because `(-1).toChar.toInt` is 65535.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Counter(hits: Long)
+object Counter {
+  implicit val schema: Schema[Counter] = Schema.derived
+}
+
+@main def run(): Unit = {
+  def prim(pv: PrimitiveValue) = DynamicValue.Primitive(pv)
+  val int   = PrimitiveType.Int(Validation.None)
+  val long  = PrimitiveType.Long(Validation.None)
+  val float = PrimitiveType.Float(Validation.None)
+  val dbl   = PrimitiveType.Double(Validation.None)
+  val byte  = PrimitiveType.Byte(Validation.None)
+  val short = PrimitiveType.Short(Validation.None)
+  val char  = PrimitiveType.Char(Validation.None)
+  println(int.fromDynamicValue(prim(PrimitiveValue.Float(2147483648.0f))))
+  println(long.fromDynamicValue(prim(PrimitiveValue.Double(9.223372036854775808e18))))
+  println(float.fromDynamicValue(prim(PrimitiveValue.Int(Int.MaxValue))))
+  println(dbl.fromDynamicValue(prim(PrimitiveValue.Long(Long.MaxValue))))
+  println(byte.fromDynamicValue(prim(PrimitiveValue.Char(65535.toChar))))
+  println(short.fromDynamicValue(prim(PrimitiveValue.Char(32768.toChar))))
+  println(char.fromDynamicValue(prim(PrimitiveValue.Byte(-1))).map(_.toInt))
+  println(char.fromDynamicValue(prim(PrimitiveValue.Short(-1))).map(_.toInt))
+  println(int.fromDynamicValue(prim(PrimitiveValue.Double(2147483648.0))))
+  println(char.fromDynamicValue(prim(PrimitiveValue.Int(-1))))
+  println(Counter.schema.fromDynamicValue(DynamicValue.Record("hits" -> prim(PrimitiveValue.Double(1e19)))))
+  println(Counter.schema.fromDynamicValue(DynamicValue.Record("hits" -> prim(PrimitiveValue.Double(9.223372036854775808e18)))))
+}
+// Right(2147483647)
+// Right(9223372036854775807)
+// Right(2.1474836E9)
+// Right(9.223372036854776E18)
+// Right(-1)
+// Right(-32768)
+// Right(65535)
+// Right(65535)
+// Left(zio.blocks.schema.SchemaError: Expected Int at: .)
+// Left(zio.blocks.schema.SchemaError: Expected Char at: .)
+// Left(zio.blocks.schema.SchemaError: Expected Long at: .hits)
+// Right(Counter(9223372036854775807))
+```
+
+**Expected.** The first eight conversions return `Left(... Expected Int/Long/Float/Double/Byte/Short/Char ...)`, like the ninth and tenth, and the last line fails like the one before it: `2^63` is outside the `Long` range, `2^31` outside the `Int` range, 65535 and 32768 outside the `Byte` and `Short` ranges, and `-1` outside the `Char` range.
+
+**Root cause.** In `schema/shared/src/main/scala/zio/blocks/schema/PrimitiveType.scala`:
+
+- `Byte` from `Char` checks `ch.toByte.toChar == ch` (`:182`), and `Short` from `Char` checks `ch.toShort.toChar == ch` (`:223`), which holds for every `Char`.
+- `Int` from `Float` checks `f.toInt.toFloat == f` (`:266`).
+- `Long` from `Float` and `Double` check `f.toLong.toFloat == f` and `d.toLong.toDouble == d` (`:308-309`).
+- `Float` from `Int` and `Long` check `i.toFloat.toInt == i` and `l.toFloat.toLong == l` (`:348`, `:350`).
+- `Double` from `Long` checks `l.toDouble.toLong == l` (`:391`).
+- `Char` from `Byte` and `Short` check `b.toChar.toByte == b` and `s.toChar.toShort == s` (`:424-425`), which holds for every `Short`.
+
+`2^31` saturates to `Int.MaxValue`, which converts back to `2^31` as a `Float`; `2^63` saturates to `Long.MaxValue`, which converts back to `2^63` as a `Float` or `Double`; the 16-bit `Char` and `Short` conversions keep the bits and change only the sign.
+
+**Impact.** `Schema#fromDynamicValue` and every other path through `Reflect#fromDynamicValue` silently change such values instead of rejecting them, for example when a `DynamicValue` built from another source holds a floating-point number for a `Long` field, or a negative `Short` for a `Char` field. The Scaladoc of `PrimitiveType#fromDynamicValue` now lists these cases.
+
+**Test gap.** The out-of-range tests in `PrimitiveTypeSpec` use values far outside the range or with a fraction, such as `Long(3000000000L)` and `Float(1.5f)` (`schema/shared/src/test/scala/zio/blocks/schema/PrimitiveTypeSpec.scala:798-923`); none is at the limit, and none converts a `Char` to `Byte` or `Short` or a negative `Byte` or `Short` to `Char`.
+
+**Suggested fix.** Compare in an exact type, for example `scala.BigDecimal(f) == scala.BigDecimal(f.toInt)` and `ch.toInt == ch.toByte.toInt`, or check the range before converting (`f >= -2^31 && f < 2^31`, `b >= 0` for `Char`). Add tests with `2^31`, `2^63`, `Int.MaxValue`, `Long.MaxValue`, `Char.MaxValue` and `-1`.
+
+### schema: `Reflect#toString` prints a shared node that is not recursive as `deferred => Name`
+
+Found 2026-10-21 while writing the Scaladoc of `Reflect` and `ReflectPrinter` (schema Scaladoc wave 2, branch `scaladoc-wave-2`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** `ReflectPrinter` prints `deferred => Name` instead of a record, variant, sequence, map or wrapper node it has already printed, to stop at recursive references. It remembers every such node until the whole `toString` call ends, so when two fields share one of them, such as the schema of a case class used for both, the second field is printed as `deferred => Author` although nothing is recursive. Primitive and dynamic nodes are never remembered and always print in full.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+case class Author(name: String)
+object Author {
+  implicit val schema: Schema[Author] = Schema.derived
+}
+
+case class Book(title: String, author: Author, editor: Author)
+object Book {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+@main def run(): Unit =
+  println(Book.schema.reflect)
+// record Book {
+//   title: String
+//   author: record Author {
+//     name: String
+//   }
+//   editor: deferred => Author
+// }
+```
+
+**Expected.** `editor` is printed in full, like `author`.
+
+**Root cause.** `printRecord`, `printVariant`, `printSequence`, `printMap` and `printWrapper` add their node to the shared `visited` set and never remove it (`schema/shared/src/main/scala/zio/blocks/schema/ReflectPrinter.scala:55`, `:84`, `:106`, `:135`, `:170`), and `printReflect` prints `deferred => ...` for any node in the set (`:243`). Primitive and dynamic nodes are printed without being added (`:246`, `:254`). `Reflect.Deferred#toString` does it the other way, removing the node in a `finally` once it is printed (`Reflect.scala:2120`).
+
+**Impact.** The `toString` of a schema whose record or collection types are used more than once, which is common with shared address, money or ID types, hides their structure and suggests recursion that is not there. `docs/reference/schema/reflect.md` (Debug-Friendly toString) and the `Reflect` and `ReflectPrinter` Scaladoc now describe this behaviour.
+
+**Test gap.** `ReflectToStringSpec` has nested and recursive records, but no record that uses the same node twice (`schema/shared/src/test/scala/zio/blocks/schema/tostring/ReflectToStringSpec.scala:97`, `:282`, `:292`).
+
+**Suggested fix.** Treat `visited` as the set of nodes on the current path: remove the node after printing its children, as `Deferred#toString` does.
+
+### schema: a forced `Lazy` runs again when it is part of another `Lazy`'s chain
+
+Found 2026-10-21 while writing the Scaladoc of `Lazy` (schema Scaladoc wave 2, branch `scaladoc-wave-2`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Summary.** This is a trap in the trampolined design of `Lazy`, not a broken promise: forcing the same instance twice runs it once, as `docs/reference/schema/lazy.md:24` says. `Lazy#force` keeps its cache in the instance it is called on, and the trampoline that runs a chain does not read the caches of the instances inside it. So when a `Lazy` that was already forced is the start of a `map` or `flatMap` chain, forcing the chain runs its computation again.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.Lazy
+
+@main def run(): Unit = {
+  var runs = 0
+  val title = Lazy { runs += 1; "Zionomicon" }
+  title.force
+  title.force
+  println(s"after two forces: $runs")
+  title.map(_.toUpperCase).force
+  println(s"after map(...).force: $runs")
+  title.flatMap(t => Lazy(t.length)).force
+  println(s"after flatMap(...).force: $runs")
+}
+// after two forces: 1
+// after map(...).force: 2
+// after flatMap(...).force: 3
+```
+
+**Expected.** A reader who knows that `force` caches would expect `1` on all three lines, with the chains reusing the cached `"Zionomicon"`.
+
+**Root cause.** `force` checks the cache only of the instance it is called on (`schema/shared/src/main/scala/zio/blocks/schema/Lazy.scala:123`). Its loop walks into `FlatMap#first` and calls `Defer#thunk()` directly (`:110-120`), without looking at the cached `value` or `error` of those inner instances.
+
+**Impact.** Work is repeated, and side effects run more than once, whenever a forced `Lazy` is reused in a chain. The JSON codec deriver builds the instance of a node from the instances of its children with `D.instance(...).map` and `.zip` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:933`, `:1437`, `:2788`, `:2908`), so a child instance that was forced elsewhere would run again; this was not observed in practice. The Scaladoc of `Lazy` now states that the cache belongs to the instance. A related detail, documented but not a bug: `Lazy.collectAll` forces its elements from the last to the first.
+
+**Test gap.** `LazySpec` checks memoization only by forcing the same instance twice (`schema/shared/src/test/scala/zio/blocks/schema/LazySpec.scala:47`).
+
+**Suggested fix.** In the loop, when the current node `isEvaluated`, use its cached value (or rethrow its cached error) instead of running it.
+
+### schema: `Reflect#transform` leaves entries in a per-thread cache, after a direct call or when a result's `Deferred` nodes are first used
+
+Found 2026-10-21 while writing the Scaladoc of `Reflect#transform` (schema Scaladoc wave 2, branch `scaladoc-wave-2`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`. The case of a scoped call was added after review 1 of wave 2.
+
+**Summary.** `Reflect.Deferred#transform` caches its result in a thread-local map, keyed by the node and the transformer, so that transforming a recursive type terminates. `Reflect#noBinding`, `DynamicSchema#rebind` and `DerivationBuilder#derive` wrap their call in the `private[schema]` `Reflect.withTransformCache`, which clears the map when they return. Two cases leave entries in it:
+
+- `Reflect#transform` is public, but a caller outside the library cannot use that scope, so a direct call leaves its entries in the map.
+- The scoped calls force only the root of the result. The `Deferred` nodes in the result transform their value when they are first used, after the scope has closed, and that transformation adds entries again.
+
+The entries keep the transformer and the transformed nodes alive until the same thread runs one of the scoped calls.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56; the file is in package `zio.blocks.schema` only to read the `private[schema]` map):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+// Declared in this package only to read the private[schema] cache.
+package zio.blocks.schema
+
+case class Tree(value: Int, children: List[Tree])
+object Tree {
+  implicit val schema: Schema[Tree] = Schema.derived
+}
+
+@main def run(): Unit = {
+  println(s"before: ${Reflect.transformCache.get.size}")
+  Tree.schema.reflect.transform(DynamicOptic.root, ReflectTransformer.noBinding()).force
+  println(s"after a direct transform: ${Reflect.transformCache.get.size}")
+  val nb = Tree.schema.reflect.noBinding
+  println(s"after noBinding: ${Reflect.transformCache.get.size}")
+  println(nb.asRecord.get.fields(1).value.isSequence)
+  println(s"after using its children field: ${Reflect.transformCache.get.size}")
+}
+// before: 0
+// after a direct transform: 1
+// after noBinding: 0
+// true
+// after using its children field: 1
+```
+
+**Expected.** `0` after the direct transform and after using the `children` field too.
+
+**Root cause.** `Deferred#transform` puts its result in `Reflect.transformCache` (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:1893-1904`, map at `:2154`); only `withTransformCache` (`:2175`) removes it, and it is `private[schema]`. The result is a new `Deferred` whose thunk runs `value.transform(path, f).force` (`:1900`), so the nested `Deferred` nodes reach the cache only when that thunk runs. `noBinding` (`:502-503`) and `DynamicSchema#rebind` (`DynamicSchema.scala:271`) force only the root inside the scope.
+
+**Impact.** A long-lived thread, such as a server worker, that calls `transform` directly with a new transformer per request, or that walks into the `Deferred` nodes of a `noBinding` or `rebind` result, keeps every transformer and transformed tree until a scoped call happens to run on it. The Scaladoc of `Reflect#transform` now describes both cases.
+
+**Test gap.** No test checks the cache after a `transform`; `withTransformCache` and `transformCache` do not appear in `schema/shared/src/test`.
+
+**Suggested fix.** Do not share the cache through a thread-local at all: pass the memo map down the `transform` calls, capturing it in the thunk of each `Deferred` result, so that it lives as long as the result and no longer. Making `withTransformCache` public would fix only the direct call.
+
+### schema: `DynamicSchema#rebind` returns normally when a binding behind a `Deferred` node is missing, and throws later
+
+Found 2026-10-21 while writing the Scaladoc of `RebindException` and `RebindTransformer` (schema Scaladoc wave 2, branch `scaladoc-wave-2`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56`. Found by review 1 of wave 2 and re-run by the implementer.
+
+**Summary.** The Scaladoc of `DynamicSchema#rebind` says `@throws RebindException If any required binding is missing from the resolver`. For a node behind a `Reflect.Deferred`, such as the recursive field of a recursive type, `rebind` returns a schema, and the `RebindException` comes later, from the first operation that reaches that node.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.binding._
+
+case class Tree(value: Int, children: List[Tree])
+object Tree {
+  implicit val schema: Schema[Tree] = Schema.derived
+}
+
+@main def run(): Unit = {
+  val dynamic  = Tree.schema.toDynamicSchema
+  // No binding for List: rebind should throw RebindException.
+  val resolver = BindingResolver.empty.bind(Binding.of[Tree]).bind(Binding.of[Int])
+  val rebound =
+    try Some(dynamic.rebind[Tree](resolver))
+    catch { case e: RebindException => println(s"rebind threw: ${e.getMessage}"); None }
+  println(s"rebind returned: ${rebound.isDefined}")
+  rebound.foreach { schema =>
+    try println(schema.toDynamicValue(Tree(1, Nil)))
+    catch { case e: RebindException => println(s"toDynamicValue threw: ${e.getMessage}") }
+  }
+}
+// rebind returned: true
+// toDynamicValue threw: Missing Sequence binding for type scala.collection.immutable.List at path: .children
+```
+
+**Expected.** `rebind threw: Missing Sequence binding for type scala.collection.immutable.List at path: .children`, as the `@throws` tag promises.
+
+**Root cause.** `rebind` forces only the root of the transformed tree (`schema/shared/src/main/scala/zio/blocks/schema/DynamicSchema.scala:271`). Derivation puts the `children` field behind a `Reflect.Deferred`, and `Deferred#transform` returns a new `Deferred` whose value is transformed, and its bindings looked up, on first use (`Reflect.scala:1900`). The tag is at `DynamicSchema.scala:255-256`.
+
+**Impact.** A caller that catches `RebindException` around `rebind`, for example to report a schema that was received over the wire and cannot be bound, gets a schema that fails later, at an arbitrary place, with an exception the caller no longer expects. The Scaladoc of `RebindException` and `RebindTransformer` now says when the exception is thrown.
+
+**Test gap.** The `RebindException` tests in `DynamicSchemaRebindSpec` use flat records, variants, primitives, wrappers and dynamic nodes (`schema/shared/src/test/scala/zio/blocks/schema/DynamicSchemaRebindSpec.scala:133-332`); none has a binding missing behind a `Deferred`.
+
+**Suggested fix.** After the transform, walk the result inside the same scope and force every `Deferred` node once, with a visited set for the cycles, so that a missing binding throws from `rebind`. Otherwise, change the `@throws` text to say that bindings behind a `Deferred` are looked up on first use.
+
 ### http-model: `WWW-Authenticate` and the other auth-parameter headers neither escape nor parse quoted strings
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/protect-endpoints-with-jwt.md` (backlog H-38), on `main` at `a44dc6db`. The http-model sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
@@ -2098,9 +3249,1111 @@ import zio.http.Header
 
 **Suggested fix.** Add one shared helper for auth-param lists: render each value as a quoted string with `\` and `"` escaped, and parse with a small scanner that respects quoted strings and unescapes them, instead of `split(",")`. Use it from all four headers. Add round-trip property tests with values that contain `"`, `\`, `,` and `=`.
 
+### openapi: `openAPICodec.encodeToString` and `encode` throw `NotImplementedError`, and `decode` on a `String` returns a `Left`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-and-export-openapi.md` (backlog H-39), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `openAPICodec` is a `JsonCodec[OpenAPI]`, so it offers all of `JsonCodec`'s text and byte methods. Only the `Json` methods work. `encodeToString` and every `encode` overload throw `scala.NotImplementedError: an implementation is missing`, and `decode(input: String)` returns `Left(SchemaError("an implementation is missing"))` for a valid document. The codecs of every OpenAPI type behave the same way. The working path is `encodeValue(api): Json` with `Json#print`, and `Json.parse(text).flatMap(openAPICodec.decode)`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-openapi` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-openapi:0.0.56
+
+import zio.blocks.openapi._
+import zio.blocks.openapi.OpenAPICodec._
+import zio.blocks.schema.json.Json
+
+@main def openApiText(): Unit = {
+  val api = OpenAPI(openapi = "3.1.0", info = Info(title = "Bookstore API", version = "1.0.0"))
+
+  println(openAPICodec.encodeValue(api).print)
+  // {"openapi":"3.1.0","info":{"title":"Bookstore API","version":"1.0.0"}}
+  println(scala.util.Try(openAPICodec.encodeToString(api)))
+  // Failure(scala.NotImplementedError: an implementation is missing)
+  println(scala.util.Try(openAPICodec.encode(api)))
+  // Failure(scala.NotImplementedError: an implementation is missing)
+  println(openAPICodec.decode("""{"openapi":"3.1.0","info":{"title":"Bookstore API","version":"1.0.0"}}"""))
+  // Left(zio.blocks.schema.SchemaError: an implementation is missing at: .)
+  println(Json.parse("""{"openapi":"3.1.0","info":{"title":"Bookstore API","version":"1.0.0"}}""").flatMap(openAPICodec.decode))
+  // Right(OpenAPI(3.1.0,Info(Bookstore API,1.0.0,None,None,None,None,None,ChunkMap()),None,Chunk(),None,ChunkMap(),None,Chunk(),Chunk(),None,ChunkMap()))
+}
+```
+
+**Expected.** `encodeToString(api)` returns the same text as `encodeValue(api).print`, and `decode(text)` returns the same `Right` as `Json.parse(text).flatMap(decode)`.
+
+**Root cause.** `openapi/shared/src/main/scala/zio/blocks/openapi/OpenAPICodec.scala:204-208`: the base class `JsonASTCodec` implements the streaming methods as `def decodeValue(in: JsonReader): A = ???` (`:205`) and `def encodeValue(x: A, out: JsonWriter): Unit = ???` (`:207`). `JsonCodec#encodeToString` and `encode` write through a `JsonWriter` (`JsonCodec.scala:366`, `:402`), which calls the streaming `encodeValue` and hits `???`. `JsonCodec#decode(String)` reads through a `JsonReader` and catches the error into a `Left` (`JsonCodec.scala:381`). The stubs came in with #1240, which removed `JsonEncoder`/`JsonDecoder`.
+
+**Impact.** The obvious way to produce the text of a document fails at run time, with an error that doesn't say what to do instead, and `decode` on a string reports a valid document as an error. `docs/reference/openapi.md` never prints a document as text, so a reader has no working example to copy.
+
+**Test gap.** The openapi tests use only `encodeValue(api): Json` and `decodeValue(json)`; none calls `encodeToString`, `encode` or `decode(String)`.
+
+**Suggested fix.** Implement the streaming methods in `JsonASTCodec` by going through the AST: `encodeValue(x, out)` writes `encodeValue(x)` with `Json.jsonCodec.encodeValue(_, out)`, and `decodeValue(in)` reads a `Json` with `Json.jsonCodec.decodeValue(in, ...)` and calls `decodeValue(json)`. Add tests that `encodeToString` and `decode(String)` agree with the `Json` path for the petstore document.
+
+### openapi: a document with `md"..."` descriptions is not `==` to itself after a JSON round trip
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-and-export-openapi.md` (backlog H-39), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** Encoding an `OpenAPI` value with `openAPICodec.encodeValue` and decoding the result gives a value that is not `==` to the original when a description was written with the `md"..."` interpolator or `Parser.parse`, which is how the reference page and the guides write descriptions. The JSON of both values is the same. The `markdown` module has two classes for plain text, the top-level `zio.blocks.docs.Text` (made by `md"..."` and `Parser.parse`) and `zio.blocks.docs.Inline.Text`. The OpenAPI decoder converts every `Text` into `Inline.Text`, and `Doc#equals` does not treat the two as equal.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-openapi` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-openapi:0.0.56
+
+import zio.blocks.docs._
+import zio.blocks.openapi._
+import zio.blocks.openapi.OpenAPICodec._
+
+@main def openApiDocEq(): Unit = {
+  val api = OpenAPI(
+    openapi = "3.1.0",
+    info = Info(title = "Bookstore API", version = "1.0.0", description = Some(md"Books about Scala."))
+  )
+  val json     = openAPICodec.encodeValue(api)
+  val reloaded = openAPICodec.decode(json)
+
+  println(json.print)
+  // {"openapi":"3.1.0","info":{"title":"Bookstore API","version":"1.0.0","description":"Books about Scala.\n\n"}}
+  println(reloaded == Right(api))
+  // false
+  println(reloaded.map(r => openAPICodec.encodeValue(r) == json))
+  // Right(true)
+  println(api.info.description.get.blocks.head.asInstanceOf[Paragraph].content.head.getClass.getName)
+  // zio.blocks.docs.Text
+  println(reloaded.toOption.get.info.description.get.blocks.head.asInstanceOf[Paragraph].content.head.getClass.getName)
+  // zio.blocks.docs.Inline$Text
+  println(md"Books about Scala." == Parser.parse("Books about Scala.").toOption.get)
+  // true
+}
+```
+
+**Expected.** `reloaded == Right(api)` is `true`, as it is for documents whose descriptions are built from `Inline.Text`.
+
+**Root cause.** `openapi/shared/src/main/scala/zio/blocks/openapi/OpenAPICodec.scala`: `docCodec` (`:212`) parses the string and passes the result through `normalizeDoc`, whose `normalizeInline` maps the top-level `Text` to `Inline.Text` (`:179`) and likewise for the other inline types. `Doc#equals` (`markdown/shared/src/main/scala/zio/blocks/docs/Doc.scala:84`) compares normalized blocks, but `Doc.normalize` does not unify the top-level and `Inline` classes, so the values differ. The underlying cause is the duplicated inline hierarchy in `markdown/shared/src/main/scala/zio/blocks/docs/Inline.scala` (`Inline.Text` at `:37`, top-level `Text` at `:126`).
+
+**Impact.** Tests that check `decode(encode(api)) == api`, and code that compares a loaded document with an expected one, fail for documents written the way the docs show. The H-39 guide compares the re-encoded JSON instead.
+
+**Test gap.** The openapi round-trip tests build every `Doc` with a helper that uses `Inline.Text` (`OpenAPIJsonSerializationSpec.scala:28`); no openapi test uses `md"..."` or `Parser.parse`.
+
+**Suggested fix.** Make `Doc.normalize` (or `Doc#equals`) map the top-level inline classes to their `Inline` counterparts, the way `normalizeInline` in `OpenAPICodec` does, so that equal Markdown compares equal whichever class built it. Longer term, keep one inline hierarchy in `markdown`. Add an openapi round-trip test with `md"..."` descriptions.
+
+### openapi: every description in the exported JSON ends with `\n\n`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-and-export-openapi.md` (backlog H-39), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `Doc` fields (descriptions and summaries) are encoded with the Markdown renderer, which ends every paragraph with a blank line. A one-line description therefore appears as `"description": "Books about Scala.\n\n"` in the JSON, and as a quoted string with escapes in the YAML. Markdown readers such as Swagger UI ignore the newlines, but the exported file is noisier than a hand-written one and differs from what other OpenAPI tools write.
+
+**Reproduction.** The program in the round-trip entry above prints `{"openapi":"3.1.0","info":{"title":"Bookstore API","version":"1.0.0","description":"Books about Scala.\n\n"}}` (Scala 3.9.0, `zio-blocks-next-openapi` 0.0.56).
+
+**Expected.** `"description": "Books about Scala."`.
+
+**Root cause.** `docCodec.encodeValue` writes `Renderer.render(x)` as is (`openapi/shared/src/main/scala/zio/blocks/openapi/OpenAPICodec.scala:222`), and `Renderer` renders a `Paragraph` as `s"${renderInlines(content)}\n\n"` (`markdown/shared/src/main/scala/zio/blocks/docs/Renderer.scala:57-58`).
+
+**Impact.** Cosmetic, but it shows up in every exported document, and string comparisons in tests have to include the newlines.
+
+**Test gap.** The openapi serialization tests do not assert the encoded text of a description.
+
+**Suggested fix.** Strip trailing newlines in `docCodec.encodeValue` (`Renderer.render(x).stripTrailing`, or a renderer option that does not end the last block with a blank line). Decoding is unaffected, because the parser accepts both forms.
+
+### schema: indented `Json#print` writes a whitespace-only line inside an empty array or object
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-and-export-openapi.md` (backlog H-39), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** With an indenting `WriterConfig`, an empty array prints as `[`, a line of spaces, and `]` instead of `[]`, and an empty object likewise. The output is valid JSON, but it has trailing whitespace and looks like a missing value. In an OpenAPI document it shows up for every bearer-token security requirement, whose scope list is empty.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-schema` 0.0.56; spaces shown as `·`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+
+import zio.blocks.schema.json.{Json, WriterConfig}
+
+@main def emptyIndent(): Unit = {
+  val json = Json.Object("scopes" -> Json.Array(), "extensions" -> Json.Object())
+  println(json.print(WriterConfig.withIndentionStep2).replace(" ", "·"))
+  // {
+  // ··"scopes":·[
+  // ····
+  // ··],
+  // ··"extensions":·{
+  // ····
+  // ··}
+  // }
+}
+```
+
+**Expected.** `"scopes": []` and `"extensions": {}`.
+
+**Root cause.** `JsonWriter.writeNestedStart` writes the opening bracket followed at once by a newline and the deeper indentation, and `writeNestedEnd` writes another newline and indentation before the closing bracket, without checking whether anything was written in between (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:1237`, `:1248`; the Scala.js copy at `schema/js/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:1290`, `:1301`).
+
+**Impact.** Cosmetic. Every indented document with an empty collection has whitespace-only lines, which linters and `git diff` flag.
+
+**Test gap.** No `Json` printer test covers an empty array or object with indentation (from a search of the schema tests).
+
+**Suggested fix.** Defer the newline and indentation after an opening bracket until the first element or key is written, and write the closing bracket directly when nothing was written.
+
+**Also seen in H-06** (2026-10-21, `docs/guides/json-without-case-classes.md`). `Json#toString` uses the same indenting writer, so `println(json)` on any tree with an empty list shows the blank line too: `{"title": "Zionomicon", "tags": []}` prints `"tags": [`, a line of four spaces, `]`. Verified with `zio-blocks-next-schema` 0.0.56 on Scala 3.9.0.
+
+### telemetry: the default text log line prints the full class name and two numbers for any class in a package
+
+Found 2026-10-21 while writing the tutorial `docs/guides/instrument-a-program-with-logs-traces-and-metrics.md` (backlog T-12), on `main` at `a44dc6db`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** The text format puts the source location in brackets: the short class name, the method and the line, as in `[RestockJob$.main:10]`. When the class sits in a package, `TextLogFormatter` prints the full name followed by two numbers instead: `[(bookstore.RestockJob$,10,21).main:10]`. `TextLogFormatter` is what the zero-setup `log.info` uses, so almost every user sees this on their very first log line. The default console processor, which takes over once a writer or processor is added, prints the location correctly, so the same call can print two different brackets.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 21, run with `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package bookstore
+
+import zio.blocks.telemetry._
+
+object RestockJob {
+  def main(args: Array[String]): Unit = {
+    log.info("default console output")
+    log.writer(TextLogFormatter, StdoutWriter)
+    log.info("default console plus TextLogFormatter writer")
+  }
+}
+// 2026-10-21T09:03:25.964Z INFO  [(bookstore.RestockJob$,10,21).main:10] default console output
+// 2026-10-21T09:03:25.979Z INFO  [RestockJob$.main:12] default console plus TextLogFormatter writer
+// 2026-10-21T09:03:25.979Z INFO  [(bookstore.RestockJob$,10,21).main:12] default console plus TextLogFormatter writer
+```
+
+**Expected.** Every line shows `[RestockJob$.main:N]`, the part of the name after the last dot.
+
+**Root cause.** `TextLogFormatter.format` and `TextLogFormatter.formatRecord` call `sb.append(namespace, lastDot + 1, namespace.length)` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/LogFormatter.scala:106` and `:194`). `sb` is a `scala.collection.mutable.StringBuilder`, which has no three-argument `append` like `java.lang.StringBuilder#append(CharSequence, int, int)`. The compiler auto-tuples the three arguments into one `(String, Int, Int)` and calls `append(x: Any)`, which appends the tuple's `toString`. `StdoutLogRecordProcessor` uses `namespace.substring(lastDot + 1)` (`StdoutLogRecordProcessor.scala:66`) and is correct. A namespace without a dot takes the `else` branch, which is why scripts in the empty package look right.
+
+**Impact.** The zero-setup path (`Logger.emitter` is a `FormattedLogEmitter(TextLogFormatter, StdoutWriter)` when only the console processor is registered, `Logger.scala:53-55`) and every `log.writer(TextLogFormatter, ...)` print a long, misleading location for all real applications, which always use packages. Log parsers that expect `[Class.method:line]` break. The JSON format is not affected.
+
+**Test gap.** `LogFormatterSpec.scala:181` checks the rendered line with `.contains("com.example.Service")`, which the tuple text also contains, and `:226-228` tests only a namespace without dots ("handles a namespace without dots"). No test asserts the full bracket for a dotted namespace. AGENTS.md's rule to assert the full rendered string with `==` would have caught it.
+
+**Suggested fix.** Use `sb.append(namespace.substring(lastDot + 1))`, or `sb.underlying.append(namespace, lastDot + 1, namespace.length)` to keep the allocation-free form, at both lines. Add a test that asserts the full line for `code.namespace = "com.example.Service"` through both `format` and `formatRecord`. Building with `-Xlint:adapted-args` (Scala 2) would have flagged the auto-tupling.
+
+### telemetry: on Scala 2.13, `log.info` and the other `log.*` calls don't compile outside the library's package
+
+Found 2026-10-21 while writing T-12, on `main` at `a44dc6db`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** On Scala 2.13, every `log.trace`, `log.debug`, `log.info`, `log.warn`, `log.error` and `log.fatal` call in user code fails to compile, in any package and in the empty package. The Scala 2 macro expands to code that reads `GlobalLogState` and other objects that are `private[telemetry]`, and Scala 2 type-checks a macro expansion with the access rights of the call site. The module is published for Scala 2.13, and the reference pages say it supports 2.13, but its main logging API can't be used there. Spans and metrics are not affected.
+
+**Reproduction** (Scala 2.13.16, `zio-blocks-telemetry` 0.0.56, JDK 21, `scala-cli compile`):
+
+```scala
+//> using scala 2.13.16
+//> using dep dev.zio::zio-blocks-telemetry:0.0.56
+package bookstore
+
+import zio.blocks.telemetry._
+
+object RestockJob {
+  def main(args: Array[String]): Unit =
+    log.info("default console output")
+}
+// [error] ./Repro.scala:9:13
+// [error] object GlobalLogState in package telemetry cannot be accessed as a member of package zio.blocks.telemetry from object RestockJob in package bookstore
+// [error]     log.info("default console output")
+// [error]             ^
+```
+
+Without the `package bookstore` line, the error is the same except that it ends with `from object RestockJob`.
+
+**Expected.** The call compiles and prints the line, as it does on Scala 3.
+
+**Root cause.** The expansion in `telemetry/shared/src/main/scala-2/zio/blocks/telemetry/LogMacros.scala` refers to `_root_.zio.blocks.telemetry.GlobalLogState` (`:357-358`), `AttributeBuilderPool`, `LogAnnotations` and `EpochClock`, all `private[telemetry]` (`GlobalLogState.scala:53`, `jvm/.../AttributeBuilderPool.scala:19`, `jvm/.../LogAnnotations.scala:26`, `EpochClock.scala:29`). The Scala 3 macro refers to the same objects, but code inside a Scala 3 quote is not access-checked at the call site, so Scala 3 works.
+
+**Impact.** Logging is unusable on Scala 2.13 in 0.0.56. A Scala 2.13 user who follows the reference page's installation section gets a compile error on the first `log.info`.
+
+**Test gap.** Every telemetry test, including the Scala 2 runs, is in `package zio.blocks.telemetry`, where `private[telemetry]` members are visible. No test calls the macros from another package.
+
+**Suggested fix.** Make the members the expansion needs public and mark them as internal in their Scaladoc (or move them to an `internal` object that is public but documented as not for users), then add a test in a different package, for example `package zio.blocks.telemetry.external`, that calls each `log.*` method on Scala 2.13 and Scala 3.
+
+### telemetry: after `log.removeAll()`, `log.writer` and `log.addProcessor` never bring logging back
+
+Found 2026-10-21 while writing T-12, on `main` at `a44dc6db`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** The Scaladoc of `log.removeAll()` says that "log calls are no-ops until you add a processor or install a logger", and the logging reference page says they are no-ops "until you add an output again". In fact, `log.writer(...)` and `log.addProcessor(...)` after `removeAll` add the output but nothing is ever written to it. Only `log.install(...)` or `log.setMinSeverity(...)` restores logging. Code that clears the defaults with `removeAll` and then adds its own JSON writer, which is the natural way to say "only JSON, please", logs nothing at all, with no error.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 21, run with `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package bookstore
+
+import zio.blocks.telemetry._
+
+object RemoveAllRepro {
+  def main(args: Array[String]): Unit = {
+    log.removeAll()
+    log.writer(TextLogFormatter, StdoutWriter)
+    log.info("1: after removeAll + writer")
+    log.addProcessor(new ConsoleLogRecordProcessor)
+    log.info("2: after addProcessor too")
+    log.setMinSeverity(Severity.Trace)
+    log.info("3: after setMinSeverity")
+  }
+}
+// 2026-10-21T09:10:30.808Z INFO  [(bookstore.RemoveAllRepro$,10,25).main:16] 3: after setMinSeverity
+// 2026-10-21T09:10:30.808Z INFO  [RemoveAllRepro$.main:16] 3: after setMinSeverity
+```
+
+Lines 1 and 2 are never printed. (The two forms of the bracket in line 3 are the `TextLogFormatter` bug above.)
+
+**Expected.** Line 1 is printed by the writer, and line 2 by both outputs, as the Scaladoc promises.
+
+**Root cause.** `removeAll` installs `silentState`, whose minimum severity is `Int.MaxValue`, and sets `globalMinLevel` to `Int.MaxValue` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/GlobalLogState.scala:67-75` and `:130-132`; called from `log.scala:65-73`). `log.writer` rebuilds the state with `currentState.minSeverity` (`log.scala:104-113`), and `log.addProcessor` also keeps it (`log.scala:46-55`), so the floor stays above every severity. `log.setMinSeverity` (`log.scala:30-31`) and `log.install` (`log.scala:58-59`) reset it.
+
+**Impact.** Silent loss of all logs in a program that calls `removeAll` before adding outputs. The reference page `docs/reference/telemetry/logging/index.md:176` repeats the Scaladoc's promise.
+
+**Test gap.** No test logs through a writer or processor added after `log.removeAll()`. The tests that call `removeAll` use it as cleanup at the end.
+
+**Suggested fix.** Make `removeAll` keep the minimum severity and mark the state as having no outputs instead of raising the floor, or have `writer` and `addProcessor` restore the previous minimum severity when they leave the silent state. Add a test for `removeAll` followed by each of `writer`, `addProcessor` and `install`.
+
+### http-model: `QueryParams` keeps `+` as a plus sign, so values from HTML `GET` forms arrive with `+` instead of spaces
+
+Not filed on GitHub yet.
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/serve-http-model-requests.md` (backlog H-35), on `main` at `a44dc6db`. The http-model sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56.
+
+**Summary.** When a browser submits an HTML form with `method="get"`, it encodes the fields as `application/x-www-form-urlencoded` in the query string, so a space becomes `+` and a literal plus becomes `%2B`. `URL.parse` decodes the query with `QueryParams.fromEncoded`, which percent-decodes but treats `+` as a literal plus. A search for `zio blocks` therefore arrives as `zio+blocks`. Worse, `+` and `%2B` both decode to `+`, so once the query is a `QueryParams` the handler can no longer tell a space from a real plus sign. The module's own `Form.fromString` decodes the same string correctly, so the two types disagree about one wire format.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-http-model` 0.0.56, run with `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model:0.0.56
+
+import zio.http._
+
+object PlusInQuery {
+  def main(args: Array[String]): Unit = {
+    // What a browser sends for <form method="get"> with q = "zio blocks"
+    val url = URL.parse("/search?q=zio+blocks&tag=a%2Bb").toOption.get
+    println(url.queryParams.getFirst("q"))
+    println(url.queryParams.getFirst("tag"))
+    // The same pair decoded as form data
+    println(Form.fromString("q=zio+blocks&tag=a%2Bb").get("q"))
+    // Encoding a space in a query value
+    println(QueryParams("q" -> "zio blocks").encode)
+  }
+}
+// Some(zio+blocks)
+// Some(a+b)
+// Some(zio blocks)
+// q=zio%20blocks
+```
+
+**Expected.** `url.queryParams.getFirst("q")` returns `Some(zio blocks)` and `getFirst("tag")` returns `Some(a+b)`, as `URLSearchParams` does in browsers and `Form.fromString` does in this module.
+
+**Root cause.** `QueryParams.fromEncoded` decodes each key and value with `PercentEncoder.decode` (`http-model/shared/src/main/scala/zio/http/QueryParams.scala:196-197`), and `PercentEncoder.decode` (`http-model/shared/src/main/scala/zio/http/PercentEncoder.scala:103`) only handles `%XY` escapes. `Form` replaces `+` with a space before decoding (`http-model/shared/src/main/scala/zio/http/Form.scala:98-99`), but `QueryParams` does not.
+
+**Impact.** Any page that submits a search or filter form with `method="get"` gets `+` instead of spaces. This hits the server adapter in H-35 and the planned query-validation guide (H-36) and HTMX live-search tutorial (T-10) as soon as a plain form is used. The workaround is to bypass `QueryParams` and decode the raw query string with `Form.fromString`, which needs access to the raw query (for example `URI#getRawQuery` in a JDK `HttpExchange`). The H-35 guide documents the behaviour in a note.
+
+**Test gap.** `QueryParamsSpec` (`http-model/shared/src/test/scala/zio/http/QueryParamsSpec.scala`) has no test with `+` in a key or value. `FormSpec` tests "decodes plus as space" for `Form` only.
+
+**Suggested fix.** In `QueryParams.fromEncoded`, replace `+` with a space before calling `PercentEncoder.decode`, as `Form` does, and add tests for `q=zio+blocks` and `tag=a%2Bb`. `QueryParams#encode` already writes a space as `%20`; encode a literal `+` in a query key or value as `%2B` (today `+` is in the allowed set for `QueryKey` and `QueryValue`, `PercentEncoder.scala:58-65`) so that encoding and decoding round-trip.
+
+### http-model-schema: `request.header[T](name)` and `response.header[T](name)` do not compile
+
+Not filed on GitHub yet.
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/validate-query-parameters-and-headers.md` (backlog H-36), on `main` at `a44dc6db` plus the unmerged H-35 branch. The http-model and http-model-schema sources are the same at tag `v0.0.56`. Verified by compiling against the published 0.0.56 on Scala 3.9.0 and 2.13.16.
+
+**Summary.** `RequestSchemaOps` and `ResponseSchemaOps` add `header[T](name: String)(implicit Schema[T])` to `Request` and `Response` through an implicit conversion. Both classes already have a member `header[A](headerCodec: Header.Codec[A]): Option[A]`. Scala only looks for an implicit conversion when a member with that name does not exist, so `request.header[Int]("X-Count")` resolves to the member and fails to compile: the string is not a `Header.Codec`. The typed header accessor that the reference page advertises on `Request` and `Response` is unreachable without writing `new RequestSchemaOps(request)`. `headerAll` and `headerOrElse` work, because `Request` has no members with those names.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-http-model-schema` 0.0.56, `scala-cli compile`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+
+import zio.http._
+import zio.http.schema._
+
+object HeaderOnRequest {
+  def main(args: Array[String]): Unit = {
+    val request = Request.get(URL.parse("/books").toOption.get).addHeader("X-Request-Id", "42")
+    println(request.header[Int]("X-Request-Id"))
+  }
+}
+// [error] ./r1/HeaderOnRequest.scala:11:33
+// [error] Found:    ("X-Request-Id" : String)
+// [error] Required: zio.http.Header.Codec[Int]
+// [error]     println(request.header[Int]("X-Request-Id"))
+// [error]                                 ^^^^^^^^^^^^^^
+```
+
+The same file with `//> using scala 2.13.16` and `zio-blocks-http-model-schema` fails the same way:
+
+```
+// [error] type mismatch;
+// [error]  found   : String("X-Request-Id")
+// [error]  required: zio.http.Header.Codec[Int]
+```
+
+**Expected.** `request.header[Int]("X-Request-Id")` returns `Left(HeaderError.Malformed(...))` or `Right(42)`, as `request.headers.header[Int]("X-Request-Id")` does.
+
+**Root cause.** `Request#header` (`http-model/shared/src/main/scala/zio/http/Request.scala:36`) and `Response#header` (`http-model/shared/src/main/scala/zio/http/Response.scala:33`) shadow `RequestSchemaOps#header` (`http-model-schema/shared/src/main/scala/zio/http/schema/RequestSchemaOps.scala:34`) and `ResponseSchemaOps#header` (`ResponseSchemaOps.scala:25`). A member with the right name always wins over an implicit conversion, even when its parameter types don't fit.
+
+**Impact.** Everyone who follows `docs/reference/http-model/schema.md` ("Exposes all methods from `QueryParamsSchemaOps` and `HeadersSchemaOps` directly on `Request`") hits a confusing type error that names `Header.Codec`. The workaround is `request.headers.header[T](name)`. The H-36 guide uses it and explains why in a warning.
+
+**Test gap.** `RequestSchemaSpec` (`http-model-schema/shared/src/test/scala/zio/http/schema/RequestSchemaSpec.scala:51`) and `ResponseSchemaSpec` (`ResponseSchemaSpec.scala:29`) call `new RequestSchemaOps(request)` and `new ResponseSchemaOps(response)` directly, so they never go through the implicit conversion that users rely on.
+
+**Suggested fix.** Either add `header[T](name: String)(implicit Schema[T])` overloads to `Request` and `Response` themselves (http-model would then depend on schema, which it does not today), or rename the extension (for example `headerAs[T]`) and keep `header[T]` only on `Headers`. Change both specs to call the methods through `import zio.http.schema._` so the tests compile the way users write the code.
+
+### http-model-schema: derived `QueryCodec` and `HeaderCodec` ignore field default values
+
+Not filed on GitHub yet.
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/validate-query-parameters-and-headers.md` (backlog H-36), on `main` at `a44dc6db` plus the unmerged H-35 branch. The http-model-schema sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56.
+
+**Summary.** A case class field with a default value, such as `limit: Int = 20`, is still required by a codec derived with `Schema#derive(DefaultQueryFormat)` or `Schema#derive(DefaultHeaderFormat)`. A missing parameter or header fails with `Missing field` instead of taking the default. The schema carries the defaults, and the JSON codec derived from the same schema uses them, so the two formats disagree about the same case class. Paging parameters are the most common case: `?limit=5` without `offset` is rejected.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-http-model-schema` 0.0.56, `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+
+import zio.blocks.schema.Schema
+import zio.blocks.schema.json.JsonCodec
+import zio.http._
+import zio.http.schema._
+
+final case class Paging(limit: Int = 20, offset: Int = 0)
+object Paging { implicit val schema: Schema[Paging] = Schema.derived }
+
+final case class ClientInfo(xApiVersion: Int = 1)
+object ClientInfo { implicit val schema: Schema[ClientInfo] = Schema.derived }
+
+object DefaultsIgnored {
+  def main(args: Array[String]): Unit = {
+    val query = Schema[Paging].derive(DefaultQueryFormat)
+    println(query.decode(QueryParams.fromEncoded("limit=5")))
+    println(query.decode(QueryParams.empty))
+    val headers = Schema[ClientInfo].derive(DefaultHeaderFormat)
+    println(headers.decode(Headers.empty))
+    // The schema knows the defaults, and the JSON codec uses them:
+    println(Schema[Paging].jsonCodec.decode("""{"limit":5}"""))
+  }
+}
+// Left(zio.blocks.schema.SchemaError: Missing field 'offset' at: .)
+// Left(zio.blocks.schema.SchemaError: Missing field 'limit' at: .)
+// Left(zio.blocks.schema.SchemaError: Missing field 'X-API-VERSION' at: .)
+// Right(Paging(5,0))
+```
+
+**Expected.** `Right(Paging(5,0))`, `Right(Paging(20,0))` and `Right(ClientInfo(1))`, as the JSON codec does.
+
+**Root cause.** `QueryCodecDeriver#deriveRecord` (`http-model-schema/shared/src/main/scala/zio/http/schema/QueryCodecDeriver.scala:49-112`) and `HeaderCodecDeriver#deriveRecord` (`HeaderCodecDeriver.scala:48-112`) build one `FieldCodec` per field and never read the field's default (`Reflect#getDefaultValue`, `schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:150`). `SinglePrimitive#decodeAny` returns `SchemaError.missingField` for an absent value (`ParamCodecSupport.scala:53`).
+
+**Impact.** Users who model optional parameters with defaults get 400s for valid requests, or have to switch every such field to `Option` and apply the defaults by hand. The H-36 guide shows the behaviour in a warning and uses `Option` fields.
+
+**Test gap.** `QueryCodecSpec` and `HeaderCodecSpec` have no case class with a default value.
+
+**Suggested fix.** In both `deriveRecord`s, read `field.value.getDefaultValue` and, when the raw value is absent and a default exists, store the default instead of calling `decodeAny`. Add tests for a missing defaulted field, a present defaulted field and a malformed defaulted field (which should still fail).
+
+### schema: `json"..."` does not compile on Scala 2.13 outside the `zio.blocks.schema` package
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** On Scala 2.13, every use of the `json"..."` interpolator in user code fails to compile, with or without spliced values. The Scala 2 macro expands to a call on `JsonInterpolatorRuntime`, which is `private[schema]`, so the expansion compiles only when the call site is itself inside the `zio.blocks.schema` package, as the library's own tests are. On Scala 3 the same code compiles and works.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run JsonInterpolatorScala2.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json._
+
+object JsonInterpolatorScala2 {
+  def main(args: Array[String]): Unit = {
+    val title = "Zionomicon"
+    println(json"""{"title": $title, "price": 49.99}""".print)
+  }
+}
+// [error] ./JsonInterpolatorScala2.scala:8:13
+// [error] object JsonInterpolatorRuntime in package json cannot be accessed as a member of package zio.blocks.schema.json from object JsonInterpolatorScala2
+// [error]     println(json"""{"title": $title, "price": 49.99}""".print)
+// [error]             ^
+```
+
+**Expected.** The program compiles and prints `{"title":"Zionomicon","price":49.99}`, as it does on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56.
+
+**Root cause.** `schema/shared/src/main/scala-2/zio/blocks/schema/json/package.scala:88` (`JsonInterpolatorRuntime.validateJsonLiteral`, run inside the macro, which is fine) and `:92` (`reify(JsonInterpolatorRuntime.jsonWithContexts(...))`, which is emitted into the caller's code). `reify` keeps the reference as written, and `JsonInterpolatorRuntime` is declared `private[schema] object JsonInterpolatorRuntime` at `schema/shared/src/main/scala/zio/blocks/schema/json/JsonInterpolatorRuntime.scala:28`. The Scala 3 macro (`scala-3/zio/blocks/schema/json/package.scala`) is inlined differently and is not affected.
+
+**Impact.** The `json"..."` interpolator, which `json.md` presents as a main way to write JSON, is unusable on Scala 2.13. Scala 2 users have to fall back to the `Json` constructors or `Json.parse`.
+
+**Test gap.** `schema/shared/src/test/scala/zio/blocks/schema/json/JsonInterpolatorSpec.scala:17` is in `package zio.blocks.schema.json`, so the `private[schema]` reference resolves there. No test calls `json"..."` from a package outside `zio.blocks.schema`, and mdoc runs only on Scala 3.
+
+**Suggested fix.** Make `JsonInterpolatorRuntime` public (it can stay undocumented, like other macro runtimes), or emit a fully qualified call to a public forwarder. Add a Scala 2 test in a package outside `zio.blocks.schema` (for example `zio.blocksjsontest`) that calls `json"..."` with and without splices.
+
+### schema: `Json#delete` through `[*]` removes the array elements that lack the field
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** `json.delete(p".books[*].isbn")` is meant to remove the `isbn` field from every book. It also removes every book that has no `isbn` field, and when no book has it, it empties the array. `Json#deleteOrFail` returns the same damaged document as a `Right`. `Json#modify` on the same path keeps the elements it can't change.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run DeleteWildcard.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  val doc = Json.parseUnsafe(
+    """{"books":[{"title":"Zionomicon","isbn":"978-0-9961-1250-4"},{"title":"Programming in Scala"}]}"""
+  )
+
+  // Remove "isbn" from every book: the book without "isbn" disappears too
+  println(doc.delete(p".books[*].isbn").print)
+  // {"books":[{"title":"Zionomicon"}]}
+
+  // No book has "edition": every book disappears
+  println(doc.delete(p".books[*].edition").print)
+  // {"books":[]}
+
+  // deleteOrFail reports nothing wrong
+  println(doc.deleteOrFail(p".books[*].isbn").map(_.print))
+  // Right({"books":[{"title":"Zionomicon"}]})
+
+  // modify on the same elements keeps both books
+  println(doc.modify(p".books[*]")(_.delete(p".isbn")).print)
+  // {"books":[{"title":"Zionomicon"},{"title":"Programming in Scala"}]}
+}
+```
+
+**Expected.** `{"books":[{"title":"Zionomicon"},{"title":"Programming in Scala"}]}` for the first and third calls, and the document unchanged for the second (or a `Left` from `deleteOrFail` when no element has the field).
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:1979`, in `deleteAtPathRecursive`: for a non-last `Elements` node it builds `new Array(arr.value.flatMap(e => deleteAtPathRecursive(e, nodes, idx + 1)))`. The recursive call returns `None` when the element has no such field (`Json.scala:1935-1937`, `if (filtered.length != fields.length) ... else None`), and `flatMap` over that `Option` drops the element. The `modify` counterpart (`Json.scala:1705-1712`) maps `None` back to the original element.
+
+**Impact.** Silent data loss: a cleanup step such as removing an internal field before publishing a document deletes whole records whenever the field is optional. Nothing reports it.
+
+**Test gap.** `schema/shared/src/test/scala/zio/blocks/schema/json/JsonSpec.scala:2992-3004` ("delete with Elements non-last applies recursively through elements") uses two objects that both contain `x`. No test deletes `[*].field` where some element lacks the field.
+
+**Suggested fix.** Mirror `modifyAtPathRecursive`: `arr.value.map(e => deleteAtPathRecursive(e, nodes, idx + 1).getOrElse(e))`, and return `None` from the `Elements` case only when no element changed, so `deleteOrFail` can still report a path that matches nothing. Add tests for a partly missing and a fully missing field.
+
+### schema: `Json.Number(Double)` keeps a trailing zero, so `Json.Number(49.99)` prints `49.990`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** `Json.Number(value: Double)` converts the `Double` with `JsonWriter.toBigDecimal`, which leaves one trailing zero in the scale whenever the shortest decimal form has an odd number of them. `49.99` becomes `49.990` (scale 3), `2.5` becomes `2.50`. The value compares equal to `Json.Number(BigDecimal("49.99"))`, but it prints differently, so generated JSON doesn't match what the user wrote. The JSON codec for `Double` uses the same factory when it encodes to a `Json` tree, so `Json.from(value)` pads every `Double` field, while `toJsonString` on the same value does not.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run NumberFromDouble.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+final case class Price(amount: Double)
+object Price { given Schema[Price] = Schema.derived }
+
+@main def run(): Unit = {
+  println(Json.Number(49.99).print)
+  // 49.990
+  println(Json.Number(2.5).print)
+  // 2.50
+  println(Json.Number(10.0).print)
+  // 10.0
+  println(Json.Number(49.99).value.scale)
+  // 3
+
+  // the same value from a BigDecimal or from parsed text prints as written
+  println(Json.Number(BigDecimal("49.99")).print)
+  // 49.99
+  println(Json.parseUnsafe("49.99").print)
+  // 49.99
+
+  // a Double field encoded to a Json tree is padded; encoded straight to text it is not
+  println(Json.from(Price(49.99)).print)
+  // {"amount":49.990}
+  println(Price(49.99).toJsonString)
+  // {"amount":49.99}
+}
+```
+
+**Expected.** `49.99`, `2.5` and `10.0` (or `10`): the shortest text that reads back as the same `Double`, as `java.lang.Double.toString` and `JsonWriter#writeVal(Double)` produce.
+
+**Root cause.** `schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:3665` (`toBigDecimal(x: Double)`; the JS copy is at `schema/js/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:3830`) strips trailing zeros from the decimal mantissa only in pairs: both loops at `:3730-3750` divide by 100. One zero is left when their count is odd. `Json.Number.apply(Double)` (`schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:837`) and `apply(Float)` (`:829`) call it, and `JsonCodec.doubleCodec.encodeValue(x: Double): Json` (`JsonCodec.scala:771`) calls `Json.Number(x)`. Encoding to text goes through `JsonWriter#writeVal(Double)` instead (`JsonCodec.scala:764`), which is why `toJsonString` is not affected.
+
+**Impact.** Any JSON built from `Double` values through `Json.Number` or `Json.from` prints padded numbers: prices like `49.990` in API responses and test fixtures that don't match their expected text. Parsed numbers and `BigDecimal` inputs are not affected.
+
+**Test gap.** No test prints a `Json.Number` built from a `Double` with a fractional part; `JsonSpec.scala` builds numbers from `Int` literals (for example `:35`, `:51`).
+
+**Suggested fix.** After the pair loop, strip one more zero when `m10 % 10 == 0`, or build the `BigDecimal` with `stripTrailingZeros` and keep the `10.0`-style scale only for integral values. Add a test that `Json.Number(49.99).print == "49.99"` on the JVM and JS.
+
+### schema: decoding a fractional JSON number as `Int` or `Long` reports "value is too large"
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** `json.as[Int]` on `49.99` fails with `value is too large for int`. The value is not too large: it has a fractional part. The same message is used for a real overflow, so the user can't tell the two apart.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run FractionAsInt.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  val doc = Json.parseUnsafe("""{"price": 49.99, "pages": 3000000000}""")
+  println(doc.get("price").as[Int])
+  // Left(zio.blocks.schema.SchemaError: value is too large for int at: .)
+  println(doc.get("price").as[Long])
+  // Left(zio.blocks.schema.SchemaError: value is too large for long at: .)
+
+  // a real overflow gets the same message
+  println(doc.get("pages").as[Int])
+  // Left(zio.blocks.schema.SchemaError: value is too large for int at: .)
+}
+```
+
+**Expected.** A message that names the problem, such as `expected an integer, got 49.99 at: .`, for the fractional case, and `value is too large for int` only for an overflow.
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodec.scala:674-679`: `decodeValue(json: Json)` calls `num.value.bigDecimal.intValueExact` and maps every `ArithmeticException` to `"value is too large for int"`. `intValueExact` throws both for overflow and for a non-zero fraction. The `Byte` (`:612`), `Short` (`:645`) and `Long` (`:711`) codecs do the same.
+
+**Impact.** Misleading errors when an untyped read (`selection.as[Int]`) or a typed decode meets a decimal where an integer was expected, which is common with third-party payloads.
+
+**Test gap.** `JsonCodecDeriverSpec.scala:96-97` tests only real overflows (`2147483648`, `-2147483649`), and only through the text reader, not through `decodeValue(json: Json)`.
+
+**Suggested fix.** Check `num.value.isWhole` first and report a separate message for a fraction; keep the overflow message for the `ArithmeticException` that remains. Add tests for `1.5` read as `Byte`, `Short`, `Int` and `Long` from a `Json` value.
+
+### schema: JSON parse errors carry no line, column or offset
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** A `SchemaError` from `Json.parse` names what the reader expected and the structural path it was in (`at: .authors`), but never a line, column or character offset. For an error directly in an object, the path is only `.`, so in a large document the user has to search for the problem by hand.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run ParseErrorPosition.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  // a missing comma on line 3 of a 4-line document
+  val text =
+    """{
+      |  "title": "Zionomicon",
+      |  "authors": ["John A. De Goes" "Adam Fraser"],
+      |  "price": 49.99
+      |}""".stripMargin
+  println(Json.parse(text))
+  // Left(zio.blocks.schema.SchemaError: expected ']' or ',' at: .authors)
+
+  // a trailing comma: only the root is named
+  println(Json.parse("""{"title": "Zionomicon", "price": 49.99,}"""))
+  // Left(zio.blocks.schema.SchemaError: expected '"' at: .)
+}
+```
+
+**Expected.** The message includes the position, for example `expected ']' or ',' at: .authors (line 3, column 34)`, or the `SchemaError` exposes the offset.
+
+**Root cause.** `schema/jvm/src/main/scala/zio/blocks/schema/json/JsonReader.scala:1657` raises `new JsonCodecError(Nil, msg)` with the message alone; the reader knows `pos` at that point but drops it. `JsonCodec.scala:515-540` turns the error into `SchemaError.ExpectationMismatch(path, msg)` (`SchemaError.scala:179-181`), which has no place for a position.
+
+**Impact.** Debugging malformed payloads (webhooks, config files, hand-written fixtures) takes longer than with other JSON libraries, which all report a position.
+
+**Test gap.** `JsonSpec.scala:1356-1365` asserts only `isLeft` for malformed input; no test asserts a position.
+
+**Suggested fix.** Append the byte offset (and, for `String` input, line and column) to the message in `decodeError`, or add a position to `ExpectationMismatch`. The same change helps `ConfigSource.fromJson` (see the config-hocon entry above).
+
+### schema: `Json#project` with a path that matches nothing returns `null`
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** `Json#project(paths*)` keeps only the given paths. When none of them exists, it returns JSON `null` instead of an empty object (or an error). With at least one matching path the result is an object, so the return value changes kind depending on the data.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run ProjectMissing.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  val book = Json.parseUnsafe("""{"title": "Zionomicon", "tags": []}""")
+  println(book.project(p".title").print)
+  // {"title":"Zionomicon"}
+  println(book.project(p".isbn").print)
+  // null
+  println(book.project(p".title", p".isbn").print)
+  // {"title":"Zionomicon"}
+}
+```
+
+**Expected.** `{}` for `project(p".isbn")` on an object, so callers can always treat the result as an object.
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:390` delegates to `Json.project` (`:1237-1241`), which rebuilds the result with `fromKVUnsafe` from the matched `(path, value)` pairs. `fromKVUnsafe` (`:1466-1470`) returns `Null` for an empty list and folds from `Null` otherwise, so with no match the result is `null`.
+
+**Impact.** Code that projects a payload and then reads from the result (`projected.get("title")`) fails with `Cannot get field 'title' from non-object JSON value` instead of a not-found error.
+
+**Test gap.** The `project` tests in `JsonSpec.scala` use paths that exist.
+
+**Suggested fix.** Start from an empty container of the root's kind, or return `Json.Object.empty` when the root is an object and nothing matched.
+
+### schema: `Json#delete` and `Json#insert` ignore a quoted-key path step, which `get`, `set` and `modify` follow
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`, during the docs-reviewer fact-check. The code is the same at tag `v0.0.56`. Verified. Not filed.
+
+**Summary.** A JSON key that is not a Scala identifier, such as `first-edition`, can only be written in `p"..."` as a quoted key, `p"""{"first-edition"}"""`, which parses to a `DynamicOptic.Node.AtMapKey` step. `Json#get`, `Json#set` and `Json#modify` treat that step as an object key. `Json#delete` and `Json#insert` silently return the document unchanged, `Json#deleteOrFail` reports `Path not found` for a key that exists, and `Json#insertOrFail` reports `Insert not supported for path node type: AtMapKey(...)`. The same key built with `DynamicOptic.root.field(...)` works with every method.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run QuotedKeyPath.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  val book = Json.parseUnsafe("""{"title": "Zionomicon", "first-edition": 2021}""")
+  // the only way to name a non-identifier key in p"..." is the quoted-key form
+  val edition = p"""{"first-edition"}"""
+
+  // get, set and modify follow it
+  println(book.get(edition).as[Int])
+  // Right(2021)
+  println(book.set(edition, Json.Number(2022)).print)
+  // {"title":"Zionomicon","first-edition":2022}
+
+  // delete ignores it, and deleteOrFail says the existing key is not there
+  println(book.delete(edition).print)
+  // {"title":"Zionomicon","first-edition":2021}
+  println(book.deleteOrFail(edition))
+  // Left(zio.blocks.schema.SchemaError: Path not found: {"first-edition"})
+
+  // insert ignores it, and insertOrFail rejects the node
+  println(book.insert(p"""{"second-edition"}""", Json.Number(2025)).print)
+  // {"title":"Zionomicon","first-edition":2021}
+  println(book.insertOrFail(p"""{"second-edition"}""", Json.Number(2025)))
+  // Left(zio.blocks.schema.SchemaError: Insert not supported for path node type: AtMapKey("second-edition"))
+
+  // the same keys as field nodes work with every method
+  println(book.delete(DynamicOptic.root.field("first-edition")).print)
+  // {"title":"Zionomicon"}
+  println(book.insert(DynamicOptic.root.field("second-edition"), Json.Number(2025)).print)
+  // {"title":"Zionomicon","first-edition":2021,"second-edition":2025}
+}
+```
+
+**Expected.** `delete` removes `first-edition` and `insert` adds `second-edition`, as `get`, `set` and `modify` already treat the step as an object key; or all five methods reject `AtMapKey` on a `Json` the same way.
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:1600-1623` (`getAtPath`) and `:1747-1768` (`modifyAtPathRecursive`) handle `AtMapKey` with a string key as an object field. `deleteAtPathRecursive` falls through to `case _ => None` at `:1989`; the comment at `:1987` calls `AtMapKey` an "architectural no-op" because "Json has no Map/Variant types", which contradicts the `get`/`modify` handling. The insert helper rejects it at `:2126`. `Json#deleteOrFail` turns the `None` into `Path not found` (`:173`).
+
+**Impact.** A guide or user who removes a field whose name has a dash (common in HTTP-style payloads, for example `content-type`) with the path syntax gets no change and no error, while reads and updates on the same path work.
+
+**Test gap.** `schema/shared/src/test/scala/zio/blocks/schema/json/JsonSpec.scala:1902-1929` ("AtMapKey operations") tests `get` and `modify` only; no test deletes or inserts through `AtMapKey`.
+
+**Suggested fix.** Handle `AtMapKey` with a string key in `deleteAtPathRecursive` and in the insert helpers the same way as `Field`, and add delete/insert cases to the "AtMapKey operations" suite.
+
+### schema: `DynamicPatch#toString` and `JsonPatch#toString` don't indent a multi-line value added to a map or object
+
+Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Verified on Scala 2.13.18 (`zio-blocks-schema` 0.0.56) and Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`); the renderers are the same at tag `v0.0.56`.
+
+**Summary.** When a patch adds a map entry (or a JSON object key) whose value is a record, `toString` appends the value's own multi-line rendering without indenting it. The value's lines start at column 0, and the closing `}}` is not aligned with the `+`, so the patch is hard to read. The guide's catalog patch shows it.
+
+**Reproduction** (run with scala-cli; the same output on both versions, the Scala 3 file uses `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-schema`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+import zio.blocks.schema.patch._
+
+final case class Book(title: String, tags: List[String])
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+final case class Catalog(books: Map[String, Book])
+object Catalog { implicit val schema: Schema[Catalog] = Schema.derived }
+
+object Main extends App {
+  val zio    = Book("Zionomicon", List("zio"))
+  val pis    = Book("Programming in Scala", List("scala"))
+  val before = Catalog(Map("zionomicon" -> zio))
+  val after  = Catalog(Map("zionomicon" -> zio, "programming-in-scala" -> pis))
+  println(Catalog.schema.diff(before, after))
+  // DynamicPatch {
+  //   .books:
+  //     + {"programming-in-scala": {
+  //   title: "Programming in Scala",
+  //   tags: ["scala"]
+  // }}
+  // }
+  println(Json.from(before).diff(Json.from(after)))
+  // JsonPatch {
+  //   root:
+  //     ~ {"books"}:
+  //       root:
+  //         + {"programming-in-scala": {
+  //   "title": "Programming in Scala",
+  //   "tags": [
+  //     "scala"
+  //   ]
+  // }}
+  // }
+}
+```
+
+**Expected.** The value's lines are indented under the `+` line, for example `    + {"programming-in-scala": {` followed by `        title: "Programming in Scala",`.
+
+**Root cause.** `DynamicPatch.renderMapOp` appends `a.value` (the `DynamicValue`'s multi-line `toString`) as is (`schema/shared/src/main/scala/zio/blocks/schema/patch/DynamicPatch.scala:213`); `JsonPatch.renderObjectOp` does the same with the `Json` value (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonPatch.scala:683-684`). The sequence renderers (`renderSeqOp`) have the same pattern for inserted records.
+
+**Impact.** Cosmetic, but patches are printed for audit logs and debugging, and a catalog-sized patch becomes hard to read.
+
+**Test gap.** `DynamicPatchSpec` "DynamicPatch.toString" (`DynamicPatchSpec.scala:1626-1654`) asserts only with `.contains` on primitive deltas; no test renders a map or sequence insert of a record.
+
+**Suggested fix.** Render the value on one line (`Json#print` / a compact `DynamicValue` rendering), or indent every line after the first by the current indent.
+
+### schema (Scala 3): `BindingResolver.reflection` reads the wrong fields of a case class that extends a trait with a `val`
+
+Found 2026-10-21 while writing the Scaladoc of the `binding` package (wave 3 of the schema Scaladoc, branch `scaladoc-wave-3`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run Repro.scala` against the published `0.0.56` on Scala 3.3.7 and 2.13.18.
+
+**Summary.** On the JVM, `BindingResolver.reflection` builds a case class's deconstructor from the first N entries of `Class#getDeclaredFields`, where N is the number of constructor parameters. On Scala 3, the field of a `val` that the case class inherits from a trait comes first in that array, so the deconstructor reads the trait's field in place of the first constructor field and shifts the others by one. When the types happen to match, encoding silently writes the wrong values; otherwise it throws `IllegalArgumentException`. Decoding is not affected, because the constructor takes its arguments from the registers in parameter order. On Scala 2 the trait's field comes after the constructor fields, so the same code works.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.binding._
+
+trait Catalogued { val catalogue: String = "Scala books" }
+
+case class Book(title: String, author: String) extends Catalogued
+object Book {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+case class Edition(title: String, year: Int) extends Catalogued
+object Edition {
+  implicit val schema: Schema[Edition] = Schema.derived
+}
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val resolver = BindingResolver.reflection ++ BindingResolver.defaults
+    val book     = Book.schema.toDynamicSchema.rebind[Book](resolver)
+    println(book.toDynamicValue(Book("Zionomicon", "John A. De Goes")))
+    println(book.fromDynamicValue(Schema[Book].toDynamicValue(Book("Zionomicon", "John A. De Goes"))))
+    val edition = Edition.schema.toDynamicSchema.rebind[Edition](resolver)
+    println(scala.util.Try(edition.toDynamicValue(Edition("Zionomicon", 2021))))
+  }
+}
+// {
+//   title: "Scala books",
+//   author: "Zionomicon"
+// }
+// Right(Book(Zionomicon,John A. De Goes))
+// Failure(java.lang.IllegalArgumentException: Attempt to get java.lang.String field "Edition.title" with illegal data type conversion to int)
+```
+
+Still present on `main` (checked 2026-10-22 at `bffadae7` plus the wave 3 commits, with a local publish of `zio-blocks-schema` built with Scala 3.9.0, consumed on 3.9.0 with `-experimental`): the output is the same three lines.
+
+The same file with `//> using scala 2.13.18` prints `{ title: "Zionomicon", author: "John A. De Goes" }`, the same `Right(...)`, and `Success({ title: "Zionomicon", year: 2021 })`. On Scala 3.3.7, `classOf[Edition].getDeclaredFields.map(_.getName)` is `catalogue, title, year`.
+
+**Expected.** The rebound schemas encode `Book("Zionomicon", "John A. De Goes")` as `{ title: "Zionomicon", author: "John A. De Goes" }` and `Edition("Zionomicon", 2021)` as `{ title: "Zionomicon", year: 2021 }`, as on Scala 2.
+
+**Root cause.** `schema/jvm/src/main/scala/zio/blocks/schema/binding/BindingResolverPlatformSpecific.scala:127` takes `clazz.getDeclaredFields.take(paramCount)`, and the deconstructor reads `fields(idx)` for parameter `idx` (`:162`-`:173`). `getDeclaredFields` returns the fields in no particular order (its Javadoc says so), and the Scala 3 compiler emits the fields of mixed-in trait `val`s first. The constructor is also picked as `clazz.getConstructors` head (`:121`), which is likewise not ordered.
+
+**Impact.** Any Scala 3 case class that mixes in a trait with a `val` (a common way to share constants) is encoded wrongly, or fails to encode, after `DynamicSchema#rebind` with `BindingResolver.reflection`. When the types line up there is no error at all.
+
+**Test gap.** `BindingResolverSpec` (`schema/shared/src/test/scala/zio/blocks/schema/BindingResolverSpec.scala:230-297`) round-trips only case classes without a parent trait.
+
+**Suggested fix.** Read each field by its constructor parameter: for a case class, deconstruct through `Product#productElement(idx)`, which follows the parameter order, or look the fields up by the parameter names. Pick the constructor whose parameters match the case class's fields instead of the first one, and add a Scala 3 test with a trait that has a `val`.
+
+### schema: `JsonCodec#encode` into a too-small `ByteBuffer` throws after writing part of the value, and leaves `position` past the partial JSON
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/tune-json-throughput.md` (backlog H-50), on `main` at `7e8ac787`. `JsonCodec`, `JsonReader`, `JsonWriter`, `ReaderConfig`, `WriterConfig` and `Schema` are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `JsonCodec#encode(value, output: ByteBuffer)` throws `java.nio.BufferOverflowException` when the value doesn't fit, which is the JDK convention. The JDK's own bulk `ByteBuffer#put` also leaves the buffer unchanged when it throws: `position` stays where it was. The codec doesn't. For a heap buffer it has already written the bytes that fit into the backing array and moves `position` to the end of them. For a direct buffer and a value larger than the writer's internal buffer (`WriterConfig#preferredBufSize`, 32 KiB by default), it has already copied whole chunks into the buffer, and `position` is left after them. Either way the buffer now ends with a truncated JSON value, and a caller that catches the exception and moves on, for example to flush the buffer and retry, sends the fragment.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import java.nio.{BufferOverflowException, ByteBuffer}
+import zio.blocks.schema._
+
+case class Book(title: String, authors: List[String], year: Int)
+object Book {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+object OverflowRepro {
+  def attempt(buffer: ByteBuffer, value: Book): Unit =
+    try Book.schema.jsonCodec.encode(value, buffer)
+    catch {
+      case e: BufferOverflowException =>
+        println(s"${e.getClass.getSimpleName}: position ${buffer.position()} of limit ${buffer.limit()}")
+    }
+
+  def main(args: Array[String]): Unit = {
+    val book = Book("Zionomicon", List("John A. De Goes", "Adam Fraser"), 2024)
+    println(s"JSON size: ${Book.schema.jsonCodec.encode(book).length}")
+
+    val heap = ByteBuffer.allocate(20)
+    attempt(heap, book)
+    heap.flip()
+    println("heap buffer now holds: " + new String(heap.array(), 0, heap.limit(), "UTF-8"))
+
+    // The JDK's own bulk put leaves the position unchanged on overflow
+    val jdk = ByteBuffer.allocate(20)
+    try jdk.put(new Array[Byte](60))
+    catch { case _: BufferOverflowException => println(s"ByteBuffer#put: position ${jdk.position()}") }
+
+    // A direct buffer is written in chunks once the value is larger than the writer's 32 KiB buffer
+    val big    = (1 to 8000).toList.map(i => s"Author $i")
+    val large  = book.copy(authors = big)
+    val size   = Book.schema.jsonCodec.encode(large).length
+    val direct = ByteBuffer.allocateDirect(size - 1)
+    println(s"large JSON size: $size")
+    attempt(direct, large)
+  }
+}
+// JSON size: 78
+// BufferOverflowException: position 9 of limit 20
+// heap buffer now holds: {"title":
+// ByteBuffer#put: position 0
+// large JSON size: 110939
+// BufferOverflowException: position 98283 of limit 110938
+```
+
+A direct buffer and a value smaller than 32 KiB are not affected: the writer encodes into its own buffer and copies it in one `put` at the end, which throws before writing anything.
+
+**Expected.** On overflow, `position` is where it was before the call, as with `ByteBuffer#put`, so the caller can flush or grow the buffer and encode again. At least the Scaladoc of `JsonCodec#encode(value, output: ByteBuffer)` should say that the buffer is left with partial output.
+
+**Root cause.** Heap buffer: `JsonWriter.write(codec, x, bbuf, config)` writes straight into `bbuf.array` and, in its `finally` block, sets `bbuf.position(count - offset)` whether or not encoding succeeded (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:1171-1188`); the `ArrayIndexOutOfBoundsException` from `flushAndGrowBuf` (`:2798`) becomes `BufferOverflowException` at `:1182`, after `count` has advanced. Direct buffer: `flushAndGrowBuf` calls `bbuf.put(buf, 0, pos)` each time the internal buffer fills (`:2790-2793`), so earlier chunks are already in the target when the last `put` (`:1197`) throws. `JsonCodec#encode(value, output, config)` delegates without a `try` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodec.scala:171-175`). The Scala.js writer has the same structure.
+
+**Impact.** Code that encodes several messages into one reusable `ByteBuffer`, or that sizes a buffer optimistically and falls back on overflow, writes corrupt output unless it saves and restores `position` itself. The H-50 guide shows that workaround (`encodeOrRewind`).
+
+**Test gap.** No test in `schema` encodes into a `ByteBuffer` that is too small; `BufferOverflowException` appears in no test file.
+
+**Suggested fix.** Remember `bbuf.position()` on entry and restore it before rethrowing (heap path: set `bbuf.position(start)` in the `catch`; direct path: catch `BufferOverflowException` and reset to the saved position). Add tests for both buffer kinds, with values smaller and larger than `preferredBufSize`.
+
+### schema: `ReaderConfig#maxBufSize` below 32 KiB depends on the thread's earlier calls, and can fail with an internal index error
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/tune-json-throughput.md` (backlog H-50), on `main` at `7e8ac787`. `JsonReader` and `ReaderConfig` are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** For `InputStream` and `ByteBuffer` input, `ReaderConfig#maxBufSize` caps how far the reader's byte buffer may grow, for example while it holds a whole object to find a discriminator field that comes last. The pooled reader of each thread starts with a 32768-byte buffer, and a call only ever grows that buffer to the config's preferred size, never shrinks it on entry. A `maxBufSize` smaller than the current buffer is therefore not applied: on a thread's first call, or after any call with a larger config, input that should hit the limit decodes successfully. When such input is also larger than the current buffer, the reader "grows" the buffer down to `maxBufSize` and fails with a leaked internal message (`Range [32768, 32768 + -30720) out of bounds for length 2048`) instead of `too long part of input exceeded 'maxBufSize'`. The same request can pass on one thread and fail on another.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import java.io.ByteArrayInputStream
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+sealed trait Edition
+object Edition {
+  case class Print(isbn: String, pages: Int) extends Edition
+  case class Ebook(url: String)              extends Edition
+  implicit val schema: Schema[Edition] = Schema.derived
+}
+
+object MaxBufSizeRepro {
+  // The discriminator comes last, so the reader must buffer the whole object
+  def print(isbnLength: Int): Array[Byte] =
+    s"""{"isbn":"${"9" * isbnLength}","pages":1,"type":"Print"}""".getBytes("UTF-8")
+
+  def main(args: Array[String]): Unit = {
+    val codec  = Edition.schema.derive(JsonCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type")))
+    val strict = ReaderConfig.withPreferredBufSize(1024).withMaxBufSize(2048)
+
+    // The same 5 KB input and config, twice on one thread
+    println(codec.decode(new ByteArrayInputStream(print(5000)), strict).isRight)
+    println(codec.decode(new ByteArrayInputStream(print(5000)), strict))
+
+    // A call with the default config, then a 40 KB input with the strict config
+    println(codec.decode(new ByteArrayInputStream(print(5000))).isRight)
+    println(codec.decode(new ByteArrayInputStream(print(40000)), strict))
+  }
+}
+// true
+// Left(zio.blocks.schema.SchemaError: too long part of input exceeded 'maxBufSize' at: .)
+// true
+// Left(zio.blocks.schema.SchemaError: Range [32768, 32768 + -30720) out of bounds for length 2048 at: .)
+```
+
+**Expected.** The first two calls give the same result (`Left` with `too long part of input exceeded 'maxBufSize'`), whatever the thread did before, and the last call fails with that message too.
+
+**Root cause.** `JsonReader.read(codec, in, config)` reallocates the buffer only when it is smaller than `config.preferredBufSize` (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonReader.scala:1747`; the direct `ByteBuffer` path does the same at `:1809`), and shrinks it only in the `finally` block (`:1753`). `growBuf` (`:5061-5068`) raises `tooLongInputError` only when `buf.length == maxBufSize`; when the buffer is already larger, it doubles the length, clamps it to `maxBufSize` and copies the buffer into a smaller array, so the next `loadMore` read fails with `IndexOutOfBoundsException`, which `JsonCodec#decode` turns into a `Left` with the exception's message. The reader's buffer starts at 32768 bytes (`JsonReader.scala:62`).
+
+**Impact.** Low for the defaults (32 MiB), but the setting exists to protect public endpoints, and a service that lowers it below 32 KiB gets a limit that applies only some of the time. The H-50 guide tells readers to keep `maxBufSize` at 32768 or more.
+
+**Test gap.** `ReaderConfigSpec` checks the setters' validation only. No test decodes from a stream with a `maxBufSize` smaller than the reader's initial buffer, or on a fresh thread.
+
+**Suggested fix.** On entry to the stream and direct-buffer `read` overloads, reallocate when `buf.length > config.maxBufSize` (not only when it is smaller than `preferredBufSize`), and make `growBuf` raise `tooLongInputError` when `bufLen >= maxBufSize`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
+
+### schema: `Lens.apply` and `Prism.apply` accept a term of another type and fail later with `Index -1`
+
+Found 2026-10-22 in review of the wave 4 Scaladoc (`docs/dev/backlog.md` section 11, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that last edits this entry). The code is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`.
+
+**Summary.** `Lens.apply(source, focusTerm)` and `Prism.apply(source, focusTerm)` look the term up in `source` by name and do not check that it is there. A term from another record or variant gives index -1. A lens builds without complaint and throws `ArrayIndexOutOfBoundsException: Index -1` the first time it is used; a prism throws the same exception at construction. Neither message names the term.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import scala.util.Try
+
+case class Author(name: String)
+object Author { implicit val schema: Schema[Author] = Schema.derived }
+case class Book(title: String, year: Int)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+sealed trait Format
+case class Paperback(pages: Int) extends Format
+case class Ebook(sizeMb: Double) extends Format
+object Format { implicit val schema: Schema[Format] = Schema.derived }
+
+sealed trait Genre
+case class Fiction(rating: Int) extends Genre
+object Genre { implicit val schema: Schema[Genre] = Schema.derived }
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val book       = Book.schema.reflect.asRecord.get
+    val authorName = Author.schema.reflect.asRecord.get.fields(0).asInstanceOf[Term.Bound[Book, String]]
+    val lens       = Lens(book, authorName)
+    println(lens)
+    println(Try(lens.get(Book("Zionomicon", 2021))))
+
+    val format  = Format.schema.reflect.asVariant.get
+    val fiction = Genre.schema.reflect.asVariant.get.cases(0).asInstanceOf[Term.Bound[Format, Paperback]]
+    println(Try(Prism(format, fiction)))
+  }
+}
+// Lens(_.name)
+// Failure(java.lang.ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 2)
+// Failure(java.lang.ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 2)
+```
+
+**Expected.** Both constructors fail at once with an `IllegalArgumentException` that names the term and the type: "`name` is not a field of `Book`".
+
+**Root cause.** `Lens.apply` and `Prism.apply` check only for null (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:685-686`, `:959-960`). `LensImpl.init`, which runs on first use, indexes `source.registers` with `fieldIndexByName(name)` (`:721`), and the `PrismImpl` constructor indexes `source.matchers` with `caseIndexByName(name)` (`:992`). Both return -1 for an unknown name (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:405`, `:619`, `:2112`).
+
+**Impact.** A hand-built optic with a wrong term fails late (the lens) or with an index error that does not say what is wrong. `Reflect.Record#lensByName`, `Reflect.Variant#prismByName` and the `$` macro avoid the problem.
+
+**Test gap.** No test builds a lens or prism from a term that does not belong to the source.
+
+**Suggested fix.** In both constructors, `require(source.fieldIndexByName(focusTerm.name) >= 0, ...)` (or `caseIndexByName`) with a message that names the term and `source.typeId`.
+
+### http-model-schema: `query[T]` and `header[T]` compile for any schema but decode only primitives
+
+Found 2026-10-21 while writing H-36 (`docs/guides/validate-query-parameters-and-headers.md`). Verified against the published 0.0.56.
+
+`request.query[Option[Int]]("limit")`, `query[List[Int]]` and `query[Isbn]` for a wrapper type compile, because any `Schema[T]` is accepted, but always return `Malformed(key, value, "Unsupported schema type for string decoding")`, even for `?limit=5`. `StringDecoder.decode` handles `Reflect.Primitive` only (`http-model-schema/shared/src/main/scala/zio/http/schema/StringDecoder.scala:26-29`). The error blames the client's value for a programming mistake, and a 400 handler sends it back to the client. The reference page says the module "supports decoding to any type with a `Schema[T]` instance". Reproduction (`scala-cli run`, Scala 3.9.0, `zio-blocks-next-http-model-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+
+import zio.blocks.schema.Schema
+import zio.http._
+import zio.http.schema._
+
+final case class Isbn(value: String)
+object Isbn { implicit val schema: Schema[Isbn] = Schema[String].transform(Isbn(_), _.value) }
+
+object OptionQuery {
+  def main(args: Array[String]): Unit = {
+    val request = Request.get(URL.parse("/books?limit=5&isbn=978-0981531687").toOption.get)
+    println(request.query[Option[Int]]("limit"))
+    println(request.query[List[Int]]("limit"))
+    println(request.query[Isbn]("isbn"))
+    println(request.query[Int]("limit"))
+  }
+}
+// Left(Malformed(limit,5,Unsupported schema type for string decoding))
+// Left(Malformed(limit,5,Unsupported schema type for string decoding))
+// Left(Malformed(isbn,978-0981531687,Unsupported schema type for string decoding))
+// Right(5)
+```
+
+Suggested fix: support wrappers (the codec derivers already do, through `ParamCodecSupport.wrapperFieldCodec`) and map `Option[T]` to "missing is `None`". At least document the primitive-only limit on the reference page, and consider reporting it as a distinct error rather than `Malformed`.
+
+### http-model-schema: `queryOrElse` and `headerOrElse` also swallow malformed values, and no decoder applies `Validation`
+
+Found 2026-10-21 while writing H-36. Verified against the published 0.0.56.
+
+`queryOrElse[Int]("limit", 20)` returns `20` for `?limit=abc`, not only for a missing `limit` (`QueryParamsSchemaOps.scala`, `query[T](key).getOrElse(default)`), so a client's typo is silently ignored. The reference page says so ("errors are silently ignored"), but the name suggests "or else, when missing". Separately, none of the decoders checks the `Validation` a `Schema` can carry: a `Schema[Int]` whose primitive type has `Validation.Numeric.Range(Some(1), Some(100))` decodes `?limit=500` to `Right(500)` (`StringDecoder.decodePrimitive` and `ParamCodecSupport.decodePrimitiveString` only parse). The H-36 guide shows a `Missing`-only fallback and range checks written after decoding. Suggested fix: document both on `docs/reference/http-model/schema.md`; consider a `queryOption[T]` that returns `Either[QueryParamError, Option[T]]`.
+
+### telemetry: every call to `metric.counter(name)` registers a new instrument
+
+Found 2026-10-21 while writing T-12, on `main` at `a44dc6db` (same at `v0.0.56`). Verified against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `metric.counter("x")`, `metric.histogram("x")`, `metric.upDownCounter("x")` and `metric.gauge("x")` build and register a new instrument on every call, even when one with the same name exists. The reference pages show the inline form as the normal use (`metric.counter("http.requests").add(1)`, `docs/reference/telemetry/metrics/index.md:15`; `instruments.md:37` and `:172` use it inline too). Code that calls the factory inside a method gets one instrument per call: the reader returns many separate series with the same attributes instead of one total, and the registry grows without bound.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 21, `scala-cli run`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package bookstore
+
+import zio.blocks.telemetry._
+
+object CounterRepro {
+  def restock(title: String): Unit =
+    metric.counter("bookstore.books.restocked").add(1L, "title" -> title)
+
+  def main(args: Array[String]): Unit = {
+    (1 to 3).foreach(_ => restock("Zionomicon"))
+    val sums = metric.reader.collectAllMetrics()
+    println(s"instruments: ${sums.size}")
+    sums.foreach(println)
+  }
+}
+// instruments: 3
+// SumData(List(SumDataPoint(zio.blocks.telemetry.Attributes@cb9700ed,0,1792573831692001433,1)))
+// SumData(List(SumDataPoint(zio.blocks.telemetry.Attributes@cb9700ed,0,1792573831694297386,1)))
+// SumData(List(SumDataPoint(zio.blocks.telemetry.Attributes@cb9700ed,0,1792573831694308297,1)))
+```
+
+**Expected.** Either one instrument with the value 3 (the factory returns the existing instrument for a name, as OpenTelemetry SDKs do), or documentation that tells users to create each instrument once and keep it in a `val`.
+
+**Root cause.** `metric.counter` calls `counterBuilder(name).build()` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/metric.scala:38-39`), and `build()` always creates a new `Counter` and registers it (`Meter.scala:164-168`, `registerCounter` at `:91-93`). The registry has no lookup by name.
+
+**Suggested fix.** Cache instruments by name, kind and unit in `Meter`, or document the "create once" rule on the `metric` reference pages and change the inline examples to `val`s. The T-12 tutorial creates each instrument once and says why.
 
 ### schema: `Validation` constraints are checked only by `DynamicSchema#check`, and `DynamicSchema#check` skips `Schema#transform` checks
 
@@ -2375,6 +4628,12 @@ println(order.toJsonString)
 - **`jdbc:sqlite::memory:` gives every connection its own empty database.** Code that opens more than one connection loses its tables. Found while writing T-07; now noted in `transactor.md`.
 - **On Scala 2.13, `case class Isbn private (value: String)` still has a public `apply` and `copy`.** `Isbn("junk")` and `isbn.copy(value = "junk")` compile outside the companion and skip the smart constructor, unless the build adds `-Xsource-features:case-apply-copy-access` (or `-Xsource:3-cross`); Scala 3 makes both private. Every newtype example in `validation.md` relies on the private constructor alone. Verified with scala-cli on 2.13.18 and 3.9.0 while writing H-04; the guide adds the flag to its prerequisites.
 
+### sql: `SqlQuery#orderBy` and `groupBy` can only name columns of the `FROM` table
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/write-joins-and-inspect-generated-sql.md` (backlog H-19), on `main` at `9447794b`; the same at tag `v0.0.56`. Verified with `zio-blocks-next-sql` 0.0.56.
+
+**Summary.** `orderBy(col)` and `groupBy(cols*)` take a bare column name and always render it as `t0."<col>"` (`sql/shared/src/main/scala/zio/blocks/sql/query/QueryRenderer.scala:70-78` for `GROUP BY` and `:85-97` for `ORDER BY`). There is no way to sort or group a join by a column of a joined table: `SqlQuery.from(books).join(bookAuthor).orderBy("t1.name")` throws `java.lang.IllegalArgumentException: Invalid SQL column identifier 't1.name'. Only ASCII letters, digits, and underscores are supported, and the first character must be a letter or underscore.` (`SqlQuery.scala:145-148` validates it as a plain identifier, as `groupBy` does at `:137-140`). A name that exists in the joined table but not in `t0` renders as `t0."<col>"` and fails only when the database runs it. Meanwhile `where` takes a free-form `Frag` that may use any alias, so the API is uneven. Users have to start the query from the table they sort by, or sort in Scala. The H-19 guide documents this in a caution box. A fix would be an `orderBy(alias, col, dir)` overload, or a column reference type returned by the joined table.
+
 ### telemetry and scope: wildcard imports of both packages make `Resource` ambiguous
 
 Found 2026-10-21 while writing T-15 (`docs/guides/small-json-backend-from-blocks.md`), on `main` at `1958367d`. The code is the same at tag `v0.0.56`. Verified by running on Scala 3.9.0 and 2.13.18.
@@ -2477,6 +4736,414 @@ $ scala-cli compile .
 
 **Suggested fix.** Add a check to the release workflow that fails when the version does not match `^\d+\.\d+\.\d+(-.+)?$`. Add a Scala Steward `updates.ignore` entry for version `0.017` under `dev.zio` so the repo's own bots skip it. The metadata only stops pointing at `0.017` once a release sorts above it, such as `0.1.0`. Until then, the install guide pins `@VERSION@` and never suggests `latest.release`.
 
+### schema: JSON paths that match nothing change nothing and report nothing, and wildcard reads skip elements without the field
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
+
+**Summary.** Three behaviours of `Json` paths make a typo in a path or a missing field hard to notice. A wildcard read such as `get(p".books[*].price")` skips the elements that lack the field and fails only when none has it. `Json#modify`, `set`, `delete` and `insert` return the document unchanged when the path matches nothing, so a misspelled key changes nothing silently; only the `OrFail` variants report it. And the not-found errors name only the last step (`Field 'isbn' not found`), without the path that led there, while `Json#get(index)` adds `at: [5]` and a path read does not.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run SilentPaths.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+@main def run(): Unit = {
+  // the second book has a misspelled "prise" key
+  val doc = Json.parseUnsafe(
+    """{"books":[{"title":"Zionomicon","price":49.99},{"title":"Programming in Scala","prise":59.99}]}"""
+  )
+
+  // a wildcard read returns one price for two books, with no error
+  println(doc.get(p".books[*].price").asAll[BigDecimal])
+  // Right(Chunk(49.99))
+
+  // a misspelled path: modify and set return the document unchanged, with no error
+  println(doc.modify(p".books[*].prize")(_ => Json.Number(1)) == doc)
+  // true
+  println(doc.set(p".books[0].prize", Json.Number(1)) == doc)
+  // true
+
+  // only the OrFail variants report it
+  println(doc.setOrFail(p".books[0].prize", Json.Number(1)))
+  // Left(zio.blocks.schema.SchemaError: Field 'prize' not found)
+
+  // not-found errors name the last step only, not the path to it
+  println(doc.get(p".books[0].isbn").one)
+  // Left(zio.blocks.schema.SchemaError: Field 'isbn' not found)
+  println(doc.get(p".books[5].title").one)
+  // Left(zio.blocks.schema.SchemaError: Index 5 out of bounds)
+  println(doc.get("books")(5).one)
+  // Left(zio.blocks.schema.SchemaError: Index 5 out of bounds (size: 2) at: [5])
+}
+```
+
+**Expected.** Not necessarily a different default, but a consistent and documented one: errors that carry the full path (`Field 'isbn' not found at: .books[0]`), and reference docs that say the plain change methods ignore missing paths and that wildcard reads skip elements.
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:1556` (`getAtPath`) fails only when `results.knownSize == 0 && jsons.nonEmpty`, so a partial match succeeds, and it builds `SchemaError(s"Field '$name' not found")` with no path. `Json.scala:132-135`, `:149`, `:162` and `:181` return `this` when the path helper returns `None`.
+
+**Impact.** Code that reads or cleans third-party JSON gets fewer values than it expects or leaves fields in place, with no error. The H-06 guide warns about both and teaches the `OrFail` variants.
+
+**Test gap.** No test reads `[*].field` where only some elements have the field.
+
+**Suggested fix.** Add the path so far to not-found errors (`.atField`/`.atIndex`, as `Json.Array#get` already does with `atIndex`), and document the silent behaviour of the plain change methods in `json.md`.
+
+### schema: `Schema#fromDynamicValue` rejects missing collection, `Option` and defaulted fields that the JSON codec accepts
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`; widened the same day with a case from the H-04 session (`docs/guides/validated-newtypes.md`, PR #1811). The code is the same at tag `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0. Not filed.
+
+**Summary.** There are two ways to decode a `Json` value into a case class: `json.as[A]` (the JSON codec) and `Schema[A].fromDynamicValue(json.toDynamicValue)`, which collects every error instead of stopping at the first. They accept different documents. When a field is absent, the JSON codec uses the field's default value, `None` for an `Option`, or an empty collection. `fromDynamicValue` reports `Missing field '<name>'` for each of them. Their messages for the same type mismatch also differ (`expected Json.Number` vs `Expected BigDecimal`).
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` 0.0.56, run with `scala-cli run MissingFieldsScala2.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+final case class Entry(title: String, tags: List[String], subtitle: Option[String], edition: Int = 1)
+object Entry { implicit val schema: Schema[Entry] = Schema.derived }
+
+object MissingFieldsScala2 {
+  def main(args: Array[String]): Unit = {
+    val json = Json.parseUnsafe("""{"title": "Zionomicon"}""")
+    println(json.as[Entry])
+    // Right(Entry(Zionomicon,List(),None,1))
+    println(Schema[Entry].fromDynamicValue(json.toDynamicValue))
+    // Left(zio.blocks.schema.SchemaError: Missing field 'tags' at: .
+    // Missing field 'subtitle' at: .
+    // Missing field 'edition' at: .)
+  }
+}
+```
+
+The same program on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 (`given Schema[Entry] = Schema.derived`, `@main`) prints the same two lines. A second reproduction shows the differing mismatch messages (Verified; Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, run with `scala-cli run AsVersusDynamic.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+final case class Book(title: String, authors: List[String], price: BigDecimal, tags: List[String])
+object Book { given Schema[Book] = Schema.derived }
+
+@main def run(): Unit = {
+  // no "tags" field
+  val noTags = Json.parseUnsafe("""{"title":"Zionomicon","authors":["John A. De Goes","Adam Fraser"],"price":49.99}""")
+  println(noTags.as[Book])
+  // Right(Book(Zionomicon,List(John A. De Goes, Adam Fraser),49.99,List()))
+  println(Schema[Book].fromDynamicValue(noTags.toDynamicValue))
+  // Left(zio.blocks.schema.SchemaError: Missing field 'tags' at: .)
+
+  // a string where a number belongs: the two messages differ
+  val stringPrice = Json.parseUnsafe("""{"title":"Zionomicon","authors":[],"price":"49.99","tags":[]}""")
+  println(stringPrice.as[Book])
+  // Left(zio.blocks.schema.SchemaError: expected Json.Number at: .price)
+  println(Schema[Book].fromDynamicValue(stringPrice.toDynamicValue))
+  // Left(zio.blocks.schema.SchemaError: Expected BigDecimal at: .price)
+}
+```
+
+**Expected.** Both routes accept the same documents, so switching to the error-collecting route (as the H-04 newtype validation guide does) does not start rejecting payloads that `json.as[A]` accepts: `Right(Entry(Zionomicon,List(),None,1))` from both.
+
+**Root cause.** The JSON codec fills absent fields in `JsonFieldInfo#setMissingValueOrError` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:3155-3179` when reading text, `:3182-3204` when decoding a `Json` value): the default value from `Reflect#getDefaultValue` first (`getDefaultValue` at `:3027-3029`), then `None` when `isOptional` (`:616`, unless `withRequireOptionFields`), then `emptyCollectionConstructor()` (`:588-590`, unless `withRequireCollectionFields`), and only then `missing required field`. `Reflect.Record#fromDynamicValue` (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:407-445`) has no such fallback: after reading the record's fields, every field it did not see goes straight to `SchemaError.missingField` (`:437-441`).
+
+**Impact.** A payload that passes `json.as[A]` in one place fails validation in another, for the most common optional shapes (absent `Option`, empty list left out, defaulted field). Users of the error-collecting route have to send every field, which the JSON codec's own encoder does not do: it leaves out `None`, empty collections and default values by default. Verified on 2.13.18: `Json.from(Entry("Zionomicon", Nil, None)).print` is `{"title":"Zionomicon"}`, and `fromDynamicValue` of its `toDynamicValue` fails with the same three `Missing field` errors, while `Schema#toDynamicValue` of the same value round-trips.
+
+**Test gap.** No test decodes the same `Json` through both routes, and no `fromDynamicValue` test covers an absent `Option`, collection or defaulted field.
+
+**Suggested fix.** In the missing-field loop of `Reflect.Record#fromDynamicValue`, apply the same order as the codec before reporting `missingField`: the field's default value, `None` for an `Option`/`Maybe` field, an empty collection for a sequence or map field. Or document the difference in `dynamic-value.md` and `json.md` if it is intended.
+
+### schema: `PatchMode.Strict` does not detect that the target changed, so a diff's list removal deletes whatever sits at the index
+
+Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Verified on Scala 2.13.18 (`zio-blocks-schema` 0.0.56) and Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`); the patch code is the same at tag `v0.0.56`.
+
+**Summary.** `Schema#diff` records list removals by index (`- [1]`), numbers as deltas (`-= 5.00`) and string changes as edits at a position. `PatchMode.Strict` only checks that each operation *fits* the value it is applied to (the index is in range, the map key exists or is absent). It never checks that the value still holds what it held when the patch was made. Applied to a value that changed in the meantime, a Strict patch returns `Right` and silently removes the wrong list element or produces a price nobody set. `PatchMode`'s Scaladoc says only "Fail on precondition violations", and `patch.md` says Strict "fails immediately if any operation cannot be applied" and to use it "when you need to know if every operation succeeded", which readers take to mean conflict detection.
+
+**Reproduction** (run with scala-cli; the same output on both versions, the Scala 3 file uses `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-schema`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.patch._
+
+final case class Book(id: String, title: String, price: BigDecimal, tags: List[String])
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+object Main extends App {
+  val base = Book("zionomicon", "Zionomicon", BigDecimal("44.99"), List("zio", "scala", "effects"))
+
+  // The editor removes the "scala" tag (index 1) and lowers the price to 39.99.
+  val patch = Book.schema.diff(base, base.copy(price = BigDecimal("39.99"), tags = List("zio", "effects")))
+  println(patch)
+  // DynamicPatch {
+  //   .price -= 5.00
+  //   .tags:
+  //     - [1]
+  // }
+
+  // Meanwhile someone else removed "scala" and set the price to 42.00.
+  val current = base.copy(price = BigDecimal("42.00"), tags = List("zio", "effects"))
+  println(patch(current, PatchMode.Strict))
+  // Right(Book(zionomicon,Zionomicon,37.00,List(zio)))
+}
+```
+
+The `effects` tag is gone although nobody removed it, and the price is 37.00 although nobody set it.
+
+**Expected.** Either Strict detects the conflict (a removal that carries the removed value, like RFC 6902's `test`, or a check of the old value before a delta), or the documentation says plainly that no mode detects a changed target.
+
+**Root cause.** `SeqOp.Delete` carries only `index` and `count` (`schema/shared/src/main/scala/zio/blocks/schema/patch/DynamicPatch.scala:877`), and `applySeqOp` checks only the bounds (`DynamicPatch.scala:705-712`). Numeric deltas and string edits likewise check only types and bounds (`DynamicPatch.scala:619-657`). `Differ` emits these operations for every changed list, number and string (`schema/shared/src/main/scala/zio/blocks/schema/patch/Differ.scala`).
+
+**Impact.** Silent data corruption in exactly the cases patches are used for: syncing an offline client, merging two editors' changes, replaying a stored patch.
+
+**Test gap.** `PatchLawsSpec` checks `diff(a, b)(a) == b` only on the value the patch was computed from; no test applies a diff to a changed value.
+
+**Suggested fix.** Document the limitation on `PatchMode` and in `patch.md`, and show the safe pattern (check that the value is unchanged, e.g. a version number, before applying; the guide does this). Optionally, add a value-checking operation (a `Test(path, expected)` op) and have `Differ` emit it before index-based removals.
+
+### schema: a stored `DynamicPatch` cannot be turned back into a `Patch[A]` on Scala 3, but can on Scala 2.13
+
+Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Verified on Scala 2.13.18 (`zio-blocks-schema` 0.0.56) and Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`).
+
+**Summary.** `Patch[A]` has no `Schema`, so the way to store a patch is its `DynamicPatch` (which has one). After decoding, there is no public way to wrap the `DynamicPatch` in a `Patch[A]` again: the constructor is `private[schema]`. On Scala 2.13 the case class's synthetic `Patch.apply` stays public, so `Patch(stored, schema)` compiles there and fails on Scala 3, which makes the synthetic `apply` as private as the constructor.
+
+**Reproduction** (run with scala-cli):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.patch._
+
+final case class Book(id: String, title: String, price: BigDecimal)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+object Main extends App {
+  val book   = Book("zionomicon", "Zionomicon", BigDecimal("44.99"))
+  val stored = Book.schema.diff(book, book.copy(price = BigDecimal("39.99"))).dynamicPatch
+  val typed: Patch[Book] = Patch(stored, Book.schema)
+  println(typed(book, PatchMode.Strict))
+  // Right(Book(zionomicon,Zionomicon,39.99))
+}
+```
+
+The same file with `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-schema` fails to compile:
+
+```
+-- [E050] Type Error: B.scala:13:27
+13 |  val typed: Patch[Book] = Patch(stored, Book.schema)
+   |                           ^^^^^
+   |object Patch in package zio.blocks.schema.patch does not take parameters
+```
+
+**Expected.** A public, cross-version way to get a `Patch[A]` from a `DynamicPatch`, such as `Patch.fromDynamic(patch: DynamicPatch)(implicit schema: Schema[A])` or `Schema#patch(value, patch: DynamicPatch)`.
+
+**Root cause.** `final case class Patch[S] private[schema] (dynamicPatch: DynamicPatch, schema: Schema[S])` (`schema/shared/src/main/scala/zio/blocks/schema/patch/Patch.scala:49`) and no factory in the companion takes a `DynamicPatch`.
+
+**Impact.** Code that stores patches works on Scala 2.13 and breaks when the project moves to Scala 3. The portable workaround is `dynamicPatch(schema.toDynamicValue(a), mode).flatMap(schema.fromDynamicValue)`, which the guide wraps in an `applyStored` helper; `patch.md`'s serialization section shows neither.
+
+**Test gap.** `SerializationSpec` round-trips `DynamicPatch` but never applies a decoded patch to a typed value.
+
+**Suggested fix.** Add the factory, and compile with `-Xsource-features:case-apply-copy-access` on Scala 2.13 so the synthetic `apply` follows the constructor's access.
+
+### schema: map patch errors don't name the key
+
+Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Verified on Scala 2.13.18 and 3.9.0 against 0.0.56.
+
+**Summary.** When a map operation fails in `PatchMode.Strict`, the error names the map but not the key: `Key not found in map at: .books` or `Key already exists in map at: .books`. With a catalog of many books, the reader cannot tell which book caused the conflict.
+
+**Reproduction.** Add these lines to the reproducer of the `toString` entry under Library bugs:
+
+```scala
+  val removePis = Catalog.schema.diff(after, before)
+  println(removePis(before, PatchMode.Strict))
+  // Left(zio.blocks.schema.SchemaError: Key not found in map at: .books)
+```
+
+**Expected.** `Key "programming-in-scala" not found in map at: .books`, or a path that ends in the key (`.books("programming-in-scala")`).
+
+**Root cause.** The messages are fixed strings (`schema/shared/src/main/scala/zio/blocks/schema/patch/DynamicPatch.scala:329,767,774,779`), and the trace stops at the map.
+
+**Suggested fix.** Include the rendered key in the message, or push a `DynamicOptic.Node.AtMapKey` step onto the trace.
+
+### schema (Scala 3): `Binding.of` of a structural record type fails with `zio-blocks-schema` on every Scala 3 version, and the error says to upgrade to Scala 3.5 (0.0.56; fixed on `main` by #1743)
+
+Found 2026-10-21 while writing the Scaladoc of the `binding` package (wave 3 of the schema Scaladoc, branch `scaladoc-wave-3`, on top of `5fd81ef4`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: both reproductions below were run with `scala-cli run Repro.scala` against the published `0.0.56`.
+
+**Status on `main` (checked 2026-10-22 at `bffadae7` plus the wave 3 commits).** #1743 (`3defefab`) fixes this for the next release. `zio-blocks-schema` is now built with Scala 3.9.0 (`project/BuildHelper.scala:11`; the `zio-blocks-next-*` rename now needs `minor >= 10`, `:176-181`), so it compiles the `scala-3.5+` version of the macro support (`findApplicableScala3MinorDirs`, `:97`). Verified with a local publish of `main` (`set ThisBuild / version := "0.0.0-wave3probe"; ++3.9.0; chunkJVM/publishLocal; maybeJVM/publishLocal; markdownJVM/publishLocal; typeidJVM/publishLocal; schemaJVM/publishLocal`): the reproduction below, with `//> using repository ivy2Local`, `//> using dep dev.zio::zio-blocks-schema:0.0.0-wave3probe` and `//> using option -experimental`, compiles and prints `Record`. The `-experimental` in that probe is needed only because of a separate regression from #1743, recorded in its own entry titled "build (Scala 3): every main-line artifact was built with -experimental after #1743, so every Scala 3 user needed -experimental" and fixed in #1826; once that build fix lands, the reproduction compiles without it. No build compiles the `scala-3.5-` sources, with their misleading message, any more.
+
+**Summary (0.0.56).** The Scaladoc of `Binding.of` listed "Structural types (JVM only)". With the `zio-blocks-schema` artifact, `Binding.of` of a structural record type never compiles on Scala 3, whatever the compiler version: that artifact is built with Scala 3.3.7, so it contains the `scala-3.5-` version of the macro support, which always fails. Its error says "requires Scala 3.5+" and suggests upgrading to Scala 3.5, which does not help. Structural record types work only with the `zio-blocks-next-schema` artifact, which needs Scala 3.9 and `-experimental`; a union of structural types does not use this macro and compiles with `zio-blocks-schema` too.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.binding._
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val binding = Binding.of[{ def title: String; def year: Int }]
+    println(binding)
+  }
+}
+// [error] ./Repro.scala:7:19
+// [error] Binding.of for structural types requires Scala 3.5+.
+// [error]
+// [error] The macro API `Symbol.newClass` used to generate structural type
+// [error] constructors is marked @experimental and unavailable in Scala 3.3 LTS.
+// [error]
+// [error] Alternatives:
+// [error]   1. Use a case class instead:
+// [error]        case class Person(name: String, age: Int)
+// [error]        Binding.of[Person]  // works on all Scala 3 versions
+// [error]
+// [error]   2. Upgrade to Scala 3.5+ to use structural types:
+// [error]        Binding.of[{ def name: String; def age: Int }]
+// [error]
+// [error]   3. Use Schema[A].structural for structural schema without Binding.of:
+// [error]        given schema: Schema[Person] = Schema.derived
+// [error]        val structuralSchema = schema.structural  // works on all Scala 3 versions
+// [error]     val binding = Binding.of[{ def title: String; def year: Int }]
+// [error]                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// Error compiling project (Scala 3.9.0, JVM (21))
+// Compilation failed
+```
+
+With `//> using dep dev.zio::zio-blocks-next-schema:0.0.56` and `//> using option -experimental`, the same file compiles and prints `Record(Main$$anon$1@2c8d66b2,Main$$anon$2@5a39699c)`.
+
+**Expected.** Either the error names what works (the `zio-blocks-next-schema` artifact with Scala 3.9 and `-experimental`), or the `zio-blocks-schema` artifact supports structural record types.
+
+**Root cause (0.0.56; historical since #1743).** At `v0.0.56`, `project/BuildHelper.scala` (`stdSettings`, the `moduleName` rule `minor >= 7`) published the Scala 3.3 build as `zio-blocks-schema` and the Scala 3.7+ build (in practice the 3.9.0 build, so consumers needed Scala 3.9+) as `zio-blocks-next-schema` (the `zio-blocks-schema_3` 0.0.56 POM depends on `scala3-library_3` 3.3.7). The 3.3 build compiled `schema/shared/src/main/scala-3.5-/zio/blocks/schema/binding/StructuralBindingMacros.scala`, whose `generateAnonymousClassFactory` (`:47` at HEAD) always fails with the message at `:52`-`:67`. It is called only for structural record types (`schema/shared/src/main/scala-3/zio/blocks/schema/binding/BindingCompanionVersionSpecific.scala:1377` at HEAD, through the helper at `:1444-1447`); unions of structural types use `deriveStructuralVariantBindingSimple` (`:1529`), which does not call it.
+
+**Impact.** A Scala 3 user who reads the Scaladoc or the error and upgrades the compiler still gets the same error. The Scaladoc of `Binding.of` and of the `scala-3.5-` `StructuralBindingMacros` now describe the `main` build and mention the 0.0.56 behaviour.
+
+**Test gap.** The structural `Binding.of` tests are in `schema/jvm/src/test/scala-3.5+/`, so at 0.0.56 they ran only in the 3.9 build, and nothing checked what the published 3.3 build did with a newer compiler. On `main` every Scala 3 build uses `scala-3.5+`.
+
+**Suggested fix.** Fixed for the next release by #1743. What remains: the `scala-3.5-` `StructuralBindingMacros` (and its "Upgrade to Scala 3.5+" error) is now unreachable, so delete it, or, if a pre-3.5 build is ever brought back, reword the error to name an artifact that works.
+
+### schema: `toJsonString`, `toJsonBytes` and `fromJson` on a `List`, `Option` or `Map` derive a new JSON codec on every call
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/tune-json-throughput.md` (backlog H-50), on `main` at `7e8ac787`. `JsonCodec`, `JsonReader`, `JsonWriter`, `ReaderConfig`, `WriterConfig` and `Schema` are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `Schema#jsonCodec` is a `lazy val`, so a codec is derived once per `Schema` instance. That works for a case class whose companion has `implicit val schema = Schema.derived`. But the schemas for collections and options are `implicit def`s that build a new `Schema` each time the compiler summons one, so the cache is always empty. Every `books.toJsonString`, `books.toJsonBytes` or `json.fromJson[List[Book]]` therefore derives a new `List[Book]` codec, including the codec for `Book` inside it, and throws it away. For small payloads the derivation costs far more than the encoding.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run`; timings from one run on scala-cli's default JVM, and they vary):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+
+case class Book(title: String, year: Int)
+object Book {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+object RederiveRepro {
+  def main(args: Array[String]): Unit = {
+    println(Schema[Book].jsonCodec eq Schema[Book].jsonCodec)
+    println(Schema[List[Book]] eq Schema[List[Book]])
+    println(Schema[List[Book]].jsonCodec eq Schema[List[Book]].jsonCodec)
+    println(Schema[Option[Book]].jsonCodec eq Schema[Option[Book]].jsonCodec)
+    println(Schema[Map[String, Book]].jsonCodec eq Schema[Map[String, Book]].jsonCodec)
+
+    // So every call of these extension methods derives a new List[Book] codec
+    val books = List(Book("Zionomicon", 2024), Book("Programming in Scala", 2008), Book("Scala with Cats", 2017))
+    val json  = books.toJsonString
+    def time(label: String)(f: => Any): Unit = {
+      (1 to 2000).foreach(_ => f) // warm-up
+      val start = System.nanoTime()
+      (1 to 2000).foreach(_ => f)
+      println(f"$label: ${(System.nanoTime() - start) / 2000 / 1000.0}%.0f us per call")
+    }
+    val held = Schema[List[Book]].jsonCodec
+    time("books.toJsonString       ")(books.toJsonString)
+    time("held codec encodeToString")(held.encodeToString(books))
+    time("json.fromJson[List[Book]]")(json.fromJson[List[Book]])
+    time("held codec decode        ")(held.decode(json))
+  }
+}
+// true
+// false
+// false
+// false
+// false
+// books.toJsonString       : 34 us per call
+// held codec encodeToString: 1 us per call
+// json.fromJson[List[Book]]: 20 us per call
+// held codec decode        : 1 us per call
+```
+
+**Expected.** Either the extension methods reuse one codec per element type, or the docs say plainly that `toJsonString` and `fromJson` on a collection type re-derive the codec on each call and should not be used on a hot path.
+
+**Root cause.** `Schema.list`, `Schema.option` and the other collection schemas are `implicit def`s returning `new Schema(...)` (`schema/shared/src/main/scala/zio/blocks/schema/Schema.scala:261`, `:314`, `:321` and the following definitions). The codec cache is a per-instance `ConcurrentHashMap` behind `lazy val jsonCodec` (`Schema.scala:36-43`). The extension methods call `schema.jsonCodec` on whatever instance the compiler supplies (`schema/shared/src/main/scala-2/zio/blocks/schema/syntax.scala:32-44`, and the same in `scala-3/`). `Schema#derive` (`Schema.scala:54`) never caches, by design.
+
+**Impact.** The shortest JSON code in the docs (`toJsonString`, `fromJson`) is the slowest on collection types, and nothing warns about it. A service that answers with `books.toJsonString` pays for a derivation on every request. The H-50 guide shows the check and tells readers to keep codecs in `val`s.
+
+**Test gap.** No test checks that summoning the same collection schema twice reuses its codec.
+
+**Suggested fix.** Cache derived codecs by the `Reflect` structure rather than by `Schema` instance (for example, memoize `getInstance` per element schema for the built-in collection schemas), or make the common collection schemas stable per element schema. If neither is wanted, document the cost on `syntax.md` and on the JSON codec reference page, and recommend `val listCodec = Schema[List[A]].jsonCodec`.
+
+### schema: decoding from an `InputStream` discards the bytes it read past the first value, so one stream can't hold several values
+
+Found 2026-10-21 while writing the how-to guide `docs/guides/tune-json-throughput.md` (backlog H-50), on `main` at `7e8ac787`. `JsonCodec`, `JsonReader`, `JsonWriter`, `ReaderConfig`, `WriterConfig` and `Schema` are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `JsonCodec#decode(input: InputStream)` fills its internal buffer with as much as the stream offers, decodes one value, and returns. Bytes that it read past the end of that value are dropped. With `ReaderConfig#withCheckForEndOfInput(false)`, decoding the same `ByteBuffer` twice returns two values, because the reader moves `position` back to the end of the first value. Decoding the same `InputStream` twice returns the first value and then fails, because the stream is already exhausted. Newline-delimited JSON or a sequence of concatenated documents can't be read from a stream one value at a time.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import java.io.ByteArrayInputStream
+import java.nio.ByteBuffer
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+case class Book(title: String, year: Int)
+object Book {
+  implicit val schema: Schema[Book] = Schema.derived
+}
+
+object StreamReadAheadRepro {
+  def main(args: Array[String]): Unit = {
+    val codec  = Book.schema.jsonCodec
+    val bytes  = codec.encode(Book("Zionomicon", 2024)) ++ codec.encode(Book("Programming in Scala", 2008))
+    val config = ReaderConfig.withCheckForEndOfInput(false)
+
+    val buffer = ByteBuffer.wrap(bytes)
+    println(s"ByteBuffer: ${codec.decode(buffer, config)}, ${codec.decode(buffer, config)}")
+
+    val stream = new ByteArrayInputStream(bytes)
+    println(s"InputStream: ${codec.decode(stream, config)}, ${codec.decode(stream, config)}")
+    println(s"bytes left in the stream: ${stream.available()} of ${bytes.length}")
+  }
+}
+// ByteBuffer: Right(Book(Zionomicon,2024)), Right(Book(Programming in Scala,2008))
+// InputStream: Right(Book(Zionomicon,2024)), Left(zio.blocks.schema.SchemaError: unexpected end of input at: .)
+// bytes left in the stream: 0 of 78
+```
+
+**Expected.** Either a way to read several values from one stream (jsoniter-scala, which this reader resembles, has `scanJsonValuesFromStream` for this), or a note in the Scaladoc of `JsonCodec#decode(input: InputStream)` that the stream must hold exactly one value and is read past it.
+
+**Root cause.** `loadMore` reads up to `buf.length - tail` bytes per call (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonReader.scala:5049-5053`), so the reader routinely holds bytes past the current value. The `InputStream` overload of `read` only clears `this.in` when it returns (`JsonReader.scala:1752`); it has no way to push the extra bytes back. The `ByteBuffer` overloads restore the position instead (`JsonReader.scala:1798`, `:1817`).
+
+**Impact.** Users porting jsoniter-scala code that scans a stream of values, or reading NDJSON logs, must read the whole stream into a `ByteBuffer` or split lines themselves. The H-50 guide documents the limitation.
+
+**Test gap.** The stream round-trip helpers in `JsonTestUtils` (`schema/shared/src/test/scala/zio/blocks/schema/json/JsonTestUtils.scala:73`, `:97`, `:134`) always decode exactly one value per stream.
+
+**Suggested fix.** Add a `JsonCodec#decodeAll(input: InputStream, config)` (or a callback-based scan) that keeps one reader over the stream and decodes values until end of input, and document the one-value rule on the existing overload.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -2561,7 +5228,7 @@ Pages that contradict the source. None of these were copied into the new guides.
 - `modifier.md`, `transient`: does not say that a transient field's JSON value is ignored on decode and the default is used.
 - `schema-error.md` (lines 56-57, 171-172, 283-289, 313-316) shows `Missing field 'x' at: .path` as the decode result. JSON decoding reports `missing required field "x" at: .path` (`JsonReader.scala:89`).
 - `syntax.md` shows `show` output as `Record { name = Alice, age = 30 }`; the real output is the EJSON form (`DynamicValue.toString`).
-- `Schema.fromJsonSchema` Scaladoc (`Schema.scala:357-358`) says values are validated "during construction"; validation happens at decode time (`:366-370`).
+- `Schema.fromJsonSchema` Scaladoc (`Schema.scala:357-358`) says values are validated "during construction"; validation happens at decode time (`:366-370`). Fixed in the wave 1 Scaladoc (branch `scaladoc-wave-1`).
 - `validation.md:356-373` says `Validation` constraints become `minimum`, `maxLength`, `pattern` and so on in `toJsonSchema`. They do not; only parsing a JSON Schema maps them (`JsonSchemaToReflect.scala:261-285`).
 - `validation.md:304` uses `JsonDecoder[Order].decodeString`; `JsonDecoder` was removed in #1240.
 - `validation.md` code blocks that do not compile at 0.0.56 (verified with scala-cli on Scala 2.13.18 while writing H-04; the page has no mdoc blocks, so nothing caught them): `.withTypeName[...]` at lines 218, 235, 252, 401 and 420 (`value withTypeName is not a member of zio.blocks.schema.Schema[...]`; the type name comes from the implicit `TypeId` that `Schema#transform` takes, `Schema.scala:185`); `transform(wrap = ..., unwrap = ...)` at lines 266-273 (`unknown parameter name: wrap`; the parameters are `to` and `from`); `DynamicValue.Record(Vector(...))` at lines 324 and 348 (`overloaded method apply ... cannot be applied`; it takes a `Chunk` or `(String, DynamicValue)*`, `DynamicValue.scala:595`).
@@ -2570,6 +5237,18 @@ Pages that contradict the source. None of these were copied into the new guides.
 - `schema-error.md:41-43` says multiple independent problems are surfaced all at once and that every `Codec#decode` returns them in one `SchemaError`. The JSON and TOON codecs stop at the first failure; only `Schema#fromDynamicValue` (and `Into.derived`) collect every error. Found while writing H-04, which shows both.
 - `json-schema.md:366` shows an error message without the ` at: <path>` suffix that `SchemaError.message` adds. The page also does not mention the `pattern` anchoring behaviour above.
 - `ValidationOptions` Scaladoc (`JsonSchema.scala:376-377`) says format checks are annotation-only by default; the code defaults to `validateFormats = true`.
+- `json-config.md:89-92`: the `ReaderConfig` table gives `preferredCharBufSize` a default of `8192`; the default is `4096` (`ReaderConfig.scala:108`). The table also leaves out `preferredBufSize` (32768), `maxBufSize` (33554432) and `maxCharBufSize` (4194304), so the two safety limits are undocumented on the reference page. Found while writing H-50.
+- `json-config.md:208` says "`checkForEndOfInput` adds one comparison". After the value, the reader skips all trailing whitespace and, for an `InputStream` or `ByteBuffer`, keeps reading input to do it (`JsonReader.scala:1831-1850`). `:207` ("minimal performance impact" of indentation) and `:214` ("compact output is faster") are not backed by any benchmark in the repo. Found while writing H-50.
+- `json/index.md:66-67` lists "order" as a `WriterConfig` option and "number handling" as a `ReaderConfig` option. Neither exists: `WriterConfig` has `indentionStep`, `preferredBufSize` and `escapeUnicode` (`WriterConfig.scala:42-44`), and `ReaderConfig` has only buffer sizes and `checkForEndOfInput` (`ReaderConfig.scala:50-54`). Found while writing H-50.
+
+- `json.md:25` says "Objects use `Vector[(String, Json)]`". `Json.Object` holds a `Chunk[(String, Json)]` (`Json.scala:493`). Found while writing H-06; verified.
+- `json.md:66-86` ("String Interpolators") says the `json"..."` interpolator is compile-time validated, without saying it does not compile on Scala 2.13 in user code (see Library bugs).
+- `json.md:471` says the `Auto` merge strategy concatenates arrays, and the table at `json.md:494-501` lists a `Deep` strategy and says `Auto` and `Shallow` concatenate arrays. There is no `Deep` (`MergeStrategy.scala:37-115` has `Auto`, `Replace`, `Shallow`, `Concat`, `Custom`); `Auto` merges arrays by index (`{"arr":[1,2]}` merged with `{"arr":[9]}` gives `[9,2]`), and `Shallow` takes the right array (`[9]`). Verified with 0.0.56.
+- `json.md:732-736` shows `toKV` output as `($.a.b, Json.Number(1))`. It prints `Chunk((.a.b,1),(.a.c,2))`; `DynamicOptic` has no `$` prefix. Verified.
+- `json.md:904-905` shows `Left(SchemaError: Index 5 out of bounds at path $.users[5])`. The real message is `Index 5 out of bounds (size: 1) at: [5]` (`Json.scala:671-672`): no `$`, and the path holds only the index. Verified.
+- `json-selection.md:92` says to access elements "using `JsonSelection#apply` or `JsonSelection#get`". `JsonSelection` has `apply(index: Int)` (`JsonSelection.scala:182`) but no `get(Int)`; the example compiles only because `data` is a `Json`, which has `get(index)`.
+- `json-selection.md:284` shows `data.get("age").error  // Some(SchemaError("field not found"))`. The message is `Key 'age' not found` (`Json.scala:508-516`). Verified.
+- `JsonSelection` Scaladoc (`JsonSelection.scala:29`) shows `json.get("users").asArrays.apply(0).get("name").asStrings`; there are no `asArrays`/`asStrings` (they became the `arrays`/`strings` filters in #830). `Json` Scaladoc (`Json.scala:40`) says "Numbers use `String`"; `Json.Number` holds a `BigDecimal` (`Json.scala:796`).
 
 **schema / optics and paths**
 
@@ -2586,11 +5265,34 @@ Pages that contradict the source. None of these were copied into the new guides.
 - Line 1044 shows `Expected sequence, got: invalid`; the source message is `Expected array header with [`.
 - Lines 14 and 659 say there are three array formats; there are four.
 
+**openapi (`openapi.md`)**
+
+Found while writing H-39 (`docs/guides/write-and-export-openapi.md`, 2026-10-21) and fixed in the same PR:
+
+- The signature at the top of the page showed `servers` and `security` as `Option[Chunk[...]] = None`; both are `Chunk[...] = Chunk.empty`, and the signature left out `jsonSchemaDialect`, `webhooks`, `tags`, `externalDocs` and `extensions` (`OpenAPI.scala:58-70`). The type diagram had the same `Option` types, `requestBody` without its `Option`, and `Map` where the source uses `ChunkMap`.
+- Installation showed only `zio-blocks-openapi`, without the `zio-blocks-next-openapi` artifact for Scala 3.9 and newer or the `schema-yaml` module for YAML.
+- "Integration Points" said Markdown descriptions round-trip correctly; a document with `md"..."` descriptions is not `==` to itself after a round trip (see Library bugs), and the page never said that `encodeToString` throws.
+- "Parameter" listed `schema` as required; it is `Option[ReferenceOr[SchemaObject]] = None` (`OpenAPI.scala:589`).
+- "Operation" called `responses` required; it defaults to `Responses()` (`OpenAPI.scala:311`).
+- "Common Extension Fields" said all types have `x-*` extensions; `Reference`, `XML`, `Discriminator` and `SecurityRequirement` have no `extensions` field.
+
 **config (`formats.md`, HOCON section)**
 
 - Line 191 says `include` directives are resolved through a callback, so includes "come from a classpath, an archive, or a test fixture". Through the public `ConfigSource` API there is no callback (see the dropped-includes bug) and no classpath loader.
 - Line 247 says `HoconError` carries the line and column. That holds only for lexer errors; resolution errors report 0:0. From source.
 - The HOCON section has no warnings for the dropped includes, environment substitutions, array concatenation and duration/size syntax above.
+
+**http-model (`schema.md`)**
+
+- "RequestSchemaOps" says it "exposes all methods from `QueryParamsSchemaOps` and `HeadersSchemaOps` directly on `Request`", "ResponseSchemaOps" says the same for `Response`, and the "How They Work Together" diagram lists `RequestSchemaOps.header[T](name)` and `ResponseSchemaOps.header[T](name)`. `request.header[T](name)` and `response.header[T](name)` do not compile (see Library bugs). The page's own examples quietly use `request.headers.header[T]`. Found while writing H-36.
+- "Supported Types" says the module "supports decoding to any type with a `Schema[T]` instance", and "Custom Types" says to "provide a `Schema[T]` instance". Only primitive schemas decode; `Option`, collections and wrapper types return `Malformed(..., "Unsupported schema type for string decoding")` (see Usability traps). Found while writing H-36.
+
+**schema / binding** (found and fixed while writing the `binding` Scaladoc, wave 3)
+
+- `binding.md` showed `defaultValue` and `examples` fields on every `Binding` case class, a `Wrapper` with `wrap: B => Either[SchemaError, A]`, `Binding[T <: BindingType, A]`, a `SeqConstructor.Boxed` class with `ObjectBuilder`/`newObjectBuilder`/`addObject`, field names `seqConstructor`/`mapConstructor`, an `ArraySeq` binding in `Binding.Seq`'s companion and "stack-allocated" arrays. None of these match `Binding.scala`, `SeqConstructor.scala` or `MapConstructor.scala`; the page now shows the real signatures.
+- `registers.md` said a `RegisterOffset` is an `Int` with 16-bit halves; it is a `Long` with 32-bit halves (`schema/shared/src/main/scala-2/zio/blocks/schema/binding/RegisterOffset.scala:44`, `:73`, the same lines in the `scala-3` copy). Its list said `RegisterOffset(bytes = 4, ints = 2, objects = 3)` points at byte 8; it is byte 12, as the page's own `getBytes` example shows.
+- `binding-resolver.md` bound `Binding.of[Email]` and then called `resolveWrapper[Email]`, which returns `None`: for a plain single-field case class, `Binding.of` derives a `Binding.Record` (verified with 0.0.56; rebinding the `Schema#transform` schema with it throws `RebindException: Missing Wrapper binding for type Email`). The `UserId` example in "Combining Resolvers" had the same mistake. Both now bind a `Binding.Wrapper` explicitly.
+- Scaladoc: `Registry#bind` said `Binding.of[A]` returns `Any` on Scala 2 (its static type is `Binding[_, A]`); `StructuralReflection` said the `Binding.of` macro uses it (only tests do; the macros generate their own `getMethod` calls).
 
 ### docs: `formats.md` says infinite HOCON numbers keep their `Double` rendering
 
@@ -2850,6 +5552,7 @@ object Employee { implicit val schema: Schema[Employee] = Schema.derived }
 - `streams/index.md:78` lists Kyo RC6 and Ox 1.0.6; the build pins RC7 and 1.1.0.
 - `docs/index.md` and `built-in-codecs/json/index.md:39,45` give `zio-blocks-schema` for every Scala version; Scala 3.7+ uses `zio-blocks-next-schema`. H-01 (stalled) includes this fix.
 - `combinators.md` documents a `Choices` module that does not exist (research §9.6).
+- `query-dsl-sql.md` "Compile-time SQL Dumps" (around lines 1080-1095) and the `Dump` Scaladoc (`Dump.scala:25-30`, `:547-549`) say query dumps are named `<owner>-<dialect>.sql` and fall back to `query`. `Dump.dumpQuery` writes `<name>_query-<dialect>.sql` (the `-query` suffix is sanitized to `_query`), named after the `val` it is assigned to, else after the owner, else `<type>_query`. Found while writing H-19; see the `Dump.dumpQuery` library bug.
 - `docs/dev/research.md` cites stale line numbers (for example `Transactor.scala:65` is now `:261`/`:275`, `Table.scala:32` is now `:262`).
 
 ### docs: the streams overview marks `fromInputStream` and `fromJavaReader` as JVM-only, but they also run on Scala.js
@@ -2898,8 +5601,49 @@ object Repro {
 
 Fixed in #1796 (H-24).
 
+### docs: telemetry pages give the wrong JDK requirement, no Scala 3.9 artifact, and a double-printing example
+
+Found 2026-10-21 while writing T-12, on `main` at `a44dc6db` (same at `v0.0.56`). Verified against the published 0.0.56 on JDK 17, 21 and 25.
+
+- **JDK.** The JVM module is compiled with `-release 21` (`build.sbt:746-755`). On JDK 17 even compiling a `log.*` call fails, because the log macros run inside the compiler: `java.lang.UnsupportedClassVersionError: zio/blocks/telemetry/LogMacros$ has been compiled by a more recent version of the Java Runtime (class file version 65.0), this version of the Java Runtime only recognizes class file versions up to 61.0` (verified with `scala-cli run --server=false --jvm 17`; without `--server=false`, scala-cli compiles on its own newer JVM and hides this). Code that only uses spans or metrics compiles on JDK 17 and fails the same way at run time (`zio/blocks/telemetry/trace$`). On JDK 21 it works without `--enable-preview`, including span context propagation through `ScopedValue` (a preview API in JDK 21 to 24, final in 25): a log line inside a nested span carries the span's ids, and the child's parent is the outer span. `telemetry-guide.md:1032` and `:1113` call `ScopedValue` storage "JDK 25+", and the `ContextStorage` Scaladoc says "Pure ScopedValue storage for JDK 25+" (`telemetry/jvm/src/main/scala/zio/blocks/telemetry/ContextStorage.scala:49`); the installation sections of `reference/telemetry/index.md` and `telemetry-guide.md` gave no JDK requirement. Fixed in the T-12 PR: both installation sections now say JDK 21 or newer, and the guide's JDK 25 wording is corrected.
+- **Test and CI gap.** The telemetry and otel tests run only on JDK 25 (`whenJdkAtLeast(25, "telemetryJVM/test; otel/test")`, `build.sbt:149` and `:155`), although the published jar targets Java 21. Nothing in CI runs the module on JDK 21.
+- **Scala 3.9.** Neither installation section said that Scala 3.9 and newer use `zio-blocks-next-telemetry` with `-experimental` (without the flag, 0.0.56 fails with `LogVersionSpecific is marked @experimental`). Fixed in the T-12 PR in `reference/telemetry/index.md`.
+- **Double printing.** `reference/telemetry/logging/index.md:178-183` adds `log.writer(TextLogFormatter, StdoutWriter)` and `log.writer(JsonLogFormatter, StderrWriter)` as "human-readable text to stdout, JSON to stderr". `log.writer` is additive and the default console output stays, so every line is printed twice on standard output, once by the default output and once by the new writer, plus once as JSON. The example needs `log.install(LoggerProvider.builder.build().get(...))` first. Not fixed here.
+- **`removeAll`.** `reference/telemetry/logging/index.md:176` says `log.*` calls become no-ops after `log.removeAll()` "until you add an output again"; adding an output with `writer` or `addProcessor` doesn't restore them (see the library bug above). Not fixed here.
+- **Histogram boundaries.** The `HistogramDataPoint` Scaladoc calls `boundaries` "upper exclusive boundaries for each bucket" (`telemetry/shared/src/main/scala/zio/blocks/telemetry/MetricData.scala:68`), but `Histogram.findBucketIndex` puts a value in the first bucket whose boundary is `>=` the value (`value <= boundaries(i)`, `Histogram.scala:98-105`), so the boundaries are inclusive upper bounds, as in OpenTelemetry. From source; not fixed here.
+- **Missing ADR.** `ContextStorage.scala:28` links `docs/adr/0001-scoped-context-no-set.md`, which never existed (already noted in `backlog.md`).
+
+### docs: `patch.md` has six snippets that don't compile and several claims the source contradicts
+
+Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Every snippet in `docs/reference/schema/patch.md` sits in a plain ```` ```scala ```` fence, so none was ever compiled. Each was run with scala-cli on Scala 2.13.18 against `zio-blocks-schema` 0.0.56 (a few also on Scala 3); the patch code is the same at tag `v0.0.56`.
+
+**Snippets that don't compile.**
+
+- Lines 162-203 (String Edits): `Patch.editString(Document.content, Vector(Patch.StringOp.Insert(0, "Hello ")))` and four more `Vector(...)` calls fail with `type mismatch; found: Vector[Patch.StringOp.Insert] required: zio.blocks.chunk.Chunk[Patch.StringOp]`. `editString` takes a `Chunk` (`Patch.scala:412`). Fix: `import zio.blocks.chunk.Chunk` and `Chunk(...)`; the shown results are then right. The table at line 605 should also give the type, `edits: Chunk[Patch.StringOp]`.
+- Lines 362-368 (modifyKey): `implicit val intSchema: Schema[Int] = Schema[Int]` fails with `forward reference to value intSchema ... extends over definition of value intSchema`, and the `Patch(DynamicPatch.root(...), Schema[Int])` that follows compiles only on Scala 2.13 (see the Usability traps entry on rebuilding a `Patch`). Fix: `val incrementValue: Patch[Int] = Schema[Int].diff(0, 10)`, which gives the page's `UserSettings(Map(volume -> 60, brightness -> 80))` on both versions.
+- Lines 463-471 (Lenient): `patch1 ++ patch2` combines a `Patch[Data]` with a `Patch[Counter]` and fails with `type mismatch; found: Patch[Counter] required: Patch[Data]`. Fix: `val patch2 = Patch.append(Data.items, Vector(4))`; then Lenient gives `Right(Data(Vector(1, 2, 3, 4)))` and Strict `Left(... Delete range [10, 11) out of bounds for sequence of length 3 at: .items)`.
+- Lines 507-519 (Diffing Values): `val new = Person("Alice", 26)` fails (`new` is a keyword: `illegal start of simple pattern`). It also needs the `Person(name, age)` of line 26, which line 61 redefined as `Person(name, address)`. Fix: `oldValue` / `newValue`; better, show the typed `Schema#diff` and `Schema#patch` (`Schema.scala:122-125`), which the page never mentions.
+- Lines 565-573 (Serializable Operations): `JsonEncoder.encode(patch.dynamicPatch)` fails with `not found: value JsonEncoder`; no such object exists. Fix: `Schema[DynamicPatch].jsonCodec.encodeToString(patch.dynamicPatch)` and `Schema[DynamicPatch].jsonCodec.decode(json)`.
+
+**Claims the source contradicts.**
+
+- Lines 433-457 (`PatchMode.Strict` "fails immediately if any operation cannot be applied"; "use Strict when you need to know if every operation succeeded"): Strict checks only structural preconditions and never that the target is unchanged (see the Usability traps entry on `PatchMode.Strict`).
+- Lines 475-491 (`Clobber` "attempts to force operations through, using fallback behaviors"; "force updates regardless of preconditions"): Clobber differs from Lenient in three places only: a map `Add` of an existing key overwrites it (`DynamicPatch.scala:766`), a map `Remove` of a missing key is a no-op (`:773`), and out-of-range sequence inserts and deletes are clamped (`:700`, `:708`). `modifyAt` out of range, `modifyKey` on a missing key, out-of-range string edits and a prism case mismatch are skipped exactly as in Lenient.
+- Line 416 (`apply` "uses Lenient mode and returns the original value on failure"): under Lenient the failing operations are skipped and the rest are applied; the original comes back only if the final `fromDynamicValue` fails (`Patch.scala:59-66`). `(Patch.deleteAt(Data.items, 10, 1) ++ Patch.append(Data.items, Vector(4)))(Data(Vector(1, 2, 3)))` gives `Data(Vector(1, 2, 3, 4))`.
+- Lines 80-84 (`set` works with all optic types): `Patch.set` with a Prism does not switch cases. On a `Square`, `Patch.set(Shape.circle, Circle(5.0))` gives `Left(SchemaError: Expected case Circle but got Square at: .when[Circle])` under Strict and the unchanged `Square` otherwise (`DynamicPatch.scala:342-356`). A Traversal over an empty sequence fails under Strict with `encountered an empty sequence at: .items.each`.
+- Lines 556-558 (Diff Example comment): `metadata["level"]: increment from "1" to "2"` is wrong; strings never get a delta. The real patch is `.metadata: ~ {"level"}: . = "2"` (`Differ.scala:135-147`).
+- Line 16 (Overview, "Schema Evolution — Patches ... adapting as data structures evolve"): patches address fields by name; applying a patch to a type whose field was renamed gives `Left(SchemaError: Missing field 'title' at: .)`.
+- Lines 224-302 and 154 (the `CollectionDummy` and `DurationDummy` imports): unnecessary; the implicits resolve without any import. Line 235's LazyList support cannot be used: `Schema.derived` fails for a case class with a `LazyList` field on both versions (`type mismatch; found: Schema[Seq[Int]] required: Schema[LazyList[Int]]`), as `DynamicPatch.scala:936` admits.
+
+**Impact.** A reader copying the page hits compile errors in five sections, and the PatchMode section suggests Strict protects against concurrent changes, which it does not.
+
+**Suggested fix.** Convert the page to mdoc (one scope per section, distinct names; `Person` and `patch` are redefined across blocks today), apply the fixes above, and link the H-07 guide for the end-to-end diff, store and replay workflow.
+
+
 ## Resolved
 
+- schema: on Scala 3.10, direct optic access (`Person.name`) on a `DerivedOptics` companion stopped compiling outside `zio.blocks.schema`, because the `given Conversion` behind it needed the `private[schema]` `OpticsFor`; Scala 3.9 only warned. `OpticsFor` is now public. Fixed in #1743. The `DerivedOptics` Scaladoc no longer warns about it (wave 4 of the schema Scaladoc).
+- `json-patch.md:608` said that converting a `JsonPatch` to RFC 6902 is a matter of encoding it with its `Schema` and reformatting. The encoded patch holds number deltas and string edits that RFC 6902 cannot express, so the conversion needs the source document to compute `replace` values and must track list indices as earlier operations shift them. No other page or Scaladoc claims RFC 6902 compatibility. The sentence now says this and links the H-07 guide's converter. Fixed in #1815 (H-07).
 - `transactor-zio.md` mentioned `JdbcTransactor.postgresLayer` without saying it is an extension that needs `import zio.blocks.sql.zio.*` (found while writing H-17). Fixed on the H-21 branch `docs/h21-sql-from-zio`.
 - `type-class-derivation.md` "Customizing Derivation with Instance and Modifier Overrides": all four examples were uncompiled plain blocks, one with a `// ... AST overrides ...` placeholder and undefined types. Each is now a self-contained `mdoc:compile-only` block with the real JSON AST overrides. Fixed in #1787.
 - `jwt.md`: audience mismatch documented as `InvalidToken` (it is `InvalidClaim("aud", ...)`), missing `InvalidClaim`/`InvalidKey` rows, no key-format guidance, no frontmatter. Fixed in #1789 (H-37). The `JwtDecodeOptions` Scaladoc (`Jwt.scala:131-132`) still says `InvalidToken`; see the jwt entry above.
@@ -2911,3 +5655,143 @@ Fixed in #1796 (H-24).
 - sql: `sql-transactions.md` default isolation and PostgreSQL facts; `repo.md`/`table.md`/`ddl.md` upserts, `pageAfter` and the missing `PRIMARY KEY` caveat; `:memory:` warnings in `transactor.md` and `transactor-zio.md`; `db-con.md` `DbTx` members; the backlog's "sql has no JS backend" note. Fixed in #1760.
 - Codecs: `format.md` (`sealed trait`, real `BinaryFormat`/`TextFormat` signatures, which formats are binary); TOON `ArrayFormat.Auto` Scaladoc and `toon.md:706`; `csv.md` (`CsvConfig` ignored by derived codecs, runtime rejection, `Option` rejected); `xml.md` stale version; `built-in-codecs/index.md` artifact prefix. In PR #1773 (open).
 - `patch.md`: every snippet was a plain uncompiled fence; five sections did not compile (`editString` with `Vector`, `modifyKey` with a forward-referenced implicit, `Patch[Data] ++ Patch[Counter]`, `val new`, a non-existent `JsonEncoder`), and the Strict, Clobber, `Patch#apply`, Prism-`set`, LazyList and string-delta claims contradicted the source. The snippets are now mdoc blocks and the claims are corrected; see the H-07 entry "docs: `patch.md` has six snippets that don't compile and several claims the source contradicts". Fixed on `docs/patch-md-fixes`.
+
+### build (Scala 3): every main-line artifact was built with -experimental after #1743, so every Scala 3 user needed -experimental
+
+Found 2026-10-22 while reviewing the Scaladoc wave 3 branch, on `main` at `bffadae7` and still at `4a142547`. Introduced by #1743 (`3defefab`). Not in the release: `v0.0.56` builds its main line with Scala 3.3, and its artifacts need no flag on Scala 3.3.7 or 3.9.0. Verified by running against local publishes of `main` and of the fix.
+
+**Summary.** #1743 moved the main line (`zio-blocks-*`) to Scala 3.9 and the next line (`zio-blocks-next-*`) to Scala 3.10, but kept passing `-experimental` to every Scala 3 compile from 3.8 up. When a module is compiled with `-experimental`, scalac marks each of its top-level definitions `@experimental`. So every main-line Scala 3 artifact on `main` was experimental for its users: `Chunk(1, 2, 3)`, `Schema[Int]`, `derives Schema` and `Schema.derived` did not compile without `-experimental`.
+
+**Reproduction** (Scala 3.9.0 and scala-cli 1.10.1, against a local publish of `main` at `4a142547`: `sbt 'set ThisBuild / version := "0.0.0-exp1743"; ++3.9.0; chunkJVM/publishLocal; typeidJVM/publishLocal; markdownJVM/publishLocal; maybeJVM/publishLocal; schemaJVM/publishLocal'`, then `scala-cli run --server=false <file>`):
+
+```scala
+//> using scala 3.9.0
+//> using repository ivy2Local
+//> using dep dev.zio::zio-blocks-schema:0.0.0-exp1743
+import zio.blocks.schema._
+
+case class Book(title: String, year: Int) derives Schema
+
+object Main {
+  def main(args: Array[String]): Unit =
+    println(Schema[Book].jsonCodec.encodeToString(Book("Zionomicon", 2021)))
+}
+// -- Error: CaseClass.scala:6:50
+// 6 |case class Book(title: String, year: Int) derives Schema
+//   |                                                  ^
+//   |trait SchemaCompanionVersionSpecific is marked @experimental: Added by -experimental
+//   |
+//   |Experimental definition may only be used under experimental mode:
+//   |  1. in a definition marked as @experimental, or
+//   |  2. an experimental feature is imported at the package level, or
+//   |  3. compiling with the -experimental compiler flag.
+// -- Error: CaseClass.scala:6:50
+//    6 |case class Book(title: String, year: Int) derives Schema
+//      |                                                  ^
+//      |   object TypeId is marked @experimental: Added by -experimental
+//      ...
+//      |This location contains code that was inlined from SchemaCompanionVersionSpecific.scala:1186
+// 2 errors found
+// Compilation failed
+```
+
+Code that does not derive fails the same way, on every main-line object it touches:
+
+```scala
+//> using scala 3.9.0
+//> using repository ivy2Local
+//> using dep dev.zio::zio-blocks-schema:0.0.0-exp1743
+import zio.blocks.schema._
+import zio.blocks.chunk.Chunk
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    println(Chunk(1, 2, 3))
+    println(Schema[Int].jsonCodec.encodeToString(42))
+    println(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+  }
+}
+// -- Error: Plain.scala:9:12
+// 9 |    println(Chunk(1, 2, 3))
+//   |            ^^^^^
+//   |         object Chunk is marked @experimental: Added by -experimental
+//   ...
+// -- Error: Plain.scala:10:12
+// 10 |    println(Schema[Int].jsonCodec.encodeToString(42))
+//    |            ^^^^^^
+//    |       object Schema is marked @experimental: Added by -experimental
+//    ...
+// -- Error: Plain.scala:10:23
+// 10 |    println(Schema[Int].jsonCodec.encodeToString(42))
+//    |                       ^
+//    |       object Schema is marked @experimental: Added by -experimental
+//    ...
+// -- Error: Plain.scala:11:12
+// 11 |    println(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+//    |            ^^^^^^^^^^^^
+//    |     object DynamicValue is marked @experimental: Added by -experimental
+//    ...
+// -- Error: Plain.scala:11:35
+//    |   object PrimitiveValue is marked @experimental: Added by -experimental
+//    ...
+// 5 errors found
+// Compilation failed
+```
+
+With `-O -experimental` the second file prints `Chunk(1,2,3)`, `42` and `1`. The same two files against the published `0.0.56` on Scala 3.9.0 compile without the flag and print `{"title":"Zionomicon","year":2021}`, then `Chunk(1,2,3)`, `42` and `1`.
+
+**Expected.** A Scala 3.9 user of `zio-blocks-*` compiles without `-experimental`, as with 0.0.56. Only the next line (`zio-blocks-next-*`, Scala 3.10+) needs the flag.
+
+**Root cause.** `stdSettings` passed `-experimental` for every Scala 3 minor from 8 up (`project/BuildHelper.scala:232-234` at `4a142547`: `if (minor >= 8) { Seq("-experimental") ++ (if (minor >= 10) Seq.empty else Seq("-opt")) }`). That threshold dates from when 3.8+ was only the next line. #1743 moved the `zio-blocks-next-` rename to `minor >= 10` (`BuildHelper.scala:178`) but left `-experimental` at `minor >= 8`, so the 3.9 main line (and the Golem 3.8.3 build of streams and async) got it too. scalac 3.9.0 then adds `@experimental("Added by -experimental")` to every top-level definition of each compiled file (`Checking.checkAndAdaptExperimentalImports`, `dotty/tools/dotc/typer/Checking.scala:956-965` in `scala3-compiler_3-3.9.0`). No main-line source needs the flag: the whole build compiles on 3.9.0 without it, including the structural `Binding.of` macro, whose `Symbol.newClass` is no longer `@experimental` in scala-library 3.9.0.
+
+**Impact.** Release blocker. The next release would break every Scala 3 user of the main line: every call into chunk, schema, typeid and the other main-line modules would fail to compile until the user added `-experimental`, which also opts their own code into experimental mode.
+
+**Test gap.** Nothing compiled user code against the main line without `-experimental`. The in-build consumers (tests, `schema-scaladoc-check`) inherit the library's scalac options, `docs` adds `-experimental` itself (`build.sbt:1590`), and the examples builds use the published 0.0.56 and pass `-experimental` themselves.
+
+**Fix.** Pass `-experimental` only for Scala 3.10+ (`-opt` stays on 3.8 and 3.9), and compile `schema-scaladoc-check`'s Scaladoc examples without `-experimental` or `-language:experimental.*` below 3.10 (`BuildHelper.Scala3NextMinor` holds the one threshold for the `zio-blocks-next-` rename, the flag and this check), so the build fails if a main-line module ever gets the flag again. On the unfixed rule, `++3.9.0; schema-scaladoc-check/compile` fails with 23 `... is marked @experimental: Added by -experimental` errors; with the fix it passes, and both files above compile without the flag. Fixed in #1826.
+
+### typeid (Scala 3): `IsNominalType` and `IsNominalIntersection` accept an abstract type parameter, and the negative tests passed only because of `-experimental`
+
+Found 2026-10-22 by CI on #1826 (the `-experimental` fix above), on `main` at `4a142547`. The code is the same at tag `v0.0.56`. Verified by running against the published 0.0.56 on Scala 3.3.7 and 3.9.0, and against local publishes of #1826 before and after the fix.
+
+**Summary.** On Scala 3, `IsNominalType[A]` can be summoned for an unresolved type parameter `A`, which issue #1172 says must not compile. The derived `TypeId` then describes the parameter (`A`), not the type the caller passes. `IsNominalIntersection` accepts a type-parameter member the same way. Scala 2 rejects both. `IsNominalTypeNegativeSpec` checks exactly this, but passed only because the build compiled with `-experimental` (see Root cause); #1826 removed the flag and the spec failed.
+
+**Reproduction** (Scala 3.9.0, scala-cli 1.10.1, `scala-cli run --server=false Probe.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+import zio.blocks.typeid.IsNominalType
+
+def foo[A]: IsNominalType[A] = summon[IsNominalType[A]]
+
+@main def run() = {
+  println(foo[String].typeId)
+  println(foo[String].typeId.fullName)
+}
+// A
+// Probe$package.A
+```
+
+`//> using scala 3.3.7` prints the same.
+
+**Expected.** `foo` does not compile. With the fix (a local publish of #1826 as `0.0.0-nominalfix`, plus `//> using repository ivy2Local`):
+
+```
+-- Error: Probe.scala:6:55
+6 |def foo[A]: IsNominalType[A] = summon[IsNominalType[A]]
+  |                                                       ^
+  |Cannot derive IsNominalType for non-nominal type: A. Only classes, traits, objects, enums, and applied types are supported. Intersection types (A & B), union types (A | B), structural types, and type lambdas are not allowed.
+1 error found
+Compilation failed
+```
+
+**Root cause.** The Scala 3 macro's `isNominal` returns `true` for every `TypeRef` and every `TermRef` (`typeid/shared/src/main/scala-3/zio/blocks/typeid/IsNominalTypeVersionSpecific.scala:41-42`), and the `TypeRef` of a type parameter or an abstract type member is one of them; `F[Int]` with `F` a type parameter passes through `AppliedType` the same way. `IsNominalIntersectionVersionSpecific.scala:46-47` has a copy of the same function. The Scala 2 macro accepts a type only when `typeSymbol.isClass` or `isModuleClass` (`typeid/shared/src/main/scala-2/zio/blocks/typeid/IsNominalTypeVersionSpecific.scala:39-40`), so it rejects them.
+
+The negative tests hid it. Each did `val compiles = typeChecks("""...""")` and `assertTrue(!compiles)` (`typeid/shared/src/test/scala-3.4+/zio/blocks/typeid/IsNominalTypeNegativeSpec.scala:39-56` at `4a142547`). With `-experimental`, the snippet failed for an unrelated reason: `typeCheckErrors` on the same snippet returns only `Recursive value errs needs type ... while trying to compute the signature of value errs` (a cyclic reference on the untyped `val` that holds the result). So `typeChecks` returned `false` and the tests passed while the macro accepted the type. The third test, whose snippet expands no `IsNominalType` macro, passed either way.
+
+**Impact.** The #1172 guarantee does not hold on Scala 3: a DSL method `def contains[A: IsNominalType](a: A)` can be called from unconstrained generic code, and gets a `TypeId` for the type parameter instead of the real type. Any code that relies on `IsNominalType` to rule out abstract types, as the #1172 DSL pattern does, is affected. An applied type with an abstract argument is still accepted on both Scala 2 and 3, before and after this fix: `IsNominalType[List[A]]` derives, so `def f[A](xs: List[A]) = contains(xs)` still compiles.
+
+**Test gap.** The negative tests asserted only `!typeChecks(...)`, which passes for any compile error, including ones unrelated to the macro. No test covered abstract type members, applied type parameters or `IsNominalIntersection` with a type-parameter member.
+
+**Fix.** In #1826: `isNominal` accepts a `TypeRef` only when its symbol is a class, trait, object or enum (`isClassDef`) or an opaque type, follows aliases, and widens and dealiases a `TermRef` (`x.type` is nominal when `x`'s type is, so `pair.type` for `val pair: Pair[Int]` with `type Pair[X] = (X, X)` still works). Both macros share it. Two differences from Scala 2 remain: `x.type` for a value of an intersection type (`x: A & B`) is rejected on Scala 3 and accepted on Scala 2, and `lit.type` for `final val lit = 1` is accepted on Scala 3 and rejected on Scala 2 (as before this fix). The negative tests now assert the macro's own error message with `typeCheckErrors` (with an explicit `List[Error]` type, which also avoids the cyclic reference on 3.10, where `-experimental` is still on), and cover abstract type members, applied type parameters, the singleton type of a parameter's value and `IsNominalIntersection`, plus Scala 3 positives for an opaque type, an alias, an object singleton and the singleton types of a `Pair[Int]` and a `String` value. A shared `IsNominalTypeSpec` test checks the bare type parameter on Scala 2 and 3.

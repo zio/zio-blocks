@@ -20,24 +20,29 @@ import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
 import scala.annotation.tailrec
 
 /**
- * Printer for rendering Reflect types in SDL (Schema Definition Language)
- * format.
+ * Prints [[Reflect]] trees in a schema definition language; the `toString` of
+ * every node uses it.
  *
- * The SDL format is fully recursive and inline - every type is expanded to its
- * leaves. This makes schemas self-contained and easy to understand without
- * external lookups.
+ * Every node is printed inline, down to its leaves. A record, variant,
+ * sequence, map or wrapper node that was already printed earlier in the same
+ * call is printed as `deferred =>` and its type name instead, which stops a
+ * recursive type. The printer keeps those nodes in that set until the call
+ * ends, so such a node that is shared but not recursive, such as the schema of
+ * a case class used for two fields, also prints as `deferred =>` the second
+ * time. Primitive and dynamic nodes are always printed in full.
  */
 private[schema] object ReflectPrinter {
 
   /**
-   * Prints a Primitive reflect including its validation suffix.
+   * Prints a primitive node as its type name, followed by its validation, if
+   * any, as in `Int @Positive`.
    */
   private[schema] def printPrimitive[F[_, _], A](primitive: Reflect.Primitive[F, A]): String =
     sdlTypeName(primitive.typeId) + validationSuffix(primitive.primitiveType.validation)
 
   /**
-   * Prints a Record reflect in SDL format. Format: record TypeName { field1:
-   * Type1, field2: Type2, ... }
+   * Prints a record node as `record Name {`, then one `name: Type` line per
+   * field, then `}`.
    */
   def printRecord[F[_, _], A](record: Reflect.Record[F, A]): String =
     printRecord(record, 0, new java.util.IdentityHashMap())
@@ -65,8 +70,8 @@ private[schema] object ReflectPrinter {
   }
 
   /**
-   * Prints a Variant reflect in SDL format. Format: variant TypeName { | Case1, |
-   * Case2(field: Type), ... }
+   * Prints a variant node as `variant Name {`, then one `| Case` line per case
+   * with the case's fields, if any, in parentheses, then `}`.
    */
   def printVariant[F[_, _], A](variant: Reflect.Variant[F, A]): String =
     printVariant(variant, 0, new java.util.IdentityHashMap())
@@ -87,8 +92,8 @@ private[schema] object ReflectPrinter {
   }
 
   /**
-   * Prints a Sequence reflect in SDL format. Format: sequence
-   * TypeName[ElementType]
+   * Prints a sequence node as `sequence Name[Element]`, with the element on its
+   * own lines when it takes more than one.
    */
   def printSequence[F[_, _], A, C[_]](seq: Reflect.Sequence[F, A, C]): String =
     printSequence(seq, 0, new java.util.IdentityHashMap())
@@ -116,8 +121,8 @@ private[schema] object ReflectPrinter {
   }
 
   /**
-   * Prints a Map reflect in SDL format. Format: map TypeName[KeyType,
-   * ValueType]
+   * Prints a map node as `map Name[Key, Value]`, with the key and value on
+   * their own lines when either takes more than one.
    */
   def printMap[F[_, _], K, V, M[_, _]](map: Reflect.Map[F, K, V, M]): String =
     printMap(map, 0, new java.util.IdentityHashMap())
@@ -151,8 +156,8 @@ private[schema] object ReflectPrinter {
   }
 
   /**
-   * Prints a Wrapper reflect in SDL format. Format: wrapper
-   * TypeName(WrappedType)
+   * Prints a wrapper node as `wrapper Name(Wrapped)`, with the wrapped node on
+   * its own lines when it takes more than one.
    */
   def printWrapper[F[_, _], A, B](wrapper: Reflect.Wrapper[F, A, B]): String =
     printWrapper(wrapper, 0, new java.util.IdentityHashMap())
@@ -180,9 +185,7 @@ private[schema] object ReflectPrinter {
     sb.toString
   }
 
-  /**
-   * Prints a Term in SDL format.
-   */
+  /** Prints a term as `name: Type`. */
   private[schema] def printTerm[F[_, _], S, A](term: Term[F, S, A]): String =
     printTerm(term, 0, new java.util.IdentityHashMap())
 
@@ -195,6 +198,7 @@ private[schema] object ReflectPrinter {
     sb.append(term.name).append(": ").append(printReflect(term.value, indent, visited)).toString
   }
 
+  /** Prints a dynamic node as its type name. */
   private[schema] def printDynamic[F[_, _]](dynamic: Reflect.Dynamic[F]): String = sdlTypeName(dynamic.typeId)
 
   private[this] def printVariantCase[F[_, _], S, A](
@@ -255,10 +259,9 @@ private[schema] object ReflectPrinter {
     }
 
   /**
-   * Converts a TypeId to its SDL-friendly format.
-   *   - For scala.* types: use just the simple name (e.g., String, Int, List)
-   *   - For java.* types: keep the full namespace (e.g., java.time.Instant)
-   *   - For custom types: use just the simple name (e.g., Person, Address)
+   * Returns the printed name of a type: the full name for a type in a `java`
+   * package other than `java.lang` (such as `java.time.Instant`), the simple
+   * name for any other type, followed by the type arguments, if any.
    */
   private[this] def sdlTypeName[A](typeId: TypeId[A]): String = {
     val packages = typeId.owner.segments.collect { case Owner.Package(name) => name }

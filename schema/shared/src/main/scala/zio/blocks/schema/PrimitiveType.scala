@@ -20,17 +20,65 @@ import zio.blocks.schema.binding.{Binding, BindingType}
 import zio.blocks.schema.json.JsonWriter
 import zio.blocks.typeid.{TypeId, TypeRepr}
 
+/**
+ * One of the scalar types that a [[Reflect.Primitive]] node stands for: `Unit`,
+ * `Boolean`, the numeric types, `Char`, `String`, the `java.time` types,
+ * `java.util.Currency` and `java.util.UUID`. Each case converts its type to and
+ * from [[DynamicValue]] and carries a [[Validation]] of its values.
+ *
+ * Only `DynamicSchema#check` checks the validation: `fromDynamicValue` and
+ * `Reflect#fromDynamicValue` accept values that break it.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/reflect/ Reflect]]
+ */
 sealed trait PrimitiveType[A] {
+
+  /** Returns the binding of a primitive node of this type. */
   def binding: Binding[BindingType.Primitive, A] = new Binding.Primitive[A]
 
+  /**
+   * Converts `value` into an `A`, or returns an `ExpectationMismatch` error
+   * such as `Expected Int`. `value` must be a `DynamicValue.Primitive`. The
+   * numeric types and `Char` also accept a primitive value of one of the other
+   * numeric types or `Char` when converting it to this type and back gives the
+   * same value; every other type accepts only its own [[PrimitiveValue]] case.
+   * Because the JVM conversions saturate or wrap, a few lossy conversions pass
+   * that check: a `Float` or `Double` of `2^63` decodes as `Long.MaxValue`, a
+   * `Float` of `2^31` as `Int.MaxValue`, `Int.MaxValue` as the `Float` `2^31`,
+   * `Long.MaxValue` as the `Float` or `Double` `2^63`, a `Char` of 32768 or
+   * more as a negative `Short` (65408 or more as a negative `Byte`), and a
+   * negative `Byte` or `Short` as a `Char` of 65408 or 32768 or more (`-1` as
+   * `Char.MaxValue`). The validation is not checked.
+   *
+   * {{{
+   * val year = PrimitiveType.Int(Validation.None)
+   *
+   * val fromLong = year.fromDynamicValue(
+   *   DynamicValue.Primitive(PrimitiveValue.Long(2021L))
+   * ) // Right(2021)
+   * val fromDouble = year.fromDynamicValue(
+   *   DynamicValue.Primitive(PrimitiveValue.Double(2021.5))
+   * ) // Left(zio.blocks.schema.SchemaError: Expected Int at: .)
+   * }}}
+   */
   def fromDynamicValue(value: DynamicValue): Either[SchemaError, A] = fromDynamicValue(value, Nil)
 
   private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, A]
 
+  /**
+   * Wraps `value` in a `DynamicValue.Primitive` of the matching
+   * [[PrimitiveValue]] case.
+   */
   def toDynamicValue(value: A): DynamicValue
 
+  /** Returns the type ID of `A`. */
   def typeId: TypeId[A]
 
+  /**
+   * Returns the validation of the values of this type, `Validation.None` when
+   * there is none.
+   */
   def validation: Validation[A]
 }
 
@@ -44,10 +92,13 @@ sealed trait PrimitiveType[A] {
  * BigDecimal).
  */
 sealed trait NumericPrimitiveType[A] extends PrimitiveType[A] {
+
+  /** Returns the `Numeric` instance of `A`. */
   def numeric: Numeric[A]
 
   /**
-   * Returns a Schema for this numeric primitive type.
+   * Returns a schema whose node is a primitive node of this type, with its
+   * validation.
    */
   def schema: Schema[A] = new Schema(
     new Reflect.Primitive(
@@ -57,13 +108,17 @@ sealed trait NumericPrimitiveType[A] extends PrimitiveType[A] {
     )
   )
 
-  /**
-   * Convert to NumericTypeTag for DynamicSchemaExpr.
-   */
+  /** Returns the tag of this numeric type in [[DynamicSchemaExpr]]. */
   def toTag: DynamicSchemaExpr.NumericTypeTag
 }
 
+/** The primitive types, one case per Scala or Java type. */
 object PrimitiveType {
+
+  /**
+   * The primitive type of `Unit`, without validation. It decodes only
+   * `PrimitiveValue.Unit`.
+   */
   case object Unit extends PrimitiveType[scala.Unit] {
     def validation: Validation[scala.Unit] = Validation.None
 
@@ -81,6 +136,11 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `Boolean`. Only `Validation.None` is useful as its
+   * `validation`: under any other validation, `DynamicSchema#check` rejects
+   * every value.
+   */
   case class Boolean(validation: Validation[scala.Boolean]) extends PrimitiveType[scala.Boolean] {
     def toDynamicValue(value: scala.Boolean): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Boolean(value))
@@ -97,6 +157,10 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `Byte`. Its `validation` can be a
+   * `Validation.Numeric`, such as `Positive` or `Range`.
+   */
   case class Byte(validation: Validation[scala.Byte]) extends NumericPrimitiveType[scala.Byte] {
     def numeric: Numeric[scala.Byte] = implicitly[Numeric[scala.Byte]]
 
@@ -134,6 +198,10 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `Short`. Its `validation` can be a
+   * `Validation.Numeric`, such as `Positive` or `Range`.
+   */
   case class Short(validation: Validation[scala.Short]) extends NumericPrimitiveType[scala.Short] {
     def numeric: Numeric[scala.Short] = implicitly[Numeric[scala.Short]]
 
@@ -171,6 +239,10 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `Int`. Its `validation` can be a
+   * `Validation.Numeric`, such as `Positive` or `Range`.
+   */
   case class Int(validation: Validation[scala.Int]) extends NumericPrimitiveType[scala.Int] {
     def numeric: Numeric[scala.Int] = implicitly[Numeric[scala.Int]]
 
@@ -208,6 +280,10 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `Long`. Its `validation` can be a
+   * `Validation.Numeric`, such as `Positive` or `Range`.
+   */
   case class Long(validation: Validation[scala.Long]) extends NumericPrimitiveType[scala.Long] {
     def numeric: Numeric[scala.Long] = implicitly[Numeric[scala.Long]]
 
@@ -245,6 +321,10 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `Float`. Its `validation` can be a
+   * `Validation.Numeric`, such as `Positive` or `Range`.
+   */
   case class Float(validation: Validation[scala.Float]) extends NumericPrimitiveType[scala.Float] {
     def numeric: Numeric[scala.Float] = implicitly[Numeric[scala.Float]]
 
@@ -282,6 +362,10 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `Double`. Its `validation` can be a
+   * `Validation.Numeric`, such as `Positive` or `Range`.
+   */
   case class Double(validation: Validation[scala.Double]) extends NumericPrimitiveType[scala.Double] {
     def numeric: Numeric[scala.Double] = implicitly[Numeric[scala.Double]]
 
@@ -319,6 +403,11 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `Char`. Only `Validation.None` is useful as its
+   * `validation`: under any other validation, `DynamicSchema#check` rejects
+   * every value.
+   */
   case class Char(validation: Validation[scala.Char]) extends PrimitiveType[scala.Char] {
     def toDynamicValue(value: scala.Char): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Char(value))
 
@@ -352,6 +441,10 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `String`. Its `validation` can be a
+   * `Validation.String`, such as `NonEmpty` or `Length`.
+   */
   case class String(validation: Validation[Predef.String]) extends PrimitiveType[Predef.String] {
     def toDynamicValue(value: Predef.String): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.String(value))
@@ -368,6 +461,10 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `scala.BigInt`. Its `validation` can be a
+   * `Validation.Numeric`, such as `Positive` or `Range`.
+   */
   case class BigInt(validation: Validation[scala.BigInt]) extends NumericPrimitiveType[scala.BigInt] {
     def numeric: Numeric[scala.BigInt] = implicitly[Numeric[scala.BigInt]]
 
@@ -411,6 +508,10 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `scala.BigDecimal`. Its `validation` can be a
+   * `Validation.Numeric`, such as `Positive` or `Range`.
+   */
   case class BigDecimal(validation: Validation[scala.BigDecimal]) extends NumericPrimitiveType[scala.BigDecimal] {
     def numeric: Numeric[scala.BigDecimal] = implicitly[Numeric[scala.BigDecimal]]
 
@@ -447,6 +548,11 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `java.time.DayOfWeek`. Only `Validation.None` is
+   * useful as its `validation`: under any other validation,
+   * `DynamicSchema#check` rejects every value.
+   */
   case class DayOfWeek(validation: Validation[java.time.DayOfWeek]) extends PrimitiveType[java.time.DayOfWeek] {
     def toDynamicValue(value: java.time.DayOfWeek): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.DayOfWeek(value))
@@ -462,6 +568,11 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `java.time.Duration`. Only `Validation.None` is
+   * useful as its `validation`: under any other validation,
+   * `DynamicSchema#check` rejects every value.
+   */
   case class Duration(validation: Validation[java.time.Duration]) extends PrimitiveType[java.time.Duration] {
     def toDynamicValue(value: java.time.Duration): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Duration(value))
@@ -478,6 +589,11 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `java.time.Instant`. Only `Validation.None` is useful
+   * as its `validation`: under any other validation, `DynamicSchema#check`
+   * rejects every value.
+   */
   case class Instant(validation: Validation[java.time.Instant]) extends PrimitiveType[java.time.Instant] {
     def toDynamicValue(value: java.time.Instant): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Instant(value))
@@ -494,6 +610,11 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `java.time.LocalDate`. Only `Validation.None` is
+   * useful as its `validation`: under any other validation,
+   * `DynamicSchema#check` rejects every value.
+   */
   case class LocalDate(validation: Validation[java.time.LocalDate]) extends PrimitiveType[java.time.LocalDate] {
     def toDynamicValue(value: java.time.LocalDate): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.LocalDate(value))
@@ -509,6 +630,11 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `java.time.LocalDateTime`. Only `Validation.None` is
+   * useful as its `validation`: under any other validation,
+   * `DynamicSchema#check` rejects every value.
+   */
   case class LocalDateTime(validation: Validation[java.time.LocalDateTime])
       extends PrimitiveType[java.time.LocalDateTime] {
     def toDynamicValue(value: java.time.LocalDateTime): DynamicValue =
@@ -526,6 +652,11 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `java.time.LocalTime`. Only `Validation.None` is
+   * useful as its `validation`: under any other validation,
+   * `DynamicSchema#check` rejects every value.
+   */
   case class LocalTime(validation: Validation[java.time.LocalTime]) extends PrimitiveType[java.time.LocalTime] {
     def toDynamicValue(value: java.time.LocalTime): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.LocalTime(value))
@@ -541,6 +672,11 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `java.time.Month`. Only `Validation.None` is useful
+   * as its `validation`: under any other validation, `DynamicSchema#check`
+   * rejects every value.
+   */
   case class Month(validation: Validation[java.time.Month]) extends PrimitiveType[java.time.Month] {
     def toDynamicValue(value: java.time.Month): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Month(value))
@@ -557,6 +693,11 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `java.time.MonthDay`. Only `Validation.None` is
+   * useful as its `validation`: under any other validation,
+   * `DynamicSchema#check` rejects every value.
+   */
   case class MonthDay(validation: Validation[java.time.MonthDay]) extends PrimitiveType[java.time.MonthDay] {
     def toDynamicValue(value: java.time.MonthDay): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.MonthDay(value))
@@ -573,6 +714,11 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `java.time.OffsetDateTime`. Only `Validation.None` is
+   * useful as its `validation`: under any other validation,
+   * `DynamicSchema#check` rejects every value.
+   */
   case class OffsetDateTime(validation: Validation[java.time.OffsetDateTime])
       extends PrimitiveType[java.time.OffsetDateTime] {
     def toDynamicValue(value: java.time.OffsetDateTime): DynamicValue =
@@ -590,6 +736,11 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `java.time.OffsetTime`. Only `Validation.None` is
+   * useful as its `validation`: under any other validation,
+   * `DynamicSchema#check` rejects every value.
+   */
   case class OffsetTime(validation: Validation[java.time.OffsetTime]) extends PrimitiveType[java.time.OffsetTime] {
     def toDynamicValue(value: java.time.OffsetTime): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.OffsetTime(value))
@@ -605,6 +756,11 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `java.time.Period`. Only `Validation.None` is useful
+   * as its `validation`: under any other validation, `DynamicSchema#check`
+   * rejects every value.
+   */
   case class Period(validation: Validation[java.time.Period]) extends PrimitiveType[java.time.Period] {
     def toDynamicValue(value: java.time.Period): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Period(value))
@@ -621,6 +777,11 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `java.time.Year`. Only `Validation.None` is useful as
+   * its `validation`: under any other validation, `DynamicSchema#check` rejects
+   * every value.
+   */
   case class Year(validation: Validation[java.time.Year]) extends PrimitiveType[java.time.Year] {
     def toDynamicValue(value: java.time.Year): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Year(value))
 
@@ -636,6 +797,11 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `java.time.YearMonth`. Only `Validation.None` is
+   * useful as its `validation`: under any other validation,
+   * `DynamicSchema#check` rejects every value.
+   */
   case class YearMonth(validation: Validation[java.time.YearMonth]) extends PrimitiveType[java.time.YearMonth] {
     def toDynamicValue(value: java.time.YearMonth): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.YearMonth(value))
@@ -651,6 +817,11 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `java.time.ZoneId`. Only `Validation.None` is useful
+   * as its `validation`: under any other validation, `DynamicSchema#check`
+   * rejects every value.
+   */
   case class ZoneId(validation: Validation[java.time.ZoneId]) extends PrimitiveType[java.time.ZoneId] {
     def toDynamicValue(value: java.time.ZoneId): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.ZoneId(value))
@@ -667,6 +838,11 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `java.time.ZoneOffset`. Only `Validation.None` is
+   * useful as its `validation`: under any other validation,
+   * `DynamicSchema#check` rejects every value.
+   */
   case class ZoneOffset(validation: Validation[java.time.ZoneOffset]) extends PrimitiveType[java.time.ZoneOffset] {
     def toDynamicValue(value: java.time.ZoneOffset): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.ZoneOffset(value))
@@ -682,6 +858,11 @@ object PrimitiveType {
     }
   }
 
+  /**
+   * The primitive type of `java.time.ZonedDateTime`. Only `Validation.None` is
+   * useful as its `validation`: under any other validation,
+   * `DynamicSchema#check` rejects every value.
+   */
   case class ZonedDateTime(validation: Validation[java.time.ZonedDateTime])
       extends PrimitiveType[java.time.ZonedDateTime] {
     def toDynamicValue(value: java.time.ZonedDateTime): DynamicValue =
@@ -699,6 +880,11 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `java.util.UUID`. Only `Validation.None` is useful as
+   * its `validation`: under any other validation, `DynamicSchema#check` rejects
+   * every value.
+   */
   case class UUID(validation: Validation[java.util.UUID]) extends PrimitiveType[java.util.UUID] {
     def toDynamicValue(value: java.util.UUID): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.UUID(value))
@@ -715,6 +901,11 @@ object PrimitiveType {
       }
   }
 
+  /**
+   * The primitive type of `java.util.Currency`. Only `Validation.None` is
+   * useful as its `validation`: under any other validation,
+   * `DynamicSchema#check` rejects every value.
+   */
   case class Currency(validation: Validation[java.util.Currency]) extends PrimitiveType[java.util.Currency] {
     def toDynamicValue(value: java.util.Currency): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Currency(value))
@@ -732,12 +923,11 @@ object PrimitiveType {
   }
 
   /**
-   * Attempts to derive a PrimitiveType from a TypeId's underlying
-   * representation.
-   *
-   * This is used for opaque types and type aliases that wrap primitive types.
-   * Returns Some if the TypeId's representation refers to a primitive type,
-   * None otherwise.
+   * Returns the primitive type, without validation, of `typeId` when it is an
+   * opaque type or type alias whose underlying type is a primitive type, or is
+   * itself the type ID of a primitive type. Returns `None` otherwise, and for
+   * `null`. [[Reflect.Wrapper]] uses it to find the primitive type behind an
+   * opaque type.
    */
   def fromTypeId[A](typeId: TypeId[A]): Option[PrimitiveType[A]] = {
     if (typeId eq null) return None

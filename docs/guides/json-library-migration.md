@@ -768,5 +768,6 @@ sbt compile
 - [Your First Schema](./your-first-schema.md): derive a schema, round-trip JSON and read decode errors.
 - [How to Customize JSON Field Names, ADT Encoding and Optional Fields](./customize-json-encoding.md): every naming, discriminator and optional-field option.
 - [How to Override the Codec for One Type Everywhere](./override-codec-for-one-type.md): custom codecs with `Deriver#withInstance`.
+- [How to Tune JSON Encoding and Decoding for Throughput](./tune-json-throughput.md): decode from bytes and streams, reuse codecs and size buffers.
 - [JSON](../reference/schema/built-in-codecs/json/index.md): the JSON codec reference.
 - [Migrating from ZIO Schema](./zio-schema-migration.md): the migration guide for ZIO Schema 1.x users.

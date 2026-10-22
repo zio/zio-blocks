@@ -78,7 +78,7 @@ The code is the same for every Scala version. The HTTP model depends on the ZIO 
 
 You should know how to sign and verify a token with `Jwt.sign` and `Jwt.decode`, from [How to Issue and Verify JWTs](./issue-and-verify-jwts.md). The configuration section uses `Config.load`, introduced in [Build a Typed Configuration Loader](./typed-config-loader.md).
 
-ZIO Blocks has no HTTP server. We serve requests with the small adapter from the guide "How to Serve http-model Requests with the JDK HTTP Server": `JdkHttp.withServer(app)(use)` starts the JDK's built-in server on a free loopback port, runs `use` with the port, and stops the server. `Client.call(port, method, target, body, authorization)` sends one request and prints the status, the `WWW-Authenticate` header when there is one, and the body. Both files are shown in full under [Running the Examples](#running-the-examples); copy them into your project.
+ZIO Blocks has no HTTP server. We serve requests with the small adapter from the guide [How to Serve http-model Requests with the JDK HTTP Server](./serve-http-model-requests.md): `JdkHttp.withServer(app)(use)` starts the JDK's built-in server on a free loopback port, runs `use` with the port, and stops the server. `Client.call(port, method, target, body, authorization)` sends one request and prints the status, the `WWW-Authenticate` header when there is one, and the body. Both files are shown in full under [Running the Examples](#running-the-examples); copy them into your project.
 
 We use these imports throughout the guide:
 
@@ -660,7 +660,7 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/jwt-examples
 ```
 
-The examples share four files. `JdkHttp.scala` is the adapter from the JDK HTTP server guide, unchanged except for its package. `Client.scala` is that guide's test client with two additions: an `authorization` parameter, and printing the `WWW-Authenticate` header:
+The examples share four files. `JdkHttp.scala` is the adapter from the [JDK HTTP server guide](./serve-http-model-requests.md), unchanged except for its package. `Client.scala` is that guide's test client with two additions: an `authorization` parameter, and printing the `WWW-Authenticate` header:
 
 <details>
   <summary>jwt-examples/src/main/scala/protectendpointswithjwt/JdkHttp.scala</summary>

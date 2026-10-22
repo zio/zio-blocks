@@ -503,17 +503,23 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Your First Schema: Round-Trip a Type Through JSON](./guides/your-first-schema.md) - Start here: describe a type once with `Schema`, then encode, decode, and read errors
 - [Navigate and Update Nested Data with Optics](./guides/nested-data-with-optics.md) - Read and update fields deep inside immutable data with lenses, optionals, and traversals instead of nested `copy` calls
 - [One Type, Many Formats](./guides/one-type-many-formats.md) - Derive JSON, YAML, XML, TOON, MessagePack, Avro and CSV codecs from one `Schema` and round-trip a catalog through each
+- [How to Read and Write YAML Documents](./guides/read-and-write-yaml.md) - Read YAML into case classes, write CI-style YAML, convert it to JSON, and guard against YAML the reader silently misreads
 - [How to Derive Your Own Type Class from a Schema](./guides/derive-your-own-type-class.md) - Write a `Deriver` once and get a type class instance for every record, variant and primitive in your model
 - [Build a Typed Configuration Loader](./guides/typed-config-loader.md) - Load a typed case class from YAML, environment overrides and defaults, report every error at once, and see where each value came from
 - [How to Feed Configuration into a Wire Dependency Graph](./guides/feed-config-into-a-wire-graph.md) - Give each service in a Wire graph its own typed, checked settings from one layered `ConfigSource`, and shut everything down in order
+- [How to Load Configuration Files on the JVM and in the Browser](./guides/load-configuration-files.md) - Load HOCON, JSON and YAML files into a typed case class, split them with includes, load them safely, and run the same settings in the browser
 - [How to Roll Out a Feature Gradually with Flags](./guides/roll-out-feature-gradually.md) - Ship a feature to 10% of readers, target one region, widen the rollout at runtime, and test the code that reads the flag
 - [Build Your First Database Repository on SQLite](./guides/your-first-sqlite-repository.md) - Connect to SQLite, derive a table and `Repo` from one schema, write your own queries, and roll back a transaction
 - [How to Test Database Code Against SQLite](./guides/test-database-code-against-sqlite.md) - Give every test its own SQLite database, create the schema from code, seed fixtures and roll back writes in ZIO Test specs
 - [How to Connect to PostgreSQL with a Connection Pool](./guides/connect-to-postgresql-with-a-connection-pool.md) - Set up a HikariCP pool for PostgreSQL, build a `JdbcTransactor` on it, size it for virtual threads and close it with a `Scope`
 - [How to Upsert Rows and Paginate with Keyset Cursors](./guides/upsert-and-paginate-with-keyset-cursors.md) - Insert or update rows in one statement, choose which columns an upsert changes, and walk large tables page by page with keyset cursors
+- [How to Map Custom Column Types](./guides/map-custom-column-types.md) - Store newtypes, opaque types, enums, JSON documents, PostgreSQL arrays and timestamps in SQL columns, on SQLite and PostgreSQL
 - [How to Stream Large Query Results](./guides/stream-large-query-results.md) - Read a large result set as a stream of row chunks with `queryStream` and `queryChunked`, aggregate it, export it to a file and handle its errors
+- [How to Write Joins and Inspect the Generated SQL](./guides/write-joins-and-inspect-generated-sql.md) - Join related tables with `SqlQuery` and `Rel`, read the rows as tuples, and print or dump the SQL each join generates
 - [How to Use the sql Module from a ZIO Application](./guides/sql-from-zio.md) - Run `sql` queries and transactions as ZIO effects with `TransactorZIO`, provide it as a layer, and mix database writes with other effects in one transaction
 - [Render Your First Server-Side HTML Page](./guides/your-first-html-page.md) - Build a book page with the HTML DSL, escape user input, add CSS and JSON state, and save it as a file
+- [How to Serve http-model Requests with the JDK HTTP Server](./guides/serve-http-model-requests.md) - Turn a JDK `HttpExchange` into an http-model `Request`, write a `Response` back, and run a handler function on the built-in server
+- [How to Validate Query Parameters and Headers and Answer 400](./guides/validate-query-parameters-and-headers.md) - Read query parameters and headers as typed values and answer missing, malformed or out-of-range input with a JSON 400 that names every problem
 - [How to Stream Files and Sockets Without Leaking Resources](./guides/stream-files-and-sockets.md) - Read files, NIO channels and sockets as streams that close their handles on success, failure, early stop and missing input
 - [Getting Started with Async](./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
 - [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
@@ -521,13 +527,19 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./guides/resource-and-di-migration.md) - Move resource handling and dependency wiring to ZIO Blocks Scope, Resource, and Wire
 - [Getting Started with Mux](./guides/getting-started-with-mux.md) - Manage multiplexed bidirectional message streams with capacity limits
 - [Build a Small JSON Backend from Blocks](./guides/small-json-backend-from-blocks.md) - Capstone: combine schema, config, scope, SQL, the HTTP model and telemetry into one small JSON backend
+- [How to Test Code That Logs, Traces and Records Metrics](./guides/test-telemetry.md) - Capture spans, log records and counter values in memory during tests, assert on them, and keep tests from leaking into each other
 - [Telemetry: Architecture, Patterns, and Real-World Usage](./guides/telemetry-guide.md) - Wire tracing, logging, and metrics into a running application
 - [Migrating from ZIO Schema](./guides/zio-schema-migration.md) - Step-by-step migration from ZIO Schema 1.x to ZIO Blocks Schema
 - [Coming from PureConfig, Typesafe Config or zio-config](./guides/config-library-migration.md) - Keep your `application.conf` and move its loader to ZIO Blocks config
+- [How to Read and Modify JSON Without Case Classes](./guides/json-without-case-classes.md) - Parse JSON into a tree, read and change values by path, print it back, and decode only the part you need into a case class
+- [How to Build a Schema Registry with DynamicSchema](./guides/build-a-schema-registry.md) - Store versioned event schemas as data, check incoming events against them, rebind them to Scala types, and compare versions
 - [Coming from circe, zio-json or jsoniter-scala](./guides/json-library-migration.md) - Move JSON codecs from circe, zio-json or jsoniter-scala to one ZIO Blocks Schema
 - [Coming from fs2, ZIO Streams or Ox](./guides/streaming-library-migration.md) - Map fs2, ZIO Streams and Ox code onto ZIO Blocks `Stream`, `Pipeline` and `Sink`
 - [How to Generate JSON Schema from a Type and Validate Payloads Against It](./guides/generate-json-schema-and-validate-payloads.md) - Derive a JSON Schema from a `Schema`, publish it, and validate incoming JSON payloads
+- [How to Tune JSON Encoding and Decoding for Throughput](./guides/tune-json-throughput.md) - Decode JSON straight from bytes, buffers and streams, reuse derived codecs, size reader and writer buffers, and measure with JMH
+- [How to Write an OpenAPI Document and Export It as JSON or YAML](./guides/write-and-export-openapi.md) - Build an OpenAPI 3.1 document from component schemas and render it as JSON or YAML
 - [How to Define Validated Newtypes and Collect Every Validation Error](./guides/validated-newtypes.md) - Wrap a primitive in a validated newtype, reject bad values at construction, and collect every validation error in one `SchemaError`
+- [How to Compute, Store and Replay Changes with Diff and Patch](./guides/diff-and-patch.md) - Diff two versions of a value, store the patch as JSON, replay an edit history with undo, and send changes as JSON patches, including RFC 6902
 - [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
 - [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL
 - [Query DSL Part 3: Extending the Expression Language](./guides/query-dsl-extending.md) - Add custom operators beyond `SchemaExpr`

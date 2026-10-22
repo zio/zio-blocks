@@ -22,4 +22,12 @@ private[endpoint] trait SegmentCodecPlatformSpecific {
     SegmentCodec.validateLiteralValue(value)
     SegmentCodec.literalValidated(value)
   }
+
+  // `String with Singleton` preserves literal singletons on Scala 2.13.
+  // (`with` as a type operator is an error on Scala 3.10; Scala 3 uses `&`.)
+  def bool[N <: String with Singleton](name: N): SegmentCodec.BoolSeg[N]     = SegmentCodec.BoolSeg(name)
+  def int[N <: String with Singleton](name: N): SegmentCodec.IntSeg[N]       = SegmentCodec.IntSeg(name)
+  def long[N <: String with Singleton](name: N): SegmentCodec.LongSeg[N]     = SegmentCodec.LongSeg(name)
+  def string[N <: String with Singleton](name: N): SegmentCodec.StringSeg[N] = SegmentCodec.StringSeg(name)
+  def uuid[N <: String with Singleton](name: N): SegmentCodec.UUIDSeg[N]     = SegmentCodec.UUIDSeg(name)
 }

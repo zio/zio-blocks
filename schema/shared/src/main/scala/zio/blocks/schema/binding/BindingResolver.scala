@@ -36,6 +36,11 @@ import zio.blocks.typeid.TypeId
  *
  * @example
  *   {{{
+ * import zio.blocks.schema.binding._
+ *
+ * case class Person(name: String, age: Int)
+ * val customRegistry = BindingResolver.empty.bind(Binding.of[Person])
+ *
  * // Use defaults for primitives and collections, with custom bindings
  * val resolver = customRegistry ++ BindingResolver.defaults
  *
@@ -85,7 +90,7 @@ trait BindingResolver { self =>
    * Resolves a wrapper binding for a type.
    *
    * @tparam A
-   *   The outer (wrapped) type
+   *   The wrapper type
    * @param typeId
    *   The TypeId for type A (usually derived implicitly)
    * @return
@@ -186,6 +191,11 @@ trait BindingResolver { self =>
    *
    * @example
    *   {{{
+   * import zio.blocks.schema.binding._
+   *
+   * case class Person(name: String, age: Int)
+   * val customRegistry = BindingResolver.empty.bind(Binding.of[Person])
+   *
    * // customRegistry overrides defaults
    * val resolver = customRegistry ++ BindingResolver.defaults
    *   }}}
@@ -193,6 +203,10 @@ trait BindingResolver { self =>
   final def ++(that: BindingResolver): BindingResolver = new BindingResolver.Combined(self, that)
 }
 
+/**
+ * The ready-made resolvers `empty`, `defaults` and `reflection`, and
+ * [[BindingResolver.Registry]], the resolver that `bind` builds.
+ */
 object BindingResolver extends BindingResolverPlatformSpecific {
 
   /**
@@ -211,6 +225,10 @@ object BindingResolver extends BindingResolverPlatformSpecific {
    *   - DynamicValue
    *   - Common sequence types (List, Vector, Set, IndexedSeq, Seq, Chunk)
    *   - Map
+   *
+   * It has no binding for `ChunkMap`, `Array`, `ArraySeq` or, on Scala 3,
+   * `IArray`. Add one with a `bind` overload when a schema uses them, such as
+   * `bind[ChunkMap](Binding.of[ChunkMap])`.
    */
   val defaults: Registry =
     empty
@@ -264,12 +282,19 @@ object BindingResolver extends BindingResolverPlatformSpecific {
    * Registry is an immutable data structure. Each `bind` operation returns a
    * new Registry with the added binding.
    *
+   * Proper bindings (record, variant, primitive, wrapper and dynamic) are
+   * stored by the normalized `TypeId` of the full type. Binding a type that
+   * already has a proper binding replaces it, whatever its kind: a type has at
+   * most one proper binding.
+   *
    * For sequence and map types, bindings are stored by their unapplied type
    * constructor (e.g., `List` rather than `List[Int]`), allowing a single
    * binding to work for all element types.
    *
    * @example
    *   {{{
+   * import zio.blocks.schema.binding._
+   *
    * case class Person(name: String, age: Int)
    *
    * val registry = BindingResolver.empty
@@ -286,7 +311,9 @@ object BindingResolver extends BindingResolverPlatformSpecific {
      *
      * This unified entry point accepts any proper binding type (Record,
      * Variant, Primitive, Wrapper, or Dynamic) and stores it appropriately. It
-     * works with `Binding.of[A]` which returns `Any` in Scala 2.
+     * accepts the result of `Binding.of[A]` on both Scala versions: on Scala 2
+     * its static type is `Binding[_, A]`, and on Scala 3 it is the specific
+     * binding type.
      *
      * @tparam A
      *   The type to bind
@@ -302,6 +329,8 @@ object BindingResolver extends BindingResolverPlatformSpecific {
      *
      * @example
      *   {{{
+     * import zio.blocks.schema.binding._
+     *
      * case class Person(name: String, age: Int)
      * val registry = BindingResolver.empty.bind(Binding.of[Person])
      *   }}}
@@ -399,7 +428,11 @@ object BindingResolver extends BindingResolverPlatformSpecific {
       }
 
     /**
-     * Checks if the registry contains a binding for the given type.
+     * Checks if the registry contains a proper binding (record, variant,
+     * primitive, wrapper or dynamic) for the given type. It returns `false` for
+     * a sequence or map type whose type constructor is bound, such as
+     * `List[Int]` in [[BindingResolver.defaults]]; use `containsSeq` or
+     * `containsMap` for those.
      *
      * @tparam A
      *   The type to check
@@ -443,7 +476,8 @@ object BindingResolver extends BindingResolverPlatformSpecific {
       entries.get(keyForConstructor(typeId)).exists(_.isInstanceOf[Entry.Map])
 
     /**
-     * Returns the number of bindings in the registry.
+     * Returns the number of bindings in the registry, counting each bound type
+     * or type constructor once.
      */
     def size: Int = entries.size
 
@@ -469,6 +503,9 @@ object BindingResolver extends BindingResolverPlatformSpecific {
     override def toString: String = s"BindingResolver.Registry(${entries.size} entries)"
   }
 
+  /**
+   * The companion of [[BindingResolver.Registry]]; its members are internal.
+   */
   object Registry {
     private[binding] sealed trait Entry
 

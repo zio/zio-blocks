@@ -204,7 +204,7 @@ sealed trait PathCodec[A] { self =>
   }
 }
 
-object PathCodec {
+object PathCodec extends PathCodecPlatformSpecific {
 
   private type DecodeError = String
 
@@ -294,21 +294,6 @@ object PathCodec {
     SegmentCodec.validateLiteralValue(value)
     apply(SegmentCodec.literalValidated(value))
   }
-
-  // `N <: String with Singleton` preserves the literal singleton type of a literal `name` argument
-  // (instead of widening it to plain `String`) on both Scala 2.13 and Scala 3.
-  def bool[N <: String with Singleton](name: N): PathCodec[Boolean] { type PathVars = SegmentCodec.HasPathVars } =
-    apply(SegmentCodec.bool(name))
-  def int[N <: String with Singleton](name: N): PathCodec[Int] { type PathVars = SegmentCodec.HasPathVars } =
-    apply(SegmentCodec.int(name))
-  def long[N <: String with Singleton](name: N): PathCodec[Long] { type PathVars = SegmentCodec.HasPathVars } =
-    apply(SegmentCodec.long(name))
-  def string[N <: String with Singleton](name: N): PathCodec[String] { type PathVars = SegmentCodec.HasPathVars } =
-    apply(SegmentCodec.string(name))
-  def uuid[N <: String with Singleton](
-    name: N
-  ): PathCodec[java.util.UUID] { type PathVars = SegmentCodec.HasPathVars } =
-    apply(SegmentCodec.uuid(name))
 
   val trailing: PathCodec[Path] { type PathVars = SegmentCodec.HasPathVars } =
     apply(SegmentCodec.Trailing)
