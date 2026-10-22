@@ -17,7 +17,8 @@
 package zio.blocks.schema
 
 /**
- * JavaScript-specific platform implementation.
+ * The [[Platform]] of this build's target, the JVM or Scala.js, which the
+ * `Platform` object extends.
  */
 trait PlatformSpecific extends Platform {
   override val isJVM: Boolean = false

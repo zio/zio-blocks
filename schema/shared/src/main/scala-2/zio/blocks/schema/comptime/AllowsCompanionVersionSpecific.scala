@@ -21,12 +21,27 @@ import scala.reflect.macros.whitebox
 import scala.reflect.NameTransformer
 import zio.blocks.schema.comptime.internal.AllowsErrorMessages
 
+/**
+ * Provides `Allows` evidence through `derived`, the macro that checks a type
+ * against a grammar at compile time. [[Allows]]'s companion extends it.
+ */
 trait AllowsCompanionVersionSpecific {
+
+  /**
+   * Proves at compile time that `A` satisfies the grammar `S`, or fails
+   * compilation. On Scala 3 the error lists every violation with its path; on
+   * Scala 2, when the evidence is searched for as an implicit, the compiler
+   * reports only that no implicit `Allows` was found.
+   */
   implicit def derived[S <: Allows.Structural, A]: Allows[A, S] = macro AllowsMacroImpl.deriveAllows[S, A]
 }
 
 private[comptime] object AllowsMacroImpl {
 
+  /**
+   * Checks `A` against `S` and returns the shared `Allows.instance`, or aborts
+   * with all the violations it found.
+   */
   def deriveAllows[S <: Allows.Structural, A](
     c: whitebox.Context
   ): c.Expr[Allows[A, S]] = {

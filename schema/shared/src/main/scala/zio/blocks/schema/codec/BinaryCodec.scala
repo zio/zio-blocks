@@ -19,12 +19,9 @@ package zio.blocks.schema.codec
 import java.nio.ByteBuffer
 
 /**
- * Represents a specialized codec for encoding and decoding values between
- * binary input and output representations using ByteBuffer.
- *
- * This abstraction is commonly used with binary formats (e.g., Avro) where both
- * encoding and decoding operations are performed using ByteBuffer as the
- * underlying data representation.
+ * A [[Codec]] that decodes from and encodes into a `ByteBuffer`. The codecs of
+ * every [[BinaryFormat]] extend it: JSON, Avro, MessagePack, Thrift, TOON, XML
+ * and YAML, where the text-based ones read and write UTF-8 bytes.
  *
  * @tparam A
  *   The type of values being encoded or decoded.

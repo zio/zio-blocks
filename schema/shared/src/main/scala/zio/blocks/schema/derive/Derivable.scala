@@ -16,11 +16,23 @@
 
 package zio.blocks.schema.derive
 
+/**
+ * Evidence that a value of type `D` provides a `Deriver[TC]`. It lets
+ * `Schema#derive` take either a deriver or a format such as `JsonFormat`, whose
+ * default deriver is then used: every `Deriver[TC]` has one
+ * (`deriverDerivable`), and every `BinaryFormat` and `TextFormat` brings one as
+ * its `derivable` member.
+ */
 trait Derivable[-D, TC[_]] {
+
+  /** Returns the deriver that `d` provides. */
   def deriver(d: D): Deriver[TC]
 }
 
+/** The [[Derivable]] instance of every [[Deriver]]. */
 object Derivable {
+
+  /** Makes every `Deriver[TC]` derivable as itself. */
   implicit def deriverDerivable[TC[_]]: Derivable[Deriver[TC], TC] =
     new Derivable[Deriver[TC], TC] {
       def deriver(d: Deriver[TC]): Deriver[TC] = d
