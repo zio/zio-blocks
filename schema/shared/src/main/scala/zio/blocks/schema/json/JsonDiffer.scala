@@ -30,9 +30,11 @@ object JsonDiffer {
 
   /**
    * Returns a patch that turns `source` into `target`, so that
-   * `diff(source, target).apply(source)` gives a value `==` to `target`. Equal
-   * values give the empty patch, and values of different kinds a root `Set`.
-   * Otherwise, by kind:
+   * `diff(source, target).apply(source)` gives a value `==` to `target`. This
+   * holds when neither object has duplicate keys: a duplicate in `source`
+   * survives the patch, and one in `target` makes the patch fail in `Strict`
+   * mode (a known bug). Equal values give the empty patch, and values of
+   * different kinds a root `Set`. Otherwise, by kind:
    *   - numbers: a `NumberDelta` of the difference;
    *   - strings: a `StringEdit` of LCS-based `Insert` and `Delete` steps when
    *     its inserted text plus one per deletion is shorter than the new string,

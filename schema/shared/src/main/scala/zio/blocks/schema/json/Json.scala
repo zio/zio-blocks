@@ -157,9 +157,11 @@ sealed trait Json {
   /**
    * Selects every value at `path`. A field or index step fails the selection
    * only when no current value has that field or index, so `[*].isbn` skips the
-   * elements without an `isbn`. `[*]`, map keys and values, a string-keyed
-   * `AtMapKey` step and a schema search select many values; a type search
-   * fails, and case and wrapper steps are skipped.
+   * elements without an `isbn`. `[*]`, `AtIndices`, map keys, map values,
+   * `AtMapKeys` and a schema search select many values, and a string-keyed
+   * `AtMapKey` selects like a field. An `AtMapKey` whose key is not a string
+   * and a type search fail the selection, and case and wrapper steps are
+   * skipped.
    *
    * {{{
    * import zio.blocks.schema.DynamicOptic
@@ -1644,8 +1646,9 @@ object Json {
 
   /**
    * Rebuilds a value from path-value pairs, the inverse of [[Json#toKV]]. Field
-   * steps create objects and index steps create arrays padded with nulls; other
-   * steps are ignored.
+   * steps create objects and index steps create arrays padded with nulls; at
+   * any other step the pair's value is not placed, so `.a[*]` gives
+   * `{"a":null}`.
    *
    * @throws java.lang.IndexOutOfBoundsException
    *   for a negative index
