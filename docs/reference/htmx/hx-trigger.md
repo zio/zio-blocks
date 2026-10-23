@@ -455,3 +455,5 @@ button(
 ```
 
 The `ToHtmxValue` type class handles both `HxTrigger` (single trigger) and `HxTriggerSet` (multiple triggers), so you can assign either directly to the `hxTrigger` attribute key.
+
+For a worked debounced search, see [Add Interactivity to a Page with HTMX](../../guides/add-interactivity-with-htmx.md).

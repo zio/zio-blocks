@@ -232,6 +232,8 @@ The `Js` type is intentionally raw—do not build it from unsanitized user input
 
 **Extending with custom types:** Implement `ToHtmxValue[MyType]` to let your domain types render themselves in the DSL. For example, a custom `enum Status { Active, Inactive }` defines `implicit val statusToHtmx: ToHtmxValue[Status] = ...` and renders directly in HTMX attributes.
 
+To build a live search with these attributes step by step, follow [Add Interactivity to a Page with HTMX](../../guides/add-interactivity-with-htmx.md).
+
 ## Running the Examples
 
 All code from this guide is available as runnable examples in the `zio-blocks-htmx-examples` module.
