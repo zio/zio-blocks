@@ -20,8 +20,31 @@ import zio.blocks.schema.json._
 import scala.quoted._
 import scala.util.control.NonFatal
 
+/** The JSON model, codecs and schemas, and the `json"..."` interpolator. */
 package object json {
   extension (inline sc: StringContext) {
+
+    /**
+     * Builds a [[Json]] value from a JSON literal that is checked at compile
+     * time, with Scala values spliced in. A value position, such as
+     * `{"title": \$title}`, takes a `Json`, or any value with a `Schema`,
+     * encoded with its JSON codec (`null` becomes `Json.Null`). A key position,
+     * or a position inside a string literal, takes the value's key text, as
+     * `JsonCodec#encodeKey` writes it. Invalid JSON, or a spliced type with no
+     * `Schema`, does not compile.
+     *
+     * On Scala 2.13, the expansion calls a package-private method, so it
+     * compiles only inside the `zio.blocks.schema` package (a known bug).
+     *
+     * {{{
+     * // scala-3-only
+     * import zio.blocks.schema.json._
+     *
+     * val book = json"""{"title": "Zionomicon", "year": 2021}"""
+     *
+     * book.print // {"title":"Zionomicon","year":2021}
+     * }}}
+     */
     inline def json(inline args: Any*): Json = ${ jsonInterpolatorImpl('sc, 'args) }
   }
 

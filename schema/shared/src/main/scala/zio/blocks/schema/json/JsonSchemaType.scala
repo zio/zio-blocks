@@ -26,32 +26,53 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder, NonEmptyChunk}
  * while runtime JSON only has "number" for all numeric values.
  */
 sealed trait JsonSchemaType extends Product with Serializable {
+
+  /** The keyword's name for this type, such as `"integer"`. */
   def toJsonString: String
 }
 
+/** The seven type names of JSON Schema. */
 object JsonSchemaType {
+
+  /** `"null"`. */
   case object Null extends JsonSchemaType {
     def toJsonString: String = "null"
   }
+
+  /** `"boolean"`. */
   case object Boolean extends JsonSchemaType {
     def toJsonString: String = "boolean"
   }
+
+  /** `"string"`. */
   case object String extends JsonSchemaType {
     def toJsonString: String = "string"
   }
+
+  /** `"number"`: any number, integers included. */
   case object Number extends JsonSchemaType {
     def toJsonString: String = "number"
   }
+
+  /** `"integer"`: a number with no fraction, such as `2021` or `2021.0`. */
   case object Integer extends JsonSchemaType {
     def toJsonString: String = "integer"
   }
+
+  /** `"array"`. */
   case object Array extends JsonSchemaType {
     def toJsonString: String = "array"
   }
+
+  /** `"object"`. */
   case object Object extends JsonSchemaType {
     def toJsonString: String = "object"
   }
 
+  /**
+   * Returns the type with this name, or `None` for an unknown name (names are
+   * case-sensitive).
+   */
   def fromString(s: String): Option[JsonSchemaType] = new Some(s match {
     case "null"    => Null
     case "boolean" => Boolean
@@ -63,6 +84,10 @@ object JsonSchemaType {
     case _         => return None
   })
 
+  /**
+   * The seven types, in the order null, boolean, string, number, integer,
+   * array, object.
+   */
   val all: Seq[JsonSchemaType] = Chunk(Null, Boolean, String, Number, Integer, Array, Object)
 }
 
@@ -70,22 +95,39 @@ object JsonSchemaType {
 // Type Keyword: Single Type or Array of Types
 // =============================================================================
 
+/** The value of the `type` keyword: one type name, or an array of them. */
 sealed trait SchemaType extends Product with Serializable {
+
+  /** Returns the keyword's value: a string, or an array of strings. */
   def toJson: Json = this match {
     case s: SchemaType.Single => new Json.String(s.value.toJsonString)
     case u: SchemaType.Union  => new Json.Array(Chunk.from(u.values).map(t => new Json.String(t.toJsonString)))
   }
 
+  /**
+   * Returns `true` if `t` is one of the types. `Integer` does not count as
+   * contained in `Number`.
+   */
   def contains(t: JsonSchemaType): scala.Boolean = this match {
     case s: SchemaType.Single => s.value eq t
     case u: SchemaType.Union  => u.values.contains(t)
   }
 }
 
+/** The two forms of the `type` keyword. */
 object SchemaType {
+
+  /**
+   * `Single` is one type, such as `"type": "string"`; `Union` is several, such
+   * as `"type": ["string", "null"]`, and a value may be of any of them.
+   */
   final case class Single(value: JsonSchemaType)                extends SchemaType
   final case class Union(values: NonEmptyChunk[JsonSchemaType]) extends SchemaType
 
+  /**
+   * Reads the keyword's value: a string, or a non-empty array of strings.
+   * Returns `Left` with every unknown name or non-string element.
+   */
   def fromJson(json: Json): Either[String, SchemaType] = json match {
     case s: Json.String =>
       JsonSchemaType.fromString(s.value) match {

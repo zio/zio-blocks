@@ -18,14 +18,19 @@ package zio.blocks.schema.json
 
 import scala.compiletime.error
 
+/** Adds `literal` to the [[PositiveNumber]] companion. */
 trait PositiveNumberCompanionVersionSpecific {
 
   /**
-   * Creates a PositiveNumber from a literal integer value, validated at compile
-   * time. Use this when the value is known at compile time for zero runtime
-   * overhead.
+   * Returns a [[PositiveNumber]] for an `Int` literal, checked at compile time:
+   * a literal below 1, or an argument that is not a literal, does not compile.
+   * Use `PositiveNumber.apply` for runtime values.
+   *
+   * On Scala 2.13, the macro calls the package-private constructor, so it
+   * compiles only inside the `zio.blocks.schema.json` package (a known bug).
    *
    * {{{
+   * // scala-3-only
    * import zio.blocks.schema.json.PositiveNumber
    *
    * val mult: PositiveNumber = PositiveNumber.literal(5) // compiles
