@@ -7363,6 +7363,42 @@ object Repro {
 
 **Suggested fix.** Also match `Variant("None", _)` and `Variant("Some", Record(value -> v))` where `v` matches `inner`, and consider not matching a bare inner value. Add tests with values from `Schema[Option[String]]`.
 
+### htmx: a `String` URL in `hx-get` is not percent-encoded, so user input in a query can add parameters
+
+Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`) on branch `docs/t10-htmx-interactivity`, from `origin/main` `a643b7cb0`. Not checked against tag `v0.0.56`.
+
+**Summary.** `ToHtmxValue.urlLikeValue` returns a `String` unchanged. HTML escaping protects the attribute, but not the URL inside it, so a reader's `&` or `=` becomes a real query separator.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-htmx:0.0.56
+
+import zio.blocks.html._
+import zio.http.htmx._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val userInput = "\"><script>alert(1)</script>&x=y z"
+    println(button(hxGet := ("/books?q=" + userInput)).render)
+    println(button(hxGet := "/books?q=a&b=c").render)
+  }
+}
+// <button hx-get="/books?q=&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;x=y z"></button>
+// <button hx-get="/books?q=a&amp;b=c"></button>
+```
+
+**Expected.** The user text is percent-encoded in the query part, so `&` becomes `%26`, `=` becomes `%3D` and the space becomes `%20`. The request then carries one parameter `q`.
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/ToHtmxValue.scala:47` (`case value: String => value`).
+
+**Impact.** A search or filter value containing `&` or `=` adds or changes request parameters on `hx-get`. This is not script injection, because the HTML escaping holds.
+
+**Test gap.** No test covers reserved characters in a `UrlLike` string.
+
+**Suggested fix.** Encode query values when building the URL from user input (for example through `QueryParams`), or document that a `String` must already be percent-encoded.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -7989,6 +8025,14 @@ Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (b
 **Summary.** `docs/reference/schema/schema-evolution/as.md:359` says an `Option` field that is absent from the other type "round-trips cleanly: `Some(v)` becomes `None` after a round-trip". That is data loss, not a clean round trip: line `A` of the script in "schema: `Into.derived` silently drops a value when a same-name field changes from `A` to `Option[A]`" shows `TypeA(x,Some(n))` coming back as `TypeA(x,None)`.
 
 **Suggested text.** "**`Option` fields on one side are allowed.** An `Option` field absent from the other type is dropped on the way out and comes back as `None`, so `Some(v)` does not survive a round trip:"
+
+### docs: the htmx reference never says which htmx version its attribute syntax targets
+
+Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`), from `origin/main` `a643b7cb0`.
+
+**Summary.** `docs/reference/htmx/index.md` documents attributes such as `hx-trigger` and `hx-swap` without saying which htmx release they target. The syntax targets htmx 2.x; htmx 4.x parses these attributes differently (HCON), so readers pasting the attributes into a 4.x page get different behaviour.
+
+**Suggested fix.** One sentence on the reference index: "The attribute syntax targets htmx 2.x" and the pinned script version (for example `htmx@2.0.11`).
 
 ## Resolved
 
