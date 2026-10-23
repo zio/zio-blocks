@@ -20,26 +20,28 @@ import zio.blocks.schema.{DynamicOptic, Schema, SchemaError}
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 /**
- * A wrapper around `Either[SchemaError, Chunk[Json]]` that provides fluent
- * chaining for JSON navigation and querying operations.
+ * The result of navigating a [[Json]] value: zero or more values, or the error
+ * that stopped the navigation. Each step applies to every value in the
+ * selection, and the first error ends it, so a chain of steps needs one check
+ * at the end.
  *
- * JsonSelection enables a fluent API style for navigating through JSON
- * structures:
  * {{{
  * import zio.blocks.schema.json._
  *
- * val json = Json.Object(
- *   "users" -> Json.Array(
- *     Json.Object("name" -> Json.String("Alice"))
+ * val shelf = Json.Object(
+ *   "books" -> Json.Array(
+ *     Json.Object("title" -> Json.String("Zionomicon"))
  *   )
  * )
  *
- * val names: JsonSelection =
- *   json.get("users").arrays.apply(0).get("name").strings
+ * val titles: JsonSelection =
+ *   shelf.get("books").arrays.apply(0).get("title").strings
+ *
+ * titles.one // Right("Zionomicon")
  * }}}
  *
- * The selection can contain zero, one, or multiple JSON values, supporting both
- * single-value navigation and multi-value queries.
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/json/json-selection/ JsonSelection]]
  */
 final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends AnyVal {
 
@@ -47,7 +49,10 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
   // Basic operations
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Returns true if the selection is successful (contains values). */
+  /**
+   * Returns `true` if the selection is not an error, even when it holds no
+   * values.
+   */
   def isSuccess: Boolean = either.isRight
 
   /** Returns true if the selection is a failure. */
@@ -184,19 +189,31 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
   // Navigation
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Navigates to a field in each object. */
+  /**
+   * Selects the field `key` of every selected value. Unlike a path step, it
+   * fails as soon as one value is not an object or lacks the key; filter with
+   * [[objects]] first to skip values of other kinds.
+   */
   def get(key: String): JsonSelection = flatMap(_.get(key))
 
-  /** Navigates to an index in each array. */
+  /**
+   * Selects the element at `index` of every selected value, failing as soon as
+   * one value is not an array or is too short.
+   */
   def apply(index: Int): JsonSelection = flatMap(_.get(index))
 
-  /** Navigates to a field in each object (alias for get). */
+  /** Selects the field `key` of every selected value, as `get(key)` does. */
   def apply(key: String): JsonSelection = get(key)
 
-  /** Navigates using a DynamicOptic path. */
+  /**
+   * Selects the values at `path` in every selected value, as `Json#get(path)`
+   * does.
+   */
   def get(path: DynamicOptic): JsonSelection = flatMap(_.get(path))
 
-  /** Navigates using a DynamicOptic path (alias for get). */
+  /**
+   * Selects the values at `path` in every selected value, as `get(path)` does.
+   */
   def apply(path: DynamicOptic): JsonSelection = get(path)
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -209,7 +226,10 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
     case l        => l
   })
 
-  /** FlatMaps a function over all selected values, combining results. */
+  /**
+   * Applies `f` to every selected value and joins the results, stopping at the
+   * first failure.
+   */
   def flatMap(f: Json => JsonSelection): JsonSelection = new JsonSelection(either match {
     case Right(v1) =>
       new Right({
@@ -243,7 +263,10 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
     case l        => l.asInstanceOf[Either[SchemaError, Chunk[A]]]
   }
 
-  /** Returns this selection if successful, otherwise the alternative. */
+  /**
+   * Returns this selection unless it is an error, otherwise `alternative`. An
+   * empty selection is kept.
+   */
   def orElse(alternative: => JsonSelection): JsonSelection =
     if (either.isRight) this
     else alternative
@@ -254,7 +277,10 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
     case _        => default
   }
 
-  /** Combines two selections, concatenating their values. */
+  /**
+   * Joins the values of two selections. When one is an error the result is that
+   * error, and when both are, their errors combined.
+   */
   def ++(other: JsonSelection): JsonSelection = new JsonSelection(either match {
     case Right(v1) =>
       other.either match {
@@ -273,11 +299,9 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Recursively searches each JSON in the selection, collecting all values for
-   * which the predicate returns true.
-   *
-   * @example
-   *   {{{selection.query(JsonType.String) // all string values in selection}}}
+   * Selects every value, at any depth and including each selected value itself,
+   * for which `p` returns `true`, in depth-first order. A [[JsonType]] works as
+   * `p`: `query(JsonType.String)` selects every string.
    */
   def query(p: Json => Boolean): JsonSelection =
     flatMap(json => Json.query(json, DynamicOptic.root, (_, j) => p(j)))
@@ -300,7 +324,10 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
   // Decoding
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Decodes the single selected value to type A. */
+  /**
+   * Decodes the single selected value into an `A` with the JSON codec of `A`'s
+   * schema, failing when there are 0 or more than 1 values.
+   */
   def as[A](implicit schema: Schema[A]): Either[SchemaError, A] = either match {
     case Right(v) =>
       val len = v.length
@@ -309,7 +336,7 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
     case l => l.asInstanceOf[Either[SchemaError, A]]
   }
 
-  /** Decodes all selected values to type A. */
+  /** Decodes every selected value into an `A`, stopping at the first error. */
   def asAll[A](implicit schema: Schema[A]): Either[SchemaError, Chunk[A]] = either match {
     case Right(v1) =>
       new Right({
@@ -348,7 +375,7 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
   /** Recursively removes empty objects and arrays in each selected value. */
   def dropEmpty: JsonSelection = map(_.dropEmpty)
 
-  /** Applies sortKeys, dropNulls, and dropEmpty to each selected value. */
+  /** Applies [[Json#normalize]] to each selected value. */
   def normalize: JsonSelection = map(_.normalize)
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -528,11 +555,9 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
   }
 
   /**
-   * Extracts the underlying Scala value from the single selected JSON value.
-   * Fails if there are 0 or more than 1 values, or if the value doesn't match.
-   *
-   * Note: For JsonType.Number, this parses to BigDecimal and may fail if not
-   * parseable.
+   * Extracts the Scala value inside the single selected value, as
+   * [[Json#unwrap]] does. Fails if there are 0 or more than 1 values, or if the
+   * value is of another type.
    */
   def unwrap(jsonType: JsonType): Either[SchemaError, jsonType.Unwrap] = either match {
     case Right(v) =>
@@ -550,8 +575,8 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
   }
 
   /**
-   * Extracts the underlying Scala values from all selected JSON values. Values
-   * not matching the type (or unparseable for Number) are silently dropped.
+   * Extracts the Scala values inside all selected values. Values of another
+   * type are silently dropped.
    */
   def unwrapAll(jsonType: JsonType): Either[SchemaError, Chunk[jsonType.Unwrap]] = either match {
     case Right(v) =>
@@ -575,6 +600,7 @@ final case class JsonSelection(either: Either[SchemaError, Chunk[Json]]) extends
   }
 }
 
+/** Constructors for [[JsonSelection]]. */
 object JsonSelection {
 
   /** Creates a successful selection with a single value. */

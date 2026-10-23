@@ -29,20 +29,41 @@ import scala.util.control.NonFatal
 import scala.util.hashing.MurmurHash3
 
 /**
- * A sealed trait representing a JSON value.
+ * An immutable JSON value: a [[Json.Object]], [[Json.Array]], [[Json.String]],
+ * [[Json.Number]], [[Json.Boolean]] or [[Json.Null]]. Use it to read, build and
+ * change JSON that no case class describes, and to convert between JSON and
+ * typed values with a [[zio.blocks.schema.Schema]] (`as`, [[Json.from]]).
  *
- * The `Json` type provides a complete representation of JSON data with six
- * possible cases: Object, Array, String, Number, Boolean, and Null.
+ *   - An object keeps its fields in order, duplicates included, but `==`,
+ *     `hashCode` and `compare` ignore the order.
+ *   - A number holds a `BigDecimal`. `Json.parse` rounds a number to 34
+ *     significant digits and rejects one with more than 308 digits or an
+ *     exponent beyond the reader's scale limit.
+ *   - Navigation (`get`) returns a [[JsonSelection]], which holds zero or more
+ *     values or an error.
+ *   - `toString` prints the value indented by two spaces; `print` prints it
+ *     compact.
  *
- * Key design decisions:
- *   - Objects use `Chunk[(String, Json)]` to preserve insertion order
- *   - Object equality is order-independent (keys are compared as sets)
- *   - Numbers use `String` to preserve exact representation
- *   - All navigation methods return `JsonSelection` for fluent chaining
+ * {{{
+ * import zio.blocks.schema.json._
+ *
+ * val book = Json.Object(
+ *   "title"   -> Json.String("Zionomicon"),
+ *   "authors" -> Json.Array(Json.String("John De Goes"), Json.String("Adam Fraser")),
+ *   "year"    -> Json.Number(2021)
+ * )
+ *
+ * book.get("title").as[String]          // Right(Zionomicon)
+ * book.print                            // {"title":"Zionomicon","authors":["John De Goes","Adam Fraser"],"year":2021}
+ * Json.parse(book.print) == Right(book) // true
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/json/json/ Json]]
  */
 sealed trait Json {
 
-  /** Pretty print Json value to string. */
+  /** Prints this value as JSON indented by two spaces. */
   override def toString: String = Json.jsonCodec.encodeToString(this, WriterConfig.withIndentionStep2)
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -57,33 +78,41 @@ sealed trait Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Returns true if this JSON value is of the specified type.
+   * Returns `true` if this value is of the given type.
    *
-   * @example
-   *   {{{ json.is(JsonType.Object) // true if json is an object
-   *   json.is(JsonType.String) // true if json is a string }}}
+   * {{{
+   * import zio.blocks.schema.json._
+   *
+   * Json.String("Zionomicon").is(JsonType.String) // true
+   * Json.String("Zionomicon").is(JsonType.Number) // false
+   * }}}
    */
   def is(jsonType: JsonType): Boolean = this.jsonType eq jsonType
 
   /**
-   * Narrows this JSON value to the specified type, returning `Some` if the
-   * types match or `None` otherwise. The return type is path-dependent on the
-   * `jsonType` parameter.
+   * Returns this value as the case of the given type, such as `Json.String` for
+   * `JsonType.String`, or `None` when it is of another type.
    *
-   * @example
-   *   {{{ json.as(JsonType.Object) // Option[Json.Object]
-   *   json.as(JsonType.String) // Option[Json.String] }}}
+   * {{{
+   * import zio.blocks.schema.json._
+   *
+   * val title: Option[Json.String] = Json.String("Zionomicon").as(JsonType.String) // Some("Zionomicon")
+   * Json.String("Zionomicon").as(JsonType.Number)                                  // None
+   * }}}
    */
   def as(jsonType: JsonType): Option[jsonType.Type]
 
   /**
-   * Extracts the underlying value from this JSON if it matches the specified
-   * type. The return type is path-dependent on the `jsonType` parameter.
+   * Returns the Scala value inside this value when it is of the given type (a
+   * `String`, a `BigDecimal`, a `Boolean`, the fields, the elements, or `()`
+   * for null), or `None` when it is of another type.
    *
-   * @example
-   *   {{{ json.unwrap(JsonType.String) // Option[String]
-   *   json.unwrap(JsonType.Number) // Option[BigDecimal]
-   *   json.unwrap(JsonType.Object) // Option[Chunk[(String, Json)]] }}}
+   * {{{
+   * import zio.blocks.schema.json._
+   *
+   * val title: Option[String]    = Json.String("Zionomicon").unwrap(JsonType.String) // Some(Zionomicon)
+   * val year: Option[BigDecimal] = Json.Number(2021).unwrap(JsonType.Number)        // Some(2021)
+   * }}}
    */
   def unwrap(jsonType: JsonType): Option[jsonType.Unwrap]
 
@@ -91,10 +120,14 @@ sealed trait Json {
   // Direct Accessors
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Returns the fields if this is an object, otherwise an empty Chunk. */
+  /**
+   * Returns the fields of an object, or an empty `Chunk` for any other value.
+   */
   def fields: Chunk[(String, Json)] = Chunk.empty
 
-  /** Returns the elements if this is an array, otherwise an empty Chunk. */
+  /**
+   * Returns the elements of an array, or an empty `Chunk` for any other value.
+   */
   def elements: Chunk[Json] = Chunk.empty
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -102,15 +135,17 @@ sealed trait Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Navigates to a field in an object by key. Returns a JsonSelection
-   * containing the value, or an error if not found.
+   * Selects the value of the field `key` of an object. The selection fails when
+   * the key is missing (`Key 'isbn' not found`) or this is not an object. With
+   * duplicate keys, it selects the first one.
    */
   def get(key: String): JsonSelection =
     JsonSelection.fail(SchemaError(s"Cannot get field '$key' from non-object JSON value"))
 
   /**
-   * Navigates to an element in an array by index. Returns a JsonSelection
-   * containing the value, or an error if index is out of bounds.
+   * Selects the element at `index` of an array. The selection fails when the
+   * index is out of bounds (`Index 5 out of bounds (size: 2) at: [5]`) or this
+   * is not an array.
    */
   def get(index: Int): JsonSelection =
     JsonSelection.fail(SchemaError(s"Cannot get index $index from non-array JSON value"))
@@ -120,14 +155,29 @@ sealed trait Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Navigates to the value(s) at the given path. Returns a JsonSelection that
-   * may contain zero or more values.
+   * Selects every value at `path`. A field or index step fails the selection
+   * only when no current value has that field or index, so `[*].isbn` skips the
+   * elements without an `isbn`. `[*]`, map keys and values, a string-keyed
+   * `AtMapKey` step and a schema search select many values; a type search
+   * fails, and case and wrapper steps are skipped.
+   *
+   * {{{
+   * import zio.blocks.schema.DynamicOptic
+   * import zio.blocks.schema.json._
+   *
+   * val shelf = Json.parseUnsafe("""{"books":[{"title":"Zionomicon"},{"title":"Programming in Scala"}]}""")
+   *
+   * shelf.get(DynamicOptic.root.field("books").elements.field("title")).toChunk
+   * // Chunk("Zionomicon","Programming in Scala")
+   * }}}
    */
   def get(path: DynamicOptic): JsonSelection = Json.getAtPath(this, path)
 
   /**
-   * Modifies the value at the given path using a function. If the path doesn't
-   * exist, returns the original JSON unchanged.
+   * Replaces each value at `path` with `f` of it. When the path matches
+   * nothing, returns this value unchanged and reports nothing; use
+   * [[modifyOrFail]] to find out. Through `[*]`, an element where the rest of
+   * the path does not match is kept as it is.
    */
   def modify(path: DynamicOptic)(f: Json => Json): Json = Json.modifyAtPath(this, path, f) match {
     case Some(json) => json
@@ -135,29 +185,35 @@ sealed trait Json {
   }
 
   /**
-   * Modifies the value at the given path using a partial function. Returns Left
-   * with an error if the path doesn't exist or the partial function is not
-   * defined.
+   * Replaces the value at `path` with `pf` of it, or returns `Left` when a
+   * field or index on the path is missing, a step meets a value of the wrong
+   * kind, or `pf` is not defined at a value reached through field, index, `[*]`
+   * and map-value steps. From any other step on, an undefined `pf` does not
+   * fail: the value is replaced by the value the path had reached before that
+   * step, and a path that matches nothing gives `Path not found`.
    */
   def modifyOrFail(path: DynamicOptic)(pf: PartialFunction[Json, Json]): Either[SchemaError, Json] =
     Json.modifyAtPathOrFail(this, path, pf)
 
   /**
-   * Sets a value at the given path. If the path doesn't exist, returns the
-   * original JSON unchanged.
+   * Replaces each value at `path` with `value`. It never adds a missing field:
+   * when the path matches nothing, it returns this value unchanged.
    */
   def set(path: DynamicOptic, value: Json): Json = modify(path)(_ => value)
 
   /**
-   * Sets a value at the given path. Returns Left with an error if the path
-   * doesn't exist.
+   * Replaces the value at `path` with `value`, or returns `Left` when the path
+   * does not exist (`Field 'isbn' not found`).
    */
   def setOrFail(path: DynamicOptic, value: Json): Either[SchemaError, Json] =
     Json.modifyAtPathOrFail(this, path, { case _ => value })
 
   /**
-   * Deletes the value at the given path. If the path doesn't exist, returns the
-   * original JSON unchanged.
+   * Removes the field or element at `path`, or returns this value unchanged
+   * when nothing is removed. Only field, index, `[*]` and schema-search steps
+   * are followed; a path with other steps, such as a quoted key, and the root
+   * path change nothing. A last `[*]` empties the array, and through `[*]` an
+   * element where the rest of the path does not match is dropped (a known bug).
    */
   def delete(path: DynamicOptic): Json = Json.deleteAtPath(this, path) match {
     case Some(json) => json
@@ -165,8 +221,8 @@ sealed trait Json {
   }
 
   /**
-   * Deletes the value at the given path. Returns Left with an error if the path
-   * doesn't exist.
+   * Removes the field or element at `path` as [[delete]] does, or returns
+   * `Left` (`Path not found: <path>`) when nothing is removed.
    */
   def deleteOrFail(path: DynamicOptic): Either[SchemaError, Json] = Json.deleteAtPath(this, path) match {
     case Some(json) => new Right(json)
@@ -174,9 +230,11 @@ sealed trait Json {
   }
 
   /**
-   * Inserts a value at the given path. For arrays, inserts at the specified
-   * index. For objects, adds the field. If the path already exists, returns the
-   * original JSON unchanged.
+   * Adds `value` at `path`: as a new last field of an object, or at an index of
+   * an array (from 0 to its size), shifting later elements. Returns this value
+   * unchanged when the field already exists, the index is out of range, the
+   * parent is missing, the path is the root, or it has a step other than a
+   * field or an index.
    */
   def insert(path: DynamicOptic, value: Json): Json = Json.insertAtPath(this, path, value) match {
     case Some(json) => json
@@ -184,8 +242,9 @@ sealed trait Json {
   }
 
   /**
-   * Inserts a value at the given path. Returns Left with an error if the path
-   * already exists or the parent doesn't exist.
+   * Adds `value` at `path` as [[insert]] does, or returns `Left` saying why it
+   * could not: the field exists, the index is out of range, the parent is
+   * missing, the root path, or an unsupported step.
    */
   def insertOrFail(path: DynamicOptic, value: Json): Either[SchemaError, Json] =
     Json.insertAtPathOrFail(this, path, value)
@@ -195,7 +254,22 @@ sealed trait Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Merges this JSON value with another using the specified strategy.
+   * Merges `that` into this value with `strategy`. The default,
+   * [[MergeStrategy.Auto]], merges objects by key and arrays by index, and
+   * takes `that` value elsewhere. Everything the strategy does not recurse
+   * into, including two values of different kinds, goes to its function; the
+   * built-in strategies return `that` there, except that
+   * [[MergeStrategy.Concat]] joins two arrays.
+   *
+   * {{{
+   * import zio.blocks.schema.json._
+   *
+   * val left  = Json.parseUnsafe("""{"tags":["fp"],"info":{"year":2021,"lang":"en"}}""")
+   * val right = Json.parseUnsafe("""{"tags":["scala","zio"],"info":{"year":2022}}""")
+   *
+   * left.merge(right).print                       // {"tags":["scala","zio"],"info":{"year":2022,"lang":"en"}}
+   * left.merge(right, MergeStrategy.Concat).print // {"tags":["fp","scala","zio"],"info":{"year":2022,"lang":"en"}}
+   * }}}
    */
   def merge(that: Json, strategy: MergeStrategy = MergeStrategy.Auto): Json =
     Json.merge(DynamicOptic.root, this, that, strategy)
@@ -204,18 +278,25 @@ sealed trait Json {
   // Normalization
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Recursively sorts all object keys alphabetically. */
+  /** Sorts the fields of every object by key, at every depth. */
   def sortKeys: Json = this
 
-  /** Recursively removes all null values from objects. */
+  /**
+   * Removes every null field of an object and null element of an array, at
+   * every depth.
+   */
   def dropNulls: Json = this
 
-  /** Recursively removes empty objects and arrays. */
+  /**
+   * Removes every empty object and empty array inside this value, at every
+   * depth, including ones that become empty. This value itself stays, even when
+   * empty.
+   */
   def dropEmpty: Json = this
 
   /**
-   * Applies dropNulls, dropEmpty, and sortKeys, but more efficiently than just
-   * their calls in a sequence.
+   * Removes nulls and empty containers and sorts keys, as [[dropNulls]],
+   * [[dropEmpty]] and [[sortKeys]] do, in one pass.
    */
   def normalize: Json = this
 
@@ -223,46 +304,90 @@ sealed trait Json {
   // Encoding
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Prints this JSON value to a string using the default WriterConfig. */
+  /** Prints this value as compact JSON. */
   def print: String = Json.jsonCodec.encodeToString(this)
 
-  /** Prints this JSON value to a string using the specified WriterConfig. */
+  /**
+   * Prints this value as JSON formatted by `config`.
+   *
+   * {{{
+   * import zio.blocks.schema.json._
+   *
+   * Json.Object("title" -> Json.String("Zionomicon")).print(WriterConfig.withIndentionStep(2))
+   * // {
+   * //   "title": "Zionomicon"
+   * // }
+   * }}}
+   */
   def print(config: WriterConfig): String = Json.jsonCodec.encodeToString(this, config)
 
-  /** Prints this JSON value to a byte array. */
+  /** Prints this value as compact JSON in UTF-8 bytes. */
   def printBytes: Array[Byte] = Json.jsonCodec.encode(this)
 
-  /** Prints this JSON value to a byte array with the specified config. */
+  /** Prints this value as JSON in UTF-8 bytes, formatted by `config`. */
   def printBytes(config: WriterConfig): Array[Byte] = Json.jsonCodec.encode(this, config)
 
-  /** Prints this JSON value to a Chunk of bytes (UTF-8). */
+  /** Prints this value as compact JSON in a `Chunk` of UTF-8 bytes. */
   def printChunk: Chunk[Byte] = Chunk.fromArray(Json.jsonCodec.encode(this))
 
-  /** Prints this JSON value to a Chunk of bytes (UTF-8) with configuration. */
+  /**
+   * Prints this value as JSON in a `Chunk` of UTF-8 bytes, formatted by
+   * `config`.
+   */
   def printChunk(config: WriterConfig): Chunk[Byte] = Chunk.fromArray(Json.jsonCodec.encode(this, config))
 
-  /** Prints this JSON value into the provided ByteBuffer. */
+  /**
+   * Writes this value as compact JSON into `buffer`, from its position.
+   *
+   * @throws java.nio.BufferOverflowException
+   *   when the JSON does not fit; the buffer then holds part of it (a known
+   *   bug)
+   */
   def printTo(buffer: ByteBuffer): Unit = Json.jsonCodec.encode(this, buffer)
 
-  /** Prints this JSON value into the provided ByteBuffer with config. */
+  /**
+   * Writes this value as JSON formatted by `config` into `buffer`, from its
+   * position.
+   *
+   * @throws java.nio.BufferOverflowException
+   *   when the JSON does not fit; the buffer then holds part of it (a known
+   *   bug)
+   */
   def printTo(buffer: ByteBuffer, config: WriterConfig): Unit = Json.jsonCodec.encode(this, buffer, config)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Conversion
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Converts this JSON value to a DynamicValue. */
+  /**
+   * Converts this value to a [[zio.blocks.schema.DynamicValue]]: an object
+   * becomes a `Record`, an array a `Sequence`, and a number an `Int`, a `Long`
+   * or a `BigDecimal`, the first that holds it exactly.
+   */
   def toDynamicValue: DynamicValue = Json.toDynamicValue(this)
 
   /**
-   * Decodes this JSON value to a value of type A using the implicit
-   * JsonDecoder.
+   * Decodes this value into an `A` with the JSON codec of `A`'s schema, or
+   * returns the first error.
+   *
+   * {{{
+   * import zio.blocks.schema.json._
+   *
+   * case class Book(title: String, year: Int)
+   * object Book {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   * }
+   *
+   * Json.parseUnsafe("""{"title":"Zionomicon","year":2021}""").as[Book] // Right(Book(Zionomicon,2021))
+   * }}}
    */
   def as[A](implicit schema: Schema[A]): Either[SchemaError, A] = schema.jsonCodec.decode(this)
 
   /**
-   * Decodes this JSON value to a value of type A, throwing SchemaError on
-   * failure.
+   * Decodes this value into an `A` as `as` does.
+   *
+   * @throws zio.blocks.schema.SchemaError
+   *   when decoding fails
    */
   def asUnsafe[A](implicit schema: Schema[A]): A = schema.jsonCodec.decode(this) match {
     case Right(value) => value
@@ -274,14 +399,15 @@ sealed trait Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Compares this JSON value with another for ordering. Objects are compared as
-   * sorted key-value pairs (order-independent).
+   * Orders this value against `that`: values of different kinds by
+   * [[typeIndex]], numbers numerically, strings by `compareTo`, arrays element
+   * by element, and objects by their key-sorted fields.
    */
   def compare(that: Json): Int
 
   /**
-   * Returns the type index for ordering: Null=0, Boolean=1, Number=2, String=3,
-   * Array=4, Object=5
+   * The rank of this value's kind in [[compare]]: null 0, boolean 1, number 2,
+   * string 3, array 4, object 5.
    */
   def typeIndex: Int
 
@@ -290,22 +416,20 @@ sealed trait Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Transforms this JSON value bottom-up using the given function. The function
-   * receives the current path and the JSON value at that path. Child values are
-   * transformed before their parents.
+   * Rebuilds this value bottom-up: `f` receives each path and value, children
+   * before their parent, and the parent sees its transformed children.
    */
   def transformUp(f: (DynamicOptic, Json) => Json): Json = Json.transformUp(this, DynamicOptic.root, f)
 
   /**
-   * Transforms this JSON value top-down using the given function. The function
-   * receives the current path and the JSON value at that path. Parent values
-   * are transformed before their children.
+   * Rebuilds this value top-down: `f` receives each path and value, a parent
+   * before its children, and the children of `f`'s result are transformed next.
    */
   def transformDown(f: (DynamicOptic, Json) => Json): Json = Json.transformDown(this, DynamicOptic.root, f)
 
   /**
-   * Transforms all object keys using the given function. The function receives
-   * the current path and the key at that path.
+   * Renames the keys of every object at every depth with `f`, which receives
+   * the path of the field (with its old key) and the key.
    */
   def transformKeys(f: (DynamicOptic, String) => String): Json = Json.transformKeys(this, DynamicOptic.root, f)
 
@@ -313,22 +437,12 @@ sealed trait Json {
   // Selection Methods (flat, lift to JsonSelection)
   // ─────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Wraps this JSON value in a [[JsonSelection]].
-   *
-   * @example
-   *   {{{json.select // JsonSelection containing this value}}}
-   */
+  /** Returns a [[JsonSelection]] of this value alone. */
   def select: JsonSelection = JsonSelection.succeed(this)
 
   /**
-   * Wraps this JSON value in a [[JsonSelection]] if its type matches the
-   * specified [[JsonType]], otherwise returns an empty selection.
-   *
-   * This is a flat (non-recursive) type check on the current node only.
-   *
-   * @example
-   *   {{{json.select(JsonType.Object) // selection if json is object, else empty}}}
+   * Returns a [[JsonSelection]] of this value when it is of the given type, or
+   * an empty selection. It checks this value only, not its children.
    */
   def select(jsonType: JsonType): JsonSelection =
     if (this.jsonType eq jsonType) JsonSelection.succeed(this)
@@ -339,22 +453,20 @@ sealed trait Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Recursively removes elements/fields for which the predicate returns true.
-   *
-   * @example
-   *   {{{json.prune(_.is(JsonType.Null)) // removes all null values}}}
+   * Removes every field or element for which `p` returns `true`, at every
+   * depth; the children of a removed value are not visited. `p` never sees this
+   * value itself.
    */
   def prune(p: Json => Boolean): Json = Json.prune(this, DynamicOptic.root, (_, json) => p(json))
 
   /**
-   * Recursively removes elements/fields at paths for which the predicate
-   * returns true.
+   * Removes every field or element whose path satisfies `p`, as [[prune]] does.
    */
   def prunePath(p: DynamicOptic => Boolean): Json = Json.prune(this, DynamicOptic.root, (path, _) => p(path))
 
   /**
-   * Recursively removes elements/fields for which the predicate on both path
-   * and value returns true.
+   * Removes every field or element whose path and value satisfy `p`, as
+   * [[prune]] does.
    */
   def pruneBoth(p: (DynamicOptic, Json) => Boolean): Json = Json.prune(this, DynamicOptic.root, p)
 
@@ -363,51 +475,57 @@ sealed trait Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Recursively keeps only elements/fields for which the predicate returns
-   * true.
+   * Keeps only the fields and elements for which `p` returns `true`, at every
+   * depth. A nested object or array stays only when `p` holds for the container
+   * itself, so `retain(_.is(JsonType.String))` drops every nested object along
+   * with the strings in it. `p` never sees this value itself.
    *
-   * @example
-   *   {{{json.retain(_.is(JsonType.Number)) // keeps only numbers}}}
+   * {{{
+   * import zio.blocks.schema.json._
+   *
+   * Json.parseUnsafe("""{"title":"Zionomicon","year":2021,"tags":["fp"]}""").retain(_.is(JsonType.String)).print
+   * // {"title":"Zionomicon"}
+   * }}}
    */
   def retain(p: Json => Boolean): Json = Json.retain(this, DynamicOptic.root, (_, json) => p(json))
 
   /**
-   * Recursively keeps only elements/fields at paths for which the predicate
-   * returns true.
+   * Keeps only the fields and elements whose path satisfies `p`, as [[retain]]
+   * does.
    */
   def retainPath(p: DynamicOptic => Boolean): Json = Json.retain(this, DynamicOptic.root, (path, _) => p(path))
 
   /**
-   * Recursively keeps only elements/fields for which the predicate on both path
-   * and value returns true.
+   * Keeps only the fields and elements whose path and value satisfy `p`, as
+   * [[retain]] does.
    */
   def retainBoth(p: (DynamicOptic, Json) => Boolean): Json = Json.retain(this, DynamicOptic.root, p)
 
   /**
-   * Projects only the specified paths from this JSON value. Creates a new JSON
-   * containing only values at the given paths.
+   * Builds a new value from the values at `paths`, each placed at its path, as
+   * [[Json.fromKVUnsafe]] does, so only field and index steps are rebuilt. With
+   * no paths, or when no path matches, it returns `Json.Null` (a known bug).
    */
   def project(paths: DynamicOptic*): Json = Json.project(this, paths)
 
   /**
-   * Partitions elements/fields based on a predicate on the value. Returns a
-   * tuple of (matching, non-matching) JSON values.
-   *
-   * @example
-   *   {{{json.partition(_.is(JsonType.Number)) // (numbers, non-numbers)}}}
+   * Splits this value into the fields and elements for which `p` holds and the
+   * rest, as a pair of the same kind as this value. Each field or element goes
+   * to the side `p` picks for it and carries only that side's part of its
+   * children, so a matching value inside a non-matching container appears in
+   * neither half: partitioning `{"editions":[2021,2022]}` by "is a number"
+   * gives `{}` and `{"editions":[]}` (a known bug). A leaf at the root goes to
+   * one side and `Json.Null` to the other.
    */
   def partition(p: Json => Boolean): (Json, Json) = Json.partition(this, DynamicOptic.root, (_, json) => p(json))
 
-  /**
-   * Partitions elements/fields based on a predicate on the path. Returns a
-   * tuple of (matching, non-matching) JSON values.
-   */
+  /** Splits this value by a predicate on the path, as [[partition]] does. */
   def partitionPath(p: DynamicOptic => Boolean): (Json, Json) =
     Json.partition(this, DynamicOptic.root, (path, _) => p(path))
 
   /**
-   * Partitions elements/fields based on a predicate on both path and value.
-   * Returns a tuple of (matching, non-matching) JSON values.
+   * Splits this value by a predicate on the path and value, as [[partition]]
+   * does.
    */
   def partitionBoth(p: (DynamicOptic, Json) => Boolean): (Json, Json) = Json.partition(this, DynamicOptic.root, p)
 
@@ -416,34 +534,39 @@ sealed trait Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Folds over the JSON structure bottom-up. The function receives the current
-   * path, the JSON value, and the accumulator. Child values are folded before
-   * their parents.
+   * Folds `f` over every value with its path, children before their parent,
+   * fields and elements in order.
    */
   def foldUp[B](z: B)(f: (DynamicOptic, Json, B) => B): B = Json.foldUp(this, DynamicOptic.root, z, f)
 
   /**
-   * Folds over the JSON structure top-down. The function receives the current
-   * path, the JSON value, and the accumulator. Parent values are folded before
-   * their children.
+   * Folds `f` over every value with its path, a parent before its children,
+   * fields and elements in order.
    */
   def foldDown[B](z: B)(f: (DynamicOptic, Json, B) => B): B = Json.foldDown(this, DynamicOptic.root, z, f)
 
   /**
-   * Folds over the JSON structure bottom-up, allowing failure.
+   * Folds as [[foldUp]] does, stopping at the first `Left` that `f` returns.
    */
   def foldUpOrFail[B](z: B)(f: (DynamicOptic, Json, B) => Either[SchemaError, B]): Either[SchemaError, B] =
     Json.foldUpOrFail(this, DynamicOptic.root, z, f)
 
   /**
-   * Folds over the JSON structure top-down, allowing failure.
+   * Folds as [[foldDown]] does, stopping at the first `Left` that `f` returns.
    */
   def foldDownOrFail[B](z: B)(f: (DynamicOptic, Json, B) => Either[SchemaError, B]): Either[SchemaError, B] =
     Json.foldDownOrFail(this, DynamicOptic.root, z, f)
 
   /**
-   * Converts this JSON to a Chunk of path-value pairs. Each pair contains the
-   * path to a leaf value and the value itself.
+   * Flattens this value into its leaves with their paths, in order. An empty
+   * object or array counts as a leaf. [[Json.fromKV]] rebuilds the value.
+   *
+   * {{{
+   * import zio.blocks.schema.json._
+   *
+   * Json.parseUnsafe("""{"title":"Zionomicon","year":2021}""").toKV
+   * // Chunk((.title,"Zionomicon"),(.year,2021))
+   * }}}
    */
   def toKV: Chunk[(DynamicOptic, Json)] = Json.toKV(this, DynamicOptic.root)
 
@@ -452,34 +575,28 @@ sealed trait Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Computes the difference between this JSON and another.
-   *
-   * @param that
-   *   The target JSON value
-   * @return
-   *   A JsonPatch that transforms this to that
+   * Returns the patch that turns this value into `that`, as [[JsonPatch.diff]]
+   * does.
    */
   def diff(that: Json): JsonPatch = JsonPatch.diff(this, that)
 
-  /**
-   * Applies a JSON patch to this value.
-   *
-   * @param patch
-   *   The patch to apply
-   * @param mode
-   *   The patch mode controlling failure handling (default: Strict)
-   * @return
-   *   Either an error or the patched value
-   */
+  /** Applies `patch` to this value in `mode`, as [[JsonPatch#apply]] does. */
   def patch(patch: JsonPatch, mode: PatchMode = PatchMode.Strict): Either[SchemaError, Json] = patch.apply(this, mode)
 
-  /** Checks if this JSON conforms to a JSON Schema. */
+  /**
+   * Validates this value against `schema`, as `JsonSchema#check` does: `None`
+   * when it conforms, or every violation found.
+   */
   def check(schema: JsonSchema): Option[SchemaError] = schema.check(this)
 
-  /** Returns true if this JSON conforms to a JSON Schema. */
+  /** Returns `true` if this value conforms to `schema`. */
   def conforms(schema: JsonSchema): scala.Boolean = schema.conforms(this)
 }
 
+/**
+ * The cases of [[Json]], their constructors, and the parsers, conversions,
+ * schemas and codec of JSON values.
+ */
 object Json {
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -487,8 +604,8 @@ object Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Represents a JSON object with ordered key-value pairs. Equality is
-   * order-independent (compared as sorted key-value pairs).
+   * A JSON object: its fields in order, duplicate keys included. `==` and
+   * `hashCode` ignore the order of the fields.
    */
   final case class Object(value: Chunk[(java.lang.String, Json)]) extends Json {
     override def jsonType: JsonType = JsonType.Object
@@ -640,9 +757,13 @@ object Json {
     override def hashCode(): Int = MurmurHash3.unorderedHash(value)
   }
 
+  /** Constructors for [[Json.Object]]. */
   object Object {
+
+    /** The object with no fields, `{}`. */
     val empty: Object = Object(Chunk.empty)
 
+    /** Creates an object with the given fields, in order. */
     def apply(fields: (java.lang.String, Json)*): Object = new Object(Chunk.from(fields))
 
     private val ordering: Ordering[(java.lang.String, Json)] = new Ordering[(java.lang.String, Json)] {
@@ -650,9 +771,7 @@ object Json {
     }
   }
 
-  /**
-   * Represents a JSON array.
-   */
+  /** A JSON array. */
   final case class Array(value: Chunk[Json]) extends Json {
     override def jsonType: JsonType = JsonType.Array
 
@@ -761,15 +880,17 @@ object Json {
     }
   }
 
+  /** Constructors for [[Json.Array]]. */
   object Array {
+
+    /** The array with no elements, `[]`. */
     val empty: Array = new Array(Chunk.empty)
 
+    /** Creates an array with the given elements. */
     def apply(elements: Json*): Array = new Array(Chunk.from(elements))
   }
 
-  /**
-   * Represents a JSON string.
-   */
+  /** A JSON string. */
   final case class String(value: java.lang.String) extends Json {
     override def jsonType: JsonType = JsonType.String
 
@@ -790,8 +911,9 @@ object Json {
   }
 
   /**
-   * Represents a JSON number stored as a String to preserve exact
-   * representation.
+   * A JSON number, held as a `BigDecimal`. Two numbers are `==` when their
+   * values are, whatever their scale: `Json.Number(BigDecimal("2.50"))` equals
+   * `Json.Number(2.5)`.
    */
   final case class Number(value: BigDecimal) extends Json {
     override def jsonType: JsonType = JsonType.Number
@@ -812,6 +934,7 @@ object Json {
     }
   }
 
+  /** Constructors for [[Json.Number]] from each Scala number type. */
   object Number {
 
     /** Creates a JSON number from an Int. */
@@ -821,18 +944,21 @@ object Json {
     def apply(value: Long): Number = new Number(BigDecimal(value))
 
     /**
-     * Creates a JSON number from a Float.
+     * Creates a JSON number from a Float, with the shortest decimal digits that
+     * read back as the same `Float`.
      *
      * @throws java.lang.IllegalArgumentException
-     *   in cases of NaN of infinity values
+     *   for NaN and the infinities
      */
     def apply(value: Float): Number = new Number(JsonWriter.toBigDecimal(value))
 
     /**
-     * Creates a JSON number from a Double.
+     * Creates a JSON number from a Double, with the shortest decimal digits
+     * that read back as the same `Double`. The scale can keep one trailing
+     * zero, so `Json.Number(49.99).print` gives `49.990` (a known bug).
      *
      * @throws java.lang.IllegalArgumentException
-     *   in cases of NaN of infinity values
+     *   for NaN and the infinities
      */
     def apply(value: Double): Number = new Number(JsonWriter.toBigDecimal(value))
 
@@ -851,9 +977,7 @@ object Json {
     def apply(value: Short): Number = new Number(BigDecimal(value))
   }
 
-  /**
-   * Represents a JSON boolean.
-   */
+  /** A JSON boolean; [[Json.True]] and [[Json.False]] are its two values. */
   final case class Boolean(value: scala.Boolean) extends Json {
     override def jsonType: JsonType = JsonType.Boolean
 
@@ -873,15 +997,16 @@ object Json {
     }
   }
 
+  /** Constructor for [[Json.Boolean]]. */
   object Boolean {
+
+    /** Returns [[Json.True]] or [[Json.False]]. */
     def apply(value: scala.Boolean): Boolean =
       if (value) Json.True
       else Json.False
   }
 
-  /**
-   * Represents JSON null.
-   */
+  /** JSON `null`. */
   case object Null extends Json {
     override def jsonType: JsonType = JsonType.Null
 
@@ -912,32 +1037,57 @@ object Json {
   // Parsing
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Parses a JSON string into a Json value. */
+  /**
+   * Parses one JSON value from `input`, or returns `Left` with the reader's
+   * message and path, such as `unexpected end of input at: .`. Text after the
+   * value, other than whitespace, is an error. Numbers are rounded to 34
+   * significant digits.
+   *
+   * {{{
+   * import zio.blocks.schema.json._
+   *
+   * Json.parse("""{"title":"Zionomicon","year":2021}""").map(_.print) // Right({"title":"Zionomicon","year":2021})
+   * Json.parse("""{"title":"Zionomicon",""").isLeft                  // true
+   * }}}
+   */
   def parse(input: java.lang.String): Either[SchemaError, Json] = jsonCodec.decode(input)
 
-  /** Parses a JSON byte array into a Json value. */
+  /** Parses one JSON value from UTF-8 `input`, as `parse(String)` does. */
   def parse(input: scala.Array[Byte]): Either[SchemaError, Json] = jsonCodec.decode(input)
 
-  /** Parses a JSON byte array with config. */
+  /**
+   * Parses one JSON value from UTF-8 `input` with the limits and checks of
+   * `config`.
+   */
   def parse(input: scala.Array[Byte], config: ReaderConfig): Either[SchemaError, Json] = jsonCodec.decode(input, config)
 
-  /** Parses a JSON string with config. */
+  /**
+   * Parses one JSON value from `input` with the limits and checks of `config`.
+   */
   def parse(input: java.lang.String, config: ReaderConfig): Either[SchemaError, Json] = jsonCodec.decode(input, config)
 
-  /** Parses a JSON CharSequence into a Json value. */
+  /** Parses one JSON value from the characters of `input`. */
   def parse(input: CharSequence): Either[SchemaError, Json] = jsonCodec.decode(input.toString)
 
-  /** Parses a JSON CharSequence with config. */
+  /** Parses one JSON value from the characters of `input` with `config`. */
   def parse(input: CharSequence, config: ReaderConfig): Either[SchemaError, Json] =
     jsonCodec.decode(input.toString, config)
 
-  /** Parses a JSON ByteBuffer into a Json value. */
+  /**
+   * Parses one JSON value from the UTF-8 bytes of `input`, from its position.
+   */
   def parse(input: ByteBuffer): Either[SchemaError, Json] = jsonCodec.decode(input)
 
-  /** Parses a JSON ByteBuffer with config. */
+  /**
+   * Parses one JSON value from the UTF-8 bytes of `input`, from its position,
+   * with `config`.
+   */
   def parse(input: ByteBuffer, config: ReaderConfig): Either[SchemaError, Json] = jsonCodec.decode(input, config)
 
-  /** Parses a JSON Chunk of bytes (UTF-8) into a Json value. */
+  /**
+   * Parses one JSON value from UTF-8 `input`, without copying an array-backed
+   * chunk.
+   */
   def parse(input: Chunk[Byte]): Either[SchemaError, Json] = input match {
     case ba: Chunk.ByteArray =>
       val from = ba.offset
@@ -946,7 +1096,7 @@ object Json {
       jsonCodec.decode(input.toArray)
   }
 
-  /** Parses a JSON Chunk of bytes (UTF-8) with config. */
+  /** Parses one JSON value from UTF-8 `input` with `config`. */
   def parse(input: Chunk[Byte], config: ReaderConfig): Either[SchemaError, Json] = input match {
     case ba: Chunk.ByteArray =>
       val from = ba.offset
@@ -955,7 +1105,12 @@ object Json {
       jsonCodec.decode(input.toArray, config)
   }
 
-  /** Parses a JSON string, throwing SchemaError on failure. */
+  /**
+   * Parses one JSON value from `input`, as `parse(String)` does.
+   *
+   * @throws zio.blocks.schema.SchemaError
+   *   when the input is not valid JSON
+   */
   def parseUnsafe(input: java.lang.String): Json = parse(input) match {
     case Right(json) => json
     case Left(err)   => throw err
@@ -965,7 +1120,16 @@ object Json {
   // Conversion from DynamicValue
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Converts a DynamicValue to a Json value. */
+  /**
+   * Converts a [[zio.blocks.schema.DynamicValue]] to JSON: a record becomes an
+   * object, a variant `{"<case>": value}`, a sequence an array, and a map an
+   * object when every key is a `String`, or else an array of
+   * `{"key": ..., "value": ...}` objects. Temporal values become ISO-8601
+   * strings and `Unit` becomes `{}`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   for a `Float` or `Double` that is NaN or infinite
+   */
   def fromDynamicValue(dv: DynamicValue): Json = dv match {
     case v: DynamicValue.Primitive => fromPrimitiveValue(v.value)
     case v: DynamicValue.Record    => new Object(v.fields.map(kv => (kv._1, fromDynamicValue(kv._2))))
@@ -1443,13 +1607,32 @@ object Json {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Creates a Json value from an encoder.
+   * Encodes `value` as a `Json` tree with the JSON codec of `A`'s schema.
+   *
+   * {{{
+   * import zio.blocks.schema.json._
+   *
+   * case class Book(title: String, year: Int)
+   * object Book {
+   *   implicit val schema: Schema[Book] = Schema.derived
+   * }
+   *
+   * Json.from(Book("Zionomicon", 2021)).print // {"title":"Zionomicon","year":2021}
+   * }}}
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   for a `Float` or `Double` that is NaN or infinite
+   * @throws JsonCodecError
+   *   when a codec in the tree cannot encode to `Json`, such as a custom codec
+   *   that implements only the streaming methods
    */
   def from[A](value: A)(implicit schema: Schema[A]): Json = schema.jsonCodec.encodeValue(value)
 
   /**
-   * Reconstructs a JSON value from path-value pairs. Returns Left if the paths
-   * are inconsistent.
+   * Rebuilds a value from path-value pairs, as [[fromKVUnsafe]] does, or
+   * returns `Left` when it throws. Paths that disagree do not fail: a later one
+   * replaces what is in its way, so `.a` then `[0]` gives an array. Only a
+   * negative index fails. No pairs give `Json.Null`.
    */
   def fromKV(kvs: Seq[(DynamicOptic, Json)]): Either[SchemaError, Json] = {
     if (kvs.isEmpty) return new Right(Null)
@@ -1460,8 +1643,12 @@ object Json {
   }
 
   /**
-   * Reconstructs a JSON value from path-value pairs. Throws on inconsistent
-   * paths.
+   * Rebuilds a value from path-value pairs, the inverse of [[Json#toKV]]. Field
+   * steps create objects and index steps create arrays padded with nulls; other
+   * steps are ignored.
+   *
+   * @throws java.lang.IndexOutOfBoundsException
+   *   for a negative index
    */
   def fromKVUnsafe(kvs: Seq[(DynamicOptic, Json)]): Json = {
     val len = kvs.length
@@ -2131,12 +2318,17 @@ object Json {
   // Ordering
   // ─────────────────────────────────────────────────────────────────────────
 
+  /**
+   * Orders values with [[Json#compare]]: null, booleans, numbers, strings,
+   * arrays, objects.
+   */
   implicit val ordering: Ordering[Json] = (x: Json, y: Json) => x.compare(y)
 
   // ─────────────────────────────────────────────────────────────────────────
   // JsonCodec for Json
   // ─────────────────────────────────────────────────────────────────────────
 
+  /** The schema of [[Json.Null]], a record with no fields. */
   implicit lazy val nullSchema: Schema[Null.type] = new Schema(
     reflect = new Reflect.Record[Binding, Null.type](
       fields = Chunk.empty,
@@ -2149,6 +2341,7 @@ object Json {
     )
   )
 
+  /** The schema of [[Json.Boolean]], a record with one `value` field. */
   implicit lazy val booleanSchema: Schema[Boolean] = new Schema(
     reflect = new Reflect.Record[Binding, Boolean](
       fields = Chunk.single(Schema[scala.Boolean].reflect.asTerm("value")),
@@ -2168,6 +2361,7 @@ object Json {
     )
   )
 
+  /** The schema of [[Json.Number]], a record with one `value` field. */
   implicit lazy val numberSchema: Schema[Number] = new Schema(
     reflect = new Reflect.Record[Binding, Number](
       fields = Chunk.single(Schema[BigDecimal].reflect.asTerm("value")),
@@ -2188,6 +2382,7 @@ object Json {
     )
   )
 
+  /** The schema of [[Json.String]], a record with one `value` field. */
   implicit lazy val stringSchema: Schema[String] = new Schema(
     reflect = new Reflect.Record[Binding, String](
       fields = Chunk.single(Schema[java.lang.String].reflect.asTerm("value")),
@@ -2208,6 +2403,7 @@ object Json {
     )
   )
 
+  /** The schema of [[Json.Array]], a record with one `value` field. */
   implicit lazy val arraySchema: Schema[Array] = new Schema(
     reflect = new Reflect.Record[Binding, Array](
       fields = Chunk.single(Reflect.Deferred(() => Reflect.indexedSeq(schema.reflect)).asTerm("value")),
@@ -2251,6 +2447,10 @@ object Json {
     )
   }
 
+  /**
+   * The schema of [[Json.Object]], a record with one `value` field of key-value
+   * pairs; its JSON codec writes `{"value":[["title","Zionomicon"]]}`.
+   */
   implicit lazy val objectSchema: Schema[Object] = new Schema(
     reflect = new Reflect.Record[Binding, Object](
       fields = Chunk.single(Reflect.Deferred(() => Reflect.indexedSeq(tupleReflect)).asTerm("value")),
@@ -2271,6 +2471,11 @@ object Json {
     )
   )
 
+  /**
+   * The schema of [[Json]]: a variant of the six cases. Its JSON codec, and the
+   * codec of a `Json` field in a derived codec, read and write the value as
+   * plain JSON; other formats and `toDynamicValue` see the variant.
+   */
   implicit lazy val schema: Schema[Json] = new Schema(
     reflect = new Reflect.Variant[Binding, Json](
       cases = Chunk(
@@ -2336,6 +2541,7 @@ object Json {
     )
   )
 
+  /** The codec that reads and writes any JSON value as itself. */
   val jsonCodec: JsonCodec[Json] = new JsonCodec[Json] {
     override def decodeValue(in: JsonReader): Json = {
       var x = in.nextToken().toInt
