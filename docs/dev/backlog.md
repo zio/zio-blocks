@@ -519,5 +519,5 @@ Plan: `docs/superpowers/plans/2026-10-21-schema-scaladoc.md`. Style: `docs/dev/s
 | 5. Dynamic               | Done        | #1829 | 2345 / 6919 (33%) | 2587 / 6919 (37%) |
 | 6. Derivation and codecs | Done        | #1833 | 2587 / 6919 (37%) | 2729 / 6919 (39%) |
 | 7. Transform and evolve  | In review   | #1836 | 2729 / 6919 (39%) | 2972 / 6919 (43%) |
-| 8a. JSON model           | Not started |       |                   |                   |
+| 8a. JSON model           | In review   |       | 2587 / 6919 (37%) | 2821 / 6919 (40%) |
 | 8b. JSON I/O             | Not started |       |                   |                   |
