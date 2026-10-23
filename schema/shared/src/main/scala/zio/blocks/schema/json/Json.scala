@@ -2449,7 +2449,8 @@ object Json {
 
   /**
    * The schema of [[Json.Object]], a record with one `value` field of key-value
-   * pairs; its JSON codec writes `{"value":[["title","Zionomicon"]]}`.
+   * pairs; its JSON codec writes each field as a `[key, value]` array under
+   * `value`.
    */
   implicit lazy val objectSchema: Schema[Object] = new Schema(
     reflect = new Reflect.Record[Binding, Object](

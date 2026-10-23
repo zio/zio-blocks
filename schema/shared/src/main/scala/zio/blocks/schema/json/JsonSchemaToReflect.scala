@@ -22,6 +22,19 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.{Owner, TypeId}
 
+/**
+ * Builds the `Reflect` of `Schema.fromJsonSchema`: a structure of
+ * [[zio.blocks.schema.DynamicValue]] nodes that its JSON codec decodes. It
+ * recognizes, in this order, a string `enum`, `items` (a sequence),
+ * `properties` (a record) or `additionalProperties` alone (a map), a nullable
+ * type (an option), a `oneOf` keyed by case or by a `const` field (a variant),
+ * `prefixItems` with `items: false` (a tuple), and a single primitive `type`;
+ * anything else accepts any value.
+ *
+ * Known bugs: every property of a record is required, whatever `required` says,
+ * and a value of an `enum` or `oneOf` schema never decodes, because the decoded
+ * value loses its case.
+ */
 private[schema] object JsonSchemaToReflect {
 
   private[this] def extractTitle(schema: JsonSchema): Option[String] = schema match {
@@ -37,41 +50,71 @@ private[schema] object JsonSchemaToReflect {
   private[json] sealed trait Shape
 
   private[json] object Shape {
+
+    /** The primitive type of a [[Primitive]] shape. */
     sealed trait PrimKind
 
+    /** The five primitive kinds. */
     object PrimKind {
+
+      /** A string. */
       case object String extends PrimKind
 
+      /** An integer, decoded as a `BigInt`. */
       case object Integer extends PrimKind
 
+      /** A number, decoded as a `BigDecimal`. */
       case object Number extends PrimKind
 
+      /** A boolean. */
       case object Boolean extends PrimKind
 
+      /** Null, which accepts any value. */
       case object Null extends PrimKind
     }
 
+    /**
+     * A primitive `type`, with the length, pattern and range keywords of
+     * `schema`.
+     */
     case class Primitive(kind: PrimKind, schema: JsonSchema.Object) extends Shape
 
+    /** An object with `properties`; `required` is not used (a known bug). */
     case class Record(fields: ChunkMap[String, JsonSchema], required: Set[String], closed: Boolean) extends Shape
 
+    /**
+     * An object with only `additionalProperties`, the schema of every value.
+     */
     case class MapShape(values: JsonSchema) extends Shape
 
+    /** An array whose elements all follow `items`. */
     case class Sequence(items: JsonSchema) extends Shape
 
+    /** An array of a fixed length, from `prefixItems` with `items: false`. */
     case class Tuple(prefixItems: Chunk[JsonSchema]) extends Shape
 
+    /** A string `enum`. */
     case class Enum(cases: Chunk[String]) extends Shape
 
+    /** A `oneOf` of objects with one property each, the case name. */
     case class KeyVariant(cases: ChunkMap[String, JsonSchema]) extends Shape
 
+    /**
+     * A `oneOf` of objects told apart by a `const` property; built as a
+     * [[KeyVariant]].
+     */
     case class FieldVariant(discriminator: String, cases: ChunkMap[String, JsonSchema]) extends Shape
 
+    /** A nullable type, or an `anyOf` of a schema and the null schema. */
     case class OptionOf(inner: JsonSchema) extends Shape
 
+    /** Any value. */
     case object Dynamic extends Shape
   }
 
+  /**
+   * Returns the structure that `Schema.fromJsonSchema` wraps, for `jsonSchema`.
+   */
   def toReflect(jsonSchema: JsonSchema): Reflect[Binding, DynamicValue] = {
     val shape = analyze(jsonSchema)
     wrapWithValidation(jsonSchema, shape, build(shape, jsonSchema))
