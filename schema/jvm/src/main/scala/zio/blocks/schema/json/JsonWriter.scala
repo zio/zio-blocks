@@ -30,32 +30,60 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.lang.Long.compareUnsigned
 
 /**
- * A writer for iterative serialization of JSON keys and values.
+ * Writes JSON output, to a byte array, a `String`, a `java.io.OutputStream` or
+ * a `java.nio.ByteBuffer`. A [[JsonCodec]] gets a writer in
+ * `JsonCodec#encodeValue` and calls its methods to write the value: `writeVal`
+ * for a JSON value, `writeKey` for an object key, `writeValAsString` for a
+ * number or boolean written as a JSON string, [[writeNull]], and
+ * [[writeArrayStart]] or [[writeObjectStart]] with their matching ends for
+ * nested values.
  *
- * @param buf
- *   an internal buffer for writing JSON data
- * @param count
- *   the current position in the internal buffer
- * @param limit
- *   the last position in the internal buffer
- * @param stack
- *   a pre-allocated stack of registers
- * @param top
- *   an offset of the stack top
- * @param maxTop
- *   a maximum offset of the stack top
- * @param config
- *   a writer configuration
- * @param indention
- *   the current indention level
- * @param comma
- *   a flag indicating if comma should precede the next element
- * @param disableBufGrowing
- *   a flag indicating if growing of the internal buffer is disabled
- * @param bbuf
- *   a byte buffer for writing JSON data
- * @param out
- *   the output stream for writing JSON data
+ * The writer adds the separators itself: a `,` between the elements of an array
+ * and between the fields of an object, a `:` after each key, and, when
+ * `WriterConfig#indentionStep` is greater than 0, line breaks, indentation and
+ * a space after each `:`. It does not check that the calls make valid JSON: a
+ * codec must write a key before each value in an object and close what it
+ * opens.
+ *
+ * A write throws a [[JsonCodecError]] for a value that has no JSON form, such
+ * as a `Double` that is NaN or a `String` with a lone surrogate, and
+ * `JsonCodec#encode` passes it on to the caller. With
+ * `WriterConfig#escapeUnicode`, every non-ASCII char of a string or key is
+ * written as a `\u` escape. A writer serves one codec call: do not keep it or
+ * share it with another thread.
+ *
+ * {{{
+ * import zio.blocks.schema.json._
+ *
+ * case class Shelf(name: String, books: List[String])
+ *
+ * val shelfCodec: JsonCodec[Shelf] = new JsonCodec[Shelf] {
+ *   def decodeValue(in: JsonReader): Shelf = error("decoding a shelf is not supported")
+ *
+ *   def encodeValue(x: Shelf, out: JsonWriter): Unit = {
+ *     out.writeObjectStart()
+ *     out.writeKey("name")
+ *     out.writeVal(x.name)
+ *     out.writeKey("books")
+ *     out.writeArrayStart()
+ *     x.books.foreach(book => out.writeVal(book))
+ *     out.writeArrayEnd()
+ *     out.writeObjectEnd()
+ *   }
+ * }
+ *
+ * val shelf = Shelf("Scala", List("Zionomicon", "Programming in Scala"))
+ * shelfCodec.encodeToString(shelf)
+ * // {"name":"Scala","books":["Zionomicon","Programming in Scala"]}
+ * shelfCodec.encodeToString(shelf, WriterConfig.withIndentionStep2)
+ * // {
+ * //   "name": "Scala",
+ * //   "books": [
+ * //     "Zionomicon",
+ * //     "Programming in Scala"
+ * //   ]
+ * // }
+ * }}}
  */
 final class JsonWriter private[json] (
   private[this] var buf: Array[Byte] = new Array[Byte](32768),
@@ -72,12 +100,7 @@ final class JsonWriter private[json] (
   private[this] var out: OutputStream = null
 ) {
 
-  /**
-   * Writes a `Boolean` value as a JSON key.
-   *
-   * @param x
-   *   the `Boolean` value to write
-   */
+  /** Writes `x` as an object key, `"true"` or `"false"`. */
   def writeKey(x: Boolean): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
     writeBytes('"')
@@ -85,12 +108,7 @@ final class JsonWriter private[json] (
     writeParenthesesWithColon()
   }
 
-  /**
-   * Writes a `Byte` value as a JSON key.
-   *
-   * @param x
-   *   the `Byte` value to write
-   */
+  /** Writes `x` as an object key holding its decimal digits, such as `"42"`. */
   def writeKey(x: Byte): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
     writeBytes('"')
@@ -99,12 +117,11 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Char` value as a JSON key.
+   * Writes `x` as an object key of one char, escaped and encoded as in
+   * `writeVal(x: String)`.
    *
-   * @param x
-   *   the `Char` value to write
    * @throws JsonCodecError
-   *   in the case of `Char` value is a part of the surrogate pair
+   *   `illegal char sequence of surrogate pair` when `x` is a surrogate
    */
   def writeKey(x: Char): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -112,12 +129,7 @@ final class JsonWriter private[json] (
     writeColon()
   }
 
-  /**
-   * Writes a `Short` value as a JSON key.
-   *
-   * @param x
-   *   the `Short` value to write
-   */
+  /** Writes `x` as an object key holding its decimal digits, such as `"42"`. */
   def writeKey(x: Short): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
     writeBytes('"')
@@ -125,12 +137,7 @@ final class JsonWriter private[json] (
     writeParenthesesWithColon()
   }
 
-  /**
-   * Writes an `Int` value as a JSON key.
-   *
-   * @param x
-   *   the `Int` value to write
-   */
+  /** Writes `x` as an object key holding its decimal digits, such as `"42"`. */
   def writeKey(x: Int): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
     writeBytes('"')
@@ -138,12 +145,7 @@ final class JsonWriter private[json] (
     writeParenthesesWithColon()
   }
 
-  /**
-   * Writes a `Long` value as a JSON key.
-   *
-   * @param x
-   *   the `Long` value to write
-   */
+  /** Writes `x` as an object key holding its decimal digits, such as `"42"`. */
   def writeKey(x: Long): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
     writeBytes('"')
@@ -152,12 +154,12 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Float` value as a JSON key.
+   * Writes `x` as an object key holding the number in the form of
+   * `writeVal(x: Float)`, such as `"1.5"`.
    *
-   * @param x
-   *   the `Float` value to write
    * @throws JsonCodecError
-   *   if the value is non-finite
+   *   `illegal number: NaN`, `illegal number: Infinity` or
+   *   `illegal number: -Infinity` when `x` is not finite
    */
   def writeKey(x: Float): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -167,12 +169,12 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Double` value as a JSON key.
+   * Writes `x` as an object key holding the number in the form of
+   * `writeVal(x: Double)`, such as `"1.5"`.
    *
-   * @param x
-   *   the `Double` value to write
    * @throws JsonCodecError
-   *   if the value is non-finite
+   *   `illegal number: NaN`, `illegal number: Infinity` or
+   *   `illegal number: -Infinity` when `x` is not finite
    */
   def writeKey(x: Double): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -181,12 +183,7 @@ final class JsonWriter private[json] (
     writeParenthesesWithColon()
   }
 
-  /**
-   * Writes a `BigInt` value as a JSON key.
-   *
-   * @param x
-   *   the `BigInt` value to write
-   */
+  /** Writes `x` as an object key holding its decimal digits, such as `"42"`. */
   def writeKey(x: BigInt): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
     writeBytes('"')
@@ -196,10 +193,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `BigDecimal` value as a JSON key.
-   *
-   * @param x
-   *   the `BigDecimal` value to write
+   * Writes `x` as an object key holding the number in the form of
+   * `writeVal(x: BigDecimal)`, such as `"1E2"`.
    */
   def writeKey(x: BigDecimal): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -209,10 +204,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.util.UUID]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.util.UUID]] value to write
+   * Writes `x` as an object key in lower-case 8-4-4-4-12 hex form, such as
+   * `"123e4567-e89b-12d3-a456-426614174000"`.
    */
   def writeKey(x: UUID): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -221,12 +214,11 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `String` value as a JSON key.
+   * Writes `x` as an object key, escaped and encoded as in
+   * `writeVal(x: String)`.
    *
-   * @param x
-   *   the `String` value to write
    * @throws JsonCodecError
-   *   if the provided string has an illegal surrogate pair
+   *   `illegal char sequence of surrogate pair` when `x` has a lone surrogate
    */
   def writeKey(x: String): Unit = {
     val indention = this.indention
@@ -248,15 +240,11 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `String` value that doesn't require encoding or escaping as a JSON
-   * key.
-   *
-   * @note
-   *   Use [[JsonWriter.isNonEscapedAscii]] for validation if the string is
-   *   eligible for writing by this method.
-   *
-   * @param x
-   *   the `String` value to write
+   * Writes `x` as an object key without escaping or encoding it: each char
+   * becomes one byte. It is faster than `writeKey(x: String)`, but correct only
+   * when [[JsonWriter.isNonEscapedAscii]] returns `true` for `x`. Otherwise it
+   * writes, without an error, invalid JSON for a `"`, `\` or control char, and
+   * a wrong byte for a non-ASCII char.
    */
   def writeNonEscapedAsciiKey(x: String): Unit = {
     val len       = x.length
@@ -286,10 +274,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Duration]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.Duration]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: Duration)`, such as
+   * `"PT1H30M"`.
    */
   def writeKey(x: Duration): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -298,10 +284,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Duration]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.Duration]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: Instant)`, such as
+   * `"2024-03-15T10:15:30Z"`.
    */
   def writeKey(x: Instant): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -310,10 +294,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.LocalDate]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.LocalDate]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: LocalDate)`, such
+   * as `"2024-03-15"`.
    */
   def writeKey(x: LocalDate): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -322,10 +304,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.LocalDateTime]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.LocalDateTime]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: LocalDateTime)`,
+   * such as `"2024-03-15T10:15"`.
    */
   def writeKey(x: LocalDateTime): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -334,10 +314,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.LocalTime]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.LocalTime]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: LocalTime)`, such
+   * as `"10:15"`.
    */
   def writeKey(x: LocalTime): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -346,10 +324,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.MonthDay]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.MonthDay]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: MonthDay)`, such as
+   * `"--02-29"`.
    */
   def writeKey(x: MonthDay): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -358,10 +334,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.OffsetDateTime]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.OffsetDateTime]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: OffsetDateTime)`,
+   * such as `"2024-03-15T10:15+01:00"`.
    */
   def writeKey(x: OffsetDateTime): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -370,10 +344,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.OffsetTime]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.OffsetTime]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: OffsetTime)`, such
+   * as `"10:15+01:00"`.
    */
   def writeKey(x: OffsetTime): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -382,10 +354,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Period]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.Period]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: Period)`, such as
+   * `"P1Y2M3D"`.
    */
   def writeKey(x: Period): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -394,10 +364,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Year]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.Year]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: Year)`, such as
+   * `"2024"`.
    */
   def writeKey(x: Year): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -406,10 +374,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.YearMonth]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.YearMonth]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: YearMonth)`, such
+   * as `"2024-03"`.
    */
   def writeKey(x: YearMonth): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -418,10 +384,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.ZonedDateTime]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.ZonedDateTime]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: ZonedDateTime)`,
+   * such as `"2024-03-15T10:15+01:00[Europe/Paris]"`.
    */
   def writeKey(x: ZonedDateTime): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -430,10 +394,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.ZoneId]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.ZoneId]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: ZoneId)`, such as
+   * `"Europe/Paris"`.
    */
   def writeKey(x: ZoneId): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -442,10 +404,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.ZoneOffset]] value as a JSON key.
-   *
-   * @param x
-   *   the [[java.time.ZoneOffset]] value to write
+   * Writes `x` as an object key in the form of `writeVal(x: ZoneOffset)`, such
+   * as `"+01:00"`.
    */
   def writeKey(x: ZoneOffset): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -453,6 +413,13 @@ final class JsonWriter private[json] (
     writeColon()
   }
 
+  /**
+   * Reserves `offset` slots, a `RegisterOffset` that counts object and
+   * primitive slots, on top of the writer's register stack, and returns the
+   * previous top, where the reserved slots start. Derived record codecs keep
+   * field values there while they write the record. Pair every call with
+   * [[pop]] with the same `offset`, normally in a `finally` block.
+   */
   def push(offset: RegisterOffset): RegisterOffset = {
     val top = this.top
     this.top = top + offset
@@ -460,30 +427,31 @@ final class JsonWriter private[json] (
     top
   }
 
+  /** Releases the slots that [[push]] reserved. Pass the same `offset`. */
   def pop(offset: RegisterOffset): Unit = top -= offset
 
+  /**
+   * Returns the register stack that [[push]] reserves slots in. The writer
+   * reuses it for every top-level write and clears its object slots when the
+   * write ends.
+   */
   def registers: Registers = this.stack
 
   @noinline
   private[this] def encodeError(msg: String): Nothing = throw new JsonCodecError(Nil, msg)
 
   /**
-   * Writes a `BigDecimal` value as a JSON value.
-   *
-   * @param x
-   *   the `BigDecimal` value to write
+   * Writes `x` as a JSON number in the notation of
+   * `java.math.BigDecimal#toString`, except that a positive exponent has no
+   * `+`: `1.50`, `0.000001`, `1E-7` or `1E2`. The scale is kept, so `1.50`
+   * keeps its trailing zero.
    */
   def writeVal(x: BigDecimal): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
     writeBigDecimal(x.bigDecimal)
   }
 
-  /**
-   * Writes a `BigInt` value as a JSON value.
-   *
-   * @param x
-   *   the `BigInt` value to write
-   */
+  /** Writes `x` as a JSON number in decimal digits. */
   def writeVal(x: BigInt): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
     if (x.isValidLong) writeLong(x.longValue)
@@ -491,10 +459,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.util.UUID]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.util.UUID]] value to write
+   * Writes `x` as a JSON string in lower-case 8-4-4-4-12 hex form, such as
+   * `"123e4567-e89b-12d3-a456-426614174000"`.
    */
   def writeVal(x: UUID): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -502,12 +468,14 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `String` value as a JSON value.
+   * Writes `x` as a JSON string. It escapes `"`, `\` and the control chars:
+   * `\b`, `\f`, `\n`, `\r` and `\t` by name, the others and DEL as `\u` escapes
+   * such as `\u0001`. Other chars are written as UTF-8, or, with
+   * `WriterConfig#escapeUnicode`, every non-ASCII char as a `\u` escape, a
+   * surrogate pair as two. `/` is not escaped.
    *
-   * @param x
-   *   the `String` value to write
    * @throws JsonCodecError
-   *   if the provided string has an illegal surrogate pair
+   *   `illegal char sequence of surrogate pair` when `x` has a lone surrogate
    */
   def writeVal(x: String): Unit = {
     val indention = this.indention
@@ -526,15 +494,11 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `String` value that doesn't require encoding or escaping as a JSON
-   * value.
-   *
-   * @note
-   *   Use [[JsonWriter.isNonEscapedAscii]] for validation if the string is
-   *   eligible for writing by this method.
-   *
-   * @param x
-   *   the `String` value to write
+   * Writes `x` as a JSON string without escaping or encoding it: each char
+   * becomes one byte. It is faster than `writeVal(x: String)`, but correct only
+   * when [[JsonWriter.isNonEscapedAscii]] returns `true` for `x`. Otherwise it
+   * writes, without an error, invalid JSON for a `"`, `\` or control char, and
+   * a wrong byte for a non-ASCII char.
    */
   def writeNonEscapedAsciiVal(x: String): Unit = {
     val len       = x.length
@@ -562,10 +526,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Duration]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.Duration]] value to write
+   * Writes `x` as a JSON string in the ISO-8601 form of `Duration.toString`,
+   * such as `"PT1H30M"` or `"PT0S"`.
    */
   def writeVal(x: Duration): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -573,10 +535,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Instant]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.Instant]] value to write
+   * Writes `x` as a JSON string in the ISO-8601 form of `Instant.toString`,
+   * such as `"2024-03-15T10:15:30Z"`, always in UTC.
    */
   def writeVal(x: Instant): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -584,10 +544,9 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.LocalDate]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.LocalDate]] value to write
+   * Writes `x` as a JSON string in the ISO-8601 form of `LocalDate.toString`,
+   * such as `"2024-03-15"`, with a sign for a year outside 0000 to 9999, as in
+   * `"+10000-01-01"`.
    */
   def writeVal(x: LocalDate): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -595,10 +554,9 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.LocalDateTime]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.LocalDateTime]] value to write
+   * Writes `x` as a JSON string in the ISO-8601 form of
+   * `LocalDateTime.toString`, such as `"2024-03-15T10:15"`, without seconds
+   * when they and the fraction are zero.
    */
   def writeVal(x: LocalDateTime): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -606,10 +564,9 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.LocalTime]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.LocalTime]] value to write
+   * Writes `x` as a JSON string in the ISO-8601 form of `LocalTime.toString`,
+   * such as `"10:15"` or `"10:15:30.001"`, without seconds when they and the
+   * fraction are zero.
    */
   def writeVal(x: LocalTime): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -617,10 +574,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.MonthDay]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.MonthDay]] value to write
+   * Writes `x` as a JSON string in the ISO-8601 form of `MonthDay.toString`,
+   * such as `"--02-29"`.
    */
   def writeVal(x: MonthDay): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -628,10 +583,9 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.OffsetDateTime]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.OffsetDateTime]] value to write
+   * Writes `x` as a JSON string in the ISO-8601 form of
+   * `OffsetDateTime.toString`, such as `"2024-03-15T10:15+01:00"` or
+   * `"2024-03-15T10:15:30Z"`.
    */
   def writeVal(x: OffsetDateTime): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -639,10 +593,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.OffsetTime]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.OffsetTime]] value to write
+   * Writes `x` as a JSON string in the ISO-8601 form of `OffsetTime.toString`,
+   * such as `"10:15+01:00"` or `"10:15:30Z"`.
    */
   def writeVal(x: OffsetTime): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -650,10 +602,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Period]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.Period]] value to write
+   * Writes `x` as a JSON string in the ISO-8601 form of `Period.toString`, such
+   * as `"P1Y2M3D"` or `"P0D"`.
    */
   def writeVal(x: Period): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -661,10 +611,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.Year]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.Year]] value to write
+   * Writes `x` as a JSON string holding the year as `Year.toString` writes it,
+   * such as `"2024"`, and not as a JSON number.
    */
   def writeVal(x: Year): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -672,10 +620,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.YearMonth]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.YearMonth]] value to write
+   * Writes `x` as a JSON string in the ISO-8601 form of `YearMonth.toString`,
+   * such as `"2024-03"`.
    */
   def writeVal(x: YearMonth): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -683,10 +629,9 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.ZonedDateTime]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.ZonedDateTime]] value to write
+   * Writes `x` as a JSON string in the ISO-8601 form of
+   * `ZonedDateTime.toString`, such as `"2024-03-15T10:15+01:00[Europe/Paris]"`,
+   * without the brackets when the zone is an offset.
    */
   def writeVal(x: ZonedDateTime): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -694,10 +639,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.ZoneId]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.ZoneId]] value to write
+   * Writes `x` as a JSON string holding its zone ID, such as `"Europe/Paris"`.
    */
   def writeVal(x: ZoneId): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -705,91 +647,64 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a [[java.time.ZoneOffset]] value as a JSON value.
-   *
-   * @param x
-   *   the [[java.time.ZoneOffset]] value to write
+   * Writes `x` as a JSON string in the ISO-8601 form of `ZoneOffset.toString`,
+   * such as `"+01:00"` or `"Z"`.
    */
   def writeVal(x: ZoneOffset): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
     writeZoneOffset(x)
   }
 
-  /**
-   * Writes a `Boolean` value as a JSON value.
-   *
-   * @param x
-   *   the `Boolean` value to write
-   */
+  /** Writes `x` as the JSON literal `true` or `false`. */
   def writeVal(x: Boolean): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
     writeBoolean(x)
   }
 
-  /**
-   * Writes a `Byte` value as a JSON value.
-   *
-   * @param x
-   *   the `Byte` value to write
-   */
+  /** Writes `x` as a JSON number in decimal digits. */
   def writeVal(x: Byte): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
     writeByte(x)
   }
 
-  /**
-   * Writes a `Short` value as a JSON value.
-   *
-   * @param x
-   *   the `Short` value to write
-   */
+  /** Writes `x` as a JSON number in decimal digits. */
   def writeVal(x: Short): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
     writeShort(x)
   }
 
   /**
-   * Writes a `Char` value as a JSON key.
+   * Writes `x` as a JSON string of one char, escaped and encoded as in
+   * `writeVal(x: String)`.
    *
-   * @param x
-   *   the `Char` value to write
    * @throws JsonCodecError
-   *   in the case of `Char` value is a part of the surrogate pair
+   *   `illegal char sequence of surrogate pair` when `x` is a surrogate
    */
   def writeVal(x: Char): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
     writeChar(x.toInt)
   }
 
-  /**
-   * Writes an `Int` value as a JSON value.
-   *
-   * @param x
-   *   the `Int` value to write
-   */
+  /** Writes `x` as a JSON number in decimal digits. */
   def writeVal(x: Int): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
     writeInt(x)
   }
 
-  /**
-   * Writes a `Long` value as a JSON value.
-   *
-   * @param x
-   *   the `Long` value to write
-   */
+  /** Writes `x` as a JSON number in decimal digits. */
   def writeVal(x: Long): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
     writeLong(x)
   }
 
   /**
-   * Writes a `Float` value as a JSON value.
+   * Writes `x` as a JSON number, in the shortest decimal form that reads back
+   * as the same `Float`: `49.99`, `100.0` or `-0.0`, and with an exponent when
+   * it is below -3 or above 6, such as `1.0E7` or `1.0E-4`.
    *
-   * @param x
-   *   the `Float` value to write
    * @throws JsonCodecError
-   *   if the value is non-finite
+   *   `illegal number: NaN`, `illegal number: Infinity` or
+   *   `illegal number: -Infinity` when `x` is not finite
    */
   def writeVal(x: Float): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -797,12 +712,13 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Double` value as a JSON value.
+   * Writes `x` as a JSON number, in the shortest decimal form that reads back
+   * as the same `Double`: `49.99`, `100.0` or `-0.0`, and with an exponent when
+   * it is below -3 or above 6, such as `1.0E7` or `1.0E-4`.
    *
-   * @param x
-   *   the `Double` value to write
    * @throws JsonCodecError
-   *   if the value is non-finite
+   *   `illegal number: NaN`, `illegal number: Infinity` or
+   *   `illegal number: -Infinity` when `x` is not finite
    */
   def writeVal(x: Double): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -810,10 +726,9 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `BigDecimal` value as a JSON string value.
-   *
-   * @param x
-   *   the `BigDecimal` value to write
+   * Writes `x` as a JSON string holding the number in the form of
+   * `writeVal(x: BigDecimal)`, such as `"49.99"`, which
+   * `JsonReader#readStringAsBigDecimal` reads back.
    */
   def writeValAsString(x: BigDecimal): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -823,10 +738,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `BigInt` value as a JSON string value.
-   *
-   * @param x
-   *   the `BigInt` value to write
+   * Writes `x` as a JSON string holding its decimal digits, such as
+   * `"12345678901234567890"`, which `JsonReader#readStringAsBigInt` reads back.
    */
   def writeValAsString(x: BigInt): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -837,10 +750,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Boolean` value as a JSON string value.
-   *
-   * @param x
-   *   the `Boolean` value to write
+   * Writes `x` as a JSON string, `"true"` or `"false"`, which
+   * `JsonReader#readStringAsBoolean` reads back.
    */
   def writeValAsString(x: Boolean): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -850,10 +761,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Byte` value as a JSON string value.
-   *
-   * @param x
-   *   the `Byte` value to write
+   * Writes `x` as a JSON string holding its decimal digits, such as `"42"`,
+   * which `JsonReader#readStringAsByte` reads back.
    */
   def writeValAsString(x: Byte): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -863,10 +772,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Short` value as a JSON string value.
-   *
-   * @param x
-   *   the `Short` value to write
+   * Writes `x` as a JSON string holding its decimal digits, such as `"2021"`,
+   * which `JsonReader#readStringAsShort` reads back.
    */
   def writeValAsString(x: Short): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -876,10 +783,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes an `Int` value as a JSON string value.
-   *
-   * @param x
-   *   the `Int` value to write
+   * Writes `x` as a JSON string holding its decimal digits, such as `"2021"`,
+   * which `JsonReader#readStringAsInt` reads back.
    */
   def writeValAsString(x: Int): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -889,10 +794,8 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Long` value as a JSON string value.
-   *
-   * @param x
-   *   the `Long` value to write
+   * Writes `x` as a JSON string holding its decimal digits, such as `"2021"`,
+   * which `JsonReader#readStringAsLong` reads back.
    */
   def writeValAsString(x: Long): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -902,12 +805,13 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Float` value as a JSON string value.
+   * Writes `x` as a JSON string holding the number in the form of
+   * `writeVal(x: Float)`, such as `"49.99"`, which
+   * `JsonReader#readStringAsFloat` reads back.
    *
-   * @param x
-   *   the `Float` value to write
    * @throws JsonCodecError
-   *   if the value is non-finite
+   *   `illegal number: NaN`, `illegal number: Infinity` or
+   *   `illegal number: -Infinity` when `x` is not finite
    */
   def writeValAsString(x: Float): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -917,12 +821,13 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Double` value as a JSON string value.
+   * Writes `x` as a JSON string holding the number in the form of
+   * `writeVal(x: Double)`, such as `"49.99"`, which
+   * `JsonReader#readStringAsDouble` reads back.
    *
-   * @param x
-   *   the `Double` value to write
    * @throws JsonCodecError
-   *   if the value is non-finite
+   *   `illegal number: NaN`, `illegal number: Infinity` or
+   *   `illegal number: -Infinity` when `x` is not finite
    */
   def writeValAsString(x: Double): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -932,10 +837,10 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a byte array as a JSON raw value.
-   *
-   * @param bs
-   *   the byte array to write
+   * Writes the bytes of `bs` unchanged where a value goes, after a `,` when one
+   * is needed. Nothing checks that they are valid JSON or UTF-8, and they are
+   * not indented, so the output is only as valid as `bs`. It is the counterpart
+   * of `JsonReader#readRawValAsBytes`.
    */
   def writeRawVal(bs: Array[Byte]): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -1052,9 +957,7 @@ final class JsonWriter private[json] (
     writeZonedDateTime(x, true)
   }
 
-  /**
-   * Writes a JSON `null` value.
-   */
+  /** Writes the JSON literal `null`. */
   def writeNull(): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
     val pos = ensureBufCapacity(4)
@@ -1063,22 +966,32 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a JSON array start marker (`[`).
+   * Writes `[` to start an array, after a `,` when one is needed. With
+   * `WriterConfig#indentionStep` greater than 0, it also starts a new line,
+   * indented one step deeper.
    */
   def writeArrayStart(): Unit = writeNestedStart('[')
 
   /**
-   * Writes a JSON array end marker (`]`).
+   * Writes `]` to end an array. With `WriterConfig#indentionStep` greater than
+   * 0, it first starts a new line, indented one step less; an empty array then
+   * spans three lines, the middle one only spaces (a known bug, see
+   * `docs/dev/issues.md`).
    */
   def writeArrayEnd(): Unit = writeNestedEnd(']')
 
   /**
-   * Writes a JSON array start marker (`{`).
+   * Writes `{` to start an object, after a `,` when one is needed. With
+   * `WriterConfig#indentionStep` greater than 0, it also starts a new line,
+   * indented one step deeper.
    */
   def writeObjectStart(): Unit = writeNestedStart('{')
 
   /**
-   * Writes a JSON array end marker (`}`).
+   * Writes `}` to end an object. With `WriterConfig#indentionStep` greater than
+   * 0, it first starts a new line, indented one step less; an empty object then
+   * spans three lines, the middle one only spaces (a known bug, see
+   * `docs/dev/issues.md`).
    */
   def writeObjectEnd(): Unit = writeNestedEnd('}')
 
@@ -2815,6 +2728,11 @@ final class JsonWriter private[json] (
   }
 }
 
+/**
+ * Helpers for codec authors: a check for [[JsonWriter#writeNonEscapedAsciiVal]]
+ * and [[JsonWriter#writeNonEscapedAsciiKey]], and conversions from `Float` and
+ * `Double` to `BigDecimal`.
+ */
 object JsonWriter {
   private final val escapedChars: Array[Byte] = Array(
     -1, -1, -1, -1, -1, -1, -1, -1, 98, 116, 110, -1, 102, 114, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -3581,13 +3499,10 @@ object JsonWriter {
   }
 
   /**
-   * Checks if a string does not require JSON escaping or encoding.
-   *
-   * @param s
-   *   the string to check
-   * @return
-   *   `true` if the string has basic ASCII characters only (code point less
-   *   than `0x80` that does not need JSON escaping)
+   * Returns whether every char of `s` is ASCII and needs no escaping in JSON,
+   * that is, none is `"`, `\`, a control char, DEL or a char above `0x7f`. For
+   * such a string, [[JsonWriter#writeNonEscapedAsciiVal]] and
+   * [[JsonWriter#writeNonEscapedAsciiKey]] write correct JSON.
    */
   final def isNonEscapedAscii(s: String): Boolean = {
     val len = s.length
@@ -3601,6 +3516,16 @@ object JsonWriter {
     idx == len
   }
 
+  /**
+   * Returns the `BigDecimal` of the shortest decimal form that reads back as
+   * `x`, so `0.1f` gives `0.1` and not the binary value
+   * `0.100000001490116119384765625`. The value is exact, but the scale varies:
+   * `100.0f` gives `1E+2`, and `10.0f` gives `10.0` on the JVM but `10` on
+   * Scala.js. `0.0f` and `-0.0f` give `0`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   with the message `Infinity or NaN` when `x` is not finite
+   */
   final def toBigDecimal(x: Float): BigDecimal = {
     // Based on the ingenious work of Xiang JunBo and Wang TieJun
     // "xjb: Fast Float to String Algorithm": https://github.com/xjb714/xjb/blob/4852e533287bd0e8d554c2a9f4cc6eaa93ca799f/fast_f2s.pdf
@@ -3662,6 +3587,17 @@ object JsonWriter {
     }
   }
 
+  /**
+   * Returns the `BigDecimal` of the shortest decimal form that reads back as
+   * `x`, so `0.1` gives `0.1` and not the binary value
+   * `0.1000000000000000055511151231257827021181583404541015625`. The value is
+   * exact, but the scale varies: `100.0` gives `1E+2`, `49.99` gives `49.990`
+   * (a known bug, see `docs/dev/issues.md`), and `10.0` gives `10.0` on the JVM
+   * but `10` on Scala.js. `0.0` and `-0.0` give `0`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   with the message `Infinity or NaN` when `x` is not finite
+   */
   final def toBigDecimal(x: Double): BigDecimal = {
     // Based on the ingenious work of Xiang JunBo and Wang TieJun
     // "xjb: Fast Float to String Algorithm": https://github.com/xjb714/xjb/blob/4852e533287bd0e8d554c2a9f4cc6eaa93ca799f/fast_f2s.pdf
