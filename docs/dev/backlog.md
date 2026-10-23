@@ -520,4 +520,4 @@ Plan: `docs/superpowers/plans/2026-10-21-schema-scaladoc.md`. Style: `docs/dev/s
 | 6. Derivation and codecs | Done        | #1833 | 2587 / 6919 (37%) | 2729 / 6919 (39%) |
 | 7. Transform and evolve  | In review   | #1836 | 2729 / 6919 (39%) | 2972 / 6919 (43%) |
 | 8a. JSON model           | Not started |       |                   |                   |
-| 8b. JSON I/O             | Not started |       |                   |                   |
+| 8b. JSON I/O             | In review   | #1843 | 2972 / 6919 (43%) | 2996 / 6919 (43%) |

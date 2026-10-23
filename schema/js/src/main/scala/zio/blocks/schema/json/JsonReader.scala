@@ -28,34 +28,72 @@ import zio.blocks.schema.json.JsonReader._
 import scala.annotation.{switch, tailrec}
 
 /**
- * The reader to parse JSON input iteratively.
+ * Reads JSON input, a byte array, a `String`, a `java.io.InputStream` or a
+ * `java.nio.ByteBuffer`, one token at a time. A [[JsonCodec]] gets a reader in
+ * `JsonCodec#decodeValue` and calls its methods to read the value: `readX` for
+ * a JSON value, `readKeyAsX` for an object key and the `:` after it, and
+ * `readStringAsX` for a number or boolean written as a JSON string, such as
+ * `"2021"`.
  *
- * @param buf
- *   the internal buffer with JSON input
- * @param head
- *   the head position in the internal buffer
- * @param tail
- *   the tail position in the internal buffer
- * @param charBuf
- *   the internal char buffer for parsed strings
- * @param stack
- *   a pre-allocated stack of registers
- * @param top
- *   an offset of the stack top
- * @param maxTop
- *   a maximum offset of the stack top
- * @param config
- *   the JSON reader configuration
- * @param markNum
- *   the number of mark positions in the stack
- * @param marks
- *   the stack of mark positions
- * @param bbuf
- *   the byte buffer with JSON input
- * @param in
- *   the input stream with JSON input
- * @param totalRead
- *   the total number of read bytes
+ * Each read starts at the current read position, skips the whitespace before
+ * its token (space, tab, line feed and carriage return) and moves the position
+ * past what it read. A read that meets input it does not accept throws a
+ * [[JsonCodecError]] whose message says what was expected, such as
+ * `illegal number` or `expected '"'`, but not where in the input;
+ * `JsonCodec#decode` turns it into a `Left` holding a
+ * [[zio.blocks.schema.SchemaError]] with the path of the value. Misused marks
+ * and token rollbacks throw `IllegalStateException`.
+ *
+ * Number reads follow the JSON grammar: they reject a leading zero (`007`), a
+ * leading `+`, `.5` and `1.`, and the integer reads reject a fraction or an
+ * exponent, except after a lone leading `0`, which they read as `0` (see
+ * [[readInt]]). Inside a key or a JSON string, such as `"007"`, leading zeros
+ * are accepted. [[ReaderConfig]] sets the buffer sizes and their limits. A
+ * reader serves one codec call: do not keep it or share it with another thread.
+ *
+ * {{{
+ * import zio.blocks.schema.json._
+ *
+ * case class Book(title: String, year: Int)
+ *
+ * val bookCodec: JsonCodec[Book] = new JsonCodec[Book] {
+ *   def decodeValue(in: JsonReader): Book = {
+ *     in.nextTokenOrError('{')
+ *     var title: String = null
+ *     var year          = 0
+ *     if (!in.isNextToken('}')) {
+ *       in.rollbackToken()
+ *       while ({
+ *         in.readKeyAsString() match {
+ *           case "title" => title = in.readString()
+ *           case "year"  => year = in.readInt()
+ *           case _       => in.skip()
+ *         }
+ *         in.isNextToken(',')
+ *       }) ()
+ *       if (!in.isCurrentToken('}')) in.objectEndOrCommaError()
+ *     }
+ *     if (title == null) in.requiredFieldError("title")
+ *     Book(title, year)
+ *   }
+ *
+ *   def encodeValue(x: Book, out: JsonWriter): Unit = {
+ *     out.writeObjectStart()
+ *     out.writeKey("title")
+ *     out.writeVal(x.title)
+ *     out.writeKey("year")
+ *     out.writeVal(x.year)
+ *     out.writeObjectEnd()
+ *   }
+ * }
+ *
+ * val decoded: Either[SchemaError, Book] = bookCodec.decode("""{"title": "Zionomicon", "year": 2021}""")
+ * // Right(Book(Zionomicon,2021))
+ * bookCodec.decode("""{"year": 2021}""")
+ * // Left(zio.blocks.schema.SchemaError: missing required field "title" at: .)
+ * bookCodec.encodeToString(Book("Programming in Scala", 2008))
+ * // {"title":"Programming in Scala","year":2008}
+ * }}}
  */
 final class JsonReader private[json] (
   private[this] var buf: Array[Byte] = new Array[Byte](32768),
@@ -76,11 +114,10 @@ final class JsonReader private[json] (
   private[this] var zoneIdKey: Key        = null
 
   /**
-   * Throws a [[JsonCodecError]] indicating that a required field with the given
-   * name is missing.
+   * Throws a [[JsonCodecError]] with the message
+   * `missing required field "<reqField>"`. Call it when an object ends without
+   * a field that the type requires.
    *
-   * @param reqField
-   *   the name of the missing required field
    * @throws JsonCodecError
    *   always
    */
@@ -93,11 +130,10 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Throws a [[JsonCodecError]] indicating that a field with the given name is
-   * duplicated.
+   * Throws a [[JsonCodecError]] with the message `duplicated field "<key>"`,
+   * where the key is the first `len` chars of the internal char buffer, as
+   * [[readKeyAsCharBuf]] leaves them.
    *
-   * @param len
-   *   the length of the duplicated field name in the internal char buffer
    * @throws JsonCodecError
    *   always
    */
@@ -109,11 +145,10 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Throws a [[JsonCodecError]] indicating that an unexpected field with the
-   * given name was encountered.
+   * Throws a [[JsonCodecError]] with the message `unexpected field "<key>"`,
+   * where the key is the first `len` chars of the internal char buffer, as
+   * [[readKeyAsCharBuf]] leaves them.
    *
-   * @param len
-   *   the length of the unexpected field name in the internal char buffer
    * @throws JsonCodecError
    *   always
    */
@@ -125,18 +160,18 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Throws a [[JsonCodecError]] indicating that an illegal discriminator field
-   * name was encountered.
+   * Throws a [[JsonCodecError]] with the message `illegal discriminator`.
+   *
+   * @throws JsonCodecError
+   *   always
    */
   @noinline
   def discriminatorError(): Nothing = decodeError("illegal discriminator")
 
   /**
-   * Throws a [[JsonCodecError]] indicating that an illegal value was
-   * encountered for the given discriminator field.
+   * Throws a [[JsonCodecError]] with the message
+   * `illegal value of discriminator field "<discriminatorFieldName>"`.
    *
-   * @param discriminatorFieldName
-   *   the name of the discriminator field
    * @throws JsonCodecError
    *   always
    */
@@ -149,11 +184,10 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Throws a [[JsonCodecError]] indicating that an illegal enum value with the
-   * given length was encountered.
+   * Throws a [[JsonCodecError]] with the message
+   * `illegal enum value "<value>"`, where the value is the first `len` chars of
+   * the internal char buffer, as [[readStringAsCharBuf]] leaves them.
    *
-   * @param len
-   *   the length of the illegal enum value in the internal char buffer.
    * @throws JsonCodecError
    *   always
    */
@@ -165,22 +199,29 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Sets the current read head position as a mark. Should be followed by
-   * `resetMark()` or `rollbackToMark()` calls. Pair of `setMark()` and
-   * `resetMark()` or `setMark()` and `rollbackToMark()` calls can be nested.
+   * Pushes the current read position onto a stack of marks, so that
+   * [[rollbackToMark]] can return to it. Pair every call with one call of
+   * [[rollbackToMark]] or [[resetMark]]; pairs can nest. While a mark is set, a
+   * reader of an `InputStream`, or of a `ByteBuffer` without an accessible
+   * array (a direct or read-only buffer), keeps all input from the mark on in
+   * its buffer, so a long look-ahead can exceed `ReaderConfig#maxBufSize` (`too
+   * long part of input exceeded 'maxBufSize'`). A byte array, a `String` or a
+   * heap `ByteBuffer` is read in place and never hits that limit.
    */
   def setMark(): Unit = setMark(head)
 
   /**
-   * Skips tokens with in the current JSON object until a key with the given
-   * name is encountered.
+   * Reads the keys of the current object, skipping the value of each one, until
+   * it reads `key`, and returns `true` with the read position at that key's
+   * value. Returns `false`, with the position after the closing `}`, when the
+   * object ends first. Call it after the `{` of a non-empty object or after a
+   * `,` between fields. It does not check that the object ends with `}`: any
+   * token other than `,` ends the search.
    *
-   * @param key
-   *   the name of the JSON key to skip to
-   * @return
-   *   `true` if the key was found, `false` otherwise
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or invalid encoding of JSON key
+   *   when a key is malformed or not followed by `:`, a skipped value starts
+   *   with a byte that no JSON value starts with, or the input ends
+   *   (`unexpected end of input`)
    */
   def skipToKey(key: String): Boolean = {
     while (!isCharBufEqualsTo(readKeyAsCharBuf(), key)) {
@@ -191,10 +232,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Rolls back the read head position to the previously set mark.
+   * Moves the read position back to the mark that the last [[setMark]] call
+   * pushed, and pops that mark.
    *
    * @throws java.lang.IllegalStateException
-   *   in case of calling without a preceding call of 'setMark()'
+   *   with the message `expected preceding call of 'setMark()'` when no mark is
+   *   set
    */
   def rollbackToMark(): Unit = {
     var idx = markNum
@@ -205,10 +248,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reset mark without changing of the read head position.
+   * Pops the mark that the last [[setMark]] call pushed, without moving the
+   * read position.
    *
    * @throws java.lang.IllegalStateException
-   *   in case of calling without a preceding call of 'setMark()'
+   *   with the message `expected preceding call of 'setMark()'` when no mark is
+   *   set
    */
   def resetMark(): Unit = {
     val i = markNum
@@ -217,13 +262,17 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into the internal char buffer and returns the length of
-   * the key.
+   * Reads an object key into the internal char buffer and returns its length,
+   * then reads the `:` after it. It allocates no `String`: compare the key with
+   * [[isCharBufEqualsTo]] or [[charBufToHashCode]], or report it with
+   * [[duplicatedKeyError]] or [[unexpectedKeyError]], before the next string
+   * read overwrites it.
    *
-   * @return
-   *   the length of the key in the internal char buffer
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or invalid encoding of JSON key
+   *   `expected '"'` when the next token is not a string, no `:` follows
+   *   (`expected ':'`), or when the string has an unescaped control character,
+   *   an illegal escape sequence, a lone surrogate or malformed UTF-8, it does
+   *   not fit in `ReaderConfig#maxCharBufSize` chars, or the input ends
    */
   def readKeyAsCharBuf(): Int = {
     nextTokenOrError('"', head)
@@ -234,13 +283,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into the internal char buffer and returns a `String`
-   * instance.
+   * Reads an object key into a `String`, decoding escape sequences and UTF-8,
+   * then reads the `:` after it.
    *
-   * @return
-   *   a `String` instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or invalid encoding of JSON key
+   *   `expected '"'` when the next token is not a string, no `:` follows
+   *   (`expected ':'`), or when the string has an unescaped control character,
+   *   an illegal escape sequence, a lone surrogate or malformed UTF-8, it does
+   *   not fit in `ReaderConfig#maxCharBufSize` chars, or the input ends
    */
   def readKeyAsString(): String = {
     nextTokenOrError('"', head)
@@ -251,12 +301,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.Duration]] instance.
+   * Reads an object key holding a [[java.time.Duration]] in the form that
+   * [[readDuration]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.Duration]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsDuration(): Duration = {
     nextTokenOrError('"', head)
@@ -266,12 +316,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.Instant]] instance.
+   * Reads an object key holding a [[java.time.Instant]] in the form that
+   * [[readInstant]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.Instant]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsInstant(): Instant = {
     nextTokenOrError('"', head)
@@ -281,12 +331,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.LocalDate]] instance.
+   * Reads an object key holding a [[java.time.LocalDate]] in the form that
+   * [[readLocalDate]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.LocalDate]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsLocalDate(): LocalDate = {
     nextTokenOrError('"', head)
@@ -296,12 +346,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.LocalDateTime]] instance.
+   * Reads an object key holding a [[java.time.LocalDateTime]] in the form that
+   * [[readLocalDateTime]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.LocalDateTime]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsLocalDateTime(): LocalDateTime = {
     nextTokenOrError('"', head)
@@ -311,12 +361,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.LocalTime]] instance.
+   * Reads an object key holding a [[java.time.LocalTime]] in the form that
+   * [[readLocalTime]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.LocalTime]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsLocalTime(): LocalTime = {
     nextTokenOrError('"', head)
@@ -326,12 +376,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.MonthDay]] instance.
+   * Reads an object key holding a [[java.time.MonthDay]] in the form that
+   * [[readMonthDay]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.MonthDay]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsMonthDay(): MonthDay = {
     nextTokenOrError('"', head)
@@ -341,12 +391,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.OffsetDateTime]] instance.
+   * Reads an object key holding a [[java.time.OffsetDateTime]] in the form that
+   * [[readOffsetDateTime]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.OffsetDateTime]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsOffsetDateTime(): OffsetDateTime = {
     nextTokenOrError('"', head)
@@ -356,12 +406,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.OffsetTime]] instance.
+   * Reads an object key holding a [[java.time.OffsetTime]] in the form that
+   * [[readOffsetTime]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.OffsetTime]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsOffsetTime(): OffsetTime = {
     nextTokenOrError('"', head)
@@ -371,12 +421,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.Period]] instance.
+   * Reads an object key holding a [[java.time.Period]] in the form that
+   * [[readPeriod]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.Period]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsPeriod(): Period = {
     nextTokenOrError('"', head)
@@ -386,12 +436,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.Year]] instance.
+   * Reads an object key holding a [[java.time.Year]] in the form that
+   * [[readYear]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.Year]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsYear(): Year = {
     val x = readYear()
@@ -400,12 +450,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.YearMonth]] instance.
+   * Reads an object key holding a [[java.time.YearMonth]] in the form that
+   * [[readYearMonth]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.YearMonth]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsYearMonth(): YearMonth = {
     nextTokenOrError('"', head)
@@ -415,12 +465,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.ZonedDateTime]] instance.
+   * Reads an object key holding a [[java.time.ZonedDateTime]] in the form that
+   * [[readZonedDateTime]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.ZonedDateTime]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsZonedDateTime(): ZonedDateTime = {
     nextTokenOrError('"', head)
@@ -430,12 +480,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.ZoneId]] instance.
+   * Reads an object key holding a [[java.time.ZoneId]] in the form that
+   * [[readZoneId]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.ZoneId]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsZoneId(): ZoneId = {
     nextTokenOrError('"', head)
@@ -445,12 +495,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.time.ZoneOffset]] instance.
+   * Reads an object key holding a [[java.time.ZoneOffset]] in the form that
+   * [[readZoneOffset]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.time.ZoneOffset]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsZoneOffset(): ZoneOffset = {
     nextTokenOrError('"', head)
@@ -460,12 +510,13 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a `Boolean` value.
+   * Reads an object key holding a boolean, `"true"` or `"false"`, then the `:`
+   * after it.
    *
-   * @return
-   *   a `Boolean` value of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   `illegal boolean` when the key holds anything else, `expected '"'` when
+   *   other chars follow the boolean, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsBoolean(): Boolean = {
     nextTokenOrError('"', head)
@@ -476,12 +527,15 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a `Byte` value.
+   * Reads an object key holding a `Byte`, such as `"42"`, then the `:` after
+   * it. Leading zeros are accepted (`"007"` reads as 7); whitespace, a fraction
+   * or an exponent inside the quotes is not.
    *
-   * @return
-   *   a `Byte` value of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   `illegal number` when the key does not hold an integer,
+   *   `value is too large for byte` when it is outside the `Byte` range,
+   *   `expected '"'` when other chars follow the digits, no `:` follows
+   *   (`expected ':'`), or the input ends (`unexpected end of input`)
    */
   def readKeyAsByte(): Byte = {
     nextTokenOrError('"', head)
@@ -492,14 +546,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a `Char` value.
+   * Reads an object key that holds exactly one char, with the rules of
+   * [[readChar]], then the `:` after it.
    *
-   * @return
-   *   a `Char` value of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key or
-   *   exceeding capacity of `Char` or when parsed char is a part of a surrogate
-   *   pair
+   *   in the cases where [[readChar]] throws, and when no `:` follows
+   *   (`expected ':'`)
    */
   def readKeyAsChar(): Char = {
     nextTokenOrError('"', head)
@@ -510,12 +562,15 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a `Short` value.
+   * Reads an object key holding a `Short`, such as `"42"`, then the `:` after
+   * it. Leading zeros are accepted (`"007"` reads as 7); whitespace, a fraction
+   * or an exponent inside the quotes is not.
    *
-   * @return
-   *   a `Short` value of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   `illegal number` when the key does not hold an integer,
+   *   `value is too large for short` when it is outside the `Short` range,
+   *   `expected '"'` when other chars follow the digits, no `:` follows
+   *   (`expected ':'`), or the input ends (`unexpected end of input`)
    */
   def readKeyAsShort(): Short = {
     nextTokenOrError('"', head)
@@ -526,12 +581,15 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into an `Int` value.
+   * Reads an object key holding an `Int`, such as `"42"`, then the `:` after
+   * it. Leading zeros are accepted (`"007"` reads as 7); whitespace, a fraction
+   * or an exponent inside the quotes is not.
    *
-   * @return
-   *   an `Int` value of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   `illegal number` when the key does not hold an integer,
+   *   `value is too large for int` when it is outside the `Int` range,
+   *   `expected '"'` when other chars follow the digits, no `:` follows
+   *   (`expected ':'`), or the input ends (`unexpected end of input`)
    */
   def readKeyAsInt(): Int = {
     nextTokenOrError('"', head)
@@ -542,12 +600,15 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a `Long` value.
+   * Reads an object key holding a `Long`, such as `"42"`, then the `:` after
+   * it. Leading zeros are accepted (`"007"` reads as 7); whitespace, a fraction
+   * or an exponent inside the quotes is not.
    *
-   * @return
-   *   a `Long` value of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   `illegal number` when the key does not hold an integer,
+   *   `value is too large for long` when it is outside the `Long` range,
+   *   `expected '"'` when other chars follow the digits, no `:` follows
+   *   (`expected ':'`), or the input ends (`unexpected end of input`)
    */
   def readKeyAsLong(): Long = {
     nextTokenOrError('"', head)
@@ -558,12 +619,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a `Float` value.
+   * Reads an object key holding a number, such as `"1.5"`, into a `Float` with
+   * the rules of [[readFloat]], except that leading zeros are accepted, then
+   * the `:` after it.
    *
-   * @return
-   *   a `Float` value of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   `illegal number` when the key does not hold a JSON number, `expected '"'`
+   *   when other chars follow it, no `:` follows (`expected ':'`), or the input
+   *   ends (`unexpected end of input`)
    */
   def readKeyAsFloat(): Float = {
     nextTokenOrError('"', head)
@@ -574,12 +637,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a `Double` value.
+   * Reads an object key holding a number, such as `"1.5"`, into a `Double` with
+   * the rules of [[readDouble]], except that leading zeros are accepted, then
+   * the `:` after it.
    *
-   * @return
-   *   a `Double` value of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   `illegal number` when the key does not hold a JSON number, `expected '"'`
+   *   when other chars follow it, no `:` follows (`expected ':'`), or the input
+   *   ends (`unexpected end of input`)
    */
   def readKeyAsDouble(): Double = {
     nextTokenOrError('"', head)
@@ -590,28 +655,29 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a `BigInt` instance with the default limit of allowed
-   * digits.
+   * Reads an object key holding an integer, such as `"12345678901234567890"`,
+   * into a `BigInt`, then the `:` after it. Rejects a key with
+   * [[JsonReader.bigIntDigitsLimit]] (308) or more digits.
    *
-   * @return
-   *   a `BigInt` instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key or
-   *   exceeding of the default limit
+   *   `illegal number` when the key does not hold an integer,
+   *   `value exceeds limit for number of digits`, `expected '"'` when other
+   *   chars follow the digits, no `:` follows (`expected ':'`), or the input
+   *   ends (`unexpected end of input`)
    */
   def readKeyAsBigInt(): BigInt = readKeyAsBigInt(bigIntDigitsLimit)
 
   /**
-   * Reads a JSON key into a `BigInt` instance with the given limit of allowed
-   * digits.
+   * Reads an object key holding an integer into a `BigInt`, then the `:` after
+   * it, rejecting a key with `digitsLimit` or more digits.
    *
    * @param digitsLimit
-   *   the maximum number of decimal digits allowed in the parsed `BigInt` value
-   * @return
-   *   a `BigInt` instance of the parsed JSON key
+   *   one more than the largest number of digits accepted
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key or
-   *   exceeding of the provided limit
+   *   `illegal number` when the key does not hold an integer,
+   *   `value exceeds limit for number of digits`, `expected '"'` when other
+   *   chars follow the digits, no `:` follows (`expected ':'`), or the input
+   *   ends (`unexpected end of input`)
    */
   def readKeyAsBigInt(digitsLimit: Int): BigInt = {
     nextTokenOrError('"', head)
@@ -622,34 +688,37 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a `BigDecimal` instance with the default limit of
-   * allowed digits for mantissa, the default limit for scale, and the default
-   * instance of [[java.math.MathContext]] for precision.
+   * Reads an object key holding a number, such as `"49.99"`, into a
+   * `BigDecimal` with the rounding and limits of `readBigDecimal()`, except
+   * that leading zeros are accepted, then the `:` after it.
    *
-   * @return
-   *   a `BigDecimal` instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key or
-   *   exceeding of default limits
+   *   `illegal number` when the key does not hold a JSON number,
+   *   `value exceeds limit for number of digits`,
+   *   `value exceeds limit for scale`, `expected '"'` when other chars follow
+   *   the number, no `:` follows (`expected ':'`), or the input ends
+   *   (`unexpected end of input`)
    */
   def readKeyAsBigDecimal(): BigDecimal =
     readKeyAsBigDecimal(bigDecimalMathContext, bigDecimalScaleLimit, bigDecimalDigitsLimit)
 
   /**
-   * Reads a JSON key into a Scala `BigDecimal` instance with the given
-   * precision, scale limit, and digits limit.
+   * Reads an object key holding a number into a `BigDecimal` with the given
+   * rounding and limits, as `readBigDecimal(mc, scaleLimit, digitsLimit)` does,
+   * except that leading zeros are accepted, then the `:` after it.
    *
    * @param mc
-   *   the precision to use
+   *   the math context to round with, also attached to the result
    * @param scaleLimit
-   *   the maximum number of decimal places (scale) allowed
+   *   the smallest absolute scale that is rejected
    * @param digitsLimit
-   *   the maximum number of decimal digits allowed
-   * @return
-   *   a `BigDecimal` instance of the parsed JSON key
+   *   the smallest number of digits that is rejected
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key or
-   *   exceeding of provided limits
+   *   `illegal number` when the key does not hold a JSON number,
+   *   `value exceeds limit for number of digits`,
+   *   `value exceeds limit for scale`, `expected '"'` when other chars follow
+   *   the number, no `:` follows (`expected ':'`), or the input ends
+   *   (`unexpected end of input`)
    */
   def readKeyAsBigDecimal(mc: MathContext, scaleLimit: Int, digitsLimit: Int): BigDecimal = {
     nextTokenOrError('"', head)
@@ -660,12 +729,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a [[java.util.UUID]] instance.
+   * Reads an object key holding a [[java.util.UUID]] in the form that
+   * [[readUUID]] accepts, then the `:` after it.
    *
-   * @return
-   *   a [[java.util.UUID]] instance of the parsed JSON key
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON key
+   *   when the key is not in that form, no `:` follows (`expected ':'`), or the
+   *   input ends (`unexpected end of input`)
    */
   def readKeyAsUUID(): UUID = {
     nextTokenOrError('"', head)
@@ -675,25 +744,33 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON number value into a `Byte` value.
+   * Reads a JSON number into a `Byte`. The number must be an integer in the
+   * `Byte` range, without a leading zero, a fraction or an exponent.
    *
-   * @return
-   *   a `Byte` value of the parsed JSON value
+   * A number that starts with `0` is not checked past the `0`: `0.5` or `0e2`
+   * reads as `0` and leaves the rest unread, so the error, if any, comes from
+   * the next read (a known bug, see `docs/dev/issues.md`).
+   *
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value or exceeding capacity of `Byte`
+   *   `illegal number` when the next token is not a number or has a fraction or
+   *   exponent, `illegal number with leading zero` for a number such as `007`,
+   *   `value is too large for byte` when it is outside the `Byte` range in
+   *   either direction, or the input ends (`unexpected end of input`)
    */
   def readByte(): Byte = readByte(isToken = true)
 
   /**
-   * Reads a JSON string value into a `Char` value.
+   * Reads a JSON string that holds exactly one char, such as `"a"` or
+   * `"\u00e9"`, into a `Char`. A char that needs a surrogate pair, such as an
+   * emoji, does not fit in a `Char` and is rejected.
    *
-   * @return
-   *   a `Char` value of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or invalid encoding of JSON value
-   *   or exceeding capacity of `Char` or when parsed char is a part of a
-   *   surrogate pair
+   *   `expected '"'` when the next token is not a string or the string holds
+   *   two or more chars, `illegal character` for an empty string,
+   *   `illegal surrogate character` for a surrogate or a char that needs a
+   *   pair, `illegal escape sequence`, `expected hex digit` for a malformed
+   *   `\u` escape, `unescaped control character` or `malformed byte(s)` for a
+   *   malformed char, or the input ends (`unexpected end of input`)
    */
   def readChar(): Char = {
     nextTokenOrError('"', head)
@@ -703,132 +780,171 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON number value into a `Short` value.
+   * Reads a JSON number into a `Short`. The number must be an integer in the
+   * `Short` range, without a leading zero, a fraction or an exponent.
    *
-   * @return
-   *   a `Short` value of the parsed JSON value
+   * A number that starts with `0` is not checked past the `0`: `0.5` or `0e2`
+   * reads as `0` and leaves the rest unread, so the error, if any, comes from
+   * the next read (a known bug, see `docs/dev/issues.md`).
+   *
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value or exceeding capacity of `Short`
+   *   `illegal number` when the next token is not a number or has a fraction or
+   *   exponent, `illegal number with leading zero` for a number such as `007`,
+   *   `value is too large for short` when it is outside the `Short` range in
+   *   either direction, or the input ends (`unexpected end of input`)
    */
   def readShort(): Short = readShort(isToken = true)
 
   /**
-   * Reads a JSON value into an `Int` value.
+   * Reads a JSON number into an `Int`. The number must be an integer in the
+   * `Int` range, without a leading zero, a fraction or an exponent.
    *
-   * @return
-   *   an `Int` value of the parsed JSON value
+   * A number that starts with `0` is not checked past the `0`: `0.5` or `0e2`
+   * reads as `0` and leaves the rest unread, so the error, if any, comes from
+   * the next read (a known bug, see `docs/dev/issues.md`).
+   *
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value or exceeding capacity of `Int`
+   *   `illegal number` when the next token is not a number or has a fraction or
+   *   exponent, `illegal number with leading zero` for a number such as `007`,
+   *   `value is too large for int` when it is outside the `Int` range in either
+   *   direction, or the input ends (`unexpected end of input`)
    */
   def readInt(): Int = readInt(isToken = true)
 
   /**
-   * Reads a JSON number value into a `Long` value.
+   * Reads a JSON number into a `Long`. The number must be an integer in the
+   * `Long` range, without a leading zero, a fraction or an exponent.
    *
-   * @return
-   *   a `Long` value of the parsed JSON value
+   * A number that starts with `0` is not checked past the `0`: `0.5` or `0e2`
+   * reads as `0` and leaves the rest unread, so the error, if any, comes from
+   * the next read (a known bug, see `docs/dev/issues.md`).
+   *
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value or exceeding capacity of `Long`
+   *   `illegal number` when the next token is not a number or has a fraction or
+   *   exponent, `illegal number with leading zero` for a number such as `007`,
+   *   `value is too large for long` when it is outside the `Long` range in
+   *   either direction, or the input ends (`unexpected end of input`)
    */
   def readLong(): Long = readLong(isToken = true)
 
   /**
-   * Reads a JSON number value into a `Double` value.
+   * Reads a JSON number into the nearest `Double`. A number beyond the `Double`
+   * range reads as `Double.PositiveInfinity` or `Double.NegativeInfinity`, and
+   * one too close to zero reads as `0.0` (or `-0.0` when negative), without an
+   * error, although [[JsonWriter]] then rejects the infinity (see
+   * `docs/dev/issues.md`). `NaN` and `Infinity` are not JSON numbers and are
+   * rejected.
    *
-   * @return
-   *   a `Double` value of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value
+   *   `illegal number` when the next token is not a JSON number (for example
+   *   `.5`, `1.`, `+1` or `NaN`), `illegal number with leading zero` for a
+   *   number such as `01.5`, or the input ends (`unexpected end of input`)
    */
   def readDouble(): Double = readDouble(isToken = true)
 
   /**
-   * Reads a JSON number value into a `Float` value.
+   * Reads a JSON number into the nearest `Float`. A number beyond the `Float`
+   * range reads as `Float.PositiveInfinity` or `Float.NegativeInfinity`, and
+   * one too close to zero reads as `0.0f` (or `-0.0f` when negative), without
+   * an error, although [[JsonWriter]] then rejects the infinity. `NaN` and
+   * `Infinity` are not JSON numbers and are rejected.
    *
-   * @return
-   *   a `Float` value of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value
+   *   `illegal number` when the next token is not a JSON number (for example
+   *   `.5`, `1.`, `+1` or `NaN`), `illegal number with leading zero` for a
+   *   number such as `01.5`, or the input ends (`unexpected end of input`)
    */
   def readFloat(): Float = readFloat(isToken = true)
 
   /**
-   * Reads a JSON number value into a `BigInt` instance with the default limit
-   * of allowed digits. In case of unexpected JSON value throws a
-   * [[JsonCodecError]].
+   * Reads a JSON integer number into a `BigInt`. Rejects a number with
+   * [[JsonReader.bigIntDigitsLimit]] (308) or more digits, so at most 307
+   * digits are read; `readBigInt(digitsLimit)` takes another limit.
    *
-   * @return
-   *   a `BigInt` instance of the parsed JSON value
+   * A number that starts with `0` is not checked past the `0`: `0.5` or `0e2`
+   * reads as `0` and leaves the rest unread, so the error, if any, comes from
+   * the next read (a known bug, see `docs/dev/issues.md`).
+   *
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value or exceeding of the default limit
+   *   `illegal number` when the next token is not an integer or has a fraction
+   *   or exponent, `illegal number with leading zero`,
+   *   `value exceeds limit for number of digits`, or the input ends
+   *   (`unexpected end of input`)
    */
   def readBigInt(): BigInt = readBigInt(isToken = true, bigIntDigitsLimit)
 
   /**
-   * Reads a JSON number value into a `BigInt` instance with the provided limit
-   * of allowed digits. In case of unexpected JSON value throws a
-   * [[JsonCodecError]].
+   * Reads a JSON integer number into a `BigInt`, rejecting a number with
+   * `digitsLimit` or more digits. A low limit protects a service from very long
+   * numbers in untrusted input.
+   *
+   * A number that starts with `0` is not checked past the `0`: `0.5` or `0e2`
+   * reads as `0` and leaves the rest unread, so the error, if any, comes from
+   * the next read (a known bug, see `docs/dev/issues.md`).
    *
    * @param digitsLimit
-   *   the maximum number of decimal digits allowed in the parsed `BigInt` value
-   * @return
-   *   a `BigInt` instance of the parsed JSON value
+   *   one more than the largest number of digits accepted
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value or exceeding of the default limit
+   *   `illegal number` when the next token is not an integer or has a fraction
+   *   or exponent, `illegal number with leading zero`,
+   *   `value exceeds limit for number of digits`, or the input ends
+   *   (`unexpected end of input`)
    */
   def readBigInt(digitsLimit: Int): BigInt = readBigInt(isToken = true, digitsLimit)
 
   /**
-   * Reads a JSON number value into a `BigDecimal` instance with the default
-   * limit of allowed digits for mantissa, the default limit for scale, and the
-   * default instance of [[java.math.MathContext]] for precision. In case of
-   * unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON number into a `BigDecimal` with
+   * [[JsonReader.bigDecimalMathContext]], `MathContext.DECIMAL128`: a number
+   * with more than 34 significant digits is rounded to 34 (`HALF_EVEN`), and
+   * the result carries that math context. The scale of the input is kept, so
+   * `1.50` reads with scale 2.
    *
-   * @return
-   *   a `BigDecimal` instance of the parsed JSON value
+   * Rejects a number with [[JsonReader.bigDecimalDigitsLimit]] (308) or more
+   * digits, counting the integer and fraction digits as written, and a result
+   * whose scale is [[JsonReader.bigDecimalScaleLimit]] (6178) or more in
+   * absolute value, such as `1e6178`.
+   * `readBigDecimal(mc, scaleLimit, digitsLimit)` takes other settings.
+   *
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value or exceeding of default limits
+   *   `illegal number` when the next token is not a JSON number or its exponent
+   *   does not fit in an `Int`, `illegal number with leading zero`,
+   *   `value exceeds limit for number of digits`,
+   *   `value exceeds limit for scale`, or the input ends (`unexpected end of
+   *   input`)
    */
   def readBigDecimal(): BigDecimal =
     readBigDecimal(isToken = true, bigDecimalMathContext, bigDecimalScaleLimit, bigDecimalDigitsLimit)
 
   /**
-   * Reads a JSON number value into a `BigDecimal` instance with the provided
-   * limit of allowed digits for mantissa, the provided limit for scale, and the
-   * provided instance of [[java.math.MathContext]] for precision. In case of
-   * unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON number into a `BigDecimal` like `readBigDecimal()`, but rounds
+   * with `mc` and applies the given limits. With `MathContext.UNLIMITED`, every
+   * digit is kept.
    *
    * @param mc
-   *   the precision to use
+   *   the math context to round with, also attached to the result
    * @param scaleLimit
-   *   the maximum number of decimal places (scale) allowed
+   *   the smallest absolute scale that is rejected
    * @param digitsLimit
-   *   the maximum number of decimal digits allowed
-   * @return
-   *   a `BigDecimal` instance of the parsed JSON value
+   *   the smallest number of digits that is rejected
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or detection of leading zero or
-   *   illegal format of JSON value or exceeding of provided limits
+   *   `illegal number` when the next token is not a JSON number or its exponent
+   *   does not fit in an `Int`, `illegal number with leading zero`,
+   *   `value exceeds limit for number of digits`,
+   *   `value exceeds limit for scale`, or the input ends (`unexpected end of
+   *   input`)
    */
   def readBigDecimal(mc: MathContext, scaleLimit: Int, digitsLimit: Int): BigDecimal =
     readBigDecimal(isToken = true, mc, scaleLimit, digitsLimit)
 
   /**
-   * Reads a JSON string value into a `String` instance. In case of unexpected
-   * JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string into a `String`, decoding escape sequences and UTF-8.
+   * `null` is not accepted.
    *
-   * @return
-   *   a `String` instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or invalid encoding of JSON value
+   *   `expected '"'` when the next token is not a string, or when the string
+   *   has an unescaped control character, an illegal escape sequence, a lone
+   *   surrogate or malformed UTF-8, it does not fit in
+   *   `ReaderConfig#maxCharBufSize` chars, or the input ends
    */
   def readString(): String = {
     nextTokenOrError('"', head)
@@ -838,13 +954,15 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.Duration]] instance. In case
-   * of unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.time.Duration]] in ISO-8601 form, such
+   * as `"PT1H30M"`, `"PT-0.5S"` or `"P2DT3H"`: the form `Duration.toString`
+   * writes, plus a day part and a sign on the whole value or on each part.
    *
-   * @return
-   *   a [[java.time.Duration]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   when the next token is not a string in this form, with a message that
+   *   names the part that is wrong, such as `illegal duration` when the value
+   *   overflows a `Duration` or `expected digit`, or the input ends
+   *   (`unexpected end of input`)
    */
   def readDuration(): Duration = {
     nextTokenOrError('"', head)
@@ -852,13 +970,16 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.Instant]] instance. In case of
-   * unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.time.Instant]] in ISO-8601 form, such
+   * as `"2024-03-15T10:15:30Z"` or `"2024-03-15T10:15:30.5Z"`. The seconds are
+   * required. An offset such as `"+01:00"` in place of `Z` is accepted and
+   * applied.
    *
-   * @return
-   *   a [[java.time.Instant]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   when the next token is not a string in this form, with a message that
+   *   names the part that is wrong, such as `illegal day` for a date such as
+   *   February 30 or `expected digit`, or the input ends (`unexpected end of
+   *   input`)
    */
   def readInstant(): Instant = {
     nextTokenOrError('"', head)
@@ -866,13 +987,15 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.LocalDate]] instance. In case
-   * of unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.time.LocalDate]] in ISO-8601 form,
+   * such as `"2024-03-15"`. A year outside 0000 to 9999 needs a sign, as in
+   * `"+10000-01-01"`.
    *
-   * @return
-   *   a [[java.time.LocalDate]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   when the next token is not a string in this form, with a message that
+   *   names the part that is wrong, such as `illegal day` for a date such as
+   *   `2023-02-29` or `expected digit`, or the input ends (`unexpected end of
+   *   input`)
    */
   def readLocalDate(): LocalDate = {
     nextTokenOrError('"', head)
@@ -880,13 +1003,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.LocalDateTime]] instance. In
-   * case of unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.time.LocalDateTime]] in ISO-8601 form,
+   * such as `"2024-03-15T10:15"` or `"2024-03-15T10:15:30.123"`. The seconds
+   * are optional.
    *
-   * @return
-   *   a [[java.time.LocalDateTime]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   when the next token is not a string in this form, with a message that
+   *   names the part that is wrong, such as `illegal hour` for an hour such as
+   *   24 or `expected digit`, or the input ends (`unexpected end of input`)
    */
   def readLocalDateTime(): LocalDateTime = {
     nextTokenOrError('"', head)
@@ -894,13 +1018,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.LocalTime]] instance. In case
-   * of unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.time.LocalTime]] in ISO-8601 form,
+   * such as `"10:15"`, `"10:15:30"` or `"10:15:30.123456789"`. The seconds are
+   * optional.
    *
-   * @return
-   *   a [[java.time.LocalTime]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   when the next token is not a string in this form, with a message that
+   *   names the part that is wrong, such as `illegal hour` for an hour such as
+   *   24 or `expected digit`, or the input ends (`unexpected end of input`)
    */
   def readLocalTime(): LocalTime = {
     nextTokenOrError('"', head)
@@ -908,13 +1033,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.MonthDay]] instance. In case
-   * of unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.time.MonthDay]] in ISO-8601 form, such
+   * as `"--02-29"`.
    *
-   * @return
-   *   a [[java.time.MonthDay]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   when the next token is not a string in this form, with a message that
+   *   names the part that is wrong, such as `illegal day` for a day such as
+   *   `--02-30` or `expected digit`, or the input ends (`unexpected end of
+   *   input`)
    */
   def readMonthDay(): MonthDay = {
     nextTokenOrError('"', head)
@@ -922,13 +1048,15 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.OffsetDateTime]] instance. In
-   * case of unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.time.OffsetDateTime]] in ISO-8601
+   * form, such as `"2024-03-15T10:15+01:00"` or `"2024-03-15T10:15:30Z"`. The
+   * seconds are optional.
    *
-   * @return
-   *   a [[java.time.OffsetDateTime]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   when the next token is not a string in this form, with a message that
+   *   names the part that is wrong, such as `illegal timezone offset hour` for
+   *   an hour above 18 or `expected digit`, or the input ends (`unexpected end
+   *   of input`)
    */
   def readOffsetDateTime(): OffsetDateTime = {
     nextTokenOrError('"', head)
@@ -936,13 +1064,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.OffsetTime]] instance. In case
-   * of unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.time.OffsetTime]] in ISO-8601 form,
+   * such as `"10:15+01:00"` or `"10:15:30Z"`. The seconds are optional.
    *
-   * @return
-   *   a [[java.time.OffsetTime]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   when the next token is not a string in this form, with a message that
+   *   names the part that is wrong, such as `illegal timezone offset hour` for
+   *   an hour above 18 or `expected digit`, or the input ends (`unexpected end
+   *   of input`)
    */
   def readOffsetTime(): OffsetTime = {
     nextTokenOrError('"', head)
@@ -950,13 +1079,15 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.Period]] instance. In case of
-   * unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.time.Period]] in ISO-8601 form, such
+   * as `"P1Y2M3D"` or `"P0D"`. Weeks are accepted and added to the days:
+   * `"P1W2D"` reads as 9 days.
    *
-   * @return
-   *   a [[java.time.Period]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   when the next token is not a string in this form, with a message that
+   *   names the part that is wrong, such as `illegal period` when a part
+   *   overflows an `Int` or `expected digit`, or the input ends (`unexpected
+   *   end of input`)
    */
   def readPeriod(): Period = {
     nextTokenOrError('"', head)
@@ -964,13 +1095,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.Year]] instance. In case of
-   * unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a year, such as `"2024"` or `"-44"`, into a
+   * [[java.time.Year]]: an optional sign and one to nine digits. A JSON number
+   * such as `2024` is not accepted.
    *
-   * @return
-   *   a [[java.time.Year]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   `expected '"'` when the next token is not a string or has more than nine
+   *   digits, a message such as `expected digit` for other chars,
+   *   `illegal year` for `"-0"`, or the input ends (`unexpected end of input`)
    */
   def readYear(): Year = {
     nextTokenOrError('"', head)
@@ -1011,13 +1143,13 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.YearMonth]] instance. In case
-   * of unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.time.YearMonth]] in ISO-8601 form,
+   * such as `"2024-03"`.
    *
-   * @return
-   *   a [[java.time.YearMonth]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   when the next token is not a string in this form, with a message that
+   *   names the part that is wrong, such as `illegal month` for a month such as
+   *   13 or `expected digit`, or the input ends (`unexpected end of input`)
    */
   def readYearMonth(): YearMonth = {
     nextTokenOrError('"', head)
@@ -1025,13 +1157,15 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.ZonedDateTime]] instance. In
-   * case of unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.time.ZonedDateTime]] in ISO-8601 form,
+   * such as `"2024-03-15T10:15+01:00[Europe/Paris]"`. The zone in brackets is
+   * optional; without it the offset is the zone. With it, the offset fixes the
+   * instant and the zone its rules.
    *
-   * @return
-   *   a [[java.time.ZonedDateTime]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   when the next token is not a string in this form, with a message that
+   *   names the part that is wrong, such as `illegal timezone` for an unknown
+   *   zone or `expected digit`, or the input ends (`unexpected end of input`)
    */
   def readZonedDateTime(): ZonedDateTime = {
     nextTokenOrError('"', head)
@@ -1039,13 +1173,13 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.ZoneId]] instance. In case of
-   * unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a zone ID, such as `"Europe/Paris"` or
+   * `"UTC+01:00"`, into a [[java.time.ZoneId]], as `ZoneId.of` accepts it.
    *
-   * @return
-   *   a [[java.time.ZoneId]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   `expected '"'` when the next token is not a string, `illegal timezone`
+   *   for an unknown or malformed zone ID, or the input ends (`unexpected end
+   *   of input`)
    */
   def readZoneId(): ZoneId = {
     nextTokenOrError('"', head)
@@ -1053,13 +1187,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.time.ZoneOffset]] instance. In case
-   * of unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.time.ZoneOffset]] in ISO-8601 form,
+   * such as `"+01:00"`, `"-05:30:15"` or `"Z"`, of at most 18 hours.
    *
-   * @return
-   *   a [[java.time.ZoneOffset]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   when the next token is not a string in this form, with a message that
+   *   names the part that is wrong, such as `illegal timezone offset hour` for
+   *   an hour above 18 or `expected digit`, or the input ends (`unexpected end
+   *   of input`)
    */
   def readZoneOffset(): ZoneOffset = {
     nextTokenOrError('"', head)
@@ -1067,13 +1202,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a [[java.util.UUID]] instance. In case of
-   * unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a [[java.util.UUID]] in the 8-4-4-4-12 hex
+   * form, such as `"123e4567-e89b-12d3-a456-426614174000"`. Upper- and
+   * lower-case hex digits are accepted.
    *
-   * @return
-   *   a [[java.util.UUID]] instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   `expected '"'` when the next token is not a string or the UUID is longer,
+   *   `expected hex digit` or `expected '-'` for a malformed UUID, or the input
+   *   ends (`unexpected end of input`)
    */
   def readUUID(): UUID = {
     nextTokenOrError('"', head)
@@ -1081,23 +1217,25 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON boolean value into a `Boolean` value.
+   * Reads the JSON literal `true` or `false`.
    *
-   * @return
-   *   a `Boolean` value of the parsed JSON value.
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or unexpected JSON value
+   *   `illegal boolean` for any other token, or the input ends (`unexpected end
+   *   of input`)
    */
   def readBoolean(): Boolean = parseBoolean(isToken = true, head)
 
   /**
-   * Reads a JSON string value into the internal char buffer and returns the
-   * length of the string.
+   * Reads a JSON string into the internal char buffer and returns its length.
+   * It allocates no `String`: compare the string with [[isCharBufEqualsTo]] or
+   * [[charBufToHashCode]], or report it with [[enumValueError]], before the
+   * next string read overwrites it.
    *
-   * @return
-   *   a length of the string in the internal char buffer
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or invalid encoding of JSON value
+   *   `expected '"'` when the next token is not a string, or when the string
+   *   has an unescaped control character, an illegal escape sequence, a lone
+   *   surrogate or malformed UTF-8, it does not fit in
+   *   `ReaderConfig#maxCharBufSize` chars, or the input ends
    */
   def readStringAsCharBuf(): Int = {
     nextTokenOrError('"', head)
@@ -1106,13 +1244,16 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a `Byte` value.
+   * Reads a JSON string holding a `Byte`, such as `"42"`, as
+   * `JsonWriter#writeValAsString` writes it. Leading zeros are accepted
+   * (`"007"` reads as 7); whitespace, a fraction or an exponent inside the
+   * quotes is not.
    *
-   * @return
-   *   a `Byte` value of the parsed JSON value.
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding the capacity of `Byte`
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the digits, `illegal number` when the string does not hold an integer,
+   *   `value is too large for byte` when it is outside the `Byte` range, or the
+   *   input ends (`unexpected end of input`)
    */
   def readStringAsByte(): Byte = {
     nextTokenOrError('"', head)
@@ -1122,13 +1263,16 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a `Short` value.
+   * Reads a JSON string holding a `Short`, such as `"2021"`, as
+   * `JsonWriter#writeValAsString` writes it. Leading zeros are accepted
+   * (`"007"` reads as 7); whitespace, a fraction or an exponent inside the
+   * quotes is not.
    *
-   * @return
-   *   a `Short` value of the parsed JSON value.
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding the capacity of `Short`
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the digits, `illegal number` when the string does not hold an integer,
+   *   `value is too large for short` when it is outside the `Short` range, or
+   *   the input ends (`unexpected end of input`)
    */
   def readStringAsShort(): Short = {
     nextTokenOrError('"', head)
@@ -1138,13 +1282,16 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into an `Int` value.
+   * Reads a JSON string holding an `Int`, such as `"2021"`, as
+   * `JsonWriter#writeValAsString` writes it. Leading zeros are accepted
+   * (`"007"` reads as 7); whitespace, a fraction or an exponent inside the
+   * quotes is not.
    *
-   * @return
-   *   an `Int` value of the parsed JSON value.
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding the capacity of `Int`
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the digits, `illegal number` when the string does not hold an integer,
+   *   `value is too large for int` when it is outside the `Int` range, or the
+   *   input ends (`unexpected end of input`)
    */
   def readStringAsInt(): Int = {
     nextTokenOrError('"', head)
@@ -1154,13 +1301,16 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a `Long` value.
+   * Reads a JSON string holding a `Long`, such as `"2021"`, as
+   * `JsonWriter#writeValAsString` writes it. Leading zeros are accepted
+   * (`"007"` reads as 7); whitespace, a fraction or an exponent inside the
+   * quotes is not.
    *
-   * @return
-   *   a `Long` value of the parsed JSON value.
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding the capacity of `Long`
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the digits, `illegal number` when the string does not hold an integer,
+   *   `value is too large for long` when it is outside the `Long` range, or the
+   *   input ends (`unexpected end of input`)
    */
   def readStringAsLong(): Long = {
     nextTokenOrError('"', head)
@@ -1170,12 +1320,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a `Double` value.
+   * Reads a JSON string holding a number, such as `"49.99"`, into a `Double`
+   * with the rules of [[readDouble]], except that leading zeros are accepted.
+   * `"NaN"` and `"Infinity"` are rejected.
    *
-   * @return
-   *   a `Double` value of the parsed JSON value.
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the number, `illegal number` when the string does not hold a JSON number,
+   *   or the input ends (`unexpected end of input`)
    */
   def readStringAsDouble(): Double = {
     nextTokenOrError('"', head)
@@ -1185,12 +1337,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a `Float` value.
+   * Reads a JSON string holding a number, such as `"49.99"`, into a `Float`
+   * with the rules of [[readFloat]], except that leading zeros are accepted.
+   * `"NaN"` and `"Infinity"` are rejected.
    *
-   * @return
-   *   a `Float` value of the parsed JSON value.
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the number, `illegal number` when the string does not hold a JSON number,
+   *   or the input ends (`unexpected end of input`)
    */
   def readStringAsFloat(): Float = {
     nextTokenOrError('"', head)
@@ -1200,30 +1354,29 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a `BigInt` instance with the default limit
-   * of allowed digits. In case of unexpected JSON value throws a
-   * [[JsonCodecError]].
+   * Reads a JSON string holding an integer, such as `"12345678901234567890"`,
+   * into a `BigInt`. Leading zeros are accepted. Rejects a number with
+   * [[JsonReader.bigIntDigitsLimit]] (308) or more digits.
    *
-   * @return
-   *   a `BigInt` instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding of the default limit of allowed digits
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the digits, `illegal number` when the string does not hold an integer,
+   *   `value exceeds limit for number of digits`, or the input ends
+   *   (`unexpected end of input`)
    */
   def readStringAsBigInt(): BigInt = readStringAsBigInt(bigIntDigitsLimit)
 
   /**
-   * Reads a JSON string value into a `BigInt` instance with the provided limit
-   * of allowed digits. In case of unexpected JSON value throws a
-   * [[JsonCodecError]].
+   * Reads a JSON string holding an integer into a `BigInt`, rejecting a number
+   * with `digitsLimit` or more digits. Leading zeros are accepted.
    *
    * @param digitsLimit
-   *   the maximum number of decimal digits allowed in the parsed `BigInt` value
-   * @return
-   *   a `BigInt` instance of the parsed JSON value
+   *   one more than the largest number of digits accepted
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding of the default limit of allowed digits
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the digits, `illegal number` when the string does not hold an integer,
+   *   `value exceeds limit for number of digits`, or the input ends
+   *   (`unexpected end of input`)
    */
   def readStringAsBigInt(digitsLimit: Int): BigInt = {
     nextTokenOrError('"', head)
@@ -1233,37 +1386,37 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON number value into a `BigDecimal` instance with the default
-   * limit of allowed digits for mantissa, the default limit for scale, and the
-   * default instance of [[java.math.MathContext]] for precision. In case of
-   * unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a number, such as `"49.99"`, into a
+   * `BigDecimal` with the rounding and limits of `readBigDecimal()`, except
+   * that leading zeros are accepted.
    *
-   * @return
-   *   a `BigDecimal` instance of the parsed JSON value
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding of default limits
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the number, `illegal number` when the string does not hold a JSON number,
+   *   `value exceeds limit for number of digits`,
+   *   `value exceeds limit for scale`, or the input ends (`unexpected end of
+   *   input`)
    */
   def readStringAsBigDecimal(): BigDecimal =
     readStringAsBigDecimal(bigDecimalMathContext, bigDecimalScaleLimit, bigDecimalDigitsLimit)
 
   /**
-   * Reads a JSON number value into a `BigDecimal` instance with the provided
-   * limit of allowed digits for mantissa, the provided limit for scale, and the
-   * provided instance of [[java.math.MathContext]] for precision. In case of
-   * unexpected JSON value throws a [[JsonCodecError]].
+   * Reads a JSON string holding a number into a `BigDecimal` with the given
+   * rounding and limits, as `readBigDecimal(mc, scaleLimit, digitsLimit)` does,
+   * except that leading zeros are accepted.
    *
    * @param mc
-   *   the precision to use
+   *   the math context to round with, also attached to the result
    * @param scaleLimit
-   *   the maximum number of decimal places (scale) allowed
+   *   the smallest absolute scale that is rejected
    * @param digitsLimit
-   *   the maximum number of decimal digits allowed
-   * @return
-   *   a `BigDecimal` instance of the parsed JSON value
+   *   the smallest number of digits that is rejected
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding of provided limits
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the number, `illegal number` when the string does not hold a JSON number,
+   *   `value exceeds limit for number of digits`,
+   *   `value exceeds limit for scale`, or the input ends (`unexpected end of
+   *   input`)
    */
   def readStringAsBigDecimal(mc: MathContext, scaleLimit: Int, digitsLimit: Int): BigDecimal = {
     nextTokenOrError('"', head)
@@ -1273,12 +1426,12 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a `Boolean` value.
+   * Reads a JSON string holding a boolean, `"true"` or `"false"`.
    *
-   * @return
-   *   a `Boolean` value of the parsed JSON value.
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the boolean, `illegal boolean` when the string holds anything else, or
+   *   the input ends (`unexpected end of input`)
    */
   def readStringAsBoolean(): Boolean = {
     nextTokenOrError('"', head)
@@ -1288,12 +1441,14 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a raw JSON value into an `Array[Byte]` instance without parsing.
+   * Returns the bytes of the next JSON value as they are in the input, without
+   * decoding them, and moves the read position past the value. The bytes
+   * include the whitespace before the value. The value is found the way
+   * [[skip]] finds it, so it is not validated: `[1,}]` comes back as it is.
    *
-   * @return
-   *   an `Array[Byte]` instance containing the raw bytes of the JSON value.
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or invalid type of JSON value
+   *   `expected value` when the next token does not start a JSON value, or the
+   *   input ends (`unexpected end of input`)
    */
   def readRawValAsBytes(): Array[Byte] = try {
     setMark(head)
@@ -1406,20 +1561,20 @@ final class JsonReader private[json] (
   private[json] def readRawValAsZonedDateTime(): ZonedDateTime = parseZonedDateTime(true)
 
   /**
-   * Reads `null` JSON value and returns the provided default value or throws
-   * [[JsonCodecError]].
+   * Reads the literal `null` and returns `default`. It does not skip
+   * whitespace: the read position must be at the first byte of the token, as it
+   * is after `isNextToken('n')` or [[nextToken]], followed by
+   * [[rollbackToken]]. Only the four bytes are checked, so `nullx` reads as
+   * `null` and leaves `x` unread.
    *
    * @param default
-   *   the default value to return
+   *   the value to return for `null`; when it is `null` itself, the method
+   *   always throws
    * @param msg
-   *   the exception message
-   * @tparam A
-   *   the type of the default value
-   * @return
-   *   the default value
+   *   the message of the error thrown when the token is not `null`
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when the provided default value is `null`
+   *   with the message `msg` when the bytes are not `null` or `default` is
+   *   `null`, or `unexpected end of input`
    */
   @tailrec
   def readNullOrError[A](default: A, msg: String): A =
@@ -1442,21 +1597,18 @@ final class JsonReader private[json] (
     } else decodeError(msg)
 
   /**
-   * Reads `null` JSON value and returns the provided default value or throws
-   * [[JsonCodecError]] with a message of expecting `null` or the provided
-   * token.
+   * Reads the literal `null` like [[readNullOrError]] and returns `default`,
+   * but fails with a message that also names `t`, the token that starts the
+   * other value the codec accepts, such as `[` for an array.
    *
    * @param default
-   *   the default value to return
+   *   the value to return for `null`; when it is `null` itself, the method
+   *   always throws
    * @param t
-   *   the token for an error message
-   * @tparam A
-   *   the type of the default value
-   * @return
-   *   the default value
+   *   the token named in the error message
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or illegal format of JSON value or
-   *   when the provided default value is `null`
+   *   `expected '<t>' or null` when the bytes are not `null`, `expected '<t>'`
+   *   when `default` is `null`, or `unexpected end of input`
    */
   @tailrec
   def readNullOrTokenError[A](default: A, t: Byte): A =
@@ -1479,58 +1631,48 @@ final class JsonReader private[json] (
     } else tokenError(t)
 
   /**
-   * Reads and returns the next byte from the input.
+   * Reads and returns the next byte, without skipping whitespace.
    *
-   * @return
-   *   the next byte from the input
    * @throws JsonCodecError
-   *   in cases of reaching the end of input
+   *   when the input ends (`unexpected end of input`)
    */
   def nextByte(): Byte = nextByte(head)
 
   /**
-   * Skips whitespaces, then reads, and returns the next byte from the input.
+   * Skips whitespace (space, tab, line feed and carriage return), then reads
+   * and returns the next byte.
    *
-   * @return
-   *   the next token from the input
    * @throws JsonCodecError
-   *   in cases of reaching the end of input
+   *   when the input ends (`unexpected end of input`)
    */
   def nextToken(): Byte = nextToken(head)
 
   /**
-   * Skips whitespaces, then checks if the next token in the input matches the
-   * given one.
+   * Skips whitespace, reads the next byte and returns whether it is `t`. The
+   * byte is read either way: call [[rollbackToken]] to read it again.
    *
-   * @param t
-   *   the token to match
-   * @return
-   *   `true` if the next token matches `t`, `false` otherwise
    * @throws JsonCodecError
-   *   in cases of reaching the end of input
+   *   when the input ends (`unexpected end of input`)
    */
   def isNextToken(t: Byte): Boolean = isNextToken(t, head)
 
   /**
-   * Skips whitespaces, then checks if the next token in the input matches the
-   * given one.
+   * Skips whitespace and reads the next byte, which must be `t`.
    *
-   * @param t
-   *   the token to match
    * @throws JsonCodecError
-   *   in cases of reaching the end of input or unexpected token is detected
+   *   `expected '<t>'` when the byte is another one, or the input ends
+   *   (`unexpected end of input`)
    */
   def nextTokenOrError(t: Byte): Unit = nextTokenOrError(t, head)
 
   /**
-   * Checks if the current token in the input matches the given one.
+   * Returns whether the last byte read is `t`, such as the token that the last
+   * [[nextToken]] or [[isNextToken]] call read.
    *
-   * @param t
-   *   the token to match
-   * @return
-   *   `true` if the current token matches `t`, `false` otherwise.
    * @throws java.lang.IllegalStateException
-   *   if no any token was parsed yet
+   *   with the message
+   *   `expected preceding call of 'nextToken()' or 'isNextToken()'` when
+   *   nothing has been read from the internal buffer yet
    */
   def isCurrentToken(t: Byte): Boolean = {
     val pos = head
@@ -1539,18 +1681,21 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Checks if there are more bytes available for reading in the input.
-   *
-   * @return
-   *   `true` if there are more bytes available, `false` otherwise
+   * Returns whether any input is left after the read position, reading more
+   * from an `InputStream` or a `ByteBuffer` without an accessible array (a
+   * direct or read-only buffer) when the internal buffer is used up. Whitespace
+   * counts as input.
    */
   def hasRemaining(): Boolean = head < tail || loadMore(head) < tail
 
   /**
-   * Rolls back the current reading position by one.
+   * Moves the read position back by one byte, so that the next read reads the
+   * last token again. Call it once, right after the token was read.
    *
    * @throws java.lang.IllegalStateException
-   *   if no any token was parsed yet
+   *   with the message
+   *   `expected preceding call of 'nextToken()' or 'isNextToken()'` when
+   *   nothing has been read from the internal buffer yet
    */
   def rollbackToken(): Unit = {
     val pos = head
@@ -1559,12 +1704,10 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Calculates a hash code for the internal char buffer of the given length.
-   *
-   * @param len
-   *   the length of the char buffer to hash
-   * @return
-   *   the hash code for the char buffer
+   * Returns the hash of the first `len` chars of the internal char buffer, as
+   * [[readKeyAsCharBuf]] or [[readStringAsCharBuf]] leaves them. It is the
+   * value that `String#hashCode` returns for the same chars, so a codec can
+   * match a key against precomputed hashes without allocating a `String`.
    */
   def charBufToHashCode(len: Int): Int = {
     val cs = charBuf
@@ -1578,14 +1721,9 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Checks if the internal char buffer contains the given string.
-   *
-   * @param len
-   *   the length of the char buffer to check
-   * @param s
-   *   the string to match
-   * @return
-   *   `true` if the char buffer contains `s`, `false` otherwise
+   * Returns whether the first `len` chars of the internal char buffer, as
+   * [[readKeyAsCharBuf]] or [[readStringAsCharBuf]] leaves them, are equal to
+   * `s`.
    */
   def isCharBufEqualsTo(len: Int, s: String): Boolean = {
     if (s eq null) throw new NullPointerException
@@ -1600,10 +1738,15 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Skips the next JSON value.
+   * Skips the next JSON value and the whitespace before it. It reads only
+   * enough to find where the value ends: it rejects a first byte that no JSON
+   * value starts with, but does not validate the rest, so `nope`, `[1,}]` and
+   * `1-2+e` are skipped without an error (a known bug, see
+   * `docs/dev/issues.md`).
    *
    * @throws JsonCodecError
-   *   in cases of reaching the end of input
+   *   `expected value` when the next token does not start a JSON value, or the
+   *   input ends (`unexpected end of input`)
    */
   @noinline
   def skip(): Unit = {
@@ -1619,6 +1762,13 @@ final class JsonReader private[json] (
     head = pos
   }
 
+  /**
+   * Reserves `offset` slots, a `RegisterOffset` that counts object and
+   * primitive slots, on top of the reader's register stack, and returns the
+   * previous top, where the reserved slots start. Derived record codecs keep
+   * field values there until they construct the record. Pair every call with
+   * [[pop]] with the same `offset`, normally in a `finally` block.
+   */
   def push(offset: RegisterOffset): RegisterOffset = {
     val top = this.top
     this.top = top + offset
@@ -1626,12 +1776,19 @@ final class JsonReader private[json] (
     top
   }
 
+  /** Releases the slots that [[push]] reserved. Pass the same `offset`. */
   def pop(offset: RegisterOffset): Unit = top -= offset
 
+  /**
+   * Returns the register stack that [[push]] reserves slots in. The reader
+   * reuses it for every top-level read and clears its object slots when the
+   * read ends.
+   */
   def registers: Registers = this.stack
 
   /**
-   * Throws a [[JsonCodecError]] with the message `expected ']' or ','`.
+   * Throws a [[JsonCodecError]] with the message `expected ']' or ','`. Call it
+   * when the token after an array element is neither.
    *
    * @throws JsonCodecError
    *   always
@@ -1640,7 +1797,8 @@ final class JsonReader private[json] (
   def arrayEndOrCommaError(): Nothing = decodeError("expected ']' or ','")
 
   /**
-   * Throws a [[JsonCodecError]] with the message `expected '}' or ','`.
+   * Throws a [[JsonCodecError]] with the message `expected '}' or ','`. Call it
+   * when the token after an object field is neither.
    *
    * @throws JsonCodecError
    *   always
@@ -4363,6 +4521,10 @@ final class JsonReader private[json] (
   private[this] def reallocateCharBufToPreferredSize(): Unit = charBuf = new Array[Char](config.preferredCharBufSize)
 }
 
+/**
+ * The default math context and limits of the `BigInt` and `BigDecimal` reads of
+ * [[JsonReader]].
+ */
 object JsonReader {
   private final val pow10Doubles: Array[Double] =
     Array(1, 1e+1, 1e+2, 1e+3, 1e+4, 1e+5, 1e+6, 1e+7, 1e+8, 1e+9, 1e+10, 1e+11, 1e+12, 1e+13, 1e+14, 1e+15, 1e+16,
@@ -4517,34 +4679,48 @@ object JsonReader {
     Array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f')
 
   /**
-   * The default math context used for rounding of `BigDecimal` values when
-   * parsing.
+   * The math context of `readBigDecimal()`, `readKeyAsBigDecimal()` and
+   * `readStringAsBigDecimal()`: `MathContext.DECIMAL128`, which rounds to 34
+   * significant digits with `HALF_EVEN`.
    */
   final val bigDecimalMathContext: MathContext = MathContext.DECIMAL128
 
   /**
-   * The default limit for the number of decimal digits in mantissa of parsed
-   * `BigDecimal` values.
+   * The digit limit of `readBigDecimal()` and the other `BigDecimal` reads
+   * without a `digitsLimit` parameter: a number with this many digits (308) or
+   * more, counting the integer and fraction digits, is rejected.
    */
   final val bigDecimalDigitsLimit: Int = 308
 
   /**
-   * The default limit for scale of parsed `BigDecimal` values.
+   * The scale limit of `readBigDecimal()` and the other `BigDecimal` reads
+   * without a `scaleLimit` parameter: a result whose scale is 6178 or more in
+   * absolute value is rejected.
    */
   final val bigDecimalScaleLimit: Int = 6178
 
   /**
-   * The maximum number of digits in `BigInt` values.
+   * The digit limit of `readBigInt()` and the other `BigInt` reads without a
+   * `digitsLimit` parameter: a number with this many digits (308) or more is
+   * rejected, so at most 307 digits are read.
    */
   final val bigIntDigitsLimit: Int = 308
 }
 
+/**
+ * A slice of the input holding a zone ID, with its hash, used to look up parsed
+ * zone IDs in a cache.
+ */
 private class Key {
   private[this] var hash: Int       = 0
   private[this] var bs: Array[Byte] = null
   private[this] var from: Int       = 0
   private[this] var to: Int         = 0
 
+  /**
+   * Points this key at the bytes from `from` until `to` of `bs`, with their
+   * precomputed hash.
+   */
   @inline
   def set(hash: Int, bs: Array[Byte], from: Int, to: Int): Unit = {
     this.hash = hash
@@ -4553,6 +4729,7 @@ private class Key {
     this.to = to
   }
 
+  /** Returns a key over a copy of its bytes, safe to keep in the cache. */
   def copy: Key = {
     val len = to - from
     val bs1 = new Array[Byte](len)

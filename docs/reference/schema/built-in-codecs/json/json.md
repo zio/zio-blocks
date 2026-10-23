@@ -15,7 +15,7 @@ Json
  ├── Json.Object   (key-value pairs, order-preserving)
  ├── Json.Array    (ordered sequence of values)
  ├── Json.String   (text)
- ├── Json.Number   (arbitrary precision via BigDecimal)
+ ├── Json.Number   (a BigDecimal)
  ├── Json.Boolean  (true/false)
  └── Json.Null     (null)
 ```
@@ -23,7 +23,7 @@ Json
 Key design decisions:
 
 - **Objects use `Vector[(String, Json)]`** to preserve insertion order while providing order-independent equality
-- **Numbers use `BigDecimal`** to preserve precision for financial and scientific data
+- **Numbers use `BigDecimal`** to keep decimal digits that a `Double` would lose. Parsing rounds a number to 34 significant digits (`MathContext.DECIMAL128`) and rejects one with 308 or more digits, so a longer number does not keep every digit
 - **All navigation returns `JsonSelection`** for fluent, composable chaining
 
 ## Creating JSON Values
