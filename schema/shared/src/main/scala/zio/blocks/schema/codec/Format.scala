@@ -21,31 +21,62 @@ import zio.blocks.schema.derive._
 import java.nio.{ByteBuffer, CharBuffer}
 
 /**
- * A format is a type that represents a specific serialization format, such as
- * Avro or JSON. Each format should have a unique MIME type that identifies it,
- * which is used both for debugging purposes, and potentially in transport,
- * depending on the protocol.
+ * A serialization format, such as JSON or Avro: its codec type, the input and
+ * output types of that codec, its MIME type and the default deriver that builds
+ * its codecs from a schema. Pass a format to `Schema#derive` to get a codec, or
+ * to `Schema#getInstance`, `Schema#encode` and `Schema#decode`, which derive
+ * the codec once per schema value and reuse it.
  *
- * A format is associated with a specific type class, such as `BinaryCodec` for
- * binary formats, or `TextCodec` for text formats, and a deriver that can be
- * used to derive the codec for the format.
+ * Every format is a [[BinaryFormat]], whose codecs work on `ByteBuffer`, or a
+ * [[TextFormat]], whose codecs work on `CharBuffer`. JSON is a `BinaryFormat`:
+ * its codecs read and write UTF-8 bytes. Each format is a singleton, such as
+ * `JsonFormat`, and the formats other than JSON live in their own modules.
+ *
+ * {{{
+ * import zio.blocks.schema.json.{JsonCodec, JsonFormat}
+ *
+ * case class Book(title: String, year: Int)
+ * object Book {
+ *   implicit val schema: Schema[Book] = Schema.derived
+ * }
+ *
+ * val mimeType               = JsonFormat.mimeType // application/json
+ * val codec: JsonCodec[Book] = Book.schema.derive(JsonFormat)
+ * val json                   = codec.encodeToString(Book("Zionomicon", 2021)) // {"title":"Zionomicon","year":2021}
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/format/ Format]]
  */
 sealed trait Format {
+
+  /** The input that this format's codecs decode from. */
   type DecodeInput
+
+  /** The output that this format's codecs encode into. */
   type EncodeOutput
+
+  /** The codec type of this format, such as `JsonCodec` for JSON. */
   type TypeClass[A] <: Codec[DecodeInput, EncodeOutput, A]
 
+  /** The MIME type of this format, such as `application/json`. */
   def mimeType: String
 
+  /**
+   * The deriver that `Schema#derive`, `Schema#getInstance`, `Schema#encode` and
+   * `Schema#decode` use for this format. Pass a configured deriver to
+   * `Schema#derive` instead to change the defaults.
+   */
   def deriver: Deriver[TypeClass]
 }
 
 /**
- * A tag that can be used to uniquely identify a binary format, such as Avro.
- * Each format should have its own nominal type, together with a singleton value
- * of that type.
+ * A [[Format]] whose codecs, of type `TC`, decode from and encode into
+ * `ByteBuffer`s. JSON, Avro, MessagePack, Thrift, TOON, XML and YAML are binary
+ * formats; the text-based ones among them read and write UTF-8 bytes. Define a
+ * new format as a singleton that extends it, with its MIME type and the deriver
+ * of its codecs:
  *
- * e.g.:
  * {{{
  * import zio.blocks.schema.codec._
  * import zio.blocks.schema.derive.Deriver
@@ -58,11 +89,18 @@ sealed trait Format {
  * }}}
  */
 abstract class BinaryFormat[TC[A] <: BinaryCodec[A]](val mimeType: String, val deriver: Deriver[TC]) extends Format {
+
+  /** The codec type of this format, `TC`. */
   final type TypeClass[A] = TC[A]
 
+  /** Codecs of this format decode from, and encode into, a `ByteBuffer`. */
   type DecodeInput  = ByteBuffer
   type EncodeOutput = ByteBuffer
 
+  /**
+   * Lets `Schema#derive` take this format and use its `deriver`, as in
+   * `schema.derive(JsonFormat)`.
+   */
   implicit final def derivable: Derivable[this.type, TC] =
     new Derivable[this.type, TC] {
       def deriver(d: BinaryFormat.this.type): Deriver[TC] = BinaryFormat.this.deriver
@@ -70,11 +108,11 @@ abstract class BinaryFormat[TC[A] <: BinaryCodec[A]](val mimeType: String, val d
 }
 
 /**
- * A tag that can be used to uniquely identify a text format, such as ZioJson.
- * Each format should have its own nominal type, together with a singleton value
- * of that type.
+ * A [[Format]] whose codecs, of type `TC`, decode from and encode into
+ * `CharBuffer`s. Among the built-in formats, only CSV is a text format; JSON is
+ * a [[BinaryFormat]]. Define a new format as a singleton that extends it, with
+ * its MIME type and the deriver of its codecs:
  *
- * e.g.:
  * {{{
  * import zio.blocks.schema.codec._
  * import zio.blocks.schema.derive.Deriver
@@ -87,11 +125,18 @@ abstract class BinaryFormat[TC[A] <: BinaryCodec[A]](val mimeType: String, val d
  * }}}
  */
 abstract class TextFormat[TC[A] <: TextCodec[A]](val mimeType: String, val deriver: Deriver[TC]) extends Format {
+
+  /** The codec type of this format, `TC`. */
   final type TypeClass[A] = TC[A]
 
+  /** Codecs of this format decode from, and encode into, a `CharBuffer`. */
   type DecodeInput  = CharBuffer
   type EncodeOutput = CharBuffer
 
+  /**
+   * Lets `Schema#derive` take this format and use its `deriver`, as in
+   * `schema.derive(CsvFormat)`.
+   */
   implicit final def derivable: Derivable[this.type, TC] =
     new Derivable[this.type, TC] {
       def deriver(d: TextFormat.this.type): Deriver[TC] = TextFormat.this.deriver

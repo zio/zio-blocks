@@ -18,6 +18,16 @@ package zio.blocks.schema.derive
 
 import zio.blocks.schema.Lazy
 
+/**
+ * Reads the instance of the type class `TC` out of schema node metadata of type
+ * `F`. Each `derive*` method of a [[Deriver]] receives one as its implicit `D`;
+ * `Deriver#instance` calls it.
+ */
 trait HasInstance[F[_, _], TC[_]] {
+
+  /**
+   * Returns the instance stored in `fa`. It is lazy: force it on first use, not
+   * while deriving, so that recursive types work.
+   */
   def instance[T, A](fa: F[T, A]): Lazy[TC[A]]
 }

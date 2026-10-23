@@ -114,7 +114,7 @@ All grammar nodes extend `Allows.Structural`.
 | `Sequence[A]` | Any collection (`List`, `Vector`, `Set`, `Array`, `Chunk`, …) whose element type satisfies `A` |
 | `Map[K, V]` | `Map`, `HashMap`, … whose key satisfies `K` and value satisfies `V` |
 | `Optional[A]` | `Option[X]` where the inner type `X` satisfies `A` |
-| `Wrapped[A]` | A ZIO Prelude `Newtype`/`Subtype` wrapper whose underlying type satisfies `A` |
+| `Wrapped[A]` | A ZIO Prelude `Newtype`/`Subtype` wrapper, and on Scala 3 also an opaque type or a neotype newtype, whose underlying type satisfies `A` |
 | | |
 | `Self` | Recursive self-reference back to the entire enclosing `Allows[A, S]` grammar |
 | `Dynamic` | `DynamicValue` — the schema-less escape hatch |
@@ -131,7 +131,7 @@ Every specific `Primitive.Xxx` node also satisfies the top-level `Primitive` nod
 2. **To summon evidence** — Use `implicitly[Allows[A, S]]` (Scala 2) or `summon[Allows[A, S]]` (Scala 3) at a call site to check the constraint and get an error message if it fails.
 3. **In type aliases** — Define type aliases like `type FlatRecord = Allows[_, Record[Primitive | Optional[Primitive]]]` to name constraints and reuse them across functions.
 
-The macro that powers `Allows` checks the constraint **at compile time** and emits nothing but a reference to a single private singleton at runtime, so there is zero per-call-site overhead.
+The macro that powers `Allows` checks the constraint **at compile time** and emits nothing but a reference to a single shared singleton at runtime, so there is zero per-call-site overhead.
 
 ## Specific Primitives
 
@@ -424,18 +424,13 @@ val ev2: Allows[List[String], Allows.Sequence[Allows.IsType[String]]] = implicit
 
 `Self` refers back to the entire enclosing `Allows[A, S]` grammar. It allows the grammar to describe recursive data structures.
 
-**Non-recursive types** satisfy `Self`-containing grammars without issue: if no field ever recurses back to the root type, the `Self` position is never reached, and the constraint is vacuously satisfied.
+**Non-recursive types** satisfy a `Self`-containing grammar whenever their parts match: `Self` checks the part at its position against the whole grammar again, and since no type comes back, the check ends. For example, `Allows[Book, Record[Primitive | Self]]` checks an `Author` field of `Book` through `Self` as a `Record[Primitive | Self]`.
 
-**Mutual recursion** between two or more distinct types is a compile-time error reported as:
-
-```
-[error] Mutually recursive types are not supported by Allows.
-        Cycle: Forest -> Tree -> Forest
-```
+**Recursion** is accepted when it leads back to the checked type `A`, directly or through other types: mutually recursive `Forest` and `Tree` checked as `Allows[Forest, Record[Primitive | Sequence[Self] | Self]]` are accepted. A recursive type below `A` is rejected, even when `Self` accepts it on its own: a non-recursive `Library` with a field of type `Topic(name: String, subtopics: List[Topic])` fails that grammar; on Scala 3 the error is a shape violation at `Library.topics`.
 
 ## `Wrapped[A]` and Newtypes
 
-The `Wrapped[A]` node matches ZIO Prelude `Newtype` and `Subtype` wrappers. The underlying type must satisfy `A`. Here's an example:
+The `Wrapped[A]` node matches ZIO Prelude `Newtype` and `Subtype` wrappers and, on Scala 3, opaque types and neotype newtypes. The underlying type must satisfy `A`. A case class with one field, even an `AnyVal` one, is a `Record`, not a wrapper. Here's an example:
 
 ```scala mdoc:compile-only
 import zio.prelude.Newtype
@@ -454,11 +449,11 @@ given Schema[ProductCode] =
 val ev: Allows[ProductCode, Wrapped[Primitive]] = implicitly
 ```
 
-**Scala 3 opaque types** are resolved to their underlying type by the macro (they are transparent), so an opaque alias like this satisfies `Primitive` directly:
+**Scala 3 opaque types** are seen as their underlying type inside the scope that defines them, so there an opaque alias like this satisfies `Primitive` directly. Everywhere else the macro sees the opaque type itself, which satisfies `Wrapped[Primitive]` but not `Primitive`:
 
 ```scala mdoc:compile-only
 opaque type UserId = java.util.UUID
-// UserId satisfies Allows[UserId, Primitive] — resolved to UUID (a primitive)
+// In this scope, UserId satisfies Allows[UserId, Primitive] — resolved to UUID (a primitive)
 ```
 
 ## Sealed Traits and Enums (Auto-Unwrap)
@@ -516,7 +511,7 @@ val ev: Allows[EmptyEvent.type, Record[Primitive]] = implicitly  // vacuously tr
 
 ## Runtime Cost
 
-`Allows[A, S]` carries **zero runtime overhead**. The macro emits a reference to a single private singleton `Allows.instance` cast to the required type. There is no per-call-site allocation.
+`Allows[A, S]` carries **zero runtime overhead**. The macro emits a reference to the single shared singleton `Allows.instance` cast to the required type. There is no per-call-site allocation.
 
 ## Scala 2 vs Scala 3
 

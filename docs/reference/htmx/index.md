@@ -230,6 +230,8 @@ The `Js` type is intentionally raw—do not build it from unsanitized user input
 
 **With headers:** The [`zio.http.htmx.headers`](./response-headers.md) submodule provides typed HTMX request/response headers (HX-Request, HX-Trigger, HX-Redirect, etc.), letting you inspect and build headers with the same type safety as attributes.
 
+**In a tutorial:** [Add Interactivity to a Page with HTMX](../../guides/add-interactivity-with-htmx.md) builds a live book search with these attributes, step by step.
+
 **Extending with custom types:** Implement `ToHtmxValue[MyType]` to let your domain types render themselves in the DSL. For example, a custom `enum Status { Active, Inactive }` defines `implicit val statusToHtmx: ToHtmxValue[Status] = ...` and renders directly in HTMX attributes.
 
 ## Running the Examples

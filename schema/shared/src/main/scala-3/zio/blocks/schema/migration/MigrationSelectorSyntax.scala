@@ -19,15 +19,14 @@ package zio.blocks.schema.migration
 import scala.compiletime.error
 
 /**
- * Scala 3 extension methods for selector syntax in migrations. These are
- * compile-time-only placeholders that get transformed by the macros.
+ * Selector syntax meant for migration builder selectors: `each` selects every
+ * element of a collection, `eachKey` and `eachValue` every key or value of a
+ * map, `at(index)` one element, `atKey(key)` one map value, `when[B]` the case
+ * `B` of a variant, and `wrapped[B]` the value inside a wrapper type.
  *
- * Provides syntax sugar for selector expressions like:
- *   - `_.field.each` for collection traversal
- *   - `_.variant.when[Type]` for case selection
- *   - `_.wrapper.wrapped[Inner]` for wrapper unwrapping
- *   - `_.seq.at(0)` for index access
- *   - `_.map.atKey(key)` for map key access
+ * Calling these methods outside a selector fails at compile time. They do not
+ * compile inside builder selectors either, and the selector macros reject them
+ * (see `docs/dev/issues.md`).
  */
 transparent trait MigrationSelectorSyntax {
 
@@ -48,4 +47,5 @@ transparent trait MigrationSelectorSyntax {
   }
 }
 
+/** The selector syntax, for an explicit import. */
 object MigrationSelectorSyntax extends MigrationSelectorSyntax

@@ -3126,7 +3126,7 @@ import zio.blocks.schema.Lazy
 
 **Root cause.** `force` checks the cache only of the instance it is called on (`schema/shared/src/main/scala/zio/blocks/schema/Lazy.scala:123`). Its loop walks into `FlatMap#first` and calls `Defer#thunk()` directly (`:110-120`), without looking at the cached `value` or `error` of those inner instances.
 
-**Impact.** Work is repeated, and side effects run more than once, whenever a forced `Lazy` is reused in a chain. The JSON codec deriver builds the instance of a node from the instances of its children with `D.instance(...).map` and `.zip` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:933`, `:1437`, `:2788`, `:2908`), so a child instance that was forced elsewhere would run again; this was not observed in practice. The Scaladoc of `Lazy` now states that the cache belongs to the instance. A related detail, documented but not a bug: `Lazy.collectAll` forces its elements from the last to the first.
+**Impact.** Work is repeated, and side effects run more than once, whenever a forced `Lazy` is reused in a chain. The JSON codec deriver builds the instance of a node from the instances of its children with `D.instance(...).map` and `.zip` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:933`, `:1437`, `:2788`, `:2908`), so a child instance that was forced elsewhere runs again. This is observed with overrides (wave 6 of the schema Scaladoc, 2026-10-22, run on Scala 2.13.18 against 0.0.56): an override given to `DerivationBuilder#instance` or `Deriver#withInstance` is one `Lazy` shared by every node it matches, and it is evaluated again once per sequence, `Option`, map or wrapper codec that chains it after it was first forced. A deriver-level override is also evaluated again on each later `Schema#derive` with that deriver. Counting evaluations of a `TypeId.of[String]` override: a record with a `String` field and a `List[String]` field evaluates it 2 times on the first derive and 1 more time on a second derive with the same deriver; a record with two `List[String]` fields, 2 times and then 2 more. An override with side effects, or an expensive one, runs that many times. The Scaladoc of `Lazy` now states that the cache belongs to the instance. A related detail, documented but not a bug: `Lazy.collectAll` forces its elements from the last to the first.
 
 **Test gap.** `LazySpec` checks memoization only by forcing the same instance twice (`schema/shared/src/test/scala/zio/blocks/schema/LazySpec.scala:47`).
 
@@ -4240,6 +4240,290 @@ object MaxBufSizeRepro {
 
 **Suggested fix.** On entry to the stream and direct-buffer `read` overloads, reallocate when `buf.length > config.maxBufSize` (not only when it is smaller than `preferredBufSize`), and make `growBuf` raise `tooLongInputError` when `bufLen >= maxBufSize`.
 
+### schema: `Into.derived` sends a source case with no same-named target case to the target case at the same position, so a renamed or removed case converts to an unrelated one
+
+Found 2026-10-22 while writing the Scaladoc of `Into.derived` (wave 7 of the schema Scaladoc, branch `scaladoc-wave-7` on top of `6c264853`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0 with the reproducer below.
+
+**Summary.** For sealed traits and Scala 3 enums, `Into.derived` maps each source case to the target case with the same name. When there is none, it tries the first target case whose fields, position by position, have the same types or types that convert (an implicit `Into`, and on Scala 3 also an opaque type or a newtype; case objects skip this step), and then simply takes the target case at the same index. A case that was renamed or removed in the new version therefore converts, without any compile error or `Left`, to whatever case now sits at its old position. `As.derived` inherits this (from the code: it calls `Into.derived` in both directions). The compile error the macro prints when it finds nothing lists only "Name" and "Field signature" as matching rules, and `into.md` said that "the macro requires only that every source case has a corresponding target case by name".
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false IntoCaseByPosition.scala`; the same file with `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-schema` prints the same):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+
+sealed trait FormatV1
+object FormatV1 {
+  case object Hardcover extends FormatV1
+  case object Ebook     extends FormatV1
+}
+
+sealed trait FormatV2
+object FormatV2 {
+  case object Hardcover extends FormatV2
+  case object Paperback extends FormatV2
+}
+
+object Repro extends App {
+  println(Into.derived[FormatV1, FormatV2].into(FormatV1.Ebook))
+  // Right(Paperback)
+}
+```
+
+**Expected.** A compile error saying that `Ebook` has no matching case in `FormatV2`, as the error text already describes ("Cases are matched by: 1. Name ... 2. Field signature").
+
+**Root cause.** `findMatchingTargetSubtype`, "Priority 3: Match by position if same count" (`schema/shared/src/main/scala-2/zio/blocks/schema/IntoVersionSpecific.scala:1057-1061`, `schema/shared/src/main/scala-3/zio/blocks/schema/IntoVersionSpecific.scala:1061-1065`); the signature step is `signaturesMatch` (scala-2 `:1029-1032`, scala-3 `:1094-1097`). Despite the comment, it does not check that the two types have the same number of cases; it returns the target case at the source case's index whenever one exists.
+
+**Impact.** Silent data corruption in the exact situation `Into` is meant for, migrating data across versions: an e-book becomes a paperback. The signature fallback has a milder form of the same problem: a renamed case class goes to the first target case whose fields have the same or convertible types, which may be the wrong one.
+
+**Test gap.** No spec converts a coproduct whose source has a case with no same-named target case; the coproduct tests in `IntoSpec` all keep the case names.
+
+**Suggested fix.** Drop the positional fallback (and probably the signature fallback, or restrict it to a unique match), so an unmatched case is a compile error; let users who renamed a case supply an implicit `Into` for it.
+
+### schema (Scala 2): a structural schema from `ToStructural` encodes only instances of the nominal type, and throws `ClassCastException` for any other value of the structural type
+
+Found 2026-10-22 while writing the Scaladoc of `ToStructural` (wave 7 of the schema Scaladoc, branch `scaladoc-wave-7` on top of `6c264853`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified with the reproducer below; Scala 3.9.0 encodes the same anonymous value correctly.
+
+**Summary.** `ToStructural[A]` (behind `Schema#structural`) builds a `Schema` of the structural type that mirrors a case class. On Scala 3 its deconstructor reads the fields by reflection, so any value with the right members can be encoded. On Scala 2 the deconstructor casts the value to the case class, so encoding a value of the structural type that is not an instance of the case class, which is what a structural schema is for, throws `ClassCastException`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false StructuralScala2.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import scala.language.reflectiveCalls
+
+final case class Book(title: String, pages: Int)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+object Repro extends App {
+  val ts = implicitly[ToStructural[Book]]
+  val structural = ts(Book.schema)
+  val anon = new { def title: String = "Zionomicon"; def pages: Int = 600 }
+  println(structural.toDynamicValue(Book("Zionomicon", 600).asInstanceOf[ts.StructuralType]))
+  // {
+  //   title: "Zionomicon",
+  //   pages: 600
+  // }
+  println(scala.util.Try(structural.toDynamicValue(anon.asInstanceOf[ts.StructuralType])))
+  // Failure(java.lang.ClassCastException: class Repro$$anon$4 cannot be cast to class Book (Repro$$anon$4 and Book are in unnamed module of loader 'app'))
+  println(structural.fromDynamicValue(structural.toDynamicValue(Book("Zionomicon", 600).asInstanceOf[ts.StructuralType])).map(_.getClass.getName))
+  // Right(Book)
+}
+```
+
+On Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`), `Book.schema.structural.toDynamicValue(anon)` returns `Success({ title: "Zionomicon", pages: 600 })`.
+
+**Expected.** The same as Scala 3: the anonymous value is encoded through its `title` and `pages` members.
+
+**Root cause.** `ToStructuralMacro.transformProductSchema` on Scala 2 builds the deconstructor as `binding.deconstructor.deconstruct(out, baseOffset, in.asInstanceOf[A])` (`schema/shared/src/main/scala-2/zio/blocks/schema/ToStructuralVersionSpecific.scala:270`); the Scala 3 copy uses `ReflectiveDeconstructor` (`schema/shared/src/main/scala-3/zio/blocks/schema/ToStructuralVersionSpecific.scala:336`). The cast is unchecked for the generic `A`, so it fails inside the case-class deconstructor.
+
+**Impact.** On Scala 2 a structural schema can only round-trip values that are already instances of the case class, so `structural-types.md`'s promise of working with values defined by their members holds only on Scala 3. A `Migration` whose source schema is structural can only migrate case-class instances on Scala 2.
+
+**Test gap.** The structural specs that encode anonymous values (`schema/jvm/src/test/scala-3/zio/blocks/schema/structural/`) are Scala 3 only; no Scala 2 test encodes a value that is not an instance of the case class.
+
+**Related.** The entry "schema: on Scala 2, `Schema#structural` returns `Schema[ts.StructuralType]`, not the structural type" covers the other Scala 2 limitation of the same type class.
+
+**Suggested fix.** Port `ReflectiveDeconstructor` (it uses only `getClass.getMethod`) to the Scala 2 copy and use it in `transformProductSchema`.
+
+### schema (Scala 2): the migration builder does not compile outside `zio.blocks.schema.migration`
+
+Found 2026-10-22 while writing the Scaladoc of `MigrationBuilder` (wave 7 of the schema Scaladoc, branch `scaladoc-wave-7` on top of `6c264853`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified with the reproducer below; the same code compiles and runs on Scala 3.9.0, and on Scala 2.13.18 inside `package zio.blocks.schema.migration`.
+
+**Summary.** On Scala 2, every macro method of `MigrationBuilder` (`addField`, `dropField`, `renameField`, `transformField`, `mandateField`, `optionalizeField`, `changeFieldType`, `migrateField`, `transformElements`, `transformKeys`, `transformValues`) expands to code that reads the builder's `private[migration] val actions`, and the implicit macro behind `build` expands to a call of the `private[migration]` `MigrationComplete.unsafeCreate`. In user code both are inaccessible: the methods fail to compile, and `build` fails with "could not find implicit value for parameter ev", which hides the access error. Even `Migration.newBuilder[A, A].build`, with no actions, does not compile.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false MigrationBuilderScala2.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.migration._
+
+final case class BookV1(title: String)
+object BookV1 { implicit val schema: Schema[BookV1] = Schema.derived }
+final case class BookV2(title: String, pages: Int)
+object BookV2 { implicit val schema: Schema[BookV2] = Schema.derived }
+
+object Repro extends App {
+  val migration = Migration.newBuilder[BookV1, BookV2].addField(_.pages, SchemaExpr.literal(0)).build
+  println(migration(BookV1("Zionomicon")))
+}
+// MigrationBuilderScala2.scala:13: error: value actions in class MigrationBuilder cannot be accessed as a member of zio.blocks.schema.migration.MigrationBuilder[BookV1,BookV2,Any] from object Repro
+// MigrationBuilderScala2.scala:13: error: could not find implicit value for parameter ev: zio.blocks.schema.migration.MigrationComplete[BookV1,BookV2,Any with zio.blocks.schema.migration.Changeset.AddField[String("pages")]]
+```
+
+With `package zio.blocks.schema.migration` added at the top, the same file prints `Right(BookV2(Zionomicon,0))`.
+
+**Expected.** The builder compiles in user code on Scala 2, as it does on Scala 3.
+
+**Root cause.** `private[migration] val actions` and `private[migration] def unsafeCreate` (`schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilder.scala:140` and `:346`). The whitebox macros in `schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilderSyntax.scala` splice `${c.prefix}.actions` (for example `:128`) and `MigrationComplete.unsafeCreate` (`:552`) into the caller's code, where Scala 2 checks access. Scala 3 quotes are typed where the macro is defined, so the same members work there.
+
+**Impact.** The whole typed migration API is unusable on Scala 2.13 except through `Migration.fromDynamic` with hand-built `MigrationAction`s. `migration.md` shows only the builder, in `mdoc:compile-only` blocks, which the docs build compiles on Scala 3 only.
+
+**Test gap.** `MigrationSpec` and `MigrationBuildValidationSpec` live in `package zio.blocks.schema.migration`, where the private members are accessible, so they pass.
+
+**Suggested fix.** Make `actions` and `unsafeCreate` public (or add a public, documented-as-internal constructor such as `MigrationBuilder.withAction`), and add a Scala 2 test compiled outside the package, for example in `schema-scaladoc-check` or a test in another package.
+
+### schema: `MandateField` and `OptionalizeField` use the wrong shape for `Some`, so typed migrations to or from an `Option` field fail
+
+Found 2026-10-22 while writing the Scaladoc of `MigrationAction` (wave 7 of the schema Scaladoc, branch `scaladoc-wave-7` on top of `6c264853`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified with the reproducer below (Scala 3, since the Scala 2 builder does not compile outside the library; see the entry above).
+
+**Summary.** A `Schema` represents `Some(x)` as the variant case `Some` holding a record with one field, `value`. `MandateField` (behind `MigrationBuilder#mandateField`) unwraps a `Some` to its inner value, which is that record, not `x`; `OptionalizeField` (behind `optionalizeField`) wraps a value in a `Some` case without the record. Decoding the result with the target schema then fails: a mandated field fails for every `Some`, and an optionalized field fails always. Only a mandated `None` works.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, `scala-cli run --server=false MandateOptionalize.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.migration._
+
+final case class BookV1(title: String, subtitle: Option[String], pages: Int)
+object BookV1 { implicit val schema: Schema[BookV1] = Schema.derived }
+final case class BookV2(title: String, subtitle: String, pages: Option[Int])
+object BookV2 { implicit val schema: Schema[BookV2] = Schema.derived }
+
+@main def repro(): Unit = {
+  val mandate = Migration
+    .newBuilder[BookV1, BookV2]
+    .mandateField(_.subtitle, _.subtitle, SchemaExpr.literal("none"))
+    .optionalizeField(_.pages, _.pages)
+    .build
+  println(mandate(BookV1("Zionomicon", Some("Functional Effects"), 600)))
+  // Left(zio.blocks.schema.SchemaError: Expected String at: .subtitle
+  // Expected a record at: .pages.when[Some])
+  println(mandate.dynamicMigration(BookV1.schema.toDynamicValue(BookV1("Zionomicon", Some("Functional Effects"), 600))))
+  // Right({
+  //   title: "Zionomicon",
+  //   subtitle: {
+  //     value: "Functional Effects"
+  //   },
+  //   pages: 600 @ {tag: "Some"}
+  // })
+  println(BookV2.schema.toDynamicValue(BookV2("Zionomicon", "Functional Effects", Some(600))))
+  // {
+  //   title: "Zionomicon",
+  //   subtitle: "Functional Effects",
+  //   pages: {
+  //     value: 600
+  //   } @ {tag: "Some"}
+  // }
+}
+```
+
+**Expected.** `Right(BookV2(Zionomicon,Functional Effects,Some(600)))`: `subtitle` is the string itself and `pages` is `Some` holding a `value` record, as the target schema encodes it.
+
+**Root cause.** `ActionExecutor.executeMandate` matches `DynamicValue.Variant("Some", inner) => Right(inner)` and `executeOptionalize` returns `DynamicValue.Variant("Some", v)` (`schema/shared/src/main/scala/zio/blocks/schema/migration/DynamicMigration.scala:389` and `:402`), while `Reflect.option` builds `Some` as a record with the single field `value` (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:2329-2336`).
+
+**Impact.** `mandateField` and `optionalizeField`, two of the seven record operations in `migration.md`, fail for every value they are meant for (except a mandated `None`). The page's `userMigration` example uses `mandateField` in an `mdoc:compile-only` block, so the failure never shows.
+
+**Test gap.** `DynamicMigrationSpec` ("executeMandate", "executeOptionalize") builds its inputs and expected values by hand as `Variant("Some", Primitive(...))`, the same wrong shape, and `MigrationSpec` only checks that the builder records the actions.
+
+**Suggested fix.** Unwrap `Variant("Some", Record(("value", v)))` to `v` in `executeMandate`, wrap as `Variant("Some", Record("value" -> v))` in `executeOptionalize`, fix the two specs, and add a typed round-trip test through `Schema`.
+
+### schema: the migration selector syntax (`each`, `when`, `at`, ...) does not compile in any builder method, on Scala 2 or Scala 3
+
+Found 2026-10-22 while writing the Scaladoc of `MigrationSelectorSyntax` (wave 7 of the schema Scaladoc, branch `scaladoc-wave-7` on top of `6c264853`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified with the two reproducers below.
+
+**Summary.** `MigrationSelectorSyntax` (mixed into the `migration` package object) adds `each`, `eachKey`, `eachValue`, `at`, `atKey`, `when` and `wrapped` for use inside builder selectors, and `SelectorMacros.toPath` has cases for all of them. None of them works. On Scala 3, the methods are `inline def`s whose body is `compiletime.error`, and `toPath` is a plain `inline` macro, so the compiler inlines the `error` placeholders in its argument before the macro runs; `transparent inline` macros such as `$` see the placeholder call unexpanded. On Scala 2, `toPath` matches the field-access case first, treats `.each` as a field named `each`, and then rejects the extension call under it; this fails inside `zio.blocks.schema.migration` too. The record methods (`addField`, `migrateField`, ...) reject the syntax anyway: they accept only field accesses.
+
+**Reproduction, Scala 3** (Scala 3.9.0, `zio-blocks-next-schema` 0.0.56, `scala-cli run --server=false SelectorSyntax.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.migration._
+
+final case class Book(title: String, tags: List[String])
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+final case class Shelf(books: List[Book])
+object Shelf { implicit val schema: Schema[Shelf] = Schema.derived }
+
+@main def repro(): Unit = {
+  val retag = Migration.newBuilder[Shelf, Shelf].transformElements(_.books.each.tags, SchemaExpr.literal("scala")).build
+  println(retag(Shelf(List(Book("Zionomicon", List("zio"))))))
+}
+// -- Error: SelectorSyntax.scala:14:75 --------------------------
+// 14 |  val retag = Migration.newBuilder[Shelf, Shelf].transformElements(_.books.each.tags, SchemaExpr.literal("scala")).build
+//    |                                                                   ^^^^^^^^^^^^
+//    |                       Can only be used inside migration selector macros
+```
+
+**Reproduction, Scala 2** (Scala 2.13.18, `zio-blocks-schema` 0.0.56; the builder itself does not compile outside the library on Scala 2, see the entry above, so this calls the selector macro directly):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.migration._
+
+final case class Book(title: String, tags: List[String])
+final case class Shelf(books: List[Book])
+
+object Repro extends App {
+  println(SelectorMacros.toPath[Shelf, Any](_.books.each.tags))
+}
+// error: Unsupported selector expression: Apply(TypeApply(Select(Select(Select(Select(Select(Ident(zio), zio.blocks), zio.blocks.schema), zio.blocks.schema.migration), zio.blocks.schema.migration.package), TermName("SequenceExtension")), List(TypeTree(), TypeTree())), List(Select(Ident(TermName("x$1")), TermName("books")))) (selector: Shelf => Any)
+```
+
+**Expected.** The path `.books.each.tags` (`DynamicOptic.root.field("books").elements.field("tags")`), and a migration that sets every tag of every book to `scala`.
+
+**Root cause.** Scala 3: the members of `schema/shared/src/main/scala-3/zio/blocks/schema/migration/MigrationSelectorSyntax.scala:34-46` are `inline def`s whose body is `compiletime.error`, and `SelectorMacros.toPath` (`schema/shared/src/main/scala-3/zio/blocks/schema/migration/SelectorMacros.scala:35`, cases from `:156`) is a plain `inline def`. The optics macros `$` and `optic` use the same placeholders successfully, but they are `transparent inline` (`schema/shared/src/main/scala-3/zio/blocks/schema/CompanionOptics.scala:153` and `:161`), so they expand while the selector is typed. A plain inline method expands later, after the placeholders in its argument have been inlined and their error reported. A two-macro probe confirms it on Scala 3.3.7 (`zio-blocks-schema` 0.0.56) and 3.9.0: a `transparent inline` macro whose implementation returns `s.asTerm.show` prints `((_$2: probe.Shelf) => zio.blocks.schema.migration.each[scala.collection.immutable.List, probe.Book](_$2.books))` for `_.books.each`, while the same macro declared plain `inline` fails with `Can only be used inside migration selector macros`. Scala 2: the `case q"$parent.$fieldName"` at `schema/shared/src/main/scala-2/zio/blocks/schema/migration/SelectorMacros.scala:62` comes before the `.each` case at `:68` and matches `Select(<extension call>, each)`. The same call fails with the same error when the file is in `package zio.blocks.schema.migration`, so it is not the access problem of the builder entry.
+
+**Impact.** `migration.md` presents `_.items.each` and `_.data.eachValue` as builder selectors; neither compiles. Nested collections can only be migrated through `migrateField` or hand-built `MigrationAction`s.
+
+**Test gap.** No test uses any of the seven methods in a selector.
+
+**Suggested fix.** On Scala 3, make `toPath` and the builder methods that call it `transparent inline`, as `$` and `optic` are. On Scala 2, move the field-access case after the extension cases. Add a test per method on both versions.
+
+### schema: `Into` from `Float` to `Int` or `Long`, and from `Double` to `Long`, accepts exactly 2^31 or 2^63 and returns the maximum value
+
+Found 2026-10-22 during the fact-check of the wave 7 schema Scaladoc (`Into` numeric instances, branch `scaladoc-wave-7` on top of `6c264853`; line numbers are those of the commit that adds this entry). The code is the same at tag `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0 with the reproducer below.
+
+**Summary.** `floatToInt`, `floatToLong` and `doubleToLong` promise to fail unless the value is a whole number in the target range. For the one value just above the range, 2^31 (`2147483648.0f`) or 2^63 (`9.223372036854775807E18`), they return `Right(Int.MaxValue)` or `Right(Long.MaxValue)` instead: an off-by-one value with no error. `doubleToInt` is correct, because `Int.MaxValue` is exact as a `Double`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false NarrowingUpperBound.scala`; the same file with `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-schema` prints the same):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+
+object Repro extends App {
+  println(Into[Float, Int].into(2147483648.0f))
+  // Right(2147483647)
+  println(Into[Float, Long].into(9.223372036854775807e18f))
+  // Right(9223372036854775807)
+  println(Into[Double, Long].into(9.223372036854775807e18))
+  // Right(9223372036854775807)
+  println(Into[Double, Int].into(2147483648.0))
+  // Left(zio.blocks.schema.SchemaError: Value 2.147483648E9 cannot be precisely converted to Int)
+  println(Into[Float, Int].into(4294967296.0f))
+  // Left(zio.blocks.schema.SchemaError: Value 4.2949673E9 cannot be precisely converted to Int)
+}
+```
+
+**Expected.** `Left(... cannot be precisely converted to Int)` (or `Long`) for the first three lines, as for every other value outside the range.
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/Into.scala:225`, `:235` and `:253`. The upper-bound test `a <= Int.MaxValue` (or `Long.MaxValue`) widens the bound to `Float` or `Double`, where it rounds up to 2^31 or 2^63, so 2^31 or 2^63 passes. Then `a.toInt` (or `toLong`) saturates to the maximum, and the precision test `a == a.toInt.toFloat` passes too, because the maximum widens back to the same rounded value.
+
+**Impact.** A value one past the range converts silently to the maximum, the kind of error narrowing conversions exist to catch. It is a single value per conversion, so it shows up rarely, but it also affects derived conversions (`Into.derived`, `As.derived`) whose fields use these instances.
+
+**Test gap.** `IntoSpec` checks fractional `Float`s; no test uses the exact boundary 2^31 or 2^63.
+
+**Suggested fix.** Compare against the exclusive bound in the source type: `a < 2147483648.0f` for `floatToInt`, `a < 9.223372036854775807E18f` for `floatToLong`, and `a < 9.223372036854775807E18` for `doubleToLong` (the lower bounds `-2^31` and `-2^63` are exact and correct). Add boundary tests.
+
 ### config-hocon: a self-reference such as `path = ${path}":/opt/bookstore/bin"` is rejected as circular
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/load-configuration-files.md` (backlog H-34), on `main` at `7ebf5bca`. The code is the same at tag `v0.0.56`. Verified by running.
@@ -5261,6 +5545,97 @@ object Repro {
 
 **Suggested fix.** In the `Variant` branch, return `Null` (so the parent drops it) when neither the predicate nor the payload keeps anything, and make `hasContent` look at the payload of a variant. A variant at the root that keeps nothing then becomes `Null`, as a primitive root does. Change the test above and add a `partition` test with a variant field.
 
+### schema: `JsonCodecDeriver` gives every occurrence of a recursive record, or of a record with a defaulted field, the optic overrides of one occurrence
+
+Found 2026-10-22 while writing the Scaladoc of `DerivationBuilder` (schema Scaladoc wave 6, branch `scaladoc-wave-6`, on top of `2f73284b`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false` against the published 0.0.56 on Scala 2.13.18 and, with `zio-blocks-next-schema` and `-experimental`, on Scala 3.9.0, with the same output.
+
+**Summary.** `DerivationBuilder#instance(optic, ...)` and `DerivationBuilder#modifier(optic, ...)` should change only the part of the type at that path. `JsonCodecDeriver` derives a record type that is recursive, or that has a field with a default value, once per type ID and reuses those field codecs and field names at every other occurrence of the type in the same derivation. So an optic override inside such a type applies to every occurrence of it, or to none:
+
+- an override of `book.author.name` also changes `book.editor.name` when `Person` has a defaulted field;
+- a `rename` of the author's name is lost, while a `rename` of the editor's name renames both, because the occurrence derived last sets the shared field name;
+- in a recursive type, an override below the root is ignored, and an override of a root field applies at every depth.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+case class Person(name: String, born: Int = 1970)
+object Person { implicit val schema: Schema[Person] = Schema.derived }
+
+case class Book(title: String, author: Person, editor: Person)
+object Book extends CompanionOptics[Book] {
+  implicit val schema: Schema[Book] = Schema.derived
+  val authorName: Lens[Book, String] = $(_.author.name)
+  val editorName: Lens[Book, String] = $(_.editor.name)
+}
+
+case class Category(name: String, subcategories: List[Category])
+object Category extends CompanionOptics[Category] {
+  implicit val schema: Schema[Category] = Schema.derived
+  val name: Lens[Category, String]                  = $(_.name)
+  val subcategoryNames: Traversal[Category, String] = $(_.subcategories.each.name)
+}
+
+object Main {
+  val upper: JsonCodec[String] = new JsonCodec[String] {
+    def decodeValue(in: JsonReader): String           = in.readString().toLowerCase
+    def encodeValue(x: String, out: JsonWriter): Unit = out.writeVal(x.toUpperCase)
+  }
+
+  def main(args: Array[String]): Unit = {
+    val book = Book("Zionomicon", Person("John De Goes", 1980), Person("Adam Fraser", 1985))
+
+    // Only the author's name should be upper-cased
+    println(Book.schema.deriving(JsonCodecDeriver).instance(Book.authorName, upper).derive.encodeToString(book))
+
+    // Only the author's name should be renamed
+    val renameAuthor = Book.schema.deriving(JsonCodecDeriver).modifier(Book.authorName, Modifier.rename("fullName")).derive
+    val json         = renameAuthor.encodeToString(book)
+    println(json)
+    println(renameAuthor.decode(json))
+
+    // Only the editor's name should be renamed
+    println(Book.schema.deriving(JsonCodecDeriver).modifier(Book.editorName, Modifier.rename("fullName")).derive.encodeToString(book))
+
+    val books = Category("books", List(Category("scala", List(Category("zio", Nil)))))
+    // Only "scala", one level below the root, should be upper-cased
+    println(Category.schema.deriving(JsonCodecDeriver).instance(Category.subcategoryNames, upper).derive.encodeToString(books))
+    // Only the root name, "books", should be upper-cased
+    println(Category.schema.deriving(JsonCodecDeriver).instance(Category.name, upper).derive.encodeToString(books))
+  }
+}
+// {"title":"Zionomicon","author":{"name":"JOHN DE GOES","born":1980},"editor":{"name":"ADAM FRASER","born":1985}}
+// {"title":"Zionomicon","author":{"name":"John De Goes","born":1980},"editor":{"name":"Adam Fraser","born":1985}}
+// Right(Book(Zionomicon,Person(John De Goes,1980),Person(Adam Fraser,1985)))
+// {"title":"Zionomicon","author":{"fullName":"John De Goes","born":1980},"editor":{"fullName":"Adam Fraser","born":1985}}
+// {"name":"books","subcategories":[{"name":"scala","subcategories":[{"name":"zio"}]}]}
+// {"name":"BOOKS","subcategories":[{"name":"SCALA","subcategories":[{"name":"ZIO"}]}]}
+```
+
+The output is identical on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 and `//> using options -experimental`.
+
+**Expected.**
+
+```
+{"title":"Zionomicon","author":{"name":"JOHN DE GOES","born":1980},"editor":{"name":"Adam Fraser","born":1985}}
+{"title":"Zionomicon","author":{"fullName":"John De Goes","born":1980},"editor":{"name":"Adam Fraser","born":1985}}
+{"title":"Zionomicon","author":{"name":"John De Goes","born":1980},"editor":{"fullName":"Adam Fraser","born":1985}}
+{"name":"books","subcategories":[{"name":"SCALA","subcategories":[{"name":"zio"}]}]}
+{"name":"BOOKS","subcategories":[{"name":"scala","subcategories":[{"name":"zio"}]}]}
+```
+
+**Root cause.** `JsonCodecDeriver#deriveRecord` treats a record as recursive when any field is a `Reflect.Deferred` node (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:576`). For such a record it looks up the field infos of an earlier occurrence by type ID in the thread-local `recursiveRecordCache` (`:578`, `:2983`), and skips deriving the field codecs when it finds them (`:580`, `:630`). The first occurrence stores its infos before it derives its fields (`:622`), so every nested occurrence reuses them. Every occurrence still calls `fieldInfo.setName(name)` on the shared infos (`:643`), so the last one sets the encoded field name. `Schema.derived` wraps every field that has a default value in a `Reflect.Deferred` (`schema/shared/src/main/scala-3/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:613`, Scala 2 at `schema/shared/src/main/scala-2/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:471`), so a record with a defaulted field counts as recursive even when it is not. `DerivationBuilder#derive` keys optic overrides by path (`schema/shared/src/main/scala/zio/blocks/schema/derive/DerivationBuilder.scala`, `getCustomInstance`), which is right; the cache throws that per-path result away. The derivers of Avro, CSV, MessagePack, Thrift, TOON and XML keep the same per-type-ID `recursiveRecordCache` and reset it at the start of each derivation (their `instanceOverrides` override, for example `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodecDeriver.scala:779-780`), so optic overrides should leak the same way within one derivation (not verified). `YamlCodecDeriver` never resets its cache (`schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodecDeriver.scala:107`, `:113`, `:499`), so a later derivation on the same thread reuses the codecs of an earlier one (see the entry below).
+
+**Impact.** An optic override, the most precise override the derivation API offers, silently changes other parts of the output or does nothing, depending on whether a record type has a default value somewhere, which the user of the optic may not know or control. Overrides by type, or by type and field name, are not affected, because they are the same at every occurrence.
+
+**Test gap.** The optic-override tests in `JsonCodecDeriverSpec` (from `schema/shared/src/test/scala/zio/blocks/schema/json/JsonCodecDeriverSpec.scala:1626`) use `Record1`, which has no default values and no recursion. The recursive-record test at `:2447` overrides by type and field name. No test puts an optic override inside a type that occurs twice and has a defaulted field, or inside a recursive type.
+
+**Suggested fix.** Cache by type ID only the records that really recur on the current derivation path, not every record with a `Deferred` field, and do not reuse cached infos for an occurrence whose path has an optic override below it (or key the cache by type ID and path). Keep the field name per codec instance instead of mutating the shared `FieldInfo`. Apply the same change to the other derivers that copy this cache.
+
 ### schema: `DynamicValue#modifyOrFail` ignores a partial function that is not defined, except at the root
 
 Found 2026-10-22 while writing the Scaladoc of `DynamicValue#modifyOrFail` (wave 5 of the schema Scaladoc, branch `scaladoc-wave-5`, on top of `6cd3c787`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0` prints the same lines. Not filed on GitHub yet.
@@ -5663,6 +6038,255 @@ object Repro {
 **Test gap.** `SchemaExprSpec` builds every expression from literals of input type `Any` (`schema/shared/src/test/scala/zio/blocks/schema/SchemaExprSpec.scala:24-36`), so no test mixes a literal with an optic.
 
 **Suggested fix.** Take the input schema from an operand that is not a literal (for example, from whichever operand's tree contains a `Select`), or give `SchemaExpr` a way to carry "no input needed", and add tests with a literal on each side.
+
+### schema: `Allows` accepts mutually recursive types but rejects a recursive type that is not the checked type
+
+Found 2026-10-22 while reviewing the Scaladoc of `Allows.Self` (schema Scaladoc wave 6, branch `scaladoc-wave-6`, on top of `2f73284b`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: both files below were run with `scala-cli run --server=false` against the published 0.0.56 on Scala 2.13.18 and, with `zio-blocks-next-schema` and `-experimental`, on Scala 3.9.0.
+
+**Summary.** The Scaladoc of `Allows.Self` and `docs/reference/schema/allows.md` ("The `Self` Grammar Node") say that mutual recursion between two or more types is a compile-time error. The macro does the opposite of what that suggests. It accepts any cycle that leads back to the checked type `A`, including mutual recursion such as `Forest` and `Tree`. It rejects a type below `A` that refers to itself, such as a `Topic(subtopics: List[Topic])` field of a `Library`, although `Self` would accept `Topic` on its own. On Scala 3 the error is a generic shape violation rather than the "Mutually recursive types" message the reference page shows; on Scala 2 it is only "could not find implicit value".
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56). `Accepted.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+// Forest and Tree refer to each other
+case class Forest(trees: List[Tree])
+case class Tree(value: Int, children: Forest)
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val ev = implicitly[Allows[Forest, Record[Primitive | Sequence[Self] | Self]]]
+    println(s"mutually recursive Forest accepted: ${ev ne null}")
+  }
+}
+// mutually recursive Forest accepted: true
+```
+
+`Rejected.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.comptime.Allows
+import Allows._
+
+// Topic refers only to itself; Library is not recursive
+case class Topic(name: String, subtopics: List[Topic])
+case class Library(name: String, topics: Topic)
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val topic = implicitly[Allows[Topic, Record[Primitive | Sequence[Self] | Self]]]
+    println(s"Topic accepted: ${topic ne null}")
+    val library = implicitly[Allows[Library, Record[Primitive | Sequence[Self] | Self]]]
+    println(s"Library accepted: ${library ne null}")
+  }
+}
+// Scala 2.13.18:
+// Rejected.scala:14: error: could not find implicit value for parameter e: zio.blocks.schema.comptime.Allows[Library,zio.blocks.schema.comptime.Allows.Record[zio.blocks.schema.comptime.Allows.Primitive | zio.blocks.schema.comptime.Allows.Sequence[zio.blocks.schema.comptime.Allows.Self] | zio.blocks.schema.comptime.Allows.Self]]
+//     val library = implicitly[Allows[Library, Record[Primitive | Sequence[Self] | Self]]]
+//                             ^
+// 1 error
+```
+
+On Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`), `Accepted.scala` prints the same line, and `Rejected.scala` fails to compile on the `Library` line only (the `Topic` line compiles). The scratch directory is left out of the file paths in both error outputs:
+
+```
+// Scala 3.9.0:
+// -- Error: Rejected.scala:15:88
+// 15 |    val library = implicitly[Allows[Library, Record[Primitive | Sequence[Self] | Self]]]
+//    |                                                                                        ^
+//    |── Allows Error ────────────────────────────────────────────────────────────────
+//    |
+//    |  Shape violation at Library.topics
+//    |
+//    |    Found:    Record(Topic)
+//    |    Required: Primitive | Sequence[Self] | Self
+//    |
+//    |  Hint: Type 'Topic' does not match any allowed shape
+//    |
+//    |────────────────────────────────────────────────────────────────────────────────
+// 1 error found
+```
+
+**Expected.** Either both are accepted, since every recursive position is covered by `Self` and `Self` accepts `Topic` on its own, or the documented rule holds and the mutually recursive `Forest` is rejected with the "Mutually recursive types" message.
+
+**Root cause.** The check keeps the set of types on the current path in `seen`. Checking a record's fields adds the record to it, and `Self` expands to the root grammar but adds the type to `seen` only when it is the root type (`schema/shared/src/main/scala-3/zio/blocks/schema/comptime/AllowsCompanionVersionSpecific.scala:448`; Scala 2 at `schema/shared/src/main/scala-2/zio/blocks/schema/comptime/AllowsCompanionVersionSpecific.scala:417`). When a type in `seen` comes back and it is the root type, the check accepts it (Scala 3 `:408-422`); when it is any other type, the check records the mutual-recursion error (Scala 3 `:402-406`, Scala 2 `:375-382`). So `Forest -> Tree -> Forest` passes, because the cycle closes on the root, and `Library -> Topic -> Topic` fails, because it closes on `Topic`. Inside a union, `checkAgainstUnion` collects the errors of each branch and, when every branch fails, reports one generic "does not match any allowed shape" error instead (Scala 3 `:563-576`, Scala 2 `:532-545`), which hides the mutual-recursion message.
+
+**Impact.** A grammar with `Self` cannot accept a non-recursive record that contains a recursive one, such as a library of topic trees, and the error does not say that recursion is the reason. Users who read the reference page expect mutually recursive types to be rejected and may rely on that.
+
+**Test gap.** `AllowsNegativeSpec` "Mutually recursive types produce compile-time error" (`schema/shared/src/test/scala/zio/blocks/schema/comptime/AllowsNegativeSpec.scala:430-452`) checks `Forest`/`Tree` against `Record[Primitive | Sequence[Self]]`, which fails because a `Forest` field is not a `Primitive` or a `Sequence`, not because of the cycle, and the test accepts several unrelated messages, including "could not find". No test checks a cycle through the root with `| Self`, or a recursive type below the root.
+
+**Suggested fix.** Track recursion per type rather than per root: when a type reached through `Self` comes back while it is being checked, accept it as the root case does. Then update the `Self` Scaladoc and the reference page, and change the negative test to assert the message it means to test.
+
+### schema: overriding a record, or a field by parent type and name, still derives the parts the override replaces
+
+Found 2026-10-22 during review 1 of the wave 6 Scaladoc of `Deriver` and `DerivationBuilder` (branch `scaladoc-wave-6`, on top of `2f73284b`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false` against the published 0.0.56 on Scala 2.13.18 and, with `zio-blocks-next-schema` and `-experimental`, on Scala 3.9.0, with the same output.
+
+**Summary.** An instance override is meant to replace derivation. For a node overridden by type or by optic, the deriver is indeed not called for that node, but it is still called for every node below it, and the result is thrown away. A field or case overridden by parent type and name is derived in full first, and only then swapped for the override. So derivation does work it discards, and an error in a part that the override replaces still fails `derive`: here a modifier that `JsonCodecDeriver` rejects (an unknown `Modifier.fieldNaming` strategy) on `Person` makes `derive` throw although no `Person` codec is used.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+import zio.blocks.typeid.TypeId
+
+case class Person(name: String)
+object Person { implicit val schema: Schema[Person] = Schema.derived }
+
+case class Book(title: String, author: Person)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+object Main {
+  val personCodec: JsonCodec[Person] = new JsonCodec[Person] {
+    def decodeValue(in: JsonReader): Person           = Person(in.readString())
+    def encodeValue(x: Person, out: JsonWriter): Unit = out.writeVal(x.name)
+  }
+  val bookCodec: JsonCodec[Book] = new JsonCodec[Book] {
+    def decodeValue(in: JsonReader): Book           = Book(in.readString(), Person("unknown"))
+    def encodeValue(x: Book, out: JsonWriter): Unit = out.writeVal(x.title)
+  }
+
+  def attempt(label: String)(codec: => JsonCodec[Book]): Unit =
+    try println(s"$label: ${codec.encodeToString(Book("Zionomicon", Person("John De Goes")))}")
+    catch { case e: Throwable => println(s"$label: threw $e") }
+
+  def main(args: Array[String]): Unit = {
+    // A modifier that makes JsonCodecDeriver throw when it derives a Person
+    val bogus = Modifier.fieldNaming("bogus")
+
+    // Person replaced by type: Person is not derived
+    attempt("Person by type")(
+      Book.schema.deriving(JsonCodecDeriver).instance(TypeId.of[Person], personCodec).modifier(TypeId.of[Person], bogus).derive
+    )
+    // Book.author replaced by parent type and field name: Person is still derived
+    attempt("Book.author by name")(
+      Book.schema.deriving(JsonCodecDeriver).instance(TypeId.of[Book], "author", personCodec).modifier(TypeId.of[Person], bogus).derive
+    )
+    // The whole Book replaced by type: its Person field is still derived
+    attempt("Book by type")(
+      Book.schema.deriving(JsonCodecDeriver).instance(TypeId.of[Book], bookCodec).modifier(TypeId.of[Person], bogus).derive
+    )
+  }
+}
+// Person by type: {"title":"Zionomicon","author":"John De Goes"}
+// Book.author by name: threw java.lang.IllegalArgumentException: Unknown naming strategy 'bogus'. Expected one of: identity, snake_case, camelCase, kebab-case, PascalCase
+// Book by type: threw java.lang.IllegalArgumentException: Unknown naming strategy 'bogus'. Expected one of: identity, snake_case, camelCase, kebab-case, PascalCase
+```
+
+The output is identical on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 and `//> using options -experimental`.
+
+**Expected.** The first two print `{"title":"Zionomicon","author":"John De Goes"}` and the third prints `"Zionomicon"`: the overridden `Person` (and, in the third case, the whole `Book`) is never derived, so its modifiers never run.
+
+**Root cause.** `Reflect.Record#transform` transforms the fields before it calls `transformRecord` for the record (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:924-929`), and the same holds for the children of variants, sequences, maps and wrappers. `DerivationBuilder#derive` decides on an override only inside `transformRecord` (`schema/shared/src/main/scala/zio/blocks/schema/derive/DerivationBuilder.scala:371`, `:430` for variants), after the children have been derived; a parent type and name override replaces the already derived field afterwards (`applyTypeAndTermNameOverrides`, `:320-343`). `JsonCodecDeriver#deriveRecord` resolves `Modifier.fieldNaming` in the method body, outside its `Lazy` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:345`), so the exception escapes while the discarded part is derived.
+
+**Impact.** Wasted derivation work for every overridden subtree, and spurious failures: an override cannot be used to work around a part of the schema that a deriver cannot derive. Users reading "uses `instance` instead of deriving one" expect the opposite. The Scaladoc of `Deriver` and `DerivationBuilder` now states the actual behaviour.
+
+**Test gap.** `DeriverWithInstanceSpec` and the override tests in `JsonCodecDeriverSpec` check the output of overridden codecs only; none checks that the replaced part is not derived, for example with a deriver that counts calls or fails on the replaced type.
+
+**Suggested fix.** In `DerivationBuilder#derive`, check for an optic or type override before transforming a node's children (for example with a transformer that short-circuits on a match, keeping the original children in the result), and apply parent type and name overrides before the field is transformed instead of swapping its result afterwards.
+
+### schema-yaml: `YamlCodecDeriver` reuses record codecs from an earlier derivation on the same thread, including its overrides
+
+Found 2026-10-22 during review 1 of the wave 6 Scaladoc (branch `scaladoc-wave-6`, on top of `2f73284b`; line numbers are those of the commit that adds this entry). The code is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false` against the published 0.0.56 on Scala 2.13.18 and, with `zio-blocks-next-schema-yaml` and `-experimental`, on Scala 3.9.0, with the same output.
+
+**Summary.** Like `JsonCodecDeriver` (see the entry about optic overrides above), `YamlCodecDeriver` caches the field infos of a record that has a `Reflect.Deferred` field (a recursive record, or one with a defaulted field) in a thread-local map keyed by type ID. Unlike the other derivers, it never clears that map. A later derivation of the same type on the same thread therefore reuses the field codecs of the first one, including any instance override it had. Here a plain `Category.schema.derive(YamlFormat)` writes upper-cased names because an earlier derivation overrode `String`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema-yaml` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+import zio.blocks.typeid.TypeId
+
+case class Category(name: String, subcategories: List[Category])
+object Category { implicit val schema: Schema[Category] = Schema.derived }
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    val books = Category("books", List(Category("scala", Nil)))
+    val upper: YamlCodec[String] = Schema[String].transform[String](s => s.toLowerCase, s => s.toUpperCase).derive(YamlFormat)
+
+    // A derivation that overrides every String
+    val overridden = Category.schema.deriving(YamlCodecDeriver).instance(TypeId.of[String], upper).derive
+    println(overridden.encodeToString(books))
+
+    // A later, plain derivation on the same thread
+    val plain = Category.schema.derive(YamlFormat)
+    println(plain.encodeToString(books))
+  }
+}
+// name: BOOKS
+// subcategories:
+//   - name: SCALA
+//     subcategories: []
+// name: BOOKS
+// subcategories:
+//   - name: SCALA
+//     subcategories: []
+```
+
+The output is identical on Scala 3.9.0 with `zio-blocks-next-schema-yaml` 0.0.56 and `//> using options -experimental`.
+
+**Expected.** The second derivation has no override, so it prints `name: books` and `name: scala`.
+
+**Root cause.** `YamlCodecDeriver#deriveRecord` looks up and stores field infos in `recursiveRecordCache` by type ID (`schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodecDeriver.scala:105-113`, map at `:499`). The JSON, Avro, CSV, MessagePack, Thrift, TOON and XML derivers clear their cache in an `instanceOverrides` override, which `DerivationBuilder#derive` calls at the start of every derivation (for example `schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:2970-2971`); `YamlCodecDeriver` has no such override, so the map lives as long as the thread.
+
+**Impact.** Codecs for recursive types, or types with default values, depend on what the same thread derived before: an override, or a configured deriver's options (such as a name mapper) used once, can leak into codecs derived later, including `Schema#getInstance(YamlFormat)` and the default YAML codec. The map also keeps those codecs alive for the life of the thread.
+
+**Test gap.** No YAML test derives the same recursive or defaulted type twice on one thread with different overrides or options.
+
+**Suggested fix.** Clear `recursiveRecordCache` at the start of each derivation, as the other derivers do (override `instanceOverrides` to call `recursiveRecordCache.remove()`), or better, keep the cache in the derivation instead of a thread-local. The fix for the optic-override entry above applies here too.
+
+### schema: `NameMapper.SnakeCase` and `KebabCase` double the separator before a capital that follows `_` or `-`
+
+Found 2026-10-22 during review 1 of the wave 6 Scaladoc of `NameMapper` (branch `scaladoc-wave-6`, on top of `2f73284b`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false` against the published 0.0.56 on Scala 2.13.18 and, with `zio-blocks-next-schema` and `-experimental`, on Scala 3.9.0, with the same output.
+
+**Summary.** A name that already has a separator before a capital letter followed by a lower-case letter, such as `my_Field`, gets two separators: `my__field` in snake_case and `my--field` in kebab-case. `my_field` and `myField` both give `my_field`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.NameMapper
+
+object Main {
+  def main(args: Array[String]): Unit = {
+    println(NameMapper.SnakeCase("my_Field"))
+    println(NameMapper.KebabCase("my_Field"))
+    println(NameMapper.SnakeCase("first_Edition_Year"))
+    println(NameMapper.SnakeCase("my_field"))
+    println(NameMapper.SnakeCase("myField"))
+  }
+}
+// my__field
+// my--field
+// first__edition__year
+// my_field
+// my_field
+```
+
+The output is identical on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 and `//> using options -experimental`.
+
+**Expected.** `my_field`, `my-field` and `first_edition_year`.
+
+**Root cause.** In `enforceSnakeOrKebabCase` (`schema/shared/src/main/scala/zio/blocks/schema/NameMapper.scala:92-116`), an existing `_` or `-` appends the separator and sets `isPrecedingNotUpperCased` to false (`:100-105`). The next character, a capital, then gets a separator of its own from the second condition, `idx > 1 && idx < len && isLowerCase(s.charAt(idx))` (`:110`), which is meant to split an acronym from the word after it (`HTTPServer`), but does not check that the previous character was a separator.
+
+**Impact.** Fields and cases named in mixed style, such as `my_Field` or Java-style constants converted by hand, get keys with a doubled separator in JSON, BSON and every other format that uses `withFieldNameMapper`, `withCaseNameMapper` or `Modifier.fieldNaming`. The output looks like a typo and does not match what other libraries produce.
+
+**Test gap.** `NameMapperSpec` (`schema/shared/src/test/scala/zio/blocks/schema/NameMapperSpec.scala`) tests separators followed by lower-case letters, digits and symbols, and upper-case runs, but no separator followed by a capital and then a lower-case letter.
+
+**Suggested fix.** Do not append a separator before a capital when the previous output character is already the separator (for example, track whether the last appended character was a separator), and add `my_Field` and `first_Edition_Year` to `NameMapperSpec`.
 
 ## Usability traps
 
@@ -7512,7 +8136,6 @@ All three are hang-detection tests in the streams async paths. Docs PRs now fail
 
 Seen 2026-10-20 while writing H-02. A `mdoc:fail` block after a `mdoc:silent:reset` reports bogus "already defined" errors for names from before the reset, so the expected compile error cannot be shown. H-02 described that error in prose instead. Pages that rely on `mdoc:fail` (H-31) should check their rendered output.
 
-
 ### mdoc: `mdoc:fail` and `mdoc:warn` also compile earlier `compile-only` blocks
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/fix-scope-and-wire-compile-errors.md` (backlog H-31). This is docs tooling (mdoc), not a library bug. Reproduced with this repo's `docs/mdoc`.
@@ -7964,6 +8587,49 @@ Found 2026-10-21 while writing T-12, on `main` at `a44dc6db` (same at `v0.0.56`)
 - **Histogram boundaries.** The `HistogramDataPoint` Scaladoc calls `boundaries` "upper exclusive boundaries for each bucket" (`telemetry/shared/src/main/scala/zio/blocks/telemetry/MetricData.scala:68`), but `Histogram.findBucketIndex` puts a value in the first bucket whose boundary is `>=` the value (`value <= boundaries(i)`, `Histogram.scala:98-105`), so the boundaries are inclusive upper bounds, as in OpenTelemetry. From source; not fixed here.
 - **Missing ADR.** `ContextStorage.scala:28` links `docs/adr/0001-scoped-context-no-set.md`, which never existed (already noted in `backlog.md`).
 
+### docs: `DynamicMigration` and `MigrationAction` are described as serializable, but have no `Schema`, and a literal holds a `Schema`
+
+Found 2026-10-22 while writing the Scaladoc of `DynamicMigration` (wave 7 of the schema Scaladoc, branch `scaladoc-wave-7` on top of `6c264853`). The code is the same at tag `v0.0.56`. Verified with the reproducer below.
+
+**Summary.** `migration.md` calls `DynamicMigration` "fully serializable" and "the transport-friendly representation you can inspect, serialize, or apply dynamically", and the old Scaladoc said it "contains no closures or functions" and can be "stored in registries" and "transmitted over the network". ZIO Blocks defines no `Schema` (and so no codec) for `DynamicMigration`, `MigrationAction` or `DynamicSchemaExpr`, unlike `DynamicPatch`. And `DynamicSchemaExpr.Literal`, which every `SchemaExpr.literal` default becomes, holds the `Schema` of its value, bindings included, so a schema for it could not be derived either.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false MigrationSchema.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.migration._
+
+object Repro extends App {
+  val addEdition = DynamicMigration(
+    MigrationAction.AddField(DynamicOptic.root.field("edition"), SchemaExpr.literal(1).toDynamic)
+  )
+  println(addEdition.actions.head)
+  println(implicitly[Schema[DynamicMigration]])
+}
+// MigrationSchema.scala:12: error: could not find implicit value for parameter e: zio.blocks.schema.Schema[zio.blocks.schema.migration.DynamicMigration]
+```
+
+Without the last line, it prints:
+
+```
+AddField(.edition,Literal(1,Schema {
+  Int
+}))
+```
+
+**Expected.** Either a `Schema[DynamicMigration]` (with literals stored as `DynamicValue`s only, as `DynamicPatch` stores its values), or documentation that says migrations are data that can be inspected and composed but not encoded.
+
+**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/DynamicSchemaExpr.scala:100` (`final case class Literal(value: DynamicValue, schema: Schema[_])`); no schema instance exists in `DynamicMigration.scala` or `MigrationAction.scala`.
+
+**Impact.** Readers plan to store or send migrations, as `migration.md` suggests, and find no way to encode them. The Scaladoc of `Migration`, `DynamicMigration` and `MigrationAction` now describes the actions as data that cannot be encoded yet.
+
+**Test gap.** No test encodes a `DynamicMigration` or `MigrationAction`; `DynamicMigrationSpec` builds them in memory only.
+
+**Suggested fix.** Add schemas for `DynamicSchemaExpr`, `MigrationAction` and `DynamicMigration` (dropping the `Schema` from `Literal`, or rebuilding it from a type tag), then restore the claim; until then, correct `migration.md`.
+
 ### `docs/reference/schema/built-in-codecs/yaml.md` shows output the codec does not produce and omits kebab-case keys
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
@@ -8165,6 +8831,7 @@ Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md
 - sql: `sql-transactions.md` default isolation and PostgreSQL facts; `repo.md`/`table.md`/`ddl.md` upserts, `pageAfter` and the missing `PRIMARY KEY` caveat; `:memory:` warnings in `transactor.md` and `transactor-zio.md`; `db-con.md` `DbTx` members; the backlog's "sql has no JS backend" note. Fixed in #1760.
 - Codecs: `format.md` (`sealed trait`, real `BinaryFormat`/`TextFormat` signatures, which formats are binary); TOON `ArrayFormat.Auto` Scaladoc and `toon.md:706`; `csv.md` (`CsvConfig` ignored by derived codecs, runtime rejection, `Option` rejected); `xml.md` stale version; `built-in-codecs/index.md` artifact prefix. In PR #1773 (open).
 - `patch.md`: every snippet was a plain uncompiled fence; five sections did not compile (`editString` with `Vector`, `modifyKey` with a forward-referenced implicit, `Patch[Data] ++ Patch[Counter]`, `val new`, a non-existent `JsonEncoder`), and the Strict, Clobber, `Patch#apply`, Prism-`set`, LazyList and string-delta claims contradicted the source. The snippets are now mdoc blocks and the claims are corrected; see the H-07 entry "docs: `patch.md` has six snippets that don't compile and several claims the source contradicts". Fixed in #1828.
+- `into.md` said that the numeric widening instances "cannot lose information" (`Int` and `Long` to `Float`, and `Long` to `Double`, round large values) and that `Into.derived` matches coproduct cases by name only (it falls back to field signature and then to position; see the entry on `Into.derived` and case positions). Both sentences are corrected. Fixed on the wave 7 schema Scaladoc branch `scaladoc-wave-7`.
 
 ### build (Scala 3): every main-line artifact was built with -experimental after #1743, so every Scala 3 user needed -experimental
 

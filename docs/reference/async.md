@@ -1493,6 +1493,7 @@ cd async-examples && sbt "run"
 
 ## See Also
 
+- [How to Wrap Callback and Future-Based APIs in Async](../guides/wrap-callback-and-future-apis.md) — bring `Future`, `CompletionStage`, `js.Promise` and callback APIs into `Async`, and cancel the underlying call when the `Async` is cancelled
 - [Asynchronous Stream Execution](streams/execution-and-compatibility/async-execution.md) — the `Async` terminal family, async source constructors and operators, reader ownership, and stream cancellation
 - [Stream Reference](streams/core/stream.md) — pull-based streaming with resource safety; use `Async.promise` and `Completer` to bridge callback-based push sources into the pull-based stream model
 - [Scope Reference](resource-management/scope.md) — compile-time resource safety; `Async.Running` extends `AutoCloseable` and can be used inside `scala.util.Using` or any Scope-managed context for structured cancellation

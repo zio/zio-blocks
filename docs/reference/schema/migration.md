@@ -3,14 +3,14 @@ id: migration
 title: "Migration"
 ---
 
-`Migration[A, B]` is ZIO Blocks Schema's typed API for evolving data from one schema version to another. It wraps a fully serializable [`DynamicMigration`](#dynamicmigration) core with typed source and target schemas, giving you a builder-based workflow for adding fields, dropping fields, renaming fields, changing types, migrating nested values, transforming collections and maps, and composing migrations.
+`Migration[A, B]` is ZIO Blocks Schema's typed API for evolving data from one schema version to another. It wraps a [`DynamicMigration`](#dynamicmigration) core, made of inspectable, composable data, with typed source and target schemas, giving you a builder-based workflow for adding fields, dropping fields, renaming fields, changing types, migrating nested values, transforming collections and maps, and composing migrations.
 
 ## Overview
 
 The migration system is split into three layers:
 
 - **`Migration[A, B]`** — typed migration between source type `A` and target type `B`
-- **`DynamicMigration`** — pure runtime representation built from serializable actions
+- **`DynamicMigration`** — pure runtime representation built from actions that are plain data
 - **`MigrationBuilder[A, B, Changeset]`** — macro-validated builder that accumulates actions and checks that the target shape is fully handled before `build`
 
 ```
@@ -28,7 +28,7 @@ Migration[A, B]
                 └── Irreversible
 ```
 
-`Migration` is the user-facing entry point. `DynamicMigration` is the transport-friendly representation you can inspect, serialize, or apply dynamically.
+`Migration` is the user-facing entry point. `DynamicMigration` is the data representation you can inspect, compose, reverse, or apply dynamically. It has no `Schema` yet, so it cannot be encoded with a codec the way a `DynamicPatch` can.
 
 ## Creating a Migration
 
@@ -82,6 +82,32 @@ val result = migration(PersonV1("Alice"))
 // Right(PersonV2("Alice", 0))
 ```
 
+:::caution Scala 2
+On Scala 2.13 the builder methods and `build` do not compile outside ZIO Blocks itself, a known bug in 0.0.56. Build the actions as a `DynamicMigration` and wrap it with `Migration.fromDynamic`, which works on both Scala versions:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.migration._
+
+case class PersonV1(name: String)
+case class PersonV2(name: String, age: Int)
+
+object PersonV1 {
+  implicit val schema: Schema[PersonV1] = Schema.derived
+}
+
+object PersonV2 {
+  implicit val schema: Schema[PersonV2] = Schema.derived
+}
+
+val migration: Migration[PersonV1, PersonV2] = Migration.fromDynamic[PersonV1, PersonV2](
+  DynamicMigration(MigrationAction.AddField(DynamicOptic.root.field("age"), SchemaExpr.literal(0).toDynamic))
+)
+```
+
+`fromDynamic` does not check at compile time that the actions produce a `PersonV2`; a mismatch shows up as a `Left` when the migration runs.
+:::
+
 ## Core Operations
 
 ### `Migration#apply`
@@ -133,7 +159,7 @@ val combined: Migration[PersonV1, PersonV3] = migration ++ addCity
 
 ## Builder Operations
 
-`MigrationBuilder` uses selector expressions such as `_.field`, `_.nested.field`, `_.items.each`, and `_.data.eachValue`. The builder's third type parameter, `Changeset`, tracks which operations have already been applied so `build` can validate completeness.
+`MigrationBuilder` uses selector expressions made of field accesses, such as `_.field` and `_.nested.field`. The selector syntax `each`, `eachKey`, `eachValue`, `at`, `atKey`, `when` and `wrapped` exists in the API but does not compile in any builder method, a known bug in 0.0.56; migrate nested collections with `migrateField` or with `MigrationAction`s. The builder's third type parameter, `Changeset`, tracks which operations have already been applied so `build` can validate completeness.
 
 ### Record operations
 
@@ -167,6 +193,10 @@ val userMigration = Migration
   .changeFieldType(_.age, SchemaExpr.literal("30"))
   .build
 ```
+
+:::warning
+`mandateField` and `optionalizeField` fail at run time in 0.0.56 (a known bug): `mandateField` fails for every `Some`, and `optionalizeField` produces a value the target schema cannot decode. The example above compiles, but applying `userMigration` to a `UserV1` with a `Some` nickname returns a `Left`.
+:::
 
 `transformField` and `changeFieldType` evaluate their `SchemaExpr` against the currently focused field value, not the entire root record. In practice, that means the expression should be written in terms of the value being replaced.
 
@@ -247,11 +277,11 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
 }
 ```
 
-Use it when you need to inspect, serialize, or apply migrations without keeping the original Scala types around.
+Use it when you need to inspect or apply migrations without keeping the original Scala types around, or to build a migration on Scala 2, where the builder does not compile (see [Creating a Migration](#creating-a-migration)).
 
 ## `MigrationAction`
 
-`MigrationAction` is the serializable ADT used by `DynamicMigration`.
+`MigrationAction` is the ADT used by `DynamicMigration`. Its cases are plain data, but no `Schema` is provided for them yet.
 
 | Action | Purpose | Reverse behavior |
 |---|---|---|
@@ -259,8 +289,8 @@ Use it when you need to inspect, serialize, or apply migrations without keeping 
 | `DropField` | remove a field | `AddField` using stored reverse default |
 | `RenameField` | rename a record field | structural inverse rename |
 | `TransformField` | replace a field by evaluating an expression against the current field value | `Irreversible` |
-| `MandateField` | convert `Option[A]` to `A` with default for `None` | `OptionalizeField` |
-| `OptionalizeField` | wrap a value in `Some` | `Irreversible` |
+| `MandateField` | convert `Option[A]` to `A` with default for `None`; fails for every `Some` (a known bug in 0.0.56) | `OptionalizeField`, which has the same bug |
+| `OptionalizeField` | wrap a value in `Some`; the result does not decode (a known bug in 0.0.56) | `Irreversible` |
 | `ChangeFieldType` | replace a field with a converted value computed from the current field value | `Irreversible` |
 | `RenameCase` | rename enum case | inverse rename |
 | `TransformCase` | run actions inside a specific case | reverse inner actions in reverse order |
@@ -290,7 +320,7 @@ Errors carry a [`DynamicOptic`](./dynamic-optic.md) path so failures can be trac
 
 - use [`Into`](./schema-evolution/into.md) for one-way derived schema evolution
 - use [`As`](./schema-evolution/as.md) for bidirectional derived evolution
-- use `Migration` when you need explicit, inspectable, serializable transformation steps
+- use `Migration` when you need explicit, inspectable, composable transformation steps
 
 :::tip
 For a step-by-step walkthrough rather than a reference, follow the [Evolve Your Data](../../guides/evolve-your-data.md) tutorial, which builds a `Migration` that renames a field and shows the compile-time completeness check.

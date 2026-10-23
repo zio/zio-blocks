@@ -24,12 +24,30 @@ import zio.blocks.typeid.TypeId
 import java.lang
 
 /**
- * An untyped patch that operates on DynamicValue. Patches are serializable and
- * can be composed.
+ * An untyped patch: a list of operations, each applied at a
+ * [[zio.blocks.schema.DynamicOptic]] path of a
+ * [[zio.blocks.schema.DynamicValue]]. [[Patch]] wraps one together with a
+ * schema, and [[zio.blocks.schema.DynamicValue#diff]] computes one.
+ *
+ * A `DynamicPatch` has a schema ([[DynamicPatch.dynamicPatchSchema]]), so it
+ * can be encoded with any codec, stored, and applied later. Paths may use
+ * fields, indices, map keys, cases, elements, wrappers and schema searches; an
+ * operation whose path uses `AtIndices`, `AtMapKeys`, `MapKeys`, `MapValues` or
+ * a type search always fails. No [[PatchMode]] detects that the value changed
+ * since the patch was computed (see `docs/dev/issues.md`).
+ *
+ * @param ops
+ *   the operations, applied in order
  */
 final case class DynamicPatch(ops: Chunk[DynamicPatch.DynamicPatchOp]) {
 
-  /** Apply this patch to a DynamicValue.`value` and `mode`. */
+  /**
+   * Applies the operations to `value` in order, each to the result of the
+   * previous one. In `Strict` mode, the default here, it stops at the first
+   * operation that fails and returns its error; `Lenient` and `Clobber` skip
+   * failing operations and always return `Right`. [[PatchMode]] lists what each
+   * mode does with each operation.
+   */
   def apply(value: DynamicValue, mode: PatchMode = PatchMode.Strict): Either[SchemaError, DynamicValue] = {
     var current: DynamicValue = value
     val len                   = ops.length
@@ -46,11 +64,12 @@ final case class DynamicPatch(ops: Chunk[DynamicPatch.DynamicPatchOp]) {
   }
 
   /**
-   * Compose two patches. The result applies this patch first, then that patch.
+   * Returns a patch that applies the operations of this patch, then those of
+   * `that`.
    */
   def ++(that: DynamicPatch): DynamicPatch = new DynamicPatch(ops ++ that.ops)
 
-  /** Check if this patch is empty (no operations). */
+  /** Returns `true` when this patch has no operations. */
   def isEmpty: Boolean = ops.isEmpty
 
   override def toString: String =
@@ -62,16 +81,17 @@ final case class DynamicPatch(ops: Chunk[DynamicPatch.DynamicPatchOp]) {
     }
 }
 
+/** Constructors of [[DynamicPatch]], its operation types, and their schemas. */
 object DynamicPatch {
 
-  /** Empty patch - identity element for composition. */
+  /** The patch with no operations, the identity of `++`. */
   val empty: DynamicPatch = DynamicPatch(Chunk.empty)
 
-  /** Create a patch with a single operation at the root. */
+  /** Creates a patch with one operation at the root of the value. */
   def root(operation: Operation): DynamicPatch =
     new DynamicPatch(Chunk.single(new DynamicPatchOp(DynamicOptic.root, operation)))
 
-  /** Create a patch with a single operation at the given path. */
+  /** Creates a patch with one operation at `path`. */
   def apply(path: DynamicOptic, operation: Operation): DynamicPatch =
     new DynamicPatch(Chunk.single(new DynamicPatchOp(path, operation)))
 
@@ -788,14 +808,14 @@ object DynamicPatch {
   /** A single patch operation paired with the path to apply it at. */
   final case class DynamicPatchOp(path: DynamicOptic, operation: Operation)
 
-  // Top-level operation type for patches, each operation describes a change to be applied to a DynamicValue.
+  /** One change, applied at the path of a [[DynamicPatchOp]]. */
   sealed trait Operation
 
   object Operation {
 
     /**
-     * Set a value directly (clobber semantics). Replaces the target value
-     * entirely.
+     * Replaces the target value with `value`, in every mode and whatever the
+     * target holds.
      */
     final case class Set(value: DynamicValue) extends Operation
 
@@ -824,63 +844,98 @@ object DynamicPatch {
     final case class Patch(patch: DynamicPatch) extends Operation
   }
 
-  // Primitive delta operations for numeric types, strings, and temporal types.
+  /**
+   * A change to a primitive value: a numeric delta, a list of string edits, or
+   * a temporal delta. Applying one to a primitive of another type fails with a
+   * type-mismatch error.
+   */
   sealed trait PrimitiveOp
 
   object PrimitiveOp {
 
     // Delta for Primitive values. Applied by adding delta to the current value.
 
+    /** Adds `delta` to an `Int`, wrapping around on overflow. */
     final case class IntDelta(delta: Int) extends PrimitiveOp
 
+    /** Adds `delta` to a `Long`, wrapping around on overflow. */
     final case class LongDelta(delta: Long) extends PrimitiveOp
 
+    /** Adds `delta` to a `Double`. */
     final case class DoubleDelta(delta: Double) extends PrimitiveOp
 
+    /** Adds `delta` to a `Float`. */
     final case class FloatDelta(delta: Float) extends PrimitiveOp
 
+    /** Adds `delta` to a `Short`, wrapping around on overflow. */
     final case class ShortDelta(delta: Short) extends PrimitiveOp
 
+    /** Adds `delta` to a `Byte`, wrapping around on overflow. */
     final case class ByteDelta(delta: Byte) extends PrimitiveOp
 
+    /** Adds `delta` to a `BigInt`. */
     final case class BigIntDelta(delta: BigInt) extends PrimitiveOp
 
+    /** Adds `delta` to a `BigDecimal`. */
     final case class BigDecimalDelta(delta: BigDecimal) extends PrimitiveOp
 
+    /**
+     * Applies `ops` to a string in order. When any of them is out of range, the
+     * whole operation fails.
+     */
     final case class StringEdit(ops: Chunk[StringOp]) extends PrimitiveOp
 
+    /** Adds `delta` to an `Instant`. */
     final case class InstantDelta(delta: java.time.Duration) extends PrimitiveOp
 
+    /** Adds `delta` to a `Duration`. */
     final case class DurationDelta(delta: java.time.Duration) extends PrimitiveOp
 
+    /** Adds `delta` to a `LocalDate`. */
     final case class LocalDateDelta(delta: java.time.Period) extends PrimitiveOp
 
-    // Delta for LocalDateTime values. Applied by adding period and duration.
+    /** Adds `periodDelta`, then `durationDelta`, to a `LocalDateTime`. */
     final case class LocalDateTimeDelta(periodDelta: java.time.Period, durationDelta: java.time.Duration)
         extends PrimitiveOp
 
+    /** Adds `delta` to a `Period`, field by field. */
     final case class PeriodDelta(delta: java.time.Period) extends PrimitiveOp
   }
 
-  /** Sequence edit operations for lists, chunks, and other sequences. */
+  /**
+   * Sequence edit operations for lists, chunks, and other sequences. An insert
+   * or delete whose index or range is outside the sequence fails under
+   * `Strict`, is skipped under `Lenient`, and is clamped under `Clobber`; a
+   * modify out of range fails under `Strict` and is skipped in the other modes.
+   */
   sealed trait SeqOp
 
   object SeqOp {
 
-    /** Insert elements at the given index. */
+    /**
+     * Inserts `values` before the element at `index`; an `index` equal to the
+     * length appends.
+     */
     final case class Insert(index: Int, values: Chunk[DynamicValue]) extends SeqOp
 
-    /** Append elements to the end of the sequence. */
+    /**
+     * Appends `values` to the end of the sequence. It never fails on a
+     * sequence.
+     */
     final case class Append(values: Chunk[DynamicValue]) extends SeqOp
 
-    /** Delete elements starting at the given index. */
+    /** Deletes `count` elements starting at `index`. */
     final case class Delete(index: Int, count: Int) extends SeqOp
 
     /** Modify the element at the given index with a nested operation. */
     final case class Modify(index: Int, op: Operation) extends SeqOp
   }
 
-  /** String edit operations for insert, delete, append, and modify. */
+  /**
+   * One edit of a string. Indices refer to the string as the previous edits of
+   * the same [[PrimitiveOp.StringEdit]] left it; an insert index must be within
+   * `[0, length]` and a delete or modify range within the string.
+   */
   sealed trait StringOp
 
   object StringOp {
@@ -900,7 +955,13 @@ object DynamicPatch {
     final case class Modify(index: Int, length: Int, text: String) extends StringOp
   }
 
-  /** Map edit operations for adding, removing, and modifying map entries. */
+  /**
+   * Map edit operations. When `Add` meets a key that is present, `Strict`
+   * fails, `Lenient` skips it and `Clobber` replaces the value. When `Remove`
+   * meets a missing key, `Strict` fails and the other modes leave the map
+   * unchanged. When `Modify` meets a missing key, `Strict` fails and the other
+   * modes skip it. Errors name the map but not the key.
+   */
   sealed trait MapOp
 
   object MapOp {
@@ -915,26 +976,42 @@ object DynamicPatch {
     final case class Modify(key: DynamicValue, patch: DynamicPatch) extends MapOp
   }
 
-  // Dummy implicit ladder for Duration-related operations.
-  // Disambiguates overloads: addDuration for Instant vs Duration.
+  /**
+   * Evidence that tells the `Patch.addDuration` overloads apart. The compiler
+   * supplies it: `ForDuration` selects the `Duration` overload, and the
+   * `Instant` overload takes no evidence.
+   */
   sealed abstract class DurationDummy
+
+  /** The instances of [[DurationDummy]]. */
   object DurationDummy {
     implicit object ForInstant  extends DurationDummy
     implicit object ForDuration extends DurationDummy
   }
 
-  // Dummy implicit ladder for Period-related operations.
-  // Disambiguates overloads: addPeriod for LocalDate vs Period.
+  /**
+   * Evidence that tells the `Patch.addPeriod` overloads apart. The compiler
+   * supplies it: `ForPeriod` selects the `Period` overload, and the `LocalDate`
+   * overload takes no evidence.
+   */
   sealed abstract class PeriodDummy
+
+  /** The instances of [[PeriodDummy]]. */
   object PeriodDummy {
     implicit object ForLocalDate extends PeriodDummy
     implicit object ForPeriod    extends PeriodDummy
   }
 
-  // Dummy implicit ladder for Collection-related operations.
-  // Disambiguates overloads: append/insertAt/deleteAt/modifyAt for different collection types.
-  // Note that there are no tests for LazyList, schema.derived on LazyList leads to malformed tree.
+  /**
+   * Evidence that tells the `Patch.append`, `insertAt`, `deleteAt` and
+   * `modifyAt` overloads for `Vector`, `List`, `Seq`, `IndexedSeq` and
+   * `LazyList` apart. The compiler supplies it. No test covers the `LazyList`
+   * overloads: `Schema.derived` cannot derive a schema for a case class with a
+   * `LazyList` field.
+   */
   sealed abstract class CollectionDummy
+
+  /** The instances of [[CollectionDummy]], one per collection type. */
   object CollectionDummy {
     implicit object ForVector     extends CollectionDummy
     implicit object ForList       extends CollectionDummy
@@ -947,6 +1024,7 @@ object DynamicPatch {
   // Manual derivation for Scala 2 compatability
   // In Scala 3, You can derive Schema using `Schema.derive`
 
+  /** The schema of `StringOp.Insert`. */
   implicit lazy val stringOpInsertSchema: Schema[StringOp.Insert] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Insert](
@@ -970,6 +1048,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `StringOp.Delete`. */
   implicit lazy val stringOpDeleteSchema: Schema[StringOp.Delete] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Delete](
@@ -996,6 +1075,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `StringOp.Append`. */
   implicit lazy val stringOpAppendSchema: Schema[StringOp.Append] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Append](
@@ -1017,6 +1097,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `StringOp.Modify`. */
   implicit lazy val stringOpModifySchema: Schema[StringOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Modify](
@@ -1049,6 +1130,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `StringOp`. */
   implicit lazy val stringOpSchema: Schema[StringOp] = new Schema(
     reflect = new Reflect.Variant[Binding, StringOp](
       cases = Chunk(
@@ -1098,6 +1180,7 @@ object DynamicPatch {
     )
   )
 
+  /** The schema of `PrimitiveOp.IntDelta`. */
   implicit lazy val primitiveOpIntDeltaSchema: Schema[PrimitiveOp.IntDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.IntDelta](
@@ -1119,6 +1202,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.LongDelta`. */
   implicit lazy val primitiveOpLongDeltaSchema: Schema[PrimitiveOp.LongDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.LongDelta](
@@ -1140,6 +1224,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.DoubleDelta`. */
   implicit lazy val primitiveOpDoubleDeltaSchema: Schema[PrimitiveOp.DoubleDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.DoubleDelta](
@@ -1161,6 +1246,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.FloatDelta`. */
   implicit lazy val primitiveOpFloatDeltaSchema: Schema[PrimitiveOp.FloatDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.FloatDelta](
@@ -1182,6 +1268,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.ShortDelta`. */
   implicit lazy val primitiveOpShortDeltaSchema: Schema[PrimitiveOp.ShortDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.ShortDelta](
@@ -1203,6 +1290,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.ByteDelta`. */
   implicit lazy val primitiveOpByteDeltaSchema: Schema[PrimitiveOp.ByteDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.ByteDelta](
@@ -1224,6 +1312,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.BigIntDelta`. */
   implicit lazy val primitiveOpBigIntDeltaSchema: Schema[PrimitiveOp.BigIntDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.BigIntDelta](
@@ -1245,6 +1334,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.BigDecimalDelta`. */
   implicit lazy val primitiveOpBigDecimalDeltaSchema: Schema[PrimitiveOp.BigDecimalDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.BigDecimalDelta](
@@ -1266,6 +1356,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.StringEdit`. */
   implicit lazy val primitiveOpStringEditSchema: Schema[PrimitiveOp.StringEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.StringEdit](
@@ -1287,6 +1378,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.InstantDelta`. */
   implicit lazy val primitiveOpInstantDeltaSchema: Schema[PrimitiveOp.InstantDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.InstantDelta](
@@ -1308,6 +1400,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.DurationDelta`. */
   implicit lazy val primitiveOpDurationDeltaSchema: Schema[PrimitiveOp.DurationDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.DurationDelta](
@@ -1329,6 +1422,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.LocalDateDelta`. */
   implicit lazy val primitiveOpLocalDateDeltaSchema: Schema[PrimitiveOp.LocalDateDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.LocalDateDelta](
@@ -1350,6 +1444,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.LocalDateTimeDelta`. */
   implicit lazy val primitiveOpLocalDateTimeDeltaSchema: Schema[PrimitiveOp.LocalDateTimeDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.LocalDateTimeDelta](
@@ -1379,6 +1474,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.PeriodDelta`. */
   implicit lazy val primitiveOpPeriodDeltaSchema: Schema[PrimitiveOp.PeriodDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.PeriodDelta](
@@ -1400,6 +1496,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp`. */
   implicit lazy val primitiveOpSchema: Schema[PrimitiveOp] = new Schema(
     reflect = new Reflect.Variant[Binding, PrimitiveOp](
       cases = Chunk(
@@ -1529,6 +1626,7 @@ object DynamicPatch {
     )
   )
 
+  /** The schema of `SeqOp.Insert`. */
   implicit lazy val seqOpInsertSchema: Schema[SeqOp.Insert] =
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Insert](
@@ -1552,6 +1650,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `SeqOp.Append`. */
   implicit lazy val seqOpAppendSchema: Schema[SeqOp.Append] =
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Append](
@@ -1573,6 +1672,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `SeqOp.Delete`. */
   implicit lazy val seqOpDeleteSchema: Schema[SeqOp.Delete] =
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Delete](
@@ -1596,6 +1696,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `SeqOp.Modify`. */
   implicit lazy val seqOpModifySchema: Schema[SeqOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, SeqOp.Modify](
@@ -1622,6 +1723,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `SeqOp`. */
   implicit lazy val seqOpSchema: Schema[SeqOp] = new Schema(
     reflect = new Reflect.Variant[Binding, SeqOp](
       cases = Chunk(
@@ -1671,6 +1773,7 @@ object DynamicPatch {
     )
   )
 
+  /** The schema of `MapOp.Add`. */
   implicit lazy val mapOpAddSchema: Schema[MapOp.Add] =
     new Schema(
       reflect = new Reflect.Record[Binding, MapOp.Add](
@@ -1697,6 +1800,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `MapOp.Remove`. */
   implicit lazy val mapOpRemoveSchema: Schema[MapOp.Remove] =
     new Schema(
       reflect = new Reflect.Record[Binding, MapOp.Remove](
@@ -1718,6 +1822,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `MapOp.Modify`. */
   implicit lazy val mapOpModifySchema: Schema[MapOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, MapOp.Modify](
@@ -1747,6 +1852,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `MapOp`. */
   implicit lazy val mapOpSchema: Schema[MapOp] = new Schema(
     reflect = new Reflect.Variant[Binding, MapOp](
       cases = Chunk(
@@ -1788,6 +1894,7 @@ object DynamicPatch {
     )
   )
 
+  /** The schema of `Operation.Set`. */
   implicit lazy val operationSetSchema: Schema[Operation.Set] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.Set](
@@ -1809,6 +1916,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `Operation.PrimitiveDelta`. */
   implicit lazy val operationPrimitiveDeltaSchema: Schema[Operation.PrimitiveDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.PrimitiveDelta](
@@ -1830,6 +1938,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `Operation.SequenceEdit`. */
   implicit lazy val operationSequenceEditSchema: Schema[Operation.SequenceEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.SequenceEdit](
@@ -1851,6 +1960,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `Operation.MapEdit`. */
   implicit lazy val operationMapEditSchema: Schema[Operation.MapEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.MapEdit](
@@ -1872,6 +1982,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `Operation.Patch`. */
   implicit lazy val operationPatchSchema: Schema[Operation.Patch] =
     new Schema(
       reflect = new Reflect.Record[Binding, Operation.Patch](
@@ -1893,6 +2004,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `Operation`. */
   implicit lazy val operationSchema: Schema[Operation] = new Schema(
     reflect = new Reflect.Variant[Binding, Operation](
       cases = Chunk(
@@ -1950,6 +2062,7 @@ object DynamicPatch {
     )
   )
 
+  /** The schema of `DynamicPatchOp`. */
   implicit lazy val dynamicPatchOpSchema: Schema[DynamicPatchOp] =
     new Schema(
       reflect = new Reflect.Record[Binding, DynamicPatchOp](
@@ -1979,6 +2092,7 @@ object DynamicPatch {
       )
     )
 
+  /** The schema of `DynamicPatch`. */
   implicit lazy val dynamicPatchSchema: Schema[DynamicPatch] =
     new Schema(
       reflect = new Reflect.Record[Binding, DynamicPatch](

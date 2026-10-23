@@ -19,9 +19,19 @@ package zio.blocks.schema.derive
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, HasBinding}
 
+/**
+ * The metadata of a schema node during derivation: the node's
+ * [[zio.blocks.schema.binding.Binding Binding]] and its instance of the type
+ * class `TC`. `DerivationBuilder#derive` turns a schema's `Reflect[Binding, A]`
+ * into a `Reflect` that carries this metadata, so a [[Deriver]] reads a child's
+ * instance with `Deriver#instance` and its binding with `Deriver#binding`.
+ */
 final case class BindingInstance[TC[_], T, A](binding: Binding[T, A], instance: Lazy[TC[A]])
 
+/** The `HasBinding` and `HasInstance` instances of [[BindingInstance]]. */
 object BindingInstance {
+
+  /** Reads and replaces the binding of a [[BindingInstance]]. */
   implicit def hasBinding[TC[_]]: HasBinding[({ type F[A, B] = BindingInstance[TC, A, B] })#F] = {
     type F[A, B] = BindingInstance[TC, A, B]
     new HasBinding[F] {
@@ -32,6 +42,7 @@ object BindingInstance {
     }
   }
 
+  /** Reads the instance of a [[BindingInstance]]. */
   implicit def hasInstance[TC[_]]: HasInstance[({ type F[A, B] = BindingInstance[TC, A, B] })#F, TC] = {
     type F[A, B] = BindingInstance[TC, A, B]
     new HasInstance[F, TC] {

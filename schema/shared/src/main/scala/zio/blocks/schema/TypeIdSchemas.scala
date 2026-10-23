@@ -20,10 +20,16 @@ import zio.blocks.typeid._
 import zio.blocks.chunk.Chunk
 
 /**
- * Hand-rolled Schema instances for all TypeId-related types.
+ * Hand-written schemas for `TypeId` and the types it is made of, from the
+ * `zio-blocks-typeid` module. They let a codec encode the type IDs in a schema,
+ * for example when a [[DynamicSchema]] is serialized. [[Schema]] and
+ * [[DynamicSchema]] extend this trait, so the schemas are found implicitly.
  *
- * These schemas enable serialization/deserialization of TypeId metadata, which
- * is essential for schema reflection and type-safe serialization.
+ * Except for `varianceSchema`, which is a string, and `ownerSchema` and
+ * `termPathSchema`, which are lists of segments, each one converts its type to
+ * and from a [[DynamicValue]] record. A sum type is a record whose `type` field
+ * names the case. Decoding fails when a field is missing or the `type` field
+ * names no case.
  */
 trait TypeIdSchemas {
 
@@ -31,6 +37,10 @@ trait TypeIdSchemas {
   // Simple Enums - String-based encoding
   // ============================================================================
 
+  /**
+   * The schema of `Variance`: the string `Covariant`, `Contravariant` or
+   * `Invariant`. Any other string fails to decode.
+   */
   implicit lazy val varianceSchema: Schema[Variance] =
     Schema[String].transform(
       {
@@ -50,6 +60,10 @@ trait TypeIdSchemas {
   // Kind - Recursive structure
   // ============================================================================
 
+  /**
+   * The schema of `Kind`: a record whose `type` field is `Type`, or `Arrow`
+   * with `params` and `result` fields.
+   */
   implicit lazy val kindSchema: Schema[Kind] = {
     lazy val baseSchema: Schema[Kind] = Schema[DynamicValue].transform(
       {
@@ -96,6 +110,10 @@ trait TypeIdSchemas {
   // Owner.Segment - Simple sum type
   // ============================================================================
 
+  /**
+   * The schema of `Owner.Segment`: a record whose `type` field is `Package`,
+   * `Term` or `Type`, with a `name` field.
+   */
   implicit lazy val ownerSegmentSchema: Schema[Owner.Segment] =
     Schema[DynamicValue].transform(
       {
@@ -157,6 +175,9 @@ trait TypeIdSchemas {
   // Owner - Contains list of segments
   // ============================================================================
 
+  /**
+   * The schema of `Owner`: the list of its segments.
+   */
   implicit lazy val ownerSchema: Schema[Owner] =
     Schema[List[Owner.Segment]].transform(to = Owner.apply, from = _.segments)
 
@@ -164,6 +185,10 @@ trait TypeIdSchemas {
   // TermPath.Segment
   // ============================================================================
 
+  /**
+   * The schema of `TermPath.Segment`: a record whose `type` field is `Package`
+   * or `Term`, with a `name` field.
+   */
   implicit lazy val termPathSegmentSchema: Schema[TermPath.Segment] =
     Schema[DynamicValue].transform(
       {
@@ -211,6 +236,9 @@ trait TypeIdSchemas {
   // TermPath
   // ============================================================================
 
+  /**
+   * The schema of `TermPath`: the list of its segments.
+   */
   implicit lazy val termPathSchema: Schema[TermPath] =
     Schema[List[TermPath.Segment]].transform(to = TermPath.apply, from = _.segments)
 
@@ -218,6 +246,10 @@ trait TypeIdSchemas {
   // TypeRepr - Highly recursive, all cases
   // ============================================================================
 
+  /**
+   * The schema of `TypeRepr`: a record whose `type` field names the case, such
+   * as `Ref`, `Applied`, `Union` or `Function`, with the case's fields.
+   */
   implicit lazy val typeReprSchema: Schema[TypeRepr] = {
     val baseSchema = Schema[DynamicValue].transform(
       dynamicValue => typeReprFromDynamic(dynamicValue).fold(throw _, identity),
@@ -780,6 +812,9 @@ trait TypeIdSchemas {
   // TupleElement
   // ============================================================================
 
+  /**
+   * The schema of `TupleElement`: a record with `label` and `tpe` fields.
+   */
   implicit lazy val tupleElementSchema: Schema[TupleElement] =
     Schema[DynamicValue].transform(
       {
@@ -810,6 +845,10 @@ trait TypeIdSchemas {
   // TypeBounds
   // ============================================================================
 
+  /**
+   * The schema of `TypeBounds`: a record with `lower` and `upper` fields, each
+   * holding an optional type; both fields must be present.
+   */
   implicit lazy val typeBoundsSchema: Schema[TypeBounds] =
     Schema[DynamicValue].transform(
       {
@@ -840,6 +879,10 @@ trait TypeIdSchemas {
   // TypeParam
   // ============================================================================
 
+  /**
+   * The schema of `TypeParam`: a record with `name`, `index`, `variance`,
+   * `bounds` and `kind` fields.
+   */
   implicit lazy val typeParamSchema: Schema[TypeParam] =
     Schema[DynamicValue].transform(
       {
@@ -885,6 +928,10 @@ trait TypeIdSchemas {
   // Param
   // ============================================================================
 
+  /**
+   * The schema of `Param`: a record with `name`, `tpe`, `isImplicit` and
+   * `hasDefault` fields.
+   */
   implicit lazy val paramSchema: Schema[Param] =
     Schema[DynamicValue].transform(
       {
@@ -925,6 +972,10 @@ trait TypeIdSchemas {
   // Member (sum type: Val, Def, TypeMember)
   // ============================================================================
 
+  /**
+   * The schema of `Member`: a record whose `type` field is `Val`, `Def` or
+   * `TypeMember`, with the case's fields.
+   */
   implicit lazy val memberSchema: Schema[Member] =
     Schema[DynamicValue].transform(
       {
@@ -1035,6 +1086,9 @@ trait TypeIdSchemas {
   // EnumCaseParam
   // ============================================================================
 
+  /**
+   * The schema of `EnumCaseParam`: a record with `name` and `tpe` fields.
+   */
   implicit lazy val enumCaseParamSchema: Schema[EnumCaseParam] =
     Schema[DynamicValue].transform(
       {
@@ -1065,6 +1119,10 @@ trait TypeIdSchemas {
   // AnnotationArg (recursive sum type)
   // ============================================================================
 
+  /**
+   * The schema of `AnnotationArg`: a record whose `type` field names the case,
+   * such as `Const`, `ArrayArg` or `Nested`, with the case's fields.
+   */
   implicit lazy val annotationArgSchema: Schema[AnnotationArg] =
     Schema[DynamicValue].transform(
       dv => annotationArgFromDynamic(dv).fold(throw _, identity),
@@ -1205,6 +1263,9 @@ trait TypeIdSchemas {
   // Annotation
   // ============================================================================
 
+  /**
+   * The schema of `Annotation`: a record with `typeId` and `args` fields.
+   */
   implicit lazy val annotationSchema: Schema[Annotation] =
     Schema[DynamicValue].transform(
       {
@@ -1235,6 +1296,11 @@ trait TypeIdSchemas {
   // TypeDefKind (complex sum type)
   // ============================================================================
 
+  /**
+   * The schema of `TypeDefKind`: a record whose `type` field names the kind of
+   * definition, such as `Class`, `Trait`, `Object` or `OpaqueType`, with the
+   * kind's fields.
+   */
   implicit lazy val typeDefKindSchema: Schema[TypeDefKind] = {
     Schema[DynamicValue].transform(
       {
@@ -1419,6 +1485,11 @@ trait TypeIdSchemas {
   // TypeId[_] - The main recursive structure
   // ============================================================================
 
+  /**
+   * The schema of `TypeId`: a record with `name`, `owner`, `typeParams`,
+   * `typeArgs`, `defKind`, `selfType`, `aliasedTo`, `representation` and
+   * `annotations` fields.
+   */
   implicit lazy val typeIdSchema: Schema[TypeId[_]] =
     Schema[DynamicValue].transform(
       {

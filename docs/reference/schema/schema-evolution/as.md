@@ -289,7 +289,7 @@ val tupleAs: As[(Int, String), (Long, String)] = As.derived[(Int, String), (Long
 
 ### Coproducts (Sealed Traits and Enums)
 
-`As.derived` handles sealed traits and Scala 3 enums the same way `Into.derived` does — each subtype is matched by name and derived recursively:
+`As.derived` handles sealed traits and Scala 3 enums the same way `Into.derived` does: each subtype is matched as `Into.derived` matches it, by name, then by convertible field types, then by position (see the [Into](into.md) page), and its fields are converted:
 
 ```scala
 import zio.blocks.schema._

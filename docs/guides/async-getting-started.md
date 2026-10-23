@@ -412,6 +412,8 @@ By completing this tutorial, you can now:
 
 ## 12. Where to Go Next
 
+If your code already calls `Future`-based, Java `CompletionStage`-based, or callback-based APIs, the next step is [How to Wrap Callback and Future-Based APIs in Async](./wrap-callback-and-future-apis.md), which brings each of them into `Async` and shows how to cancel the underlying call.
+
 The [Async reference page](../reference/async.md) documents every method and combinator with full signatures — it is the natural next stop once you are comfortable with the basics in this tutorial.
 
 If your application manages resources that need deterministic cleanup — database connections, file handles, or connection pools — read the [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md) tutorial, which shows how to tie resource lifetimes to lexical scopes and compose them without try/finally boilerplate.
