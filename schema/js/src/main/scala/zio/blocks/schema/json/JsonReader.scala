@@ -1682,8 +1682,9 @@ final class JsonReader private[json] (
 
   /**
    * Returns whether any input is left after the read position, reading more
-   * from an `InputStream` or a direct `ByteBuffer` when the internal buffer is
-   * used up. Whitespace counts as input.
+   * from an `InputStream` or a `ByteBuffer` without an accessible array (a
+   * direct or read-only buffer) when the internal buffer is used up. Whitespace
+   * counts as input.
    */
   def hasRemaining(): Boolean = head < tail || loadMore(head) < tail
 
