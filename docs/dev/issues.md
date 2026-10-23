@@ -8504,6 +8504,134 @@ object SearchClash {
 
 **Suggested fix.** Add a note to `docs/reference/html.md` under the import section: "`zio.blocks.html._` defines a value for every tag (`search`, `title`, `select`, `label`, ...). Import your own helpers by name, or rename them, when they share a tag's name."
 
+### http-model: no `text/event-stream` content type, so every SSE response builds one by hand
+
+Found 2026-10-23 while writing the how-to guide `docs/guides/send-server-sent-events.md` (backlog H-41), on `main` at `ecbe934e4`. The mediatype and http-model sources are the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.sc` against the published `0.0.56`.
+
+**Summary.** `MediaTypes.text` has no `event-stream` entry and `ContentType` has no `text/event-stream` constant, although `ServerSentEvent` exists in the same module. Every SSE endpoint has to write `ContentType(MediaType("text", "event-stream"))` or parse a string.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.blocks.mediatype.{MediaType, MediaTypes}
+import zio.http._
+
+val textTypes = MediaTypes.text.getClass.getMethods.map(_.getName).filter(_.contains("event"))
+println(s"MediaTypes.text members containing 'event': ${textTypes.toList}")
+println(MediaType.parse("text/event-stream").map(_.fullType))
+println(ContentType(MediaType("text", "event-stream")).render)
+// MediaTypes.text members containing 'event': List()
+// Right(text/event-stream)
+// text/event-stream
+```
+
+**Expected.** A ready constant next to `` ContentType.`text/html` ``, e.g. `` ContentType.`text/event-stream` `` (and ideally `` MediaTypes.text.`event-stream` ``).
+
+**Root cause.** `MediaTypes` is generated from jshttp/mime-db (`project/GenerateMediaTypes.scala:81`), and mime-db has no `text/event-stream` key (checked against db.json on 2026-10-23). `ContentType` defines only a few hand-written constants (`http-model/shared/src/main/scala/zio/http/ContentType.scala:76-78`).
+
+**Impact.** Small but recurring: every SSE guide, the Datastar module's users, and every hand-written SSE endpoint repeat the construction. A typo (`text/event_stream`) is not caught, and EventSource then rejects the response.
+
+**Test gap.** None needed beyond a constant test.
+
+**Suggested fix.** Add ``val `text/event-stream`: ContentType = ContentType(MediaType("text", "event-stream"))`` to `ContentType`, and add extra entries to the media-type generator for well-known types that mime-db lacks. Optionally add a helper such as `Body.fromServerSentEvents(events: Stream[Nothing, ServerSentEvent[A]])` that does the render-to-UTF-8 flatMap.
+
+### http-model: `ServerSentEvent` always writes a `data:` line, so a heartbeat or a retry-only frame reaches the page as an empty message
+
+Found 2026-10-23 while writing `docs/guides/send-server-sent-events.md` (H-41), on `main` at `ecbe934e4`. `ServerSentEvent.scala` is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.sc` against the published `0.0.56`. The browser behaviour was checked in Chromium (Playwright) with a JDK HttpServer that wrote these three renders, then `data: Zionomicon`. The page received `["message:\"\"", "ping:\"\"", "message:\"Zionomicon\""]`.
+
+**Summary.** SSE has two kinds of frame a server uses for housekeeping: comment lines (`: keep-alive`), which keep idle connections open and detect dead clients, and field-only frames (`retry: 5000` with no data). `ServerSentEvent` can produce neither. With empty data it still writes `data: \n`, and EventSource dispatches that as a real event with `data == ""`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.blocks.chunk.Chunk
+import zio.http._
+
+println(ServerSentEvent("").retry(5000).render.replace("\n", "\\n"))
+println(ServerSentEvent("", "ping").render.replace("\n", "\\n"))
+println(ServerSentEvent(Chunk.empty[String]).render.replace("\n", "\\n"))
+// retry: 5000\ndata: \n\n
+// event: ping\ndata: \n\n
+// data: \n\n
+```
+
+**Expected.** A way to emit a comment frame (e.g. `ServerSentEvent.comment("keep-alive")` rendering `: keep-alive\n\n`) and a data-less frame (e.g. `ServerSentEvent.retryOnly(5000)` rendering `retry: 5000\n\n`), neither of which dispatches a message event.
+
+**Root cause.** `renderTo` writes `data: \n` when the encoder returns no lines (`http-model/shared/src/main/scala/zio/http/ServerSentEvent.scala:79`). Both built-in encoders always return at least one line: `splitLines` always adds the trailing piece (`:203`), and `stringChunk` maps an empty chunk to `Chunk.single("")` (`:172`). There is no comment API. Per the WHATWG spec, a data buffer of "\n" is not empty, so the event is dispatched with data "".
+
+**Impact.** A server that sends heartbeats so it notices departed clients sooner (the H-41 guide shows that the JDK server only notices on the second write after a disconnect) sends spurious events to `onmessage` or to the named listener. A server that wants to send `retry:` once has to attach it to a real event.
+
+**Test gap.** `ServerSentEventSpec` asserts `"event: test\ndata: \n\n"` for empty data (L71-L77) but never checks how a client interprets it, and has no comment or field-only case.
+
+**Suggested fix.** Add a comment constructor, plus a way to render an event with no `data:` line when the payload is absent (e.g. `ServerSentEvent[Unit]`/`Maybe` data, or a dedicated control-frame type).
+
+### examples: the H-35 `JdkHttp` adapter cannot serve a streaming body: an endless response never reaches the client and keeps producing after it leaves
+
+Found 2026-10-23 while writing `docs/guides/send-server-sent-events.md` (H-41), on `main` at `ecbe934e4`, against `http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala` (H-35 companion example). http-model is the same at tag `v0.0.56`. Verified: the reproduction below (the adapter's write path reduced to its three lines) was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`. The full JdkHttp.scala showed the same with `curl -N`: 0 bytes in 4 s, and the server log kept counting after curl exited.
+
+**Summary.** `JdkHttp.writeResponse` collects the body with `Body#toArray` before it sends the status line, and `JdkHttp.start` sets no executor. For a `Body.fromStream` body that does not end (Server-Sent Events, long polling, any live feed), the client receives nothing at all, not even headers. Because nothing is ever written, the server never learns that the client left, so the producer runs on, holds the JDK's single dispatcher thread, and blocks every other request.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import com.sun.net.httpserver.HttpServer
+import java.net.{HttpURLConnection, InetAddress, InetSocketAddress, SocketTimeoutException, URI}
+import java.util.concurrent.atomic.AtomicInteger
+import zio.blocks.chunk.Chunk
+import zio.blocks.mediatype.MediaType
+import zio.blocks.streams.Stream
+import zio.http._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val produced = new AtomicInteger(0)
+    val feed = Stream
+      .fromIterator(Iterator.from(1))
+      .tapEach { _ => Thread.sleep(200); produced.incrementAndGet() }
+      .flatMap(n => Stream.fromChunk(Chunk.fromArray(ServerSentEvent(s"book $n").render.getBytes("UTF-8"))))
+    val response = Response.ok(Body.fromStream(feed, ContentType(MediaType("text", "event-stream"))))
+
+    val server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress, 0), 0)
+    server.createContext("/", exchange => {
+      // The write path of servehttpmodelrequests.JdkHttp.writeResponse (H-35), reduced:
+      val bytes = response.body.toArray
+      exchange.sendResponseHeaders(response.status.code, bytes.length.toLong)
+      exchange.getResponseBody.write(bytes)
+      exchange.close()
+    })
+    server.start()
+
+    val connection = URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/feed").toURL.openConnection().asInstanceOf[HttpURLConnection]
+    connection.setReadTimeout(2000)
+    try println(s"status: ${connection.getResponseCode}")
+    catch { case e: SocketTimeoutException => println(s"client: no status line after 2 s ($e)") }
+    connection.disconnect()
+    val atDisconnect = produced.get
+    Thread.sleep(1000)
+    println(s"server: produced $atDisconnect events while the client waited, ${produced.get} one second after it left")
+    System.exit(0)
+  }
+}
+// client: no status line after 2 s (java.net.SocketTimeoutException: Read timed out)
+// server: produced 8 events while the client waited, 13 one second after it left
+```
+
+**Expected.** The H-35 page says the adapter is for examples and small tools, so this is not a library bug. Still, its "Streaming bodies" note (`docs/guides/serve-http-model-requests.md:160`, "this call blocks the server thread until the stream ends") understates the effect: for an open-ended stream, the client never sees a byte and the producer never stops. Readers who reuse the adapter for live features (SSE, Datastar in T-11) hit this first.
+
+**Root cause.** `JdkHttp.scala:51` (`val bytes = response.body.toArray`) runs before `sendResponseHeaders` (`:58`). `Body#toArray` uses `runCollectAsync.block` (`http-model/shared/src/main/scala/zio/http/Body.scala:58-61`). `JdkHttp.start` (`:88-93`) sets no executor, so the JDK runs every exchange on one dispatcher thread.
+
+**Impact.** Any guide or user that serves a streaming `Body` through the H-35 adapter. The H-41 guide works around it with `StreamingJdkHttp` (`http-model-examples/src/main/scala/sendserversentevents/StreamingJdkHttp.scala`): `sendResponseHeaders(code, 0)` for chunked encoding, `Stream#run(Sink.fromOutputStream(...))` with a flush per event, and a cached daemon-thread executor.
+
+**Test gap.** The examples are run, not tested, and no example serves a streaming body through JdkHttp.
+
+**Suggested fix.** Reword H-35 line 160 to say that an endless body never reaches the client and that its producer never stops, and point to the SSE guide (the H-41 branch adds a bullet at :161 that links it). Optionally give JdkHttp itself a streaming path for bodies with an unknown `Body#length`, so later web guides don't need a second adapter.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -9200,6 +9328,37 @@ Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md
 **Suggested fix.** One sentence on the reference index: "The attribute syntax targets htmx 2.x" and the pinned script version (for example `htmx@2.0.11`).
 
 **Also seen (opus run, 2026-10-23).** The module's `hxDisable: Boolean` renders `hx-disable="true"`, which htmx 4 reads as a CSS selector, and htmx 4.0.0 reads none of `hx-params`, `hx-disinherit`, `hx-prompt`, `hx-disabled-elt` or `hx-ext`. Typed attributes therefore compile and do nothing under htmx 4. This is the strongest reason to pin the version in the reference.
+
+### reference/http-model/headers.md says `ServerSentEvent` uses `Headers` through `Response`; it touches neither
+
+Found 2026-10-23 while writing `docs/guides/send-server-sent-events.md` (H-41), on `main` at `ecbe934e4`. The page and `ServerSentEvent.scala` are the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.sc` against the published `0.0.56`.
+
+**Summary.** `docs/reference/http-model/headers.md:660` says "`ServerSentEvent` uses `Headers` indirectly through `Response`". `ServerSentEvent` has no `Headers` or `Response` member and imports neither. It renders a `String`, and the caller builds the `Response`, including its content type and headers.
+
+**Reproduction**, `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+println(classOf[ServerSentEvent[?]].getDeclaredFields.map(f => s"${f.getName}: ${f.getType.getSimpleName}").toList)
+println(classOf[ServerSentEvent[?]].getMethods.exists(m => m.getReturnType == classOf[Headers] || m.getReturnType == classOf[Response]))
+println(ServerSentEvent("Zionomicon").render.getClass.getSimpleName)
+// List(data: Object, eventType: Object, eventId: Object, retryMillis: Object)
+// false
+// String
+```
+
+**Expected (corrected statement).** "`ServerSentEvent` does not use `Headers` or `Response`: it renders a `String`, which you put in a `Response` body with a `text/event-stream` content type yourself; see [Server-Sent Events](./server-sent-event.md) and the guide [How to Send Server-Sent Events with http-model](../../guides/send-server-sent-events.md)."
+
+**Root cause.** The doc sentence, `docs/reference/http-model/headers.md:660`. Source: `http-model/shared/src/main/scala/zio/http/ServerSentEvent.scala:19-20` (imports only Chunk, ChunkBuilder and Maybe).
+
+**Impact.** Low. It misleads readers into looking for header handling on `ServerSentEvent`.
+
+**Test gap.** n/a.
+
+**Suggested fix.** Replace the sentence with the corrected statement above.
 
 ## Resolved
 
