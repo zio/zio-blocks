@@ -28,7 +28,7 @@ object Concept4ToonExample extends App {
 
   val catalog = Catalog(
     List(
-      Book("Zionomicon", "John A. De Goes, Adam Fraser", 2024, List("zio", "effects")),
+      Book("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, List("zio", "effects")),
       Book("Programming in Scala", "Martin Odersky, Lex Spoon, Bill Venners", 2008, List("scala", "fundamentals")),
       Book("Functional Programming in Scala", "Paul Chiusano, Rúnar Bjarnason", 2014, List("scala", "fp"))
     )

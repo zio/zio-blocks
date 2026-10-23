@@ -62,7 +62,7 @@ object CompleteExample extends App {
   }
 
   val classics: List[Book] = List(
-    Book(1L, "Zionomicon", List("John A. De Goes", "Adam Fraser"), 2024, List("zio", "effects")),
+    Book(1L, "Zionomicon", List("John A. De Goes", "Adam Fraser", "Milad Khajavi"), 2024, List("zio", "effects")),
     Book(2L, "Programming in Scala", List("Martin Odersky", "Lex Spoon", "Bill Venners"), 2008, List("scala")),
     Book(3L, "Functional Programming in Scala", List("Paul Chiusano", "Rúnar Bjarnason"), 2014, List("fp")),
     Book(4L, "Scala for the Impatient", List("Cay S. Horstmann"), 2012, List("scala")),

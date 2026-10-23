@@ -18,7 +18,7 @@ object Bookstore {
       |  "books": [
       |    {
       |      "title": "Zionomicon",
-      |      "authors": ["John A. De Goes", "Adam Fraser"],
+      |      "authors": ["John A. De Goes", "Adam Fraser", "Milad Khajavi"],
       |      "price": 49.99,
       |      "tags": ["zio", "effects"],
       |      "stock": 12

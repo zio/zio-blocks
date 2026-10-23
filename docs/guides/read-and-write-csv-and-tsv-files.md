@@ -91,7 +91,7 @@ Our sample file lists its columns in a different order from `BookRow`: the year 
 ```scala mdoc:silent
 val inventoryCsv: String =
   """title,year,authors,copies
-    |Zionomicon,2024,"John A. De Goes, Adam Fraser",12
+    |Zionomicon,2024,"John A. De Goes, Adam Fraser and Milad Khajavi",12
     |Programming in Scala,2008,"Martin Odersky, Lex Spoon, Bill Venners",7
     |Functional Programming in Scala,2014,"Paul Chiusano, Rúnar Bjarnason",5
     |""".stripMargin
@@ -127,7 +127,7 @@ object RowDecoder {
 }
 ```
 
-In the code above, `positions` holds, for each column of `BookRow`, its index in the file. `RowDecoder#decode` first checks that the row has as many cells as the header, because a short row would otherwise put cells in the wrong columns. `CsvWriter.writeRow` quotes any cell that needs it, so a cell such as `John A. De Goes, Adam Fraser` survives the trip back into a line. With the decoder in place, we decode every row of the inventory:
+In the code above, `positions` holds, for each column of `BookRow`, its index in the file. `RowDecoder#decode` first checks that the row has as many cells as the header, because a short row would otherwise put cells in the wrong columns. `CsvWriter.writeRow` quotes any cell that needs it, so a cell such as `John A. De Goes, Adam Fraser and Milad Khajavi` survives the trip back into a line. With the decoder in place, we decode every row of the inventory:
 
 ```scala mdoc
 inventory.foreach { case (header, rows) =>
@@ -165,7 +165,7 @@ The following file has two mistakes: a year written as a Roman numeral, and a ro
 ```scala mdoc:silent
 val damagedCsv: String =
   """title,year,authors,copies
-    |Zionomicon,2024,"John A. De Goes, Adam Fraser",12
+    |Zionomicon,2024,"John A. De Goes, Adam Fraser and Milad Khajavi",12
     |Programming in Scala,MMVIII,"Martin Odersky, Lex Spoon, Bill Venners",7
     |Functional Programming in Scala,2014,"Paul Chiusano, Rúnar Bjarnason"
     |""".stripMargin
@@ -191,7 +191,7 @@ A quote that is opened but never closed is a different kind of error. Everything
 ```scala mdoc:silent
 val unclosedCsv: String =
   """title,year,authors,copies
-    |Zionomicon,2024,"John A. De Goes, Adam Fraser",12
+    |Zionomicon,2024,"John A. De Goes, Adam Fraser and Milad Khajavi",12
     |Programming in Scala,2008,"Martin Odersky, Lex Spoon, Bill Venners,7
     |""".stripMargin
 ```
@@ -226,7 +226,7 @@ The buffer must be large enough for one line; `CharBuffer#put` throws a `java.ni
 
 ```scala mdoc:silent
 val restocked: List[BookRow] = List(
-  BookRow("Zionomicon", "John A. De Goes, Adam Fraser", 2024, 20),
+  BookRow("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, 20),
   BookRow("Programming in Scala", "Martin Odersky, Lex Spoon, Bill Venners", 2008, 7),
   BookRow("Functional Programming in Scala", "Paul Chiusano, Rúnar Bjarnason", 2014, 9)
 )
@@ -264,7 +264,7 @@ readCsv(bookCodec, Files.readString(restockedPath, UTF_8), CsvConfig.default).ma
 A tab-separated file (TSV) is a CSV file with a tab between the cells. `CsvConfig.tsv` is the preset for it, and `CsvReader` and `CsvWriter` accept it in place of `CsvConfig.default`. The derived codec does not: it always reads and writes commas, whatever `CsvConfig` the rest of your code uses. A TSV line given straight to the codec is split at its commas, not at its tabs:
 
 ```scala mdoc
-println(bookCodec.decode(CharBuffer.wrap("Zionomicon\tJohn A. De Goes, Adam Fraser\t2024\t12")))
+println(bookCodec.decode(CharBuffer.wrap("Zionomicon\tJohn A. De Goes, Adam Fraser and Milad Khajavi\t2024\t12")))
 ```
 
 Our `readCsv` already works for TSV, because it splits rows with `CsvReader` and the configuration we pass, and only hands the codec lines that `CsvWriter.writeRow` joined with commas. For writing, we turn each record into a list of cells: we encode it with the codec and split the CSV line again with `CsvReader.readRow`. `CsvWriter.writeAll` then joins the header and the rows with any delimiter:
@@ -357,7 +357,7 @@ Files.writeString(
   awkwardPath,
   """title,year,authors,copies
     |Zionomicon,2024,"John A. De Goes,
-    |Adam Fraser",12
+    |Adam Fraser and Milad Khajavi",12
     |Programming in Scala,MMVIII,"Martin Odersky, Lex Spoon, Bill Venners",7
     |"Functional Programming in Scala"!,2014,"Paul Chiusano, Rúnar Bjarnason",5
     |""".stripMargin,
@@ -433,7 +433,7 @@ object BookExportRow {
 val exportCodec: CsvCodec[BookExportRow] = BookExportRow.schema.derive(CsvFormat)
 
 val catalog: List[Book] = List(
-  Book("Zionomicon", List("John A. De Goes", "Adam Fraser"), 2024, None),
+  Book("Zionomicon", List("John A. De Goes", "Adam Fraser", "Milad Khajavi"), 2024, None),
   Book("Programming in Scala", List("Martin Odersky", "Lex Spoon", "Bill Venners"), 2008, Some("978-0-9815316-0-1"))
 )
 
