@@ -226,4 +226,6 @@ Because parsing failures return `Left` rather than throwing, `Request#header`/`R
 
 **With `zio.blocks.schema.json`:** `HxEventPayload.JsonValue` wraps a `zio.blocks.schema.json.Json` value, letting event payloads carry structured data without a separate serialization step.
 
+**In a tutorial:** [Add Interactivity to a Page with HTMX](../../guides/add-interactivity-with-htmx.md) reads `HxRequest` and `HxHistoryRestoreRequest` to answer one URL with a full page or a fragment.
+
 **With `zio.http`:** every type here is a `Header`/`Header.Typed[H]`, the same type class the built-in HTTP headers use, so `Headers`, `Request`, and `Response` treat HTMX headers no differently than `Content-Length` or `Cache-Control`.

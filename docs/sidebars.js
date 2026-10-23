@@ -481,6 +481,7 @@ const sidebars = {
     "guides/write-joins-and-inspect-generated-sql",
     "guides/sql-from-zio",
     "guides/your-first-html-page",
+    "guides/add-interactivity-with-htmx",
     "guides/serve-http-model-requests",
     "guides/validate-query-parameters-and-headers",
     "guides/your-first-streaming-pipeline",
