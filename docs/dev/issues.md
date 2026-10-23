@@ -3856,6 +3856,101 @@ object Price { given Schema[Price] = Schema.derived }
 
 **Suggested fix.** After the pair loop, strip one more zero when `m10 % 10 == 0`, or build the `BigDecimal` with `stripTrailingZeros` and keep the `10.0`-style scale only for integral values. Add a test that `Json.Number(49.99).print == "49.99"` on the JVM and JS.
 
+**Also seen for `Float`** (2026-10-23, wave 8b of the schema Scaladoc, `main` at `ecbe934e4`, same at `v0.0.56`; verified on the JVM and on Scala.js). `JsonWriter.toBigDecimal(x: Float)` strips trailing zeros in pairs too (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:3645-3655`, one loop dividing by 100; the Scala.js copy at `schema/js/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:3814-3824`), so `Json.Number(Float)` (`Json.scala:829`) pads as well. Which values get padded differs from `Double`, because the `Float` mantissa has fewer digits: `0.5f` gives `0.50`, while `2.5f` and `49.99f` come out right. The reproducer, run with `scala-cli run --server=false FloatTrailingZero.scala` (Scala.js: use the three directives in the comment and add `--js-cli-on-jvm`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+// Scala.js instead:
+//   //> using platform scala-js
+//   //> using jsVersion 1.22.0
+//   //> using dep dev.zio::zio-blocks-schema::0.0.56
+
+import zio.blocks.schema.json._
+
+object FloatTrailingZero {
+  def main(args: Array[String]): Unit = {
+    for (f <- List(100.0f, 0.5f, 10.0f, 2.5f, 49.99f)) {
+      val bd = JsonWriter.toBigDecimal(f)
+      println(s"toBigDecimal(${f}f) = $bd (scale ${bd.scale})")
+    }
+    println(Json.Number(0.5f).print)
+    println(Json.Number(2.5f).print)
+  }
+}
+// JVM:
+// toBigDecimal(100.0f) = 1E+2 (scale -2)
+// toBigDecimal(0.5f) = 0.50 (scale 2)
+// toBigDecimal(10.0f) = 10.0 (scale 1)
+// toBigDecimal(2.5f) = 2.5 (scale 1)
+// toBigDecimal(49.99f) = 49.99 (scale 2)
+// 0.50
+// 2.5
+// Scala.js (the `${f}` text differs because Scala.js prints a Float as its Double value):
+// toBigDecimal(100f) = 1E+2 (scale -2)
+// toBigDecimal(0.5f) = 0.50 (scale 2)
+// toBigDecimal(10f) = 10 (scale 0)
+// toBigDecimal(2.5f) = 2.5 (scale 1)
+// toBigDecimal(49.9900016784668f) = 49.99 (scale 2)
+// 0.50
+// 2.5
+```
+
+The `10.0f` line also shows the JVM/Scala.js scale difference of the next entry (`JsonWriter.toBigDecimal` gives whole numbers scale 1 on the JVM and scale 0 on Scala.js). The suggested fix of the existing entry (strip one more zero when `m10 % 10 == 0`) applies to the `Float` overload as well.
+
+### schema: `JsonWriter.toBigDecimal` gives whole numbers scale 1 on the JVM and scale 0 on Scala.js, so `Json.Number(10.0)` prints `10.0` on one and `10` on the other
+
+Found 2026-10-23 while writing the Scaladoc for `JsonWriter` (wave 8b, branch `scaladoc-wave-8b`), on `main` at `ecbe934e4`. The same at tag `v0.0.56`. Verified by running against the published 0.0.56 on both platforms. Not filed on GitHub yet.
+
+**Summary.** `JsonWriter.toBigDecimal(x: Double)` and `toBigDecimal(x: Float)` return the same value on both platforms but with different scales for a whole number whose shortest form has no pair of trailing zeros: the JVM returns `10.0` (scale 1) and Scala.js returns `10` (scale 0). `Json.Number(Double)` and `Json.Number(Float)` use it, and so does the `Double` codec when it encodes to a `Json` tree, so the same program prints `10.0` on the JVM and `10` in the browser.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56). JVM: `scala-cli run --server=false ToBigDecimal.scala`. Scala.js: replace the dependency line with the three lines in the comment and run `scala-cli run --server=false ToBigDecimal.scala --js-cli-on-jvm`.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+// Scala.js instead:
+//   //> using platform scala-js
+//   //> using jsVersion 1.22.0
+//   //> using dep dev.zio::zio-blocks-schema::0.0.56
+
+import zio.blocks.schema.json._
+
+object ToBigDecimal {
+  def main(args: Array[String]): Unit = {
+    for (d <- List(10.0, 5.0, 2024.0)) {
+      val bd = JsonWriter.toBigDecimal(d)
+      println(s"$d -> $bd (scale ${bd.scale})")
+    }
+    val f = JsonWriter.toBigDecimal(10.0f)
+    println(s"10.0f -> $f (scale ${f.scale})")
+    println(Json.Number(10.0).print)
+  }
+}
+// JVM:
+// 10.0 -> 10.0 (scale 1)
+// 5.0 -> 5.0 (scale 1)
+// 2024.0 -> 2024.0 (scale 1)
+// 10.0f -> 10.0 (scale 1)
+// 10.0
+// Scala.js (`$d` prints without `.0` there, which is Scala.js's own `Double#toString`):
+// 10 -> 10 (scale 0)
+// 5 -> 5 (scale 0)
+// 2024 -> 2024 (scale 0)
+// 10.0f -> 10 (scale 0)
+// 10
+```
+
+**Expected.** The same `BigDecimal`, and the same printed `Json`, on both platforms.
+
+**Root cause.** The JVM copy ends both conversions with `if (e10 == 0) { m10 *= 10; e10 -= 1 }` (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:3656` in `toBigDecimal(x: Float)` and `:3752` in `toBigDecimal(x: Double)`). The Scala.js copy leaves that step out and builds the result straight from the stripped mantissa (`schema/js/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:3826`, `:3926`). `Json.Number.apply(Float)` and `apply(Double)` call these (`schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:829`, `:837`).
+
+**Impact.** JSON printed from `Json` trees built from whole `Double` values differs between a JVM backend and a Scala.js frontend that share code, which breaks golden-file tests and string comparisons across platforms. `Json.Number(10.0) == Json.Number(10.0)` still holds on each platform, since `BigDecimal` equality ignores scale.
+
+**Test gap.** No test checks the scale or the printed form of `toBigDecimal` or `Json.Number` for a whole `Double` on Scala.js; shared tests compare values only.
+
+**Suggested fix.** Decide on one form (the fix for the trailing-zero entry above is a good moment), and make both copies do the same, with a shared test that prints `Json.Number(10.0)`, `Json.Number(5.0)` and `Json.Number(10.0f)`.
+
 ### schema: decoding a fractional JSON number as `Int` or `Long` reports "value is too large"
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
@@ -3892,6 +3987,59 @@ import zio.blocks.schema.json.*
 **Test gap.** `JsonCodecDeriverSpec.scala:96-97` tests only real overflows (`2147483648`, `-2147483649`), and only through the text reader, not through `decodeValue(json: Json)`.
 
 **Suggested fix.** Check `num.value.isWhole` first and report a separate message for a fraction; keep the overflow message for the `ArithmeticException` that remains. Add tests for `1.5` read as `Byte`, `Short`, `Int` and `Long` from a `Json` value.
+
+### schema: a JSON number that starts with `0` is read as `0` by the integer readers, even when a fraction or exponent follows
+
+Found 2026-10-23 while writing the Scaladoc for `JsonReader` (wave 8b of the schema Scaladoc, branch `scaladoc-wave-8b`), on `main` at `ecbe934e4`. `JsonReader` is the same at tag `v0.0.56`. Verified by running against the published 0.0.56, on the JVM and on Scala.js. Not filed on GitHub yet.
+
+**Summary.** `readByte`, `readShort`, `readInt`, `readLong` and `readBigInt` reject `1.5` with `illegal number`, but for a number that starts with `0` they stop after the `0` and return `0`. `.5` (or `e3`) is left unread, so the error comes from whatever reads next: `expected '}' or ','` inside an object, `expected ']' or ','` in an array, `expected end of input` at the top level. With `ReaderConfig#withCheckForEndOfInput(false)`, nothing reads next, so `0.5` decodes as `Right(0)`: a fractional value is silently truncated. The same check works inside quoted keys and strings (`"0.5"` gives `illegal number`).
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false ZeroFraction.scala`; the Scala.js output is identical):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+case class Book(title: String, pages: Int)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+object ZeroFraction {
+  def main(args: Array[String]): Unit = {
+    val book = Schema[Book].jsonCodec
+    println(book.decode("""{"title":"Zionomicon","pages":1.5}"""))
+    // Left(zio.blocks.schema.SchemaError: illegal number at: .pages)
+    println(book.decode("""{"title":"Zionomicon","pages":0.5}"""))
+    // Left(zio.blocks.schema.SchemaError: expected '}' or ',' at: .)
+    println(book.decode("""{"title":"Zionomicon","pages":0e3}"""))
+    // Left(zio.blocks.schema.SchemaError: expected '}' or ',' at: .)
+    println(Schema[List[Int]].jsonCodec.decode("[0.5]"))
+    // Left(zio.blocks.schema.SchemaError: expected ']' or ',' at: .)
+    println(Schema[Int].jsonCodec.decode("0.5"))
+    // Left(zio.blocks.schema.SchemaError: expected end of input at: .)
+    // without the end-of-input check, 0.5 decodes as 0
+    val lenient = ReaderConfig.withCheckForEndOfInput(false)
+    println(Schema[Int].jsonCodec.decode("0.5", lenient))
+    // Right(0)
+    println(Schema[Long].jsonCodec.decode("0e7", lenient))
+    // Right(0)
+    println(Schema[BigInt].jsonCodec.decode("0.5", lenient))
+    // Right(0)
+  }
+}
+```
+
+**Expected.** `illegal number at: .pages` for `0.5` and `0e3`, exactly as for `1.5`, and a `Left` at the top level whatever `checkForEndOfInput` says.
+
+**Root cause.** `schema/jvm/src/main/scala/zio/blocks/schema/json/JsonReader.scala`: in `readByte` (`:2285`), `readShort` (`:2323`), `readInt` (`:2361`) and `readLong` (`:2435`), the line `if (isToken && x == 0) ensureNotLeadingZero()` takes a separate branch for a leading `0`. `ensureNotLeadingZero` (`:2499`) rejects only a following digit, and the `(b | 0x20) == 'e' || b == '.'` check that the other branch ends with is never reached. `readBigInt` does the same (`if (isToken && b == '0') { ensureNotLeadingZero(); BigInt(0) }`, `:2880`). The Scala.js copy has the same code (`schema/js/src/main/scala/zio/blocks/schema/json/JsonReader.scala:2297`, `:2335`, `:2373`, the `Long` reader from `:2404`, and `readBigInt` at `:2809`). jsoniter-scala, which this reader is based on, has the same branch.
+
+**Impact.** An `Int` field that gets `0.5` from a client reports a misleading error that names the closing bracket instead of the number. A service that turns off `checkForEndOfInput` (to read a value followed by other data) accepts `0.5` as `0`.
+
+**Test gap.** `JsonCodecDeriverSpec.scala:62-63` and `:82` test `01` (leading zero) but no test reads `0.5`, `-0.5` or `0e1` as an integer type.
+
+**Suggested fix.** After `ensureNotLeadingZero()` in those branches, check the next byte for `.`, `e` or `E` and call `numberError()`, the same check that ends the non-zero branch. It is one comparison on a path that already reads that byte, so the hot path does not change.
 
 ### schema: JSON parse errors carry no line, column or offset
 
@@ -3933,6 +4081,53 @@ import zio.blocks.schema.json.*
 **Test gap.** `JsonSpec.scala:1356-1365` asserts only `isLeft` for malformed input; no test asserts a position.
 
 **Suggested fix.** Append the byte offset (and, for `String` input, line and column) to the message in `decodeError`, or add a position to `ExpectationMismatch`. The same change helps `ConfigSource.fromJson` (see the config-hocon entry above).
+
+### schema: `JsonReader#skip` does not validate what it skips, so a derived codec accepts malformed JSON in an unknown field
+
+Found 2026-10-23 while writing the Scaladoc for `JsonReader` (wave 8b, branch `scaladoc-wave-8b`), on `main` at `ecbe934e4`. The same at tag `v0.0.56`. Verified by running against the published 0.0.56, on the JVM and on Scala.js. Not filed on GitHub yet.
+
+**Summary.** A derived record codec skips the value of a field it doesn't know with `JsonReader#skip`. `skip` checks only the first byte of the value and then looks for its end: `n` and `t` skip 3 more bytes whatever they are, `f` 4, a number continues while the bytes are digits, `.`, `e`, `E`, `+` or `-`, and an array or object ends at the matching bracket, whatever is between. So `nope`, `[1,}]`, `1-2+e` and `{"a" 1 2}` in an unknown field decode without an error, while `Json.parse` rejects the same document. `JsonReader#readRawValAsBytes` finds the value the same way and returns such bytes as they are.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false SkipUnknown.scala`; the Scala.js output is identical):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+case class Book(title: String, pages: Int)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+object SkipUnknown {
+  def main(args: Array[String]): Unit = {
+    val book = Schema[Book].jsonCodec
+    // an unknown field with a value that is not JSON
+    println(book.decode("""{"title":"Zionomicon","pages":400,"isbn":nope}"""))
+    // Right(Book(Zionomicon,400))
+    println(book.decode("""{"title":"Zionomicon","pages":400,"tags":[1,}]}"""))
+    // Right(Book(Zionomicon,400))
+    println(book.decode("""{"title":"Zionomicon","pages":400,"price":1-2+e}"""))
+    // Right(Book(Zionomicon,400))
+    println(book.decode("""{"title":"Zionomicon","pages":400,"meta":{"a" 1 2}}"""))
+    // Right(Book(Zionomicon,400))
+    // the Json parser reads the same document and rejects it
+    println(Json.parse("""{"title":"Zionomicon","pages":400,"isbn":nope}"""))
+    // Left(zio.blocks.schema.SchemaError: expected JSON value at: .isbn)
+  }
+}
+```
+
+**Expected.** Either the four decodes fail (as `Json.parse` does), or the Scaladoc and the JSON reference pages say that unknown fields are skipped without validation. A strict mode would let a service that must reject malformed input do so.
+
+**Root cause.** `schema/jvm/src/main/scala/zio/blocks/schema/json/JsonReader.scala:1614` (`skip`) dispatches on the first byte to `skipFixedBytes` (`:5009`), which only counts bytes, `skipNumber` (`:4962`), which accepts any run of number chars, and `skipArray`/`skipObject` (`:4994`, `:4979`), which count brackets and skip strings. The Scala.js copy is the same (`schema/js/src/main/scala/zio/blocks/schema/json/JsonReader.scala:1609`, with the helpers at `:4242-4289`). The derived record decoder calls `in.skip()` for an unknown key (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:834`). This is a speed trade-off that jsoniter-scala also makes.
+
+**Impact.** A service that validates requests by decoding them accepts payloads that are not JSON, as long as the bad part is in a field the type doesn't have. Another parser downstream (a proxy, a log pipeline that stores the raw body) may then fail on the same payload.
+
+**Test gap.** No test decodes a record with a malformed value in an unknown field; the `in.skip()` uses in `JsonCodecDeriverSpec.scala` (`:2224`, `:2415`, `:2450`) skip valid values only.
+
+**Suggested fix.** Document the behaviour on `skip`, `readRawValAsBytes` and the reference page for unknown fields (the branch's Scaladoc now does), and consider a `ReaderConfig` flag that makes `skip` validate the literals and number syntax and the structure of arrays and objects.
 
 ### schema: `Json#project` with a path that matches nothing returns `null`
 
@@ -8092,6 +8287,50 @@ The Scala 3 run uses the same file with the header changed to
 
 **Suggested fix.** In `checkPrimitive`, accept a value when `pt.fromDynamicValue` accepts it (or an explicit lossless-widening table). In `checkValue`, when the schema node is an `Option` variant, accept `Null` as `None` and any other value as `Some`. Add `override def toString` to `DynamicValueType`'s case objects (or interpolate a name).
 
+### schema: a JSON number beyond the `Double` range decodes as infinity, which the JSON writer then refuses to encode
+
+Found 2026-10-23 while writing the Scaladoc for `JsonReader` and `JsonWriter` (wave 8b, branch `scaladoc-wave-8b`), on `main` at `ecbe934e4`. The same at tag `v0.0.56`. Verified by running against the published 0.0.56, on the JVM and on Scala.js.
+
+**Summary.** `JsonReader#readDouble` and `readFloat` round to the nearest value, so `1e400` reads as `Infinity`, `-1e400` as `-Infinity` and `1e-400` as `0.0`, without an error. That matches `java.lang.Double.parseDouble`, but the tests for it are commented out (`JsonCodecDeriverSpec.scala:158-173` for `Float`, `:222-237` for `Double`). However, `JsonWriter#writeVal(Double)` throws for a non-finite value, so a value the codec decoded cannot be encoded again: a service that echoes or stores the decoded record fails later, far from the input that caused it.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false DoubleOverflow.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+import scala.util.Try
+
+case class Measure(value: Double)
+object Measure { implicit val schema: Schema[Measure] = Schema.derived }
+
+object DoubleOverflow {
+  def main(args: Array[String]): Unit = {
+    val codec = Schema[Measure].jsonCodec
+    val decoded = codec.decode("""{"value":1e400}""")
+    println(decoded)
+    // Right(Measure(Infinity))
+    println(Try(codec.encodeToString(decoded.toOption.get)))
+    // Failure(zio.blocks.schema.json.JsonCodecError: illegal number: Infinity)
+    println(codec.decode("""{"value":-1e400}"""))
+    // Right(Measure(-Infinity))
+    println(codec.decode("""{"value":1e-400}"""))
+    // Right(Measure(0.0))
+  }
+}
+```
+
+**Expected.** Either a decode error for a number beyond the `Double` range, at least as an opt-in `ReaderConfig` flag, or a note on the `Double` codec and on the reference page that such input decodes to an infinity that cannot be re-encoded.
+
+**Root cause.** `toDouble` returns `Double.PositiveInfinity` for `e10 >= 310` (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonReader.scala:2668`; `toFloat` for `e10 >= 39`, `:2825`; the Scala.js copy at `schema/js/src/main/scala/zio/blocks/schema/json/JsonReader.scala:2592`, `:2745`). `writeDouble` and `writeFloat` throw `illegal number` for an exponent of all ones (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:2498` and `:2386`; Scala.js `schema/js/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:2709` and `:2602`).
+
+**Impact.** A client can send a number that the service accepts but cannot put back into JSON, which turns into a 500 on the response path or a failed write to a JSON store.
+
+**Test gap.** The overflow tests are commented out, so nothing checks that overflow gives infinity. The writer tests check that infinity is rejected (`:174-175`, `:239-240`), and no test decodes and re-encodes such a value.
+
+**Suggested fix.** Add a `ReaderConfig` option that rejects non-finite results (`value is too large for double`), or validate with a `Schema` constraint and document the combination. The branch's Scaladoc for `readDouble` and `readFloat` now states the behaviour.
+
 ### schema: `BindingResolver.defaults` has no binding for `Option`, so rebinding any schema with an `Option` field fails
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
@@ -9362,6 +9601,7 @@ println(ServerSentEvent("Zionomicon").render.getClass.getSimpleName)
 
 ## Resolved
 
+- JSON number docs fixed in wave 8b of the schema Scaladoc (#1843, `JsonReader`/`JsonWriter`): `json.md:18` and `:26` said `Json.Number` has "arbitrary precision" and preserves precision for financial and scientific data, but `Json.parse` and the `BigDecimal` codec round to 34 significant digits (`MathContext.DECIMAL128`) and reject 308 or more digits (`Json.scala:2351`, `JsonReader.scala:3125`, `:5243-5254`, `JsonCodec.scala:875`; `Json.parse("1234567890123456789012345678901234567890")` prints `1.234567890123456789012345678901235E39`). The Scaladoc of `JsonReader.bigIntDigitsLimit`/`bigDecimalDigitsLimit` (308) and the `digitsLimit` parameters called 308 "the maximum number of digits", but the check is `len >= digitsLimit`, so 308 digits are rejected and the scale limit 6178 is exclusive too (`JsonReader.scala:2922`, `:3020`, `:3062`, `:3126`). `JsonWriter` Scaladoc: `writeKey(x: Instant)` was described as writing a `Duration`, `writeVal(x: Char)` as writing "a JSON key", and `writeObjectStart`/`writeObjectEnd` as array markers. `JsonReader` Scaladoc: `readStringAsBigDecimal` said it reads "a JSON number value" (it reads a string), and `readBigInt(digitsLimit)`/`readStringAsBigInt(digitsLimit)` said they throw on "the default limit" (they use the given one).
 - JSON reference pages and Scaladoc fixed in wave 8a of the schema Scaladoc (#1841): `json-config.md` taught `implicit val nameMapper` in the companion, which nothing reads (now `@Modifier.fieldNaming`, with `withFieldNameMapper` named as the other way), listed only three `NameMapper`s, gave `preferredCharBufSize` a default of `8192` (it is `4096`) and left out the other three `ReaderConfig` options, showed `withCheckForEndOfInput(false)` as allowing trailing whitespace (whitespace is always allowed; it ignores text after the value), said `checkForEndOfInput` "adds one comparison", and listed `Strict`, `Right` and `Left` merge strategies, which do not exist (`MergeStrategy.scala` has `Auto`, `Shallow`, `Concat`, `Replace` and `Custom`). `json-patch.md` said that `JsonPatch.diff` emits `Op.Nested` and array `Modify` steps; it emits neither (`JsonDiffer.scala`). The `Json` Scaladoc said numbers are stored as a `String` (they are a `BigDecimal`), the `JsonSelection` Scaladoc used removed `asArrays`/`asStrings` methods (already fixed on `main` at `67a9be9ff`), and the `ValidationOptions` Scaladoc said formats are annotation-only by default (they are checked). In the wave 8a review round: `json.md` said objects use a `Vector` (a `Chunk`), that `Auto` and `Shallow` concatenate arrays and that a `Deep` strategy exists (`Auto` merges arrays by index, `Shallow` takes nested values from the right), and showed the wrong out-of-bounds message (`Index 5 out of bounds (size: 1) at: [5]`); `json-selection.md` showed `"field not found"` (`Key 'age' not found`); `json-patch.md` and `json-differ.md` called the diff round trip unconditional (it fails for duplicate keys, see Library bugs).
 - streams overview (`streams/index.md`) marked `fromInputStream` and `fromJavaReader` as JVM-only, but both run on Scala.js. Fixed in #1796 (H-24).
 - docs: `zio-blocks-next-*` needs Scala 3.9+ (plus `-experimental`), not 3.7+. Fixed across 20 guides and 14 example builds in #1810 (H-01). Leftovers on `main`: `guides/stream-files-and-sockets.md:80` still says "Scala 3.7 and newer", and 14 example builds still turn on `-experimental` at `minor >= 8`.
