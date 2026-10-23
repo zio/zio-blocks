@@ -46,9 +46,10 @@ import scala.annotation.{switch, tailrec}
  *
  * Number reads follow the JSON grammar: they reject a leading zero (`007`), a
  * leading `+`, `.5` and `1.`, and the integer reads reject a fraction or an
- * exponent. Inside a key or a JSON string, such as `"007"`, leading zeros are
- * accepted. [[ReaderConfig]] sets the buffer sizes and their limits. A reader
- * serves one codec call: do not keep it or share it with another thread.
+ * exponent, except after a lone leading `0`, which they read as `0` (see
+ * [[readInt]]). Inside a key or a JSON string, such as `"007"`, leading zeros
+ * are accepted. [[ReaderConfig]] sets the buffer sizes and their limits. A
+ * reader serves one codec call: do not keep it or share it with another thread.
  *
  * {{{
  * import zio.blocks.schema.json._
@@ -201,9 +202,11 @@ final class JsonReader private[json] (
    * Pushes the current read position onto a stack of marks, so that
    * [[rollbackToMark]] can return to it. Pair every call with one call of
    * [[rollbackToMark]] or [[resetMark]]; pairs can nest. While a mark is set, a
-   * reader of an `InputStream` or a `ByteBuffer` keeps all input from the mark
-   * on in its buffer, so a long look-ahead can exceed `ReaderConfig#maxBufSize`
-   * (`too long part of input exceeded 'maxBufSize'`).
+   * reader of an `InputStream`, or of a `ByteBuffer` without an accessible
+   * array (a direct or read-only buffer), keeps all input from the mark on in
+   * its buffer, so a long look-ahead can exceed `ReaderConfig#maxBufSize` (`too
+   * long part of input exceeded 'maxBufSize'`). A byte array, a `String` or a
+   * heap `ByteBuffer` is read in place and never hits that limit.
    */
   def setMark(): Unit = setMark(head)
 
@@ -212,7 +215,8 @@ final class JsonReader private[json] (
    * it reads `key`, and returns `true` with the read position at that key's
    * value. Returns `false`, with the position after the closing `}`, when the
    * object ends first. Call it after the `{` of a non-empty object or after a
-   * `,` between fields.
+   * `,` between fields. It does not check that the object ends with `}`: any
+   * token other than `,` ends the search.
    *
    * @throws JsonCodecError
    *   when a key is malformed or not followed by `:`, a skipped value starts
@@ -764,9 +768,9 @@ final class JsonReader private[json] (
    *   `expected '"'` when the next token is not a string or the string holds
    *   two or more chars, `illegal character` for an empty string,
    *   `illegal surrogate character` for a surrogate or a char that needs a
-   *   pair, `illegal escape sequence`, `unescaped control character` or
-   *   `malformed byte(s)` for a malformed char, or the input ends (`unexpected
-   *   end of input`)
+   *   pair, `illegal escape sequence`, `expected hex digit` for a malformed
+   *   `\u` escape, `unescaped control character` or `malformed byte(s)` for a
+   *   malformed char, or the input ends (`unexpected end of input`)
    */
   def readChar(): Char = {
     nextTokenOrError('"', head)
@@ -826,9 +830,10 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON number into the nearest `Double`. A number beyond the `Double`
    * range reads as `Double.PositiveInfinity` or `Double.NegativeInfinity`, and
-   * one too close to zero reads as `0.0`, without an error, although
-   * [[JsonWriter]] then rejects the infinity (see `docs/dev/issues.md`). `NaN`
-   * and `Infinity` are not JSON numbers and are rejected.
+   * one too close to zero reads as `0.0` (or `-0.0` when negative), without an
+   * error, although [[JsonWriter]] then rejects the infinity (see
+   * `docs/dev/issues.md`). `NaN` and `Infinity` are not JSON numbers and are
+   * rejected.
    *
    * @throws JsonCodecError
    *   `illegal number` when the next token is not a JSON number (for example
@@ -840,9 +845,9 @@ final class JsonReader private[json] (
   /**
    * Reads a JSON number into the nearest `Float`. A number beyond the `Float`
    * range reads as `Float.PositiveInfinity` or `Float.NegativeInfinity`, and
-   * one too close to zero reads as `0.0f`, without an error, although
-   * [[JsonWriter]] then rejects the infinity. `NaN` and `Infinity` are not JSON
-   * numbers and are rejected.
+   * one too close to zero reads as `0.0f` (or `-0.0f` when negative), without
+   * an error, although [[JsonWriter]] then rejects the infinity. `NaN` and
+   * `Infinity` are not JSON numbers and are rejected.
    *
    * @throws JsonCodecError
    *   `illegal number` when the next token is not a JSON number (for example
@@ -1245,10 +1250,10 @@ final class JsonReader private[json] (
    * quotes is not.
    *
    * @throws JsonCodecError
-   *   `illegal number` when the next token is not a string holding an integer,
-   *   `value is too large for byte` when it is outside the `Byte` range,
-   *   `expected '"'` when other chars follow the digits, or the input ends
-   *   (`unexpected end of input`)
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the digits, `illegal number` when the string does not hold an integer,
+   *   `value is too large for byte` when it is outside the `Byte` range, or the
+   *   input ends (`unexpected end of input`)
    */
   def readStringAsByte(): Byte = {
     nextTokenOrError('"', head)
@@ -1264,10 +1269,10 @@ final class JsonReader private[json] (
    * quotes is not.
    *
    * @throws JsonCodecError
-   *   `illegal number` when the next token is not a string holding an integer,
-   *   `value is too large for short` when it is outside the `Short` range,
-   *   `expected '"'` when other chars follow the digits, or the input ends
-   *   (`unexpected end of input`)
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the digits, `illegal number` when the string does not hold an integer,
+   *   `value is too large for short` when it is outside the `Short` range, or
+   *   the input ends (`unexpected end of input`)
    */
   def readStringAsShort(): Short = {
     nextTokenOrError('"', head)
@@ -1283,10 +1288,10 @@ final class JsonReader private[json] (
    * quotes is not.
    *
    * @throws JsonCodecError
-   *   `illegal number` when the next token is not a string holding an integer,
-   *   `value is too large for int` when it is outside the `Int` range,
-   *   `expected '"'` when other chars follow the digits, or the input ends
-   *   (`unexpected end of input`)
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the digits, `illegal number` when the string does not hold an integer,
+   *   `value is too large for int` when it is outside the `Int` range, or the
+   *   input ends (`unexpected end of input`)
    */
   def readStringAsInt(): Int = {
     nextTokenOrError('"', head)
@@ -1302,10 +1307,10 @@ final class JsonReader private[json] (
    * quotes is not.
    *
    * @throws JsonCodecError
-   *   `illegal number` when the next token is not a string holding an integer,
-   *   `value is too large for long` when it is outside the `Long` range,
-   *   `expected '"'` when other chars follow the digits, or the input ends
-   *   (`unexpected end of input`)
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the digits, `illegal number` when the string does not hold an integer,
+   *   `value is too large for long` when it is outside the `Long` range, or the
+   *   input ends (`unexpected end of input`)
    */
   def readStringAsLong(): Long = {
     nextTokenOrError('"', head)
@@ -1320,9 +1325,9 @@ final class JsonReader private[json] (
    * `"NaN"` and `"Infinity"` are rejected.
    *
    * @throws JsonCodecError
-   *   `illegal number` when the next token is not a string holding a JSON
-   *   number, `expected '"'` when other chars follow the number, or the input
-   *   ends (`unexpected end of input`)
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the number, `illegal number` when the string does not hold a JSON number,
+   *   or the input ends (`unexpected end of input`)
    */
   def readStringAsDouble(): Double = {
     nextTokenOrError('"', head)
@@ -1337,9 +1342,9 @@ final class JsonReader private[json] (
    * `"NaN"` and `"Infinity"` are rejected.
    *
    * @throws JsonCodecError
-   *   `illegal number` when the next token is not a string holding a JSON
-   *   number, `expected '"'` when other chars follow the number, or the input
-   *   ends (`unexpected end of input`)
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the number, `illegal number` when the string does not hold a JSON number,
+   *   or the input ends (`unexpected end of input`)
    */
   def readStringAsFloat(): Float = {
     nextTokenOrError('"', head)
@@ -1354,9 +1359,10 @@ final class JsonReader private[json] (
    * [[JsonReader.bigIntDigitsLimit]] (308) or more digits.
    *
    * @throws JsonCodecError
-   *   `illegal number` when the next token is not a string holding an integer,
-   *   `value exceeds limit for number of digits`, `expected '"'` when other
-   *   chars follow the digits, or the input ends (`unexpected end of input`)
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the digits, `illegal number` when the string does not hold an integer,
+   *   `value exceeds limit for number of digits`, or the input ends
+   *   (`unexpected end of input`)
    */
   def readStringAsBigInt(): BigInt = readStringAsBigInt(bigIntDigitsLimit)
 
@@ -1367,9 +1373,10 @@ final class JsonReader private[json] (
    * @param digitsLimit
    *   one more than the largest number of digits accepted
    * @throws JsonCodecError
-   *   `illegal number` when the next token is not a string holding an integer,
-   *   `value exceeds limit for number of digits`, `expected '"'` when other
-   *   chars follow the digits, or the input ends (`unexpected end of input`)
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the digits, `illegal number` when the string does not hold an integer,
+   *   `value exceeds limit for number of digits`, or the input ends
+   *   (`unexpected end of input`)
    */
   def readStringAsBigInt(digitsLimit: Int): BigInt = {
     nextTokenOrError('"', head)
@@ -1384,10 +1391,11 @@ final class JsonReader private[json] (
    * that leading zeros are accepted.
    *
    * @throws JsonCodecError
-   *   `illegal number` when the next token is not a string holding a JSON
-   *   number, `value exceeds limit for number of digits`,
-   *   `value exceeds limit for scale`, `expected '"'` when other chars follow
-   *   the number, or the input ends (`unexpected end of input`)
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the number, `illegal number` when the string does not hold a JSON number,
+   *   `value exceeds limit for number of digits`,
+   *   `value exceeds limit for scale`, or the input ends (`unexpected end of
+   *   input`)
    */
   def readStringAsBigDecimal(): BigDecimal =
     readStringAsBigDecimal(bigDecimalMathContext, bigDecimalScaleLimit, bigDecimalDigitsLimit)
@@ -1404,10 +1412,11 @@ final class JsonReader private[json] (
    * @param digitsLimit
    *   the smallest number of digits that is rejected
    * @throws JsonCodecError
-   *   `illegal number` when the next token is not a string holding a JSON
-   *   number, `value exceeds limit for number of digits`,
-   *   `value exceeds limit for scale`, `expected '"'` when other chars follow
-   *   the number, or the input ends (`unexpected end of input`)
+   *   `expected '"'` when the next token is not a string or other chars follow
+   *   the number, `illegal number` when the string does not hold a JSON number,
+   *   `value exceeds limit for number of digits`,
+   *   `value exceeds limit for scale`, or the input ends (`unexpected end of
+   *   input`)
    */
   def readStringAsBigDecimal(mc: MathContext, scaleLimit: Int, digitsLimit: Int): BigDecimal = {
     nextTokenOrError('"', head)
@@ -1554,9 +1563,9 @@ final class JsonReader private[json] (
   /**
    * Reads the literal `null` and returns `default`. It does not skip
    * whitespace: the read position must be at the first byte of the token, as it
-   * is after `isNextToken('n')` or [[nextToken]] followed by [[rollbackToken]].
-   * Only the four bytes are checked, so `nullx` reads as `null` and leaves `x`
-   * unread.
+   * is after `isNextToken('n')` or [[nextToken]], followed by
+   * [[rollbackToken]]. Only the four bytes are checked, so `nullx` reads as
+   * `null` and leaves `x` unread.
    *
    * @param default
    *   the value to return for `null`; when it is `null` itself, the method
@@ -1673,8 +1682,8 @@ final class JsonReader private[json] (
 
   /**
    * Returns whether any input is left after the read position, reading more
-   * from an `InputStream` or a `ByteBuffer` when the internal buffer is used
-   * up. Whitespace counts as input.
+   * from an `InputStream` or a direct `ByteBuffer` when the internal buffer is
+   * used up. Whitespace counts as input.
    */
   def hasRemaining(): Boolean = head < tail || loadMore(head) < tail
 
