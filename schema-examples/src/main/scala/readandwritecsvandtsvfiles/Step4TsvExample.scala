@@ -72,10 +72,10 @@ object Step4TsvExample {
   def main(args: Array[String]): Unit = {
     val bookCodec: CsvCodec[BookRow] = BookRow.schema.derive(CsvFormat)
 
-    println(bookCodec.decode(CharBuffer.wrap("Zionomicon\tJohn A. De Goes, Adam Fraser\t2024\t12")))
+    println(bookCodec.decode(CharBuffer.wrap("Zionomicon\tJohn A. De Goes, Adam Fraser and Milad Khajavi\t2024\t12")))
 
     val restocked: List[BookRow] = List(
-      BookRow("Zionomicon", "John A. De Goes, Adam Fraser", 2024, 20),
+      BookRow("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, 20),
       BookRow("Programming in Scala", "Martin Odersky, Lex Spoon, Bill Venners", 2008, 7),
       BookRow("Functional Programming in Scala", "Paul Chiusano, Rúnar Bjarnason", 2014, 9)
     )

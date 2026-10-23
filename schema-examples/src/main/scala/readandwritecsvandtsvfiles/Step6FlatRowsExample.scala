@@ -60,7 +60,7 @@ object Step6FlatRowsExample {
     val exportCodec: CsvCodec[BookExportRow] = BookExportRow.schema.derive(CsvFormat)
 
     val catalog: List[Book] = List(
-      Book("Zionomicon", List("John A. De Goes", "Adam Fraser"), 2024, None),
+      Book("Zionomicon", List("John A. De Goes", "Adam Fraser", "Milad Khajavi"), 2024, None),
       Book("Programming in Scala", List("Martin Odersky", "Lex Spoon", "Bill Venners"), 2008, Some("978-0-9815316-0-1"))
     )
 

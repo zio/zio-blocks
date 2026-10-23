@@ -48,7 +48,7 @@ object Step3WriteCsvExample {
     val bookCodec: CsvCodec[BookRow] = BookRow.schema.derive(CsvFormat)
 
     val restocked: List[BookRow] = List(
-      BookRow("Zionomicon", "John A. De Goes, Adam Fraser", 2024, 20),
+      BookRow("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, 20),
       BookRow("Programming in Scala", "Martin Odersky, Lex Spoon, Bill Venners", 2008, 7),
       BookRow("Functional Programming in Scala", "Paul Chiusano, Rúnar Bjarnason", 2014, 9)
     )
