@@ -91,7 +91,7 @@ val ascii = json.print(WriterConfig.withEscapeUnicode(true))
 | `checkForEndOfInput`   | Boolean | true     | Reject anything but whitespace after the value                                            |
 | `preferredCharBufSize` | Int     | 4096     | Starting size of the character buffer for strings                                         |
 | `maxCharBufSize`       | Int     | 4194304  | Longest string value or key, in chars                                                     |
-| `preferredBufSize`     | Int     | 32768    | Starting size of the byte buffer for `InputStream` and `ByteBuffer` input                 |
+| `preferredBufSize`     | Int     | 32768    | Starting size of the byte buffer for `InputStream` and direct (not array-backed) `ByteBuffer` input; an array-backed `ByteBuffer` is read in place |
 | `maxBufSize`           | Int     | 33554432 | Largest size of that byte buffer, for example while looking for a late discriminator field |
 
 ### Usage Examples

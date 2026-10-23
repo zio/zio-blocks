@@ -588,7 +588,7 @@ final case class Nested(patch: JsonPatch) extends Op
 | Any | Type changed | `Set` — full replacement |
 
 :::tip
-`JsonPatch.diff` followed by `JsonPatch#apply` is always a lossless roundtrip: for any `source` and `target`, `JsonPatch.diff(source, target).apply(source) == Right(target)`.
+`JsonPatch.diff` followed by `JsonPatch#apply` is a lossless roundtrip: `JsonPatch.diff(source, target).apply(source) == Right(target)`, as long as neither value has an object with duplicate keys. A duplicate key in `source` survives the patch, and one in `target` makes the patch fail in `Strict` mode (a known bug in 0.0.56).
 :::
 
 ## JsonPatch vs RFC 6902 JSON Patch
