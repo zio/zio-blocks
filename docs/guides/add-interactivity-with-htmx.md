@@ -115,6 +115,8 @@ val loadButton = button(
 )("Show all books")
 ```
 
+To see the HTML the button renders:
+
 ```scala mdoc
 println(loadButton.render)
 ```
@@ -169,6 +171,8 @@ def get(app: Request => Response, target: String, headers: Headers = Headers.emp
   app(Request.get(URL.parse(target).toOption.get).addHeaders(headers)).body.asString()
 ```
 
+To ask for the fragment the way HTMX does when the button is clicked:
+
 ```scala mdoc
 println(get(app1, "/books"))
 ```
@@ -177,7 +181,7 @@ That is exactly the response HTMX receives when the button is clicked: a `<ul>` 
 
 ## 4. Search as You Type
 
-A button is a fine start, but a search page should update while the reader types. A search box needs three things: a name for the value it sends, an event to listen to, and a pause so we don't send a request for every key press.
+A button is a fine start, but a search page should update while the reader types. A search box needs three things: a name for the value it sends, an event to listen to, and a pause so we don't send a request for every key press. We write the search box like this:
 
 ```scala mdoc:silent
 val searchBox = input(
@@ -189,6 +193,8 @@ val searchBox = input(
   hxTarget    := HxTarget.css("#results")
 )
 ```
+
+To see the HTML the search box renders:
 
 ```scala mdoc
 println(searchBox.render)
@@ -276,6 +282,8 @@ val categoryMenu = select(
 )
 ```
 
+To see the HTML the category menu renders:
+
 ```scala mdoc
 println(categoryMenu.render)
 ```
@@ -300,6 +308,8 @@ def app3(request: Request): Response =
   }
 ```
 
+To try the category filter on its own and together with a search:
+
 ```scala mdoc
 println(get(app3, "/search?q=&category=Functional"))
 println(get(app3, "/search?q=scala&category=Language"))
@@ -321,6 +331,8 @@ The fix is to let the server decide. Every request HTMX sends carries the header
 ```scala mdoc:silent
 val fromHtmx = Request.get(URL.root).addHeaders(Headers(HxRequest.name -> "true"))
 ```
+
+To see what the header lookup returns with and without the header:
 
 ```scala mdoc
 println(fromHtmx.header(HxRequest))
@@ -372,7 +384,7 @@ def searchPage(query: String, category: String, found: List[Book]): Dom =
 
 The code above changes the controls in two ways:
 
-- `value := query` and `.when(c == selectedCategory)(selected)` fill the controls from the query string. A reader who opens a pushed URL sees the search text and the category they had chosen.
+- `value := query` and `Dom.Element#when(c == selectedCategory)(selected)` fill the controls from the query string. A reader who opens a pushed URL sees the search text and the category they had chosen.
 - `hxPushUrl := HxUrlUpdate.Enabled` renders `hx-push-url="true"`: after each swap HTMX pushes the request URL, query string included, onto the browser history.
 
 The route chooses between the two answers, and adds a `Vary` header so that a cache doesn't hand the fragment to a browser that asked for the page:
@@ -442,7 +454,7 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/zio-blocks-htmx-examples
 ```
 
-The examples share three files. `Library.scala` holds the books, the fragment and the shell from section 3 and the helpers we wrote along the way. `JdkHttp.scala` and `Client.scala` are the adapter and test client from the HTTP server guide, copied unchanged except for the package name.
+The examples share three files. `Library.scala` holds the books, the fragment and the shell from section 3 and the helpers we wrote along the way. `JdkHttp.scala` and `Client.scala` are the adapter and test client from the HTTP server guide, copied unchanged except for the package name. The three files follow, each in a collapsible block:
 
 <details>
   <summary>zio-blocks-htmx-examples/src/main/scala/addinteractivitywithhtmx/Library.scala</summary>
@@ -470,7 +482,7 @@ The examples share three files. `Library.scala` holds the books, the fragment an
 
 ### Load a Fragment With a Button
 
-This example renders the button, the page and the `/books` fragment.
+This example renders the button, the page and the `/books` fragment:
 
 <details>
   <summary>zio-blocks-htmx-examples/src/main/scala/addinteractivitywithhtmx/Step1LoadFragmentExample.scala</summary>
@@ -488,7 +500,7 @@ sbt "runMain addinteractivitywithhtmx.Step1LoadFragmentExample"
 
 ### Search as You Type
 
-This example renders the debounced search box and calls `/search` three times.
+This example renders the debounced search box and calls `/search` three times:
 
 <details>
   <summary>zio-blocks-htmx-examples/src/main/scala/addinteractivitywithhtmx/Step2LiveSearchExample.scala</summary>
@@ -498,13 +510,15 @@ This example renders the debounced search box and calls `/search` three times.
 
 </details>
 
+To run it from the `zio-blocks-htmx-examples` directory:
+
 ```bash
 sbt "runMain addinteractivitywithhtmx.Step2LiveSearchExample"
 ```
 
 ### Filter by Category
 
-This example adds the category menu and the `hxInclude` attributes.
+This example adds the category menu and the `hxInclude` attributes:
 
 <details>
   <summary>zio-blocks-htmx-examples/src/main/scala/addinteractivitywithhtmx/Step3CategoryFilterExample.scala</summary>
@@ -514,13 +528,15 @@ This example adds the category menu and the `hxInclude` attributes.
 
 </details>
 
+To run it from the `zio-blocks-htmx-examples` directory:
+
 ```bash
 sbt "runMain addinteractivitywithhtmx.Step3CategoryFilterExample"
 ```
 
 ### Serve a Full Page or a Fragment
 
-This example asks for one URL as a browser, as HTMX and as an HTMX history restore.
+This example asks for one URL as a browser, as HTMX and as an HTMX history restore:
 
 <details>
   <summary>zio-blocks-htmx-examples/src/main/scala/addinteractivitywithhtmx/Step4FullPageOrFragmentExample.scala</summary>
@@ -529,6 +545,8 @@ This example asks for one URL as a browser, as HTMX and as an HTMX history resto
 ```
 
 </details>
+
+To run it from the `zio-blocks-htmx-examples` directory:
 
 ```bash
 sbt "runMain addinteractivitywithhtmx.Step4FullPageOrFragmentExample"
