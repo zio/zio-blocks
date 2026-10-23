@@ -23,9 +23,9 @@ import scala.reflect.macros.blackbox
 trait NonNegativeIntCompanionVersionSpecific {
 
   /**
-   * Returns a [[NonNegativeInt]] for an `Int` literal, checked at compile time: a negative literal,
-   * or an argument that is not a literal, does not compile. Use
-   * `NonNegativeInt.apply` for runtime values.
+   * Returns a [[NonNegativeInt]] for an `Int` literal, checked at compile time:
+   * a negative literal, or an argument that is not a literal, does not compile.
+   * Use `NonNegativeInt.apply` for runtime values.
    *
    * On Scala 2.13, the macro calls the package-private constructor, so it
    * compiles only inside the `zio.blocks.schema.json` package (a known bug).
@@ -42,6 +42,7 @@ trait NonNegativeIntCompanionVersionSpecific {
 }
 
 private[json] object NonNegativeIntMacros {
+
   /** The macro behind `NonNegativeInt.literal`. */
   def literalImpl(c: blackbox.Context)(n: c.Expr[Int]): c.Expr[NonNegativeInt] = {
     import c.universe._

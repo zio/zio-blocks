@@ -23,9 +23,9 @@ import scala.reflect.macros.blackbox
 trait PositiveNumberCompanionVersionSpecific {
 
   /**
-   * Returns a [[PositiveNumber]] for an `Int` literal, checked at compile time: a literal below 1,
-   * or an argument that is not a literal, does not compile. Use
-   * `PositiveNumber.apply` for runtime values.
+   * Returns a [[PositiveNumber]] for an `Int` literal, checked at compile time:
+   * a literal below 1, or an argument that is not a literal, does not compile.
+   * Use `PositiveNumber.apply` for runtime values.
    *
    * On Scala 2.13, the macro calls the package-private constructor, so it
    * compiles only inside the `zio.blocks.schema.json` package (a known bug).
@@ -42,6 +42,7 @@ trait PositiveNumberCompanionVersionSpecific {
 }
 
 private[json] object PositiveNumberMacros {
+
   /** The macro behind `PositiveNumber.literal`. */
   def literalImpl(c: blackbox.Context)(n: c.Expr[Int]): c.Expr[PositiveNumber] = {
     import c.universe._

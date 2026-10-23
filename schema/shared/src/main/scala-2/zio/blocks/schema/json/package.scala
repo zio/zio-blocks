@@ -26,14 +26,15 @@ package object json {
 
   /** Adds the `json"..."` interpolator to string literals. */
   implicit class JsonStringContext(val sc: StringContext) extends AnyVal {
+
     /**
      * Builds a [[Json]] value from a JSON literal that is checked at compile
      * time, with Scala values spliced in. A value position, such as
-     * `{"title": \$title}`, takes a `Json`, or
-     * any value with a `Schema`, encoded with its JSON codec (`null` becomes
-     * `Json.Null`). A key position, or a position inside a string literal,
-     * takes the value's key text, as `JsonCodec#encodeKey` writes it. Invalid
-     * JSON, or a spliced type with no `Schema`, does not compile.
+     * `{"title": \$title}`, takes a `Json`, or any value with a `Schema`,
+     * encoded with its JSON codec (`null` becomes `Json.Null`). A key position,
+     * or a position inside a string literal, takes the value's key text, as
+     * `JsonCodec#encodeKey` writes it. Invalid JSON, or a spliced type with no
+     * `Schema`, does not compile.
      *
      * On Scala 2.13, the expansion calls a package-private method, so it
      * compiles only inside the `zio.blocks.schema` package (a known bug).
