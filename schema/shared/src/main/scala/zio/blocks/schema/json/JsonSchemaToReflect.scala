@@ -27,13 +27,16 @@ import zio.blocks.typeid.{Owner, TypeId}
  * [[zio.blocks.schema.DynamicValue]] nodes that its JSON codec decodes. It
  * recognizes, in this order, a string `enum`, `items` (a sequence),
  * `properties` (a record) or `additionalProperties` alone (a map), a nullable
- * type (an option), a `oneOf` keyed by case or by a `const` field (a variant),
- * `prefixItems` with `items: false` (a tuple), and a single primitive `type`;
- * anything else accepts any value.
+ * `type` or an `anyOf` of a schema and the null schema (built as that schema
+ * alone, so `null` does not decode: a known bug), a `oneOf` keyed by case or by
+ * a `const` field (a variant), `prefixItems` with `items: false` (a tuple), and
+ * a single primitive `type`; anything else accepts any value.
  *
- * Known bugs: every property of a record is required, whatever `required` says,
- * and a value of an `enum` or `oneOf` schema never decodes, because the decoded
- * value loses its case.
+ * Known bugs: every property of a record is required, whatever `required` says;
+ * `null` does not decode for a nullable type; and a value of a string `enum`,
+ * or of a `oneOf` of keyed or `const`-tagged objects, never decodes, because
+ * the decoded value loses its case. Other `oneOf` and `enum` schemas fall
+ * through to the later shapes, usually any value, which `check` then validates.
  */
 private[schema] object JsonSchemaToReflect {
 
@@ -105,7 +108,10 @@ private[schema] object JsonSchemaToReflect {
      */
     case class FieldVariant(discriminator: String, cases: ChunkMap[String, JsonSchema]) extends Shape
 
-    /** A nullable type, or an `anyOf` of a schema and the null schema. */
+    /**
+     * A nullable type, or an `anyOf` of a schema and the null schema; built as
+     * the inner schema alone, so `null` does not decode (a known bug).
+     */
     case class OptionOf(inner: JsonSchema) extends Shape
 
     /** Any value. */

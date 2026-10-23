@@ -659,9 +659,11 @@ sealed trait JsonSchema extends Product with Serializable {
   }
 
   /**
-   * Returns a schema that also accepts `null`: `"null"` is added to `type` when
-   * this schema has one, or else the schema becomes an `anyOf` with a null
-   * schema. `False` becomes the null schema, and `True` stays.
+   * Returns a schema whose `type` also allows `null`: `"null"` is added to
+   * `type` when this schema has one, or else the schema becomes an `anyOf` with
+   * a null schema. `False` becomes the null schema, and `True` stays. Other
+   * keywords still apply, so a schema with a `type` and an `enum` or `const`
+   * that leaves out `null` still rejects it (a known bug).
    */
   def withNullable: JsonSchema = this match {
     case s: JsonSchema.Object =>
@@ -758,11 +760,14 @@ object JsonSchema {
   /**
    * Reads a schema from JSON: `true` and `false` become [[True]] and [[False]],
    * and an object a [[JsonSchema.Object]], whose unknown keywords go to
-   * `extensions`. Parsing is lenient: a keyword whose value has the wrong type,
-   * such as `"minLength": "5"`, or an unknown `type` name, is dropped without
+   * `extensions`. Parsing is lenient: a value keyword of the wrong type, such
+   * as `"minLength": "5"`, a `type` with an unknown name, and a
+   * `patternProperties` entry whose value is not a schema are dropped without
    * an error, and an invalid `pattern` is kept but skipped by `check`. It
-   * returns `Left` for a value that is neither an object nor a boolean, at the
-   * root or as a subschema (such as an `items` array).
+   * returns `Left` for a schema value that is neither an object nor a boolean,
+   * at the root or under `items`, `properties`, `allOf` and the other
+   * applicators, and for an applicator of the wrong kind, such as `"allOf": {}`
+   * (`Expected array for allOf`).
    */
   def fromJson(json: Json): Either[SchemaError, JsonSchema] = json match {
     case bool: Json.Boolean =>
