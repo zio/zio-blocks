@@ -21,7 +21,9 @@ package zio.blocks.schema.json
  * and the size of its reusable buffer. Start from the defaults in the
  * companion, `WriterConfig`, and change them with the `with` methods, which
  * throw `IllegalArgumentException` for a value out of range. Pass the result to
- * `JsonCodec#encode`, `encodeToString` or `Json#print`.
+ * `JsonCodec#encode`, `encodeToString` or `Json#print`. Raise
+ * `preferredBufSize` when the output is often over 32 KiB, to avoid growing and
+ * shrinking the buffer on each call.
  *
  * {{{
  * import zio.blocks.schema.json._

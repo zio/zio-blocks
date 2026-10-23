@@ -84,9 +84,11 @@ object JsonCodecDeriver
  *     `require` settings allow; otherwise decoding fails with `missing required
  *     field`.
  *
- * Each `require` setting also turns off the matching `transient` one, so the
- * value is always written. A record with more than 128 fields, or two fields or
- * cases that map to the same name, makes derivation throw.
+ * Each `require` setting also turns off the matching `transient` one, so a
+ * `None` or an empty collection is written, unless the field has a default
+ * value that it equals and `withTransientDefaultValue` is on. A record with
+ * more than 128 fields, or two fields or cases that map to the same name, makes
+ * derivation throw.
  *
  * {{{
  * import zio.blocks.schema.json._
@@ -162,16 +164,17 @@ class JsonCodecDeriver private[json] (
    * Returns a deriver that leaves an `Option` field that is `None`, or a
    * `Maybe` field that is absent, out of the encoded object (`true`, the
    * default), or writes it as `null` (`false`). It has no effect with
-   * `withRequireOptionFields(true)`, and a field with a default value follows
-   * `withTransientDefaultValue` instead.
+   * `withRequireOptionFields(true)`, and while `withTransientDefaultValue` is
+   * on, a field with a default value follows it instead.
    */
   def withTransientNone(transientNone: Boolean): JsonCodecDeriver = copy(transientNone = transientNone)
 
   /**
    * Returns a deriver whose decoders fail on a missing `Option` or `Maybe`
    * field (`true`), instead of using `None` (`false`, the default). With `true`
-   * the encoders also write `None` as `null`. A field with a default value
-   * still uses its default.
+   * the encoders also write `None` as `null`, except for a field whose default
+   * it equals while `withTransientDefaultValue` is on. A field with a default
+   * value still decodes to its default when missing.
    */
   def withRequireOptionFields(requireOptionFields: Boolean): JsonCodecDeriver =
     copy(requireOptionFields = requireOptionFields)
@@ -179,8 +182,9 @@ class JsonCodecDeriver private[json] (
   /**
    * Returns a deriver that leaves an empty sequence or map field out of the
    * encoded object (`true`, the default), or writes `[]` or `{}` (`false`). It
-   * has no effect with `withRequireCollectionFields(true)`, and a field with a
-   * default value follows `withTransientDefaultValue` instead.
+   * has no effect with `withRequireCollectionFields(true)`, and while
+   * `withTransientDefaultValue` is on, a field with a default value follows it
+   * instead.
    */
   def withTransientEmptyCollection(transientEmptyCollection: Boolean): JsonCodecDeriver =
     copy(transientEmptyCollection = transientEmptyCollection)
@@ -188,15 +192,18 @@ class JsonCodecDeriver private[json] (
   /**
    * Returns a deriver whose decoders fail on a missing sequence or map field
    * (`true`), instead of using an empty one (`false`, the default). With `true`
-   * the encoders also write empty collections. A field with a default value
-   * still uses its default.
+   * the encoders also write empty collections, except for a field whose default
+   * it equals while `withTransientDefaultValue` is on. A field with a default
+   * value still decodes to its default when missing.
    */
   def withRequireCollectionFields(requireCollectionFields: Boolean): JsonCodecDeriver =
     copy(requireCollectionFields = requireCollectionFields)
 
   /**
    * Returns a deriver that leaves a field equal to its default value out of the
-   * encoded object (`true`, the default), or writes it (`false`). It has no
+   * encoded object (`true`, the default), or does not leave it out for being
+   * the default (`false`); a `None` or an empty collection is then still left
+   * out by `withTransientNone` and `withTransientEmptyCollection`. It has no
    * effect with `withRequireDefaultValueFields(true)`.
    */
   def withTransientDefaultValue(transientDefaultValue: Boolean): JsonCodecDeriver =

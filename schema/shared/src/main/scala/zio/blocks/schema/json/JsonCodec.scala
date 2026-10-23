@@ -111,9 +111,10 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
   def decodeKey(in: JsonReader): A = decodeUnsafe(in.readKeyAsString())
 
   /**
-   * Writes `x` as an object key. The default writes the compact JSON of `x` as
-   * the key's text, so a record key becomes a string such as `"{\"id\":1}"`;
-   * the codecs of primitive types write the plain value.
+   * Writes `x` as an object key, but may fail with `JsonCodecError` if it
+   * cannot be encoded as one. The default writes the compact JSON of `x` as the
+   * key's text, so a record key becomes a string such as `"{\"id\":1}"`; the
+   * codecs of primitive types write the plain value.
    *
    * @param x
    *   the key
@@ -1574,7 +1575,7 @@ object JsonCodec {
    * an object to a `Record`, an array to a `Sequence`, and a number to an
    * `Int`, a `Long` or a `BigDecimal`, the first that holds it exactly. It
    * encodes a variant as `{"<case>": value}` and a map as an object, failing
-   * for a key that is not a primitive.
+   * for a key that is not a primitive or is `Unit`.
    */
   val dynamicValueCodec: JsonCodec[DynamicValue] = new JsonCodec[DynamicValue] {
     private[this] val falseValue       = new DynamicValue.Primitive(new PrimitiveValue.Boolean(false))

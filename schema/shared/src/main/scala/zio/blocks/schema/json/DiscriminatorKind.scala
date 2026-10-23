@@ -72,8 +72,10 @@ object DiscriminatorKind {
   /**
    * Wraps the encoded case in an object with one key, the case name:
    * `{"Paperback": {"pages": 600}}`. The default. It works for every kind of
-   * case; the decoder reads only the first key, and a key that names no case
-   * fails with `illegal discriminator`.
+   * case. The decoder takes the case from the first key; decoding text fails if
+   * the object has another key (`expected '}' or ','`), while decoding a `Json`
+   * tree ignores the others. A key that names no case fails with
+   * `illegal discriminator`.
    */
   case object Key extends DiscriminatorKind
 

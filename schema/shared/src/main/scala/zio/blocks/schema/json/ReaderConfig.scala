@@ -21,7 +21,10 @@ package zio.blocks.schema.json
  * buffers, and whether text may follow the value. Start from the defaults in
  * the companion, `ReaderConfig`, and change them with the `with` methods, which
  * throw `IllegalArgumentException` for a value out of range. Pass the result to
- * `JsonCodec#decode` or `Json.parse`.
+ * `JsonCodec#decode` or `Json.parse`. Raise `preferredBufSize` when the input
+ * holds numbers or raw values over 32 KiB, or objects whose discriminator field
+ * comes late, and `preferredCharBufSize` for strings over 4 KiB, to avoid
+ * growing and shrinking the buffers on each call.
  *
  * {{{
  * import zio.blocks.schema.json._
@@ -31,17 +34,19 @@ package zio.blocks.schema.json
  * }}}
  *
  * @param maxBufSize
- *   for `InputStream` and `ByteBuffer` input, the largest size (in bytes) of
- *   the byte buffer, which must hold, for example, a whole object while the
- *   reader looks for a discriminator field near its end; beyond it decoding
- *   fails with `too long part of input exceeded 'maxBufSize'`. Default 33554432
- *   (32 MiB). A limit below 32 KiB is not applied reliably (a known bug).
+ *   for input from an `InputStream` or a direct (not array-backed)
+ *   `ByteBuffer`, the largest size (in bytes) of the byte buffer, which must
+ *   hold, for example, a whole object while the reader looks for a
+ *   discriminator field near its end; beyond it decoding fails with
+ *   `too long part of input exceeded 'maxBufSize'`. Default 33554432 (32 MiB).
+ *   A limit below 32 KiB is not applied reliably (a known bug).
  * @param maxCharBufSize
  *   the longest string value or key (in chars); beyond it decoding fails with
  *   `too long string exceeded 'maxCharBufSize'`. Default 4194304.
  * @param preferredBufSize
  *   the size (in bytes) the byte buffer has at least when reading from an
- *   `InputStream` or a `ByteBuffer` starts. Default 32768.
+ *   `InputStream` or a direct (not array-backed) `ByteBuffer` starts; an
+ *   array-backed `ByteBuffer` is read in place. Default 32768.
  * @param preferredCharBufSize
  *   the size (in chars) the char buffer has at least when reading starts.
  *   Default 4096.
