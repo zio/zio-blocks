@@ -759,9 +759,10 @@ object JsonSchema {
    * Reads a schema from JSON: `true` and `false` become [[True]] and [[False]],
    * and an object a [[JsonSchema.Object]], whose unknown keywords go to
    * `extensions`. Parsing is lenient: a keyword whose value has the wrong type,
-   * such as `"minLength": "5"`, is dropped without an error. It returns `Left`
-   * for a value that is neither an object nor a boolean, at the root or as a
-   * subschema (such as an `items` array), and for an unknown `type` name.
+   * such as `"minLength": "5"`, or an unknown `type` name, is dropped without
+   * an error, and an invalid `pattern` is kept but skipped by `check`. It
+   * returns `Left` for a value that is neither an object nor a boolean, at the
+   * root or as a subschema (such as an `items` array).
    */
   def fromJson(json: Json): Either[SchemaError, JsonSchema] = json match {
     case bool: Json.Boolean =>

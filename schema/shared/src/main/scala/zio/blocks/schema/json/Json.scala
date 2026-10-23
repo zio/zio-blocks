@@ -1124,8 +1124,8 @@ object Json {
    * Converts a [[zio.blocks.schema.DynamicValue]] to JSON: a record becomes an
    * object, a variant `{"<case>": value}`, a sequence an array, and a map an
    * object when every key is a `String`, or else an array of
-   * `{"key": ..., "value": ...}` objects. Temporal values become ISO-8601
-   * strings and `Unit` becomes `{}`.
+   * `{"key": ..., "value": ...}` objects. Other primitives become strings or
+   * numbers as their JSON codecs write them, and `Unit` becomes `{}`.
    *
    * @throws java.lang.IllegalArgumentException
    *   for a `Float` or `Double` that is NaN or infinite
