@@ -158,6 +158,7 @@ A few more details matter here:
 - **Content type**: `Response.text`, `Response.json` and `Response.ok(body)` set the `content-type` header for us. A `Response` built with its case-class constructor has none, so we fall back to `Body#contentType`.
 - **HEAD**: A `HEAD` response has no body but should report the length the `GET` body would have, so we set `content-length` ourselves and pass `-1`.
 - **Streaming bodies**: `Body#toArray` collects the whole body. For a body built with `Body.fromStream` from a stream of unknown length, this call blocks the server thread until the stream ends.
+- **Server-Sent Events**: A response whose body never ends needs a different write path. [How to Send Server-Sent Events with http-model](./send-server-sent-events.md) streams `ServerSentEvent` values through a copy of this adapter that writes each event as it is produced and runs each exchange on its own thread.
 
 ## Wrapping a Handler Function
 
