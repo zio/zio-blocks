@@ -131,10 +131,7 @@ def staticPage: Dom.Element =
   )
 ```
 
-The code above builds a normal page whose head loads htmx:
-
-- `htmxScript` loads htmx 2.0.11 from the jsDelivr CDN. Pinning an exact version means the page keeps working the same way when a new htmx release comes out.
-- `div(id := "results", ...)` wraps the result list in an element with an id. Nothing uses the id yet, but it is the spot htmx updates from the next section on.
+The code above builds a normal page whose head loads htmx. `htmxScript` loads htmx 2.0.11 from the jsDelivr CDN, and pinning an exact version means the page keeps working the same way when a new htmx release comes out. `div(id := "results", ...)` wraps the result list in an element with an id. Nothing uses the id yet, but it is the spot htmx updates from the next section on.
 
 Let's render the page to check it:
 
@@ -163,7 +160,8 @@ def staticApp(request: Request): Response =
 The code above:
 
 - `htmlResponse` wraps rendered HTML in a `200 OK` response with `Content-Type: text/html`. `Body.fromString` would label the body `text/plain`, so we build it from bytes with an explicit content type.
-- `staticApp` matches on the method and the path segments. `GET /` returns the page with a `<!DOCTYPE html>` line in front; every other request gets a `404`.
+- `notFound` answers any other request with a `404` and a short message naming the method and path.
+- `staticApp` matches on the method and the path segments. `GET /` returns the page with a `<!DOCTYPE html>` line in front; every other request goes to `notFound`.
 
 Because the application is just a function, we can call it without starting a server. This small helper builds a `GET` request for a target, passes it to an application and prints the status and the body. We use it in every section to see exactly what htmx would receive:
 
@@ -243,8 +241,8 @@ val debounced: HxTrigger = HxTrigger("keyup").changed.delay(300.millis)
 The code above builds the trigger value in three parts:
 
 - `HxTrigger("keyup")` fires on the `keyup` event, after each key press. `HxTrigger` has ready-made values for common events, such as `HxTrigger.click`, `HxTrigger.change` and `HxTrigger.input`, and takes any other event name as a string.
-- `changed` skips the request when the value hasn't changed since the last one, so arrow keys and Shift don't trigger a search.
-- `delay(300.millis)` waits 300 milliseconds after the last `keyup` before sending. Each new key press restarts the wait, so a reader who types "scala" without pausing causes one request, not five.
+- `HxTrigger#changed` skips the request when the value hasn't changed since the last one, so arrow keys and Shift don't trigger a search.
+- `HxTrigger#delay` with `300.millis` waits 300 milliseconds after the last `keyup` before sending. Each new key press restarts the wait, so a reader who types "scala" without pausing causes one request, not five.
 
 To see the `hx-trigger` value this produces, we print `HxTrigger#render`:
 
@@ -373,10 +371,7 @@ def wantsFragment(request: Request): Boolean =
     !request.header(HxHistoryRestoreRequest).exists(_.enabled)
 ```
 
-The code above:
-
-- `request.header(HxRequest)` parses the `HX-Request` header into an `HxRequest` value, or returns `None` when the header is missing. `exists(_.enabled)` is `true` only for `HX-Request: true`.
-- `HxHistoryRestoreRequest` handles one special case. When the reader goes back to a search that htmx no longer has in its history cache, htmx 2 requests that URL with `HX-Request: true` and `HX-History-Restore-Request: true`, and it puts the answer in place of the whole `<body>`. Answering with a fragment there would replace the heading and the search box with a bare list, so we answer with the full page.
+The code above reads the header in two steps. `request.header(HxRequest)` parses the `HX-Request` header into an `HxRequest` value, or returns `None` when the header is missing, and `exists(_.enabled)` is `true` only for `HX-Request: true`. `HxHistoryRestoreRequest` handles one special case: when the reader goes back to a search that htmx no longer has in its history cache, htmx 2 requests that URL with `HX-Request: true` and `HX-History-Restore-Request: true`, and it puts the answer in place of the whole `<body>`. Answering with a fragment there would replace the heading and the search box with a bare list, so we answer with the full page.
 
 Now the page itself takes the current search, so a full page loaded from `/search?q=zio&category=Effects` shows "zio" in the box, "Effects" selected and the matching books:
 
@@ -485,6 +480,18 @@ cd zio-blocks/zio-blocks-htmx-examples
 ```
 
 Each step starts the server on port 8080, prints what the server answers to the requests from that section, and keeps running so you can open `http://localhost:8080/` in a browser. Press Ctrl+C to stop it before running the next step. To use another port, pass it as an argument, for example `sbt "runMain addinteractivitywithhtmx.Step1StaticPageExample 9090"`. The steps share the book list and helpers in `Bookshelf.scala`, and the server adapter in `JdkHttp.scala` and the client in `Client.scala` are copied from the guide [How to Serve http-model Requests with the JDK HTTP Server](./serve-http-model-requests.md).
+
+### Share the Book List and Helpers
+
+Every step below imports the book model, the search function and the response helpers from this file. It has no `main`, so there is nothing to run; read it first.
+
+<details>
+  <summary>zio-blocks-htmx-examples/src/main/scala/addinteractivitywithhtmx/Bookshelf.scala</summary>
+
+```scala mdoc:embed:zio-blocks-htmx-examples/src/main/scala/addinteractivitywithhtmx/Bookshelf.scala:show-line-numbers
+```
+
+</details>
 
 ### Serve a Page That Loads htmx
 
