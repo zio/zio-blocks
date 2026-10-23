@@ -17,7 +17,7 @@ final case class Book(title: String, authors: String)
 
 object Bookshop {
   val books: Vector[Book] = Vector(
-    Book("Zionomicon", "John A. De Goes and Adam Fraser"),
+    Book("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi"),
     Book("Programming in Scala", "Martin Odersky, Lex Spoon, Bill Venners and Frank Sommers"),
     Book("Functional Programming in Scala", "Michael Pilquist, Rúnar Bjarnason and Paul Chiusano"),
     Book("Scala with Cats", "Noel Welsh and Dave Gurnell"),

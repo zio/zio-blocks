@@ -12,12 +12,13 @@ import zio.http._
 /**
  * How to Send Server-Sent Events with http-model — the streaming adapter
  *
- * The H-35 adapter (`servehttpmodelrequests.JdkHttp`) with two changes for
- * event streams: a `text/event-stream` body is written as it is produced, with
- * chunked transfer encoding and a flush after every event, instead of being
- * collected with `Body#toArray`; and each exchange runs on its own thread, so
- * one open stream does not block every other request. Other responses still go
- * through `JdkHttp.writeResponse`.
+ * The adapter from How to Serve http-model Requests with the JDK HTTP Server
+ * (`servehttpmodelrequests.JdkHttp`) with two changes for event streams: a
+ * `text/event-stream` body is written as it is produced, with chunked transfer
+ * encoding and a flush after every event, instead of being collected with
+ * `Body#toArray`; and each exchange runs on its own thread, so one open stream
+ * does not block every other request. Other responses still go through
+ * `JdkHttp.writeResponse`.
  */
 object StreamingJdkHttp {
 

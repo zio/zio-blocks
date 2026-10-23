@@ -13,22 +13,20 @@ keywords:
 
 In this guide, we build a "new arrivals" feed for a Scala bookshop that pushes one book at a time to every open browser tab, using `ServerSentEvent` and `Body.fromStream` from the ZIO Blocks [HTTP model](../reference/http-model/index.md). By the end, you will have a `text/event-stream` endpoint that streams each event the moment it is produced, resumes where a reconnecting client left off, and notices when a client goes away, plus a small HTML page that shows the books as they arrive.
 
-A normal request gets one answer, and the connection closes. With Server-Sent Events (SSE) the server keeps the connection open and writes small text messages made of `event:`, `id:`, `retry:` and `data:` lines. The browser's built-in `EventSource` reads them and reconnects on its own when the connection drops. We start from one event on the wire, turn a stream of events into a `Response`, serve it through a streaming version of the adapter from [How to Serve http-model Requests with the JDK HTTP Server](./serve-http-model-requests.md), and then add event ids, resuming, a browser client, and disconnect handling.
+We start from one event on the wire, turn a stream of events into a `Response`, serve it through a streaming version of the adapter from [How to Serve http-model Requests with the JDK HTTP Server](./serve-http-model-requests.md), and then add event ids, resuming, a browser client, and disconnect handling.
 
 ## The Problem
 
-The SSE wire format looks simple enough to write by hand, but it is line-based, and every line break in a value changes its meaning. A server also has to send each event as soon as it exists; a body that is collected in full before it is sent never reaches the client while the feed is still running.
+With Server-Sent Events (SSE) the server keeps one connection open and writes small text messages made of `event:`, `id:`, `retry:` and `data:` lines, which the browser's built-in `EventSource` reads and reconnects on by itself. The wire format looks simple enough to write by hand, but it is line-based, and every line break in a value changes its meaning. A server also has to send each event as soon as it exists; a body that is collected in full before it is sent never reaches the client while the feed is still running.
 
 For example, a first attempt at formatting an arrival might look like this:
 
-```scala mdoc
+```scala mdoc:compile-only
 def formatArrival(id: String, title: String, authors: String): String =
   s"event: arrival\nid: $id\ndata: $title\n$authors\n\n"
-
-println(formatArrival("1", "Zionomicon", "John A. De Goes and Adam Fraser"))
 ```
 
-The authors line has no `data:` prefix, so `EventSource` reads `John A. De Goes and Adam Fraser` as the name of an unknown field and drops it: the browser receives only the title. An id with a line break in it would inject a field of its own. Even with the text right, the [H-35 adapter](./serve-http-model-requests.md) collects the whole body with `Body#toArray` before it sends anything, so a client of a feed that never ends receives nothing at all, not even the status line.
+For the book `Zionomicon`, the authors line has no `data:` prefix, so `EventSource` reads `John A. De Goes, Adam Fraser and Milad Khajavi` as the name of an unknown field and drops it: the browser receives only the title. An id with a line break in it would inject a field of its own. Even with the text right, the [JDK server adapter](./serve-http-model-requests.md) collects the whole body with `Body#toArray` before it sends anything, so a client of a feed that never ends receives nothing at all, not even the status line.
 
 In this guide, we let `ServerSentEvent` produce the wire text, stream it with `Body.fromStream`, and change the adapter so it writes each event as soon as it is rendered.
 
@@ -67,7 +65,7 @@ The bookshop announces six Scala books. Each book becomes one event named `arriv
 final case class Book(title: String, authors: String)
 
 val books: Vector[Book] = Vector(
-  Book("Zionomicon", "John A. De Goes and Adam Fraser"),
+  Book("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi"),
   Book("Programming in Scala", "Martin Odersky, Lex Spoon, Bill Venners and Frank Sommers"),
   Book("Functional Programming in Scala", "Michael Pilquist, Rúnar Bjarnason and Paul Chiusano"),
   Book("Scala with Cats", "Noel Welsh and Dave Gurnell"),
@@ -146,7 +144,7 @@ println(s"known body length: ${firstTwo.body.length}")
 print(firstTwo.body.asString())
 ```
 
-The body length is `None` because a stream body has no length until it has been read. That is why an SSE response is sent with chunked transfer encoding instead of a `Content-Length` header.
+The body length is `None` because the body is built with `Stream#flatMap`, so its length is not known until the stream has been read. That is why an SSE response is sent with chunked transfer encoding instead of a `Content-Length` header.
 
 ## Sending One Book at a Time
 
@@ -161,9 +159,9 @@ def paced(events: Vector[ServerSentEvent[String]], intervalMillis: Long): Stream
 
 ## Streaming the Response Through the JDK Server
 
-The H-35 adapter cannot serve this response. `JdkHttp.writeResponse` calls `Body#toArray`, which pulls the whole stream before it writes a single byte, and the JDK server without an executor runs every exchange on one dispatcher thread, so an open feed blocks every other request. Served through that adapter, an endless feed sends its client no bytes at all, not even the status line; a request to another path waits until the feed ends; and the server keeps producing events after the client has left, because it never writes and so never learns that the connection is gone.
+The `JdkHttp` adapter cannot serve this response. `JdkHttp.writeResponse` calls `Body#toArray`, which pulls the whole stream before it writes a single byte, and the JDK server without an executor runs every exchange on one dispatcher thread, so an open feed blocks every other request. Served through that adapter, an endless feed sends its client no bytes at all, not even the status line; a request to another path waits until the feed ends; and the server keeps producing events after the client has left, because it never writes and so never learns that the connection is gone.
 
-The streaming adapter, `StreamingJdkHttp`, reuses `JdkHttp.toRequest` and `JdkHttp.writeResponse` from the H-35 adapter and changes three things for `text/event-stream` responses. The first change writes the body as the stream produces it. A length of `0` passed to `HttpExchange#sendResponseHeaders` tells the JDK server that the length is unknown, so it sends the headers at once and uses chunked transfer encoding. `Stream#run` with `Sink.fromOutputStream` then pulls the stream and writes each byte as it arrives:
+The streaming adapter, `StreamingJdkHttp`, reuses `JdkHttp.toRequest` and `JdkHttp.writeResponse` from the original adapter and changes three things for `text/event-stream` responses. The first change writes the body as the stream produces it. A length of `0` passed to `HttpExchange#sendResponseHeaders` tells the JDK server that the length is unknown, so it sends the headers at once and uses chunked transfer encoding. `Stream#run` with `Sink.fromOutputStream` then pulls the stream and writes each byte as it arrives:
 
 ```scala mdoc:silent
 import com.sun.net.httpserver.HttpExchange
@@ -210,32 +208,32 @@ def useThreadPerExchange(server: HttpServer): Unit =
 
 The handler sends `text/event-stream` responses through `writeEventStream` and every other response through `JdkHttp.writeResponse`, and treats an `IOException` while writing as the client having gone away. The whole adapter is about a hundred lines; it is embedded under [Running the Examples](#running-the-examples).
 
-The live-feed example serves three books, one per second, first through the H-35 adapter and then through the streaming adapter, and its client prints when each event arrives. Its output, from one run:
+The live-feed example serves three books, one per second, first through `JdkHttp` and then through the streaming adapter, and its client prints when each event arrives. Its output, from one run:
 
 ```text
-== H-35 adapter (JdkHttp)
+== JdkHttp (collects the body first)
 GET /arrivals -> 200 [content-type: text/event-stream, cache-control: no-cache, transfer-encoding: none]
 event: arrival
 id: 1
 data: Zionomicon
-data: John A. De Goes and Adam Fraser
--- event 1 received after 3.8 s
+data: John A. De Goes, Adam Fraser and Milad Khajavi
+-- event 1 received after 4.0 s
 event: arrival
 id: 2
 data: Programming in Scala
 data: Martin Odersky, Lex Spoon, Bill Venners and Frank Sommers
--- event 2 received after 3.8 s
+-- event 2 received after 4.0 s
 event: arrival
 id: 3
 data: Functional Programming in Scala
 data: Michael Pilquist, Rúnar Bjarnason and Paul Chiusano
--- event 3 received after 3.8 s
+-- event 3 received after 4.0 s
 == Streaming adapter (StreamingJdkHttp)
 GET /arrivals -> 200 [content-type: text/event-stream, cache-control: no-cache, transfer-encoding: chunked]
 event: arrival
 id: 1
 data: Zionomicon
-data: John A. De Goes and Adam Fraser
+data: John A. De Goes, Adam Fraser and Milad Khajavi
 -- event 1 received after 1.0 s
 event: arrival
 id: 2
@@ -249,7 +247,7 @@ data: Michael Pilquist, Rúnar Bjarnason and Paul Chiusano
 -- event 3 received after 3.0 s
 ```
 
-Through the H-35 adapter all three events arrive together, after the stream has ended. Through the streaming adapter they arrive one second apart.
+Through `JdkHttp` all three events arrive together, after the stream has ended. Through the streaming adapter they arrive one second apart.
 
 To watch the feed from a terminal, start the complete example (see [Putting It Together](#putting-it-together)) and open the feed with `curl -N`, which turns off curl's output buffering. The events appear one every two seconds:
 
@@ -261,7 +259,7 @@ The first lines it prints:
 
 ```text
 HTTP/1.1 200 OK
-Date: Fri, 23 Oct 2026 19:12:02 GMT
+Date: Fri, 23 Oct 2026 19:28:05 GMT
 Transfer-encoding: chunked
 Content-type: text/event-stream
 Cache-control: no-cache
@@ -270,7 +268,7 @@ event: arrival
 id: 1
 retry: 2000
 data: Zionomicon
-data: John A. De Goes and Adam Fraser
+data: John A. De Goes, Adam Fraser and Milad Khajavi
 
 event: arrival
 id: 2
@@ -317,6 +315,21 @@ With `curl`, pass the header yourself to see the same resume against the running
 
 ```bash
 curl -N -H 'Last-Event-ID: 4' http://localhost:8080/arrivals
+```
+
+It prints the last two books and exits when the server closes the stream:
+
+```text
+event: arrival
+id: 5
+retry: 2000
+data: Hands-on Scala Programming
+data: Li Haoyi
+
+event: arrival
+id: 6
+data: Essential Effects
+data: Adam Rosien
 ```
 
 ## Watching the Feed in a Browser
@@ -394,13 +407,13 @@ GET /arrivals -> 200 [content-type: text/event-stream, cache-control: no-cache, 
 event: arrival
 id: 1
 data: Zionomicon
-data: John A. De Goes and Adam Fraser
--- event 1 received after 1.8 s
+data: John A. De Goes, Adam Fraser and Milad Khajavi
+-- event 1 received after 2.2 s
 event: arrival
 id: 2
 data: Programming in Scala
 data: Martin Odersky, Lex Spoon, Bill Venners and Frank Sommers
--- event 2 received after 2.8 s
+-- event 2 received after 3.2 s
 client: disconnected
 server: stream closed after producing 4 events
 ```
@@ -444,7 +457,7 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/http-model-examples
 ```
 
-The examples share three files of their own, the feed model, the streaming adapter and a test client, and use the H-35 adapter `JdkHttp.scala` from the same build:
+The examples share three files of their own, the feed model, the streaming adapter and a test client, and use the adapter `JdkHttp.scala` from the serving guide, which lives in the same build:
 
 <details>
   <summary>http-model-examples/src/main/scala/sendserversentevents/Bookshop.scala</summary>
@@ -570,6 +583,12 @@ To run the complete example, which also serves on port 8080 until you stop it:
 
 ```bash
 sbt "runMain sendserversentevents.CompleteExample"
+```
+
+To check that all of the examples compile without running any of them:
+
+```bash
+sbt compile
 ```
 
 ## Going Further
