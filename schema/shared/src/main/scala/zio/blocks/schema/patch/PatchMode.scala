@@ -21,22 +21,57 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.typeid.TypeId
 
+/**
+ * How [[Patch]] and [[DynamicPatch]] treat an operation whose precondition
+ * fails: an index or range outside a sequence, a map key that is missing (or
+ * present, for an add), a value in another case than the path expects, a
+ * missing record field, a string edit out of range, or a value of the wrong
+ * kind.
+ *
+ * No mode checks that the value still holds what it held when the patch was
+ * made: a delete by index removes whatever is at that index now, and a delta
+ * adds to the current number (see `docs/dev/issues.md`). Check that the value
+ * is unchanged, for example with a version number, before applying a stored
+ * patch.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/patch/ Patching]]
+ */
 sealed trait PatchMode
 
+/** The three modes, and their schemas. */
 object PatchMode {
 
-  // Fail on precondition violations.
+  /**
+   * Stops at the first operation whose precondition fails and returns its
+   * error. A traversal over an empty sequence and a schema search that matches
+   * nothing also fail. Elements of a traversal that are in another case than
+   * the one it selects are left alone rather than failed.
+   */
   case object Strict extends PatchMode
 
-  // Skip operations that fail preconditions.
+  /**
+   * Skips each operation whose precondition fails and applies the others. What
+   * is skipped is one operation: a top-level operation, one step of a sequence
+   * or map edit, or one operation of a nested patch. A list of string edits
+   * counts as one operation, so when one edit is out of range none of them is
+   * applied.
+   */
   case object Lenient extends PatchMode
 
-  // Replace/overwrite on conflicts.
+  /**
+   * Behaves like [[Lenient]], except in three cases: a map add of a key that is
+   * present replaces its value, a map remove of a missing key does nothing, and
+   * a sequence insert or delete out of range is clamped to the sequence.
+   * Everything else that `Lenient` skips, `Clobber` skips too, such as a modify
+   * at a missing index or key, a string edit out of range, or a case mismatch.
+   */
   case object Clobber extends PatchMode
 
   // Schema Definitions, Manual derivation for Scala 2 compatability
   // In Scala 3, You can derive Schema using `Schema.derive`
 
+  /** The schema of `PatchMode.Strict.type`. */
   implicit lazy val strictSchema: Schema[PatchMode.Strict.type] = new Schema(
     reflect = new Reflect.Record[Binding, PatchMode.Strict.type](
       fields = Chunk.empty,
@@ -49,6 +84,7 @@ object PatchMode {
     )
   )
 
+  /** The schema of `PatchMode.Lenient.type`. */
   implicit lazy val lenientSchema: Schema[PatchMode.Lenient.type] = new Schema(
     reflect = new Reflect.Record[Binding, PatchMode.Lenient.type](
       fields = Chunk.empty,
@@ -61,6 +97,7 @@ object PatchMode {
     )
   )
 
+  /** The schema of `PatchMode.Clobber.type`. */
   implicit lazy val clobberSchema: Schema[PatchMode.Clobber.type] = new Schema(
     reflect = new Reflect.Record[Binding, PatchMode.Clobber.type](
       fields = Chunk.empty,
@@ -73,6 +110,7 @@ object PatchMode {
     )
   )
 
+  /** The schema of `PatchMode`. */
   implicit lazy val schema: Schema[PatchMode] = new Schema(
     reflect = new Reflect.Variant[Binding, PatchMode](
       cases = Chunk(

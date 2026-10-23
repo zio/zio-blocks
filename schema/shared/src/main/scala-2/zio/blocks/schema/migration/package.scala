@@ -17,5 +17,7 @@
 package zio.blocks.schema
 
 package object migration extends MigrationSelectorSyntax {
+
+  /** The intersection of `A` and `B`, written as in Scala 3. */
   type &[+A, +B] = A with B
 }

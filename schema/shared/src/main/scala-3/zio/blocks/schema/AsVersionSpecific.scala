@@ -18,21 +18,36 @@ package zio.blocks.schema
 
 import scala.quoted.*
 
+/** The [[As.derived]] macro. */
 trait AsVersionSpecific {
 
   /**
-   * Derives a bidirectional conversion As[A, B].
+   * Derives an `As[A, B]` from `Into.derived[A, B]` and `Into.derived[B, A]`,
+   * so both directions follow the rules of [[Into.derived]].
    *
-   * This macro will:
-   *   1. Verify that both Into[A, B] and Into[B, A] can be derived
-   *   2. Check compatibility rules (no default values, consistent field
-   *      mappings)
-   *   3. Generate an As[A, B] that delegates to both derived Into instances
+   * For two case classes it also rejects, at compile time, a field with a
+   * default value that the other type lacks, and a field present in both whose
+   * types do not convert in both directions. A field present on one side only
+   * must therefore be an `Option`, which becomes `None` on the way back.
+   *
+   * {{{
+   * case class Listing(title: String, subtitle: Option[String])
+   * case class Entry(title: String)
+   *
+   * val listing = As.derived[Listing, Entry]
+   * listing.into(Listing("Zionomicon", Some("Functional Effects"))).flatMap(listing.from)
+   * // Right(Listing("Zionomicon", None))
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/schema/schema-evolution/as/ As]]
    */
   inline def derived[A, B]: As[A, B] = ${ AsVersionSpecificImpl.derived[A, B] }
 }
 
 private object AsVersionSpecificImpl {
+
+  /** Expands [[AsVersionSpecific#derived]]. */
   def derived[A: Type, B: Type](using Quotes): Expr[As[A, B]] =
     new AsVersionSpecificImpl().derive[A, B]
 }
