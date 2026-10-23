@@ -215,11 +215,41 @@ Filed as #1780. Found 2026-10-20 while writing H-12. Verified on 0.0.56.
 
 ### `JsonSchema#check` enforces `pattern` only when the pattern is anchored
 
-Found 2026-10-20 while writing H-05. From source (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:1124`).
+Found 2026-10-20 while writing H-05, from source; confirmed 2026-10-23 in wave 8a of the schema Scaladoc (branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that completes this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
 
-**Summary.** JSON Schema says `pattern` matches anywhere in the string (it is not implicitly anchored), so `"pattern": "\\d"` must reject `"abc"`. `check` appears to apply `pattern` only when it is written as `^...$` and to skip it silently otherwise.
+**Summary.** JSON Schema says `pattern` matches anywhere in the string (it is not implicitly anchored), so `"pattern": "[0-9]{3}"` must reject `"Zionomicon"`. `check` applies `pattern` only when it starts with `^` and ends with `$`, and skips any other pattern without a word, so a pattern anchored at one end only is ignored too.
 
-**Next step.** Confirm by running `check` with an unanchored pattern against a non-matching value. If confirmed, use a find-anywhere match, and check why the official test suite (said to pass, research §3.4) does not catch it.
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    def isbn(pattern: String) = JsonSchema.string(RegexPattern.unsafe(pattern))
+    println(isbn("[0-9]{3}").check(Json.String("Zionomicon")))
+    println(isbn("^[0-9]{3}").check(Json.String("Zionomicon")))
+    println(isbn("^[0-9]{3}$").check(Json.String("Zionomicon")))
+    println(isbn("^[0-9]{3}$").check(Json.String("978-0-9")))
+  }
+}
+// None
+// None
+// Some(zio.blocks.schema.SchemaError: String does not match pattern '^[0-9]{3}$' at: .)
+// Some(zio.blocks.schema.SchemaError: String does not match pattern '^[0-9]{3}$' at: .)
+```
+
+**Expected.** The first two lines are `Some` errors: `"Zionomicon"` contains no three digits, so neither `[0-9]{3}` nor `^[0-9]{3}` matches it anywhere.
+
+**Root cause.** The `pattern` case is guarded by `case Some(p) if p.value.startsWith("^") && p.value.endsWith("$")` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:1293`); any other pattern falls to `case _ =>` and is not checked. The match also uses `matches()`, which requires the whole string, where the specification asks for a search (`find()`). `patternProperties` already uses `find()` (`:1476`).
+
+**Impact.** Most real-world patterns are not anchored at both ends (`"[A-Z]{3}"`, `"^\\+"`, `"@example\\.com$"`), so `check`, `conforms`, `Json#check` and the decoder of `Schema.fromJsonSchema` accept strings that the schema forbids, with no sign that the keyword was skipped.
+
+**Test gap.** `JsonSchemaSpec` "pattern constraint" (`schema/shared/src/test/scala/zio/blocks/schema/json/JsonSchemaSpec.scala:127-128`) uses the anchored `^[a-z]+$`. `JsonSchemaOfficialTestSuiteSpec` runs `pattern.json` (`schema/jvm/src/test/scala/zio/blocks/schema/json/JsonSchemaOfficialTestSuiteSpec.scala:69`) but downloads the suite at test time and skips a list of known-failing tests (`:93-106`); no in-repo test checks an unanchored pattern against a string it should reject.
+
+**Suggested fix.** Remove the guard and check every pattern with `regex.matcher(str).find()`. Add tests for an unanchored pattern and for one anchored at one end.
 
 ### scope: on Scala 3, a closed `AutoCloseable` can escape its scope
 
@@ -5723,6 +5753,30 @@ object Repro {
 
 **Suggested fix.** Override `toString` in each case object (or once in each trait, with a `name` member), and add tests for the messages above.
 
+**Same in the JSON model** (found 2026-10-23 in wave 8a, same verification). `JsonType` extends `Json => Boolean` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonType.scala:34` at the commit that adds this paragraph) and `MergeStrategy` extends a three-argument function (`MergeStrategy.scala:46`), so their cases print the same way, and `JsonSelection#as` and `unwrap` build the same unreadable messages (`JsonSelection.scala:542`, `:570`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val title = Json.String("Zionomicon")
+    println(JsonType.Number)
+    println(MergeStrategy.Auto)
+    println(title.select.as(JsonType.Number))
+    println(title.select.unwrap(JsonType.Number))
+  }
+}
+// <function1>
+// <function3>
+// Left(zio.blocks.schema.SchemaError: Expected <function1> but got <function1>)
+// Left(zio.blocks.schema.SchemaError: Cannot unwrap <function1> as <function1>)
+```
+
+The fix is the same: override `toString` in the case objects of `JsonType` and `MergeStrategy`.
+
 ### schema: `DynamicSchema.toDynamicValue` overflows the stack for a recursive type, so its schema cannot be stored
 
 Found 2026-10-22 while writing the Scaladoc of `DynamicSchema` (wave 5 of the schema Scaladoc, branch `scaladoc-wave-5`, on top of `6cd3c787`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0` prints the same lines. Not filed on GitHub yet.
@@ -6038,6 +6092,340 @@ object Repro {
 **Test gap.** `SchemaExprSpec` builds every expression from literals of input type `Any` (`schema/shared/src/test/scala/zio/blocks/schema/SchemaExprSpec.scala:24-36`), so no test mixes a literal with an optic.
 
 **Suggested fix.** Take the input schema from an operand that is not a literal (for example, from whichever operand's tree contains a `Select`), or give `SchemaExpr` a way to carry "no input needed", and add tests with a literal on each side.
+
+### schema: `Schema.fromJsonSchema` rejects every value of a string `enum` or of a `oneOf` of keyed or `const`-tagged objects
+
+Found 2026-10-23 while writing the Scaladoc of `JsonSchemaToReflect` (wave 8a of the schema Scaladoc, branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** The `Schema[Json]` that `Schema.fromJsonSchema` returns cannot decode any value of a string `enum` schema or of a `oneOf` of objects, whether the cases are keyed (`{"Paperback": {...}}`) or tagged by a `const` field (`{"kind": "paperback", ...}`). `JsonSchema#check` accepts the same values. Other unions decode: a `oneOf` of other shapes (`[{"type": "string"}, {"type": "integer"}]`), an `enum` that mixes strings and other values, and an `anyOf` fall back to a dynamic value, which `check` then validates. This is separate from the "every property is required" entry above: these schemas have no optional properties.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val format = JsonSchema.parse("""{"enum": ["ebook", "paperback"]}""").fold(e => throw e, identity)
+    println(format.check(Json.String("ebook")))
+    println(Schema.fromJsonSchema(format).jsonCodec.decode("\"ebook\""))
+
+    val edition = JsonSchema
+      .parse("""{"oneOf": [
+        {"type": "object", "properties": {"Ebook": {"type": "object", "properties": {"sizeMb": {"type": "integer"}}, "required": ["sizeMb"]}}, "required": ["Ebook"], "additionalProperties": false},
+        {"type": "object", "properties": {"Paperback": {"type": "object", "properties": {"pages": {"type": "integer"}}, "required": ["pages"]}}, "required": ["Paperback"], "additionalProperties": false}
+      ]}""")
+      .fold(e => throw e, identity)
+    val paperback = """{"Paperback":{"pages":600}}"""
+    println(edition.check(Json.parseUnsafe(paperback)))
+    println(Schema.fromJsonSchema(edition).jsonCodec.decode(paperback))
+
+    val tagged = JsonSchema
+      .parse("""{"oneOf": [
+        {"type": "object", "properties": {"kind": {"const": "ebook"}, "sizeMb": {"type": "integer"}}, "required": ["kind", "sizeMb"]},
+        {"type": "object", "properties": {"kind": {"const": "paperback"}, "pages": {"type": "integer"}}, "required": ["kind", "pages"]}
+      ]}""")
+      .fold(e => throw e, identity)
+    val tagged1 = """{"kind":"paperback","pages":600}"""
+    println(tagged.check(Json.parseUnsafe(tagged1)))
+    println(Schema.fromJsonSchema(tagged).jsonCodec.decode(tagged1))
+  }
+}
+// None
+// Left(zio.blocks.schema.SchemaError: Value not in enum: "ebook", "paperback" at: . at: .wrapped)
+// None
+// Left(zio.blocks.schema.SchemaError: Value does not match any schema in oneOf at: . at: .wrapped)
+// None
+// Left(zio.blocks.schema.SchemaError: illegal discriminator at: .wrapped)
+```
+
+**Expected.** `Right("ebook")`, `Right({"Paperback":{"pages":600}})` and `Right({"kind":"paperback","pages":600})`: each payload conforms to its schema.
+
+**Root cause.** `JsonSchemaToReflect` builds a `Reflect.Variant` whose matchers expect a `DynamicValue.Variant` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchemaToReflect.scala:511`, `:551`), but no case produces one. An `enum` case is an empty record whose constructor returns `DynamicValue.Record(Chunk.empty)` (`:486`), and a keyed case is the reflect of the inner schema (`:532`), so the derived JSON codec returns `{}` for an `enum` (it calls the case constructor, `JsonCodecDeriver.scala:1029`) and the inner object without its key for a keyed `oneOf` (it returns what the case codec decodes, `:1298`). `Schema.fromJsonSchema` then converts that value back to JSON and runs `check` on it (`Schema.scala:796-797`), which fails. A `const`-tagged `oneOf` is built as a keyed variant (`buildFieldVariant` ignores the discriminator, `JsonSchemaToReflect.scala:561-565`), so the codec looks for a `{"paperback": ...}` wrapper and fails first with `illegal discriminator`.
+
+**Impact.** `Schema.fromJsonSchema` cannot be used for a JSON Schema with a string enumeration or a union of object cases, which most API schemas have (mixed enums, other `oneOf` shapes and `anyOf` decode). The error blames the payload, not the conversion.
+
+**Test gap.** `JsonSchemaToSchemaSpec` ("string enum converts to Variant", "key-discriminated oneOf converts to Variant", "Color enum roundtrips with correct case names") and `StructuredSchemaFromJsonSchemaSpec` ("enum schema produces Reflect.Variant", "key-discriminated variant schema produces Reflect.Variant", `schema/shared/src/test/scala/zio/blocks/schema/json/StructuredSchemaFromJsonSchemaSpec.scala:88`, `:114`) check only the shape of the reflect (`toString` and case names); no test decodes a value with the resulting schema.
+
+**Suggested fix.** Build a string `enum` as a `String` primitive and leave the value check to the `check` that `fromJsonSchema` already runs. Build each keyed `oneOf` case so that it decodes to `DynamicValue.Variant(key, payload)`, which `Json.fromDynamicValue` turns back into `{"key": payload}`, and build a tagged `oneOf` from the whole case objects, for example as a dynamic value checked by `check`, instead of reusing the keyed builder. Add `SchemaFromJsonSchemaSpec` tests that decode a value of each shape.
+
+### schema: `JsonSchema#check` does not resolve a `$ref` inside `contains`, `propertyNames` or `not`
+
+Found 2026-10-23 while writing the Scaladoc of `JsonSchema#check` (wave 8a of the schema Scaladoc, branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** `check` resolves `"$ref": "#/$defs/name"` against the schema it was called on. Under `items`, `properties` and the other applicators that works, but `contains`, `propertyNames` and `not` start a new `check` on the subschema, so the reference is looked up in the subschema and not found. `contains` and `propertyNames` then reject valid values, and `not` accepts values it should reject, all with no hint about the reference.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    def schema(s: String): JsonSchema = JsonSchema.parse(s).fold(e => throw e, identity)
+    val defs = """"$defs": {"isbn": {"type": "string", "pattern": "^[0-9-]+$"}}"""
+
+    val items = schema(s"""{$defs, "type": "array", "items": {"$$ref": "#/$$defs/isbn"}}""")
+    println(items.check(Json.parseUnsafe("""["978-0-9"]""")))
+
+    val contains = schema(s"""{$defs, "type": "array", "contains": {"$$ref": "#/$$defs/isbn"}}""")
+    println(contains.check(Json.parseUnsafe("""["978-0-9"]""")))
+
+    val names = schema(s"""{$defs, "type": "object", "propertyNames": {"$$ref": "#/$$defs/isbn"}}""")
+    println(names.check(Json.parseUnsafe("""{"978-0-9": "Zionomicon"}""")))
+
+    val not = schema(s"""{$defs, "not": {"$$ref": "#/$$defs/isbn"}}""")
+    println(not.check(Json.String("978-0-9")))
+  }
+}
+// None
+// Some(zio.blocks.schema.SchemaError: Array must contain at least 1 matching items, found 0 at: .)
+// Some(zio.blocks.schema.SchemaError: Property name '978-0-9' does not match propertyNames schema: Cannot resolve $ref: #/$defs/isbn at: . at: .)
+// None
+```
+
+**Expected.** `None`, `None`, `None`, and a `Some` error for the last line, which matches the schema inside `not`.
+
+**Root cause.** `Object#check` calls `checkWithEvaluation(toJson, json, options, Nil)` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:1184-1185`), so the root used to resolve `$ref` (`:1217`) is the schema `check` was called on. `items`, `properties`, `allOf` and the others pass the root down through `collectFromSchema`, but `contains` (`:1396`), `propertyNames` (`:1442`) and `not` (`:1565`) call `check(..., options)` on the subschema, which makes the subschema the root. In `not`, the failed resolution counts as "does not match", so `not` passes.
+
+**Impact.** Schemas that keep their definitions in `$defs`, as generated and published schemas usually do, give wrong answers wherever a reference sits under `contains`, `propertyNames` or `not`. The `fromJsonSchema` decoder runs the same `check`.
+
+**Test gap.** `JsonSchemaSpec` tests `$ref` only under `allOf`-style evaluation ("properties from $ref are evaluated"); no test puts a reference under `contains`, `propertyNames` or `not`.
+
+**Suggested fix.** Replace the three `check` calls with `collectFromSchema(rootSchemaJson, ..., trace)` and use its `errors`, as the other applicators do. Add a test for each keyword with a `$defs` reference.
+
+### schema: `JsonSchema#&&` and `||` drop the other keywords of a schema that already has an `allOf` or `anyOf`
+
+Found 2026-10-23 while writing the Scaladoc of `JsonSchema#&&` (wave 8a of the schema Scaladoc, branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** `a && b` should accept exactly the values that both `a` and `b` accept, and `a || b` the values that either accepts. When `a` or `b` is a schema object with its own `allOf` (for `&&`) or `anyOf` (for `||`), the result keeps only that list plus the other schema, and silently drops every other keyword of the schema that had the list, so the combined schema accepts values that the original rejects.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.chunk.NonEmptyChunk
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val noDigits = JsonSchema.Object(not = Some(JsonSchema.string(pattern = Some(RegexPattern.unsafe("^.*[0-9].*$")))))
+    val title    = JsonSchema.Object(minLength = NonNegativeInt(1), allOf = Some(NonEmptyChunk(noDigits)))
+    val both     = title && JsonSchema.string(maxLength = NonNegativeInt(10))
+    println(both.toJson.print)
+    println(title.conforms(Json.String("")))
+    println(both.conforms(Json.String("")))
+
+    val isbn   = JsonSchema.Object(minLength = NonNegativeInt(10), anyOf = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.nullSchema)))
+    val either = isbn || JsonSchema.boolean
+    println(either.toJson.print)
+    println(isbn.conforms(Json.String("")))
+    println(either.conforms(Json.String("")))
+  }
+}
+// {"allOf":[{"type":"string","maxLength":10},{"not":{"type":"string","pattern":"^.*[0-9].*$"}}]}
+// false
+// true
+// {"anyOf":[{"type":"boolean"},{"type":"string"},{"type":"null"}]}
+// false
+// true
+```
+
+**Expected.** `both` keeps `minLength: 1` and rejects `""`; `either` keeps `minLength: 10` inside its first alternative and rejects `""`, which is neither a valid ISBN string nor a boolean.
+
+**Root cause.** For two schema objects, `&&` builds `JsonSchema.Object(allOf = ...)` from the `allOf` lists only: `a1 ++ a2` when both have one, and `s2 +: a1` or `s1 +: a2` when one has (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:624-626`). The schema whose list is reused is not itself part of the result, so its other keywords are lost. `||` does the same with `anyOf` (`:644-646`); for `||` merging the lists is also wrong in principle, because `anyOf` inside one side is a conjunct of that side, not an alternative of the union.
+
+**Impact.** Code that composes schemas with `&&`/`||`, for example to add a constraint to a generated schema, can get a weaker schema than it asked for, with no error.
+
+**Test gap.** The `JsonSchemaSpec` combinator tests "allOf combinator (&&)", "anyOf combinator (||)" (`schema/shared/src/test/scala/zio/blocks/schema/json/JsonSchemaSpec.scala:187`, `:195`) and "&& is associative" use schemas without their own `allOf`/`anyOf`.
+
+**Suggested fix.** Flatten a side's list only when that side has no other keywords (it is exactly `{"allOf": [...]}`); otherwise keep the whole side as one element: `allOf = Some(NonEmptyChunk(s1, s2))`. For `||`, never merge an inner `anyOf` into the union unless the side is a bare `{"anyOf": [...]}`. Add tests with schemas that have both keywords and a list.
+
+### schema: `Json#partition` loses a matching value that sits inside a non-matching object or array
+
+Found 2026-10-23 while writing the Scaladoc of `Json#partition` (wave 8a of the schema Scaladoc, branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** `partition(p)` is documented as splitting a value into the parts that satisfy `p` and the rest. A field or element goes to the side that `p` picks for it, and carries only that side's part of its own children. A value that satisfies `p` inside a container that does not therefore ends up in neither half, and the "rest" half keeps the emptied container.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val book = Json.parseUnsafe("""{"title":"Zionomicon","editions":[2021,2022]}""")
+    val (numbers, rest) = book.partition(_.is(JsonType.Number))
+    println(numbers.print)
+    println(rest.print)
+  }
+}
+// {}
+// {"title":"Zionomicon","editions":[]}
+```
+
+**Expected.** The numbers in one half (`{"editions":[2021,2022]}`) and the rest in the other (`{"title":"Zionomicon"}`), or at least every leaf in exactly one half.
+
+**Root cause.** `Json.partition` partitions each child recursively, then adds `result._1` to the matching side only when `p` holds for the child itself, and `result._2` to the other side otherwise (`schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:1416-1417` for objects, `:1430-1431` for arrays). The half of the child's own partition that does not match its side is dropped.
+
+**Impact.** `partition`, `partitionPath` and `partitionBoth` silently lose data for any nested document, and the result depends on whether a container itself satisfies the predicate. The Scaladoc of `partition` now describes this.
+
+**Test gap.** `JsonSpec` "partition splits by value predicate" partitions a flat array, and "partitionPath splits by path predicate" uses a predicate that holds for a container and all its children; no test has a matching value inside a non-matching container.
+
+**Suggested fix.** Put a container on a side when its partition for that side is non-empty (or `p` holds for it), on both sides if both of its halves are non-empty, so that every leaf lands in exactly one half. Add a nested test like the reproduction.
+
+### schema: `Schema.fromJsonSchema` rejects `null` for a nullable type
+
+Found 2026-10-23 in the fact-check of wave 8a of the schema Scaladoc (branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** A schema that allows `null` next to another type, written `"type": ["string", "null"]` or `"anyOf": [{"type": "string"}, {"type": "null"}]`, is the usual way to say "optional value" in JSON Schema. `JsonSchema#check` accepts `null` for it, but the decoder of `Schema.fromJsonSchema` rejects it, at the root and in a record property.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    def schema(s: String): JsonSchema = JsonSchema.parse(s).fold(e => throw e, identity)
+
+    val isbn = schema("""{"type": ["string", "null"]}""")
+    println(isbn.check(Json.Null))
+    println(Schema.fromJsonSchema(isbn).jsonCodec.decode("null"))
+
+    val isbnAnyOf = schema("""{"anyOf": [{"type": "string"}, {"type": "null"}]}""")
+    println(Schema.fromJsonSchema(isbnAnyOf).jsonCodec.decode("null"))
+
+    val book    = schema("""{"type": "object", "properties": {"isbn": {"type": ["string", "null"]}}}""")
+    val payload = """{"isbn":null}"""
+    println(book.check(Json.parseUnsafe(payload)))
+    println(Schema.fromJsonSchema(book).jsonCodec.decode(payload))
+  }
+}
+// None
+// Left(zio.blocks.schema.SchemaError: expected '"' at: .wrapped.wrapped)
+// Left(zio.blocks.schema.SchemaError: expected '"' at: .wrapped.wrapped)
+// None
+// Left(zio.blocks.schema.SchemaError: expected '"' at: .wrapped.isbn.wrapped)
+```
+
+**Expected.** `Right(null)` for the first two decodes and `Right({"isbn":null})` for the last.
+
+**Root cause.** `JsonSchemaToReflect.analyzeOption` recognizes both forms as `Shape.OptionOf(inner)` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchemaToReflect.scala:157`, `:165`), but `build` turns that shape into the inner schema's reflect alone (`case oo: Shape.OptionOf => toReflect(oo.inner)`, `:297`), so the decoder is a plain string decoder.
+
+**Impact.** Every nullable property or value in a schema given to `Schema.fromJsonSchema` rejects `null`. Together with the "every property is required" entry above, an optional field can be neither left out nor set to `null`.
+
+**Test gap.** `JsonSchemaToReflectSpec` "union type [T, null] produces OptionOf" and "anyOf with null schema produces OptionOf" (`schema/shared/src/test/scala/zio/blocks/schema/json/JsonSchemaToReflectSpec.scala:278-301`) check only the shape; no test decodes `null` with the built schema.
+
+**Suggested fix.** Build `OptionOf` as a reflect that decodes JSON `null` to `DynamicValue.Null` and anything else with the inner reflect (for example a variant of a null case and the inner case, or a dynamic value checked by `check`). Add `SchemaFromJsonSchemaSpec` tests that decode `null` at the root and in a property.
+
+### schema: `JsonSchema#withNullable` still rejects `null` when the schema has an `enum` or `const`
+
+Found 2026-10-23 in the fact-check of wave 8a of the schema Scaladoc (branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** `withNullable` is meant to return a schema that accepts `null` as well as what the schema accepted. For a schema object with a `type`, it only adds `"null"` to the `type`, so an `enum` or `const` on the same schema still rejects `null`. Without a `type`, it wraps the schema in an `anyOf` with the null schema, which works.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.chunk.NonEmptyChunk
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val format = JsonSchema.Object(
+      `type` = Some(SchemaType.Single(JsonSchemaType.String)),
+      `enum` = Some(NonEmptyChunk(Json.String("ebook"), Json.String("paperback")))
+    )
+    println(format.withNullable.toJson.print)
+    println(format.withNullable.check(Json.Null))
+
+    val edition = JsonSchema.Object(`type` = Some(SchemaType.Single(JsonSchemaType.Integer)), const = Some(Json.Number(2)))
+    println(edition.withNullable.check(Json.Null))
+
+    val untyped = JsonSchema.enumOfStrings(NonEmptyChunk("ebook", "paperback"))
+    println(untyped.withNullable.toJson.print)
+    println(untyped.withNullable.check(Json.Null))
+  }
+}
+// {"type":["null","string"],"enum":["ebook","paperback"]}
+// Some(zio.blocks.schema.SchemaError: Value not in enum: "ebook", "paperback" at: .)
+// Some(zio.blocks.schema.SchemaError: Expected const value 2 at: .)
+// {"anyOf":[{"type":"null"},{"enum":["ebook","paperback"]}]}
+// None
+```
+
+**Expected.** `None` for both `check(Json.Null)` calls on the typed schemas, as for the untyped one.
+
+**Root cause.** When the schema object has a `type`, `withNullable` returns `s.copy(type = ...)` with `"null"` added (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:676`, `:680`) and keeps every other keyword; `check` then applies `enum` and `const` to `null` (`:1257-1279`). Only a schema without a `type` is wrapped in `anyOf` (`:683`).
+
+**Impact.** Hand-built and parsed schemas with a `type` and an `enum` or `const` cannot be made nullable with `withNullable`, and nothing says so. Derived codecs call `withNullable` for an `Option` field (`JsonCodecDeriver.scala:933`), but their enumeration schemas have no `type`, so they are wrapped in `anyOf` and work.
+
+**Test gap.** `JsonSchemaSpec` "withNullable" (`schema/shared/src/test/scala/zio/blocks/schema/json/JsonSchemaSpec.scala:246-262`) uses `JsonSchema.string()`, `True` and `False`, none with an `enum` or `const`.
+
+**Suggested fix.** When the schema has an `enum` or `const`, add `null` to them as well (or wrap the schema in `anyOf` with the null schema, as for an untyped one). Add a test with a typed `enum`.
+
+### schema: `JsonPatch.diff` does not round-trip an object with duplicate keys
+
+Found 2026-10-23 in the fact-check of wave 8a of the schema Scaladoc (branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** `JsonPatch.diff(source, target).apply(source)` is documented (`json-patch.md`, `json-differ.md`, the Scaladoc) to give `target`. `Json.parse` keeps duplicate keys, but the differ does not handle them: a duplicate key in `source` survives the patch, and a duplicate key in `target` gives a patch that fails in `Strict` mode.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val duplicated = Json.parseUnsafe("""{"title":"Zionomicon","title":"ZIO"}""")
+    val single     = Json.parseUnsafe("""{"title":"ZIO"}""")
+
+    val patch1 = JsonPatch.diff(duplicated, single)
+    println(patch1.isEmpty)
+    println(patch1.apply(duplicated).map(_.print))
+    println(patch1.apply(duplicated) == Right(single))
+
+    val patch2 = JsonPatch.diff(Json.Object.empty, duplicated)
+    println(patch2)
+    println(patch2.apply(Json.Object.empty))
+  }
+}
+// true
+// Right({"title":"Zionomicon","title":"ZIO"})
+// false
+// JsonPatch {
+//   root:
+//     + {"title": "Zionomicon"}
+//     + {"title": "ZIO"}
+// }
+// Left(zio.blocks.schema.SchemaError: Key 'title' already exists in object at: .)
+```
+
+**Expected.** `patch1` removes the first `title`, so that applying it gives `{"title":"ZIO"}`; `patch2` applies and gives `duplicated`.
+
+**Root cause.** `JsonDiffer.diffObject` puts the source fields in a `HashMap` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonDiffer.scala:218-220`), so only the last value of a duplicate key is compared, and the remove loop skips every key that the target has (`:235-238`). For the target, it emits one `ObjectOp.Add` per field (`:233`), and `applyObjectOp` rejects an `Add` of a key that exists in `Strict` mode (`JsonPatch.scala:550-554`).
+
+**Impact.** Patches computed from documents with duplicate keys, which `Json.parse` accepts without an error, silently fail to reproduce the target or fail to apply. RFC 8259 allows duplicate names (with unpredictable behaviour), so such documents occur in practice.
+
+**Test gap.** The diff/apply laws in `JsonPatchLawsSpec` use `JsonGen` objects, which never have duplicate keys (`schema/shared/src/test/scala/zio/blocks/schema/json/patch/JsonGen.scala:64`, `:236`).
+
+**Suggested fix.** Either diff objects by position when either side has a duplicate key (emit `Set` of the whole object, for instance), or document that `diff` treats objects as maps and normalize duplicates first. Add a law test with generated duplicate keys.
 
 ### schema: `Allows` accepts mutually recursive types but rejects a recursive type that is not the checked type
 
@@ -8815,6 +9203,7 @@ Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md
 
 ## Resolved
 
+- JSON reference pages and Scaladoc fixed in wave 8a of the schema Scaladoc (branch `scaladoc-wave-8a`): `json-config.md` taught `implicit val nameMapper` in the companion, which nothing reads (now `@Modifier.fieldNaming`, with `withFieldNameMapper` named as the other way), listed only three `NameMapper`s, gave `preferredCharBufSize` a default of `8192` (it is `4096`) and left out the other three `ReaderConfig` options, showed `withCheckForEndOfInput(false)` as allowing trailing whitespace (whitespace is always allowed; it ignores text after the value), said `checkForEndOfInput` "adds one comparison", and listed `Strict`, `Right` and `Left` merge strategies, which do not exist (`MergeStrategy.scala` has `Auto`, `Shallow`, `Concat`, `Replace` and `Custom`). `json-patch.md` said that `JsonPatch.diff` emits `Op.Nested` and array `Modify` steps; it emits neither (`JsonDiffer.scala`). The `Json` Scaladoc said numbers are stored as a `String` (they are a `BigDecimal`), the `JsonSelection` Scaladoc used removed `asArrays`/`asStrings` methods (already fixed on `main` at `67a9be9ff`), and the `ValidationOptions` Scaladoc said formats are annotation-only by default (they are checked). In the wave 8a review round: `json.md` said objects use a `Vector` (a `Chunk`), that `Auto` and `Shallow` concatenate arrays and that a `Deep` strategy exists (`Auto` merges arrays by index, `Shallow` takes nested values from the right), and showed the wrong out-of-bounds message (`Index 5 out of bounds (size: 1) at: [5]`); `json-selection.md` showed `"field not found"` (`Key 'age' not found`); `json-patch.md` and `json-differ.md` called the diff round trip unconditional (it fails for duplicate keys, see Library bugs).
 - streams overview (`streams/index.md`) marked `fromInputStream` and `fromJavaReader` as JVM-only, but both run on Scala.js. Fixed in #1796 (H-24).
 - docs: `zio-blocks-next-*` needs Scala 3.9+ (plus `-experimental`), not 3.7+. Fixed across 20 guides and 14 example builds in #1810 (H-01). Leftovers on `main`: `guides/stream-files-and-sockets.md:80` still says "Scala 3.7 and newer", and 14 example builds still turn on `-experimental` at `minor >= 8`.
 - Codecs: `format.md` (`sealed trait`, real `BinaryFormat`/`TextFormat` signatures, which formats are binary); TOON `ArrayFormat.Auto` Scaladoc and `toon.md:706`; `csv.md` (`CsvConfig` ignored by derived codecs, runtime rejection, `Option` rejected); `xml.md` stale version; `built-in-codecs/index.md` artifact prefix. Fixed in #1773.
