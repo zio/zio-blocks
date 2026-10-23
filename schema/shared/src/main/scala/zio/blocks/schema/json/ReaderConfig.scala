@@ -17,34 +17,38 @@
 package zio.blocks.schema.json
 
 /**
- * Configuration for [[zio.blocks.schema.json.JsonReader]] that contains flags
- * for tuning of preferred sizes for internal buffers that are created on the
- * reader instantiation and reused in runtime for parsing of messages. <br/> All
- * configuration params already initialized by recommended default values, but
- * in some cases they should be altered for performance reasons: <ul>
- * <li>increase preferred size of an internal byte buffer for parsing from
- * [[java.io.InputStream]] or [[java.nio.ByteBuffer]] to reduce allocation rate
- * of grown and then reduced buffers during parsing of large (>32Kb) numbers
- * (including stringified), raw values, or ADT instances with the discriminator
- * field doesn't appear at the beginning of the JSON object</li> <li>increase
- * the preferred size of an internal char buffer to reduce the allocation rate
- * of grown and then reduced buffers when large (>4Kb) string instances</li>
- * </ul>
+ * Settings of the JSON reader: two input limits, the sizes of its reusable
+ * buffers, and whether text may follow the value. Start from the defaults in
+ * the companion, `ReaderConfig`, and change them with the `with` methods, which
+ * throw `IllegalArgumentException` for a value out of range. Pass the result to
+ * `JsonCodec#decode` or `Json.parse`.
+ *
+ * {{{
+ * import zio.blocks.schema.json._
+ *
+ * Json.parse("[1] [2]").isLeft                                                  // true
+ * Json.parse("[1] [2]", ReaderConfig.withCheckForEndOfInput(false)).map(_.print) // Right([1])
+ * }}}
+ *
  * @param maxBufSize
- *   a max size (in bytes) of an internal byte buffer when parsing from
- *   [[java.io.InputStream]] or [[java.nio.ByteBuffer]]
+ *   for `InputStream` and `ByteBuffer` input, the largest size (in bytes) of
+ *   the byte buffer, which must hold, for example, a whole object while the
+ *   reader looks for a discriminator field near its end; beyond it decoding
+ *   fails with `too long part of input exceeded 'maxBufSize'`. Default 33554432
+ *   (32 MiB). A limit below 32 KiB is not applied reliably (a known bug).
  * @param maxCharBufSize
- *   a max size (in chars) of an internal char buffer for parsing of string
- *   values
+ *   the longest string value or key (in chars); beyond it decoding fails with
+ *   `too long string exceeded 'maxCharBufSize'`. Default 4194304.
  * @param preferredBufSize
- *   a preferred size (in bytes) of an internal byte buffer when parsing from
- *   [[java.io.InputStream]] or [[java.nio.ByteBuffer]]
+ *   the size (in bytes) the byte buffer has at least when reading from an
+ *   `InputStream` or a `ByteBuffer` starts. Default 32768.
  * @param preferredCharBufSize
- *   a preferred size (in chars) of an internal char buffer for parsing of
- *   string values
+ *   the size (in chars) the char buffer has at least when reading starts.
+ *   Default 4096.
  * @param checkForEndOfInput
- *   a flag to check and raise an error if some non-whitespace bytes are
- *   detected after successful parsing of the value
+ *   whether anything but whitespace after the value is an error (`expected end
+ *   of input`). Default `true`; with `false` the reader stops after the first
+ *   value.
  */
 class ReaderConfig private (
   val preferredBufSize: Int,
@@ -53,6 +57,13 @@ class ReaderConfig private (
   val maxCharBufSize: Int,
   val checkForEndOfInput: Boolean
 ) extends Serializable {
+
+  /**
+   * Returns a copy with this `maxBufSize`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when it is below `preferredBufSize` or above 2147483645
+   */
   def withMaxBufSize(maxBufSize: Int): ReaderConfig = {
     if (maxBufSize < preferredBufSize)
       throw new IllegalArgumentException("'maxBufSize' should be not less than 'preferredBufSize'")
@@ -61,6 +72,12 @@ class ReaderConfig private (
     copy(maxBufSize = maxBufSize)
   }
 
+  /**
+   * Returns a copy with this `maxCharBufSize`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when it is below `preferredCharBufSize` or above 2147483645
+   */
   def withMaxCharBufSize(maxCharBufSize: Int): ReaderConfig = {
     if (maxCharBufSize < preferredCharBufSize)
       throw new IllegalArgumentException("'maxCharBufSize' should be not less than 'preferredCharBufSize'")
@@ -69,6 +86,12 @@ class ReaderConfig private (
     copy(maxCharBufSize = maxCharBufSize)
   }
 
+  /**
+   * Returns a copy with this `preferredBufSize`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when it is below 12 or above `maxBufSize`
+   */
   def withPreferredBufSize(preferredBufSize: Int): ReaderConfig = {
     if (preferredBufSize < 12) throw new IllegalArgumentException("'preferredBufSize' should be not less than 12")
     if (preferredBufSize > maxBufSize)
@@ -76,6 +99,12 @@ class ReaderConfig private (
     copy(preferredBufSize = preferredBufSize)
   }
 
+  /**
+   * Returns a copy with this `preferredCharBufSize`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when it is negative or above `maxCharBufSize`
+   */
   def withPreferredCharBufSize(preferredCharBufSize: Int): ReaderConfig = {
     if (preferredCharBufSize < 0) throw new IllegalArgumentException("'preferredCharBufSize' should be not less than 0")
     if (preferredCharBufSize > maxCharBufSize)
@@ -83,6 +112,10 @@ class ReaderConfig private (
     copy(preferredCharBufSize = preferredCharBufSize)
   }
 
+  /**
+   * Returns a copy that does (`true`) or does not (`false`) reject text after
+   * the value.
+   */
   def withCheckForEndOfInput(checkForEndOfInput: Boolean): ReaderConfig =
     copy(checkForEndOfInput = checkForEndOfInput)
 
@@ -102,6 +135,9 @@ class ReaderConfig private (
     )
 }
 
+/**
+ * The default reader settings, and the starting point for the `with` methods.
+ */
 object ReaderConfig
     extends ReaderConfig(
       preferredBufSize = 32768,

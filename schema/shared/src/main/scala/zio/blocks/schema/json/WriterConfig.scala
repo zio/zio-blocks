@@ -17,40 +17,62 @@
 package zio.blocks.schema.json
 
 /**
- * Configuration for [[zio.blocks.schema.json.JsonWriter]] that contains params
- * for formatting of output JSON and for tuning of preferred size for internal
- * byte buffer that is created on the writer instantiation and reused in runtime
- * for serialization of messages using any type of output except heap byte
- * buffers supplied as arguments. <br/> All configuration params already
- * initialized to default values, but in some cases they should be altered: <ul>
- * <li>turn on pretty printing by specifying of an indention step that is
- * greater than 0</li> <li>turn on escaping of Unicode characters to serialize
- * with only ASCII characters</li> <li>increase the preferred size of an
- * internal byte buffer to reduce the allocation rate of grown and then reduced
- * internal buffers when the serialized output size is greater than 32Kb</li>
- * </ul>
+ * Settings of the JSON writer: indentation, escaping of non-ASCII characters,
+ * and the size of its reusable buffer. Start from the defaults in the
+ * companion, `WriterConfig`, and change them with the `with` methods, which
+ * throw `IllegalArgumentException` for a value out of range. Pass the result to
+ * `JsonCodec#encode`, `encodeToString` or `Json#print`.
+ *
+ * {{{
+ * import zio.blocks.schema.json._
+ *
+ * Json.Object("title" -> Json.String("Zionomicon")).print(WriterConfig.withIndentionStep(2))
+ * // {
+ * //   "title": "Zionomicon"
+ * // }
+ * }}}
+ *
  * @param indentionStep
- *   a size of indention for pretty-printed formatting or 0 for compact output
+ *   the spaces per level of indentation, or 0 (the default) for compact JSON.
+ *   Indented output puts an empty array or object on three lines, the middle
+ *   one of spaces (a known bug).
  * @param escapeUnicode
- *   a flag to turn on hexadecimal escaping of all non-ASCII chars
+ *   whether every non-ASCII character is written as a Unicode escape, for
+ *   ASCII-only output. Default `false`.
  * @param preferredBufSize
- *   a preferred size (in bytes) of an internal byte buffer when writing to any
- *   type of output except pre-allocated byte arrays or heap byte buffers
- *   supplied as arguments
+ *   the starting size (in bytes) of the writer's buffer, used for every output
+ *   except a heap `ByteBuffer`. Default 32768.
  */
 class WriterConfig private (
   val indentionStep: Int,
   val preferredBufSize: Int,
   val escapeUnicode: Boolean
 ) extends Serializable {
+
+  /**
+   * Returns a copy with this `indentionStep`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when it is negative
+   */
   def withIndentionStep(indentionStep: Int): WriterConfig = {
     if (indentionStep < 0) throw new IllegalArgumentException("'indentionStep' should be not less than 0")
     copy(indentionStep = indentionStep)
   }
 
+  /**
+   * Returns a copy that does (`true`) or does not (`false`) escape non-ASCII
+   * characters.
+   */
   def withEscapeUnicode(escapeUnicode: Boolean): WriterConfig =
     copy(escapeUnicode = escapeUnicode)
 
+  /**
+   * Returns a copy with this `preferredBufSize`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when it is not positive
+   */
   def withPreferredBufSize(preferredBufSize: Int): WriterConfig = {
     if (preferredBufSize <= 0) throw new IllegalArgumentException("'preferredBufSize' should be not less than 1")
     copy(preferredBufSize = preferredBufSize)
@@ -68,6 +90,9 @@ class WriterConfig private (
     )
 }
 
+/**
+ * The default writer settings, and the starting point for the `with` methods.
+ */
 object WriterConfig
     extends WriterConfig(
       indentionStep = 0,
@@ -75,5 +100,8 @@ object WriterConfig
       escapeUnicode = false
     ) {
 
+  /**
+   * The defaults with an indentation of two spaces, as `Json#toString` prints.
+   */
   val withIndentionStep2: WriterConfig = WriterConfig.withIndentionStep(2)
 }
