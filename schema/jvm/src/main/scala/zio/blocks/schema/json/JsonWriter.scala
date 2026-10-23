@@ -837,10 +837,11 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes the bytes of `bs` unchanged where a value goes, after a `,` when one
-   * is needed. Nothing checks that they are valid JSON or UTF-8, and they are
-   * not indented, so the output is only as valid as `bs`. It is the counterpart
-   * of `JsonReader#readRawValAsBytes`.
+   * Writes the bytes of `bs` unchanged where a value goes, after a `,` and,
+   * with indentation, the line break and indentation any value gets; the bytes
+   * themselves are not re-indented. Nothing checks that they are valid JSON or
+   * UTF-8, so the output is only as valid as `bs`. It is the counterpart of
+   * `JsonReader#readRawValAsBytes`.
    */
   def writeRawVal(bs: Array[Byte]): Unit = {
     writeOptionalCommaAndIndentionBeforeValue()
@@ -3520,8 +3521,9 @@ object JsonWriter {
    * Returns the `BigDecimal` of the shortest decimal form that reads back as
    * `x`, so `0.1f` gives `0.1` and not the binary value
    * `0.100000001490116119384765625`. The value is exact, but the scale varies:
-   * `100.0f` gives `1E+2`, and `10.0f` gives `10.0` on the JVM but `10` on
-   * Scala.js. `0.0f` and `-0.0f` give `0`.
+   * `100.0f` gives `1E+2`, `0.5f` gives `0.50` (the trailing-zero bug of
+   * `toBigDecimal(x: Double)`, see `docs/dev/issues.md`), and `10.0f` gives
+   * `10.0` on the JVM but `10` on Scala.js. `0.0f` and `-0.0f` give `0`.
    *
    * @throws java.lang.IllegalArgumentException
    *   with the message `Infinity or NaN` when `x` is not finite
