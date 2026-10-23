@@ -7399,6 +7399,99 @@ object Repro {
 
 **Suggested fix.** Encode query values when building the URL from user input (for example through `QueryParams`), or document that a `String` must already be percent-encoded.
 
+### htmx: answering every `HxRequest` with a fragment breaks the Back button on htmx 2
+
+Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`, opus run, branch `docs/t10-htmx-opus-run`), from `origin/main` `a643b7cb0`. The htmx module sources are identical at tag `v0.0.56`. Verified with htmx.org 2.0.11 in headless Chromium.
+
+**Summary.** The usual htmx server pattern is "return a fragment when `HX-Request: true`, otherwise the full page". The response-headers reference teaches exactly that read and calls `HxRequest` "always `true` on an HTMX request". htmx 2 also sends `HX-Request: true` on a history cache miss (config `historyRestoreAsHxRequest` defaults to `true`), together with `HX-History-Restore-Request: true`, and swaps the answer into the whole `<body>`. A handler that follows the reference answers that request with a fragment, so pressing Back to a page that has left htmx's history cache replaces the whole page with a bare list: no heading, no search box.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-http-htmx` 0.0.56, `scala-cli run HistoryRestore.scala`; JDK 21+):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-htmx:0.0.56
+import zio.blocks.html._
+import zio.http._
+import zio.http.htmx.headers._
+
+object HistoryRestore {
+  // The pattern the response-headers reference suggests: a fragment for any htmx request.
+  def handle(request: Request): String =
+    if (request.header(HxRequest).exists(_.enabled)) ul(li("Zionomicon")).render
+    else html(body(h1("Scala Bookshelf"), input(name := "q"), ul(li("Zionomicon")))).render
+
+  def main(args: Array[String]): Unit = {
+    val url = URL.parse("/search?q=zio").toOption.get
+    // What htmx 2.0.11 sends on a history cache miss (Back button):
+    val restore = Request.get(url).addHeader(HxRequest(true)).addHeader(HxHistoryRestoreRequest(true))
+    println(handle(restore))
+  }
+}
+
+// <ul><li>Zionomicon</li></ul>
+```
+
+**Expected.** The reference shows the full check:
+
+```scala
+def wantsFragment(request: Request): Boolean =
+  request.header(HxRequest).exists(_.enabled) &&
+    !request.header(HxHistoryRestoreRequest).exists(_.enabled)
+```
+
+**Browser evidence.** Headless Chromium (Playwright 1.63, htmx 2.0.11, `htmx.config.historyCacheSize = 0` to force a miss). The Back request carried `hx=true, restore=true`. A handler that also checks `HxHistoryRestoreRequest` left one `h1` and one search box. The reference's pattern left no `h1`, no search box, and a body containing only a bare list.
+
+**Root cause.** Documentation. `docs/reference/htmx/response-headers.md` presents `HxRequest` alone as the fragment switch at `:16`, `:30` ("always `true` on an HTMX request") and `:58` ("the most common read"). `:32` lists `HxHistoryRestoreRequest` without saying when htmx sends it. The module is fine: `HxHistoryRestoreRequest` is defined at `htmx/shared/src/main/scala/zio/http/htmx/headers/HtmxHeaders.scala:152-163`.
+
+**Impact.** Every htmx page that combines `hx-push-url` (or `hx-boost`) with a fragment-or-page handler. The bug appears only on a history cache miss, so manual testing misses it.
+
+**Test gap.** No test or example combines `HxRequest` with `HxHistoryRestoreRequest`.
+
+**Suggested fix.** In `response-headers.md`, replace the "most common read" example with the two-header check and one sentence on why. Optionally add a helper such as `def isPartialRequest(request: Request): Boolean` to `zio.http.htmx.headers`, documented with the htmx 2 history-restore behaviour.
+
+### html: tag values such as `search` make same-named helpers ambiguous under wildcard imports
+
+Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`), from `origin/main` `a643b7cb0`. Same at tag `v0.0.56`. Related to the existing entry "html and schema: `p(...)` is ambiguous on Scala 3 when both packages are imported".
+
+**Summary.** `import zio.blocks.html._` brings in a value for every HTML tag, including names that suit application helpers: `search`, `title`, `select`, `label`, `header`, `main`, `option`, `data`, `time`, `output`. A search page that defines `def search(query: String)` in its own object and imports it with a wildcard next to the HTML DSL fails to compile at every call site.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-html` 0.0.56, `scala-cli run SearchClash.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-html:0.0.56
+import zio.blocks.html._
+import Bookshelf._
+
+object Bookshelf {
+  def search(query: String): List[String] = List("Zionomicon").filter(_.toLowerCase.contains(query))
+}
+
+object SearchClash {
+  def main(args: Array[String]): Unit = println(ul(search("zio").map(li(_))).render)
+}
+
+// [error] ./SearchClash.scala:12:52
+// [error] Reference to search is ambiguous.
+// [error] It is both imported by import zio.blocks.html._
+// [error] and imported subsequently by import Bookshelf._
+// [error]   def main(args: Array[String]): Unit = println(ul(search("zio").map(li(_))).render)
+// [error]                                                    ^^^^^^
+// Compilation failed
+```
+
+**Expected.** Standard Scala behaviour, so the fix is documentation: the HTML reference should warn that the wildcard import brings in a value per tag, and name the common clashes.
+
+**Root cause.** `val search: Dom.Element = Dom.Element.Generic("search", ...)` at `html/shared/src/main/scala-3/zio/blocks/html/HtmlElements.scala:178` (Scala 2: `html/shared/src/main/scala-2/zio/blocks/html/HtmlElements.scala:347`). It sits with the other tag values, and the `zio.blocks.html` package object exports them all.
+
+**Impact.** Low: the message is clear, and a rename or an explicit import fixes it. It catches readers of any web tutorial whose domain has a "search", "title" or "select" helper.
+
+**Test gap.** None needed in code.
+
+**Suggested fix.** Add a note to `docs/reference/html.md` under the import section: "`zio.blocks.html._` defines a value for every tag (`search`, `title`, `select`, `label`, ...). Import your own helpers by name, or rename them, when they share a tag's name."
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -8051,6 +8144,8 @@ Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md
 **Summary.** `docs/reference/htmx/index.md` documents attributes such as `hx-trigger` and `hx-swap` without saying which htmx release they target. The syntax targets htmx 2.x; htmx 4.x parses these attributes differently (HCON), so readers pasting the attributes into a 4.x page get different behaviour.
 
 **Suggested fix.** One sentence on the reference index: "The attribute syntax targets htmx 2.x" and the pinned script version (for example `htmx@2.0.11`).
+
+**Also seen (opus run, 2026-10-23).** The module's `hxDisable: Boolean` renders `hx-disable="true"`, which htmx 4 reads as a CSS selector, and htmx 4.0.0 reads none of `hx-params`, `hx-disinherit`, `hx-prompt`, `hx-disabled-elt` or `hx-ext`. Typed attributes therefore compile and do nothing under htmx 4. This is the strongest reason to pin the version in the reference.
 
 ## Resolved
 
