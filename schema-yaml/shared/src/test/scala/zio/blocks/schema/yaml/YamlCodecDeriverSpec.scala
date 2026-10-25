@@ -16,7 +16,7 @@
 
 package zio.blocks.schema.yaml
 
-import zio.blocks.schema.{Schema, SchemaBaseSpec}
+import zio.blocks.schema.{Modifier, NameMapper, Schema, SchemaBaseSpec}
 import zio.test._
 
 object YamlCodecDeriverSpec extends SchemaBaseSpec {
@@ -63,6 +63,23 @@ object YamlCodecDeriverSpec extends SchemaBaseSpec {
   case class Recursive(value: String, next: Option[Recursive])
   object Recursive {
     implicit val schema: Schema[Recursive] = Schema.derived
+  }
+
+  case class PersonProfile(firstName: String, lastName: String)
+  object PersonProfile {
+    implicit val schema: Schema[PersonProfile] = Schema.derived
+  }
+
+  @Modifier.fieldNaming("snake_case")
+  case class AnnotatedFieldNaming(firstName: String, lastName: String)
+  object AnnotatedFieldNaming {
+    implicit val schema: Schema[AnnotatedFieldNaming] = Schema.derived
+  }
+
+  @Modifier.fieldNaming("snake_case")
+  case class AnnotatedFieldNamingWithRename(@Modifier.rename("customName") firstName: String, lastName: String)
+  object AnnotatedFieldNamingWithRename {
+    implicit val schema: Schema[AnnotatedFieldNamingWithRename] = Schema.derived
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("YamlCodecDeriverSpec")(
@@ -114,6 +131,51 @@ object YamlCodecDeriverSpec extends SchemaBaseSpec {
         val recursive = Recursive("Bob", Some(Recursive("Alice", None)))
         val result    = codec.decode(codec.encode(recursive))
         assertTrue(result == Right(recursive))
+      }
+    ),
+    suite("field name mapping")(
+      test("defaults to kebab-case for multi-word fields") {
+        val codec  = Schema[PersonProfile].derive(YamlCodecDeriver)
+        val yaml   = codec.encodeToString(PersonProfile("Ada", "Lovelace"))
+        val result = codec.decode("first-name: Ada\nlast-name: Lovelace")
+        assertTrue(yaml == "first-name: Ada\nlast-name: Lovelace" && result == Right(PersonProfile("Ada", "Lovelace")))
+      },
+      test("withFieldNameMapper(Identity) preserves original field names") {
+        val codec  = Schema[PersonProfile].derive(YamlCodecDeriver.withFieldNameMapper(NameMapper.Identity))
+        val yaml   = codec.encodeToString(PersonProfile("Ada", "Lovelace"))
+        val result = codec.decode("firstName: Ada\nlastName: Lovelace")
+        assertTrue(yaml == "firstName: Ada\nlastName: Lovelace" && result == Right(PersonProfile("Ada", "Lovelace")))
+      },
+      test("withFieldNameMapper(SnakeCase) maps fields to snake_case") {
+        val codec  = Schema[PersonProfile].derive(YamlCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase))
+        val yaml   = codec.encodeToString(PersonProfile("Ada", "Lovelace"))
+        val result = codec.decode("first_name: Ada\nlast_name: Lovelace")
+        assertTrue(yaml == "first_name: Ada\nlast_name: Lovelace" && result == Right(PersonProfile("Ada", "Lovelace")))
+      },
+      test("withFieldNameMapper(Custom) applies the custom transformation") {
+        val codec =
+          Schema[PersonProfile].derive(YamlCodecDeriver.withFieldNameMapper(NameMapper.Custom(_.toUpperCase)))
+        val yaml   = codec.encodeToString(PersonProfile("Ada", "Lovelace"))
+        val result = codec.decode("FIRSTNAME: Ada\nLASTNAME: Lovelace")
+        assertTrue(yaml == "FIRSTNAME: Ada\nLASTNAME: Lovelace" && result == Right(PersonProfile("Ada", "Lovelace")))
+      },
+      test("annotation-driven field naming overrides deriver default") {
+        val codec  = Schema[AnnotatedFieldNaming].derive(YamlCodecDeriver.withFieldNameMapper(NameMapper.KebabCase))
+        val yaml   = codec.encodeToString(AnnotatedFieldNaming("Ada", "Lovelace"))
+        val result = codec.decode("first_name: Ada\nlast_name: Lovelace")
+        assertTrue(
+          yaml == "first_name: Ada\nlast_name: Lovelace" && result == Right(AnnotatedFieldNaming("Ada", "Lovelace"))
+        )
+      },
+      test("field rename annotation overrides field name mapper") {
+        val codec  = Schema[AnnotatedFieldNamingWithRename].derive(YamlCodecDeriver)
+        val yaml   = codec.encodeToString(AnnotatedFieldNamingWithRename("Ada", "Lovelace"))
+        val result = codec.decode("customName: Ada\nlast_name: Lovelace")
+        assertTrue(
+          yaml == "customName: Ada\nlast_name: Lovelace" && result == Right(
+            AnnotatedFieldNamingWithRename("Ada", "Lovelace")
+          )
+        )
       }
     ),
     suite("variant derivation")(
