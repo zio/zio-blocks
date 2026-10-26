@@ -105,7 +105,7 @@ trait Propagator {
 
 The carrier is whatever holds your headers — a `Map`, your framework's request type — and you supply the accessor, so no HTTP library is assumed. `fields` names the headers a propagator touches, which is what you pass to a CORS or header-allowlist configuration.
 
-Use `W3CTraceContextPropagator` unless something upstream requires otherwise: it implements the W3C `traceparent` standard, which is what OpenTelemetry emits by default and what most backends expect. `B3Propagator` covers Zipkin's format in two shapes — `B3Propagator.single` puts everything in one `b3` header, `B3Propagator.multi` splits it across `X-B3-TraceId`, `X-B3-SpanId`, `X-B3-Sampled`, `X-B3-ParentSpanId`, and `X-B3-Flags`.
+Use `W3CTraceContextPropagator` unless something upstream requires otherwise: it implements the W3C `traceparent` standard, which is what OpenTelemetry emits by default and what most backends expect. `B3Propagator` covers Zipkin's format in two shapes — `B3Propagator.single` puts everything in one `b3` header, `B3Propagator.multi` splits it across `X-B3-TraceId`, `X-B3-SpanId`, and `X-B3-Sampled`, and also reads `X-B3-Flags`, where `1` marks a debug trace that is always sampled.
 
 On the way out, take the active span's context and write it into a header map:
 
