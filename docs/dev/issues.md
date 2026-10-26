@@ -8871,6 +8871,8 @@ object Repro {
 
 **Suggested fix.** Reword H-35 line 160 to say that an endless body never reaches the client and that its producer never stops, and point to the SSE guide (the H-41 branch adds a bullet at :161 that links it). Optionally give JdkHttp itself a streaming path for bodies with an unknown `Body#length`, so later web guides don't need a second adapter.
 
+**Update (2026-10-26).** #1842 (H-41) reworded the "Streaming bodies" note in `serve-http-model-requests.md` to say that an endless body never reaches the client and that its producer never stops, and links the SSE guide, whose `StreamingJdkHttp` streams. The adapter itself still buffers; the optional streaming path in `JdkHttp` is still open.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -8997,9 +8999,7 @@ Pages that contradict the source. None of these were copied into the new guides.
 
 **schema / JSON**
 
-- `json-config.md` (around lines 146-175) says `implicit val nameMapper: NameMapper = NameMapper.SnakeCase` in the companion makes `toJson` emit snake_case (confirmed wrong by mdoc while writing M-01: the field stays `firstAuthor`). Nothing reads an implicit `NameMapper`. The real ways are `JsonCodecDeriver.withFieldNameMapper` with `Schema#derive`, or `@Modifier.fieldNaming`. The output comments hide the problem because the blocks are compile-only. Severity: high, because it teaches code that silently does nothing.
 - `customize-json-encoding.md` (H-02; the table around lines 357-361 and the prose around line 431) presents `withRequireCollectionFields` and `withRequireDefaultValueFields` as decoder-only settings. Setting either to true also makes the encoder write empty collections and default values (see Usability traps). Found while writing M-01.
-- `json-config.md` "Custom Mappers" lists only `Identity`, `SnakeCase` and `KebabCase`; `CamelCase`, `PascalCase` and `Custom(f)` also exist.
 - `modifier.md`, `transient`: does not say that a transient field's JSON value is ignored on decode and the default is used.
 - `schema-error.md` (lines 56-57, 171-172, 283-289, 313-316) shows `Missing field 'x' at: .path` as the decode result. JSON decoding reports `missing required field "x" at: .path` (`JsonReader.scala:89`).
 - `syntax.md` shows `show` output as `Record { name = Alice, age = 30 }`; the real output is the EJSON form (`DynamicValue.toString`).
@@ -9011,19 +9011,11 @@ Pages that contradict the source. None of these were copied into the new guides.
 - `validation.md:13` ("Automatic enforcement during schema-based decoding") and `:281` apply only to `Schema#transform` wrappers. `Validation` constraints are enforced only by `DynamicSchema#check` (see the Usability traps entry on `Validation`). Its newtype examples (`case class Email private (value: String)` and so on) also keep a public `apply` and `copy` on Scala 2.13, so `Email("junk")` compiles and skips the check (see Usability traps).
 - `schema-error.md:41-43` says multiple independent problems are surfaced all at once and that every `Codec#decode` returns them in one `SchemaError`. The JSON and TOON codecs stop at the first failure; only `Schema#fromDynamicValue` (and `Into.derived`) collect every error. Found while writing H-04, which shows both.
 - `json-schema.md:366` shows an error message without the ` at: <path>` suffix that `SchemaError.message` adds. The page also does not mention the `pattern` anchoring behaviour above.
-- `ValidationOptions` Scaladoc (`JsonSchema.scala:376-377`) says format checks are annotation-only by default; the code defaults to `validateFormats = true`.
-- `json-config.md:89-92`: the `ReaderConfig` table gives `preferredCharBufSize` a default of `8192`; the default is `4096` (`ReaderConfig.scala:108`). The table also leaves out `preferredBufSize` (32768), `maxBufSize` (33554432) and `maxCharBufSize` (4194304), so the two safety limits are undocumented on the reference page. Found while writing H-50.
-- `json-config.md:208` says "`checkForEndOfInput` adds one comparison". After the value, the reader skips all trailing whitespace and, for an `InputStream` or `ByteBuffer`, keeps reading input to do it (`JsonReader.scala:1831-1850`). `:207` ("minimal performance impact" of indentation) and `:214` ("compact output is faster") are not backed by any benchmark in the repo. Found while writing H-50.
 - `json/index.md:66-67` lists "order" as a `WriterConfig` option and "number handling" as a `ReaderConfig` option. Neither exists: `WriterConfig` has `indentionStep`, `preferredBufSize` and `escapeUnicode` (`WriterConfig.scala:42-44`), and `ReaderConfig` has only buffer sizes and `checkForEndOfInput` (`ReaderConfig.scala:50-54`). Found while writing H-50.
 
-- `json.md:25` says "Objects use `Vector[(String, Json)]`". `Json.Object` holds a `Chunk[(String, Json)]` (`Json.scala:493`). Found while writing H-06; verified.
 - `json.md:66-86` ("String Interpolators") says the `json"..."` interpolator is compile-time validated, without saying it does not compile on Scala 2.13 in user code (see Library bugs).
-- `json.md:471` says the `Auto` merge strategy concatenates arrays, and the table at `json.md:494-501` lists a `Deep` strategy and says `Auto` and `Shallow` concatenate arrays. There is no `Deep` (`MergeStrategy.scala:37-115` has `Auto`, `Replace`, `Shallow`, `Concat`, `Custom`); `Auto` merges arrays by index (`{"arr":[1,2]}` merged with `{"arr":[9]}` gives `[9,2]`), and `Shallow` takes the right array (`[9]`). Verified with 0.0.56.
 - `json.md:732-736` shows `toKV` output as `($.a.b, Json.Number(1))`. It prints `Chunk((.a.b,1),(.a.c,2))`; `DynamicOptic` has no `$` prefix. Verified.
-- `json.md:904-905` shows `Left(SchemaError: Index 5 out of bounds at path $.users[5])`. The real message is `Index 5 out of bounds (size: 1) at: [5]` (`Json.scala:671-672`): no `$`, and the path holds only the index. Verified.
 - `json-selection.md:92` says to access elements "using `JsonSelection#apply` or `JsonSelection#get`". `JsonSelection` has `apply(index: Int)` (`JsonSelection.scala:182`) but no `get(Int)`; the example compiles only because `data` is a `Json`, which has `get(index)`.
-- `json-selection.md:284` shows `data.get("age").error  // Some(SchemaError("field not found"))`. The message is `Key 'age' not found` (`Json.scala:508-516`). Verified.
-- `JsonSelection` Scaladoc (`JsonSelection.scala:29`) shows `json.get("users").asArrays.apply(0).get("name").asStrings`; there are no `asArrays`/`asStrings` (they became the `arrays`/`strings` filters in #830). `Json` Scaladoc (`Json.scala:40`) says "Numbers use `String`"; `Json.Number` holds a `BigDecimal` (`Json.scala:796`).
 
 **schema / optics and paths**
 
@@ -9568,39 +9560,9 @@ Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md
 
 **Also seen (opus run, 2026-10-23).** The module's `hxDisable: Boolean` renders `hx-disable="true"`, which htmx 4 reads as a CSS selector, and htmx 4.0.0 reads none of `hx-params`, `hx-disinherit`, `hx-prompt`, `hx-disabled-elt` or `hx-ext`. Typed attributes therefore compile and do nothing under htmx 4. This is the strongest reason to pin the version in the reference.
 
-### reference/http-model/headers.md says `ServerSentEvent` uses `Headers` through `Response`; it touches neither
-
-Found 2026-10-23 while writing `docs/guides/send-server-sent-events.md` (H-41), on `main` at `ecbe934e4`. The page and `ServerSentEvent.scala` are the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.sc` against the published `0.0.56`.
-
-**Summary.** `docs/reference/http-model/headers.md:660` says "`ServerSentEvent` uses `Headers` indirectly through `Response`". `ServerSentEvent` has no `Headers` or `Response` member and imports neither. It renders a `String`, and the caller builds the `Response`, including its content type and headers.
-
-**Reproduction**, `Repro.sc`:
-
-```scala
-//> using scala 3.9.0
-//> using dep dev.zio::zio-blocks-http-model:0.0.56
-import zio.http._
-
-println(classOf[ServerSentEvent[?]].getDeclaredFields.map(f => s"${f.getName}: ${f.getType.getSimpleName}").toList)
-println(classOf[ServerSentEvent[?]].getMethods.exists(m => m.getReturnType == classOf[Headers] || m.getReturnType == classOf[Response]))
-println(ServerSentEvent("Zionomicon").render.getClass.getSimpleName)
-// List(data: Object, eventType: Object, eventId: Object, retryMillis: Object)
-// false
-// String
-```
-
-**Expected (corrected statement).** "`ServerSentEvent` does not use `Headers` or `Response`: it renders a `String`, which you put in a `Response` body with a `text/event-stream` content type yourself; see [Server-Sent Events](./server-sent-event.md) and the guide [How to Send Server-Sent Events with http-model](../../guides/send-server-sent-events.md)."
-
-**Root cause.** The doc sentence, `docs/reference/http-model/headers.md:660`. Source: `http-model/shared/src/main/scala/zio/http/ServerSentEvent.scala:19-20` (imports only Chunk, ChunkBuilder and Maybe).
-
-**Impact.** Low. It misleads readers into looking for header handling on `ServerSentEvent`.
-
-**Test gap.** n/a.
-
-**Suggested fix.** Replace the sentence with the corrected statement above.
-
 ## Resolved
 
+- `reference/http-model/headers.md:660` said `ServerSentEvent` uses `Headers` indirectly through `Response`; it renders a `String` and touches neither. Fixed in #1842 (H-41), which also links the SSE guide from that sentence.
 - JSON number docs fixed in wave 8b of the schema Scaladoc (#1843, `JsonReader`/`JsonWriter`): `json.md:18` and `:26` said `Json.Number` has "arbitrary precision" and preserves precision for financial and scientific data, but `Json.parse` and the `BigDecimal` codec round to 34 significant digits (`MathContext.DECIMAL128`) and reject 308 or more digits (`Json.scala:2351`, `JsonReader.scala:3125`, `:5243-5254`, `JsonCodec.scala:875`; `Json.parse("1234567890123456789012345678901234567890")` prints `1.234567890123456789012345678901235E39`). The Scaladoc of `JsonReader.bigIntDigitsLimit`/`bigDecimalDigitsLimit` (308) and the `digitsLimit` parameters called 308 "the maximum number of digits", but the check is `len >= digitsLimit`, so 308 digits are rejected and the scale limit 6178 is exclusive too (`JsonReader.scala:2922`, `:3020`, `:3062`, `:3126`). `JsonWriter` Scaladoc: `writeKey(x: Instant)` was described as writing a `Duration`, `writeVal(x: Char)` as writing "a JSON key", and `writeObjectStart`/`writeObjectEnd` as array markers. `JsonReader` Scaladoc: `readStringAsBigDecimal` said it reads "a JSON number value" (it reads a string), and `readBigInt(digitsLimit)`/`readStringAsBigInt(digitsLimit)` said they throw on "the default limit" (they use the given one).
 - JSON reference pages and Scaladoc fixed in wave 8a of the schema Scaladoc (#1841): `json-config.md` taught `implicit val nameMapper` in the companion, which nothing reads (now `@Modifier.fieldNaming`, with `withFieldNameMapper` named as the other way), listed only three `NameMapper`s, gave `preferredCharBufSize` a default of `8192` (it is `4096`) and left out the other three `ReaderConfig` options, showed `withCheckForEndOfInput(false)` as allowing trailing whitespace (whitespace is always allowed; it ignores text after the value), said `checkForEndOfInput` "adds one comparison", and listed `Strict`, `Right` and `Left` merge strategies, which do not exist (`MergeStrategy.scala` has `Auto`, `Shallow`, `Concat`, `Replace` and `Custom`). `json-patch.md` said that `JsonPatch.diff` emits `Op.Nested` and array `Modify` steps; it emits neither (`JsonDiffer.scala`). The `Json` Scaladoc said numbers are stored as a `String` (they are a `BigDecimal`), the `JsonSelection` Scaladoc used removed `asArrays`/`asStrings` methods (already fixed on `main` at `67a9be9ff`), and the `ValidationOptions` Scaladoc said formats are annotation-only by default (they are checked). In the wave 8a review round: `json.md` said objects use a `Vector` (a `Chunk`), that `Auto` and `Shallow` concatenate arrays and that a `Deep` strategy exists (`Auto` merges arrays by index, `Shallow` takes nested values from the right), and showed the wrong out-of-bounds message (`Index 5 out of bounds (size: 1) at: [5]`); `json-selection.md` showed `"field not found"` (`Key 'age' not found`); `json-patch.md` and `json-differ.md` called the diff round trip unconditional (it fails for duplicate keys, see Library bugs).
 - streams overview (`streams/index.md`) marked `fromInputStream` and `fromJavaReader` as JVM-only, but both run on Scala.js. Fixed in #1796 (H-24).
