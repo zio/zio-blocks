@@ -206,6 +206,7 @@ An `IsNominalType[OtelContext]` instance is provided, which is what lets the typ
 
 ## See Also
 
+- [How to Correlate Logs and Traces Across Services](../../../guides/correlate-logs-and-traces.md) — inject and extract `traceparent` on an http-model `Request`, continue the trace in the receiving service, and keep log lines correlated across threads
 - [Building an Exporter](./custom-exporter.md) — `OtlpJsonEncoder`, `ExportResult`, and a worked flush function
 - [AttributeValue](../common/any-value.md) — the eight attribute kinds this exporter maps onto OTLP's `AnyValue` JSON shape
 - [Tracing](../tracing/index.md) — opening the spans this module exports, and [`SpanContext`](../tracing/span-context.md), the identity a propagator moves
