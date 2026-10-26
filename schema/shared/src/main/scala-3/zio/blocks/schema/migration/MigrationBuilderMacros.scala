@@ -20,6 +20,7 @@ import scala.annotation.tailrec
 import scala.quoted.*
 import zio.blocks.schema.SchemaExpr
 
+/** Macro implementations of the `MigrationBuilder` methods. */
 object MigrationBuilderMacros {
 
   private def refinementFieldTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): Map[String, q.reflect.TypeRepr] = {

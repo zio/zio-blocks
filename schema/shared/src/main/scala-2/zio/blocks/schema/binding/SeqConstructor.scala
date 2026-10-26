@@ -65,13 +65,27 @@ trait SeqConstructor[C[_]] {
    * `ChunkBuilder.addOne`.
    */
   def addBoolean(builder: Builder[Boolean], a: Boolean): Unit = add(builder, a)
-  def addByte(builder: Builder[Byte], a: Byte): Unit          = add(builder, a)
-  def addShort(builder: Builder[Short], a: Short): Unit       = add(builder, a)
-  def addInt(builder: Builder[Int], a: Int): Unit             = add(builder, a)
-  def addLong(builder: Builder[Long], a: Long): Unit          = add(builder, a)
-  def addFloat(builder: Builder[Float], a: Float): Unit       = add(builder, a)
-  def addDouble(builder: Builder[Double], a: Double): Unit    = add(builder, a)
-  def addChar(builder: Builder[Char], a: Char): Unit          = add(builder, a)
+
+  /** Adds the `Byte` `a` to `builder`, as `addBoolean` describes. */
+  def addByte(builder: Builder[Byte], a: Byte): Unit = add(builder, a)
+
+  /** Adds the `Short` `a` to `builder`, as `addBoolean` describes. */
+  def addShort(builder: Builder[Short], a: Short): Unit = add(builder, a)
+
+  /** Adds the `Int` `a` to `builder`, as `addBoolean` describes. */
+  def addInt(builder: Builder[Int], a: Int): Unit = add(builder, a)
+
+  /** Adds the `Long` `a` to `builder`, as `addBoolean` describes. */
+  def addLong(builder: Builder[Long], a: Long): Unit = add(builder, a)
+
+  /** Adds the `Float` `a` to `builder`, as `addBoolean` describes. */
+  def addFloat(builder: Builder[Float], a: Float): Unit = add(builder, a)
+
+  /** Adds the `Double` `a` to `builder`, as `addBoolean` describes. */
+  def addDouble(builder: Builder[Double], a: Double): Unit = add(builder, a)
+
+  /** Adds the `Char` `a` to `builder`, as `addBoolean` describes. */
+  def addChar(builder: Builder[Char], a: Char): Unit = add(builder, a)
 
   /**
    * Returns the collection of the elements added to `builder`. The array-backed

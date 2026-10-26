@@ -536,7 +536,9 @@ sealed trait Optic[S, A] { self =>
 
   /**
    * Builds a [[SchemaExpr]] for this optic's integral focus shifted left by the
-   * literal `that`.
+   * literal `that`. A `Byte`, `Short` or `Int` focus is shifted as a `Long` and
+   * the result truncated to an `Int`, so a shift by 32 to 63 gives 0 (a known
+   * bug).
    */
   final def <<(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
@@ -546,7 +548,8 @@ sealed trait Optic[S, A] { self =>
 
   /**
    * Builds a [[SchemaExpr]] for this optic's integral focus shifted right by
-   * the literal `that`, keeping the sign.
+   * the literal `that`, keeping the sign. A `Byte`, `Short` or `Int` focus is
+   * shifted as a `Long`, so a shift by 32 to 63 gives 0 or -1 (a known bug).
    */
   final def >>(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
@@ -556,7 +559,11 @@ sealed trait Optic[S, A] { self =>
 
   /**
    * Builds a [[SchemaExpr]] for this optic's integral focus shifted right by
-   * the literal `that`, filling with zeros.
+   * the literal `that`, filling a `Long` with zeros. A `Byte`, `Short` or `Int`
+   * focus is shifted as a sign-extended `Long` and the result truncated to an
+   * `Int`, so a negative value shifted by 1 to 32 stays negative (`-8 >>> 1`
+   * gives -4, not 2147483644), and a shift by 32 to 63 is not reduced modulo 32
+   * (a known bug).
    */
   final def >>>(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
     SchemaExpr.optic(this.toDynamic, new Schema(this.source)),

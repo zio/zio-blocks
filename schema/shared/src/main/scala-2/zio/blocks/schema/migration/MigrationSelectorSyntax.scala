@@ -26,36 +26,67 @@ import scala.annotation.compileTimeOnly
  *
  * Calling these methods outside a selector fails at compile time. They do not
  * compile inside builder selectors either, and the selector macros reject them
- * (see `docs/dev/issues.md`).
+ * (a known bug in 0.0.56).
  */
 trait MigrationSelectorSyntax {
 
   /** The `when` and `wrapped` selector syntax. */
   implicit class ValueExtension[A](a: A) {
+
+    /**
+     * Selects the case `B` of a variant. It does not compile in any
+     * `MigrationBuilder` method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def when[B <: A]: B = ???
 
+    /**
+     * Selects the value inside a wrapper type, as a `B`. It does not compile in
+     * any `MigrationBuilder` method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def wrapped[B]: B = ???
   }
 
   /** The `at` and `each` selector syntax. */
   implicit class SequenceExtension[C[_], A](c: C[A]) {
+
+    /**
+     * Selects the element at `index` of a collection. It does not compile in
+     * any `MigrationBuilder` method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def at(index: Int): A = ???
 
+    /**
+     * Selects every element of a collection. It does not compile in any
+     * `MigrationBuilder` method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def each: A = ???
   }
 
   /** The `atKey`, `eachKey` and `eachValue` selector syntax. */
   implicit class MapExtension[M[_, _], K, V](m: M[K, V]) {
+
+    /**
+     * Selects the value at `key` of a map. It does not compile in any
+     * `MigrationBuilder` method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def atKey(key: K): V = ???
 
+    /**
+     * Selects every key of a map. It does not compile in any `MigrationBuilder`
+     * method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def eachKey: K = ???
 
+    /**
+     * Selects every value of a map. It does not compile in any
+     * `MigrationBuilder` method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def eachValue: V = ???
   }

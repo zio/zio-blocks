@@ -951,7 +951,9 @@ object DynamicSchemaExpr {
     }
 
     /**
-     * `x << y`.
+     * `x << y`. A `Byte`, `Short` or `Int` is shifted as a `Long` and the
+     * result truncated to an `Int`, so a shift by 32 to 63 gives 0 (a known
+     * bug).
      */
     case object LeftShift extends BitwiseOperator {
       def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] =
@@ -959,7 +961,8 @@ object DynamicSchemaExpr {
     }
 
     /**
-     * `x >> y`, keeping the sign.
+     * `x >> y`, keeping the sign. A `Byte`, `Short` or `Int` is shifted as a
+     * `Long`, so a shift by 32 to 63 gives 0 or -1 (a known bug).
      */
     case object RightShift extends BitwiseOperator {
       def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] =
@@ -967,7 +970,11 @@ object DynamicSchemaExpr {
     }
 
     /**
-     * `x >>> y`, filling with zeros.
+     * `x >>> y`, filling a `Long` with zeros. A `Byte`, `Short` or `Int` is
+     * shifted as a sign-extended `Long` and the result truncated to an `Int`,
+     * so a negative value shifted by 1 to 32 stays negative (`-8 >>> 1` gives
+     * -4, not 2147483644), and a shift by 32 to 63 is not reduced modulo 32 (a
+     * known bug).
      */
     case object UnsignedRightShift extends BitwiseOperator {
       def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] =
