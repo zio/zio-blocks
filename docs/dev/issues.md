@@ -7048,6 +7048,122 @@ Browser check (headless Chromium + Playwright, Datastar 1.0.4 from jsDelivr): a 
 
 **Suggested fix.** Prefix each line: `renderMinified.split("\r\n|\r|\n").mkString("elements ", "\nelements ", "")`, and likewise for `signals`. Add tests for `<pre>` text and multi-line raw JSON.
 
+### otel: `W3CTraceContextPropagator.extract` accepts invalid version-00 headers and rejects future versions
+
+Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-traces.md` (backlog H-43), on `main` at `c347bc08`. The otel sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** The W3C Trace Context parser is lenient where the specification says to reject, and strict where it says to be lenient. It accepts a version `00` `traceparent` with extra characters after the flags (`...-01-extra`, `...-01xyz`), and it accepts upper-case hex ids. It rejects every version other than `00`, including future versions such as `01`, which the specification says a parser should read by taking the first four fields.
+
+**Setup.** A scratch sbt project (sbt 1.13.0, JDK 25.0.2) with this `build.sbt`; the file goes in `src/main/scala/`, and the output is pasted from a real run with sbt's `[info]`/`[error]` prefixes removed.
+
+```scala
+scalaVersion := "3.9.0"
+run / fork   := true
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
+  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
+)
+```
+
+**Reproduction** (`W3cLenient.scala`, run with `sbt "runMain W3cLenient"`):
+
+```scala
+import zio.blocks.telemetry.otel._
+
+object W3cLenient {
+  def main(args: Array[String]): Unit = {
+    val get = (m: Map[String, String], k: String) => m.get(k)
+    def tp(v: String) = W3CTraceContextPropagator.extract(Map("traceparent" -> v), get).map(_.traceIdHex)
+    println(s"valid:            ${tp("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")}")
+    println(s"v00 + suffix:     ${tp("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-extra")}")
+    println(s"v00 + junk:       ${tp("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01xyz")}")
+    println(s"uppercase hex:    ${tp("00-4BF92F3577B34DA6A3CE929D0E0E4736-00F067AA0BA902B7-01")}")
+    println(s"future version 01:${tp("01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")}")
+    println(s"v01 + suffix:     ${tp("01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-what-the-future-will-be-like")}")
+  }
+}
+// valid:            Some(4bf92f3577b34da6a3ce929d0e0e4736)
+// v00 + suffix:     Some(4bf92f3577b34da6a3ce929d0e0e4736)
+// v00 + junk:       Some(4bf92f3577b34da6a3ce929d0e0e4736)
+// uppercase hex:    Some(4bf92f3577b34da6a3ce929d0e0e4736)
+// future version 01:None
+// v01 + suffix:     None
+```
+
+**Expected.** Per W3C Trace Context Level 1 (section 3.2, `traceparent` header field values, and section 4.3, versioning), a version `00` value is exactly 55 characters, and the ids are lower-case hex (`HEXDIGLC`), so the second, third and fourth lines should print `None` and the receiver should start a new trace. A higher version (not `ff`) should be parsed by its first four fields when the 55th character is the end of the value or a `-`, so the last two lines should print `Some(4bf92f3577b34da6a3ce929d0e0e4736)`. The W3C test suite (`test_traceparent_version_0x00`, `test_traceparent_version_0x01`, `test_traceparent_trace_id_illegal_characters`) checks exactly these cases.
+
+**Root cause.** `otel/src/main/scala/zio/blocks/telemetry/otel/W3CTraceContextPropagator.scala:44` checks `traceparent.length >= TraceparentLength`, not `==` for version `00`, and never looks at what follows the flags. `:48` accepts only `version == "00"`. `:49`, `:52` and `:55` call `toLowerCase` on the ids and flags before parsing, which turns invalid upper-case input into valid input. Tests pin the wrong behaviour: `W3CTraceContextSpec.scala:88` ("rejects unknown version", with `01`) and `:144` ("handles uppercase hex in traceparent").
+
+**Impact.** A receiver joins traces that a conforming caller would have rejected, and a caller on a newer Trace Context version (a future OpenTelemetry SDK) has its trace dropped: the receiver starts a new trace and the request's logs and spans no longer join the caller's. Low today, since only version `00` exists, but the forward-compatibility rule exists so that the version bump doesn't break every deployed parser.
+
+**Test gap.** No test sends a version `00` value longer than 55 characters, and the two tests above assert the non-conforming behaviour.
+
+**Suggested fix.** For version `00`, require `length == 55`. For a version other than `00` and `ff`, require `length == 55 || charAt(55) == '-'` and parse the first 55 characters. Drop the `toLowerCase` calls and reject upper-case hex. Update the two tests, and add cases taken from the W3C test suite.
+
+### otel: `B3Propagator.single.extract` returns `Some` of an invalid context for a sampling-only `b3` header
+
+Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-traces.md` (backlog H-43), on `main` at `c347bc08`. The otel sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** B3 allows a `b3` header that holds only a sampling decision: `0` (deny), `1` (accept) or `d` (debug). For these, `B3Propagator.single.extract` returns `Some(SpanContext(0, 0, SpanId(0000000000000000), ...))`, a context with zero ids that `isValid` rejects. The `Propagator` Scaladoc promises `None` when "no valid context is found". Code that branches on `Some`/`None` takes this as a parent. The tracer then starts a new trace that claims a remote parent, and the caller's "don't sample" decision is lost even with a parent-based sampler.
+
+**Setup.** A scratch sbt project (sbt 1.13.0, JDK 25.0.2) with this `build.sbt`; the file goes in `src/main/scala/`, and the output is pasted from a real run with sbt's `[info]`/`[error]` prefixes removed.
+
+```scala
+scalaVersion := "3.9.0"
+run / fork   := true
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
+  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
+)
+```
+
+**Reproduction** (`B3SamplingOnly.scala`, run with `sbt "runMain B3SamplingOnly"`):
+
+```scala
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
+object B3SamplingOnly {
+  def main(args: Array[String]): Unit = {
+    val get = (m: Map[String, String], k: String) => m.get(k)
+    val deny = B3Propagator.single.extract(Map("b3" -> "0"), get)
+    println(s"extract(b3=0): $deny, isValid=${deny.map(_.isValid)}")
+
+    val storage = ContextStorage.create[Option[SpanContext]](None)
+    val ended   = new java.util.concurrent.ConcurrentLinkedQueue[SpanData]()
+    val tracer  = TracerProvider.builder
+      .setContextStorage(storage)
+      .setSampler(ParentBasedSampler(AlwaysOnSampler))
+      .addSpanProcessor(new SpanProcessor {
+        def onStart(span: Span): Unit = ()
+        def onEnd(s: SpanData): Unit  = { ended.add(s); () }
+        def shutdown(): Unit          = ()
+        def forceFlush(): Unit        = ()
+      })
+      .build()
+      .get("payment")
+    storage.scoped(deny)(tracer.span("payment.authorize", SpanKind.Server)(_ => ()))
+    ended.forEach { s =>
+      println(s"recorded ${s.name}: sampled=${s.spanContext.isSampled}, parentValid=${s.parentSpanContext.isValid}, parentIsRemote=${s.parentSpanContext.isRemote}")
+    }
+  }
+}
+// extract(b3=0): Some(SpanContext(0,0,SpanId(0000000000000000),TraceFlags(00),,true)), isValid=Some(false)
+// recorded payment.authorize: sampled=true, parentValid=false, parentIsRemote=true
+```
+
+**Expected.** Either `None` for a sampling-only header, as the trait's Scaladoc says, or a documented way to carry the decision. With `b3: 0` and `ParentBasedSampler`, the span should not be recorded, and it should not report a remote parent that has no ids.
+
+**Root cause.** `otel/src/main/scala/zio/blocks/telemetry/otel/B3Propagator.scala:70-73` builds `SpanContext.create(0L, 0L, SpanId.invalid, ...)` for `"0"`, `"1"` and `"d"`, which contradicts `Propagator.scala:29-30`. `Tracer.span` falls back to a random trace id when the parent is invalid (`telemetry/shared/src/main/scala/zio/blocks/telemetry/Tracer.scala:64`). It still records the invalid context as the parent (`:161`), and `ParentBasedSampler` treats an invalid parent as "no parent", so it applies the root sampler. Tests pin the behaviour: `B3PropagatorSpec.scala:94` ("parses deny/drop single value '0' as invalid unsampled context") and `:99`.
+
+**Impact.** A receiver that writes `extract(...).orElse(otherFormat.extract(...))` stops at the B3 result and never tries the next format. A Zipkin caller's explicit "don't sample" is ignored, and the stored span reports `parentSpanContext.isRemote = true` with zero ids, which backends show as a broken or missing parent.
+
+**Test gap.** The tests assert the invalid `Some`. No test checks what the tracer does with it.
+
+**Suggested fix.** Return `None` from `extract` for sampling-only values. If the deny decision should still reach the sampler, add a separate API (or a `SpanContext` flag that the samplers read) rather than an invalid context. Align the Scaladoc and the tests.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -9111,6 +9227,109 @@ With the parameter type omitted (`Async.promise[String] { c => c.succeed("hello"
 
 **Suggested fix.** Add a warning next to the Scala 3 `Async.promise` examples in `docs/reference/async.md` and `docs/guides/async-getting-started.md` section 7 ("On Scala 3, don't write `{ (c: Completer[A]) => ... }`: it compiles but never completes; use `c ?=>` or `summon`"). Then change the Scala 3 body type so a function-valued body is a type error (for example a non-`Unit` result type plus a `Unit`-returning helper), and add a `typeCheckErrors` test for the explicit binder.
 
+### telemetry: `log.install` silently drops the writers added before it, and the next `log.writer` brings them back
+
+Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-traces.md` (backlog H-43), on `main` at `c347bc08`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `log.writer(formatter, writer)` adds an output, and `log.install(logger)` replaces the global logger. When a program calls them in the order "writer, then install", the writer stops receiving lines without any error. When the program later adds another writer, the dropped writer comes back too. Setting up logging in the opposite order (`install`, then `writer`) works, and that is the order the T-12 tutorial uses, but nothing tells the reader the order matters.
+
+**Setup.** A scratch sbt project (sbt 1.13.0, JDK 25.0.2) with this `build.sbt`; the file goes in `src/main/scala/`, and the output is pasted from a real run with sbt's `[info]`/`[error]` prefixes removed.
+
+```scala
+scalaVersion := "3.9.0"
+run / fork   := true
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
+  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
+)
+```
+
+**Reproduction** (`InstallDropsWriters.scala`, run with `sbt "runMain InstallDropsWriters"`):
+
+```scala
+import zio.blocks.telemetry._
+
+object InstallDropsWriters {
+  def main(args: Array[String]): Unit = {
+    log.writer(JsonLogFormatter, StderrWriter)
+    log.install(LoggerProvider.builder.build().get("shop"))
+    log.info("one")
+    System.err.println("-- after line one")
+    log.writer(TextLogFormatter, StdoutWriter)
+    log.info("two")
+  }
+}
+// stderr: -- after line one
+// stderr: {"timeUnixNano":"1793019779575689677","severityNumber":9,"severityText":"INFO","body":{"stringValue":"two"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/InstallDropsWriters.scala"}},{"key":"code.namespace","value":{"stringValue":"InstallDropsWriters$"}},{"key":"code.function","value":{"stringValue":"main"}},{"key":"code.lineno","value":{"intValue":"10"}}]}
+// stdout: 2026-10-26T13:02:59.575Z INFO  [InstallDropsWriters$.main:10] two
+```
+
+Line `one` is printed nowhere, although a JSON writer was registered. Line `two` goes to both writers, including the JSON writer that had stopped working.
+
+**Expected.** Either `log.install` keeps the registered writers (they are global outputs, like the default console), or it clears them for good, as documented behaviour. It should never keep them in a hidden list that a later, unrelated `log.writer` call reactivates.
+
+**Root cause.** `log.writer` keeps its outputs in `_writerProcessors` and builds a new global logger from `baseProcessors ++ _writerProcessors` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/log.scala:86-88`, `rebuildState` at `:104-110`). `log.install` (`log.scala:58`) calls `GlobalLogState.install` (`GlobalLogState.scala:88`), which sets the new logger without the writer processors and leaves `_writerProcessors` as it was. The next `log.writer` calls `rebuildState`, which appends the whole list again.
+
+**Impact.** Logging set-up code that registers outputs first and installs the logger afterwards (a natural order when the writer is configured in one module and the logger in another) loses all its log output, with no error. When outputs come back after a later `writer` call, they are hard to explain.
+
+**Related.** The Library bugs entry "telemetry: after `log.removeAll()`, `log.writer` and `log.addProcessor` never bring logging back" involves the same `_writerProcessors` list.
+
+**Test gap.** No test combines `log.writer` with a later `log.install`.
+
+**Suggested fix.** In `log.install`, either rebuild the installed logger with `_writerProcessors` appended (the same way `rebuildState` does), or clear `_writerProcessors`. Then document which of the two it is in the Scaladoc of both methods.
+
+### telemetry: giving a `ContextStorage` to the tracer but not the logger silently removes trace ids from every log line
+
+Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-traces.md` (backlog H-43), on `main` at `c347bc08`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** To continue a trace that arrives in a request, a service must put the remote span context into the storage its tracer reads. The built-in storage that `log` and `trace` share is `private[telemetry]`, so the service has to create its own with `ContextStorage.create` and pass it to `TracerProviderBuilder#setContextStorage`. If it doesn't also pass the same instance to `LoggerProviderBuilder#setContextStorage`, the logger keeps reading the built-in storage, which never holds the tracer's spans. Every log line then has no `traceId` or `spanId`, and nothing warns about it. The reference page shows the tracer half of the set-up (`docs/reference/telemetry/otel/index.md`, "Propagating Context Across Services") but not the logger half.
+
+**Setup.** A scratch sbt project (sbt 1.13.0, JDK 25.0.2) with this `build.sbt`; the file goes in `src/main/scala/`, and the output is pasted from a real run with sbt's `[info]`/`[error]` prefixes removed.
+
+```scala
+scalaVersion := "3.9.0"
+run / fork   := true
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
+  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
+)
+```
+
+**Reproduction** (`StorageMismatch.scala`, run with `sbt "runMain StorageMismatch"`):
+
+```scala
+import zio.blocks.telemetry._
+
+object StorageMismatch {
+  def main(args: Array[String]): Unit = {
+    val storage = ContextStorage.create[Option[SpanContext]](None)
+    val tracer  = TracerProvider.builder.setContextStorage(storage).build().get("shop")
+    log.install(LoggerProvider.builder.build().get("shop")) // no setContextStorage
+    log.writer(JsonLogFormatter, StdoutWriter)
+    tracer.span("checkout.placeOrder") { span =>
+      log.info("inside span")
+      System.out.println(s"span ${span.spanContext.traceIdHex} is active; logger sees ${log.getClass.getSimpleName} with no ids above")
+    }
+  }
+}
+// {"timeUnixNano":"1793019779892679582","severityNumber":9,"severityText":"INFO","body":{"stringValue":"inside span"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/StorageMismatch.scala"}},{"key":"code.namespace","value":{"stringValue":"StorageMismatch$"}},{"key":"code.function","value":{"stringValue":"main"}},{"key":"code.lineno","value":{"intValue":"10"}}]}
+// span 9e1c5ef24ce9f293b30abd95f1b53d26 is active; logger sees log$ with no ids above
+```
+
+The JSON line has no `traceId` or `spanId`, although a span is active.
+
+**Expected.** Log lines written inside a span carry its ids, the way they do with the zero-setup globals. Or the API makes the mismatch hard to write.
+
+**Root cause.** `TracerProviderBuilder.build` and `LoggerProviderBuilder.build` each fall back to `ContextStorage.defaultSpanContextStorage` on their own (`telemetry/shared/src/main/scala/zio/blocks/telemetry/TracerProvider.scala:109`, `LoggerProvider.scala:75`), and that default is `private[telemetry]` (`telemetry/jvm/src/main/scala/zio/blocks/telemetry/ContextStorage.scala:45`). A program can't scope a remote parent into the default storage. Once it creates its own storage, it has to remember to pass it to two unrelated builders.
+
+**Impact.** This is the set-up every service that receives traced requests needs, and the failure shows up only as missing fields in production logs. Log-to-trace correlation, the main reason to share the storage, silently stops working.
+
+**Test gap.** No test checks that a logger and a tracer built with different storages behave the way the docs say.
+
+**Suggested fix.** Make the default storage public (for example `ContextStorage.defaultSpanContext`), so a service can scope a remote parent without owning a storage. Or offer one builder that configures both providers with one storage. At minimum, document on both `setContextStorage` methods that the logger and the tracer must get the same instance. The H-43 guide warns about it.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -9839,6 +10058,79 @@ done
 **Test gap.** Nothing checks docs claims against `crossScalaVersions`.
 
 **Suggested fix.** Replace the line with "Supported Scala versions: 3.x (no Scala 2.13 artifact)" and add the 3.9+ `zio-blocks-next-datastar` / `-experimental` variant to the install block.
+
+### telemetry-guide and otel reference: the propagation examples start a new trace, and the B3 multi-header list names a header that is never written
+
+Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-traces.md` (backlog H-43), on `main` at `c347bc08`. The same text is published at tag `v0.0.56`. Verified by running against the published 0.0.56. Fixed on the H-43 branch (`docs/h43-correlate-logs-and-traces`, commit `dedfb752`), except for the Scaladoc in `B3Propagator.scala`. Not filed on GitHub.
+
+**Summary.** There are four errors:
+
+1. In `docs/guides/telemetry-guide.md`, the "HTTP server" example (v0.0.56 lines 478-509) takes `val tracer = trace.get("api-service")` (`:489`) before `trace.install(tracerProvider)` (`:500`). The tracer stays bound to the old provider's storage, so `contextStorage.scoped(parentCtx)` doesn't parent its span, and the span starts a new trace. The otel reference page warns "take your tracers after `trace.install`", so the guide contradicts it.
+2. The guide's middleware sketch `traceIncoming` (`:980`) extracts `parentCtx` but never uses it. A comment says to "scope the remote parent", but the code doesn't call `scoped`, so the server span always starts a new trace.
+3. "Span-log correlation explained" (`:579`) calls `new TracerProvider(resource, sampler, processors, cs)`. That constructor is `private[telemetry]` (`TracerProvider.scala:23`), so the line doesn't compile in user code. It sits in a plain `scala` fence, so mdoc never checked it.
+4. `docs/reference/telemetry/otel/index.md:108` says `B3Propagator.multi` uses "`X-B3-TraceId`, `X-B3-SpanId`, `X-B3-Sampled`, `X-B3-ParentSpanId`, and `X-B3-Flags`". `inject` writes only the first three (`otel/src/main/scala/zio/blocks/telemetry/otel/B3Propagator.scala:130-137`). `extract` also reads `X-B3-Flags`. Nothing reads or writes `X-B3-ParentSpanId`. The same wrong list is in the Scaladoc at `B3Propagator.scala:41-42`.
+
+**Setup.** A scratch sbt project (sbt 1.13.0, JDK 25.0.2) with this `build.sbt`; the file goes in `src/main/scala/`, and the output is pasted from a real run with sbt's `[info]`/`[error]` prefixes removed.
+
+```scala
+scalaVersion := "3.9.0"
+run / fork   := true
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
+  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
+)
+```
+
+**Reproduction** for items 1 and 2: the code as published, plus prints (`GuideSnippets.scala`, run with `sbt "runMain GuideSnippets"`).
+
+```scala
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
+// docs/guides/telemetry-guide.md:478-509 (server example) and :978-1000 (traceIncoming), as published at v0.0.56
+object GuideSnippets {
+  def main(args: Array[String]): Unit = {
+    val incomingHeaders = Map("traceparent" -> "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+    val parentCtx: Option[SpanContext] = W3CTraceContextPropagator.extract(incomingHeaders, (m, k) => m.get(k))
+    val tracer = trace.get("api-service")
+    val contextStorage = ContextStorage.create[Option[SpanContext]](None)
+    val tracerProvider = TracerProvider.builder.addSpanProcessor(SpanProcessor.noop).setContextStorage(contextStorage).build()
+    trace.install(tracerProvider)
+    contextStorage.scoped(parentCtx) {
+      tracer.span("handle-checkout", SpanKind.Server) { span =>
+        println(s"server example: trace ${span.spanContext.traceIdHex}")
+      }
+    }
+
+    def traceIncoming[Req, Resp](request: Req, getHeader: (Req, String) => Option[String], handle: Req => Resp): Resp = {
+      val parentCtx = W3CTraceContextPropagator.extract(request, getHeader)
+      val tracer    = trace.get("http-server")
+      tracer.span("http.request", SpanKind.Server) { span =>
+        println(s"traceIncoming:  trace ${span.spanContext.traceIdHex}")
+        handle(request)
+      }
+    }
+    traceIncoming[Map[String, String], Unit](incomingHeaders, (m, k) => m.get(k), _ => ())
+    println("caller's trace: 4bf92f3577b34da6a3ce929d0e0e4736")
+  }
+}
+// server example: trace 6bb73314e642c6cee0d58ec9c6d4e231
+// traceIncoming:  trace c4c2e58d7a366d49dc7aea089a2e6691
+// caller's trace: 4bf92f3577b34da6a3ce929d0e0e4736
+```
+
+Item 4 (`B3Propagator.multi.inject` on a span, from the H-43 guide's rendered output) prints `Headers(x-b3-traceid: ..., x-b3-spanid: ..., x-b3-sampled: 1)`.
+
+**Expected.** Both server spans continue trace `4bf92f3577b34da6a3ce929d0e0e4736`. The span-log example compiles. The header list matches what the propagator writes.
+
+**Root cause.** `TracerProvider.get` binds the new `Tracer` to the provider's storage when it is called (`telemetry/shared/src/main/scala/zio/blocks/telemetry/TracerProvider.scala:33-38`). `Tracer.span` takes its parent only from that storage (`Tracer.scala:62`). The guide's blocks are `mdoc:compile-only`, so they compile but never run. The `new TracerProvider` line is in an unchecked fence.
+
+**Impact.** A reader who copies either server example into a service gets a trace that never joins the caller's, which is the one thing the example exists to show. There's no error, only disconnected traces in the backend.
+
+**Test gap.** Docs that show behaviour (continuing a trace) are compile-only, so nothing checks the behaviour.
+
+**Suggested fix.** This is done on the H-43 branch: the server example takes the tracer after `trace.install`; `traceIncoming` takes the storage and wraps the span in `storage.scoped(parentCtx)`; the span-log example uses `TracerProvider.builder.setContextStorage(cs).build()`; the otel reference lists the three headers `multi` writes and notes that it reads `X-B3-Flags`. What remains is to fix the Scaladoc at `B3Propagator.scala:41-42`.
 
 ## Resolved
 
