@@ -6940,6 +6940,62 @@ The output is identical on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 and 
 
 **Suggested fix.** Do not append a separator before a capital when the previous output character is already the separator (for example, track whether the last appended character was a separator), and add `my_Field` and `first_Edition_Year` to `NameMapperSpec`.
 
+### streams (Scala.js): a rejected `ReadableStream` read fails the `Async` with an internal `StreamError` instead of producing `Left`
+
+Found 2026-10-26 while writing the how-to guide `docs/guides/run-streams-without-blocking.md` (backlog H-26), on `main` at `7f551627c`. Same at tag `v0.0.56`, the version tested. Verified by running on Node 24 (scala-cli hung on that machine, so the reproduction is a scratch sbt-scalajs project). Not filed on GitHub yet.
+
+**Summary.** A stream built from `ReadableStreamReaders.fromReadableStream` on Scala.js does not deliver a source failure in the typed error channel. When the `ReadableStream` errors mid-stream, the whole `runCollectAsync`, `runDrainAsync`, `runAsync` or `runFoldAsync` `Async` fails with an `internal.StreamError` (message `null`; the original `js.Error` is only on `StreamError#value` and as a suppressed exception), and the `Either` is never produced. The JVM adapter (`AsyncNioReaders`) delivers the same kind of failure as `Left(IOException)`. `docs/reference/streams/primitives/reader.md` ("A rejected promise is a trusted source failure ... surfaces in the typed error channel") says Scala.js behaves like the JVM.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-streams` 0.0.56, Scala.js 1.22.0; run with `sbt run` on Node 24):
+
+`project/build.properties`: `sbt.version=1.13.0`. `project/plugins.sbt`: `addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")`. `build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+enablePlugins(ScalaJSPlugin)
+scalaJSUseMainModuleInitializer := true
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "0.0.56"
+```
+
+`src/main/scala/ReadErrorJs.scala`:
+
+```scala
+import zio.blocks.async._
+import zio.blocks.streams._
+import scala.scalajs.js
+import scala.scalajs.js.typedarray.Uint8Array
+
+object ReadErrorJs {
+  def main(args: Array[String]): Unit = {
+    val source = js.Dynamic.literal(
+      start = { (c: js.Dynamic) => c.enqueue(new Uint8Array(js.Array[Short](1, 2))) }: js.Function1[js.Dynamic, Unit],
+      pull = { (c: js.Dynamic) => c.error(new js.Error("network reset")) }: js.Function1[js.Dynamic, Unit]
+    )
+    val stream = js.Dynamic.newInstance(js.Dynamic.global.ReadableStream)(source).asInstanceOf[ReadableStreamReaders.ReadableStream]
+    Stream.fromReader[Nothing, Byte](ReadableStreamReaders.fromReadableStream(stream))
+      .runCollectAsync.either
+      .map(result => println(s"The read failed: $result")).toJsPromise
+    ()
+  }
+}
+// The read failed: Left(zio.blocks.streams.internal.StreamError)
+```
+
+The `Left` is the `Async`'s own failure (from `.either`), not the stream's `Either`. Without `.either`, Node crashes with an unhandled `StreamError` whose suppressed exception is `JavaScriptException: Error: network reset`. With `E = Throwable`, all four terminals (`runCollectAsync`, `runDrainAsync`, `runAsync(Sink.collectAll)`, `runFoldAsync`) fail the `Async` with `StreamError(value=...JavaScriptException: Error: network reset)`.
+
+On the JVM, `Stream.fromReader[java.io.IOException, Byte](AsyncNioReaders.fromChannel(failingChannel))` over a channel that returns 1 byte and then calls `handler.failed(new IOException("network reset"), att)` gives `Right(Left(java.io.IOException: network reset))` from `runCollectAsync.either.block`, and the same from `runAsync(Sink.collectAll)` and `runDrainAsync`.
+
+**Expected.** `Right(Left(<the JS error>))`, as on the JVM.
+
+**Root cause** (partly isolated). The reader is not the culprit: called directly (`reader.readByte()` from a probe in package `zio.blocks.streams`), it gives `Left(StreamError trusted=true)` on the first failing read and on the replay, so `streams/js/src/main/scala/zio/blocks/streams/ReadableStreamReaders.scala:286-298` (`StreamError.source(cause)`, then `completion.fail(failure)`) produces a trusted error. The error is lost later, in the shared async drain or in `Stream.fromReader` materialisation on Scala.js; the exact line was not found. The shared drain turns trusted errors into `Left` at `Sink.scala:1021-1022`, `:1312`, `:1378` and `Pipeline.scala:329`. The JVM adapter uses the same `completion.fail(StreamError.source(...))` pattern (`AsyncNioReaders.scala:324`, `:342`) and works, so the difference is probably which read method the drain calls on Scala.js (`readByte`/`readN`) or a Scala.js-only path in `Stream.fromReader`.
+
+**Impact.** A Scala.js app that reads a `fetch` body and handles errors through the `Either` silently misses network failures: they escape as an unhandled promise rejection or as a thrown `StreamError` with an empty message.
+
+**Test gap.** `ReadableStreamReadersSpec` ("promise rejection is trusted, sticky, and replayed by identity") tests the reader directly, never through `Stream.fromReader` and a `*Async` terminal.
+
+**Suggested fix.** Add a Scala.js test through `Stream.fromReader(...).runCollectAsync` that expects `Left`, then trace why trusted reader failures are not unwrapped on that path. Once fixed, remove the warning admonition in the "Reading a ReadableStream as a Source" section of `run-streams-without-blocking.md`, and keep `reader.md`'s statement.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -9063,6 +9119,20 @@ Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md
 **Test gap.** None: CI does not check which artifact is used.
 
 **Suggested fix.** Change `minor >= 10` to `minor >= 9` in that helper, as the one-line fix in the T-10 branches does.
+
+### streams-examples does not compile on Scala 2.13: `NioBinaryTelemetryWalkthrough.scala` uses `import zio.blocks.streams.*`
+
+Found 2026-10-26 while writing H-26 (`docs/guides/run-streams-without-blocking.md`), on `main` at `7f551627c`.
+
+**Summary.** The AGENTS.md recipe for checking an example on Scala 2.13 (`sbt "++2.13.18!" compile` inside the examples build) fails for `streams-examples`. `streams-examples/src/main/scala/nio/NioBinaryTelemetryWalkthrough.scala` has the Scala 3-only `import zio.blocks.streams.*`, which 2.13 reads as "object * is not a member of package zio.blocks.streams", and every use after it fails too (`Stream.fromChunk`, `NioSinks`, `NioStreams`, `NioWriters`, `NioReaders`).
+
+**Reproduction.** `cd streams-examples && sbt "++2.13.18!; compile"`.
+
+**Expected.** The build compiles on 2.13, or Scala 3-only files are excluded on 2.13.
+
+**Impact.** No example package in `streams-examples` can be checked on 2.13 without hiding that file first (H-26 used a local, uncommitted `Compile / unmanagedSources / excludeFilter` to compile its own package, which passed). CI doesn't compile the examples on 2.13, so nothing catches it. Only this file was confirmed; others may fail too.
+
+**Suggested fix.** Change `.*` to `._` in that file (or add a Scala 3-only source filter), then compile the whole build on 2.13 once.
 
 ## Documentation errors
 
