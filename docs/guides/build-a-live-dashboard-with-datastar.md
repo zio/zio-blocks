@@ -121,7 +121,13 @@ def page(heading: String)(content: Dom.Element*): Dom.Element =
   )
 ```
 
-The `page` function wraps any content in a full document that loads Datastar. Serve `page("Weather Station")(counter)` as `text/html` and the browser shows `Readings taken: 0`. Nothing can change the signal yet; that is the next step.
+The code above:
+
+- `datastarScript` is a `script` element with `type="module"` that loads the pinned Datastar bundle from the CDN
+- `page` wraps any content in an `html` document whose `head` holds a `meta` charset, the `title` and the script
+- `body(h1(heading), content)` puts the heading above the content we pass in
+
+Serve `page("Weather Station")(counter)` as `text/html` and the browser shows `Readings taken: 0`. Nothing can change the signal yet; that is the next step.
 
 ## 4. A Button That Posts
 
@@ -135,13 +141,19 @@ val withButton = div(
 )
 ```
 
-The code above adds a `button` whose `dataOn.click` attribute posts to `/reading`, with "Take a reading" as its label. To see the attribute the button renders:
+The code above:
+
+- `dataSignals(readings := 0)` declares the signal with its first value
+- `dataText := readings` shows the signal in the `span`
+- `dataOn.click := js"@post('/reading')"` posts the signals to `/reading` on each click
+
+To see the attribute the button renders:
 
 ```scala mdoc
 println(withButton.renderMinified)
 ```
 
-When the reader clicks, Datastar sends `POST /reading` with the JSON body `{"readings":0}`, the `Content-Type: application/json` header and a `Datastar-Request: true` header. The server answers with a patch. `DatastarEvent.patchSignals` takes the same `signal := value` pairs as `dataSignals`, and `renderSSE` renders the event to its wire text:
+When the reader clicks, Datastar sends `POST /reading` with the JSON body `{"readings":0}`, the `Content-Type: application/json` header and a `Datastar-Request: true` header. The server answers with a patch. `DatastarEvent.patchSignals` takes the same `signal := value` pairs as `dataSignals`, and `DatastarEvent#renderSSE` renders the event to its wire text:
 
 ```scala mdoc
 println(DatastarEvent.patchSignals(readings := 1).renderSSE)
@@ -171,7 +183,7 @@ def eventResponse(first: String, rest: String*): Response =
 
 The code above:
 
-- `eventResponse(events)` renders nothing itself: each string is the `renderSSE` text of one event, and the helper encodes it as UTF-8, the only encoding SSE allows
+- `eventResponse(events)` renders nothing itself: each string is the `DatastarEvent#renderSSE` text of one event, and the helper encodes it as UTF-8, the only encoding SSE allows
 - `Body.fromStream` makes a streaming body, and `Cache-Control: no-cache` keeps proxies from caching it
 - The second overload sends a few events and ends, which is all a button click needs
 
@@ -204,7 +216,7 @@ object Signals {
 }
 ```
 
-`Schema.derived` builds the schema from the case class, and `schema.jsonCodec` is the JSON codec for it. A `POST` carries the JSON in the body, so decoding is one call:
+The code above gives `Signals` one field per signal the server reads, with the same names as the page's signals, and `Schema.derived` builds the schema from the case class. `schema.jsonCodec` is the JSON codec for it. A `POST` carries the JSON in the body, so decoding is one call:
 
 ```scala mdoc
 println(Signals.schema.jsonCodec.decode("""{"readings":4,"city":"Oslo"}"""))
@@ -233,7 +245,11 @@ def readSignals[A](request: Request)(implicit schema: Schema[A]): Either[String,
 }
 ```
 
-A `GET` takes the JSON from the `datastar` query parameter and every other method reads the request body, and `schema.jsonCodec.decode` returns the decoded value or the error as text, which the route turns into a `400 Bad Request`.
+The code above:
+
+- A `GET` takes the JSON from the `datastar` query parameter and every other method reads the request body
+- `schema.jsonCodec.decode` returns the decoded value or an error
+- `.left.map(_.toString)` turns the error into text, which the route turns into a `400 Bad Request`
 
 Here is the helper reading a `GET` request whose query parameter holds the URL-encoded JSON:
 
@@ -242,7 +258,7 @@ val getRequest =
   Request.get(URL.parse("/dashboard?datastar=%7B%22readings%22%3A7%2C%22city%22%3A%22Lisbon%22%7D").toOption.get)
 ```
 
-To call the helper on that request:
+The code above builds a `GET` request for `/dashboard` whose `datastar` parameter holds the URL-encoded JSON `{"readings":7,"city":"Lisbon"}`. To call the helper on that request:
 
 ```scala mdoc
 println(readSignals[Signals](getRequest))
@@ -294,7 +310,7 @@ The paragraph keeps its `id`, so the next patch finds it again. Here is the even
 println(DatastarEvent.patchElements(latest(Reading("Oslo", 36, 12, 73))).renderSSE)
 ```
 
-The data line has the key `elements` followed by the minified HTML. When the target isn't the element's own id, `PatchElementsBuilder#selector` names it, and `PatchElementsBuilder#mode` says where the content lands, for example `ElementPatchMode.Append` to add to a list. Each of them adds its own `data:` line before the `elements` line, and the default mode, `ElementPatchMode.Outer`, adds none. Here the paragraph has no id, so we name the target with `selector` and ask for `ElementPatchMode.Inner`, which replaces the target's content:
+The data line has the key `elements` followed by the minified HTML. When the target isn't the element's own id, `PatchElementsBuilder#selector` names it, and `PatchElementsBuilder#mode` says where the content lands, for example `ElementPatchMode.Append` to add to a list. Each of them adds its own `data:` line before the `elements` line, and the default mode, `ElementPatchMode.Outer`, adds none. Here the paragraph has no id, so we name the target with `PatchElementsBuilder#selector` and ask for `ElementPatchMode.Inner`, which replaces the target's content:
 
 ```scala mdoc
 println(
@@ -315,6 +331,11 @@ val answer = eventResponse(
 )
 ```
 
+The code above:
+
+- Each argument is the `DatastarEvent#renderSSE` text of one event
+- `eventResponse(first, rest*)` sends the two events in order and ends the response
+
 To read the response body of the two events:
 
 ```scala mdoc
@@ -329,7 +350,7 @@ print(answer.body.asString())
 
 ## 7. A Live Dashboard
 
-The click-driven patches come from requests the reader makes. A dashboard needs the opposite: the server pushes new numbers without being asked. We build it with one open stream: the page sends one request when it loads, and the server keeps that response open, writing a new event whenever it has one. A stream is one request for the whole session, and the server decides when to send. The alternative, which we don't use, is polling with `dataOnInterval`: the browser sends a new request every second, each one carrying every signal again, and the server cannot say anything between two ticks. The price of the stream is that the server holds a connection, and in our JDK adapter a thread, for as long as the page is open.
+The click-driven patches come from requests the reader makes. A dashboard needs the opposite: the server pushes new numbers without being asked. We build it with one open stream: the page sends one request when it loads, and the server keeps that response open, writing a new event whenever it has one. A stream is one request for the whole session, and the server decides when to send, so the page never repeats a request and never resends its signals just to ask for news. The price of the stream is that the server holds a connection, and in our JDK adapter a thread, for as long as the page is open.
 
 The page starts the stream with `dataInit`, which runs its expression once when Datastar first sees the element, and it contains the first version of the dashboard:
 
@@ -357,7 +378,7 @@ println(live.renderMinified)
 
 The table has an `id`, so each `DatastarEvent.patchElements` event replaces it whole. The `dashboard` function takes the rows to show; `Weather.readings(tick)` from the examples supplies a row per city for every tick.
 
-The stream itself is a `Stream` of rendered events, one per second. The approach is the one from [How to Send Server-Sent Events with http-model](./send-server-sent-events.md): `Stream#tapEach` waits before each element, so the server writes an event only when the pause is over. Here it is with no pause, cut to two events so that we can read it:
+The stream itself is a `Stream` of rendered events, one per second. The approach is the one from [How to Send Server-Sent Events with http-model](./send-server-sent-events.md): `Stream#tapEach` runs a side effect for each element before the element moves on, so a sleep inside it makes the server write an event only when the pause is over. Here it is with no pause, cut to two events so that we can read it:
 
 ```scala mdoc:silent
 def ticks(intervalMillis: Long): Stream[Nothing, String] =
@@ -374,9 +395,9 @@ val firstTwoTicks = eventResponse(ticks(0).take(2))
 
 The code above:
 
-- `Stream#tapEach` pauses for `intervalMillis` before each element
-- `map` turns each tick into a `DatastarEvent.patchElements` event for the table
-- `take(2)` ends the otherwise endless stream so that we can print it
+- `Stream#tapEach` runs its function for each element, and the `Thread.sleep(intervalMillis)` inside that function makes each element wait
+- `Stream#map` turns each tick into a `DatastarEvent.patchElements` event for the table
+- `Stream#take` with `2` ends the otherwise endless stream so that we can print it
 
 To read the first two events from the response body:
 
@@ -399,7 +420,7 @@ client: disconnected
 server: stream closed after 4 events
 ```
 
-The server had already produced two more events than the client read when it noticed the disconnect: the events that were in flight when the client closed the connection.
+The server writes two more events than the client reads before it notices the disconnect: those are the events in flight when the client closes the connection.
 
 ## 8. Putting It Together
 
