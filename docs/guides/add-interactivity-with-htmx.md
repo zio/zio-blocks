@@ -615,4 +615,4 @@ You now have a solid foundation in building interactive pages with htmx and ZIO 
 - **Want the server to steer the browser?** [Request and Response Headers](../reference/htmx/response-headers.md) covers the typed request headers and the response headers that redirect, retarget or refresh the page.
 - **Need stricter query parameters?** [How to Validate Query Parameters and Headers and Answer 400](./validate-query-parameters-and-headers.md) decodes typed parameters and reports every mistake at once.
 - **Want more on serving?** [How to Serve http-model Requests with the JDK HTTP Server](./serve-http-model-requests.md) explains the adapter the examples use and its limits.
-- **Prefer reactive signals?** [Datastar](../reference/datastar/index.md) builds on the HTML module with typed `data-*` attributes and server-sent events.
+- **Prefer reactive signals?** [Build a Live Counter and Dashboard with Datastar](./build-a-live-dashboard-with-datastar.md) builds a counter and a streamed dashboard with typed `data-*` attributes and server-sent events; the [Datastar](../reference/datastar/index.md) reference covers every attribute.

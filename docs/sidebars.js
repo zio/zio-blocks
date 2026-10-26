@@ -485,6 +485,7 @@ const sidebars = {
     "guides/add-interactivity-with-htmx",
     "guides/serve-http-model-requests",
     "guides/send-server-sent-events",
+    "guides/build-a-live-dashboard-with-datastar",
     "guides/validate-query-parameters-and-headers",
     "guides/your-first-streaming-pipeline",
     "guides/stream-files-and-sockets",
