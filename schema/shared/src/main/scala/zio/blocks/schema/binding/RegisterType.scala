@@ -30,15 +30,38 @@ sealed trait RegisterType[A]
 
 /** The register kinds. */
 object RegisterType {
-  case object Unit                 extends RegisterType[Unit]
-  case object Char                 extends RegisterType[Char]
-  case object Byte                 extends RegisterType[Byte]
-  case object Short                extends RegisterType[Short]
-  case object Int                  extends RegisterType[Int]
-  case object Long                 extends RegisterType[Long]
-  case object Float                extends RegisterType[Float]
-  case object Double               extends RegisterType[Double]
-  case object Boolean              extends RegisterType[Boolean]
+
+  /** The register kind of `Unit` values. */
+  case object Unit extends RegisterType[Unit]
+
+  /** The register kind of `Char` values. */
+  case object Char extends RegisterType[Char]
+
+  /** The register kind of `Byte` values. */
+  case object Byte extends RegisterType[Byte]
+
+  /** The register kind of `Short` values. */
+  case object Short extends RegisterType[Short]
+
+  /** The register kind of `Int` values. */
+  case object Int extends RegisterType[Int]
+
+  /** The register kind of `Long` values. */
+  case object Long extends RegisterType[Long]
+
+  /** The register kind of `Float` values. */
+  case object Float extends RegisterType[Float]
+
+  /** The register kind of `Double` values. */
+  case object Double extends RegisterType[Double]
+
+  /** The register kind of `Boolean` values. */
+  case object Boolean extends RegisterType[Boolean]
+
+  /**
+   * The register kind of reference values. `RegisterType.Object()` returns its
+   * one instance.
+   */
   sealed trait Object[A <: AnyRef] extends RegisterType[A]
 
   /**

@@ -345,11 +345,21 @@ final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic with S
  * `Person.name` stops compiling outside the `zio.blocks.schema` package.
  */
 trait OpticsFor[S] {
+
+  /** The type of the derived optics of `S`, the type of `optics`. */
   type Out
+
+  /** Returns the derived optics of `S`. */
   def optics: Out
 }
 
+/** Derives [[OpticsFor]] instances. */
 object OpticsFor {
+
+  /**
+   * Derives the optics of `S` from its schema, as `DerivedOptics#optics` does,
+   * and refines `Out` to their exact type.
+   */
   transparent inline given derived[S](using schema: Schema[S]): OpticsFor[S] = ${ opticsForImpl[S]('schema) }
 
   private def opticsForImpl[S: Type](schema: Expr[Schema[S]])(using Quotes): Expr[OpticsFor[S]] = {

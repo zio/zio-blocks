@@ -117,11 +117,13 @@ sealed trait SchemaType extends Product with Serializable {
 /** The two forms of the `type` keyword. */
 object SchemaType {
 
+  /** One type, such as `"type": "string"`. */
+  final case class Single(value: JsonSchemaType) extends SchemaType
+
   /**
-   * `Single` is one type, such as `"type": "string"`; `Union` is several, such
-   * as `"type": ["string", "null"]`, and a value may be of any of them.
+   * Several types, such as `"type": ["string", "null"]`; a value may be of any
+   * of them.
    */
-  final case class Single(value: JsonSchemaType)                extends SchemaType
   final case class Union(values: NonEmptyChunk[JsonSchemaType]) extends SchemaType
 
   /**

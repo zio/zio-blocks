@@ -28,6 +28,12 @@ trait PlatformSpecific extends Platform {
   override val isJS: Boolean  = false
   override val name: String   = "JVM"
 
+  /**
+   * Converts `idn` to its ASCII form for the `hostname` format check. On the
+   * JVM it calls `java.net.IDN.toASCII` with the STD3 ASCII rules and returns
+   * `None` when that rejects the name; on Scala.js there is no IDN translation,
+   * and it returns `Some(idn)`.
+   */
   def idnToAscii(idn: String): Option[String] =
     try new Some(IDN.toASCII(idn, IDN.USE_STD3_ASCII_RULES))
     catch {

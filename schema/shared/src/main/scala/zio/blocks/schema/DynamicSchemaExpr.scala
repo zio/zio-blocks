@@ -967,7 +967,10 @@ object DynamicSchemaExpr {
     }
 
     /**
-     * `x >>> y`, filling with zeros.
+     * `x >>> y`, filling a `Long` with zeros. A `Byte`, `Short` or `Int` is
+     * shifted as a sign-extended `Long` and the result truncated to an `Int`,
+     * so a negative value shifted by less than 32 stays negative: `-8 >>> 1`
+     * gives -4, not 2147483644 (a known bug).
      */
     case object UnsignedRightShift extends BitwiseOperator {
       def apply(x: DynamicValue, y: DynamicValue): Either[SchemaError, DynamicValue] =

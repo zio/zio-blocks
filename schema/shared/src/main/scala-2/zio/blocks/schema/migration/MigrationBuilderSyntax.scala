@@ -19,6 +19,7 @@ package zio.blocks.schema.migration
 import scala.reflect.macros.whitebox
 import zio.blocks.schema.SchemaExpr
 
+/** Macro implementations of the `MigrationBuilder` methods. */
 object MigrationBuilderMacros {
 
   private def extractFieldPathFromSelector(c: whitebox.Context)(selector: c.Tree): String = {
@@ -503,6 +504,10 @@ object MigrationBuilderMacros {
   }
 }
 
+/**
+ * Macro implementation of `MigrationComplete.derive`, the compile-time
+ * changeset check.
+ */
 object MigrationValidationMacros {
 
   def validateMigrationImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](

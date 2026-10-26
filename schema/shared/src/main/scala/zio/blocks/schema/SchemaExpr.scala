@@ -663,8 +663,18 @@ object SchemaExpr {
    * The cases of [[LogicalOperator]].
    */
   object LogicalOperator {
+
+    /**
+     * Logical and (`&&`), without short-circuit: the right side is evaluated
+     * whatever the left values are.
+     */
     case object And extends LogicalOperator
-    case object Or  extends LogicalOperator
+
+    /**
+     * Logical or (`||`), without short-circuit: the right side is evaluated
+     * whatever the left values are.
+     */
+    case object Or extends LogicalOperator
   }
 
   /**
@@ -678,12 +688,36 @@ object SchemaExpr {
    * The cases of [[RelationalOperator]].
    */
   object RelationalOperator {
-    case object LessThan           extends RelationalOperator
-    case object GreaterThan        extends RelationalOperator
-    case object LessThanOrEqual    extends RelationalOperator
+
+    /**
+     * `<`, in the order of `DynamicValue#compare`, where primitives of
+     * different types compare by type.
+     */
+    case object LessThan extends RelationalOperator
+
+    /**
+     * `>`, in the order of `DynamicValue#compare`, where primitives of
+     * different types compare by type.
+     */
+    case object GreaterThan extends RelationalOperator
+
+    /**
+     * `<=`, in the order of `DynamicValue#compare`, where primitives of
+     * different types compare by type.
+     */
+    case object LessThanOrEqual extends RelationalOperator
+
+    /**
+     * `>=`, in the order of `DynamicValue#compare`, where primitives of
+     * different types compare by type.
+     */
     case object GreaterThanOrEqual extends RelationalOperator
-    case object Equal              extends RelationalOperator
-    case object NotEqual           extends RelationalOperator
+
+    /** `==`, structural equality. */
+    case object Equal extends RelationalOperator
+
+    /** `!=`, structural inequality. */
+    case object NotEqual extends RelationalOperator
   }
 
   /**
@@ -697,18 +731,39 @@ object SchemaExpr {
    * The cases of [[ArithmeticOperator]].
    */
   object ArithmeticOperator {
-    case object Add      extends ArithmeticOperator
+
+    /** `x + y`. `Byte`, `Short`, `Int` and `Long` sums wrap on overflow. */
+    case object Add extends ArithmeticOperator
+
+    /** `x - y`. `Byte`, `Short`, `Int` and `Long` results wrap on overflow. */
     case object Subtract extends ArithmeticOperator
+
+    /** `x * y`. `Byte`, `Short`, `Int` and `Long` products wrap on overflow. */
     case object Multiply extends ArithmeticOperator
-    case object Divide   extends ArithmeticOperator
-    case object Pow      extends ArithmeticOperator
-    case object Modulo   extends ArithmeticOperator
+
+    /**
+     * `x / y`. Integer division truncates, and a zero divisor (for `Float` and
+     * `Double`, positive zero) fails evaluation.
+     */
+    case object Divide extends ArithmeticOperator
+
+    /**
+     * `x` to the power `y`, with the conversions and limits that
+     * [[SchemaExpr.arithmetic]] describes.
+     */
+    case object Pow extends ArithmeticOperator
+
+    /**
+     * `x % y`, the remainder, with the sign of `x`. A zero divisor (for `Float`
+     * and `Double`, positive zero) fails evaluation.
+     */
+    case object Modulo extends ArithmeticOperator
   }
 
   /**
    * The operator of [[SchemaExpr.bitwise]]: `And`, `Or`, `Xor`, `LeftShift`
    * (`<<`), `RightShift` (`>>`, keeping the sign) or `UnsignedRightShift`
-   * (`>>>`, filling with zeros).
+   * (`>>>`, which fills with zeros only on a `Long`).
    */
   sealed trait BitwiseOperator
 
@@ -716,11 +771,34 @@ object SchemaExpr {
    * The cases of [[BitwiseOperator]].
    */
   object BitwiseOperator {
-    case object And                extends BitwiseOperator
-    case object Or                 extends BitwiseOperator
-    case object Xor                extends BitwiseOperator
-    case object LeftShift          extends BitwiseOperator
-    case object RightShift         extends BitwiseOperator
+
+    /** Bitwise and (`&`). */
+    case object And extends BitwiseOperator
+
+    /** Bitwise or (`|`). */
+    case object Or extends BitwiseOperator
+
+    /** Bitwise exclusive or. */
+    case object Xor extends BitwiseOperator
+
+    /**
+     * `x << y`. A `Byte`, `Short` or `Int` is shifted as a `Long` and the
+     * result truncated to an `Int`, so a shift by 32 to 63 gives 0.
+     */
+    case object LeftShift extends BitwiseOperator
+
+    /**
+     * `x >> y`, keeping the sign. A `Byte`, `Short` or `Int` is shifted as a
+     * `Long`, so a shift by 32 to 63 gives 0 or -1.
+     */
+    case object RightShift extends BitwiseOperator
+
+    /**
+     * `x >>> y`, filling a `Long` with zeros. A `Byte`, `Short` or `Int` is
+     * shifted as a sign-extended `Long` and the result truncated to an `Int`,
+     * so a negative value shifted by less than 32 stays negative: `-8 >>> 1`
+     * gives -4, not 2147483644 (a known bug).
+     */
     case object UnsignedRightShift extends BitwiseOperator
   }
 

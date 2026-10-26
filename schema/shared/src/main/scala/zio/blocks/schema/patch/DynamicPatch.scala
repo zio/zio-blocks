@@ -811,6 +811,7 @@ object DynamicPatch {
   /** One change, applied at the path of a [[DynamicPatchOp]]. */
   sealed trait Operation
 
+  /** The cases of [[Operation]]. */
   object Operation {
 
     /**
@@ -851,6 +852,7 @@ object DynamicPatch {
    */
   sealed trait PrimitiveOp
 
+  /** The cases of [[PrimitiveOp]]. */
   object PrimitiveOp {
 
     // Delta for Primitive values. Applied by adding delta to the current value.
@@ -910,6 +912,7 @@ object DynamicPatch {
    */
   sealed trait SeqOp
 
+  /** The cases of [[SeqOp]]. */
   object SeqOp {
 
     /**
@@ -938,6 +941,7 @@ object DynamicPatch {
    */
   sealed trait StringOp
 
+  /** The cases of [[StringOp]]. */
   object StringOp {
 
     /** Insert text at the given index. */
@@ -964,6 +968,7 @@ object DynamicPatch {
    */
   sealed trait MapOp
 
+  /** The cases of [[MapOp]]. */
   object MapOp {
 
     /** Add a key-value pair to the map. */
@@ -985,7 +990,14 @@ object DynamicPatch {
 
   /** The instances of [[DurationDummy]]. */
   object DurationDummy {
-    implicit object ForInstant  extends DurationDummy
+
+    /**
+     * Evidence for `Instant`. No overload takes it: the `Instant` overload of
+     * `Patch.addDuration` needs no evidence.
+     */
+    implicit object ForInstant extends DurationDummy
+
+    /** Selects the `Duration` overload of `Patch.addDuration`. */
     implicit object ForDuration extends DurationDummy
   }
 
@@ -998,8 +1010,15 @@ object DynamicPatch {
 
   /** The instances of [[PeriodDummy]]. */
   object PeriodDummy {
+
+    /**
+     * Evidence for `LocalDate`. No overload takes it: the `LocalDate` overload
+     * of `Patch.addPeriod` needs no evidence.
+     */
     implicit object ForLocalDate extends PeriodDummy
-    implicit object ForPeriod    extends PeriodDummy
+
+    /** Selects the `Period` overload of `Patch.addPeriod`. */
+    implicit object ForPeriod extends PeriodDummy
   }
 
   /**
@@ -1013,11 +1032,36 @@ object DynamicPatch {
 
   /** The instances of [[CollectionDummy]], one per collection type. */
   object CollectionDummy {
-    implicit object ForVector     extends CollectionDummy
-    implicit object ForList       extends CollectionDummy
-    implicit object ForSeq        extends CollectionDummy
+
+    /**
+     * Selects the `Vector` overloads of `Patch.append`, `insertAt`, `deleteAt`
+     * and `modifyAt`.
+     */
+    implicit object ForVector extends CollectionDummy
+
+    /**
+     * Selects the `List` overloads of `Patch.append`, `insertAt`, `deleteAt`
+     * and `modifyAt`.
+     */
+    implicit object ForList extends CollectionDummy
+
+    /**
+     * Selects the `Seq` overloads of `Patch.append`, `insertAt`, `deleteAt` and
+     * `modifyAt`.
+     */
+    implicit object ForSeq extends CollectionDummy
+
+    /**
+     * Selects the `IndexedSeq` overloads of `Patch.append`, `insertAt`,
+     * `deleteAt` and `modifyAt`.
+     */
     implicit object ForIndexedSeq extends CollectionDummy
-    implicit object ForLazyList   extends CollectionDummy
+
+    /**
+     * Selects the `LazyList` overloads of `Patch.append`, `insertAt`,
+     * `deleteAt` and `modifyAt`.
+     */
+    implicit object ForLazyList extends CollectionDummy
   }
 
   // Schema instances for DynamicPatch types
