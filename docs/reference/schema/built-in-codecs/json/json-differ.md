@@ -35,7 +35,7 @@ Original JSON              Target JSON
    }
 ```
 
-The core guarantee: `JsonDiffer.diff(source, target).apply(source) == Right(target)` always holds.
+The core guarantee: `JsonDiffer.diff(source, target).apply(source) == Right(target)`, as long as neither value has an object with duplicate keys (a known bug in 0.0.56: a duplicate key in `source` survives the patch, and one in `target` makes the patch fail).
 
 ## Motivation
 
@@ -219,7 +219,7 @@ object JsonDiffer {
 }
 ```
 
-The roundtrip property always holds — applying the patch to the source always yields the target:
+For values without duplicate keys, the roundtrip property holds: applying the patch to the source yields the target:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema.json.{Json, JsonDiffer}

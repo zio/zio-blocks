@@ -19,22 +19,18 @@ package zio.blocks.schema.json
 import zio.blocks.schema.DynamicOptic
 
 /**
- * A custom exception class without the stack trace representing errors that
- * occur during JSON encoding/decoding operations.
- *
- * The `JsonCodecError` class extends `Throwable` to provide enhanced error
- * reporting for scenarios involving JSON encoding or decoding errors where
- * dynamic data paths (spans) are involved. These spans represent the stack of
- * nodes traversed within the data structure when the error occurred. So that
- * top-level spans are at the end of the list.
+ * The exception, without a stack trace, that a [[JsonCodec]] throws while
+ * reading or writing. The `decode` methods turn it into a
+ * [[zio.blocks.schema.SchemaError]] with the path of `spans`; the `encode`
+ * methods and `Json.from` let it escape. A custom codec raises one with
+ * `JsonCodec#error`.
  *
  * @param spans
- *   A list of `DynamicOptic.Node` objects representing the traversal path
- *   within the data structure where the error occurred. Each node encapsulates
- *   information about a specific element (field, index, etc.).
+ *   the path to the failing value, outermost step first: each enclosing codec
+ *   adds its step (a field, an index, a case) to the front as the error passes
+ *   through it
  * @param message
- *   A descriptive message providing additional context or details about the
- *   error.
+ *   what went wrong, such as `illegal number: NaN`
  */
 class JsonCodecError(var spans: List[DynamicOptic.Node], message: String)
     extends Throwable(message, null, false, false) {

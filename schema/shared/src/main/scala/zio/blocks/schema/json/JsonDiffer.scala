@@ -20,20 +20,35 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema.patch.LCS
 
 /**
- * Computes differences between [[Json]] values, producing [[JsonPatch]]
- * instances that can transform one JSON value into another.
+ * Computes the [[JsonPatch]] that turns one [[Json]] value into another;
+ * [[JsonPatch.diff]] and [[Json#diff]] call it.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/json/json-differ/ JsonDiffer]]
  */
 object JsonDiffer {
 
   /**
-   * Compute the diff between two Json values.
+   * Returns a patch that turns `source` into `target`, so that
+   * `diff(source, target).apply(source)` gives a value `==` to `target`. This
+   * holds when neither object has duplicate keys: a duplicate in `source`
+   * survives the patch, and one in `target` makes the patch fail in `Strict`
+   * mode (a known bug). Equal values give the empty patch, and values of
+   * different kinds a root `Set`. Otherwise, by kind:
+   *   - numbers: a `NumberDelta` of the difference;
+   *   - strings: a `StringEdit` of LCS-based `Insert` and `Delete` steps when
+   *     its inserted text plus one per deletion is shorter than the new string,
+   *     or else a `Set`;
+   *   - arrays: an `ArrayEdit` of `Delete`, `Insert` and `Append` steps that
+   *     keep the longest common subsequence of elements (no `Modify`, so a
+   *     changed element is deleted and inserted again);
+   *   - objects: an `ObjectEdit` that, in the order of `target`'s fields,
+   *     modifies a changed field with its own diff and adds a new field, then
+   *     removes the fields `target` lacks.
    *
-   * @param source
-   *   The original Json value
-   * @param target
-   *   The desired Json value
-   * @return
-   *   A JsonPatch that transforms source into target
+   * Object field order is not diffed: `==` ignores it, and an added field goes
+   * last when the patch is applied. The diff of arrays and strings takes time
+   * and memory proportional to the product of their lengths.
    */
   def diff(source: Json, target: Json): JsonPatch =
     if (source == target) JsonPatch.empty

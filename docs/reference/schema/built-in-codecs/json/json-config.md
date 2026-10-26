@@ -86,25 +86,28 @@ val ascii = json.print(WriterConfig.withEscapeUnicode(true))
 
 ### Configuration Options
 
-| Option                 | Type    | Default | Purpose                                |
-|------------------------|---------|---------|----------------------------------------|
-| `checkForEndOfInput`   | Boolean | true    | Verify no extra input after valid JSON |
-| `preferredCharBufSize` | Int     | 8192    | Internal character buffer size         |
+| Option                 | Type    | Default  | Purpose                                                                                   |
+|------------------------|---------|----------|-------------------------------------------------------------------------------------------|
+| `checkForEndOfInput`   | Boolean | true     | Reject anything but whitespace after the value                                            |
+| `preferredCharBufSize` | Int     | 4096     | Starting size of the character buffer for strings                                         |
+| `maxCharBufSize`       | Int     | 4194304  | Longest string value or key, in chars                                                     |
+| `preferredBufSize`     | Int     | 32768    | Starting size of the byte buffer for `InputStream` and direct (not array-backed) `ByteBuffer` input; an array-backed `ByteBuffer` is read in place |
+| `maxBufSize`           | Int     | 33554432 | Largest size of that byte buffer, for example while looking for a late discriminator field |
 
 ### Usage Examples
 
-Allow trailing whitespace after valid JSON during parsing:
+Stop after the first value instead of rejecting the text after it. Whitespace after the value is always allowed:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.json.{Json, ReaderConfig}
 
-// Lenient: allow trailing whitespace
+// Lenient: ignore whatever follows the first value
 val lenientConfig = ReaderConfig.withCheckForEndOfInput(false)
 
-val jsonString = """{"name": "Alice"}   """  // Trailing spaces
+val jsonString = """{"name": "Alice"} {"name": "Bob"}"""
 val result = Json.parse(jsonString, lenientConfig)
-// Right(Json.Object(...))
+// Right({"name": "Alice"}); with the default ReaderConfig this is a Left
 ```
 
 ## MergeStrategy
@@ -112,10 +115,11 @@ val result = Json.parse(jsonString, lenientConfig)
 `MergeStrategy` determines how field conflicts are resolved when merging two JSON objects. It provides strategies for different use cases, from strict validation to lenient concatenation.
 
 **Available Strategies:**
-- `Strict` — Fails if the same field appears in both objects
-- `Right` — The right object's values override the left's
-- `Left` — The left object's values take precedence
-- Additional strategies may be available depending on your use case
+- `Auto` (the default) — Merges objects by key and arrays by index at every depth; the right value wins elsewhere
+- `Shallow` — Merges only the top-level object or array; nested values are replaced by the right ones
+- `Concat` — Merges objects by key and appends the right array to the left one
+- `Replace` — The right value replaces the left one
+- `Custom(f, r)` — `r` decides where to descend, and `f` merges everything else
 
 For details on merge strategies and their usage, see the Merging section of the [Json](./json.md) documentation.
 
@@ -147,10 +151,10 @@ Convert camelCase to snake_case:
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 
+@Modifier.fieldNaming("snake_case")
 case class User(firstName: String, lastName: String)
 object User { 
   implicit val schema: Schema[User] = Schema.derived
-  implicit val nameMapper: NameMapper = NameMapper.SnakeCase
 }
 
 val user = User("Alice", "Smith")
@@ -164,10 +168,10 @@ Convert camelCase to kebab-case:
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 
+@Modifier.fieldNaming("kebab-case")
 case class User(firstName: String, lastName: String)
 object User { 
   implicit val schema: Schema[User] = Schema.derived
-  implicit val nameMapper: NameMapper = NameMapper.KebabCase
 }
 
 val user = User("Alice", "Smith")
@@ -176,7 +180,7 @@ val json = user.toJson
 ```
 
 **Custom Mappers:**
-Additional custom name mappers may be available depending on your needs. The built-in mappers (Identity, SnakeCase, KebabCase) cover most common use cases.
+Besides `Identity`, `SnakeCase` and `KebabCase`, `NameMapper` has `CamelCase`, `PascalCase` and `Custom(f)`, which applies any `String => String` function. An implicit `NameMapper` in scope has no effect: annotate the type with `@Modifier.fieldNaming` (or `@Modifier.caseNaming` for case names), or derive a codec with `JsonCodecDeriver.withFieldNameMapper` and `Schema#derive`.
 
 ## Combining Configuration
 
@@ -205,14 +209,14 @@ val output = json.print(WriterConfig
 ## Performance Implications
 
 - **WriterConfig:** Indentation increases output size but has minimal performance impact
-- **ReaderConfig:** `checkForEndOfInput` adds one comparison
+- **ReaderConfig:** `checkForEndOfInput` skips the whitespace after the value to the end of the input
 - **MergeStrategy:** Strategy choice affects merge performance based on use case
 - **NameMapper:** Applied once per field during schema derivation; zero runtime cost if identity mapping
 
 ## Best Practices
 
 1. **Use WriterConfig for human-readable output only** — Compact output is faster for wire transmission
-2. **Choose MergeStrategy based on use case** — Strict for validation, others for defaults
+2. **Choose MergeStrategy based on use case** — `Auto` for deep merges of defaults, `Concat` to accumulate lists, `Replace` to override
 3. **Standardize on one NameMapper** across your codebase to avoid confusion
 4. **Cache WriterConfig/ReaderConfig instances** — They're immutable and can be reused
 

@@ -28,10 +28,12 @@ import scala.util.control.NonFatal
 // =============================================================================
 
 /**
- * Non-negative integer (>= 0). Used for minLength, maxLength, minItems, etc.
+ * An `Int` that is 0 or more, for keywords such as `minLength`, `maxItems` and
+ * `minProperties`. Create one with `NonNegativeInt(n)`, `unsafe` or `literal`.
  */
 final case class NonNegativeInt private[json] (value: Int) extends AnyVal
 
+/** Constructors for [[NonNegativeInt]]. */
 object NonNegativeInt extends NonNegativeIntCompanionVersionSpecific {
 
   /** Creates a NonNegativeInt from a runtime value, returning Option. */
@@ -39,20 +41,29 @@ object NonNegativeInt extends NonNegativeIntCompanionVersionSpecific {
     if (n >= 0) new Some(new NonNegativeInt(n))
     else None
 
+  /**
+   * Creates a NonNegativeInt from a runtime value.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when `n` is negative
+   */
   def unsafe(n: Int): NonNegativeInt = {
     require(n >= 0, s"NonNegativeInt requires n >= 0, got $n")
     new NonNegativeInt(n)
   }
 
+  /** The values 0 (`zero`) and 1 (`one`). */
   val zero: NonNegativeInt = new NonNegativeInt(0)
   val one: NonNegativeInt  = new NonNegativeInt(1)
 }
 
 /**
- * Strictly positive number (> 0). Used for multipleOf.
+ * A number greater than 0, for the `multipleOf` keyword. Create one with
+ * `PositiveNumber(n)`, `fromInt`, `unsafe` or `literal`.
  */
 final case class PositiveNumber private[json] (value: BigDecimal) extends AnyVal
 
+/** Constructors for [[PositiveNumber]]. */
 object PositiveNumber extends PositiveNumberCompanionVersionSpecific {
 
   /**
@@ -62,22 +73,37 @@ object PositiveNumber extends PositiveNumberCompanionVersionSpecific {
     if (n > 0) new Some(new PositiveNumber(n))
     else None
 
+  /**
+   * Creates a PositiveNumber from a runtime value.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when `n` is not greater than 0
+   */
   def unsafe(n: BigDecimal): PositiveNumber = {
     require(n > 0, s"PositiveNumber requires n > 0, got $n")
     new PositiveNumber(n)
   }
 
+  /**
+   * Creates a PositiveNumber from an `Int`, or `None` when it is not greater
+   * than 0.
+   */
   def fromInt(n: Int): Option[PositiveNumber] =
     if (n > 0) new Some(new PositiveNumber(BigDecimal(n)))
     else None
 }
 
 /**
- * ECMA-262 regular expression pattern.
+ * A regular expression for the `pattern` and `patternProperties` keywords. JSON
+ * Schema specifies ECMA-262 syntax, but `check` compiles it with
+ * `java.util.regex`, so the few syntax differences follow Java.
  */
 final case class RegexPattern(value: String) {
 
-  /** Compiles the pattern to a Java Pattern for validation. */
+  /**
+   * The compiled pattern, or `Left` with the compiler's message when the syntax
+   * is invalid.
+   */
   lazy val compiled: Either[String, Pattern] =
     try new Right(Pattern.compile(value))
     catch {
@@ -85,9 +111,13 @@ final case class RegexPattern(value: String) {
     }
 }
 
+/** Constructors for [[RegexPattern]]. */
 object RegexPattern {
 
-  /** Validates and creates a RegexPattern. */
+  /**
+   * Creates a RegexPattern, or returns `Left` with the compiler's message when
+   * the syntax is invalid.
+   */
   def apply(value: String): Either[String, RegexPattern] =
     try {
       Pattern.compile(value)
@@ -96,12 +126,16 @@ object RegexPattern {
       case e: PatternSyntaxException => new Left(e.getMessage)
     }
 
-  /** Creates a RegexPattern without validation (for trusted input). */
+  /**
+   * Creates a RegexPattern without checking it. An invalid pattern is skipped
+   * by `check`, which then accepts every string.
+   */
   def unsafe(value: String): RegexPattern = new RegexPattern(value)
 }
 
 /**
- * URI-Reference per RFC 3986 (may be relative).
+ * A URI reference (RFC 3986, possibly relative), for `\$id`, `\$ref` and
+ * `\$dynamicRef`. It is not checked.
  */
 final case class UriReference private[json] (value: String) extends AnyVal {
 
@@ -113,16 +147,23 @@ final case class UriReference private[json] (value: String) extends AnyVal {
     }
 }
 
+/** Constructor for [[UriReference]]. */
 object UriReference {
+
+  /** Wraps `value` without checking it. */
   def apply(value: String): UriReference = new UriReference(value)
 }
 
 /**
- * Anchor name (plain name fragment without #).
+ * An anchor name (a plain-name fragment, without `#`), for `\$anchor` and
+ * `\$dynamicAnchor`.
  */
 final case class Anchor private[json] (value: String) extends AnyVal
 
+/** Constructor for [[Anchor]]. */
 object Anchor {
+
+  /** Wraps `value` without checking it. */
   def apply(value: String): Anchor = new Anchor(value)
 }
 
@@ -133,9 +174,8 @@ object Anchor {
 /**
  * Validates string values against JSON Schema format specifications.
  *
- * Per JSON Schema 2020-12, the `format` keyword is an annotation by default.
- * This object provides optional validation for common formats that can be
- * enabled when needed.
+ * `JsonSchema#check` uses it unless `ValidationOptions.annotationOnly` is
+ * passed; unknown formats pass.
  *
  * Supported formats:
  *   - date-time: RFC 3339 date-time (e.g., "2024-01-15T10:30:00Z")
@@ -148,7 +188,9 @@ object Anchor {
  *   - ipv4: IPv4 address
  *   - ipv6: IPv6 address
  *   - hostname: RFC 1123 hostname
- *   - regex: ECMA-262 regular expression
+ *   - regex: a regular expression that `java.util.regex` compiles
+ *   - duration: ISO 8601 duration
+ *   - json-pointer: RFC 6901 JSON Pointer
  */
 private[json] object FormatValidator {
 
@@ -370,16 +412,22 @@ private[json] object FormatValidator {
 }
 
 /**
- * Options for JSON Schema validation behavior.
+ * Options of `JsonSchema#check`.
  *
  * @param validateFormats
- *   When true, the `format` keyword is validated (format assertion vocabulary).
- *   When false, `format` is treated as an annotation only (default per JSON
- *   Schema 2020-12).
+ *   whether `format` is checked for the formats it knows (`true`, the default
+ *   here), or only an annotation (`false`), as JSON Schema 2020-12 specifies by
+ *   default
  */
 final case class ValidationOptions(validateFormats: scala.Boolean = true)
 
+/** The predefined validation options. */
 object ValidationOptions {
+
+  /**
+   * The default, which checks formats; `annotationOnly` does not check them,
+   * and `formatAssertion` checks them, as `default` does.
+   */
   val default: ValidationOptions         = new ValidationOptions()
   val annotationOnly: ValidationOptions  = new ValidationOptions(validateFormats = false)
   val formatAssertion: ValidationOptions = new ValidationOptions(validateFormats = true)
@@ -404,6 +452,8 @@ final case class EvaluationResult(
   evaluatedProperties: Set[String],
   evaluatedItems: Set[Int]
 ) {
+
+  /** Joins the errors and evaluated properties and items of both results. */
   def ++(other: EvaluationResult): EvaluationResult =
     EvaluationResult(
       errors ++ other.errors,
@@ -411,28 +461,44 @@ final case class EvaluationResult(
       evaluatedItems ++ other.evaluatedItems
     )
 
+  /**
+   * Adds an error with `message` at the path `trace` (innermost step first).
+   */
   def addError(trace: List[DynamicOptic.Node], message: String): EvaluationResult =
     copy(errors = SchemaError.expectationMismatch(trace, message).errors.head :: errors)
 
+  /** Adds the given errors. */
   def addErrors(newErrors: List[SchemaError.Single]): EvaluationResult = copy(errors = newErrors ++ errors)
 
+  /** Marks the property `prop` as evaluated. */
   def withEvaluatedProperty(prop: String): EvaluationResult = copy(evaluatedProperties = evaluatedProperties + prop)
 
+  /** Marks the properties `props` as evaluated. */
   def withEvaluatedProperties(props: Set[String]): EvaluationResult =
     copy(evaluatedProperties = evaluatedProperties ++ props)
 
+  /** Marks the array index `idx` as evaluated. */
   def withEvaluatedItem(idx: Int): EvaluationResult = copy(evaluatedItems = evaluatedItems + idx)
 
+  /** Marks the array indices `indices` as evaluated. */
   def withEvaluatedItems(indices: Set[Int]): EvaluationResult = copy(evaluatedItems = evaluatedItems ++ indices)
 
+  /**
+   * Returns `None` when there are no errors, or one `SchemaError` holding them
+   * all.
+   */
   def toSchemaError: Option[SchemaError] =
     if (errors.isEmpty) None
     else new Some(new SchemaError(errors.asInstanceOf[::[SchemaError.Single]]))
 }
 
+/** Constructors for [[EvaluationResult]]. */
 object EvaluationResult {
+
+  /** No errors and nothing evaluated. */
   val empty: EvaluationResult = new EvaluationResult(Nil, Set.empty, Set.empty)
 
+  /** A result with one error, `message` at the path `trace`. */
   def fromError(trace: List[DynamicOptic.Node], message: String): EvaluationResult =
     new EvaluationResult(List(SchemaError.expectationMismatch(trace, message).errors.head), Set.empty, Set.empty)
 }
@@ -446,32 +512,80 @@ object EvaluationResult {
 // =============================================================================
 
 /**
- * A JSON Schema 2020-12 representation.
+ * A JSON Schema (draft 2020-12): [[JsonSchema.True]], [[JsonSchema.False]], or
+ * a [[JsonSchema.Object]] of keywords. Parse one with [[JsonSchema.parse]],
+ * build one with the constructors in the companion, or get the schema of a
+ * type's JSON with `Schema#toJsonSchema`. Use it to validate JSON with `check`,
+ * to publish it with `toJson`, or to decode untyped JSON with
+ * `Schema.fromJsonSchema`.
  *
- * This sealed trait provides a complete model of JSON Schema with:
- *   - Boolean schemas (`True` accepts all, `False` rejects all)
- *   - Full schema objects with all standard vocabularies
- *   - Round-trip JSON serialization via `toJson` / `fromJson`
- *   - Validation via `check` method returning accumulated errors
- *   - Combinators (`&&` for allOf, `||` for anyOf, `!` for not)
+ * {{{
+ * import zio.blocks.schema.json._
+ *
+ * val bookSchema = JsonSchema
+ *   .parse("""{"type":"object","properties":{"title":{"type":"string","minLength":1}},"required":["title"]}""")
+ *   .fold(e => throw e, identity)
+ *
+ * bookSchema.conforms(Json.parseUnsafe("""{"title":"Zionomicon"}""")) // true
+ * bookSchema.check(Json.parseUnsafe("""{"title":""}"""))
+ * // Some(zio.blocks.schema.SchemaError: String length 0 is less than minLength 1 at: .title)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/json/json-schema/ JSON Schema]]
  */
 sealed trait JsonSchema extends Product with Serializable {
 
+  /** Prints [[toJson]] indented by two spaces. */
   override def toString: String = toJson.print(WriterConfig.withIndentionStep2)
 
-  /** Serialize this schema to its canonical JSON representation. */
+  /**
+   * Returns this schema as JSON: `true`, `false`, or an object of its keywords
+   * and extensions.
+   */
   def toJson: Json
 
   /**
-   * Validate a JSON value against this schema.
+   * Validates `json` against this schema, checking formats. Returns `None` when
+   * it conforms, or a `SchemaError` with every violation found, each with its
+   * path. The keywords checked are:
+   *   - `type` (a number with no fraction is an `integer`, so `1.0` is one),
+   *     `enum` and `const`;
+   *   - `minLength` and `maxLength` (in code points), `pattern`, and `format`;
+   *   - `minimum`, `maximum`, their exclusive forms, and `multipleOf`;
+   *   - `items`, `prefixItems`, `contains` with `minContains` and
+   *     `maxContains`, `minItems`, `maxItems` and `uniqueItems`;
+   *   - `properties`, `patternProperties`, `additionalProperties`,
+   *     `propertyNames`, `required`, `minProperties`, `maxProperties`,
+   *     `dependentRequired` and `dependentSchemas`;
+   *   - `allOf`, `anyOf`, `oneOf`, `not`, `if`/`then`/`else`,
+   *     `unevaluatedProperties` and `unevaluatedItems`;
+   *   - `\$ref`, of the form `#/\$defs/name` only; any other reference fails
+   *     with `Unsupported \$ref format`.
    *
-   * @return
-   *   None if valid, Some(error) with accumulated failures if invalid.
+   * Two known bugs: `pattern` is enforced only when it starts with `^` and ends
+   * with `$`, and a `\$ref` inside `contains`, `propertyNames` or `not` does
+   * not resolve. `\$dynamicRef` is ignored, and annotations such as `title`,
+   * `default` and the `content` keywords are not checked.
+   *
+   * {{{
+   * import zio.blocks.schema.json._
+   *
+   * val bookSchema = JsonSchema
+   *   .parse("""{"type":"object","properties":{"title":{"type":"string","minLength":1},"pages":{"type":"integer","minimum":1}},"required":["title","pages","isbn"]}""")
+   *   .fold(e => throw e, identity)
+   *
+   * bookSchema.check(Json.parseUnsafe("""{"title":"","pages":0}"""))
+   * // Some(zio.blocks.schema.SchemaError: Value 0 is less than minimum 1 at: .pages
+   * // String length 0 is less than minLength 1 at: .title
+   * // Missing required property 'isbn' at: .)
+   * }}}
    */
   def check(json: Json): Option[SchemaError]
 
   /**
-   * Validate a JSON value against this schema with custom options.
+   * Validates `json` as `check(json)` does, with `options`; with
+   * `ValidationOptions.annotationOnly`, `format` is not checked.
    *
    * @param json
    *   The JSON value to validate
@@ -482,7 +596,7 @@ sealed trait JsonSchema extends Product with Serializable {
    */
   def check(json: Json, @scala.annotation.unused options: ValidationOptions): Option[SchemaError] = check(json)
 
-  /** Returns true if the JSON value conforms to this schema. */
+  /** Returns `true` if `check(json)` finds no violation. */
   def conforms(json: Json): scala.Boolean = check(json).isEmpty
 
   /**
@@ -494,7 +608,12 @@ sealed trait JsonSchema extends Product with Serializable {
   // Combinators
   // ===========================================================================
 
-  /** Combine with another schema using allOf. */
+  /**
+   * Returns a schema that requires both this schema and `that`: an `allOf` of
+   * the two, with `True` and `False` simplified away. When either side already
+   * has an `allOf`, the lists are joined and that side's other keywords are
+   * lost (a known bug).
+   */
   def &&(that: JsonSchema): JsonSchema = (this, that) match {
     case (JsonSchema.False, _)                          => JsonSchema.False
     case (_, JsonSchema.False)                          => JsonSchema.False
@@ -509,7 +628,12 @@ sealed trait JsonSchema extends Product with Serializable {
       }))
   }
 
-  /** Combine with another schema using anyOf. */
+  /**
+   * Returns a schema that requires this schema or `that`: an `anyOf` of the
+   * two, with `True` and `False` simplified away. When either side already has
+   * an `anyOf`, the lists are joined and that side's other keywords are lost (a
+   * known bug).
+   */
   def ||(that: JsonSchema): JsonSchema = (this, that) match {
     case (JsonSchema.True, _)                           => JsonSchema.True
     case (_, JsonSchema.True)                           => JsonSchema.True
@@ -524,14 +648,23 @@ sealed trait JsonSchema extends Product with Serializable {
       }))
   }
 
-  /** Negate this schema. */
+  /**
+   * Returns a schema that accepts what this one rejects: `{"not": this}`, or
+   * the other boolean schema.
+   */
   def unary_! : JsonSchema = this match {
     case _: JsonSchema.True.type  => JsonSchema.False
     case _: JsonSchema.False.type => JsonSchema.True
     case s                        => new JsonSchema.Object(not = new Some(s))
   }
 
-  /** Make this schema nullable (accepts null in addition to current types). */
+  /**
+   * Returns a schema whose `type` also allows `null`: `"null"` is added to
+   * `type` when this schema has one, or else the schema becomes an `anyOf` with
+   * a null schema. `False` becomes the null schema, and `True` stays. Other
+   * keywords still apply, so a schema with a `type` and an `enum` or `const`
+   * that leaves out `null` still rejects it (a known bug).
+   */
   def withNullable: JsonSchema = this match {
     case s: JsonSchema.Object =>
       s.`type` match {
@@ -553,7 +686,11 @@ sealed trait JsonSchema extends Product with Serializable {
     case _                        => this
   }
 
-  /** Add a required property for the provided discriminator field. */
+  /**
+   * Returns this schema with a required property `name` whose value must be the
+   * string `value`, placed first, as for a case under
+   * `DiscriminatorKind.Field`. Boolean schemas are returned unchanged.
+   */
   def withDiscriminatorField(name: String, value: String): JsonSchema = this match {
     case s: JsonSchema.Object =>
       s.copy(
@@ -576,32 +713,62 @@ sealed trait JsonSchema extends Product with Serializable {
   }
 }
 
+/**
+ * Parsers, the boolean schemas, the schema object and constructors of
+ * [[JsonSchema]].
+ */
 object JsonSchema {
 
   // ===========================================================================
   // Type Aliases for Helper Types
   // ===========================================================================
 
+  /** Alias of [[zio.blocks.schema.json.NonNegativeInt]]. */
   type NonNegativeInt = zio.blocks.schema.json.NonNegativeInt
+
+  /** Alias of the [[zio.blocks.schema.json.NonNegativeInt]] companion. */
   val NonNegativeInt = zio.blocks.schema.json.NonNegativeInt
 
+  /** Alias of [[zio.blocks.schema.json.PositiveNumber]]. */
   type PositiveNumber = zio.blocks.schema.json.PositiveNumber
+
+  /** Alias of the [[zio.blocks.schema.json.PositiveNumber]] companion. */
   val PositiveNumber = zio.blocks.schema.json.PositiveNumber
 
+  /** Alias of [[zio.blocks.schema.json.RegexPattern]]. */
   type RegexPattern = zio.blocks.schema.json.RegexPattern
+
+  /** Alias of the [[zio.blocks.schema.json.RegexPattern]] companion. */
   val RegexPattern = zio.blocks.schema.json.RegexPattern
 
+  /** Alias of [[zio.blocks.schema.json.UriReference]]. */
   type UriReference = zio.blocks.schema.json.UriReference
+
+  /** Alias of the [[zio.blocks.schema.json.UriReference]] companion. */
   val UriReference = zio.blocks.schema.json.UriReference
 
+  /** Alias of [[zio.blocks.schema.json.Anchor]]. */
   type Anchor = zio.blocks.schema.json.Anchor
+
+  /** Alias of the [[zio.blocks.schema.json.Anchor]] companion. */
   val Anchor = zio.blocks.schema.json.Anchor
 
   // ===========================================================================
   // Parsing
   // ===========================================================================
 
-  /** Parse a JsonSchema from its JSON representation. */
+  /**
+   * Reads a schema from JSON: `true` and `false` become [[True]] and [[False]],
+   * and an object a [[JsonSchema.Object]], whose unknown keywords go to
+   * `extensions`. Parsing is lenient: a value keyword of the wrong type, such
+   * as `"minLength": "5"`, a `type` with an unknown name, and a
+   * `patternProperties` entry whose value is not a schema are dropped without
+   * an error, and an invalid `pattern` is kept but skipped by `check`. It
+   * returns `Left` for a schema value that is neither an object nor a boolean,
+   * at the root or under `items`, `properties`, `allOf` and the other
+   * applicators, and for an applicator of the wrong kind, such as `"allOf": {}`
+   * (`Expected array for allOf`).
+   */
   def fromJson(json: Json): Either[SchemaError, JsonSchema] = json match {
     case bool: Json.Boolean =>
       new Right({
@@ -614,7 +781,7 @@ object JsonSchema {
       new Left(SchemaError.expectationMismatch(Nil, msg))
   }
 
-  /** Parse a JsonSchema from a JSON string. */
+  /** Parses `jsonString` as JSON, then reads it as `fromJson` does. */
   def parse(jsonString: String): Either[SchemaError, JsonSchema] = Json.parse(jsonString) match {
     case Right(json) => fromJson(json)
     case l           => l.asInstanceOf[Either[SchemaError, JsonSchema]]
@@ -644,8 +811,10 @@ object JsonSchema {
   // ===========================================================================
 
   /**
-   * A schema object containing keywords from JSON Schema 2020-12. All fields
-   * are optional; an empty Object is equivalent to True.
+   * A schema object: the JSON Schema 2020-12 keywords as fields, each `None`
+   * when absent, plus `extensions` for any other keyword, kept for round trips.
+   * An empty object accepts every value, as [[True]] does. See
+   * `JsonSchema#check` for the keywords it checks.
    */
   final case class Object(
     // =========================================================================
@@ -1493,7 +1662,10 @@ object JsonSchema {
     }
   }
 
+  /** Constructor for [[JsonSchema.Object]]. */
   object Object {
+
+    /** The schema object with no keywords, `{}`, which accepts every value. */
     val empty: Object = Object()
   }
 
@@ -1501,8 +1673,10 @@ object JsonSchema {
   // Smart Constructors
   // ===========================================================================
 
+  /** Returns a schema with only `"type": t`. */
   def ofType(t: JsonSchemaType): JsonSchema = new Object(`type` = new Some(new SchemaType.Single(t)))
 
+  /** Returns a `"type": "string"` schema with the given string keywords. */
   def string(
     minLength: Option[NonNegativeInt] = None,
     maxLength: Option[NonNegativeInt] = None,
@@ -1526,6 +1700,7 @@ object JsonSchema {
   /** Convenience constructor for string schema with pattern. */
   def string(pattern: RegexPattern): JsonSchema = string(pattern = new Some(pattern))
 
+  /** Returns a `"type": "number"` schema with the given numeric keywords. */
   def number(
     minimum: Option[BigDecimal] = None,
     maximum: Option[BigDecimal] = None,
@@ -1541,6 +1716,7 @@ object JsonSchema {
     multipleOf = multipleOf
   )
 
+  /** Returns a `"type": "integer"` schema with the given numeric keywords. */
   def integer(
     minimum: Option[BigDecimal] = None,
     maximum: Option[BigDecimal] = None,
@@ -1556,6 +1732,7 @@ object JsonSchema {
     multipleOf = multipleOf
   )
 
+  /** Returns a `"type": "array"` schema with the given array keywords. */
   def array(
     items: Option[JsonSchema] = None,
     prefixItems: Option[NonEmptyChunk[JsonSchema]] = None,
@@ -1588,6 +1765,7 @@ object JsonSchema {
   /** Convenience constructor for array schema with just items. */
   def array(items: JsonSchema): JsonSchema = array(items = new Some(items))
 
+  /** Returns a `"type": "object"` schema with the given object keywords. */
   def obj(
     properties: Option[ChunkMap[String, JsonSchema]] = None,
     required: Option[Set[String]] = None,
@@ -1615,17 +1793,29 @@ object JsonSchema {
     dependentSchemas = dependentSchemas
   )
 
+  /** Returns a schema that accepts only the given values (`enum`). */
   def enumOf(values: NonEmptyChunk[Json]): JsonSchema = new Object(`enum` = new Some(values))
 
+  /** Returns a schema that accepts only the given strings (`enum`). */
   def enumOfStrings(values: NonEmptyChunk[String]): JsonSchema =
     new Object(`enum` = new Some(values.map(new Json.String(_))))
 
+  /** Returns a schema that accepts only `value` (`const`). */
   def constOf(value: Json): JsonSchema = new Object(const = new Some(value))
 
+  /**
+   * Returns a schema that refers to another (`\$ref`); `check` resolves only
+   * `#/\$defs/name`.
+   */
   def ref(uri: UriReference): JsonSchema = new Object($ref = new Some(uri))
 
+  /** Returns a schema that refers to `uri`, as [[ref]] does. */
   def refString(uri: String): JsonSchema = new Object($ref = new Some(UriReference(uri)))
 
+  /**
+   * The schemas `{"type": "null"}` (`nullSchema`) and `{"type": "boolean"}`
+   * (`boolean`).
+   */
   val nullSchema: JsonSchema = ofType(JsonSchemaType.Null)
   val boolean: JsonSchema    = ofType(JsonSchemaType.Boolean)
 

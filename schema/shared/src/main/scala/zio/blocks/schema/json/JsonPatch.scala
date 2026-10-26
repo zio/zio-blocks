@@ -25,38 +25,76 @@ import zio.blocks.typeid.TypeId
 import java.lang
 
 /**
- * An untyped patch that operates on [[Json]] values. Patches are composable and
- * can be applied with different failure handling modes.
+ * A list of changes to a [[Json]] value, each an [[JsonPatch.Op]] at a
+ * [[zio.blocks.schema.DynamicOptic]] path. Compute one with [[JsonPatch.diff]]
+ * or build one by hand, combine patches with `++`, and apply one with [[apply]]
+ * in a [[zio.blocks.schema.patch.PatchMode]]. A patch is data: its schema
+ * stores it in any format, and [[toDynamicPatch]] converts it for typed values.
+ * It is not RFC 6902 JSON Patch.
+ *
+ * {{{
+ * import zio.blocks.schema.json._
+ *
+ * val v1    = Json.parseUnsafe("""{"title":"Zionomicon","year":2021}""")
+ * val v2    = Json.parseUnsafe("""{"title":"Zionomicon","year":2022,"edition":2}""")
+ * val patch = JsonPatch.diff(v1, v2)
+ *
+ * patch.apply(v1) == Right(v2) // true
+ * patch.toString
+ * // JsonPatch {
+ * //   root:
+ * //     ~ {"year"}:
+ * //       root += 1
+ * //     + {"edition": 2}
+ * // }
+ * }}}
  *
  * @param ops
- *   The sequence of patch operations to apply
+ *   the operations, applied in order
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/json/json-patch/ JsonPatch]]
  */
 final case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp]) {
 
-  /**
-   * Composes two patches. The result applies this patch first, then that patch.
-   *
-   * @param that
-   *   The patch to apply after this one
-   * @return
-   *   A new patch that applies both patches in sequence
-   */
+  /** Returns a patch that applies this patch, then `that`. */
   def ++(that: JsonPatch): JsonPatch = new JsonPatch(ops ++ that.ops)
 
+  /**
+   * Returns `true` if this patch has no operations, so applying it changes
+   * nothing.
+   */
   def isEmpty: Boolean = ops.isEmpty
 
   /**
-   * Apply this patch to a Json value.
+   * Applies the operations to `value` in order. In `Strict` mode (the default)
+   * the first failure returns `Left`; in `Lenient` and `Clobber` mode a failing
+   * operation is skipped, so the result is always `Right`.
    *
-   * @param value
-   *   The Json value to patch
-   * @param mode
-   *   The patch mode controlling failure handling:
-   *   - Strict: Fail on any precondition violation
-   *   - Lenient: Skip operations that fail preconditions
-   *   - Clobber: Overwrite/force on conflicts
-   * @return
-   *   Either an error or the patched value
+   * A path follows field and index steps, `[*]` (every element; an empty array
+   * fails in `Strict` mode only), wrapper steps and schema searches (every
+   * match; none fails in `Strict` mode). Any other step fails. At the target:
+   *   - `Set` replaces the value, and `NumberDelta` adds to a number;
+   *   - a `StringEdit` fails as a whole, in every mode, when one of its steps
+   *     is out of range;
+   *   - in an `ArrayEdit` or `ObjectEdit`, a step that fails is skipped outside
+   *     `Strict` mode and the others still apply. `Clobber` also clamps an
+   *     out-of-range array `Insert` or `Delete`, replaces the value on an `Add`
+   *     of an existing key, and ignores a `Remove` of a missing one. A `Modify`
+   *     of a missing index or key fails in every mode.
+   *
+   * {{{
+   * import zio.blocks.chunk.Chunk
+   * import zio.blocks.schema.json._
+   * import zio.blocks.schema.json.JsonPatch._
+   * import zio.blocks.schema.patch.PatchMode
+   *
+   * val book   = Json.Object("title" -> Json.String("Zionomicon"))
+   * val rename = JsonPatch.root(Op.ObjectEdit(Chunk(ObjectOp.Add("title", Json.String("ZIO")))))
+   *
+   * rename(book)                                 // Left(zio.blocks.schema.SchemaError: Key 'title' already exists in object at: .)
+   * rename(book, PatchMode.Lenient).map(_.print) // Right({"title":"Zionomicon"})
+   * rename(book, PatchMode.Clobber).map(_.print) // Right({"title":"ZIO"})
+   * }}}
    */
   def apply(value: Json, mode: PatchMode = PatchMode.Strict): Either[SchemaError, Json] = {
     var current = value
@@ -74,18 +112,20 @@ final case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp]) {
   }
 
   /**
-   * Converts this JsonPatch to a DynamicPatch.
-   *
-   * This allows JsonPatch operations to be used with the generic patching
-   * infrastructure or serialized using DynamicPatch's schema.
-   *
-   * @return
-   *   A DynamicPatch equivalent to this JsonPatch
+   * Converts this patch to a [[zio.blocks.schema.patch.DynamicPatch]]: values
+   * become dynamic values, a `NumberDelta` a `BigDecimalDelta`, an `ObjectEdit`
+   * a map edit with string keys, and a `Nested` patch a nested one.
+   * [[JsonPatch.fromDynamicPatch]] converts it back.
    */
   def toDynamicPatch: DynamicPatch = new DynamicPatch(ops.map { op =>
     new DynamicPatch.DynamicPatchOp(op.path, JsonPatch.opToDynamicOperation(op.operation))
   })
 
+  /**
+   * Prints the operations one per line: `= value` for a set, `+=` or `-=` for a
+   * number delta, and `+`, `-` and `~` for added, removed and changed elements,
+   * fields and characters. Paths print only their field and index steps.
+   */
   override def toString: String =
     if (ops.isEmpty) "JsonPatch {}"
     else {
@@ -95,23 +135,19 @@ final case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp]) {
     }
 }
 
+/** Constructors, operation types and schemas of [[JsonPatch]]. */
 object JsonPatch {
 
-  /** Empty patch - identity element for composition. */
+  /** The patch with no operations, the identity of `++`. */
   val empty: JsonPatch = new JsonPatch(Chunk.empty)
 
   /**
-   * Converts a DynamicPatch to a JsonPatch.
-   *
-   * Temporal Deltas and Map Key which are not Strings, fail.
-   *
-   * Numeric deltas from DynamicPatch (IntDelta, LongDelta, etc.) are widened to
-   * NumberDelta (BigDecimal) since JSON has a single number type.
-   *
-   * @param patch
-   *   The DynamicPatch to convert
-   * @return
-   *   Either an error for unsupported operations, or the equivalent JsonPatch
+   * Converts a [[zio.blocks.schema.patch.DynamicPatch]] to a `JsonPatch`. Every
+   * numeric delta becomes a `NumberDelta`, values become JSON as
+   * [[Json.fromDynamicValue]] makes them, and map edits become object edits.
+   * Returns `Left` for a temporal delta or a map key that is not a string.
+   * Paths are kept as they are, so a path step that a `JsonPatch` cannot follow
+   * fails only when the patch is applied.
    */
   def fromDynamicPatch(patch: DynamicPatch): Either[SchemaError, JsonPatch] = {
     val ops     = patch.ops
@@ -130,21 +166,10 @@ object JsonPatch {
   }
 
   /**
-   * Compute the diff between two Json values.
-   *
-   * Returns a JsonPatch that transforms `source` into `target`. The patch uses
-   * minimal operations:
-   *   - NumberDelta for number changes
-   *   - StringEdit when more compact than Set
-   *   - ArrayEdit with LCS-based Insert/Delete operations
-   *   - ObjectEdit for field changes
-   *
-   * @param source
-   *   The original Json value
-   * @param target
-   *   The desired Json value
-   * @return
-   *   A JsonPatch that transforms source into target
+   * Returns a patch that turns `source` into `target`, as [[JsonDiffer.diff]]
+   * does: a `NumberDelta` for numbers, a `StringEdit` when shorter than the new
+   * string, an LCS-based `ArrayEdit` for arrays, a per-field `ObjectEdit` for
+   * objects, and a `Set` when the kinds differ.
    */
   def diff(source: Json, target: Json): JsonPatch = JsonDiffer.diff(source, target)
 
@@ -548,25 +573,19 @@ object JsonPatch {
   }
 
   /**
-   * Creates a patch with a single operation at the root.
+   * Returns a patch of one operation at the root.
    *
-   * @param operation
-   *   The operation to apply at the root
-   * @return
-   *   A new patch with the operation at the root path
+   * {{{
+   * import zio.blocks.schema.json._
+   * import zio.blocks.schema.json.JsonPatch._
+   *
+   * JsonPatch.root(Op.PrimitiveDelta(PrimitiveOp.NumberDelta(BigDecimal(1)))).apply(Json.Number(2021))
+   * // Right(2022)
+   * }}}
    */
   def root(operation: Op): JsonPatch = new JsonPatch(Chunk.single(new JsonPatchOp(DynamicOptic.root, operation)))
 
-  /**
-   * Creates a patch with a single operation at the given path.
-   *
-   * @param path
-   *   The path where the operation should be applied
-   * @param operation
-   *   The operation to apply
-   * @return
-   *   A new patch with the operation at the specified path
-   */
+  /** Returns a patch of one operation at `path`. */
   def apply(path: DynamicOptic, operation: Op): JsonPatch =
     new JsonPatch(Chunk.single(new JsonPatchOp(path, operation)))
 
@@ -876,95 +895,99 @@ object JsonPatch {
   }
 
   /**
-   * A single patch operation paired with the path to apply it at.
+   * One operation of a patch and the path of the value it changes.
    *
    * @param path
-   *   The path indicating where to apply the operation
+   *   the path from the patched value to the target
    * @param operation
-   *   The operation to apply at the path
+   *   the change to make at the target
    */
   final case class JsonPatchOp(path: DynamicOptic, operation: Op)
 
   // Operations
-  /**
-   * Top-level operation type for JSON patches. Each operation describes a
-   * change to be applied to a [[Json]] value.
-   */
+  /** A change to the value at a path of a [[JsonPatch]]. */
   sealed trait Op
 
+  /** The kinds of [[Op]]. */
   object Op {
 
     /**
-     * Replaces the target value entirely.
+     * Replaces the target, whatever it is, in every mode.
      *
      * @param value
-     *   The new JSON value to set
+     *   the new value
      */
     final case class Set(value: Json) extends Op
 
     /**
-     * Applies a primitive delta operation. Used for numeric increments or
-     * string edits.
+     * Changes a number or a string in place.
      *
      * @param op
-     *   The primitive operation to apply
+     *   a `NumberDelta` for a number or a `StringEdit` for a string
      */
     final case class PrimitiveDelta(op: PrimitiveOp) extends Op
 
     /**
-     * Applies array edit operations. Used for inserting, appending, deleting,
-     * or modifying array elements.
+     * Edits the elements of an array, one step after another; each step sees
+     * the array as the steps before it left it.
      *
      * @param ops
-     *   The array operations to apply in sequence
+     *   the array steps, applied in order
      */
     final case class ArrayEdit(ops: Chunk[ArrayOp]) extends Op
 
     /**
-     * Applies object edit operations. Used for adding, removing, or modifying
-     * object fields.
+     * Edits the fields of an object, one step after another.
      *
      * @param ops
-     *   The object operations to apply in sequence
+     *   the object steps, applied in order
      */
     final case class ObjectEdit(ops: Chunk[ObjectOp]) extends Op
 
     /**
-     * Groups operations that share a common path prefix.
+     * Applies a whole patch to the target, with paths relative to it and in the
+     * same mode. [[JsonPatch.diff]] never produces it.
      *
      * @param patch
-     *   The nested patch to apply
+     *   the patch to apply to the target
      */
     final case class Nested(patch: JsonPatch) extends Op
   }
 
   // Primitive Operations
 
+  /** A change to a number or a string. */
   sealed trait PrimitiveOp
 
+  /** The kinds of [[PrimitiveOp]]. */
   object PrimitiveOp {
 
     /**
-     * Adds a delta to a numeric value.
+     * Adds `delta` to a number, with `BigDecimal` arithmetic; it fails on a
+     * value that is not a number.
      *
      * @param delta
-     *   The amount to add (can be negative for subtraction)
+     *   the amount to add (negative to subtract)
      */
     final case class NumberDelta(delta: BigDecimal) extends PrimitiveOp
 
     /**
-     * Applies string edit operations to a string value.
+     * Edits a string with steps applied in order, each with indices into the
+     * string the steps before it left. When one step is out of range, the whole
+     * edit fails, in every mode.
      *
      * @param ops
-     *   The string operations to apply in sequence
+     *   the string steps, applied in order
      */
     final case class StringEdit(ops: Chunk[StringOp]) extends PrimitiveOp
   }
 
   // String Operations
 
+  /** A step of a [[PrimitiveOp.StringEdit]]. Indices count UTF-16 chars. */
   sealed trait StringOp
 
+  /** The kinds of [[StringOp]]. */
   object StringOp {
 
     /**
@@ -1010,80 +1033,90 @@ object JsonPatch {
 
   // Array Operations
 
+  /** A step of an [[Op.ArrayEdit]]. */
   sealed trait ArrayOp
 
+  /** The kinds of [[ArrayOp]]. */
   object ArrayOp {
 
     /**
-     * Inserts elements at the given index.
+     * Inserts elements before `index` (0 to the array's size). Out of range it
+     * fails, except in `Clobber` mode, which inserts at the nearer end.
      *
      * @param index
-     *   The position to insert at (0-based)
+     *   the position of the first inserted element
      * @param values
-     *   The values to insert
+     *   the values to insert
      */
     final case class Insert(index: Int, values: Chunk[Json]) extends ArrayOp
 
     /**
-     * Appends elements to the end of the array.
+     * Appends elements to the end of the array; it never fails.
      *
      * @param values
-     *   The values to append
+     *   the values to append
      */
     final case class Append(values: Chunk[Json]) extends ArrayOp
 
     /**
-     * Removes elements starting at the given index.
+     * Removes `count` elements from `index`. Out of range it fails, except in
+     * `Clobber` mode, which removes the elements that are in range.
      *
      * @param index
-     *   The starting position (0-based)
+     *   the position of the first removed element
      * @param count
-     *   The number of elements to remove
+     *   the number of elements to remove
      */
     final case class Delete(index: Int, count: Int) extends ArrayOp
 
     /**
-     * Applies an operation to the element at the given index.
+     * Applies `op` to the element at `index`; a missing index fails in every
+     * mode.
      *
      * @param index
-     *   The index of the element to modify (0-based)
+     *   the position of the element
      * @param op
-     *   The operation to apply to the element
+     *   the change to make to it
      */
     final case class Modify(index: Int, op: Op) extends ArrayOp
   }
 
   // Object Operations
 
+  /** A step of an [[Op.ObjectEdit]]. */
   sealed trait ObjectOp
 
+  /** The kinds of [[ObjectOp]]. */
   object ObjectOp {
 
     /**
-     * Adds a field to the object.
+     * Adds a field as the last one. An existing key fails, except in `Clobber`
+     * mode, which replaces its value.
      *
      * @param key
-     *   The field name
+     *   the field name
      * @param value
-     *   The field value
+     *   the field value
      */
     final case class Add(key: String, value: Json) extends ObjectOp
 
     /**
-     * Removes a field from the object.
+     * Removes the field `key`. A missing key fails, except in `Clobber` mode,
+     * which ignores it.
      *
      * @param key
-     *   The field name to remove
+     *   the field name
      */
     final case class Remove(key: String) extends ObjectOp
 
     /**
-     * Applies a patch to the value at the given field.
+     * Applies `patch` to the value of the field `key`, in the same mode; a
+     * missing key fails in every mode.
      *
      * @param key
-     *   The field name
+     *   the field name
      * @param patch
-     *   The patch to apply to the field value
+     *   the patch for the field's value, with paths relative to it
      */
     final case class Modify(key: String, patch: JsonPatch) extends ObjectOp
   }
@@ -1093,6 +1126,7 @@ object JsonPatch {
 
   // StringOp Schemas
 
+  /** The schema of `StringOp.Insert`. */
   implicit lazy val stringOpInsertSchema: Schema[StringOp.Insert] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Insert](
@@ -1116,6 +1150,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `StringOp.Delete`. */
   implicit lazy val stringOpDeleteSchema: Schema[StringOp.Delete] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Delete](
@@ -1142,6 +1177,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `StringOp.Append`. */
   implicit lazy val stringOpAppendSchema: Schema[StringOp.Append] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Append](
@@ -1163,6 +1199,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `StringOp.Modify`. */
   implicit lazy val stringOpModifySchema: Schema[StringOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, StringOp.Modify](
@@ -1195,6 +1232,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `StringOp`. */
   implicit lazy val stringOpSchema: Schema[StringOp] = new Schema(
     reflect = new Reflect.Variant[Binding, StringOp](
       cases = Chunk(
@@ -1246,6 +1284,7 @@ object JsonPatch {
 
   // PrimitiveOp Schemas
 
+  /** The schema of `PrimitiveOp.NumberDelta`. */
   implicit lazy val primitiveOpNumberDeltaSchema: Schema[PrimitiveOp.NumberDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.NumberDelta](
@@ -1267,6 +1306,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp.StringEdit`. */
   implicit lazy val primitiveOpStringEditSchema: Schema[PrimitiveOp.StringEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, PrimitiveOp.StringEdit](
@@ -1288,6 +1328,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `PrimitiveOp`. */
   implicit lazy val primitiveOpSchema: Schema[PrimitiveOp] = new Schema(
     reflect = new Reflect.Variant[Binding, PrimitiveOp](
       cases = Chunk(
@@ -1323,6 +1364,7 @@ object JsonPatch {
 
   // ArrayOp Schemas
 
+  /** The schema of `ArrayOp.Insert`. */
   implicit lazy val arrayOpInsertSchema: Schema[ArrayOp.Insert] =
     new Schema(
       reflect = new Reflect.Record[Binding, ArrayOp.Insert](
@@ -1346,6 +1388,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `ArrayOp.Append`. */
   implicit lazy val arrayOpAppendSchema: Schema[ArrayOp.Append] =
     new Schema(
       reflect = new Reflect.Record[Binding, ArrayOp.Append](
@@ -1367,6 +1410,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `ArrayOp.Delete`. */
   implicit lazy val arrayOpDeleteSchema: Schema[ArrayOp.Delete] =
     new Schema(
       reflect = new Reflect.Record[Binding, ArrayOp.Delete](
@@ -1394,6 +1438,7 @@ object JsonPatch {
     )
 
   // ArrayOp.Modify uses Reflect.Deferred for the Op field due to recursion
+  /** The schema of `ArrayOp.Modify`. */
   implicit lazy val arrayOpModifySchema: Schema[ArrayOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, ArrayOp.Modify](
@@ -1417,6 +1462,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `ArrayOp`. */
   implicit lazy val arrayOpSchema: Schema[ArrayOp] = new Schema(
     reflect = new Reflect.Variant[Binding, ArrayOp](
       cases = Chunk(
@@ -1468,6 +1514,7 @@ object JsonPatch {
 
   // ObjectOp Schemas
 
+  /** The schema of `ObjectOp.Add`. */
   implicit lazy val objectOpAddSchema: Schema[ObjectOp.Add] =
     new Schema(
       reflect = new Reflect.Record[Binding, ObjectOp.Add](
@@ -1494,6 +1541,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `ObjectOp.Remove`. */
   implicit lazy val objectOpRemoveSchema: Schema[ObjectOp.Remove] =
     new Schema(
       reflect = new Reflect.Record[Binding, ObjectOp.Remove](
@@ -1516,6 +1564,7 @@ object JsonPatch {
     )
 
   // ObjectOp.Modify uses Reflect.Deferred for the JsonPatch field due to recursion
+  /** The schema of `ObjectOp.Modify`. */
   implicit lazy val objectOpModifySchema: Schema[ObjectOp.Modify] =
     new Schema(
       reflect = new Reflect.Record[Binding, ObjectOp.Modify](
@@ -1542,6 +1591,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `ObjectOp`. */
   implicit lazy val objectOpSchema: Schema[ObjectOp] = new Schema(
     reflect = new Reflect.Variant[Binding, ObjectOp](
       cases = Chunk(
@@ -1585,6 +1635,7 @@ object JsonPatch {
 
   // Op Schemas
 
+  /** The schema of `Op.Set`. */
   implicit lazy val opSetSchema: Schema[Op.Set] =
     new Schema(
       reflect = new Reflect.Record[Binding, Op.Set](
@@ -1606,6 +1657,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `Op.PrimitiveDelta`. */
   implicit lazy val opPrimitiveDeltaSchema: Schema[Op.PrimitiveDelta] =
     new Schema(
       reflect = new Reflect.Record[Binding, Op.PrimitiveDelta](
@@ -1627,6 +1679,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `Op.ArrayEdit`. */
   implicit lazy val opArrayEditSchema: Schema[Op.ArrayEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Op.ArrayEdit](
@@ -1648,6 +1701,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `Op.ObjectEdit`. */
   implicit lazy val opObjectEditSchema: Schema[Op.ObjectEdit] =
     new Schema(
       reflect = new Reflect.Record[Binding, Op.ObjectEdit](
@@ -1670,6 +1724,7 @@ object JsonPatch {
     )
 
   // Op.Nested uses Reflect.Deferred for the JsonPatch field due to recursion
+  /** The schema of `Op.Nested`. */
   implicit lazy val opNestedSchema: Schema[Op.Nested] =
     new Schema(
       reflect = new Reflect.Record[Binding, Op.Nested](
@@ -1691,6 +1746,7 @@ object JsonPatch {
       )
     )
 
+  /** The schema of `Op`. */
   implicit lazy val opSchema: Schema[Op] = new Schema(
     reflect = new Reflect.Variant[Binding, Op](
       cases = Chunk(
@@ -1750,6 +1806,7 @@ object JsonPatch {
 
   // JsonPatchOp Schema
 
+  /** The schema of `JsonPatchOp`. */
   implicit lazy val jsonPatchOpSchema: Schema[JsonPatchOp] =
     new Schema(
       reflect = new Reflect.Record[Binding, JsonPatchOp](
@@ -1781,6 +1838,7 @@ object JsonPatch {
 
   // JsonPatch Schema
 
+  /** The schema of `JsonPatch`, so that patches can be stored in any format. */
   implicit lazy val schema: Schema[JsonPatch] =
     new Schema(
       reflect = new Reflect.Record[Binding, JsonPatch](

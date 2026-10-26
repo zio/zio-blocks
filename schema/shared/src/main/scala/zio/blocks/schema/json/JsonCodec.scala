@@ -28,14 +28,36 @@ import java.util.{Currency, UUID}
 import scala.util.control.NonFatal
 
 /**
- * Abstract class for encoding and decoding values of type `A` to and from JSON
- * formats. Encapsulates logic to map JSON representations into native type
- * structures and vice versa, handling serialization and deserialization as per
- * JSON encoding standards using UTF-8 character set.
+ * Reads and writes values of type `A` as JSON: UTF-8 bytes, strings, streams,
+ * byte buffers, or [[Json]] trees. Get the codec of a type with a schema from
+ * `Schema#jsonCodec` (derived with the default [[JsonCodecDeriver]]), derive a
+ * configured one with `Schema#derive(JsonCodecDeriver.with...)`, or write one
+ * by implementing the two streaming methods, `decodeValue(JsonReader)` and
+ * `encodeValue(A, JsonWriter)`.
  *
- * This class requires an implementation for two core operations: decoding a
- * value of type `A` from a JSON representation and encoding a value of type `A`
- * into a JSON representation.
+ * Every `decode` method returns `Left` with one
+ * [[zio.blocks.schema.SchemaError]], for the first problem found, as an
+ * expectation mismatch that carries the reader's message and the path, such as
+ * `missing required field "year" at: .`. The `encode` methods throw a
+ * [[JsonCodecError]] for a value they cannot write, such as NaN.
+ *
+ * {{{
+ * import zio.blocks.schema.json._
+ *
+ * case class Book(title: String, year: Int)
+ * object Book {
+ *   implicit val schema: Schema[Book] = Schema.derived
+ * }
+ *
+ * val codec: JsonCodec[Book] = Schema[Book].jsonCodec
+ *
+ * codec.encodeToString(Book("Zionomicon", 2021))          // {"title":"Zionomicon","year":2021}
+ * codec.decode("""{"title":"Zionomicon","year":2021}""") // Right(Book(Zionomicon,2021))
+ * codec.decode("""{"title":"Zionomicon"}""")             // Left(zio.blocks.schema.SchemaError: missing required field "year" at: .)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/json/ JSON]]
  */
 abstract class JsonCodec[A] extends BinaryCodec[A] {
 
@@ -64,56 +86,66 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
   def encodeValue(x: A, out: JsonWriter): Unit
 
   /**
-   * Decodes a `Json` value into a value of type A.
+   * Decodes a [[Json]] tree into an `A`. The built-in and derived codecs
+   * implement it; the default throws a [[JsonCodecError]] ("decoding from JSON
+   * AST is not supported"), so a custom codec that implements only the
+   * streaming methods cannot decode a `Json` value.
    */
   def decodeValue(json: Json): A = error("decoding from JSON AST is not supported")
 
   /**
-   * Encodes a value of type A into a `Json` value.
+   * Encodes an `A` as a [[Json]] tree. The built-in and derived codecs
+   * implement it; the default throws a [[JsonCodecError]] ("encoding to JSON
+   * AST is not supported").
    */
   def encodeValue(x: A): Json = error("encoding to JSON AST is not supported")
 
   /**
-   * Attempts to decode a value of type `A` from the specified `JsonReader`, but
-   * may fail with `JsonCodecError` error if the JSON input is not a key or does
-   * not encode a value of this type.
+   * Decodes an object key into an `A`. The default parses the key's text as a
+   * JSON value of `A`, the inverse of the default `encodeKey`; the codecs of
+   * primitive types read the key directly, so `"12"` is an `Int` key.
    *
    * @param in
-   *   an instance of `JsonReader` that provides access to the JSON input to
-   *   parse a JSON key to value of type `A`
+   *   the reader, positioned at the key
    */
   def decodeKey(in: JsonReader): A = decodeUnsafe(in.readKeyAsString())
 
   /**
-   * Encodes the specified value using provided `JsonWriter` as a JSON key, but
-   * may fail with `JsonCodecError` if it cannot be encoded properly, according
-   * to RFC-8259 requirements.
+   * Writes `x` as an object key, but may fail with `JsonCodecError` if it
+   * cannot be encoded as one. The default writes the compact JSON of `x` as the
+   * key's text, so a record key becomes a string such as `"{\"id\":1}"`; the
+   * codecs of primitive types write the plain value.
    *
    * @param x
-   *   the value provided for serialization
+   *   the key
    * @param out
-   *   an instance of `JsonWriter` that provides access to JSON output to
-   *   serialize the specified value as a JSON key
+   *   the writer, positioned where the key goes
    */
   def encodeKey(x: A, out: JsonWriter): Unit = out.writeKey(encodeToString(x))
 
   /**
-   * Attempts to decode a value of type `A` from the string representation.
+   * Decodes the text of an object key into an `A`, as `decodeKey(JsonReader)`
+   * does; it throws a [[JsonCodecError]] when the text is not a key of `A`.
    */
   def decodeKey(s: String): A = decodeUnsafe(s)
 
   /**
-   * Converts a value to its string representation for use as a JSON key.
+   * Returns the text of `x` as an object key, as `encodeKey(A, JsonWriter)`
+   * writes it.
    */
   def encodeKey(x: A): String = encodeToString(x)
 
-  /** Returns the JSON Schema describing values this codec encodes/decodes. */
+  /**
+   * Returns a [[JsonSchema]] of the JSON this codec writes. The built-in and
+   * derived codecs describe their types; the default, for a custom codec, is
+   * [[JsonSchema.True]], which accepts anything.
+   */
   def toJsonSchema: JsonSchema = JsonSchema.True
 
   /**
-   * Decodes a value of type `A` from the given `ByteBuffer`. This method uses
-   * the default `ReaderConfig` to configure the decoding process. If decoding
-   * fails, a `SchemaError` is returned.
+   * Decodes a value of type `A` from the UTF-8 bytes of `input`, from its
+   * position, with the default `ReaderConfig`. If decoding fails, a
+   * `SchemaError` is returned.
    *
    * @param input
    *   the `ByteBuffer` containing the binary data to be decoded
@@ -124,14 +156,14 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
   override def decode(input: ByteBuffer): Either[SchemaError, A] = decode(input, ReaderConfig)
 
   /**
-   * Encodes the specified value of type `A` into binary format and writes it to
-   * the provided `ByteBuffer`. This method uses the default `WriterConfig` for
-   * encoding configuration.
+   * Writes `value` as compact UTF-8 JSON into `output`, from its position.
    *
    * @param value
    *   the value of type `A` to be serialized into binary format
    * @param output
    *   the `ByteBuffer` where the encoded binary data is written
+   * @throws java.nio.BufferOverflowException
+   *   when the JSON does not fit; `output` then holds part of it (a known bug)
    */
   override def encode(value: A, output: ByteBuffer): Unit = encode(value, output, WriterConfig)
 
@@ -157,9 +189,8 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
     }
 
   /**
-   * Encodes the specified value of type `A` into binary format and writes it to
-   * the provided `ByteBuffer` using the specified `WriterConfig` for encoding
-   * configuration.
+   * Writes `value` as UTF-8 JSON formatted by `config` into `output`, from its
+   * position.
    *
    * @param value
    *   the value of type `A` to be serialized into binary format
@@ -167,6 +198,8 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
    *   the `ByteBuffer` where the encoded binary data is written
    * @param config
    *   the `WriterConfig` instance used to configure the encoding process
+   * @throws java.nio.BufferOverflowException
+   *   when the JSON does not fit; `output` then holds part of it (a known bug)
    */
   def encode(value: A, output: ByteBuffer, config: WriterConfig): Unit = {
     var writer = JsonCodec.writerPool.get
@@ -306,6 +339,8 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
   /**
    * Decodes a value of type `A` from the provided `InputStream` using the
    * specified `ReaderConfig`. If decoding fails, a `SchemaError` is returned.
+   * Bytes read past the end of the value are dropped, so one stream cannot hold
+   * several values (a known bug).
    *
    * @param input
    *   the `InputStream` containing the binary data to be decoded
@@ -344,7 +379,8 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
 
   /**
    * Decodes a value of type `A` from the given string using the default
-   * `ReaderConfig`. If decoding fails, a `SchemaError` is returned.
+   * `ReaderConfig`. If decoding fails, a `SchemaError` is returned. Text after
+   * the value, other than whitespace, is an error.
    *
    * @param input
    *   the string containing the data to be decoded
@@ -406,8 +442,8 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
   }
 
   /**
-   * Decodes a value of type `A` from the given `Json` value. If decoding fails,
-   * a `SchemaError` is returned.
+   * Decodes a value of type `A` from the given `Json` value, with
+   * `decodeValue(Json)`. If decoding fails, a `SchemaError` is returned.
    *
    * @param input
    *   the `Json` value containing the data to be decoded
@@ -422,7 +458,9 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
     }
 
   /**
-   * Encodes the specified value of type `A` into a `Json` value.
+   * Encodes the specified value of type `A` into a `Json` value, with
+   * `encodeValue(A)`; it throws a [[JsonCodecError]] for a custom codec that
+   * does not implement it.
    *
    * @param value
    *   the value of type `A` to be serialized into `Json` value
@@ -539,15 +577,10 @@ abstract class JsonCodec[A] extends BinaryCodec[A] {
 }
 
 /**
- * A utility object that provides constants and thread-local pools for encoding
- * and decoding JSON structures. The object defines various type constants that
- * represent different data types and maintains `ThreadLocal` pools for
- * `JsonReader` and `JsonWriter` instances to ensure their efficient reuse.
- *
- * The `JsonCodec` is designed for use with methods from its associated
- * companion type, providing a lower-level abstraction to interact with
- * JSON-encoded binary data. These utility pools help manage reading and writing
- * operations in a thread-safe manner while also improving performance.
+ * The JSON codecs of the primitive types and of
+ * [[zio.blocks.schema.DynamicValue]], which [[JsonCodecDeriver]] uses for the
+ * fields of derived codecs. The `decode` and `encode` methods reuse one reader
+ * and one writer per thread.
  */
 object JsonCodec {
   private val readerPool: ThreadLocal[JsonReader] = new ThreadLocal[JsonReader] {
@@ -556,6 +589,10 @@ object JsonCodec {
   private val writerPool: ThreadLocal[JsonWriter] = new ThreadLocal[JsonWriter] {
     override def initialValue(): JsonWriter = new JsonWriter
   }
+
+  /**
+   * The codec of `Unit`: the empty object `{}`, and nothing else, on decoding.
+   */
   val unitCodec: JsonCodec[Unit] = new JsonCodec[Unit] {
     def decodeValue(in: JsonReader): Unit =
       if (in.isNextToken('{') && in.isNextToken('}')) ()
@@ -575,6 +612,10 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.obj(maxProperties = NonNegativeInt(0))
   }
+
+  /**
+   * The codec of `Boolean`: `true` or `false`; as a key, `"true"` or `"false"`.
+   */
   val booleanCodec: JsonCodec[Boolean] = new JsonCodec[Boolean] {
     def decodeValue(in: JsonReader): Boolean = in.readBoolean()
 
@@ -600,6 +641,11 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.boolean
   }
+
+  /**
+   * The codec of `Byte`: a JSON integer from -128 to 127; a fraction or a value
+   * out of range fails.
+   */
   val byteCodec: JsonCodec[Byte] = new JsonCodec[Byte] {
     def decodeValue(in: JsonReader): Byte = in.readByte()
 
@@ -633,6 +679,11 @@ object JsonCodec {
       maximum = new Some(BigDecimal(Byte.MaxValue))
     )
   }
+
+  /**
+   * The codec of `Short`: a JSON integer in the `Short` range; a fraction or a
+   * value out of range fails.
+   */
   val shortCodec: JsonCodec[Short] = new JsonCodec[Short] {
     def decodeValue(in: JsonReader): Short = in.readShort()
 
@@ -666,6 +717,12 @@ object JsonCodec {
       maximum = new Some(BigDecimal(Short.MaxValue))
     )
   }
+
+  /**
+   * The codec of `Int`: a JSON integer in the `Int` range. A fraction or a
+   * value out of range fails; from a `Json` tree both report "value is too
+   * large for int".
+   */
   val intCodec: JsonCodec[Int] = new JsonCodec[Int] {
     def decodeValue(in: JsonReader): Int = in.readInt()
 
@@ -699,6 +756,11 @@ object JsonCodec {
       maximum = new Some(BigDecimal(Int.MaxValue))
     )
   }
+
+  /**
+   * The codec of `Long`: a JSON integer in the `Long` range; a fraction or a
+   * value out of range fails.
+   */
   val longCodec: JsonCodec[Long] = new JsonCodec[Long] {
     def decodeValue(in: JsonReader): Long = in.readLong()
 
@@ -732,6 +794,11 @@ object JsonCodec {
       maximum = new Some(BigDecimal(Long.MaxValue))
     )
   }
+
+  /**
+   * The codec of `Float`: a JSON number. A number beyond the `Float` range
+   * decodes to an infinity, and NaN and the infinities fail to encode.
+   */
   val floatCodec: JsonCodec[Float] = new JsonCodec[Float] {
     def decodeValue(in: JsonReader): Float = in.readFloat()
 
@@ -758,6 +825,12 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.number()
   }
+
+  /**
+   * The codec of `Double`: a JSON number. A number beyond the `Double` range,
+   * such as `1e400`, decodes to an infinity, and NaN and the infinities fail to
+   * encode.
+   */
   val doubleCodec: JsonCodec[Double] = new JsonCodec[Double] {
     def decodeValue(in: JsonReader): Double = in.readDouble()
 
@@ -784,6 +857,8 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.number()
   }
+
+  /** The codec of `Char`: a string of exactly one character. */
   val charCodec: JsonCodec[Char] = new JsonCodec[Char] {
     def decodeValue(in: JsonReader): Char = in.readChar()
 
@@ -816,6 +891,8 @@ object JsonCodec {
       maxLength = new Some(NonNegativeInt.one)
     )
   }
+
+  /** The codec of `String`: a JSON string; as a key, the key itself. */
   val stringCodec: JsonCodec[String] = new JsonCodec[String] {
     def decodeValue(in: JsonReader): String = in.readString()
 
@@ -838,6 +915,8 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string()
   }
+
+  /** The codec of `BigInt`: a JSON integer of up to 308 digits. */
   val bigIntCodec: JsonCodec[BigInt] = new JsonCodec[BigInt] {
     def decodeValue(in: JsonReader): BigInt = in.readBigInt()
 
@@ -871,6 +950,11 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.integer()
   }
+
+  /**
+   * The codec of `BigDecimal`: a JSON number of up to 308 digits, rounded to 34
+   * significant digits on decoding.
+   */
   val bigDecimalCodec: JsonCodec[BigDecimal] = new JsonCodec[BigDecimal] {
     def decodeValue(in: JsonReader): BigDecimal = in.readBigDecimal()
 
@@ -897,6 +981,11 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.number()
   }
+
+  /**
+   * The codec of `java.time.DayOfWeek`: its upper-case name, such as
+   * `"MONDAY"`.
+   */
   val dayOfWeekCodec: JsonCodec[DayOfWeek] = new JsonCodec[DayOfWeek] {
     def decodeValue(in: JsonReader): DayOfWeek = {
       val code = in.readString()
@@ -941,6 +1030,10 @@ object JsonCodec {
     override val toJsonSchema: JsonSchema =
       JsonSchema.enumOfStrings(NonEmptyChunk.fromIterableOption(DayOfWeek.values().map(_.toString)).get)
   }
+
+  /**
+   * The codec of `java.time.Duration`: an ISO-8601 string, such as `"PT1H30M"`.
+   */
   val durationCodec: JsonCodec[Duration] = new JsonCodec[Duration] {
     def decodeValue(in: JsonReader): Duration = in.readDuration()
 
@@ -963,6 +1056,11 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string(format = new Some("duration"))
   }
+
+  /**
+   * The codec of `java.time.Instant`: an ISO-8601 string in UTC, such as
+   * `"2021-03-14T09:30:00Z"`.
+   */
   val instantCodec: JsonCodec[Instant] = new JsonCodec[Instant] {
     def decodeValue(in: JsonReader): Instant = in.readInstant()
 
@@ -985,6 +1083,11 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string(format = new Some("date-time"))
   }
+
+  /**
+   * The codec of `java.time.LocalDate`: an ISO-8601 string, such as
+   * `"2021-03-14"`.
+   */
   val localDateCodec: JsonCodec[LocalDate] = new JsonCodec[LocalDate] {
     def decodeValue(in: JsonReader): LocalDate = in.readLocalDate()
 
@@ -1007,6 +1110,11 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string(format = new Some("date"))
   }
+
+  /**
+   * The codec of `java.time.LocalDateTime`: an ISO-8601 string, such as
+   * `"2021-03-14T09:30"`.
+   */
   val localDateTimeCodec: JsonCodec[LocalDateTime] = new JsonCodec[LocalDateTime] {
     def decodeValue(in: JsonReader): LocalDateTime = in.readLocalDateTime()
 
@@ -1029,6 +1137,10 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string(format = new Some("date-time"))
   }
+
+  /**
+   * The codec of `java.time.LocalTime`: an ISO-8601 string, such as `"09:30"`.
+   */
   val localTimeCodec: JsonCodec[LocalTime] = new JsonCodec[LocalTime] {
     def decodeValue(in: JsonReader): LocalTime = in.readLocalTime()
 
@@ -1051,6 +1163,8 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string(format = new Some("time"))
   }
+
+  /** The codec of `java.time.Month`: its upper-case name, such as `"MARCH"`. */
   val monthCodec: JsonCodec[Month] = new JsonCodec[Month] {
     def decodeValue(in: JsonReader): Month = {
       val code = in.readString()
@@ -1097,6 +1211,10 @@ object JsonCodec {
     override val toJsonSchema: JsonSchema =
       JsonSchema.enumOfStrings(NonEmptyChunk.fromIterableOption(Month.values().map(_.toString)).get)
   }
+
+  /**
+   * The codec of `java.time.MonthDay`: an ISO-8601 string, such as `"--03-14"`.
+   */
   val monthDayCodec: JsonCodec[MonthDay] = new JsonCodec[MonthDay] {
     def decodeValue(in: JsonReader): MonthDay = in.readMonthDay()
 
@@ -1119,6 +1237,11 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string()
   }
+
+  /**
+   * The codec of `java.time.OffsetDateTime`: an ISO-8601 string, such as
+   * `"2021-03-14T09:30+01:00"`.
+   */
   val offsetDateTimeCodec: JsonCodec[OffsetDateTime] = new JsonCodec[OffsetDateTime] {
     def decodeValue(in: JsonReader): OffsetDateTime = in.readOffsetDateTime()
 
@@ -1141,6 +1264,11 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string(format = new Some("date-time"))
   }
+
+  /**
+   * The codec of `java.time.OffsetTime`: an ISO-8601 string, such as
+   * `"09:30+01:00"`.
+   */
   val offsetTimeCodec: JsonCodec[OffsetTime] = new JsonCodec[OffsetTime] {
     def decodeValue(in: JsonReader): OffsetTime = in.readOffsetTime()
 
@@ -1163,6 +1291,10 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string(format = new Some("time"))
   }
+
+  /**
+   * The codec of `java.time.Period`: an ISO-8601 string, such as `"P1Y2M3D"`.
+   */
   val periodCodec: JsonCodec[Period] = new JsonCodec[Period] {
     def decodeValue(in: JsonReader): Period = in.readPeriod()
 
@@ -1185,6 +1317,8 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string(format = new Some("duration"))
   }
+
+  /** The codec of `java.time.Year`: a string, such as `"2021"`. */
   val yearCodec: JsonCodec[Year] = new JsonCodec[Year] {
     def decodeValue(in: JsonReader): Year = in.readYear()
 
@@ -1218,6 +1352,8 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string()
   }
+
+  /** The codec of `java.time.YearMonth`: a string, such as `"2021-03"`. */
   val yearMonthCodec: JsonCodec[YearMonth] = new JsonCodec[YearMonth] {
     def decodeValue(in: JsonReader): YearMonth = in.readYearMonth()
 
@@ -1251,6 +1387,8 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string()
   }
+
+  /** The codec of `java.time.ZoneId`: its ID, such as `"Europe/Paris"`. */
   val zoneIdCodec: JsonCodec[ZoneId] = new JsonCodec[ZoneId] {
     def decodeValue(in: JsonReader): ZoneId = in.readZoneId()
 
@@ -1284,6 +1422,8 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string()
   }
+
+  /** The codec of `java.time.ZoneOffset`: its ID, such as `"+01:00"`. */
   val zoneOffsetCodec: JsonCodec[ZoneOffset] = new JsonCodec[ZoneOffset] {
     def decodeValue(in: JsonReader): ZoneOffset = in.readZoneOffset()
 
@@ -1317,6 +1457,11 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string()
   }
+
+  /**
+   * The codec of `java.time.ZonedDateTime`: an ISO-8601 string with the zone,
+   * such as `"2021-03-14T09:30+01:00[Europe/Paris]"`.
+   */
   val zonedDateTimeCodec: JsonCodec[ZonedDateTime] = new JsonCodec[ZonedDateTime] {
     def decodeValue(in: JsonReader): ZonedDateTime = in.readZonedDateTime()
 
@@ -1339,6 +1484,8 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string()
   }
+
+  /** The codec of `java.util.Currency`: its ISO 4217 code, such as `"EUR"`. */
   val currencyCodec: JsonCodec[Currency] = new JsonCodec[Currency] {
     def decodeValue(in: JsonReader): Currency = {
       val code = in.readString()
@@ -1387,6 +1534,8 @@ object JsonCodec {
       maxLength = NonNegativeInt(3)
     )
   }
+
+  /** The codec of `java.util.UUID`: its canonical string form. */
   val uuidCodec: JsonCodec[UUID] = new JsonCodec[UUID] {
     def decodeValue(in: JsonReader): UUID = in.readUUID()
 
@@ -1420,6 +1569,14 @@ object JsonCodec {
 
     override val toJsonSchema: JsonSchema = JsonSchema.string(format = new Some("uuid"))
   }
+
+  /**
+   * The codec of [[zio.blocks.schema.DynamicValue]], for any JSON. It decodes
+   * an object to a `Record`, an array to a `Sequence`, and a number to an
+   * `Int`, a `Long` or a `BigDecimal`, the first that holds it exactly. It
+   * encodes a variant as `{"<case>": value}` and a map as an object, failing
+   * for a key that is not a primitive or is `Unit`.
+   */
   val dynamicValueCodec: JsonCodec[DynamicValue] = new JsonCodec[DynamicValue] {
     private[this] val falseValue       = new DynamicValue.Primitive(new PrimitiveValue.Boolean(false))
     private[this] val trueValue        = new DynamicValue.Primitive(new PrimitiveValue.Boolean(true))
