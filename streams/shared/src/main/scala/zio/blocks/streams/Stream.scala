@@ -408,10 +408,11 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
    *
    * How the inner streams overlap depends on how the stream runs. A JVM
    * blocking terminal (`runCollect`, `run` and the rest) drains each open inner
-   * stream on its own thread (a virtual thread on JDK 21+), unless the stages
-   * around the merge include an `*Async` operator, `catchAll`, `catchDefect` or
-   * `orElse`. Every other run, which includes every `*Async` terminal and every
-   * run on Scala.js, interleaves the inner streams on one engine: their
+   * stream on its own thread (a virtual thread on JDK 21+), unless the rest of
+   * the stream, outside the inner streams, has an asynchronous stage (an
+   * `*Async` operator or source, or `Stream.unwrap`), `catchAll`, `catchDefect`
+   * or `orElse`. Every other run, which includes every `*Async` terminal and
+   * every run on Scala.js, interleaves the inner streams on one engine: their
    * asynchronous waits overlap, but synchronous work inside them runs one inner
    * stream at a time.
    *
@@ -644,9 +645,10 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
    * How the calls overlap depends on the stages before `mapPar`. When they are
    * all synchronous, the JVM runs `f` on `n` worker threads (virtual threads on
    * JDK 21+), under either terminal family, and Scala.js runs it as a plain
-   * `map`. When an asynchronous stage (an `*Async` operator or source) comes
-   * before it, each call is wrapped in a completed `Async`, so nothing overlaps
-   * on either platform. For asynchronous work, use [[mapParAsync]].
+   * `map`. When an asynchronous stage (an `*Async` operator or source) or a
+   * `catchAll`, `catchDefect` or `orElse` comes before it, each call is wrapped
+   * in a completed `Async`, so nothing overlaps on either platform. For
+   * asynchronous work, use [[mapParAsync]].
    *
    * @throws java.lang.IllegalArgumentException
    *   if `n < 1`
@@ -3517,10 +3519,11 @@ object Stream {
    *
    * How the inner streams overlap depends on how the stream runs. A JVM
    * blocking terminal (`runCollect`, `run` and the rest) drains each open inner
-   * stream on its own thread (a virtual thread on JDK 21+), unless the stages
-   * around the merge include an `*Async` operator, `catchAll`, `catchDefect` or
-   * `orElse`. Every other run, which includes every `*Async` terminal and every
-   * run on Scala.js, interleaves the inner streams on one engine: their
+   * stream on its own thread (a virtual thread on JDK 21+), unless the rest of
+   * the stream, outside the inner streams, has an asynchronous stage (an
+   * `*Async` operator or source, or `Stream.unwrap`), `catchAll`, `catchDefect`
+   * or `orElse`. Every other run, which includes every `*Async` terminal and
+   * every run on Scala.js, interleaves the inner streams on one engine: their
    * asynchronous waits overlap, but synchronous work inside them runs one inner
    * stream at a time.
    *
