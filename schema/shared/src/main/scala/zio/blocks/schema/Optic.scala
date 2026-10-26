@@ -562,7 +562,7 @@ sealed trait Optic[S, A] { self =>
    * the literal `that`, filling a `Long` with zeros. A `Byte`, `Short` or `Int`
    * focus is shifted as a sign-extended `Long` and the result truncated to an
    * `Int`, so a negative value shifted by 1 to 32 stays negative (`-8 >>> 1`
-   * gives -4, not 2147483644), and a shift by 33 to 63 is not reduced modulo 32
+   * gives -4, not 2147483644), and a shift by 32 to 63 is not reduced modulo 32
    * (a known bug).
    */
   final def >>>(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(

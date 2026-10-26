@@ -798,7 +798,7 @@ object SchemaExpr {
      * `x >>> y`, filling a `Long` with zeros. A `Byte`, `Short` or `Int` is
      * shifted as a sign-extended `Long` and the result truncated to an `Int`,
      * so a negative value shifted by 1 to 32 stays negative (`-8 >>> 1` gives
-     * -4, not 2147483644), and a shift by 33 to 63 is not reduced modulo 32 (a
+     * -4, not 2147483644), and a shift by 32 to 63 is not reduced modulo 32 (a
      * known bug).
      */
     case object UnsignedRightShift extends BitwiseOperator
