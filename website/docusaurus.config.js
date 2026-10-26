@@ -117,7 +117,7 @@ const config = {
           { to: '/overview', label: 'Docs', position: 'right' },
           // A plain link, not a docSidebar item: the landing-only build has no docs plugin. activeBaseRegex keeps it
           // highlighted on every page of the guides sidebar (docs/sidebars.js).
-          { to: '/guides/async-getting-started', label: 'Guides', position: 'right', activeBaseRegex: '^/guides/' },
+          { to: '/guides/', label: 'Guides', position: 'right', activeBaseRegex: '^/guides/' },
           // The Scaladoc is plain HTML copied into static/api by `sbt docs/generateApiDocs`, outside the Docusaurus
           // router: pathname:// makes it a full page load and keeps the broken link checker off it.
           { to: 'pathname:///api/', label: 'API', position: 'right', target: '_self' },
