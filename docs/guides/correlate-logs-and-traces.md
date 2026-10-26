@@ -157,7 +157,7 @@ The `Telemetry` object holds the three pieces both services use:
 
 We keep the tracer in a value and call `Tracer#span` on it. If your code calls the global `trace.span` instead, pass the same provider to `trace.install`; the global `trace` object then uses your storage too.
 
-Now let's install the logger and write a log line inside a span:
+Install the logger and write a log line inside a span:
 
 ```scala mdoc
 Telemetry.installLogger()
@@ -240,11 +240,7 @@ object PaymentService {
 }
 ```
 
-`Telemetry.storage.scoped(parent) { ... }` makes `parent` the active context while the block runs and restores the previous one afterward. `Tracer#span` takes its parent from the storage, so `payment.authorize` reuses the caller's trace id, gets a new span id of its own, and records the caller's span as its parent. `log.annotated("service.name" -> "payment")` adds a `service.name` field to the lines written inside it, so we can tell the two services' lines apart.
-
-:::note
-`OtelContext.withSpan(span, storage)` looks like an alternative, but it takes a `Span`, not the `SpanContext` that `W3CTraceContextPropagator.extract` returns. A span you start yourself with `Tracer#spanBuilder` is local only and never reaches the span processors, so `ContextStorage#scoped` around `Tracer#span` is the way to continue a remote trace.
-:::
+`Telemetry.storage.scoped(parent) { ... }` makes `parent` the active context while the block runs and restores the previous one afterward. `Tracer#span` takes its parent from the storage, so `payment.authorize` reuses the caller's trace id, gets a new span id of its own, and records the caller's span as its parent. `log.annotated("service.name" -> "payment")` adds a `service.name` field to the lines written inside it, so we can tell the two services' lines apart. `OtelContext.withSpan(span, storage)` is not an alternative here: it takes a `Span`, not the `SpanContext` that `W3CTraceContextPropagator.extract` returns, and a span you start yourself with `Tracer#spanBuilder` is local only and never reaches the span processors, so `ContextStorage#scoped` around `Tracer#span` is the way to continue a remote trace.
 
 To run both services in one program, we need a stand-in for the network. A real call crosses a process boundary, and the receiving service gets nothing from the caller's memory. Running the payment handler on a thread of its own gives the same guarantee: the storage is bound to the thread that runs a block, so the payment thread starts with an empty storage, and the request is the only thing that crosses over:
 
@@ -285,7 +281,7 @@ object CheckoutService {
 }
 ```
 
-Let's place an order:
+Place an order:
 
 ```scala mdoc
 CheckoutService.placeOrder("order-1042", 5990)
@@ -441,7 +437,7 @@ System.setOut(System.getProperties.get("docs.telemetry.realOut").asInstanceOf[ja
 
 ## Putting It Together
 
-The complete example places two orders. For each one, the checkout service calls the payment service with a `traceparent` header, the payment service continues the trace, and the confirmation email is logged on a worker thread from an `OtelContext` snapshot. It adds nothing the sections don't show; the services, `Telemetry`, `HttpGlue`, `PaymentApi` and `Network` live in their own files in the same package:
+The complete example places two orders. For each one, the checkout service calls the payment service with a `traceparent` header, the payment service continues the trace, and the confirmation email is logged on a worker thread from an `OtelContext` snapshot. It adds nothing the sections don't show; the services, `Telemetry`, `HttpGlue`, `PaymentApi` and `Network` live in the other files of the same package (`Network` sits in `PaymentService.scala`):
 
 ```scala mdoc:embed:telemetry-examples/src/main/scala/correlatelogsandtraces/CompleteExample.scala
 ```
