@@ -192,6 +192,18 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
              |""".stripMargin
       )
     },
+    test("generate fails when two examples would get the same wrapper name") {
+      val content = source("/**", " * {{{", " * val a = 1", " * }}}", " */")
+      val result = Try(
+        ScaladocSnippets.generate(
+          Seq("a-jvm/src/main/scala/X.scala" -> content, "a/jvm/src/main/scala/X.scala" -> content),
+          3
+        )
+      ).failed.toOption.map(_.getMessage)
+      assertTrue(
+        result == Some("two examples generate Snippet_a_jvm_scala_X_L2.scala; rename one of their source files")
+      )
+    },
     test("generate keeps scala-3-only snippets for Scala 3 only") {
       val content = source("/**", " * {{{", " * // scala-3-only", " * given Int = 1", " * }}}", " */")
       assertTrue(

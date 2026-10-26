@@ -87,7 +87,8 @@ object ScaladocSnippets {
 
   /**
    * The name of the wrapper object for the example at `line` of `sourcePath`.
-   * The path starts with the module directory, so two modules never collide.
+   * The path starts with the module directory, so modules with same-named files
+   * get different names; `generate` fails if two examples still map to one name.
    */
   def objectName(sourcePath: String, line: Int): String =
     "Snippet_" + sourcePath
@@ -111,10 +112,16 @@ object ScaladocSnippets {
    * Turns `(path, content)` source files into `(fileName, fileContent)` wrapper
    * files for a compiler of the given major Scala version.
    */
-  def generate(sources: Seq[(String, String)], scalaMajor: Int): Seq[(String, String)] =
-    sources.flatMap { case (path, content) => extract(path, content) }
+  def generate(sources: Seq[(String, String)], scalaMajor: Int): Seq[(String, String)] = {
+    val files = sources.flatMap { case (path, content) => extract(path, content) }
       .filter(_.onlyScalaMajor.forall(_ == scalaMajor))
       .map(snippet => (objectName(snippet.sourcePath, snippet.line) + ".scala", render(snippet)))
+    files.groupBy(_._1).collectFirst {
+      case (name, same) if same.size > 1 =>
+        throw new IllegalArgumentException(s"two examples generate $name; rename one of their source files")
+    }
+    files
+  }
 
   private def closingMarker(trimmed: String): Option[String] =
     if (trimmed == "{{{") Some("}}}")
