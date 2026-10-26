@@ -1530,4 +1530,5 @@ cd streams-examples && sbt "runMain reader.ReaderCompositionExample"
 - [Zero-Boxing Streams](../execution-and-compatibility/zero-boxing.md) — how a primitive lane is chosen, and the per-lane end-of-stream table
 - [Stream](../core/stream.md) — the operator and terminal reference for the type that compiles to a `Reader`
 - [Sink](../core/sink.md) — the consumer that drains a `Reader`
+- [How to Run Streams Without Blocking](../../../guides/run-streams-without-blocking.md) — reads a `fetch` body through `ReadableStreamReaders` and runs the stream with the `*Async` terminals
 - [Async](../../async.md#the-pollable-protocol) — `Async[A]`, `Pollable`, and what awaiting an asynchronous result means

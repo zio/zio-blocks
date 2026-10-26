@@ -19,17 +19,17 @@ We start from the blocking terminal that causes the trouble, swap it for its `As
 
 A blocking terminal such as `Stream#runCollect` or `Stream#runFold` makes one promise: when it returns, the stream is finished and the answer is in your hand. On the JVM, the promise is kept by parking the calling thread until the stream completes. If the stream does a remote call per element, the thread sits idle for every call. On Scala.js the promise cannot be kept at all, because the single thread that would wait is the one that has to run the callbacks that deliver the answer.
 
-For example, here is a price total over a stream of titles, where each price comes from a call that returns an `Async`. The only way to use it inside a blocking fold is to block again for every element:
+For example, here is a price total over a list of titles, where each price comes from a call that returns a `Future`. A caller that wants one number back has nothing to do but wait for every price in turn:
 
 ```scala mdoc:compile-only
-import zio.blocks.async._
-import zio.blocks.streams._
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration._
 
-def totalBlocking(titles: Stream[Nothing, String], price: String => Async[Long]): Either[Nothing, Long] =
-  titles.runFold(0L)((sum, title) => sum + price(title).block)
+def totalBlocking(titles: List[String], price: String => Future[Long]): Long =
+  titles.foldLeft(0L)((sum, title) => sum + Await.result(price(title), 5.seconds))
 ```
 
-This parks the calling thread once per title, and the parking happens one title at a time, so a hundred 100 ms lookups take ten seconds of an idle thread. A web server that does this per request runs out of threads long before it runs out of CPU. On Scala.js the code does not compile, because the blocking terminals do not exist there.
+This parks the calling thread once per title, one title at a time, so a hundred 100 ms lookups hold a thread for ten seconds doing nothing. A web server that does this per request runs out of threads long before it runs out of CPU. A blocking stream terminal such as `Stream#runCollect` or `Stream#runFold` has the same cost, and on Scala.js it does not even compile, because those terminals do not exist there.
 
 In this guide, we replace each blocking call with an asynchronous one that returns immediately with an `Async` and let the caller decide when, and whether, to wait.
 
@@ -86,7 +86,7 @@ object BookPrices {
 
 ## Swapping a Blocking Terminal for Its Async Twin
 
-Every blocking terminal has a twin whose name ends in `Async`: `runCollect` becomes `runCollectAsync`, `runDrain` becomes `runDrainAsync`, and `runFold` becomes `runFoldAsync`. The twin returns `Async[Either[E, Z]]`: the same `Either` the blocking terminal returns, wrapped in an `Async` that completes later.
+Every blocking terminal has a twin whose name ends in `Async`: `Stream#runCollect` becomes `Stream#runCollectAsync`, `Stream#runDrain` becomes `Stream#runDrainAsync`, and `Stream#runFold` becomes `Stream#runFoldAsync`. The twin returns `Async[Either[E, Z]]`: the same `Either` the blocking terminal returns, wrapped in an `Async` that completes later.
 
 To collect the price of every book on the shelf:
 
@@ -97,7 +97,7 @@ val prices: Stream[Nothing, Long] =
 val pending: Async[Either[Nothing, Chunk[Long]]] = prices.runCollectAsync
 ```
 
-Creating `pending` took no time, because the terminal returns at once and the work happens when something drives the `Async`. To get the answer, we drive it with `Async#block`:
+Creating `pending` takes no time, because the terminal returns at once and the work happens when something drives the `Async`. To get the answer, we drive it with `Async#block`:
 
 ```scala mdoc
 println(pending.block)
@@ -114,7 +114,7 @@ the result is Right(Chunk(4999,5995,4499))
 The blocking call holds its thread for the three lookups; the async call hands back an `Async` immediately. The availability table in [Platform Differences](../reference/streams/execution-and-compatibility/platform-differences.md) lists the replacement for every blocking member.
 
 :::warning
-An async terminal does not make a blocking source non-blocking. The `Async` runs on whatever thread drives it, so a source whose pull blocks, such as an iterator that sleeps, a file read or `Stream.fromInputStream`, still blocks that thread. In a probe with an iterator that slept 200 ms per element, `runCollectAsync` returned after 21 ms, and `block` then took 654 ms because the sleeping ran inside it. Only sources and callbacks that report completion through an `Async`, like `mapAsync` over `priceInCents`, wait without holding a thread.
+An async terminal does not make a blocking source non-blocking. The `Async` runs on whatever thread drives it, so a source whose pull blocks, such as an iterator that sleeps, a file read or `Stream.fromInputStream`, still blocks that thread. In a probe with an iterator that sleeps 200 ms per element, `runCollectAsync` returns after about 21 ms, and `Async#block` then takes about 654 ms because the sleeping runs inside it. Only sources and callbacks that report completion through an `Async`, like `mapAsync` over `BookPrices.priceInCents`, wait without holding a thread.
 :::
 
 ## Doing Async Work for Each Element
@@ -132,6 +132,8 @@ val printed: Async[Either[Nothing, Unit]] =
   }
 ```
 
+To run `printed` and print one line per book:
+
 ```scala mdoc
 printed.block
 ```
@@ -142,6 +144,8 @@ printed.block
 val total: Async[Either[Nothing, Long]] =
   shelf.runFoldAsync(0L)((sum, book) => BookPrices.priceInCents(book.title).map(sum + _))
 ```
+
+To print the total:
 
 ```scala mdoc
 println(total.block)
@@ -169,6 +173,8 @@ val label: Async[Either[Nothing, String]] =
   totalInCents(titles).map(_.map(cents => f"The shelf costs ${cents / 100.0}%.2f"))
 ```
 
+To print the label:
+
 ```scala mdoc
 println(label.block)
 ```
@@ -187,7 +193,7 @@ println(Await.result(future, 5.seconds))
 To run the `Async` in the background and keep a handle that you can join or cancel, use `Async#start`, which returns an `Async.Running`. [Getting Started with Async](./async-getting-started.md#8-forking-and-cancellation-start-and-asyncrunning) covers it.
 
 :::tip
-Block only at the outermost edge of a JVM program, such as the end of `main`, where there is nothing left to do but wait. A `block` anywhere else holds a thread, which is what we set out to avoid. On Scala.js, `Async#block` returns a value that is already complete and throws `IllegalStateException` when it would have to wait, so there is no edge to block at. The host drives the `Async`, as the next sections show.
+Block only at the outermost edge of a JVM program, such as the end of `main`, where there is nothing left to do but wait. A call to `Async#block` anywhere else holds a thread, which is what we set out to avoid. On Scala.js, `Async#block` returns a value that is already complete and throws `IllegalStateException` when it would have to wait, so there is no edge to block at. The host drives the `Async`, as the next sections show.
 :::
 
 ## Errors and Cancellation
@@ -211,12 +217,14 @@ val unstocked: Async[Either[Nothing, Long]] =
   }
 ```
 
+To see the defect as an `Either` and as a thrown exception:
+
 ```scala mdoc
 println(unstocked.either.block)
 println(scala.util.Try(unstocked.block))
 ```
 
-`Async#either` moves the failure into an `Either[Throwable, ...]` value, and `block` rethrows it, so one `try` or `Try` at the edge covers every defect.
+`Async#either` moves the failure into an `Either[Throwable, ...]` value, and `Async#block` rethrows it, so one `try` or `Try` at the edge covers every defect.
 
 Cancelling a running terminal stops the pulls and runs the stream's finalizers. To see it, we drain an endless stream of lookups with a finalizer, start it, and cancel it after 350 ms:
 
@@ -249,11 +257,11 @@ Running it prints:
 pulls at cancel: 4, pulls 300 ms later: 4, finalizer ran: 1
 ```
 
-No pull started after the cancel, and the finalizer ran exactly once. One thing the cancel does not do is reach inside the lookup that was in flight: a lookup built from a `Future`, `CompletionStage` or JavaScript promise keeps running after you stop waiting for it. [How to Wrap Callback and Future-Based APIs in Async](./wrap-callback-and-future-apis.md#cancel-the-underlying-call-when-the-async-is-cancelled) explains why and how to carry a cancel handle through.
+No pull starts after the cancel, and the finalizer runs exactly once. One thing the cancel does not do is reach inside the lookup that was in flight: a lookup built from a `Future`, `CompletionStage` or JavaScript promise keeps running after you stop waiting for it. [How to Wrap Callback and Future-Based APIs in Async](./wrap-callback-and-future-apis.md#cancel-the-underlying-call-when-the-async-is-cancelled) explains why and how to carry a cancel handle through.
 
 ## Running the Same Pipeline on Scala.js
 
-Everything above used only the `*Async` terminals, `Async#map` and `Async.fromCompletionStage`, so only one piece is JVM-specific: the price lookup. The pipeline itself, `totalInCents`, does not change if we pass the lookup in as a parameter. The Scala.js code in the rest of this guide is not compiled by the docs build; we ran each snippet on Node 24 with Scala.js 1.22 on Scala 2.13.18 and 3.9.0.
+Everything above used only the `*Async` terminals, `Async#map` and `Async.fromCompletionStage`, so only one piece is JVM-specific: the price lookup. The pipeline itself, `ShelfTotalJs.totalInCents`, does not change if we pass the lookup in as a parameter. The Scala.js code in the rest of this guide is not compiled by the docs build; each snippet runs on Node 24 with Scala.js 1.22 on Scala 2.13.18 and 3.9.0.
 
 On Scala.js, the lookup wraps a `js.Promise` with `Async.fromJsPromise`:
 
@@ -302,7 +310,7 @@ main has returned; the total prints when the timers fire
 The total is Right(15493)
 ```
 
-`main` returned before the first timer fired, which is the point: nothing waited. `Async#toJsPromise` hands the `Async` to the JavaScript event loop, so Node stays alive until the promise settles. In a browser, you would keep the `Async` or the `js.Promise` and update the page in the callback.
+`main` returns before the first timer fires, which is the point: nothing waits. `Async#toJsPromise` hands the `Async` to the JavaScript event loop, so Node stays alive until the promise settles. In a browser, you would keep the `Async` or the `js.Promise` and update the page in the callback.
 
 Two things differ from the JVM, and the compiler or the runtime tells you at once. A blocking terminal does not exist on Scala.js, so the call fails to compile:
 
@@ -321,7 +329,7 @@ A pending value: Async.block: suspension did not complete synchronously and Java
 
 In a browser or Node 18 and later, a `fetch` response body is a `ReadableStream` of bytes. `ReadableStreamReaders.fromReadableStream` wraps one as a `Reader.AsyncReader[Byte]`, and `Stream.fromReader` turns the reader into a `Stream[E, Byte]`. The adapter is Scala.js-only and byte-only: every chunk the JavaScript stream delivers is a `Uint8Array`, and the stream you get has element type `Byte`. It calls `read()` on the JavaScript stream only when the zio-blocks stream pulls for more bytes, and has at most one read in flight, so a slow consumer slows the reads rather than piling up chunks.
 
-To fetch a catalogue of titles, one per line, and total their prices with the same `totalInCents`, we first read the bytes and then decode them. The URL is a `data:` URL, so the example needs no network. Node and the browsers fetch it like any other:
+To fetch a catalogue of titles, one per line, and total their prices with the same `ShelfTotalJs.totalInCents`, we first read the bytes and then decode them. The URL is a `data:` URL, so the example needs no network. Node and the browsers fetch it like any other:
 
 ```scala
 // Scala.js code
@@ -365,10 +373,12 @@ The catalogue costs Right(15493)
 
 `ReadableStreamReaders` declares its own small `@js.native` facades, `ReadableStreamReaders.ReadableStream` among them, so we cast the `body` of the untyped `fetch` result to that facade. The factory takes the stream and calls `getReader()` itself.
 
-`fromReadableStream` owns the stream. When the zio-blocks stream closes early, for example under `take(3)`, the adapter cancels the JavaScript stream and releases its lock. To see it, we give the stream a `cancel` hook and take three of its five bytes:
+`ReadableStreamReaders.fromReadableStream` owns the stream. When the zio-blocks stream closes early, for example under `take(3)`, the adapter cancels the JavaScript stream and releases its lock. To see it, we give the stream a `cancel` hook and take three of its five bytes:
 
 ```scala
 // Scala.js code
+import java.util.concurrent.atomic.AtomicBoolean
+
 import zio.blocks.async._
 import zio.blocks.streams._
 
@@ -377,14 +387,14 @@ import scala.scalajs.js.typedarray.Uint8Array
 
 object EarlyCloseJs {
   def main(args: Array[String]): Unit = {
-    var cancelled = false
+    val cancelled = new AtomicBoolean(false)
 
     val source = js.Dynamic.literal(
       start = { (controller: js.Dynamic) =>
         controller.enqueue(new Uint8Array(js.Array[Short](1, 2, 3, 4, 5)))
       }: js.Function1[js.Dynamic, Unit],
       cancel = { (reason: js.Any) =>
-        cancelled = true
+        cancelled.set(true)
       }: js.Function1[js.Any, Unit]
     )
     val stream = js.Dynamic
@@ -395,18 +405,20 @@ object EarlyCloseJs {
       .fromReader[Nothing, Byte](ReadableStreamReaders.fromReadableStream(stream))
       .take(3)
       .runCollectAsync
-      .map(result => println(s"take(3) gave $result, stream cancelled: $cancelled"))
+      .map(result => println(s"take(3) gave $result, stream cancelled: ${cancelled.get()}"))
       .toJsPromise
     ()
   }
 }
 ```
 
+Running it prints:
+
 ```text
 take(3) gave Right(Chunk(1,2,3)), stream cancelled: true
 ```
 
-If the stream is not yours to cancel, use `ReadableStreamReaders.fromReadableStreamUnmanaged`, which releases the lock and never cancels, so the code that created the stream can keep using it. [Reader](../reference/streams/primitives/reader.md#from-native-asynchronous-sources) documents both factories.
+If the stream is not yours to cancel, use `ReadableStreamReaders.fromReadableStreamUnmanaged`, which releases the lock and never cancels, so the code that creates the stream can keep using it. [Reader](../reference/streams/primitives/reader.md#from-native-asynchronous-sources) documents both factories.
 
 :::warning
 In 0.0.56, a read that the JavaScript stream rejects, for example a dropped connection, does not arrive as `Left` in the `Either` the way the JVM channel adapter's failures do. It fails the `Async` itself with an internal `StreamError`, whose message is empty, so handle it with `Async#either` or a `catch` at the edge. This is a known bug in 0.0.56:
@@ -420,7 +432,7 @@ That line is the result of `runCollectAsync.either` on a stream whose second rea
 
 ## Putting It Together
 
-The complete example puts the pipeline behind a `PriceLookup` function, so the same `receipt` could take the Scala.js lookup. It prints a line per book with `runForeachAsync`, totals the shelf with `runFoldAsync`, joins the two with `flatMap`, and blocks once, at the end of `main`. A second run adds a title the shop does not stock and looks at the failure through `either`:
+The complete example puts the pipeline behind a `PriceLookup` function, so the same `receipt` could take the Scala.js lookup. It uses the `Book` case class and the `BookPrices` price service from the support file `BookPrices.scala`, which Running the Examples embeds first. It prints a line per book with `runForeachAsync`, totals the shelf with `runFoldAsync`, joins the two with `Async#flatMap`, and blocks once, at the end of `main`. A second run adds a title the shop does not stock and looks at the failure through `Async#either`. The complete example, embedded from its companion file, follows:
 
 ```scala mdoc:embed:streams-examples/src/main/scala/runstreamswithoutblocking/CompleteExample.scala
 ```
@@ -439,6 +451,8 @@ Every example uses the `Book` case class and the `BookPrices` price service:
 <details>
 <summary><strong>The Price Service</strong></summary>
 
+The price service and the `Book` case class:
+
 ```scala mdoc:embed:streams-examples/src/main/scala/runstreamswithoutblocking/BookPrices.scala:show-line-numbers
 ```
 
@@ -446,6 +460,8 @@ Every example uses the `Book` case class and the `BookPrices` price service:
 
 <details>
 <summary><strong>Swap a Blocking Terminal for Its Async Twin</strong></summary>
+
+The terminal swap, timed against the blocking call:
 
 ```scala mdoc:embed:streams-examples/src/main/scala/runstreamswithoutblocking/Concept1SwapTerminalExample.scala:show-line-numbers
 ```
@@ -461,6 +477,8 @@ sbt "runMain runstreamswithoutblocking.Concept1SwapTerminalExample"
 <details>
 <summary><strong>Do Async Work for Each Element</strong></summary>
 
+Per-element async work with `runForeachAsync` and `runFoldAsync`:
+
 ```scala mdoc:embed:streams-examples/src/main/scala/runstreamswithoutblocking/Concept2PerElementExample.scala:show-line-numbers
 ```
 
@@ -474,6 +492,8 @@ sbt "runMain runstreamswithoutblocking.Concept2PerElementExample"
 
 <details>
 <summary><strong>Use the Result Without Waiting</strong></summary>
+
+Composing the result and handing it to a `Future`:
 
 ```scala mdoc:embed:streams-examples/src/main/scala/runstreamswithoutblocking/Concept3UsingResultExample.scala:show-line-numbers
 ```
@@ -489,6 +509,8 @@ sbt "runMain runstreamswithoutblocking.Concept3UsingResultExample"
 <details>
 <summary><strong>Errors and Cancellation</strong></summary>
 
+Typed errors, defects and cancellation:
+
 ```scala mdoc:embed:streams-examples/src/main/scala/runstreamswithoutblocking/Concept4ErrorsAndCancellationExample.scala:show-line-numbers
 ```
 
@@ -503,6 +525,8 @@ sbt "runMain runstreamswithoutblocking.Concept4ErrorsAndCancellationExample"
 <details>
 <summary><strong>Complete Example: A Shelf Receipt</strong></summary>
 
+The complete shelf receipt:
+
 ```scala mdoc:embed:streams-examples/src/main/scala/runstreamswithoutblocking/CompleteExample.scala:show-line-numbers
 ```
 
@@ -514,6 +538,12 @@ sbt "runMain runstreamswithoutblocking.CompleteExample"
 
 </details>
 
+To check that every example compiles without running any of them, run:
+
+```bash
+sbt compile
+```
+
 The `streams-examples` build is JVM-only, so the Scala.js snippets have no companion files. To run one, make a scratch sbt project with `addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")` in `project/plugins.sbt` and this `build.sbt`, copy a snippet into `src/main/scala`, and run it with `sbt run`, which needs Node on your path:
 
 ```scala
@@ -521,7 +551,7 @@ scalaVersion := "3.9.0"
 enablePlugins(ScalaJSPlugin)
 scalaJSUseMainModuleInitializer := true
 scalacOptions += "-experimental"
-libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "0.0.56"
+libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "@VERSION@"
 ```
 
 ## Going Further
