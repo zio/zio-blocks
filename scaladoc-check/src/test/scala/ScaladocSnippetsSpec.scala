@@ -152,6 +152,13 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
           "zio.blocks.streams._"
       )
     },
+    test("moduleImport and objectName read a dash in the module directory as a package dot") {
+      val avro = "schema-avro/src/main/scala/zio/blocks/schema/avro/AvroFormat.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(avro) == "zio.blocks.schema.avro._",
+        ScaladocSnippets.objectName(avro, 3) == "Snippet_schema_avro_scala_AvroFormat_L3"
+      )
+    },
     test("render gives a streams example the streams import") {
       val streamsPath = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
       val snippet     = ScaladocSnippets.Snippet(streamsPath, 9, List("val a = 1"), None)

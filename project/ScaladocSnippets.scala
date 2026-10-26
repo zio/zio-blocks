@@ -78,7 +78,9 @@ object ScaladocSnippets {
   /**
    * The import that every example of a module gets: the module directory
    * `streams` gives `zio.blocks.streams._`, and a nested module such as
-   * `schema-avro` gives `zio.blocks.schema.avro._`.
+   * `schema-avro` gives `zio.blocks.schema.avro._`. This holds only for a
+   * module whose package follows its directory; see the comment on
+   * `scaladocCheckedModules` in `build.sbt` for the ones that don't.
    */
   def moduleImport(sourcePath: String): String =
     "zio.blocks." + moduleOf(sourcePath).replace('-', '.') + "._"

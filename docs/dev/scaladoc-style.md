@@ -51,7 +51,7 @@ def getDefaultValue: Option[A]
 
 ## Examples are compiled
 
-`sbt "++<version>; scaladoc-check/test"` turns every multi-line block in the Scaladoc of the checked modules (`schema` and `streams`) into an object and compiles it. One project serves every module; to check another one, add it to `scaladocCheckedModules` in `build.sbt`. CI runs it in the `testJVM` job on Scala 2.13.x, 3.9.x and 3.10.x (JDK 17 and 25). Run it locally on all three: `sbt --client "++3.9.0; scaladoc-check/test; ++3.10.0; scaladoc-check/test; ++2.13.18; scaladoc-check/test"`.
+`sbt "++<version>; scaladoc-check/test"` turns every multi-line block in the Scaladoc of the checked modules (`schema` and `streams`) into an object and compiles it. One project serves every module. To check another one, add it to `scaladocCheckedModules` in `build.sbt`; this works when the module's package is `zio.blocks.<module-dir>` with `-` read as `.`, and the comment there lists the modules that need an override first. CI runs it in the `testJVM` job on Scala 2.13.x, 3.9.x and 3.10.x (JDK 17 and 25). Run it locally on all three: `sbt --client "++3.9.0; scaladoc-check/test; ++3.10.0; scaladoc-check/test; ++2.13.18; scaladoc-check/test"`.
 
 - Each block compiles on its own. The wrapper adds the import of the module the file belongs to (`import zio.blocks.schema._` for `schema`, `import zio.blocks.streams._` for `streams`); import anything else inside the block.
 - Use braces, not indentation syntax.
