@@ -10061,7 +10061,7 @@ done
 
 ### telemetry-guide and otel reference: the propagation examples start a new trace, and the B3 multi-header list names a header that is never written
 
-Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-traces.md` (backlog H-43), on `main` at `c347bc08`. The same text is published at tag `v0.0.56`. Verified by running against the published 0.0.56. Fixed on the H-43 branch (`docs/h43-correlate-logs-and-traces`, commit `dedfb752`), except for the Scaladoc in `B3Propagator.scala`. Not filed on GitHub.
+Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-traces.md` (backlog H-43), on `main` at `c347bc08`. The same text is published at tag `v0.0.56`. Verified by running against the published 0.0.56. Fixed on the H-43 branch (PR #1853, commit `4df2713bc`), except for the Scaladoc in `B3Propagator.scala`. Not filed on GitHub.
 
 **Summary.** There are four errors:
 
