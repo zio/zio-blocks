@@ -48,6 +48,117 @@ class ScanTest(unittest.TestCase):
             """)
         self.assertEqual([d.name for d in sc.scan(text)], ["object O", "def outer"])
 
+    def test_locals_inside_method_bodies_are_skipped_at_any_indentation(self):
+        text = textwrap.dedent("""\
+            object O {
+              def outer: Int = {
+                val local = 1
+                def helper(i: Int) = i
+                helper(local)
+              }
+              val table = Array(
+                1
+              )
+              def after = 2
+            }
+            """)
+        self.assertEqual([d.name for d in sc.scan(text)], ["object O", "def outer", "val table", "def after"])
+
+    def test_members_of_nested_types_count_at_any_depth(self):
+        text = textwrap.dedent("""\
+            object Outer {
+              object Middle {
+                sealed trait Inner {
+                  def deep: Int
+                }
+              }
+            }
+            """)
+        self.assertEqual(
+            [d.name for d in sc.scan(text)], ["object Outer", "object Middle", "trait Inner", "def deep"]
+        )
+
+    def test_members_of_private_and_protected_types_are_skipped(self):
+        text = textwrap.dedent("""\
+            object O {
+              private[schema] object Hidden {
+                def a = 1
+                object Nested {
+                  def b = 1
+                }
+              }
+              protected class Prot {
+                def c = 1
+              }
+              def visible = 1
+            }
+            """)
+        self.assertEqual([d.name for d in sc.scan(text)], ["object O", "def visible"])
+
+    def test_multi_line_constructor_parameters_are_skipped_and_the_body_counts(self):
+        text = textwrap.dedent("""\
+            final case class Book(
+              val title: String,
+              year: Int
+            ) extends Product
+                with Serializable {
+              def loud: String = title
+            }
+            class Shelf[A](
+              val name: String
+            )(
+              val books: List[A]
+            ) {
+              def size: Int = books.size
+            }
+            """)
+        self.assertEqual([d.name for d in sc.scan(text)], ["class Book", "def loud", "class Shelf", "def size"])
+
+    def test_members_of_anonymous_classes_and_given_instances_are_skipped(self):
+        text = textwrap.dedent("""\
+            object O {
+              implicit val ordering: Ordering[Int] = new Ordering[Int] {
+                def compare(a: Int, b: Int): Int = a - b
+              }
+              given longOrdering: Ordering[Long] with {
+                def compare(a: Long, b: Long): Int = 0
+              }
+            }
+            """)
+        self.assertEqual([d.name for d in sc.scan(text)], ["object O", "val ordering", "given longOrdering"])
+
+    def test_extension_and_package_object_members_count(self):
+        text = textwrap.dedent("""\
+            package object schema {
+              def top = 1
+            }
+            object Syntax {
+              extension (self: String) {
+                def loud: String = self.toUpperCase
+              }
+            }
+            """)
+        self.assertEqual([d.name for d in sc.scan(text)], ["def top", "object Syntax", "def loud"])
+
+    def test_comments_strings_and_same_line_annotations(self):
+        text = textwrap.dedent('''\
+            object O {
+              /*
+            def commented = 1
+               */
+              val text = """
+            def quoted = 1
+            """
+              /** Fast. */
+              @inline final def fast = 1
+              def last = 2
+            }
+            ''')
+        self.assertEqual(
+            [(d.name, d.doc is not None) for d in sc.scan(text)],
+            [("object O", False), ("val text", False), ("def fast", True), ("def last", False)],
+        )
+
     def test_doc_text_is_normalised(self):
         text = "  /**\n   * Reads   a\n   * book.\n   */\n  def read = 1\n"
         self.assertEqual(sc.scan(text)[0].doc, "Reads a book.")
