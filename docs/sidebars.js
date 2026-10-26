@@ -488,6 +488,7 @@ const sidebars = {
     "guides/validate-query-parameters-and-headers",
     "guides/your-first-streaming-pipeline",
     "guides/stream-files-and-sockets",
+    "guides/run-streams-without-blocking",
     "guides/async-getting-started",
     "guides/wrap-callback-and-future-apis",
     "guides/compile-time-resource-safety-with-scope",
