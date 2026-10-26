@@ -31,10 +31,10 @@ private[streams] trait LifecycleWaitPlatform {
 /**
  * The platform-specific members of [[Stream]]. On the JVM these are the
  * blocking terminals (`run`, `runCollect`, `runDrain`, `runFold`, `runForeach`,
- * `foreach`, `count`, `exists`, `find`, `forall`, `head`, `last`) and `start`,
- * which park the calling thread until the stream is done. The Scala.js copy has
- * no members, so shared code that calls one of them does not compile for
- * Scala.js; use the `*Async` terminals there.
+ * `foreach`, `count`, `exists`, `find`, `forall`, `head`, `last`), which park
+ * the calling thread until the stream is done, and `start`, which returns a
+ * blocking reader. The Scala.js copy has no members, so shared code that calls
+ * one of them does not compile for Scala.js; use the `*Async` terminals there.
  */
 trait StreamPlatformSpecific[+E, +A] { self: Stream[E, A] =>
 

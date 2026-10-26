@@ -239,11 +239,12 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
    * opened only after this stream completes and closes, and a typed error in
    * this stream ends the result without opening `that`. `++` is an alias.
    *
-   * When the element types (or the error types) differ, the result has their
-   * common supertype; types with none become a union on Scala 3 and an `Either`
-   * on Scala 2. A known issue on Scala 2: concatenating two streams of
-   * `Nothing`, such as `Stream.empty ++ Stream.empty`, does not compile
-   * (ambiguous `JvmType.Infer`); pass the type arguments, as in
+   * When the element types (or the error types) differ, the result keeps the
+   * wider one, or a meaningful common supertype such as a sealed parent;
+   * otherwise it becomes a union on Scala 3 and an `Either` on Scala 2. A known
+   * issue on Scala 2: concatenating two streams of `Nothing`, such as
+   * `Stream.empty ++ Stream.empty`, does not compile (ambiguous
+   * `JvmType.Infer`); pass the type arguments, as in
    * `a.++[Nothing, Nothing, Nothing, Nothing](b)`.
    */
   def concat[E2, E3, A2, A3](that: Stream[E2, A2])(implicit
@@ -304,11 +305,11 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   /**
    * Runs `finalizer` once each time a run of this stream closes: after
    * completion, a failure, an early stop (such as a downstream `take`) or
-   * cancellation. An exception thrown by `finalizer` is a defect. If the stream
-   * had already failed with a typed error, the terminal does not return that
-   * `Left`: it throws (or fails its `Async` with) the library's internal
-   * `StreamError`, whose `value` is the typed error and whose suppressed
-   * exception is the finalizer's.
+   * cancellation. An exception thrown by `finalizer` is a defect. If it throws
+   * after the stream has failed with a typed error, the terminal does not
+   * return that `Left`: it throws (or fails its `Async` with) the library's
+   * internal `StreamError`, whose `value` is the typed error, whose suppressed
+   * exception is the finalizer's, and whose message is `null`.
    */
   def ensuring(finalizer: => Unit): Stream[E, A] =
     new Stream.Ensuring(this, finalizer)
@@ -835,8 +836,8 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
 
   /**
    * Folds the elements from `z` with the asynchronous `f`, one element at a
-   * time and in order; the overload for a `Int` accumulator, chosen when `z` is
-   * a `Int`. A failed `Async` is a defect.
+   * time and in order; the overload for an `Int` accumulator, chosen when `z`
+   * is an `Int`. A failed `Async` is a defect.
    */
   def runFoldAsync(z: Int)(f: (Int, A) => Async[Int]): Async[Either[E, Int]] = {
     val direct = this match {
@@ -1826,7 +1827,7 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
 /**
  * Constructors for [[Stream]]. Each one is lazy: it describes a source and runs
  * nothing until a terminal pulls from it. The constructors whose names end in
- * `Async` take an `Async` thunk instead of a plain value.
+ * `Async` take `Async` effects in place of plain values.
  *
  *   - '''Values''': `Stream.succeed`, [[Stream.fail fail]],
  *     [[Stream.empty empty]], [[Stream.die die]]
