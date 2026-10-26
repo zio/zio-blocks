@@ -657,4 +657,4 @@ The parse cache compares codec identity by reference. A codec constructed inline
 
 Several headers hold values from elsewhere in the module rather than strings: `Allow`, `AccessControlAllowMethods`, and `AccessControlRequestMethod` hold `Method`, and `Chunk` is the sequence type throughout.
 
-For deriving header codecs from a `Schema[A]` instead of writing them by hand, see [HTTP model schema](./schema.md), which builds `HeaderCodec` and `QueryCodec` instances from schemas. `ServerSentEvent` uses `Headers` indirectly through `Response`, and is documented in [Server-Sent Events](./server-sent-event.md).
+For deriving header codecs from a `Schema[A]` instead of writing them by hand, see [HTTP model schema](./schema.md), which builds `HeaderCodec` and `QueryCodec` instances from schemas. `ServerSentEvent` does not use `Headers` or `Response`: it renders a `String`, which you put in a `Response` body with a `text/event-stream` content type yourself; see [Server-Sent Events](./server-sent-event.md) and the guide [How to Send Server-Sent Events with http-model](../../guides/send-server-sent-events.md).

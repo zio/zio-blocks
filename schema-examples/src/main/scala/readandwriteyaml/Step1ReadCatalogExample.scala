@@ -56,7 +56,7 @@ object Step1ReadCatalogExample {
       |store: Scala Books Berlin
       |books:
       |  - title: Zionomicon
-      |    authors: [John A. De Goes, Adam Fraser]
+      |    authors: [John A. De Goes, Adam Fraser, Milad Khajavi]
       |    isbn: 978-0-9862-0040-6
       |    price: 49.99
       |    page-count: 744
@@ -79,7 +79,7 @@ object Step1ReadCatalogExample {
 
   val zionomicon: Book = Book(
     title = "Zionomicon",
-    authors = List("John A. De Goes", "Adam Fraser"),
+    authors = List("John A. De Goes", "Adam Fraser", "Milad Khajavi"),
     isbn = "978-0-9862-0040-6",
     price = 49.99,
     pageCount = 744,

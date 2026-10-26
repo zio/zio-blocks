@@ -47,7 +47,7 @@ object Step1ReadCsvExample {
 
     val inventoryCsv: String =
       """title,year,authors,copies
-        |Zionomicon,2024,"John A. De Goes, Adam Fraser",12
+        |Zionomicon,2024,"John A. De Goes, Adam Fraser and Milad Khajavi",12
         |Programming in Scala,2008,"Martin Odersky, Lex Spoon, Bill Venners",7
         |Functional Programming in Scala,2014,"Paul Chiusano, Rúnar Bjarnason",5
         |""".stripMargin

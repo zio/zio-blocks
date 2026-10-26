@@ -185,7 +185,7 @@ object Book {
 Then encode a book to JSON:
 
 ```scala mdoc
-Book("Zionomicon", "John A. De Goes and Adam Fraser").toJsonString
+Book("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi").toJsonString
 ```
 
 ## Things to Know

@@ -23,7 +23,7 @@ By the end of this tutorial, you will be able to:
 - Handle errors with `Async.fail`, `Async#catchAll`, and `Async#either`.
 - Write sequential async code in direct style using `Async.async { … .await … }`.
 - Bridge throw-based code and callback-based APIs with `Async.attempt` and `Async.promise` / `Completer`.
-- Fork background computations with `Async#start` and cancel them with `Async#cancel`.
+- Fork background computations with `Async.start` and cancel them with `Async.Running#cancel`.
 
 To add the async module to your project, include this dependency in your `build.sbt`:
 
@@ -72,6 +72,14 @@ Ready mapped: 84
 
 Try changing `42` to a different number and watch the output change accordingly.
 
+<details>
+  <summary>Runnable version: <code>Concept1ReadyValuesExample.scala</code></summary>
+
+```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/Concept1ReadyValuesExample.scala:show-line-numbers
+```
+
+</details>
+
 ## 4. Error Handling: `Async.fail`, `catchAll`, and `either`
 
 Not every computation succeeds. `Async.fail(throwable)` creates a failed async that short-circuits all downstream `map` calls without invoking their functions. `Async#catchAll` recovers by applying a function that returns a new `Async`.
@@ -81,7 +89,8 @@ Here we create a failed computation and recover from it with `catchAll`:
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-val recovered: String = Async.fail(new Exception("oops"))
+val recovered: String = Async
+  .fail(new Exception("oops"))
   .catchAll(_ => Async.succeed("default"))
   .block
 println(s"Recovered: $recovered")
@@ -102,7 +111,8 @@ Sometimes you want to observe both the success and failure branches as plain dat
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-val observed: Either[Throwable, Int] = Async.fail(new Exception("error"))
+val observed: Either[Throwable, Int] = Async
+  .fail(new Exception("error"))
   .either
   .block
 println(s"Observed: $observed")
@@ -116,6 +126,14 @@ Observed: Left(java.lang.Exception: error)
 
 - Calling `either` wraps the failure in `Left`; a successful result would appear in `Right`, turning the async's outcome into an ordinary Scala value.
 - The `block` call materialises that `Either` so the learner can inspect it.
+
+<details>
+  <summary>Runnable version, with both blocks of this section: <code>Concept2ErrorHandlingExample.scala</code></summary>
+
+```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/Concept2ErrorHandlingExample.scala:show-line-numbers
+```
+
+</details>
 
 ## 5. Direct Style: `Async.async` and `await`
 
@@ -156,6 +174,14 @@ The `await` method is enforced by the compiler to be used only inside an `Async.
 On Scala 2, the `@compileTimeOnly` annotation fires at the same point. Try deleting the `Async.async { … }` wrapper — the compiler will tell you immediately.
 :::
 
+<details>
+  <summary>Runnable version: <code>Concept3DirectStyleExample.scala</code></summary>
+
+```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/Concept3DirectStyleExample.scala:show-line-numbers
+```
+
+</details>
+
 ## 6. Bridging Exceptions: `Async.attempt`
 
 Scala code often signals failure by throwing exceptions rather than returning error values. `Async.attempt(body)` evaluates a block that may throw and captures any exception as an async failure, turning it into a value that `catchAll` can recover. A block that succeeds produces a ready-value `Async`; one that throws produces a failed `Async`.
@@ -183,6 +209,14 @@ Failed parse: Left(java.lang.NumberFormatException: For input string: "oops")
 - `Async.attempt("oops".toInt)` evaluates `"oops".toInt`; the `NumberFormatException` is caught and becomes a failed `Async`.
 - Chaining `either` and `block` drives the failed async and reifies its outcome as `Left(…)`.
 
+<details>
+  <summary>Runnable version: <code>Concept4BridgingExceptionsExample.scala</code></summary>
+
+```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/Concept4BridgingExceptionsExample.scala:show-line-numbers
+```
+
+</details>
+
 ## 7. Callback Bridging: `Async.promise` and `Completer`
 
 Many real-world APIs — database drivers, network libraries, timers — signal completion by calling a callback rather than returning a value. `Async.promise` lets you lift these APIs into `Async` without rewriting them. It suspends the computation and provides a `Completer[A]` — a thread-safe, one-shot handle — that you can pass to the callback. Calling `completer.succeed(value)` from any thread resolves the async and wakes up any awaiter.
@@ -195,14 +229,16 @@ The example starts a background thread that completes the promise after a short 
 ```scala
 import zio.blocks.async._
 
-val result: String = Async.promise[String] { c =>
-  new Thread {
-    override def run(): Unit = {
-      Thread.sleep(10)
-      c.succeed("hello from callback")
-    }
-  }.start()
-}.block
+val result: String = Async
+  .promise[String] { c =>
+    new Thread {
+      override def run(): Unit = {
+        Thread.sleep(10)
+        c.succeed("hello from callback")
+      }
+    }.start()
+  }
+  .block
 println(s"Promise resolved: $result")
 ```
 
@@ -212,15 +248,17 @@ println(s"Promise resolved: $result")
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-val result: String = Async.promise[String] {
-  val c = summon[Completer[String]]
-  new Thread {
-    override def run(): Unit = {
-      Thread.sleep(10)
-      c.succeed("hello from callback")
-    }
-  }.start()
-}.block
+val result: String = Async
+  .promise[String] {
+    val c = summon[Completer[String]]
+    new Thread {
+      override def run(): Unit = {
+        Thread.sleep(10)
+        c.succeed("hello from callback")
+      }
+    }.start()
+  }
+  .block
 println(s"Promise resolved: $result")
 ```
 
@@ -238,167 +276,119 @@ Promise resolved: hello from callback
 - Calling `c.succeed("hello from callback")` completes the promise; the first call wins and subsequent calls are no-ops.
 - The `block` call waits until the completer fires and returns the resolved value.
 
+<details>
+  <summary>Runnable version, the Scala 3 tab: <code>Concept5CallbackBridgingExample.scala</code></summary>
+
+```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/Concept5CallbackBridgingExample.scala:show-line-numbers
+```
+
+</details>
+
 ## 8. Forking and Cancellation: `start` and `Async.Running`
 
-By default, async chains run eagerly on the calling thread until the first suspension or completion. To drive a computation on a **background worker** (a separate JVM thread or a Scala.js microtask queue entry) instead, call `Async#start` on any `Async`. This returns an `Async.Running[A]` handle — itself an `Async[A]` — representing the in-flight computation. You can join it by calling `block` on the handle, or stop it early with `cancel`.
+By default, async chains run eagerly on the calling thread until the first suspension or completion. To evaluate a block on a **background worker** (a separate JVM thread or a Scala.js microtask) instead, pass it to `Async.start`. This returns an `Async.Running[A]` handle — itself an `Async[A]` — representing the in-flight computation. You can join it by calling `block` on the handle, or stop waiting for it with `cancel`.
 
-The first block forks a computation and joins it:
+The first block forks a computation and joins it, printing the name of the thread each step runs on:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-val running: Async.Running[Int] = Async.succeed(42)
-  .map { x => println(s"Running in background: $x"); x * 2 }
-  .start
+val running: Async.Running[Int] = Async.start {
+  println(s"Computing on ${Thread.currentThread.getName}")
+  42 * 2
+}
 val joined: Int = running.block
-println(s"Joined: $joined")
+println(s"Joined on ${Thread.currentThread.getName}: $joined")
 ```
 
 Expected output:
 
 ```text
-Running in background: 42
-Joined: 84
+Computing on zio-blocks-async-eval
+Joined on main: 84
 ```
 
-- Calling `start` forks the entire chain — `Async.succeed(42)` plus the `map` — onto a background worker; the calling thread continues immediately.
-- `running.block` blocks the calling thread until the background computation finishes and returns the result `84`.
-- The background computation prints its message before returning the value, so that line appears first.
+- `Async.start { … }` hands the block to a background worker and returns the `Running` handle immediately; the first line shows the block running on the worker thread, `zio-blocks-async-eval`.
+- `running.block` blocks the calling thread until the background computation finishes and returns the result `84`, back on `main`.
 
-The companion method `Async.start` forks a plain expression. The following block demonstrates cancellation:
+The extension method `Async#start` drives an `Async` you have already built. Notice what happens when that `Async` is a chain of ready values:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-val running2: Async.Running[Int] = Async.start { Thread.sleep(100); 99 }
+val ready: Async.Running[Int] = Async
+  .succeed(42)
+  .map { x => println(s"map runs on ${Thread.currentThread.getName}"); x * 2 }
+  .start
+println(s"Joined: ${ready.block}")
+```
+
+Expected output:
+
+```text
+map runs on main
+Joined: 84
+```
+
+- The `map` function runs on `main`, while the chain is being built and before `start` is called: its input is already available, so there is nothing to wait for.
+- Calling `start` on the result finds a ready value and settles at once, without a background worker. This is the zero-allocation promise from section 2 at work — a chain leaves the calling thread only when it genuinely suspends, such as waiting on a `Completer`.
+
+The last block demonstrates cancellation:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val running2: Async.Running[Int] = Async.start {
+  Thread.sleep(100)
+  println("Body finished after cancel")
+  99
+}
 running2.cancel()
 println("Cancelled running2")
+Thread.sleep(200) // give the body time to finish
 ```
 
 Expected output:
 
 ```text
 Cancelled running2
+Body finished after cancel
 ```
 
-- `Async.start { Thread.sleep(100); 99 }` forks the block onto a background worker; the call returns the `Running` handle immediately.
-- Calling `cancel` stops the driver loop; if cancellation linearises before the computation finishes, the result is never published to any awaiter. The call is idempotent.
+- `Async.start { … }` forks the block onto a background worker; the call returns the `Running` handle immediately.
+- Calling `cancel` stops the driver, so no result is ever published to an awaiter. The call is idempotent.
+- The second line shows that `cancel` does not interrupt the block itself: it finishes on its own thread. Cancelling an `Async.start` means you have stopped waiting for the result, not that the work has stopped.
+
+:::caution
+A cancelled run never settles: it neither succeeds nor fails. Calling `block` on a cancelled handle waits forever on the JVM and throws `IllegalStateException` on Scala.js, so cancel only a handle whose every consumer you own. The [`Async.Running`](../reference/async.md#asyncrunning) reference covers the details.
+:::
+
+<details>
+  <summary>Runnable version, with all three blocks of this section: <code>Concept6ForkingAndCancellationExample.scala</code></summary>
+
+```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/Concept6ForkingAndCancellationExample.scala:show-line-numbers
+```
+
+</details>
 
 ## 9. Putting It Together
 
-Let's combine all six concepts into a single order-processing pipeline. The program bridges a callback-based user-lookup API with `Async.promise`, safely parses an order ID with `Async.attempt`, runs a stock check in the background with `start`, sequences everything in direct style inside `Async.async`, and recovers from any failure with `catchAll`:
+Let's combine all six concepts into a single order-processing pipeline. The program bridges a callback-based user-lookup API with `Async.promise`, safely parses an order ID with `Async.attempt`, runs a stock check in the background with `Async.start`, sequences everything in direct style inside `Async.async`, and recovers from any failure with `catchAll`. Each step reuses a section's code with order-processing values: the callback delivers the user name `"Ada"` instead of a greeting, `Async.attempt` parses the order ID `"9001"`, the background block is a stock check that sleeps 5 ms and returns `true`, and the recovery handler reports the failure's message instead of a fixed default:
 
 ```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/CompleteExample.scala
 ```
 
+Expected output:
+
+```text
+Report: Order 9001 for Ada: in stock
+```
+
 ## 10. Running the Examples
 
-Clone the repository and move into its root directory:
-
-```bash
-git clone https://github.com/zio/zio-blocks.git
-cd zio-blocks
-```
-
-Each concept's standalone example is shown below. Expand a section to see the source and the command to run it.
-
-<details>
-<summary><strong>Concept 1: Ready Values</strong></summary>
-
-```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/ReadyValuesExample.scala:show-line-numbers
-```
-
-Run it with:
-
-```bash
-cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.ReadyValuesExample"
-```
-
-</details>
-
-<details>
-<summary><strong>Concept 2: Error Handling</strong></summary>
-
-```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/ErrorHandlingExample.scala:show-line-numbers
-```
-
-Run it with:
-
-```bash
-cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.ErrorHandlingExample"
-```
-
-</details>
-
-<details>
-<summary><strong>Concept 3: Direct Style</strong></summary>
-
-```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/DirectStyleExample.scala:show-line-numbers
-```
-
-Run it with:
-
-```bash
-cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.DirectStyleExample"
-```
-
-</details>
-
-<details>
-<summary><strong>Concept 4: Bridging Exceptions</strong></summary>
-
-```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/AttemptExample.scala:show-line-numbers
-```
-
-Run it with:
-
-```bash
-cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.AttemptExample"
-```
-
-</details>
-
-<details>
-<summary><strong>Concept 5: Callback Bridging</strong></summary>
-
-```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/CallbackBridgeExample.scala:show-line-numbers
-```
-
-Run it with:
-
-```bash
-cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.CallbackBridgeExample"
-```
-
-</details>
-
-<details>
-<summary><strong>Concept 6: Forking and Cancellation</strong></summary>
-
-```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/ForkingExample.scala:show-line-numbers
-```
-
-Run it with:
-
-```bash
-cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.ForkingExample"
-```
-
-</details>
-
-<details>
-<summary><strong>Complete Example: Order Processing Pipeline</strong></summary>
-
-```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/CompleteExample.scala:show-line-numbers
-```
-
-Run it with:
-
-```bash
-cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.CompleteExample"
-```
-
-</details>
+All runnable code from this tutorial is in [`async-examples/src/main/scala/zio/blocks/async/gettingstarted/`](https://github.com/zio/zio-blocks/tree/main/async-examples/src/main/scala/zio/blocks/async/gettingstarted).
+Run any file from that folder with `scala-cli run <File>.scala`, or from `async-examples` with
+`sbt "runMain zio.blocks.async.gettingstarted.<ObjectName>"`.
 
 ## 11. What You've Learned
 
@@ -408,7 +398,7 @@ By completing this tutorial, you can now:
 - Handle failures with `Async.fail`, recover them with `catchAll`, and observe both outcomes as data with `either`.
 - Write sequential async pipelines in direct style using `Async.async { … .await … }` — the compiler threads the `flatMap` calls for you.
 - Lift throw-based Scala code safely into the async error channel with `Async.attempt`.
-- Bridge a callback-based API with `Async.promise` and `Completer`, fork background work with `start`, and hold a cancellable `Async.Running` handle.
+- Bridge a callback-based API with `Async.promise` and `Completer`, fork background work with `Async.start`, and hold a cancellable `Async.Running` handle.
 
 ## 12. Where to Go Next
 

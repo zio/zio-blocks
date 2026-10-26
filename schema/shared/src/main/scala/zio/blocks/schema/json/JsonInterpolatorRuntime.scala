@@ -378,6 +378,7 @@ private[schema] object JsonInterpolatorRuntime {
   }
 }
 
+/** A growable byte buffer that the interpolator writes the JSON text into. */
 private class ByteArrayOutputStream(initCapacity: Int) extends OutputStream {
   private[this] var buf   = new Array[Byte](initCapacity)
   private[this] var count = 0
@@ -396,6 +397,7 @@ private class ByteArrayOutputStream(initCapacity: Int) extends OutputStream {
     count = pos + 1
   }
 
+  /** Writes two bytes. */
   def write(b1: Byte, b2: Byte): Unit = {
     val pos = count
     if (pos + 1 >= buf.length) buf = java.util.Arrays.copyOf(buf, buf.length << 1)
@@ -404,6 +406,7 @@ private class ByteArrayOutputStream(initCapacity: Int) extends OutputStream {
     count = pos + 2
   }
 
+  /** Writes four bytes. */
   def write(b1: Byte, b2: Byte, b3: Byte, b4: Byte): Unit = {
     val pos = count
     if (pos + 3 >= buf.length) buf = java.util.Arrays.copyOf(buf, buf.length << 1)
@@ -414,6 +417,7 @@ private class ByteArrayOutputStream(initCapacity: Int) extends OutputStream {
     count = pos + 4
   }
 
+  /** Writes `s` in UTF-8. */
   def write(s: String): Unit = count = write(s, 0, s.length, count, buf.length - 4)
 
   @tailrec
@@ -453,7 +457,9 @@ private class ByteArrayOutputStream(initCapacity: Int) extends OutputStream {
       }
     }
 
+  /** Returns the buffer; only its first `getCount` bytes are written. */
   def getBuf: Array[Byte] = buf
 
+  /** Returns the number of bytes written. */
   def getCount: Int = count
 }
