@@ -350,6 +350,7 @@ lazy val root = project
     projection.jvm,
     asyncExamples,
     capstoneExamples,
+    datastarExamples,
     endpointExamples,
     httpModelExamples,
     jwtExamples,
@@ -369,6 +370,7 @@ lazy val root = project
 // root build only references them, the way zio-http does, instead of defining them as subprojects.
 lazy val asyncExamples         = RootProject(file("async-examples"))
 lazy val capstoneExamples      = RootProject(file("capstone-examples"))
+lazy val datastarExamples      = RootProject(file("datastar-examples"))
 lazy val endpointExamples      = RootProject(file("endpoint-examples"))
 lazy val httpModelExamples     = RootProject(file("http-model-examples"))
 lazy val jwtExamples           = RootProject(file("jwt-examples"))
