@@ -106,3 +106,24 @@ jobs:
               echo "Deploy to Netlify failed. Build logs above; the Netlify dashboard has the upload details."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Check the live site serves this commit
+        if: ${{ steps.netlify.outcome == 'success' }}
+        env:
+          # The production domain (website/docusaurus.config.js). version.txt is written by the build with the commit SHA.
+          LIVE_URL: https://zioblocks.com
+          EXPECTED: ${{ github.sha }}
+        run: |
+          # Netlify's CDN can keep serving old files for a short time, so poll for up to 5 minutes. The query string is
+          # a timestamp, so no cached copy answers the request.
+          served=""
+          for attempt in $(seq 1 20); do
+            served=$(curl -fsS "$LIVE_URL/version.txt?check=$(date +%s)" | head -n 1 | sed 's/^commit: //' || true)
+            if [ "$served" = "$EXPECTED" ]; then
+              echo "Live site serves $EXPECTED (attempt $attempt)."
+              echo "Live site at $LIVE_URL serves commit \`$EXPECTED\`." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::$LIVE_URL still serves commit '${served:-unknown}' after 5 minutes; expected $EXPECTED."
+          exit 1
