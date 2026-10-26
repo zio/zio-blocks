@@ -341,13 +341,12 @@ object SchemaError {
   sealed trait MigrationErrorKind
 
   /**
-   * The kinds of [[MigrationError]]: `PathNotFound` (the path does not exist in
-   * the value), `TypeMismatch` (the value has the type `actual` where
-   * `expected` was required), `MissingDefault` (the field has no default
-   * value), `TransformFailed` and `InvalidValue` (with a `reason`),
-   * `FieldNotFound`, `FieldAlreadyExists`, `CaseNotFound`, and `MandateFailed`
-   * (making an optional field mandatory failed; not raised by the built-in
-   * migrations).
+   * The kinds of [[MigrationError]]: `PathNotFound` (an index or map key on the
+   * path is not there), `TypeMismatch` (the value has the type `actual` where
+   * `expected` was required), `TransformFailed` and `InvalidValue` (with a
+   * `reason`), `FieldNotFound`, `FieldAlreadyExists`, `CaseNotFound`, and
+   * `MissingDefault` and `MandateFailed`, which the built-in migrations never
+   * raise.
    */
   object MigrationErrorKind {
 
