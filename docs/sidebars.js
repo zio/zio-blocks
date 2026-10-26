@@ -477,6 +477,7 @@ const sidebars = {
     "guides/connect-to-postgresql-with-a-connection-pool",
     "guides/upsert-and-paginate-with-keyset-cursors",
     "guides/map-custom-column-types",
+    "guides/store-and-search-vector-embeddings",
     "guides/stream-large-query-results",
     "guides/write-joins-and-inspect-generated-sql",
     "guides/sql-from-zio",

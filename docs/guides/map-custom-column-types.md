@@ -985,3 +985,4 @@ sbt "runMain mapcustomcolumntypes.CompletePostgresExample"
 - [SqlDialect](../reference/sql/sql-dialect.md) shows the column type `Table#createTable` picks for each value on SQLite and PostgreSQL.
 - [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) runs code like this in tests, with a fresh database per test.
 - [How to Define Validated Newtypes](./validated-newtypes.md) collects every validation error of a record at once, instead of stopping at the first.
+- [How to Store and Search Vector Embeddings in PostgreSQL](./store-and-search-vector-embeddings.md) uses the same `DbCodec#transform` pattern for a pgvector `vector` column, and needs a cast for the same reason as the `jsonb` column above.
