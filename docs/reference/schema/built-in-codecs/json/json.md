@@ -22,7 +22,7 @@ Json
 
 Key design decisions:
 
-- **Objects use `Vector[(String, Json)]`** to preserve insertion order while providing order-independent equality
+- **Objects use `Chunk[(String, Json)]`** to preserve insertion order while providing order-independent equality
 - **Numbers use `BigDecimal`** to keep decimal digits that a `Double` would lose. Parsing rounds a number to 34 significant digits (`MathContext.DECIMAL128`) and rejects one with 308 or more digits, so a longer number does not keep every digit
 - **All navigation returns `JsonSelection`** for fluent, composable chaining
 
@@ -468,7 +468,7 @@ import zio.blocks.schema.json.{Json, MergeStrategy}
 val base = Json.parseUnsafe("""{"a": 1, "b": {"x": 10}}""")
 val overlay = Json.parseUnsafe("""{"b": {"y": 20}, "c": 3}""")
 
-// Auto strategy (default) - deep merge objects, concat arrays
+// Auto strategy (default) - deep merge objects, merge arrays by index
 val merged = base.merge(overlay)
 // {"a": 1, "b": {"x": 10, "y": 20}, "c": 3}
 
@@ -479,7 +479,7 @@ val shallow = base.merge(overlay, MergeStrategy.Shallow)
 val replaced = base.merge(overlay, MergeStrategy.Replace)
 // {"b": {"y": 20}, "c": 3}
 
-// Concat arrays
+// Concat: deep merge objects, append arrays
 val concat = base.merge(overlay, MergeStrategy.Concat)
 
 // Custom strategy
@@ -491,14 +491,13 @@ val custom = base.merge(overlay, MergeStrategy.Custom { (path, left, right) =>
 
 ### Merge Strategies
 
-| Strategy | Objects | Arrays | Primitives |
-|----------|---------|--------|------------|
-| `Auto` | Deep merge | Concatenate | Replace |
-| `Deep` | Recursive merge | Concatenate | Replace |
-| `Shallow` | Top-level only | Concatenate | Replace |
-| `Replace` | Right wins | Right wins | Right wins |
-| `Concat` | Merge keys | Concatenate | Replace |
-| `Custom(f)` | User-defined | User-defined | User-defined |
+| Strategy       | Objects                           | Arrays                                       | Primitives   |
+|----------------|-----------------------------------|----------------------------------------------|--------------|
+| `Auto`         | Merge by key at every depth       | Merge by index (`[1,2,3]` + `[9]` = `[9,2,3]`) | Right wins   |
+| `Shallow`      | Merge top-level keys; nested right wins | Merge top-level by index; nested right wins | Right wins   |
+| `Replace`      | Right wins                        | Right wins                                   | Right wins   |
+| `Concat`       | Merge by key at every depth       | Append right to left                         | Right wins   |
+| `Custom(f, r)` | `r` decides whether to descend    | `r` decides whether to descend               | `f` decides  |
 
 ## Normalization
 
@@ -902,7 +901,7 @@ import zio.blocks.schema.SchemaError
 val json = Json.parseUnsafe("""{"users": [{"name": "Alice"}]}""")
 
 val result = json.get("users")(5).get("name").as[String]
-// Left(SchemaError: Index 5 out of bounds at path $.users[5])
+// Left(zio.blocks.schema.SchemaError: Index 5 out of bounds (size: 1) at: [5])
 ```
 
 ### Error Properties

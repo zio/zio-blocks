@@ -101,7 +101,7 @@ Next, we fill the catalog with three books about Scala:
 ```scala mdoc:silent
 val catalog = Catalog(
   List(
-    Book("Zionomicon", "John A. De Goes, Adam Fraser", 2024, List("zio", "effects")),
+    Book("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, List("zio", "effects")),
     Book("Programming in Scala", "Martin Odersky, Lex Spoon, Bill Venners", 2008, List("scala", "fundamentals")),
     Book("Functional Programming in Scala", "Paul Chiusano, Rúnar Bjarnason", 2014, List("scala", "fp"))
   )
@@ -363,7 +363,7 @@ println(csvCodec.headerNames.mkString(","))
 csvLines.foreach(line => println(line.stripLineEnd))
 ```
 
-The code above prints a small CSV table. Notice the author column: a value that contains a comma is wrapped in double quotes, so the commas inside `"John A. De Goes, Adam Fraser"` don't split the cell. The derived codec always uses the default CSV settings — a comma between fields, double quotes and a `\r\n` line ending.
+The code above prints a small CSV table. Notice the author column: a value that contains a comma is wrapped in double quotes, so the commas inside `"John A. De Goes, Adam Fraser and Milad Khajavi"` don't split the cell. The derived codec always uses the default CSV settings — a comma between fields, double quotes and a `\r\n` line ending.
 
 Finally, let's decode each line back into a `BookRow` and check the round trip:
 

@@ -14,7 +14,7 @@ final case class Book(title: String, author: String, category: String)
 
 object Bookshelf {
   val books: List[Book] = List(
-    Book("Zionomicon", "John A. De Goes and Adam Fraser", "Effects"),
+    Book("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", "Effects"),
     Book("Essential Effects", "Adam Rosien", "Effects"),
     Book("Practical FP in Scala", "Gabriel Volpe", "Effects"),
     Book("Functional Programming in Scala", "Paul Chiusano and Rúnar Bjarnason", "Functional Programming"),

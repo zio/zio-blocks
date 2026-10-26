@@ -281,7 +281,7 @@ import zio.blocks.schema.json.Json
 val data = Json.Object("name" -> Json.String("Alice"))
 
 // Missing field returns error
-val missing = data.get("age").error  // Some(SchemaError("field not found"))
+val missing = data.get("age").error  // Some(zio.blocks.schema.SchemaError: Key 'age' not found)
 
 // Chain continues with error
 val stillMissing = data.get("age").get("nested")  // Still carries the error

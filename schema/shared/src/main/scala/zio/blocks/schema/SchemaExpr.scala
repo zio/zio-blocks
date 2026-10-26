@@ -87,9 +87,9 @@ final case class SchemaExpr[A, B](
    *   val authorNames: Traversal[Book, String] = $(_.authors.each.name)
    * }
    *
-   * val zionomicon = Book("Zionomicon", List(Author("John A. De Goes"), Author("Adam Fraser")))
+   * val zionomicon = Book("Zionomicon", List(Author("John A. De Goes"), Author("Adam Fraser"), Author("Milad Khajavi")))
    *
-   * Book.authorNames.length.eval(zionomicon)                // Right(Chunk(15,11))
+   * Book.authorNames.length.eval(zionomicon)                // Right(Chunk(15,11,13))
    * Book.authorNames.length.eval(zionomicon.copy(authors = Nil)).isLeft // true, an EmptySequence
    * }}}
    *

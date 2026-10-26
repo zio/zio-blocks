@@ -57,7 +57,7 @@ object Step5BuildYamlInCodeExample {
       |store: Scala Books Berlin
       |books:
       |  - title: Zionomicon
-      |    authors: [John A. De Goes, Adam Fraser]
+      |    authors: [John A. De Goes, Adam Fraser, Milad Khajavi]
       |    isbn: 978-0-9862-0040-6
       |    price: 49.99
       |    page-count: 744

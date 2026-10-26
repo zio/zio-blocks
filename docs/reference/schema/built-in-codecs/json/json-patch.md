@@ -566,13 +566,13 @@ objPatch.apply(originalObj)
 
 ### `Op.Nested`
 
-Groups a sub-patch under a shared path prefix. `JsonPatch.diff` emits `Nested` automatically when multiple operations share a common navigation path — this avoids repeating the full path in each `JsonPatchOp`:
+Applies a whole sub-patch at the operation's path, with the sub-patch's paths relative to that value and in the same `PatchMode`. It groups operations that share a path prefix, so each `JsonPatchOp` doesn't repeat the full path:
 
 ```scala
 final case class Nested(patch: JsonPatch) extends Op
 ```
 
-You rarely need to construct `Nested` manually; it is primarily an internal optimization used by the diff algorithm.
+`JsonPatch.diff` never emits `Nested`; it nests object changes with `ObjectOp.Modify` instead. Build a `Nested` operation by hand when you compose patches for a sub-tree.
 
 ## Diffing Algorithm
 
@@ -583,12 +583,12 @@ You rarely need to construct `Nested` manually; it is primarily an internal opti
 | Any | No change | No operation emitted |
 | `Json.Number` | Value changed | `NumberDelta` — stores the numeric difference |
 | `Json.String` | Value changed | `StringEdit` via LCS if smaller; otherwise `Set` |
-| `Json.Array` | Elements changed | `ArrayEdit` with LCS-aligned `Insert`/`Delete`/`Append`/`Modify` |
+| `Json.Array` | Elements changed | `ArrayEdit` with LCS-aligned `Insert`/`Delete`/`Append` (a changed element is deleted and inserted again) |
 | `Json.Object` | Fields changed | `ObjectEdit` with recursive per-field diff |
 | Any | Type changed | `Set` — full replacement |
 
 :::tip
-`JsonPatch.diff` followed by `JsonPatch#apply` is always a lossless roundtrip: for any `source` and `target`, `JsonPatch.diff(source, target).apply(source) == Right(target)`.
+`JsonPatch.diff` followed by `JsonPatch#apply` is a lossless roundtrip: `JsonPatch.diff(source, target).apply(source) == Right(target)`, as long as neither value has an object with duplicate keys. A duplicate key in `source` survives the patch, and one in `target` makes the patch fail in `Strict` mode (a known bug in 0.0.56).
 :::
 
 ## JsonPatch vs RFC 6902 JSON Patch
