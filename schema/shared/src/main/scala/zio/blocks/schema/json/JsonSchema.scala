@@ -52,9 +52,11 @@ object NonNegativeInt extends NonNegativeIntCompanionVersionSpecific {
     new NonNegativeInt(n)
   }
 
-  /** The values 0 (`zero`) and 1 (`one`). */
+  /** The value 0. */
   val zero: NonNegativeInt = new NonNegativeInt(0)
-  val one: NonNegativeInt  = new NonNegativeInt(1)
+
+  /** The value 1. */
+  val one: NonNegativeInt = new NonNegativeInt(1)
 }
 
 /**
@@ -424,12 +426,16 @@ final case class ValidationOptions(validateFormats: scala.Boolean = true)
 /** The predefined validation options. */
 object ValidationOptions {
 
+  /** The default, which checks `format` for the formats it knows. */
+  val default: ValidationOptions = new ValidationOptions()
+
   /**
-   * The default, which checks formats; `annotationOnly` does not check them,
-   * and `formatAssertion` checks them, as `default` does.
+   * Treats `format` as an annotation only and does not check it, as JSON Schema
+   * 2020-12 specifies by default.
    */
-  val default: ValidationOptions         = new ValidationOptions()
-  val annotationOnly: ValidationOptions  = new ValidationOptions(validateFormats = false)
+  val annotationOnly: ValidationOptions = new ValidationOptions(validateFormats = false)
+
+  /** Checks `format` for the formats it knows, as `default` does. */
   val formatAssertion: ValidationOptions = new ValidationOptions(validateFormats = true)
 }
 
@@ -1812,12 +1818,11 @@ object JsonSchema {
   /** Returns a schema that refers to `uri`, as [[ref]] does. */
   def refString(uri: String): JsonSchema = new Object($ref = new Some(UriReference(uri)))
 
-  /**
-   * The schemas `{"type": "null"}` (`nullSchema`) and `{"type": "boolean"}`
-   * (`boolean`).
-   */
+  /** The schema `{"type": "null"}`. */
   val nullSchema: JsonSchema = ofType(JsonSchemaType.Null)
-  val boolean: JsonSchema    = ofType(JsonSchemaType.Boolean)
+
+  /** The schema `{"type": "boolean"}`. */
+  val boolean: JsonSchema = ofType(JsonSchemaType.Boolean)
 
   // ===========================================================================
   // Parsing Helpers

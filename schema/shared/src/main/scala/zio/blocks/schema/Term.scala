@@ -41,8 +41,11 @@ final case class Term[F[_, _], S, A](
 ) extends Reflectable[A] {
   require(value ne null)
 
+  /** The type of the record or variant that has this term, `S`. */
   type Source = S
-  type Focus  = A
+
+  /** The type of the field or case, `A`. */
+  type Focus = A
 
   /**
    * Returns this term with `value` transformed by `f`, at `path` extended with
@@ -65,7 +68,11 @@ object Term {
 
   /** The two kinds of term: `Record` for a field, `Variant` for a case. */
   object Type {
-    case object Record  extends Type
+
+    /** A field of a record. */
+    case object Record extends Type
+
+    /** A case of a variant. */
     case object Variant extends Type
   }
 

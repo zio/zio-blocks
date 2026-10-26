@@ -768,6 +768,7 @@ object DynamicValue {
     }
   }
 
+  /** Constructors for [[Record]]. */
   object Record {
 
     /**
@@ -880,6 +881,7 @@ object DynamicValue {
     }
   }
 
+  /** Constructors for [[Sequence]]. */
   object Sequence {
 
     /**
@@ -957,6 +959,7 @@ object DynamicValue {
     }
   }
 
+  /** Constructors for [[Map]]. */
   object Map {
 
     /**

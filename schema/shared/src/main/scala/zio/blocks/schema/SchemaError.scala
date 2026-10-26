@@ -341,24 +341,66 @@ object SchemaError {
   sealed trait MigrationErrorKind
 
   /**
-   * The kinds of [[MigrationError]]: `PathNotFound` (the path does not exist in
-   * the value), `TypeMismatch` (the value has the type `actual` where
-   * `expected` was required), `MissingDefault` (the field has no default
-   * value), `TransformFailed` and `InvalidValue` (with a `reason`),
-   * `FieldNotFound`, `FieldAlreadyExists`, `CaseNotFound`, and `MandateFailed`
-   * (making an optional field mandatory failed; not raised by the built-in
-   * migrations).
+   * The kinds of [[MigrationError]]: `PathNotFound` (an index or map key on the
+   * path is not there), `TypeMismatch` (the value has the type `actual` where
+   * `expected` was required), `TransformFailed` and `InvalidValue` (with a
+   * `reason`), `FieldNotFound`, `FieldAlreadyExists`, `CaseNotFound`, and
+   * `MissingDefault` and `MandateFailed`, which the built-in migrations never
+   * raise.
    */
   object MigrationErrorKind {
-    case object PathNotFound                                  extends MigrationErrorKind
+
+    /**
+     * A sequence index on the action's path is out of range, or a map key on
+     * the path is not in the map.
+     */
+    case object PathNotFound extends MigrationErrorKind
+
+    /**
+     * A step of the path, or the action, needs a value of another kind:
+     * `expected` is `Record`, `Variant`, `Sequence` or `Map`, and `actual` is
+     * the simple class name of the `DynamicValue` found.
+     */
     case class TypeMismatch(expected: String, actual: String) extends MigrationErrorKind
-    case class MissingDefault(fieldName: String)              extends MigrationErrorKind
-    case class TransformFailed(reason: String)                extends MigrationErrorKind
-    case class FieldNotFound(fieldName: String)               extends MigrationErrorKind
-    case class FieldAlreadyExists(fieldName: String)          extends MigrationErrorKind
-    case class CaseNotFound(caseName: String)                 extends MigrationErrorKind
-    case class InvalidValue(reason: String)                   extends MigrationErrorKind
-    case class MandateFailed(reason: String)                  extends MigrationErrorKind
+
+    /**
+     * The field `fieldName` has no default value. No built-in migration action
+     * raises it.
+     */
+    case class MissingDefault(fieldName: String) extends MigrationErrorKind
+
+    /**
+     * An action cannot run, and `reason` says why: for example, its path does
+     * not end where the action needs, its expression returns no value or more
+     * than one, it is an irreversible action run in reverse, or it throws.
+     */
+    case class TransformFailed(reason: String) extends MigrationErrorKind
+
+    /**
+     * The record has no field `fieldName`: a field step of the path, or the
+     * field that `DropField` or `RenameField` acts on.
+     */
+    case class FieldNotFound(fieldName: String) extends MigrationErrorKind
+
+    /**
+     * `AddField`, or `RenameField` to `fieldName`, finds a field with that name
+     * in the record already.
+     */
+    case class FieldAlreadyExists(fieldName: String) extends MigrationErrorKind
+
+    /**
+     * A case step of the path for `caseName` meets a variant of another case.
+     */
+    case class CaseNotFound(caseName: String) extends MigrationErrorKind
+
+    /** A map key step of the path holds `null` instead of a key. */
+    case class InvalidValue(reason: String) extends MigrationErrorKind
+
+    /**
+     * Making an optional field mandatory failed. No built-in migration action
+     * raises it: `MandateField` uses its default for `None`.
+     */
+    case class MandateFailed(reason: String) extends MigrationErrorKind
   }
 
   // Helper methods for creating migration errors
