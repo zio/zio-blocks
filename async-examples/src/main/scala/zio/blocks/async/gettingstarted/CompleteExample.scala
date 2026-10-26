@@ -1,21 +1,19 @@
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-async:0.0.56
+// Run from this folder:     scala-cli run CompleteExample.scala
+// Or from async-examples:   sbt "runMain zio.blocks.async.gettingstarted.CompleteExample"
+
 package zio.blocks.async.gettingstarted
 
 import zio.blocks.async._
 
 /**
- * Complete Example: Order Processing Pipeline
+ * Getting Started with Async — Putting It Together
  *
- * Combines all core `Async` concepts in a single order-processing scenario:
- *   - `Async.promise` + `Completer` to bridge a callback-based user-lookup API
- *   - `Async.attempt` to safely parse a potentially malformed order ID
- *   - `.start` + `Async.Running` to check stock availability in the background
- *   - `Async.async { .await }` for direct-style sequential composition
- *   - `.catchAll` to recover from any failure in the pipeline
- *
- * Run with:
- * {{{
- *   cd async-examples && sbt "runMain zio.blocks.async.gettingstarted.CompleteExample"
- * }}}
+ * An order-processing pipeline assembled from the sections: a callback lookup
+ * bridged with `Async.promise`, an order ID parsed with `Async.attempt`, a
+ * stock check forked with `Async.start`, all sequenced in `Async.async` and
+ * recovered with `Async#catchAll`.
  */
 object CompleteExample {
   def main(args: Array[String]): Unit = {
@@ -34,8 +32,8 @@ object CompleteExample {
     // Step 2: Parse an order ID that might be malformed
     val orderId: Async[Int] = Async.attempt("9001".toInt)
 
-    // Step 3: Start a stock-availability check in the background
-    val stockCheck: Async.Running[Boolean] = Async.succeed(true).map { v => Thread.sleep(5); v }.start
+    // Step 3: Start a stock-availability check on a background worker
+    val stockCheck: Async.Running[Boolean] = Async.start { Thread.sleep(5); true }
 
     // Step 4: Compose all steps in direct style and recover from any failure
     val report: String = Async.async {
@@ -47,6 +45,6 @@ object CompleteExample {
       Async.succeed(s"Order failed: ${err.getMessage}")
     }.block
 
-    println(report)
+    println(s"Report: $report")
   }
 }
