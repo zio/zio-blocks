@@ -6996,6 +6996,58 @@ On the JVM, `Stream.fromReader[java.io.IOException, Byte](AsyncNioReaders.fromCh
 
 **Suggested fix.** Add a Scala.js test through `Stream.fromReader(...).runCollectAsync` that expects `Left`, then trace why trusted reader failures are not unwrapped on that path. Once fixed, remove the warning admonition in the "Reading a ReadableStream as a Source" section of `run-streams-without-blocking.md`, and keep `reader.md`'s statement.
 
+### datastar: `patchElements` and `patchSignalsRaw` drop every line after the first when the content contains a line break
+
+Found 2026-10-26 while writing the tutorial `docs/guides/build-a-live-dashboard-with-datastar.md` (backlog T-11), on `main` at `d00e7d1af`. Same code at tag `v0.0.56` (the repro below runs against the published 0.0.56 artifact).
+
+**Summary.** `DatastarEvent.patchElements(...).renderSSE` writes one `data: elements <html>` line and then lets `ServerSentEvent` split the rest of the text at every `\n`. The continuation lines have no `elements ` key, so the Datastar JS client (1.0.4) reads each of them as an unknown key and discards it. `patchSignalsRaw` with multi-line JSON behaves the same way. The page shows truncated content and nothing reports an error.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-datastar` 0.0.56; scratch sbt project). `build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-datastar" % "0.0.56"
+```
+
+`project/build.properties`: `sbt.version=1.13.0`. File `Repro.scala`, run with `sbt run`:
+
+```scala
+import zio.blocks.html._
+import zio.http.datastar._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val event = DatastarEvent.patchElements(div(id := "box", pre("line one\nline two"))).renderSSE
+    println(event.replace("\n", "⏎\n"))
+    val raw = DatastarEvent.patchSignalsRaw("{\n  \"count\": 1\n}").renderSSE
+    println(raw.replace("\n", "⏎\n"))
+  }
+}
+// event: datastar-patch-elements⏎
+// data: elements <div id="box"><pre>line one⏎
+// data: line two</pre></div>⏎
+// ⏎
+//
+// event: datastar-patch-signals⏎
+// data: signals {⏎
+// data:   "count": 1⏎
+// data: }⏎
+// ⏎
+```
+
+Browser check (headless Chromium + Playwright, Datastar 1.0.4 from jsDelivr): a page with `<div id="box" data-init="@get('/x')">before</div>` and a `/x` route that answers with that `patchElements` event. After the patch, `#box` innerHTML is `"<pre>line one</pre>"`, so "line two" is lost.
+
+**Expected.** Every line of the HTML carries the key, as the Datastar SSE protocol requires: `data: elements <div id="box"><pre>line one` / `data: elements line two</pre></div>`. The same applies to `signals` lines.
+
+**Root cause.** `datastar/shared/src/main/scala/zio/blocks/datastar/DatastarEvent.scala:65` puts `"elements "` once in front of the whole rendered HTML, and `:83` does the same for `"signals "`. `ServerSentEvent#render` (`http-model/shared/src/main/scala/zio/http/ServerSentEvent.scala:73-87`) then splits that text at line breaks and writes each piece as a bare `data:` line.
+
+**Impact.** Silent truncation. It affects any `<pre>`, `<textarea>`, text containing a newline, or a pretty-printed `patchSignalsRaw` payload. Minified HTML from `renderMinified` hides it as long as no text node holds a line break. The T-11 tutorial carries a caution that names it as a known bug in 0.0.56.
+
+**Test gap.** `DatastarEventSpec` has no case with a newline in the elements or in the raw signals JSON.
+
+**Suggested fix.** Prefix each line: `renderMinified.split("\r\n|\r|\n").mkString("elements ", "\nelements ", "")`, and likewise for `signals`. Add tests for `<pre>` text and multi-line raw JSON.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -9759,6 +9811,34 @@ Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md
 **Suggested fix.** One sentence on the reference index: "The attribute syntax targets htmx 2.x" and the pinned script version (for example `htmx@2.0.11`).
 
 **Also seen (opus run, 2026-10-23).** The module's `hxDisable: Boolean` renders `hx-disable="true"`, which htmx 4 reads as a CSS selector, and htmx 4.0.0 reads none of `hx-params`, `hx-disinherit`, `hx-prompt`, `hx-disabled-elt` or `hx-ext`. Typed attributes therefore compile and do nothing under htmx 4. This is the strongest reason to pin the version in the reference.
+
+### datastar reference: "Supported Scala versions: 2.13.x and 3.x" is wrong, the module is Scala 3 only
+
+Found 2026-10-26 while writing `docs/guides/build-a-live-dashboard-with-datastar.md` (T-11), on `main` at `d00e7d1af`. Same text at tag `v0.0.56`.
+
+**Summary.** `docs/reference/datastar/index.md:53` says "Supported Scala versions: 2.13.x and 3.x". The module is built for Scala 3 only, and no Scala 2.13 artifact is published.
+
+**Reproduction** (shell, run exactly as written 2026-10-26):
+
+```bash
+for a in zio-blocks-datastar_3 zio-blocks-next-datastar_3 zio-blocks-datastar_2.13 zio-blocks-next-datastar_2.13; do
+  echo "$a: $(curl -s -m 20 -o /dev/null -w '%{http_code}' https://repo1.maven.org/maven2/dev/zio/$a/0.0.56/$a-0.0.56.pom)"
+done
+# zio-blocks-datastar_3: 200
+# zio-blocks-next-datastar_3: 200
+# zio-blocks-datastar_2.13: 404
+# zio-blocks-next-datastar_2.13: 404
+```
+
+**Expected.** The page says "Scala 3 only" (the module table in `docs/index.md:121` already says `3.x`).
+
+**Root cause.** `build.sbt:1905` declares `stdSettings("zio-blocks-datastar", Seq(Scala3, Scala3Next))`, with no 2.13 entry, so no `_2.13` artifact exists. The reference line was never updated, and the installation block on the same page also omits the Scala 3.9+ rule (`zio-blocks-next-datastar` plus `-experimental`).
+
+**Impact.** A Scala 2.13 user follows the install instructions and gets an unresolved dependency.
+
+**Test gap.** Nothing checks docs claims against `crossScalaVersions`.
+
+**Suggested fix.** Replace the line with "Supported Scala versions: 3.x (no Scala 2.13 artifact)" and add the 3.9+ `zio-blocks-next-datastar` / `-experimental` variant to the install block.
 
 ## Resolved
 
