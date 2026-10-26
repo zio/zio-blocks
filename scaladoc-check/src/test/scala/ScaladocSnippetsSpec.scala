@@ -136,11 +136,50 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
           "Snippet_schema_jvm_scala_json_JsonReader_L7"
       )
     },
+    test("objectName drops the module's own package, so streams and schema names do not collide") {
+      assertTrue(
+        ScaladocSnippets.objectName("streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala", 9) ==
+          "Snippet_streams_shared_scala_io_Reader_L9",
+        ScaladocSnippets.objectName("schema/shared/src/main/scala/zio/blocks/schema/io/Reader.scala", 9) ==
+          "Snippet_schema_shared_scala_io_Reader_L9"
+      )
+    },
+    test("moduleImport follows the module directory") {
+      assertTrue(
+        ScaladocSnippets.moduleImport("schema/shared/src/main/scala/zio/blocks/schema/Schema.scala") ==
+          "zio.blocks.schema._",
+        ScaladocSnippets.moduleImport("streams/jvm/src/main/scala/zio/blocks/streams/Stream.scala") ==
+          "zio.blocks.streams._"
+      )
+    },
+    test("moduleImport and objectName read a dash in the module directory as a package dot") {
+      val avro = "schema-avro/src/main/scala/zio/blocks/schema/avro/AvroFormat.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(avro) == "zio.blocks.schema.avro._",
+        ScaladocSnippets.objectName(avro, 3) == "Snippet_schema_avro_scala_AvroFormat_L3"
+      )
+    },
+    test("render gives a streams example the streams import") {
+      val streamsPath = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
+      val snippet     = ScaladocSnippets.Snippet(streamsPath, 9, List("val a = 1"), None)
+      assertTrue(
+        ScaladocSnippets.render(snippet) ==
+          s"""// Generated from $streamsPath:9 by scaladoc-check. Do not edit.
+             |package scaladoccheck
+             |
+             |import zio.blocks.streams._
+             |
+             |object Snippet_streams_shared_scala_io_Reader_L9 {
+             |  val a = 1
+             |}
+             |""".stripMargin
+      )
+    },
     test("render wraps the code in an object with the schema import and the source location") {
       val snippet = ScaladocSnippets.Snippet(path, 4, List("val a = 1", "", "  || b"), None)
       assertTrue(
         ScaladocSnippets.render(snippet) ==
-          s"""// Generated from $path:4 by schema-scaladoc-check. Do not edit.
+          s"""// Generated from $path:4 by scaladoc-check. Do not edit.
              |package scaladoccheck
              |
              |import zio.blocks.schema._
@@ -151,6 +190,18 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
              |    || b
              |}
              |""".stripMargin
+      )
+    },
+    test("generate fails when two examples would get the same wrapper name") {
+      val content = source("/**", " * {{{", " * val a = 1", " * }}}", " */")
+      val result  = Try(
+        ScaladocSnippets.generate(
+          Seq("a-jvm/src/main/scala/X.scala" -> content, "a/jvm/src/main/scala/X.scala" -> content),
+          3
+        )
+      ).failed.toOption.map(_.getMessage)
+      assertTrue(
+        result == Some("two examples generate Snippet_a_jvm_scala_X_L2.scala; rename one of their source files")
       )
     },
     test("generate keeps scala-3-only snippets for Scala 3 only") {

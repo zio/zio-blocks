@@ -523,10 +523,13 @@ object Reader {
      *
      * @example
      *   {{{
-     * val reader: Reader[Byte] = Reader.fromInputStream(inputStream)
+     * import zio.blocks.streams.io.Reader
+     *
+     * val inputStream = new java.io.ByteArrayInputStream("Zionomicon".getBytes("UTF-8"))
+     * val reader = Reader.fromInputStream(inputStream)
      * val buf = new Array[Byte](1024)
-     * val n = reader.readBytesPhysical(buf, 0, buf.length)
-     * if (n > 0) process(buf, 0, n)
+     * val n = reader.readBytes(buf, 0, buf.length)
+     * if (n > 0) println(new String(buf, 0, n, "UTF-8"))
      *   }}}
      */
     def readBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Elem <:< Byte): Int = {

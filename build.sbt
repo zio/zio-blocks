@@ -161,13 +161,13 @@ addCommandAlias(
   "++3.9.0; project streamsJVM; coverage; test; coverageReport"
 )
 lazy val testJVMScala2Command =
-  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; schema-scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
+  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; mediatypeJVM/test; " +
     "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; asyncJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJVMScala3Command =
-  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; schema-scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
+  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
     "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test; projectionJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
@@ -330,7 +330,7 @@ lazy val root = project
     `async-benchmarks-js`,
     scalaNextTests.jvm,
     scalaNextTests.js,
-    `schema-scaladoc-check`,
+    `scaladoc-check`,
     benchmarks,
     `scope-benchmarks`,
     `sql-benchmarks`,
@@ -1394,15 +1394,23 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   )
   .jsSettings(jsSettings)
 
-// Compiles every code example in the Scaladoc of `schema` (see docs/dev/scaladoc-style.md).
-// Not published. The extractor lives in project/ScaladocSnippets.scala so that sbt can run it as a
+// Compiles every code example in the Scaladoc of the modules listed in `scaladocCheckedModules`
+// (see docs/dev/scaladoc-style.md). To check another module, add it to that list. It needs the
+// same Scala versions as the others, its sources must live under `<module-dir>/`, and its package
+// must be `zio.blocks.<module-dir>` with `-` read as `.` (`schema-avro` is `zio.blocks.schema.avro`),
+// because every example gets that import (`ScaladocSnippets.moduleImport`). `http-model`,
+// `http-model-schema`, `datastar`, `htmx`, `markdown`, `otel`, `dataMigration` and
+// `schema-messagepack` break that rule and need an override in `moduleImport` first. Not
+// published. The extractor lives in project/ScaladocSnippets.scala so that sbt can run it as a
 // source generator; the Test configuration compiles that file again to unit-test it.
 lazy val fatalWarningFlags: Set[String] = Set("-Werror", "-Xfatal-warnings")
 
-lazy val `schema-scaladoc-check` = project
-  .in(file("schema-scaladoc-check"))
-  .settings(stdSettings("zio-blocks-schema-scaladoc-check"))
-  .dependsOn(schema.jvm)
+lazy val scaladocCheckedModules: Seq[Project] = Seq(schema.jvm, streams.jvm)
+
+lazy val `scaladoc-check` = project
+  .in(file("scaladoc-check"))
+  .settings(stdSettings("zio-blocks-scaladoc-check"))
+  .dependsOn(scaladocCheckedModules.map(p => p: ClasspathDep[ProjectReference]): _*)
   .settings(
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
@@ -1442,9 +1450,9 @@ lazy val `schema-scaladoc-check` = project
       val root       = (ThisBuild / baseDirectory).value
       val outDir     = (Compile / sourceManaged).value / "scaladoc-snippets"
       val scalaMajor = CrossVersion.partialVersion(scalaVersion.value).fold(3)(_._1.toInt)
-      // `schema.jvm`'s own source list already holds exactly the shared, jvm and version-specific
+      // Each module's own source list already holds exactly the shared, jvm and version-specific
       // (scala-2, scala-3, scala-3.5+ ...) files for the current Scala version.
-      val sources = (schema.jvm / Compile / unmanagedSources).value.collect {
+      val sources = scaladocCheckedModules.map(m => m / Compile / unmanagedSources).join.value.flatten.collect {
         case file if file.getName.endsWith(".scala") =>
           (IO.relativize(root, file).getOrElse(file.getPath).replace('\\', '/'), IO.read(file))
       }
