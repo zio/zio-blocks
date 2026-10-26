@@ -87,12 +87,12 @@ trait StreamPlatformSpecific[+E, +A] { self: Stream[E, A] =>
    *
    * Some stages run on another thread while the caller waits: those before a
    * `catchAll`, `catchDefect`, `orElse` or `*Async` operator run on
-   * `ForkJoinPool.commonPool`, and `buffer`, `mapPar`, `flatMapPar` and
-   * `mergeAll` run stages on threads of their own. A known bug follows: a run
-   * started while an object is being initialized (a `val` in an `object`, or on
-   * Scala 3 the body of `object Main extends App`) deadlocks when one of those
-   * stages reads a field of that object. Call blocking terminals from
-   * `def main` instead.
+   * `ForkJoinPool.commonPool`, as can stages fed by an asynchronous source such
+   * as `Stream.unwrap`, and `buffer`, `mapPar`, `flatMapPar` and `mergeAll` run
+   * stages on threads of their own. A known bug follows: a run started while an
+   * object is being initialized (a `val` in an `object`, or on Scala 3 the body
+   * of `object Main extends App`) deadlocks when one of those stages reads a
+   * field of that object. Call blocking terminals from `def main` instead.
    */
   def run[ES, E3, Z](sink: Sink[ES, A, Z])(implicit
     errorConcat: Concat.WithOut[E @uncheckedVariance, ES, E3]
