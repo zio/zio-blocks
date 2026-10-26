@@ -3159,9 +3159,12 @@ object Stream {
     )
 
   /**
-   * Builds `body` with `n` as the queue size of the concurrent operators inside
-   * it (`mapPar`, `flatMapPar` and `mergeAll` on the JVM's synchronous path);
-   * the default is 64. Nested regions use the innermost size.
+   * Builds `body` with `n` as the buffer size of the concurrent operators
+   * inside it, in place of the default 64: on the JVM, the size of each queue
+   * of a `mapPar` whose upstream is synchronous. Nested regions use the
+   * innermost size. A known bug: a JVM blocking terminal (`runCollect`, `run`
+   * and the rest) ignores `n` when the stream has no asynchronous stage, and
+   * keeps 64.
    *
    * @throws java.lang.IllegalArgumentException
    *   if `n` is not a positive power of two
