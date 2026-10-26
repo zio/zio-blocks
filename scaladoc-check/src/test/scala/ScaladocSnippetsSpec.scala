@@ -194,7 +194,7 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
     },
     test("generate fails when two examples would get the same wrapper name") {
       val content = source("/**", " * {{{", " * val a = 1", " * }}}", " */")
-      val result = Try(
+      val result  = Try(
         ScaladocSnippets.generate(
           Seq("a-jvm/src/main/scala/X.scala" -> content, "a/jvm/src/main/scala/X.scala" -> content),
           3

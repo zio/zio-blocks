@@ -88,7 +88,8 @@ object ScaladocSnippets {
   /**
    * The name of the wrapper object for the example at `line` of `sourcePath`.
    * The path starts with the module directory, so modules with same-named files
-   * get different names; `generate` fails if two examples still map to one name.
+   * get different names; `generate` fails if two examples still map to one
+   * name.
    */
   def objectName(sourcePath: String, line: Int): String =
     "Snippet_" + sourcePath
