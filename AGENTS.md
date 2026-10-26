@@ -112,7 +112,7 @@ Enter only when fast loop is green. Run in order:
 4. **Downstream** — all projects that depend on what you changed:
     - `chunk*` → `schema*`, `benchmarks`
     - `schema*` → `scaladoc-check`, `schema-avro`, `schema-bson`, `schema-thrift`, `schema-messagepack*`, `schema-toon*`, `scalaNextTests*`, `benchmarks`, `docs`
-    - `streams*` → `scaladoc-check`
+    - `streams*` → `scaladoc-check`, `sql*`, `sql-zio`, `http-model*`, `http-model-schema*`, `endpoint*`, `datastar*`, `htmx*`, `dataMigration*`, `projection*`, `streams-benchmark`, `sql-benchmarks`, `docs`
 
     If unsure, check `dependsOn` in `build.sbt` / `project/*.scala`.
 

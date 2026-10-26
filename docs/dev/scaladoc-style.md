@@ -39,15 +39,15 @@ Two readers: the `/api` site, built by Scala 3 Scaladoc from the JVM projects, a
 def getDefaultValue: Option[A]
 ```
 
-**Tier 3: macro plumbing.** `private[...]` code, `*VersionSpecific` internals, `MacroUtils`, `CommonMacroOps`, `IntoVersionSpecific`, `MigrationBuilderMacros`. One line, or nothing.
+**Tier 3: internals.** `private[...]` code and `*VersionSpecific` internals. In `streams`: the `streams.internal` package. In `schema`: `MacroUtils`, `CommonMacroOps`, `IntoVersionSpecific`, `MigrationBuilderMacros`. One line, or nothing.
 
 ## Rules
 
 1. **Write once.** A member declared in `scala-2/` and `scala-3/`, or `jvm/` and `js/`, gets the same text in every copy. Check with `python3 .claude/scripts/scaladoc-coverage.py <module> --drift`.
-2. **Tell the truth.** Read the implementation before writing. Every claim ("returns `Left` when ...", "throws ...") must match the code or a test. When the code looks wrong, do not describe the wrong behaviour as intended: add an entry to `docs/dev/issues.md` in the same PR.
+2. **Tell the truth.** Read the implementation before writing. Every claim ("returns `Left` when ...", "throws ...") must match the code or a test. When the code looks wrong, do not describe the wrong behaviour as intended: describe what it really does, call it "a known bug", and report it as AGENTS.md describes (a ready-to-paste entry for `docs/dev/issues.md`, sent to the coordinating session).
 3. **Prose.** Follow the `docs-writing-style` skill: present tense, active voice, no "simply" or "just". Start with what the member does, not "This method ...".
 4. **Format.** Leave wrapping to `scalafmt`. One blank comment line between paragraphs and before the tags.
-5. **Syntax.** Code in multi-line `{{{` / `}}}` blocks, each marker on its own line (single-line `{{{ x }}}` is not checked). Link types with `[[Type]]` or `[[Type#member]]`. Link a reference page with `@see [[https://zioblocks.com/reference/schema/<page>/ <Title>]]` (keep the trailing slash).
+5. **Syntax.** Code in multi-line `{{{` / `}}}` blocks, each marker on its own line (single-line `{{{ x }}}` is not checked). Link types with `[[Type]]` or `[[Type#member]]`. Link a reference page with `@see [[https://zioblocks.com/reference/<module>/<page>/ <Title>]]`, as in `reference/schema/optics/` or `reference/streams/core/sink/` (keep the trailing slash).
 
 ## Examples are compiled
 
@@ -60,7 +60,7 @@ def getDefaultValue: Option[A]
 - The first line of a block can be a marker:
   - `// scala-3-only`: compiled on Scala 3 only (`given`, `using`, `derives`, union types in a shared file).
   - `// scala-2-only`: compiled on Scala 2 only.
-  - `// no-check: <reason>`: not compiled. The reason is required. Use it only when the block cannot compile on its own; if a library bug is the reason, file it in `docs/dev/issues.md`.
+  - `// no-check: <reason>`: not compiled. The reason is required. Use it only when the block cannot compile on its own; if a library bug is the reason, report it as AGENTS.md describes.
 - A first line that starts like a marker but is not one of these three exact forms (`// scala-3-only: uses given`, `// scala3-only`) is an error, not a plain comment.
 - Markers apply only to the first non-empty line of the block. The opening `{{{` and closing `}}}` must each be on their own line: a closing `}}}` on the `*/` line is an error.
 - A code line inside a `{{{` block must not contain `}}}`, for example in an output comment such as `// {"a":{"b":1}}}`: Scaladoc ends the code block at the first `}}}`, so the extractor reports an error. Reword the line or drop the output comment.
