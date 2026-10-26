@@ -100,7 +100,7 @@ object CompleteExample {
     Files.writeString(
       inventoryPath,
       """title,year,authors,copies
-        |Zionomicon,2024,"John A. De Goes, Adam Fraser",12
+        |Zionomicon,2024,"John A. De Goes, Adam Fraser and Milad Khajavi",12
         |Programming in Scala,MMVIII,"Martin Odersky, Lex Spoon, Bill Venners",7
         |Functional Programming in Scala,2014,"Paul Chiusano, Rúnar Bjarnason",5
         |Scala with Cats,2017,"Noel Welsh, Dave Gurnell"

@@ -482,11 +482,11 @@ sealed trait DynamicValue {
    * val book = DynamicValue.Record(
    *   "title"   -> DynamicValue.string("Zionomicon"),
    *   "year"    -> DynamicValue.int(2021),
-   *   "authors" -> DynamicValue.Sequence(DynamicValue.string("John A. De Goes"), DynamicValue.string("Adam Fraser"))
+   *   "authors" -> DynamicValue.Sequence(DynamicValue.string("John A. De Goes"), DynamicValue.string("Adam Fraser"), DynamicValue.string("Milad Khajavi"))
    * )
    *
    * book.select.query(_.primitiveValue.exists(_.isInstanceOf[PrimitiveValue.String])).toChunk
-   * // Chunk("Zionomicon","John A. De Goes","Adam Fraser")
+   * // Chunk("Zionomicon","John A. De Goes","Adam Fraser","Milad Khajavi")
    * }}}
    */
   def select: DynamicValueSelection = DynamicValueSelection.succeed(this)

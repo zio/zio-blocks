@@ -19,7 +19,7 @@ object Book {
 
 object Bookstore {
   val books: List[Book] = List(
-    Book(1, "Zionomicon", List("John A. De Goes", "Adam Fraser"), 2024),
+    Book(1, "Zionomicon", List("John A. De Goes", "Adam Fraser", "Milad Khajavi"), 2024),
     Book(2, "Programming in Scala", List("Martin Odersky", "Lex Spoon", "Bill Venners"), 2008),
     Book(3, "Functional Programming in Scala", List("Paul Chiusano", "Rúnar Bjarnason"), 2014)
   )

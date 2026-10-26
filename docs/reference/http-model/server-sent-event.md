@@ -294,3 +294,5 @@ event.toString
 An SSE response is an ordinary `Response` whose body streams rendered events with a `text/event-stream` content type, so `ServerSentEvent` composes with the rest of [the HTTP model](./model.md) rather than replacing any of it. Setting that content type is a `Header.ContentType` — see [Header](./headers.md).
 
 The type depends on `Chunk` for the line sequence and on `Maybe` for its optional fields, both from the core blocks: see [Chunk](../chunk.md) and [Maybe](../maybe.md).
+
+See also: [How to Send Server-Sent Events with http-model](../../guides/send-server-sent-events.md) builds and serves an SSE response end to end.

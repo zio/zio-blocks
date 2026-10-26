@@ -99,7 +99,7 @@ object Step5LargeFileExample {
       awkwardPath,
       """title,year,authors,copies
         |Zionomicon,2024,"John A. De Goes,
-        |Adam Fraser",12
+        |Adam Fraser and Milad Khajavi",12
         |Programming in Scala,MMVIII,"Martin Odersky, Lex Spoon, Bill Venners",7
         |"Functional Programming in Scala"!,2014,"Paul Chiusano, Rúnar Bjarnason",5
         |""".stripMargin,
@@ -109,7 +109,7 @@ object Step5LargeFileExample {
     println(withCsvFile(awkwardPath, bookCodec, CsvConfig.default)(rows => rows.foreach(println)))
 
     val restocked: List[BookRow] = List(
-      BookRow("Zionomicon", "John A. De Goes, Adam Fraser", 2024, 20),
+      BookRow("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, 20),
       BookRow("Programming in Scala", "Martin Odersky, Lex Spoon, Bill Venners", 2008, 7),
       BookRow("Functional Programming in Scala", "Paul Chiusano, Rúnar Bjarnason", 2014, 9)
     )

@@ -483,6 +483,7 @@ const sidebars = {
     "guides/your-first-html-page",
     "guides/add-interactivity-with-htmx",
     "guides/serve-http-model-requests",
+    "guides/send-server-sent-events",
     "guides/validate-query-parameters-and-headers",
     "guides/your-first-streaming-pipeline",
     "guides/stream-files-and-sockets",
