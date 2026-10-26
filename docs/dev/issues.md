@@ -58,7 +58,7 @@ println(Schema.fromJsonSchema(jsonSchema).jsonCodec.decode("""{"title":"Zionomic
 
 **Root cause.** `JsonSchemaToReflect.buildRecord` receives the `required` set but never uses it — the parameter is marked `@scala.annotation.unused` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchemaToReflect.scala:311`). Every property becomes a plain `Term` with no default value and no optional wrapper (`:316-318`), so the derived JSON codec treats each one as a required field. The record constructor already turns a missing register into `DynamicValue.Null` (`:327-328`), but the codec fails with `missing required field` before the constructor runs.
 
-**Impact.** `Schema.fromJsonSchema` is unusable for most real-world schemas, which almost always have optional properties. Its Scaladoc says values are validated against the JSON Schema, but valid values are rejected before that validation runs.
+**Impact.** `Schema.fromJsonSchema` is unusable for most real-world schemas, which almost always have optional properties. Valid values are rejected before the JSON Schema check runs. Since #1841 the `Schema.fromJsonSchema` Scaladoc documents this (a property missing from `"required"` fails with `missing required field`); the code is unchanged.
 
 **Test gap.** `SchemaFromJsonSchemaSpec` only decodes objects that contain every listed property, so it never covers an absent optional property.
 
@@ -6288,6 +6288,73 @@ object Repro {
 
 **Suggested fix.** Take the input schema from an operand that is not a literal (for example, from whichever operand's tree contains a `Select`), or give `SchemaExpr` a way to carry "no input needed", and add tests with a literal on each side.
 
+### schema: shifts of `Byte`, `Short` and `Int` values are done on a `Long`, so `-8 >>> 1` gives -4, `1 << 32` gives 0 and `8 >> 32` gives 0
+
+Found 2026-10-26 while writing the Scaladoc of `SchemaExpr.BitwiseOperator` (schema Scaladoc close-out, branch `scaladoc-closeout` on top of `95341f509`). The code is the same at tag `v0.0.56`. Verified with the reproducer below on Scala 2.13.18 against the published `zio-blocks-schema` 0.0.56, and on Scala 3.9.0 against `zio-blocks-next-schema` 0.0.56 (`//> using options -experimental`). Both print the same lines. `scala-cli` hung on a lock of its local repository on this machine, so I compiled the file with `cs launch scalac:2.13.18` (Scala 3: `dotty.tools.dotc.Main` 3.9.0 with `-experimental`) against the classpath from `cs fetch --classpath`, and ran it with `java -cp`.
+
+**Summary.** `SchemaExpr.bitwise`, `DynamicSchemaExpr.Bitwise` and the `Optic` operators `<<`, `>>` and `>>>` produce the wrong results for `Byte`, `Short` and `Int` values. Their docs describe `UnsignedRightShift` as `>>>` that fills with zeros, and they say that a shift whose left value is not a `Long` gives an `Int`. In fact the shift is done on the value widened to a sign-extended `Long`, and the result is then truncated to an `Int`. Two things follow:
+- For `>>>` on a negative value, the bits shifted in from above are the sign bits of the `Long`, so a shift by 1 to 32 keeps the value negative: it behaves like `>>`.
+- `<<`, `>>` and `>>>` by 32 to 63 also differ from Scala's `Int` shifts, which use the count modulo 32: `1 << 32` gives 0 (Scala: 1), `8 >> 32` gives 0 (Scala: 8), and `-8 >>> 33` gives 2147483647 (Scala: 2147483644).
+
+`>>` is right for counts below 32. `Byte` and `Short` values behave like `Int` values.
+
+**Reproduction** (`scala-cli run --server=false IntShift.scala`; for Scala 3, use `//> using scala 3.9.0`, `//> using options -experimental` and `dev.zio::zio-blocks-next-schema:0.0.56`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.DynamicSchemaExpr.BitwiseOperator._
+
+object IntShift {
+  def main(args: Array[String]): Unit = {
+    def int(i: Int) = DynamicValue.Primitive(PrimitiveValue.Int(i))
+    println(UnsignedRightShift(int(-8), int(1)))
+    // Right(-4)
+    println(-8 >>> 1)
+    // 2147483644
+    println(UnsignedRightShift(int(-8), int(63)))
+    // Right(1)
+    println(-8 >>> 63)
+    // 1
+    println(LeftShift(int(1), int(32)))
+    // Right(0)
+    println(1 << 32)
+    // 1
+    println(SchemaExpr.bitwise(SchemaExpr.literal[Unit, Int](-8), SchemaExpr.literal[Unit, Int](1), SchemaExpr.BitwiseOperator.UnsignedRightShift).eval(()))
+    // Right(List(-4))
+    println(RightShift(int(8), int(32)))
+    // Right(0)
+    println(8 >> 32)
+    // 8
+  }
+}
+```
+
+**Expected.** The results of Scala's `Int` operators: `-8 >>> 1` is `2147483644`, `1 << 32` is `1` and `8 >> 32` is `8`. Alternatively, if the library chooses `Long` semantics on purpose, docs that say so and a `Long` result.
+
+**Root cause.** `extractIntegral` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicSchemaExpr.scala:67`) widens `Byte`, `Short` and `Int` to `Long` with `toLong`, which sign-extends. `applyShift` (`:989`) applies the operator to that `Long` (`a << b` at `:958`, `a >>> b` at `:974`) and converts the result with `result.toInt` (`:1002`) when the left value is not a `Long`. That causes both problems:
+- `>>>` on a sign-extended `Long` moves ones, not zeros, into bit 31.
+- A `Long` shift reduces the count modulo 64, not modulo 32.
+
+**Impact.** A migration or expression that uses `>>>` on `Int` fields (for example, to extract unsigned bit fields or hash buckets) silently gets negative values, and shifts by 32 or more differ from Scala.
+
+The public `Optic` operators `<<`, `>>` and `>>>` (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:541`, `:551`, `:561`) build these expressions, so `(Book.year >>> 1)` on a negative `Int` field gives a negative result. At `95341f509`, the Scaladoc of `Optic#>>>` (`Optic.scala:557-560`) still said "filling with zeros"; the close-out branch corrects it.
+
+The reference page `docs/reference/schema/schema-expr.md` lists `Bitwise` without these details.
+
+**Test gap.** `DynamicMigrationSpec` "Bitwise operations" (`schema/shared/src/test/scala/zio/blocks/schema/migration/DynamicMigrationSpec.scala:1098`) only checks that every operator returns `Right` for `0xff` and `0x0f`.
+
+`BitwiseOpticSpec` (Scala 3 only) does shift negative values: `0x80.toByte >>> 1` (`schema/shared/src/test/scala-3/zio/blocks/schema/BitwiseOpticSpec.scala:123-124`) and `Int.MinValue >>> 1` (`:181-182`). But every shift test there asserts only `result.isRight && result.exists(_.nonEmpty)`, never the value, so the wrong results pass.
+
+No test shifts a `Byte`, `Short` or `Int` by 32 or more.
+
+**Suggested fix.**
+- In `applyShift`, when the left value is not a `Long`, shift the `Int` itself: `PrimitiveValue.Int(op32(lVal.toInt, rVal.toInt))` with `Int` operators, as the `Long` branch uses `Long` operators.
+- Add tests with a negative `Int` for `>>>` and a count of 32 for `<<` and `>>`.
+- Assert the values in `BitwiseOpticSpec`, not only `isRight`.
+
 ### schema: `Schema.fromJsonSchema` rejects every value of a string `enum` or of a `oneOf` of keyed or `const`-tagged objects
 
 Found 2026-10-23 while writing the Scaladoc of `JsonSchemaToReflect` (wave 8a of the schema Scaladoc, branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
@@ -7520,7 +7587,7 @@ object Book { given Schema[Book] = Schema.derived }
 
 Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Verified on Scala 2.13.18 (`zio-blocks-schema` 0.0.56) and Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`); the patch code is the same at tag `v0.0.56`.
 
-**Summary.** `Schema#diff` records list removals by index (`- [1]`), numbers as deltas (`-= 5.00`) and string changes as edits at a position. `PatchMode.Strict` only checks that each operation *fits* the value it is applied to (the index is in range, the map key exists or is absent). It never checks that the value still holds what it held when the patch was made. Applied to a value that changed in the meantime, a Strict patch returns `Right` and silently removes the wrong list element or produces a price nobody set. `PatchMode`'s Scaladoc says only "Fail on precondition violations", and `patch.md` says Strict "fails immediately if any operation cannot be applied" and to use it "when you need to know if every operation succeeded", which readers take to mean conflict detection.
+**Summary.** `Schema#diff` records list removals by index (`- [1]`), numbers as deltas (`-= 5.00`) and string changes as edits at a position. `PatchMode.Strict` only checks that each operation *fits* the value it is applied to (the index is in range, the map key exists or is absent). It never checks that the value still holds what it held when the patch was made. Applied to a value that changed in the meantime, a Strict patch returns `Right` and silently removes the wrong list element or produces a price nobody set. `PatchMode`'s Scaladoc said only "Fail on precondition violations" (since #1836 it states that no mode checks the value, `PatchMode.scala:31-35`), and `patch.md` says Strict "fails immediately if any operation cannot be applied" and to use it "when you need to know if every operation succeeded", which readers take to mean conflict detection.
 
 **Reproduction** (run with scala-cli; the same output on both versions, the Scala 3 file uses `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-schema`):
 
@@ -7562,7 +7629,7 @@ The `effects` tag is gone although nobody removed it, and the price is 37.00 alt
 
 **Test gap.** `PatchLawsSpec` checks `diff(a, b)(a) == b` only on the value the patch was computed from; no test applies a diff to a changed value.
 
-**Suggested fix.** Document the limitation on `PatchMode` and in `patch.md`, and show the safe pattern (check that the value is unchanged, e.g. a version number, before applying; the guide does this). Optionally, add a value-checking operation (a `Test(path, expected)` op) and have `Differ` emit it before index-based removals.
+**Suggested fix.** Document the limitation in `patch.md` (the `PatchMode` Scaladoc has done so since #1836), and show the safe pattern (check that the value is unchanged, e.g. a version number, before applying; the guide does this). Optionally, add a value-checking operation (a `Test(path, expected)` op) and have `Differ` emit it before index-based removals.
 
 ### schema: a stored `DynamicPatch` cannot be turned back into a `Patch[A]` on Scala 3, but can on Scala 2.13
 
