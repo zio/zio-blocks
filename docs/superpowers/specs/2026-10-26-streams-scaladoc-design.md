@@ -73,7 +73,8 @@ As in `schema`: an opus implementer researches, writes and runs the gates; the c
 3. `python3 -I .claude/scripts/scaladoc-coverage.py streams --drift` shows no drift for the wave's files.
 4. Comments-only: with comments and whitespace stripped, every changed file equals its `origin/main` version.
 5. `++2.13.18; check; headerCheckAll; ++3.9.0; check; headerCheckAll`.
-6. Sentinel-adjacent text is checked by the reviewer against the AGENTS.md policy. Because the change is comments only, the JMH benchmarks are not rerun.
+6. `streamsJVM/testOnly zio.blocks.streams.SpecializationStaticCompletenessSpec` on 2.13.18, 3.9.0 and 3.10.0: it scans raw source lines, comments included, against a checked-in inventory, so a doc line can change it.
+7. Sentinel-adjacent text is checked by the reviewer against the AGENTS.md policy. Because the change is comments only, the JMH benchmarks are not rerun.
 
 ## Done
 

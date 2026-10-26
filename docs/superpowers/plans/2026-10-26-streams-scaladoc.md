@@ -36,6 +36,7 @@ The full text is in `.superpowers/sdd/2026-10-26-streams-scaladoc/global-constra
   3. `python3 -I .claude/scripts/scaladoc-coverage.py streams --drift`: no drift in the wave's files.
   4. Comments-only check against `origin/main`.
   5. `++2.13.18; check; headerCheckAll; ++3.9.0; check; headerCheckAll`.
+  6. `++3.9.0; streamsJVM/testOnly zio.blocks.streams.SpecializationStaticCompletenessSpec`, and the same on `++2.13.18` and `++3.10.0`. This spec scans the raw source lines of `streams/*/src/main`, comments included, and checks them against `streams/jvm/src/test/resources/specialization-conformance-inventory.txt`. A doc line that matches its patterns (`: Reader[` or `: Reader.`, `def ...reader...`, `.readInt(` and the other `read<Lane>` calls, `new SyncReader[`, a `specialization-id:` marker) adds or removes an inventory entry; `new Reader[...]` in an example even throws. Prefer examples that avoid those spellings. When a doc line unavoidably changes the inventory, update the resource by hand to match (remove the stale ID or add the new one) and say so in the report.
 - Conventional Commits (`docs(streams): ...`, `build: ...`). One commit per file group and per group of review fixes. Push only to the `khajavi` remote, and only the controller pushes.
 
 ## Review Focus (PR 0)
