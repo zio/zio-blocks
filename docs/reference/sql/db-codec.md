@@ -660,3 +660,5 @@ DbCodec[A] ◄──────────────────────
   DbResultReader   DbParamWriter ────────────┘
   (readValue)      (writeValue)
 ```
+
+See also the [How to Store and Search Vector Embeddings in PostgreSQL](../../guides/store-and-search-vector-embeddings.md) guide, which builds a `DbCodec` on `String` for a pgvector column and binds it as a parameter with the `sql` interpolator.
