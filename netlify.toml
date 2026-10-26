@@ -1,14 +1,9 @@
+# Netlify does not build the site. The "Deploy Website" workflow (.github/workflows/site.yml) builds it in GitHub Actions
+# and uploads the finished files; previews come from the "Deploy Preview" workflow. This file keeps the redirects and the
+# publish directory, and the ignore command skips every Git-triggered Netlify build (pushes to main, pull requests).
 [build]
-  command = "./build.sh"
   publish = "website/build"
-  # The site is rebuilt only on a library release or a manual run of the "Deploy Website" workflow (.github/workflows/
-  # site.yml), both of which call the Netlify build hook. Netlify never cancels a build-hook build because of this
-  # command, so exiting 0 skips every Git-triggered build (pushes to main, previews); previews come from the CI workflow.
   ignore = "exit 0"
-
-[build.environment]
-  NODE_VERSION = "24.12.0"
-  YARN_VERSION = "1.22.22"
 
 # The docs used to live under /docs; keep old links working.
 [[redirects]]
