@@ -26,7 +26,7 @@ import scala.annotation.compileTimeOnly
  *
  * Calling these methods outside a selector fails at compile time. They do not
  * compile inside builder selectors either, and the selector macros reject them
- * (see `docs/dev/issues.md`).
+ * (a known bug in 0.0.56).
  */
 trait MigrationSelectorSyntax {
 
