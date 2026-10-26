@@ -705,20 +705,18 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   /**
    * Repeats this stream forever: when a cycle completes, the next one starts. A
    * typed error or a defect ends the repetition, and closing the result (for
-   * example with a downstream `take`) closes the active cycle. A cycle that
-   * emits nothing makes the pull loop forever without emitting.
+   * example with a downstream `take`) closes the active cycle.
    *
-   * A known bug: a new cycle usually resets the previous cycle's readers
-   * instead of building the stream again. With the JVM blocking terminals,
-   * effects that run when the stream opens (`Stream.eval`, `Stream.suspend`,
-   * the `acquire` of `Stream.fromAcquireRelease`) run once in total, not once
-   * per cycle, and so does an `ensuring` finalizer around the whole cycle;
-   * `mapAccum` and `distinct` carry their state into the next cycle (so
-   * `distinct` then loops forever); `fromIterator` loops forever; and
-   * `fromInputStream` fails with `UnsupportedOperationException`. The `*Async`
-   * terminals differ again (there, `Stream.eval` does run per cycle and
-   * `fromIterator` stops after one cycle). `Stream(...)`, `fromChunk`,
-   * `fromIterable`, `range` and `unfold` repeat correctly.
+   * A known bug, with both terminal families: a new cycle usually resets the
+   * previous cycle's readers instead of building the stream again.
+   * `Stream(...)`, `fromChunk`, `fromIterable`, `range` and `unfold`, with
+   * `map` or `filter` over them, repeat correctly. But effects that run when
+   * the stream opens (`Stream.eval`, `Stream.suspend`, the `acquire` of
+   * `fromAcquireRelease`) and an `ensuring` finalizer around the whole cycle
+   * can run only once in total, `mapAccum` and `distinct` keep their state,
+   * `fromIterator` hangs or stops after one cycle, and `fromInputStream` fails
+   * with `UnsupportedOperationException`. A cycle that emits nothing can make
+   * the pull loop forever.
    */
   def repeated: Stream[E, A] = new Stream.Repeated(this)
 
