@@ -1,6 +1,6 @@
 # Schema Module Scaladoc Implementation Plan
 
-> Since #1743 the versions are 2.13.18, 3.9.0 and 3.10.0; read 3.3.7 below as 3.10.0.
+> Since #1743 the versions are 2.13.18, 3.9.0 and 3.10.0; read 3.3.7 (3.3.x, 3.3) below as 3.10.0 (3.10.x, 3.10).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
