@@ -3452,6 +3452,11 @@ object Stream {
    * overload for a reader whose kind is known only at run time: the stream
    * keeps the reader synchronous or asynchronous as built. An exception thrown
    * by `mkReader` is a defect.
+   *
+   * Because the stream cannot tell that the reader is synchronous, a blocking
+   * terminal does not treat it as one: `flatMapPar` and `mergeAll` over it run
+   * on `ForkJoinPool.commonPool`, with no overlap. The overload below, which
+   * takes a synchronous reader, avoids this.
    */
   def fromReader[E, A](mkReader: => Reader[A]): Stream[E, A] =
     new FromReader(() => StreamError.callback(mkReader))
