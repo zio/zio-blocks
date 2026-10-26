@@ -55,6 +55,7 @@ jobs:
           # The Google Analytics tag is added only when this is "production" (website/docusaurus.config.js). Netlify used to
           # set it; this workflow now sets it, so only this production deploy sends page views.
           CONTEXT: production
+          SITE_URL: ${{ vars.SITE_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload website build artifact
         uses: actions/upload-artifact@v7
@@ -88,7 +89,8 @@ jobs:
           deploy-message: 'Deploy ${{ github.ref_name }} ${{ github.sha }}'
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          # The production site, not the preview site that NETLIFY_SITE_ID points at (see deploy-preview.yml).
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_PRODUCTION_SITE_ID }}
       - name: Write run summary
         if: ${{ always() }}
         env:
