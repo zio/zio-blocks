@@ -140,11 +140,11 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
    * the rest). When `catchAll` sits inside a `flatMap` and a stateful operator
    * such as `grouped`, `sliding`, `scan` or `mapAccum` follows, they throw the
    * internal `Stream.AsyncBoundaryRequired` signal instead of running; the
-   * `*Async` terminals are correct. And a blocking terminal runs the stages
-   * before `catchAll` on `ForkJoinPool.commonPool` while the caller waits, so a
-   * run started from an object initializer (the body of
-   * `object Main extends App`) deadlocks when one of those stages reads a field
-   * of that object; call it from `def main` instead.
+   * `*Async` terminals are correct. And they run the stages before `catchAll`
+   * on `ForkJoinPool.commonPool` while the caller waits, so a run started while
+   * an object is being initialized (a `val` in an `object`, or on Scala 3 the
+   * body of `object Main extends App`) deadlocks when one of those stages reads
+   * a field of that object; call it from `def main` instead.
    */
   def catchAll[E2, A2, A3](f: E => Stream[E2, A2])(implicit
     valueConcat: Concat.WithOut[A @uncheckedVariance, A2, A3],

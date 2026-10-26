@@ -85,10 +85,12 @@ trait StreamPlatformSpecific[+E, +A] { self: Stream[E, A] =>
    * Stream(1, 2, 3).run(Sink.sumInt) // Right(6)
    * }}}
    *
-   * When the stream contains `catchAll`, `catchDefect`, `orElse` or an `*Async`
-   * operator, the stages before it run on `ForkJoinPool.commonPool` while the
-   * caller waits. A known bug follows: started from an object initializer (the
-   * body of `object Main extends App`), such a run deadlocks when one of those
+   * Some stages run on another thread while the caller waits: those before a
+   * `catchAll`, `catchDefect`, `orElse` or `*Async` operator run on
+   * `ForkJoinPool.commonPool`, and `buffer`, `mapPar`, `flatMapPar` and
+   * `mergeAll` run stages on threads of their own. A known bug follows: a run
+   * started while an object is being initialized (a `val` in an `object`, or on
+   * Scala 3 the body of `object Main extends App`) deadlocks when one of those
    * stages reads a field of that object. Call blocking terminals from
    * `def main` instead.
    */
