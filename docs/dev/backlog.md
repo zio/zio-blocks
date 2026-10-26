@@ -531,7 +531,7 @@ Plan: `docs/superpowers/plans/2026-10-26-streams-scaladoc.md`. Style: `docs/dev/
 | Wave                       | Status      | PR | Coverage before | Coverage after |
 |----------------------------|-------------|----|-----------------|----------------|
 | 0. Tooling                 | In progress |    | 361 / 561 (64%) | 361 / 561 (64%) |
-| 1. Stream, Sink, Pipeline  | Not started |    |                 |                |
+| 1. Stream, Sink, Pipeline  | In review   |    | 361 / 561 (64%) | 388 / 561 (69%) |
 | 2. io (Reader, Writer)     | Not started |    |                 |                |
 | 3. Platform and internals  | Not started |    |                 |                |
 | 4. Close-out               | Not started |    |                 |                |
