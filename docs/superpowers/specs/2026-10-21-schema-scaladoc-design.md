@@ -2,6 +2,8 @@
 
 Date: 2026-10-21. Branch: `schema-scaladoc`.
 
+> Since #1743 the versions are 2.13.18, 3.9.0 and 3.10.0; read 3.3.7 below as 3.10.0.
+
 ## Problem
 
 The Scaladoc of the `schema` module is thin, uneven, and sometimes wrong.

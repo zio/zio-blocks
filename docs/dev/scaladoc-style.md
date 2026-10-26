@@ -51,7 +51,7 @@ def getDefaultValue: Option[A]
 
 ## Examples are compiled
 
-`sbt "++<version>; schema-scaladoc-check/test"` turns every multi-line block in the Scaladoc of `schema` into an object and compiles it. CI runs it on Scala 2.13, 3.3 and 3.9. Run it locally on all three: `sbt --client "++3.9.0; schema-scaladoc-check/test; ++3.3.7; schema-scaladoc-check/test; ++2.13.18; schema-scaladoc-check/test"`.
+`sbt "++<version>; schema-scaladoc-check/test"` turns every multi-line block in the Scaladoc of `schema` into an object and compiles it. CI runs it in the `testJVM` job on Scala 2.13.x, 3.9.x and 3.10.x (JDK 17 and 25). Run it locally on all three: `sbt --client "++3.9.0; schema-scaladoc-check/test; ++3.10.0; schema-scaladoc-check/test; ++2.13.18; schema-scaladoc-check/test"`.
 
 - Each block compiles on its own. The wrapper adds `import zio.blocks.schema._`; import anything else inside the block.
 - Use braces, not indentation syntax.
@@ -73,4 +73,4 @@ A compile error names the generated file `Snippet_<path>_L<n>.scala`; the source
 
 ## Tracking
 
-`python3 .claude/scripts/scaladoc-coverage.py schema` prints the share of documented declarations per package. It is a progress report, not a target: completeness is judged against the tiers above.
+`python3 .claude/scripts/scaladoc-coverage.py schema` prints the share of documented API members per package: declarations at the top level of a file or inside types, not locals inside method bodies or members of private and protected types. It is a progress report, not a target: completeness is judged against the tiers above.
