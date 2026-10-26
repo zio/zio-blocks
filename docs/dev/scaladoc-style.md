@@ -1,6 +1,6 @@
 # Scaladoc style guide
 
-How to write Scaladoc in ZIO Blocks. First applied to the `schema` module (see `docs/superpowers/specs/2026-10-21-schema-scaladoc-design.md`).
+How to write Scaladoc in ZIO Blocks. First applied to the `schema` module (see `docs/superpowers/specs/2026-10-21-schema-scaladoc-design.md`), then to `streams` (`docs/superpowers/specs/2026-10-26-streams-scaladoc-design.md`).
 
 ## Who reads it
 
@@ -8,7 +8,7 @@ Two readers: the `/api` site, built by Scala 3 Scaladoc from the JVM projects, a
 
 ## Tiers
 
-**Tier 1: core types.** In `schema`: `Schema`, `Reflect`, `Optic` (`Lens`, `Prism`, `Optional`, `Traversal`), `DynamicValue`, `PrimitiveValue`, `Binding`, `Patch`, `Migration`, `Into`, `As`, `JsonCodec`, `Json`, `JsonSchema`, `Deriver`, `Modifier`, `Validation`, `SchemaError`, `Allows`.
+**Tier 1: core types.** In `streams`: `Stream`, `Sink`, `Pipeline`, `Reader`, `Writer`. In `schema`: `Schema`, `Reflect`, `Optic` (`Lens`, `Prism`, `Optional`, `Traversal`), `DynamicValue`, `PrimitiveValue`, `Binding`, `Patch`, `Migration`, `Into`, `As`, `JsonCodec`, `Json`, `JsonSchema`, `Deriver`, `Modifier`, `Validation`, `SchemaError`, `Allows`.
 
 - The type: what it is, when to use it, one example, and `@see` the reference page.
 - Its key methods (the ones its reference page shows): one example each.
@@ -43,7 +43,7 @@ def getDefaultValue: Option[A]
 
 ## Rules
 
-1. **Write once.** A member declared in `scala-2/` and `scala-3/`, or `jvm/` and `js/`, gets the same text in every copy. Check with `python3 .claude/scripts/scaladoc-coverage.py schema --drift`.
+1. **Write once.** A member declared in `scala-2/` and `scala-3/`, or `jvm/` and `js/`, gets the same text in every copy. Check with `python3 .claude/scripts/scaladoc-coverage.py <module> --drift`.
 2. **Tell the truth.** Read the implementation before writing. Every claim ("returns `Left` when ...", "throws ...") must match the code or a test. When the code looks wrong, do not describe the wrong behaviour as intended: add an entry to `docs/dev/issues.md` in the same PR.
 3. **Prose.** Follow the `docs-writing-style` skill: present tense, active voice, no "simply" or "just". Start with what the member does, not "This method ...".
 4. **Format.** Leave wrapping to `scalafmt`. One blank comment line between paragraphs and before the tags.
@@ -51,9 +51,9 @@ def getDefaultValue: Option[A]
 
 ## Examples are compiled
 
-`sbt "++<version>; schema-scaladoc-check/test"` turns every multi-line block in the Scaladoc of `schema` into an object and compiles it. CI runs it in the `testJVM` job on Scala 2.13.x, 3.9.x and 3.10.x (JDK 17 and 25). Run it locally on all three: `sbt --client "++3.9.0; schema-scaladoc-check/test; ++3.10.0; schema-scaladoc-check/test; ++2.13.18; schema-scaladoc-check/test"`.
+`sbt "++<version>; scaladoc-check/test"` turns every multi-line block in the Scaladoc of the checked modules (`schema` and `streams`) into an object and compiles it. One project serves every module; to check another one, add it to `scaladocCheckedModules` in `build.sbt`. CI runs it in the `testJVM` job on Scala 2.13.x, 3.9.x and 3.10.x (JDK 17 and 25). Run it locally on all three: `sbt --client "++3.9.0; scaladoc-check/test; ++3.10.0; scaladoc-check/test; ++2.13.18; scaladoc-check/test"`.
 
-- Each block compiles on its own. The wrapper adds `import zio.blocks.schema._`; import anything else inside the block.
+- Each block compiles on its own. The wrapper adds the import of the module the file belongs to (`import zio.blocks.schema._` for `schema`, `import zio.blocks.streams._` for `streams`); import anything else inside the block.
 - Use braces, not indentation syntax.
 - Sample data uses real Scala books, such as Zionomicon.
 - Show results in comments (`// Book("Zionomicon", 2024)`). They are not checked, so run the example once (with `scala-cli` or in a test) before writing the comment.
@@ -73,4 +73,4 @@ A compile error names the generated file `Snippet_<path>_L<n>.scala`; the source
 
 ## Tracking
 
-`python3 .claude/scripts/scaladoc-coverage.py schema` prints the share of documented API members per package: declarations at the top level of a file or inside types, not locals inside method bodies or members of private and protected types, except those of a `private[pkg]` trait, which a public object mixes in. It is a progress report, not a target: completeness is judged against the tiers above.
+`python3 .claude/scripts/scaladoc-coverage.py <module>` (for example `schema` or `streams`) prints the share of documented API members per package: declarations at the top level of a file or inside types, not locals inside method bodies or members of private and protected types, except those of a `private[pkg]` trait, which a public object mixes in. It is a progress report, not a target: completeness is judged against the tiers above.
