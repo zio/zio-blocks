@@ -9000,6 +9000,65 @@ object Repro {
 
 **Update (2026-10-26).** #1842 (H-41) reworded the "Streaming bodies" note in `serve-http-model-requests.md` to say that an endless body never reaches the client and that its producer never stops, and links the SSE guide, whose `StreamingJdkHttp` streams. The adapter itself still buffers; the optional streaming path in `JdkHttp` is still open.
 
+### async: on Scala 3, an `Async.promise` body written `(c: Completer[A]) => ...` compiles, and the `Async` never completes
+
+Found 2026-10-26 while writing H-26 (`docs/guides/run-streams-without-blocking.md`), on `main` at `7f551627c`. Tested against `zio-blocks-async` 0.0.56; the Scala 3 signature is the same on `main`. Verified by running (scratch sbt project, since scala-cli hung on that machine).
+
+**Summary.** On Scala 3, `Async.promise` takes a context-function body: `inline def promise[A](inline body: Completer[A] ?=> Unit)` (`async/shared/src/main/scala-3/zio/blocks/async/AsyncCompanionVersionSpecific.scala:38`). Code in the Scala 2 shape with the parameter type written out, `Async.promise[String] { (c: Completer[String]) => ... }`, still compiles: the lambda is a function value that becomes the context function's result and is discarded as `Unit`. The statements inside it never run, so the completer is never completed and the `Async` stays pending forever. Without the type (`{ c => ... }`) it fails to compile with "Missing parameter type", so only the typed binder is silent. The compiler prints warning E190 at the call site, which is easy to miss. `docs/reference/async.md` (around `:634` and `:1088-1100`) and `docs/guides/async-getting-started.md:274` show the Scala 3 body as `c ?=>` or `summon`, but none of the async pages (including `wrap-callback-and-future-apis.md`) warns that the Scala 2 shape compiles and hangs.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-async` 0.0.56; `project/build.properties` is `sbt.version=1.13.0`; run with `sbt run`):
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions ++= Seq("-experimental")
+libraryDependencies += "dev.zio" %% "zio-blocks-async" % "0.0.56"
+```
+
+`src/main/scala/Repro.scala`:
+
+```scala
+import zio.blocks.async._
+
+import scala.concurrent.Await
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    // Explicit binder, as on Scala 2: compiles on Scala 3 and the Async never completes.
+    val hangs: Async[String] = Async.promise[String] { (c: Completer[String]) =>
+      new Thread(() => { Thread.sleep(10); c.succeed("hello") }).start()
+    }
+    println("Async.promise[String] { c => ... }: " + (try Await.result(hangs.toFuture, 2.seconds).toString catch { case e: Throwable => e.toString }))
+
+    // Context-function binder: works.
+    val works: Async[String] = Async.promise[String] {
+      val c = summon[Completer[String]]
+      new Thread(() => { Thread.sleep(10); c.succeed("hello") }).start()
+    }
+    println("Async.promise[String] { summon ... }: " + Await.result(works.toFuture, 2.seconds))
+  }
+}
+// [warn] -- [E190] Potential Issue Warning: Repro.scala:10:55
+// [warn] Discarded non-Unit value of type zio.blocks.async.Completer[String] => Unit. Add `: Unit` to discard silently.
+// Async.promise[String] { c => ... }: java.util.concurrent.TimeoutException: Future timed out after [2 seconds]
+// Async.promise[String] { summon ... }: hello
+```
+
+With the parameter type omitted (`Async.promise[String] { c => c.succeed("hello") }`) compilation fails: `[E081] Missing parameter type. I could not infer the type of the parameter c. Expected type for the whole anonymous function: Unit`.
+
+**Expected.** Either the typed Scala 2 binder is rejected on Scala 3, or the docs say plainly not to write it. As it is, a cross-built project can copy a Scala 2 `Async.promise` snippet into a Scala 3 source set and it compiles.
+
+**Root cause.** The Scala 3 `promise` body has type `Completer[A] ?=> Unit` (`AsyncCompanionVersionSpecific.scala:38`). A body that is a lambda value of type `Completer[String] => Unit` is accepted as the context function's result and discarded to `Unit` by value discarding; the E190 warning is the only protection.
+
+**Impact.** The `Async` never completes: `block` waits forever on the JVM, `toFuture` times out, and on Scala.js `block` throws, so the failure shows up as a hang or timeout far from the cause.
+
+**Test gap.** No Scala 3 test checks that a typed binder is rejected or warns, and the docs don't warn.
+
+**Suggested fix.** Add a warning next to the Scala 3 `Async.promise` examples in `docs/reference/async.md` and `docs/guides/async-getting-started.md` section 7 ("On Scala 3, don't write `{ (c: Completer[A]) => ... }`: it compiles but never completes; use `c ?=>` or `summon`"). Then change the Scala 3 body type so a function-valued body is a type error (for example a non-`Unit` result type plus a `Unit`-returning helper), and add a `typeCheckErrors` test for the explicit binder.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
