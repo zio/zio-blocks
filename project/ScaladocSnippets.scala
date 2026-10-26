@@ -2,10 +2,10 @@ import scala.collection.mutable.ListBuffer
 
 /**
  * Extracts the code examples from Scaladoc comments so that the
- * `schema-scaladoc-check` project can compile them. sbt compiles this file
- * (Scala 2.12) to run the source generator, and `schema-scaladoc-check / Test`
- * compiles it again (Scala 2.13 and 3) to unit-test it, so it has to stay plain
- * Scala that all three versions accept.
+ * `scaladoc-check` project can compile them. sbt compiles this file (Scala
+ * 2.12) to run the source generator, and `scaladoc-check / Test` compiles it
+ * again (Scala 2.13 and 3) to unit-test it, so it has to stay plain Scala that
+ * all three versions accept.
  */
 object ScaladocSnippets {
 
@@ -70,22 +70,37 @@ object ScaladocSnippets {
   }
 
   /**
+   * The module a source file belongs to: its first path segment, as in
+   * `streams` for `streams/shared/src/main/scala/...`.
+   */
+  def moduleOf(sourcePath: String): String = sourcePath.takeWhile(_ != '/')
+
+  /**
+   * The import that every example of a module gets: the module directory
+   * `streams` gives `zio.blocks.streams._`, and a nested module such as
+   * `schema-avro` gives `zio.blocks.schema.avro._`.
+   */
+  def moduleImport(sourcePath: String): String =
+    "zio.blocks." + moduleOf(sourcePath).replace('-', '.') + "._"
+
+  /**
    * The name of the wrapper object for the example at `line` of `sourcePath`.
+   * The path starts with the module directory, so two modules never collide.
    */
   def objectName(sourcePath: String, line: Int): String =
     "Snippet_" + sourcePath
       .stripSuffix(".scala")
       .replace("/src/main/", "/")
-      .replace("/zio/blocks/schema/", "/")
+      .replace("/zio/blocks/" + moduleOf(sourcePath).replace('-', '/') + "/", "/")
       .replaceAll("[^A-Za-z0-9]", "_") + "_L" + line
 
   /** The source file that wraps `snippet` in an object. */
   def render(snippet: Snippet): String =
     (List(
-      s"// Generated from ${snippet.sourcePath}:${snippet.line} by schema-scaladoc-check. Do not edit.",
+      s"// Generated from ${snippet.sourcePath}:${snippet.line} by scaladoc-check. Do not edit.",
       "package scaladoccheck",
       "",
-      "import zio.blocks.schema._",
+      s"import ${moduleImport(snippet.sourcePath)}",
       "",
       s"object ${objectName(snippet.sourcePath, snippet.line)} {"
     ) ++ snippet.code.map(line => if (line.trim.isEmpty) "" else "  " + line) ++ List("}", "")).mkString("\n")

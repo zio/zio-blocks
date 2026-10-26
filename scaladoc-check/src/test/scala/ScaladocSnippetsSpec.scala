@@ -136,11 +136,43 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
           "Snippet_schema_jvm_scala_json_JsonReader_L7"
       )
     },
+    test("objectName drops the module's own package, so streams and schema names do not collide") {
+      assertTrue(
+        ScaladocSnippets.objectName("streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala", 9) ==
+          "Snippet_streams_shared_scala_io_Reader_L9",
+        ScaladocSnippets.objectName("schema/shared/src/main/scala/zio/blocks/schema/io/Reader.scala", 9) ==
+          "Snippet_schema_shared_scala_io_Reader_L9"
+      )
+    },
+    test("moduleImport follows the module directory") {
+      assertTrue(
+        ScaladocSnippets.moduleImport("schema/shared/src/main/scala/zio/blocks/schema/Schema.scala") ==
+          "zio.blocks.schema._",
+        ScaladocSnippets.moduleImport("streams/jvm/src/main/scala/zio/blocks/streams/Stream.scala") ==
+          "zio.blocks.streams._"
+      )
+    },
+    test("render gives a streams example the streams import") {
+      val streamsPath = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
+      val snippet     = ScaladocSnippets.Snippet(streamsPath, 9, List("val a = 1"), None)
+      assertTrue(
+        ScaladocSnippets.render(snippet) ==
+          s"""// Generated from $streamsPath:9 by scaladoc-check. Do not edit.
+             |package scaladoccheck
+             |
+             |import zio.blocks.streams._
+             |
+             |object Snippet_streams_shared_scala_io_Reader_L9 {
+             |  val a = 1
+             |}
+             |""".stripMargin
+      )
+    },
     test("render wraps the code in an object with the schema import and the source location") {
       val snippet = ScaladocSnippets.Snippet(path, 4, List("val a = 1", "", "  || b"), None)
       assertTrue(
         ScaladocSnippets.render(snippet) ==
-          s"""// Generated from $path:4 by schema-scaladoc-check. Do not edit.
+          s"""// Generated from $path:4 by scaladoc-check. Do not edit.
              |package scaladoccheck
              |
              |import zio.blocks.schema._

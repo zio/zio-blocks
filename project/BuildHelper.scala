@@ -240,7 +240,7 @@ object BuildHelper {
             // streams/async) must not carry it: scalac marks every top-level definition of a
             // module compiled with -experimental as `@experimental("Added by -experimental")`,
             // so every Scala 3 user of that artifact would need -experimental too.
-            // `schema-scaladoc-check` compiles consumer code without the flag to guard this.
+            // `scaladoc-check` compiles consumer code without the flag to guard this.
             //
             // Scala 3.10.0's backend optimizer crashes on some macro shapes
             // (scope/LeakMacros hits `AssertionError: NoType` in
