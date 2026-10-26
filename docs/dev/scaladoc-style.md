@@ -73,4 +73,4 @@ A compile error names the generated file `Snippet_<path>_L<n>.scala`; the source
 
 ## Tracking
 
-`python3 .claude/scripts/scaladoc-coverage.py schema` prints the share of documented API members per package: declarations at the top level of a file or inside types, not locals inside method bodies or members of private and protected types. It is a progress report, not a target: completeness is judged against the tiers above.
+`python3 .claude/scripts/scaladoc-coverage.py schema` prints the share of documented API members per package: declarations at the top level of a file or inside types, not locals inside method bodies or members of private and protected types, except those of a `private[pkg]` trait, which a public object mixes in. It is a progress report, not a target: completeness is judged against the tiers above.

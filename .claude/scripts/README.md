@@ -4,7 +4,7 @@ Utility scripts for documentation maintenance and quality assurance.
 
 ## Scaladoc Coverage Report
 
-- **scaladoc-coverage.py** — Reports the share of documented API members per package of a module (declarations at the top level or inside types; locals in method bodies and members of private or protected types do not count), and with `--drift` lists members whose Scaladoc differs between `scala-2/` and `scala-3/` (or `jvm/` and `js/`) copies. It reports only and never fails a build.
+- **scaladoc-coverage.py** — Reports the share of documented API members per package of a module (declarations at the top level or inside types; locals in method bodies and members of private or protected types do not count, except those of a `private[pkg]` trait, which a public object mixes in), and with `--drift` lists members whose Scaladoc differs between `scala-2/` and `scala-3/` (or `jvm/` and `js/`) copies. It reports only and never fails a build.
 - **test_scaladoc_coverage.py** — Unit tests for it.
 
 ```bash

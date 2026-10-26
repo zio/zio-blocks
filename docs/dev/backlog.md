@@ -522,4 +522,4 @@ Plan: `docs/superpowers/plans/2026-10-21-schema-scaladoc.md`. Style: `docs/dev/s
 | 8a. JSON model           | Done        | #1841 | 2972 / 6919 (43%) | 3206 / 6919 (46%) |
 | 8b. JSON I/O             | Done        | #1843 | 3206 / 6919 (46%) | 3230 / 6919 (47%) |
 
-Completed 2026-10-26: coverage 1208 / 6917 → 3334 / 6919 (old heuristic, which also counted locals); with the scope-aware count from this PR, 3192 of 3735 API members are documented (85%), and every undocumented one inherits its doc or is tier 3.
+Completed 2026-10-26: coverage 1208 / 6917 → 3334 / 6919 (old heuristic, which also counted locals); with the scope-aware count from this PR, 3232 of 3775 API members are documented (85%), and every undocumented one inherits its doc or is tier 3.

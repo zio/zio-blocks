@@ -3,7 +3,8 @@
 
 Counts API members: declarations at the top level of a file or inside types (class, trait, object, enum,
 extension), excluding private, protected and override members and every member of a private or protected
-type. Locals inside method bodies do not count. It is a heuristic for tracking progress, not a gate: it
+type, except the members of a `private[pkg]` trait, which a public object mixes in. Locals inside method
+bodies do not count. It is a heuristic for tracking progress, not a gate: it
 never fails a build.
 
 Usage: python3 .claude/scripts/scaladoc-coverage.py <module-dir> [--drift]
@@ -81,7 +82,8 @@ def scan(text):
 
     A member counts when every scope that encloses it is a type (class, trait, object, enum, extension or
     package object) or the top level of the file, and neither it nor an enclosing type is private, protected
-    or override. Locals inside method bodies and members of anonymous classes do not count. Scopes are
+    or override; the members of a `private[pkg]` or `protected[pkg]` trait count, because a public object mixes
+    the trait in. Locals inside method bodies and members of anonymous classes do not count. Scopes are
     tracked by indentation, which `scalafmt` keeps consistent.
     """
     lines = text.split("\n")
@@ -125,7 +127,11 @@ def scan(text):
             if in_api and not hidden:
                 decls.append(Decl(f'{m.group("kind")} {m.group("name")}', i + 1, _doc_before(lines, i)))
             is_type = m.group("kind") in _TYPE_KINDS
-            stack.append(_Scope(indent, is_type, hidden, is_type and _open_parens(code) > 0))
+            # A `private[pkg] trait` is mixed into a public object (`object Schema extends ... with DocsSchemas`):
+            # the trait itself is hidden, but its members are API members of that object.
+            mixin = m.group("kind") == "trait" and re.search(r"\b(private|protected)\[", m.group("mods"))
+            scope_hidden = hidden_parent if mixin else hidden
+            stack.append(_Scope(indent, is_type, scope_hidden, is_type and _open_parens(code) > 0))
         elif re.match(r"^extension\b", code) or re.match(r"^package\s+object\b", code):
             stack.append(_Scope(indent, True, hidden_parent))
         elif not re.match(r"^(package|import)\b", code):

@@ -95,6 +95,19 @@ class ScanTest(unittest.TestCase):
             """)
         self.assertEqual([d.name for d in sc.scan(text)], ["object O", "def visible"])
 
+    def test_members_of_a_qualified_private_trait_count_but_the_trait_does_not(self):
+        text = textwrap.dedent("""\
+            object O extends Mix
+            private[x] trait Mix {
+              def api = 1
+              private def hidden = 2
+            }
+            private trait Plain {
+              def skipped = 3
+            }
+            """)
+        self.assertEqual([d.name for d in sc.scan(text)], ["object O", "def api"])
+
     def test_multi_line_constructor_parameters_are_skipped_and_the_body_counts(self):
         text = textwrap.dedent("""\
             final case class Book(
