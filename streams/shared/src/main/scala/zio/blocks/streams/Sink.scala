@@ -22,10 +22,28 @@ import zio.blocks.streams.internal.{AsyncConcurrentReaders, AsyncInterpreter, En
 import zio.blocks.streams.io.Reader
 
 /**
- * A consumer of elements of type `A` that may fail with `E` and, on completion,
- * produces a result `Z`. Sinks are consumed by passing them to
- * [[Stream.runAsync]] (or a platform-specific terminal): the stream compiles
- * into a [[io.Reader]] and drains it once to produce the final result.
+ * A consumer of a stream: reads elements of type `A` and produces a result of
+ * type `Z`, or fails with a typed error of type `E`. A `Sink` decides how much
+ * of the stream to read, so [[Sink.head]] stops after one element while
+ * [[Sink.count]] reads to the end. Use one to state what a run of a stream
+ * should compute, apart from the stream itself.
+ *
+ * Pass a sink to [[Stream#runAsync]], or to the JVM's blocking `Stream#run`.
+ * The run opens the stream, lets the sink read it, and closes the stream
+ * whatever happens. The companion has the common sinks (`collectAll`, `count`,
+ * `foldLeft`, `foreach`, `head`, `last`, `take`, `sumInt` and more);
+ * `contramap`, `map` and `mapError` adapt a sink, and `Pipeline#andThenSink`
+ * puts a [[Pipeline]] in front of one. To write a custom sink, use
+ * [[Sink.createAsync]] or [[Sink.createBoth]]: a subclass outside the library
+ * cannot implement `Sink`'s abstract members, which are internal.
+ *
+ * {{{
+ * val totalLength: Sink[Nothing, String, Long] = Sink.sumInt.contramap[Int, String](_.length)
+ *
+ * Stream("Zionomicon", "Scala with Cats").run(totalLength) // Right(25)
+ * Stream(1, 2, 3).run(Sink.count)                          // Right(3)
+ * Stream.range(0, 1000).run(Sink.take(3))                  // Right(Chunk(0,1,2))
+ * }}}
  *
  * @tparam E
  *   Error type.
@@ -33,57 +51,58 @@ import zio.blocks.streams.io.Reader
  *   Input element type (contravariant).
  * @tparam Z
  *   Result type.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/streams/core/sink/ Sink]]
  */
 abstract class Sink[+E, -A, +Z] {
 
   /**
-   * Applies `g` to each element as this sink requests it, then feeds the
-   * transformed element to this sink. Consumption and short-circuiting are
-   * therefore unchanged; `g` is not evaluated for unread input. Exceptions
-   * thrown by `g` are defects, not values in the sink's typed error channel.
+   * Adapts this sink to another input type: each element is converted with `g`
+   * as this sink reads it. How much this sink reads does not change, and `g`
+   * never runs for input it does not read. An exception thrown by `g` is a
+   * defect. The type arguments are `g`'s result type, then the new input type.
    */
   def contramap[A0 <: A, A2](g: A2 => A0)(implicit jtA0: JvmType.Infer[A0]): Sink[E, A2, Z] =
     new Sink.Contramapped(this, g, jtA0.jvmType)
 
   /**
-   * Sequentially applies the asynchronous function `g` to each element as this
-   * sink requests it. Consumption and short-circuiting are unchanged, so `g` is
-   * not started for unread input. Failure or cancellation of `g` fails or
-   * cancels the run as a defect and stops pulling input.
+   * The asynchronous form of [[contramap]]: each element is converted with the
+   * asynchronous `g`, one at a time, as this sink reads it. `g` never starts
+   * for input this sink does not read. A failed `Async` is a defect and stops
+   * the run.
    */
   def contramapAsync[A0 <: A, A2](g: A2 => Async[A0])(implicit jtA0: JvmType.Infer[A0]): Sink[E, A2, Z] =
     new Sink.ContramappedAsync(this, g, jtA0.jvmType)
 
   /**
-   * Transforms this sink's successful result after it completes. This does not
-   * change input consumption or typed errors. Exceptions thrown by `f` are
-   * defects.
+   * Transforms this sink's result with `f` once it completes. What the sink
+   * reads and its typed errors do not change. An exception thrown by `f` is a
+   * defect.
    */
   def map[Z2](f: Z => Z2): Sink[E, A, Z2] = new Sink.Mapped(this, f)
 
   /**
-   * Asynchronously transforms this sink's successful result after it completes.
-   * The effect is not started when the sink fails, and it does not change input
-   * consumption. Effect failure or cancellation fails or cancels the run as a
-   * defect.
+   * Transforms this sink's result with the asynchronous `f` once it completes;
+   * `f` does not start when the sink fails. A failed `Async` is a defect.
    */
   def mapAsync[Z2](f: Z => Async[Z2]): Sink[E, A, Z2] = new Sink.MappedAsync(this, f)
 
   /**
-   * Transforms a typed sink error with `f`, without changing consumption or
-   * successful results. Upstream stream errors and defects are not transformed.
-   * For an infallible sink (`E = Nothing`), the evidence avoids allocating a
-   * wrapper and `f` can never be evaluated.
+   * Transforms this sink's own typed error with `f`. The stream's typed errors,
+   * defects and the result pass through unchanged. For a sink that cannot fail
+   * (`E` is `Nothing`), the `IsNothing` evidence makes it return this same
+   * sink, with no wrapper.
    */
   def mapError[E2](f: E => E2)(implicit isNothing: Sink.IsNothing[E]): Sink[E2, A, Z] =
     if (isNothing.value) this.asInstanceOf[Sink[E2, A, Z]]
     else Sink.mkErrorMapped(this, f)
 
   /**
-   * Asynchronously transforms a typed sink error with `f`. Upstream stream
-   * errors, successful results, and defects are unchanged. For `E = Nothing`,
-   * `f` can never be evaluated; otherwise failure or cancellation of `f` fails
-   * or cancels the run as a defect.
+   * Transforms this sink's own typed error with the asynchronous `f`. The
+   * stream's typed errors, defects and the result pass through unchanged, and a
+   * failed `Async` is a defect. For a sink that cannot fail, it returns this
+   * same sink.
    */
   def mapErrorAsync[E2](f: E => Async[E2])(implicit isNothing: Sink.IsNothing[E]): Sink[E2, A, Z] =
     if (isNothing.value) this.asInstanceOf[Sink[E2, A, Z]]
@@ -105,21 +124,25 @@ abstract class Sink[+E, -A, +Z] {
 }
 
 /**
- * Companion object for [[Sink]]. Provides factory constructors for common
- * consumers: `fail`, `create`, `drain`, `count`, `collectAll`, `foldLeft`,
- * `foreach`, `head`, `last`, `take`, `exists`, `forall`, `find`,
- * `fromOutputStream`, `fromJavaWriter`, `sumInt`, `sumLong`, `sumFloat`, and
- * `sumDouble`.
+ * The built-in sinks and the factories for custom ones. Collecting:
+ * `collectAll`, `take`. Folding: `foldLeft`, `count`, `sumInt`, `sumLong`,
+ * `sumFloat`, `sumDouble`. Searching: `head`, `last`, `find`, `exists`,
+ * `forall`. Effects: `foreach`, `drain`, `fromOutputStream`, `fromJavaWriter`.
+ * Failing: `fail`. Custom: `createAsync`, `createBoth` and, on the JVM,
+ * `create`. The callbacks of the `*Async` sinks run one at a time.
  */
 object Sink extends SinkCompanionPlatformSpecific {
 
   private final class ReaderFailure(val error: StreamError) extends Exception(null, null, true, false)
 
   /**
-   * Consumes the entire input and returns its elements, in order, in a `Chunk`.
-   * Empty input yields an empty chunk. Primitive inputs use specialized chunk
-   * builders. Collection stops if the upstream stream fails or the run is
-   * cancelled.
+   * Reads the whole input and returns its elements, in order, in a `Chunk`
+   * (empty for empty input). Primitive elements are stored unboxed.
+   *
+   * {{{
+   * Stream("Zionomicon", "Scala with Cats").run(Sink.collectAll[String])
+   * // Right(Chunk(Zionomicon,Scala with Cats))
+   * }}}
    */
   def collectAll[A]: Sink[Nothing, A, Chunk[A]] =
     new Sink[Nothing, A, Chunk[A]] {
@@ -181,9 +204,8 @@ object Sink extends SinkCompanionPlatformSpecific {
     }
 
   /**
-   * Consumes the entire input and returns its element count as a `Long` (`0L`
-   * for empty input). The count wraps on `Long` overflow. Primitive reader
-   * lanes are consumed without boxing where supported.
+   * Reads the whole input and returns how many elements it had (`0L` for empty
+   * input).
    */
   val count: Sink[Nothing, Any, Long] =
     new Sink[Nothing, Any, Long] {
@@ -194,16 +216,16 @@ object Sink extends SinkCompanionPlatformSpecific {
     }
 
   /**
-   * Creates a sink whose callback receives the run's asynchronous reader and
-   * decides how much input to consume and what result to produce. Returning
-   * early leaves the remaining input unread; the enclosing stream run then
-   * closes its reader, so it is not exposed as reusable leftover input.
+   * Creates a sink from a callback that reads the run's asynchronous reader and
+   * returns the result in an `Async`; works on every platform. The callback
+   * decides how much input to read. Input it leaves unread is closed with the
+   * run, not kept for later. The reader is valid only during the callback and
+   * must not escape it; await each pull before the next.
    *
-   * The callback and reader are valid only for the run and must not be
-   * retained. Reader failures preserve the stream's typed error; callback
-   * exceptions or failed effects are defects. Cancellation is propagated to
-   * pending reader operations and closes the run's resources. On the JVM, a
-   * synchronous terminal blocks on this asynchronous implementation.
+   * A typed stream error raised while reading stays the run's typed error; a
+   * thrown exception or a failed `Async` is a defect. Cancellation reaches the
+   * pending pull and closes the run's resources. A JVM blocking terminal blocks
+   * on the returned `Async`.
    */
   def createAsync[E, A, Z](f: Reader.AsyncReader[A] => Async[Z]): Sink[E, A, Z] =
     new Sink[E, A, Z] {
@@ -218,15 +240,15 @@ object Sink extends SinkCompanionPlatformSpecific {
     }
 
   /**
-   * Creates a sink with independent native synchronous and asynchronous
-   * callbacks. The terminal selects exactly one callback; both must implement
-   * the same consumption and result semantics.
+   * Creates a sink from two callbacks, one for a blocking reader (`sync`) and
+   * one for an asynchronous reader (`async`). Each run calls exactly one of
+   * them, chosen by the terminal, so the two must read the same input and
+   * return the same result; nothing checks that they do. Use it when the
+   * blocking path can be cheaper than the asynchronous one.
    *
-   * Each callback controls how much input it consumes. Input left unread is
-   * closed with the enclosing run rather than returned as leftovers, and the
-   * reader must not escape the callback. Reader failures remain typed stream
-   * errors; callback exceptions and failed asynchronous effects are defects.
-   * Cancellation of the asynchronous callback propagates through its reader.
+   * The rules of [[createAsync]] apply to both callbacks: input left unread is
+   * closed with the run, the reader must not escape, typed stream errors stay
+   * typed, and an exception or a failed `Async` is a defect.
    */
   def createBoth[E, A, Z](
     sync: Reader.SyncReader[A] => Z,
@@ -281,9 +303,7 @@ object Sink extends SinkCompanionPlatformSpecific {
   }
 
   /**
-   * Consumes and discards the entire input, returning `Unit`. It stops only at
-   * end-of-stream, upstream failure, or cancellation, and uses specialized
-   * primitive reader lanes where supported.
+   * Reads and discards the whole input, for a stream run only for its effects.
    */
   val drain: Sink[Nothing, Any, Unit] =
     new Sink[Nothing, Any, Unit] {
@@ -299,10 +319,9 @@ object Sink extends SinkCompanionPlatformSpecific {
     }
 
   /**
-   * Tests elements in order and returns `true` at the first one satisfying
-   * `pred`; otherwise consumes the entire input and returns `false` (including
-   * for empty input). After a match, no further elements are pulled and unread
-   * input is closed with the run. Exceptions from `pred` are defects.
+   * Returns `true` at the first element that satisfies `pred`, without reading
+   * further, or `false` at the end (so `false` for empty input). An exception
+   * thrown by `pred` is a defect.
    */
   def exists[A](pred: A => Boolean): Sink[Nothing, A, Boolean] = {
     val safePred: A => Boolean = a =>
@@ -356,18 +375,16 @@ object Sink extends SinkCompanionPlatformSpecific {
   }
 
   /**
-   * Sequentially tests elements with `pred`, returning `true` and stopping at
-   * the first successful predicate, or `false` at end-of-stream. At most one
-   * predicate effect runs at a time; no effect is started for unread input.
-   * Predicate failure or cancellation fails or cancels the run as a defect.
+   * The asynchronous form of [[exists]]: tests elements one at a time and
+   * returns `true` at the first match, without reading further, or `false` at
+   * the end. A failed `Async` is a defect.
    */
   def existsAsync[A](pred: A => Async[Boolean]): Sink[Nothing, A, Boolean] =
     createAsync(reader => predicateAsync[A](reader, eof = false)(a => StreamError.callbackAsync(pred(a))))
 
   /**
-   * A sink that immediately fails with error `e` without consuming any
-   * elements. The failure is reported in the typed error channel; the enclosing
-   * run closes the unread input and its resources.
+   * A sink that fails with the typed error `e` without reading any input; the
+   * run closes the stream.
    */
   def fail[E](e: E): Sink[E, Any, Nothing] =
     new Sink[E, Any, Nothing] {
@@ -378,6 +395,8 @@ object Sink extends SinkCompanionPlatformSpecific {
     }
 
   private[streams] trait IsNothing[-A] {
+
+    /** `true` when `A` is `Nothing`. */
     def value: Boolean
   }
 
@@ -388,16 +407,16 @@ object Sink extends SinkCompanionPlatformSpecific {
   }
 
   private[streams] trait LowPriorityIsNothing {
+
+    /** The evidence for any type other than `Nothing`. */
     implicit def isNotNothing[A]: IsNothing[A] = new IsNothing[A] {
       val value = false
     }
   }
 
   /**
-   * Tests elements in order and returns the first one satisfying `pred`.
-   * Returns `None` only after consuming an input with no match. A match
-   * short-circuits without pulling later elements; unread input is closed with
-   * the run. Exceptions from `pred` are defects.
+   * Returns the first element that satisfies `pred` in `Some`, without reading
+   * further, or `None` at the end. An exception thrown by `pred` is a defect.
    */
   def find[A](pred: A => Boolean): Sink[Nothing, A, Option[A]] = {
     val safePred: A => Boolean = a =>
@@ -486,10 +505,9 @@ object Sink extends SinkCompanionPlatformSpecific {
   }
 
   /**
-   * Sequentially tests elements and returns the first one for which `pred`
-   * produces `true`, or `None` at end-of-stream. It short-circuits with at most
-   * one predicate effect running; predicate failure or cancellation fails or
-   * cancels the run as a defect.
+   * The asynchronous form of [[find]]: tests elements one at a time and returns
+   * the first match in `Some`, without reading further, or `None` at the end. A
+   * failed `Async` is a defect.
    */
   def findAsync[A](pred: A => Async[Boolean]): Sink[Nothing, A, Option[A]] =
     createAsync { reader =>
@@ -509,10 +527,16 @@ object Sink extends SinkCompanionPlatformSpecific {
     }
 
   /**
-   * Strictly left-folds the entire input from `z`, invoking `f` in encounter
-   * order. Empty input returns `z`. Exceptions from `f` are defects. The
-   * `JvmType.Infer` evidence selects unboxed primitive input/accumulator paths
-   * where supported; it does not alter the result.
+   * Folds the whole input from `z` with `f`, in order, and returns the final
+   * value (`z` for empty input). An exception thrown by `f` is a defect. The
+   * `JvmType.Infer` evidence keeps an `Int`, `Long` or `Double` accumulator
+   * unboxed and does not change the result.
+   *
+   * {{{
+   * val totalLength = Sink.foldLeft[String, Int](0)((acc, title) => acc + title.length)
+   *
+   * Stream("Zionomicon", "Scala with Cats").run(totalLength) // Right(25)
+   * }}}
    */
   def foldLeft[A, Z](z: Z)(f: (Z, A) => Z)(implicit jtZ: JvmType.Infer[Z]): Sink[Nothing, A, Z] =
     if (jtZ.jvmType eq JvmType.Double)
@@ -535,11 +559,9 @@ object Sink extends SinkCompanionPlatformSpecific {
     }
 
   /**
-   * Strictly left-folds the entire input from `z`, running one `f` effect at a
-   * time in encounter order. Empty input returns `z`. Effect failure or
-   * cancellation fails or cancels the run as a defect. `JvmType.Infer` keeps
-   * the API aligned with specialized synchronous folds; semantics are
-   * identical.
+   * The asynchronous form of [[foldLeft]]: folds the whole input from `z`, one
+   * `f` at a time and in order, and returns the final value (`z` for empty
+   * input). A failed `Async` is a defect.
    */
   def foldLeftAsync[A, Z](z: Z)(f: (Z, A) => Async[Z])(implicit
     jtZ: JvmType.Infer[Z]
@@ -557,10 +579,9 @@ object Sink extends SinkCompanionPlatformSpecific {
       }
 
   /**
-   * Tests elements in order and returns `false` at the first one that does not
-   * satisfy `pred`; otherwise consumes the entire input and returns `true`
-   * (including for empty input). After a mismatch, unread input is closed with
-   * the run. Exceptions from `pred` are defects.
+   * Returns `false` at the first element that fails `pred`, without reading
+   * further, or `true` at the end (so `true` for empty input). An exception
+   * thrown by `pred` is a defect.
    */
   def forall[A](pred: A => Boolean): Sink[Nothing, A, Boolean] = {
     val safePred: A => Boolean = a =>
@@ -614,18 +635,16 @@ object Sink extends SinkCompanionPlatformSpecific {
   }
 
   /**
-   * Sequentially tests elements, returning `false` and stopping at the first
-   * predicate result of `false`, or `true` at end-of-stream. At most one effect
-   * runs at a time; predicate failure or cancellation fails or cancels the run
-   * as a defect.
+   * The asynchronous form of [[forall]]: tests elements one at a time and
+   * returns `false` at the first failure, without reading further, or `true` at
+   * the end. A failed `Async` is a defect.
    */
   def forallAsync[A](pred: A => Async[Boolean]): Sink[Nothing, A, Boolean] =
     createAsync(reader => predicateAsync[A](reader, eof = true)(a => StreamError.callbackAsync(pred(a))))
 
   /**
-   * Consumes the entire input, invoking `f` once per element in encounter
-   * order, and returns `Unit`. An exception from `f` is a defect and stops
-   * consumption. Primitive reader lanes avoid boxing where supported.
+   * Runs `f` on every element, in order. An exception thrown by `f` is a defect
+   * and stops the run.
    */
   def foreach[A](f: A => Unit): Sink[Nothing, A, Unit] = {
     val safeF: A => Unit = a =>
@@ -640,10 +659,8 @@ object Sink extends SinkCompanionPlatformSpecific {
   }
 
   /**
-   * Consumes the entire input, invoking `f` sequentially in encounter order,
-   * and returns `Unit`. At most one callback effect runs at a time. Callback
-   * failure or cancellation fails or cancels the run as a defect and stops
-   * pulling input.
+   * The asynchronous form of [[foreach]]: runs `f` on every element, one at a
+   * time and in order. A failed `Async` is a defect and stops the run.
    */
   def foreachAsync[A](f: A => Async[Unit]): Sink[Nothing, A, Unit] =
     new Sink[Nothing, A, Unit] {
@@ -655,10 +672,9 @@ object Sink extends SinkCompanionPlatformSpecific {
     }
 
   /**
-   * Consumes the entire input and writes each character, in order, to `w`, then
-   * returns `Unit`. Writes are synchronous even during an asynchronous stream
-   * run. This sink neither flushes nor closes the writer; its owner remains
-   * responsible for both. An I/O exception is a defect and stops consumption.
+   * Writes every character, in order, to `w`. It neither flushes nor closes
+   * `w`, which stays the caller's. The writes block, also at an `*Async`
+   * terminal. An `IOException` is a defect and stops the run.
    */
   def fromJavaWriter(w: java.io.Writer): Sink[Nothing, Char, Unit] =
     new Sink[Nothing, Char, Unit] {
@@ -669,11 +685,9 @@ object Sink extends SinkCompanionPlatformSpecific {
     }
 
   /**
-   * Consumes the entire input and writes each byte, in order, to `os`, then
-   * returns `Unit`. Bytes are written as unsigned values from `0` through
-   * `255`. Writes are synchronous even during an asynchronous stream run. This
-   * sink neither flushes nor closes the stream; its owner remains responsible
-   * for both. An I/O exception is a defect and stops consumption.
+   * Writes every byte, in order, to `os`. It neither flushes nor closes `os`,
+   * which stays the caller's. The writes block, also at an `*Async` terminal.
+   * An `IOException` is a defect and stops the run.
    */
   def fromOutputStream(os: java.io.OutputStream): Sink[Nothing, Byte, Unit] =
     new Sink[Nothing, Byte, Unit] {
@@ -684,10 +698,8 @@ object Sink extends SinkCompanionPlatformSpecific {
     }
 
   /**
-   * Pulls at most one element, returning it in `Some`, or `None` for empty
-   * input. It short-circuits after the first element; remaining input is not
-   * pulled and is closed with the enclosing run. Primitive reader lanes are
-   * used where supported.
+   * Returns the first element in `Some`, or `None` for empty input, and reads
+   * nothing more.
    */
   def head[A]: Sink[Nothing, A, Option[A]] =
     new Sink[Nothing, A, Option[A]] {
@@ -698,9 +710,8 @@ object Sink extends SinkCompanionPlatformSpecific {
     }
 
   /**
-   * Consumes the entire input and returns its last element in `Some`, or `None`
-   * for empty input. Primitive reader lanes are consumed without boxing where
-   * supported.
+   * Reads the whole input and returns its last element in `Some`, or `None` for
+   * empty input.
    */
   def last[A]: Sink[Nothing, A, Option[A]] =
     new Sink[Nothing, A, Option[A]] {
@@ -711,39 +722,30 @@ object Sink extends SinkCompanionPlatformSpecific {
     }
 
   /**
-   * Consumes all `Double` elements and sums them from `0.0` using `Double`
-   * arithmetic. Empty input yields `0.0`; overflow, infinities, and `NaN`
-   * follow normal IEEE 754 semantics.
+   * Sums the `Double` elements from `0.0` (`0.0` for empty input), with the
+   * usual floating-point rules for overflow, infinities and `NaN`.
    */
   val sumDouble: Sink[Nothing, Double, Double] = loopDoubleToDouble(0.0)((acc, a) => acc + a)
 
   /**
-   * Consumes all `Float` elements and sums them from `0.0` in a `Double`
-   * accumulator, reducing intermediate rounding loss. Empty input yields `0.0`;
-   * infinities and `NaN` follow normal IEEE 754 semantics. The specialized
-   * float reader path avoids boxing.
+   * Sums the `Float` elements into a `Double`, starting from `0.0`, which loses
+   * less precision than a `Float` sum.
    */
   val sumFloat: Sink[Nothing, Float, Double] = loopFloatToDouble(0.0)((acc, a) => acc + a.toDouble)
 
   /**
-   * Consumes all `Int` elements and sums them from `0L` in a `Long`
-   * accumulator. Empty input yields `0L`; overflow wraps according to `Long`
-   * arithmetic. The specialized int reader path avoids boxing.
+   * Sums the `Int` elements into a `Long`, starting from `0L`, so the sum of
+   * two `Int.MaxValue` does not overflow.
    */
   val sumInt: Sink[Nothing, Int, Long] = loopIntToLong(0L)((acc, a) => acc + a.toLong)
 
-  /**
-   * Consumes all `Long` elements and sums them from `0L`. Empty input yields
-   * `0L`; overflow wraps according to `Long` arithmetic.
-   */
+  /** Sums the `Long` elements from `0L`; the sum wraps around on overflow. */
   val sumLong: Sink[Nothing, Long, Long] = loopLongToLong(0L)((acc, a) => acc + a)
 
   /**
-   * Collects at most the first `n` elements, in order, into a `Chunk`. If
-   * `n <= 0`, it returns an empty chunk without pulling input; if the input
-   * ends first, it returns all available elements. Reaching `n` short-circuits,
-   * and remaining input is closed with the enclosing run rather than returned
-   * as leftovers. Primitive inputs use specialized chunk builders.
+   * Returns the first `n` elements, in order, in a `Chunk`, and reads nothing
+   * more; fewer if the input ends first. `n <= 0` returns an empty chunk
+   * without reading. Input left unread is closed with the run.
    */
   def take[A](n: Int): Sink[Nothing, A, Chunk[A]] =
     new Sink[Nothing, A, Chunk[A]] {
