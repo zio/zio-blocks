@@ -21,22 +21,22 @@ object Concept4ErrorsAndCancellationExample {
     println(s"typed error: ${typed.runFoldAsync(0L)((sum, cents) => Async.succeed(sum + cents)).block}")
 
     // A defect lands in the Async's own failure channel.
-    val defect: Stream[Nothing, Book] = Stream.fromIterator(BookPrices.shelf.iterator)
-    val unstocked                     = defect.runFoldAsync(0L) { (sum, book) =>
-      BookPrices.priceInCents(if (book.title == "Zionomicon") "Zionomicon 2" else book.title).map(sum + _)
+    val lines: Stream[Nothing, OrderLine] = Stream.fromIterator(MenuPrices.order.iterator)
+    val unlisted                          = lines.runFoldAsync(0L) { (sum, line) =>
+      MenuPrices.priceInCents(if (line.item == "Flat White") "Flat White XL" else line.item).map(sum + _)
     }
-    println(s"defect, as an Either: ${unstocked.either.block}")
-    println(s"defect, through block: ${scala.util.Try(unstocked.block)}")
+    println(s"defect, as an Either: ${unlisted.either.block}")
+    println(s"defect, through block: ${scala.util.Try(unlisted.block)}")
 
     // Cancel a long run: the pulls stop and the finalizer runs.
     val pulls                          = new AtomicInteger
     val finalized                      = new AtomicInteger
     val endless: Stream[Nothing, Long] =
       Stream
-        .fromIterator(Iterator.continually(BookPrices.shelf.head))
-        .mapAsync { book =>
+        .fromIterator(Iterator.continually(MenuPrices.order.head))
+        .mapAsync { line =>
           pulls.incrementAndGet()
-          BookPrices.priceInCents(book.title)
+          MenuPrices.priceInCents(line.item)
         }
         .ensuring { finalized.incrementAndGet(); () }
 

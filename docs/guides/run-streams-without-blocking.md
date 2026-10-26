@@ -11,7 +11,7 @@ keywords:
   - "Stream"
 ---
 
-In this guide, we total the price of a shelf of Scala books by asking a price service for each title, without parking a thread while we wait. By the end, you will have a pipeline written once against `Stream` and `Async` that runs on the JVM and on Scala.js, and you will know where it is safe to block, how its errors and cancellation behave, and how to read a browser or Node `ReadableStream` such as a `fetch` response body as a stream.
+In this guide, we total the price of a coffee order by asking a price service for each item, without parking a thread while we wait. By the end, you will have a pipeline written once against `Stream` and `Async` that runs on the JVM and on Scala.js, and you will know where it is safe to block, how its errors and cancellation behave, and how to read a browser or Node `ReadableStream` such as a `fetch` response body as a stream.
 
 We start from the blocking terminal that causes the trouble, swap it for its `Async` twin, add async work per element with `runForeachAsync` and `runFoldAsync`, and compose the result. Then we look at errors and cancellation, run the same pipeline on Scala.js, and read a `ReadableStream`.
 
@@ -19,17 +19,17 @@ We start from the blocking terminal that causes the trouble, swap it for its `As
 
 A blocking terminal such as `Stream#runCollect` or `Stream#runFold` makes one promise: when it returns, the stream is finished and the answer is in your hand. On the JVM, the promise is kept by parking the calling thread until the stream completes. If the stream does a remote call per element, the thread sits idle for every call. On Scala.js the promise cannot be kept at all, because the single thread that would wait is the one that has to run the callbacks that deliver the answer.
 
-For example, here is a price total over a list of titles, where each price comes from a call that returns a `Future`. A caller that wants one number back has nothing to do but wait for every price in turn:
+For example, here is a price total over a list of items, where each price comes from a call that returns a `Future`. A caller that wants one number back has nothing to do but wait for every price in turn:
 
 ```scala mdoc:compile-only
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 
-def totalBlocking(titles: List[String], price: String => Future[Long]): Long =
-  titles.foldLeft(0L)((sum, title) => sum + Await.result(price(title), 5.seconds))
+def totalBlocking(items: List[String], price: String => Future[Long]): Long =
+  items.foldLeft(0L)((sum, item) => sum + Await.result(price(item), 5.seconds))
 ```
 
-This parks the calling thread once per title, one title at a time, so a hundred 100 ms lookups hold a thread for ten seconds doing nothing. A web server that does this per request runs out of threads long before it runs out of CPU. A blocking stream terminal such as `Stream#runCollect` or `Stream#runFold` has the same cost, and on Scala.js it does not even compile, because those terminals do not exist there.
+This parks the calling thread once per item, one item at a time, so a hundred 100 ms lookups hold a thread for ten seconds doing nothing. A web server that does this per request runs out of threads long before it runs out of CPU. A blocking stream terminal such as `Stream#runCollect` or `Stream#runFold` has the same cost, and on Scala.js it does not even compile, because those terminals do not exist there.
 
 In this guide, we replace each blocking call with an asynchronous one that returns immediately with an `Async` and let the caller decide when, and whether, to wait.
 
@@ -47,7 +47,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-next-streams" % "@VERSION@"
 
 For a Scala.js or cross-built project, use `%%%` instead of `%%`. [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains the two artifact names. Streams need JDK 21 at runtime on the JVM.
 
-This guide assumes you have worked through [Your First Streaming Pipeline](./your-first-streaming-pipeline.md) and [Getting Started with Async](./async-getting-started.md). To follow along, we need a stream of books and a price service. `BookPrices.priceInCents` answers after a 100 ms delay on another thread, the way a remote call would, and fails for a title the shop does not stock. The prices are sample data:
+This guide assumes you have worked through [Your First Streaming Pipeline](./your-first-streaming-pipeline.md) and [Getting Started with Async](./async-getting-started.md). To follow along, we need a stream of order lines and a price service. `MenuPrices.priceInCents` answers after a 100 ms delay on another thread, the way a remote call would, and fails for an item the menu does not list. The prices are sample data:
 
 ```scala mdoc:silent
 import zio.blocks.async._
@@ -57,25 +57,25 @@ import zio.blocks.streams._
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit.MILLISECONDS
 
-final case class Book(title: String, authors: String)
+final case class OrderLine(item: String, table: Int)
 
-object BookPrices {
-  val shelf: List[Book] = List(
-    Book("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi"),
-    Book("Programming in Scala", "Martin Odersky, Lex Spoon and Bill Venners"),
-    Book("Functional Programming in Scala", "Paul Chiusano and Runar Bjarnason")
+object MenuPrices {
+  val order: List[OrderLine] = List(
+    OrderLine("Espresso", 4),
+    OrderLine("Flat White", 7),
+    OrderLine("Croissant", 4)
   )
 
   private val cents: Map[String, Long] = Map(
-    "Zionomicon"                      -> 4999L,
-    "Programming in Scala"            -> 5995L,
-    "Functional Programming in Scala" -> 4499L
+    "Espresso"   -> 350L,
+    "Flat White" -> 480L,
+    "Croissant"  -> 420L
   )
 
-  def priceInCents(title: String): Async[Long] =
+  def priceInCents(item: String): Async[Long] =
     Async.fromCompletionStage(
       CompletableFuture.supplyAsync(
-        () => cents.getOrElse(title, throw new NoSuchElementException(s"No price for $title")),
+        () => cents.getOrElse(item, throw new NoSuchElementException(s"No price for $item")),
         CompletableFuture.delayedExecutor(100, MILLISECONDS)
       )
     )
@@ -88,11 +88,11 @@ object BookPrices {
 
 Every blocking terminal has a twin whose name ends in `Async`: `Stream#runCollect` becomes `Stream#runCollectAsync`, `Stream#runDrain` becomes `Stream#runDrainAsync`, and `Stream#runFold` becomes `Stream#runFoldAsync`. The twin returns `Async[Either[E, Z]]`: the same `Either` the blocking terminal returns, wrapped in an `Async` that completes later.
 
-To collect the price of every book on the shelf:
+To collect the price of every line in the order:
 
 ```scala mdoc:silent
 val prices: Stream[Nothing, Long] =
-  Stream.fromIterator(BookPrices.shelf.iterator).mapAsync(book => BookPrices.priceInCents(book.title))
+  Stream.fromIterator(MenuPrices.order.iterator).mapAsync(line => MenuPrices.priceInCents(line.item))
 
 val pending: Async[Either[Nothing, Chunk[Long]]] = prices.runCollectAsync
 ```
@@ -106,43 +106,43 @@ println(pending.block)
 Running the same stream with the blocking `runCollect` and with `runCollectAsync` and timing the two calls shows the difference:
 
 ```text
-runCollect returned after 449 ms with Right(Chunk(4999,5995,4499))
+runCollect returned after 434 ms with Right(Chunk(350,480,420))
 runCollectAsync returned after 1 ms, nothing has run yet
-the result is Right(Chunk(4999,5995,4499))
+the result is Right(Chunk(350,480,420))
 ```
 
 The blocking call holds its thread for the three lookups; the async call hands back an `Async` immediately. The availability table in [Platform Differences](../reference/streams/execution-and-compatibility/platform-differences.md) lists the replacement for every blocking member.
 
 :::warning
-An async terminal does not make a blocking source non-blocking. The `Async` runs on whatever thread drives it, so a source whose pull blocks, such as an iterator that sleeps, a file read or `Stream.fromInputStream`, still blocks that thread. In a probe with an iterator that sleeps 200 ms per element, `runCollectAsync` returns after about 21 ms, and `Async#block` then takes about 654 ms because the sleeping runs inside it. Only sources and callbacks that report completion through an `Async`, like `mapAsync` over `BookPrices.priceInCents`, wait without holding a thread.
+An async terminal does not make a blocking source non-blocking. The `Async` runs on whatever thread drives it, so a source whose pull blocks, such as an iterator that sleeps, a file read or `Stream.fromInputStream`, still blocks that thread. In a probe with an iterator that sleeps 200 ms per element, `runCollectAsync` returns after about 21 ms, and `Async#block` then takes about 654 ms because the sleeping runs inside it. Only sources and callbacks that report completion through an `Async`, like `mapAsync` over `MenuPrices.priceInCents`, wait without holding a thread.
 :::
 
 ## Doing Async Work for Each Element
 
-`mapAsync` lets a stage return an `Async`, but often we only want the final answer. `runForeachAsync` and `runFoldAsync` take a step function that returns an `Async` and run it one element at a time, so no thread waits for the price of a book.
+`mapAsync` lets a stage return an `Async`, but often we only want the final answer. `runForeachAsync` and `runFoldAsync` take a step function that returns an `Async` and run it one element at a time, so no thread waits for the price of an item.
 
-`runForeachAsync` runs an effect for each element and returns `Async[Either[E, Unit]]`. To print each book with its price:
+`runForeachAsync` runs an effect for each element and returns `Async[Either[E, Unit]]`. To print each order line with its price:
 
 ```scala mdoc:silent
-val shelf: Stream[Nothing, Book] = Stream.fromIterator(BookPrices.shelf.iterator)
+val order: Stream[Nothing, OrderLine] = Stream.fromIterator(MenuPrices.order.iterator)
 
 val printed: Async[Either[Nothing, Unit]] =
-  shelf.runForeachAsync { book =>
-    BookPrices.priceInCents(book.title).map(cents => println(s"${book.title} by ${book.authors}: $cents cents"))
+  order.runForeachAsync { line =>
+    MenuPrices.priceInCents(line.item).map(cents => println(s"${line.item} for table ${line.table}: $cents cents"))
   }
 ```
 
-To run `printed` and print one line per book:
+To run `printed` and print one line per order line:
 
 ```scala mdoc
 printed.block
 ```
 
-`runFoldAsync` threads an accumulator through the stream. To total the shelf:
+`runFoldAsync` threads an accumulator through the stream. To total the order:
 
 ```scala mdoc:silent
 val total: Async[Either[Nothing, Long]] =
-  shelf.runFoldAsync(0L)((sum, book) => BookPrices.priceInCents(book.title).map(sum + _))
+  order.runFoldAsync(0L)((sum, line) => MenuPrices.priceInCents(line.item).map(sum + _))
 ```
 
 To print the total:
@@ -153,24 +153,24 @@ println(total.block)
 
 `runFoldAsync` has an overload for each primitive accumulator, `Double`, `Float`, `Int` and `Long`, and a generic one. The compiler picks the overload from the static type of the zero, which is why we wrote `0L` and not `0`. The primitive overloads keep the accumulator unboxed, so a fold over a primitive total does not allocate a box per step. The `Float` overload has no blocking twin.
 
-The step function runs for one element at a time. Each lookup finishes before the next one starts, so this total takes about 300 ms for three books. To overlap the lookups, use `mapParAsync` on the stream; [Asynchronous Stream Execution](../reference/streams/execution-and-compatibility/async-execution.md) covers the bounded-concurrency operator.
+The step function runs for one element at a time. Each lookup finishes before the next one starts, so this total takes about 300 ms for three order lines. To overlap the lookups, use `mapParAsync` on the stream; [Asynchronous Stream Execution](../reference/streams/execution-and-compatibility/async-execution.md) covers the bounded-concurrency operator.
 
 ## Using the Result Without Waiting
 
 An `Async` is a value you pass around, so most of the time we do not block at all. We write the pipeline as a function that returns an `Async`, and let the caller compose it:
 
 ```scala mdoc:silent
-def totalInCents(titles: Stream[Nothing, String]): Async[Either[Nothing, Long]] =
-  titles.runFoldAsync(0L)((sum, title) => BookPrices.priceInCents(title).map(sum + _))
+def totalInCents(items: Stream[Nothing, String]): Async[Either[Nothing, Long]] =
+  items.runFoldAsync(0L)((sum, item) => MenuPrices.priceInCents(item).map(sum + _))
 ```
 
 `Async#map` transforms the result when it arrives, with no thread waiting in between:
 
 ```scala mdoc:silent
-val titles: Stream[Nothing, String] = Stream.fromIterator(BookPrices.shelf.iterator.map(_.title))
+val items: Stream[Nothing, String] = Stream.fromIterator(MenuPrices.order.iterator.map(_.item))
 
 val label: Async[Either[Nothing, String]] =
-  totalInCents(titles).map(_.map(cents => f"The shelf costs ${cents / 100.0}%.2f"))
+  totalInCents(items).map(_.map(cents => f"The order costs ${cents / 100.0}%.2f"))
 ```
 
 To print the label:
@@ -207,21 +207,21 @@ val typed: Stream[String, Long] = Stream.fail("the price service is down")
 println(typed.runFoldAsync(0L)((sum, cents) => Async.succeed(sum + cents)).block)
 ```
 
-A defect fails the `Async`. We total the shelf with a title the shop does not stock, and look at it through `Async#either`, then through `Async#block`:
+A defect fails the `Async`. We total the order with an item the menu does not list, and look at it through `Async#either`, then through `Async#block`:
 
 ```scala mdoc:silent
-val unstocked: Async[Either[Nothing, Long]] =
-  shelf.runFoldAsync(0L) { (sum, book) =>
-    val title = if (book.title == "Zionomicon") "Zionomicon 2" else book.title
-    BookPrices.priceInCents(title).map(sum + _)
+val unlisted: Async[Either[Nothing, Long]] =
+  order.runFoldAsync(0L) { (sum, line) =>
+    val item = if (line.item == "Flat White") "Flat White XL" else line.item
+    MenuPrices.priceInCents(item).map(sum + _)
   }
 ```
 
 To see the defect as an `Either` and as a thrown exception:
 
 ```scala mdoc
-println(unstocked.either.block)
-println(scala.util.Try(unstocked.block))
+println(unlisted.either.block)
+println(scala.util.Try(unlisted.block))
 ```
 
 `Async#either` moves the failure into an `Either[Throwable, ...]` value, and `Async#block` rethrows it, so one `try` or `Try` at the edge covers every defect.
@@ -236,10 +236,10 @@ val finalized = new AtomicInteger
 
 val endless: Stream[Nothing, Long] =
   Stream
-    .fromIterator(Iterator.continually(BookPrices.shelf.head))
-    .mapAsync { book =>
+    .fromIterator(Iterator.continually(MenuPrices.order.head))
+    .mapAsync { line =>
       pulls.incrementAndGet()
-      BookPrices.priceInCents(book.title)
+      MenuPrices.priceInCents(line.item)
     }
     .ensuring { finalized.incrementAndGet(); () }
 
@@ -261,7 +261,7 @@ No pull starts after the cancel, and the finalizer runs exactly once. One thing 
 
 ## Running the Same Pipeline on Scala.js
 
-Everything above used only the `*Async` terminals, `Async#map` and `Async.fromCompletionStage`, so only one piece is JVM-specific: the price lookup. The pipeline itself, `ShelfTotalJs.totalInCents`, does not change if we pass the lookup in as a parameter. The Scala.js code in the rest of this guide is not compiled by the docs build; each snippet runs on Node 24 with Scala.js 1.22 on Scala 2.13.18 and 3.9.0.
+Everything above used only the `*Async` terminals, `Async#map` and `Async.fromCompletionStage`, so only one piece is JVM-specific: the price lookup. The pipeline itself, `OrderTotalJs.totalInCents`, does not change if we pass the lookup in as a parameter. The Scala.js code in the rest of this guide is not compiled by the docs build; each snippet runs on Node 24 with Scala.js 1.22 on Scala 2.13.18 and 3.9.0.
 
 On Scala.js, the lookup wraps a `js.Promise` with `Async.fromJsPromise`:
 
@@ -272,31 +272,31 @@ import zio.blocks.streams._
 
 import scala.scalajs.js
 
-object ShelfTotalJs {
+object OrderTotalJs {
   private val cents: Map[String, Long] = Map(
-    "Zionomicon"                      -> 4999L,
-    "Programming in Scala"            -> 5995L,
-    "Functional Programming in Scala" -> 4499L
+    "Espresso"   -> 350L,
+    "Flat White" -> 480L,
+    "Croissant"  -> 420L
   )
 
-  def priceInCents(title: String): Async[Long] =
+  def priceInCents(item: String): Async[Long] =
     Async.fromJsPromise(new js.Promise[Long]((resolve, reject) => {
       js.timers.setTimeout(100) {
-        cents.get(title) match {
+        cents.get(item) match {
           case Some(price) => resolve(price)
-          case None        => reject(new NoSuchElementException(s"No price for $title"))
+          case None        => reject(new NoSuchElementException(s"No price for $item"))
         }
       }
       ()
     }))
 
-  def totalInCents(titles: Stream[Nothing, String], price: String => Async[Long]): Async[Either[Nothing, Long]] =
-    titles.runFoldAsync(0L)((sum, title) => price(title).map(sum + _))
+  def totalInCents(items: Stream[Nothing, String], price: String => Async[Long]): Async[Either[Nothing, Long]] =
+    items.runFoldAsync(0L)((sum, item) => price(item).map(sum + _))
 
   def main(args: Array[String]): Unit = {
-    val titles = Stream("Zionomicon", "Programming in Scala", "Functional Programming in Scala")
+    val items = Stream("Espresso", "Flat White", "Croissant")
 
-    totalInCents(titles, priceInCents).map(total => println(s"The total is $total")).toJsPromise
+    totalInCents(items, priceInCents).map(total => println(s"The total is $total")).toJsPromise
 
     println("main has returned; the total prints when the timers fire")
   }
@@ -307,7 +307,7 @@ Running it under Node prints:
 
 ```text
 main has returned; the total prints when the timers fire
-The total is Right(15493)
+The total is Right(1250)
 ```
 
 `main` returns before the first timer fires, which is the point: nothing waits. `Async#toJsPromise` hands the `Async` to the JavaScript event loop, so Node stays alive until the promise settles. In a browser, you would keep the `Async` or the `js.Promise` and update the page in the callback.
@@ -329,7 +329,7 @@ A pending value: Async.block: suspension did not complete synchronously and Java
 
 In a browser or Node 18 and later, a `fetch` response body is a `ReadableStream` of bytes. `ReadableStreamReaders.fromReadableStream` wraps one as a `Reader.AsyncReader[Byte]`, and `Stream.fromReader` turns the reader into a `Stream[E, Byte]`. The adapter is Scala.js-only and byte-only: every chunk the JavaScript stream delivers is a `Uint8Array`, and the stream you get has element type `Byte`. It calls `read()` on the JavaScript stream only when the zio-blocks stream pulls for more bytes, and has at most one read in flight, so a slow consumer slows the reads rather than piling up chunks.
 
-To fetch a catalogue of titles, one per line, and total their prices with the same `ShelfTotalJs.totalInCents`, we first read the bytes and then decode them. The URL is a `data:` URL, so the example needs no network. Node and the browsers fetch it like any other:
+To fetch an order list, one item per line, and total its prices with the same `OrderTotalJs.totalInCents`, we first read the bytes and then decode them. The URL is a `data:` URL, so the example needs no network. Node and the browsers fetch it like any other:
 
 ```scala
 // Scala.js code
@@ -339,15 +339,15 @@ import zio.blocks.streams._
 
 import scala.scalajs.js
 
-object CatalogueJs {
-  private val catalogueUrl =
-    "data:text/plain,Zionomicon%0AProgramming%20in%20Scala%0AFunctional%20Programming%20in%20Scala%0A"
+object OrderListJs {
+  private val orderUrl =
+    "data:text/plain,Espresso%0AFlat%20White%0ACroissant%0A"
 
-  def titlesIn(bytes: Chunk[Byte]): Stream[Nothing, String] =
+  def itemsIn(bytes: Chunk[Byte]): Stream[Nothing, String] =
     Stream.fromIterator(new String(bytes.toArray, "UTF-8").split("\n").iterator.filter(_.nonEmpty))
 
   def main(args: Array[String]): Unit = {
-    val response = js.Dynamic.global.fetch(catalogueUrl).asInstanceOf[js.Promise[js.Dynamic]]
+    val response = js.Dynamic.global.fetch(orderUrl).asInstanceOf[js.Promise[js.Dynamic]]
 
     val total: Async[Either[Nothing, Long]] =
       Async.fromJsPromise(response).flatMap { resp =>
@@ -356,19 +356,19 @@ object CatalogueJs {
           Stream.fromReader[Nothing, Byte](ReadableStreamReaders.fromReadableStream(body))
 
         bytes.runCollectAsync.flatMap {
-          case Right(all) => ShelfTotalJs.totalInCents(titlesIn(all), ShelfTotalJs.priceInCents)
+          case Right(all) => OrderTotalJs.totalInCents(itemsIn(all), OrderTotalJs.priceInCents)
           case Left(e)    => Async.succeed(Left(e))
         }
       }
 
-    total.map(result => println(s"The catalogue costs $result")).toJsPromise
+    total.map(result => println(s"The order list costs $result")).toJsPromise
     ()
   }
 }
 ```
 
 ```text
-The catalogue costs Right(15493)
+The order list costs Right(1250)
 ```
 
 `ReadableStreamReaders` declares its own small `@js.native` facades, `ReadableStreamReaders.ReadableStream` among them, so we cast the `body` of the untyped `fetch` result to that facade. The factory takes the stream and calls `getReader()` itself.
@@ -432,7 +432,7 @@ That line is the result of `runCollectAsync.either` on a stream whose second rea
 
 ## Putting It Together
 
-The complete example puts the pipeline behind a `PriceLookup` function, so the same `receipt` could take the Scala.js lookup. It uses the `Book` case class and the `BookPrices` price service from the support file `BookPrices.scala`, which Running the Examples embeds first. It prints a line per book with `runForeachAsync`, totals the shelf with `runFoldAsync`, joins the two with `Async#flatMap`, and blocks once, at the end of `main`. A second run adds a title the shop does not stock and looks at the failure through `Async#either`. The complete example, embedded from its companion file, follows:
+The complete example puts the pipeline behind a `PriceLookup` function, so the same `receipt` could take the Scala.js lookup. It uses the `OrderLine` case class and the `MenuPrices` price service from the support file `MenuPrices.scala`, which Running the Examples embeds first. It prints a line per order line with `runForeachAsync`, totals the order with `runFoldAsync`, joins the two with `Async#flatMap`, and blocks once, at the end of `main`. A second run adds an item the menu does not list and looks at the failure through `Async#either`. The complete example, embedded from its companion file, follows:
 
 ```scala mdoc:embed:streams-examples/src/main/scala/runstreamswithoutblocking/CompleteExample.scala
 ```
@@ -446,14 +446,14 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/streams-examples
 ```
 
-Every example uses the `Book` case class and the `BookPrices` price service:
+Every example uses the `OrderLine` case class and the `MenuPrices` price service:
 
 <details>
 <summary><strong>The Price Service</strong></summary>
 
-The price service and the `Book` case class:
+The price service and the `OrderLine` case class:
 
-```scala mdoc:embed:streams-examples/src/main/scala/runstreamswithoutblocking/BookPrices.scala:show-line-numbers
+```scala mdoc:embed:streams-examples/src/main/scala/runstreamswithoutblocking/MenuPrices.scala:show-line-numbers
 ```
 
 </details>
@@ -523,9 +523,9 @@ sbt "runMain runstreamswithoutblocking.Concept4ErrorsAndCancellationExample"
 </details>
 
 <details>
-<summary><strong>Complete Example: A Shelf Receipt</strong></summary>
+<summary><strong>Complete Example: An Order Receipt</strong></summary>
 
-The complete shelf receipt:
+The complete order receipt:
 
 ```scala mdoc:embed:streams-examples/src/main/scala/runstreamswithoutblocking/CompleteExample.scala:show-line-numbers
 ```

@@ -17,15 +17,15 @@ import scala.concurrent.duration._
  * runstreamswithoutblocking.Concept3UsingResultExample"
  */
 object Concept3UsingResultExample {
-  def totalInCents(titles: Stream[Nothing, String]): Async[Either[Nothing, Long]] =
-    titles.runFoldAsync(0L)((sum, title) => BookPrices.priceInCents(title).map(sum + _))
+  def totalInCents(items: Stream[Nothing, String]): Async[Either[Nothing, Long]] =
+    items.runFoldAsync(0L)((sum, item) => MenuPrices.priceInCents(item).map(sum + _))
 
   def main(args: Array[String]): Unit = {
-    val titles: Stream[Nothing, String] = Stream.fromIterator(BookPrices.shelf.iterator.map(_.title))
+    val items: Stream[Nothing, String] = Stream.fromIterator(MenuPrices.order.iterator.map(_.item))
 
     // `map` on the Async: no thread waits, the function runs when the total is ready.
     val label: Async[Either[Nothing, String]] =
-      totalInCents(titles).map(_.map(cents => f"The shelf costs ${cents / 100.0}%.2f"))
+      totalInCents(items).map(_.map(cents => f"The order costs ${cents / 100.0}%.2f"))
 
     // Hand the same Async to code that wants a Future.
     val future = label.toFuture

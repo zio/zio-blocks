@@ -6,7 +6,7 @@ import zio.blocks.streams.Stream
 /**
  * How to Run Streams Without Blocking — Do Async Work for Each Element
  *
- * Totals the price of every book on a shelf with `runFoldAsync`, and prints
+ * Totals the price of every line of an order with `runFoldAsync`, and prints
  * each price as it arrives with `runForeachAsync`. The step function returns an
  * `Async`, so no thread waits for a price.
  *
@@ -15,15 +15,15 @@ import zio.blocks.streams.Stream
  */
 object Concept2PerElementExample {
   def main(args: Array[String]): Unit = {
-    val shelf: Stream[Nothing, Book] = Stream.fromIterator(BookPrices.shelf.iterator)
+    val order: Stream[Nothing, OrderLine] = Stream.fromIterator(MenuPrices.order.iterator)
 
     val printed: Async[Either[Nothing, Unit]] =
-      shelf.runForeachAsync { book =>
-        BookPrices.priceInCents(book.title).map(cents => println(s"${book.title} by ${book.authors}: $cents cents"))
+      order.runForeachAsync { line =>
+        MenuPrices.priceInCents(line.item).map(cents => println(s"${line.item} for table ${line.table}: $cents cents"))
       }
 
     val total: Async[Either[Nothing, Long]] =
-      shelf.runFoldAsync(0L)((sum, book) => BookPrices.priceInCents(book.title).map(sum + _))
+      order.runFoldAsync(0L)((sum, line) => MenuPrices.priceInCents(line.item).map(sum + _))
 
     println(s"printed: ${printed.block}")
     println(s"total: ${total.block} cents")

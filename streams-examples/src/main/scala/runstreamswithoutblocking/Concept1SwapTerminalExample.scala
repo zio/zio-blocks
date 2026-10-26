@@ -17,7 +17,7 @@ import zio.blocks.streams.Stream
 object Concept1SwapTerminalExample {
   def main(args: Array[String]): Unit = {
     val prices: Stream[Nothing, Long] =
-      Stream.fromIterator(BookPrices.shelf.iterator).mapAsync(book => BookPrices.priceInCents(book.title))
+      Stream.fromIterator(MenuPrices.order.iterator).mapAsync(line => MenuPrices.priceInCents(line.item))
 
     val blockedAt = System.nanoTime()
     val blocking  = prices.runCollect
