@@ -5423,6 +5423,8 @@ object TaggedBook { given Schema[TaggedBook] = Schema.derived }
 
 **Suggested fix.** Derive the column list from the same decisions as the codec: in `TableMetadata.fromReflect`, recurse into a record only when the field (or the parent) has `sql.inline` / `sql.inline_fields`, and map non-inline records, sequences, maps and non-simple variants to one `DbValue.DbString` column (or a new JSON marker so PostgreSQL's dialect can emit `JSONB`). Add a property test that `Table.derived[A].columns == DbCodec.derived[A].columns` for every type in `DbCodecSpec`.
 
+**Also seen for a newtype over a collection** (2026-10-26, H-52 `store-and-search-vector-embeddings.md`, `main` at `bbc713bef`, same at 0.0.56; reported by the writing session, not re-run here). An `Embedding` type whose schema wraps an `IndexedSeq[Float]` and whose `DbCodec` stores it as one pgvector text column (`[1,2,3]`): `Table.derived` and `Repo.derived` both throw `UnsupportedOperationException: Typed DDL does not support reflect node IndexedSeq[Float]` (`TableMetadata` `fromReflect` via `columnsFor`, `Repo.scala:446`), although the codec reads and writes the column. The guide writes the DDL and the `INSERT` with `sql"..."` instead.
+
 ### sql: an `Option` field of a `Schema#transform` newtype or of an enum fails on SQL `NULL`
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
@@ -8204,6 +8206,8 @@ object Book { given Schema[Book] = Schema.derived }
 **Impact.** Every PostgreSQL user who stores JSON in a `jsonb` column hits the insert error first. No page mentions `stringtype=unspecified`; the H-22 guide does.
 
 **Suggested fix.** Add a PostgreSQL `jsonb` write path (a `DbValue` variant or a dialect hook that binds `Types.OTHER`), bind string arrays as `text`, and give `PgCodec` an `Option[List[String]]` codec. At minimum, document `stringtype=unspecified` in `db-codec.md`.
+
+**Also seen for pgvector `vector` columns** (2026-10-26, H-52, `pgvector/pgvector:pg16` with pgvector 0.8.7; reported by the writing session, which ran it). A `DbCodec` that binds an embedding as its text form fails on insert with `ERROR: column "embedding" is of type vector but expression is of type character varying`, and `ORDER BY embedding <-> $query` needs `::vector` too. With `stringtype=unspecified` in the URL, both work without a cast. Same root cause (string parameters bound as `varchar`), so no separate entry.
 
 ### sql: a newtype with a private constructor can't be an `sql"..."` parameter, although its `Schema` is in scope
 
