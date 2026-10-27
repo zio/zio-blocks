@@ -19,14 +19,24 @@ package zio.blocks.streams
 import zio.blocks.streams.io.Reader
 
 /**
- * JavaScript-specific platform implementation.
+ * The platform-specific half of `Platform`. The `Platform` object mixes it in,
+ * so callers use the same `Platform` members on every platform.
  *
- * Scala.js is single-threaded; true concurrency is not supported. Virtual
- * threads are not available. [[createBufferedReader]] uses
- * [[internal.SyncBufferedReader]] to synchronously prefetch elements.
+ * On the JVM, `supportsConcurrency` is `true` and `startVirtualThread` starts a
+ * virtual thread (JDK 21 and later, found by reflection) or a daemon platform
+ * thread. The buffer, merge and `mapPar` readers for a synchronous upstream run
+ * their work on such threads, with a specialized reader for the `Int` lane
+ * (which also carries `Boolean`, `Byte`, `Char` and `Short`) and the `Long`,
+ * `Float` and `Double` lanes.
  *
- * [[createMergeReader]] and [[createMapParReader]] degrade to sequential
- * implementations (flatMap and map, respectively).
+ * On Scala.js, `supportsConcurrency` is `false` and `startVirtualThread` throws
+ * `UnsupportedOperationException`. The buffer, merge and `mapPar` readers for a
+ * synchronous upstream run on the reading thread: the buffer refills when it
+ * runs empty, the merge reads its inner streams one after another, and `mapPar`
+ * maps one element at a time.
+ *
+ * On both platforms, `createMergeReaderFromReader`, and the buffer and `mapPar`
+ * readers for an asynchronous upstream, return the same asynchronous readers.
  */
 trait PlatformSpecific extends Platform {
   override val supportsConcurrency: Boolean = false

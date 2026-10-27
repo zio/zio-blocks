@@ -23,18 +23,24 @@ import java.lang.invoke.MethodHandles
 import scala.util.control.NonFatal
 
 /**
- * JVM implementation of the cross-platform [[Platform]] capabilities.
+ * The platform-specific half of `Platform`. The `Platform` object mixes it in,
+ * so callers use the same `Platform` members on every platform.
  *
- * Mixed into the package-level `Platform` object on JVM, so call sites use the
- * same `Platform.*` surface regardless of platform.
+ * On the JVM, `supportsConcurrency` is `true` and `startVirtualThread` starts a
+ * virtual thread (JDK 21 and later, found by reflection) or a daemon platform
+ * thread. The buffer, merge and `mapPar` readers for a synchronous upstream run
+ * their work on such threads, with a specialized reader for the `Int` lane
+ * (which also carries `Boolean`, `Byte`, `Char` and `Short`) and the `Long`,
+ * `Float` and `Double` lanes.
  *
- *   - `supportsConcurrency` is `true`.
- *   - `startVirtualThread` uses `Thread.ofVirtual().start(...)` reflectively
- *     when running on JDK 21+, falling back to a daemon `Thread` otherwise.
- *   - `createBufferedReader`, `createMergeReader`, and `createMapParReader`
- *     return primitive-specialized readers (Int / Long / Float / Double) when
- *     the upstream's `JvmType` allows it, and the generic AnyRef variants
- *     otherwise.
+ * On Scala.js, `supportsConcurrency` is `false` and `startVirtualThread` throws
+ * `UnsupportedOperationException`. The buffer, merge and `mapPar` readers for a
+ * synchronous upstream run on the reading thread: the buffer refills when it
+ * runs empty, the merge reads its inner streams one after another, and `mapPar`
+ * maps one element at a time.
+ *
+ * On both platforms, `createMergeReaderFromReader`, and the buffer and `mapPar`
+ * readers for an asynchronous upstream, return the same asynchronous readers.
  */
 trait PlatformSpecific extends Platform {
   override val supportsConcurrency: Boolean = true
@@ -153,6 +159,10 @@ trait PlatformSpecific extends Platform {
   }
 }
 
+/**
+ * Looks up `Thread.ofVirtual` by reflection, once; `None` when the JDK has no
+ * virtual threads or the lookup fails.
+ */
 private object VirtualThreadSupport {
   val startVirtual: Option[(String, Runnable) => Thread] =
     try {
