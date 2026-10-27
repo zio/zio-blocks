@@ -261,7 +261,7 @@ val vibrationStats: Sink[Nothing, Double, VibrationStats] =
 samples(samplesFile).run(vibrationStats)
 ```
 
-The `var`s are local to one run, so the same `vibrationStats` value can run any number of times. A sink built with `Sink.create` runs only with the JVM's blocking terminals; `Sink.createBoth` takes a synchronous and an asynchronous callback for code that also runs on Scala.js or with asynchronous terminals. The [`Sink`](../reference/streams/core/sink.md) reference covers both.
+The `var`s are local to one run, so the same `vibrationStats` value can run any number of times. A sink built with `Sink.create` exists only on the JVM, and at an asynchronous terminal its callback blocks the thread that drives the run; `Sink.createBoth` takes a synchronous and an asynchronous callback for code that also runs on Scala.js or must not block at asynchronous terminals. The [`Sink`](../reference/streams/core/sink.md) reference covers both.
 
 ## Ending the Loop Without Losing Values
 
@@ -450,7 +450,7 @@ The NIO constructors differ in who closes the channel they wrap, and a channel n
 | `NioWriters.fromChannel`           | Yes, when the writer closes                      |
 | `Stream.fromAcquireRelease`        | Yes, the release function runs when the run ends |
 
-All four channel constructors work with bytes, not with `Long` or `Double` values. A known bug in 0.0.56: after a failed write, closing a `NioWriters.fromChannel` writer, or one from `Writer.fromOutputStream` or `Writer.fromWriter`, does not close the wrapped channel or stream, so close it yourself in that case.
+All five NIO channel constructors work with bytes, not with `Long` or `Double` values. A known bug in 0.0.56: after a failed write, closing a `NioWriters.fromChannel` writer, or one from `Writer.fromOutputStream` or `Writer.fromWriter`, does not close the wrapped channel or stream, so close it yourself in that case.
 
 ## Measuring Bytes per Element
 
@@ -502,7 +502,7 @@ The small non-zero figures are per-run costs spread over 100,000 samples: the st
 
 ## Putting It Together
 
-The complete example writes the sensor files, reports the recording's time span from the timestamps, computes the vibration statistics from the mapped samples and checks that the gzip copy gives the same ones, writes the calibrated samples to a mapped output file, and prints what the statistics and the calibration allocate per sample. It reuses the shared pieces from `Pump.scala`, `SensorFiles.scala` and `Allocation.scala`, listed in [Running the Examples](#running-the-examples):
+The complete example writes the sensor files, reports the recording's time span from the timestamps, computes the vibration statistics from the mapped samples and checks that the gzip copy gives the same ones, writes the calibrated samples to a mapped output file, and prints what the statistics and the calibration allocate per sample. It takes the sources, the decoder and the statistics sink from `Pump.scala`, the sensor files from `SensorFiles.scala` and the measuring helper from `Allocation.scala`, which hold the same code as the sections above:
 
 ```scala mdoc:embed:streams-examples/src/main/scala/processbinarydata/CompleteExample.scala
 ```
@@ -516,39 +516,7 @@ git clone https://github.com/zio/zio-blocks.git
 cd zio-blocks/streams-examples
 ```
 
-Each example writes its own copy of the sensor files to a temporary directory and deletes it at the end. The shared pieces live in four files: the sensor files, the measuring helper, the mapped-file sources with the decoder and the statistics sink, and the recorder:
-
-<details>
-  <summary>streams-examples/src/main/scala/processbinarydata/SensorFiles.scala</summary>
-
-```scala mdoc:embed:streams-examples/src/main/scala/processbinarydata/SensorFiles.scala:show-line-numbers
-```
-
-</details>
-
-<details>
-  <summary>streams-examples/src/main/scala/processbinarydata/Allocation.scala</summary>
-
-```scala mdoc:embed:streams-examples/src/main/scala/processbinarydata/Allocation.scala:show-line-numbers
-```
-
-</details>
-
-<details>
-  <summary>streams-examples/src/main/scala/processbinarydata/Pump.scala</summary>
-
-```scala mdoc:embed:streams-examples/src/main/scala/processbinarydata/Pump.scala:show-line-numbers
-```
-
-</details>
-
-<details>
-  <summary>streams-examples/src/main/scala/processbinarydata/Recorder.scala</summary>
-
-```scala mdoc:embed:streams-examples/src/main/scala/processbinarydata/Recorder.scala:show-line-numbers
-```
-
-</details>
+Each example writes its own copy of the sensor files to a temporary directory and deletes it at the end. The code the examples share lives in `SensorFiles.scala` (the sensor files), `Allocation.scala` (the measuring helper), `Pump.scala` (the mapped-file sources, the `InputStream` decoder and the statistics sink) and `Recorder.scala`, all in `src/main/scala/processbinarydata/`.
 
 Each section has its own example, run from the `streams-examples` directory:
 
