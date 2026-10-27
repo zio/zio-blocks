@@ -92,7 +92,7 @@ We also assume you know what a derived `Schema` gives a type; if not, [Your Firs
 
 ## The Bookstore Spec
 
-Our spec describes two kinds of data: a catalog of books and the orders customers place. It is small, but it uses the features most real specs rely on: objects with required and optional properties, arrays, a map, string enums, `$ref`s between schemas, formats such as `int64`, `date-time` and `uuid`, a nullable property, and a `oneOf` with a discriminator that tells card payments from gift-card payments. The `Book` and `Order` schemas also carry an `example`, a sample payload we decode at the end.
+Our spec describes two kinds of data: a catalog of books and the orders customers place. It is small, but it uses the features most real specs rely on: objects with required and optional properties, arrays, a map, string enums, `$ref`s between schemas, formats such as `int64`, `date-time` and `uuid`, a nullable property, and a `oneOf` with a discriminator that tells card payments from gift-card payments. The `Book` and `Order` schemas also carry an `example` keyword, a sample payload that `SchemaObject#example` exposes and that we decode at the end.
 
 We keep the spec in a string here so every block on this page can use it; the generator in [Putting It Together](#putting-it-together) reads the same text from a `bookstore.json` file:
 
@@ -290,7 +290,7 @@ def componentsOf(api: OpenAPI): List[Component] =
 val components: List[Component] = componentsOf(api)
 ```
 
-`JsonSchema.Object` is the case of `JsonSchema` that holds keywords; the other two cases, `JsonSchema.True` and `JsonSchema.False`, are the boolean schemas that accept everything or nothing, and never describe a type. Let's see what each component holds:
+`JsonSchema.Object` is the case of `JsonSchema` that holds keywords; the other two cases, `JsonSchema.True` and `JsonSchema.False`, are the boolean schemas that accept everything or nothing, and never describe a type. Printing each component shows what the generator has to work with:
 
 ```scala mdoc
 components.foreach { component =>
@@ -401,7 +401,7 @@ def typeRefFor(schema: JsonSchema): TypeRef = schema match {
 
 The code above handles nullability in both spec versions. OpenAPI 3.1 writes a nullable string as `type: ["string", "null"]`, which the typed schema reads as a `SchemaType.Union`. OpenAPI 3.0 writes it as `nullable: true`, a keyword JSON Schema 2020-12 doesn't know, so `JsonSchema` keeps it in `extensions` and `typeRefFor` looks it up there. Any schema the table doesn't cover, such as an inline object with its own properties, stops the generator with the schema in the message, rather than guessing.
 
-Let's map the properties of `Book` and `Order`. `ScalaEmitter.emitTypeRef` renders a `TypeRef` as source text:
+To check the mapping, we map the properties of `Book` and `Order` and render each `TypeRef` as source text with `ScalaEmitter.emitTypeRef`:
 
 ```scala mdoc
 for {
@@ -496,7 +496,7 @@ def sealedTraitFor(component: Component, byName: Map[String, Component]): Sealed
 val byName: Map[String, Component] = components.map(component => component.name -> component).toMap
 ```
 
-Let's emit one type of each kind. `ScalaEmitter.emitTypeDefinition` renders a single type definition with an `EmitterConfig`; `EmitterConfig.default` writes Scala 3:
+To see one type of each kind as source, we emit them one at a time. `ScalaEmitter.emitTypeDefinition` renders a single type definition with an `EmitterConfig`; `EmitterConfig.default` writes Scala 3:
 
 ```scala mdoc
 println(ScalaEmitter.emitTypeDefinition(caseClassFor("Book", byName("Book").schema), EmitterConfig.default))
@@ -749,7 +749,7 @@ Indent the `- ` items of a list under their key, as above. In 0.0.56, a known bu
 
 ## What the Generator Doesn't Cover
 
-The openapi module parses much more of a spec than our generator turns into types. We tried the parser on two large public specs as well: GitHub's REST API description (OpenAPI 3.1, 975 component schemas) and Stripe's (OpenAPI 3.0, 1538 component schemas). Both decode, and every component schema parses into a typed `JsonSchema`. Our generator, on the other hand, stops at the first schema it doesn't support, which in both specs is an inline object or an `anyOf`.
+The openapi module parses much more of a spec than our generator turns into types. The parser also decodes two large public specs: GitHub's REST API description (OpenAPI 3.1, 975 component schemas) and Stripe's (OpenAPI 3.0, 1538 component schemas), and every component schema in both parses into a typed `JsonSchema`. Our generator, on the other hand, stops at the first schema it doesn't support, which in both specs is an inline object or an `anyOf`.
 
 This table lists what each part handles, so you know where to extend the generator for your own spec:
 
@@ -763,7 +763,7 @@ This table lists what each part handles, so you know where to extend the generat
 | Inline object as a property's schema                             | Yes                                  | Not supported: name it under `components`       |
 | A component that is an array, a primitive or a `$ref`            | Yes                                  | Not supported: stops with an error              |
 | `$ref` into another file (`other.json#/...`)                     | Kept as the reference text           | Not supported: only `#/components/schemas/`     |
-| `type: [A, "null"]` (3.1) and `nullable: true` (3.0)             | Yes; `nullable` lands in `extensions` | `Option[A]`                                    |
+| `type: [A, "null"]` (3.1) and `nullable: true` (3.0)             | Yes; `nullable` in `extensions`      | `Option[A]`                                     |
 | Validation keywords (`minLength`, `pattern`, `minimum`, ...)     | Yes                                  | Ignored: types only                             |
 | OpenAPI 3.0 boolean `exclusiveMinimum` and `exclusiveMaximum`    | Silently dropped                     | Ignored                                         |
 | `default` values                                                 | Yes                                  | Ignored                                         |
