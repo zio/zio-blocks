@@ -19,15 +19,23 @@ package zio.blocks.streams
 package object internal extends InternalVersionSpecific {
 
   /**
-   * SyncInterpreter storage lane index (0=Int, 1=Long, 2=Float, 3=Double,
-   * 4=Ref).
+   * An interpreter storage lane: 0 = `Int` (which also carries `Boolean`,
+   * `Byte`, `Char` and `Short`), 1 = `Long`, 2 = `Float`, 3 = `Double`, 4 =
+   * references.
    */
   type Lane = Int
 
-  /** Packed interpreter state in a single Long (56 bits used). */
+  /**
+   * A `SyncInterpreter` stage position packed into one `Long`: four 15-bit
+   * indices and a 4-bit output lane, all 64 bits (see the `StreamState`
+   * object).
+   */
   type StreamState = Long
 
-  /** Operation tag for the SyncInterpreter (8-bit value). */
+  /**
+   * An operation tag of the interpreters, from 0 to 138, kept in the low 8 bits
+   * of an operation word (see the `OpTag` object).
+   */
   type OpTag = Int
 
   /**

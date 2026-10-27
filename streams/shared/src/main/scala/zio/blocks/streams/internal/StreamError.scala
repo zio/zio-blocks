@@ -19,11 +19,15 @@ package zio.blocks.streams.internal
 import zio.blocks.async._
 
 /**
- * Wraps a non-Throwable error value so it can propagate through the
- * Reader/SyncInterpreter stack via exceptions. Used by
- * [[zio.blocks.streams.Stream.fail]] and caught by
- * [[zio.blocks.streams.Stream.run]]. The 4th constructor arg
- * (`writableStackTrace=false`) disables stack trace capture for performance.
+ * The exception that carries a stream failure through readers and interpreters.
+ * A typed error, such as the one of `Stream.fail` or an `IOException` from an
+ * I/O source, travels as a `StreamError` whose `value` is the error, and the
+ * terminals turn it into `Left(value)`.
+ *
+ * Callers meet it where no terminal unwraps it: a pull on an I/O reader throws
+ * it (or fails its `Async` with it) around the `IOException`, and some
+ * failures, such as a failing cleanup after a typed error, escape a terminal as
+ * one. Its message is `null`, and it records no stack trace.
  */
 final class StreamError private (
   val value: Any,
@@ -31,6 +35,13 @@ final class StreamError private (
   private val replay: AnyRef,
   private val origin: AnyRef
 ) extends Exception(null, null, true, false) {
+
+  /**
+   * Creates a `StreamError` that carries `value`. One that user code throws is
+   * a defect, not a typed error: the terminal throws it (or fails its `Async`
+   * with it) instead of returning `Left(value)`. Use `Stream.fail` for a typed
+   * error.
+   */
   def this(value: Any) = this(value, StreamError.Untrusted, new AnyRef, StreamError.StreamOrigin)
   private[streams] var cleanupFailed: Boolean                     = false
   private[streams] def isTrusted: Boolean                         = provenance eq StreamError.Trusted
@@ -41,6 +52,7 @@ final class StreamError private (
   }
 }
 
+/** Constructors and helpers for [[StreamError]]. */
 private[streams] object StreamError {
   private object Trusted
   private object Untrusted

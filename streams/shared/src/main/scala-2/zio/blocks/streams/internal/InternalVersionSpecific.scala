@@ -19,7 +19,14 @@ package zio.blocks.streams.internal
 import zio.blocks.streams.JvmType
 import zio.blocks.streams.io.Reader
 
+/**
+ * Lane-exact single-element pulls, mixed into the `internal` package object.
+ * Each returns `sentinel` at the end; an element equal to `sentinel` is
+ * returned as is, so the caller passes on the sentinel of its own pull.
+ */
 private[streams] trait InternalVersionSpecific {
+
+  /** Pulls an element of the `Int` lane, or of a narrower one, as a `Long`. */
   private[streams] def pullInt[A](reader: Reader.SyncReader[A], sentinel: Long): Long =
     reader.jvmType match {
       case JvmType.Boolean =>
@@ -36,10 +43,16 @@ private[streams] trait InternalVersionSpecific {
         if (value == Int.MinValue) sentinel else value.toLong
       case _ => reader.readIntPhysical(sentinel)
     }
+
+  /** Pulls an element of the `Long` lane. */
   private[streams] def pullLong[A](reader: Reader.SyncReader[A], sentinel: Long): Long =
     reader.readLongPhysical(sentinel)
+
+  /** Pulls an element of the `Float` lane as a `Double`. */
   private[streams] def pullFloat[A](reader: Reader.SyncReader[A], sentinel: Double): Double =
     reader.readFloatPhysical(sentinel)
+
+  /** Pulls an element of the `Double` lane. */
   private[streams] def pullDouble[A](reader: Reader.SyncReader[A], sentinel: Double): Double =
     reader.readDoublePhysical(sentinel)
 }
