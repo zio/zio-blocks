@@ -35,9 +35,10 @@ private[io] trait AsyncReaderPlatform[+A] { self: Reader.AsyncReader[A] =>
    * by `SyncReader#toAsync`, it returns the original synchronous reader instead
    * of wrapping again.
    *
-   * A known bug: when this reader is on the `AnyRef` lane, the view's primitive
-   * pulls (`readInt`, `readLongs`, ...) throw `IllegalStateException`; `read`,
-   * `readAll`, `readN` and `readUpToN` work.
+   * A known bug: when this reader is on the `AnyRef` lane and is not a
+   * `SyncReader#toAsync` view, the view's primitive pulls (`readInt`,
+   * `readLongs`, ...) throw `IllegalStateException`; `read`, `readAll`, `readN`
+   * and `readUpToN` work.
    */
   final def toSync: Reader.SyncReader[A] = self match {
     case inverse: Reader.SyncToAsyncView[A @unchecked] => inverse.source

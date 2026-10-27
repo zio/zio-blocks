@@ -75,7 +75,7 @@ import java.lang.{Double => JDouble, Float => JFloat}
  * `readBytes`, `readInts` and `readFloats` throw `IllegalStateException` there,
  * and so does every primitive pull of a reader that wraps an `AnyRef`-lane
  * reader (`toAsync`, `toSync`, `withRelease`, `withReleaseAsync`,
- * `Reader.repeated`, and the result of `++` or `concat`).
+ * `Reader.repeated`, and the result of `++`, `concat` or `concatAsync`).
  *
  * ==Thread safety==
  * A reader is a single-consumer cursor and is not thread-safe. Pull from one
@@ -1154,7 +1154,7 @@ object Reader {
      * [[reset]] while it is open, if this reader supports it.
      *
      * A known bug: when this reader is on the `AnyRef` lane, the result's
-     * primitive pulls (`readInt`, `readLongs`, ...) throw, or fail with,
+     * primitive pulls (`readInt`, `readLongs`, ...) throw
      * `IllegalStateException`; `read`, `readAll`, `readN` and `readUpToN` work.
      *
      * {{{
@@ -3032,6 +3032,10 @@ object Reader {
    * Returns an asynchronous reader that produces the elements of `inner` again
    * and again, resetting it each time it ends. A failure of `inner`, including
    * a reset it does not support, fails the pull.
+   *
+   * A known bug: when `inner` is on the `AnyRef` lane, the result's primitive
+   * pulls (`readInt`, `readLongs`, ...) fail with `IllegalStateException`;
+   * `read`, `readAll`, `readN` and `readUpToN` work.
    */
   def repeated[A](inner: AsyncReader[A]): AsyncReader[A] =
     new AsyncRepeated(inner)
