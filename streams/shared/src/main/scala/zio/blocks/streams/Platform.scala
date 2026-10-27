@@ -75,8 +75,8 @@ trait Platform {
    * compiled with, and `elemType` is the lane of the result.
    *
    * Both platforms use the same asynchronous merge, which interleaves the open
-   * inner streams on one engine and starts no threads. The threaded merge of a
-   * JVM blocking terminal is built elsewhere.
+   * inner streams on one engine and starts no threads of its own. The threaded
+   * merge of a JVM blocking terminal is built elsewhere.
    */
   def createMergeReaderFromReader[A](
     outerReader: Reader[?],

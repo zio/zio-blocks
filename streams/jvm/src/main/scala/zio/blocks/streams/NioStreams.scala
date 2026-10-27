@@ -22,8 +22,8 @@ import java.nio.channels.ReadableByteChannel
 /**
  * Streams over `java.nio` sources (JVM only): a `ByteBuffer` read as bytes or
  * as `Int`, `Long`, `Float` or `Double` values, and a blocking
- * `ReadableByteChannel`. Each one is `Stream.fromReader` over the matching
- * [[NioReaders]] reader, so the same rules apply.
+ * `ReadableByteChannel`. Each one reads through the matching [[NioReaders]]
+ * reader.
  *
  * The buffer streams consume the buffer: a run advances its position to the
  * limit, so running the same stream again emits nothing.
