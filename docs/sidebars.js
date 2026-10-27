@@ -511,6 +511,7 @@ const sidebars = {
     "guides/generate-json-schema-and-validate-payloads",
     "guides/write-and-export-openapi",
     "guides/generate-scala-code-from-smithy",
+    "guides/generate-scala-types-from-openapi",
     "guides/llm-data-with-toon",
     {
       type: "category",
