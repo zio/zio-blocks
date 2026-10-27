@@ -28,6 +28,9 @@ def zioBlocks(module: String) = Def.setting {
 
 libraryDependencies ++= Seq(
   zioBlocks("telemetry").value,
+  zioBlocks("telemetry-otel").value,
+  zioBlocks("http-model").value,
+  zioBlocks("async").value,
   "dev.zio" %% "zio-test"     % "2.1.27" % Test,
   "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
 )

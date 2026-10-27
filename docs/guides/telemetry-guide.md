@@ -488,8 +488,6 @@ val incomingHeaders = Map(
 val parentCtx: Option[SpanContext] =
   W3CTraceContextPropagator.extract(incomingHeaders, (m, k) => m.get(k))
 
-val tracer = trace.get("api-service")
-
 // Wire the extracted context as the parent by scoping it in ContextStorage
 // A provider's own contextStorage is internal, so create one and pass it in
 val contextStorage = ContextStorage.create[Option[SpanContext]](None)
@@ -500,6 +498,9 @@ val tracerProvider = TracerProvider.builder
   .build()
 
 trace.install(tracerProvider)
+
+// Take the tracer after trace.install: it binds to the provider installed when it runs
+val tracer = trace.get("api-service")
 
 contextStorage.scoped(parentCtx) {
   tracer.span("handle-checkout", SpanKind.Server) { span =>
@@ -578,7 +579,9 @@ At provider creation time:
 // TracerProvider.builder.build() falls back to ContextStorage.defaultSpanContextStorage
 // unless you pass one; here we create an explicit instance to share
 val cs = ContextStorage.create[Option[SpanContext]](None)
-val tracerProvider = new TracerProvider(resource, sampler, processors, cs)
+val tracerProvider = TracerProvider.builder
+  .setContextStorage(cs)
+  .build()
 
 // LoggerProvider can share the same ContextStorage
 val loggerProvider = LoggerProvider.builder
@@ -979,20 +982,24 @@ import zio.blocks.telemetry._
 import zio.blocks.telemetry.otel._
 
 // Incoming request middleware
+// `storage` is the ContextStorage passed to the installed provider's setContextStorage
 def traceIncoming[Req, Resp](
   request: Req,
   getHeader: (Req, String) => Option[String],
+  storage: ContextStorage[Option[SpanContext]],
   handle: Req => Resp
 ): Resp = {
   val parentCtx = W3CTraceContextPropagator.extract(request, getHeader)
   val tracer    = trace.get("http-server")
 
-  // Use the provider's contextStorage to scope the remote parent
-  // Then start a child span under it
-  tracer.span("http.request", SpanKind.Server) { span =>
-    // Attach standard HTTP attributes
-    // ... then run the handler
-    handle(request)
+  // Scope the remote parent in the tracer's storage,
+  // then start a child span under it
+  storage.scoped(parentCtx) {
+    tracer.span("http.request", SpanKind.Server) { span =>
+      // Attach standard HTTP attributes
+      // ... then run the handler
+      handle(request)
+    }
   }
 }
 
@@ -1013,7 +1020,7 @@ def traceOutgoing[Resp](
 }
 ```
 
-For the incoming case, the remote parent has to be scoped in the same `ContextStorage` the tracer reads. A provider's own `contextStorage` field is library-private, so build one with `ContextStorage.create` and hand it to the builder via `setContextStorage` — as the server example above does — then wrap the handler in `contextStorage.scoped(parentCtx) { … }`.
+For the incoming case, the remote parent has to be scoped in the same `ContextStorage` the tracer reads. A provider's own `contextStorage` field is library-private, so build one with `ContextStorage.create` and hand it to the builder via `setContextStorage` — as the server example above does — then wrap the handler in `contextStorage.scoped(parentCtx) { … }`. [How to Correlate Logs and Traces Across Services](./correlate-logs-and-traces.md) builds this pattern end to end with the http-model `Request`, including the log lines of both services.
 
 ### With existing Java logging (SLF4J/JUL)
 

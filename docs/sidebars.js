@@ -499,6 +499,7 @@ const sidebars = {
     "guides/small-json-backend-from-blocks",
     "guides/instrument-a-program-with-logs-traces-and-metrics",
     "guides/test-telemetry",
+    "guides/correlate-logs-and-traces",
     "guides/telemetry-guide",
     "guides/zio-schema-migration",
     "guides/config-library-migration",
