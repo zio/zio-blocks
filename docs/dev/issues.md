@@ -7440,6 +7440,166 @@ With the two failing lines removed, the program prints `Right(WeatherReading(Osl
 
 **Suggested fix.** In `IntoVersionSpecific` and `AsVersionSpecific`, detect `isNamedTuple(tpe)` and either (a) treat it as a product whose field names are the labels (best: name-based matching, as for case classes), or (b) dealias it to its value tuple, `NamedTuple.DropNames`, and reuse the tuple path. Add scalaNextTests cases for both directions and for As.
 
+### htmx: `HxSwapOob.using` accepts an `HxSwap` with modifiers and renders a value htmx 2 can't parse, so the whole response is dropped
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56 (no change to `htmx/` since the tag).
+
+**Summary.** `HxSwapOob.using(swap)` and `HxSwapOob.using(swap, selector)` take a full `HxSwap`, so modifiers such as `swap(10.millis)` or `settle(...)` are rendered into `hx-swap-oob`. htmx 2 splits that value at the first `:`, reads the strategy as `innerHTML swap` and the selector as `10ms`, throws a `SyntaxError` from `querySelectorAll`, fires `htmx:swapError`, and swaps nothing from the response, not even the main fragment.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** `src/main/scala/OobModifiers.scala`, run with `sbt -batch "runMain oobModifiers"`:
+```scala
+import scala.concurrent.duration.DurationInt
+import zio.blocks.html._
+import zio.http.htmx._
+
+@main def oobModifiers(): Unit = {
+  println(span(id := "cart-count", hxSwapOob := HxSwapOob.using(HxSwap.InnerHTML.swap(10.millis)))("1").render)
+  println(span(hxSwapOob := HxSwapOob.using(HxSwap.InnerHTML.settle(10.millis), HxTarget.css("#cart-count")))("1").render)
+  println(span(id := "cart-count", hxSwapOob := HxSwapOob.using(HxSwap.InnerHTML))("1").render)
+}
+// <span id="cart-count" hx-swap-oob="innerHTML swap:10ms">1</span>
+// <span hx-swap-oob="innerHTML settle:10ms:#cart-count">1</span>
+// <span id="cart-count" hx-swap-oob="innerHTML">1</span>
+```
+Observed in the browser when a response contained the first two elements next to a main fragment (`htmx.ajax('POST', ..., {target: '#toast'})`):
+```
+// console: htmx:swapError
+// pageerror: Failed to execute 'querySelectorAll' on 'Document': '10ms' is not a valid selector.
+// #toast stayed empty (main fragment not swapped), #cart-count unchanged
+// (second form) pageerror: Failed to execute 'querySelectorAll' on 'Document': '10ms:#cart-count' is not a valid selector.
+```
+The bare form (third line) swapped both the main fragment and the badge.
+
+**Expected.** Either a value htmx parses, or a compile-time refusal of modifiers. htmx 2's `hx-swap-oob` accepts `true`, a bare swap strategy, or `strategy:selector` (`oobSwap`, htmx.js:1461-1473: `swapStyle = oobValue.substring(0, oobValue.indexOf(':'))`).
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/HxAttributeValues.scala:117` (`def using(swap: HxSwap): HxSwapOob = HxSwapOob(swap.render)`) and `:119-120` (`HxSwapOob(swap.render + ":" + selector.render)`) render the whole `HxSwap`, modifiers included.
+
+**Impact.** A page that adds a swap delay to an out-of-band element loses the entire response with only a console error.
+
+**Test gap.** `HtmxAttributesSpec.scala:306-314` covers `using` only with bare swaps (`HxSwap.AfterEnd`, `HxSwap.Delete`).
+
+**Suggested fix.** Make `using` take `HxSwap.Strategy` (or render only `swap.strategy`), so modifiers can't reach `hx-swap-oob`. Add a test with `HxSwap.InnerHTML.swap(1.second)`.
+
+### htmx: `HxLocation` accepts relative `HxTarget`s (`closest`, `find`, `next`, `previous`, `this`) that htmx 2 can't resolve, and the reference page's example uses one
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56 (code and `docs/reference/htmx/response-headers.md:197` unchanged).
+
+**Summary.** `HxLocation.apply(path, target: Option[HxTarget], swap)` takes any `HxTarget`. htmx 2 resolves the `target` of an `HX-Location` header with `document.querySelector` (no element to be relative to), so `closest main` fails: htmx fires `htmx:targetError` and does nothing. `docs/reference/htmx/response-headers.md:197` teaches exactly this shape: `HxLocation("/next", target = Some(HxTarget.closest("section")), swap = Some(HxSwap.AfterEnd))`.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** `src/main/scala/LocationTarget.scala`, run with `sbt -batch "runMain locationTarget"`:
+```scala
+import zio.http.htmx._
+import zio.http.htmx.headers._
+
+@main def locationTarget(): Unit = {
+  println(HxLocation.render(HxLocation("/orders/1001", target = Some(HxTarget.closest("main")))))
+  println(HxLocation.render(HxLocation("/next", target = Some(HxTarget.closest("section")), swap = Some(HxSwap.AfterEnd))))
+  println(HxLocation.render(HxLocation("/orders/1001", target = Some(HxTarget.css("#main")))))
+}
+// {"path":"/orders/1001","target":"closest main"}
+// {"path":"/next","target":"closest section","swap":"afterend"}
+// {"path":"/orders/1001","target":"#main"}
+```
+Observed in the browser, a button posting to a handler that answers with the first header:
+```
+// < 200 /checkout/location-closest hx-location={"path":"/orders/1001","target":"closest main"}
+// console: htmx:targetError
+// no GET /orders/1001 was sent; URL stayed /cart
+```
+The third header worked: `GET /orders/1001` with `HX-Target: main`, receipt swapped into `#main`, URL pushed.
+
+**Expected.** Only targets htmx can resolve for `HX-Location` (a plain CSS selector) should be accepted, or the docs should say so.
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/headers/HtmxHeaders.scala:193-198` writes `target.render` for any `HxTarget`; htmx.js `ajaxHelper` (4120-4125) calls `resolveTarget(context.target)`, which is `find(document, selector)` (1256-1258), and an unresolved target becomes `DUMMY_ELT` (aborts with `htmx:targetError`).
+
+**Impact.** Code that copies the reference example silently does nothing in the browser.
+
+**Test gap.** `HtmxHeadersSpec.scala:101-106` asserts the `closest section` rendering and round trip, never that the value is usable.
+
+**Suggested fix.** Change the parameter to `Option[CssSelector]` (the type `HxRetarget` already uses), or keep `HxTarget` and reject non-`Css` cases; fix the reference example to `HxTarget.css("#main")` (or a `CssSelector`) and say targets are resolved against the document.
+
+### htmx: `HxEventPayload.JsonValue` and `HxLocation` print non-ASCII characters raw into header values
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** Both headers render their JSON with `Json#print`, whose default `WriterConfig` has `escapeUnicode = false`. HTTP header values are meant to be ASCII. The JDK HTTP server (used by every web guide via `JdkHttp`) throws `IllegalArgumentException: Illegal character found in header` for a character above `U+00FF` and the client gets no response; characters `U+0080`-`U+00FF` (e.g. `é`) go out as single ISO-8859-1 bytes. `Json#print(WriterConfig.withEscapeUnicode(true))` produces a pure-ASCII value that htmx parses back to the same text.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** `src/main/scala/NonAsciiHeader.scala`, run with `sbt -batch "runMain nonAsciiHeader"`:
+```scala
+import com.sun.net.httpserver.HttpServer
+import java.net.{InetAddress, InetSocketAddress, URI}
+import java.net.http.{HttpClient, HttpRequest, HttpResponse}
+import zio.blocks.schema.json.{Json, WriterConfig}
+import zio.http.htmx.headers._
+
+@main def nonAsciiHeader(): Unit = {
+  val payload = Json.Object("show-message" -> Json.Object("text" -> Json.String("Added Sencha ✓")))
+  val header  = HxTriggerHeader(HxEventPayload.JsonValue(payload))
+  println(s"rendered: ${header.renderedValue}")
+  println(s"escaped:  ${payload.print(WriterConfig.withEscapeUnicode(true))}")
+
+  val server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress, 0), 0)
+  server.createContext(
+    "/",
+    exchange =>
+      try {
+        exchange.getResponseHeaders.add(header.headerName, header.renderedValue)
+        exchange.sendResponseHeaders(200, -1)
+      } catch { case e: Throwable => println(s"server: $e") }
+      finally exchange.close()
+  )
+  server.start()
+  val client = HttpClient.newHttpClient()
+  val uri    = URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/")
+  try println(client.send(HttpRequest.newBuilder(uri).build(), HttpResponse.BodyHandlers.ofString()).statusCode)
+  catch { case e: java.io.IOException => println(s"client: $e") }
+  finally server.stop(0)
+}
+// rendered: {"show-message":{"text":"Added Sencha ✓"}}
+// escaped:  {"show-message":{"text":"Added Sencha \u2713"}}
+// server: java.lang.IllegalArgumentException: Illegal character found in header
+// server: java.lang.IllegalArgumentException: Illegal character found in header
+// client: java.io.IOException: HTTP/1.1 header parser received no bytes
+```
+(The server line appears twice because `HttpClient` retries the GET once.) With `curl -i`, a Latin-1 payload (`Café`) came back as the single byte `0xE9`.
+
+**Expected.** Header values that are ASCII-safe on any server: `HxEventPayload.JsonValue#render` and `HxLocation#renderedValue` should escape non-ASCII.
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/headers/HtmxHeaders.scala:40` (`def render: String = json.print`) and `:179` (`def renderedValue: String = value.print`); default `WriterConfig` in `schema/shared/src/main/scala/zio/blocks/schema/json/WriterConfig.scala` has `escapeUnicode = false`.
+
+**Impact.** Any shop, name or message with an accent or symbol in an `HX-Trigger` payload or `HX-Location` path breaks the response on the JDK server and is encoding-dependent elsewhere. H-40 documents the workaround (`addHeader(HxTriggerHeader.name, json.print(WriterConfig.withEscapeUnicode(true)))`).
+
+**Test gap.** No htmx test uses a non-ASCII payload.
+
+**Suggested fix.** Render with `json.print(WriterConfig.withEscapeUnicode(true))` in both places; add a test that the rendered value is ASCII and round-trips through `parse`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -9272,6 +9432,55 @@ def wantsFragment(request: Request): Boolean =
 
 **Suggested fix.** In `response-headers.md`, replace the "most common read" example with the two-header check and one sentence on why. Optionally add a helper such as `def isPartialRequest(request: Request): Boolean` to `zio.http.htmx.headers`, documented with the htmx 2 history-restore behaviour.
 
+### htmx: a fragment check that ignores `HX-Boosted` breaks `hxBoost` links (addendum to "answering every `HxRequest` with a fragment breaks the Back button on htmx 2")
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** A link inside an `hx-boost="true"` element sends `HX-Request: true` and `HX-Boosted: true`, and htmx swaps the response into `<body>` and takes the `<title>` from it, so it needs the full page. T-10's check (`HxRequest && !HxHistoryRestoreRequest`, `docs/guides/add-interactivity-with-htmx.md:369-371`) is correct for T-10's page, which has no boosted links, but answers a boosted request with a fragment.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** `src/main/scala/BoostedCheck.scala`, run with `sbt -batch "runMain boostedCheck"`:
+```scala
+import zio.http._
+import zio.http.htmx.headers._
+
+@main def boostedCheck(): Unit = {
+  // The check from the T-10 tutorial (add-interactivity-with-htmx.md, section 7)
+  def wantsFragment(request: Request): Boolean =
+    request.header(HxRequest).exists(_.enabled) &&
+      !request.header(HxHistoryRestoreRequest).exists(_.enabled)
+
+  // What htmx 2.0.11 sends for a click on a link inside an hx-boost="true" element
+  val boosted = Request.get(URL.parse("/cart").toOption.get).addHeader(HxRequest(true)).addHeader(HxBoosted(true))
+  println(s"boosted link -> fragment? ${wantsFragment(boosted)}")
+}
+// boosted link -> fragment? true
+```
+Observed in the browser with that check behind a page whose `<nav hx-boost="true">` links to `/cart`:
+```
+// > GET /cart hx-boosted=true hx-request=true
+// = {"url":"/cart","title":"Shop","hasNav":false,"h1":"Cart"}   <- header/nav gone, title not updated
+```
+With the three-header check (`HxRequest && !HxBoosted && !HxHistoryRestoreRequest`) the same click kept the header and the title became "Cart".
+
+**Expected.** The reference (`docs/reference/htmx/response-headers.md`, "Presence Flags") or T-10 says a page with `hxBoost` must also read `HxBoosted`.
+
+**Root cause.** htmx behaviour (boosted requests target `<body>`); no library defect.
+
+**Impact.** Readers who copy T-10's helper and later add `hxBoost` lose the layout on every boosted navigation.
+
+**Test gap.** None (documentation).
+
+**Suggested fix.** One sentence in T-10 section 7 and in the reference's presence-flags section pointing to the three-header check; H-40 now shows it.
+
 ### html: tag values such as `search` make same-named helpers ambiguous under wildcard imports
 
 Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`), from `origin/main` `a643b7cb0`. Same at tag `v0.0.56`. Related to the existing entry "html and schema: `p(...)` is ambiguous on Scala 3 when both packages are imported".
@@ -9768,6 +9977,99 @@ The same file with `//> using scala 3.9.0`, `//> using options -experimental` an
 **Test gap.** No Scala 2 test concatenates two streams of `Nothing`.
 
 **Suggested fix.** Give `Infer.nothing` a higher priority than the primitive instances (move the eight primitive instances into a lower-priority parent trait of `object Infer`, above `LowPriorityJvmTypeInferPlatform`), so an undetermined `A3` resolves to `Nothing`; or add a dedicated `++` overload for `Stream[_, Nothing]`. Add a cross-built test for `Stream.empty ++ Stream.empty`.
+
+### htmx: `HxEventPayload.JsonValue` accepts non-object JSON, and htmx 2 then fires no event
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** htmx 2 reads a `HX-Trigger`/`-After-Swap`/`-After-Settle` value as JSON only when it starts with `{` (handleTriggerHeader, htmx.js:2122-2141); anything else is split on commas into event names. `HxEventPayload.JsonValue` takes any `Json`, and `HxEventPayload.parse` accepts values starting with `[`, so an array payload renders fine and fires nothing useful.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** `src/main/scala/TriggerArray.scala`, run with `sbt -batch "runMain triggerArray"`:
+```scala
+import zio.blocks.schema.json.Json
+import zio.http.htmx.headers._
+
+@main def triggerArray(): Unit = {
+  println(HxTriggerHeader.render(HxTriggerHeader(HxEventPayload.JsonValue(Json.Array(Json.String("cart-updated"))))))
+  println(HxTriggerHeader.parse("""["cart-updated"]"""))
+}
+// ["cart-updated"]
+// Right(HxTriggerHeader(JsonValue([
+//   "cart-updated"
+// ])))
+```
+Observed in the browser with a listener for `cart-updated` on `<body>`: the response carried `Hx-trigger: ["cart-updated"]`, the main fragment swapped, and no `cart-updated` event fired.
+
+**Expected.** `JsonValue` restricted to `Json.Object` (as `HxLocation` already is), and `parse` rejecting `[`.
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/headers/HtmxHeaders.scala:39-41` (`JsonValue(json: Json)`) and `:43-48` (`parse` accepts `[`).
+
+**Impact.** Silent no-op; low, since arrays are unusual here.
+
+**Test gap.** `HtmxHeadersSpec.scala:95-97` asserts that `"[1,2]"` parses, i.e. pins the wrong behaviour.
+
+**Suggested fix.** `final case class JsonValue(json: Json.Object)`; `parse` accepts only `{`.
+
+### html: common Scala names shadow DSL elements (`span` vs `scala.concurrent.duration._`, `main` vs `def main`)
+
+Found while writing the examples for the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** `import scala.concurrent.duration._` brings an object `span` that collides with the DSL's `span` element (ambiguous at the same import level; a nested duration import silently wins). Inside an object that defines `def main(args: Array[String])`, a call `main(id := "main")(...)` resolves to the method, not the `<main>` element. htmx code needs both: durations for `HxTrigger(...).delay(300.millis)`/`HxSwap.swap(...)`, and `<main>` as the usual `HX-Location` target. T-10's Step files import both `scala.concurrent.duration._` and `zio.blocks.html._` and only work because they never call `span`.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer 1.** `src/main/scala/SpanShadow.scala`, run with `sbt -batch compile`:
+```scala
+import scala.concurrent.duration._
+import zio.blocks.html._
+
+@main def spanShadow(): Unit =
+  println(span("1").render)
+// [error] 5 |  println(span("1").render)
+// [error]   |          ^^^^
+// [error]   |          Reference to span is ambiguous.
+// [error]   |          It is both imported by import scala.concurrent.duration._
+// [error]   |          and imported subsequently by import zio.blocks.html._
+```
+**Reproducer 2.** separate project (same build.sbt), `src/main/scala/MainClash.scala`, run with `sbt -batch compile`:
+```scala
+import zio.blocks.html._
+
+object MainClash {
+  def page: Dom.Element = html(body(main(id := "main")("content")))
+
+  def main(args: Array[String]): Unit = println(page.render)
+}
+// [error] 4 |  def page: Dom.Element = html(body(main(id := "main")("content")))
+// [error]   |                                         ^^^^^^^^^^^^
+// [error]   |                                   Found:    zio.blocks.html.Dom.Attribute
+// [error]   |                                   Required: Array[String]
+```
+**Expected.** A documented escape hatch.
+
+**Root cause.** Name choice of the DSL vals (`html/shared/src/main/scala-3/zio/blocks/html/HtmlElements.scala:85` `span`, `:141` `main`); Scala scoping.
+
+**Impact.** Confusing errors (the `main` one names `Array[String]`, not the element). H-40's examples work around it by importing `scala.concurrent.duration.DurationInt` only and keeping `layout` in an object without `main`.
+
+**Test gap.** None (usability).
+
+**Suggested fix.** Say in `docs/reference/html.md` to import `scala.concurrent.duration.DurationInt` (not `._`) next to the DSL, and that `zio.blocks.html.main(...)` (or an alias) is needed inside an object with `def main`.
 
 ## Test and CI
 
@@ -10554,6 +10856,98 @@ Found 2026-10-26 while fact-checking the reference page against the wave 1 strea
 **Expected.** The page matches the code; for 1, describe the real behaviour and call it a known bug.
 
 **Suggested fix.** Edit the six places, then run `docs/mdoc` on the page.
+
+### docs: `response-headers.md` combines `HX-Redirect` with `HX-Trigger-After-Settle`, which htmx never fires in that case
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`; `docs/reference/htmx/response-headers.md:214-219` ("Reading and Writing Through Request and Response"). Same at v0.0.56.
+
+**Summary.** The example builds `afterSubmit` with `HxRedirect(...)` and `HxTriggerAfterSettle(HxEventPayload.Event("orderPlaced"))`, presented as the common case after a form submission. htmx 2 handles `HX-Redirect` (and `HX-Location`, `HX-Refresh`) by navigating and returning before the swap, so the after-swap and after-settle trigger headers are never processed; only `HX-Trigger` fires.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** `src/main/scala/RedirectSettle.scala`, run with `sbt -batch "runMain redirectSettle"` (the page's own code):
+```scala
+import zio.http.{Response, URL}
+import zio.http.htmx.headers.{HxEventPayload, HxRedirect, HxTriggerAfterSettle}
+
+@main def redirectSettle(): Unit = {
+  val afterSubmit = Response.ok
+    .addHeader(HxRedirect(URL.parse("/orders").toOption.get))
+    .addHeader(HxTriggerAfterSettle(HxEventPayload.Event("orderPlaced")))
+  afterSubmit.headers.toList.foreach { case (name, value) => println(s"$name: $value") }
+}
+// hx-redirect: /orders
+// hx-trigger-after-settle: orderPlaced
+```
+Observed in the browser with a response carrying `HX-Redirect: /orders/1001`, `HX-Trigger: cart-updated` and `HX-Trigger-After-Settle: order-placed`, listeners for both on `<body>`:
+```
+// console: EVENT cart-updated
+// url now http://127.0.0.1:8615/orders/1001     (no order-placed event)
+```
+**Expected.** An example whose headers all take effect, or a note that redirect/location/refresh skip after-swap/after-settle triggers.
+
+**Root cause.** htmx.js `handleAjaxResponse`: `HX-Trigger` at 4863-4865, then early `return`s for `HX-Location` (4867-4880), `HX-Redirect` (4884-4889) and `HX-Refresh` (4891-4895); after-swap/settle triggers are handled only in the swap callbacks (4987-5001).
+
+**Impact.** Readers wire client logic to an event that never fires after a redirect.
+
+**Test gap.** Doc-only.
+
+**Suggested fix.** Replace `HxTriggerAfterSettle` with `HxTriggerHeader` in the example (or drop the redirect), and add one sentence on the ordering. H-40 states the rule.
+
+### docs/examples: the `JdkHttp` adapter drops the connection silently when writing the response fails
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`; `http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala` (H-35 guide `docs/guides/serve-http-model-requests.md`), copied unchanged into T-10, H-40 and others. Not in v0.0.56 (the file was added after the tag).
+
+**Summary.** `handler` catches `NonFatal` only around `app(request)`; `writeResponse` runs outside that `try`. When writing fails (e.g. a header value the JDK rejects, see the non-ASCII entry), the exception escapes to the JDK dispatcher, the exchange is closed, the client sees an empty reply, and nothing is logged.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** Copy `http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala` to `src/main/scala/JdkHttp.scala` with its package line changed to `package jdkrepro`, add `src/main/scala/SilentDrop.scala`, run with `sbt -batch "runMain jdkrepro.SilentDrop"`:
+```scala
+package jdkrepro
+
+import java.net.URI
+import java.net.http.{HttpClient, HttpRequest, HttpResponse}
+import zio.http._
+
+object SilentDrop {
+  def main(args: Array[String]): Unit = {
+    val app: Request => Response = _ => Response.text("ok").addHeader("hx-trigger", "Added Sencha ✓")
+    JdkHttp.withServer(app) { port =>
+      val client = HttpClient.newHttpClient()
+      val uri    = URI.create(s"http://127.0.0.1:$port/")
+      try println(client.send(HttpRequest.newBuilder(uri).build(), HttpResponse.BodyHandlers.ofString()).statusCode)
+      catch { case e: java.io.IOException => println(s"client: $e") }
+    }
+    println("server printed nothing")
+  }
+}
+// client: java.io.IOException: HTTP/1.1 header parser received no bytes
+// server printed nothing
+```
+**Expected.** A logged error and, when headers are not yet sent, a `500` response.
+
+**Root cause.** `JdkHttp.scala:67-82`: the `catch` at 76 covers only `toRequest`/`app`; `writeResponse(exchange, response)` at 81 sits outside it, inside only `try ... finally exchange.close()`.
+
+**Impact.** Hard-to-debug "empty reply from server" in every guide that copies the adapter (this cost time in H-40 before the cause was found).
+
+**Test gap.** The adapter has no test for a failing `writeResponse`.
+
+**Suggested fix.** Wrap `writeResponse` in its own `try`/`catch NonFatal` that logs to `System.err` and, if `exchange.getResponseCode == -1`, sends a `500` with no body; update the copies.
 
 ## Resolved
 
