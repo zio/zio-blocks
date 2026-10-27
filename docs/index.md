@@ -126,7 +126,7 @@ All of these ship in `zio-blocks-scope`.
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
 | [Chunk](./reference/chunk.md) | `zio-blocks-chunk` | JVM · JS | 2.13 · 3.x | High-performance immutable indexed sequences with zero-boxing builders |
-| [Maybe](./reference/maybe.md) | `zio-blocks-maybe` | JVM · JS | 2.13 · 3.x | Low-allocation optional values backed by `null` |
+| [Maybe](./reference/maybe.md) | `zio-blocks-maybe` | JVM · JS | 2.13 · 3.x | Optional values that store a present reference as is, without a wrapper object (Scala 3) |
 | [Combinators](./reference/combinators.md) | `zio-blocks-combinators` | JVM · JS | 2.13 · 3.x | Compile-time composition and decomposition of tuples, eithers, and unions |
 
 ### Concurrency
