@@ -1873,6 +1873,7 @@ lazy val docs = project
     async.jvm,
     sql.jvm,
     `sql-zio`,
+    dataMigration.jvm,
     telemetry.jvm,
     otel,
     config.jvm,
