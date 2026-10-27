@@ -29,9 +29,10 @@ import scala.util.control.NonFatal
  * On the JVM, `supportsConcurrency` is `true` and `startVirtualThread` starts a
  * virtual thread (JDK 21 and later, found by reflection) or a daemon platform
  * thread. The buffer, merge and `mapPar` readers for a synchronous upstream run
- * their work on such threads, with a specialized reader for the `Int` lane
- * (which also carries `Boolean`, `Byte`, `Char` and `Short`) and the `Long`,
- * `Float` and `Double` lanes.
+ * their work on such threads; the merge and `mapPar` readers have a specialized
+ * class for the `Int` lane (which also carries `Boolean`, `Byte`, `Char` and
+ * `Short`) and the `Long`, `Float` and `Double` lanes, and the buffer reader
+ * keeps primitive lanes in unboxed queues.
  *
  * On Scala.js, `supportsConcurrency` is `false` and `startVirtualThread` throws
  * `UnsupportedOperationException`. The buffer, merge and `mapPar` readers for a

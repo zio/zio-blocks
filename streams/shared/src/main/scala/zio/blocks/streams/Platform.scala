@@ -86,9 +86,10 @@ trait Platform {
   ): Reader[A]
 
   /**
-   * The synchronous merge that a JVM blocking terminal runs: on the JVM it
-   * drains each open inner stream on a thread of its own; on Scala.js it reads
-   * the inner streams one after another.
+   * The synchronous merge that the synchronous interpreter builds for
+   * `flatMapPar` and `mergeAll` (what a JVM blocking terminal runs): on the JVM
+   * it drains each open inner stream on a thread of its own; on Scala.js it
+   * reads the inner streams one after another.
    */
   private[streams] def createMergeReader[A](
     outerReader: Reader.SyncReader[?],
