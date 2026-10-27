@@ -17,5 +17,10 @@
 package zio.blocks.streams
 
 private[streams] trait LowPriorityJvmTypeInferPlatform {
+
+  /**
+   * The fallback `JvmType.Infer` for a type with no primitive instance: its
+   * values travel boxed, on the reference lane.
+   */
   implicit final def anyRef[A]: JvmType.Infer[A] = JvmType.Infer.boxed[A]
 }

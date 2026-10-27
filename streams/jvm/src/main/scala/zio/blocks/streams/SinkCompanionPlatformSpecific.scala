@@ -20,18 +20,27 @@ import zio.blocks.async._
 import zio.blocks.streams.internal.StreamError
 import zio.blocks.streams.io.Reader
 
+/**
+ * The platform-specific members of the [[Sink]] companion. On the JVM it adds
+ * `Sink.create`, whose callback reads a blocking reader. The Scala.js copy adds
+ * no public member; cross-platform code uses `Sink.createAsync` or
+ * `Sink.createBoth`.
+ */
 trait SinkCompanionPlatformSpecific {
 
   /**
-   * Creates a JVM sink whose blocking callback receives the run's synchronous
-   * reader and decides how much input to consume and what result to produce.
-   * Returning early leaves the remaining input unread; the enclosing stream run
-   * closes that input rather than exposing it as reusable leftovers.
+   * Creates a sink from a callback that reads the run's blocking reader and
+   * returns the result; JVM only. The callback decides how much input to read.
+   * Input it leaves unread is closed with the run, not kept for later. The
+   * reader is valid only during the callback and must not escape it.
    *
-   * The callback and reader are valid only for the run and must not be
-   * retained. Reader failures preserve the stream's typed error; callback
-   * exceptions are defects. At an asynchronous terminal, the callback runs on
-   * the blocking executor and cancellation closes the reader.
+   * A typed stream error raised while reading stays the run's typed error; an
+   * exception thrown by the callback is a defect. At an `*Async` terminal the
+   * callback runs inline on the thread that drives the run, blocking it until
+   * the callback returns, and cancellation closes the reader. To read a `Long`
+   * or `Double` input without a sentinel that could equal real data, use the
+   * bulk reads `readLongs` and `readDoubles`, whose returned count marks the
+   * end.
    */
   def create[E, A, Z](f: Reader.SyncReader[A] => Z): Sink[E, A, Z] =
     new Sink[E, A, Z] {

@@ -17,6 +17,11 @@
 package zio.blocks.streams
 
 private[streams] sealed trait ElementRepresentation {
+
+  /**
+   * The lane of the elements when it is fixed before running, `None` when only
+   * the reader knows it.
+   */
   final def stableJvmType: Option[JvmType] = this match {
     case ElementRepresentation.Known(jvmType) => Some(jvmType)
     case ElementRepresentation.Boxed          => Some(JvmType.AnyRef)

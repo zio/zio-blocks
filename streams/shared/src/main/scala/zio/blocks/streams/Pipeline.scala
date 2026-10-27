@@ -22,51 +22,87 @@ import zio.blocks.streams.internal.{AsyncInterpreter, StreamError}
 import zio.blocks.streams.io.Reader
 
 /**
- * A transformation from a `Stream[_, In]` to a `Stream[_, Out]`. Pipelines
- * compose sequentially via [[andThen]] (with [[Pipeline.identity]] as the
- * identity) and can be applied to [[Stream]]s via [[applyToStream]] or to
- * [[Sink]]s via [[applyToSink]].
+ * A reusable stream transformation that turns elements of type `In` into
+ * elements of type `Out`, as a value: define it once, compose it with
+ * [[andThen]], and apply it to any stream or any sink. Use it when the same
+ * steps (filtering, mapping, limiting) apply in several places.
+ *
+ * Applied to a stream with `Stream#via` (or [[applyToStream]]), it transforms
+ * the stream's output. Applied to a sink with [[andThenSink]] (or
+ * [[applyToSink]]), it transforms the sink's input. The two give the same
+ * result: `stream.via(p).run(sink)` and `stream.run(p.andThenSink(sink))`.
+ * Building a pipeline runs nothing, and each run gets fresh state, such as the
+ * counter of `Pipeline.take`.
+ *
+ * {{{
+ * val evensDoubled: Pipeline[Int, Int] =
+ *   Pipeline.filter[Int](_ % 2 == 0).andThen(Pipeline.map[Int, Int](_ * 2))
+ *
+ * Stream(1, 2, 3, 4).via(evensDoubled).runCollect            // Right(Chunk(4,8))
+ * Stream(1, 2, 3, 4).run(evensDoubled.andThenSink(Sink.sumInt)) // Right(12)
+ * }}}
  *
  * @tparam In
  *   Input element type.
  * @tparam Out
  *   Output element type.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/streams/core/pipeline/ Pipeline]]
  */
 abstract class Pipeline[-In, +Out] {
 
   /**
-   * Composes this pipeline with `that`, applying `this` first and `that` to its
-   * output. Composition builds a lazy pipeline value; it does not run either
-   * pipeline or share per-run state. [[Pipeline.identity]] is the left and
-   * right identity.
+   * Composes this pipeline with `that` into one pipeline that applies this one
+   * first and `that` to its output. Composition is associative, and
+   * [[Pipeline.identity]] is neutral on either side.
+   *
+   * {{{
+   * val trimmed = Pipeline.map[String, String](_.trim)
+   * val lengths = Pipeline.map[String, Int](_.length)
+   *
+   * Stream(" Zionomicon ", "Scala with Cats").via(trimmed.andThen(lengths)).runCollect
+   * // Right(Chunk(10,15))
+   * }}}
    */
   def andThen[C](that: Pipeline[Out, C]): Pipeline[In, C] =
     new Pipeline.Composed(this, that)
 
   /**
-   * Pre-composes this pipeline with `sink`. Running the returned sink is
-   * equivalent to transforming the input with this pipeline and then running
-   * `sink`; the sink's typed error and result types are unchanged. Derived
-   * readers are closed on completion, failure, or cancellation.
+   * Returns a sink that passes its input through this pipeline and then into
+   * `sink`; an alias for [[applyToSink]]. Running it gives the same result as
+   * applying this pipeline to the stream and running `sink`, and `sink`'s error
+   * and result types do not change.
    *
-   * This is an alias for [[applyToSink]].
+   * {{{
+   * val lengths = Pipeline.map[String, Int](_.length)
+   *
+   * Stream("Zionomicon", "Scala with Cats").run(lengths.andThenSink(Sink.collectAll[Int]))
+   * // Right(Chunk(10,15))
+   * }}}
    */
   def andThenSink[E, Z](sink: Sink[E, Out, Z]): Sink[E, In, Z] =
     applyToSink(sink)
 
   /**
-   * Returns a sink that transforms its input with this pipeline before passing
-   * it to `sink`. Construction is lazy and preserves `sink`'s typed error and
-   * result types. Implementations must release the transformed reader, and
-   * therefore its upstream resources, on every exit.
+   * Returns a sink that passes its input through this pipeline and then into
+   * `sink`, keeping `sink`'s error and result types. [[andThenSink]] is the
+   * alias that reads better in a chain. The transformed input is closed on
+   * every exit.
    */
   def applyToSink[E, Z](sink: Sink[E, Out, Z]): Sink[E, In, Z]
 
   /**
-   * Returns the lazy stream obtained by applying this transformation to
-   * `stream`. The stream's typed error type is preserved; transformation
-   * callbacks cannot add typed errors. Resources and cancellation remain
-   * governed by the returned stream and its source.
+   * Applies this pipeline to `stream`; `stream.via(this)` is the same. The
+   * error type does not change, since a pipeline's callbacks cannot add typed
+   * errors (their exceptions are defects).
+   *
+   * {{{
+   * val firstTwo = Pipeline.take[String](2)
+   *
+   * firstTwo.applyToStream(Stream("Zionomicon", "Scala with Cats", "Programming in Scala")).runCollect
+   * // Right(Chunk(Zionomicon,Scala with Cats))
+   * }}}
    */
   def applyToStream[E](stream: Stream[E, In]): Stream[E, Out]
 
@@ -74,16 +110,15 @@ abstract class Pipeline[-In, +Out] {
 }
 
 /**
- * Companion object for [[Pipeline]]. Provides factory constructors for common
- * transformations: `map`, `filter`, `take`, `drop`, `collect`, and `identity`.
+ * Constructors for [[Pipeline]]: `map`, `filter`, `collect` and their `*Async`
+ * forms, `take`, `drop`, `chunked`, `buffer` and `identity`.
  */
 object Pipeline {
 
   /**
-   * Inserts a bounded buffer of `n` elements between upstream production and
-   * downstream consumption. This is a materialization/asynchronous boundary: it
-   * preserves elements and order while decoupling producer and consumer.
-   * Closing or cancelling downstream closes the buffer and upstream.
+   * Inserts a bounded buffer of `n` elements between producer and consumer, as
+   * [[Stream#buffer]] does: elements and order are kept, and closing or
+   * cancelling downstream closes the buffer and upstream.
    *
    * @throws java.lang.IllegalArgumentException
    *   if `n < 1`
@@ -94,10 +129,9 @@ object Pipeline {
   }
 
   /**
-   * Groups consecutive elements into non-empty `Chunk`s of at most `n`
-   * elements. Full chunks have size `n`; on normal exhaustion the final chunk
-   * may be smaller. Grouping spans upstream read boundaries, preserves order,
-   * and uses fresh accumulation state for each materialization.
+   * Groups consecutive elements into `Chunk`s of `n`, in order; the last chunk
+   * holds what is left and may be smaller, and no chunk is empty. Each run
+   * starts a fresh group.
    *
    * @throws java.lang.IllegalArgumentException
    *   if `n < 1`
@@ -108,10 +142,9 @@ object Pipeline {
   }
 
   /**
-   * Applies `pf` once per input via `applyOrElse`, emitting only defined
-   * results while preserving order. Exceptions thrown while testing or applying
-   * `pf` are defects, not typed stream errors. Runtime type evidence selects
-   * specialized primitive reader paths.
+   * Emits `pf(a)` for each element `a` where `pf` is defined and drops the
+   * rest, in order. `pf` is called once per element (through `applyOrElse`),
+   * and an exception it throws is a defect.
    */
   def collect[A, B](
     pf: PartialFunction[A, B]
@@ -120,10 +153,10 @@ object Pipeline {
   ): Pipeline[A, B] = new CollectPipeline(pf, jtB)
 
   /**
-   * Asynchronously evaluates each element, sequentially and in input order,
-   * emitting the value of `Some` and dropping `None`. A failed or defective
-   * `Async` becomes a stream defect, and cancellation of a suspended callback
-   * is propagated. Runtime type evidence selects specialized reader paths.
+   * The asynchronous form of [[collect]], taking a total function: runs `f` on
+   * each element, one at a time and in order, emitting the value of each `Some`
+   * and dropping each `None`. A failed `Async` is a defect, and cancellation
+   * reaches a pending call.
    */
   def collectAsync[A, B](f: A => Async[Option[B]])(implicit
     jtB: JvmType.Infer[B]
@@ -133,25 +166,22 @@ object Pipeline {
   }
 
   /**
-   * Skips the first `n` elements of each run, then emits the rest unchanged.
-   * Non-positive values skip nothing. Counting state is fresh for every stream
-   * or sink materialization.
+   * Skips the first `n` elements of each run and emits the rest; `n <= 0` skips
+   * nothing.
    */
   def drop[A](n: Long): Pipeline[A, A] = new DropPipeline(n)
 
   /**
-   * Emits elements satisfying `pred`, in input order. The predicate is
-   * evaluated once per element; thrown exceptions are defects rather than typed
-   * stream errors. Runtime type evidence preserves primitive specialization.
+   * Emits the elements for which `pred` returns `true`, in order. `pred` runs
+   * once per element, and an exception it throws is a defect.
    */
   def filter[A](pred: A => Boolean): Pipeline[A, A] =
     new FilterPipeline(pred)
 
   /**
-   * Asynchronously tests each element, sequentially and in input order,
-   * emitting it only when `f` yields `true`. A failed or defective `Async`
-   * becomes a stream defect, and cancellation of a suspended predicate is
-   * propagated. Runtime type evidence preserves primitive specialization.
+   * The asynchronous form of [[filter]]: tests elements with `f` one at a time
+   * and in order, emitting those for which it yields `true`. A failed `Async`
+   * is a defect, and cancellation reaches a pending call.
    */
   def filterAsync[A](f: A => Async[Boolean]): Pipeline[A, A] =
     new Pipeline[A, A] {
@@ -160,9 +190,9 @@ object Pipeline {
     }
 
   /**
-   * Passes every element through unchanged, preserving order, errors, and
-   * resource behavior. It is the identity for [[Pipeline.andThen]] and returns
-   * its input stream or sink unchanged, preserving any specialized reader path.
+   * The pipeline that changes nothing: applying it returns the same stream or
+   * sink instance, and it is neutral for [[Pipeline#andThen]]. Useful as the
+   * starting point when a pipeline is built step by step.
    */
   def identity[A]: Pipeline[A, A] = new Pipeline[A, A] {
     def applyToSink[E, Z](sink: Sink[E, A, Z]): Sink[E, A, Z] = sink
@@ -170,9 +200,9 @@ object Pipeline {
   }
 
   /**
-   * Maps each element lazily with a function whose result is `Nothing`. This
-   * overload preserves bottom-type inference and uses a boxed output lane.
-   * Thrown exceptions are defects rather than typed stream errors.
+   * Overload of `map` for a function that never returns, such as one that
+   * always throws; it keeps type inference working for `Nothing` results. An
+   * exception thrown by `f` is a defect.
    */
   def map[A](f: A => Nothing)(implicit
     dummy: DummyImplicit
@@ -182,10 +212,9 @@ object Pipeline {
   }
 
   /**
-   * Lazily transforms each element with `f`, preserving input order and
-   * cardinality. Thrown exceptions are defects rather than typed stream errors.
-   * Runtime type evidence selects specialized primitive input and output reader
-   * paths.
+   * Transforms each element with `f`, in order, one output per input. An
+   * exception thrown by `f` is a defect. The `JvmType.Infer` evidence, which
+   * the compiler supplies, lets a primitive result travel unboxed.
    */
   def map[A, B](f: A => B)(implicit
     jtB: JvmType.Infer[B]
@@ -193,11 +222,9 @@ object Pipeline {
     new MapPipeline(f, jtB)
 
   /**
-   * Asynchronously transforms each element, sequentially and in input order.
-   * Each callback is awaited before the next element is processed. A failed or
-   * defective `Async` fails the stream as a defect rather than through its
-   * typed error channel; cancellation of a suspended callback is propagated.
-   * Runtime type evidence selects specialized primitive reader paths.
+   * The asynchronous form of `map`: transforms each element with `f`, one at a
+   * time and in order, awaiting each call before pulling the next element. A
+   * failed `Async` is a defect, and cancellation reaches a pending call.
    */
   def mapAsync[A, B](f: A => Async[B])(implicit
     jtB: JvmType.Infer[B]
@@ -208,9 +235,8 @@ object Pipeline {
     }
 
   /**
-   * Emits at most the first `n` elements of each run and then closes upstream
-   * early. Non-positive values produce an empty stream. Counting state is fresh
-   * for every stream or sink materialization.
+   * Emits at most the first `n` elements of each run, then closes upstream;
+   * `n <= 0` emits nothing.
    */
   def take[A](n: Long): Pipeline[A, A] = new TakePipeline(n)
 
