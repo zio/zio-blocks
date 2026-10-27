@@ -199,7 +199,19 @@ Stream.range(0, tickCount).map(i => prices(i) * sizes(i)).runFold(0L)(_ + _)
 
 ### Read Primitives in a Custom Sink
 
-The built-in sinks and terminals already read primitive lanes without boxing: `Sink.sumLong`, `Sink.sumDouble`, `Sink.count`, `Sink.foldLeft` with a `Long`, `Int` or `Double` accumulator, and `Stream#runFold` with a `Long`, `Int` or `Double` start value. When we need a sink of our own, we pull from the reader with its primitive reads instead of `Reader#read`, which returns a boxed element.
+`Stream#runFold` and `Sink.foldLeft` with a `Long` start value read the lane and keep the running total unboxed. The other built-in aggregates also read the lane without boxing, but in 0.0.56 they box their running total once per element, a known bug: `Sink.sumLong`, `Sink.sumInt`, `Sink.sumDouble`, `Sink.count`, and `Stream#runFold` or `Sink.foldLeft` with a `Double` start value. Measured side by side:
+
+```scala mdoc:compile-only
+val sumSinkBytes   = Allocation.bytesPerRun(Stream.fromArray(prices).run(Sink.sumLong))
+val countSinkBytes = Allocation.bytesPerRun(Stream.fromArray(prices).run(Sink.count))
+val runFoldBytes   = Allocation.bytesPerRun(Stream.fromArray(prices).runFold(0L)(_ + _))
+
+println(s"Sink.sumLong: ${sumSinkBytes.toDouble / tickCount} bytes per tick")
+println(s"Sink.count:   ${countSinkBytes.toDouble / tickCount} bytes per tick")
+println(s"runFold(0L):  ${runFoldBytes.toDouble / tickCount} bytes per tick")
+```
+
+On this machine `Sink.sumLong` and `Sink.count` allocate about 48 bytes per tick and `Stream#runFold` with `0L` nothing per tick, so on a hot path we sum and count with a `Long` fold instead (`runFold(0L)((n, _) => n + 1)` counts). When we need a sink of our own, we pull from the reader with its primitive reads instead of `Reader#read`, which returns a boxed element.
 
 For a `Long` stream, the read that never boxes and never mistakes a price for the end of the stream is `Reader#readLongs` with a one-element array: it copies the next element into the array and returns `1`, or returns `-1` once the stream has ended. A sink that tracks the highest price looks like this:
 

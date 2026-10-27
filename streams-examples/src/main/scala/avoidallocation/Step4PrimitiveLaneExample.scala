@@ -84,6 +84,15 @@ object Step4PrimitiveLaneExample {
     )
     println(s"indexed notional: ${Stream.range(0, tickCount).map(i => prices(i) * sizes(i)).runFold(0L)(_ + _)}")
 
+    val sumSinkBytes   = Allocation.bytesPerRun(Stream.fromArray(prices).run(Sink.sumLong))
+    val countSinkBytes = Allocation.bytesPerRun(Stream.fromArray(prices).run(Sink.count))
+    val runFoldBytes   = Allocation.bytesPerRun(Stream.fromArray(prices).runFold(0L)(_ + _))
+
+    println(s"Sink.sumLong: ${sumSinkBytes.toDouble / tickCount} bytes per tick")
+    println(s"Sink.count:   ${countSinkBytes.toDouble / tickCount} bytes per tick")
+    println(s"runFold(0L):  ${runFoldBytes.toDouble / tickCount} bytes per tick")
+    println(s"count with runFold: ${Stream.fromArray(prices).runFold(0L)((n, _) => n + 1)}")
+
     println(s"highest price: ${Stream.fromArray(prices).run(highestPrice)}")
     val sinkBytes = Allocation.bytesPerRun(Stream.fromArray(prices).run(highestPrice))
     println(s"highestPrice sink: $sinkBytes bytes per run of $tickCount ticks")
