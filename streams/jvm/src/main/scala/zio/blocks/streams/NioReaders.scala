@@ -31,8 +31,11 @@ import java.nio.channels.ReadableByteChannel
  * The buffer readers do not copy the buffer: each pull advances its position,
  * reading from the position it had when the reader was made up to its limit,
  * and the multi-byte readers decode values in the buffer's byte order.
- * `reset()` restores the original position and limit, and `close()` moves the
- * position to the limit.
+ * `reset()` restores the original position and limit, then re-applies any skip
+ * or limit set on the reader, and `close()` moves the position to the limit. A
+ * known bug: `setLimit`, which a `take` pushed into the reader calls, lowers
+ * the buffer's own limit, and the buffer keeps that lower limit after the
+ * reader is done.
  */
 object NioReaders {
 

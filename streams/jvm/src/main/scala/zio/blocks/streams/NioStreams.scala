@@ -26,7 +26,11 @@ import java.nio.channels.ReadableByteChannel
  * reader.
  *
  * The buffer streams consume the buffer: a run advances its position to the
- * limit, so running the same stream again emits nothing.
+ * limit, so running the same stream again emits nothing. A known bug: a `take`
+ * or `drop` on such a stream is pushed into the reader and moves the buffer's
+ * limit and position, and the run leaves them there: after `take(2)` the
+ * buffer's limit is its old position plus 2, so the rest of the buffer is
+ * hidden from later readers.
  */
 object NioStreams {
 
