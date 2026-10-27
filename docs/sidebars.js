@@ -523,6 +523,7 @@ const sidebars = {
         {
           type: "category",
           label: "Query DSL",
+          link: { type: "doc", id: "guides/query-dsl/index" },
           collapsed: false,
           items: [
             "guides/query-dsl-reified-optics",
