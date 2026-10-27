@@ -8027,6 +8027,59 @@ object ArrayByte {
 
 **Suggested fix.** Add a bytes codec for `Col[Byte]` (`AvroSchema.create(AvroSchema.Type.BYTES)`, with `encoder.writeBytes` and `decoder.readBytes`), mirroring `bigIntCodec`. Change the pinned assertion at line 498 in the same change, and note the schema change in the Avro reference. This changes the wire format for existing `Array[Byte]` users, so it needs a release note. If the team keeps the int array on purpose, the reference should say so and give the size cost.
 
+### schema: `OffsetDateTime`, `LocalDateTime`, `LocalTime` and `OffsetTime` encode to JSON that isn't RFC 3339, though their JSON Schema says `format: date-time` or `time`
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/generate-scala-types-from-openapi.md` (backlog H-44), on `main` at `202578f27` (the schema sources are unchanged at `9d5ca8f91`). Same at v0.0.56. Verified by running.
+
+**Summary.** The JSON codecs of four `java.time` types write `toString`-style values. `OffsetDateTime`, `LocalTime` and `OffsetTime` drop the seconds when they are zero (`09:30+03:30`), and `LocalDateTime` has no offset at all. Their `toJsonSchema` still declares `format: "date-time"` (OffsetDateTime, LocalDateTime) or `format: "time"` (LocalTime, OffsetTime). RFC 3339, which the JSON Schema `date-time` and `time` formats point to, requires both the seconds and the offset. So a schema exported from these types (for example an OpenAPI document built as in H-39) promises values that a strict RFC 3339 validator rejects. ZIO Blocks' own format check accepts them, because its regexes make the seconds and the offset optional, so the mismatch never shows inside ZIO Blocks. `Instant` is fine: it always writes seconds and `Z`.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+//> using options -experimental
+// Run: scala-cli run --server=false Repro.scala
+import java.time._
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+@main def repro(): Unit = {
+  def show[A](value: A)(implicit schema: Schema[A]): Unit = {
+    val encoded = schema.jsonCodec.encodeToString(value)
+    val js      = schema.toJsonSchema
+    println(s"$encoded  format=${js.toJson.get("format").one.map(_.print).getOrElse("-")}  conforms=${Json.parse(encoded).map(js.conforms(_))}")
+  }
+  show(OffsetDateTime.parse("2026-10-27T09:30:00+03:30"))
+  show(LocalDateTime.parse("2026-10-27T09:30:00"))
+  show(LocalTime.parse("09:30:00"))
+  show(OffsetTime.parse("09:30:00Z"))
+  show(Instant.parse("2026-10-27T09:30:00Z"))
+}
+// "2026-10-27T09:30+03:30"  format="date-time"  conforms=Right(true)
+// "2026-10-27T09:30"  format="date-time"  conforms=Right(true)
+// "09:30"  format="time"  conforms=Right(true)
+// "09:30Z"  format="time"  conforms=Right(true)
+// "2026-10-27T09:30:00Z"  format="date-time"  conforms=Right(true)
+```
+
+**Expected.** Either of these:
+- A value that matches its declared format: `"2026-10-27T09:30:00+03:30"` and `"09:30:00Z"`, with seconds always written.
+- No `date-time` or `time` format for the offset-less types, `LocalDateTime` and `LocalTime`. RFC 3339 has no local date-time, so a `pattern` or no `format` is honest there.
+
+Separately, `JsonSchema#conforms` with `format: "date-time"` should reject `"2026-10-27T09:30"`.
+
+**Root cause.**
+- `schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:2071-2077`: `writeLocalTime` writes only `HH:mm` when `second` and `nano` are both 0 (`pos + 5`). `writeOffsetDateTime` (`:1874`, the call at `:1884`) and the `LocalDateTime`, `LocalTime` and `OffsetTime` writers go through it. The Scaladoc on `writeVal(x: OffsetDateTime)` (`:585-589`) documents the `toString` form (`"2024-03-15T10:15+01:00"`). The Scala.js `JsonWriter.scala` has the same writers (`writeVal` at `:597`, `:608`, `:629`, `:639`).
+- `schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodec.scala`: `localDateTimeCodec` (`:1118`) declares `format = "date-time"` at `:1138`, although its values carry no offset; `localTimeCodec` (`:1164`) and `offsetTimeCodec` (`:1292`) declare `time`; `offsetDateTimeCodec` declares `date-time` at `:1265`.
+- `schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:220-223` (`dateTimePattern`) and `:226-227` (`timePattern`) make `:ss` and the offset optional, so `validateDateTime` (`:270`) and `validateTime` accept these values.
+
+**Impact.** Any JSON Schema or OpenAPI document exported from a type with one of these fields describes values that other tools may reject: JSON Schema validators with format assertion on, and generated clients that parse `date-time` strictly. Data produced by ZIO Blocks can fail validation against ZIO Blocks' own published schema in someone else's validator. The H-44 guide maps `format: date-time` to `Instant` for this reason, and says so in a note.
+
+**Test gap.** `JsonSchemaSpec` "date-time format validates RFC 3339 date-times" (`schema/shared/src/test/scala/zio/blocks/schema/json/JsonSchemaSpec.scala:591-610`) asserts that `"-9999-01-01T00:00"` (no seconds, no offset) conforms, and checks generated `LocalDateTime`/`OffsetDateTime` `toString` values. So the test pins the lenient behaviour under a name that promises RFC 3339. `JsonCodecToJsonSchemaSpec` (`:206`, `:222`) checks only the format name, never an encoded value against it.
+
+**Suggested fix.** Write seconds always in `writeLocalTime` (JVM and JS). Stop declaring `date-time` and `time` for `LocalDateTime` and `LocalTime` (use a `pattern`, or no format). Make `dateTimePattern` and `timePattern` follow RFC 3339 (`:ss` and the offset required), and keep any lenient parse on the decode side only. Add a property test: for each `java.time` type with a format, `toJsonSchema.conforms(encode(x))` holds under a strict RFC 3339 check.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -10643,6 +10696,69 @@ object CrossType {
 
 **Suggested fix.** Document it on the Avro reference page as a caller responsibility, with a pointer to a registry or a version field. Do not add framing in this codec; registry framing is backlog item X-09.
 
+### openapi: an OpenAPI 3.0 document decodes without a warning, but `SchemaObject#toJsonSchema` ignores `nullable: true` and drops a boolean `exclusiveMinimum` or `exclusiveMaximum`
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/generate-scala-types-from-openapi.md` (backlog H-44), on `main` at `202578f27` (the openapi and schema sources are unchanged at `9d5ca8f91`). Same at v0.0.56. Verified by running.
+
+**Summary.** The openapi model is OpenAPI 3.1, whose schemas are JSON Schema 2020-12. `openAPICodec` doesn't check the `openapi` version field, so an OpenAPI 3.0 document decodes cleanly, and many real specs are 3.0 (Stripe's 1538-schema spec decodes this way). Two 3.0 keywords then change meaning silently in `SchemaObject#toJsonSchema`:
+- `nullable: true` isn't a 2020-12 keyword, so it lands in `extensions`, and `JsonSchema#check` rejects `null` for that property.
+- 3.0's boolean `exclusiveMinimum: true` (or `exclusiveMaximum`) has the name of a 2020-12 keyword but the wrong type, so it is dropped completely: not kept, not in `extensions`, no error. `minimum: 0` becomes an inclusive bound.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-openapi:0.0.56
+//> using options -experimental
+// Run: scala-cli run --server=false Repro.scala
+import zio.blocks.openapi._
+import zio.blocks.schema.json._
+
+@main def repro(): Unit = {
+  val spec =
+    """{"openapi": "3.0.3", "info": {"title": "Bookstore", "version": "1.0.0"},
+      | "components": {"schemas": {"Book": {"type": "object", "properties": {
+      |   "subtitle": {"type": "string", "nullable": true},
+      |   "price": {"type": "number", "minimum": 0, "exclusiveMinimum": true}}}}}}""".stripMargin
+  val api = Json.parse(spec).flatMap(OpenAPICodec.openAPICodec.decode(_))
+  println(s"decoded: ${api.map(_.openapi)}")
+  val ReferenceOr.Value(book) = api.toOption.get.components.get.schemas.get("Book").get: @unchecked
+  val Right(bookSchema: JsonSchema.Object) = book.toJsonSchema: @unchecked
+  println(s"price:    ${bookSchema.properties.get.get("price").get.toJson.print}")
+  println(s"subtitle: ${bookSchema.properties.get.get("subtitle").get.toJson.print}")
+  println(s"price 0 accepted: ${bookSchema.conforms(Json.parse("""{"price": 0}""").toOption.get)}")
+  println(s"subtitle null accepted: ${bookSchema.conforms(Json.parse("""{"subtitle": null}""").toOption.get)}")
+}
+// decoded: Right(3.0.3)
+// price:    {"type":"number","minimum":0}
+// subtitle: {"type":"string","nullable":true}
+// price 0 accepted: true
+// subtitle null accepted: false
+```
+
+**Expected.** Either of these:
+- `openAPICodec` rejects (or warns about) a non-3.1 `openapi` version with a clear message.
+- The 3.0 keywords are translated while decoding a `SchemaObject`: `nullable: true` becomes `type: [T, "null"]`, and `minimum: 0, exclusiveMinimum: true` becomes `exclusiveMinimum: 0`.
+
+At the least, a known keyword with a wrong-typed value should be kept in `extensions`, so that nothing is lost.
+
+**Root cause.**
+- `openapi/shared/src/main/scala/zio/blocks/openapi/OpenAPI.scala:25` documents the model as OpenAPI 3.1, but `OpenAPICodec.scala:1082` reads `openapi` as any `String`.
+- `schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala`: `nullable` isn't in `knownKeys` (`:2085`), so it goes to `extensions` (`:2009-2015`). `exclusiveMaximum` and `exclusiveMinimum` are read with `getNumber` (`:2054`, `:2056`). `getNumber` (`:1846-1849`) returns `None` for a non-number, and since the key is known, the extensions filter skips it too.
+- The lenient parsing is documented in the `fromJson` Scaladoc (`:766-771`), so for 2020-12 input this is by design. The trap is that the openapi module feeds 3.0 documents into it with no translation and no warning.
+
+**Impact.**
+- Anyone reading a 3.0 spec through the typed model (code generators like H-44, validators using `JsonSchema#check`) loses nullability unless they know to look in `extensions`, and silently loses exclusive bounds.
+- Validation rejects valid `null` payloads and accepts out-of-range boundary values.
+- Re-exporting the document drops the bound.
+
+**Test gap.** No openapi spec decodes a 3.0 document. The fixtures (`openapi/shared/src/test/resources/openapi/*.json`) are all 3.1, and `SchemaObjectSpec` has no test with `nullable` or a boolean `exclusiveMinimum`.
+
+**Suggested fix.**
+- Decide the 3.0 policy and implement it in `OpenAPICodec`'s `schemaObjectCodec` (`OpenAPICodec.scala:647`): reject, or translate `nullable` and the boolean `exclusive*` into 2020-12.
+- Keep wrong-typed known keywords in `extensions` in `JsonSchema.fromJson`.
+- Document the behaviour in `docs/reference/openapi.md`.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -10776,6 +10892,48 @@ Found 2026-10-26 while writing H-26 (`docs/guides/run-streams-without-blocking.m
 **Impact.** No example package in `streams-examples` can be checked on 2.13 without hiding that file first (H-26 used a local, uncommitted `Compile / unmanagedSources / excludeFilter` to compile its own package, which passed). CI doesn't compile the examples on 2.13, so nothing catches it. Only this file was confirmed; others may fail too.
 
 **Suggested fix.** Change `.*` to `._` in that file (or add a Scala 3-only source filter), then compile the whole build on 2.13 once.
+
+### openapi: `OpenAPIRoundTripSpec`'s "round-trips through JSON" tests only check that each fixture is valid JSON
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/generate-scala-types-from-openapi.md` (backlog H-44), on `main` at `202578f27` (the spec is unchanged at `9d5ca8f91`). Same at v0.0.56. Verified by running.
+
+**Summary.** The suite "JSON round-trip tests" in `OpenAPIRoundTripSpec` has three tests named "<fixture> round-trips through JSON" (minimal.json, petstore.json, with-security.json). Each one asserts only `Json.parse(jsonString).isRight`: none decodes the document through `openAPICodec`, let alone encodes it back. Any well-formed JSON passes, including a document the codec rejects.
+
+Decoding is covered elsewhere for petstore.json only. `OpenAPIJsonSerializationSpec.petstoreRoundTripSuite` (`openapi/jvm/src/test/scala/zio/blocks/openapi/OpenAPIJsonSerializationSpec.scala:756-775`) decodes and encodes it, but asserts only top-level fields (`openapi`, `info`, and whether `paths` and `components` are present). No test decodes a document whose component schemas use `oneOf` with a `discriminator` and `mapping`, a string `enum`, `type: [T, "null"]` or an `example`, and checks that they survive into `SchemaObject`. H-44 depends on exactly those (verified by running: they do survive at 0.0.56).
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-openapi:0.0.56
+//> using options -experimental
+// Run: scala-cli run --server=false Repro.scala
+import zio.blocks.openapi._
+import zio.blocks.schema.json._
+
+@main def repro(): Unit = {
+  // Not an OpenAPI document: `openapi` is a number and `info` is missing.
+  val broken = """{"openapi": 42, "components": {"schemas": {"Book": {"type": "object"}}}}"""
+  // The only assertion each OpenAPIRoundTripSpec "round-trips through JSON" test makes:
+  println(s"Json.parse(...).isRight: ${Json.parse(broken).isRight}")
+  // What a round trip through the OpenAPI model would check:
+  println(s"openAPICodec.decode: ${Json.parse(broken).flatMap(json => OpenAPICodec.openAPICodec.decode(json))}")
+}
+// Json.parse(...).isRight: true
+// openAPICodec.decode: Left(zio.blocks.schema.SchemaError: expected Json.String at: .)
+```
+
+**Expected.** A test named "round-trips through JSON" decodes the fixture with `openAPICodec`, encodes it again, and compares, modulo the known trailing blank lines on descriptions (the Library bugs entry "every description in the exported JSON ends with ...").
+
+**Root cause.** `openapi/jvm/src/test/scala/zio/blocks/openapi/OpenAPIRoundTripSpec.scala:28-41`: each of the three tests is `assertTrue(Json.parse(jsonString).isRight)`.
+
+**Impact.** A regression in decoding components (discriminator, enum, nullable unions, examples) wouldn't fail CI. minimal.json and with-security.json never pass through the codec in any full-document test.
+
+**Test gap.** This entry is the test gap.
+
+**Suggested fix.**
+- In `OpenAPIRoundTripSpec`, decode each fixture, re-encode it and compare the `Json` (or assert decode success at least).
+- Add a fixture whose components use `oneOf` with a `discriminator` and `mapping`, a string `enum`, `type: [T, "null"]`, `additionalProperties` and an `example`, and assert each survives in `SchemaObject`. `openapi-examples/src/main/openapi/bookstore.json` from H-44 covers all of these.
 
 ## Documentation errors
 
