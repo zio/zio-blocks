@@ -560,5 +560,7 @@ Plan: `docs/superpowers/plans/2026-10-26-streams-scaladoc.md`. Style: `docs/dev/
 | 0. Tooling                 | Done        | #1850 | 361 / 561 (64%) | 361 / 561 (64%) |
 | 1. Stream, Sink, Pipeline  | Done        | #1855 | 361 / 561 (64%) | 388 / 561 (69%) |
 | 2. io (Reader, Writer)     | Done        | #1862 | 388 / 561 (69%) | 431 / 561 (76%) |
-| 3. Platform and internals  | In review   |    | 431 / 561 (76%) | 561 / 561 (100%) |
-| 4. Close-out               | Not started |    |                 |                |
+| 3. Platform and internals  | Done        | #1868 | 431 / 561 (76%) | 561 / 561 (100%) |
+| 4. Close-out               | In review   |    | 561 / 561 (100%) | 561 / 561 (100%) |
+
+Completed 2026-10-27: coverage 361 / 561 (64%) → 561 / 561 (100%) with the scope-aware count. No member is left undocumented, so the close-out audit found no real gaps. Every wave fact-checked its Scaladoc against the code, and the reviews found and fixed false claims in existing comments. The bugs and reference-page errors the waves found are tracked in `docs/dev/issues.md`.

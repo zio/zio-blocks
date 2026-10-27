@@ -34,7 +34,7 @@ Multiplexing allows a single transport connection (TCP, QUIC, WebSocket) to carr
 Without multiplexing, protocols must open a new connection per concurrent operation (HTTP/1.1 with keep-alive), which is expensive and scales poorly. With multiplexing (HTTP/2, QUIC), one connection carries many streams, reducing connection overhead and latency while maintaining logical independence.
 
 `Mux` provides:
-- **Thread-safe stream registry** — concurrent `open`, `get`, `cancel` operations on the registry (lock-based on JVM, lock-free on JS)
+- **Thread-safe stream registry** — `open`, `get`, `cancel`, `closeAll` and `activeCount` are safe to call from any thread. On the JVM, `open`, `cancel` and `closeAll` take a `ReentrantLock`, while `get` and `activeCount` read a `ConcurrentHashMap` without it; on Scala.js, which runs one thread, the registry is a plain `HashMap` with no locking
 - **Lock-free per-stream queues** — `send()` and `offerInbound()` use lock-free ring buffers on JVM for high-throughput messaging
 - **Separate inbound/outbound queues** — independent message directions, two-way communication
 - **Automatic state machine** — stream lifecycle (OPEN → HALF_CLOSED_LOCAL/REMOTE → CLOSED) with proper half-close semantics
@@ -773,7 +773,7 @@ val recAfter = stream.receive()
 - OPEN → HALF_CLOSED_REMOTE (remote side cannot send; local can still receive pending messages)
 - HALF_CLOSED_LOCAL → CLOSED (both sides are now closed)
 
-After `signalRemoteClose()`, `offerInbound()` returns `StreamClosed`. You can still call `receive()` to drain any buffered inbound messages.
+After `signalRemoteClose()`, `offerInbound()` returns `StreamClosed`. You can still call `receive()` to drain any buffered inbound messages. Once they are drained, `receive()` keeps returning `None`, not an error, until the local side also half-closes, so `receive()` alone does not tell the application that the peer has finished. A protocol that needs to tell it delivers an end marker as the last inbound message, as [How to Run a Mux over a Real Socket](../guides/run-a-mux-over-a-socket.md) does.
 
 Signalling remote half-close:
 
@@ -812,7 +812,7 @@ val inMux = mux.get(1)
 **Thread Safety**
 
 - `send()` and `offerInbound()` are **multi-thread safe**: multiple threads can safely call these concurrently on the same stream.
-- Call `receive()` and `takeOutbound()` from the same thread only. Concurrent calls to the same ring buffer produce data races and unpredictable behavior. These are single-consumer operations and must be called from a single thread. Concurrent calls will corrupt the ring buffer state and lead to incorrect results or lost messages.
+- `receive()` and `takeOutbound()` are **single-consumer**: on each stream, at most one thread at a time may call `receive()`, and at most one thread at a time may call `takeOutbound()`. The two can be different threads, which is the usual layout: the application calls `receive()` and the protocol's writer calls `takeOutbound()`. Two threads calling the same one concurrently corrupt the ring buffer: messages are delivered twice or lost, and the queue can stop accepting new messages.
 - State queries (`id`, `isClosed`, `isHalfClosed`) are always safe to call from any thread.
 
 ## Performance
@@ -820,9 +820,10 @@ val inMux = mux.get(1)
 - JVM: `MpscRingBuffer` for inbound and outbound, lock-free and zero-alloc for multi-producer writes
 - JVM: `VarHandle` CAS for stream state transitions
 - JS: `ArrayDeque` fallback
-- No `synchronized`, so it stays friendly to virtual threads
+- No `synchronized`: the registry's lock is a `ReentrantLock`, and the per-stream queues and state transitions take no lock, so a virtual thread never pins its carrier thread inside `Mux`
 
 ## See Also
 
+- [How to Run a Mux over a Real Socket](../guides/run-a-mux-over-a-socket.md) -- wires a `Mux` to a TCP connection: a frame format, a reader loop and a writer loop, half-close, back-pressure, resets and shutdown.
 - [Streams](streams/index.md) -- the pull-based `Stream`, `Reader`, `Sink`, and `Writer` module. `Mux` is not built on it, but the two are the same concurrency-infrastructure family, and a stream per multiplexed channel is the natural pairing when you are coordinating many keyed streams over one transport.
 - [Async Execution](streams/execution-and-compatibility/async-execution.md) -- how a stream runs without blocking, which is what you want on each side of a `Mux` channel.
