@@ -476,6 +476,7 @@ const sidebars = {
         "guides/use-named-tuples-with-schema",
         "guides/one-type-many-formats",
         "guides/encode-and-decode-records-with-avro",
+        "guides/store-case-classes-in-mongodb",
         "guides/read-and-write-csv-and-tsv-files",
         "guides/read-and-write-yaml",
         "guides/typed-config-loader",

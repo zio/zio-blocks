@@ -244,6 +244,7 @@ val updated = Person.age.replace(person, 31)
 - [Evolve Your Data](./guides/evolve-your-data.md) — a tutorial that validates incoming data with `Into`, converts between versions with `As`, and renames a stored field with a compile-checked `Migration`
 - [One Type, Many Formats](./guides/one-type-many-formats.md) — a tutorial that exports one catalog as JSON, YAML, XML, TOON, MessagePack, Avro and CSV from the same schema
 - [How to Encode and Decode Records with Avro](./guides/encode-and-decode-records-with-avro.md) — a how-to guide that writes the `.avsc` schema for a sealed trait, streams Avro records, maps each Scala type to its Avro type, and reads the bytes with Apache Avro
+- [How to Store Case Classes in MongoDB](./guides/store-case-classes-in-mongodb.md) — a how-to guide that derives a BSON codec, uses `ObjectId` as the `_id`, chooses how sealed traits and options are stored, and inserts and queries tickets with the MongoDB Java driver
 - [Schema reference](./reference/schema/index.md) — the full API surface, from `Reflect` and `Binding` through optics, validation, and schema evolution
 - [Migrating from ZIO Schema](./guides/zio-schema-migration.md) — a step-by-step port from ZIO Schema 1.x
 - [Coming from circe, zio-json or jsoniter-scala](./guides/json-library-migration.md) — move JSON codecs to one derived `Schema`, keeping field names, discriminators and custom formats
@@ -547,6 +548,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [How to Read and Modify JSON Without Case Classes](./guides/json-without-case-classes.md) - Parse JSON into a tree, read and change values by path, print it back, and decode only the part you need into a case class
 - [How to Build a Schema Registry with DynamicSchema](./guides/build-a-schema-registry.md) - Store versioned event schemas as data, check incoming events against them, rebind them to Scala types, and compare versions
 - [How to Encode and Decode Records with Avro](./guides/encode-and-decode-records-with-avro.md) - Derive an Avro codec for order events, write the `.avsc` schema, encode and decode records and streams, and read the bytes with Apache Avro
+- [How to Store Case Classes in MongoDB](./guides/store-case-classes-in-mongodb.md) - Derive a BSON codec from a Schema, store support tickets in MongoDB with the Java driver, and pick how sealed traits and options are stored
 - [Coming from circe, zio-json or jsoniter-scala](./guides/json-library-migration.md) - Move JSON codecs from circe, zio-json or jsoniter-scala to one ZIO Blocks Schema
 - [Coming from fs2, ZIO Streams or Ox](./guides/streaming-library-migration.md) - Map fs2, ZIO Streams and Ox code onto ZIO Blocks `Stream`, `Pipeline` and `Sink`
 - [Coming from Magnum or doobie](./guides/migrate-from-magnum-or-doobie.md) - Map Magnum and doobie entities, transactors, queries and streams onto the `sql` module

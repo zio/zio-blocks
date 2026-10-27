@@ -22,6 +22,8 @@ BSON is the native wire format for MongoDB and appears widely across modern appl
 
 Rather than writing custom encoders or relying on string-based configuration, you work with strongly-typed schemas that the compiler validates.
 
+To store case classes in MongoDB with the official Java driver, step by step, see [How to Store Case Classes in MongoDB](../../../guides/store-case-classes-in-mongodb.md).
+
 ## Installation
 
 Add the module to your `build.sbt`:
@@ -173,9 +175,9 @@ val codec = BsonSchemaCodec.bsonCodec(Status.schema, discriminatorConfig)
 
 ### Pattern 4: Use ObjectId with Native BSON Encoding
 
-ObjectId fields can be encoded using BSON's native ObjectId type for compatibility with MongoDB.
+ObjectId fields are encoded using BSON's native ObjectId type for compatibility with MongoDB. Importing `ObjectIdSupport._` is all it takes; `BsonSchemaCodec.Config#withNativeObjectId` is not needed and has no effect in this version.
 
-To enable native BSON ObjectId encoding:
+To derive a codec that stores an `ObjectId` field natively:
 
 ```scala
 import zio.blocks.schema._
@@ -189,8 +191,7 @@ object Document {
   implicit val schema: Schema[Document] = Schema.derived
 }
 
-val config = BsonSchemaCodec.Config.withNativeObjectId(true)
-val codec = BsonSchemaCodec.bsonCodec(Document.schema, config)
+val codec = BsonSchemaCodec.bsonCodec(Document.schema)
 ```
 
 ## BsonCodec[A]
@@ -336,7 +337,8 @@ import zio.blocks.schema.bson._
 
 case class BsonError(message: String, trace: List[BsonTrace])
 
-val trace = List(BsonTrace.Field("user"), BsonTrace.Array(0), BsonTrace.Field("age"))
+// Innermost step first, the order the decoder builds the trace in
+val trace = List(BsonTrace.Field("age"), BsonTrace.Array(0), BsonTrace.Field("user"))
 val rendered = BsonTrace.render(trace) // ".user[0].age"
 ```
 
@@ -447,15 +449,15 @@ case class Array(idx: Int) extends BsonTrace      // Array index
 
 ### Rendering Traces
 
-Convert a trace list to a human-readable path:
+Convert a trace list to a human-readable path. The list holds the innermost step first, the order the decoder builds it in, and `BsonTrace.render` prints it outermost first:
 
 ```scala
 import zio.blocks.schema.bson._
 
 val trace = List(
-  BsonTrace.Field("user"),
+  BsonTrace.Field("email"),
   BsonTrace.Array(0),
-  BsonTrace.Field("email")
+  BsonTrace.Field("user")
 )
 
 val path = BsonTrace.render(trace) // ".user[0].email"
