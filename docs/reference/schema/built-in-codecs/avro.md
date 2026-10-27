@@ -7,6 +7,8 @@ title: "Avro Codec Module"
 
 The module integrates with Apache Avro to provide native binary serialization with automatic schema generation and support for recursive data structures with cycle detection.
 
+See also the [How to Encode and Decode Records with Avro](../../../guides/encode-and-decode-records-with-avro.md) guide, which writes the `.avsc` schema for a sealed trait, streams records, lists how each Scala type maps to Avro, and reads the bytes with Apache Avro.
+
 ## Motivation
 
 Avro is a powerful serialization format prevalent in distributed systems, messaging platforms, and data pipelines. Manually writing Avro encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-avro` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
