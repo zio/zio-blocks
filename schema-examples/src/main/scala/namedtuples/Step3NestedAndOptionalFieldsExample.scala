@@ -18,12 +18,6 @@ import zio.blocks.schema._
  */
 object Step3NestedAndOptionalFieldsExample {
 
-  case class DailyReport(day: String, readings: List[(city: String, tempC: Double)])
-
-  object DailyReport {
-    implicit val schema: Schema[DailyReport] = Schema.derived
-  }
-
   def main(args: Array[String]): Unit = {
     val oslo: Reading = (city = "Oslo", tempC = 3.8)
 

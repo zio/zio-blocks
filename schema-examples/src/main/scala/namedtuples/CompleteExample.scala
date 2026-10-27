@@ -17,14 +17,6 @@ import zio.blocks.schema._
  */
 object CompleteExample {
 
-  case class WeatherReading(city: String, tempC: Double)
-
-  case class DailyReport(day: String, readings: List[(city: String, tempC: Double)])
-
-  object DailyReport {
-    implicit val schema: Schema[DailyReport] = Schema.derived
-  }
-
   object Stations extends CompanionOptics[Station] {
     val tempC: Lens[Station, Double] = $(_.reading.tempC)
   }

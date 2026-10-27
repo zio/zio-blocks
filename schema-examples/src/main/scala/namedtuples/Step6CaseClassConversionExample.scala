@@ -17,8 +17,6 @@ import zio.blocks.schema._
  */
 object Step6CaseClassConversionExample {
 
-  case class WeatherReading(city: String, tempC: Double)
-
   val toWeatherReading: Into[(String, Double), WeatherReading] =
     Into.derived[(String, Double), WeatherReading]
 

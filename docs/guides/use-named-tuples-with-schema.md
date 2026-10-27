@@ -305,7 +305,7 @@ In 0.0.56, `Into.derived` and `As.derived` don't accept a named tuple directly: 
 
 ## Putting It Together
 
-The complete example handles a small station feed. It decodes a JSON array of station reports, which uses the schema that ZIO Blocks provides for a `List` of any type with a schema, prints the decode error for a damaged report, corrects each reading's temperature with the `Stations.tempC` lens, converts the readings to `WeatherReading` with `Into`, and encodes a `DailyReport`. Beyond the sections, it decodes the feed with `fromJson[List[Station]]` and stops with `sys.error` if the feed doesn't decode, and it adds a third station, Tromsø:
+The complete example handles a small station feed. It decodes a JSON array of station reports, which uses the schema that ZIO Blocks provides for a `List` of any type with a schema, prints the decode error for a damaged report, corrects each reading's temperature with the `Stations.tempC` lens, converts the readings to `WeatherReading` with `Into`, and encodes a `DailyReport`. Beyond the sections, it decodes the feed with `fromJson[List[Station]]` and stops with `sys.error` if the feed doesn't decode, and it adds a third station, Tromsø. It takes `Reading`, `Station`, `WeatherReading` and `DailyReport` from the shared `Model.scala`:
 
 ```scala mdoc:embed:schema-examples/src/main/scala/namedtuples/CompleteExample.scala
 ```
