@@ -754,6 +754,7 @@ cd mux-examples && sbt "runMain mux.completeExample"
 
 ## Where to Go Next
 
+- **Ready to put a mux on a real connection?** Follow [How to Run a Mux over a Real Socket](./run-a-mux-over-a-socket.md) to carry several streams over one TCP connection, with a frame format, reader and writer loops, half-close, back-pressure and shutdown.
 - **Want to dive deeper into the API?** Read the reference page for [`Mux`](../reference/mux.mdx) for complete method signatures and advanced patterns.
 - **Ready to explore related concepts?** Check out the [Ring Buffer](../reference/ringbuffer/index.mdx) reference for understanding lock-free data structures used internally.
 - **Interested in other concurrency and stream management?** Explore other libraries in ZIO Blocks for managing complex async workflows.
