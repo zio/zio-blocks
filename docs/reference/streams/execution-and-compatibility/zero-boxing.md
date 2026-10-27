@@ -391,4 +391,5 @@ The result is specialized hot paths without `@specialized` class proliferation, 
 - [Pipeline](../core/pipeline.md) — why the transforming factories ask for `JvmType.Infer` on their result type
 - [Asynchronous Stream Execution](./async-execution.md#one-stream-type-two-execution-modes) — how a graph becomes synchronous or asynchronous, and why there is no mode annotation either
 - [Platform Differences](./platform-differences.md) — what changes on Scala.js, where the same lanes apply
+- [How to Avoid Allocation on Hot Paths](../../../guides/avoid-allocation-on-hot-paths.md) — keeping a hot loop on a primitive lane and measuring whether it still allocates
 - [How to Process Binary Data Without Boxing](../../../guides/process-binary-data-without-boxing.md) — read, transform, aggregate and write `ByteBuffer`s, mapped files and `InputStream`s as unboxed `Long` and `Double` streams

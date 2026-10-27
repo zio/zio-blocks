@@ -26,18 +26,23 @@ import java.nio.ByteBuffer
 import java.nio.channels.WritableByteChannel
 
 /**
- * JVM-only convenience constructors for creating [[Sink]] instances that write
- * to NIO [[ByteBuffer]]s and [[WritableByteChannel]]s.
+ * Sinks that write a stream into `java.nio` targets (JVM only): a `ByteBuffer`
+ * written as bytes or as `Int`, `Long`, `Float` or `Double` values, and a
+ * blocking `WritableByteChannel`. Each sink works with the blocking terminals
+ * and with the `*Async` ones.
  *
- * Each method creates a sink that drains the stream into the corresponding NIO
- * target.
+ * The buffer sinks write at the buffer's position and advance it, encoding
+ * multi-byte values in the buffer's byte order, and keep every value,
+ * `Long.MaxValue`, `Double.MaxValue` and `NaN` included. When the buffer runs
+ * out of room, the `BufferOverflowException` of `ByteBuffer#put` is not a typed
+ * error: a blocking terminal throws it, and an `*Async` terminal's `Async`
+ * fails with it. The values written before it stay in the buffer.
  */
 object NioSinks {
 
   /**
-   * Creates a sink that writes all stream bytes into a [[ByteBuffer]]. Throws
-   * `BufferOverflowException` if the buffer has insufficient remaining
-   * capacity.
+   * Returns a sink that writes every byte of the stream into `buf`. A byte that
+   * does not fit throws `BufferOverflowException` (see [[NioSinks]]).
    */
   def fromByteBuffer(buf: ByteBuffer): Sink[Nothing, Byte, Unit] =
     new Sink[Nothing, Byte, Unit] {
@@ -52,9 +57,9 @@ object NioSinks {
     }
 
   /**
-   * Creates a sink that writes all stream Doubles into a [[ByteBuffer]] (8
-   * bytes per element). Throws `BufferOverflowException` if the buffer has
-   * insufficient remaining capacity.
+   * Returns a sink that writes every `Double` of the stream into `buf`, 8 bytes
+   * each. A value that does not fit throws `BufferOverflowException` (see
+   * [[NioSinks]]).
    */
   def fromByteBufferDouble(buf: ByteBuffer): Sink[Nothing, Double, Unit] =
     new Sink[Nothing, Double, Unit] {
@@ -69,9 +74,9 @@ object NioSinks {
     }
 
   /**
-   * Creates a sink that writes all stream Floats into a [[ByteBuffer]] (4 bytes
-   * per element). Throws `BufferOverflowException` if the buffer has
-   * insufficient remaining capacity.
+   * Returns a sink that writes every `Float` of the stream into `buf`, 4 bytes
+   * each. A value that does not fit throws `BufferOverflowException` (see
+   * [[NioSinks]]).
    */
   def fromByteBufferFloat(buf: ByteBuffer): Sink[Nothing, Float, Unit] =
     new Sink[Nothing, Float, Unit] {
@@ -86,9 +91,9 @@ object NioSinks {
     }
 
   /**
-   * Creates a sink that writes all stream Ints into a [[ByteBuffer]] (4 bytes
-   * per element). Throws `BufferOverflowException` if the buffer has
-   * insufficient remaining capacity.
+   * Returns a sink that writes every `Int` of the stream into `buf`, 4 bytes
+   * each. A value that does not fit throws `BufferOverflowException` (see
+   * [[NioSinks]]).
    */
   def fromByteBufferInt(buf: ByteBuffer): Sink[Nothing, Int, Unit] =
     new Sink[Nothing, Int, Unit] {
@@ -103,9 +108,9 @@ object NioSinks {
     }
 
   /**
-   * Creates a sink that writes all stream Longs into a [[ByteBuffer]] (8 bytes
-   * per element). Throws `BufferOverflowException` if the buffer has
-   * insufficient remaining capacity.
+   * Returns a sink that writes every `Long` of the stream into `buf`, 8 bytes
+   * each. A value that does not fit throws `BufferOverflowException` (see
+   * [[NioSinks]]).
    */
   def fromByteBufferLong(buf: ByteBuffer): Sink[Nothing, Long, Unit] =
     new Sink[Nothing, Long, Unit] {
@@ -120,14 +125,14 @@ object NioSinks {
     }
 
   /**
-   * A sink that writes all stream bytes to a
-   * [[java.nio.channels.WritableByteChannel]] with internal buffering. Does not
-   * close the channel.
+   * Returns a sink that writes every byte of the stream to `ch`, through a
+   * buffer of `bufSize` bytes that it writes out when the next byte finds it
+   * full and at the end of the stream. It does not close `ch`.
    *
-   * @param ch
-   *   The channel to write to.
-   * @param bufSize
-   *   Internal buffer size in bytes (default 8192).
+   * An `IOException` from `ch` ends the run with it as the typed error
+   * (`Left(e)`). The asynchronous drain also calls `ch.write` directly, so a
+   * channel that blocks also blocks the thread that runs an `*Async` terminal;
+   * when `ch.write` writes nothing, that drain yields and tries again.
    */
   def fromChannel(ch: WritableByteChannel, bufSize: Int = 8192): Sink[IOException, Byte, Unit] =
     new Sink[IOException, Byte, Unit] {

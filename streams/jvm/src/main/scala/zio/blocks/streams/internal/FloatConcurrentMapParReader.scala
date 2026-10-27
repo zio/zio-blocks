@@ -32,9 +32,9 @@ import java.util.concurrent.locks.LockSupport
  * The per-worker output queue is selected at construction time from `outType`:
  *   - `JvmType.Boolean` / `Byte` / `Char` / `Short` / `Int` →
  *     `IntSpscRingBuffer`
- *   - `JvmType.Long` → `LongSpscRingBuffer`
+ *   - `JvmType.Long` → a full-domain raw 64-bit SPSC queue
  *   - `JvmType.Float` → `FloatSpscRingBuffer`
- *   - `JvmType.Double` → `DoubleSpscRingBuffer`
+ *   - `JvmType.Double` → a full-domain raw 64-bit SPSC queue
  *   - everything else → `SpscRingBuffer[AnyRef]` (boxed fallback)
  *
  * When the output queue is primitive there is **zero allocation** on the

@@ -498,7 +498,7 @@ The companion example measures every step of this guide over the 100,000 samples
 | `Sink.sumDouble` (a known bug in 0.0.56)                                    | 24.00            |
 | `runFold(0.0)` (a known bug in 0.0.56)                                      | 48.00            |
 
-The small non-zero figures are per-run costs spread over 100,000 samples: the stream's own objects, the result, and in the gzip and recorder rows the 64 KB of buffers each run allocates. None of them grows with the number of samples. Treat the figures as rough sizes, not guarantees: they depend on the JDK, the JIT and the pipeline. For a JMH benchmark with `-prof gc`, which reports the same figure as `gc.alloc.rate.norm`, see the guide How to Avoid Allocation on Hot Paths.
+The small non-zero figures are per-run costs spread over 100,000 samples: the stream's own objects, the result, and in the gzip and recorder rows the 64 KB of buffers each run allocates. None of them grows with the number of samples. Treat the figures as rough sizes, not guarantees: they depend on the JDK, the JIT and the pipeline. For a JMH benchmark with `-prof gc`, which reports the same figure as `gc.alloc.rate.norm`, see [How to Avoid Allocation on Hot Paths](./avoid-allocation-on-hot-paths.md).
 
 ## Putting It Together
 
@@ -541,7 +541,7 @@ Each section has its own example, run from the `streams-examples` directory:
 - The [zero-boxing reference](../reference/streams/execution-and-compatibility/zero-boxing.md) explains how a stream picks its lane and where boxing can still happen, including the asynchronous terminals.
 - The [`Reader`](../reference/streams/primitives/reader.md) and [`Writer`](../reference/streams/primitives/writer.md) references list every primitive read and write, including the bulk `Reader#readLongs` with a larger array.
 - [How to Stream Files and Sockets Without Leaking Resources](./stream-files-and-sockets.md) covers managed and unmanaged handles, sockets and `Scope` resources.
-- The guide How to Avoid Allocation on Hot Paths applies the same measuring to `Chunk`, `Option` and telemetry code, and verifies the figures with JMH.
+- [How to Avoid Allocation on Hot Paths](./avoid-allocation-on-hot-paths.md) applies the same measuring to `Chunk`, `Option` and telemetry code, and verifies the figures with JMH.
 - [Coming from fs2, ZIO Streams or Ox](./streaming-library-migration.md) maps the stream operators of those libraries onto ZIO Blocks Streams.
 
 ```scala mdoc:invisible

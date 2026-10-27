@@ -24,9 +24,11 @@ import zio.blocks.streams.{JvmType, Sink, Stream}
 import zio.blocks.streams.io.Reader
 
 /**
- * Private scalar coroutine used to prove the async interpreter's operation,
- * wake, replacement, and cancellation protocol before the op-array execution
- * loop is installed. It is intentionally not reachable from `Stream.compile`.
+ * The asynchronous interpreter: runs a chain of linear stream operators (such
+ * as `map`, `filter` and the operators whose function returns an `Async`) over
+ * a reader as an array of operations, and exposes the result as an asynchronous
+ * reader. Chains of linear operators over an asynchronous reader compile into
+ * it.
  */
 private[streams] final class AsyncInterpreter(source: Reader.AsyncReader[Any]) {
   import AsyncInterpreter._
@@ -4465,14 +4467,23 @@ private[streams] final class AsyncInterpreter(source: Reader.AsyncReader[Any]) {
   }
 }
 
+/** Builders and helpers for [[AsyncInterpreter]]. */
 private[streams] object AsyncInterpreter {
   private val DirectIntRead: Async[Any] = new AnyRef().asInstanceOf[Async[Any]]
   private val InlineScalarPush: AnyRef  = new AnyRef
 
+  /**
+   * A reader that runs a whole fold itself, which a sink calls instead of
+   * pulling element by element.
+   */
   private[streams] trait TerminalDriver {
     def foldAsync[A, Z](zero: Z, accumulatorType: JvmType, step: (Z, A) => Async[Z]): Async[Z]
   }
 
+  /**
+   * A reader that can take a following `map`, `filter` or asynchronous map into
+   * itself; each `fuse*` method returns `false` when it cannot.
+   */
   private[streams] trait FusibleReader {
     def fuseAsyncMap[A, B](inType: JvmType, outType: JvmType, f: A => Async[B]): Boolean
     def fuseFilter[A](inType: JvmType, f: A => Boolean): Boolean

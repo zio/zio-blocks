@@ -20,6 +20,11 @@ import zio.blocks.async.{Async, _}
 import zio.blocks.streams.internal.StreamError
 import zio.blocks.streams.io.Reader
 
+/**
+ * The resumable loop of `Stream#runFoldAsync` with a `Long` accumulator over an
+ * asynchronous `Int` reader mapped with an `Int => Async[Int]`: it pulls, maps
+ * and folds up to 1024 elements per poll, then yields.
+ */
 private[streams] final class MappedNativeAsyncIntEitherLongFold[E](
   reader: Reader.AsyncReader[Int],
   map: Int => Async[Int],

@@ -23,44 +23,75 @@ import java.nio.ByteBuffer
 import java.nio.channels.ReadableByteChannel
 
 /**
- * JVM-only factory methods for constructing [[Reader]] instances backed by NIO
- * [[ByteBuffer]]s and [[ReadableByteChannel]]s.
+ * Synchronous readers over `java.nio` sources (JVM only): a `ByteBuffer` read
+ * as bytes or as `Int`, `Long`, `Float` or `Double` values, and a blocking
+ * `ReadableByteChannel`. For channels that read asynchronously, use
+ * [[AsyncNioReaders]].
+ *
+ * The buffer readers do not copy the buffer: each pull advances its position,
+ * reading from the position it had when the reader was made up to its limit,
+ * and the multi-byte readers decode values in the buffer's byte order.
+ * `reset()` restores the original position and limit, then re-applies any skip
+ * or limit set on the reader, and `close()` moves the position to the limit. A
+ * known bug: `setLimit`, which a `take` pushed into the reader calls, lowers
+ * the buffer's own limit, and the buffer keeps that lower limit after the
+ * reader is done.
  */
 object NioReaders {
 
   /**
-   * Wraps a `ByteBuffer` as a `Reader[Byte]`. Reads from the buffer's current
-   * position to its limit. Supports `reset()` to rewind to the original
-   * position.
+   * Returns a reader of the bytes from `buf`'s position to its limit. Each pull
+   * advances `buf`'s position, and `reset()` rewinds it to where it started.
    */
   def fromByteBuffer(buf: ByteBuffer): Reader.SyncReader[Byte] =
     new ByteBufferReader(buf)
 
-  /** Wraps a `ByteBuffer` as a `Reader[Double]` (8 bytes per element). */
+  /**
+   * Returns a reader of the `Double`s in `buf`, 8 bytes each, in `buf`'s byte
+   * order; fewer than 8 bytes left over at the end are not read.
+   */
   def fromByteBufferDouble(buf: ByteBuffer): Reader.SyncReader[Double] =
     new ByteBufferDoubleReader(buf)
 
-  /** Wraps a `ByteBuffer` as a `Reader[Float]` (4 bytes per element). */
+  /**
+   * Returns a reader of the `Float`s in `buf`, 4 bytes each, in `buf`'s byte
+   * order; fewer than 4 bytes left over at the end are not read.
+   */
   def fromByteBufferFloat(buf: ByteBuffer): Reader.SyncReader[Float] =
     new ByteBufferFloatReader(buf)
 
-  /** Wraps a `ByteBuffer` as a `Reader[Int]` (4 bytes per element). */
+  /**
+   * Returns a reader of the `Int`s in `buf`, 4 bytes each, in `buf`'s byte
+   * order; fewer than 4 bytes left over at the end are not read.
+   */
   def fromByteBufferInt(buf: ByteBuffer): Reader.SyncReader[Int] =
     new ByteBufferIntReader(buf)
 
-  /** Wraps a `ByteBuffer` as a `Reader[Long]` (8 bytes per element). */
+  /**
+   * Returns a reader of the `Long`s in `buf`, 8 bytes each, in `buf`'s byte
+   * order; fewer than 8 bytes left over at the end are not read.
+   */
   def fromByteBufferLong(buf: ByteBuffer): Reader.SyncReader[Long] =
     new ByteBufferLongReader(buf)
 
   /**
-   * Wraps a `ReadableByteChannel` as a buffered `Reader[Byte]`.
+   * Returns a reader of the bytes of `ch`, read through a buffer of `bufSize`
+   * bytes. The reader owns `ch`: `close()` closes it once, and a failure to
+   * close it is thrown by that `close()` and by every later one. Reaching the
+   * end of `ch` does not close it.
    *
-   * @param bufSize
-   *   Internal read buffer size in bytes (default 8192).
+   * An `IOException` from `ch` is thrown wrapped in
+   * `zio.blocks.streams.internal.StreamError`, whose `value` is the
+   * `IOException`, and every later pull throws it again.
+   *
+   * `ch` must be in blocking mode: a channel read that returns no bytes is
+   * taken as the end of the data (`readByte()` returns `-1`), although
+   * `isClosed` stays `false`.
    */
   def fromChannel(ch: ReadableByteChannel, bufSize: Int = 8192): Reader.SyncReader[Byte] =
     new ChannelReader(ch, bufSize)
 
+  /** [[fromChannel]] without closing `ch` when the reader closes. */
   private[streams] def fromChannelUnmanaged(ch: ReadableByteChannel, bufSize: Int): Reader.SyncReader[Byte] =
     new ChannelReader(ch, bufSize, closeChannel = false)
 }

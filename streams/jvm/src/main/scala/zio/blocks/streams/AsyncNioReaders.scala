@@ -27,8 +27,24 @@ import java.nio.channels.{AsynchronousByteChannel, AsynchronousSocketChannel, Co
 import java.util.concurrent.{CancellationException, ExecutionException, Executors, Future, TimeUnit}
 
 /**
- * Genuinely non-blocking JVM reader factories. [[NioReaders]] remains the API
- * for blocking `ReadableByteChannel`s.
+ * Asynchronous readers over channels that read without blocking a thread (JVM
+ * only): an `AsynchronousByteChannel`, such as an `AsynchronousSocketChannel`.
+ * For a blocking `ReadableByteChannel` or a `FileChannel`, use [[NioReaders]].
+ *
+ * Every reader reads through a buffer of `bufferSize` bytes and allows one pull
+ * at a time: a pull started while another is in flight fails with
+ * `IllegalStateException`. A channel read that transfers no bytes is retried,
+ * and only a negative count ends the data. Reaching the end does not close the
+ * channel; `close()` does, for the managed factories. `close()` also cancels a
+ * read in flight, whose pull then returns the end value, and later calls return
+ * the outcome of the first.
+ *
+ * An `IOException` from the channel fails the pull's `Async` with a
+ * `zio.blocks.streams.internal.StreamError` whose `value` is the `IOException`;
+ * any other failure fails it as is. Every later pull fails with the same
+ * failure again. A stream built with `Stream.fromReader` turns the
+ * `IOException` into its typed error (`Left(e)`); any other failure fails the
+ * terminal's `Async` (a blocking terminal throws it).
  */
 object AsyncNioReaders {
   private val futurePoller = Executors.newSingleThreadScheduledExecutor { (r: Runnable) =>
@@ -42,19 +58,40 @@ object AsyncNioReaders {
     ()
   }
 
+  /**
+   * Returns a reader of the bytes of `channel` that owns it: `close()` closes
+   * `channel` if it is still open, and a failure to close it fails `close()`.
+   * Throws `IllegalArgumentException` when `bufferSize` is not positive.
+   */
   def fromChannel(channel: AsynchronousByteChannel, bufferSize: Int = 8192): Reader.AsyncReader[Byte] =
     new AsyncChannelReader(channel, bufferSize, closeChannel = true)
 
+  /**
+   * Returns a reader of the bytes of `channel` that leaves it open on
+   * `close()`, for a channel the caller owns. It reads with the `Future` form
+   * of `read`, which a shared daemon thread checks every millisecond, and
+   * `close()` cancels a pending `Future`. Throws `IllegalArgumentException`
+   * when `bufferSize` is not positive.
+   */
   def fromChannelUnmanaged(channel: AsynchronousByteChannel, bufferSize: Int = 8192): Reader.AsyncReader[Byte] =
     new AsyncChannelReader(channel, bufferSize, closeChannel = false)
 
+  /** [[fromChannel]] for a socket: closing the reader closes `socket`. */
   def fromSocket(socket: AsynchronousSocketChannel, bufferSize: Int = 8192): Reader.AsyncReader[Byte] =
     fromChannel(socket, bufferSize)
 
+  /**
+   * [[fromChannelUnmanaged]] for a socket: closing the reader leaves `socket`
+   * open.
+   */
   def fromSocketUnmanaged(socket: AsynchronousSocketChannel, bufferSize: Int = 8192): Reader.AsyncReader[Byte] =
     fromChannelUnmanaged(socket, bufferSize)
 }
 
+/**
+ * The reader behind [[AsyncNioReaders]]; `closeChannel` selects the managed
+ * form.
+ */
 private final class AsyncChannelReader(channel: AsynchronousByteChannel, bufferSize: Int, closeChannel: Boolean)
     extends Reader.AsyncReader[Byte] {
   require(bufferSize > 0, "bufferSize must be positive")

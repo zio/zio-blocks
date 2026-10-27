@@ -126,7 +126,7 @@ All of these ship in `zio-blocks-scope`.
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
 | [Chunk](./reference/chunk.md) | `zio-blocks-chunk` | JVM · JS | 2.13 · 3.x | High-performance immutable indexed sequences with zero-boxing builders |
-| [Maybe](./reference/maybe.md) | `zio-blocks-maybe` | JVM · JS | 2.13 · 3.x | Low-allocation optional values backed by `null` |
+| [Maybe](./reference/maybe.md) | `zio-blocks-maybe` | JVM · JS | 2.13 · 3.x | Optional values that store a present reference as is, without a wrapper object (Scala 3) |
 | [Combinators](./reference/combinators.md) | `zio-blocks-combinators` | JVM · JS | 2.13 · 3.x | Compile-time composition and decomposition of tuples, eithers, and unions |
 
 ### Concurrency
@@ -244,6 +244,7 @@ val updated = Person.age.replace(person, 31)
 - [Evolve Your Data](./guides/evolve-your-data.md) — a tutorial that validates incoming data with `Into`, converts between versions with `As`, and renames a stored field with a compile-checked `Migration`
 - [One Type, Many Formats](./guides/one-type-many-formats.md) — a tutorial that exports one catalog as JSON, YAML, XML, TOON, MessagePack, Avro and CSV from the same schema
 - [How to Encode and Decode Records with Avro](./guides/encode-and-decode-records-with-avro.md) — a how-to guide that writes the `.avsc` schema for a sealed trait, streams Avro records, maps each Scala type to its Avro type, and reads the bytes with Apache Avro
+- [How to Store Case Classes in MongoDB](./guides/store-case-classes-in-mongodb.md) — a how-to guide that derives a BSON codec, uses `ObjectId` as the `_id`, chooses how sealed traits and options are stored, and inserts and queries tickets with the MongoDB Java driver
 - [Schema reference](./reference/schema/index.md) — the full API surface, from `Reflect` and `Binding` through optics, validation, and schema evolution
 - [Migrating from ZIO Schema](./guides/zio-schema-migration.md) — a step-by-step port from ZIO Schema 1.x
 - [Coming from circe, zio-json or jsoniter-scala](./guides/json-library-migration.md) — move JSON codecs to one derived `Schema`, keeping field names, discriminators and custom formats
@@ -517,6 +518,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [How to Test Database Code Against SQLite](./guides/test-database-code-against-sqlite.md) - Give every test its own SQLite database, create the schema from code, seed fixtures and roll back writes in ZIO Test specs
 - [How to Connect to PostgreSQL with a Connection Pool](./guides/connect-to-postgresql-with-a-connection-pool.md) - Set up a HikariCP pool for PostgreSQL, build a `JdbcTransactor` on it, size it for virtual threads and close it with a `Scope`
 - [How to Upsert Rows and Paginate with Keyset Cursors](./guides/upsert-and-paginate-with-keyset-cursors.md) - Insert or update rows in one statement, choose which columns an upsert changes, and walk large tables page by page with keyset cursors
+- [How to Migrate Table Rows to a New Version Online](./guides/migrate-table-rows-online.md) - Convert every row of a live table to a new row type with `SmallMigrator` or `LargeMigrator` while the application keeps reading and writing
 - [How to Map Custom Column Types](./guides/map-custom-column-types.md) - Store newtypes, opaque types, enums, JSON documents, PostgreSQL arrays and timestamps in SQL columns, on SQLite and PostgreSQL
 - [How to Store and Search Vector Embeddings in PostgreSQL](./guides/store-and-search-vector-embeddings.md) - Store embeddings in a pgvector column with a `DbCodec` built on `String`, search by nearest neighbour, pick a distance operator and add an HNSW index
 - [How to Stream Large Query Results](./guides/stream-large-query-results.md) - Read a large result set as a stream of row chunks with `queryStream` and `queryChunked`, aggregate it, export it to a file and handle its errors
@@ -548,11 +550,13 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [How to Read and Modify JSON Without Case Classes](./guides/json-without-case-classes.md) - Parse JSON into a tree, read and change values by path, print it back, and decode only the part you need into a case class
 - [How to Build a Schema Registry with DynamicSchema](./guides/build-a-schema-registry.md) - Store versioned event schemas as data, check incoming events against them, rebind them to Scala types, and compare versions
 - [How to Encode and Decode Records with Avro](./guides/encode-and-decode-records-with-avro.md) - Derive an Avro codec for order events, write the `.avsc` schema, encode and decode records and streams, and read the bytes with Apache Avro
+- [How to Store Case Classes in MongoDB](./guides/store-case-classes-in-mongodb.md) - Derive a BSON codec from a Schema, store support tickets in MongoDB with the Java driver, and pick how sealed traits and options are stored
 - [Coming from circe, zio-json or jsoniter-scala](./guides/json-library-migration.md) - Move JSON codecs from circe, zio-json or jsoniter-scala to one ZIO Blocks Schema
 - [Coming from fs2, ZIO Streams or Ox](./guides/streaming-library-migration.md) - Map fs2, ZIO Streams and Ox code onto ZIO Blocks `Stream`, `Pipeline` and `Sink`
 - [Coming from Magnum or doobie](./guides/migrate-from-magnum-or-doobie.md) - Map Magnum and doobie entities, transactors, queries and streams onto the `sql` module
 - [How to Generate JSON Schema from a Type and Validate Payloads Against It](./guides/generate-json-schema-and-validate-payloads.md) - Derive a JSON Schema from a `Schema`, publish it, and validate incoming JSON payloads
 - [How to Tune JSON Encoding and Decoding for Throughput](./guides/tune-json-throughput.md) - Decode JSON straight from bytes, buffers and streams, reuse derived codecs, size reader and writer buffers, and measure with JMH
+- [How to Avoid Allocation on Hot Paths](./guides/avoid-allocation-on-hot-paths.md) - Keep streams on primitive lanes, read and build `Chunk`s without boxing, swap `Option` for `Maybe`, pre-bind metric labels, and measure each change
 - [How to Write an OpenAPI Document and Export It as JSON or YAML](./guides/write-and-export-openapi.md) - Build an OpenAPI 3.1 document from component schemas and render it as JSON or YAML
 - [Generate Scala Code from a Smithy Model](./guides/generate-scala-code-from-smithy.md) - Parse a Smithy model, map its shapes to the codegen IR, emit Scala 3 and Scala 2 with `Schema` derivation, and run the generator as an sbt source generator
 - [How to Generate Scala Types from an OpenAPI Spec at Build Time](./guides/generate-scala-types-from-openapi.md) - Turn the component schemas of an OpenAPI document into case classes, enums and sealed traits with `Schema` derivation, regenerated on every sbt build
