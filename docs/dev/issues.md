@@ -58,7 +58,7 @@ println(Schema.fromJsonSchema(jsonSchema).jsonCodec.decode("""{"title":"Zionomic
 
 **Root cause.** `JsonSchemaToReflect.buildRecord` receives the `required` set but never uses it — the parameter is marked `@scala.annotation.unused` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchemaToReflect.scala:311`). Every property becomes a plain `Term` with no default value and no optional wrapper (`:316-318`), so the derived JSON codec treats each one as a required field. The record constructor already turns a missing register into `DynamicValue.Null` (`:327-328`), but the codec fails with `missing required field` before the constructor runs.
 
-**Impact.** `Schema.fromJsonSchema` is unusable for most real-world schemas, which almost always have optional properties. Its Scaladoc says values are validated against the JSON Schema, but valid values are rejected before that validation runs.
+**Impact.** `Schema.fromJsonSchema` is unusable for most real-world schemas, which almost always have optional properties. Valid values are rejected before the JSON Schema check runs. Since #1841 the `Schema.fromJsonSchema` Scaladoc documents this (a property missing from `"required"` fails with `missing required field`); the code is unchanged.
 
 **Test gap.** `SchemaFromJsonSchemaSpec` only decodes objects that contain every listed property, so it never covers an absent optional property.
 
@@ -215,11 +215,41 @@ Filed as #1780. Found 2026-10-20 while writing H-12. Verified on 0.0.56.
 
 ### `JsonSchema#check` enforces `pattern` only when the pattern is anchored
 
-Found 2026-10-20 while writing H-05. From source (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:1124`).
+Found 2026-10-20 while writing H-05, from source; confirmed 2026-10-23 in wave 8a of the schema Scaladoc (branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that completes this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
 
-**Summary.** JSON Schema says `pattern` matches anywhere in the string (it is not implicitly anchored), so `"pattern": "\\d"` must reject `"abc"`. `check` appears to apply `pattern` only when it is written as `^...$` and to skip it silently otherwise.
+**Summary.** JSON Schema says `pattern` matches anywhere in the string (it is not implicitly anchored), so `"pattern": "[0-9]{3}"` must reject `"Zionomicon"`. `check` applies `pattern` only when it starts with `^` and ends with `$`, and skips any other pattern without a word, so a pattern anchored at one end only is ignored too.
 
-**Next step.** Confirm by running `check` with an unanchored pattern against a non-matching value. If confirmed, use a find-anywhere match, and check why the official test suite (said to pass, research §3.4) does not catch it.
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    def isbn(pattern: String) = JsonSchema.string(RegexPattern.unsafe(pattern))
+    println(isbn("[0-9]{3}").check(Json.String("Zionomicon")))
+    println(isbn("^[0-9]{3}").check(Json.String("Zionomicon")))
+    println(isbn("^[0-9]{3}$").check(Json.String("Zionomicon")))
+    println(isbn("^[0-9]{3}$").check(Json.String("978-0-9")))
+  }
+}
+// None
+// None
+// Some(zio.blocks.schema.SchemaError: String does not match pattern '^[0-9]{3}$' at: .)
+// Some(zio.blocks.schema.SchemaError: String does not match pattern '^[0-9]{3}$' at: .)
+```
+
+**Expected.** The first two lines are `Some` errors: `"Zionomicon"` contains no three digits, so neither `[0-9]{3}` nor `^[0-9]{3}` matches it anywhere.
+
+**Root cause.** The `pattern` case is guarded by `case Some(p) if p.value.startsWith("^") && p.value.endsWith("$")` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:1293`); any other pattern falls to `case _ =>` and is not checked. The match also uses `matches()`, which requires the whole string, where the specification asks for a search (`find()`). `patternProperties` already uses `find()` (`:1476`).
+
+**Impact.** Most real-world patterns are not anchored at both ends (`"[A-Z]{3}"`, `"^\\+"`, `"@example\\.com$"`), so `check`, `conforms`, `Json#check` and the decoder of `Schema.fromJsonSchema` accept strings that the schema forbids, with no sign that the keyword was skipped.
+
+**Test gap.** `JsonSchemaSpec` "pattern constraint" (`schema/shared/src/test/scala/zio/blocks/schema/json/JsonSchemaSpec.scala:127-128`) uses the anchored `^[a-z]+$`. `JsonSchemaOfficialTestSuiteSpec` runs `pattern.json` (`schema/jvm/src/test/scala/zio/blocks/schema/json/JsonSchemaOfficialTestSuiteSpec.scala:69`) but downloads the suite at test time and skips a list of known-failing tests (`:93-106`); no in-repo test checks an unanchored pattern against a string it should reject.
+
+**Suggested fix.** Remove the guard and check every pattern with `regex.matcher(str).find()`. Add tests for an unanchored pattern and for one anchored at one end.
 
 ### scope: on Scala 3, a closed `AutoCloseable` can escape its scope
 
@@ -945,6 +975,8 @@ The same exception is thrown with `sliding(2, 2)`, `scan`, `mapAccum`, `grouped(
 
 **Suggested fix.** Before compiling a pushed inner stream in `SyncInterpreter.handlePush`, check whether it can run synchronously, and when it cannot, compile it with `stream.compile` and bridge the resulting reader in, as `compileBlockingFallback` does for the whole stream. Alternatively, make the up-front blocking compile detect recovery nodes under `flatMap` and pick the fallback engine from the start. Add a regression spec for each stateful operator listed above.
 
+**Also seen (2026-10-26, streams Scaladoc wave 1).** `AsyncBoundaryRequired` is also thrown when `orElse`, `catchDefect` or any `*Async` operator sits inside the `flatMap` instead of `catchAll`.
+
 ### Streams: a blocking terminal deadlocks inside an object initializer once `catchAll` is in the pipeline
 
 Found 2026-10-20 while building the companion examples for `docs/guides/your-first-streaming-pipeline.md` (backlog T-06), on `main` at `db589bd0`. The `streams/` and `async/` sources are the same at tag `v0.0.56`.
@@ -1155,6 +1187,148 @@ The change runs once per inner stream, when `handlePush` materializes it: one ar
 
 - interpreter-level: `appendRead(ref reader)` → `addPush(AnyRef, AnyRef)` → `addMap(AnyRef, Int/Long/Double)`, read with `readInt`/`readLong`/`readDouble`/`readN`, and the erased `addPush(Int, AnyRef)` + inner `Int` stream + `addMap(AnyRef, Int)` case;
 - stream-level: the reproduction above for `grouped`, `sliding`, `take`, `takeWhile`, `scan` and `mapAccum`, plus a nested `flatMap` of pages, each checked against `runCollectAsync.block`.
+
+### Streams: `Stream#repeated` resets readers instead of rebuilding the stream, so effects run once, state carries over, and some sources hang or throw
+
+Found 2026-10-26 while writing the Scaladoc for `Stream#repeated` (wave 1 of the streams Scaladoc, branch `streams-scaladoc-wave-1`), on `streams-scaladocs` at `b93330329`. The same at tag `v0.0.56`. Verified against the published 0.0.56 on Scala 2.13.18 and on Scala 3.9.0 (`zio-blocks-next-streams`, `-experimental`); both print the output below. Not filed on GitHub yet.
+
+**Summary.** `repeated` was documented as "rematerializes this stream after each clean completion" (the reference page `docs/reference/streams/core/stream.md`, "Repeating", says the same). It does not: on the synchronous engine a new cycle calls `reset()` on the previous cycle's reader. A pure source such as `Stream(1, 2)` repeats correctly, but:
+
+- effects that run when the stream opens (`Stream.eval`, `Stream.suspend`, the `acquire` of `Stream.fromAcquireRelease`) run once in total instead of once per cycle, and a release or `ensuring` finalizer around the whole cycle also runs only once, at the end;
+- `mapAccum` keeps its state from one cycle to the next, and `distinct` keeps its seen-set, so its second cycle emits nothing and the reader loops forever (a busy loop, no error);
+- `Stream.fromIterator(Iterator(1, 2)).repeated` loops forever on the blocking terminals (the reset re-reads the exhausted iterator) and stops after one cycle on the async terminal;
+- `Stream.fromInputStream(...).repeated` throws `UnsupportedOperationException: This reader does not support reset` as a defect.
+
+The `*Async` terminals are affected too: under `runCollectAsync`, `Stream.suspend`, `fromAcquireRelease`, an `ensuring` around the cycle, `mapAccum` and `fromInputStream` behave exactly as under `runCollect`; only `Stream.eval(...) ++ Stream(1)` is rebuilt per cycle there, and `distinct` and `fromIterator` stop after one cycle instead of hanging.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli run --server=false Repeated.scala`; on Scala 3.9.0 with `zio-blocks-next-streams` 0.0.56 and `-experimental` the output is identical):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.streams._
+
+object Repeated {
+  // Runs `body` on a daemon thread and reports a hang after 3 seconds.
+  def show(label: String)(body: => Any): Unit = {
+    val t = new Thread(() => {
+      val r = try body.toString catch { case e: Throwable => s"throws ${e.getClass.getName}: ${e.getMessage}" }
+      println(s"$label -> $r")
+    })
+    t.setDaemon(true); t.start(); t.join(3000)
+    if (t.isAlive) println(s"$label -> still running after 3 s")
+  }
+
+  def main(args: Array[String]): Unit = {
+    // Correct: a pure source repeats.
+    show("Stream(1, 2)")(Stream(1, 2).repeated.take(5).runCollect)
+
+    // Effects that run when the stream opens run once, not once per cycle.
+    show("eval, blocking") {
+      var opened = 0
+      val r = (Stream.eval(opened += 1) ++ Stream(1)).repeated.take(3).runCollect
+      s"$r opened=$opened"
+    }
+    show("eval, async") {
+      import zio.blocks.async._
+      var opened = 0
+      val r = (Stream.eval(opened += 1) ++ Stream(1)).repeated.take(3).runCollectAsync.block
+      s"$r opened=$opened"
+    }
+    show("fromAcquireRelease") {
+      val log = new StringBuilder
+      val r = Stream.fromAcquireRelease({ log ++= "acquire;"; 1 }, (_: Int) => log ++= "release;")(_ => Stream(1))
+        .repeated.take(3).runCollect
+      s"$r $log"
+    }
+
+    // State carries over from one cycle to the next.
+    show("mapAccum")(Stream(1, 1).mapAccum(0)((s, a) => (s + a, s + a)).repeated.take(4).runCollect)
+    show("distinct")(Stream(1, 2).distinct.repeated.take(4).runCollect)
+
+    // Sources whose reader cannot restart.
+    show("fromIterator, blocking")(Stream.fromIterator(Iterator(1, 2)).repeated.take(5).runCollect)
+    show("fromIterator, async") {
+      import zio.blocks.async._
+      Stream.fromIterator(Iterator(1, 2)).repeated.take(5).runCollectAsync.block
+    }
+    show("fromInputStream")(
+      Stream.fromInputStream(new java.io.ByteArrayInputStream(Array[Byte](1, 2))).repeated.take(4).runCollect
+    )
+  }
+}
+// Stream(1, 2) -> Right(Chunk(1,2,1,2,1))
+// eval, blocking -> Right(Chunk(1,1,1)) opened=1
+// eval, async -> Right(Chunk(1,1,1)) opened=3
+// fromAcquireRelease -> Right(Chunk(1,1,1)) acquire;release;
+// mapAccum -> Right(Chunk(1,2,3,4))
+// distinct -> still running after 3 s
+// fromIterator, blocking -> still running after 3 s
+// fromIterator, async -> Right(Chunk(1,2))
+// fromInputStream -> throws java.lang.UnsupportedOperationException: This reader does not support reset
+```
+
+**Expected.** Each cycle builds the stream again, as the old Scaladoc and the reference page say: `opened=3` on both engines, `acquire;release;acquire;release;acquire;release;`, `mapAccum` giving `Chunk(1,2,1,2)`, `distinct` giving `Chunk(1,2,1,2)`, `fromIterator` giving `Chunk(1,2,1,2,1)` on both engines, and `fromInputStream` reading the (by then consumed) stream again instead of throwing. A cycle that emits nothing either ends the repetition or is documented, on both engines (today `Stream.empty.repeated` hangs on both, while `Stream(1, 2).filter(_ > 5).repeated` hangs on `runCollect` and returns `Right(Chunk())` on `runCollectAsync`).
+
+**Root cause.** `Stream.Repeated` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:10763`) wraps a synchronous upstream with `Reader.repeated(reader)` (`:10804`, and `:10786` on the interpreter path). `Reader.Repeated` (`streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala:5391`) restarts a cycle with `inner.reset()` (`:5394-5396`) and, on the generic path, loops `while (true)` until an element arrives (`:5398-5411`), so a cycle that emits nothing spins forever. `reset()` is not "build again": deferred nodes (`Stream.Deferred`, `:4008`, which `eval` and `suspend` use) and `FromAcquireRelease` reset their current reader instead of re-running their thunk or `acquire`; `mapAccum` and `distinct` keep the state captured when the stream was first built; `iteratorReader` (`Stream.scala:3586`) wraps one iterator in an `Iterable` whose `iterator` returns that same, exhausted iterator; and readers over one-shot resources use the default `reset()`, which throws (`Reader.scala:834`). Only two routes rebuild `self` per cycle: `wrapReader`'s branch for an asynchronous upstream reader (`Stream.scala:10805-10820`) and `Repeated.materializeAsync` (`:10788-10799`). A synchronous upstream reader is reset whichever terminal runs it, which is why most cases fail under `runCollectAsync` too.
+
+**Impact.** `repeated` is the obvious way to poll a source ("read the file again", "query again", "retry this request forever"), and those are exactly the cases that use `eval`, `suspend`, `fromAcquireRelease`, `fromIterator` or `fromInputStream`. They silently repeat stale data, hang with a busy loop, or throw a defect. `distinct` or a filter that rejects a whole cycle turns into an infinite loop that holds a thread at 100% CPU.
+
+**Test gap.** `NewCombinatorsSpec.scala:640-761`, `AsyncFacadeCoverageSpec.scala:172` and `StreamMetadataSpec.scala:162` repeat only pure sources and `++` segments with `ensuring`. `ResourceLeakSpec.scala:737-765` repeats a stream with `ensuring` and one from `fromAcquireRelease`, but asserts only that the release ran at least once, which the bug satisfies. `StreamRepresentationSpec.scala:34-40` checks only the `jvmType`. `AsyncStreamSinkStateCoverageSpec.scala:76` and `AsyncStreamSinkResidualCoverageSpec.scala:146` repeat a `Stream.suspend` over an asynchronous stream and check that it runs once per cycle, which is the route that does rebuild. No test counts acquisitions or effects per cycle over a synchronous source, runs `repeated` over `eval`, a synchronous `suspend`, `mapAccum`, `distinct`, `fromIterator` or `fromInputStream`, or compares the two terminal families.
+
+**Suggested fix.** Make every cycle rematerialize: in `Repeated.wrapReader` and `Repeated.compileInterpreter`, on end of a cycle close the current reader and compile `self` again (as `materializeAsync` already does), instead of `Reader.repeated(reader)`. This runs once per cycle, not per element, so the hot read loop and the primitive sentinels are untouched (AGENTS.md sentinel policy). If resetting is kept for performance, restrict it to sources whose reset is a true rebuild (chunks, ranges, `Stream(...)`), and fall back to rematerializing otherwise. Either way, document that a cycle emitting nothing never returns, or end the repetition when a whole cycle is empty. Add regression tests for each case above on both terminals.
+
+### Streams: `Stream.bufferSize` has no effect on a JVM blocking terminal unless the stream has an asynchronous stage or a `catchAll`
+
+Found 2026-10-26 while reviewing the Scaladoc of `Stream.bufferSize` (wave 1 of the streams Scaladoc, branch `streams-scaladoc-wave-1`), on `streams-scaladocs` at `b93330329`. The same at tag `v0.0.56`. Verified against the published 0.0.56 on Scala 2.13.18 and on Scala 3.9.0 (`zio-blocks-next-streams`, `-experimental`); both print the output below. Not filed on GitHub yet.
+
+**Summary.** `Stream.bufferSize(n)(body)` is documented (Scaladoc and `docs/reference/streams/core/stream.md`, "Buffer Sizing") to size the queues of the concurrent operators in `body` "on the synchronous lane". On a JVM blocking terminal (`runCollect`, `run`, `runForeach`, ...) it does nothing: `mapPar` keeps its default queues of 64 whatever `n` is. It works under the `*Async` terminals, and under a blocking terminal only when the stream also has an asynchronous stage, `catchAll`, `catchDefect` or `orElse` (each moves the run off the synchronous interpreter).
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli --power run --server=false --offline BufferSizeIgnored.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.async._
+import zio.blocks.streams._
+import java.util.concurrent.atomic.AtomicInteger
+
+object BufferSizeIgnored {
+  // How many elements mapPar has processed when the consumer, after one pull, has slept 300 ms.
+  // mapPar's workers stop when its output queue is full, so this shows the queue size in use.
+  def aheadOfConsumer(size: Option[Int], blocking: Boolean): Int = {
+    val processed = new AtomicInteger
+    val body      = Stream.range(0, 1000).mapPar(2) { i => processed.incrementAndGet(); i }
+    val stream    = size.fold(body)(n => Stream.bufferSize(n)(body))
+    val sink = Sink.create[Nothing, Int, Int] { reader =>
+      reader.read[Any](null)
+      Thread.sleep(300)
+      processed.get
+    }
+    val result = if (blocking) stream.run(sink) else stream.runAsync(sink).block
+    result.fold(_ => -1, identity)
+  }
+
+  def main(args: Array[String]): Unit =
+    for (size <- List(None, Some(1), Some(1024)))
+      println(s"bufferSize $size: runAsync ${aheadOfConsumer(size, blocking = false)}, run ${aheadOfConsumer(size, blocking = true)}")
+}
+// bufferSize None: runAsync 131, run 131
+// bufferSize Some(1): runAsync 5, run 131
+// bufferSize Some(1024): runAsync 1000, run 131
+```
+
+**Expected.** `run` matches `runAsync`: about 5 elements ahead with `bufferSize(1)` and all 1000 with `bufferSize(1024)`.
+
+**Root cause.** `compileBlockingFallback` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:3379-3383`) compiles a blocking run with `SyncInterpreter.fromStream`, which calls `compileInterpreter` on each node. `WithBufferSize.compileInterpreter` (`Stream.scala:4485`) forwards to the body and drops `n`, and `MapPar.compileInterpreter` (`:4517-4528`) and `MergedAll.compileInterpreter` (`:4595-4604`) pass the constant `Stream.DefaultBufferSize` to `Platform.createMapParReader`/`createMergeReader`. Only `WithBufferSize.compile` (`:4482-4484`) and `materializeAsync` (`:4486-4489`) pass `n` on, and those run for the `*Async` terminals or after the interpreter gives up with `AsyncBoundaryRequired`.
+
+**Impact.** The one documented knob for the memory and look-ahead of `mapPar`, `flatMapPar` and `mergeAll` silently does nothing on the JVM's main path; a user who lowers it to bound memory, or raises it for throughput, sees no change. For `flatMapPar` and `mergeAll` no route sizes a merge queue from it at all: the threaded merge readers are built only by the interpreter (always 64), and on the reader route `AsyncConcurrentReaders.merge` uses the size only to compile each inner stream.
+
+**Test gap.** `streams/jvm/src/test/scala/zio/blocks/streams/BufferSizeSpec.scala:24-41` runs `bufferSize` with `mapPar`/`flatMapPar` under `runCollect`, including "nested bufferSize: inner wins", but asserts only the result length, never the size in use.
+
+**Suggested fix.** Carry the buffer size through the interpreter: give `SyncInterpreter` a current buffer size, set it in `WithBufferSize.compileInterpreter` (restoring the outer one after `inner.compileInterpreter`), and read it in `MapPar`/`MergedAll.compileInterpreter` instead of `Stream.DefaultBufferSize`. This is per materialization, not per element, so no read loop or sentinel changes. Add a spec that observes the queue size (as above) on both terminal families.
 
 ### jwt: `Jwt.sign` writes a registered claim twice when `extra` also contains it, and verifiers read the `extra` value
 
@@ -3826,6 +4000,101 @@ object Price { given Schema[Price] = Schema.derived }
 
 **Suggested fix.** After the pair loop, strip one more zero when `m10 % 10 == 0`, or build the `BigDecimal` with `stripTrailingZeros` and keep the `10.0`-style scale only for integral values. Add a test that `Json.Number(49.99).print == "49.99"` on the JVM and JS.
 
+**Also seen for `Float`** (2026-10-23, wave 8b of the schema Scaladoc, `main` at `ecbe934e4`, same at `v0.0.56`; verified on the JVM and on Scala.js). `JsonWriter.toBigDecimal(x: Float)` strips trailing zeros in pairs too (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:3645-3655`, one loop dividing by 100; the Scala.js copy at `schema/js/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:3814-3824`), so `Json.Number(Float)` (`Json.scala:829`) pads as well. Which values get padded differs from `Double`, because the `Float` mantissa has fewer digits: `0.5f` gives `0.50`, while `2.5f` and `49.99f` come out right. The reproducer, run with `scala-cli run --server=false FloatTrailingZero.scala` (Scala.js: use the three directives in the comment and add `--js-cli-on-jvm`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+// Scala.js instead:
+//   //> using platform scala-js
+//   //> using jsVersion 1.22.0
+//   //> using dep dev.zio::zio-blocks-schema::0.0.56
+
+import zio.blocks.schema.json._
+
+object FloatTrailingZero {
+  def main(args: Array[String]): Unit = {
+    for (f <- List(100.0f, 0.5f, 10.0f, 2.5f, 49.99f)) {
+      val bd = JsonWriter.toBigDecimal(f)
+      println(s"toBigDecimal(${f}f) = $bd (scale ${bd.scale})")
+    }
+    println(Json.Number(0.5f).print)
+    println(Json.Number(2.5f).print)
+  }
+}
+// JVM:
+// toBigDecimal(100.0f) = 1E+2 (scale -2)
+// toBigDecimal(0.5f) = 0.50 (scale 2)
+// toBigDecimal(10.0f) = 10.0 (scale 1)
+// toBigDecimal(2.5f) = 2.5 (scale 1)
+// toBigDecimal(49.99f) = 49.99 (scale 2)
+// 0.50
+// 2.5
+// Scala.js (the `${f}` text differs because Scala.js prints a Float as its Double value):
+// toBigDecimal(100f) = 1E+2 (scale -2)
+// toBigDecimal(0.5f) = 0.50 (scale 2)
+// toBigDecimal(10f) = 10 (scale 0)
+// toBigDecimal(2.5f) = 2.5 (scale 1)
+// toBigDecimal(49.9900016784668f) = 49.99 (scale 2)
+// 0.50
+// 2.5
+```
+
+The `10.0f` line also shows the JVM/Scala.js scale difference of the next entry (`JsonWriter.toBigDecimal` gives whole numbers scale 1 on the JVM and scale 0 on Scala.js). The suggested fix of the existing entry (strip one more zero when `m10 % 10 == 0`) applies to the `Float` overload as well.
+
+### schema: `JsonWriter.toBigDecimal` gives whole numbers scale 1 on the JVM and scale 0 on Scala.js, so `Json.Number(10.0)` prints `10.0` on one and `10` on the other
+
+Found 2026-10-23 while writing the Scaladoc for `JsonWriter` (wave 8b, branch `scaladoc-wave-8b`), on `main` at `ecbe934e4`. The same at tag `v0.0.56`. Verified by running against the published 0.0.56 on both platforms. Not filed on GitHub yet.
+
+**Summary.** `JsonWriter.toBigDecimal(x: Double)` and `toBigDecimal(x: Float)` return the same value on both platforms but with different scales for a whole number whose shortest form has no pair of trailing zeros: the JVM returns `10.0` (scale 1) and Scala.js returns `10` (scale 0). `Json.Number(Double)` and `Json.Number(Float)` use it, and so does the `Double` codec when it encodes to a `Json` tree, so the same program prints `10.0` on the JVM and `10` in the browser.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56). JVM: `scala-cli run --server=false ToBigDecimal.scala`. Scala.js: replace the dependency line with the three lines in the comment and run `scala-cli run --server=false ToBigDecimal.scala --js-cli-on-jvm`.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+// Scala.js instead:
+//   //> using platform scala-js
+//   //> using jsVersion 1.22.0
+//   //> using dep dev.zio::zio-blocks-schema::0.0.56
+
+import zio.blocks.schema.json._
+
+object ToBigDecimal {
+  def main(args: Array[String]): Unit = {
+    for (d <- List(10.0, 5.0, 2024.0)) {
+      val bd = JsonWriter.toBigDecimal(d)
+      println(s"$d -> $bd (scale ${bd.scale})")
+    }
+    val f = JsonWriter.toBigDecimal(10.0f)
+    println(s"10.0f -> $f (scale ${f.scale})")
+    println(Json.Number(10.0).print)
+  }
+}
+// JVM:
+// 10.0 -> 10.0 (scale 1)
+// 5.0 -> 5.0 (scale 1)
+// 2024.0 -> 2024.0 (scale 1)
+// 10.0f -> 10.0 (scale 1)
+// 10.0
+// Scala.js (`$d` prints without `.0` there, which is Scala.js's own `Double#toString`):
+// 10 -> 10 (scale 0)
+// 5 -> 5 (scale 0)
+// 2024 -> 2024 (scale 0)
+// 10.0f -> 10 (scale 0)
+// 10
+```
+
+**Expected.** The same `BigDecimal`, and the same printed `Json`, on both platforms.
+
+**Root cause.** The JVM copy ends both conversions with `if (e10 == 0) { m10 *= 10; e10 -= 1 }` (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:3656` in `toBigDecimal(x: Float)` and `:3752` in `toBigDecimal(x: Double)`). The Scala.js copy leaves that step out and builds the result straight from the stripped mantissa (`schema/js/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:3826`, `:3926`). `Json.Number.apply(Float)` and `apply(Double)` call these (`schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:829`, `:837`).
+
+**Impact.** JSON printed from `Json` trees built from whole `Double` values differs between a JVM backend and a Scala.js frontend that share code, which breaks golden-file tests and string comparisons across platforms. `Json.Number(10.0) == Json.Number(10.0)` still holds on each platform, since `BigDecimal` equality ignores scale.
+
+**Test gap.** No test checks the scale or the printed form of `toBigDecimal` or `Json.Number` for a whole `Double` on Scala.js; shared tests compare values only.
+
+**Suggested fix.** Decide on one form (the fix for the trailing-zero entry above is a good moment), and make both copies do the same, with a shared test that prints `Json.Number(10.0)`, `Json.Number(5.0)` and `Json.Number(10.0f)`.
+
 ### schema: decoding a fractional JSON number as `Int` or `Long` reports "value is too large"
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/json-without-case-classes.md` (backlog H-06), on `main` at `0740013c`. The code is the same at tag `v0.0.56` (no file under `schema/` outside the tests changed since the tag). Verified. Not filed.
@@ -3862,6 +4131,59 @@ import zio.blocks.schema.json.*
 **Test gap.** `JsonCodecDeriverSpec.scala:96-97` tests only real overflows (`2147483648`, `-2147483649`), and only through the text reader, not through `decodeValue(json: Json)`.
 
 **Suggested fix.** Check `num.value.isWhole` first and report a separate message for a fraction; keep the overflow message for the `ArithmeticException` that remains. Add tests for `1.5` read as `Byte`, `Short`, `Int` and `Long` from a `Json` value.
+
+### schema: a JSON number that starts with `0` is read as `0` by the integer readers, even when a fraction or exponent follows
+
+Found 2026-10-23 while writing the Scaladoc for `JsonReader` (wave 8b of the schema Scaladoc, branch `scaladoc-wave-8b`), on `main` at `ecbe934e4`. `JsonReader` is the same at tag `v0.0.56`. Verified by running against the published 0.0.56, on the JVM and on Scala.js. Not filed on GitHub yet.
+
+**Summary.** `readByte`, `readShort`, `readInt`, `readLong` and `readBigInt` reject `1.5` with `illegal number`, but for a number that starts with `0` they stop after the `0` and return `0`. `.5` (or `e3`) is left unread, so the error comes from whatever reads next: `expected '}' or ','` inside an object, `expected ']' or ','` in an array, `expected end of input` at the top level. With `ReaderConfig#withCheckForEndOfInput(false)`, nothing reads next, so `0.5` decodes as `Right(0)`: a fractional value is silently truncated. The same check works inside quoted keys and strings (`"0.5"` gives `illegal number`).
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false ZeroFraction.scala`; the Scala.js output is identical):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+case class Book(title: String, pages: Int)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+object ZeroFraction {
+  def main(args: Array[String]): Unit = {
+    val book = Schema[Book].jsonCodec
+    println(book.decode("""{"title":"Zionomicon","pages":1.5}"""))
+    // Left(zio.blocks.schema.SchemaError: illegal number at: .pages)
+    println(book.decode("""{"title":"Zionomicon","pages":0.5}"""))
+    // Left(zio.blocks.schema.SchemaError: expected '}' or ',' at: .)
+    println(book.decode("""{"title":"Zionomicon","pages":0e3}"""))
+    // Left(zio.blocks.schema.SchemaError: expected '}' or ',' at: .)
+    println(Schema[List[Int]].jsonCodec.decode("[0.5]"))
+    // Left(zio.blocks.schema.SchemaError: expected ']' or ',' at: .)
+    println(Schema[Int].jsonCodec.decode("0.5"))
+    // Left(zio.blocks.schema.SchemaError: expected end of input at: .)
+    // without the end-of-input check, 0.5 decodes as 0
+    val lenient = ReaderConfig.withCheckForEndOfInput(false)
+    println(Schema[Int].jsonCodec.decode("0.5", lenient))
+    // Right(0)
+    println(Schema[Long].jsonCodec.decode("0e7", lenient))
+    // Right(0)
+    println(Schema[BigInt].jsonCodec.decode("0.5", lenient))
+    // Right(0)
+  }
+}
+```
+
+**Expected.** `illegal number at: .pages` for `0.5` and `0e3`, exactly as for `1.5`, and a `Left` at the top level whatever `checkForEndOfInput` says.
+
+**Root cause.** `schema/jvm/src/main/scala/zio/blocks/schema/json/JsonReader.scala`: in `readByte` (`:2285`), `readShort` (`:2323`), `readInt` (`:2361`) and `readLong` (`:2435`), the line `if (isToken && x == 0) ensureNotLeadingZero()` takes a separate branch for a leading `0`. `ensureNotLeadingZero` (`:2499`) rejects only a following digit, and the `(b | 0x20) == 'e' || b == '.'` check that the other branch ends with is never reached. `readBigInt` does the same (`if (isToken && b == '0') { ensureNotLeadingZero(); BigInt(0) }`, `:2880`). The Scala.js copy has the same code (`schema/js/src/main/scala/zio/blocks/schema/json/JsonReader.scala:2297`, `:2335`, `:2373`, the `Long` reader from `:2404`, and `readBigInt` at `:2809`). jsoniter-scala, which this reader is based on, has the same branch.
+
+**Impact.** An `Int` field that gets `0.5` from a client reports a misleading error that names the closing bracket instead of the number. A service that turns off `checkForEndOfInput` (to read a value followed by other data) accepts `0.5` as `0`.
+
+**Test gap.** `JsonCodecDeriverSpec.scala:62-63` and `:82` test `01` (leading zero) but no test reads `0.5`, `-0.5` or `0e1` as an integer type.
+
+**Suggested fix.** After `ensureNotLeadingZero()` in those branches, check the next byte for `.`, `e` or `E` and call `numberError()`, the same check that ends the non-zero branch. It is one comparison on a path that already reads that byte, so the hot path does not change.
 
 ### schema: JSON parse errors carry no line, column or offset
 
@@ -3903,6 +4225,53 @@ import zio.blocks.schema.json.*
 **Test gap.** `JsonSpec.scala:1356-1365` asserts only `isLeft` for malformed input; no test asserts a position.
 
 **Suggested fix.** Append the byte offset (and, for `String` input, line and column) to the message in `decodeError`, or add a position to `ExpectationMismatch`. The same change helps `ConfigSource.fromJson` (see the config-hocon entry above).
+
+### schema: `JsonReader#skip` does not validate what it skips, so a derived codec accepts malformed JSON in an unknown field
+
+Found 2026-10-23 while writing the Scaladoc for `JsonReader` (wave 8b, branch `scaladoc-wave-8b`), on `main` at `ecbe934e4`. The same at tag `v0.0.56`. Verified by running against the published 0.0.56, on the JVM and on Scala.js. Not filed on GitHub yet.
+
+**Summary.** A derived record codec skips the value of a field it doesn't know with `JsonReader#skip`. `skip` checks only the first byte of the value and then looks for its end: `n` and `t` skip 3 more bytes whatever they are, `f` 4, a number continues while the bytes are digits, `.`, `e`, `E`, `+` or `-`, and an array or object ends at the matching bracket, whatever is between. So `nope`, `[1,}]`, `1-2+e` and `{"a" 1 2}` in an unknown field decode without an error, while `Json.parse` rejects the same document. `JsonReader#readRawValAsBytes` finds the value the same way and returns such bytes as they are.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false SkipUnknown.scala`; the Scala.js output is identical):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+case class Book(title: String, pages: Int)
+object Book { implicit val schema: Schema[Book] = Schema.derived }
+
+object SkipUnknown {
+  def main(args: Array[String]): Unit = {
+    val book = Schema[Book].jsonCodec
+    // an unknown field with a value that is not JSON
+    println(book.decode("""{"title":"Zionomicon","pages":400,"isbn":nope}"""))
+    // Right(Book(Zionomicon,400))
+    println(book.decode("""{"title":"Zionomicon","pages":400,"tags":[1,}]}"""))
+    // Right(Book(Zionomicon,400))
+    println(book.decode("""{"title":"Zionomicon","pages":400,"price":1-2+e}"""))
+    // Right(Book(Zionomicon,400))
+    println(book.decode("""{"title":"Zionomicon","pages":400,"meta":{"a" 1 2}}"""))
+    // Right(Book(Zionomicon,400))
+    // the Json parser reads the same document and rejects it
+    println(Json.parse("""{"title":"Zionomicon","pages":400,"isbn":nope}"""))
+    // Left(zio.blocks.schema.SchemaError: expected JSON value at: .isbn)
+  }
+}
+```
+
+**Expected.** Either the four decodes fail (as `Json.parse` does), or the Scaladoc and the JSON reference pages say that unknown fields are skipped without validation. A strict mode would let a service that must reject malformed input do so.
+
+**Root cause.** `schema/jvm/src/main/scala/zio/blocks/schema/json/JsonReader.scala:1614` (`skip`) dispatches on the first byte to `skipFixedBytes` (`:5009`), which only counts bytes, `skipNumber` (`:4962`), which accepts any run of number chars, and `skipArray`/`skipObject` (`:4994`, `:4979`), which count brackets and skip strings. The Scala.js copy is the same (`schema/js/src/main/scala/zio/blocks/schema/json/JsonReader.scala:1609`, with the helpers at `:4242-4289`). The derived record decoder calls `in.skip()` for an unknown key (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:834`). This is a speed trade-off that jsoniter-scala also makes.
+
+**Impact.** A service that validates requests by decoding them accepts payloads that are not JSON, as long as the bad part is in a field the type doesn't have. Another parser downstream (a proxy, a log pipeline that stores the raw body) may then fail on the same payload.
+
+**Test gap.** No test decodes a record with a malformed value in an unknown field; the `in.skip()` uses in `JsonCodecDeriverSpec.scala` (`:2224`, `:2415`, `:2450`) skip valid values only.
+
+**Suggested fix.** Document the behaviour on `skip`, `readRawValAsBytes` and the reference page for unknown fields (the branch's Scaladoc now does), and consider a `ReaderConfig` flag that makes `skip` validate the literals and number syntax and the structure of arrays and objects.
 
 ### schema: `Json#project` with a path that matches nothing returns `null`
 
@@ -5198,6 +5567,8 @@ object TaggedBook { given Schema[TaggedBook] = Schema.derived }
 
 **Suggested fix.** Derive the column list from the same decisions as the codec: in `TableMetadata.fromReflect`, recurse into a record only when the field (or the parent) has `sql.inline` / `sql.inline_fields`, and map non-inline records, sequences, maps and non-simple variants to one `DbValue.DbString` column (or a new JSON marker so PostgreSQL's dialect can emit `JSONB`). Add a property test that `Table.derived[A].columns == DbCodec.derived[A].columns` for every type in `DbCodecSpec`.
 
+**Also seen for a newtype over a collection** (2026-10-26, H-52 `store-and-search-vector-embeddings.md`, `main` at `bbc713bef`, same at 0.0.56; reported by the writing session, not re-run here). An `Embedding` type whose schema wraps an `IndexedSeq[Float]` and whose `DbCodec` stores it as one pgvector text column (`[1,2,3]`): `Table.derived` and `Repo.derived` both throw `UnsupportedOperationException: Typed DDL does not support reflect node IndexedSeq[Float]` (`TableMetadata` `fromReflect` via `columnsFor`, `Repo.scala:446`), although the codec reads and writes the column. The guide writes the DDL and the `INSERT` with `sql"..."` instead.
+
 ### sql: an `Option` field of a `Schema#transform` newtype or of an enum fails on SQL `NULL`
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
@@ -5723,6 +6094,30 @@ object Repro {
 
 **Suggested fix.** Override `toString` in each case object (or once in each trait, with a `name` member), and add tests for the messages above.
 
+**Same in the JSON model** (found 2026-10-23 in wave 8a, same verification). `JsonType` extends `Json => Boolean` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonType.scala:34` at the commit that adds this paragraph) and `MergeStrategy` extends a three-argument function (`MergeStrategy.scala:46`), so their cases print the same way, and `JsonSelection#as` and `unwrap` build the same unreadable messages (`JsonSelection.scala:542`, `:570`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val title = Json.String("Zionomicon")
+    println(JsonType.Number)
+    println(MergeStrategy.Auto)
+    println(title.select.as(JsonType.Number))
+    println(title.select.unwrap(JsonType.Number))
+  }
+}
+// <function1>
+// <function3>
+// Left(zio.blocks.schema.SchemaError: Expected <function1> but got <function1>)
+// Left(zio.blocks.schema.SchemaError: Cannot unwrap <function1> as <function1>)
+```
+
+The fix is the same: override `toString` in the case objects of `JsonType` and `MergeStrategy`.
+
 ### schema: `DynamicSchema.toDynamicValue` overflows the stack for a recursive type, so its schema cannot be stored
 
 Found 2026-10-22 while writing the Scaladoc of `DynamicSchema` (wave 5 of the schema Scaladoc, branch `scaladoc-wave-5`, on top of `6cd3c787`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0` prints the same lines. Not filed on GitHub yet.
@@ -6039,6 +6434,407 @@ object Repro {
 
 **Suggested fix.** Take the input schema from an operand that is not a literal (for example, from whichever operand's tree contains a `Select`), or give `SchemaExpr` a way to carry "no input needed", and add tests with a literal on each side.
 
+### schema: shifts of `Byte`, `Short` and `Int` values are done on a `Long`, so `-8 >>> 1` gives -4, `1 << 32` gives 0 and `8 >> 32` gives 0
+
+Found 2026-10-26 while writing the Scaladoc of `SchemaExpr.BitwiseOperator` (schema Scaladoc close-out, branch `scaladoc-closeout` on top of `95341f509`). The code is the same at tag `v0.0.56`. Verified with the reproducer below on Scala 2.13.18 against the published `zio-blocks-schema` 0.0.56, and on Scala 3.9.0 against `zio-blocks-next-schema` 0.0.56 (`//> using options -experimental`). Both print the same lines. `scala-cli` hung on a lock of its local repository on this machine, so I compiled the file with `cs launch scalac:2.13.18` (Scala 3: `dotty.tools.dotc.Main` 3.9.0 with `-experimental`) against the classpath from `cs fetch --classpath`, and ran it with `java -cp`.
+
+**Summary.** `SchemaExpr.bitwise`, `DynamicSchemaExpr.Bitwise` and the `Optic` operators `<<`, `>>` and `>>>` produce the wrong results for `Byte`, `Short` and `Int` values. Their docs describe `UnsignedRightShift` as `>>>` that fills with zeros, and they say that a shift whose left value is not a `Long` gives an `Int`. In fact the shift is done on the value widened to a sign-extended `Long`, and the result is then truncated to an `Int`. Two things follow:
+- For `>>>` on a negative value, the bits shifted in from above are the sign bits of the `Long`, so a shift by 1 to 32 keeps the value negative: it behaves like `>>`.
+- `<<`, `>>` and `>>>` by 32 to 63 also differ from Scala's `Int` shifts, which use the count modulo 32: `1 << 32` gives 0 (Scala: 1), `8 >> 32` gives 0 (Scala: 8), and `-8 >>> 33` gives 2147483647 (Scala: 2147483644).
+
+`>>` is right for counts below 32. `Byte` and `Short` values behave like `Int` values.
+
+**Reproduction** (`scala-cli run --server=false IntShift.scala`; for Scala 3, use `//> using scala 3.9.0`, `//> using options -experimental` and `dev.zio::zio-blocks-next-schema:0.0.56`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.DynamicSchemaExpr.BitwiseOperator._
+
+object IntShift {
+  def main(args: Array[String]): Unit = {
+    def int(i: Int) = DynamicValue.Primitive(PrimitiveValue.Int(i))
+    println(UnsignedRightShift(int(-8), int(1)))
+    // Right(-4)
+    println(-8 >>> 1)
+    // 2147483644
+    println(UnsignedRightShift(int(-8), int(63)))
+    // Right(1)
+    println(-8 >>> 63)
+    // 1
+    println(LeftShift(int(1), int(32)))
+    // Right(0)
+    println(1 << 32)
+    // 1
+    println(SchemaExpr.bitwise(SchemaExpr.literal[Unit, Int](-8), SchemaExpr.literal[Unit, Int](1), SchemaExpr.BitwiseOperator.UnsignedRightShift).eval(()))
+    // Right(List(-4))
+    println(RightShift(int(8), int(32)))
+    // Right(0)
+    println(8 >> 32)
+    // 8
+  }
+}
+```
+
+**Expected.** The results of Scala's `Int` operators: `-8 >>> 1` is `2147483644`, `1 << 32` is `1` and `8 >> 32` is `8`. Alternatively, if the library chooses `Long` semantics on purpose, docs that say so and a `Long` result.
+
+**Root cause.** `extractIntegral` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicSchemaExpr.scala:67`) widens `Byte`, `Short` and `Int` to `Long` with `toLong`, which sign-extends. `applyShift` (`:989`) applies the operator to that `Long` (`a << b` at `:958`, `a >>> b` at `:974`) and converts the result with `result.toInt` (`:1002`) when the left value is not a `Long`. That causes both problems:
+- `>>>` on a sign-extended `Long` moves ones, not zeros, into bit 31.
+- A `Long` shift reduces the count modulo 64, not modulo 32.
+
+**Impact.** A migration or expression that uses `>>>` on `Int` fields (for example, to extract unsigned bit fields or hash buckets) silently gets negative values, and shifts by 32 or more differ from Scala.
+
+The public `Optic` operators `<<`, `>>` and `>>>` (`schema/shared/src/main/scala/zio/blocks/schema/Optic.scala:541`, `:551`, `:561`) build these expressions, so `(Book.year >>> 1)` on a negative `Int` field gives a negative result. At `95341f509`, the Scaladoc of `Optic#>>>` (`Optic.scala:557-560`) still said "filling with zeros"; the close-out branch corrects it.
+
+The reference page `docs/reference/schema/schema-expr.md` lists `Bitwise` without these details.
+
+**Test gap.** `DynamicMigrationSpec` "Bitwise operations" (`schema/shared/src/test/scala/zio/blocks/schema/migration/DynamicMigrationSpec.scala:1098`) only checks that every operator returns `Right` for `0xff` and `0x0f`.
+
+`BitwiseOpticSpec` (Scala 3 only) does shift negative values: `0x80.toByte >>> 1` (`schema/shared/src/test/scala-3/zio/blocks/schema/BitwiseOpticSpec.scala:123-124`) and `Int.MinValue >>> 1` (`:181-182`). But every shift test there asserts only `result.isRight && result.exists(_.nonEmpty)`, never the value, so the wrong results pass.
+
+No test shifts a `Byte`, `Short` or `Int` by 32 or more.
+
+**Suggested fix.**
+- In `applyShift`, when the left value is not a `Long`, shift the `Int` itself: `PrimitiveValue.Int(op32(lVal.toInt, rVal.toInt))` with `Int` operators, as the `Long` branch uses `Long` operators.
+- Add tests with a negative `Int` for `>>>` and a count of 32 for `<<` and `>>`.
+- Assert the values in `BitwiseOpticSpec`, not only `isRight`.
+
+### schema: `Schema.fromJsonSchema` rejects every value of a string `enum` or of a `oneOf` of keyed or `const`-tagged objects
+
+Found 2026-10-23 while writing the Scaladoc of `JsonSchemaToReflect` (wave 8a of the schema Scaladoc, branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** The `Schema[Json]` that `Schema.fromJsonSchema` returns cannot decode any value of a string `enum` schema or of a `oneOf` of objects, whether the cases are keyed (`{"Paperback": {...}}`) or tagged by a `const` field (`{"kind": "paperback", ...}`). `JsonSchema#check` accepts the same values. Other unions decode: a `oneOf` of other shapes (`[{"type": "string"}, {"type": "integer"}]`), an `enum` that mixes strings and other values, and an `anyOf` fall back to a dynamic value, which `check` then validates. This is separate from the "every property is required" entry above: these schemas have no optional properties.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val format = JsonSchema.parse("""{"enum": ["ebook", "paperback"]}""").fold(e => throw e, identity)
+    println(format.check(Json.String("ebook")))
+    println(Schema.fromJsonSchema(format).jsonCodec.decode("\"ebook\""))
+
+    val edition = JsonSchema
+      .parse("""{"oneOf": [
+        {"type": "object", "properties": {"Ebook": {"type": "object", "properties": {"sizeMb": {"type": "integer"}}, "required": ["sizeMb"]}}, "required": ["Ebook"], "additionalProperties": false},
+        {"type": "object", "properties": {"Paperback": {"type": "object", "properties": {"pages": {"type": "integer"}}, "required": ["pages"]}}, "required": ["Paperback"], "additionalProperties": false}
+      ]}""")
+      .fold(e => throw e, identity)
+    val paperback = """{"Paperback":{"pages":600}}"""
+    println(edition.check(Json.parseUnsafe(paperback)))
+    println(Schema.fromJsonSchema(edition).jsonCodec.decode(paperback))
+
+    val tagged = JsonSchema
+      .parse("""{"oneOf": [
+        {"type": "object", "properties": {"kind": {"const": "ebook"}, "sizeMb": {"type": "integer"}}, "required": ["kind", "sizeMb"]},
+        {"type": "object", "properties": {"kind": {"const": "paperback"}, "pages": {"type": "integer"}}, "required": ["kind", "pages"]}
+      ]}""")
+      .fold(e => throw e, identity)
+    val tagged1 = """{"kind":"paperback","pages":600}"""
+    println(tagged.check(Json.parseUnsafe(tagged1)))
+    println(Schema.fromJsonSchema(tagged).jsonCodec.decode(tagged1))
+  }
+}
+// None
+// Left(zio.blocks.schema.SchemaError: Value not in enum: "ebook", "paperback" at: . at: .wrapped)
+// None
+// Left(zio.blocks.schema.SchemaError: Value does not match any schema in oneOf at: . at: .wrapped)
+// None
+// Left(zio.blocks.schema.SchemaError: illegal discriminator at: .wrapped)
+```
+
+**Expected.** `Right("ebook")`, `Right({"Paperback":{"pages":600}})` and `Right({"kind":"paperback","pages":600})`: each payload conforms to its schema.
+
+**Root cause.** `JsonSchemaToReflect` builds a `Reflect.Variant` whose matchers expect a `DynamicValue.Variant` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchemaToReflect.scala:511`, `:551`), but no case produces one. An `enum` case is an empty record whose constructor returns `DynamicValue.Record(Chunk.empty)` (`:486`), and a keyed case is the reflect of the inner schema (`:532`), so the derived JSON codec returns `{}` for an `enum` (it calls the case constructor, `JsonCodecDeriver.scala:1029`) and the inner object without its key for a keyed `oneOf` (it returns what the case codec decodes, `:1298`). `Schema.fromJsonSchema` then converts that value back to JSON and runs `check` on it (`Schema.scala:796-797`), which fails. A `const`-tagged `oneOf` is built as a keyed variant (`buildFieldVariant` ignores the discriminator, `JsonSchemaToReflect.scala:561-565`), so the codec looks for a `{"paperback": ...}` wrapper and fails first with `illegal discriminator`.
+
+**Impact.** `Schema.fromJsonSchema` cannot be used for a JSON Schema with a string enumeration or a union of object cases, which most API schemas have (mixed enums, other `oneOf` shapes and `anyOf` decode). The error blames the payload, not the conversion.
+
+**Test gap.** `JsonSchemaToSchemaSpec` ("string enum converts to Variant", "key-discriminated oneOf converts to Variant", "Color enum roundtrips with correct case names") and `StructuredSchemaFromJsonSchemaSpec` ("enum schema produces Reflect.Variant", "key-discriminated variant schema produces Reflect.Variant", `schema/shared/src/test/scala/zio/blocks/schema/json/StructuredSchemaFromJsonSchemaSpec.scala:88`, `:114`) check only the shape of the reflect (`toString` and case names); no test decodes a value with the resulting schema.
+
+**Suggested fix.** Build a string `enum` as a `String` primitive and leave the value check to the `check` that `fromJsonSchema` already runs. Build each keyed `oneOf` case so that it decodes to `DynamicValue.Variant(key, payload)`, which `Json.fromDynamicValue` turns back into `{"key": payload}`, and build a tagged `oneOf` from the whole case objects, for example as a dynamic value checked by `check`, instead of reusing the keyed builder. Add `SchemaFromJsonSchemaSpec` tests that decode a value of each shape.
+
+### schema: `JsonSchema#check` does not resolve a `$ref` inside `contains`, `propertyNames` or `not`
+
+Found 2026-10-23 while writing the Scaladoc of `JsonSchema#check` (wave 8a of the schema Scaladoc, branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** `check` resolves `"$ref": "#/$defs/name"` against the schema it was called on. Under `items`, `properties` and the other applicators that works, but `contains`, `propertyNames` and `not` start a new `check` on the subschema, so the reference is looked up in the subschema and not found. `contains` and `propertyNames` then reject valid values, and `not` accepts values it should reject, all with no hint about the reference.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    def schema(s: String): JsonSchema = JsonSchema.parse(s).fold(e => throw e, identity)
+    val defs = """"$defs": {"isbn": {"type": "string", "pattern": "^[0-9-]+$"}}"""
+
+    val items = schema(s"""{$defs, "type": "array", "items": {"$$ref": "#/$$defs/isbn"}}""")
+    println(items.check(Json.parseUnsafe("""["978-0-9"]""")))
+
+    val contains = schema(s"""{$defs, "type": "array", "contains": {"$$ref": "#/$$defs/isbn"}}""")
+    println(contains.check(Json.parseUnsafe("""["978-0-9"]""")))
+
+    val names = schema(s"""{$defs, "type": "object", "propertyNames": {"$$ref": "#/$$defs/isbn"}}""")
+    println(names.check(Json.parseUnsafe("""{"978-0-9": "Zionomicon"}""")))
+
+    val not = schema(s"""{$defs, "not": {"$$ref": "#/$$defs/isbn"}}""")
+    println(not.check(Json.String("978-0-9")))
+  }
+}
+// None
+// Some(zio.blocks.schema.SchemaError: Array must contain at least 1 matching items, found 0 at: .)
+// Some(zio.blocks.schema.SchemaError: Property name '978-0-9' does not match propertyNames schema: Cannot resolve $ref: #/$defs/isbn at: . at: .)
+// None
+```
+
+**Expected.** `None`, `None`, `None`, and a `Some` error for the last line, which matches the schema inside `not`.
+
+**Root cause.** `Object#check` calls `checkWithEvaluation(toJson, json, options, Nil)` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:1184-1185`), so the root used to resolve `$ref` (`:1217`) is the schema `check` was called on. `items`, `properties`, `allOf` and the others pass the root down through `collectFromSchema`, but `contains` (`:1396`), `propertyNames` (`:1442`) and `not` (`:1565`) call `check(..., options)` on the subschema, which makes the subschema the root. In `not`, the failed resolution counts as "does not match", so `not` passes.
+
+**Impact.** Schemas that keep their definitions in `$defs`, as generated and published schemas usually do, give wrong answers wherever a reference sits under `contains`, `propertyNames` or `not`. The `fromJsonSchema` decoder runs the same `check`.
+
+**Test gap.** `JsonSchemaSpec` tests `$ref` only under `allOf`-style evaluation ("properties from $ref are evaluated"); no test puts a reference under `contains`, `propertyNames` or `not`.
+
+**Suggested fix.** Replace the three `check` calls with `collectFromSchema(rootSchemaJson, ..., trace)` and use its `errors`, as the other applicators do. Add a test for each keyword with a `$defs` reference.
+
+### schema: `JsonSchema#&&` and `||` drop the other keywords of a schema that already has an `allOf` or `anyOf`
+
+Found 2026-10-23 while writing the Scaladoc of `JsonSchema#&&` (wave 8a of the schema Scaladoc, branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** `a && b` should accept exactly the values that both `a` and `b` accept, and `a || b` the values that either accepts. When `a` or `b` is a schema object with its own `allOf` (for `&&`) or `anyOf` (for `||`), the result keeps only that list plus the other schema, and silently drops every other keyword of the schema that had the list, so the combined schema accepts values that the original rejects.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.chunk.NonEmptyChunk
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val noDigits = JsonSchema.Object(not = Some(JsonSchema.string(pattern = Some(RegexPattern.unsafe("^.*[0-9].*$")))))
+    val title    = JsonSchema.Object(minLength = NonNegativeInt(1), allOf = Some(NonEmptyChunk(noDigits)))
+    val both     = title && JsonSchema.string(maxLength = NonNegativeInt(10))
+    println(both.toJson.print)
+    println(title.conforms(Json.String("")))
+    println(both.conforms(Json.String("")))
+
+    val isbn   = JsonSchema.Object(minLength = NonNegativeInt(10), anyOf = Some(NonEmptyChunk(JsonSchema.string(), JsonSchema.nullSchema)))
+    val either = isbn || JsonSchema.boolean
+    println(either.toJson.print)
+    println(isbn.conforms(Json.String("")))
+    println(either.conforms(Json.String("")))
+  }
+}
+// {"allOf":[{"type":"string","maxLength":10},{"not":{"type":"string","pattern":"^.*[0-9].*$"}}]}
+// false
+// true
+// {"anyOf":[{"type":"boolean"},{"type":"string"},{"type":"null"}]}
+// false
+// true
+```
+
+**Expected.** `both` keeps `minLength: 1` and rejects `""`; `either` keeps `minLength: 10` inside its first alternative and rejects `""`, which is neither a valid ISBN string nor a boolean.
+
+**Root cause.** For two schema objects, `&&` builds `JsonSchema.Object(allOf = ...)` from the `allOf` lists only: `a1 ++ a2` when both have one, and `s2 +: a1` or `s1 +: a2` when one has (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:624-626`). The schema whose list is reused is not itself part of the result, so its other keywords are lost. `||` does the same with `anyOf` (`:644-646`); for `||` merging the lists is also wrong in principle, because `anyOf` inside one side is a conjunct of that side, not an alternative of the union.
+
+**Impact.** Code that composes schemas with `&&`/`||`, for example to add a constraint to a generated schema, can get a weaker schema than it asked for, with no error.
+
+**Test gap.** The `JsonSchemaSpec` combinator tests "allOf combinator (&&)", "anyOf combinator (||)" (`schema/shared/src/test/scala/zio/blocks/schema/json/JsonSchemaSpec.scala:187`, `:195`) and "&& is associative" use schemas without their own `allOf`/`anyOf`.
+
+**Suggested fix.** Flatten a side's list only when that side has no other keywords (it is exactly `{"allOf": [...]}`); otherwise keep the whole side as one element: `allOf = Some(NonEmptyChunk(s1, s2))`. For `||`, never merge an inner `anyOf` into the union unless the side is a bare `{"anyOf": [...]}`. Add tests with schemas that have both keywords and a list.
+
+### schema: `Json#partition` loses a matching value that sits inside a non-matching object or array
+
+Found 2026-10-23 while writing the Scaladoc of `Json#partition` (wave 8a of the schema Scaladoc, branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** `partition(p)` is documented as splitting a value into the parts that satisfy `p` and the rest. A field or element goes to the side that `p` picks for it, and carries only that side's part of its own children. A value that satisfies `p` inside a container that does not therefore ends up in neither half, and the "rest" half keeps the emptied container.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val book = Json.parseUnsafe("""{"title":"Zionomicon","editions":[2021,2022]}""")
+    val (numbers, rest) = book.partition(_.is(JsonType.Number))
+    println(numbers.print)
+    println(rest.print)
+  }
+}
+// {}
+// {"title":"Zionomicon","editions":[]}
+```
+
+**Expected.** The numbers in one half (`{"editions":[2021,2022]}`) and the rest in the other (`{"title":"Zionomicon"}`), or at least every leaf in exactly one half.
+
+**Root cause.** `Json.partition` partitions each child recursively, then adds `result._1` to the matching side only when `p` holds for the child itself, and `result._2` to the other side otherwise (`schema/shared/src/main/scala/zio/blocks/schema/json/Json.scala:1416-1417` for objects, `:1430-1431` for arrays). The half of the child's own partition that does not match its side is dropped.
+
+**Impact.** `partition`, `partitionPath` and `partitionBoth` silently lose data for any nested document, and the result depends on whether a container itself satisfies the predicate. The Scaladoc of `partition` now describes this.
+
+**Test gap.** `JsonSpec` "partition splits by value predicate" partitions a flat array, and "partitionPath splits by path predicate" uses a predicate that holds for a container and all its children; no test has a matching value inside a non-matching container.
+
+**Suggested fix.** Put a container on a side when its partition for that side is non-empty (or `p` holds for it), on both sides if both of its halves are non-empty, so that every leaf lands in exactly one half. Add a nested test like the reproduction.
+
+### schema: `Schema.fromJsonSchema` rejects `null` for a nullable type
+
+Found 2026-10-23 in the fact-check of wave 8a of the schema Scaladoc (branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** A schema that allows `null` next to another type, written `"type": ["string", "null"]` or `"anyOf": [{"type": "string"}, {"type": "null"}]`, is the usual way to say "optional value" in JSON Schema. `JsonSchema#check` accepts `null` for it, but the decoder of `Schema.fromJsonSchema` rejects it, at the root and in a record property.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    def schema(s: String): JsonSchema = JsonSchema.parse(s).fold(e => throw e, identity)
+
+    val isbn = schema("""{"type": ["string", "null"]}""")
+    println(isbn.check(Json.Null))
+    println(Schema.fromJsonSchema(isbn).jsonCodec.decode("null"))
+
+    val isbnAnyOf = schema("""{"anyOf": [{"type": "string"}, {"type": "null"}]}""")
+    println(Schema.fromJsonSchema(isbnAnyOf).jsonCodec.decode("null"))
+
+    val book    = schema("""{"type": "object", "properties": {"isbn": {"type": ["string", "null"]}}}""")
+    val payload = """{"isbn":null}"""
+    println(book.check(Json.parseUnsafe(payload)))
+    println(Schema.fromJsonSchema(book).jsonCodec.decode(payload))
+  }
+}
+// None
+// Left(zio.blocks.schema.SchemaError: expected '"' at: .wrapped.wrapped)
+// Left(zio.blocks.schema.SchemaError: expected '"' at: .wrapped.wrapped)
+// None
+// Left(zio.blocks.schema.SchemaError: expected '"' at: .wrapped.isbn.wrapped)
+```
+
+**Expected.** `Right(null)` for the first two decodes and `Right({"isbn":null})` for the last.
+
+**Root cause.** `JsonSchemaToReflect.analyzeOption` recognizes both forms as `Shape.OptionOf(inner)` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchemaToReflect.scala:157`, `:165`), but `build` turns that shape into the inner schema's reflect alone (`case oo: Shape.OptionOf => toReflect(oo.inner)`, `:297`), so the decoder is a plain string decoder.
+
+**Impact.** Every nullable property or value in a schema given to `Schema.fromJsonSchema` rejects `null`. Together with the "every property is required" entry above, an optional field can be neither left out nor set to `null`.
+
+**Test gap.** `JsonSchemaToReflectSpec` "union type [T, null] produces OptionOf" and "anyOf with null schema produces OptionOf" (`schema/shared/src/test/scala/zio/blocks/schema/json/JsonSchemaToReflectSpec.scala:278-301`) check only the shape; no test decodes `null` with the built schema.
+
+**Suggested fix.** Build `OptionOf` as a reflect that decodes JSON `null` to `DynamicValue.Null` and anything else with the inner reflect (for example a variant of a null case and the inner case, or a dynamic value checked by `check`). Add `SchemaFromJsonSchemaSpec` tests that decode `null` at the root and in a property.
+
+### schema: `JsonSchema#withNullable` still rejects `null` when the schema has an `enum` or `const`
+
+Found 2026-10-23 in the fact-check of wave 8a of the schema Scaladoc (branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** `withNullable` is meant to return a schema that accepts `null` as well as what the schema accepted. For a schema object with a `type`, it only adds `"null"` to the `type`, so an `enum` or `const` on the same schema still rejects `null`. Without a `type`, it wraps the schema in an `anyOf` with the null schema, which works.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.chunk.NonEmptyChunk
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val format = JsonSchema.Object(
+      `type` = Some(SchemaType.Single(JsonSchemaType.String)),
+      `enum` = Some(NonEmptyChunk(Json.String("ebook"), Json.String("paperback")))
+    )
+    println(format.withNullable.toJson.print)
+    println(format.withNullable.check(Json.Null))
+
+    val edition = JsonSchema.Object(`type` = Some(SchemaType.Single(JsonSchemaType.Integer)), const = Some(Json.Number(2)))
+    println(edition.withNullable.check(Json.Null))
+
+    val untyped = JsonSchema.enumOfStrings(NonEmptyChunk("ebook", "paperback"))
+    println(untyped.withNullable.toJson.print)
+    println(untyped.withNullable.check(Json.Null))
+  }
+}
+// {"type":["null","string"],"enum":["ebook","paperback"]}
+// Some(zio.blocks.schema.SchemaError: Value not in enum: "ebook", "paperback" at: .)
+// Some(zio.blocks.schema.SchemaError: Expected const value 2 at: .)
+// {"anyOf":[{"type":"null"},{"enum":["ebook","paperback"]}]}
+// None
+```
+
+**Expected.** `None` for both `check(Json.Null)` calls on the typed schemas, as for the untyped one.
+
+**Root cause.** When the schema object has a `type`, `withNullable` returns `s.copy(type = ...)` with `"null"` added (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:676`, `:680`) and keeps every other keyword; `check` then applies `enum` and `const` to `null` (`:1257-1279`). Only a schema without a `type` is wrapped in `anyOf` (`:683`).
+
+**Impact.** Hand-built and parsed schemas with a `type` and an `enum` or `const` cannot be made nullable with `withNullable`, and nothing says so. Derived codecs call `withNullable` for an `Option` field (`JsonCodecDeriver.scala:933`), but their enumeration schemas have no `type`, so they are wrapped in `anyOf` and work.
+
+**Test gap.** `JsonSchemaSpec` "withNullable" (`schema/shared/src/test/scala/zio/blocks/schema/json/JsonSchemaSpec.scala:246-262`) uses `JsonSchema.string()`, `True` and `False`, none with an `enum` or `const`.
+
+**Suggested fix.** When the schema has an `enum` or `const`, add `null` to them as well (or wrap the schema in `anyOf` with the null schema, as for an untyped one). Add a test with a typed `enum`.
+
+### schema: `JsonPatch.diff` does not round-trip an object with duplicate keys
+
+Found 2026-10-23 in the fact-check of wave 8a of the schema Scaladoc (branch `scaladoc-wave-8a`, on top of `67a9be9ff`; line numbers are those of the commit that adds this entry). The JSON code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`; the same file with `//> using scala 3.9.0`, `-experimental` and `zio-blocks-next-schema` prints the same lines. Not filed on GitHub yet.
+
+**Summary.** `JsonPatch.diff(source, target).apply(source)` is documented (`json-patch.md`, `json-differ.md`, the Scaladoc) to give `target`. `Json.parse` keeps duplicate keys, but the differ does not handle them: a duplicate key in `source` survives the patch, and a duplicate key in `target` gives a patch that fails in `Strict` mode.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema.json._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val duplicated = Json.parseUnsafe("""{"title":"Zionomicon","title":"ZIO"}""")
+    val single     = Json.parseUnsafe("""{"title":"ZIO"}""")
+
+    val patch1 = JsonPatch.diff(duplicated, single)
+    println(patch1.isEmpty)
+    println(patch1.apply(duplicated).map(_.print))
+    println(patch1.apply(duplicated) == Right(single))
+
+    val patch2 = JsonPatch.diff(Json.Object.empty, duplicated)
+    println(patch2)
+    println(patch2.apply(Json.Object.empty))
+  }
+}
+// true
+// Right({"title":"Zionomicon","title":"ZIO"})
+// false
+// JsonPatch {
+//   root:
+//     + {"title": "Zionomicon"}
+//     + {"title": "ZIO"}
+// }
+// Left(zio.blocks.schema.SchemaError: Key 'title' already exists in object at: .)
+```
+
+**Expected.** `patch1` removes the first `title`, so that applying it gives `{"title":"ZIO"}`; `patch2` applies and gives `duplicated`.
+
+**Root cause.** `JsonDiffer.diffObject` puts the source fields in a `HashMap` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonDiffer.scala:218-220`), so only the last value of a duplicate key is compared, and the remove loop skips every key that the target has (`:235-238`). For the target, it emits one `ObjectOp.Add` per field (`:233`), and `applyObjectOp` rejects an `Add` of a key that exists in `Strict` mode (`JsonPatch.scala:550-554`).
+
+**Impact.** Patches computed from documents with duplicate keys, which `Json.parse` accepts without an error, silently fail to reproduce the target or fail to apply. RFC 8259 allows duplicate names (with unpredictable behaviour), so such documents occur in practice.
+
+**Test gap.** The diff/apply laws in `JsonPatchLawsSpec` use `JsonGen` objects, which never have duplicate keys (`schema/shared/src/test/scala/zio/blocks/schema/json/patch/JsonGen.scala:64`, `:236`).
+
+**Suggested fix.** Either diff objects by position when either side has a duplicate key (emit `Set` of the whole object, for instance), or document that `diff` treats objects as maps and normalize duplicates first. Add a law test with generated duplicate keys.
+
 ### schema: `Allows` accepts mutually recursive types but rejects a recursive type that is not the checked type
 
 Found 2026-10-22 while reviewing the Scaladoc of `Allows.Self` (schema Scaladoc wave 6, branch `scaladoc-wave-6`, on top of `2f73284b`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: both files below were run with `scala-cli run --server=false` against the published 0.0.56 on Scala 2.13.18 and, with `zio-blocks-next-schema` and `-experimental`, on Scala 3.9.0.
@@ -6287,6 +7083,1737 @@ The output is identical on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 and 
 **Test gap.** `NameMapperSpec` (`schema/shared/src/test/scala/zio/blocks/schema/NameMapperSpec.scala`) tests separators followed by lower-case letters, digits and symbols, and upper-case runs, but no separator followed by a capital and then a lower-case letter.
 
 **Suggested fix.** Do not append a separator before a capital when the previous output character is already the separator (for example, track whether the last appended character was a separator), and add `my_Field` and `first_Edition_Year` to `NameMapperSpec`.
+
+### streams (Scala.js): a rejected `ReadableStream` read fails the `Async` with an internal `StreamError` instead of producing `Left`
+
+Found 2026-10-26 while writing the how-to guide `docs/guides/run-streams-without-blocking.md` (backlog H-26), on `main` at `7f551627c`. Same at tag `v0.0.56`, the version tested. Verified by running on Node 24 (scala-cli hung on that machine, so the reproduction is a scratch sbt-scalajs project). Not filed on GitHub yet.
+
+**Summary.** A stream built from `ReadableStreamReaders.fromReadableStream` on Scala.js does not deliver a source failure in the typed error channel. When the `ReadableStream` errors mid-stream, the whole `runCollectAsync`, `runDrainAsync`, `runAsync` or `runFoldAsync` `Async` fails with an `internal.StreamError` (message `null`; the original `js.Error` is only on `StreamError#value` and as a suppressed exception), and the `Either` is never produced. The JVM adapter (`AsyncNioReaders`) delivers the same kind of failure as `Left(IOException)`. `docs/reference/streams/primitives/reader.md` ("A rejected promise is a trusted source failure ... surfaces in the typed error channel") says Scala.js behaves like the JVM.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-streams` 0.0.56, Scala.js 1.22.0; run with `sbt run` on Node 24):
+
+`project/build.properties`: `sbt.version=1.13.0`. `project/plugins.sbt`: `addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")`. `build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+enablePlugins(ScalaJSPlugin)
+scalaJSUseMainModuleInitializer := true
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "0.0.56"
+```
+
+`src/main/scala/ReadErrorJs.scala`:
+
+```scala
+import zio.blocks.async._
+import zio.blocks.streams._
+import scala.scalajs.js
+import scala.scalajs.js.typedarray.Uint8Array
+
+object ReadErrorJs {
+  def main(args: Array[String]): Unit = {
+    val source = js.Dynamic.literal(
+      start = { (c: js.Dynamic) => c.enqueue(new Uint8Array(js.Array[Short](1, 2))) }: js.Function1[js.Dynamic, Unit],
+      pull = { (c: js.Dynamic) => c.error(new js.Error("network reset")) }: js.Function1[js.Dynamic, Unit]
+    )
+    val stream = js.Dynamic.newInstance(js.Dynamic.global.ReadableStream)(source).asInstanceOf[ReadableStreamReaders.ReadableStream]
+    Stream.fromReader[Nothing, Byte](ReadableStreamReaders.fromReadableStream(stream))
+      .runCollectAsync.either
+      .map(result => println(s"The read failed: $result")).toJsPromise
+    ()
+  }
+}
+// The read failed: Left(zio.blocks.streams.internal.StreamError)
+```
+
+The `Left` is the `Async`'s own failure (from `.either`), not the stream's `Either`. Without `.either`, Node crashes with an unhandled `StreamError` whose suppressed exception is `JavaScriptException: Error: network reset`. With `E = Throwable`, all four terminals (`runCollectAsync`, `runDrainAsync`, `runAsync(Sink.collectAll)`, `runFoldAsync`) fail the `Async` with `StreamError(value=...JavaScriptException: Error: network reset)`.
+
+On the JVM, `Stream.fromReader[java.io.IOException, Byte](AsyncNioReaders.fromChannel(failingChannel))` over a channel that returns 1 byte and then calls `handler.failed(new IOException("network reset"), att)` gives `Right(Left(java.io.IOException: network reset))` from `runCollectAsync.either.block`, and the same from `runAsync(Sink.collectAll)` and `runDrainAsync`.
+
+**Expected.** `Right(Left(<the JS error>))`, as on the JVM.
+
+**Root cause** (partly isolated). The reader is not the culprit: called directly (`reader.readByte()` from a probe in package `zio.blocks.streams`), it gives `Left(StreamError trusted=true)` on the first failing read and on the replay, so `streams/js/src/main/scala/zio/blocks/streams/ReadableStreamReaders.scala:286-298` (`StreamError.source(cause)`, then `completion.fail(failure)`) produces a trusted error. The error is lost later, in the shared async drain or in `Stream.fromReader` materialisation on Scala.js; the exact line was not found. The shared drain turns trusted errors into `Left` at `Sink.scala:1021-1022`, `:1312`, `:1378` and `Pipeline.scala:329`. The JVM adapter uses the same `completion.fail(StreamError.source(...))` pattern (`AsyncNioReaders.scala:324`, `:342`) and works, so the difference is probably which read method the drain calls on Scala.js (`readByte`/`readN`) or a Scala.js-only path in `Stream.fromReader`.
+
+**Impact.** A Scala.js app that reads a `fetch` body and handles errors through the `Either` silently misses network failures: they escape as an unhandled promise rejection or as a thrown `StreamError` with an empty message.
+
+**Test gap.** `ReadableStreamReadersSpec` ("promise rejection is trusted, sticky, and replayed by identity") tests the reader directly, never through `Stream.fromReader` and a `*Async` terminal.
+
+**Suggested fix.** Add a Scala.js test through `Stream.fromReader(...).runCollectAsync` that expects `Left`, then trace why trusted reader failures are not unwrapped on that path. Once fixed, remove the warning admonition in the "Reading a ReadableStream as a Source" section of `run-streams-without-blocking.md`, and keep `reader.md`'s statement.
+
+### datastar: `patchElements` and `patchSignalsRaw` drop every line after the first when the content contains a line break
+
+Found 2026-10-26 while writing the tutorial `docs/guides/build-a-live-dashboard-with-datastar.md` (backlog T-11), on `main` at `d00e7d1af`. Same code at tag `v0.0.56` (the repro below runs against the published 0.0.56 artifact).
+
+**Summary.** `DatastarEvent.patchElements(...).renderSSE` writes one `data: elements <html>` line and then lets `ServerSentEvent` split the rest of the text at every `\n`. The continuation lines have no `elements ` key, so the Datastar JS client (1.0.4) reads each of them as an unknown key and discards it. `patchSignalsRaw` with multi-line JSON behaves the same way. The page shows truncated content and nothing reports an error.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-datastar` 0.0.56; scratch sbt project). `build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-datastar" % "0.0.56"
+```
+
+`project/build.properties`: `sbt.version=1.13.0`. File `Repro.scala`, run with `sbt run`:
+
+```scala
+import zio.blocks.html._
+import zio.http.datastar._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val event = DatastarEvent.patchElements(div(id := "box", pre("line one\nline two"))).renderSSE
+    println(event.replace("\n", "⏎\n"))
+    val raw = DatastarEvent.patchSignalsRaw("{\n  \"count\": 1\n}").renderSSE
+    println(raw.replace("\n", "⏎\n"))
+  }
+}
+// event: datastar-patch-elements⏎
+// data: elements <div id="box"><pre>line one⏎
+// data: line two</pre></div>⏎
+// ⏎
+//
+// event: datastar-patch-signals⏎
+// data: signals {⏎
+// data:   "count": 1⏎
+// data: }⏎
+// ⏎
+```
+
+Browser check (headless Chromium + Playwright, Datastar 1.0.4 from jsDelivr): a page with `<div id="box" data-init="@get('/x')">before</div>` and a `/x` route that answers with that `patchElements` event. After the patch, `#box` innerHTML is `"<pre>line one</pre>"`, so "line two" is lost.
+
+**Expected.** Every line of the HTML carries the key, as the Datastar SSE protocol requires: `data: elements <div id="box"><pre>line one` / `data: elements line two</pre></div>`. The same applies to `signals` lines.
+
+**Root cause.** `datastar/shared/src/main/scala/zio/blocks/datastar/DatastarEvent.scala:65` puts `"elements "` once in front of the whole rendered HTML, and `:83` does the same for `"signals "`. `ServerSentEvent#render` (`http-model/shared/src/main/scala/zio/http/ServerSentEvent.scala:73-87`) then splits that text at line breaks and writes each piece as a bare `data:` line.
+
+**Impact.** Silent truncation. It affects any `<pre>`, `<textarea>`, text containing a newline, or a pretty-printed `patchSignalsRaw` payload. Minified HTML from `renderMinified` hides it as long as no text node holds a line break. The T-11 tutorial carries a caution that names it as a known bug in 0.0.56.
+
+**Test gap.** `DatastarEventSpec` has no case with a newline in the elements or in the raw signals JSON.
+
+**Suggested fix.** Prefix each line: `renderMinified.split("\r\n|\r|\n").mkString("elements ", "\nelements ", "")`, and likewise for `signals`. Add tests for `<pre>` text and multi-line raw JSON.
+
+### otel: `W3CTraceContextPropagator.extract` accepts invalid version-00 headers and rejects future versions
+
+Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-traces.md` (backlog H-43), on `main` at `c347bc08`. The otel sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** The W3C Trace Context parser is lenient where the specification says to reject, and strict where it says to be lenient. It accepts a version `00` `traceparent` with extra characters after the flags (`...-01-extra`, `...-01xyz`), and it accepts upper-case hex ids. It rejects every version other than `00`, including future versions such as `01`, which the specification says a parser should read by taking the first four fields.
+
+**Setup.** A scratch sbt project (sbt 1.13.0, JDK 25.0.2) with this `build.sbt`; the file goes in `src/main/scala/`, and the output is pasted from a real run with sbt's `[info]`/`[error]` prefixes removed.
+
+```scala
+scalaVersion := "3.9.0"
+run / fork   := true
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
+  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
+)
+```
+
+**Reproduction** (`W3cLenient.scala`, run with `sbt "runMain W3cLenient"`):
+
+```scala
+import zio.blocks.telemetry.otel._
+
+object W3cLenient {
+  def main(args: Array[String]): Unit = {
+    val get = (m: Map[String, String], k: String) => m.get(k)
+    def tp(v: String) = W3CTraceContextPropagator.extract(Map("traceparent" -> v), get).map(_.traceIdHex)
+    println(s"valid:            ${tp("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")}")
+    println(s"v00 + suffix:     ${tp("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-extra")}")
+    println(s"v00 + junk:       ${tp("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01xyz")}")
+    println(s"uppercase hex:    ${tp("00-4BF92F3577B34DA6A3CE929D0E0E4736-00F067AA0BA902B7-01")}")
+    println(s"future version 01:${tp("01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")}")
+    println(s"v01 + suffix:     ${tp("01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-what-the-future-will-be-like")}")
+  }
+}
+// valid:            Some(4bf92f3577b34da6a3ce929d0e0e4736)
+// v00 + suffix:     Some(4bf92f3577b34da6a3ce929d0e0e4736)
+// v00 + junk:       Some(4bf92f3577b34da6a3ce929d0e0e4736)
+// uppercase hex:    Some(4bf92f3577b34da6a3ce929d0e0e4736)
+// future version 01:None
+// v01 + suffix:     None
+```
+
+**Expected.** Per W3C Trace Context Level 1 (section 3.2, `traceparent` header field values, and section 4.3, versioning), a version `00` value is exactly 55 characters, and the ids are lower-case hex (`HEXDIGLC`), so the second, third and fourth lines should print `None` and the receiver should start a new trace. A higher version (not `ff`) should be parsed by its first four fields when the 55th character is the end of the value or a `-`, so the last two lines should print `Some(4bf92f3577b34da6a3ce929d0e0e4736)`. The W3C test suite (`test_traceparent_version_0x00`, `test_traceparent_version_0x01`, `test_traceparent_trace_id_illegal_characters`) checks exactly these cases.
+
+**Root cause.** `otel/src/main/scala/zio/blocks/telemetry/otel/W3CTraceContextPropagator.scala:44` checks `traceparent.length >= TraceparentLength`, not `==` for version `00`, and never looks at what follows the flags. `:48` accepts only `version == "00"`. `:49`, `:52` and `:55` call `toLowerCase` on the ids and flags before parsing, which turns invalid upper-case input into valid input. Tests pin the wrong behaviour: `W3CTraceContextSpec.scala:88` ("rejects unknown version", with `01`) and `:144` ("handles uppercase hex in traceparent").
+
+**Impact.** A receiver joins traces that a conforming caller would have rejected, and a caller on a newer Trace Context version (a future OpenTelemetry SDK) has its trace dropped: the receiver starts a new trace and the request's logs and spans no longer join the caller's. Low today, since only version `00` exists, but the forward-compatibility rule exists so that the version bump doesn't break every deployed parser.
+
+**Test gap.** No test sends a version `00` value longer than 55 characters, and the two tests above assert the non-conforming behaviour.
+
+**Suggested fix.** For version `00`, require `length == 55`. For a version other than `00` and `ff`, require `length == 55 || charAt(55) == '-'` and parse the first 55 characters. Drop the `toLowerCase` calls and reject upper-case hex. Update the two tests, and add cases taken from the W3C test suite.
+
+### otel: `B3Propagator.single.extract` returns `Some` of an invalid context for a sampling-only `b3` header
+
+Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-traces.md` (backlog H-43), on `main` at `c347bc08`. The otel sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** B3 allows a `b3` header that holds only a sampling decision: `0` (deny), `1` (accept) or `d` (debug). For these, `B3Propagator.single.extract` returns `Some(SpanContext(0, 0, SpanId(0000000000000000), ...))`, a context with zero ids that `isValid` rejects. The `Propagator` Scaladoc promises `None` when "no valid context is found". Code that branches on `Some`/`None` takes this as a parent. The tracer then starts a new trace that claims a remote parent, and the caller's "don't sample" decision is lost even with a parent-based sampler.
+
+**Setup.** A scratch sbt project (sbt 1.13.0, JDK 25.0.2) with this `build.sbt`; the file goes in `src/main/scala/`, and the output is pasted from a real run with sbt's `[info]`/`[error]` prefixes removed.
+
+```scala
+scalaVersion := "3.9.0"
+run / fork   := true
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
+  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
+)
+```
+
+**Reproduction** (`B3SamplingOnly.scala`, run with `sbt "runMain B3SamplingOnly"`):
+
+```scala
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
+object B3SamplingOnly {
+  def main(args: Array[String]): Unit = {
+    val get = (m: Map[String, String], k: String) => m.get(k)
+    val deny = B3Propagator.single.extract(Map("b3" -> "0"), get)
+    println(s"extract(b3=0): $deny, isValid=${deny.map(_.isValid)}")
+
+    val storage = ContextStorage.create[Option[SpanContext]](None)
+    val ended   = new java.util.concurrent.ConcurrentLinkedQueue[SpanData]()
+    val tracer  = TracerProvider.builder
+      .setContextStorage(storage)
+      .setSampler(ParentBasedSampler(AlwaysOnSampler))
+      .addSpanProcessor(new SpanProcessor {
+        def onStart(span: Span): Unit = ()
+        def onEnd(s: SpanData): Unit  = { ended.add(s); () }
+        def shutdown(): Unit          = ()
+        def forceFlush(): Unit        = ()
+      })
+      .build()
+      .get("payment")
+    storage.scoped(deny)(tracer.span("payment.authorize", SpanKind.Server)(_ => ()))
+    ended.forEach { s =>
+      println(s"recorded ${s.name}: sampled=${s.spanContext.isSampled}, parentValid=${s.parentSpanContext.isValid}, parentIsRemote=${s.parentSpanContext.isRemote}")
+    }
+  }
+}
+// extract(b3=0): Some(SpanContext(0,0,SpanId(0000000000000000),TraceFlags(00),,true)), isValid=Some(false)
+// recorded payment.authorize: sampled=true, parentValid=false, parentIsRemote=true
+```
+
+**Expected.** Either `None` for a sampling-only header, as the trait's Scaladoc says, or a documented way to carry the decision. With `b3: 0` and `ParentBasedSampler`, the span should not be recorded, and it should not report a remote parent that has no ids.
+
+**Root cause.** `otel/src/main/scala/zio/blocks/telemetry/otel/B3Propagator.scala:70-73` builds `SpanContext.create(0L, 0L, SpanId.invalid, ...)` for `"0"`, `"1"` and `"d"`, which contradicts `Propagator.scala:29-30`. `Tracer.span` falls back to a random trace id when the parent is invalid (`telemetry/shared/src/main/scala/zio/blocks/telemetry/Tracer.scala:64`). It still records the invalid context as the parent (`:161`), and `ParentBasedSampler` treats an invalid parent as "no parent", so it applies the root sampler. Tests pin the behaviour: `B3PropagatorSpec.scala:94` ("parses deny/drop single value '0' as invalid unsampled context") and `:99`.
+
+**Impact.** A receiver that writes `extract(...).orElse(otherFormat.extract(...))` stops at the B3 result and never tries the next format. A Zipkin caller's explicit "don't sample" is ignored, and the stored span reports `parentSpanContext.isRemote = true` with zero ids, which backends show as a broken or missing parent.
+
+**Test gap.** The tests assert the invalid `Some`. No test checks what the tracer does with it.
+
+**Suggested fix.** Return `None` from `extract` for sampling-only values. If the deny decision should still reach the sampler, add a separate API (or a `SpanContext` flag that the samplers read) rather than an invalid context. Align the Scaladoc and the tests.
+
+### schema (Scala 3): `.when[...]` after a named-tuple field fails at runtime with "Expected a variant"
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10), on `main` at `b6c0c30e4`. Reproduced against the published 0.0.56 artifacts. The macro code is the same on main (`CompanionOptics.scala:286-292`), but only 0.0.56 was run.
+
+**Summary.** On a named tuple, `$(_.field)` lenses work, as do `.each`, `.at(i)` and `.atKey(k)` after a field. But `.when[Case]` after a named-tuple field compiles, then throws `RuntimeException: Expected a variant` when the optic is first built. This hits both `Option` fields (`_.humidity.when[Some[Int]].value`) and sealed-trait fields (`_.sky.when[Cloudy].cover`). The same paths on a case class work.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`), run on JDK 21, and this `build.sbt`:
+
+```scala
+scalaVersion := "3.7.4"
+
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
+```
+
+**Reproduction.** `Repro.scala`, run with `sbt run`:
+
+```scala
+import zio.blocks.schema._
+
+sealed trait Sky
+case class Clear()             extends Sky
+case class Cloudy(cover: Int)  extends Sky
+
+type Reading = (city: String, humidity: Option[Int], sky: Sky)
+
+object Reading extends CompanionOptics[Reading] {
+  given Schema[Reading] = Schema.derived
+  lazy val humidity: Optional[Reading, Int] = $(_.humidity.when[Some[Int]].value)
+  lazy val cover: Optional[Reading, Int]    = $(_.sky.when[Cloudy].cover)
+}
+
+case class ReadingC(city: String, humidity: Option[Int], sky: Sky)
+
+object ReadingC extends CompanionOptics[ReadingC] {
+  given Schema[ReadingC] = Schema.derived
+  lazy val humidity: Optional[ReadingC, Int] = $(_.humidity.when[Some[Int]].value)
+  lazy val cover: Optional[ReadingC, Int]    = $(_.sky.when[Cloudy].cover)
+}
+
+@main def repro(): Unit = {
+  def attempt(label: String)(f: => Any): Unit =
+    try println(s"$label: $f")
+    catch { case e: RuntimeException => println(s"$label: $e") }
+
+  attempt("case class humidity")(ReadingC.humidity.getOption(ReadingC("Oslo", Some(81), Cloudy(6))))
+  // case class humidity: Some(81)
+  attempt("case class cover")(ReadingC.cover.getOption(ReadingC("Oslo", Some(81), Cloudy(6))))
+  // case class cover: Some(6)
+  attempt("named tuple humidity")(Reading.humidity.getOption((city = "Oslo", humidity = Some(81), sky = Cloudy(6))))
+  // named tuple humidity: java.lang.RuntimeException: Expected a variant
+  attempt("named tuple cover")(Reading.cover.getOption((city = "Oslo", humidity = Some(81), sky = Cloudy(6))))
+  // named tuple cover: java.lang.RuntimeException: Expected a variant
+}
+```
+
+The same failure occurs on Scala 3.9.0 with both `zio-blocks-schema` and `zio-blocks-next-schema` 0.0.56 plus `-experimental`.
+
+**Expected.** `Some(81)` and `Some(6)`, the same as for the case class.
+
+**Root cause.** On a named tuple, `x.humidity` is typed as `NamedTuple.apply(x)(0)`. Its type, after `.widen.dealias`, is the unreduced match type `scala.Tuple.Elem[scala.NamedTupleDecomposition.DropNames[NamedTuple[("humidity", ...), (Option[Int], ...)]], 0]`, whose `typeSymbol` is `scala.Tuple$.Elem` with no children. The `when` case in `CompanionOptics.optic` computes `val parentTpe = parent.tpe.widen.dealias`, then `directSubTypes(parentTpe)` returns `Nil`, so `caseIdx = subTypes.indexWhere(_ =:= caseTpe)` is `-1`. The generated code calls `prismByIndex(-1)`, which gives `None`, so it reaches `.getOrElse(sys.error("Expected a variant"))` (`schema/shared/src/main/scala-3/zio/blocks/schema/CompanionOptics.scala:171-177` at v0.0.56; `:286-292` on main). A probe macro confirmed it: `parent.tpe.widen.dealias` shows the `Tuple.Elem[...]` type with `children=List()`, and `.simplified` reduces it to `scala.Option[scala.Int]` with `children=List(Some, None)`. Field selection itself works because the fallback case uses the literal index (`:701-704` on main) and never needs the field type's subtypes.
+
+**Impact.** No optic can reach a case of an `Option` or sealed-trait field inside a named tuple. The error comes at runtime, when the optic is first built, not at compile time. A lens to the whole `Option` field (`$(_.humidity)`) with `.modify(_.map(...))` still works as a workaround.
+
+**Test gap.** `SchemaVersionSpecificScalaNextSpec` (scalaNextTests, built only for 3.10 on main) tests named-tuple lenses with `$(_.i)` and `$(_(0))`, and `.fold` over a `List` field. It never uses `.when` (or `.wrapped`/`.searchFor`) after a named-tuple field.
+
+**Suggested fix.** Use `parent.tpe.widen.dealias.simplified` (a helper that also reduces match types) for `parentTpe` in the `when` case and the other cases that inspect the parent type (`wrapped`, `searchFor`). Also make the macro `fail(...)` at compile time when `caseIdx < 0`, instead of emitting `sys.error("Expected a variant")`. Add a scalaNextTests case: `type T = (o: Option[Int], s: Sky)` with `$(_.o.when[Some[Int]].value)` and `$(_.s.when[Cloudy].cover)`.
+
+### schema (Scala 3): `Into.derived` / `As.derived` reject named tuples ("Unsupported type combination ... (other)")
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10), on `main` at `b6c0c30e4`. Reproduced against 0.0.56; main has the same classification code (`IntoVersionSpecific.scala:592`, and neither `IntoVersionSpecific.scala` nor `AsVersionSpecific.scala` mentions named tuples).
+
+**Summary.** `Into.derived[NamedTuple, CaseClass]`, `Into.derived[CaseClass, NamedTuple]` and `As.derived[NamedTuple, CaseClass]` fail to compile. The macro classifies the named tuple as "(other)". Its own error message lists "Product ↔ Tuple (case class to/from tuple)" as supported, and a reader expects a named tuple to count as a tuple. Converting through the plain tuple works.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`), run on JDK 21, and this `build.sbt`:
+
+```scala
+scalaVersion := "3.7.4"
+
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
+```
+
+**Reproduction.** `Repro.scala`, run with `sbt run`:
+
+```scala
+import zio.blocks.schema._
+
+type Reading = (city: String, tempC: Double)
+
+case class WeatherReading(city: String, tempC: Double)
+
+@main def repro(): Unit = {
+  val oslo: Reading = (city = "Oslo", tempC = 3.8)
+
+  // Works: go through the plain tuple
+  println(Into.derived[(String, Double), WeatherReading].into(oslo.toTuple))
+
+  // Does not compile: named tuple on either side
+  println(Into.derived[Reading, WeatherReading].into(oslo))
+  println(As.derived[Reading, WeatherReading].into(oslo))
+}
+// [error] -- Error: .../Repro.scala:14:22
+// [error] 14 |  println(Into.derived[Reading, WeatherReading].into(oslo))
+// [error]    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// [error]    |Cannot derive Into[Repro$package.Reading, WeatherReading]: Unsupported type combination
+// [error]    |
+// [error]    |Source type: Repro$package.Reading (other)
+// [error]    |Target type: WeatherReading (product)
+// [error]    |
+// [error]    |Into derivation supports:
+// [error]    |  - Product → Product (case class to case class)
+// [error]    |  - Product ↔ Tuple (case class to/from tuple)
+// [error]    |  - Tuple → Tuple
+// ...
+// [error] -- Error: .../Repro.scala:15:20
+// [error]  15 |  println(As.derived[Reading, WeatherReading].into(oslo))
+// [error]     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// [error]     |Cannot derive Into[Repro$package.Reading, WeatherReading]: Unsupported type combination
+// ...
+```
+
+With the two failing lines removed, the program prints `Right(WeatherReading(Oslo,3.8))`. The reverse direction also works through the plain tuple: `Into.derived[WeatherReading, (String, Double)]` yields an `Either[SchemaError, (String, Double)]`, which can be assigned to `Either[SchemaError, Reading]` because a plain tuple conforms to a named tuple with the same element types.
+
+**Expected.** Named tuples treated like tuples (or products, with fields matched by label), so both directions derive. Ideally labels would be matched by name, as for case classes.
+
+**Root cause.** `isTupleType` is `tpe <:< TypeRepr.of[Tuple] || defn.isTupleClass(tpe.typeSymbol)` (`schema/shared/src/main/scala-3/zio/blocks/schema/IntoVersionSpecific.scala:538` at v0.0.56, `:592` on main; same helper in `AsVersionSpecific.scala:161` / `:176`). `NamedTuple[N, V]` is an opaque type, so it is neither a subtype of `Tuple` nor a tuple class. It isn't a product either, so the classification at `IntoVersionSpecific.scala:92-93` and `:185-187` falls through to "other". `CommonMacroOps.isNamedTuple` exists, but only `Schema` and `Binding` derivation use it.
+
+**Impact.** Readers can't use the documented Into/As workflow (T-02 "evolve your data") between a named-tuple query row and a domain case class. The workaround is `.toTuple` on the source side, plus the plain-tuple-to-named-tuple conformance on the target side. The `As` error message names `Into`, which is a little confusing.
+
+**Test gap.** No Into/As test uses named tuples (`grep -rn NamedTuple schema/shared/src/test scalaNextTests` shows only Schema, Binding and optics specs).
+
+**Suggested fix.** In `IntoVersionSpecific` and `AsVersionSpecific`, detect `isNamedTuple(tpe)` and either (a) treat it as a product whose field names are the labels (best: name-based matching, as for case classes), or (b) dealias it to its value tuple, `NamedTuple.DropNames`, and reuse the tuple path. Add scalaNextTests cases for both directions and for As.
+
+### htmx: `HxSwapOob.using` accepts an `HxSwap` with modifiers and renders a value htmx 2 can't parse, so the whole response is dropped
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56 (no change to `htmx/` since the tag).
+
+**Summary.** `HxSwapOob.using(swap)` and `HxSwapOob.using(swap, selector)` take a full `HxSwap`, so modifiers such as `swap(10.millis)` or `settle(...)` are rendered into `hx-swap-oob`. htmx 2 splits that value at the first `:`, reads the strategy as `innerHTML swap` and the selector as `10ms`, throws a `SyntaxError` from `querySelectorAll`, fires `htmx:swapError`, and swaps nothing from the response, not even the main fragment.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** `src/main/scala/OobModifiers.scala`, run with `sbt -batch "runMain oobModifiers"`:
+```scala
+import scala.concurrent.duration.DurationInt
+import zio.blocks.html._
+import zio.http.htmx._
+
+@main def oobModifiers(): Unit = {
+  println(span(id := "cart-count", hxSwapOob := HxSwapOob.using(HxSwap.InnerHTML.swap(10.millis)))("1").render)
+  println(span(hxSwapOob := HxSwapOob.using(HxSwap.InnerHTML.settle(10.millis), HxTarget.css("#cart-count")))("1").render)
+  println(span(id := "cart-count", hxSwapOob := HxSwapOob.using(HxSwap.InnerHTML))("1").render)
+}
+// <span id="cart-count" hx-swap-oob="innerHTML swap:10ms">1</span>
+// <span hx-swap-oob="innerHTML settle:10ms:#cart-count">1</span>
+// <span id="cart-count" hx-swap-oob="innerHTML">1</span>
+```
+Observed in the browser when a response contained the first two elements next to a main fragment (`htmx.ajax('POST', ..., {target: '#toast'})`):
+```
+// console: htmx:swapError
+// pageerror: Failed to execute 'querySelectorAll' on 'Document': '10ms' is not a valid selector.
+// #toast stayed empty (main fragment not swapped), #cart-count unchanged
+// (second form) pageerror: Failed to execute 'querySelectorAll' on 'Document': '10ms:#cart-count' is not a valid selector.
+```
+The bare form (third line) swapped both the main fragment and the badge.
+
+**Expected.** Either a value htmx parses, or a compile-time refusal of modifiers. htmx 2's `hx-swap-oob` accepts `true`, a bare swap strategy, or `strategy:selector` (`oobSwap`, htmx.js:1461-1473: `swapStyle = oobValue.substring(0, oobValue.indexOf(':'))`).
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/HxAttributeValues.scala:117` (`def using(swap: HxSwap): HxSwapOob = HxSwapOob(swap.render)`) and `:119-120` (`HxSwapOob(swap.render + ":" + selector.render)`) render the whole `HxSwap`, modifiers included.
+
+**Impact.** A page that adds a swap delay to an out-of-band element loses the entire response with only a console error.
+
+**Test gap.** `HtmxAttributesSpec.scala:306-314` covers `using` only with bare swaps (`HxSwap.AfterEnd`, `HxSwap.Delete`).
+
+**Suggested fix.** Make `using` take `HxSwap.Strategy` (or render only `swap.strategy`), so modifiers can't reach `hx-swap-oob`. Add a test with `HxSwap.InnerHTML.swap(1.second)`.
+
+### htmx: `HxLocation` accepts relative `HxTarget`s (`closest`, `find`, `next`, `previous`, `this`) that htmx 2 can't resolve, and the reference page's example uses one
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56 (code and `docs/reference/htmx/response-headers.md:197` unchanged).
+
+**Summary.** `HxLocation.apply(path, target: Option[HxTarget], swap)` takes any `HxTarget`. htmx 2 resolves the `target` of an `HX-Location` header with `document.querySelector` (no element to be relative to), so `closest main` fails: htmx fires `htmx:targetError` and does nothing. `docs/reference/htmx/response-headers.md:197` teaches exactly this shape: `HxLocation("/next", target = Some(HxTarget.closest("section")), swap = Some(HxSwap.AfterEnd))`.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** `src/main/scala/LocationTarget.scala`, run with `sbt -batch "runMain locationTarget"`:
+```scala
+import zio.http.htmx._
+import zio.http.htmx.headers._
+
+@main def locationTarget(): Unit = {
+  println(HxLocation.render(HxLocation("/orders/1001", target = Some(HxTarget.closest("main")))))
+  println(HxLocation.render(HxLocation("/next", target = Some(HxTarget.closest("section")), swap = Some(HxSwap.AfterEnd))))
+  println(HxLocation.render(HxLocation("/orders/1001", target = Some(HxTarget.css("#main")))))
+}
+// {"path":"/orders/1001","target":"closest main"}
+// {"path":"/next","target":"closest section","swap":"afterend"}
+// {"path":"/orders/1001","target":"#main"}
+```
+Observed in the browser, a button posting to a handler that answers with the first header:
+```
+// < 200 /checkout/location-closest hx-location={"path":"/orders/1001","target":"closest main"}
+// console: htmx:targetError
+// no GET /orders/1001 was sent; URL stayed /cart
+```
+The third header worked: `GET /orders/1001` with `HX-Target: main`, receipt swapped into `#main`, URL pushed.
+
+**Expected.** Only targets htmx can resolve for `HX-Location` (a plain CSS selector) should be accepted, or the docs should say so.
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/headers/HtmxHeaders.scala:193-198` writes `target.render` for any `HxTarget`; htmx.js `ajaxHelper` (4120-4125) calls `resolveTarget(context.target)`, which is `find(document, selector)` (1256-1258), and an unresolved target becomes `DUMMY_ELT` (aborts with `htmx:targetError`).
+
+**Impact.** Code that copies the reference example silently does nothing in the browser.
+
+**Test gap.** `HtmxHeadersSpec.scala:101-106` asserts the `closest section` rendering and round trip, never that the value is usable.
+
+**Suggested fix.** Change the parameter to `Option[CssSelector]` (the type `HxRetarget` already uses), or keep `HxTarget` and reject non-`Css` cases; fix the reference example to `HxTarget.css("#main")` (or a `CssSelector`) and say targets are resolved against the document.
+
+### htmx: `HxEventPayload.JsonValue` and `HxLocation` print non-ASCII characters raw into header values
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** Both headers render their JSON with `Json#print`, whose default `WriterConfig` has `escapeUnicode = false`. HTTP header values are meant to be ASCII. The JDK HTTP server (used by every web guide via `JdkHttp`) throws `IllegalArgumentException: Illegal character found in header` for a character above `U+00FF` and the client gets no response; characters `U+0080`-`U+00FF` (e.g. `é`) go out as single ISO-8859-1 bytes. `Json#print(WriterConfig.withEscapeUnicode(true))` produces a pure-ASCII value that htmx parses back to the same text.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** `src/main/scala/NonAsciiHeader.scala`, run with `sbt -batch "runMain nonAsciiHeader"`:
+```scala
+import com.sun.net.httpserver.HttpServer
+import java.net.{InetAddress, InetSocketAddress, URI}
+import java.net.http.{HttpClient, HttpRequest, HttpResponse}
+import zio.blocks.schema.json.{Json, WriterConfig}
+import zio.http.htmx.headers._
+
+@main def nonAsciiHeader(): Unit = {
+  val payload = Json.Object("show-message" -> Json.Object("text" -> Json.String("Added Sencha ✓")))
+  val header  = HxTriggerHeader(HxEventPayload.JsonValue(payload))
+  println(s"rendered: ${header.renderedValue}")
+  println(s"escaped:  ${payload.print(WriterConfig.withEscapeUnicode(true))}")
+
+  val server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress, 0), 0)
+  server.createContext(
+    "/",
+    exchange =>
+      try {
+        exchange.getResponseHeaders.add(header.headerName, header.renderedValue)
+        exchange.sendResponseHeaders(200, -1)
+      } catch { case e: Throwable => println(s"server: $e") }
+      finally exchange.close()
+  )
+  server.start()
+  val client = HttpClient.newHttpClient()
+  val uri    = URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/")
+  try println(client.send(HttpRequest.newBuilder(uri).build(), HttpResponse.BodyHandlers.ofString()).statusCode)
+  catch { case e: java.io.IOException => println(s"client: $e") }
+  finally server.stop(0)
+}
+// rendered: {"show-message":{"text":"Added Sencha ✓"}}
+// escaped:  {"show-message":{"text":"Added Sencha \u2713"}}
+// server: java.lang.IllegalArgumentException: Illegal character found in header
+// server: java.lang.IllegalArgumentException: Illegal character found in header
+// client: java.io.IOException: HTTP/1.1 header parser received no bytes
+```
+(The server line appears twice because `HttpClient` retries the GET once.) With `curl -i`, a Latin-1 payload (`Café`) came back as the single byte `0xE9`.
+
+**Expected.** Header values that are ASCII-safe on any server: `HxEventPayload.JsonValue#render` and `HxLocation#renderedValue` should escape non-ASCII.
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/headers/HtmxHeaders.scala:40` (`def render: String = json.print`) and `:179` (`def renderedValue: String = value.print`); default `WriterConfig` in `schema/shared/src/main/scala/zio/blocks/schema/json/WriterConfig.scala` has `escapeUnicode = false`.
+
+**Impact.** Any shop, name or message with an accent or symbol in an `HX-Trigger` payload or `HX-Location` path breaks the response on the JDK server and is encoding-dependent elsewhere. H-40 documents the workaround (`addHeader(HxTriggerHeader.name, json.print(WriterConfig.withEscapeUnicode(true)))`).
+
+**Test gap.** No htmx test uses a non-ASCII payload.
+
+**Suggested fix.** Render with `json.print(WriterConfig.withEscapeUnicode(true))` in both places; add a test that the rendered value is ASCII and round-trips through `parse`.
+
+### codegen: `EmitterConfig.default` renders implicit vals and defs as `given val` / `given def`, which Scala 3 rejects
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** With `EmitterConfig.default` (`scala3Syntax = true`), `ScalaEmitter` turns `ObjectMember.ValMember(..., isImplicit = true)` into `given val name: T = ...` and `Method(..., isImplicit = true)` into `given def name: T = ...`. Neither is valid Scala 3: a given is written `given name: T = ...`. Any generated companion that holds an implicit, such as `implicit val schema: Schema[A] = Schema.derived`, therefore fails to compile on Scala 3. The same IR emits valid `implicit val` / `implicit def` under `EmitterConfig.scala2`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-codegen` 0.0.56). Running `sbt run compile` makes `run` write the generated file and `compile` compile it.
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
+// Repro writes its output here; the next `compile` compiles it.
+Compile / unmanagedSourceDirectories += baseDirectory.value / "generated"
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+import java.nio.file.{Files, Paths}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val file = ScalaFile(
+      PackageDecl("com.example"),
+      types = List(
+        ObjectDef(
+          "Instances",
+          members = List(
+            ObjectMember.ValMember("answer", TypeRef.Int, "42", isImplicit = true),
+            ObjectMember.DefMember(Method("greeting", returnType = TypeRef.String, body = Some("\"hi\""), isImplicit = true))
+          )
+        )
+      )
+    )
+    val source = ScalaEmitter.emit(file, EmitterConfig.default)
+    println(source)
+    Files.createDirectories(Paths.get("generated"))
+    Files.write(Paths.get("generated", "Instances.scala"), source.getBytes("UTF-8"))
+  }
+}
+// package com.example
+//
+// object Instances {
+//   given val answer: Int = 42
+//   given def greeting: String = "hi"
+// }
+//
+// [error] -- [E040] Syntax Error: .../generated/Instances.scala:4:8
+// [error] 4 |  given val answer: Int = 42
+// [error]   |        ^^^
+// [error]   |        an identifier expected, but 'val' found
+// [error] -- [E040] Syntax Error: .../generated/Instances.scala:5:8
+// [error] 5 |  given def greeting: String = "hi"
+// [error]   |        ^^^
+// [error]   |        an identifier expected, but 'def' found
+// [error] -- [E120] Naming Error: .../generated/Instances.scala:5:2
+// [error] 5 |  given def greeting: String = "hi"
+// [error]   |  ^
+// [error]   |  Conflicting definitions:
+// [error]   |  final lazy module given object given_<error>: object
+// [error]   |    com.example.Instances.given_<error> in object Instances at line 4 and
+// [error]   |  final lazy module given object given_<error>: object
+// [error]   |    com.example.Instances.given_<error> in object Instances at line 5
+// [error] three errors found
+```
+
+**Expected.** Code that compiles on Scala 3: `given answer: Int = 42` and `given greeting: String = "hi"`. Emitting `implicit val` / `implicit def` unchanged would also work, because Scala 3 still accepts them.
+
+**Root cause.** In `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala`, `emitObjectMember` appends `"given "` and then the unchanged `val name: T = ...` (`:792-797`). `emitMethod` does the same before `def` (`:743-746`). A lazy implicit val comes out as `given lazy val` (`:797`), which is invalid too.
+
+**Impact.** Generated code that carries type class instances in companion objects, the usual Scala 2 way and still valid in Scala 3, cannot be emitted for Scala 3. The T-13 tutorial avoids it by putting `derives Schema` on case classes in Scala 3 and the companion `implicit val` only in Scala 2.
+
+**Test gap.** The tests pin the invalid output: `ScalaEmitterObjectSpec.scala:471` (`given def codec[A]: Codec[A]`), `:525` (`given val codec: Codec = derived`) and `CodegenIntegrationSpec.scala:753` (`given def encode`). No test compiles emitted code.
+
+**Suggested fix.** Under `scala3Syntax`, emit `given <name>: <Type> = <value>` for an implicit `ValMember` (lazy or not; a given alias is already lazy) and `given <name>[...](using ...): <Type> = <body>` for an implicit `Method`. Alternatively keep `implicit` in both dialects. Fix the three test assertions, and add one test that compiles the Scala 3 output, for example with a `scala.compiletime.testing.typeChecks`-style check or a compile step in CI.
+
+------------------------------------------------------------------------
+
+### codegen: an `Enum` loses its companion object and its type parameters in both dialects
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `Enum` has `companion` and `typeParams` fields, but `ScalaEmitter` drops both. With `EmitterConfig.default` it emits `enum Priority { ... }` with no `object Priority`. With `EmitterConfig.scala2` it emits the sealed trait and the case objects, but the companion's own members are gone. An enum with type parameters comes out without `[A]` in both dialects, so its cases refer to an undeclared `A` and the code doesn't compile.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-codegen` 0.0.56, `sbt run`).
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val priority = Enum(
+      "Priority",
+      cases = List(EnumCase.SimpleCase("Low"), EnumCase.SimpleCase("High")),
+      companion = Some(CompanionObject(List(ObjectMember.ValMember("default", TypeRef("Priority"), "Priority.Low"))))
+    )
+    val result = Enum(
+      "Result",
+      typeParams = List(TypeParam("A")),
+      cases = List(EnumCase.ParameterizedCase("Ok", List(Field("value", TypeRef("A")))), EnumCase.SimpleCase("Err"))
+    )
+    val file = ScalaFile(PackageDecl("com.example"), types = List(priority, result))
+    println("--- EmitterConfig.default ---")
+    println(ScalaEmitter.emit(file, EmitterConfig.default))
+    println("--- EmitterConfig.scala2 ---")
+    println(ScalaEmitter.emit(file, EmitterConfig.scala2))
+  }
+}
+// --- EmitterConfig.default ---
+// package com.example
+//
+// enum Priority {
+//   case Low, High
+// }
+//
+// enum Result {
+//   case Ok(value: A)
+//   case Err
+// }
+//
+// --- EmitterConfig.scala2 ---
+// package com.example
+//
+// sealed trait Priority
+//
+// object Priority {
+//   case object Low extends Priority
+//   case object High extends Priority
+// }
+//
+// sealed trait Result
+//
+// object Result {
+//   case class Ok(
+//     value: A
+//   ) extends Result
+//   case object Err extends Result
+// }
+```
+
+**Expected.** Scala 3: `enum Priority { ... }` followed by `object Priority { val default: Priority = Priority.Low }`, and `enum Result[A] { ... }`. Scala 2: the companion's `default` inside `object Priority`, and `sealed trait Result[A]` with cases that extend `Result[A]`. (`Err` needs `Result[Nothing]` with a covariant `A`, or a type parameter of its own.)
+
+**Root cause.** In `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala`, `emitEnumScala3` (`:379-414`) renders only the doc, annotations, name, `extends` and cases; it never reads `en.companion` or `en.typeParams`. `emitEnumAsSealed` (`:416-431`) builds a `SealedTrait` from `name`, `cases`, `extendsTypes`, `annotations` and `doc` only, so `companion`, `typeParams` and `derives` are dropped before `emitSealedTrait` runs.
+
+**Impact.** An enum can't carry generated instances or helpers (for example a companion `implicit val schema` in Scala 2, or `fromString` lookups). The loss is silent, so it shows up only as a missing implicit or an unknown `A` when the generated code is compiled.
+
+**Test gap.** `ScalaEmitterEnumSpec` "enum with companion object" (`:230-241`) only asserts `result.contains("enum Priority")`, and "enum with type params in Scala 2 mode becomes sealed trait" (`:243-256`) only asserts `contains("sealed trait Result")`. `CodegenIntegrationSpec.scala:470-491` asserts `case Active(value: A)` for an enum whose `[A]` is never printed. Full-string assertions (AGENTS.md "Render Assertions") would have caught both.
+
+**Suggested fix.** In `emitEnumScala3`, emit `[typeParams]` after the name and the companion after the closing brace, as `emitCaseClass` does (`:298-301`). In `emitEnumAsSealed`, pass `typeParams`, `companion` and `derives` through to the `SealedTrait`. Replace the `contains` assertions with full-string ones.
+
+------------------------------------------------------------------------
+
+### codegen: `ScalaEmitter` writes doc text into `/** ... */` unescaped, so a `*/` or `/*` in it breaks the file
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** Every `doc` (on a case class, sealed trait, enum, object, method and so on) is emitted as `"/** " + text + " */"` with the text unchanged. Doc text usually comes from an outside source, such as a Smithy `///` comment or an OpenAPI `description`. If that text contains `/*` (Scala comments nest) or `*/`, the generated file doesn't compile. A path such as `/api/*/users` is enough.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-codegen` 0.0.56, `sbt run compile`).
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
+// Repro writes its output here; the next `compile` compiles it.
+Compile / unmanagedSourceDirectories += baseDirectory.value / "generated"
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+import java.nio.file.{Files, Paths}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val user = CaseClass(
+      "User",
+      List(Field("email", TypeRef.String)),
+      doc = Some("Served under /api/*/users.")
+    )
+    val source = ScalaEmitter.emit(ScalaFile(PackageDecl("com.example"), types = List(user)))
+    println(source)
+    Files.createDirectories(Paths.get("generated"))
+    Files.write(Paths.get("generated", "User.scala"), source.getBytes("UTF-8"))
+  }
+}
+// package com.example
+//
+// /** Served under /api/*/users. */
+// case class User(
+//   email: String,
+// )
+//
+// [error] -- Error: .../generated/User.scala:3:0
+// [error] 3 |/** Served under /api/*/users. */
+// [error]   |^
+// [error]   |unclosed comment
+// [error] one error found
+```
+
+**Expected.** A comment that compiles and still reads the same, for example with `*/` written as `*&#47;` and `/*` as `/&#42;` (the usual Scaladoc escapes), or with a zero-width break between the two characters.
+
+**Root cause.** `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala` appends the raw doc string in eleven places: `:260`, `:323`, `:385`, `:450`, `:493`, `:528`, `:578`, `:644`, `:718` and `:735`, plus the enum path through `emitSealedTrait`. Multi-line text is also written without the ` * ` prefix on continuation lines. That compiles, but it doesn't follow the repo's Scaladoc style.
+
+**Impact.** A code generator fed by a real specification can emit a file that doesn't compile, and the cause (a comment) is far from the input that triggered it.
+
+**Test gap.** No emitter test uses a doc containing `*/`, `/*` or a newline (`grep -rn '\*/' codegen/src/test` finds only the licence headers).
+
+**Suggested fix.** Add one private `emitDoc(prefix, text)` helper that escapes `*/` and `/*`, splits on newlines and prefixes each continuation line with ` * `, and use it at every call site. Add tests for the escapes and for multi-line text.
+
+------------------------------------------------------------------------
+
+### codegen: `macro` is not escaped, so a field named `macro` breaks Scala 2 output
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `ScalaEmitter` backquotes a name only when it is in its keyword set or is not a plain identifier. The set has no `macro`, which is a reserved word in Scala 2.13, so `Field("macro", ...)` is emitted as `macro: String` and Scala 2 rejects it. Scala 3 accepts `macro` as an identifier.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-codegen` 0.0.56, `sbt run compile`).
+
+`build.sbt`:
+
+```scala
+scalaVersion := "2.13.18"
+libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
+// Repro writes its output here; the next `compile` compiles it.
+Compile / unmanagedSourceDirectories += baseDirectory.value / "generated"
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+import java.nio.file.{Files, Paths}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val build  = CaseClass("Build", List(Field("macro", TypeRef.String)))
+    val source = ScalaEmitter.emit(ScalaFile(PackageDecl("com.example"), types = List(build)), EmitterConfig.scala2)
+    println(source)
+    Files.createDirectories(Paths.get("generated"))
+    Files.write(Paths.get("generated", "Build.scala"), source.getBytes("UTF-8"))
+  }
+}
+// package com.example
+//
+// case class Build(
+//   macro: String
+// )
+//
+// [error] .../generated/Build.scala:4:3: macro is now a reserved word; usage as an identifier is disallowed
+// [error]   macro: String
+// [error]   ^
+// [error] .../generated/Build.scala:5:2: ':' expected but eof found.
+// [error] )
+// [error]  ^
+// [error] two errors found
+```
+
+**Expected.** `` `macro`: String ``, which compiles on Scala 2.13 and Scala 3.
+
+**Root cause.** `scalaKeywords` in `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala:851-895` has no `macro`. `escapeName` (`:897-900`) backquotes only names in that set or names that are not plain identifiers.
+
+**Impact.** Low, but real for generators: field names come from external schemas, and `macro` is a plausible one (for example in build or editor configuration).
+
+**Test gap.** `ScalaEmitterEscapingSpec` doesn't check `macro`, and nothing compiles the Scala 2 output.
+
+**Suggested fix.** Add `"macro"` to `scalaKeywords`. The set already escapes Scala 3-only keywords (`enum`, `given`, `export`, `then`) in Scala 2 output as well, which is harmless, so a single union set stays correct.
+
+------------------------------------------------------------------------
+
+### smithy: the parser rejects common Smithy 2.0 IDL syntax (mixins, member defaults, `for`/`$` elision, inline `:=` I/O, text blocks)
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `SmithyModel.parse` accepts `$version: "2"` files but fails on several constructs that Smithy IDL 2.0 defines and that real 2.0 models use often: mixins (`structure Order with [Audited] { ... }`), member default values (`quantity: Integer = 1`), target elision (`structure Order for OrderResource { $id }`), inline operation input and output (`input := { ... }`) and text blocks (`"""` ... `"""`). It also rejects `set` shapes, which Smithy 2.0 deprecates in favour of `list` with `@uniqueItems`. The error messages describe the parser's position ("Expected '{' but found 'w'"), not the unsupported feature. Neither `docs/reference/smithy.md` nor the Scaladoc lists these as unsupported.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-smithy` 0.0.56, `sbt run`).
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+libraryDependencies += "dev.zio" %% "zio-blocks-smithy" % "0.0.56"
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.smithy._
+
+object Repro {
+  val header = "$version: \"2\"\nnamespace com.example\n\n"
+
+  val cases: List[(String, String)] = List(
+    "mixin"               -> "@mixin\nstructure Audited { createdAt: Timestamp }\n\nstructure Order with [Audited] { id: String }",
+    "member default"      -> "structure Order { quantity: Integer = 1 }",
+    "resource elision"    -> "resource OrderResource { identifiers: { id: String } }\n\nstructure Order for OrderResource { $id }",
+    "inline input"        -> "operation GetOrder { input := { id: String } }",
+    "set shape"           -> "set Tags { member: String }",
+    "text block"          -> "@documentation(\"\"\"\n    An order.\n    \"\"\")\nstructure Order { id: String }",
+    "use-imported trait"  -> "use com.acme.traits#audited\n\n@audited\nstructure Order { id: String }"
+  )
+
+  def main(args: Array[String]): Unit =
+    cases.foreach { case (label, body) =>
+      SmithyModel.parse(header + body) match {
+        case Right(model) => println(s"$label: parsed, traits = ${model.shapes.flatMap(_.shape.traits).map(_.id)}")
+        case Left(error)  => println(s"$label: ${error.formatMessage}")
+      }
+    }
+}
+// mixin: Parse error at line 7, column 17: Expected '{' but found 'w'
+// member default: Parse error at line 4, column 37: Expected member name
+// resource elision: Parse error at line 6, column 17: Expected '{' but found 'f'
+// inline input: Parse error at line 4, column 29: Expected target for 'input'
+// set shape: Parse error at line 4, column 9: Unexpected keyword: set
+// text block: Parse error at line 4, column 18: Expected ')' but found '"'
+// use-imported trait: parsed, traits = List(smithy.api#audited)
+```
+
+(The last line belongs to the next entry.)
+
+**Expected.** Each construct parses into the model: mixins as a list of mixin `ShapeId`s on the shape (or with mixin members merged in), a member default as a `@default` trait (the IDL defines `= value` as sugar for `@default(value)`), elided members resolved from the resource or mixin, inline I/O as generated `<Op>Input`/`<Op>Output` structures, and text blocks as strings. Until then, the parser should report "mixins are not supported" and similar, and `docs/reference/smithy.md` should list the unsupported 2.0 features.
+
+**Root cause.** In `smithy/src/main/scala/zio/blocks/smithy/SmithyParser.scala`:
+
+- `parseAggregateShape` calls `expectChar('{')` right after the shape name (`:279`), so `with [...]` and `for ...` are never read.
+- `parseMemberDefinitions` (`:325-352`) reads `name: Target` and an optional comma; there is no `=` branch, and `MemberDefinition` (`Shape.scala:383-387`) has no field for it.
+- `parseOperationBody` (`:556-580`) expects a shape id after `input`/`output`, and there is no `:=` handling.
+- `readQuotedString` (`:1137`) has no text-block branch.
+- The shape keyword sets (`:43-75`) have no `set`.
+
+**Impact.** Many real Smithy 2.0 models (AWS service models and most models written for smithy4s) use mixins, defaults or inline I/O, so they fail to parse. A user can't tell from the error that the input is valid Smithy.
+
+**Test gap.** `SmithyParserSimpleSpec` and `SmithyParserComplexSpec` don't cover any of these constructs, not even as expected failures.
+
+**Suggested fix.** Implement member defaults (desugar to `@default`), text blocks and inline I/O first; they are local to the parser. Add mixins with a `mixins: List[ShapeId]` field on the aggregate shapes. Meanwhile, recognise each construct and fail with a message that names the unsupported feature, and add a "Supported Smithy features" table to `docs/reference/smithy.md`.
+
+------------------------------------------------------------------------
+
+### smithy: a trait imported with `use` is resolved to `smithy.api`, not to its real namespace
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** When a trait is applied by its simple name, the parser always gives it the `smithy.api` namespace. It ignores both the model's `use` statements and its own namespace. `use com.acme.traits#audited` followed by `@audited` yields `TraitApplication(ShapeId("smithy.api", "audited"), None)`. A custom trait defined in the same file is also reported as `smithy.api#<name>`. Code that looks traits up by full id therefore can't find custom traits, and can confuse them with prelude traits of the same name.
+
+**Reproduction.** Same project and run as the previous entry ("smithy: the parser rejects common Smithy 2.0 IDL syntax ..."), whose `Repro.scala` includes this case. The relevant case and its real output:
+
+```scala
+"use-imported trait" -> "use com.acme.traits#audited\n\n@audited\nstructure Order { id: String }"
+// use-imported trait: parsed, traits = List(smithy.api#audited)
+```
+
+**Expected.** `com.acme.traits#audited`. Smithy resolves a relative shape id by checking `use` statements first, then the current namespace, then the prelude.
+
+**Root cause.** `parseShapeIdFromString` (`smithy/src/main/scala/zio/blocks/smithy/SmithyParser.scala:848-856`) returns `ShapeId("smithy.api", s)` for any name without `#` ("Simple name — assume smithy.api namespace"), and trait parsing calls it (`:790`). The `use` statements collected at `:96-127` are never consulted.
+
+**Impact.** Custom traits, the usual way to attach generator hints in Smithy, are misidentified. `docs/reference/smithy.md` says the parser "resolves those against the prelude", which describes this behaviour, but it isn't what Smithy specifies.
+
+**Test gap.** No parser test applies a non-prelude trait by simple name, with or without `use`.
+
+**Suggested fix.** Resolve simple trait names against the `use` statements, then the model namespace when the trait is defined there, then `smithy.api`. Add tests for all three, and update the "Trait identifiers are the exception" paragraph of `docs/reference/smithy.md`.
+
+### Avro: `Array[Byte]` encodes as an Avro array of `int`, not `bytes`
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/encode-and-decode-records-with-avro.md` (backlog H-13), on `main` at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** `Schema[Array[Byte]]` and `Chunk[Byte]` derive the Avro schema `{"type":"array","items":"int"}`. Avro has a `bytes` type for this. Each byte is written as a zig-zag varint inside an array block, so the output is larger than the payload. `BigInt` in the same module already maps to `bytes`.
+
+**Reproduction.** File `ArrayByte.scala`, run with `scala-cli run --server=false ArrayByte.scala -M ArrayByte`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-avro:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.avro._
+
+object ArrayByte {
+  def main(args: Array[String]): Unit = {
+    implicit val bytesSchema: Schema[Array[Byte]] = Schema.derived
+
+    val payload = Array.fill[Byte](100)(1)
+    val codec   = bytesSchema.derive(AvroFormat)
+
+    println(codec.avroSchema.toString)
+    println(s"Array[Byte] of 100 bytes encodes to ${codec.encode(payload).length} bytes")
+    println(Schema[BigInt].derive(AvroFormat).avroSchema.toString)
+    println(s"BigInt of 2^700 encodes to ${Schema[BigInt].derive(AvroFormat).encode(BigInt(2).pow(700)).length} bytes")
+  }
+}
+// {"type":"array","items":"int"}
+// Array[Byte] of 100 bytes encodes to 103 bytes
+// "bytes"
+// BigInt of 2^700 encodes to 90 bytes
+```
+
+**Expected.** `Array[Byte]` and `Chunk[Byte]` map to Avro `bytes`, the same way `BigInt` does. Output is then about the payload size and a non-Scala reader sees a byte string.
+
+**Root cause.** The specialised `Col[Byte]` codec, `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodecDeriver.scala:291-297`, takes `elementCodec = codec.asInstanceOf[AvroCodec[Byte]]` and builds its schema with `AvroSchema.createArray(elementCodec.avroSchema)` (line 297). The element codec is `AvroCodec.byteCodec` (`AvroCodecDeriver.scala:46`), whose schema is `AvroSchema.create(AvroSchema.Type.INT)` (`AvroCodec.scala:147`). For contrast, `bigIntCodec` at `AvroCodec.scala:214-219` uses `AvroSchema.Type.BYTES`.
+
+**Impact.** Non-Scala readers see an array of `int` where they expect bytes. Payloads are bigger on the wire: a value below 64 takes one byte per element, a value outside -64..63 takes two, plus array block headers. Here 100 bytes become 103 bytes, and random data is about twice its size.
+
+**Test gap.** `schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:498` asserts `avroSchema[Array[Byte]]("{\"type\":\"array\",\"items\":\"int\"}")`, so the mapping is pinned as if deliberate. No spec checks `Array[Byte]` against Avro `bytes`.
+
+**Suggested fix.** Add a bytes codec for `Col[Byte]` (`AvroSchema.create(AvroSchema.Type.BYTES)`, with `encoder.writeBytes` and `decoder.readBytes`), mirroring `bigIntCodec`. Change the pinned assertion at line 498 in the same change, and note the schema change in the Avro reference. This changes the wire format for existing `Array[Byte]` users, so it needs a release note. If the team keeps the int array on purpose, the reference should say so and give the size cost.
+
+### schema: `OffsetDateTime`, `LocalDateTime`, `LocalTime` and `OffsetTime` encode to JSON that isn't RFC 3339, though their JSON Schema says `format: date-time` or `time`
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/generate-scala-types-from-openapi.md` (backlog H-44), on `main` at `202578f27` (the schema sources are unchanged at `9d5ca8f91`). Same at v0.0.56. Verified by running.
+
+**Summary.** The JSON codecs of four `java.time` types write `toString`-style values. `OffsetDateTime`, `LocalTime` and `OffsetTime` drop the seconds when they are zero (`09:30+03:30`), and `LocalDateTime` has no offset at all. Their `toJsonSchema` still declares `format: "date-time"` (OffsetDateTime, LocalDateTime) or `format: "time"` (LocalTime, OffsetTime). RFC 3339, which the JSON Schema `date-time` and `time` formats point to, requires both the seconds and the offset. So a schema exported from these types (for example an OpenAPI document built as in H-39) promises values that a strict RFC 3339 validator rejects. ZIO Blocks' own format check accepts them, because its regexes make the seconds and the offset optional, so the mismatch never shows inside ZIO Blocks. `Instant` is fine: it always writes seconds and `Z`.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+//> using options -experimental
+// Run: scala-cli run --server=false Repro.scala
+import java.time._
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+@main def repro(): Unit = {
+  def show[A](value: A)(implicit schema: Schema[A]): Unit = {
+    val encoded = schema.jsonCodec.encodeToString(value)
+    val js      = schema.toJsonSchema
+    println(s"$encoded  format=${js.toJson.get("format").one.map(_.print).getOrElse("-")}  conforms=${Json.parse(encoded).map(js.conforms(_))}")
+  }
+  show(OffsetDateTime.parse("2026-10-27T09:30:00+03:30"))
+  show(LocalDateTime.parse("2026-10-27T09:30:00"))
+  show(LocalTime.parse("09:30:00"))
+  show(OffsetTime.parse("09:30:00Z"))
+  show(Instant.parse("2026-10-27T09:30:00Z"))
+}
+// "2026-10-27T09:30+03:30"  format="date-time"  conforms=Right(true)
+// "2026-10-27T09:30"  format="date-time"  conforms=Right(true)
+// "09:30"  format="time"  conforms=Right(true)
+// "09:30Z"  format="time"  conforms=Right(true)
+// "2026-10-27T09:30:00Z"  format="date-time"  conforms=Right(true)
+```
+
+**Expected.** Either of these:
+- A value that matches its declared format: `"2026-10-27T09:30:00+03:30"` and `"09:30:00Z"`, with seconds always written.
+- No `date-time` or `time` format for the offset-less types, `LocalDateTime` and `LocalTime`. RFC 3339 has no local date-time, so a `pattern` or no `format` is honest there.
+
+Separately, `JsonSchema#conforms` with `format: "date-time"` should reject `"2026-10-27T09:30"`.
+
+**Root cause.**
+- `schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:2071-2077`: `writeLocalTime` writes only `HH:mm` when `second` and `nano` are both 0 (`pos + 5`). `writeOffsetDateTime` (`:1874`, the call at `:1884`) and the `LocalDateTime`, `LocalTime` and `OffsetTime` writers go through it. The Scaladoc on `writeVal(x: OffsetDateTime)` (`:585-589`) documents the `toString` form (`"2024-03-15T10:15+01:00"`). The Scala.js `JsonWriter.scala` has the same writers (`writeVal` at `:597`, `:608`, `:629`, `:639`).
+- `schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodec.scala`: `localDateTimeCodec` (`:1118`) declares `format = "date-time"` at `:1138`, although its values carry no offset; `localTimeCodec` (`:1164`) and `offsetTimeCodec` (`:1292`) declare `time`; `offsetDateTimeCodec` declares `date-time` at `:1265`.
+- `schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala:220-223` (`dateTimePattern`) and `:226-227` (`timePattern`) make `:ss` and the offset optional, so `validateDateTime` (`:270`) and `validateTime` accept these values.
+
+**Impact.** Any JSON Schema or OpenAPI document exported from a type with one of these fields describes values that other tools may reject: JSON Schema validators with format assertion on, and generated clients that parse `date-time` strictly. Data produced by ZIO Blocks can fail validation against ZIO Blocks' own published schema in someone else's validator. The H-44 guide maps `format: date-time` to `Instant` for this reason, and says so in a note.
+
+**Test gap.** `JsonSchemaSpec` "date-time format validates RFC 3339 date-times" (`schema/shared/src/test/scala/zio/blocks/schema/json/JsonSchemaSpec.scala:591-610`) asserts that `"-9999-01-01T00:00"` (no seconds, no offset) conforms, and checks generated `LocalDateTime`/`OffsetDateTime` `toString` values. So the test pins the lenient behaviour under a name that promises RFC 3339. `JsonCodecToJsonSchemaSpec` (`:206`, `:222`) checks only the format name, never an encoded value against it.
+
+**Suggested fix.** Write seconds always in `writeLocalTime` (JVM and JS). Stop declaring `date-time` and `time` for `LocalDateTime` and `LocalTime` (use a `pattern`, or no format). Make `dateTimePattern` and `timePattern` follow RFC 3339 (`:ss` and the offset required), and keep any lenient parse on the decode side only. Add a property test: for each `java.time` type with a format, `toJsonSchema.conforms(encode(x))` holds under a strict RFC 3339 check.
+
+### Streams: primitive pulls through `Reader` wrappers and concatenations of an `AnyRef`-lane reader throw `IllegalStateException`
+
+Found 2026-10-27 while writing the Scaladoc for `Reader#concat`, `SyncReader#readBytes`/`readInts`/`readFloats`, `Reader.closed` and the reader wrappers (wave 2 of the streams Scaladoc, branch `streams-scaladoc-wave-2`), on `main` at `b6c0c30e4`; widened after review the same day. The same at tag `v0.0.56`. All `file:line` citations in this entry are at `b6c0c30e4` (`origin/main` when the entry was written); `Reader.scala` and `Writer.scala` are unchanged between that commit and the merge of wave 1, and the method names are given so the lines can be re-anchored after the wave 2 Scaladoc lands.
+
+**Summary.** A reader on the `JvmType.AnyRef` lane is supposed to support every primitive pull by unboxing (the `Reader` reference page says the `AnyRef` lane "is the only lane on which all eight of those methods work, because it satisfies them by pulling boxed and converting"; the scalar pulls `readInt`, `readLong`, ... of `SyncReader` and `AsyncReader` do exactly that on the reader itself). Four groups of readers break that:
+
+- The result of the public `Reader#++` / `concat` / `concatAsync` (sync and async) is put on the `AnyRef` lane, whatever the lanes of its parts, and every one of its primitive pulls (`readInt`, `readLong`, `readByte`, `readChar`, ..., `readBytes`, `readInts`, `readLongs`, ...) throws `IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int` (or fails the `Async` with it). Only `read`, `readAll`, `readN`, `readUpToN` and `skip` work.
+- Every library wrapper of an `AnyRef`-lane reader forwards the primitive pulls to the exact-lane methods of what it wraps, so they throw (or fail the `Async`) the same way: `SyncReader#toAsync`, `AsyncReader#toSync` (JVM), `SyncReader#withRelease`, `withReleaseAsync` and `Reader.repeated`. A custom reader that keeps the default lane answers `readInt` itself but not through any of these. `read`/`readAll`/`readN` through the wrappers still work.
+- The default `readBytes`, `readInts` and `readFloats` require the exact lane, so they throw on any `AnyRef`-lane reader: a custom `SyncReader[Byte]` that does not override `jvmType` cannot use `readBytes`, although `readByte` works on it. The `AsyncReader` defaults throw too, and **at the call site** instead of failing the returned `Async` (the exact-lane call runs inside a `flatMap` over an already-completed `Async`).
+- `Reader.closed` is on the `AnyRef` lane and overrides every pull except `readBytes`, `readInts` and `readFloats`, so those three throw instead of returning `-1`.
+
+Streams are not affected: the stream engine reads these readers through `read`, or builds its own concatenations on the right lane (`concatWithJvmType`). Review probes confirmed `map`, `filter` with `runFold`, `Sink.foldLeft`, `mapAsync` and `take` over such readers all give `Right`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli --power run --server=false --offline AnyRefLanePulls.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.async._
+import zio.blocks.chunk.Chunk
+import zio.blocks.streams.io.Reader
+
+object AnyRefLanePulls {
+  def show(label: String)(body: => Any): Unit =
+    println(s"$label -> " + (try String.valueOf(body) catch { case e: Throwable => s"throws ${e.getClass.getName}: ${e.getMessage}" }))
+
+  // Custom readers that do not override jvmType, so they are on the AnyRef lane.
+  final class Bytes(data: Array[Byte]) extends Reader.SyncReader[Byte] {
+    private var i = 0
+    def read[A >: Byte](sentinel: A): A = if (i < data.length) { i += 1; data(i - 1) } else sentinel
+    def isClosed: Boolean               = i >= data.length
+    def close(): Unit                   = i = data.length
+  }
+  final class Ints(data: Int*) extends Reader.SyncReader[Int] {
+    private var i = 0
+    def read[A >: Int](sentinel: A): A = if (i < data.length) { i += 1; data(i - 1) } else sentinel
+    def isClosed: Boolean              = i >= data.length
+    def close(): Unit                  = i = data.length
+  }
+  final class AsyncBytes(data: Array[Byte]) extends Reader.AsyncReader[Byte] {
+    private var i = 0
+    def read[A >: Byte](sentinel: A): Async[A] =
+      Async.succeed(if (i < data.length) { i += 1; data(i - 1) } else sentinel)
+    def readable(): Async[Boolean] = Async.succeed(i < data.length)
+    def isClosed: Async[Boolean]   = Async.succeed(i >= data.length)
+    def close(): Async[Unit]       = Async.succeed { i = data.length }
+  }
+
+  def main(args: Array[String]): Unit = {
+    val ints = Reader.fromChunk(Chunk(1, 2)) ++ Reader.fromChunk(Chunk(3))
+    show("concat jvmType")(ints.jvmType)
+    show("concat readInt")(ints.readInt(Long.MinValue))
+    show("concat readByte")(ints.readByte())
+    show("concat readInts")(ints.readInts(new Array[Int](3), 0, 3))
+    show("concat readAll")(ints.readAll[Int]())
+
+    val longs = Reader.fromChunk(Chunk(1L)) ++ Reader.fromChunk(Chunk(2L))
+    show("concat readLongs")(longs.readLongs(new Array[Long](2), 0, 2))
+
+    val asyncInts = Reader.fromChunk(Chunk(1, 2)).toAsync ++ Reader.fromChunk(Chunk(3))
+    show("async concat readInt")(asyncInts.readInt(Long.MinValue).either.block)
+
+    show("closed readBytes")(Reader.closed.readBytes(new Array[Byte](2), 0, 2))
+    show("closed readLongs")(Reader.closed.readLongs(new Array[Long](2), 0, 2))
+
+    val custom = new Bytes(Array[Byte](1, 2, 3))
+    show("custom jvmType")(custom.jvmType)
+    show("custom readByte")(custom.readByte())
+    show("custom readBytes")(custom.readBytes(new Array[Byte](4), 0, 4))
+
+    show("custom ints readInt")(new Ints(1, 2).readInt(Long.MinValue))
+    show("toAsync readInt")(new Ints(1, 2).toAsync.readInt(Long.MinValue).either.block)
+    show("withRelease readInt")(new Ints(1, 2).withRelease(() => ()).readInt(Long.MinValue))
+    show("withReleaseAsync readInt")(new Ints(1, 2).withReleaseAsync(() => Async.succeed(())).readInt(Long.MinValue).either.block)
+    show("repeated readInt")(Reader.repeated(new Ints(1, 2)).readInt(Long.MinValue))
+    show("withRelease readAll")(new Ints(1, 2).withRelease(() => ()).readAll[Int]())
+
+    val asyncCustom = new AsyncBytes(Array[Byte](1, 2))
+    show("custom async readByte")(asyncCustom.readByte().block)
+    show("toSync readByte")(new AsyncBytes(Array[Byte](1, 2)).toSync.readByte())
+    show("custom async readBytes (call)")(new AsyncBytes(Array[Byte](1, 2)).readBytes(new Array[Byte](2), 0, 2))
+  }
+}
+// concat jvmType -> AnyRef
+// concat readInt -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int
+// concat readByte -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Byte
+// concat readInts -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int
+// concat readAll -> Chunk(1,2,3)
+// concat readLongs -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Long
+// async concat readInt -> Left(java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int)
+// closed readBytes -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Byte
+// closed readLongs -> -1
+// custom jvmType -> AnyRef
+// custom readByte -> 1
+// custom readBytes -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Byte
+// custom ints readInt -> 1
+// toAsync readInt -> Left(java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int)
+// withRelease readInt -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int
+// withReleaseAsync readInt -> Left(java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int)
+// repeated readInt -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int
+// withRelease readAll -> Chunk(1,2)
+// custom async readByte -> 1
+// toSync readByte -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Byte
+// custom async readBytes (call) -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Byte
+```
+
+The last line shows the call-site throw: `readBytes(...)` throws before it returns an `Async`, so `show` prints the exception instead of an `Async` value.
+
+**Expected.** Every primitive pull above returns the element (`1`), a count, or `-1` for `Reader.closed`, as the `AnyRef` lane promises; an `AsyncReader` failure, if any, arrives in the returned `Async`. Alternatively, `concat` of two readers on the same primitive lane keeps that lane (as the internal `concatWithJvmType` does).
+
+**Root cause.** `streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala` at `b6c0c30e4`:
+- `requirePhysicalLane` (`SyncReader`, `:816-818`; `AsyncReader`, `:1366-1368`) throws whenever `jvmType ne expected`, so every exact-lane `*Physical` call on an `AnyRef` reader fails, although the methods it guards (`readInt`, `readLong`, ...) have an unboxing branch for `AnyRef`.
+- The public concatenations pass `JvmType.AnyRef` as the output lane: `SyncReader#concat` (`:211-212`), `SyncReader#++`/`concat`/`concatAsync` over a `Reader` (`:223-236`), and `AsyncReader#concat`/`concatAsync` (`:982-990`). `ConcatReader` wraps its head as an `AnyRef` reader (`normalizeSyncChild(rawHead, outType)`, `:2722`), and its primitive pulls call the `*Physical` methods on it (`current.readIntPhysical(sentinel)`, `:2811`; `readLong` via `readLongsPhysical`, `:2818-2820`; the bulk overrides at `:2878-2924`).
+- The wrappers forward to `*Physical`: `SyncToAsyncReader` (`toAsync`, class at `:1453`, pulls `:1564-1608`), `AsyncToSyncReader` (`toSync`, `streams/jvm/src/main/scala/zio/blocks/streams/io/AsyncToSyncReader.scala:285` and the pulls around it), `DelegatingReader` (`withRelease`, `:2988-2994` and after), `AsyncReleaseReader` (`withReleaseAsync`, class at `:2264`, e.g. `readInt` at `:2301-2302`), `Repeated` (synchronous `Reader.repeated`, e.g. `readInt` at `:5413-5415`) and `AsyncRepeated` (asynchronous `Reader.repeated`, class at `:5544`, e.g. `readBoolean` at `:5728`), where the async overload fails the returned `Async` instead of throwing.
+- `SyncReader#readBytes` (`:535-547`), `readInts` (`:568-581`) and `readFloats` (`:668-681`) pull through `readBytePhysical`, `readIntPhysical` and `readFloatPhysical`, while `readLongs` (`:602-614`) and `readDoubles` (`:635-647`) have an `AnyRef` branch that unboxes. The `AsyncReader` defaults (`bulk` at `:1162`, `readBytes` `:1175`, `readInts` `:1184`, `readFloats` `:1204`) call the `*Physical` method inside `validateArrayRangeAsync(...).flatMap(...)`, which runs at once on the already-succeeded validation, so the throw escapes at the call site.
+- `ClosedReader` (`:2664-2687`) overrides every scalar pull and `readLongs`/`readDoubles` but not `readBytes`, `readInts` or `readFloats`.
+
+**Impact.** Anyone who concatenates readers by hand (`Reader#++` is shown on the reference page), or wraps a custom reader with `toAsync`, `withRelease`, `repeated` and the like, and then pulls a primitive lane, gets an exception on the first pull; a custom byte reader cannot be read in bulk, and an async caller cannot catch the bulk failure in the `Async`. Code that only uses `read`/`readAll`, and every stream, is unaffected.
+
+**Test gap.** `AsyncReaderSpec.scala:50-77`, `ReaderCompositionSignatureSpec.scala:44-49`, `AsyncReaderJvmSpec.scala:1366` and `ErrorHandlingSpec.scala:443` build public concatenations but read them only with `read`/`readAll`. No test calls a primitive pull on a public concatenation, `readBytes`/`readInts`/`readFloats` on `Reader.closed` (the only `Reader.closed` bulk calls, `AsyncReaderSpec.scala:252-263`, are zero-length on a closed view and never reach the source), a bulk read on a custom reader that keeps the default lane, or a primitive pull through `toAsync`, `toSync`, `withRelease`, `withReleaseAsync` or `Reader.repeated` over such a reader (`grep -rn "cannot be pulled as" streams/*/src/test` finds nothing; `ReaderBulkValidationSpec` uses the private `concatReaderWithJvmType(..., JvmType.Int)`).
+
+**Suggested fix.** The smallest one: let `requirePhysicalLane` accept `JvmType.AnyRef`, so a `*Physical` call on an `AnyRef` reader reaches its unboxing default. The check is `if (jvmType ne expected) throw ...`; with `if ((jvmType ne expected) && (jvmType ne JvmType.AnyRef)) throw ...`, the second test runs only on the branch that throws today, so the primitive hot path and its sentinels are unchanged (AGENTS.md sentinel policy). Then give the default `readBytes`, `readInts` and `readFloats` an `AnyRef` branch that unboxes through `read[Any](EndOfStream)`, as `readLongs`/`readDoubles` already do, add the three overrides to `ClosedReader` (`if (length == 0) 0 else -1` after validation), and run the `AsyncReader` bulk defaults inside the `Async` so a failure fails it. Add a test for each case above.
+
+### Streams: `Reader.repeat` and the synchronous `Reader.repeated` keep producing elements after `close()`
+
+Found 2026-10-27 while writing the Scaladoc for `Reader.repeat`, `Reader.repeated` and `SyncReader#close` (wave 2 of the streams Scaladoc, branch `streams-scaladoc-wave-2`), on `main` at `b6c0c30e4`. The same at tag `v0.0.56`. All `file:line` citations in this entry are at `b6c0c30e4` (`origin/main` when the entry was written); `Reader.scala` and `Writer.scala` are unchanged between that commit and the merge of wave 1, and the method names are given so the lines can be re-anchored after the wave 2 Scaladoc lands.
+
+**Summary.** After `close()`, a reader's pulls should return the end value. `Reader.repeat(a)` ignores `close()` entirely: `isClosed` stays `false` and every pull still returns `a`. The synchronous `Reader.repeated(inner)` reports `isClosed == true` after `close()`, but its next pull sees the closed `inner` as a clean end, resets it and keeps producing `inner`'s elements. The asynchronous `Reader.repeated` stops as expected.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli --power run --server=false --offline RepeatIgnoresClose.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.async._
+import zio.blocks.chunk.Chunk
+import zio.blocks.streams.io.Reader
+
+object RepeatIgnoresClose {
+  def main(args: Array[String]): Unit = {
+    val forever = Reader.repeat("tick")
+    forever.close()
+    println(s"repeat:         isClosed=${forever.isClosed} read=${forever.read[AnyRef]("EOF")}")
+
+    val cycle = Reader.repeated(Reader.fromChunk(Chunk(1, 2)))
+    cycle.read(-1)
+    cycle.close()
+    println(s"repeated sync:  isClosed=${cycle.isClosed} read=${cycle.read(-1)}")
+
+    val asyncCycle = Reader.repeated(Reader.fromChunk(Chunk(1, 2)).toAsync)
+    asyncCycle.read(-1).block
+    asyncCycle.close().block
+    println(s"repeated async: isClosed=${asyncCycle.isClosed.block} read=${asyncCycle.read(-1).block}")
+
+    val once = Reader.single("tick")
+    once.close()
+    println(s"single:         isClosed=${once.isClosed} read=${once.read[AnyRef]("EOF")}")
+  }
+}
+// repeat:         isClosed=false read=tick
+// repeated sync:  isClosed=true read=1
+// repeated async: isClosed=true read=-1
+// single:         isClosed=true read=EOF
+```
+
+**Expected.** `repeat: isClosed=true read=EOF` and `repeated sync: isClosed=true read=-1`, like the asynchronous overload and `Reader.single`.
+
+**Root cause.** `streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala`: `Reader.repeat` (`:2436-2440`) puts a `single` reader in mode 2 (repeat forever), and both `SingletonGeneric.close()` (`:5862`) and `SingletonPrim.close()` (`:5983`) are `if (mode != 2) ...`, so close is a no-op in that mode. `Repeated.close()` (`:5540`) sets `done = true` and closes `inner`, but `Repeated.read` (`:5398-5411`) and the typed pulls (`:5413-5520`) never check `done`: they read `inner`, see the end, and call `inner.reset()`, which reopens a chunk, range or iterable reader.
+
+**Impact.** Low for streams, which stop pulling once they close a reader. Code that drives these readers by hand cannot stop them with `close()`, and a loop that waits for the end value after closing never ends.
+
+**Test gap.** `ReaderConstructorSpec.scala:222-238` and `IntSpecializationSpec.scala:116-124` and `:514-517` cover `Reader.repeated` and `Reader.repeat` without calling `close()`; only the asynchronous overload's close is tested (`AsyncReaderCriticalResidualCoverageSpec.scala:114-140`).
+
+**Suggested fix.** Let `close()` leave mode 2 in `SingletonGeneric`/`SingletonPrim` (set mode 1), and make the `Repeated` pulls return the end value when `done` is set before touching `inner`. Both are one check per close or per cycle restart, not per element, so the hot loops and sentinels are unchanged. Add tests that close each reader and pull again.
+
+### Streams: `Writer.fromOutputStream`, `Writer.fromWriter` and `NioWriters.fromChannel` never close the wrapped stream or channel after a failed write
+
+Found 2026-10-27 while writing the Scaladoc for `Writer#close`, `Writer.fromOutputStream` and `Writer.fromWriter` (wave 2 of the streams Scaladoc, branch `streams-scaladoc-wave-2`), on `main` at `b6c0c30e4`; `NioWriters.fromChannel` added after review the same day. The same at tag `v0.0.56`. All `file:line` citations in this entry are at `b6c0c30e4` (`origin/main` when the entry was written); `Reader.scala` and `Writer.scala` are unchanged between that commit and the merge of wave 1, and the method names are given so the lines can be re-anchored after the wave 2 Scaladoc lands. The `NioWriters` Scaladoc belongs to wave 3, which should describe this bug on `fromChannel`.
+
+**Summary.** `Writer.fromOutputStream` and `Writer.fromWriter` are documented as "Calling `close()` flushes and closes the underlying stream", and `NioWriters.fromChannel` as "Closing the returned writer flushes the internal buffer and closes the underlying channel. The writer takes ownership of `ch`." When a write (or, for the channel writer, a buffer flush) fails with an `IOException`, the writer swallows the exception, marks itself closed and returns `false` (or `0` from `writeBytes`, or the whole chunk from `writeAll`). A later `close()` then sees the writer already closed and does nothing, so the `OutputStream`, `java.io.Writer` or channel is never flushed or closed: the file handle or socket leaks, and the `IOException` is lost.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, JVM, `scala-cli --power run --server=false --offline WriterLeaksAfterError.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import java.io.{IOException, OutputStream, Writer => JWriter}
+import java.nio.ByteBuffer
+import java.nio.channels.WritableByteChannel
+import zio.blocks.streams.NioWriters
+import zio.blocks.streams.io.Writer
+
+object WriterLeaksAfterError {
+  // An OutputStream whose disk fills up after the first byte.
+  final class FullDisk extends OutputStream {
+    var written = 0; var flushed = false; var closed = false
+    def write(b: Int): Unit = if (written >= 1) throw new IOException("No space left on device") else written += 1
+    override def flush(): Unit = flushed = true
+    override def close(): Unit = closed = true
+  }
+  final class FullWriter extends JWriter {
+    var flushed = false; var closed = false
+    def write(cbuf: Array[Char], off: Int, len: Int): Unit = throw new IOException("No space left on device")
+    def flush(): Unit = flushed = true
+    def close(): Unit = closed = true
+  }
+  final class FullChannel extends WritableByteChannel {
+    var open = true
+    def write(src: ByteBuffer): Int = throw new IOException("No space left on device")
+    def isOpen: Boolean = open
+    def close(): Unit = open = false
+  }
+
+  def main(args: Array[String]): Unit = {
+    val ok = new FullDisk
+    val w0 = Writer.fromOutputStream(ok)
+    w0.write(1.toByte); w0.close()
+    println(s"no error:     flushed=${ok.flushed} closed=${ok.closed}")
+
+    val os = new FullDisk
+    val w1 = Writer.fromOutputStream(os)
+    println(s"write 1 -> ${w1.write(1.toByte)}, write 2 -> ${w1.write(2.toByte)}, isClosed=${w1.isClosed}")
+    w1.close()
+    println(s"after error:  flushed=${os.flushed} closed=${os.closed}")
+
+    val jw = new FullWriter
+    val w2 = Writer.fromWriter(jw)
+    println(s"write 'Z' -> ${w2.write('Z')}, isClosed=${w2.isClosed}")
+    w2.close()
+    println(s"fromWriter:   flushed=${jw.flushed} closed=${jw.closed}")
+
+    val ch = new FullChannel
+    val w3 = NioWriters.fromChannel(ch, bufSize = 1)
+    println(s"write 1 -> ${w3.write(1.toByte)}, write 2 -> ${w3.write(2.toByte)}, isClosed=${w3.isClosed}")
+    w3.close()
+    println(s"fromChannel:  channel open=${ch.isOpen}")
+  }
+}
+// no error:     flushed=true closed=true
+// write 1 -> true, write 2 -> false, isClosed=true
+// after error:  flushed=false closed=false
+// write 'Z' -> false, isClosed=true
+// fromWriter:   flushed=false closed=false
+// write 1 -> true, write 2 -> false, isClosed=true
+// fromChannel:  channel open=true
+```
+
+**Expected.** `close()` closes the wrapped stream or channel exactly once whatever happened before (`after error: ... closed=true`, `fromWriter: ... closed=true`, `fromChannel: channel open=false`); flushing after a failed write may be skipped or attempted, but the resource must not stay open.
+
+**Root cause.** At `b6c0c30e4`, the failure paths set the same `closed` flag that `close()` tests:
+- `streams/shared/src/main/scala/zio/blocks/streams/io/Writer.scala`: `CharWriter.writeChar` (`:304-308`) and `writeAll` (`:310-317`), `OutputStreamWriter.writeByte` (`:401-405`) and `writeBytes` (`:407-412`) all do `catch { case _: IOException => closed = true; ... }`, and `close()` is `if (!closed) { closed = true; flush(); close() }` (`:319-324`, `:414-419`).
+- `streams/jvm/src/main/scala/zio/blocks/streams/internal/ChannelWriter.scala`: `flush()` sets `closed = true` on an `IOException` (`:80-91`), and `close()` is `if (!closed) { ...; ch.close() }` (`:35-46`).
+
+**Impact.** A `Writer.fromOutputStream(new FileOutputStream(...))` or `NioWriters.fromChannel(FileChannel.open(...))` that hits a full disk or a broken pipe leaks the descriptor even when the caller closes it in a `finally`, and the error that explains why writes stopped is gone (the writer only reports `false`, as if it had been closed normally).
+
+**Test gap.** `WriterFromJavaSpec.scala:138-155` checks that an `IOException` makes `write` return `false` (and `writeBytes` return `0`) and marks the writer closed, but never calls `close()` afterwards; the close tests (`:113-135`, `:189-210`) run without a prior failure. `NioReadersWritersSpec.scala:667-695` ("ChannelWriter close safety") covers a channel whose flush fails inside `close()` itself, which works, and the suite at `:454` plus `:566` cover the normal `NioWriters.fromChannel` cases and cancellation; but no test makes a `write` or buffer flush fail before `close()` (`bufSize = 1`, as in the reproducer) and then closes the writer, so no test covers the leak for `NioWriters.fromChannel`.
+
+**Suggested fix.** Track "stopped accepting writes" separately from "underlying resource closed": on an `IOException`, set a `failed` flag (and keep the exception, for example to rethrow from `close()` or expose through `fail`), and let `close()` close the wrapped stream or channel once whenever it has not closed it yet. Add a test per writer that fails a write, closes the writer and checks that the resource was closed.
+
+### data-migration: `LargeMigrator#complete` swaps the shadow table in while keys are still queued, so a write made between `drain()` and `complete()` is lost
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
+
+**Summary.** `LargeMigrator#complete` only checks that the migrator is in the `Drained` state; it never re-reads the queue. A source write that lands after `drain()` returns (the capture trigger queues its key) is not copied, and `complete()` still renames the tables, so the row exists only in `<table>_old_<suffix>`. `SmallMigrator#complete` checks the queue and refuses in the same situation.
+
+**Reproducer.** Start PostgreSQL 16:
+
+```bash
+docker run --rm -d --name shop-db -p 5432:5432 \
+  -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -e POSTGRES_DB=shop \
+  postgres:16
+```
+
+Then, in an empty directory:
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
+  "org.postgresql" % "postgresql"                     % "42.7.14"
+)
+run / fork := true
+```
+
+`project/build.properties`:
+
+```
+sbt.version=1.13.0
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.schema.*
+import zio.blocks.schema.migration.Migration
+import zio.blocks.data.migration.*
+import zio.blocks.sql.*
+
+case class Item(id: Long, name: String)
+object Item { implicit val schema: Schema[Item] = Schema.derived }
+
+@main def repro(): Unit = {
+  given transactor: Transactor =
+    JdbcTransactor.fromUrl("jdbc:postgresql://localhost:5432/shop", "shop", "shop", SqlDialect.PostgreSQL)
+  given Dialect = Dialect.Postgres
+  val items = Repo.derived[Item, Long]("items", "id", _.id)
+  transactor.transact {
+    Frag.literal("DROP TABLE IF EXISTS items, items_v2, items_old_v2, items_q CASCADE").update
+    Frag.literal("DROP FUNCTION IF EXISTS items_q_notify() CASCADE").update
+    Frag.literal("CREATE TABLE items (id BIGINT PRIMARY KEY, name TEXT NOT NULL)").update
+  }
+  QueueTable.create[Long]("items_q", transactor)
+  val migrator = LargeMigrator[Item, Item, Long, Long](
+    items, items, Migration.identity[Item], "items_q", 100, TargetStrategy.ShadowTable("v2"), captureTriggers = true
+  )
+  migrator.init()
+  migrator.fence()
+  println(s"drained: ${migrator.drain()}")
+  transactor.transact(items.insert(Item(1, "written after drain()")))
+  println(s"pending before complete(): ${migrator.pendingCount}")
+  migrator.complete()
+  println(s"pending after complete(): ${migrator.pendingCount}")
+  transactor.connect {
+    println(s"items (the swapped-in table): ${items.all}")
+    println(s"items_old_v2: ${Frag.literal("SELECT name FROM items_old_v2").query[String]}")
+  }
+}
+```
+
+Run with `sbt run`. Real output:
+
+```scala
+// drained: 0
+// pending before complete(): 1
+// pending after complete(): 1
+// items (the swapped-in table): List()
+// items_old_v2: List(written after drain())
+```
+
+**Expected.** `complete()` throws `IllegalArgumentException("cannot complete(): 1 item(s) still pending in queue 'items_q'")`, as `SmallMigrator#complete` does, and the tables stay unswapped.
+
+**Root cause.** `dataMigration/shared/src/main/scala/zio/blocks/data/migration/LargeMigrator.scala:141-147`: `complete()` requires `state == State.Drained` and calls `TargetStrategyApplier.finalizeTarget`; the queue count is never consulted. Compare `SmallMigrator.scala:71-80`, which runs `QueueTable.pending` and `require(pending == 0, ...)` first. `fence()` (`LargeMigrator.scala:91-97`) only flips a state flag and blocks nothing, so the capture trigger keeps queuing writes after `drain()`.
+
+**Impact.** Silent data loss at cutover, the exact window the "safe completion protocol" is meant to protect. Any writer still running after `drain()` returns (a slow instance, a background job) loses its writes from the live table with no error. The reference page promises the opposite (see the separate Documentation errors entry on `docs/reference/data-migration.md`).
+
+**Test gap.** `LargeMigratorSpec` ("happy path init -> fence -> drain -> complete transitions cleanly", "complete() before drain() fails") and `PostgresMigrationIntegrationSpec` ("LargeMigrator fence/drain/complete protocol") never write between `drain()` and `complete()`. `SmallMigratorSpec` has "complete() refuses while the queue still has pending items"; `LargeMigratorSpec` has no counterpart.
+
+**Suggested fix.** In `LargeMigrator#complete`, read `QueueTable.pending` and `require(pending == 0, ...)` before the swap, as `SmallMigrator#complete` does (better: count and swap in the same transaction, under `LOCK TABLE <source> IN EXCLUSIVE MODE` on PostgreSQL, so no write can slip in between). Add a `LargeMigratorSpec` test mirroring the `SmallMigratorSpec` one, and a PostgreSQL test that writes after `drain()`.
+
+### data-migration: `LargeMigrator#run` returns early, with keys still queued, when a batch holds only keys of rows deleted in the meantime
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
+
+**Summary.** `LargeMigrator#run` stops as soon as a batch writes no rows. A batch whose keys all belong to rows that were deleted after they were queued (insert then delete, both captured by the trigger) writes nothing to a shadow table that never had them, so `run()` returns `0` while later keys are still queued. The same "0 means empty" assumption is in the reference page's `SmallMigrator` loop (`pending = count > 0`).
+
+**Reproducer.** Start PostgreSQL 16:
+
+```bash
+docker run --rm -d --name shop-db -p 5432:5432 \
+  -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -e POSTGRES_DB=shop \
+  postgres:16
+```
+
+Then, in an empty directory:
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
+  "org.postgresql" % "postgresql"                     % "42.7.14"
+)
+run / fork := true
+```
+
+`project/build.properties`:
+
+```
+sbt.version=1.13.0
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.schema.*
+import zio.blocks.schema.migration.Migration
+import zio.blocks.data.migration.*
+import zio.blocks.sql.*
+
+case class Item(id: Long, name: String)
+object Item { implicit val schema: Schema[Item] = Schema.derived }
+
+@main def repro(): Unit = {
+  given transactor: Transactor =
+    JdbcTransactor.fromUrl("jdbc:postgresql://localhost:5432/shop", "shop", "shop", SqlDialect.PostgreSQL)
+  given Dialect = Dialect.Postgres
+  val items = Repo.derived[Item, Long]("items", "id", _.id)
+  transactor.transact {
+    Frag.literal("DROP TABLE IF EXISTS items, items_v2, items_old_v2, items_q CASCADE").update
+    Frag.literal("DROP FUNCTION IF EXISTS items_q_notify() CASCADE").update
+    Frag.literal("CREATE TABLE items (id BIGINT PRIMARY KEY, name TEXT NOT NULL)").update
+  }
+  QueueTable.create[Long]("items_q", transactor)
+  val migrator = LargeMigrator[Item, Item, Long, Long](
+    items, items, Migration.identity[Item], "items_q", 1, TargetStrategy.ShadowTable("v2"), captureTriggers = true
+  )
+  migrator.init()
+  transactor.transact { items.insert(Item(1, "deleted again")); items.delete(1L) }
+  transactor.transact(items.insert(Item(2, "kept")))
+  println(s"pending before run(): ${migrator.pendingCount}")
+  println(s"run() returned: ${migrator.run()}")
+  println(s"pending after run(): ${migrator.pendingCount}")
+  println(s"items_v2 rows: ${transactor.connect(Frag.literal("SELECT COUNT(*) FROM items_v2").queryOne[Long])}")
+}
+```
+
+Run with `sbt run`. Real output:
+
+```scala
+// pending before run(): 2
+// run() returned: 0
+// pending after run(): 1
+// items_v2 rows: 0
+```
+
+**Expected.** `run()` keeps claiming batches until a claim returns no keys: `run() returned: 1`, `pending after run(): 0`, `items_v2 rows: 1`.
+
+**Root cause.** `dataMigration/shared/src/main/scala/zio/blocks/data/migration/LargeMigrator.scala:175-192`: the loop ends on `if (batch == 0) keepGoing = false` (line 189), where `batch` is `processBatch`'s return value, the number of rows written plus deleted (`LargeMigrator.scala:194-223`). For a dequeued key whose source row is gone, `writeRepo.deleteAll` (line 220) deletes nothing from a shadow table that never had the row, so the batch counts `0` although it claimed keys. `SmallMigrator#processBatch` returns the same count (`SmallMigrator.scala:105-114`, `writeBatch` at 116-145), so caller loops on it stop early too.
+
+**Impact.** `run()` returning is not a reliable "caught up" signal; a worker that calls `run()` once and reports progress, or then tears down, leaves keys behind. `drain()` is safe (it checks `pendingCount` and counts the empty round), so the fenced cutover still converges. The reference page's `SmallMigrator` loop stops early the same way.
+
+**Test gap.** `LargeMigratorSpec` "run() initializes implicitly and returns 0 on an empty batch stream" only covers a truly empty queue; no test queues a key whose source row is missing ahead of a live key. `PostgresMigrationIntegrationSpec` "SmallMigrator with ShadowTable init" asserts `processed == 0` for exactly such a key without checking what follows.
+
+**Suggested fix.** Make the loop end on an empty claim, not on a zero write count: have the batch step return the number of claimed keys (or a `(claimed, written)` pair) and stop when `claimed == 0`. Document `processBatch`'s return value as "rows written", and change the reference loop to `while (QueueTable.pending(...) > 0)`.
+
+### schema-bson: `Option` is stored as a `{"Some": ...}` / `{"None": {}}` sub-document; `null` and missing fields don't decode
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/store-case-classes-in-mongodb.md` (backlog H-14), on `main` at `efc51f19b`. Same at v0.0.56 (`git diff v0.0.56 -- schema-bson/src/main` is empty).
+
+**Summary.** `BsonCodecDeriver` derives `Option[A]` like any other sealed trait, so an `Option` field is written as a variant: `Some("x")` becomes `{"Some": {"value": "x"}}` and `None` becomes `{"None": {}}` (with a codec-wide `DiscriminatorField("type")`, `{"value": "x", "type": "Some"}` and `{"type": "None"}`). A document where the field is BSON `null`, a plain value, or missing (without a Scala default) fails to decode. `schema-bson/README.md:177` promises "`Option` (Null or missing)". As an `_id`, `Option[ObjectId] = None` is stored as the id `{"None": {}}`, so the second such insert fails with E11000.
+
+**Reproduction 1** (no MongoDB). File `ReproOption.scala`, run `scala-cli run --server=false ReproOption.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-bson:0.0.56
+//> using options -experimental
+
+import org.bson.BsonDocument
+import zio.blocks.schema._
+import zio.blocks.schema.bson._
+import zio.blocks.schema.bson.BsonSchemaCodec.{Config, SumTypeHandling}
+
+final case class Ticket(title: String, customerEmail: Option[String])
+object Ticket { implicit val schema: Schema[Ticket] = Schema.derived }
+
+object ReproOption {
+  def main(args: Array[String]): Unit = {
+    val codec = Schema[Ticket].derive(BsonCodecDeriver)
+    println(codec.encoder.toBsonValue(Ticket("a", Some("kim@example.com"))).asDocument().toJson)
+    // {"title": "a", "customerEmail": {"Some": {"value": "kim@example.com"}}}
+    println(codec.encoder.toBsonValue(Ticket("a", None)).asDocument().toJson)
+    // {"title": "a", "customerEmail": {"None": {}}}
+    println(codec.decoder.fromBsonValue(BsonDocument.parse("""{"title": "a"}""")))
+    // Left(zio.blocks.schema.bson.BsonDecoder$Error: Path: , error: Missing required field: customerEmail)
+    println(codec.decoder.fromBsonValue(BsonDocument.parse("""{"title": "a", "customerEmail": null}""")))
+    // Left(zio.blocks.schema.bson.BsonDecoder$Error: Path: .customerEmail, error: Expected DOCUMENT but got NULL)
+    println(codec.decoder.fromBsonValue(BsonDocument.parse("""{"title": "a", "customerEmail": "kim@example.com"}""")))
+    // Left(zio.blocks.schema.bson.BsonDecoder$Error: Path: .customerEmail, error: Expected DOCUMENT but got STRING)
+    val typed = BsonSchemaCodec.bsonCodec(Schema[Ticket], Config.withSumTypeHandling(SumTypeHandling.DiscriminatorField("type")))
+    println(typed.encoder.toBsonValue(Ticket("a", None)).asDocument().toJson)
+    // {"title": "a", "customerEmail": {"type": "None"}}
+  }
+}
+```
+
+**Reproduction 2** (`_id`, needs MongoDB: `docker run --rm -d -p 27017:27017 --name mongo mongo:7`). File `ReproOptionId.scala`, run `scala-cli run --server=false ReproOptionId.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-bson:0.0.56
+//> using dep org.mongodb:mongodb-driver-sync:5.13.0
+//> using options -experimental
+// Needs: docker run --rm -d -p 27017:27017 --name mongo mongo:7
+
+import com.mongodb.client.MongoClients
+import org.bson.BsonDocument
+import org.bson.types.ObjectId
+import zio.blocks.schema._
+import zio.blocks.schema.bson._
+
+final case class Draft(@Modifier.rename("_id") id: Option[ObjectId], title: String)
+object Draft {
+  import ObjectIdSupport.objectIdSchema
+  implicit val schema: Schema[Draft] = Schema.derived
+}
+
+object ReproOptionId {
+  def main(args: Array[String]): Unit = {
+    val codec  = Schema[Draft].derive(BsonCodecDeriver)
+    val client = MongoClients.create("mongodb://localhost:27017/?serverSelectionTimeoutMS=2000")
+    try {
+      val drafts = client.getDatabase("repro").getCollection("drafts", classOf[BsonDocument])
+      drafts.drop()
+      drafts.insertOne(codec.encoder.toBsonValue(Draft(None, "first")).asDocument())
+      drafts.find().forEach(d => println(d.toJson))
+      // {"_id": {"None": {}}, "title": "first"}
+      try drafts.insertOne(codec.encoder.toBsonValue(Draft(None, "second")).asDocument())
+      catch { case e: Exception => println(e.getMessage) }
+      // Write operation error on MongoDB server localhost:27017. Write error: WriteError{code=11000, message='E11000 duplicate key error collection: repro.drafts index: _id_ dup key: { _id: { None: {} } }', details={}}.
+    } finally client.close()
+  }
+}
+```
+
+(The driver also prints an SLF4J "not found on the classpath" warning to stderr; omitted.)
+
+**Expected.** `None` is stored as BSON `null` or the field is left out, `Some(x)` as `x` itself, as `schema-bson/README.md:177` says and as `JsonCodecDeriver` does for JSON. A missing field and a `null` field decode to `None`; a plain value decodes to `Some`. The sum-type setting doesn't apply to `Option`.
+
+**Root cause.** `BsonCodecDeriver.deriveVariant` (`schema-bson/src/main/scala/zio/blocks/schema/bson/BsonCodecDeriver.scala:561-579`) special-cases only `Json`; it has no `typeId.isOption` branch, so `Option` gets the generic variant codec with the configured `sumTypeHandling`. `JsonCodecDeriver` has that branch (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:894-895`) and treats `Option` record fields as optional (`:579`). On decode, a missing field falls back only to the field's Scala default value (`BsonCodecDeriver.scala:252-257`), so an `Option` field without `= None` is "Missing required field".
+
+**Impact.** Documents don't look like MongoDB documents written by any other tool: queries for "no email" must match `{"None": {}}` instead of `null`, documents written by other programs (null / plain value / absent field) fail to decode, and `Option[ObjectId]` cannot be used to let the driver generate the `_id`. The H-14 guide works around it with a hand-written `BsonCodec[Option[String]]` installed through `Schema#deriving(BsonCodecDeriver).instance(TypeId.of[Option[String]], ...)` and documents the bug.
+
+**Test gap.** `schema-bson/src/test/scala/zio/blocks/schema/bson/BsonCodecOptionEitherSpec.scala` only round-trips `Some`/`None` through the same codec; nothing asserts the encoded BSON shape or decodes a `null`/missing/plain-value field.
+
+**Suggested fix.** Add an `Option` (and `Maybe`) branch to `BsonCodecDeriver.deriveVariant`, as in `JsonCodecDeriver`: encode `None` as `BsonNull` (or omit the field, behind a config flag), `Some(x)` with the inner codec; decode `null` to `None`, anything else through the inner codec; make missing `Option` fields decode to `None` in `deriveRecord`. Add shape assertions to `BsonCodecOptionEitherSpec`. The change is wire-incompatible with documents 0.0.56 already wrote, so call it out in the release notes (or accept the old wrapper shape on decode).
+
+### schema-bson: `BsonSchemaCodec.Config#withNativeObjectId` has no effect; its Scaladoc and the README describe behaviour that doesn't exist
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/store-case-classes-in-mongodb.md` (backlog H-14), on `main` at `efc51f19b`. Same at v0.0.56.
+
+**Summary.** `withNativeObjectId(false)` and `withNativeObjectId(true)` produce the same codec: an `ObjectId` field (with `ObjectIdSupport.objectIdSchema` in scope) is always stored as BSON `OBJECT_ID`. The Scaladoc (`BsonSchemaCodec.scala:55-61`) says that with `false` "ObjectId will be treated as a regular wrapper and encoded as a string"; `schema-bson/README.md:74` and `:122` say the flag "treats `org.bson.types.ObjectId` wrappers as native" / lets you "force specific wrappers to be treated as ObjectIds". Neither is true. (The reference page `docs/reference/schema/built-in-codecs/bson.md` Pattern 4 presented `withNativeObjectId(true)` as the switch; fixed in PR #1867 (H-14), commit `a8c4f7c7a`. README lines 74 and 122 are not fixed there.)
+
+**Reproduction.** File `ReproNativeObjectId.scala`, run `scala-cli run --server=false ReproNativeObjectId.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-bson:0.0.56
+//> using options -experimental
+
+import org.bson.types.ObjectId
+import zio.blocks.schema._
+import zio.blocks.schema.bson._
+import zio.blocks.schema.bson.BsonSchemaCodec.Config
+
+final case class Doc(id: ObjectId)
+object Doc {
+  import ObjectIdSupport.objectIdSchema
+  implicit val schema: Schema[Doc] = Schema.derived
+}
+
+object ReproNativeObjectId {
+  def main(args: Array[String]): Unit = {
+    val id = new ObjectId("6720f1a2b3c4d5e6f7a8b9c0")
+    for (native <- List(false, true)) {
+      val codec = BsonSchemaCodec.bsonCodec(Schema[Doc], Config.withNativeObjectId(native))
+      val value = codec.encoder.toBsonValue(Doc(id)).asDocument().get("id")
+      println(s"withNativeObjectId($native): ${value.getBsonType}")
+    }
+    // withNativeObjectId(false): OBJECT_ID
+    // withNativeObjectId(true): OBJECT_ID
+  }
+}
+```
+
+**Expected.** Either the flag changes the encoding as documented (false → hex string), or the flag is deprecated/removed and the docs say the `ObjectIdSupport` import alone selects the native type.
+
+**Root cause.** `schema-bson/src/main/scala/zio/blocks/schema/bson/BsonCodecDeriver.scala:1032`: `if (isObjectId || (config.useNativeObjectId && isObjectId))` — the second disjunct implies the first, so `useNativeObjectId` is never consulted; `isObjectId` (`:1027`) is true for every schema with `ObjectIdSupport`'s `TypeId`. `useNativeObjectId` is read nowhere else.
+
+**Impact.** Readers following the README or Scaladoc set a flag that does nothing, and anyone who wants ObjectIds stored as hex strings (the documented `false` behaviour) cannot get it through the config.
+
+**Test gap.** `schema-bson/src/test/scala/zio/blocks/schema/bson/BsonCodecObjectIdSpec.scala:223-284` only tests `withNativeObjectId(true)` (which matches the default), and `:286-288` only asserts the default value is `false`; no test encodes with `false` and checks for a string.
+
+**Suggested fix.** Decide the semantics. Simplest: deprecate `withNativeObjectId`/`useNativeObjectId`, drop the dead disjunct, and fix the Scaladoc and README:74/122 to say `ObjectIdSupport` selects the native type. Alternatively implement `false` as "encode as the hex string" — but that changes the default output, so it would need the default flipped to `true`.
+
+### Streams: `Sink.count`, the `Sink.sum*` sinks and `Double`-accumulator folds box the accumulator for every element
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/process-binary-data-without-boxing.md` (backlog H-27), on `main` at `efc51f19b`. Same at v0.0.56: the code involved is unchanged since that tag apart from Scaladoc.
+
+**Summary.** On the JVM blocking path, `Sink.sumLong`, `Sink.sumDouble`, `Sink.sumInt`, `Sink.sumFloat`, `Sink.count` (and therefore `Stream#count`), and `Stream#runFold(z: Double)` / `Sink.foldLeft(z: Double)` over a `Long` or `Double` stream allocate 24 to 48 bytes per element: a boxed accumulator, and sometimes a boxed element too. The input stays on its primitive lane; the accumulator is what gets boxed. `runFold(0L)` and `Sink.foldLeft(0L)` over the same streams allocate nothing per element. So the sinks the docs present as the zero-boxing way to aggregate are the ones that box.
+
+**Reproduction.** File `SumBoxing.scala`. Run with `scala-cli run --server=false SumBoxing.scala -- <case name>`, one case per JVM (JDK 25.0.2):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.streams.*
+import java.lang.management.ManagementFactory
+
+object SumBoxing {
+  private val threads = ManagementFactory.getThreadMXBean.asInstanceOf[com.sun.management.ThreadMXBean]
+  @volatile private var blackhole = 0
+
+  // Warms the block up until the JIT compiles it, then returns bytes per element.
+  def bytesPerElement(n: Int)(body: => Any): Double = {
+    var i = 0
+    while (i < 2000) { blackhole ^= body.hashCode; i += 1 }
+    val before = threads.getCurrentThreadAllocatedBytes
+    i = 0
+    while (i < 200) { blackhole ^= body.hashCode; i += 1 }
+    (threads.getCurrentThreadAllocatedBytes - before) / 200.0 / n
+  }
+
+  def main(args: Array[String]): Unit = {
+    val n       = 10000
+    val longs   = Array.tabulate(n)(_.toLong)
+    val doubles = Array.tabulate(n)(_.toDouble)
+    val cases: Map[String, () => Any] = Map(
+      "Sink.sumLong"             -> (() => Stream.fromArray(longs).run(Sink.sumLong)),
+      "Sink.sumDouble"           -> (() => Stream.fromArray(doubles).run(Sink.sumDouble)),
+      "Stream#count"             -> (() => Stream.fromArray(longs).count),
+      "runFold(0.0) on Doubles"  -> (() => Stream.fromArray(doubles).runFold(0.0)(_ + _)),
+      "foldLeft(0.0) on Doubles" -> (() => Stream.fromArray(doubles).run(Sink.foldLeft(0.0)((a: Double, v: Double) => a + v))),
+      "runFold(0L) on Longs"     -> (() => Stream.fromArray(longs).runFold(0L)(_ + _)),
+      "runFold(0L) on Doubles"   -> (() => Stream.fromArray(doubles).runFold(0L)((c, _) => c + 1L))
+    )
+    // One case per JVM, so the JIT profile of one case cannot affect another.
+    val name = args.mkString(" ")
+    println(f"$name%-25s ${bytesPerElement(n)(cases(name)())}%6.2f bytes per element")
+  }
+}
+// Sink.sumLong               47.67 bytes per element
+// Sink.sumDouble             24.02 bytes per element
+// Stream#count               47.40 bytes per element
+// runFold(0.0) on Doubles    24.02 bytes per element
+// foldLeft(0.0) on Doubles   24.02 bytes per element
+// runFold(0L) on Longs        0.02 bytes per element
+// runFold(0L) on Doubles      0.02 bytes per element
+```
+
+In an earlier run in a different JVM, `Sink.sumLong` measured 23.98 bytes per element; the figure moves between 24 and 48 depending on whether the JIT removes the element box. The allocation depends on inlining: in some JIT contexts escape analysis removes the box entirely, so a JMH microbenchmark of `Sink.sumLong` after `map`/`filter` measured about 0 per element (970 B per 100k-element run, H-51 session). The H-51 session confirmed the figures above with its own `ThreadMXBean` helper (`Sink.sumLong` 48.0, `Sink.count` 47.7, `Sink.sumInt` 31, `Sink.sumDouble` 24, `runFold(0L)` 0.02 bytes per element). The same numbers appear with `NioStreams.fromByteBufferLong`/`fromByteBufferDouble`, after `map` or `filter`, and on Scala 3.9 with `zio-blocks-next-streams:0.0.56`. A JFR allocation profile (`jdk.ObjectAllocationSample`) puts every sample at `java.lang.Long.valueOf` ← `scala.runtime.java8.JFunction2$mcJJJ$sp.apply(Object, Object)` / `BoxesRunTime.boxToLong` ← `Sink$.foldSyncReader` ← `Sink$$anon$23.drain`.
+
+**Expected.** These sinks allocate nothing per element on a primitive lane, as `Sink.foldLeft(0L)` / `FoldLeftLong` already do.
+
+**Root cause.** `Sink.foldSyncReader[A, Z]` (`streams/shared/src/main/scala/zio/blocks/streams/Sink.scala:1176-1213`) is generic in `Z`. Its `Long` branch (`:1194-1197`) holds the accumulator in `var acc: Z` and calls `step(acc, one(0))` through the erased `Function2.apply(Object, Object)`, which boxes the accumulator and the result on every element; the `Int`, `Float` and `Double` branches do the same. That costs nothing when `Z` is `Unit` (`BoxedUnit` is a singleton), which is why `NioSinks.fromByteBuffer*` stays at 0. These callers pass a primitive `Z`:
+- `Sink.count`, `Sink.scala:215` (`foldSyncReader[Any, Long]`); `Stream#count` uses it (`streams/jvm/.../StreamPlatformSpecific.scala:42`)
+- `loopDoubleToDouble` `:2716`, `loopFloatToDouble` `:2728`, `loopIntToLong` `:2740` and `loopLongToLong` `:2752`, behind `sumDouble`/`sumFloat`/`sumInt`/`sumLong` (`:728-743`)
+- `FoldLeftDouble.foldDouble` `:3060-3064` and `FoldLeftDouble.foldLong` `:3094-3098`, behind `runFold(z: Double)` (`Stream.scala:1727`) and `Sink.foldLeft` with a `Double` start value on the `Double` or `Long` lane
+
+`FoldLeftLong` and `FoldLeftInt` write their own loops with a primitive `var acc`, so they don't box.
+
+**Impact.** Every user who follows the docs' advice to aggregate a primitive stream with `Sink.sumLong`/`sumDouble`/`count`/`runFold(0.0)` pays one or two allocations per element, which is the boxing the primitive lanes exist to prevent. On a 100k-sample `Double` file it is about 2.4 MB per run. Docs that say these sinks read "without boxing" are true of the read but not of the sink as a whole.
+
+**Test gap.** `SinkExactLaneSpec` (`streams/shared/src/test/scala/zio/blocks/streams/SinkExactLaneSpec.scala:225-242`) proves that these sinks pull through the exact lane. Nothing measures allocation: no spec reads `ThreadMXBean`, and `streams-benchmark` has no benchmark for `sumLong`/`sumDouble`/`count`/`runFold(0.0)` with `-prof gc`.
+
+**Suggested fix.** Give each primitive-accumulator sink a dedicated loop with a primitive accumulator, as `FoldLeftLong` does. For example, `loopLongToLong`'s sync drain becomes `val one = new Array[Long](1); var acc = zero; var n = reader.readLongsPhysical(one, 0, 1); while (n >= 0) { acc = step(acc, one(0)); n = reader.readLongsPhysical(one, 0, 1) }; acc`, with `step: (Long, Long) => Long` statically typed so the call goes to `apply$mcJJJ$sp`. Apply the same to `count` (Long accumulator, per-lane loop), `sumInt`/`sumFloat`/`sumDouble` and `FoldLeftDouble.foldDouble`/`foldLong`. Add a JMH benchmark with `-prof gc`, or a `ThreadMXBean` spec on the JVM, that asserts about 0 bytes per element. The per-element loop change is within the AGENTS.md streams performance policy: it removes allocation and adds no per-element work.
+
+### Streams (JVM): `Platform.startVirtualThread` names a virtual thread `name` followed by `0`
+
+Found 2026-10-27 while writing the Scaladoc for `Platform.startVirtualThread` (wave 3 of the streams Scaladoc, branch `streams-scaladoc-wave-3`), on `main` at `59e7cb81e`. The same at tag `v0.0.56`. Citations at `origin/main` `59e7cb81e`.
+
+**Summary.** `Platform.startVirtualThread(name, task)` is meant to start a thread named `name` (the fallback platform thread gets exactly that name). On JDK 21 and later it starts a virtual thread through `Thread.Builder.name(String prefix, long start)`, which names threads `prefix` followed by a counter, so every virtual thread gets `name + "0"`. Every thread the stream engine starts is affected: `zio-blocks-mappar-worker-0-0` shows up as `zio-blocks-mappar-worker-0-00`, `zio-blocks-buffer-0` as `zio-blocks-buffer-00`, and so on. The reference page `docs/reference/streams/execution-and-compatibility/platform-differences.md:213` documents the names without the suffix.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, JDK 25, `scala-cli --power run --server=false --offline VirtualThreadName.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.streams._
+
+object VirtualThreadName {
+  def main(args: Array[String]): Unit = {
+    val t = Platform.startVirtualThread("my-worker", () => ())
+    t.join()
+    println(s"name=${t.getName} virtual=${t.isVirtual}")
+    println(Stream.range(0, 2).mapPar(2)(_ => Thread.currentThread().getName).runCollect)
+  }
+}
+// name=my-worker0 virtual=true
+// Right(Chunk(zio-blocks-mappar-worker-0-00,zio-blocks-mappar-worker-1-10))
+```
+
+**Expected.** `name=my-worker virtual=true`, and worker names `zio-blocks-mappar-worker-0-0` and `zio-blocks-mappar-worker-1-1`, as the fallback platform thread and the reference page have them.
+
+**Root cause.** `streams/jvm/src/main/scala/zio/blocks/streams/PlatformSpecific.scala:164` looks up the two-argument `Thread.Builder.name(String, long)`, and `:169` calls it as `nameHandle.invoke(builder, name, Long.box(0L))`. That overload sets the name to the prefix followed by the counter's current value (`0`). The fallback, `fallbackThread` (`:147-153`), calls `thread.setName(name)`.
+
+**Impact.** Low: names in thread dumps, profilers and logs differ by platform and from the documentation, and tools or tests that match exact thread names miss them.
+
+**Test gap.** `PlatformSpec.scala:45-48` ("startVirtualThread runs the task") starts `Platform.startVirtualThread("test-vthread", ...)` and checks only that the task ran; no test checks the name of a started thread (`grep -rn "getName" streams/*/src/test` finds only class names in `SinkExactLaneSpec.scala:206-207` and thread filters in `AsyncReaderJvmSpec.scala:1136`, `:1520` and `ConcurrentStressSpec.scala:159`, which match engine threads by substring or prefix (or compare a test-made thread with itself)).
+
+**Suggested fix.** Look up the one-argument `Thread.Builder.name(String)` (`builderClass.getMethod("name", classOf[String])`) and invoke it with `name` only. Add an assertion to `PlatformSpec` that the started thread's `getName` equals the given name, and fix nothing on the reference page (it is right once the code is).
+
+### Streams (JVM): a `take` on `NioStreams.fromByteBuffer*` (or `setLimit` on a `NioReaders.fromByteBuffer*` reader) permanently lowers the caller's buffer limit
+
+Found 2026-10-27 in the fact-check review of the wave 3 Scaladoc for `NioStreams`, `NioReaders` and `ByteBufferReader` (branch `streams-scaladoc-wave-3`), on `main` at `59e7cb81e`. The same at tag `v0.0.56`. Citations at `origin/main` `59e7cb81e`.
+
+**Summary.** The `ByteBuffer` readers implement `setLimit` (and `setSkip`) by changing the wrapped buffer's own limit (and position). The stream engine pushes a `take` (and a `drop`) on `NioStreams.fromByteBuffer*` into the reader as `setLimit`/`setSkip`, so after `take(2)` on a 5-byte buffer the caller's `ByteBuffer` reports `limit == 2`: bytes 3 to 5 are hidden from every later reader or `get`, and nothing restores the original limit (`close()` moves the position to the lowered limit; `reset()` restores the original limit and then applies the pushed limit again). A plain run without `take`/`drop` leaves the limit alone.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, JDK 25, `scala-cli --power run --server=false --offline BufferLimit.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import java.nio.ByteBuffer
+import zio.blocks.async._
+import zio.blocks.streams._
+
+object BufferLimit {
+  def main(args: Array[String]): Unit = {
+    val buf = ByteBuffer.wrap(Array[Byte](1, 2, 3, 4, 5))
+    println("take(2):       " + NioStreams.fromByteBuffer(buf).take(2).runCollect)
+    println(s"buffer after:  position=${buf.position} limit=${buf.limit} remaining=${buf.remaining}")
+
+    val buf2 = ByteBuffer.wrap(Array[Byte](1, 2, 3, 4, 5))
+    println("drop(1).take(2) async: " + NioStreams.fromByteBuffer(buf2).drop(1).take(2).runCollectAsync.block)
+    println(s"buffer after:  position=${buf2.position} limit=${buf2.limit} remaining=${buf2.remaining}")
+  }
+}
+// take(2):       Right(Chunk(1,2))
+// buffer after:  position=2 limit=2 remaining=0
+// drop(1).take(2) async: Right(Chunk(2,3))
+// buffer after:  position=3 limit=3 remaining=0
+```
+
+**Expected.** The elements are right, but the buffer keeps its own limit: `buffer after: position=2 limit=5 remaining=3` (and `position=3 limit=5 remaining=2`), so the bytes the stream did not take are still readable from `buf`.
+
+**Root cause.** `streams/jvm/src/main/scala/zio/blocks/streams/internal/ByteBufferReader.scala` at `59e7cb81e`: `ByteBufferReader.setLimit` (`:103-108`) does `buffer.limit(newLimit)` on the caller's buffer, and the typed copies do the same (`ByteBufferIntReader` `:200`, `ByteBufferLongReader` `:300`, `ByteBufferDoubleReader` `:400`, `ByteBufferFloatReader` `:498`); `setSkip` (`:110`, `:207`, `:307`, `:407`, `:505`) moves the position. `close()` (`:37`, `:136`, `:234`, `:334`, `:434`) sets the position to the current (lowered) limit, and `reset()` (`:92-101` and copies) restores `originalLimit` and then re-applies `limitN`. Nothing restores `originalLimit` once the reader is done.
+
+**Impact.** A caller who streams a prefix of a buffer with `take` (for example a header) and then reads the rest of the same `ByteBuffer` finds it empty, with no error. Shared or reused buffers (pooled direct buffers, a buffer handed on to another component) end up with a wrong limit.
+
+**Test gap.** The buffer-reader `reset` tests (`NioReadersWritersSpec.scala:70`, `:152`, `:180`, `:200`, `:220`) rewind without a limit or skip, and no test runs `take` or `drop` on `NioStreams.fromByteBuffer*` or checks the buffer's limit afterwards (`grep -rn "setLimit\|setSkip" streams/*/src/test` finds calls on other readers only, none on a `NioReaders.fromByteBuffer*` reader; `grep -n "take(\|drop(" NioStreamsSinksSpec.scala NioReadersWritersSpec.scala` finds only `Chunk#take` on results at `NioStreamsSinksSpec.scala:332`, `:334`).
+
+**Suggested fix.** Keep the reader's own end index (`originalPosition + skip + limit`, clamped to `originalLimit`) in a field and check it in the pulls instead of writing it into `buffer.limit`, or work on `buffer.duplicate()` and copy the final position back. Either costs nothing per element beyond the bound check the reader already does through `remaining()`. Add a test that runs `take` and `drop` on each buffer stream and checks the buffer's limit and remaining bytes afterwards.
 
 ## Usability traps
 
@@ -6937,7 +9464,7 @@ object Book { given Schema[Book] = Schema.derived }
 
 Found 2026-10-21 while writing H-07 (`docs/guides/diff-and-patch.md`), on `main` at `7d8e0b44`. Verified on Scala 2.13.18 (`zio-blocks-schema` 0.0.56) and Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56, `-experimental`); the patch code is the same at tag `v0.0.56`.
 
-**Summary.** `Schema#diff` records list removals by index (`- [1]`), numbers as deltas (`-= 5.00`) and string changes as edits at a position. `PatchMode.Strict` only checks that each operation *fits* the value it is applied to (the index is in range, the map key exists or is absent). It never checks that the value still holds what it held when the patch was made. Applied to a value that changed in the meantime, a Strict patch returns `Right` and silently removes the wrong list element or produces a price nobody set. `PatchMode`'s Scaladoc says only "Fail on precondition violations", and `patch.md` says Strict "fails immediately if any operation cannot be applied" and to use it "when you need to know if every operation succeeded", which readers take to mean conflict detection.
+**Summary.** `Schema#diff` records list removals by index (`- [1]`), numbers as deltas (`-= 5.00`) and string changes as edits at a position. `PatchMode.Strict` only checks that each operation *fits* the value it is applied to (the index is in range, the map key exists or is absent). It never checks that the value still holds what it held when the patch was made. Applied to a value that changed in the meantime, a Strict patch returns `Right` and silently removes the wrong list element or produces a price nobody set. `PatchMode`'s Scaladoc said only "Fail on precondition violations" (since #1836 it states that no mode checks the value, `PatchMode.scala:31-35`), and `patch.md` says Strict "fails immediately if any operation cannot be applied" and to use it "when you need to know if every operation succeeded", which readers take to mean conflict detection.
 
 **Reproduction** (run with scala-cli; the same output on both versions, the Scala 3 file uses `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-schema`):
 
@@ -6979,7 +9506,7 @@ The `effects` tag is gone although nobody removed it, and the price is 37.00 alt
 
 **Test gap.** `PatchLawsSpec` checks `diff(a, b)(a) == b` only on the value the patch was computed from; no test applies a diff to a changed value.
 
-**Suggested fix.** Document the limitation on `PatchMode` and in `patch.md`, and show the safe pattern (check that the value is unchanged, e.g. a version number, before applying; the guide does this). Optionally, add a value-checking operation (a `Test(path, expected)` op) and have `Differ` emit it before index-based removals.
+**Suggested fix.** Document the limitation in `patch.md` (the `PatchMode` Scaladoc has done so since #1836), and show the safe pattern (check that the value is unchanged, e.g. a version number, before applying; the guide does this). Optionally, add a value-checking operation (a `Test(path, expected)` op) and have `Differ` emit it before index-based removals.
 
 ### schema: a stored `DynamicPatch` cannot be turned back into a `Patch[A]` on Scala 3, but can on Scala 2.13
 
@@ -7555,6 +10082,8 @@ object Book { given Schema[Book] = Schema.derived }
 
 **Suggested fix.** Add a PostgreSQL `jsonb` write path (a `DbValue` variant or a dialect hook that binds `Types.OTHER`), bind string arrays as `text`, and give `PgCodec` an `Option[List[String]]` codec. At minimum, document `stringtype=unspecified` in `db-codec.md`.
 
+**Also seen for pgvector `vector` columns** (2026-10-26, H-52, `pgvector/pgvector:pg16` with pgvector 0.8.7; reported by the writing session, which ran it). A `DbCodec` that binds an embedding as its text form fails on insert with `ERROR: column "embedding" is of type vector but expression is of type character varying`, and `ORDER BY embedding <-> $query` needs `::vector` too. With `stringtype=unspecified` in the URL, both work without a cast. Same root cause (string parameters bound as `varchar`), so no separate entry.
+
 ### sql: a newtype with a private constructor can't be an `sql"..."` parameter, although its `Schema` is in scope
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
@@ -7703,6 +10232,50 @@ The Scala 3 run uses the same file with the header changed to
 **Test gap.** `DynamicSchemaSpec` builds every checked value by hand with exact primitive types; no test checks a value produced by `Json#toDynamicValue` or the JSON codec. No test asserts the text of an "Expected Variant/Record/Sequence/Map" message.
 
 **Suggested fix.** In `checkPrimitive`, accept a value when `pt.fromDynamicValue` accepts it (or an explicit lossless-widening table). In `checkValue`, when the schema node is an `Option` variant, accept `Null` as `None` and any other value as `Some`. Add `override def toString` to `DynamicValueType`'s case objects (or interpolate a name).
+
+### schema: a JSON number beyond the `Double` range decodes as infinity, which the JSON writer then refuses to encode
+
+Found 2026-10-23 while writing the Scaladoc for `JsonReader` and `JsonWriter` (wave 8b, branch `scaladoc-wave-8b`), on `main` at `ecbe934e4`. The same at tag `v0.0.56`. Verified by running against the published 0.0.56, on the JVM and on Scala.js.
+
+**Summary.** `JsonReader#readDouble` and `readFloat` round to the nearest value, so `1e400` reads as `Infinity`, `-1e400` as `-Infinity` and `1e-400` as `0.0`, without an error. That matches `java.lang.Double.parseDouble`, but the tests for it are commented out (`JsonCodecDeriverSpec.scala:158-173` for `Float`, `:222-237` for `Double`). However, `JsonWriter#writeVal(Double)` throws for a non-finite value, so a value the codec decoded cannot be encoded again: a service that echoes or stores the decoded record fails later, far from the input that caused it.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false DoubleOverflow.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+
+import zio.blocks.schema._
+import scala.util.Try
+
+case class Measure(value: Double)
+object Measure { implicit val schema: Schema[Measure] = Schema.derived }
+
+object DoubleOverflow {
+  def main(args: Array[String]): Unit = {
+    val codec = Schema[Measure].jsonCodec
+    val decoded = codec.decode("""{"value":1e400}""")
+    println(decoded)
+    // Right(Measure(Infinity))
+    println(Try(codec.encodeToString(decoded.toOption.get)))
+    // Failure(zio.blocks.schema.json.JsonCodecError: illegal number: Infinity)
+    println(codec.decode("""{"value":-1e400}"""))
+    // Right(Measure(-Infinity))
+    println(codec.decode("""{"value":1e-400}"""))
+    // Right(Measure(0.0))
+  }
+}
+```
+
+**Expected.** Either a decode error for a number beyond the `Double` range, at least as an opt-in `ReaderConfig` flag, or a note on the `Double` codec and on the reference page that such input decodes to an infinity that cannot be re-encoded.
+
+**Root cause.** `toDouble` returns `Double.PositiveInfinity` for `e10 >= 310` (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonReader.scala:2668`; `toFloat` for `e10 >= 39`, `:2825`; the Scala.js copy at `schema/js/src/main/scala/zio/blocks/schema/json/JsonReader.scala:2592`, `:2745`). `writeDouble` and `writeFloat` throw `illegal number` for an exponent of all ones (`schema/jvm/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:2498` and `:2386`; Scala.js `schema/js/src/main/scala/zio/blocks/schema/json/JsonWriter.scala:2709` and `:2602`).
+
+**Impact.** A client can send a number that the service accepts but cannot put back into JSON, which turns into a 500 on the response path or a failed write to a JSON store.
+
+**Test gap.** The overflow tests are commented out, so nothing checks that overflow gives infinity. The writer tests check that infinity is rejected (`:174-175`, `:239-240`), and no test decodes and re-encodes such a value.
+
+**Suggested fix.** Add a `ReaderConfig` option that rejects non-finite results (`value is too large for double`), or validate with a `Schema` constraint and document the combination. The branch's Scaladoc for `readDouble` and `readFloat` now states the behaviour.
 
 ### schema: `BindingResolver.defaults` has no binding for `Option`, so rebinding any schema with an `Option` field fails
 
@@ -7987,6 +10560,1474 @@ object Repro {
 
 **Suggested fix.** Also match `Variant("None", _)` and `Variant("Some", Record(value -> v))` where `v` matches `inner`, and consider not matching a bare inner value. Add tests with values from `Schema[Option[String]]`.
 
+### htmx: a `String` URL in `hx-get` is not percent-encoded, so user input in a query can add parameters
+
+Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`) on branch `docs/t10-htmx-interactivity`, from `origin/main` `a643b7cb0`. Not checked against tag `v0.0.56`.
+
+**Summary.** `ToHtmxValue.urlLikeValue` returns a `String` unchanged. HTML escaping protects the attribute, but not the URL inside it, so a reader's `&` or `=` becomes a real query separator.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-htmx:0.0.56
+
+import zio.blocks.html._
+import zio.http.htmx._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val userInput = "\"><script>alert(1)</script>&x=y z"
+    println(button(hxGet := ("/books?q=" + userInput)).render)
+    println(button(hxGet := "/books?q=a&b=c").render)
+  }
+}
+// <button hx-get="/books?q=&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;x=y z"></button>
+// <button hx-get="/books?q=a&amp;b=c"></button>
+```
+
+**Expected.** The user text is percent-encoded in the query part, so `&` becomes `%26`, `=` becomes `%3D` and the space becomes `%20`. The request then carries one parameter `q`.
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/ToHtmxValue.scala:47` (`case value: String => value`).
+
+**Impact.** A search or filter value containing `&` or `=` adds or changes request parameters on `hx-get`. This is not script injection, because the HTML escaping holds.
+
+**Test gap.** No test covers reserved characters in a `UrlLike` string.
+
+**Suggested fix.** Encode query values when building the URL from user input (for example through `QueryParams`), or document that a `String` must already be percent-encoded.
+
+### htmx: answering every `HxRequest` with a fragment breaks the Back button on htmx 2
+
+Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`, opus run, branch `docs/t10-htmx-opus-run`), from `origin/main` `a643b7cb0`. The htmx module sources are identical at tag `v0.0.56`. Verified with htmx.org 2.0.11 in headless Chromium.
+
+**Summary.** The usual htmx server pattern is "return a fragment when `HX-Request: true`, otherwise the full page". The response-headers reference teaches exactly that read and calls `HxRequest` "always `true` on an HTMX request". htmx 2 also sends `HX-Request: true` on a history cache miss (config `historyRestoreAsHxRequest` defaults to `true`), together with `HX-History-Restore-Request: true`, and swaps the answer into the whole `<body>`. A handler that follows the reference answers that request with a fragment, so pressing Back to a page that has left htmx's history cache replaces the whole page with a bare list: no heading, no search box.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-http-htmx` 0.0.56, `scala-cli run HistoryRestore.scala`; JDK 21+):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-htmx:0.0.56
+import zio.blocks.html._
+import zio.http._
+import zio.http.htmx.headers._
+
+object HistoryRestore {
+  // The pattern the response-headers reference suggests: a fragment for any htmx request.
+  def handle(request: Request): String =
+    if (request.header(HxRequest).exists(_.enabled)) ul(li("Zionomicon")).render
+    else html(body(h1("Scala Bookshelf"), input(name := "q"), ul(li("Zionomicon")))).render
+
+  def main(args: Array[String]): Unit = {
+    val url = URL.parse("/search?q=zio").toOption.get
+    // What htmx 2.0.11 sends on a history cache miss (Back button):
+    val restore = Request.get(url).addHeader(HxRequest(true)).addHeader(HxHistoryRestoreRequest(true))
+    println(handle(restore))
+  }
+}
+
+// <ul><li>Zionomicon</li></ul>
+```
+
+**Expected.** The reference shows the full check:
+
+```scala
+def wantsFragment(request: Request): Boolean =
+  request.header(HxRequest).exists(_.enabled) &&
+    !request.header(HxHistoryRestoreRequest).exists(_.enabled)
+```
+
+**Browser evidence.** Headless Chromium (Playwright 1.63, htmx 2.0.11, `htmx.config.historyCacheSize = 0` to force a miss). The Back request carried `hx=true, restore=true`. A handler that also checks `HxHistoryRestoreRequest` left one `h1` and one search box. The reference's pattern left no `h1`, no search box, and a body containing only a bare list.
+
+**Root cause.** Documentation. `docs/reference/htmx/response-headers.md` presents `HxRequest` alone as the fragment switch at `:16`, `:30` ("always `true` on an HTMX request") and `:58` ("the most common read"). `:32` lists `HxHistoryRestoreRequest` without saying when htmx sends it. The module is fine: `HxHistoryRestoreRequest` is defined at `htmx/shared/src/main/scala/zio/http/htmx/headers/HtmxHeaders.scala:152-163`.
+
+**Impact.** Every htmx page that combines `hx-push-url` (or `hx-boost`) with a fragment-or-page handler. The bug appears only on a history cache miss, so manual testing misses it.
+
+**Test gap.** No test or example combines `HxRequest` with `HxHistoryRestoreRequest`.
+
+**Suggested fix.** In `response-headers.md`, replace the "most common read" example with the two-header check and one sentence on why. Optionally add a helper such as `def isPartialRequest(request: Request): Boolean` to `zio.http.htmx.headers`, documented with the htmx 2 history-restore behaviour.
+
+### htmx: a fragment check that ignores `HX-Boosted` breaks `hxBoost` links (addendum to "answering every `HxRequest` with a fragment breaks the Back button on htmx 2")
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** A link inside an `hx-boost="true"` element sends `HX-Request: true` and `HX-Boosted: true`, and htmx swaps the response into `<body>` and takes the `<title>` from it, so it needs the full page. T-10's check (`HxRequest && !HxHistoryRestoreRequest`, `docs/guides/add-interactivity-with-htmx.md:369-371`) is correct for T-10's page, which has no boosted links, but answers a boosted request with a fragment.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** `src/main/scala/BoostedCheck.scala`, run with `sbt -batch "runMain boostedCheck"`:
+```scala
+import zio.http._
+import zio.http.htmx.headers._
+
+@main def boostedCheck(): Unit = {
+  // The check from the T-10 tutorial (add-interactivity-with-htmx.md, section 7)
+  def wantsFragment(request: Request): Boolean =
+    request.header(HxRequest).exists(_.enabled) &&
+      !request.header(HxHistoryRestoreRequest).exists(_.enabled)
+
+  // What htmx 2.0.11 sends for a click on a link inside an hx-boost="true" element
+  val boosted = Request.get(URL.parse("/cart").toOption.get).addHeader(HxRequest(true)).addHeader(HxBoosted(true))
+  println(s"boosted link -> fragment? ${wantsFragment(boosted)}")
+}
+// boosted link -> fragment? true
+```
+Observed in the browser with that check behind a page whose `<nav hx-boost="true">` links to `/cart`:
+```
+// > GET /cart hx-boosted=true hx-request=true
+// = {"url":"/cart","title":"Shop","hasNav":false,"h1":"Cart"}   <- header/nav gone, title not updated
+```
+With the three-header check (`HxRequest && !HxBoosted && !HxHistoryRestoreRequest`) the same click kept the header and the title became "Cart".
+
+**Expected.** The reference (`docs/reference/htmx/response-headers.md`, "Presence Flags") or T-10 says a page with `hxBoost` must also read `HxBoosted`.
+
+**Root cause.** htmx behaviour (boosted requests target `<body>`); no library defect.
+
+**Impact.** Readers who copy T-10's helper and later add `hxBoost` lose the layout on every boosted navigation.
+
+**Test gap.** None (documentation).
+
+**Suggested fix.** One sentence in T-10 section 7 and in the reference's presence-flags section pointing to the three-header check; H-40 now shows it.
+
+### html: tag values such as `search` make same-named helpers ambiguous under wildcard imports
+
+Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`), from `origin/main` `a643b7cb0`. Same at tag `v0.0.56`. Related to the existing entry "html and schema: `p(...)` is ambiguous on Scala 3 when both packages are imported".
+
+**Summary.** `import zio.blocks.html._` brings in a value for every HTML tag, including names that suit application helpers: `search`, `title`, `select`, `label`, `header`, `main`, `option`, `data`, `time`, `output`. A search page that defines `def search(query: String)` in its own object and imports it with a wildcard next to the HTML DSL fails to compile at every call site.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-html` 0.0.56, `scala-cli run SearchClash.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-html:0.0.56
+import zio.blocks.html._
+import Bookshelf._
+
+object Bookshelf {
+  def search(query: String): List[String] = List("Zionomicon").filter(_.toLowerCase.contains(query))
+}
+
+object SearchClash {
+  def main(args: Array[String]): Unit = println(ul(search("zio").map(li(_))).render)
+}
+
+// [error] ./SearchClash.scala:12:52
+// [error] Reference to search is ambiguous.
+// [error] It is both imported by import zio.blocks.html._
+// [error] and imported subsequently by import Bookshelf._
+// [error]   def main(args: Array[String]): Unit = println(ul(search("zio").map(li(_))).render)
+// [error]                                                    ^^^^^^
+// Compilation failed
+```
+
+**Expected.** Standard Scala behaviour, so the fix is documentation: the HTML reference should warn that the wildcard import brings in a value per tag, and name the common clashes.
+
+**Root cause.** `val search: Dom.Element = Dom.Element.Generic("search", ...)` at `html/shared/src/main/scala-3/zio/blocks/html/HtmlElements.scala:178` (Scala 2: `html/shared/src/main/scala-2/zio/blocks/html/HtmlElements.scala:347`). It sits with the other tag values, and the `zio.blocks.html` package object exports them all.
+
+**Impact.** Low: the message is clear, and a rename or an explicit import fixes it. It catches readers of any web tutorial whose domain has a "search", "title" or "select" helper.
+
+**Test gap.** None needed in code.
+
+**Suggested fix.** Add a note to `docs/reference/html.md` under the import section: "`zio.blocks.html._` defines a value for every tag (`search`, `title`, `select`, `label`, ...). Import your own helpers by name, or rename them, when they share a tag's name."
+
+### http-model: no `text/event-stream` content type, so every SSE response builds one by hand
+
+Found 2026-10-23 while writing the how-to guide `docs/guides/send-server-sent-events.md` (backlog H-41), on `main` at `ecbe934e4`. The mediatype and http-model sources are the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.sc` against the published `0.0.56`.
+
+**Summary.** `MediaTypes.text` has no `event-stream` entry and `ContentType` has no `text/event-stream` constant, although `ServerSentEvent` exists in the same module. Every SSE endpoint has to write `ContentType(MediaType("text", "event-stream"))` or parse a string.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.blocks.mediatype.{MediaType, MediaTypes}
+import zio.http._
+
+val textTypes = MediaTypes.text.getClass.getMethods.map(_.getName).filter(_.contains("event"))
+println(s"MediaTypes.text members containing 'event': ${textTypes.toList}")
+println(MediaType.parse("text/event-stream").map(_.fullType))
+println(ContentType(MediaType("text", "event-stream")).render)
+// MediaTypes.text members containing 'event': List()
+// Right(text/event-stream)
+// text/event-stream
+```
+
+**Expected.** A ready constant next to `` ContentType.`text/html` ``, e.g. `` ContentType.`text/event-stream` `` (and ideally `` MediaTypes.text.`event-stream` ``).
+
+**Root cause.** `MediaTypes` is generated from jshttp/mime-db (`project/GenerateMediaTypes.scala:81`), and mime-db has no `text/event-stream` key (checked against db.json on 2026-10-23). `ContentType` defines only a few hand-written constants (`http-model/shared/src/main/scala/zio/http/ContentType.scala:76-78`).
+
+**Impact.** Small but recurring: every SSE guide, the Datastar module's users, and every hand-written SSE endpoint repeat the construction. A typo (`text/event_stream`) is not caught, and EventSource then rejects the response.
+
+**Test gap.** None needed beyond a constant test.
+
+**Suggested fix.** Add ``val `text/event-stream`: ContentType = ContentType(MediaType("text", "event-stream"))`` to `ContentType`, and add extra entries to the media-type generator for well-known types that mime-db lacks. Optionally add a helper such as `Body.fromServerSentEvents(events: Stream[Nothing, ServerSentEvent[A]])` that does the render-to-UTF-8 flatMap.
+
+### http-model: `ServerSentEvent` always writes a `data:` line, so a heartbeat or a retry-only frame reaches the page as an empty message
+
+Found 2026-10-23 while writing `docs/guides/send-server-sent-events.md` (H-41), on `main` at `ecbe934e4`. `ServerSentEvent.scala` is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.sc` against the published `0.0.56`. The browser behaviour was checked in Chromium (Playwright) with a JDK HttpServer that wrote these three renders, then `data: Zionomicon`. The page received `["message:\"\"", "ping:\"\"", "message:\"Zionomicon\""]`.
+
+**Summary.** SSE has two kinds of frame a server uses for housekeeping: comment lines (`: keep-alive`), which keep idle connections open and detect dead clients, and field-only frames (`retry: 5000` with no data). `ServerSentEvent` can produce neither. With empty data it still writes `data: \n`, and EventSource dispatches that as a real event with `data == ""`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.blocks.chunk.Chunk
+import zio.http._
+
+println(ServerSentEvent("").retry(5000).render.replace("\n", "\\n"))
+println(ServerSentEvent("", "ping").render.replace("\n", "\\n"))
+println(ServerSentEvent(Chunk.empty[String]).render.replace("\n", "\\n"))
+// retry: 5000\ndata: \n\n
+// event: ping\ndata: \n\n
+// data: \n\n
+```
+
+**Expected.** A way to emit a comment frame (e.g. `ServerSentEvent.comment("keep-alive")` rendering `: keep-alive\n\n`) and a data-less frame (e.g. `ServerSentEvent.retryOnly(5000)` rendering `retry: 5000\n\n`), neither of which dispatches a message event.
+
+**Root cause.** `renderTo` writes `data: \n` when the encoder returns no lines (`http-model/shared/src/main/scala/zio/http/ServerSentEvent.scala:79`). Both built-in encoders always return at least one line: `splitLines` always adds the trailing piece (`:203`), and `stringChunk` maps an empty chunk to `Chunk.single("")` (`:172`). There is no comment API. Per the WHATWG spec, a data buffer of "\n" is not empty, so the event is dispatched with data "".
+
+**Impact.** A server that sends heartbeats so it notices departed clients sooner (the H-41 guide shows that the JDK server only notices on the second write after a disconnect) sends spurious events to `onmessage` or to the named listener. A server that wants to send `retry:` once has to attach it to a real event.
+
+**Test gap.** `ServerSentEventSpec` asserts `"event: test\ndata: \n\n"` for empty data (L71-L77) but never checks how a client interprets it, and has no comment or field-only case.
+
+**Suggested fix.** Add a comment constructor, plus a way to render an event with no `data:` line when the payload is absent (e.g. `ServerSentEvent[Unit]`/`Maybe` data, or a dedicated control-frame type).
+
+### examples: the H-35 `JdkHttp` adapter cannot serve a streaming body: an endless response never reaches the client and keeps producing after it leaves
+
+Found 2026-10-23 while writing `docs/guides/send-server-sent-events.md` (H-41), on `main` at `ecbe934e4`, against `http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala` (H-35 companion example). http-model is the same at tag `v0.0.56`. Verified: the reproduction below (the adapter's write path reduced to its three lines) was run with `scala-cli run --server=false Repro.scala` against the published `0.0.56`. The full JdkHttp.scala showed the same with `curl -N`: 0 bytes in 4 s, and the server log kept counting after curl exited.
+
+**Summary.** `JdkHttp.writeResponse` collects the body with `Body#toArray` before it sends the status line, and `JdkHttp.start` sets no executor. For a `Body.fromStream` body that does not end (Server-Sent Events, long polling, any live feed), the client receives nothing at all, not even headers. Because nothing is ever written, the server never learns that the client left, so the producer runs on, holds the JDK's single dispatcher thread, and blocks every other request.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import com.sun.net.httpserver.HttpServer
+import java.net.{HttpURLConnection, InetAddress, InetSocketAddress, SocketTimeoutException, URI}
+import java.util.concurrent.atomic.AtomicInteger
+import zio.blocks.chunk.Chunk
+import zio.blocks.mediatype.MediaType
+import zio.blocks.streams.Stream
+import zio.http._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val produced = new AtomicInteger(0)
+    val feed = Stream
+      .fromIterator(Iterator.from(1))
+      .tapEach { _ => Thread.sleep(200); produced.incrementAndGet() }
+      .flatMap(n => Stream.fromChunk(Chunk.fromArray(ServerSentEvent(s"book $n").render.getBytes("UTF-8"))))
+    val response = Response.ok(Body.fromStream(feed, ContentType(MediaType("text", "event-stream"))))
+
+    val server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress, 0), 0)
+    server.createContext("/", exchange => {
+      // The write path of servehttpmodelrequests.JdkHttp.writeResponse (H-35), reduced:
+      val bytes = response.body.toArray
+      exchange.sendResponseHeaders(response.status.code, bytes.length.toLong)
+      exchange.getResponseBody.write(bytes)
+      exchange.close()
+    })
+    server.start()
+
+    val connection = URI.create(s"http://127.0.0.1:${server.getAddress.getPort}/feed").toURL.openConnection().asInstanceOf[HttpURLConnection]
+    connection.setReadTimeout(2000)
+    try println(s"status: ${connection.getResponseCode}")
+    catch { case e: SocketTimeoutException => println(s"client: no status line after 2 s ($e)") }
+    connection.disconnect()
+    val atDisconnect = produced.get
+    Thread.sleep(1000)
+    println(s"server: produced $atDisconnect events while the client waited, ${produced.get} one second after it left")
+    System.exit(0)
+  }
+}
+// client: no status line after 2 s (java.net.SocketTimeoutException: Read timed out)
+// server: produced 8 events while the client waited, 13 one second after it left
+```
+
+**Expected.** The H-35 page says the adapter is for examples and small tools, so this is not a library bug. Still, its "Streaming bodies" note (`docs/guides/serve-http-model-requests.md:160`, "this call blocks the server thread until the stream ends") understates the effect: for an open-ended stream, the client never sees a byte and the producer never stops. Readers who reuse the adapter for live features (SSE, Datastar in T-11) hit this first.
+
+**Root cause.** `JdkHttp.scala:51` (`val bytes = response.body.toArray`) runs before `sendResponseHeaders` (`:58`). `Body#toArray` uses `runCollectAsync.block` (`http-model/shared/src/main/scala/zio/http/Body.scala:58-61`). `JdkHttp.start` (`:88-93`) sets no executor, so the JDK runs every exchange on one dispatcher thread.
+
+**Impact.** Any guide or user that serves a streaming `Body` through the H-35 adapter. The H-41 guide works around it with `StreamingJdkHttp` (`http-model-examples/src/main/scala/sendserversentevents/StreamingJdkHttp.scala`): `sendResponseHeaders(code, 0)` for chunked encoding, `Stream#run(Sink.fromOutputStream(...))` with a flush per event, and a cached daemon-thread executor.
+
+**Test gap.** The examples are run, not tested, and no example serves a streaming body through JdkHttp.
+
+**Suggested fix.** Reword H-35 line 160 to say that an endless body never reaches the client and that its producer never stops, and point to the SSE guide (the H-41 branch adds a bullet at :161 that links it). Optionally give JdkHttp itself a streaming path for bodies with an unknown `Body#length`, so later web guides don't need a second adapter.
+
+**Update (2026-10-26).** #1842 (H-41) reworded the "Streaming bodies" note in `serve-http-model-requests.md` to say that an endless body never reaches the client and that its producer never stops, and links the SSE guide, whose `StreamingJdkHttp` streams. The adapter itself still buffers; the optional streaming path in `JdkHttp` is still open.
+
+### async: on Scala 3, an `Async.promise` body written `(c: Completer[A]) => ...` compiles, and the `Async` never completes
+
+Found 2026-10-26 while writing H-26 (`docs/guides/run-streams-without-blocking.md`), on `main` at `7f551627c`. Tested against `zio-blocks-async` 0.0.56; the Scala 3 signature is the same on `main`. Verified by running (scratch sbt project, since scala-cli hung on that machine).
+
+**Summary.** On Scala 3, `Async.promise` takes a context-function body: `inline def promise[A](inline body: Completer[A] ?=> Unit)` (`async/shared/src/main/scala-3/zio/blocks/async/AsyncCompanionVersionSpecific.scala:38`). Code in the Scala 2 shape with the parameter type written out, `Async.promise[String] { (c: Completer[String]) => ... }`, still compiles: the lambda is a function value that becomes the context function's result and is discarded as `Unit`. The statements inside it never run, so the completer is never completed and the `Async` stays pending forever. Without the type (`{ c => ... }`) it fails to compile with "Missing parameter type", so only the typed binder is silent. The compiler prints warning E190 at the call site, which is easy to miss. `docs/reference/async.md` (around `:634` and `:1088-1100`) and `docs/guides/async-getting-started.md:274` show the Scala 3 body as `c ?=>` or `summon`, but none of the async pages (including `wrap-callback-and-future-apis.md`) warns that the Scala 2 shape compiles and hangs.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-async` 0.0.56; `project/build.properties` is `sbt.version=1.13.0`; run with `sbt run`):
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions ++= Seq("-experimental")
+libraryDependencies += "dev.zio" %% "zio-blocks-async" % "0.0.56"
+```
+
+`src/main/scala/Repro.scala`:
+
+```scala
+import zio.blocks.async._
+
+import scala.concurrent.Await
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    // Explicit binder, as on Scala 2: compiles on Scala 3 and the Async never completes.
+    val hangs: Async[String] = Async.promise[String] { (c: Completer[String]) =>
+      new Thread(() => { Thread.sleep(10); c.succeed("hello") }).start()
+    }
+    println("Async.promise[String] { c => ... }: " + (try Await.result(hangs.toFuture, 2.seconds).toString catch { case e: Throwable => e.toString }))
+
+    // Context-function binder: works.
+    val works: Async[String] = Async.promise[String] {
+      val c = summon[Completer[String]]
+      new Thread(() => { Thread.sleep(10); c.succeed("hello") }).start()
+    }
+    println("Async.promise[String] { summon ... }: " + Await.result(works.toFuture, 2.seconds))
+  }
+}
+// [warn] -- [E190] Potential Issue Warning: Repro.scala:10:55
+// [warn] Discarded non-Unit value of type zio.blocks.async.Completer[String] => Unit. Add `: Unit` to discard silently.
+// Async.promise[String] { c => ... }: java.util.concurrent.TimeoutException: Future timed out after [2 seconds]
+// Async.promise[String] { summon ... }: hello
+```
+
+With the parameter type omitted (`Async.promise[String] { c => c.succeed("hello") }`) compilation fails: `[E081] Missing parameter type. I could not infer the type of the parameter c. Expected type for the whole anonymous function: Unit`.
+
+**Expected.** Either the typed Scala 2 binder is rejected on Scala 3, or the docs say plainly not to write it. As it is, a cross-built project can copy a Scala 2 `Async.promise` snippet into a Scala 3 source set and it compiles.
+
+**Root cause.** The Scala 3 `promise` body has type `Completer[A] ?=> Unit` (`AsyncCompanionVersionSpecific.scala:38`). A body that is a lambda value of type `Completer[String] => Unit` is accepted as the context function's result and discarded to `Unit` by value discarding; the E190 warning is the only protection.
+
+**Impact.** The `Async` never completes: `block` waits forever on the JVM, `toFuture` times out, and on Scala.js `block` throws, so the failure shows up as a hang or timeout far from the cause.
+
+**Test gap.** No Scala 3 test checks that a typed binder is rejected or warns, and the docs don't warn.
+
+**Suggested fix.** Add a warning next to the Scala 3 `Async.promise` examples in `docs/reference/async.md` and `docs/guides/async-getting-started.md` section 7 ("On Scala 3, don't write `{ (c: Completer[A]) => ... }`: it compiles but never completes; use `c ?=>` or `summon`"). Then change the Scala 3 body type so a function-valued body is a type error (for example a non-`Unit` result type plus a `Unit`-returning helper), and add a `typeCheckErrors` test for the explicit binder.
+
+### telemetry: `log.install` silently drops the writers added before it, and the next `log.writer` brings them back
+
+Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-traces.md` (backlog H-43), on `main` at `c347bc08`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `log.writer(formatter, writer)` adds an output, and `log.install(logger)` replaces the global logger. When a program calls them in the order "writer, then install", the writer stops receiving lines without any error. When the program later adds another writer, the dropped writer comes back too. Setting up logging in the opposite order (`install`, then `writer`) works, and that is the order the T-12 tutorial uses, but nothing tells the reader the order matters.
+
+**Setup.** A scratch sbt project (sbt 1.13.0, JDK 25.0.2) with this `build.sbt`; the file goes in `src/main/scala/`, and the output is pasted from a real run with sbt's `[info]`/`[error]` prefixes removed.
+
+```scala
+scalaVersion := "3.9.0"
+run / fork   := true
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
+  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
+)
+```
+
+**Reproduction** (`InstallDropsWriters.scala`, run with `sbt "runMain InstallDropsWriters"`):
+
+```scala
+import zio.blocks.telemetry._
+
+object InstallDropsWriters {
+  def main(args: Array[String]): Unit = {
+    log.writer(JsonLogFormatter, StderrWriter)
+    log.install(LoggerProvider.builder.build().get("shop"))
+    log.info("one")
+    System.err.println("-- after line one")
+    log.writer(TextLogFormatter, StdoutWriter)
+    log.info("two")
+  }
+}
+// stderr: -- after line one
+// stderr: {"timeUnixNano":"1793019779575689677","severityNumber":9,"severityText":"INFO","body":{"stringValue":"two"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/InstallDropsWriters.scala"}},{"key":"code.namespace","value":{"stringValue":"InstallDropsWriters$"}},{"key":"code.function","value":{"stringValue":"main"}},{"key":"code.lineno","value":{"intValue":"10"}}]}
+// stdout: 2026-10-26T13:02:59.575Z INFO  [InstallDropsWriters$.main:10] two
+```
+
+Line `one` is printed nowhere, although a JSON writer was registered. Line `two` goes to both writers, including the JSON writer that had stopped working.
+
+**Expected.** Either `log.install` keeps the registered writers (they are global outputs, like the default console), or it clears them for good, as documented behaviour. It should never keep them in a hidden list that a later, unrelated `log.writer` call reactivates.
+
+**Root cause.** `log.writer` keeps its outputs in `_writerProcessors` and builds a new global logger from `baseProcessors ++ _writerProcessors` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/log.scala:86-88`, `rebuildState` at `:104-110`). `log.install` (`log.scala:58`) calls `GlobalLogState.install` (`GlobalLogState.scala:88`), which sets the new logger without the writer processors and leaves `_writerProcessors` as it was. The next `log.writer` calls `rebuildState`, which appends the whole list again.
+
+**Impact.** Logging set-up code that registers outputs first and installs the logger afterwards (a natural order when the writer is configured in one module and the logger in another) loses all its log output, with no error. When outputs come back after a later `writer` call, they are hard to explain.
+
+**Related.** The Library bugs entry "telemetry: after `log.removeAll()`, `log.writer` and `log.addProcessor` never bring logging back" involves the same `_writerProcessors` list.
+
+**Test gap.** No test combines `log.writer` with a later `log.install`.
+
+**Suggested fix.** In `log.install`, either rebuild the installed logger with `_writerProcessors` appended (the same way `rebuildState` does), or clear `_writerProcessors`. Then document which of the two it is in the Scaladoc of both methods.
+
+### telemetry: giving a `ContextStorage` to the tracer but not the logger silently removes trace ids from every log line
+
+Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-traces.md` (backlog H-43), on `main` at `c347bc08`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** To continue a trace that arrives in a request, a service must put the remote span context into the storage its tracer reads. The built-in storage that `log` and `trace` share is `private[telemetry]`, so the service has to create its own with `ContextStorage.create` and pass it to `TracerProviderBuilder#setContextStorage`. If it doesn't also pass the same instance to `LoggerProviderBuilder#setContextStorage`, the logger keeps reading the built-in storage, which never holds the tracer's spans. Every log line then has no `traceId` or `spanId`, and nothing warns about it. The reference page shows the tracer half of the set-up (`docs/reference/telemetry/otel/index.md`, "Propagating Context Across Services") but not the logger half.
+
+**Setup.** A scratch sbt project (sbt 1.13.0, JDK 25.0.2) with this `build.sbt`; the file goes in `src/main/scala/`, and the output is pasted from a real run with sbt's `[info]`/`[error]` prefixes removed.
+
+```scala
+scalaVersion := "3.9.0"
+run / fork   := true
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
+  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
+)
+```
+
+**Reproduction** (`StorageMismatch.scala`, run with `sbt "runMain StorageMismatch"`):
+
+```scala
+import zio.blocks.telemetry._
+
+object StorageMismatch {
+  def main(args: Array[String]): Unit = {
+    val storage = ContextStorage.create[Option[SpanContext]](None)
+    val tracer  = TracerProvider.builder.setContextStorage(storage).build().get("shop")
+    log.install(LoggerProvider.builder.build().get("shop")) // no setContextStorage
+    log.writer(JsonLogFormatter, StdoutWriter)
+    tracer.span("checkout.placeOrder") { span =>
+      log.info("inside span")
+      System.out.println(s"span ${span.spanContext.traceIdHex} is active; logger sees ${log.getClass.getSimpleName} with no ids above")
+    }
+  }
+}
+// {"timeUnixNano":"1793019779892679582","severityNumber":9,"severityText":"INFO","body":{"stringValue":"inside span"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/StorageMismatch.scala"}},{"key":"code.namespace","value":{"stringValue":"StorageMismatch$"}},{"key":"code.function","value":{"stringValue":"main"}},{"key":"code.lineno","value":{"intValue":"10"}}]}
+// span 9e1c5ef24ce9f293b30abd95f1b53d26 is active; logger sees log$ with no ids above
+```
+
+The JSON line has no `traceId` or `spanId`, although a span is active.
+
+**Expected.** Log lines written inside a span carry its ids, the way they do with the zero-setup globals. Or the API makes the mismatch hard to write.
+
+**Root cause.** `TracerProviderBuilder.build` and `LoggerProviderBuilder.build` each fall back to `ContextStorage.defaultSpanContextStorage` on their own (`telemetry/shared/src/main/scala/zio/blocks/telemetry/TracerProvider.scala:109`, `LoggerProvider.scala:75`), and that default is `private[telemetry]` (`telemetry/jvm/src/main/scala/zio/blocks/telemetry/ContextStorage.scala:45`). A program can't scope a remote parent into the default storage. Once it creates its own storage, it has to remember to pass it to two unrelated builders.
+
+**Impact.** This is the set-up every service that receives traced requests needs, and the failure shows up only as missing fields in production logs. Log-to-trace correlation, the main reason to share the storage, silently stops working.
+
+**Test gap.** No test checks that a logger and a tracer built with different storages behave the way the docs say.
+
+**Suggested fix.** Make the default storage public (for example `ContextStorage.defaultSpanContext`), so a service can scope a remote parent without owning a storage. Or offer one builder that configures both providers with one storage. At minimum, document on both `setContextStorage` methods that the logger and the tracer must get the same instance. The H-43 guide warns about it.
+
+### schema (Scala 3): a `given Schema` inside `object X` next to `type X = (named tuple)` is not found implicitly
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10), on `main` at `b6c0c30e4`. Same at v0.0.56; this is Scala language behaviour, not a zio-blocks code change.
+
+**Summary.** The docs' habit of putting `implicit val schema`/`given Schema` in the type's companion object doesn't carry over to named tuples. A named tuple is usually named with a type alias, and an `object` with the same name as an alias is not a companion. Its givens aren't in implicit scope (the implicit scope of `NamedTuple[N, V]` is `scala.NamedTuple`'s), so `x.toJsonString`, `fromJson[X]` and `Schema[X]` fail outside that object. Inside a `CompanionOptics[X]` object, `$(...)` works because the given is lexically in scope there, which hides the problem until the value is encoded somewhere else.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`), run on JDK 21, and this `build.sbt`:
+
+```scala
+scalaVersion := "3.7.4"
+
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
+```
+
+**Reproduction.** `Repro.scala`, run with `sbt compile`:
+
+```scala
+import zio.blocks.schema._
+
+type Reading = (city: String, tempC: Double)
+
+object Reading {
+  given Schema[Reading] = Schema.derived
+}
+
+case class WeatherReading(city: String, tempC: Double)
+
+object WeatherReading {
+  given Schema[WeatherReading] = Schema.derived
+}
+
+@main def repro(): Unit = {
+  println(WeatherReading("Oslo", 3.8).toJsonString) // compiles: companion given
+  val oslo: Reading = (city = "Oslo", tempC = 3.8)
+  println(oslo.toJsonString) // does not compile
+}
+// [error] -- [E008] Not Found Error: .../Repro.scala:18:15
+// [error] 18 |  println(oslo.toJsonString) // does not compile
+// [error]    |          ^^^^^^^^^^^^^^^^^
+// [error]    |value toJsonString is not a member of Reading.
+// [error]    |An extension method was tried, but could not be fully constructed:
+// [error]    |
+// [error]    |    zio.blocks.schema.toJsonString[Reading](oslo)(
+// [error]    |      /* missing */summon[zio.blocks.schema.Schema[Reading]])
+// [error]    |
+// [error]    |    failed with:
+// [error]    |
+// [error]    |        No given instance of type zio.blocks.schema.Schema[Reading] was found for parameter schema of method toJsonString in trait SyntaxVersionSpecific
+// [error]    |
+// [error]    |        The following import might fix the problem:
+// [error]    |
+// [error]    |          import Reading.given_Schema_Reading
+```
+
+**Expected.** Readers expect the "companion" given to work as it does for case classes.
+
+**Root cause.** Scala 3 implicit scope: a type alias has no companion, and `NamedTuple` is an opaque type in `scala.NamedTuple`, whose implicit scope doesn't include user objects. Nothing in zio-blocks can change this.
+
+**Impact.** The first named-tuple program a reader writes in the docs style fails with "value toJsonString is not a member of Reading". The compiler's suggested import fixes it.
+
+**Test gap.** Not applicable (language behaviour). The docs gap is that no page mentions it; the H-10 guide documents it in a `:::warning` with `import Reading.given`, or a top-level `given`.
+
+**Suggested fix.** Docs only: a schema reference note (near derivation) saying to define named-tuple schemas as top-level or imported givens.
+
+### Streams: a finalizer that fails after a typed error turns the `Left` into a thrown `zio.blocks.streams.internal.StreamError` with a null message
+
+Found 2026-10-26 while writing the Scaladoc for `Stream#ensuring` and `Stream#ensuringAsync` (wave 1 of the streams Scaladoc, branch `streams-scaladoc-wave-1`), on `streams-scaladocs` at `b93330329`. The same at tag `v0.0.56`. Verified against the published 0.0.56 on Scala 2.13.18. Not filed on GitHub yet.
+
+**Summary.** A stream that fails with a typed error returns `Left(e)` from its terminal. If a finalizer (`ensuring`, `ensuringAsync`, a `fromAcquireRelease` release) then throws, the terminal no longer returns the `Left`, and it does not throw the finalizer's exception either. It throws (or fails its `Async` with) the library's internal wrapper `zio.blocks.streams.internal.StreamError`, whose `getMessage` is `null`. The typed error is only reachable through `StreamError#value` and the finalizer's exception only as a suppressed exception, so a stack trace or log line shows `zio.blocks.streams.internal.StreamError: null` and nothing else. The reference pages describe the rule ("that defect is attached to the primary failure rather than replacing it") but not what the user then sees. The same happens when the typed error comes from a sink (`Stream(1).ensuring(throw ...).run(Sink.fail("sinkErr"))`, or `Stream.defer(throw ...).run(Sink.fail("sinkErr"))`), and with a `fromAcquireRelease` whose release throws after `use` fails with a typed error.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli run --server=false FinalizerAfterTypedError.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.async._
+import zio.blocks.streams._
+
+object FinalizerAfterTypedError {
+  def main(args: Array[String]): Unit = {
+    val failing: Stream[String, Int] = Stream(1) ++ Stream.fail("book not found")
+
+    // The typed error alone is a Left.
+    println(failing.runCollect)
+
+    // A finalizer that throws, on a stream that never fails: the finalizer's exception is thrown.
+    try Stream(1).ensuring(throw new RuntimeException("close failed")).runCollect
+    catch { case e: Throwable => println(s"threw ${e.getClass.getName}: ${e.getMessage}") }
+
+    // The same finalizer after a typed error: neither the Left nor the finalizer's exception,
+    // but the library's internal wrapper, with a null message.
+    try println(failing.ensuring(throw new RuntimeException("close failed")).runCollect)
+    catch {
+      case e: Throwable =>
+        println(s"threw ${e.getClass.getName}: ${e.getMessage}")
+        println(s"suppressed: ${e.getSuppressed.toList}")
+    }
+
+    // The async terminal fails its Async with the same wrapper.
+    try println(failing.ensuring(throw new RuntimeException("close failed")).runCollectAsync.block)
+    catch { case e: Throwable => println(s"async failed with ${e.getClass.getName}: ${e.getMessage}") }
+  }
+}
+// Left(book not found)
+// threw java.lang.RuntimeException: close failed
+// threw zio.blocks.streams.internal.StreamError: null
+// suppressed: List(java.lang.RuntimeException: close failed)
+// async failed with zio.blocks.streams.internal.StreamError: null
+```
+
+**Expected.** Either the terminal returns `Left(book not found)` and reports the cleanup failure some other way, or it throws the finalizer's exception with the typed error attached; and in any case the thrown exception has a message that names the typed error (for example `StreamError#getMessage` returning `"typed stream error: book not found"`).
+
+**Root cause.** `Stream#runBlocking` attaches the close failure to the primary failure with `StreamError.attachCleanupReplay` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:1430-1432`), which marks the `StreamError` with `cleanupFailed = true` (`streams/shared/src/main/scala/zio/blocks/streams/internal/StreamError.scala:163-176`, `attachCleanup`, reached from `attachCleanupReplay` at `:178-181`). The `Left` conversion then skips it (`case error: StreamError if error.isTrusted && !error.cleanupFailed`, `Stream.scala:1435`), so the wrapper is rethrown as is. The async terminal does the same (`Stream.scala:1498`). `StreamError` extends `Exception(null, null, true, false)` (`StreamError.scala:28-33`), so its message is `null`.
+
+**Impact.** Code that matches on the `Either` never sees the typed error once a finalizer also fails, and the exception it gets names an `internal` class and carries no message. Debugging needs `getSuppressed` and a cast to an internal type.
+
+**Test gap.** `ErrorHandlingSpec.scala:565` and `:590` and `AsyncSinkExhaustiveCoverageSpec.scala:246` pin the engine behaviour (a typed failure followed by a cleanup failure fails the run with the cleanup-marked `StreamError`), so a fix may have to update them (they assert `cleanupFailed` and the suppressed list, not the exception class or message). No spec checks what a user of the public API sees in this case: the exception's class and message from `ensuring`, `fromAcquireRelease` or `Stream.defer` at a terminal.
+
+**Suggested fix.** Give `StreamError` a message (override `getMessage` to describe `value` and whether it came from the stream or the sink), and decide on one documented contract for this case, then state it in the Scaladoc of the terminals and of `ensuring`. Update the specs above to match. The change is on the failure path only and touches no read loop.
+
+### Streams: on Scala 2, `++` between two streams of `Nothing` does not compile (ambiguous `JvmType.Infer`)
+
+Found 2026-10-26 while probing `Stream.defer` for its Scaladoc (wave 1 of the streams Scaladoc, branch `streams-scaladoc-wave-1`), on `streams-scaladocs` at `b93330329`. The same at tag `v0.0.56`. Verified against the published 0.0.56: fails on Scala 2.13.18, compiles and runs on Scala 3.9.0 (`zio-blocks-next-streams`, `-experimental`). Not filed on GitHub yet.
+
+**Summary.** `Stream.eval(...) ++ Stream.defer(...)`, `Stream.empty ++ Stream.empty`, or any `++`/`concat` whose two sides both have element type `Nothing`, fails on Scala 2.13 with `ambiguous implicit values: both value nothing in object Infer ... and value int in object Infer ... match expected type JvmType.Infer[A3]`. Two element-free streams are a natural pair (an effect, then a finalizer), and the error message gives no hint of the workaround: pass the type arguments, `a.++[Nothing, Nothing, Nothing, Nothing](b)`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli run --server=false Ambiguous.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.streams._
+
+object Ambiguous {
+  def main(args: Array[String]): Unit = {
+    val both = Stream.eval(println("start")) ++ Stream.defer(println("done"))
+    println(both.runCollect)
+  }
+}
+// Ambiguous.scala:8: error: ambiguous implicit values:
+//  both value nothing in object Infer of type zio.blocks.streams.JvmType.Infer[Nothing]
+//  and value int in object Infer of type zio.blocks.streams.JvmType.Infer[Int]
+//  match expected type zio.blocks.streams.JvmType.Infer[A3]
+//     val both = Stream.eval(println("start")) ++ Stream.defer(println("done"))
+//                                              ^
+// 1 error
+// Compilation failed
+```
+
+The same file with `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-streams` prints `start`, `done` and `Right(Chunk())`. On 2.13, `Stream.eval(println("start")).++[Nothing, Nothing, Nothing, Nothing](Stream.defer(println("done")))` compiles and prints the same.
+
+**Expected.** `Stream.empty ++ Stream.empty` compiles on Scala 2.13 as on Scala 3 and has type `Stream[Nothing, Nothing]`.
+
+**Root cause.** Scala 2 treats a type parameter inferred as `Nothing` as not yet determined. In `Stream#++` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:74-78`) the result type `A3` comes from `Concat.WithOut[Nothing, Nothing, A3]`, so when the compiler searches `JvmType.Infer[A3]` it is still open, and every instance in `object Infer` (`streams/shared/src/main/scala/zio/blocks/streams/JvmType.scala:104-112`: `nothing`, `int`, `long`, ...) matches at the same priority.
+
+**Impact.** Small but confusing: a two-line program that compiles on Scala 3 fails on Scala 2 with an error about an internal type class. The same error comes from `concat`, `orElse`/`||` and `catchAll` when both sides have element type `Nothing`, for example `Stream.fail(1) ++ Stream.fail("a")`, `Stream.eval(...).orElse(Stream.empty)` or `Stream.eval(...).catchAll(_ => Stream.empty)` (each checked on 2.13.18 against 0.0.56).
+
+**Test gap.** No Scala 2 test concatenates two streams of `Nothing`.
+
+**Suggested fix.** Give `Infer.nothing` a higher priority than the primitive instances (move the eight primitive instances into a lower-priority parent trait of `object Infer`, above `LowPriorityJvmTypeInferPlatform`), so an undetermined `A3` resolves to `Nothing`; or add a dedicated `++` overload for `Stream[_, Nothing]`. Add a cross-built test for `Stream.empty ++ Stream.empty`.
+
+### htmx: `HxEventPayload.JsonValue` accepts non-object JSON, and htmx 2 then fires no event
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** htmx 2 reads a `HX-Trigger`/`-After-Swap`/`-After-Settle` value as JSON only when it starts with `{` (handleTriggerHeader, htmx.js:2122-2141); anything else is split on commas into event names. `HxEventPayload.JsonValue` takes any `Json`, and `HxEventPayload.parse` accepts values starting with `[`, so an array payload renders fine and fires nothing useful.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** `src/main/scala/TriggerArray.scala`, run with `sbt -batch "runMain triggerArray"`:
+```scala
+import zio.blocks.schema.json.Json
+import zio.http.htmx.headers._
+
+@main def triggerArray(): Unit = {
+  println(HxTriggerHeader.render(HxTriggerHeader(HxEventPayload.JsonValue(Json.Array(Json.String("cart-updated"))))))
+  println(HxTriggerHeader.parse("""["cart-updated"]"""))
+}
+// ["cart-updated"]
+// Right(HxTriggerHeader(JsonValue([
+//   "cart-updated"
+// ])))
+```
+Observed in the browser with a listener for `cart-updated` on `<body>`: the response carried `Hx-trigger: ["cart-updated"]`, the main fragment swapped, and no `cart-updated` event fired.
+
+**Expected.** `JsonValue` restricted to `Json.Object` (as `HxLocation` already is), and `parse` rejecting `[`.
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/headers/HtmxHeaders.scala:39-41` (`JsonValue(json: Json)`) and `:43-48` (`parse` accepts `[`).
+
+**Impact.** Silent no-op; low, since arrays are unusual here.
+
+**Test gap.** `HtmxHeadersSpec.scala:95-97` asserts that `"[1,2]"` parses, i.e. pins the wrong behaviour.
+
+**Suggested fix.** `final case class JsonValue(json: Json.Object)`; `parse` accepts only `{`.
+
+### html: common Scala names shadow DSL elements (`span` vs `scala.concurrent.duration._`, `main` vs `def main`)
+
+Found while writing the examples for the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** `import scala.concurrent.duration._` brings an object `span` that collides with the DSL's `span` element (ambiguous at the same import level; a nested duration import silently wins). Inside an object that defines `def main(args: Array[String])`, a call `main(id := "main")(...)` resolves to the method, not the `<main>` element. htmx code needs both: durations for `HxTrigger(...).delay(300.millis)`/`HxSwap.swap(...)`, and `<main>` as the usual `HX-Location` target. T-10's Step files import both `scala.concurrent.duration._` and `zio.blocks.html._` and only work because they never call `span`.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer 1.** `src/main/scala/SpanShadow.scala`, run with `sbt -batch compile`:
+```scala
+import scala.concurrent.duration._
+import zio.blocks.html._
+
+@main def spanShadow(): Unit =
+  println(span("1").render)
+// [error] 5 |  println(span("1").render)
+// [error]   |          ^^^^
+// [error]   |          Reference to span is ambiguous.
+// [error]   |          It is both imported by import scala.concurrent.duration._
+// [error]   |          and imported subsequently by import zio.blocks.html._
+```
+**Reproducer 2.** separate project (same build.sbt), `src/main/scala/MainClash.scala`, run with `sbt -batch compile`:
+```scala
+import zio.blocks.html._
+
+object MainClash {
+  def page: Dom.Element = html(body(main(id := "main")("content")))
+
+  def main(args: Array[String]): Unit = println(page.render)
+}
+// [error] 4 |  def page: Dom.Element = html(body(main(id := "main")("content")))
+// [error]   |                                         ^^^^^^^^^^^^
+// [error]   |                                   Found:    zio.blocks.html.Dom.Attribute
+// [error]   |                                   Required: Array[String]
+```
+**Expected.** A documented escape hatch.
+
+**Root cause.** Name choice of the DSL vals (`html/shared/src/main/scala-3/zio/blocks/html/HtmlElements.scala:85` `span`, `:141` `main`); Scala scoping.
+
+**Impact.** Confusing errors (the `main` one names `Array[String]`, not the element). H-40's examples work around it by importing `scala.concurrent.duration.DurationInt` only and keeping `layout` in an object without `main`.
+
+**Test gap.** None (usability).
+
+**Suggested fix.** Say in `docs/reference/html.md` to import `scala.concurrent.duration.DurationInt` (not `._`) next to the DSL, and that `zio.blocks.html.main(...)` (or an alias) is needed inside an object with `def main`.
+
+### codegen: `SealedTrait.derives`, `Enum.derives` and `Field.doc` are accepted but never emitted
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** Three IR fields look as if they control the output, but `ScalaEmitter` ignores them in every configuration. `SealedTrait(derives = List("Schema"))` and `Enum(derives = ...)` never print `derives`; only `CaseClass` does. `Field(doc = Some(...))` is dropped, although `Field`'s Scaladoc documents the parameter and its example sets it. The only hint is one line in `docs/reference/codegen/emitter-config.md:309` ("sealed traits and enums do not emit derives"). A generator that relies on these fields compiles, and the instances or comments are missing from the output with no warning.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-codegen` 0.0.56, `sbt run`).
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val file = ScalaFile(
+      PackageDecl("com.example"),
+      types = List(
+        CaseClass("User", List(Field("email", TypeRef.String, doc = Some("The user's email address.")))),
+        SealedTrait("Status", cases = List(SealedTraitCase.CaseObjectCase("Active")), derives = List("Schema")),
+        Enum("Color", cases = List(EnumCase.SimpleCase("Red")), derives = List("Schema"))
+      )
+    )
+    println(ScalaEmitter.emit(file, EmitterConfig.default))
+  }
+}
+// package com.example
+//
+// case class User(
+//   email: String,
+// )
+//
+// sealed trait Status
+//
+// object Status {
+//   case object Active extends Status
+// }
+//
+// enum Color {
+//   case Red
+// }
+```
+
+**Expected.** Either the fields render (`sealed trait Status derives Schema`, `enum Color derives Schema` and a `/** ... */` line above `email`, all valid Scala 3) or the IR has no such fields. At least each field's Scaladoc should say that the emitter ignores it.
+
+**Root cause.** `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala`: `emitSealedTrait` (`:318-360`) never reads `st.derives`, `emitEnumScala3` (`:379-414`) never reads `en.derives`, and `emitField` (`:105-114`) and `emitFieldInline` (`:842-849`) never read `field.doc`. Only `emitCaseClass` renders `derives` (`:295-296`).
+
+**Impact.** In the T-13 tutorial, a Scala 3 `OrderStatus` with `derives = List("Schema")` produced generated code where `summon[Schema[OrderStatus]]` fails with "No given instance of type zio.blocks.schema.Schema[...OrderStatus] was found". The tutorial now puts schemas on case classes only and has a note that field docs are not rendered.
+
+**Test gap.** `ScalaEmitterTypeRefSpec.scala:92-97` ("with doc is ignored in field emission") pins the dropped doc as intended behaviour. No test sets `derives` on a `SealedTrait` or an `Enum`.
+
+**Suggested fix.** Render `derives` on `SealedTrait` and `Enum` under `scala3Syntax`, the same way `emitCaseClass` does. Render `Field.doc` as a `/** ... */` line above the parameter (valid in Scala 2 and 3, through the escaping helper from the doc-escaping entry). If any of this is deliberate, say so in the field's Scaladoc and in `docs/reference/codegen/{sealed-trait,field}.md`.
+
+### Avro `decode` accepts input with trailing bytes and returns the first record
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/encode-and-decode-records-with-avro.md` (backlog H-13), on `main` at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** `codec.decode(bytes)` decodes one value and returns `Right`, without checking that the input is used up. A message with extra bytes at the end decodes as if the extra bytes were not there.
+
+**Reproduction.** File `Trailing.scala`, run with `scala-cli run --server=false Trailing.scala -M Trailing`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-avro:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.avro._
+
+object Trailing {
+  def main(args: Array[String]): Unit = {
+    val codec = Schema[Int].derive(AvroFormat)
+
+    // One zig-zag varint for 42 is the single byte 0x54. The next two bytes are extra.
+    val oneRecord = Array[Byte](0x54)
+    val withExtra = Array[Byte](0x54, 0x01, 0x02)
+
+    println(codec.decode(oneRecord))
+    println(codec.decode(withExtra))
+  }
+}
+// Right(42)
+// Right(42)
+```
+
+**Expected.** `decode` returns `Left` with an error for `withExtra`, because the input holds two bytes that are not part of the value. Or the behaviour is documented as the chosen contract.
+
+**Root cause.** `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodec.scala:82-84`: `decode(input: Array[Byte])` builds a `binaryDecoder` over the whole array and calls `decodeValue` once. It never checks that the decoder is at the end of the input (for example `decoder.isEnd`). The stream variant at lines 94-98 has the same shape.
+
+**Impact.** Framing mistakes go unnoticed. A payload with padding, or two messages in one buffer, is read as one value. The loss is silent.
+
+**Test gap.** `grep -rn -i "trailing\|remaining\|isEnd" schema-avro/src/test` returns nothing. `schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala` tests truncated input (lines 92-115) but no input that is too long.
+
+**Suggested fix.** In `decode(Array[Byte])`, after `decodeValue`, check that the decoder is at the end and return `Left(new SchemaError(...))` if not. Add a spec case next to the truncated-input cases. Keep the stream variant as is, because it reads one record at a time by design.
+
+### Avro bytes from one type decode silently as a different type
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/encode-and-decode-records-with-avro.md` (backlog H-13), on `main` at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** Avro binary carries no schema or type name. A reader decodes whatever bytes it is given with its own schema. Bytes written for `Shipped(orderId: Long, carrier: String)` decode without error as `Priority(orderId: Long, priority: Int)` and return wrong values.
+
+**Reproduction.** File `CrossType.scala`, run with `scala-cli run --server=false CrossType.scala -M CrossType`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-avro:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.avro._
+
+case class Shipped(orderId: Long, carrier: String)
+case class Priority(orderId: Long, priority: Int)
+
+object CrossType {
+  def main(args: Array[String]): Unit = {
+    implicit val shippedSchema: Schema[Shipped] = Schema.derived
+    implicit val prioritySchema: Schema[Priority] = Schema.derived
+
+    val shippedBytes = shippedSchema.derive(AvroFormat).encode(Shipped(7L, "DHL"))
+
+    println(prioritySchema.derive(AvroFormat).decode(shippedBytes))
+  }
+}
+// Right(Priority(7,3))
+```
+
+**Expected.** Either an error, or the codec exposes a way to check the writer's schema (a fingerprint or a name check). If neither is planned, the behaviour is documented as the caller's responsibility.
+
+**Root cause.** Avro's binary format has no type information, so this is inherent to the format. zio-blocks adds no check at `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodec.scala:82-84`: `decode` trusts the codec's own schema and never compares it with anything in the bytes. The record fields are read in order, so the length prefix of `DHL` is read as the `int` for `priority` (`0x06` is `3`).
+
+**Impact.** Wrong values with no error, in any service that reads a topic or a file with the wrong type. The failure is found later, if at all.
+
+**Test gap.** No spec in `schema-avro/src/test` decodes bytes written by a different type and expects a result. `grep -n "mismatch\|wrong schema\|different schema" AvroFormatSpec.scala` returns nothing.
+
+**Suggested fix.** Document it on the Avro reference page as a caller responsibility, with a pointer to a registry or a version field. Do not add framing in this codec; registry framing is backlog item X-09.
+
+### openapi: an OpenAPI 3.0 document decodes without a warning, but `SchemaObject#toJsonSchema` ignores `nullable: true` and drops a boolean `exclusiveMinimum` or `exclusiveMaximum`
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/generate-scala-types-from-openapi.md` (backlog H-44), on `main` at `202578f27` (the openapi and schema sources are unchanged at `9d5ca8f91`). Same at v0.0.56. Verified by running.
+
+**Summary.** The openapi model is OpenAPI 3.1, whose schemas are JSON Schema 2020-12. `openAPICodec` doesn't check the `openapi` version field, so an OpenAPI 3.0 document decodes cleanly, and many real specs are 3.0 (Stripe's 1538-schema spec decodes this way). Two 3.0 keywords then change meaning silently in `SchemaObject#toJsonSchema`:
+- `nullable: true` isn't a 2020-12 keyword, so it lands in `extensions`, and `JsonSchema#check` rejects `null` for that property.
+- 3.0's boolean `exclusiveMinimum: true` (or `exclusiveMaximum`) has the name of a 2020-12 keyword but the wrong type, so it is dropped completely: not kept, not in `extensions`, no error. `minimum: 0` becomes an inclusive bound.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-openapi:0.0.56
+//> using options -experimental
+// Run: scala-cli run --server=false Repro.scala
+import zio.blocks.openapi._
+import zio.blocks.schema.json._
+
+@main def repro(): Unit = {
+  val spec =
+    """{"openapi": "3.0.3", "info": {"title": "Bookstore", "version": "1.0.0"},
+      | "components": {"schemas": {"Book": {"type": "object", "properties": {
+      |   "subtitle": {"type": "string", "nullable": true},
+      |   "price": {"type": "number", "minimum": 0, "exclusiveMinimum": true}}}}}}""".stripMargin
+  val api = Json.parse(spec).flatMap(OpenAPICodec.openAPICodec.decode(_))
+  println(s"decoded: ${api.map(_.openapi)}")
+  val ReferenceOr.Value(book) = api.toOption.get.components.get.schemas.get("Book").get: @unchecked
+  val Right(bookSchema: JsonSchema.Object) = book.toJsonSchema: @unchecked
+  println(s"price:    ${bookSchema.properties.get.get("price").get.toJson.print}")
+  println(s"subtitle: ${bookSchema.properties.get.get("subtitle").get.toJson.print}")
+  println(s"price 0 accepted: ${bookSchema.conforms(Json.parse("""{"price": 0}""").toOption.get)}")
+  println(s"subtitle null accepted: ${bookSchema.conforms(Json.parse("""{"subtitle": null}""").toOption.get)}")
+}
+// decoded: Right(3.0.3)
+// price:    {"type":"number","minimum":0}
+// subtitle: {"type":"string","nullable":true}
+// price 0 accepted: true
+// subtitle null accepted: false
+```
+
+**Expected.** Either of these:
+- `openAPICodec` rejects (or warns about) a non-3.1 `openapi` version with a clear message.
+- The 3.0 keywords are translated while decoding a `SchemaObject`: `nullable: true` becomes `type: [T, "null"]`, and `minimum: 0, exclusiveMinimum: true` becomes `exclusiveMinimum: 0`.
+
+At the least, a known keyword with a wrong-typed value should be kept in `extensions`, so that nothing is lost.
+
+**Root cause.**
+- `openapi/shared/src/main/scala/zio/blocks/openapi/OpenAPI.scala:25` documents the model as OpenAPI 3.1, but `OpenAPICodec.scala:1082` reads `openapi` as any `String`.
+- `schema/shared/src/main/scala/zio/blocks/schema/json/JsonSchema.scala`: `nullable` isn't in `knownKeys` (`:2085`), so it goes to `extensions` (`:2009-2015`). `exclusiveMaximum` and `exclusiveMinimum` are read with `getNumber` (`:2054`, `:2056`). `getNumber` (`:1846-1849`) returns `None` for a non-number, and since the key is known, the extensions filter skips it too.
+- The lenient parsing is documented in the `fromJson` Scaladoc (`:766-771`), so for 2020-12 input this is by design. The trap is that the openapi module feeds 3.0 documents into it with no translation and no warning.
+
+**Impact.**
+- Anyone reading a 3.0 spec through the typed model (code generators like H-44, validators using `JsonSchema#check`) loses nullability unless they know to look in `extensions`, and silently loses exclusive bounds.
+- Validation rejects valid `null` payloads and accepts out-of-range boundary values.
+- Re-exporting the document drops the bound.
+
+**Test gap.** No openapi spec decodes a 3.0 document. The fixtures (`openapi/shared/src/test/resources/openapi/*.json`) are all 3.1, and `SchemaObjectSpec` has no test with `nullable` or a boolean `exclusiveMinimum`.
+
+**Suggested fix.**
+- Decide the 3.0 policy and implement it in `OpenAPICodec`'s `schemaObjectCodec` (`OpenAPICodec.scala:647`): reject, or translate `nullable` and the boolean `exclusive*` into 2020-12.
+- Keep wrong-typed known keywords in `extensions` in `JsonSchema.fromJson`.
+- Document the behaviour in `docs/reference/openapi.md`.
+
+### Streams: a sentinel collision on a `toAsync` view or an asynchronous reader concatenation loses the rest of the data, not one element
+
+Found 2026-10-27 while writing the Scaladoc for `SyncReader#toAsync` and `AsyncReader#read` (wave 2 of the streams Scaladoc, branch `streams-scaladoc-wave-2`), on `main` at `b6c0c30e4`; the concatenation case was found in review the same day. The same at tag `v0.0.56`. All `file:line` citations in this entry are at `b6c0c30e4` (`origin/main` when the entry was written); `Reader.scala` and `Writer.scala` are unchanged between that commit and the merge of wave 1, and the method names are given so the lines can be re-anchored after the wave 2 Scaladoc lands.
+
+**Summary.** `read(sentinel)` callers must pick a sentinel that never occurs as an element; a colliding element is the accepted edge case of the AGENTS.md sentinel policy. On a plain reader the mistake costs one element: the reader returns it as is, the caller takes it for the end, and the rest is still readable. Two readers lose much more, silently:
+
+- The `SyncReader#toAsync` view latches end-of-stream once a pull returns its end value. For `read` the check is reference identity with the sentinel, which on the JVM a boxed `Boolean`, a boxed number from -128 to 127 or an interned string satisfies, so `read(-1)` collides with an element `-1` and `read(true)` with every `true`. After that, every pull, `readAll` included, returns the end value without reading the source again, until `reset()`.
+- An asynchronous concatenation (`++`, `concat` or `concatAsync` whose result is an `AsyncReader`) treats an element that is the same object as the `read` sentinel as the end of its current part and moves to the next part, skipping that element and the rest of the part. The synchronous `ConcatReader` is not affected.
+
+The Scaladoc on the branch describes both on `toAsync`, `AsyncReader#read` and `Reader#concat`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli --power run --server=false --offline SentinelCollisionLoss.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.async._
+import zio.blocks.chunk.Chunk
+import zio.blocks.streams.io.Reader
+
+object SentinelCollisionLoss {
+  def main(args: Array[String]): Unit = {
+    // A plain reader returns the colliding element as is and keeps going.
+    val plain = Reader.fromChunk(Chunk(1, -1, 2))
+    println("plain read(-1) x4:          " + List.fill(4)(plain.read(-1)))
+
+    // The toAsync view stops for good after the collision.
+    val view = Reader.fromChunk(Chunk(1, -1, 2)).toAsync
+    println("toAsync read(-1) x3:        " + List.fill(3)(view.read(-1).block))
+    println("toAsync readAll afterwards: " + view.readAll[Int]().block)
+
+    // Boxed Booleans are shared objects, so read(true) collides with every true.
+    val flags = Reader.fromChunk(Chunk(true, false, true, false)).toAsync
+    println("toAsync read(true) x3:      " + List.fill(3)(flags.read[Any](true).block))
+
+    // An asynchronous concatenation skips the colliding element and the rest of its part.
+    val xs   = Vector(1, -1, 2)
+    val head = Reader.unfoldAsync(0)(i => Async.succeed(if (i >= xs.size) None else Some((xs(i), i + 1))))
+    val cat  = head ++ Reader.fromChunk(Chunk(3))
+    println("async concat read(-1) x4:   " + List.fill(4)(cat.read(-1).block))
+
+    val sync = Reader.fromChunk(Chunk(1, -1, 2)) ++ Reader.fromChunk(Chunk(3))
+    println("sync concat read(-1) x5:    " + List.fill(5)(sync.read(-1)))
+  }
+}
+// plain read(-1) x4:          List(1, -1, 2, -1)
+// toAsync read(-1) x3:        List(1, -1, -1)
+// toAsync readAll afterwards: Chunk()
+// toAsync read(true) x3:      List(true, true, true)
+// async concat read(-1) x4:   List(1, 3, -1, -1)
+// sync concat read(-1) x5:    List(1, -1, 2, 3, -1)
+```
+
+**Expected.** A colliding element costs what it costs on a plain reader: the view and the asynchronous concatenation return it as is and keep reading (`toAsync read(-1)` giving `1, -1, 2, -1` and `readAll` `Chunk()` only at the real end; `async concat` giving `1, -1, 2, 3`).
+
+**Root cause.** `streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala` at `b6c0c30e4`: `SyncToAsyncReader.read` marks `eof = true` when the value is `eq` the sentinel (`:1552-1554`), and `deferred` returns the closed value for every later pull while `eof` is set (`:1506`, `:1512`); the scalar pulls do the same with `==` (`:1564-1576`). `AsyncConcatReader.read` passes `value eq sentinel` as the end test of `pull` (`:1953-1954`), which then advances to the next part (`pull`, `:1931-1950`); `readBoolean`/`readChar`/`readShort` use `_ == sentinel`. The synchronous `ConcatReader.read` pulls its parts with the private `EndOfStream` (`:2801`) and is lossless.
+
+**Impact.** A caller who picks a natural sentinel (`-1` for ids, `true`/`false` for flags, `"EOF"` for strings) and drives a reader through `toAsync` or an asynchronous concatenation gets a silently truncated or gapped sequence, with no error. With `read(true)` on a `Boolean` reader the first `true` element ends the view.
+
+**Test gap.** No test pulls a `toAsync` view or an `AsyncConcatReader` with a `read` sentinel that occurs among the elements. The sentinel-collision tests that exist cover other readers: `AsyncInterpreterReadResidualCoverageSpec.scala:184` ("physical lane conversions preserve values and sentinel collisions", the `AsyncInterpreter`), `StreamSpecializationConformanceSpec.scala:89` (`intersperse`) and `NioStreamsSinksSpec.scala:307` (NIO sinks); the view and concatenation tests read with out-of-range sentinels (`grep -rn "collision\|collid" streams/*/src/test`).
+
+**Suggested fix.** Fix only the generic `read` path, with no added per-element work: in `SyncToAsyncReader.read`, pull the source with the private `EndOfStream` (as the synchronous `ConcatReader` does) and latch `eof` only on that marker, translating it to the caller's sentinel on the way out; in `AsyncConcatReader.read`, pull each part with `EndOfStream` and advance only on that marker. Each keeps one reference comparison per call (the translation back to the caller's sentinel can reuse the same test or a local flag), on the generic boxed path only, so no per-element work is added to any primitive-lane loop. The primitive scalar pulls of the `toAsync` view (`value == sentinel`) fall under the AGENTS.md sentinel policy: document them, or take a zero-cost route that needs an out-of-band EOF flag the readers do not have today (`lastReadWasEOF`, which AGENTS.md mentions, does not exist in `streams/`), and validate any change with the streams JMH benchmarks before and after. Alternatively, keep the behaviour and document it on the reference page next to the sentinel protocol.
+
+### schema: there is no implicit `Schema` for tuples, so `Schema[(String, Int)]` and `Schema[List[(String, Int)]]` do not compile, unlike ZIO Schema 1.x
+
+Found 2026-10-27 while fixing the migration guide `docs/guides/zio-schema-migration.md` (backlog M-02), on `main` at `9d5ca8f91`. Same at v0.0.56.
+
+**Summary.** ZIO Blocks Schema has built-in implicit schemas for primitives, `Option`, `Either`, collections and maps, but none for tuples. A tuple inside a derived case class works, and `Schema.derived[(String, Int)]` works, but summoning one fails: `Schema[(String, Int)]`, and every built-in instance that needs one as an element, such as `Schema[List[(String, Int)]]` or `Schema[Map[String, (Int, Int)]]`. ZIO Schema 1.x resolves all of these through `Schema.tuple2` to `Schema.tuple22`, so code migrated from it stops compiling with a bare "could not find implicit value" error that does not mention derivation.
+
+**Reproduction.** Scala 2.13.18, `dev.zio::zio-blocks-schema:0.0.56`. Two files; run `scala-cli run --server=false Repro.scala` and `scala-cli compile --server=false ReproFail.scala`.
+
+```scala
+// Repro.scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object Repro extends App {
+  final case class Order(id: String, lines: List[(String, Int)])
+  object Order { implicit val schema: Schema[Order] = Schema.derived[Order] }
+
+  // A tuple inside a derived case class works
+  println(Order.schema.jsonCodec.encodeToString(Order("o-1", List(("widget", 2)))))
+  // A tuple schema derived on its own works
+  println(Schema.derived[(String, Int)].jsonCodec.encodeToString(("widget", 2)))
+}
+// {"id":"o-1","lines":[["widget",2]]}
+// ["widget",2]
+```
+
+```scala
+// ReproFail.scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object ReproFail {
+  // ZIO Schema 1.x resolves both of these through Schema.tuple2
+  val pair  = Schema[(String, Int)]
+  val pairs = Schema[List[(String, Int)]]
+}
+// ReproFail.scala:7: error: could not find implicit value for parameter schema: zio.blocks.schema.Schema[(String, Int)]
+//   val pair  = Schema[(String, Int)]
+//                     ^
+// ReproFail.scala:8: error: could not find implicit value for parameter schema: zio.blocks.schema.Schema[List[(String, Int)]]
+//   val pairs = Schema[List[(String, Int)]]
+//                     ^
+// 2 errors
+```
+
+On Scala 3.9.0 (`zio-blocks-next-schema:0.0.56`, `-experimental`) the same two lines fail with `No given instance of type zio.blocks.schema.Schema[(String, Int)] was found for parameter schema of method apply in object Schema`.
+
+**Expected.** `Schema[(A, B)]` resolves when `Schema[A]` and `Schema[B]` do, as `Schema[Either[A, B]]` does, giving the same schema as `Schema.derived[(A, B)]`; or, failing that, the docs list tuples among the types that need `Schema.derived`.
+
+**Root cause.** The `Schema` companion declares implicit instances for collections, maps and `Either` (`schema/shared/src/main/scala/zio/blocks/schema/Schema.scala:703-757`, `implicit def either` at `:757`) but no tuple instance. Tuples are handled only inside the derivation macros (Scala 3 `isGenericTuple`, `schema/shared/src/main/scala-3/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:274`), which run for `Schema.derived` and for case-class fields, not for implicit search.
+
+**Impact.** Every ZIO Schema 1.x codebase that summons or passes a tuple schema (pairs in lists or maps, tuple return types of endpoints, `Schema[(K, V)]` for key-value rows) fails to compile after migration. The error says nothing about `Schema.derived`, and `docs/reference/schema/schema.md` "Built-in Schemas" does not mention tuples, so users can't tell whether tuples are supported at all.
+
+**Test gap.** No spec summons `Schema[(A, B)]`: the specs that need one declare it by hand, e.g. `implicit val schema: Schema[(Int, String)] = Schema.derived` in `schema/shared/src/test/scala/zio/blocks/schema/json/JsonInterpolatorSpec.scala:633` and `:843`. `SchemaSpec` has no tuple case for implicit resolution.
+
+**Suggested fix.** Add implicit tuple instances: on Scala 2, `implicit def tuple2[A: Schema, B: Schema]: Schema[(A, B)]` up to `tuple22` (generated, like ZIO Schema's `Schema.scala:2977-3483`), built from the element schemas with the same `Reflect.Record` (`_1`, `_2`, ...) that derivation produces; on Scala 3, one `inline given` for `Tuple` that defers to `Schema.derived`. Add a `SchemaSpec` case that summons `Schema[(Int, String)]` and `Schema[List[(Int, String)]]` and checks they equal `Schema.derived`. Until then, add a sentence to `schema.md` "Built-in Schemas": tuples have no implicit schema; use `Schema.derived[(A, B)]`.
+
+### data-migration: `TargetStrategy.ShadowTable` creates the shadow table `LIKE` the target's current shape, so a migration that changes columns fails
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
+
+**Summary.** For `TargetStrategy.ShadowTable(suffix)`, `init()` runs `CREATE TABLE IF NOT EXISTS <v2table>_<suffix> (LIKE <v2table> INCLUDING ALL)`. When the V2 repo names the live table (the only way the final swap replaces it), the shadow table gets the OLD columns, and the first batch fails writing a V2 row into it. The workaround is to create the shadow table yourself, with the new columns, before `init()`; `IF NOT EXISTS` then leaves it alone. Nothing documents this.
+
+**Reproducer.** Start PostgreSQL 16:
+
+```bash
+docker run --rm -d --name shop-db -p 5432:5432 \
+  -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -e POSTGRES_DB=shop \
+  postgres:16
+```
+
+Then, in an empty directory:
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
+  "org.postgresql" % "postgresql"                     % "42.7.14"
+)
+run / fork := true
+```
+
+`project/build.properties`:
+
+```
+sbt.version=1.13.0
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.schema.*
+import zio.blocks.schema.migration.Migration
+import zio.blocks.data.migration.*
+import zio.blocks.sql.*
+
+case class CustomerV1(id: Long, fullName: String)
+object CustomerV1 { implicit val schema: Schema[CustomerV1] = Schema.derived }
+case class CustomerV2(id: Long, firstName: String, lastName: String)
+object CustomerV2 { implicit val schema: Schema[CustomerV2] = Schema.derived }
+
+@main def repro(): Unit = {
+  given transactor: Transactor =
+    JdbcTransactor.fromUrl("jdbc:postgresql://localhost:5432/shop", "shop", "shop", SqlDialect.PostgreSQL)
+  given Dialect = Dialect.Postgres
+  val v1 = Repo.derived[CustomerV1, Long]("customers", "id", _.id)
+  val v2 = Repo.derived[CustomerV2, Long]("customers", "id", _.id)
+  transactor.transact {
+    Frag.literal("DROP TABLE IF EXISTS customers, customers_v2, customers_old_v2, customers_q CASCADE").update
+    Frag.literal("DROP FUNCTION IF EXISTS customers_q_notify() CASCADE").update
+    Frag.literal("CREATE TABLE customers (id BIGINT PRIMARY KEY, full_name TEXT NOT NULL)").update
+    v1.insert(CustomerV1(1, "Ada Lovelace"))
+  }
+  val migration: Migration[CustomerV1, CustomerV2] = Migration
+    .newBuilder[CustomerV1, CustomerV2]
+    .addField(_.firstName, SchemaExpr.literal("Ada"))
+    .addField(_.lastName, SchemaExpr.literal("Lovelace"))
+    .dropField(_.fullName, SchemaExpr.literal(""))
+    .build
+  QueueTable.create[Long]("customers_q", transactor)
+  val migrator = LargeMigrator[CustomerV1, CustomerV2, Long, Long](
+    v1, v2, migration, "customers_q", 100, TargetStrategy.ShadowTable("v2"), captureTriggers = true
+  )
+  migrator.init()
+  val columns = transactor.connect(
+    Frag.literal("SELECT column_name FROM information_schema.columns WHERE table_name = 'customers_v2' ORDER BY ordinal_position").query[String]
+  )
+  println(s"customers_v2 columns after init(): $columns")
+  transactor.transact(QueueTable.enqueue("customers_q", List(1L)))
+  try println(s"run(): ${migrator.run()}")
+  catch { case e: java.sql.SQLException => println(s"run() failed: ${e.getMessage.linesIterator.next()}") }
+}
+```
+
+Run with `sbt run`. Real output:
+
+```scala
+// customers_v2 columns after init(): List(id, full_name)
+// run() failed: ERROR: column "first_name" of relation "customers_v2" does not exist
+```
+
+**Expected.** Either the shadow table is created from the V2 `Table` metadata (`repoV2.table.createTable(...)` under the shadow name), so it has `id, first_name, last_name`, and `run()` copies the row; or the docs say plainly that the shadow table must be created up front with the new shape.
+
+**Root cause.** `dataMigration/shared/src/main/scala/zio/blocks/data/migration/ShadowTable.scala:34-41` (`ShadowTable.create`) calls `dialect.createShadowTableDDL(shadowName, table.name)`, which is `CREATE TABLE IF NOT EXISTS $shadow (LIKE $source INCLUDING ALL)` (`sql/shared/src/main/scala/zio/blocks/sql/Dialect.scala:107-111`). The V2 `Table`'s columns, which `TargetStrategyApplier.prepare` has in hand (`TargetStrategyApplier.scala:40-47`), are never used. The reference page says the shadow table is created "with the target schema" (`docs/reference/data-migration.md:110`).
+
+**Impact.** Every shadow-table migration that adds, drops or renames a column (the main reason to use a shadow table) fails on its first batch with a confusing `column ... does not exist`. Shadow tables only work as written for migrations that keep the column set.
+
+**Test gap.** `PostgresMigrationIntegrationSpec` "SmallMigrator with ShadowTable init" uses separate `v1`/`v2` tables that already exist with the right columns and never writes a row into the shadow table; `MigrationPreviewSpec` checks only the DDL text.
+
+**Suggested fix.** Create the shadow table from `repoV2.table` (its `createTable` DDL under the shadow name, plus the primary key), or take an explicit shadow `Table`/DDL parameter; keep `IF NOT EXISTS` for restarts. Until then, document "create `<table>_<suffix>` with the new columns before `init()`".
+
+### data-migration: `init()` doesn't create the queue table, and with `captureTriggers = true` the installed trigger then makes every application write to the source table fail
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
+
+**Summary.** `SmallMigrator#init` and `LargeMigrator#init` never create the queue table, although `previewSql()` lists its `CREATE TABLE` first, which reads as "init runs this". With `captureTriggers = true`, `init()` succeeds and installs a trigger whose function inserts into the missing queue table, so the next ordinary application `INSERT`, `UPDATE` or `DELETE` on the source table fails. The migration setup takes production writes down.
+
+**Reproducer.** Start PostgreSQL 16:
+
+```bash
+docker run --rm -d --name shop-db -p 5432:5432 \
+  -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -e POSTGRES_DB=shop \
+  postgres:16
+```
+
+Then, in an empty directory:
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
+  "org.postgresql" % "postgresql"                     % "42.7.14"
+)
+run / fork := true
+```
+
+`project/build.properties`:
+
+```
+sbt.version=1.13.0
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.schema.*
+import zio.blocks.schema.migration.Migration
+import zio.blocks.data.migration.*
+import zio.blocks.sql.*
+
+case class Item(id: Long, name: String)
+object Item { implicit val schema: Schema[Item] = Schema.derived }
+
+@main def repro(): Unit = {
+  given transactor: Transactor =
+    JdbcTransactor.fromUrl("jdbc:postgresql://localhost:5432/shop", "shop", "shop", SqlDialect.PostgreSQL)
+  given Dialect = Dialect.Postgres
+  val items = Repo.derived[Item, Long]("items", "id", _.id)
+  transactor.transact {
+    Frag.literal("DROP TABLE IF EXISTS items, items_v2, items_old_v2, items_q CASCADE").update
+    Frag.literal("DROP FUNCTION IF EXISTS items_q_notify() CASCADE").update
+    Frag.literal("CREATE TABLE items (id BIGINT PRIMARY KEY, name TEXT NOT NULL)").update
+  }
+  // No QueueTable.create: previewSql() lists the queue DDL, so it looks as if init() runs it.
+  val migrator = LargeMigrator[Item, Item, Long, Long](
+    items, items, Migration.identity[Item], "items_q", 100, TargetStrategy.ShadowTable("v2"), captureTriggers = true
+  )
+  println(s"preview starts with: ${migrator.previewSql().head.linesIterator.next()}")
+  migrator.init()
+  println("init() succeeded")
+  try {
+    transactor.transact(items.insert(Item(1, "an ordinary application write")))
+    println("application insert succeeded")
+  } catch { case e: java.sql.SQLException => println(s"application insert failed: ${e.getMessage.linesIterator.next()}") }
+}
+```
+
+Run with `sbt run`. Real output:
+
+```scala
+// preview starts with: CREATE TABLE IF NOT EXISTS items_q (
+// init() succeeded
+// application insert failed: ERROR: relation "items_q" does not exist
+```
+
+**Expected.** `init()` creates the queue table (it is `CREATE TABLE IF NOT EXISTS`, so this is idempotent), or at least fails before installing triggers when the queue table is missing.
+
+**Root cause.** `dataMigration/shared/src/main/scala/zio/blocks/data/migration/LargeMigrator.scala:68-80` and `SmallMigrator.scala:50-63`: `init()` calls `TargetStrategyApplier.prepare` and `QueueTable.installTriggers` only; `QueueTable.create` (`QueueTable.scala:79`) is never called. `previewSql()` (`LargeMigrator.scala:156-164`, `SmallMigrator.scala:89-102`) starts with `QueueTable.queueTableDDL`. PL/pgSQL doesn't resolve table names when the function is created, so the trigger installs cleanly and fails at the first write.
+
+**Impact.** Following the reference page (its Full Example never calls `QueueTable.create`) on a live PostgreSQL table breaks every write to that table until someone creates the queue table or drops the trigger.
+
+**Test gap.** Every spec calls `QueueTable.create` before constructing a migrator (`PostgresMigrationIntegrationSpec`, `MigrationIntegrationSpec`); none constructs one without it.
+
+**Suggested fix.** Run `QueueTable.queueTableDDL` in `init()`'s transaction before installing triggers (it is already part of `previewSql()`); if keeping creation separate, check the queue table exists and fail `init()` before `installTriggers`.
+
+### mux: Two threads calling `takeOutbound` (or `receive`) on one stream duplicate and lose messages, then stall the queue for good, and nothing detects it
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/run-a-mux-over-a-socket.md` (backlog H-29), on `main` at efc51f19b. Same at v0.0.56 (`mux/` and `ringbuffer/` are unchanged since the tag).
+
+**Summary.** `MuxStream#takeOutbound` and `MuxStream#receive` are single-consumer: each one calls `MpscRingBuffer#take`, which reads the consumer index with a plain read. Two threads draining one stream at once (for example, two writer loops, or a writer loop plus a "flush" helper) get some messages twice and lose others. The consumer index can also move backwards, after which the queue looks full forever, and every later `send` returns `QueueFull`. There is no error or assertion, only wrong data followed by a hang.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-mux:0.0.56
+import zio.blocks.mux._
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
+import scala.jdk.CollectionConverters._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val n   = 200000
+    val mux = Mux[Int, Integer, Integer](1)
+    val stream = mux.open(1) match {
+      case s: MuxStream[Int, Integer, Integer] @unchecked => s
+      case e: MuxError => sys.error(e.toString)
+    }
+    val taken    = new ConcurrentLinkedQueue[Integer]()
+    val done     = new AtomicBoolean(false)
+    // Two "writer loops" that both drain the same stream: violates the single-consumer contract.
+    def drainer() = new Thread(() => {
+      while (!done.get) stream.takeOutbound() match {
+        case Some(m) => taken.add(m)
+        case _       => ()
+      }
+    })
+    val d1 = drainer(); val d2 = drainer()
+    d1.start(); d2.start()
+    var i = 0
+    val start = System.nanoTime()
+    while (i < n && System.nanoTime() - start < 10_000_000_000L) {
+      stream.send(Integer.valueOf(i)) match {
+        case () => i += 1
+        case _  => Thread.onSpinWait()
+      }
+    }
+    println(s"sent $i of $n")
+    Thread.sleep(500)
+    done.set(true); d1.join(); d2.join()
+    val all    = taken.asScala.toVector.map(_.intValue)
+    val unique = all.distinct
+    println(s"taken: ${all.size}, unique: ${unique.size}, duplicates: ${all.size - unique.size}, missing: ${i - unique.size}")
+  }
+}
+// Two consecutive runs (the numbers vary from run to run; every run so far stalled, duplicated and lost):
+// sent 359 of 200000
+// taken: 124, unique: 114, duplicates: 10, missing: 245
+// sent 389 of 200000
+// taken: 164, unique: 136, duplicates: 28, missing: 253
+```
+
+"sent 359 of 200000" means `send` returned `QueueFull` for the rest of the 10-second budget: the queue never drained again, even though both drainers kept polling.
+
+**Expected.** Either the misuse is detected (a debug-mode owner check, or a CAS on the consumer index that fails loudly), or the documentation says plainly what the failure looks like (duplicates, losses and a permanent `QueueFull`), so that a user who sees those symptoms recognises the cause.
+
+**Root cause.** `ringbuffer/jvm/src/main/scala/zio/blocks/ringbuffer/MpscRingBuffer.scala:152-164`: `take()` reads `consumerIndex` with a plain read (`:155`), takes the slot, and publishes `cIdx + 1` with `CONSUMER_INDEX.setRelease` (`:162`). Two consumers that read the same `cIdx` both return the same element (a duplicate). A consumer that publishes a stale `cIdx + 1` after another has advanced moves the index backwards, onto a slot that is already `null`, so `take` returns `null` (empty) from then on. Producers compute their limit from that stale index, so they see the buffer as full (`:115-120`). `MuxStream#takeOutbound`/`#receive` (`mux/jvm/src/main/scala-3/zio/blocks/mux/PlatformMux.scala:122`, `:144`) call `take()` with no guard.
+
+**Impact.** A protocol that drains streams from more than one thread silently corrupts the message order and then deadlocks the connection. The symptom (permanent `QueueFull`) looks like ordinary back-pressure, so it is hard to trace back to the cause.
+
+**Test gap.** `mux/shared/src/test/scala-3/zio/blocks/mux/MuxSpec.scala` has no concurrent-consumer test, and the ring buffer specs test only the supported single-consumer use. A test can't assert "works" for a contract violation, but a debug-mode check could be tested.
+
+**Suggested fix.** Document the symptoms on `mux.mdx` and in the `MuxStream#receive`/`#takeOutbound` Scaladoc (the branch `mux-socket` does the `mux.mdx` part). Optionally, add a cheap single-consumer guard to `MuxStream` (record the first consumer thread and throw on another while one is active), enabled by a system property, so that the hot path stays a single plain read.
+
+### mux: On a half-closed-remote stream, `receive()` returns `None` forever: the application can't tell that the peer finished
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/run-a-mux-over-a-socket.md` (backlog H-29), on `main` at efc51f19b. Same at v0.0.56.
+
+**Summary.** After the protocol calls `MuxStream#signalRemoteClose` (the peer sent END_STREAM), `MuxStream#receive` drains the buffered messages and then returns `None`, exactly as it does when the next message simply hasn't arrived yet. `MuxStream#isHalfClosed` is `true` in both HALF_CLOSED_LOCAL and HALF_CLOSED_REMOTE, so it doesn't tell the application which side finished, and no other method does. Only when the local side also half-closes does `receive()` return the terminal `StreamClosed`. An application that waits for "the peer is done" before it replies (an upload, a request body) can't learn it from the stream.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-mux:0.0.56
+import zio.blocks.mux._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val mux = Mux[Int, String, String](4)
+    val stream = mux.open(1) match {
+      case s: MuxStream[Int, String, String] => s
+      case e: MuxError                       => sys.error(e.toString)
+    }
+    stream.offerInbound("last message from the peer")
+    stream.signalRemoteClose() // the peer sent END_STREAM
+    println(s"receive #1: ${stream.receive()}")
+    println(s"receive #2: ${stream.receive()}")
+    println(s"receive #3: ${stream.receive()}")
+    println(s"isHalfClosed: ${stream.isHalfClosed}, isClosed: ${stream.isClosed}")
+
+    val other = mux.open(2) match {
+      case s: MuxStream[Int, String, String] => s
+      case e: MuxError                       => sys.error(e.toString)
+    }
+    other.halfClose() // WE finished sending; the peer has not
+    println(s"local half-close: receive = ${other.receive()}, isHalfClosed = ${other.isHalfClosed}")
+  }
+}
+// receive #1: Some(last message from the peer)
+// receive #2: None
+// receive #3: None
+// isHalfClosed: true, isClosed: false
+// local half-close: receive = None, isHalfClosed = true
+```
+
+The two streams are in opposite half-closed states, and every observable value is the same.
+
+**Expected.** Once the inbound queue of a HALF_CLOSED_REMOTE stream is drained, `receive()` reports end-of-stream (for example a `MuxError.StreamClosed`, or a dedicated end value), or the stream exposes which side is closed (`isLocalClosed`/`isRemoteClosed`).
+
+**Root cause.** `mux/jvm/src/main/scala-3/zio/blocks/mux/PlatformMux.scala:122-130`: `receive()` returns `terminalError` when the queue is empty, and only `cancelWith` (`:173-176`) and `closeClosedStream` (`:178-182`) set it. `signalRemoteClose()` (`:159-162`) only CASes the state to `HalfClosedRemote`. `isHalfClosed` (`:166-169`) folds both half-closed states into one boolean. The Scala.js `PlatformMux` behaves the same way.
+
+**Impact.** Every protocol has to invent an in-band end marker to tell the application that the peer finished (the H-29 guide sends `Message.End` through the inbound queue just before `signalRemoteClose()`). An application that relies on `receive()` alone polls `None` forever. `docs/reference/mux.mdx:776` said only "You can still call `receive()` to drain any buffered inbound messages" (the branch `mux-socket` adds what happens after that).
+
+**Test gap.** `MuxSpec` "signalRemoteClose transitions OPEN to HALF_CLOSED_REMOTE" (`mux/shared/src/test/scala-3/zio/blocks/mux/MuxSpec.scala:198`) asserts only `isHalfClosed`. No test calls `receive()` on a drained HALF_CLOSED_REMOTE stream.
+
+**Suggested fix.** Add `isRemoteClosed`/`isLocalClosed` (cheap: one volatile read of `state`). Alternatively, make `receive()` return a distinct end-of-stream value once a HALF_CLOSED_REMOTE stream is drained. Either way, document it on `mux.mdx` and in the `MuxStream#receive` Scaladoc.
+
+### mux: A fully closed stream leaves the `Mux` while its outbound queue still holds messages, and `Mux` can't list its streams
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/run-a-mux-over-a-socket.md` (backlog H-29), on `main` at efc51f19b. Same at v0.0.56.
+
+**Summary.** When the second side half-closes (or `close()` is called), the stream is removed from the registry at once: `Mux#get(id)` returns `None` and `Mux#activeCount` drops. But the stream's outbound queue still holds whatever the application sent last (typically the final reply or an end marker), and `takeOutbound()` on the stream object still returns it. `Mux` has no method that lists its streams (only `get(id)` and `activeCount`). So a protocol that finds the streams to drain through the `Mux` silently never sends those last messages. A protocol must keep its own id → stream table and keep each stream there until `takeOutbound()` returns an error.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-mux:0.0.56
+import zio.blocks.mux._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val mux = Mux[Int, String, String](4)
+    val stream = mux.open(1) match {
+      case s: MuxStream[Int, String, String] => s
+      case e: MuxError                       => sys.error(e.toString)
+    }
+    stream.signalRemoteClose()     // the peer already finished
+    stream.send("final reply")     // the application's last message
+    stream.halfClose()             // ... and it is done: both sides closed
+    println(s"isClosed: ${stream.isClosed}, mux.get(1): ${mux.get(1)}, activeCount: ${mux.activeCount}")
+    // A protocol writer that finds streams through mux.get(id) never sees "final reply" again,
+    // but it is still queued on the stream object:
+    println(s"takeOutbound: ${stream.takeOutbound()}")
+    println(s"takeOutbound: ${stream.takeOutbound()}")
+  }
+}
+// isClosed: true, mux.get(1): None, activeCount: 0
+// takeOutbound: Some(final reply)
+// takeOutbound: StreamClosed(1)
+```
+
+**Expected.** Either the `Mux` keeps a closed stream reachable until its outbound queue is drained, or it offers a way to enumerate streams with pending output (for example `Mux#streams` or `Mux#foreachPending`). At the least, the docs should say that the protocol owns this bookkeeping.
+
+**Root cause.** `mux/jvm/src/main/scala-3/zio/blocks/mux/PlatformMux.scala:178-182`: `closeClosedStream` sets `Closed` and calls `mux.removeStream(streamId)` (`:70-74`), regardless of `outboundQueue`. The `Mux` trait (`mux/shared/src/main/scala-3/zio/blocks/mux/Mux.scala:81-116`) exposes only `open`, `get`, `cancel`, `closeAll` and `activeCount`. Scala.js behaves the same way.
+
+**Impact.** A natural writer loop (`for id <- knownIds; s <- mux.get(id)` drain `s`) drops each stream's final messages exactly when a conversation ends, which is the hardest case to notice in tests. `close()` behaves the same way: its Scaladoc lists what `send`/`receive`/`offerInbound` do afterwards, but not that queued outbound messages stay drainable.
+
+**Test gap.** `MuxSpec` has no test that sends, closes both sides, and then drains `takeOutbound()`. The "close after halfClose sets isClosed" test (`MuxSpec.scala:181`) checks only the state.
+
+**Suggested fix.** Document it on `mux.mdx` and in the `close()`/`halfClose()` Scaladoc ("the outbound queue survives closing; drain it with `takeOutbound()` until it returns an error"). Consider adding an enumeration method to `Mux` so that protocols don't have to mirror the registry.
+
+### Streams (JVM): `NioReaders.fromChannel` and `NioStreams.fromChannel` end the data at the first zero-byte read of a non-blocking channel
+
+Found 2026-10-27 while writing the Scaladoc for `NioReaders.fromChannel` and `NioStreams.fromChannel` (wave 3 of the streams Scaladoc, branch `streams-scaladoc-wave-3`), on `main` at `59e7cb81e`. The same at tag `v0.0.56`. Citations at `origin/main` `59e7cb81e`.
+
+**Summary.** `NioReaders.fromChannel(ch)` and `NioStreams.fromChannel(ch)` accept any `ReadableByteChannel`. A `SocketChannel` or `Pipe.SourceChannel` in non-blocking mode returns `0` from `read` when no bytes are available yet. The reader takes that as the end of the data: `readByte()` returns `-1` (while `isClosed` stays `false`), bulk reads return `-1`, and a stream built on it ends with `Right` and only the bytes read so far. Nothing fails, so the data is silently cut short. The asynchronous adapter, `AsyncNioReaders`, retries a zero-byte read instead (`docs/reference/streams/primitives/reader.md:503` states that rule for it).
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, JDK 25, `scala-cli --power run --server=false --offline NonBlockingChannel.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import java.nio.ByteBuffer
+import java.nio.channels.{Pipe, ReadableByteChannel}
+import zio.blocks.streams._
+
+object NonBlockingChannel {
+  // A channel that has 1 byte, then nothing yet (0, as a non-blocking channel returns), then 2 more bytes.
+  final class Slow extends ReadableByteChannel {
+    private var script = List(Array[Byte](1), Array.emptyByteArray, Array[Byte](2, 3))
+    def read(dst: ByteBuffer): Int = script match {
+      case h :: t => script = t; dst.put(h); h.length
+      case Nil    => -1
+    }
+    def isOpen: Boolean = true
+    def close(): Unit   = ()
+  }
+
+  def main(args: Array[String]): Unit = {
+    println("stream:         " + NioStreams.fromChannel(new Slow).runCollect)
+    val reader = NioReaders.fromChannel(new Slow)
+    println("reader:         " + List(reader.readByte(), reader.readByte()) + s" isClosed=${reader.isClosed}")
+
+    // The same with a real non-blocking pipe: the writer has not written yet.
+    val pipe = Pipe.open()
+    pipe.source().configureBlocking(false)
+    val fromPipe = NioReaders.fromChannel(pipe.source())
+    println("empty pipe:     " + fromPipe.readByte() + s" isClosed=${fromPipe.isClosed}")
+    pipe.sink().write(ByteBuffer.wrap(Array[Byte](7)))
+    println("after a write:  " + fromPipe.readByte())
+  }
+}
+// stream:         Right(Chunk(1))
+// reader:         List(1, -1) isClosed=false
+// empty pipe:     -1 isClosed=false
+// after a write:  7
+```
+
+**Expected.** Either the reader rejects a non-blocking channel (for example by checking `SelectableChannel#isBlocking` at construction and throwing `IllegalArgumentException`), or it does not report the end until `read` returns `-1`. The stream should never end with `Right(Chunk(1))` while the channel still has bytes to deliver.
+
+**Root cause.** `streams/jvm/src/main/scala/zio/blocks/streams/internal/ChannelReader.scala:132-138`: `fill()` returns `buf.hasRemaining`, which is `false` after a zero-byte read, and only `n < 0` marks the reader finished (`st = 1`). `readByte` (`:65-70`) and `readBytes` (`:72-85`) then return `-1`, the end value, without changing state; `readN` (`:98`) even notes "non-blocking channel with no available data" as a reason to stop.
+
+**Impact.** A program that wraps a non-blocking socket or pipe (common when the channel also serves a selector elsewhere) gets a silently truncated stream, with `Right` as the result; a hand-written pull loop stops early and sees `isClosed == false`.
+
+**Test gap.** The reader tests (`NioReadersWritersSpec.scala:350`, `:368`, `:376`) and the stream tests (`NioStreamsSinksSpec.scala:82-131`) use channels that never return `0`; the only non-blocking channels in the tests (`NioStreamsSinksSpec.scala:272`, `:294`) are pipe sources the test itself drains after a `NioSinks.fromChannel` run, not channels read through `NioReaders` or `NioStreams` (`grep -rn "configureBlocking" streams/*/src/test`).
+
+**Suggested fix.** The cheapest: document that `ch` must be in blocking mode (the branch Scaladoc now does) and reject a `SelectableChannel` that is not blocking when the reader is made, once per reader, so no per-element cost is added. Alternatively, loop in `fill()` while `read` returns `0` (with `Thread.onSpinWait()` or a short park), which matches `AsyncNioReaders` but busy-waits; it runs only on a buffer refill, not per element. Add a test with a non-blocking `Pipe` source for each choice.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -8089,15 +12130,87 @@ grep -rn "unsafeRunAsync" async/*/src/main | wc -l   # 0
 
 **Suggested fix.** Rename the test labels to the runner they exercise (`start`/`Running`).
 
+### htmx examples: the `zioBlocks` helper in `zio-blocks-htmx-examples/build.sbt` used the 3.10 artifact rule for 0.0.56
+
+Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`), from `origin/main` `a643b7cb0`. Same at tag `v0.0.56`.
+
+**Summary.** The helper chose `zio-blocks-next-*` only for Scala 3.10 and later. Version 0.0.56 publishes the `next` artifacts for Scala 3.9 and later, which is the rule `http-model-examples` uses. On Scala 3.9.0 the examples therefore resolve `zio-blocks-http-htmx` instead of the `next` artifact.
+
+**Reproduction.** Compare the `minor >= 10` line in `zio-blocks-htmx-examples/build.sbt` on main with the `minor >= 9` line in `http-model-examples/build.sbt`. The sonnet and Haiku runs both changed this line in their branches; the resolution output was not captured on main.
+
+**Expected.** Both example builds use the same rule.
+
+**Root cause.** `zio-blocks-htmx-examples/build.sbt`, the `zioBlocks` helper.
+
+**Impact.** A latent artifact mismatch for the htmx examples on Scala 3.9.x. CI compiles the examples but cannot show which artifact name resolved.
+
+**Test gap.** None: CI does not check which artifact is used.
+
+**Suggested fix.** Change `minor >= 10` to `minor >= 9` in that helper, as the one-line fix in the T-10 branches does.
+
+### streams-examples does not compile on Scala 2.13: `NioBinaryTelemetryWalkthrough.scala` uses `import zio.blocks.streams.*`
+
+Found 2026-10-26 while writing H-26 (`docs/guides/run-streams-without-blocking.md`), on `main` at `7f551627c`.
+
+**Summary.** The AGENTS.md recipe for checking an example on Scala 2.13 (`sbt "++2.13.18!" compile` inside the examples build) fails for `streams-examples`. `streams-examples/src/main/scala/nio/NioBinaryTelemetryWalkthrough.scala` has the Scala 3-only `import zio.blocks.streams.*`, which 2.13 reads as "object * is not a member of package zio.blocks.streams", and every use after it fails too (`Stream.fromChunk`, `NioSinks`, `NioStreams`, `NioWriters`, `NioReaders`).
+
+**Reproduction.** `cd streams-examples && sbt "++2.13.18!; compile"`.
+
+**Expected.** The build compiles on 2.13, or Scala 3-only files are excluded on 2.13.
+
+**Impact.** No example package in `streams-examples` can be checked on 2.13 without hiding that file first (H-26 used a local, uncommitted `Compile / unmanagedSources / excludeFilter` to compile its own package, which passed). CI doesn't compile the examples on 2.13, so nothing catches it. Only this file was confirmed; others may fail too.
+
+**Suggested fix.** Change `.*` to `._` in that file (or add a Scala 3-only source filter), then compile the whole build on 2.13 once.
+
+### openapi: `OpenAPIRoundTripSpec`'s "round-trips through JSON" tests only check that each fixture is valid JSON
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/generate-scala-types-from-openapi.md` (backlog H-44), on `main` at `202578f27` (the spec is unchanged at `9d5ca8f91`). Same at v0.0.56. Verified by running.
+
+**Summary.** The suite "JSON round-trip tests" in `OpenAPIRoundTripSpec` has three tests named "<fixture> round-trips through JSON" (minimal.json, petstore.json, with-security.json). Each one asserts only `Json.parse(jsonString).isRight`: none decodes the document through `openAPICodec`, let alone encodes it back. Any well-formed JSON passes, including a document the codec rejects.
+
+Decoding is covered elsewhere for petstore.json only. `OpenAPIJsonSerializationSpec.petstoreRoundTripSuite` (`openapi/jvm/src/test/scala/zio/blocks/openapi/OpenAPIJsonSerializationSpec.scala:756-775`) decodes and encodes it, but asserts only top-level fields (`openapi`, `info`, and whether `paths` and `components` are present). No test decodes a document whose component schemas use `oneOf` with a `discriminator` and `mapping`, a string `enum`, `type: [T, "null"]` or an `example`, and checks that they survive into `SchemaObject`. H-44 depends on exactly those (verified by running: they do survive at 0.0.56).
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-openapi:0.0.56
+//> using options -experimental
+// Run: scala-cli run --server=false Repro.scala
+import zio.blocks.openapi._
+import zio.blocks.schema.json._
+
+@main def repro(): Unit = {
+  // Not an OpenAPI document: `openapi` is a number and `info` is missing.
+  val broken = """{"openapi": 42, "components": {"schemas": {"Book": {"type": "object"}}}}"""
+  // The only assertion each OpenAPIRoundTripSpec "round-trips through JSON" test makes:
+  println(s"Json.parse(...).isRight: ${Json.parse(broken).isRight}")
+  // What a round trip through the OpenAPI model would check:
+  println(s"openAPICodec.decode: ${Json.parse(broken).flatMap(json => OpenAPICodec.openAPICodec.decode(json))}")
+}
+// Json.parse(...).isRight: true
+// openAPICodec.decode: Left(zio.blocks.schema.SchemaError: expected Json.String at: .)
+```
+
+**Expected.** A test named "round-trips through JSON" decodes the fixture with `openAPICodec`, encodes it again, and compares, modulo the known trailing blank lines on descriptions (the Library bugs entry "every description in the exported JSON ends with ...").
+
+**Root cause.** `openapi/jvm/src/test/scala/zio/blocks/openapi/OpenAPIRoundTripSpec.scala:28-41`: each of the three tests is `assertTrue(Json.parse(jsonString).isRight)`.
+
+**Impact.** A regression in decoding components (discriminator, enum, nullable unions, examples) wouldn't fail CI. minimal.json and with-security.json never pass through the codec in any full-document test.
+
+**Test gap.** This entry is the test gap.
+
+**Suggested fix.**
+- In `OpenAPIRoundTripSpec`, decode each fixture, re-encode it and compare the `Json` (or assert decode success at least).
+- Add a fixture whose components use `oneOf` with a `discriminator` and `mapping`, a string `enum`, `type: [T, "null"]`, `additionalProperties` and an `example`, and assert each survives in `SchemaObject`. `openapi-examples/src/main/openapi/bookstore.json` from H-44 covers all of these.
+
 ## Documentation errors
 
 Pages that contradict the source. None of these were copied into the new guides.
 
 **schema / JSON**
 
-- `json-config.md` (around lines 146-175) says `implicit val nameMapper: NameMapper = NameMapper.SnakeCase` in the companion makes `toJson` emit snake_case (confirmed wrong by mdoc while writing M-01: the field stays `firstAuthor`). Nothing reads an implicit `NameMapper`. The real ways are `JsonCodecDeriver.withFieldNameMapper` with `Schema#derive`, or `@Modifier.fieldNaming`. The output comments hide the problem because the blocks are compile-only. Severity: high, because it teaches code that silently does nothing.
 - `customize-json-encoding.md` (H-02; the table around lines 357-361 and the prose around line 431) presents `withRequireCollectionFields` and `withRequireDefaultValueFields` as decoder-only settings. Setting either to true also makes the encoder write empty collections and default values (see Usability traps). Found while writing M-01.
-- `json-config.md` "Custom Mappers" lists only `Identity`, `SnakeCase` and `KebabCase`; `CamelCase`, `PascalCase` and `Custom(f)` also exist.
 - `modifier.md`, `transient`: does not say that a transient field's JSON value is ignored on decode and the default is used.
 - `schema-error.md` (lines 56-57, 171-172, 283-289, 313-316) shows `Missing field 'x' at: .path` as the decode result. JSON decoding reports `missing required field "x" at: .path` (`JsonReader.scala:89`).
 - `syntax.md` shows `show` output as `Record { name = Alice, age = 30 }`; the real output is the EJSON form (`DynamicValue.toString`).
@@ -8109,19 +12222,11 @@ Pages that contradict the source. None of these were copied into the new guides.
 - `validation.md:13` ("Automatic enforcement during schema-based decoding") and `:281` apply only to `Schema#transform` wrappers. `Validation` constraints are enforced only by `DynamicSchema#check` (see the Usability traps entry on `Validation`). Its newtype examples (`case class Email private (value: String)` and so on) also keep a public `apply` and `copy` on Scala 2.13, so `Email("junk")` compiles and skips the check (see Usability traps).
 - `schema-error.md:41-43` says multiple independent problems are surfaced all at once and that every `Codec#decode` returns them in one `SchemaError`. The JSON and TOON codecs stop at the first failure; only `Schema#fromDynamicValue` (and `Into.derived`) collect every error. Found while writing H-04, which shows both.
 - `json-schema.md:366` shows an error message without the ` at: <path>` suffix that `SchemaError.message` adds. The page also does not mention the `pattern` anchoring behaviour above.
-- `ValidationOptions` Scaladoc (`JsonSchema.scala:376-377`) says format checks are annotation-only by default; the code defaults to `validateFormats = true`.
-- `json-config.md:89-92`: the `ReaderConfig` table gives `preferredCharBufSize` a default of `8192`; the default is `4096` (`ReaderConfig.scala:108`). The table also leaves out `preferredBufSize` (32768), `maxBufSize` (33554432) and `maxCharBufSize` (4194304), so the two safety limits are undocumented on the reference page. Found while writing H-50.
-- `json-config.md:208` says "`checkForEndOfInput` adds one comparison". After the value, the reader skips all trailing whitespace and, for an `InputStream` or `ByteBuffer`, keeps reading input to do it (`JsonReader.scala:1831-1850`). `:207` ("minimal performance impact" of indentation) and `:214` ("compact output is faster") are not backed by any benchmark in the repo. Found while writing H-50.
 - `json/index.md:66-67` lists "order" as a `WriterConfig` option and "number handling" as a `ReaderConfig` option. Neither exists: `WriterConfig` has `indentionStep`, `preferredBufSize` and `escapeUnicode` (`WriterConfig.scala:42-44`), and `ReaderConfig` has only buffer sizes and `checkForEndOfInput` (`ReaderConfig.scala:50-54`). Found while writing H-50.
 
-- `json.md:25` says "Objects use `Vector[(String, Json)]`". `Json.Object` holds a `Chunk[(String, Json)]` (`Json.scala:493`). Found while writing H-06; verified.
 - `json.md:66-86` ("String Interpolators") says the `json"..."` interpolator is compile-time validated, without saying it does not compile on Scala 2.13 in user code (see Library bugs).
-- `json.md:471` says the `Auto` merge strategy concatenates arrays, and the table at `json.md:494-501` lists a `Deep` strategy and says `Auto` and `Shallow` concatenate arrays. There is no `Deep` (`MergeStrategy.scala:37-115` has `Auto`, `Replace`, `Shallow`, `Concat`, `Custom`); `Auto` merges arrays by index (`{"arr":[1,2]}` merged with `{"arr":[9]}` gives `[9,2]`), and `Shallow` takes the right array (`[9]`). Verified with 0.0.56.
 - `json.md:732-736` shows `toKV` output as `($.a.b, Json.Number(1))`. It prints `Chunk((.a.b,1),(.a.c,2))`; `DynamicOptic` has no `$` prefix. Verified.
-- `json.md:904-905` shows `Left(SchemaError: Index 5 out of bounds at path $.users[5])`. The real message is `Index 5 out of bounds (size: 1) at: [5]` (`Json.scala:671-672`): no `$`, and the path holds only the index. Verified.
 - `json-selection.md:92` says to access elements "using `JsonSelection#apply` or `JsonSelection#get`". `JsonSelection` has `apply(index: Int)` (`JsonSelection.scala:182`) but no `get(Int)`; the example compiles only because `data` is a `Json`, which has `get(index)`.
-- `json-selection.md:284` shows `data.get("age").error  // Some(SchemaError("field not found"))`. The message is `Key 'age' not found` (`Json.scala:508-516`). Verified.
-- `JsonSelection` Scaladoc (`JsonSelection.scala:29`) shows `json.get("users").asArrays.apply(0).get("name").asStrings`; there are no `asArrays`/`asStrings` (they became the `arrays`/`strings` filters in #830). `Json` Scaladoc (`Json.scala:40`) says "Numbers use `String`"; `Json.Number` holds a `BigDecimal` (`Json.scala:796`).
 
 **schema / optics and paths**
 
@@ -8656,8 +12761,658 @@ Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (b
 
 **Suggested text.** "**`Option` fields on one side are allowed.** An `Option` field absent from the other type is dropped on the way out and comes back as `None`, so `Some(v)` does not survive a round trip:"
 
+### docs: the htmx reference never says which htmx version its attribute syntax targets
+
+Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`), from `origin/main` `a643b7cb0`.
+
+**Summary.** `docs/reference/htmx/index.md` documents attributes such as `hx-trigger` and `hx-swap` without saying which htmx release they target. The syntax targets htmx 2.x; htmx 4.x parses these attributes differently (HCON), so readers pasting the attributes into a 4.x page get different behaviour.
+
+**Suggested fix.** One sentence on the reference index: "The attribute syntax targets htmx 2.x" and the pinned script version (for example `htmx@2.0.11`).
+
+**Also seen (opus run, 2026-10-23).** The module's `hxDisable: Boolean` renders `hx-disable="true"`, which htmx 4 reads as a CSS selector, and htmx 4.0.0 reads none of `hx-params`, `hx-disinherit`, `hx-prompt`, `hx-disabled-elt` or `hx-ext`. Typed attributes therefore compile and do nothing under htmx 4. This is the strongest reason to pin the version in the reference.
+
+### datastar reference: "Supported Scala versions: 2.13.x and 3.x" is wrong, the module is Scala 3 only
+
+Found 2026-10-26 while writing `docs/guides/build-a-live-dashboard-with-datastar.md` (T-11), on `main` at `d00e7d1af`. Same text at tag `v0.0.56`.
+
+**Summary.** `docs/reference/datastar/index.md:53` says "Supported Scala versions: 2.13.x and 3.x". The module is built for Scala 3 only, and no Scala 2.13 artifact is published.
+
+**Reproduction** (shell, run exactly as written 2026-10-26):
+
+```bash
+for a in zio-blocks-datastar_3 zio-blocks-next-datastar_3 zio-blocks-datastar_2.13 zio-blocks-next-datastar_2.13; do
+  echo "$a: $(curl -s -m 20 -o /dev/null -w '%{http_code}' https://repo1.maven.org/maven2/dev/zio/$a/0.0.56/$a-0.0.56.pom)"
+done
+# zio-blocks-datastar_3: 200
+# zio-blocks-next-datastar_3: 200
+# zio-blocks-datastar_2.13: 404
+# zio-blocks-next-datastar_2.13: 404
+```
+
+**Expected.** The page says "Scala 3 only" (the module table in `docs/index.md:121` already says `3.x`).
+
+**Root cause.** `build.sbt:1905` declares `stdSettings("zio-blocks-datastar", Seq(Scala3, Scala3Next))`, with no 2.13 entry, so no `_2.13` artifact exists. The reference line was never updated, and the installation block on the same page also omits the Scala 3.9+ rule (`zio-blocks-next-datastar` plus `-experimental`).
+
+**Impact.** A Scala 2.13 user follows the install instructions and gets an unresolved dependency.
+
+**Test gap.** Nothing checks docs claims against `crossScalaVersions`.
+
+**Suggested fix.** Replace the line with "Supported Scala versions: 3.x (no Scala 2.13 artifact)" and add the 3.9+ `zio-blocks-next-datastar` / `-experimental` variant to the install block.
+
+### docs: `typeid.md:1927` lists "named tuples" under `TypeRepr.Tuple(elems)`, but a named tuple's TypeId is an applied `NamedTuple`, and its `TupleElement` labels are always `None`
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10, research item 7), on `main` at `b6c0c30e4`. Same line and content at v0.0.56.
+
+**Summary.** The `TypeRepr` variant table puts `Tuple(elems)` next to "`(A, B, C)`, named tuples", which suggests a named tuple is a `Tuple` whose elements carry labels. In fact `TypeId.of[(city: String, tempC: Double)]` is the type `scala.NamedTuple.NamedTuple` applied to two plain `Tuple` reprs: one of label string constants and one of element types. Every `TupleElement` label is `None`.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`), run on JDK 21, and this `build.sbt`:
+
+```scala
+scalaVersion := "3.7.4"
+
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
+```
+
+**Reproduction.** `Repro.scala` (`zio-blocks-schema` brings in typeid), run with `sbt run`:
+
+```scala
+import zio.blocks.typeid._
+
+@main def repro(): Unit = {
+  val id = TypeId.of[(city: String, tempC: Double)]
+  println(id)
+  // NamedTuple[("city", "tempC"), (String, Double)]
+  println(id.fullName)
+  // scala.NamedTuple.NamedTuple
+  println(id.typeArgs)
+  // List(Tuple(List(TupleElement(None,StringConst(city)), TupleElement(None,StringConst(tempC)))), Tuple(List(TupleElement(None,Ref(String)), TupleElement(None,Ref(Double)))))
+}
+```
+
+**Expected (doc).** The row should not imply that named tuples map to labelled `Tuple` elements.
+
+**Root cause.** `typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeIdMacros.scala` `buildTupleTypeRepr` (`:1597-1609` on main) builds every element as `TupleElement(None, …)`, with the comment "Named tuple support would require additional detection" (`:1603-1604`). `isTupleType` (`:1583-1585`) doesn't match `NamedTuple`, so a named tuple takes the generic applied-type path. `TypeRepr.scala:378-382` documents `TupleElement.label` as being for named tuples, but the macro never fills it in.
+
+**Impact.** Low. A reader who matches on `TypeRepr.Tuple` to find named-tuple labels gets nothing. The labels are reachable as `StringConst` elements of `typeArgs.head`.
+
+**Test gap.** Nothing checks the `TypeRepr` table against what the macro builds for named tuples.
+
+**Suggested fix.** Change the row's example to "`(A, B, C)`" and add a sentence below the table: "A named tuple `(a: A, b: B)` is the applied type `NamedTuple[("a", "b"), (A, B)]`: its `typeArgs` hold a tuple of label constants and a tuple of element types." Alternatively, fill `TupleElement.label` in the macro and keep the row.
+
+### Streams: `docs/reference/streams/core/stream.md` claims `repeated` rematerializes, cites the old `mapPar` Scaladoc, and prints the wrong release message
+
+Found 2026-10-26 while fact-checking the reference page against the wave 1 streams Scaladoc (branch `streams-scaladoc-wave-1`), on `streams-scaladocs` at `b93330329`. Not filed on GitHub yet.
+
+**Summary.** Six statements in `docs/reference/streams/core/stream.md` (one also in `platform-differences.md`) do not match the code or the new Scaladoc:
+
+1. "Repeating" (line 1604): "Rematerializes the stream after each clean completion". The code resets readers instead (Entry 1); the page should describe the known bug, as the Scaladoc now does.
+2. The warning box "The scaladoc is a throughput claim, not an ordering claim" (lines 1315-1317) quotes the old Scaladoc of `mapPar`, `flatMapPar` and `mergeAll` ("degrades to sequential `map`"). Wave 1 replaced that text, so the box now quotes Scaladoc that no longer exists; drop the box or reword it.
+3. `Stream.fromAcquireRelease` example (lines 1776-1793): the output comment says `Closing database connection`, but `close()` prints `Closing connection db-1`.
+4. "Motivation", point 2 (lines 127-134): "If FileReader throws ... cleanup still runs". `new FileReader("build.sbt")` runs before `Stream.fromJavaReader` is called, so an exception there is thrown at construction, outside the stream; there is nothing to clean up, but the comment claims the stream handles it. Line 128 also says the `FileReader` is acquired lazily; it is opened eagerly, at that same construction.
+5. Lines 1311-1313 (and `docs/reference/streams/execution-and-compatibility/platform-differences.md:225`) describe a Scala.js parallel-merge path that no public API can reach.
+6. Line 1215 repeats the false `bufferSize` claim (see the Library bugs entry "`Stream.bufferSize` has no effect on a JVM blocking terminal unless the stream has an asynchronous stage or a `catchAll`").
+
+**Expected.** The page matches the code; for 1, describe the real behaviour and call it a known bug.
+
+**Suggested fix.** Edit the six places, then run `docs/mdoc` on the page.
+
+### docs: `response-headers.md` combines `HX-Redirect` with `HX-Trigger-After-Settle`, which htmx never fires in that case
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`; `docs/reference/htmx/response-headers.md:214-219` ("Reading and Writing Through Request and Response"). Same at v0.0.56.
+
+**Summary.** The example builds `afterSubmit` with `HxRedirect(...)` and `HxTriggerAfterSettle(HxEventPayload.Event("orderPlaced"))`, presented as the common case after a form submission. htmx 2 handles `HX-Redirect` (and `HX-Location`, `HX-Refresh`) by navigating and returning before the swap, so the after-swap and after-settle trigger headers are never processed; only `HX-Trigger` fires.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** `src/main/scala/RedirectSettle.scala`, run with `sbt -batch "runMain redirectSettle"` (the page's own code):
+```scala
+import zio.http.{Response, URL}
+import zio.http.htmx.headers.{HxEventPayload, HxRedirect, HxTriggerAfterSettle}
+
+@main def redirectSettle(): Unit = {
+  val afterSubmit = Response.ok
+    .addHeader(HxRedirect(URL.parse("/orders").toOption.get))
+    .addHeader(HxTriggerAfterSettle(HxEventPayload.Event("orderPlaced")))
+  afterSubmit.headers.toList.foreach { case (name, value) => println(s"$name: $value") }
+}
+// hx-redirect: /orders
+// hx-trigger-after-settle: orderPlaced
+```
+Observed in the browser with a response carrying `HX-Redirect: /orders/1001`, `HX-Trigger: cart-updated` and `HX-Trigger-After-Settle: order-placed`, listeners for both on `<body>`:
+```
+// console: EVENT cart-updated
+// url now http://127.0.0.1:8615/orders/1001     (no order-placed event)
+```
+**Expected.** An example whose headers all take effect, or a note that redirect/location/refresh skip after-swap/after-settle triggers.
+
+**Root cause.** htmx.js `handleAjaxResponse`: `HX-Trigger` at 4863-4865, then early `return`s for `HX-Location` (4867-4880), `HX-Redirect` (4884-4889) and `HX-Refresh` (4891-4895); after-swap/settle triggers are handled only in the swap callbacks (4987-5001).
+
+**Impact.** Readers wire client logic to an event that never fires after a redirect.
+
+**Test gap.** Doc-only.
+
+**Suggested fix.** Replace `HxTriggerAfterSettle` with `HxTriggerHeader` in the example (or drop the redirect), and add one sentence on the ordering. H-40 states the rule.
+
+### docs/examples: the `JdkHttp` adapter drops the connection silently when writing the response fails
+
+Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`; `http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala` (H-35 guide `docs/guides/serve-http-model-requests.md`), copied unchanged into T-10, H-40 and others. Not in v0.0.56 (the file was added after the tag).
+
+**Summary.** `handler` catches `NonFatal` only around `app(request)`; `writeResponse` runs outside that `try`. When writing fails (e.g. a header value the JDK rejects, see the non-ASCII entry), the exception escapes to the JDK dispatcher, the exchange is closed, the client sees an empty reply, and nothing is logged.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
+run / fork := true
+```
+
+**Reproducer.** Copy `http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala` to `src/main/scala/JdkHttp.scala` with its package line changed to `package jdkrepro`, add `src/main/scala/SilentDrop.scala`, run with `sbt -batch "runMain jdkrepro.SilentDrop"`:
+```scala
+package jdkrepro
+
+import java.net.URI
+import java.net.http.{HttpClient, HttpRequest, HttpResponse}
+import zio.http._
+
+object SilentDrop {
+  def main(args: Array[String]): Unit = {
+    val app: Request => Response = _ => Response.text("ok").addHeader("hx-trigger", "Added Sencha ✓")
+    JdkHttp.withServer(app) { port =>
+      val client = HttpClient.newHttpClient()
+      val uri    = URI.create(s"http://127.0.0.1:$port/")
+      try println(client.send(HttpRequest.newBuilder(uri).build(), HttpResponse.BodyHandlers.ofString()).statusCode)
+      catch { case e: java.io.IOException => println(s"client: $e") }
+    }
+    println("server printed nothing")
+  }
+}
+// client: java.io.IOException: HTTP/1.1 header parser received no bytes
+// server printed nothing
+```
+**Expected.** A logged error and, when headers are not yet sent, a `500` response.
+
+**Root cause.** `JdkHttp.scala:67-82`: the `catch` at 76 covers only `toRequest`/`app`; `writeResponse(exchange, response)` at 81 sits outside it, inside only `try ... finally exchange.close()`.
+
+**Impact.** Hard-to-debug "empty reply from server" in every guide that copies the adapter (this cost time in H-40 before the cause was found).
+
+**Test gap.** The adapter has no test for a failing `writeResponse`.
+
+**Suggested fix.** Wrap `writeResponse` in its own `try`/`catch NonFatal` that logs to `System.err` and, if `exchange.getResponseCode == -1`, sends a `500` with no body; update the copies.
+
+### Avro reference: `Option`, `Char` and the temporal types are listed without their Avro shape
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/encode-and-decode-records-with-avro.md` (backlog H-13), on `main` at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** `docs/reference/schema/built-in-codecs/avro.md:349-352` ("Primitive Type Support") lists `Char` under "Logical", lists `Instant`, `LocalDate`, `LocalDateTime` and the other temporal types, and lists `UUID` under "Special", without saying what Avro shape each one takes. `Option` and `Either` are not mentioned. The biggest interop surprise is `Option`: it is a union of two records, not `["null", T]`. Also `Char` is an `int` code point, not a `string`, so "Logical" is the wrong word.
+
+**Reproduction.** File `Mapping.scala`, run with `scala-cli run --server=false Mapping.scala -M Mapping`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-avro:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.avro._
+
+object Mapping {
+  def main(args: Array[String]): Unit = {
+    println(Schema[Option[Int]].derive(AvroFormat).avroSchema.toString)
+    println(Schema[Char].derive(AvroFormat).avroSchema.toString)
+    println(Schema[Either[String, Int]].derive(AvroFormat).avroSchema.toString)
+  }
+}
+// [{"type":"record","name":"None","namespace":"scala","fields":[]},{"type":"record","name":"Some","namespace":"scala","fields":[{"name":"value","type":"int"}]}]
+// "int"
+// [{"type":"record","name":"Left","namespace":"scala.util","fields":[{"name":"value","type":"string"}]},{"type":"record","name":"Right","namespace":"scala.util","fields":[{"name":"value","type":"int"}]}]
+```
+
+**Expected.** The reference states, for each type it lists, the Avro schema shape. For `Option`, that it is a union with `None` first, so `None` is index 0 and `["null", T]` is not produced. For `Char`, `int`, under a heading that is not "Logical". For `Instant`, `LocalDate` and `UUID`, that they are records or `fixed(16)`, not the logical types.
+
+**Root cause.** Documentation gap, not a code bug. The behaviour is pinned by `schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:739-745` (the `option` test expects the `None`/`Some` union) and `AvroFormatSpec.scala:101-103` (`Char` expects `"int"`). The union is produced by `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodecDeriver.scala:210` (`AvroSchema.createUnion(caseAvroSchemas)` in case order).
+
+**Impact.** A team that writes a Java or Python reader from the reference alone expects `["null", T]` and a string for `Char`. They find out at runtime.
+
+**Test gap.** The spec pins the behaviour, but nothing checks the reference page; the docs mdoc build does not run the reference page's type list.
+
+**Suggested fix.** Add the mapping table from the H-13 guide ("How Scala Types Map to Avro") to `avro.md`, with the `Option` union called out. Change the "Logical" heading so `Char` sits under the int-encoded types.
+
+### Streams: `docs/reference/streams/primitives/reader.md` and `writer.md` contradict the code on `isClosed`, the `AnyRef` lane, error-closed writers, `Writer.single` and `concat`
+
+Found 2026-10-27 while writing the Scaladoc for `Reader` and `Writer` (wave 2 of the streams Scaladoc rollout, PR #1862, branch `streams-scaladoc-wave-2`), on `main` at `b6c0c30e4`. Line numbers refer to that commit. Same text at v0.0.56. Each claim was checked with a probe against 0.0.56; the reference pages were not edited.
+
+**Summary.** Seven statements or omissions on the two reader/writer reference pages:
+
+1. `docs/reference/streams/primitives/reader.md:980`: "`isClosed` ... Its result is monotone: once `true`, it never becomes `false`". `reset()` makes it `false` again on every resettable reader (probe: `fromChunk` read to the end, `isClosed` `true`, `reset()`, `isClosed` `false`). Suggested: "Once `true`, it stays `true` until `reset()` rewinds the reader."
+2. `reader.md:1080` (second sentence) and `:1457`: the `AnyRef` lane "is the only lane on which all eight of those methods work". True for the scalar pulls of a plain `AnyRef` reader, false for the result of `Reader#++`/`concat` (all pulls throw) and for `readBytes`/`readInts`/`readFloats` (Entry 1). `:1151-1190` (Concatenation) does not say the result is on the `AnyRef` lane.
+3. `reader.md:1080` (first sentence): "Calling one of these on a reader whose `jvmType` is a different primitive lane does not throw at the call site: it returns a failed `Async` carrying an `UnsupportedOperationException`". True for the `AsyncReader` defaults; the `toAsync` view's `readLong`/`readDouble` throw `IllegalStateException` at the call site, and its other pulls fail with `IllegalStateException` (probe; reachable only through a cast, so low priority).
+4. `reader.md:349-363` (`fromInputStream`, `fromReader`): no mention that closing the reader leaves the wrapped stream open, or that an `IOException` arrives wrapped in `StreamError`. `reader.md:604-638` (`repeat`, `repeated`): no mention of the close bug (Entry 2).
+5. `writer.md:20` ("throws when error-closed") and `:42` ("a writer closed with `fail` may throw the stored error"): no library writer throws after `fail`. `writer.md:286` and `:294` (`fromOutputStream`/`fromWriter` "Calling `close()` flushes and closes"): false after a failed write (Entry 3), and the page does not say that `IOException`s are swallowed.
+6. `writer.md:231` (`Writer.single` "accepts exactly one element, then auto-closes. The dual of `Reader.single`"): it stores nothing and has no accessor; suggested "accepts one element and discards it, then reports closed". (Added in fix round 1 from the review.)
+7. `writer.md:464` (`Writer#concat` "If `this` closes with an error, the error is propagated immediately without consulting `next`"): incomplete; after a throwing write the writer never switches (review I2). Suggested: the wording now on `Writer#concat`'s Scaladoc. (Added in fix round 1.)
+
+**Expected.** The pages match the code and the wave 2 Scaladoc; the known bugs (the Library bugs entries on `AnyRef`-lane primitive pulls, `Reader.repeat`/`repeated` after `close()`, and `Writer.fromOutputStream`/`fromWriter` after a failed write) are described as known bugs in 0.0.56.
+
+**Suggested fix.** Apply the replacement text given in items 1, 6 and 7 (and the wording of the wave 2 Scaladoc for the rest), then run `docs/mdoc` on both pages. The wave 3 Scaladoc for `NioWriters` should describe the `fromChannel` leak.
+
+### docs: `docs/reference/maybe.md` says flat primitive `Maybe`s allocate nothing; any `Long`, `Double` or `Int` outside the box cache is boxed
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/avoid-allocation-on-hot-paths.md` (backlog H-51), on `main` at `8bb71c48c`. Same at v0.0.56.
+
+**Summary.** The "Allocation Profile" table (`docs/reference/maybe.md:26-28`) lists `Maybe.present(42)`, `Maybe(42)` and `Maybe.fromOption(Some(42))` as **0** allocations ("raw `42`"), and `:33` and `:60` say "All other flat cases store the value raw with zero allocation overhead" / "Flat values (non-nested, non-null) are stored raw with zero allocation". That holds for reference types only. `Maybe[A]` erases to `Object`, so a primitive is stored as its box: `42` merely hits the `Integer` cache (-128..127). `Maybe.present(1000)` allocates a fresh `java.lang.Integer`, every `Double` allocates a `java.lang.Double`, and writing `Maybe(price)` into a `Maybe[Long]` field allocates 24 bytes per write (one `java.lang.Long`).
+
+**Reproduction.** File `Repro.scala`, run with `scala-cli run --server=false Repro.scala` (JDK 25, scala-cli 1.10.1):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-maybe:0.0.56
+import zio.blocks.maybe._
+import java.lang.management.ManagementFactory
+
+final class LastPrice { var price: Maybe[Long] = Maybe.absent }
+
+@main def repro(): Unit = {
+  val a = Maybe.present(42)
+  val b = Maybe.present(42)
+  println(s"present(42) twice, same object:   ${a.asInstanceOf[AnyRef] eq b.asInstanceOf[AnyRef]}")
+  val c = Maybe.present(1000)
+  val d = Maybe.present(1000)
+  println(s"present(1000) twice, same object: ${c.asInstanceOf[AnyRef] eq d.asInstanceOf[AnyRef]}")
+  println(s"present(1000) runtime class:      ${c.asInstanceOf[AnyRef].getClass.getName}")
+  println(s"present(1.5) runtime class:       ${Maybe.present(1.5).asInstanceOf[AnyRef].getClass.getName}")
+
+  val threads = ManagementFactory.getThreadMXBean.asInstanceOf[com.sun.management.ThreadMXBean]
+  val holder  = new LastPrice
+  def writes(): Unit = {
+    var i = 0L
+    while (i < 100000L) { holder.price = Maybe.present(187000000L + i); i += 1 }
+  }
+  for (_ <- 1 to 300) writes() // let the JIT compile the loop
+  val before = threads.getCurrentThreadAllocatedBytes
+  writes()
+  println(s"Maybe[Long] field write: ${(threads.getCurrentThreadAllocatedBytes - before) / 100000.0} bytes per write")
+}
+// present(42) twice, same object:   true
+// present(1000) twice, same object: false
+// present(1000) runtime class:      java.lang.Integer
+// present(1.5) runtime class:       java.lang.Double
+// Maybe[Long] field write: 24.0 bytes per write
+```
+
+For comparison, the H-51 companion example `schema-examples/src/main/scala/avoidallocation/Step6MaybeExample.scala` measures 40 bytes per write for an `Option[Long]` field and 0 for a `Maybe[Tick]` field holding a case-class reference.
+
+**Expected.** The table distinguishes references (0 allocations) from primitives (one box per value outside the JVM's box caches), so readers do not reach for `Maybe[Long]`/`Maybe[Double]` expecting zero allocation.
+
+**Root cause.** The doc generalises from the reference case. Source: `maybe/shared/src/main/scala-3/zio/blocks/maybe/Maybe.scala:67` (`opaque type Maybe[+A] = A | Absent.type | Present[A]`, erased to `Object`) and `:98-105` (`present` stores `a.asInstanceOf[Maybe[A]]`, i.e. the boxed primitive).
+
+**Impact.** Performance-minded users swap `Option[Long]` for `Maybe[Long]` expecting zero allocation and still allocate 24 bytes per value (they save the 16-byte `Some` only). The `42` example hides it because of the `Integer` cache.
+
+**Test gap.** No allocation test; `MaybeScala3Spec` / `MaybeSpec` check values, not identity or allocation. `MaybeBoxingBenchmark` measures `Maybe[String]` through a JSON codec only.
+
+**Suggested fix.** Change rows 26-28 to e.g. `Maybe.present(tick)` → **0** (raw reference), add a row "Flat present, primitive | `Maybe.present(1000L)` | **1** box (`java.lang.Long`), 0 only for values in the JVM box cache", and qualify `:33` and `:60` ("Flat reference values are stored raw; primitives are stored as their box"). The H-51 guide already says this in its Maybe section.
+
+### docs/examples: `streams-examples` `SinkSentinelGuardExample` and `SinkSentinelLimitationExample` describe a sentinel guard that was removed in #1672, and print contradictory results
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/avoid-allocation-on-hot-paths.md` (backlog H-51), on `main` at `8bb71c48c`. Same at v0.0.56.
+
+**Summary.** `streams-examples/src/main/scala/sink/SinkSentinelGuardExample.scala` claims `NioSinks.fromByteBufferLong`/`fromByteBufferDouble` use `Long.MaxValue`/`Double.MaxValue` as an end-of-stream sentinel and throw `IllegalArgumentException` when an element equals it ("Collisions Are Rejected Loudly"). `SinkSentinelLimitationExample.scala` claims the same sinks *silently truncate* at that value. Both are wrong since PR #1672 (commit `544a735ab`, released in v0.0.52): the `Long` and `Double` lanes now detect the end of the stream by the count that the bulk read returns, so the sinks write every value, `Long.MaxValue` included, and throw nothing. Running the examples shows it: the guard example prints `✗ UNEXPECTED: drain completed without error`, and the limitation example prints `⚠️  Expected 5 values, but only wrote 5 to buffer!` followed by `✗ Data loss: Elements at indices 2, 3, 4 were silently dropped` right after listing all five values. Their closing "Sentinels per typed sink" tables (`fromByteBufferLong: sentinel = Long.MaxValue (collision throws)`) are also stale.
+
+**Reproduction.** File `Repro.scala`, run with `scala-cli run --server=false Repro.scala` (JDK 25, scala-cli 1.10.1):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+import zio.blocks.streams._
+import java.nio.ByteBuffer
+
+@main def repro(): Unit = {
+  val longs  = ByteBuffer.allocate(5 * 8)
+  val result = Stream.fromIterable(List(100L, 200L, Long.MaxValue, 300L, 400L)).run(NioSinks.fromByteBufferLong(longs))
+  println(s"fromByteBufferLong result: $result, position: ${longs.position()} bytes")
+  println(s"  written: ${(0 until 5).map(i => longs.getLong(i * 8)).mkString(", ")}")
+
+  val doubles = ByteBuffer.allocate(3 * 8)
+  val result2 = Stream.fromIterable(List(1.5, Double.MaxValue, 2.5)).run(NioSinks.fromByteBufferDouble(doubles))
+  println(s"fromByteBufferDouble result: $result2, position: ${doubles.position()} bytes")
+  println(s"  written: ${(0 until 3).map(i => doubles.getDouble(i * 8)).mkString(", ")}")
+}
+// fromByteBufferLong result: Right(()), position: 40 bytes
+//   written: 100, 200, 9223372036854775807, 300, 400
+// fromByteBufferDouble result: Right(()), position: 24 bytes
+//   written: 1.5, 1.7976931348623157E308, 2.5
+```
+
+The examples themselves, from `streams-examples/`: `sbt "runMain sink.SinkSentinelGuardExample" "runMain sink.SinkSentinelLimitationExample"` prints the lines quoted above.
+
+**Expected.** The examples teach current behaviour: `fromByteBufferLong`/`fromByteBufferDouble` are lossless for every value; only a custom sink that calls the scalar `Reader#readLong(sentinel)`/`readDouble(sentinel)` can collide, and the fix there is the one-element `readLongs`/`readDoubles` loop.
+
+**Root cause.** The examples were written for the #1458 design (`lastReadWasEOF`, `markReadEOF`, a post-loop throw in `NioSinks`), which #1672 removed (`git show 544a735ab -- streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala streams/jvm/src/main/scala/zio/blocks/streams/NioSinks.scala`). Today `NioSinks.scala:110-121` drains through `Sink.foldSyncReader`, whose `Long` and `Double` branches (`streams/shared/src/main/scala/zio/blocks/streams/Sink.scala:1196` and `:1207`) loop on `readLongsPhysical(one, 0, 1)` / `readDoublesPhysical(one, 0, 1)` until the count is `-1`. AGENTS.md's "Sentinel performance policy" cites the same removed mechanism (`lastReadWasEOF` and the `NioSinks` post-loop throw).
+
+**Impact.** Readers learn that the typed NIO sinks lose or reject `Long.MaxValue`/`Double.MaxValue` and avoid them for no reason, or add per-element checks the sentinel policy forbids. The two files contradict each other and their own printed output.
+
+**Test gap.** CI only compiles the examples, never runs them. `streams/jvm/src/test/scala/zio/blocks/streams/NioStreamsSinksSpec.scala` has "writes all longs into buffer" (`:240`) but no case with `Long.MaxValue`/`Double.MaxValue` data, so nothing pins the lossless behaviour.
+
+**Suggested fix.** Rewrite both examples (or merge them into one) to show that `fromByteBufferLong`/`fromByteBufferDouble` write `Long.MaxValue`/`Double.MaxValue` like any other value, and to show the real collision case: a custom `Sink.create` using `readLong(sentinel)` that stops early, next to the one-element `readLongs` loop that does not. Add a `NioStreamsSinksSpec` test with `Long.MaxValue` and `Double.MaxValue` in the data. Update AGENTS.md's sentinel policy and the backlog's H-27 row.
+
+### docs: `zero-boxing.md` says `Sink` accepts elements through unboxed `write` methods; `Sink` has no `write` methods
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/avoid-allocation-on-hot-paths.md` (backlog H-51), on `main` at `8bb71c48c`. Same at v0.0.56.
+
+**Summary.** Under "### Sink[E, A, Z]", `docs/reference/streams/execution-and-compatibility/zero-boxing.md:303` says: "Accepts elements via unboxed `write` methods matched to the detected type". `Sink` has no public members for feeding elements at all; its abstract members are the internal `drain(reader)` methods, and a sink *pulls* from a `Reader` through the lane-specific reads (`readInt`, `readLongs`, ...). The `write` family belongs to `Writer`. The example under that sentence (`nums.runFold(0)(_ + _)`) does not show any `write` either.
+
+**Reproduction.** File `Repro.scala`, run with `scala-cli run --server=false Repro.scala` (JDK 25, scala-cli 1.10.1):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+import zio.blocks.streams._
+
+@main def repro(): Unit = {
+  val sum: Sink[Nothing, Long, Long] = Sink.sumLong
+  sum.write(1L)
+}
+// -- [E008] Not Found Error: Repro.scala:8:6
+// 8 |  sum.write(1L)
+//   |  ^^^^^^^^^
+//   |value write is not a member of zio.blocks.streams.Sink[Nothing, Long, Long] - did you mean sum.wait?
+// 1 error found
+// Compilation failed
+```
+
+**Expected.** The section says how a sink consumes a primitive lane: it pulls from the run's `Reader` with that lane's read (`Reader#readInt(Long.MinValue)`, the one-element `readLongs`/`readDoubles` loop, ...), which the built-in sinks do through `Sink.foldSyncReader`.
+
+**Root cause.** Wrong API named in the prose. Source: `streams/shared/src/main/scala/zio/blocks/streams/Sink.scala:58` (`abstract class Sink[+E, -A, +Z]`) has only `private[streams] def drain(reader: Reader.SyncReader[_])` (`:114`) and `drain(reader: Reader.AsyncReader[_])` (`:119`) as abstract members; the `Long`/`Double` drain loops are at `Sink.scala:1196` and `:1207`.
+
+**Impact.** Readers look for `Sink#write*` to build a custom sink, find nothing, and miss `Sink.create`/`Sink.createBoth` plus the reader-side primitive reads.
+
+**Test gap.** None (doc text).
+
+**Suggested fix.** Replace the sentence with: "Pulls elements from the run's `Reader` with the read that matches the lane (`readInt`, `readFloat`, or the count-returning `readLongs`/`readDoubles`), so built-in sinks such as `Sink.sumLong` and `Stream#runFold` never box. Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads." and link `../primitives/reader.md`.
+
+### docs: `reference/data-migration.md` says `fence()` stops producers and that the protocol migrates every row written before `complete()`
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
+
+**Summary.** The Safe Completion Protocol section of `docs/reference/data-migration.md` describes guarantees the code doesn't give. Line 85: "`fence()` signals cutover and stops new producers from writing to the old table". Line 135: "Because fencing stopped new writes, the queue is guaranteed to reach zero." Line 141: "The protocol ensures that every row modified between `init()` and `complete()` is migrated". Line 110: `ShadowTable(suffix)` "creates a shadow table with the target schema". Line 265: "The failure is returned to the caller." In the code, `fence()` only changes an in-memory state flag and blocks no write; a write between `drain()` and `complete()` is lost; the shadow table copies the current shape; a failed batch throws a `RuntimeException`. The source Scaladoc of `fence()` itself says the opposite of the page: "The application MUST ensure that producers stop writing to the old table before calling fence(). Writes arriving after fence() may be lost".
+
+**Reproducer.** Start PostgreSQL 16:
+
+```bash
+docker run --rm -d --name shop-db -p 5432:5432 \
+  -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -e POSTGRES_DB=shop \
+  postgres:16
+```
+
+Then, in an empty directory:
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
+  "org.postgresql" % "postgresql"                     % "42.7.14"
+)
+run / fork := true
+```
+
+`project/build.properties`:
+
+```
+sbt.version=1.13.0
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.schema.*
+import zio.blocks.schema.migration.Migration
+import zio.blocks.data.migration.*
+import zio.blocks.sql.*
+
+case class Item(id: Long, name: String)
+object Item { implicit val schema: Schema[Item] = Schema.derived }
+
+@main def repro(): Unit = {
+  given transactor: Transactor =
+    JdbcTransactor.fromUrl("jdbc:postgresql://localhost:5432/shop", "shop", "shop", SqlDialect.PostgreSQL)
+  given Dialect = Dialect.Postgres
+  val items = Repo.derived[Item, Long]("items", "id", _.id)
+  transactor.transact {
+    Frag.literal("DROP TABLE IF EXISTS items, items_v2, items_old_v2, items_q CASCADE").update
+    Frag.literal("DROP FUNCTION IF EXISTS items_q_notify() CASCADE").update
+    Frag.literal("CREATE TABLE items (id BIGINT PRIMARY KEY, name TEXT NOT NULL)").update
+  }
+  QueueTable.create[Long]("items_q", transactor)
+  val migrator = LargeMigrator[Item, Item, Long, Long](
+    items, items, Migration.identity[Item], "items_q", 100, TargetStrategy.ShadowTable("v2"), captureTriggers = true
+  )
+  migrator.init()
+  migrator.fence()
+  transactor.transact(items.insert(Item(1, "written after fence()")))
+  println("insert after fence() succeeded")
+  println(s"pending after the insert: ${migrator.pendingCount}")
+  println(s"drain() processed: ${migrator.drain()}")
+}
+```
+
+Run with `sbt run`. Real output:
+
+```scala
+// insert after fence() succeeded
+// pending after the insert: 1
+// drain() processed: 1
+```
+
+The write after `fence()` goes through and is queued by the trigger; nothing was stopped. (The loss of a write made after `drain()` is reproduced in the Library bugs entry on `LargeMigrator#complete`.)
+
+**Expected.** The page states the real contract: the application stops its writers before `fence()`; `fence()` only moves the migrator into the cutover state; `drain()` converts until a count finds the queue empty; check `pendingCount` before `complete()`, which doesn't; create the shadow table with the new columns first; a failed batch throws, rolls back, and keeps its keys queued.
+
+**Root cause.** `dataMigration/shared/src/main/scala/zio/blocks/data/migration/LargeMigrator.scala:82-97` (`fence()` sets `state = State.Fenced`, with the Scaladoc quoted above), `LargeMigrator.scala:141-147` (`complete()` doesn't check the queue), `SmallMigrator.scala:121`/`LargeMigrator.scala:199` (`throw new RuntimeException(s"Migration failed: $err")`). Page lines 85, 110, 135, 141, 265 of `docs/reference/data-migration.md`.
+
+**Impact.** A reader who trusts "fence() stops new producers" keeps writers running through cutover and loses writes silently.
+
+**Test gap.** No docs check; the reference page's blocks are plain fences, so nothing compiles or runs them.
+
+**Suggested fix.** Rewrite those five sentences to the contract above and link the how-to guide `guides/migrate-table-rows-online.md`, which demonstrates it against PostgreSQL.
+
+### docs: the "Full Example" in `reference/data-migration.md` doesn't compile, and as written it would not migrate the live table
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
+
+**Summary.** The Full Example (`docs/reference/data-migration.md:200-262`) fails to compile, and fixing the compile error still leaves a program that doesn't migrate anything: it targets the wrong table, never creates the queue table, and never queues the existing rows.
+
+**Reproducer.** In an empty directory:
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
+  "org.postgresql" % "postgresql"                     % "42.7.14"
+)
+run / fork := true
+```
+
+`project/build.properties`:
+
+```
+sbt.version=1.13.0
+```
+
+`FullExample.scala`:
+
+```scala
+object FullExample {
+  val transactor: zio.blocks.sql.Transactor = null
+  import zio.blocks.schema._
+  import zio.blocks.schema.migration.Migration
+  import zio.blocks.sql.{DbCodec, DbCodecDeriver, Repo, Table, Transactor}
+  import zio.blocks.data.migration._
+  
+  case class UserV1(id: Int, name: String)
+  case class UserV2(id: Int, name: String, age: Int)
+  
+  object UserV1 { implicit val schema: Schema[UserV1] = Schema.derived }
+  object UserV2 { implicit val schema: Schema[UserV2] = Schema.derived }
+  
+  val v1Table = Table.derived[UserV1]
+  val v2Table = Table.derived[UserV2]
+  
+  implicit val codecInt: DbCodec[Int] = implicitly[Schema[Int]].deriving(DbCodecDeriver).derive
+  implicit val codecV1: DbCodec[UserV1] = UserV1.schema.deriving(DbCodecDeriver).derive
+  implicit val codecV2: DbCodec[UserV2] = UserV2.schema.deriving(DbCodecDeriver).derive
+  
+  val v1Repo = Repo(v1Table, "id", summon[DbCodec[Int]], (_: UserV1).id)
+  val v2Repo = Repo(v2Table, "id", summon[DbCodec[Int]], (_: UserV2).id)
+  
+  // Migration that transforms UserV1 to UserV2
+  val migration: Migration[UserV1, UserV2] = Migration
+    .newBuilder[UserV1, UserV2]
+    .addField(_.age, SchemaExpr.literal(0))
+    .build
+  
+  // SmallMigrator: queue-based batch processing
+  val smallMigrator = SmallMigrator[UserV1, UserV2, Int, Int](
+    repoV1 = v1Repo,
+    repoV2 = v2Repo,
+    migration = migration,
+    queueTable = "user_migration_q",
+    batchSize = 100,
+    target = TargetStrategy.ShadowTable("v2")
+  )(using transactor, summon[DbCodec[Int]], Dialect.Postgres)
+  
+  // Lifecycle: init, process batches, complete
+  smallMigrator.init()
+  // ... loop processBatch() ...
+  smallMigrator.complete()
+  
+  // LargeMigrator: incremental worker with safe completion protocol
+  val largeMigrator = LargeMigrator[UserV1, UserV2, Int, Int](
+    repoV1 = v1Repo,
+    repoV2 = v2Repo,
+    migration = migration,
+    queueTable = "user_migration_q",
+    batchSize = 100,
+    target = TargetStrategy.ShadowTable("v2"),
+    captureTriggers = true
+  )(using transactor, summon[DbCodec[Int]], Dialect.Postgres)
+  
+  // Safe lifecycle: init, fence, drain, complete
+  largeMigrator.init()
+  largeMigrator.fence()
+  val total = largeMigrator.drain()
+  largeMigrator.complete()
+}
+```
+
+Run with `sbt compile`. Real output:
+
+```scala
+// -- [E006] Not Found Error: ./FullExample.scala:38:44 
+// 38 |  )(using transactor, summon[DbCodec[Int]], Dialect.Postgres)
+//    |                                            ^^^^^^^
+//    |          Not found: Dialect - did you mean Reflect? or perhaps reflect?
+//    |
+//    | longer explanation available when compiling with `-explain`
+```
+
+`FullExample.scala` is the page's block verbatim, wrapped in `object FullExample` with a `transactor` stub, because the block uses `transactor` without defining it.
+
+**What is wrong, beyond the compile error** (each verified against the source):
+
+- `Dialect` is used (`Dialect.Postgres`, lines 238 and 254) but not imported: the import is `zio.blocks.sql.{DbCodec, DbCodecDeriver, Repo, Table, Transactor}`. `transactor` is never defined.
+- `Table.derived[UserV1]` and `Table.derived[UserV2]` (lines 214-215) name two different tables, `user_v1` and `user_v2`. `ShadowTable("v2")` shadows and swaps the V2 repo's table (`TargetStrategyApplier.scala:40-47`, `ShadowTable.scala:49-60`), so the swap renames `user_v2`/`user_v2_v2` and never replaces the live `user_v1`. Neither table is ever created.
+- The queue table `user_migration_q` is never created; `init()` doesn't create it (`LargeMigrator.scala:68-80`), so with `captureTriggers = true` every write to `user_v1` fails (see the Usability traps entry on `init()`).
+- No existing row is ever queued. Capture triggers only see writes after `init()`, and the example goes straight from `init()` to `fence()`/`drain()`/`complete()`, so `complete()` swaps in an empty shadow table.
+- Both migrators reuse the same queue and the same shadow suffix; after the `SmallMigrator`'s `complete()` has renamed `user_v2` to `user_v2_old_v2`, the `LargeMigrator`'s `complete()` tries the same rename and fails because that table exists.
+- The `SmallMigrator` loop earlier on the page (`pending = count > 0`, line 70) stops early when a batch's rows were deleted (see the Library bugs entry on `run()`).
+
+**Expected.** A Full Example that compiles under mdoc and, run against PostgreSQL, migrates the live table: one V1 and one V2 repo on the same table name, `QueueTable.create` first, the shadow table created with the V2 columns before `init()`, existing keys queued after `init()` (`INSERT INTO q (id) SELECT CAST(id AS TEXT) FROM t ON CONFLICT DO NOTHING`), writers stopped before `fence()`, `pendingCount == 0` checked before `complete()`.
+
+**Root cause.** The example was never compiled or run: the page uses plain `scala` fences, and `dataMigration` was not on the docs mdoc classpath until H-23 added it.
+
+**Impact.** The first code a reader copies from the reference fails to compile, and the "fixed" version silently migrates nothing or breaks writes.
+
+**Test gap.** Plain fences; no mdoc. `dataMigration.jvm` is now on the docs classpath (H-23), so the block can become `mdoc:compile-only`.
+
+**Suggested fix.** Replace the Full Example with a short pointer to `guides/migrate-table-rows-online.md` (whose `CompleteExample` runs this flow against PostgreSQL 16), or rewrite it per "Expected" as an `mdoc:compile-only` block.
+
+### docs: `mux.mdx` reads as if the registry were both lock-based and lock-free, and says `receive`/`takeOutbound` must share one thread
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/run-a-mux-over-a-socket.md` (backlog H-29), on `main` at efc51f19b. Same at v0.0.56 (the same lines are in `git show v0.0.56:docs/reference/mux.mdx`).
+
+**Summary.** `docs/reference/mux.mdx:37` says the stream registry is "lock-based on JVM, lock-free on JS", and `:823` says "No `synchronized`, so it stays friendly to virtual threads". Read together, they look like a contradiction. Both are true, but neither says what the code does. Also, `:815` tells readers to "Call `receive()` and `takeOutbound()` from the same thread only". The contract in the Scaladoc (`mux/shared/src/main/scala-3/zio/blocks/mux/Mux.scala:56-60`) is different: each of the two operations has its own single consumer, and the usual layout uses two threads (the application receives, the protocol's writer takes).
+
+**Reproduction.** This is a documentation contradiction, so the reproduction is the source. Run it from a zio-blocks checkout:
+
+```bash
+git show v0.0.56:mux/jvm/src/main/scala-3/zio/blocks/mux/PlatformMux.scala | grep -n "ReentrantLock\|lock.lock()\|def get\|def activeCount\|synchronized"
+# 21:import java.util.concurrent.locks.ReentrantLock
+# 37:      lock.lock()
+# 48:    def get(id: Id): Option[MuxStream[Id, In, Out]] =
+# 52:      lock.lock()
+# 60:      lock.lock()
+# 68:    def activeCount: Int = streams.size()
+# 71:      lock.lock()
+git show v0.0.56:mux/js/src/main/scala-3/zio/blocks/mux/PlatformMux.scala | grep -n "mutable.HashMap\|lock"
+# 29:    private val streams         = mutable.HashMap.empty[Id, JsMuxStream[Id, In, Out]]
+```
+
+**Expected.** The page states what the code does. On the JVM, `open` (`PlatformMux.scala:37`), `cancel` (`:52`), `closeAll` (`:60`) and the internal `removeStream` (`:71`) take a `java.util.concurrent.locks.ReentrantLock`. `get` (`:48`) and `activeCount` (`:68`) read the `ConcurrentHashMap` without the lock. Per-stream queues are `MpscRingBuffer`s, and state transitions use `VarHandle` CAS, with no lock. There is no `synchronized` anywhere, which is why virtual threads are not pinned. Scala.js uses a plain `mutable.HashMap` with no locking, because it runs on one thread ("lock-free" is the wrong word for it). Each of `receive()` and `takeOutbound()` has its own single consumer.
+
+**Root cause.** The page's wording at `docs/reference/mux.mdx:37`, `:815` and `:823`.
+
+**Impact.** Readers can't tell whether `Mux` blocks. The "same thread only" sentence also suggests that a protocol must run its writer on the application's thread, which is exactly the wrong layout for a socket.
+
+**Test gap.** None. This is documentation only.
+
+**Suggested fix (applied in branch `mux-socket`, commit 68ee8acc8).**
+- `:37` becomes: "**Thread-safe stream registry** — `open`, `get`, `cancel`, `closeAll` and `activeCount` are safe to call from any thread. On the JVM, `open`, `cancel` and `closeAll` take a `ReentrantLock`, while `get` and `activeCount` read a `ConcurrentHashMap` without it; on Scala.js, which runs one thread, the registry is a plain `HashMap` with no locking".
+- `:815` becomes: "`receive()` and `takeOutbound()` are **single-consumer**: on each stream, at most one thread at a time may call `receive()`, and at most one thread at a time may call `takeOutbound()`. The two can be different threads, which is the usual layout: the application calls `receive()` and the protocol's writer calls `takeOutbound()`. Two threads calling the same one concurrently corrupt the ring buffer: messages are delivered twice or lost, and the queue can stop accepting new messages."
+- `:823` becomes: "No `synchronized`: the registry's lock is a `ReentrantLock`, and the per-stream queues and state transitions take no lock, so a virtual thread never pins its carrier thread inside `Mux`".
+
+### Streams: reference pages contradict the source on worker thread names, the virtual-thread fallback, Scala.js read failures, `NioReaders.fromChannel`, `NioWriters.fromByteBuffer` closing and full-buffer `NioSinks`
+
+Found 2026-10-27 while writing the Scaladoc for the platform files, queues and internals (wave 3 of the streams Scaladoc rollout, PR #1868), on `main` at `59e7cb81e`. Same text at v0.0.56. Each claim was checked against the source (and probed where stated); the reference pages were not edited.
+
+**Summary.** Six statements or omissions:
+
+1. `docs/reference/streams/execution-and-compatibility/platform-differences.md:213`: worker names `zio-blocks-mappar-worker-<n>-<index>`; on JDK 21+ they end in an extra `0` (Entry 1). Correct once Entry 1 is fixed.
+2. `platform-differences.md:211`: the fallback to a platform thread happens "when the reflective lookup fails"; it also happens when starting the virtual thread throws (`PlatformSpecific.scala:43-48`). Minor.
+3. `docs/reference/streams/primitives/reader.md:405` (table row "A source failure ... A rejected promise, trusted") and `:542` (Scala.js invariant 4, "surfaces in the typed error channel"): false on Scala.js, the existing issues.md entry; re-probed (`js1/J2.scala`: `Stream.fromReader[Throwable, Byte](fromReadableStream(...)).runCollectAsync.either` gives `Left(StreamError)`, the `Async`'s own failure).
+4. `reader.md:365-382` (`NioReaders`): no mention that `fromChannel` needs a blocking channel (Entry 2), nor that a failed read is thrown as `StreamError`.
+5. `docs/reference/streams/primitives/writer.md:167` ("`NioWriters.fromByteBuffer` ... auto-close when the buffer fills"): it closes when a write finds no room; a write that fills the buffer exactly leaves it open (probed: two writes into a 2-byte buffer, `isClosed == false`, the third returns `false` and closes). Minor.
+6. `docs/reference/streams/core/sink.md:771-800` (`NioSinks.fromByteBuffer*`): does not say that a full buffer throws `BufferOverflowException` from a blocking terminal and fails the `Async` of an `*Async` one, with no `Left`.
+
+Item 3 is the documentation side of the existing Library bugs entry "streams (Scala.js): a rejected `ReadableStream` read fails the `Async` with an internal `StreamError` instead of producing `Left`" (also a backlog doc-fix follow-up from H-26).
+
+**Expected.** The pages match the code and the wave 3 Scaladoc; known bugs are described as known bugs in 0.0.56.
+
+**Suggested fix.** Edit the six places using the wave 3 Scaladoc wording, then run `docs/mdoc` on the four pages. Item 1 changes again once the virtual-thread naming bug is fixed.
+
 ## Resolved
 
+- `docs/index.md` described `Maybe` as "Low-allocation optional values backed by `null`"; since #1532 absence is an `Absent` singleton and `Maybe.present(null)` is present. Fixed in #1866 (H-51, commit `1dfba0647`); regenerate the README.
+- `telemetry-guide.md` propagation examples started a new trace instead of continuing the caller's: the HTTP server example took its tracer before `trace.install`, and `traceIncoming` extracted the parent but never scoped it. The "Span-log correlation" line called the `private[telemetry]` `new TracerProvider(...)`, and `reference/telemetry/otel/index.md` listed `X-B3-ParentSpanId` and `X-B3-Flags` as headers `B3Propagator.multi` writes (it writes only TraceId, SpanId and Sampled). Fixed in #1853 (H-43, commit `4df2713bc`). Still open: the same wrong header list in the Scaladoc at `otel/src/main/scala/zio/blocks/telemetry/otel/B3Propagator.scala:41-42` (backlog doc-fix follow-up).
+- `reference/http-model/headers.md:660` said `ServerSentEvent` uses `Headers` indirectly through `Response`; it renders a `String` and touches neither. Fixed in #1842 (H-41), which also links the SSE guide from that sentence.
+- JSON number docs fixed in wave 8b of the schema Scaladoc (#1843, `JsonReader`/`JsonWriter`): `json.md:18` and `:26` said `Json.Number` has "arbitrary precision" and preserves precision for financial and scientific data, but `Json.parse` and the `BigDecimal` codec round to 34 significant digits (`MathContext.DECIMAL128`) and reject 308 or more digits (`Json.scala:2351`, `JsonReader.scala:3125`, `:5243-5254`, `JsonCodec.scala:875`; `Json.parse("1234567890123456789012345678901234567890")` prints `1.234567890123456789012345678901235E39`). The Scaladoc of `JsonReader.bigIntDigitsLimit`/`bigDecimalDigitsLimit` (308) and the `digitsLimit` parameters called 308 "the maximum number of digits", but the check is `len >= digitsLimit`, so 308 digits are rejected and the scale limit 6178 is exclusive too (`JsonReader.scala:2922`, `:3020`, `:3062`, `:3126`). `JsonWriter` Scaladoc: `writeKey(x: Instant)` was described as writing a `Duration`, `writeVal(x: Char)` as writing "a JSON key", and `writeObjectStart`/`writeObjectEnd` as array markers. `JsonReader` Scaladoc: `readStringAsBigDecimal` said it reads "a JSON number value" (it reads a string), and `readBigInt(digitsLimit)`/`readStringAsBigInt(digitsLimit)` said they throw on "the default limit" (they use the given one).
+- JSON reference pages and Scaladoc fixed in wave 8a of the schema Scaladoc (#1841): `json-config.md` taught `implicit val nameMapper` in the companion, which nothing reads (now `@Modifier.fieldNaming`, with `withFieldNameMapper` named as the other way), listed only three `NameMapper`s, gave `preferredCharBufSize` a default of `8192` (it is `4096`) and left out the other three `ReaderConfig` options, showed `withCheckForEndOfInput(false)` as allowing trailing whitespace (whitespace is always allowed; it ignores text after the value), said `checkForEndOfInput` "adds one comparison", and listed `Strict`, `Right` and `Left` merge strategies, which do not exist (`MergeStrategy.scala` has `Auto`, `Shallow`, `Concat`, `Replace` and `Custom`). `json-patch.md` said that `JsonPatch.diff` emits `Op.Nested` and array `Modify` steps; it emits neither (`JsonDiffer.scala`). The `Json` Scaladoc said numbers are stored as a `String` (they are a `BigDecimal`), the `JsonSelection` Scaladoc used removed `asArrays`/`asStrings` methods (already fixed on `main` at `67a9be9ff`), and the `ValidationOptions` Scaladoc said formats are annotation-only by default (they are checked). In the wave 8a review round: `json.md` said objects use a `Vector` (a `Chunk`), that `Auto` and `Shallow` concatenate arrays and that a `Deep` strategy exists (`Auto` merges arrays by index, `Shallow` takes nested values from the right), and showed the wrong out-of-bounds message (`Index 5 out of bounds (size: 1) at: [5]`); `json-selection.md` showed `"field not found"` (`Key 'age' not found`); `json-patch.md` and `json-differ.md` called the diff round trip unconditional (it fails for duplicate keys, see Library bugs).
 - streams overview (`streams/index.md`) marked `fromInputStream` and `fromJavaReader` as JVM-only, but both run on Scala.js. Fixed in #1796 (H-24).
 - docs: `zio-blocks-next-*` needs Scala 3.9+ (plus `-experimental`), not 3.7+. Fixed across 20 guides and 14 example builds in #1810 (H-01). Leftovers on `main`: `guides/stream-files-and-sockets.md:80` still says "Scala 3.7 and newer", and 14 example builds still turn on `-experimental` at `minor >= 8`.
 - Codecs: `format.md` (`sealed trait`, real `BinaryFormat`/`TextFormat` signatures, which formats are binary); TOON `ArrayFormat.Auto` Scaladoc and `toon.md:706`; `csv.md` (`CsvConfig` ignored by derived codecs, runtime rejection, `Option` rejected); `xml.md` stale version; `built-in-codecs/index.md` artifact prefix. Fixed in #1773.
