@@ -12523,7 +12523,7 @@ import zio.blocks.maybe._
 
 **Test gap.** None (doc text). `MaybeScala3Spec` already covers `present(null)`.
 
-**Suggested fix.** Replace the description with "Optional values that store a present reference as is, without a wrapper object (Scala 3)". Done on the H-51 branch `avoid-allocation` in commit `1dfba0647`; regenerate the README after it merges.
+**Suggested fix.** Replace the description with "Optional values that store a present reference as is, without a wrapper object (Scala 3)". Done in PR #1866 (H-51, commit `1dfba0647`); regenerate the README after it merges.
 
 ### docs: `docs/reference/maybe.md` says flat primitive `Maybe`s allocate nothing; any `Long`, `Double` or `Int` outside the box cache is boxed
 
