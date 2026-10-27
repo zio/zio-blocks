@@ -390,4 +390,5 @@ When your data changes shape, pick the tool by the guarantee you need. Reach for
 - **Want to write default values and transformations?** Read [SchemaExpr](../reference/schema/schema-expr.md), the expression type that builder methods such as `addField` take.
 - **Want to understand errors in depth?** Read [SchemaError](../reference/schema/schema-error.md) for every error case and how errors are combined.
 - **More runnable examples:** the `schema-examples` project has more `Into` examples in [`into/`](https://github.com/zio/zio-blocks/tree/main/schema-examples/src/main/scala/into) and `As` examples in [`as/`](https://github.com/zio/zio-blocks/tree/main/schema-examples/src/main/scala/as).
+- **Need to migrate stored rows while the application keeps running?** Follow [How to Migrate Table Rows to a New Version Online](./migrate-table-rows-online.md), which runs a `Migration` like the ones in this tutorial over every row of a live SQL table.
 - **Moving from ZIO Schema?** That's a different kind of migration: see [Migrating from ZIO Schema to ZIO Blocks Schema](./zio-schema-migration.md).

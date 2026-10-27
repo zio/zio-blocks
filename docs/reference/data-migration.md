@@ -270,5 +270,6 @@ For a detailed record of architecture decisions, see the [ADR](../adr/2026-07-18
 
 ## See Also
 
+- [How to Migrate Table Rows to a New Version Online](../guides/migrate-table-rows-online.md) — a how-to guide that moves a table to a new row shape while the application keeps running.
 - [Projection](./projection/index.md) — event-sourced read models that complement schema-migration workflows: while `DataMigration` evolves the write-side schema, `ProjectionEngine` rebuilds read-side views from the event log without touching source tables.
 - [SQL Module](./sql/index.md) — the `Transactor`, `Repo`, and `Table` types shared by both the data-migration and projection modules.
