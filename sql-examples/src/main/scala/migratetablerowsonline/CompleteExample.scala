@@ -16,13 +16,13 @@ import zio.blocks.sql.*
 /**
  * How to Migrate Table Rows to a New Version Online — Complete Example
  *
- * Splits the full name of 20,000 PostgreSQL customers into first and last
- * names with LargeMigrator while another thread keeps writing, using the
- * migration that also handles single-word names.
+ * Splits the full name of 20,000 PostgreSQL customers into first and last names
+ * with LargeMigrator while another thread keeps writing, using the migration
+ * that also handles single-word names.
  */
 object CompleteExample {
   def main(args: Array[String]): Unit = {
-    val transactor = shopTransactor()
+    val transactor   = shopTransactor()
     given Transactor = transactor
     given Dialect    = Dialect.Postgres
 

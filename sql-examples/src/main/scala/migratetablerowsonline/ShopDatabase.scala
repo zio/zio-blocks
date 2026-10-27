@@ -26,4 +26,8 @@ val firstNames = Vector("Ada", "Alan", "Grace", "Edsger", "Barbara", "Donald", "
 val lastNames  = Vector("Lovelace", "Turing", "Hopper", "Dijkstra", "Liskov", "Knuth", "Hamilton", "Thompson")
 
 def sampleCustomer(id: Long): CustomerV1 =
-  CustomerV1(id, s"${firstNames(((id - 1) % 8).toInt)} ${lastNames(((id - 1) / 8 % 8).toInt)}", s"customer$id@example.com")
+  CustomerV1(
+    id,
+    s"${firstNames(((id - 1) % 8).toInt)} ${lastNames(((id - 1) / 8 % 8).toInt)}",
+    s"customer$id@example.com"
+  )

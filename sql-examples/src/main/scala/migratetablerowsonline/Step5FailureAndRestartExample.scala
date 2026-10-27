@@ -21,8 +21,8 @@ import zio.blocks.sql.*
  */
 object Step5FailureAndRestartExample {
   def main(args: Array[String]): Unit = {
-    val dbFile     = Files.createTempFile("customers", ".db")
-    val transactor = JdbcTransactor.fromUrl(s"jdbc:sqlite:$dbFile", SqlDialect.SQLite)
+    val dbFile       = Files.createTempFile("customers", ".db")
+    val transactor   = JdbcTransactor.fromUrl(s"jdbc:sqlite:$dbFile", SqlDialect.SQLite)
     given Transactor = transactor
     given Dialect    = Dialect.SQLite
 
