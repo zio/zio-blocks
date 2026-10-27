@@ -538,6 +538,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [How to Fix Common Scope and Wire Compile Errors](./guides/fix-scope-and-wire-compile-errors.md) - Look up a Scope or Wire error message and apply the fix
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./guides/resource-and-di-migration.md) - Move resource handling and dependency wiring to ZIO Blocks Scope, Resource, and Wire
 - [Getting Started with Mux](./guides/getting-started-with-mux.md) - Manage multiplexed bidirectional message streams with capacity limits
+- [How to Run a Mux over a Real Socket](./guides/run-a-mux-over-a-socket.md) - Carry a chat, a file upload and a heartbeat over one TCP connection, with framing, half-close, back-pressure, resets and a clean shutdown
 - [Build a Small JSON Backend from Blocks](./guides/small-json-backend-from-blocks.md) - Capstone: combine schema, config, scope, SQL, the HTTP model and telemetry into one small JSON backend
 - [How to Test Code That Logs, Traces and Records Metrics](./guides/test-telemetry.md) - Capture spans, log records and counter values in memory during tests, assert on them, and keep tests from leaking into each other
 - [How to Correlate Logs and Traces Across Services](./guides/correlate-logs-and-traces.md) - Carry the trace id from one service to the next in W3C `traceparent` or B3 headers on an http-model `Request`, so every log line of one request shares one trace id
