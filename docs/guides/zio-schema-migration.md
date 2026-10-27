@@ -508,9 +508,7 @@ object Tree {
 A tree round-trips through `DynamicValue` with this schema:
 
 ```scala mdoc
-val tree = Tree(1, List(Tree(2, Nil), Tree(3, Nil)))
-
-println(Tree.schema.fromDynamicValue(Tree.schema.toDynamicValue(tree)))
+println(Tree.schema.fromDynamicValue(Tree.schema.toDynamicValue(Tree(1, List(Tree(2, Nil), Tree(3, Nil))))))
 ```
 
 Recursive types are handled automatically by the macro. Internally, ZIO Blocks generates a `Reflect.Deferred` node for the recursive reference — you do not need to use `Schema.defer` manually. The `implicit val` (not `lazy val`) is sufficient.
@@ -556,7 +554,7 @@ println(userJson)
 println(User.schema.jsonCodec.decode(userJson))
 ```
 
-The modifier only affects codecs: `Schema#toDynamicValue` still includes the field. Besides JSON, the TOON and BSON codecs honour it; the other format modules ignore it. For a field that should be read but never written, use `@Modifier.encodeTransient()` instead.
+The modifier only affects codecs: `Schema#toDynamicValue` still includes the field. Besides JSON, the TOON, BSON and SQL (`DbCodec`) codecs honour it; the other format modules ignore it. For a field that should be read but never written, use `@Modifier.encodeTransient()` instead.
 
 ### Field Renaming
 
@@ -634,7 +632,7 @@ object Message {
 }
 ```
 
-None of the built-in codecs reads a `Modifier.config` key; the modifier carries settings for a deriver that you write (see [Migrating Type Class Derivation](#migrating-type-class-derivation)), which finds them on the schema's fields:
+Among the built-in codecs, only the XML codec reads `Modifier.config` keys (`xml.attribute`, `xml.namespace.uri` and `xml.namespace.prefix`); the others ignore them. For any other key, the modifier carries settings for a deriver that you write (see [Migrating Type Class Derivation](#migrating-type-class-derivation)), which finds them on the schema's fields:
 
 ```scala mdoc
 Message.schema.reflect.asRecord.get.fields.foreach { field =>
@@ -820,7 +818,7 @@ To change field naming, discriminators or other JSON settings for a whole codec,
 
 ### Streaming Codecs
 
-ZIO Schema's streaming codec methods (`streamEncoder`, `streamDecoder`) integrated with `ZStream`. ZIO Blocks Schema codecs encode and decode one value at a time, and they do not depend on ZIO's streaming primitives. The JSON codec can read a value from a `java.io.InputStream` and write one to a `java.io.OutputStream` without collecting it into an array first (see [How to Tune JSON Throughput](./tune-json-throughput.md)). If you need a stream of values, wrap the codec in your effect system's streaming abstraction.
+ZIO Schema's streaming codec methods (`streamEncoder`, `streamDecoder`) are `ZPipeline`s that integrate with `ZStream`. ZIO Blocks Schema codecs encode and decode one value at a time, and they do not depend on ZIO's streaming primitives. The JSON codec can read a value from a `java.io.InputStream` and write one to a `java.io.OutputStream` without collecting it into an array first (see [How to Tune JSON Throughput](./tune-json-throughput.md)). If you need a stream of values, wrap the codec in your effect system's streaming abstraction.
 
 ---
 
@@ -849,7 +847,7 @@ The `DynamicValue` ADT is significantly simplified in ZIO Blocks — from 15 cas
 | `RightValue(value: DynamicValue)`                           | `Variant("Right", Record(Chunk("value" -> ...)))`                   |
 | `Tuple(left, right)`                                        | `Record(Chunk("_1" -> left, "_2" -> right))`                        |
 | `SetValue(values: Set[DynamicValue])`                       | `Sequence(elements: Chunk[DynamicValue])`                           |
-| `BothValue(left, right)`                                    | No direct equivalent (used by `Fallback`, which is removed)         |
+| `BothValue(left, right)`                                    | No direct equivalent (used by `Fallback`, which ZIO Blocks lacks)   |
 | `DynamicAst(ast: MetaSchema)`                               | No direct equivalent                                                |
 | `Singleton[A](instance: A)`                                 | No direct equivalent                                                |
 | `Error(message: String)`                                    | No direct equivalent — use `SchemaError`                            |
@@ -1038,7 +1036,7 @@ ZIO Blocks Schema includes an explicit migration API for evolving values between
 
 This is a different model from ZIO Schema's `schema.migrate(newSchema)` and `schema.coerce(newSchema)` methods, which work out the conversion from the two schemas at runtime:
 
-1. Build a migration explicitly with operations like `addField`, `dropField`, `renameField`, `changeFieldType`, and `transformField`.
+1. Build a migration explicitly with operations like `MigrationBuilder#addField`, `MigrationBuilder#dropField`, `MigrationBuilder#renameField`, `MigrationBuilder#changeFieldType`, and `MigrationBuilder#transformField`.
 2. Apply the resulting `Migration[A, B]` to typed values, or inspect/transport the underlying `DynamicMigration`.
 
 Use this when you want structural schema evolution as first-class data rather than implicit derivation. To convert between two versions of a type without writing the steps, derive an `Into[A, B]` instead. [Evolve Your Data](./evolve-your-data.md) walks through both.
@@ -1123,9 +1121,9 @@ val nameLens: Option[Lens[Person, String]] =
 
 ### Using Optics
 
-The four optic types in ZIO Blocks are `Lens`, `Prism`, `Optional`, and `Traversal`. Their usage API is similar to standard optics libraries, with one naming difference: ZIO Blocks uses `Lens#replace` where Monocle and many other optics libraries have `set`.
+The four optic types in ZIO Blocks are `Lens`, `Prism`, `Optional`, and `Traversal`. Their usage API is similar to standard optics libraries, with one naming difference: ZIO Blocks uses `Lens#replace` where Monocle uses `Lens#set`.
 
-To read, modify and replace a field with the lenses defined above:
+To read, modify and replace a field with the lenses from the previous section:
 
 ```scala mdoc
 val person = Person("Alice", 30)
@@ -1273,11 +1271,11 @@ combined(person1, PatchMode.Strict)
 
 ## Migrating Type Class Derivation
 
-Both libraries can derive a user-defined type class from a schema. The interface keeps its name, `Deriver`, but what it receives changes.
+Both libraries can derive a custom type class from a schema. The interface keeps its name, `Deriver`, but what it receives changes.
 
 ### Before (ZIO Schema 1.x)
 
-ZIO Schema 1.x has `zio.schema.Deriver[F[_]]` in the `zio-schema-derivation` module. A deriver implements `deriveRecord`, `deriveEnum`, `derivePrimitive`, `deriveOption`, `deriveSequence`, `deriveMap` and `deriveTransformedRecord`, receives the `Schema` nodes of the type, and is called with `Derive.derive[F, A](deriver)`. ZIO Schema's own codecs do not use it: each codec module walks the schema with its own code.
+ZIO Schema 1.x has `zio.schema.Deriver[F[_]]` in the `zio-schema-derivation` module. A deriver implements `deriveRecord`, `deriveEnum`, `derivePrimitive`, `deriveOption`, `deriveSequence`, `deriveMap` and `deriveTransformedRecord`, receives the `Schema` nodes of the type, and runs with `Derive.derive[F, A](deriver)`. ZIO Schema's own codecs do not use it: each codec module walks the schema with its own code.
 
 ### After (ZIO Blocks Schema)
 
@@ -1406,18 +1404,18 @@ val placeholder: Schema[DynamicValue] = Schema[DynamicValue]
 
 The following ZIO Schema features do not yet have equivalents in ZIO Blocks Schema, or have a different one:
 
-| Feature                                                    | Status                                                                                                   |
-|------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| `Schema.fail` / fail schemas                               | Not available                                                                                            |
-| `schema.migrate` / `schema.coerce`                         | Replaced by explicit [`Migration.newBuilder[A, B]`](../reference/schema/migration.md) and `Into[A, B]`   |
-| `MetaSchema` / schema serialization                        | Replaced by `DynamicSchema`, stored with `DynamicSchema.schema` and turned back into a `Schema[A]` with `DynamicSchema#rebind`; recursive types cannot be stored yet |
-| `Fallback[A, B]` schema                                    | Not available                                                                                            |
-| `NonEmptyChunk` / `NonEmptySet` / `NonEmptyMap` schemas    | Not available — use wrapper types                                                                        |
-| `Schema.singleton` / singleton schemas                     | Not available                                                                                            |
-| `DynamicValue.BothValue` / `DynamicValue.DynamicAst`       | Not available                                                                                            |
-| Composable `Validation` (`&&`, `\|\|`, `!`)                | Not available — use `Schema#transform` with throwing functions                                           |
-| Streaming codec methods (`streamEncoder`, `streamDecoder`) | Not available — wrap codecs in your effect system                                                        |
-| ZIO `Chunk` (from `zio-core`)                              | Replaced by `zio.blocks.chunk.Chunk`                                                                     |
+| Feature                                                    | Status                                                                                                                                     |
+|------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `Schema.fail` / fail schemas                               | Not available                                                                                                                              |
+| `schema.migrate` / `schema.coerce`                         | Replaced by explicit [`Migration.newBuilder[A, B]`](../reference/schema/migration.md) and `Into[A, B]`                                     |
+| `MetaSchema` / schema serialization                        | Replaced by `DynamicSchema`: stored with `DynamicSchema.schema`, rebound with `DynamicSchema#rebind`; recursive types cannot be stored yet |
+| `Fallback[A, B]` schema                                    | Not available                                                                                                                              |
+| `NonEmptyChunk` / `NonEmptySet` / `NonEmptyMap` schemas    | Not available — use wrapper types                                                                                                          |
+| `Schema.singleton` / singleton schemas                     | Not available                                                                                                                              |
+| `DynamicValue.BothValue` / `DynamicValue.DynamicAst`       | Not available                                                                                                                              |
+| Composable `Validation` (`&&`, `\|\|`, `!`)                | Not available — use `Schema#transform` with throwing functions                                                                             |
+| Streaming codec methods (`streamEncoder`, `streamDecoder`) | Not available — wrap codecs in your effect system                                                                                          |
+| ZIO `Chunk` (from `zio-core`)                              | Replaced by `zio.blocks.chunk.Chunk`                                                                                                       |
 
 ---
 
