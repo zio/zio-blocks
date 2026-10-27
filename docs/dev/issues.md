@@ -13004,46 +13004,6 @@ Found 2026-10-27 while writing the Scaladoc for `Reader` and `Writer` (wave 2 of
 
 **Suggested fix.** Apply the replacement text given in items 1, 6 and 7 (and the wording of the wave 2 Scaladoc for the rest), then run `docs/mdoc` on both pages. The wave 3 Scaladoc for `NioWriters` should describe the `fromChannel` leak.
 
-### docs: `docs/index.md` says `Maybe` is "backed by `null`"; it uses an `Absent` singleton
-
-Found 2026-10-27 while writing the how-to guide `docs/guides/avoid-allocation-on-hot-paths.md` (backlog H-51), on `main` at `8bb71c48c`. Same at v0.0.56 (there the row is `docs/index.md:125`).
-
-**Summary.** The Data Types table row for Maybe (`docs/index.md:129`) reads "Low-allocation optional values backed by `null`". Since PR #1532 (commit `8b583cc9a`, 2026-08-25, before v0.0.56) the Scala 3 encoding uses a top-level `Absent` object for absence; `null` is a *present* value (`Maybe.present(null)` is `Present(null)`), and only `Maybe.apply` maps a `null` argument to absent. On Scala 2.13 `Maybe` is a sealed trait (`MaybeValue.Present` / `MaybeValue.Absent`), not null-backed either. The `docs/reference/maybe.md` page itself describes the `Absent` encoding correctly, so the index contradicts it.
-
-**Reproduction.** File `Repro.scala`, run with `scala-cli run --server=false Repro.scala` (JDK 25, scala-cli 1.10.1):
-
-```scala
-//> using scala 3.9.0
-//> using options -experimental
-//> using dep dev.zio::zio-blocks-next-maybe:0.0.56
-import zio.blocks.maybe._
-
-@main def repro(): Unit = {
-  val absent: Maybe[String] = Maybe.absent
-  println(s"absent is null:        ${absent.asInstanceOf[AnyRef] eq null}")
-  println(s"absent runtime class:  ${absent.asInstanceOf[AnyRef].getClass.getName}")
-  val presentNull: Maybe[String] = Maybe.present(null)
-  println(s"present(null) present: ${presentNull.isPresent}")
-  println(s"present(null) class:   ${presentNull.asInstanceOf[AnyRef].getClass.getName}")
-  println(s"Maybe(null) absent:    ${Maybe[String](null).isAbsent}")
-}
-// absent is null:        false
-// absent runtime class:  zio.blocks.maybe.Absent$
-// present(null) present: true
-// present(null) class:   zio.blocks.maybe.Present
-// Maybe(null) absent:    true
-```
-
-**Expected.** The index describes what `Maybe` is: an optional value that stores a present reference as is, with `Absent` for absence.
-
-**Root cause.** Stale text from the pre-#1532 `A | Null` encoding. Source: `maybe/shared/src/main/scala-3/zio/blocks/maybe/Maybe.scala:65` (`object Absent`), `:67` (`opaque type Maybe[+A] = A | Absent.type | Present[A]`), `:79` (`Maybe.apply`: `null` → `Absent`), `:98-105` (`Maybe.present`: `null` → `Present(null)`); Scala 2: `maybe/shared/src/main/scala-2/zio/blocks/maybe/Maybe.scala:21-25`.
-
-**Impact.** Readers believe `null` means absent and may store `null` expecting `isAbsent`, or skip `Maybe` for nullable Java values for the wrong reason. The README is generated from this row, so it ships on GitHub too.
-
-**Test gap.** None (doc text). `MaybeScala3Spec` already covers `present(null)`.
-
-**Suggested fix.** Replace the description with "Optional values that store a present reference as is, without a wrapper object (Scala 3)". Done in PR #1866 (H-51, commit `1dfba0647`); regenerate the README after it merges.
-
 ### docs: `docs/reference/maybe.md` says flat primitive `Maybe`s allocate nothing; any `Long`, `Double` or `Int` outside the box cache is boxed
 
 Found 2026-10-27 while writing the how-to guide `docs/guides/avoid-allocation-on-hot-paths.md` (backlog H-51), on `main` at `8bb71c48c`. Same at v0.0.56.
@@ -13448,6 +13408,7 @@ Item 3 is the documentation side of the existing Library bugs entry "streams (Sc
 
 ## Resolved
 
+- `docs/index.md` described `Maybe` as "Low-allocation optional values backed by `null`"; since #1532 absence is an `Absent` singleton and `Maybe.present(null)` is present. Fixed in #1866 (H-51, commit `1dfba0647`); regenerate the README.
 - `telemetry-guide.md` propagation examples started a new trace instead of continuing the caller's: the HTTP server example took its tracer before `trace.install`, and `traceIncoming` extracted the parent but never scoped it. The "Span-log correlation" line called the `private[telemetry]` `new TracerProvider(...)`, and `reference/telemetry/otel/index.md` listed `X-B3-ParentSpanId` and `X-B3-Flags` as headers `B3Propagator.multi` writes (it writes only TraceId, SpanId and Sampled). Fixed in #1853 (H-43, commit `4df2713bc`). Still open: the same wrong header list in the Scaladoc at `otel/src/main/scala/zio/blocks/telemetry/otel/B3Propagator.scala:41-42` (backlog doc-fix follow-up).
 - `reference/http-model/headers.md:660` said `ServerSentEvent` uses `Headers` indirectly through `Response`; it renders a `String` and touches neither. Fixed in #1842 (H-41), which also links the SSE guide from that sentence.
 - JSON number docs fixed in wave 8b of the schema Scaladoc (#1843, `JsonReader`/`JsonWriter`): `json.md:18` and `:26` said `Json.Number` has "arbitrary precision" and preserves precision for financial and scientific data, but `Json.parse` and the `BigDecimal` codec round to 34 significant digits (`MathContext.DECIMAL128`) and reject 308 or more digits (`Json.scala:2351`, `JsonReader.scala:3125`, `:5243-5254`, `JsonCodec.scala:875`; `Json.parse("1234567890123456789012345678901234567890")` prints `1.234567890123456789012345678901235E39`). The Scaladoc of `JsonReader.bigIntDigitsLimit`/`bigDecimalDigitsLimit` (308) and the `digitsLimit` parameters called 308 "the maximum number of digits", but the check is `len >= digitsLimit`, so 308 digits are rejected and the scale limit 6178 is exclusive too (`JsonReader.scala:2922`, `:3020`, `:3062`, `:3126`). `JsonWriter` Scaladoc: `writeKey(x: Instant)` was described as writing a `Duration`, `writeVal(x: Char)` as writing "a JSON key", and `writeObjectStart`/`writeObjectEnd` as array markers. `JsonReader` Scaladoc: `readStringAsBigDecimal` said it reads "a JSON number value" (it reads a string), and `readBigInt(digitsLimit)`/`readStringAsBigInt(digitsLimit)` said they throw on "the default limit" (they use the given one).
