@@ -310,11 +310,11 @@ object Reader {
    * directly. A pull may block the calling thread, for example on a reader over
    * a `java.io.InputStream`.
    *
-   * The companion constructors return this kind, and so does a fully
-   * synchronous stream on the JVM (`Stream#start`). To write your own, extend
-   * it and implement [[read]], [[isClosed]] and [[close]]: every other method
-   * has a default built on [[read]]. A reader that does not override
-   * [[jvmType]] is on the `AnyRef` lane, so its elements are boxed.
+   * The companion constructors return this kind, and so does `Stream#start` on
+   * the JVM, for any stream. To write your own, extend it and implement
+   * [[read]], [[isClosed]] and [[close]]: every other method has a default
+   * built on [[read]]. A reader that does not override [[jvmType]] is on the
+   * `AnyRef` lane, so its elements are boxed.
    *
    * {{{
    * import zio.blocks.streams.io.Reader
@@ -487,10 +487,11 @@ object Reader {
 
     /**
      * Closes this reader: later pulls return the end value (the sentinel, `-1`
-     * or an empty chunk). Closing twice has no further effect. What happens to
-     * an underlying resource depends on the reader: the readers from
-     * `Reader.fromInputStream` and `Reader.fromReader` leave the stream they
-     * wrap open.
+     * or an empty chunk). Closing again has no further effect, except that a
+     * reader whose close failed may throw that failure again (see
+     * [[withRelease]]). What happens to an underlying resource depends on the
+     * reader: the readers from `Reader.fromInputStream` and `Reader.fromReader`
+     * leave the stream they wrap open.
      *
      * A known bug: the readers from `Reader.repeat` and the synchronous
      * `Reader.repeated` keep producing elements after `close()`.
@@ -1088,11 +1089,12 @@ object Reader {
 
     /**
      * Rewinds this reader so that its elements can be read again from the
-     * start, even after [[close]]. The default throws
-     * `UnsupportedOperationException`, and so do the readers over a one-shot
-     * source (`Reader.fromInputStream`, `Reader.fromReader`). The collection
-     * readers rewind to the position set by [[setSkip]] and keep the limit set
-     * by [[setLimit]], and `Reader.unfold` restarts from its initial state.
+     * start; the collection readers also rewind after [[close]]. The default
+     * throws `UnsupportedOperationException`, and so do the readers over a
+     * one-shot source (`Reader.fromInputStream`, `Reader.fromReader`). The
+     * collection readers rewind to the position set by [[setSkip]] and keep the
+     * limit set by [[setLimit]], and `Reader.unfold` restarts from its initial
+     * state.
      *
      * {{{
      * import zio.blocks.chunk.Chunk
@@ -1255,7 +1257,8 @@ object Reader {
    * pull can wait for its source without blocking a thread. A stream with an
    * asynchronous stage materializes as this kind, `Stream#startAsync` and
    * `Stream#useReaderAsync` hand one out, and [[Reader.unfoldAsync]] builds
-   * one. It is the kind that works on both the JVM and Scala.js.
+   * one. It is the kind to use for I/O on Scala.js, where a pull must not block
+   * a thread.
    *
    * Allow at most one operation in flight: wait for the `Async` of a pull, a
    * control operation or `close()` before starting the next one. The owner of
@@ -3003,8 +3006,9 @@ object Reader {
    * Returns a reader that produces the elements of `inner` again and again:
    * each time `inner` ends, it calls `inner.reset()` and keeps reading. An
    * exception from `inner`, including the `UnsupportedOperationException` of an
-   * `inner` that cannot reset, is thrown by the pull and closes the reader. If
-   * `inner` produces no element between two resets, a pull loops forever.
+   * `inner` that cannot reset, is thrown by the pull; `isClosed` turns `true`
+   * only when the failing pull was `read`. If `inner` produces no element
+   * between two resets, a pull loops forever.
    *
    * A known bug: after `close()`, the next pull resets `inner` and keeps
    * producing elements (the asynchronous overload stops as expected).
@@ -3124,10 +3128,11 @@ object Reader {
    * `Some((element, next))` produces `element` and moves to `next`, while
    * `None` ends the reader. Nothing runs until the pull's `Async` runs.
    *
-   * A failure of `f`'s `Async` fails the pull and leaves the state unchanged.
-   * The next state is kept only when `f` succeeds before a `reset()` or
-   * `close()`, which discard a result still in flight. `reset()` restarts from
-   * `s`.
+   * A failure of `f`'s `Async` fails the pull and ends the reader: `isClosed`
+   * becomes `true`, and every later pull fails with the same error without
+   * calling `f` again, until `reset()`. The next state is kept only when `f`
+   * succeeds before a `reset()` or `close()`, which discard a result still in
+   * flight. `reset()` restarts from `s`.
    *
    * {{{
    * import zio.blocks.async._
