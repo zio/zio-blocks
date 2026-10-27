@@ -7600,6 +7600,388 @@ import zio.http.htmx.headers._
 
 **Suggested fix.** Render with `json.print(WriterConfig.withEscapeUnicode(true))` in both places; add a test that the rendered value is ASCII and round-trips through `parse`.
 
+### codegen: `EmitterConfig.default` renders implicit vals and defs as `given val` / `given def`, which Scala 3 rejects
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** With `EmitterConfig.default` (`scala3Syntax = true`), `ScalaEmitter` turns `ObjectMember.ValMember(..., isImplicit = true)` into `given val name: T = ...` and `Method(..., isImplicit = true)` into `given def name: T = ...`. Neither is valid Scala 3: a given is written `given name: T = ...`. Any generated companion that holds an implicit, such as `implicit val schema: Schema[A] = Schema.derived`, therefore fails to compile on Scala 3. The same IR emits valid `implicit val` / `implicit def` under `EmitterConfig.scala2`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-codegen` 0.0.56). Running `sbt run compile` makes `run` write the generated file and `compile` compile it.
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
+// Repro writes its output here; the next `compile` compiles it.
+Compile / unmanagedSourceDirectories += baseDirectory.value / "generated"
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+import java.nio.file.{Files, Paths}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val file = ScalaFile(
+      PackageDecl("com.example"),
+      types = List(
+        ObjectDef(
+          "Instances",
+          members = List(
+            ObjectMember.ValMember("answer", TypeRef.Int, "42", isImplicit = true),
+            ObjectMember.DefMember(Method("greeting", returnType = TypeRef.String, body = Some("\"hi\""), isImplicit = true))
+          )
+        )
+      )
+    )
+    val source = ScalaEmitter.emit(file, EmitterConfig.default)
+    println(source)
+    Files.createDirectories(Paths.get("generated"))
+    Files.write(Paths.get("generated", "Instances.scala"), source.getBytes("UTF-8"))
+  }
+}
+// package com.example
+//
+// object Instances {
+//   given val answer: Int = 42
+//   given def greeting: String = "hi"
+// }
+//
+// [error] -- [E040] Syntax Error: .../generated/Instances.scala:4:8
+// [error] 4 |  given val answer: Int = 42
+// [error]   |        ^^^
+// [error]   |        an identifier expected, but 'val' found
+// [error] -- [E040] Syntax Error: .../generated/Instances.scala:5:8
+// [error] 5 |  given def greeting: String = "hi"
+// [error]   |        ^^^
+// [error]   |        an identifier expected, but 'def' found
+// [error] -- [E120] Naming Error: .../generated/Instances.scala:5:2
+// [error] 5 |  given def greeting: String = "hi"
+// [error]   |  ^
+// [error]   |  Conflicting definitions:
+// [error]   |  final lazy module given object given_<error>: object
+// [error]   |    com.example.Instances.given_<error> in object Instances at line 4 and
+// [error]   |  final lazy module given object given_<error>: object
+// [error]   |    com.example.Instances.given_<error> in object Instances at line 5
+// [error] three errors found
+```
+
+**Expected.** Code that compiles on Scala 3: `given answer: Int = 42` and `given greeting: String = "hi"`. Emitting `implicit val` / `implicit def` unchanged would also work, because Scala 3 still accepts them.
+
+**Root cause.** In `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala`, `emitObjectMember` appends `"given "` and then the unchanged `val name: T = ...` (`:792-797`). `emitMethod` does the same before `def` (`:743-746`). A lazy implicit val comes out as `given lazy val` (`:797`), which is invalid too.
+
+**Impact.** Generated code that carries type class instances in companion objects, the usual Scala 2 way and still valid in Scala 3, cannot be emitted for Scala 3. The T-13 tutorial avoids it by putting `derives Schema` on case classes in Scala 3 and the companion `implicit val` only in Scala 2.
+
+**Test gap.** The tests pin the invalid output: `ScalaEmitterObjectSpec.scala:471` (`given def codec[A]: Codec[A]`), `:525` (`given val codec: Codec = derived`) and `CodegenIntegrationSpec.scala:753` (`given def encode`). No test compiles emitted code.
+
+**Suggested fix.** Under `scala3Syntax`, emit `given <name>: <Type> = <value>` for an implicit `ValMember` (lazy or not; a given alias is already lazy) and `given <name>[...](using ...): <Type> = <body>` for an implicit `Method`. Alternatively keep `implicit` in both dialects. Fix the three test assertions, and add one test that compiles the Scala 3 output, for example with a `scala.compiletime.testing.typeChecks`-style check or a compile step in CI.
+
+------------------------------------------------------------------------
+
+### codegen: an `Enum` loses its companion object and its type parameters in both dialects
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `Enum` has `companion` and `typeParams` fields, but `ScalaEmitter` drops both. With `EmitterConfig.default` it emits `enum Priority { ... }` with no `object Priority`. With `EmitterConfig.scala2` it emits the sealed trait and the case objects, but the companion's own members are gone. An enum with type parameters comes out without `[A]` in both dialects, so its cases refer to an undeclared `A` and the code doesn't compile.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-codegen` 0.0.56, `sbt run`).
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val priority = Enum(
+      "Priority",
+      cases = List(EnumCase.SimpleCase("Low"), EnumCase.SimpleCase("High")),
+      companion = Some(CompanionObject(List(ObjectMember.ValMember("default", TypeRef("Priority"), "Priority.Low"))))
+    )
+    val result = Enum(
+      "Result",
+      typeParams = List(TypeParam("A")),
+      cases = List(EnumCase.ParameterizedCase("Ok", List(Field("value", TypeRef("A")))), EnumCase.SimpleCase("Err"))
+    )
+    val file = ScalaFile(PackageDecl("com.example"), types = List(priority, result))
+    println("--- EmitterConfig.default ---")
+    println(ScalaEmitter.emit(file, EmitterConfig.default))
+    println("--- EmitterConfig.scala2 ---")
+    println(ScalaEmitter.emit(file, EmitterConfig.scala2))
+  }
+}
+// --- EmitterConfig.default ---
+// package com.example
+//
+// enum Priority {
+//   case Low, High
+// }
+//
+// enum Result {
+//   case Ok(value: A)
+//   case Err
+// }
+//
+// --- EmitterConfig.scala2 ---
+// package com.example
+//
+// sealed trait Priority
+//
+// object Priority {
+//   case object Low extends Priority
+//   case object High extends Priority
+// }
+//
+// sealed trait Result
+//
+// object Result {
+//   case class Ok(
+//     value: A
+//   ) extends Result
+//   case object Err extends Result
+// }
+```
+
+**Expected.** Scala 3: `enum Priority { ... }` followed by `object Priority { val default: Priority = Priority.Low }`, and `enum Result[A] { ... }`. Scala 2: the companion's `default` inside `object Priority`, and `sealed trait Result[A]` with cases that extend `Result[A]`. (`Err` needs `Result[Nothing]` with a covariant `A`, or a type parameter of its own.)
+
+**Root cause.** In `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala`, `emitEnumScala3` (`:379-414`) renders only the doc, annotations, name, `extends` and cases; it never reads `en.companion` or `en.typeParams`. `emitEnumAsSealed` (`:416-431`) builds a `SealedTrait` from `name`, `cases`, `extendsTypes`, `annotations` and `doc` only, so `companion`, `typeParams` and `derives` are dropped before `emitSealedTrait` runs.
+
+**Impact.** An enum can't carry generated instances or helpers (for example a companion `implicit val schema` in Scala 2, or `fromString` lookups). The loss is silent, so it shows up only as a missing implicit or an unknown `A` when the generated code is compiled.
+
+**Test gap.** `ScalaEmitterEnumSpec` "enum with companion object" (`:230-241`) only asserts `result.contains("enum Priority")`, and "enum with type params in Scala 2 mode becomes sealed trait" (`:243-256`) only asserts `contains("sealed trait Result")`. `CodegenIntegrationSpec.scala:470-491` asserts `case Active(value: A)` for an enum whose `[A]` is never printed. Full-string assertions (AGENTS.md "Render Assertions") would have caught both.
+
+**Suggested fix.** In `emitEnumScala3`, emit `[typeParams]` after the name and the companion after the closing brace, as `emitCaseClass` does (`:298-301`). In `emitEnumAsSealed`, pass `typeParams`, `companion` and `derives` through to the `SealedTrait`. Replace the `contains` assertions with full-string ones.
+
+------------------------------------------------------------------------
+
+### codegen: `ScalaEmitter` writes doc text into `/** ... */` unescaped, so a `*/` or `/*` in it breaks the file
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** Every `doc` (on a case class, sealed trait, enum, object, method and so on) is emitted as `"/** " + text + " */"` with the text unchanged. Doc text usually comes from an outside source, such as a Smithy `///` comment or an OpenAPI `description`. If that text contains `/*` (Scala comments nest) or `*/`, the generated file doesn't compile. A path such as `/api/*/users` is enough.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-codegen` 0.0.56, `sbt run compile`).
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
+// Repro writes its output here; the next `compile` compiles it.
+Compile / unmanagedSourceDirectories += baseDirectory.value / "generated"
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+import java.nio.file.{Files, Paths}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val user = CaseClass(
+      "User",
+      List(Field("email", TypeRef.String)),
+      doc = Some("Served under /api/*/users.")
+    )
+    val source = ScalaEmitter.emit(ScalaFile(PackageDecl("com.example"), types = List(user)))
+    println(source)
+    Files.createDirectories(Paths.get("generated"))
+    Files.write(Paths.get("generated", "User.scala"), source.getBytes("UTF-8"))
+  }
+}
+// package com.example
+//
+// /** Served under /api/*/users. */
+// case class User(
+//   email: String,
+// )
+//
+// [error] -- Error: .../generated/User.scala:3:0
+// [error] 3 |/** Served under /api/*/users. */
+// [error]   |^
+// [error]   |unclosed comment
+// [error] one error found
+```
+
+**Expected.** A comment that compiles and still reads the same, for example with `*/` written as `*&#47;` and `/*` as `/&#42;` (the usual Scaladoc escapes), or with a zero-width break between the two characters.
+
+**Root cause.** `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala` appends the raw doc string in eleven places: `:260`, `:323`, `:385`, `:450`, `:493`, `:528`, `:578`, `:644`, `:718` and `:735`, plus the enum path through `emitSealedTrait`. Multi-line text is also written without the ` * ` prefix on continuation lines. That compiles, but it doesn't follow the repo's Scaladoc style.
+
+**Impact.** A code generator fed by a real specification can emit a file that doesn't compile, and the cause (a comment) is far from the input that triggered it.
+
+**Test gap.** No emitter test uses a doc containing `*/`, `/*` or a newline (`grep -rn '\*/' codegen/src/test` finds only the licence headers).
+
+**Suggested fix.** Add one private `emitDoc(prefix, text)` helper that escapes `*/` and `/*`, splits on newlines and prefixes each continuation line with ` * `, and use it at every call site. Add tests for the escapes and for multi-line text.
+
+------------------------------------------------------------------------
+
+### codegen: `macro` is not escaped, so a field named `macro` breaks Scala 2 output
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `ScalaEmitter` backquotes a name only when it is in its keyword set or is not a plain identifier. The set has no `macro`, which is a reserved word in Scala 2.13, so `Field("macro", ...)` is emitted as `macro: String` and Scala 2 rejects it. Scala 3 accepts `macro` as an identifier.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-codegen` 0.0.56, `sbt run compile`).
+
+`build.sbt`:
+
+```scala
+scalaVersion := "2.13.18"
+libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
+// Repro writes its output here; the next `compile` compiles it.
+Compile / unmanagedSourceDirectories += baseDirectory.value / "generated"
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+import java.nio.file.{Files, Paths}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val build  = CaseClass("Build", List(Field("macro", TypeRef.String)))
+    val source = ScalaEmitter.emit(ScalaFile(PackageDecl("com.example"), types = List(build)), EmitterConfig.scala2)
+    println(source)
+    Files.createDirectories(Paths.get("generated"))
+    Files.write(Paths.get("generated", "Build.scala"), source.getBytes("UTF-8"))
+  }
+}
+// package com.example
+//
+// case class Build(
+//   macro: String
+// )
+//
+// [error] .../generated/Build.scala:4:3: macro is now a reserved word; usage as an identifier is disallowed
+// [error]   macro: String
+// [error]   ^
+// [error] .../generated/Build.scala:5:2: ':' expected but eof found.
+// [error] )
+// [error]  ^
+// [error] two errors found
+```
+
+**Expected.** `` `macro`: String ``, which compiles on Scala 2.13 and Scala 3.
+
+**Root cause.** `scalaKeywords` in `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala:851-895` has no `macro`. `escapeName` (`:897-900`) backquotes only names in that set or names that are not plain identifiers.
+
+**Impact.** Low, but real for generators: field names come from external schemas, and `macro` is a plausible one (for example in build or editor configuration).
+
+**Test gap.** `ScalaEmitterEscapingSpec` doesn't check `macro`, and nothing compiles the Scala 2 output.
+
+**Suggested fix.** Add `"macro"` to `scalaKeywords`. The set already escapes Scala 3-only keywords (`enum`, `given`, `export`, `then`) in Scala 2 output as well, which is harmless, so a single union set stays correct.
+
+------------------------------------------------------------------------
+
+### smithy: the parser rejects common Smithy 2.0 IDL syntax (mixins, member defaults, `for`/`$` elision, inline `:=` I/O, text blocks)
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `SmithyModel.parse` accepts `$version: "2"` files but fails on several constructs that Smithy IDL 2.0 defines and that real 2.0 models use often: mixins (`structure Order with [Audited] { ... }`), member default values (`quantity: Integer = 1`), target elision (`structure Order for OrderResource { $id }`), inline operation input and output (`input := { ... }`) and text blocks (`"""` ... `"""`). It also rejects `set` shapes, which Smithy 2.0 deprecates in favour of `list` with `@uniqueItems`. The error messages describe the parser's position ("Expected '{' but found 'w'"), not the unsupported feature. Neither `docs/reference/smithy.md` nor the Scaladoc lists these as unsupported.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-smithy` 0.0.56, `sbt run`).
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+libraryDependencies += "dev.zio" %% "zio-blocks-smithy" % "0.0.56"
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.smithy._
+
+object Repro {
+  val header = "$version: \"2\"\nnamespace com.example\n\n"
+
+  val cases: List[(String, String)] = List(
+    "mixin"               -> "@mixin\nstructure Audited { createdAt: Timestamp }\n\nstructure Order with [Audited] { id: String }",
+    "member default"      -> "structure Order { quantity: Integer = 1 }",
+    "resource elision"    -> "resource OrderResource { identifiers: { id: String } }\n\nstructure Order for OrderResource { $id }",
+    "inline input"        -> "operation GetOrder { input := { id: String } }",
+    "set shape"           -> "set Tags { member: String }",
+    "text block"          -> "@documentation(\"\"\"\n    An order.\n    \"\"\")\nstructure Order { id: String }",
+    "use-imported trait"  -> "use com.acme.traits#audited\n\n@audited\nstructure Order { id: String }"
+  )
+
+  def main(args: Array[String]): Unit =
+    cases.foreach { case (label, body) =>
+      SmithyModel.parse(header + body) match {
+        case Right(model) => println(s"$label: parsed, traits = ${model.shapes.flatMap(_.shape.traits).map(_.id)}")
+        case Left(error)  => println(s"$label: ${error.formatMessage}")
+      }
+    }
+}
+// mixin: Parse error at line 7, column 17: Expected '{' but found 'w'
+// member default: Parse error at line 4, column 37: Expected member name
+// resource elision: Parse error at line 6, column 17: Expected '{' but found 'f'
+// inline input: Parse error at line 4, column 29: Expected target for 'input'
+// set shape: Parse error at line 4, column 9: Unexpected keyword: set
+// text block: Parse error at line 4, column 18: Expected ')' but found '"'
+// use-imported trait: parsed, traits = List(smithy.api#audited)
+```
+
+(The last line belongs to the next entry.)
+
+**Expected.** Each construct parses into the model: mixins as a list of mixin `ShapeId`s on the shape (or with mixin members merged in), a member default as a `@default` trait (the IDL defines `= value` as sugar for `@default(value)`), elided members resolved from the resource or mixin, inline I/O as generated `<Op>Input`/`<Op>Output` structures, and text blocks as strings. Until then, the parser should report "mixins are not supported" and similar, and `docs/reference/smithy.md` should list the unsupported 2.0 features.
+
+**Root cause.** In `smithy/src/main/scala/zio/blocks/smithy/SmithyParser.scala`:
+
+- `parseAggregateShape` calls `expectChar('{')` right after the shape name (`:279`), so `with [...]` and `for ...` are never read.
+- `parseMemberDefinitions` (`:325-352`) reads `name: Target` and an optional comma; there is no `=` branch, and `MemberDefinition` (`Shape.scala:383-387`) has no field for it.
+- `parseOperationBody` (`:556-580`) expects a shape id after `input`/`output`, and there is no `:=` handling.
+- `readQuotedString` (`:1137`) has no text-block branch.
+- The shape keyword sets (`:43-75`) have no `set`.
+
+**Impact.** Many real Smithy 2.0 models (AWS service models and most models written for smithy4s) use mixins, defaults or inline I/O, so they fail to parse. A user can't tell from the error that the input is valid Smithy.
+
+**Test gap.** `SmithyParserSimpleSpec` and `SmithyParserComplexSpec` don't cover any of these constructs, not even as expected failures.
+
+**Suggested fix.** Implement member defaults (desugar to `@default`), text blocks and inline I/O first; they are local to the parser. Add mixins with a `mixins: List[ShapeId]` field on the aggregate shapes. Meanwhile, recognise each construct and fail with a message that names the unsupported feature, and add a "Supported Smithy features" table to `docs/reference/smithy.md`.
+
+------------------------------------------------------------------------
+
+### smithy: a trait imported with `use` is resolved to `smithy.api`, not to its real namespace
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** When a trait is applied by its simple name, the parser always gives it the `smithy.api` namespace. It ignores both the model's `use` statements and its own namespace. `use com.acme.traits#audited` followed by `@audited` yields `TraitApplication(ShapeId("smithy.api", "audited"), None)`. A custom trait defined in the same file is also reported as `smithy.api#<name>`. Code that looks traits up by full id therefore can't find custom traits, and can confuse them with prelude traits of the same name.
+
+**Reproduction.** Same project and run as the previous entry ("smithy: the parser rejects common Smithy 2.0 IDL syntax ..."), whose `Repro.scala` includes this case. The relevant case and its real output:
+
+```scala
+"use-imported trait" -> "use com.acme.traits#audited\n\n@audited\nstructure Order { id: String }"
+// use-imported trait: parsed, traits = List(smithy.api#audited)
+```
+
+**Expected.** `com.acme.traits#audited`. Smithy resolves a relative shape id by checking `use` statements first, then the current namespace, then the prelude.
+
+**Root cause.** `parseShapeIdFromString` (`smithy/src/main/scala/zio/blocks/smithy/SmithyParser.scala:848-856`) returns `ShapeId("smithy.api", s)` for any name without `#` ("Simple name — assume smithy.api namespace"), and trait parsing calls it (`:790`). The `use` statements collected at `:96-127` are never consulted.
+
+**Impact.** Custom traits, the usual way to attach generator hints in Smithy, are misidentified. `docs/reference/smithy.md` says the parser "resolves those against the prelude", which describes this behaviour, but it isn't what Smithy specifies.
+
+**Test gap.** No parser test applies a non-prelude trait by simple name, with or without `use`.
+
+**Suggested fix.** Resolve simple trait names against the `use` statements, then the model namespace when the trait is defined there, then `smithy.api`. Add tests for all three, and update the "Trait identifiers are the exception" paragraph of `docs/reference/smithy.md`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -10070,6 +10452,67 @@ object MainClash {
 **Test gap.** None (usability).
 
 **Suggested fix.** Say in `docs/reference/html.md` to import `scala.concurrent.duration.DurationInt` (not `._`) next to the DSL, and that `zio.blocks.html.main(...)` (or an alias) is needed inside an object with `def main`.
+
+### codegen: `SealedTrait.derives`, `Enum.derives` and `Field.doc` are accepted but never emitted
+
+Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** Three IR fields look as if they control the output, but `ScalaEmitter` ignores them in every configuration. `SealedTrait(derives = List("Schema"))` and `Enum(derives = ...)` never print `derives`; only `CaseClass` does. `Field(doc = Some(...))` is dropped, although `Field`'s Scaladoc documents the parameter and its example sets it. The only hint is one line in `docs/reference/codegen/emitter-config.md:309` ("sealed traits and enums do not emit derives"). A generator that relies on these fields compiles, and the instances or comments are missing from the output with no warning.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-codegen` 0.0.56, `sbt run`).
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val file = ScalaFile(
+      PackageDecl("com.example"),
+      types = List(
+        CaseClass("User", List(Field("email", TypeRef.String, doc = Some("The user's email address.")))),
+        SealedTrait("Status", cases = List(SealedTraitCase.CaseObjectCase("Active")), derives = List("Schema")),
+        Enum("Color", cases = List(EnumCase.SimpleCase("Red")), derives = List("Schema"))
+      )
+    )
+    println(ScalaEmitter.emit(file, EmitterConfig.default))
+  }
+}
+// package com.example
+//
+// case class User(
+//   email: String,
+// )
+//
+// sealed trait Status
+//
+// object Status {
+//   case object Active extends Status
+// }
+//
+// enum Color {
+//   case Red
+// }
+```
+
+**Expected.** Either the fields render (`sealed trait Status derives Schema`, `enum Color derives Schema` and a `/** ... */` line above `email`, all valid Scala 3) or the IR has no such fields. At least each field's Scaladoc should say that the emitter ignores it.
+
+**Root cause.** `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala`: `emitSealedTrait` (`:318-360`) never reads `st.derives`, `emitEnumScala3` (`:379-414`) never reads `en.derives`, and `emitField` (`:105-114`) and `emitFieldInline` (`:842-849`) never read `field.doc`. Only `emitCaseClass` renders `derives` (`:295-296`).
+
+**Impact.** In the T-13 tutorial, a Scala 3 `OrderStatus` with `derives = List("Schema")` produced generated code where `summon[Schema[OrderStatus]]` fails with "No given instance of type zio.blocks.schema.Schema[...OrderStatus] was found". The tutorial now puts schemas on case classes only and has a note that field docs are not rendered.
+
+**Test gap.** `ScalaEmitterTypeRefSpec.scala:92-97` ("with doc is ignored in field emission") pins the dropped doc as intended behaviour. No test sets `derives` on a `SealedTrait` or an `Enum`.
+
+**Suggested fix.** Render `derives` on `SealedTrait` and `Enum` under `scala3Syntax`, the same way `emitCaseClass` does. Render `Field.doc` as a `/** ... */` line above the parameter (valid in Scala 2 and 3, through the escaping helper from the doc-escaping entry). If any of this is deliberate, say so in the field's Scaladoc and in `docs/reference/codegen/{sealed-trait,field}.md`.
 
 ## Test and CI
 
