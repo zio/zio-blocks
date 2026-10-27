@@ -632,7 +632,7 @@ object Message {
 }
 ```
 
-Among the built-in codecs, only the XML codec reads `Modifier.config` keys (`xml.attribute`, `xml.namespace.uri` and `xml.namespace.prefix`); the others ignore them. For any other key, the modifier carries settings for a deriver that you write (see [Migrating Type Class Derivation](#migrating-type-class-derivation)), which finds them on the schema's fields:
+Among the built-in codecs, only the XML codec (`xml.attribute`, `xml.namespace.uri` and `xml.namespace.prefix`) and the SQL module (`sql.table_name`, `sql.inline_fields` and `sql.inline`) read `Modifier.config` keys; the others ignore them. For any other key, the modifier carries settings for a deriver that you write (see [Migrating Type Class Derivation](#migrating-type-class-derivation)), which finds them on the schema's fields:
 
 ```scala mdoc
 Message.schema.reflect.asRecord.get.fields.foreach { field =>
