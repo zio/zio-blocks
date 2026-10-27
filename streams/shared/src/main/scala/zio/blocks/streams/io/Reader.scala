@@ -25,51 +25,134 @@ import java.io.{IOException, InputStream, Reader => JReader}
 import java.lang.{Double => JDouble, Float => JFloat}
 
 /**
- * A pull-based source of elements. Returns elements until closed.
+ * A pull-based source of elements: the consumer asks for the next element, and
+ * the reader returns it or reports that it has no more. Every
+ * [[zio.blocks.streams.Stream]] runs by compiling to a `Reader` that a
+ * [[zio.blocks.streams.Sink]] drains, and `Stream.fromReader` turns a reader
+ * into a stream. Build a reader by hand, with the constructors in the companion
+ * object or by extending one of the two kinds, to plug in a source the library
+ * does not cover or to pull elements yourself.
+ *
+ * ==Two kinds==
+ * `Reader` itself only concatenates readers (`++`, `concat`, [[concatAsync]]),
+ * attaches asynchronous cleanup ([[withReleaseAsync]]) and reports its lane
+ * ([[jvmType]]). Pulling, querying and closing belong to its two kinds:
+ *   - [[Reader.SyncReader]] returns every result directly, and a pull may block
+ *     the calling thread.
+ *   - [[Reader.AsyncReader]] returns every result in an `Async`, and allows one
+ *     operation in flight at a time.
+ *
+ * `SyncReader#toAsync` and, on the JVM, `AsyncReader#toSync` convert one kind
+ * into the other without copying.
+ *
+ * ==End of stream==
+ * `read(sentinel)` returns the next element, or `sentinel` once the reader is
+ * exhausted or closed. The caller chooses the sentinel, and it must be a value
+ * that never occurs as an element: the reader returns an element equal to the
+ * sentinel as is, and the caller cannot tell it from the end. When elements may
+ * be `null`, pass a fresh object such as `new AnyRef` and compare with `eq`.
+ * Failures are thrown by a `SyncReader` and fail the `Async` of an
+ * `AsyncReader`; they are never reported through the sentinel.
+ *
+ * ==Primitive lanes==
+ * [[jvmType]] names how a reader stores its elements. A reader on a primitive
+ * lane supports the unboxed pull of that lane, which returns a wider type so
+ * that a sentinel outside the element's range is free:
+ *   - `readBoolean`, `readChar` and `readShort` return an `Int` (use `-1`, or
+ *     `Int.MinValue` for `readShort`), and `readByte()` returns `0` to `255`,
+ *     or `-1` at the end;
+ *   - `readInt` returns a `Long` (use `Long.MinValue`), and `readFloat` returns
+ *     a `Double` (use `Double.MaxValue`);
+ *   - `readLong` and `readDouble` return the element type itself, so no
+ *     sentinel is safe: an element equal to the sentinel looks like the end.
+ *     For a loop that keeps every value, call the bulk reads `readLongs` or
+ *     `readDoubles` with a one-element array, whose returned count is `-1` only
+ *     at the end.
+ *
+ * The bulk reads (`readAll`, `readN`, `readUpToN`, `skip`) handle the end of
+ * the stream themselves and never mistake an element for it. On a reader on the
+ * `AnyRef` lane, the default primitive pulls unbox each element. Known bugs:
+ * `readBytes`, `readInts` and `readFloats` throw `IllegalStateException` there,
+ * and so does every primitive pull of a reader that wraps an `AnyRef`-lane
+ * reader (`toAsync`, `toSync`, `withRelease`, `withReleaseAsync`,
+ * `Reader.repeated`, and the result of `++`, `concat` or `concatAsync`).
  *
  * ==Thread safety==
- * Reader instances are ''not'' thread-safe. They are designed for
- * single-threaded, pull-based consumption. Do not share a Reader across threads
- * without external synchronization.
+ * A reader is a single-consumer cursor and is not thread-safe. Pull from one
+ * thread at a time, and on an `AsyncReader` wait for each operation to finish
+ * before starting the next.
  *
- * ==Termination==
- * The `read` method returns elements while available, or a caller-chosen
- * sentinel when closed. For errors, `read` throws — either the raw exception,
- * or a [[StreamError]] wrapping non-Throwable error values. See
- * [[zio.blocks.streams.internal.StreamError]].
+ * {{{
+ * import zio.blocks.chunk.Chunk
+ * import zio.blocks.streams.io.Reader
  *
- * ==Sentinel-return protocol==
- * Specialized methods (`readInt`, `readLong`, etc.) widen the return type and
- * use a caller-chosen sentinel for end-of-stream. These are the hot-path
- * zero-boxing pull methods.
+ * val reader = Reader.fromChunk(Chunk("Zionomicon", "Functional Programming in Scala"))
+ * val eof    = new AnyRef
  *
- * '''Sentinel choice:''' The `Int` lane uses `Long.MinValue` (safe because no
- * `Int` value widens to `Long.MinValue`). Long and Double paths that must
- * distinguish end-of-stream use the identity-only [[EndOfStream]] marker so
- * every value remains representable. The `Float` lane uses `Double.MaxValue`
- * (safe because `Float.MaxValue` widened to `Double` is distinct from
- * `Double.MaxValue`).
+ * reader.read[AnyRef](eof)        // Zionomicon
+ * reader.readAll[String]()        // Chunk(Functional Programming in Scala)
+ * reader.read[AnyRef](eof) eq eof // true
+ * reader.isClosed                 // true
  *
- * ==Laws==
- *   - `isClosed` is monotone: once `true` it never returns `false`.
- *   - When `isClosed` and buffer is empty: `read(sentinel)` returns the
- *     sentinel.
+ * // A stream built from a reader closes it when the stream ends.
+ * Stream.fromReader[Nothing, Int](Reader.fromRange(1 to 3)).runCollect // Right(Chunk(1,2,3))
+ * }}}
  *
  * @tparam Elem
- *   Element type produced by this reader.
+ *   the type of the elements this reader produces
+ * @see
+ *   [[https://zioblocks.com/reference/streams/primitives/reader/ Reader]]
  */
 abstract class Reader[+Elem] {
 
-  /** Alias for [[concat]]. */
+  /**
+   * Returns a reader that produces this reader's elements, then the elements of
+   * `next`. Alias for `concat`, with `next` passed by name.
+   */
   def ++[Elem2 >: Elem](next: => Reader[Elem2]): Reader[Elem2]
 
+  /**
+   * Returns a reader that produces this reader's elements, then the elements of
+   * the reader that `next` returns. `next` runs when this reader is exhausted,
+   * and this reader is closed before the switch. The result is an
+   * [[Reader.AsyncReader]] unless both sides are statically known to be
+   * [[Reader.SyncReader]]s (see `SyncReader#concat`).
+   *
+   * The result is on the `AnyRef` lane. A known bug: its primitive pulls
+   * (`readInt`, `readBytes`, ...) throw, or fail with, `IllegalStateException`;
+   * read it with `read`, `readAll`, `readN` or `readUpToN`, or through a
+   * stream.
+   *
+   * When the result is an `AsyncReader`, an element that is the same object as
+   * the `read` sentinel ends the current part early: that element and the rest
+   * of its part are skipped (see `AsyncReader#read`).
+   */
   def concat[Elem2 >: Elem](next: () => Reader[Elem2]): Reader[Elem2]
 
+  /**
+   * Returns an [[Reader.AsyncReader]] that produces this reader's elements,
+   * then the elements of the reader that the `Async` from `next` produces.
+   * `next` runs when this reader is exhausted. The result is on the `AnyRef`
+   * lane, with the known bug described on `Reader#concat`.
+   */
   def concatAsync[Elem2 >: Elem](next: () => Async[Reader[Elem2]]): Reader.AsyncReader[Elem2]
 
+  /**
+   * Returns an [[Reader.AsyncReader]] over this reader that runs `release` when
+   * it is closed and waits for it to finish. `release` runs once, however many
+   * times the reader is closed; reading to the end does not run it. A failure
+   * of `release` fails that `close()` and every later one.
+   *
+   * A known bug: when this reader is on the `AnyRef` lane, the result's
+   * primitive pulls (`readInt`, `readLongs`, ...) throw, or fail with,
+   * `IllegalStateException`; `read`, `readAll`, `readN` and `readUpToN` work.
+   */
   def withReleaseAsync(release: () => Async[Unit]): Reader.AsyncReader[Elem]
 
-  /** The primitive representation lane used by this reader. */
+  /**
+   * The lane this reader stores its elements in: a primitive type, whose
+   * unboxed pull this reader supports, or `JvmType.AnyRef` for boxed elements.
+   */
   def jvmType: JvmType = JvmType.AnyRef
 
   /**
@@ -79,6 +162,31 @@ abstract class Reader[+Elem] {
   private[streams] def tryReadable: Reader.Availability
 }
 
+/**
+ * Constructors for [[Reader]] and its two kinds, [[Reader.SyncReader]] and
+ * [[Reader.AsyncReader]].
+ *
+ * Every constructor states its kind in its return type. All of them return a
+ * `SyncReader` except [[unfoldAsync]], and `repeated` keeps the kind of the
+ * reader it wraps:
+ *   - [[closed]]: no elements.
+ *   - [[single]] and `singleInt`, `singleLong`, ...: exactly one element.
+ *   - [[fromChunk]], [[fromIterable]] and [[fromRange]]: the elements of a
+ *     collection, on the primitive lane of the element type.
+ *   - [[fromInputStream]] and [[fromReader]]: the bytes of a
+ *     `java.io.InputStream` or the characters of a `java.io.Reader`.
+ *   - [[repeat]]: one value forever. `repeated`: a reader restarted each time
+ *     it ends.
+ *   - [[unfold]] and [[unfoldAsync]]: elements computed from a state.
+ *
+ * {{{
+ * import zio.blocks.streams.io.Reader
+ *
+ * val numbers = Reader.fromRange(1 to 5)
+ * numbers.readN[Int](2) // Chunk(1,2)
+ * numbers.readAll[Int]() // Chunk(3,4,5)
+ * }}}
+ */
 object Reader {
 
   /**
@@ -173,8 +281,17 @@ object Reader {
    * SyncInterpreter. Standalone readers retain their original behavior.
    */
   private[streams] trait InterpreterGuard {
+
+    /** Throws if the interpreter operation that started this read is stale. */
     def check(): Unit
+
+    /**
+     * Closes `owner` after it failed with `primary`, recording any cleanup
+     * failure.
+     */
     def reject(owner: SyncReader[_], primary: Throwable): Unit
+
+    /** Records that cleanup failed with `cleanup` after `primary`. */
     def cleanupFailed(primary: Throwable, cleanup: Throwable): Unit
   }
 
@@ -188,6 +305,36 @@ object Reader {
     try { validateArrayRange(array, offset, length); Async.succeed(()) }
     catch { case cause: Throwable => Async.fail(cause) }
 
+  /**
+   * A [[Reader]] whose pulls, queries and `close()` return their results
+   * directly. A pull may block the calling thread, for example on a reader over
+   * a `java.io.InputStream`.
+   *
+   * The companion constructors return this kind, and so does `Stream#start` on
+   * the JVM, for any stream. To write your own, extend it and implement
+   * [[read]], [[isClosed]] and [[close]]: every other method has a default
+   * built on [[read]]. A reader that does not override [[jvmType]] is on the
+   * `AnyRef` lane, so its elements are boxed.
+   *
+   * {{{
+   * import zio.blocks.streams.io.Reader
+   *
+   * final class Countdown(from: Int) extends Reader.SyncReader[Int] {
+   *   private var next   = from
+   *   private var closed = false
+   *
+   *   def read[A >: Int](sentinel: A): A =
+   *     if (closed || next == 0) { closed = true; sentinel }
+   *     else { next -= 1; next + 1 }
+   *
+   *   def isClosed: Boolean = closed
+   *   def close(): Unit     = closed = true
+   * }
+   *
+   * new Countdown(3).readAll[Int]() // Chunk(3,2,1)
+   * Stream.fromReader[Nothing, Int](new Countdown(3)).map(_ * 10).runCollect // Right(Chunk(30,20,10))
+   * }}}
+   */
   abstract class SyncReader[+Elem] extends Reader[Elem] { self =>
 
     private lazy val doubleScratch = new Array[Double](1)
@@ -205,9 +352,38 @@ object Reader {
     /** Fails immediately with a trusted typed source error. */
     protected final def failSource(value: Any): Nothing = throw sourceError(value)
 
+    /**
+     * Returns a synchronous reader that produces this reader's elements, then
+     * those of `next`, which is evaluated when this reader is exhausted. Alias
+     * for the synchronous `concat`, chosen when `next` is statically a
+     * `SyncReader`.
+     *
+     * {{{
+     * import zio.blocks.chunk.Chunk
+     * import zio.blocks.streams.io.Reader
+     *
+     * val both = Reader.fromChunk(Chunk(1, 2)) ++ Reader.fromChunk(Chunk(3))
+     * both.readAll[Int]() // Chunk(1,2,3)
+     * }}}
+     */
     final def ++[Elem2 >: Elem](next: => SyncReader[Elem2])(implicit dummy: DummyImplicit): SyncReader[Elem2] =
       concat(() => next)
 
+    /**
+     * Returns a synchronous reader that produces this reader's elements, then
+     * those of the reader that `next` returns. Chosen over the asynchronous
+     * overload when `next` statically returns a `SyncReader`.
+     *
+     * `next` runs when this reader is exhausted, and this reader is closed
+     * first; an exception from `next` is thrown by the pull that reached the
+     * end. `reset()` rewinds this reader and runs `next` again on the next
+     * pass. Chains such as `a ++ b ++ c` share one flat reader.
+     *
+     * The result is on the `AnyRef` lane, whatever the lanes of the two
+     * readers. A known bug: its primitive pulls (`readInt`, `readLong`,
+     * `readByte`, `readBytes`, ...) throw `IllegalStateException`; read it with
+     * `read`, `readAll`, `readN` or `readUpToN`, or through a stream.
+     */
     final def concat[Elem2 >: Elem](next: () => SyncReader[Elem2])(implicit dummy: DummyImplicit): SyncReader[Elem2] =
       concatWithJvmType(() => StreamError.callback(next()), JvmType.AnyRef)
 
@@ -220,9 +396,23 @@ object Reader {
         case _                                                           => new ConcatReader[Elem2](this, next, outType)
       }
 
+    /**
+     * Returns an `AsyncReader` that produces this reader's elements, then those
+     * of `next`. Chosen when `next` is statically a `Reader` of unknown kind;
+     * this reader is adapted with [[toAsync]]. The result is on the `AnyRef`
+     * lane, with the known bug and the sentinel limitation described on
+     * `Reader#concat`.
+     */
     final override def ++[Elem2 >: Elem](next: => Reader[Elem2]): AsyncReader[Elem2] =
       new AsyncConcatReader[Elem2](toAsync, () => StreamError.callbackAsync(Async.succeed(next)), JvmType.AnyRef)
 
+    /**
+     * Returns an `AsyncReader` that produces this reader's elements, then those
+     * of the reader that `next` returns. Chosen when `next` statically returns
+     * a `Reader` of unknown kind; this reader is adapted with [[toAsync]]. The
+     * result is on the `AnyRef` lane, with the known bug and the sentinel
+     * limitation described on `Reader#concat`.
+     */
     final override def concat[Elem2 >: Elem](next: () => Reader[Elem2]): AsyncReader[Elem2] =
       new AsyncConcatReader[Elem2](toAsync, () => StreamError.callbackAsync(Async.succeed(next())), JvmType.AnyRef)
 
@@ -232,56 +422,126 @@ object Reader {
     ): AsyncReader[Elem2] =
       new AsyncConcatReader[Elem2](toAsync, () => StreamError.callbackAsync(Async.succeed(next())), outType)
 
+    /**
+     * Returns an `AsyncReader` that produces this reader's elements, then those
+     * of the reader that the `Async` from `next` produces. `next` runs when
+     * this reader is exhausted. The result is on the `AnyRef` lane, with the
+     * known bug and the sentinel limitation described on `Reader#concat`.
+     */
     final def concatAsync[Elem2 >: Elem](next: () => Async[Reader[Elem2]]): AsyncReader[Elem2] =
       new AsyncConcatReader[Elem2](toAsync, () => StreamError.callbackAsync(next()), JvmType.AnyRef)
 
+    /**
+     * Returns an `AsyncReader` over this reader that runs `release` when it is
+     * closed and waits for it to finish. `release` runs once, however many
+     * times the reader is closed; reading to the end does not run it. A failure
+     * of `release` fails that `close()` and every later one. Use
+     * [[withRelease]] to stay synchronous.
+     *
+     * A known bug: when this reader is on the `AnyRef` lane, the result's
+     * primitive pulls (`readInt`, `readLongs`, ...) throw, or fail with,
+     * `IllegalStateException`; `read`, `readAll`, `readN` and `readUpToN` work.
+     */
     final def withReleaseAsync(release: () => Async[Unit]): AsyncReader[Elem] =
       new AsyncReleaseReader[Elem](toAsync, release)
 
+    /**
+     * Returns an `AsyncReader` view of this reader, for code written against
+     * the asynchronous kind. Each pull of the view calls this reader on the
+     * thread that runs the `Async`, so a pull that blocks still blocks that
+     * thread.
+     *
+     * The view shares this reader's position and lifecycle: closing the view
+     * closes this reader, and pulling from both interleaves on one cursor. On a
+     * reader made by `AsyncReader#toSync`, it returns the original asynchronous
+     * reader instead of wrapping again.
+     *
+     * Once one of the view's pulls returns its end value, the view treats the
+     * reader as exhausted, and every later pull returns the end value without
+     * reading this reader again (until `reset()`). For `read`, that is an
+     * element that is the same object as the sentinel: on the JVM a boxed
+     * `Boolean`, a boxed number from -128 to 127 or an interned string can be
+     * (`read(-1)` matches an element `-1`), and on Scala.js any equal `String`,
+     * `Int`, `Float` or `Double` is (an equal `Long` or `Char` is not); for
+     * `readBoolean`, `readChar`, `readShort`, `readInt` and `readFloat`, an
+     * element equal to the sentinel. So an element that collides with the
+     * sentinel ends the view early. The view's `readLong` and `readDouble`
+     * detect the end by count and never stop early.
+     *
+     * A known bug: when this reader is on the `AnyRef` lane, the result's
+     * primitive pulls (`readInt`, `readLongs`, ...) throw, or fail with,
+     * `IllegalStateException`; `read`, `readAll`, `readN` and `readUpToN` work.
+     *
+     * {{{
+     * import zio.blocks.async._
+     * import zio.blocks.chunk.Chunk
+     * import zio.blocks.streams.io.Reader
+     *
+     * val view = Reader.fromChunk(Chunk(1, 2, 3)).toAsync
+     * view.readAll[Int]().block // Chunk(1,2,3)
+     * }}}
+     */
     final def toAsync: AsyncReader[Elem] = this match {
       case inverse: AsyncToSyncView[Elem @unchecked] => inverse.source
       case _                                         => new SyncToAsyncReader[Elem](this)
     }
 
     /**
-     * Signals close from the consumer side. Implementations should set internal
-     * closed state and wake any blocked readers.
+     * Closes this reader: later pulls return the end value (the sentinel, `-1`
+     * or an empty chunk). Closing again has no further effect, except that a
+     * reader whose close failed may throw that failure again (see
+     * [[withRelease]]). What happens to an underlying resource depends on the
+     * reader: the readers from `Reader.fromInputStream` and `Reader.fromReader`
+     * leave the stream they wrap open.
+     *
+     * A known bug: the readers from `Reader.repeat` and the synchronous
+     * `Reader.repeated` keep producing elements after `close()`.
      */
     def close(): Unit
 
     /**
-     * `true` once the reader is closed. Reflects the state machine; does not
-     * imply the buffer is empty.
+     * Returns `true` once this reader is exhausted or closed. Readers over a
+     * collection report `true` as soon as the last element is read; a reader
+     * that learns the end only by trying, such as `Reader.unfold`, reports it
+     * after a pull has returned the end value. `reset()` can make it `false`
+     * again.
      */
     def isClosed: Boolean
 
     /**
-     * The primitive type of elements in this reader, or `AnyRef` for reference
-     * types. Specialized subclasses override this to enable zero-boxing pull
-     * paths via `readIntPhysical()`, `readLongPhysical()`, etc.
+     * The lane this reader stores its elements in. A subclass that stores
+     * primitives overrides it, and the matching unboxed pull (`readInt`,
+     * `readLong`, ...) must then work.
      */
     override def jvmType: JvmType = JvmType.AnyRef
 
     /**
-     * Reads the next element, or returns `sentinel` if the stream is closed.
-     * The caller passes a sentinel value that can never appear as a real
-     * element; getting it back means the stream is exhausted.
+     * Returns the next element, or `sentinel` once this reader is exhausted or
+     * closed, blocking until one of the two is known.
+     *
+     * `sentinel` must not occur as an element: an element equal to it is
+     * returned as is, and the caller cannot tell it from the end. For elements
+     * that may be `null`, pass a fresh object and compare with `eq`. A failure
+     * of the source is thrown.
      */
     def read[A >: Elem](sentinel: A): A
 
     /**
-     * Returns `true` if the next `read()` / `readIntPhysical()` etc. would
-     * return a value (not closed/sentinel). Default implementation returns
-     * `!isClosed`. Subclasses with buffered state should override for accuracy.
+     * Returns `true` when this reader expects to produce another element. The
+     * default is `!isClosed`, so `true` does not promise that the next pull
+     * returns an element. Readers over a collection answer exactly, and the
+     * reader from `Reader.fromInputStream` answers `true` only when
+     * `InputStream#available` reports bytes that can be read without blocking.
      */
     def readable(): Boolean = !isClosed
 
     private[streams] def tryReadable: Availability = if (readable()) Available else Unavailable
 
     /**
-     * Drains this reader into a [[Chunk]], consuming all remaining elements.
-     * Returns [[Chunk.empty]] when already at EOF. Dispatches on [[jvmType]]
-     * for zero-boxing on primitive streams.
+     * Reads every remaining element into a `Chunk`, blocking until this reader
+     * is exhausted, and returns `Chunk.empty` when it already is. On an
+     * infinite reader it never returns. Primitive lanes are read unboxed, and
+     * no element is mistaken for the end of the stream.
      */
     def readAll[A >: Elem](): Chunk[A] = {
       val et = jvmType
@@ -331,10 +591,19 @@ object Reader {
     }
 
     /**
-     * Reads at most `n` elements into a [[Chunk]], returning early if the
-     * reader is exhausted. Returns [[Chunk.empty]] when `n <= 0` or the reader
-     * is already closed. Dispatches on [[jvmType]] for zero-boxing on primitive
-     * streams.
+     * Reads up to `n` elements into a `Chunk`, blocking until it has `n` or
+     * this reader is exhausted. Returns `Chunk.empty` when `n <= 0` or the
+     * reader is already exhausted. Primitive lanes are read unboxed, and no
+     * element is mistaken for the end of the stream.
+     *
+     * {{{
+     * import zio.blocks.streams.io.Reader
+     *
+     * val lines = Reader.fromIterable(List("first line", "second line", "third line"))
+     * lines.readN[String](2) // Chunk(first line,second line)
+     * lines.readN[String](2) // Chunk(third line)
+     * lines.readN[String](2) // Chunk()
+     * }}}
      */
     def readN[A >: Elem](n: Int): Chunk[A] = {
       if (n <= 0) return Chunk.empty
@@ -396,19 +665,14 @@ object Reader {
     }
 
     /**
-     * Reads up to `n` elements that are currently available. Blocks for at
-     * least 1 element if none are ready yet. Returns fewer than `n` if fewer
-     * are available without additional blocking. Returns [[Chunk.empty]] if
-     * `n <= 0` or if the reader is closed and empty.
+     * Reads up to `n` elements without waiting for more than the first: blocks
+     * until one element or the end is known, then keeps reading only while
+     * [[readable]] reports another element. Returns between 1 and `n` elements,
+     * or `Chunk.empty` when `n <= 0` or this reader is exhausted.
      *
-     * Differs from [[readN]] in that [[readN]] blocks until exactly `n`
-     * elements have been read. [[readUpToN]] returns as soon as at least one
-     * element is read, without waiting for further elements.
-     *
-     * @param n
-     *   maximum number of elements to read
-     * @return
-     *   a [[Chunk]] with between 1 and `n` elements, or empty on EOS
+     * Unlike [[readN]], it does not wait for a slow source to fill the request.
+     * On a reader whose `readable()` is the default `!isClosed`, it reads like
+     * [[readN]].
      */
     def readUpToN[A >: Elem](n: Int): Chunk[A] = {
       if (n <= 0) return Chunk.empty
@@ -475,10 +739,11 @@ object Reader {
     }
 
     /**
-     * Sentinel-return Boolean pull. Returns `1` for `true`, `0` for `false`, or
-     * `sentinel` when closed and empty. Sentinel must be outside `[0, 1]`. A
-     * typical sentinel is `-1`. Requires implicit evidence that `Elem` is a
-     * subtype of `Boolean`.
+     * Returns the next `Boolean` as `1` (`true`) or `0` (`false`), or
+     * `_sentinel` at the end, without boxing on the `Boolean` lane. Choose a
+     * sentinel outside `0` and `1`, such as `-1`, and no element can be
+     * mistaken for the end. Throws `UnsupportedOperationException` on a reader
+     * of another primitive lane that does not implement it.
      */
     def readBoolean(_sentinel: Int)(implicit _ev: Elem <:< Boolean): Int =
       if (jvmType eq JvmType.AnyRef) {
@@ -489,9 +754,12 @@ object Reader {
       } else throw unsupportedExactRead(JvmType.Boolean, _sentinel, _ev)
 
     /**
-     * Reads a single byte, returning -1 when closed. Default delegates to
-     * `read` and extracts the low byte. Byte-specialized readers override for
-     * efficiency.
+     * Returns the next element as an unsigned byte, `0` to `255`, or `-1` at
+     * the end, so no element can be mistaken for the end. It needs no evidence
+     * and compiles on any reader: the `Byte` lane reads unboxed, the default on
+     * the `AnyRef` lane expects `Byte` elements, and on another primitive lane
+     * the collection readers return the low 8 bits of each element while the
+     * default throws `UnsupportedOperationException`.
      */
     def readByte(): Int =
       if (jvmType eq JvmType.AnyRef) {
@@ -500,37 +768,33 @@ object Reader {
       } else throw unsupportedExactRead(JvmType.Byte)
 
     /**
-     * Box-free bulk byte pull into a caller-supplied buffer. Requires
-     * compile-time evidence that this reader's element type is `Byte`.
+     * Reads up to `len` bytes into `buf`, starting at `offset`, without boxing,
+     * like `java.io.InputStream#read(byte[], int, int)`. Blocks until one byte
+     * or the end is known, then keeps reading only while [[readable]] reports
+     * another byte. Returns the number of bytes read (`1` to `len`), `-1` at
+     * the end, or `0` when `len` is `0`.
      *
-     * Contract mirrors `java.io.InputStream.read(byte[], int, int)`:
-     *   - Blocks until at least 1 byte is available.
-     *   - Returns the number of bytes read (`1 <= r <= len`).
-     *   - Returns `-1` when closed and empty.
-     *   - Returns `0` immediately when `len == 0`.
+     * Throws `NullPointerException` when `buf` is `null` and
+     * `IndexOutOfBoundsException` when the range does not fit in `buf`, even
+     * when `len` is `0`. The reader from `Reader.fromInputStream` passes the
+     * whole request to `InputStream#read`. A known bug: on a reader on the
+     * `AnyRef` lane, such as a custom reader that does not override
+     * [[jvmType]], it throws `IllegalStateException` instead of unboxing.
      *
-     * @param buf
-     *   the destination byte array
-     * @param offset
-     *   the start position in `buf` to write into
-     * @param len
-     *   the maximum number of bytes to read
-     * @param ev
-     *   compile-time evidence that `Elem` is a subtype of `Byte`; this method
-     *   is only available on `Reader[Byte]` instances
-     * @return
-     *   the number of bytes read, or `-1` on end-of-stream
-     *
-     * @example
-     *   {{{
+     * {{{
      * import zio.blocks.streams.io.Reader
      *
-     * val inputStream = new java.io.ByteArrayInputStream("Zionomicon".getBytes("UTF-8"))
-     * val reader = Reader.fromInputStream(inputStream)
-     * val buf = new Array[Byte](1024)
-     * val n = reader.readBytes(buf, 0, buf.length)
-     * if (n > 0) println(new String(buf, 0, n, "UTF-8"))
-     *   }}}
+     * val reader = Reader.fromInputStream(new java.io.ByteArrayInputStream("Zionomicon".getBytes("UTF-8")))
+     * val buf    = new Array[Byte](4)
+     * val text   = new StringBuilder
+     * var n      = reader.readBytes(buf, 0, buf.length)
+     * while (n > 0) {
+     *   text ++= new String(buf, 0, n, "UTF-8")
+     *   n = reader.readBytes(buf, 0, buf.length)
+     * }
+     * text.toString // Zionomicon
+     * n             // -1
+     * }}}
      */
     def readBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Elem <:< Byte): Int = {
       validateArrayRange(buf, offset, len)
@@ -547,23 +811,15 @@ object Reader {
     }
 
     /**
-     * Box-free bulk Int pull into a caller-supplied buffer.
+     * Reads up to `maxLen` `Int` elements into `buf`, starting at `offset`,
+     * without boxing. Blocks until one element or the end is known, then keeps
+     * reading only while [[readable]] reports another element. Returns the
+     * number read (`1` to `maxLen`), `-1` at the end, or `0` when `maxLen` is
+     * `0`; no element is mistaken for the end.
      *
-     * Contract mirrors [[readBytes]]:
-     *   - Blocks until at least 1 element is available.
-     *   - Returns the number of elements read (`1 <= r <= maxLen`).
-     *   - Returns `-1` when closed and empty.
-     *   - Returns `0` immediately when `maxLen == 0`.
-     *
-     * @param buf
-     *   destination array
-     * @param offset
-     *   starting position in `buf`
-     * @param maxLen
-     *   maximum number of elements to read
-     * @return
-     *   number of elements read, `-1` on end-of-stream, or `0` when
-     *   `maxLen == 0`
+     * Throws `NullPointerException` or `IndexOutOfBoundsException` for an
+     * invalid range, as [[readBytes]] does. A known bug: on a reader on the
+     * `AnyRef` lane it throws `IllegalStateException` instead of unboxing.
      */
     def readInts(buf: Array[Int], offset: Int, maxLen: Int)(implicit ev: Elem <:< Int): Int = {
       validateArrayRange(buf, offset, maxLen)
@@ -581,23 +837,28 @@ object Reader {
     }
 
     /**
-     * Box-free bulk Long pull into a caller-supplied buffer.
+     * Reads up to `maxLen` `Long` elements into `buf`, starting at `offset`,
+     * without boxing. Blocks until one element or the end is known, then keeps
+     * reading only while [[readable]] reports another element. Returns the
+     * number read (`1` to `maxLen`), `-1` at the end, or `0` when `maxLen` is
+     * `0`. Throws `NullPointerException` or `IndexOutOfBoundsException` for an
+     * invalid range, as [[readBytes]] does.
      *
-     * Contract mirrors [[readBytes]]:
-     *   - Blocks until at least 1 element is available.
-     *   - Returns the number of elements read (`1 <= r <= maxLen`).
-     *   - Returns `-1` when closed and empty.
-     *   - Returns `0` immediately when `maxLen == 0`.
+     * The count reports the end separately from the data, so every `Long`
+     * value, `Long.MaxValue` included, stays readable. Called with a
+     * one-element array, it is the element-by-element pull to use when no
+     * sentinel is safe for [[readLong]]:
      *
-     * @param buf
-     *   destination array
-     * @param offset
-     *   starting position in `buf`
-     * @param maxLen
-     *   maximum number of elements to read
-     * @return
-     *   number of elements read, `-1` on end-of-stream, or `0` when
-     *   `maxLen == 0`
+     * {{{
+     * import zio.blocks.chunk.Chunk
+     * import zio.blocks.streams.io.Reader
+     *
+     * val ids = Reader.fromChunk(Chunk(7L, Long.MaxValue, 9L))
+     * val one = new Array[Long](1)
+     * val all = Chunk.newBuilder[Long]
+     * while (ids.readLongs(one, 0, 1) > 0) all += one(0)
+     * all.result() // Chunk(7,9223372036854775807,9)
+     * }}}
      */
     def readLongs(buf: Array[Long], offset: Int, maxLen: Int)(implicit ev: Elem <:< Long): Int =
       if (jvmType eq JvmType.AnyRef) {
@@ -614,23 +875,17 @@ object Reader {
       } else throw unsupportedExactRead(JvmType.Long, buf, offset, maxLen, ev)
 
     /**
-     * Box-free bulk Double pull into a caller-supplied buffer.
+     * Reads up to `maxLen` `Double` elements into `buf`, starting at `offset`,
+     * without boxing. Blocks until one element or the end is known, then keeps
+     * reading only while [[readable]] reports another element. Returns the
+     * number read (`1` to `maxLen`), `-1` at the end, or `0` when `maxLen` is
+     * `0`. Throws `NullPointerException` or `IndexOutOfBoundsException` for an
+     * invalid range, as [[readBytes]] does.
      *
-     * Contract mirrors [[readBytes]]:
-     *   - Blocks until at least 1 element is available.
-     *   - Returns the number of elements read (`1 <= r <= maxLen`).
-     *   - Returns `-1` when closed and empty.
-     *   - Returns `0` immediately when `maxLen == 0`.
-     *
-     * @param buf
-     *   destination array
-     * @param offset
-     *   starting position in `buf`
-     * @param maxLen
-     *   maximum number of elements to read
-     * @return
-     *   number of elements read, `-1` on end-of-stream, or `0` when
-     *   `maxLen == 0`
+     * The count reports the end separately from the data, so every `Double`,
+     * including `Double.MaxValue`, the infinities and `NaN`, stays readable.
+     * Called with a one-element array, it is the element-by-element pull to use
+     * when no sentinel is safe for [[readDouble]].
      */
     def readDoubles(buf: Array[Double], offset: Int, maxLen: Int)(implicit ev: Elem <:< Double): Int =
       if (jvmType eq JvmType.AnyRef) {
@@ -647,23 +902,15 @@ object Reader {
       } else throw unsupportedExactRead(JvmType.Double, buf, offset, maxLen, ev)
 
     /**
-     * Box-free bulk Float pull into a caller-supplied buffer.
+     * Reads up to `maxLen` `Float` elements into `buf`, starting at `offset`,
+     * without boxing. Blocks until one element or the end is known, then keeps
+     * reading only while [[readable]] reports another element. Returns the
+     * number read (`1` to `maxLen`), `-1` at the end, or `0` when `maxLen` is
+     * `0`; no element is mistaken for the end.
      *
-     * Contract mirrors [[readBytes]]:
-     *   - Blocks until at least 1 element is available.
-     *   - Returns the number of elements read (`1 <= r <= maxLen`).
-     *   - Returns `-1` when closed and empty.
-     *   - Returns `0` immediately when `maxLen == 0`.
-     *
-     * @param buf
-     *   destination array
-     * @param offset
-     *   starting position in `buf`
-     * @param maxLen
-     *   maximum number of elements to read
-     * @return
-     *   number of elements read, `-1` on end-of-stream, or `0` when
-     *   `maxLen == 0`
+     * Throws `NullPointerException` or `IndexOutOfBoundsException` for an
+     * invalid range, as [[readBytes]] does. A known bug: on a reader on the
+     * `AnyRef` lane it throws `IllegalStateException` instead of unboxing.
      */
     def readFloats(buf: Array[Float], offset: Int, maxLen: Int)(implicit ev: Elem <:< Float): Int = {
       validateArrayRange(buf, offset, maxLen)
@@ -681,9 +928,11 @@ object Reader {
     }
 
     /**
-     * Sentinel-return Char pull. Returns element widened to Int, or `sentinel`
-     * when closed. Requires implicit evidence that `Elem` is a subtype of
-     * `Char`.
+     * Returns the next `Char` widened to an `Int` (`0` to `65535`), or
+     * `_sentinel` at the end, without boxing on the `Char` lane. Choose a
+     * sentinel outside that range, such as `-1`, and no element can be mistaken
+     * for the end. Throws `UnsupportedOperationException` on a reader of
+     * another primitive lane that does not implement it.
      */
     def readChar(_sentinel: Int)(implicit _ev: Elem <:< Char): Int =
       if (jvmType eq JvmType.AnyRef) {
@@ -692,9 +941,15 @@ object Reader {
       } else throw unsupportedExactRead(JvmType.Char, _sentinel, _ev)
 
     /**
-     * Sentinel-return Double pull. Returns element widened/exact, or `sentinel`
-     * when closed. Requires implicit evidence that `Elem` is a subtype of
-     * `Double`.
+     * Returns the next `Double`, or `_sentinel` at the end, without boxing on
+     * the `Double` lane. Throws `UnsupportedOperationException` on a reader of
+     * another primitive lane that does not implement it.
+     *
+     * Every `Double` can be an element, so no sentinel is safe: an element
+     * equal to `_sentinel` is returned as is, and the caller cannot tell it
+     * from the end. A `NaN` sentinel never compares equal to anything, so the
+     * end is not detectable with `==` either. To keep every value, read with
+     * [[readDoubles]] and a one-element array instead.
      */
     def readDouble(_sentinel: Double)(implicit _ev: Elem <:< Double): Double =
       if (jvmType eq JvmType.AnyRef) {
@@ -703,9 +958,11 @@ object Reader {
       } else throw unsupportedExactRead(JvmType.Double, _sentinel, _ev)
 
     /**
-     * Sentinel-return Float pull. Returns element widened to Double, or
-     * `sentinel` when closed. Requires implicit evidence that `Elem` is a
-     * subtype of `Float`.
+     * Returns the next `Float` widened to a `Double`, or `_sentinel` at the
+     * end, without boxing on the `Float` lane. Choose a sentinel that no
+     * `Float` widens to, such as `Double.MaxValue`, and no element can be
+     * mistaken for the end. Throws `UnsupportedOperationException` on a reader
+     * of another primitive lane that does not implement it.
      */
     def readFloat(_sentinel: Double)(implicit _ev: Elem <:< Float): Double =
       if (jvmType eq JvmType.AnyRef) {
@@ -714,10 +971,11 @@ object Reader {
       } else throw unsupportedExactRead(JvmType.Float, _sentinel, _ev)
 
     /**
-     * Sentinel-return Int pull. Returns the element widened to `Long`, or
-     * `sentinel` when closed and empty. The sentinel must lie outside
-     * `[Int.MinValue, Int.MaxValue]` (e.g. `Long.MinValue`). Requires implicit
-     * evidence that `Elem` is a subtype of `Int`.
+     * Returns the next `Int` widened to a `Long`, or `_sentinel` at the end,
+     * without boxing on the `Int` lane. Choose a sentinel outside the `Int`
+     * range, such as `Long.MinValue`, and no element can be mistaken for the
+     * end. Throws `UnsupportedOperationException` on a reader of another
+     * primitive lane that does not implement it.
      */
     def readInt(_sentinel: Long)(implicit _ev: Elem <:< Int): Long =
       if (jvmType eq JvmType.AnyRef) {
@@ -726,10 +984,14 @@ object Reader {
       } else throw unsupportedExactRead(JvmType.Int, _sentinel, _ev)
 
     /**
-     * Sentinel-return Long pull. Returns the element, or `sentinel` when closed
-     * and empty. The sentinel must be a value that never appears in the stream
-     * (e.g. `Long.MaxValue`). Requires implicit evidence that `Elem` is a
-     * subtype of `Long`.
+     * Returns the next `Long`, or `_sentinel` at the end, without boxing on the
+     * `Long` lane. Throws `UnsupportedOperationException` on a reader of
+     * another primitive lane that does not implement it.
+     *
+     * Every `Long` can be an element, so no sentinel is safe: an element equal
+     * to `_sentinel` is returned as is, and the caller cannot tell it from the
+     * end. Use it only when some value, such as `Long.MaxValue`, cannot occur
+     * in your data; otherwise read with [[readLongs]] and a one-element array.
      */
     def readLong(_sentinel: Long)(implicit _ev: Elem <:< Long): Long =
       if (jvmType eq JvmType.AnyRef) {
@@ -738,9 +1000,11 @@ object Reader {
       } else throw unsupportedExactRead(JvmType.Long, _sentinel, _ev)
 
     /**
-     * Sentinel-return Short pull. Returns element widened to Int, or `sentinel`
-     * when closed. Requires implicit evidence that `Elem` is a subtype of
-     * `Short`.
+     * Returns the next `Short` widened to an `Int`, or `_sentinel` at the end,
+     * without boxing on the `Short` lane. Choose a sentinel outside the `Short`
+     * range, such as `Int.MinValue`, and no element can be mistaken for the
+     * end. Throws `UnsupportedOperationException` on a reader of another
+     * primitive lane that does not implement it.
      */
     def readShort(_sentinel: Int)(implicit _ev: Elem <:< Short): Int =
       if (jvmType eq JvmType.AnyRef) {
@@ -825,58 +1089,85 @@ object Reader {
     }
 
     /**
-     * Rewinds this reader to its initial state, as if freshly constructed.
-     * After `reset()`, all elements are available again from the beginning.
+     * Rewinds this reader so that its elements can be read again from the
+     * start; the collection readers also rewind after [[close]]. The default
+     * throws `UnsupportedOperationException`, and so do the readers over a
+     * one-shot source (`Reader.fromInputStream`, `Reader.fromReader`). The
+     * collection readers rewind to the position set by [[setSkip]] and keep the
+     * limit set by [[setLimit]], and `Reader.unfold` restarts from its initial
+     * state.
      *
-     * Not all readers support this. Readers backed by one-shot resources
-     * (InputStreams, java.io.Readers) throw `UnsupportedOperationException`.
+     * {{{
+     * import zio.blocks.chunk.Chunk
+     * import zio.blocks.streams.io.Reader
+     *
+     * val reader = Reader.fromChunk(Chunk(1, 2, 3))
+     * reader.readAll[Int]() // Chunk(1,2,3)
+     * reader.reset()
+     * reader.readAll[Int]() // Chunk(1,2,3)
+     * }}}
      */
     def reset(): Unit = throw new UnsupportedOperationException("This reader does not support reset")
 
     /**
-     * Attempts to set a limit on this reader so it produces at most `n`
-     * elements. Returns `true` if the reader handled it natively (O(1), zero
-     * per-element cost), `false` if it cannot. When `true`, the reader will
-     * produce at most `limit` elements before reporting closed. After
-     * `reset()`, the limit is re-applied from the new start position.
-     *
-     * Default returns `false` — most readers don't support native pushdown.
+     * Asks this reader to produce at most `n` more elements and returns whether
+     * it can do so itself, without a per-element counter. `false`, the default,
+     * leaves the reader unchanged, and the caller has to count. The readers
+     * from `fromChunk`, `fromRange` and `fromIterable` over a `Vector` return
+     * `true`, and keep the limit across [[reset]].
      */
     def setLimit(n: Long): Boolean = false
 
     /**
-     * Attempts to set this reader into repeat-forever mode, so it restarts from
-     * the beginning whenever it would otherwise close. Returns `true` if the
-     * reader handled it natively, `false` if the caller must wrap in a
-     * repeating wrapper.
-     *
-     * Default returns `false`.
+     * Asks this reader to start again from the beginning whenever it would end,
+     * so that it never ends, and returns whether it can do so itself. `false`,
+     * the default, leaves the reader unchanged. Only the readers from
+     * `Reader.single` and its primitive variants return `true`; the collection
+     * readers return `false`.
      */
     def setRepeat(): Boolean = false
 
     /**
-     * Attempts to set a skip (drop) on this reader. Returns `true` if the
-     * reader handled it natively (O(1), zero per-element cost), `false` if it
-     * cannot. When `true`, the next `skip` elements will be skipped before
-     * producing. After `reset()`, the skip is re-applied.
-     *
-     * Default returns `false` — most readers don't support native pushdown.
+     * Asks this reader to drop its next `n` elements and returns whether it can
+     * do so itself, without reading them one by one. `false`, the default,
+     * leaves the reader unchanged. The readers from `fromChunk`, `fromRange`
+     * and `fromIterable` over a `Vector` return `true`, and [[reset]] rewinds
+     * them to the position after the drop.
      */
     def setSkip(n: Long): Boolean = false
 
     /**
-     * Eagerly discards the first `n` elements. Returns `Unit`. If the stream
-     * closes before `n` elements, returns early. Subclasses should override for
-     * efficient skipping (e.g. index advancement).
+     * Reads and discards up to `n` elements, stopping early at the end. Does
+     * nothing when `n <= 0`. The chunk, range and `Vector` readers move their
+     * position instead of reading.
      */
     def skip(n: Long): Unit =
       Reader.skipViaSentinel(this, n)
 
     /**
-     * Wraps this reader so that `release` runs after `close()`.
+     * Returns a reader with this reader's elements that runs `release` once,
+     * after closing this reader, the first time it is closed. Reading to the
+     * end does not run `release`; only [[close]] does.
      *
-     * @param release
-     *   Action to execute when this reader is closed.
+     * A failure of this reader's `close()` or of `release` is thrown by
+     * `close()`, and every later `close()` throws it again. A `close()` from
+     * another thread waits until the first one has finished. The result can be
+     * [[reset]] while it is open, if this reader supports it.
+     *
+     * A known bug: when this reader is on the `AnyRef` lane, the result's
+     * primitive pulls (`readInt`, `readLongs`, ...) throw
+     * `IllegalStateException`; `read`, `readAll`, `readN` and `readUpToN` work.
+     *
+     * {{{
+     * import zio.blocks.streams.io.Reader
+     *
+     * val log    = new StringBuilder
+     * val reader = Reader.fromRange(1 to 3).withRelease(() => log ++= "released")
+     * reader.readAll[Int]() // Chunk(1,2,3)
+     * log.toString          // ""
+     * reader.close()
+     * log.toString          // released
+     * }}}
      */
     def withRelease(release: () => Unit): SyncReader[Elem] = {
       val self = this
@@ -962,7 +1253,32 @@ object Reader {
 
   }
 
-  /** A reader whose pull and lifecycle operations may suspend. */
+  /**
+   * A [[Reader]] whose pulls, queries and `close()` return an `Async`, so a
+   * pull can wait for its source without blocking a thread. A stream with an
+   * asynchronous stage materializes as this kind, `Stream#startAsync` and
+   * `Stream#useReaderAsync` hand one out, and [[Reader.unfoldAsync]] builds
+   * one. It is the kind to use for I/O on Scala.js, where a pull must not block
+   * a thread.
+   *
+   * Allow at most one operation in flight: wait for the `Async` of a pull, a
+   * control operation or `close()` before starting the next one. The owner of
+   * the reader (for example the caller of `Stream#startAsync`) runs `close()`
+   * and waits for it.
+   *
+   * To write your own, extend it and implement [[read]], [[readable]],
+   * [[isClosed]] and [[close]]; every other method has a default built on
+   * [[read]].
+   *
+   * {{{
+   * import zio.blocks.async._
+   * import zio.blocks.streams.io.Reader
+   *
+   * val ticks = Reader.unfoldAsync(1)(n => Async.succeed(if (n > 3) None else Some((n, n + 1))))
+   * val all   = ticks.readAll[Int]().flatMap(chunk => ticks.close().map(_ => chunk))
+   * all.block // Chunk(1,2,3)
+   * }}}
+   */
   abstract class AsyncReader[+Elem] extends Reader[Elem] with AsyncReaderPlatform[Elem] { self =>
 
     private lazy val doubleScratch = new Array[Double](1)
@@ -1002,20 +1318,73 @@ object Reader {
     final override def withReleaseAsync(release: () => Async[Unit]): AsyncReader[Elem] =
       new AsyncReleaseReader[Elem](this, release)
 
+    /**
+     * Returns an `Async` that closes this reader: it cancels or waits for work
+     * in flight and releases what the reader holds, and later pulls produce the
+     * end value. A failure while closing fails the `Async`. The library's
+     * readers accept a repeated close, but the owner should close once.
+     */
     def close(): Async[Unit]
+
+    /**
+     * Returns an `Async` that produces `true` once this reader is exhausted or
+     * closed. As with `SyncReader#isClosed`, a reader that learns the end only
+     * by trying, such as [[Reader.unfoldAsync]], reports it after a pull has
+     * returned the end value.
+     */
     def isClosed: Async[Boolean]
+
+    /**
+     * Returns an `Async` that produces `true` when this reader expects to
+     * produce another element. As with `SyncReader#readable`, `true` does not
+     * promise that the next pull returns an element.
+     */
     def readable(): Async[Boolean]
+
+    /**
+     * Returns an `Async` that produces the next element, or `sentinel` once
+     * this reader is exhausted or closed. A failure of the source fails the
+     * `Async`.
+     *
+     * `sentinel` must not occur as an element: on most readers an element equal
+     * to it is returned as is, and the caller cannot tell it from the end. Two
+     * readers lose more: the `SyncReader#toAsync` view stops until `reset()`
+     * (see there), and an asynchronous concatenation built by `++`, `concat` or
+     * `concatAsync` treats an element that is the same object as the sentinel
+     * as the end of its current part, skipping that element and the rest of the
+     * part.
+     */
     def read[A >: Elem](sentinel: A): Async[A]
 
     private[streams] def tryReadable: Availability = Unknown
 
+    /**
+     * Returns an `Async` that reads every remaining element into a `Chunk`,
+     * like [[readN]] with `Int.MaxValue`. On an infinite reader it never
+     * completes.
+     */
     def readAll[A >: Elem](): Async[Chunk[A]] =
       readN(Int.MaxValue)
 
+    /**
+     * Returns an `Async` that reads up to `n` elements into a `Chunk`, stopping
+     * early only at the end, and produces `Chunk.empty` when `n <= 0` or the
+     * reader is exhausted. The default pulls one element at a time and
+     * regularly yields to the scheduler, so a fast reader does not hold the
+     * thread; no element is mistaken for the end.
+     */
     def readN[A >: Elem](n: Int): Async[Chunk[A]] =
       if (n <= 0) Async.succeed(Chunk.empty)
       else readExactN[A](n, stopWhenUnavailable = false)
 
+    /**
+     * Returns an `Async` that reads up to `n` elements without waiting for more
+     * than the first: after the first element it stops as soon as the reader
+     * cannot say that another one is ready. Produces `Chunk.empty` when
+     * `n <= 0` or the reader is exhausted. A reader that never knows whether an
+     * element is ready, such as [[Reader.unfoldAsync]], produces one element
+     * per call.
+     */
     def readUpToN[A >: Elem](n: Int): Async[Chunk[A]] =
       if (n <= 0) Async.succeed(Chunk.empty)
       else readExactN[A](n, stopWhenUnavailable = true)
@@ -1116,43 +1485,107 @@ object Reader {
       else if (budget > 0) loop(i + 1, budget - 1)
       else Async.reschedule(() => loop(i + 1, 255))
 
+    /**
+     * Returns an `Async` that produces `1`, `0` or `_sentinel`, like
+     * [[Reader.SyncReader#readBoolean]]. Choose a sentinel outside `0` and `1`,
+     * such as `-1`, and no element can be mistaken for the end. On a reader of
+     * another primitive lane that does not implement it, the `Async` fails with
+     * `UnsupportedOperationException`.
+     */
     def readBoolean(_sentinel: Int)(implicit _ev: Elem <:< Boolean): Async[Int] =
       if (jvmType eq JvmType.AnyRef)
         read[Any](EndOfStream).map(value =>
           if (value.asInstanceOf[AnyRef] eq EndOfStream) _sentinel else if (value.asInstanceOf[Boolean]) 1 else 0
         )
       else Async.fail(unsupportedExactRead(JvmType.Boolean, _sentinel, _ev))
+
+    /**
+     * Returns an `Async` that produces the next element as `0` to `255`, or
+     * `-1` at the end, so no element can be mistaken for the end, like
+     * [[Reader.SyncReader#readByte]]. On a reader of another primitive lane
+     * that does not implement it, the `Async` fails with
+     * `UnsupportedOperationException`.
+     */
     def readByte(): Async[Int] =
       if (jvmType eq JvmType.AnyRef)
         read[Any](EndOfStream)
           .map(value => if (value.asInstanceOf[AnyRef] eq EndOfStream) -1 else value.asInstanceOf[Byte].toInt & 0xff)
       else Async.fail(unsupportedExactRead(JvmType.Byte))
+
+    /**
+     * Returns an `Async` that produces the next `Char` as an `Int`, or
+     * `_sentinel`, like [[Reader.SyncReader#readChar]]. Choose a sentinel
+     * outside `0` to `65535`, such as `-1`, and no element can be mistaken for
+     * the end. On a reader of another primitive lane that does not implement
+     * it, the `Async` fails with `UnsupportedOperationException`.
+     */
     def readChar(_sentinel: Int)(implicit _ev: Elem <:< Char): Async[Int] =
       if (jvmType eq JvmType.AnyRef)
         read[Any](EndOfStream)
           .map(value => if (value.asInstanceOf[AnyRef] eq EndOfStream) _sentinel else value.asInstanceOf[Char].toInt)
       else Async.fail(unsupportedExactRead(JvmType.Char, _sentinel, _ev))
+
+    /**
+     * Returns an `Async` that produces the next `Short` as an `Int`, or
+     * `_sentinel`, like [[Reader.SyncReader#readShort]]. Choose a sentinel
+     * outside the `Short` range, such as `Int.MinValue`, and no element can be
+     * mistaken for the end. On a reader of another primitive lane that does not
+     * implement it, the `Async` fails with `UnsupportedOperationException`.
+     */
     def readShort(_sentinel: Int)(implicit _ev: Elem <:< Short): Async[Int] =
       if (jvmType eq JvmType.AnyRef)
         read[Any](EndOfStream)
           .map(value => if (value.asInstanceOf[AnyRef] eq EndOfStream) _sentinel else value.asInstanceOf[Short].toInt)
       else Async.fail(unsupportedExactRead(JvmType.Short, _sentinel, _ev))
+
+    /**
+     * Returns an `Async` that produces the next `Int` as a `Long`, or
+     * `_sentinel`, like [[Reader.SyncReader#readInt]]. Choose a sentinel
+     * outside the `Int` range, such as `Long.MinValue`, and no element can be
+     * mistaken for the end. On a reader of another primitive lane that does not
+     * implement it, the `Async` fails with `UnsupportedOperationException`.
+     */
     def readInt(_sentinel: Long)(implicit _ev: Elem <:< Int): Async[Long] =
       if (jvmType eq JvmType.AnyRef)
         read[Any](EndOfStream)
           .map(value => if (value.asInstanceOf[AnyRef] eq EndOfStream) _sentinel else value.asInstanceOf[Int].toLong)
       else Async.fail(unsupportedExactRead(JvmType.Int, _sentinel, _ev))
+
+    /**
+     * Returns an `Async` that produces the next `Long`, or `_sentinel`, like
+     * [[Reader.SyncReader#readLong]]. No sentinel is safe, since an element
+     * equal to it is produced as is; use [[readLongs]] with a one-element array
+     * to keep every value. On a reader of another primitive lane that does not
+     * implement it, the `Async` fails with `UnsupportedOperationException`.
+     */
     def readLong(_sentinel: Long)(implicit _ev: Elem <:< Long): Async[Long] =
       if (jvmType eq JvmType.AnyRef)
         read[Any](EndOfStream)
           .map(value => if (value.asInstanceOf[AnyRef] eq EndOfStream) _sentinel else value.asInstanceOf[Long])
       else Async.fail(unsupportedExactRead(JvmType.Long, _sentinel, _ev))
+
+    /**
+     * Returns an `Async` that produces the next `Float` as a `Double`, or
+     * `_sentinel`, like [[Reader.SyncReader#readFloat]]. Choose a sentinel that
+     * no `Float` widens to, such as `Double.MaxValue`, and no element can be
+     * mistaken for the end. On a reader of another primitive lane that does not
+     * implement it, the `Async` fails with `UnsupportedOperationException`.
+     */
     def readFloat(_sentinel: Double)(implicit _ev: Elem <:< Float): Async[Double] =
       if (jvmType eq JvmType.AnyRef)
         read[Any](EndOfStream).map(value =>
           if (value.asInstanceOf[AnyRef] eq EndOfStream) _sentinel else value.asInstanceOf[Float].toDouble
         )
       else Async.fail(unsupportedExactRead(JvmType.Float, _sentinel, _ev))
+
+    /**
+     * Returns an `Async` that produces the next `Double`, or `_sentinel`, like
+     * [[Reader.SyncReader#readDouble]]. No sentinel is safe, since an element
+     * equal to it is produced as is; use [[readDoubles]] with a one-element
+     * array to keep every value. On a reader of another primitive lane that
+     * does not implement it, the `Async` fails with
+     * `UnsupportedOperationException`.
+     */
     def readDouble(_sentinel: Double)(implicit _ev: Elem <:< Double): Async[Double] =
       if (jvmType eq JvmType.AnyRef)
         read[Any](EndOfStream)
@@ -1172,6 +1605,20 @@ object Reader {
           )
         loop(0, 255)
       }
+
+    /**
+     * Returns an `Async` that reads up to `length` `Byte` elements into `dest`,
+     * starting at `offset`, and produces the number read, `-1` at the end, or
+     * `0` when `length` is `0`. After the first element it stops as soon as the
+     * reader cannot say that another one is ready, so the default reads one
+     * element per call on a reader such as [[Reader.unfoldAsync]]. An invalid
+     * range fails the `Async` with `IndexOutOfBoundsException` (or
+     * `NullPointerException`).
+     *
+     * A known bug: on a reader on the `AnyRef` lane, such as a custom reader
+     * that does not override `jvmType`, it throws `IllegalStateException` at
+     * the call site instead of unboxing.
+     */
     def readBytes(dest: Array[Byte], offset: Int, length: Int)(implicit ev: Elem <:< Byte): Async[Int] =
       validateArrayRangeAsync(dest, offset, length).flatMap(_ =>
         bulk(length)(i =>
@@ -1181,6 +1628,20 @@ object Reader {
           )
         )
       )
+
+    /**
+     * Returns an `Async` that reads up to `length` `Int` elements into `dest`,
+     * starting at `offset`, and produces the number read, `-1` at the end, or
+     * `0` when `length` is `0`. After the first element it stops as soon as the
+     * reader cannot say that another one is ready, so the default reads one
+     * element per call on a reader such as [[Reader.unfoldAsync]]. An invalid
+     * range fails the `Async` with `IndexOutOfBoundsException` (or
+     * `NullPointerException`).
+     *
+     * A known bug: on a reader on the `AnyRef` lane, such as a custom reader
+     * that does not override `jvmType`, it throws `IllegalStateException` at
+     * the call site instead of unboxing.
+     */
     def readInts(dest: Array[Int], offset: Int, length: Int)(implicit ev: Elem <:< Int): Async[Int] =
       validateArrayRangeAsync(dest, offset, length).flatMap(_ =>
         bulk(length)(i =>
@@ -1190,6 +1651,20 @@ object Reader {
           )
         )
       )
+
+    /**
+     * Returns an `Async` that reads up to `length` `Long` elements into `dest`,
+     * starting at `offset`, and produces the number read, `-1` at the end, or
+     * `0` when `length` is `0`. After the first element it stops as soon as the
+     * reader cannot say that another one is ready, so the default reads one
+     * element per call on a reader such as [[Reader.unfoldAsync]]. An invalid
+     * range fails the `Async` with `IndexOutOfBoundsException` (or
+     * `NullPointerException`).
+     *
+     * The count reports the end separately from the data, so every `Long` stays
+     * readable: with a one-element array, it is the pull to use when no
+     * sentinel is safe for [[readLong]].
+     */
     def readLongs(dest: Array[Long], offset: Int, length: Int)(implicit ev: Elem <:< Long): Async[Int] =
       if (jvmType eq JvmType.AnyRef)
         validateArrayRangeAsync(dest, offset, length).flatMap(_ =>
@@ -1201,6 +1676,20 @@ object Reader {
           )
         )
       else Async.fail(unsupportedExactRead(JvmType.Long, dest, offset, length, ev))
+
+    /**
+     * Returns an `Async` that reads up to `length` `Float` elements into
+     * `dest`, starting at `offset`, and produces the number read, `-1` at the
+     * end, or `0` when `length` is `0`. After the first element it stops as
+     * soon as the reader cannot say that another one is ready, so the default
+     * reads one element per call on a reader such as [[Reader.unfoldAsync]]. An
+     * invalid range fails the `Async` with `IndexOutOfBoundsException` (or
+     * `NullPointerException`).
+     *
+     * A known bug: on a reader on the `AnyRef` lane, such as a custom reader
+     * that does not override `jvmType`, it throws `IllegalStateException` at
+     * the call site instead of unboxing.
+     */
     def readFloats(dest: Array[Float], offset: Int, length: Int)(implicit ev: Elem <:< Float): Async[Int] =
       validateArrayRangeAsync(dest, offset, length).flatMap(_ =>
         bulk(length)(i =>
@@ -1210,6 +1699,20 @@ object Reader {
           )
         )
       )
+
+    /**
+     * Returns an `Async` that reads up to `length` `Double` elements into
+     * `dest`, starting at `offset`, and produces the number read, `-1` at the
+     * end, or `0` when `length` is `0`. After the first element it stops as
+     * soon as the reader cannot say that another one is ready, so the default
+     * reads one element per call on a reader such as [[Reader.unfoldAsync]]. An
+     * invalid range fails the `Async` with `IndexOutOfBoundsException` (or
+     * `NullPointerException`).
+     *
+     * The count reports the end separately from the data, so every `Double`
+     * stays readable: with a one-element array, it is the pull to use when no
+     * sentinel is safe for [[readDouble]].
+     */
     def readDoubles(dest: Array[Double], offset: Int, length: Int)(implicit ev: Elem <:< Double): Async[Int] =
       if (jvmType eq JvmType.AnyRef)
         validateArrayRangeAsync(dest, offset, length).flatMap(_ =>
@@ -1311,11 +1814,40 @@ object Reader {
       asInstanceOf[AsyncReader[Short]].readShort(sentinel)
     }
 
-    def reset(): Async[Unit]              = Async.fail(new UnsupportedOperationException("This reader does not support reset"))
+    /**
+     * Returns an `Async` that rewinds this reader to its start, like
+     * [[Reader.SyncReader#reset]]. The default fails with
+     * `UnsupportedOperationException`; [[Reader.unfoldAsync]] restarts from its
+     * initial state.
+     */
+    def reset(): Async[Unit] = Async.fail(new UnsupportedOperationException("This reader does not support reset"))
+
+    /**
+     * Returns an `Async` that asks this reader to produce at most `n` more
+     * elements itself, like [[Reader.SyncReader#setLimit]]. The default
+     * produces `false` and changes nothing.
+     */
     def setLimit(n: Long): Async[Boolean] = { val _ = n; Async.succeed(false) }
-    def setRepeat(): Async[Boolean]       = Async.succeed(false)
-    def setSkip(n: Long): Async[Boolean]  = { val _ = n; Async.succeed(false) }
-    def skip(n: Long): Async[Unit]        =
+
+    /**
+     * Returns an `Async` that asks this reader to restart whenever it would
+     * end, like [[Reader.SyncReader#setRepeat]]. The default produces `false`
+     * and changes nothing.
+     */
+    def setRepeat(): Async[Boolean] = Async.succeed(false)
+
+    /**
+     * Returns an `Async` that asks this reader to drop its next `n` elements
+     * itself, like [[Reader.SyncReader#setSkip]]. The default produces `false`
+     * and changes nothing.
+     */
+    def setSkip(n: Long): Async[Boolean] = { val _ = n; Async.succeed(false) }
+
+    /**
+     * Returns an `Async` that reads and discards up to `n` elements, stopping
+     * early at the end, and does nothing when `n <= 0`.
+     */
+    def skip(n: Long): Async[Unit] =
       if (n <= 0) Async.succeed(())
       else
         jvmType match {
@@ -1376,6 +1908,8 @@ object Reader {
   }
 
   private[io] trait AsyncToSyncView[+A] { self: SyncReader[A] =>
+
+    /** The asynchronous reader this synchronous view reads from. */
     def source: AsyncReader[A]
   }
 
@@ -1385,6 +1919,8 @@ object Reader {
   }
 
   private[io] trait SyncToAsyncView[+A] { self: AsyncReader[A] =>
+
+    /** The synchronous reader this asynchronous view reads from. */
     def source: SyncReader[A]
   }
 
@@ -2363,31 +2899,29 @@ object Reader {
   }
 
   /**
-   * Companion object for [[Reader]]. Provides factory constructors for common
-   * sources (chunks, iterables, ranges, unfold, repeat) and named combinator
-   * classes.
-   *
-   * ==Factory summary==
-   *   - [[closed]] — already-closed, no elements.
-   *   - [[single]] — exactly one element.
-   *   - [[fromChunk]] — backed by a `Chunk`; primitive-specialized variants.
-   *   - [[fromIterable]] — backed by any `Iterable`.
-   *   - [[fromRange]] — backed by a `Range`.
-   *   - [[repeat]] — infinite repetition of a single value.
-   *   - [[unfold]] — state-machine generator.
-   *   - [[repeated]] — restarts an inner reader on clean close.
-   *   - [[fromInputStream]] / [[fromReader]] — I/O adapters.
-   */
-  /**
-   * A reader that is already closed. [[read]] returns `null`; [[readByte]]
-   * returns `-1`. The element type is `Nothing` — a closed reader emits no
-   * elements and widens by covariance to any `Reader[Elem]`.
+   * Returns the reader that has no elements and is already closed: its pulls
+   * return the end value (the sentinel, `-1` or an empty chunk), and `close()`
+   * and `reset()` do nothing. A known bug: `readBytes`, `readInts` and
+   * `readFloats` throw `IllegalStateException` instead of returning `-1`. Its
+   * element type is `Nothing`, so it fits wherever any reader is expected.
    */
   def closed: SyncReader[Nothing] = ClosedReader
 
   /**
-   * A reader backed by a [[zio.blocks.chunk.Chunk]]. Emits all elements in
-   * index order, then closes. No virtual thread or queue needed.
+   * Returns a reader over the elements of `chunk`, in order. It is on the
+   * primitive lane of `A` (for example `JvmType.Int` for a `Chunk[Int]`), so
+   * its typed pulls read without boxing. It supports `reset()`, `setSkip` and
+   * `setLimit`, but not `setRepeat`, and it reports `isClosed` as soon as the
+   * last element is read.
+   *
+   * {{{
+   * import zio.blocks.chunk.Chunk
+   * import zio.blocks.streams.io.Reader
+   *
+   * val temperatures = Reader.fromChunk(Chunk(21.5, 22.0, 19.5))
+   * temperatures.jvmType     // Double
+   * temperatures.readAll[Double]() // Chunk(21.5,22.0,19.5)
+   * }}}
    */
   def fromChunk[A](chunk: Chunk[A])(implicit jt: JvmType.Infer[A]): SyncReader[A] =
     jt.jvmType match {
@@ -2399,13 +2933,32 @@ object Reader {
       case _              => new FromChunk(chunk, jt.jvmType)
     }
 
-  /** Wraps a [[java.io.InputStream]] as a `Reader[Byte]`. */
+  /**
+   * Returns a reader over the bytes of `is`, on the `Byte` lane. Each pull
+   * calls `is.read()`, and `readBytes` passes the whole request to
+   * `is.read(buf, offset, len)`, so pulls block when `is` blocks.
+   *
+   * An `IOException` from `is` is thrown wrapped in the library's
+   * `zio.blocks.streams.internal.StreamError`, whose `value` is the
+   * `IOException`, and every later pull throws it again. Closing the reader
+   * does not close `is`. It does not support `reset()`, and `readable()`
+   * reports `is.available() > 0`.
+   *
+   * {{{
+   * import zio.blocks.streams.io.Reader
+   *
+   * val bytes = Reader.fromInputStream(new java.io.ByteArrayInputStream(Array[Byte](90, 73, 79)))
+   * bytes.readAll[Byte]() // Chunk(90,73,79)
+   * }}}
+   */
   def fromInputStream(is: InputStream): SyncReader[Byte] =
     new InputStreamReader(is)
 
   /**
-   * A reader backed by an [[Iterable]]. Emits all elements in iteration order,
-   * then closes. No virtual thread or queue needed.
+   * Returns a reader over the elements of `it`, in iteration order, on the
+   * primitive lane of `A`. `reset()` asks `it` for a new iterator. Over a
+   * `Vector` it also supports `setSkip` and `setLimit`. An exception thrown by
+   * the iterator is thrown by the pull.
    */
   def fromIterable[A](it: Iterable[A])(implicit jt: JvmType.Infer[A]): SyncReader[A] =
     it match {
@@ -2414,8 +2967,9 @@ object Reader {
     }
 
   /**
-   * A reader backed by a Scala [[Range]]. Emits integers in range order, then
-   * closes. No virtual thread or queue needed.
+   * Returns a reader over the numbers of `range`, in order, on the `Int` lane.
+   * It computes each number instead of storing them, and supports `reset()`,
+   * `setSkip` and `setLimit`.
    */
   def fromRange(range: Range): SyncReader[Int] =
     new FromRange(range.start, range.step, range.length)
@@ -2424,14 +2978,24 @@ object Reader {
     new FromRange(start, step, length)
 
   /**
-   * Wraps a [[java.io.Reader]] as a `Reader[Char]`.
+   * Returns a reader over the characters of `r`, on the `Char` lane. Each pull
+   * calls `r.read()` and blocks when `r` blocks.
+   *
+   * An `IOException` from `r` is thrown wrapped in the library's
+   * `zio.blocks.streams.internal.StreamError`, whose `value` is the
+   * `IOException`, and every later pull throws it again. Closing the reader
+   * does not close `r`. It does not support `reset()`, and `readable()` reports
+   * `r.ready()`.
    */
   def fromReader(r: JReader): SyncReader[Char] =
     new CharReader(r)
 
   /**
-   * Creates an infinite reader that always emits `a`. The reader sets repeat
-   * mode on a [[single]] reader so it never closes.
+   * Returns a reader that produces `a` forever: a [[single]] reader in repeat
+   * mode. It never reports the end, so read it with a bound, such as `readN`.
+   *
+   * A known bug: `close()` does not stop it. After `close()`, `isClosed` stays
+   * `false` and every pull still returns `a`.
    */
   def repeat[A](a: A)(implicit jt: JvmType.Infer[A]): SyncReader[A] = {
     val r = single[A](a)
@@ -2440,18 +3004,50 @@ object Reader {
   }
 
   /**
-   * A reader that restarts `inner` each time it closes cleanly. If it closes
-   * with an error (exception), the error is propagated. Used by
-   * [[Stream.Repeated]].
+   * Returns a reader that produces the elements of `inner` again and again:
+   * each time `inner` ends, it calls `inner.reset()` and keeps reading. An
+   * exception from `inner`, including the `UnsupportedOperationException` of an
+   * `inner` that cannot reset, is thrown by the pull; `isClosed` turns `true`
+   * only when the failing pull went through `read`, which is what the bulk
+   * reads of an `AnyRef`-lane `inner` use; the primitive pulls leave it
+   * `false`. If `inner` produces no element between two resets, a pull loops
+   * forever.
+   *
+   * A known bug: after `close()`, the next pull resets `inner` and keeps
+   * producing elements (the asynchronous overload stops as expected).
+   *
+   * A known bug: when `inner` is on the `AnyRef` lane, the result's primitive
+   * pulls (`readInt`, `readLongs`, ...) throw `IllegalStateException`; `read`,
+   * `readAll`, `readN` and `readUpToN` work.
+   *
+   * {{{
+   * import zio.blocks.chunk.Chunk
+   * import zio.blocks.streams.io.Reader
+   *
+   * val ticks = Reader.repeated(Reader.fromChunk(Chunk("tick", "tock")))
+   * ticks.readN[String](5) // Chunk(tick,tock,tick,tock,tick)
+   * }}}
    */
   def repeated[A](inner: SyncReader[A]): SyncReader[A] =
     new Repeated(inner)
 
-  /** Asynchronous counterpart of [[repeated(SyncReader)]]. */
+  /**
+   * Returns an asynchronous reader that produces the elements of `inner` again
+   * and again, resetting it each time it ends. A failure of `inner`, including
+   * a reset it does not support, fails the pull.
+   *
+   * A known bug: when `inner` is on the `AnyRef` lane, the result's primitive
+   * pulls (`readInt`, `readLongs`, ...) fail with `IllegalStateException`;
+   * `read`, `readAll`, `readN` and `readUpToN` work.
+   */
   def repeated[A](inner: AsyncReader[A]): AsyncReader[A] =
     new AsyncRepeated(inner)
 
-  /** Preserves the statically unknown reader kind at runtime. */
+  /**
+   * Returns a repeating reader of the same kind as `inner`, for a reader whose
+   * kind is not known statically: it calls the synchronous or the asynchronous
+   * overload at run time.
+   */
   def repeated[A](inner: Reader[A]): Reader[A] = inner match {
     case sync: SyncReader[A @unchecked]   => repeated(sync)
     case async: AsyncReader[A @unchecked] => repeated(async)
@@ -2461,9 +3057,17 @@ object Reader {
     new Repeated(inner, guard)
 
   /**
-   * A reader that emits exactly one element then closes. Primitive types
-   * (`Int`, `Long`, `Float`, `Double`, etc.) use [[SingletonPrim]] for
-   * zero-boxing; reference types use [[SingletonGeneric]].
+   * Returns a reader that produces `value` once, then ends. For a primitive `A`
+   * it is on that lane and stores `value` unboxed. It supports `reset()` and
+   * `setRepeat`.
+   *
+   * {{{
+   * import zio.blocks.streams.io.Reader
+   *
+   * val title = Reader.single("Zionomicon")
+   * title.read[AnyRef](null) // Zionomicon
+   * title.read[AnyRef](null) // null
+   * }}}
    */
   def single[A](value: A)(implicit jt: JvmType.Infer[A]): SyncReader[A] = {
     val pt = jt.jvmType
@@ -2473,71 +3077,77 @@ object Reader {
       new SingletonGeneric(value)
   }
 
-  /**
-   * Creates a Reader that emits exactly one Boolean, zero-boxing on the read
-   * path.
-   */
+  /** Returns a reader on the `Boolean` lane that produces `value` once. */
   def singleBoolean(value: Boolean): SyncReader[Boolean] =
     new SingletonPrim[Boolean](if (value) 1L else 0L, JvmType.Boolean.ordinal << 8)
 
-  /**
-   * Creates a Reader that emits exactly one Byte through the Byte lane.
-   */
+  /** Returns a reader on the `Byte` lane that produces `value` once. */
   def singleByte(value: Byte): SyncReader[Byte] =
     new SingletonPrim[Byte](value.toLong, JvmType.Byte.ordinal << 8)
 
-  /**
-   * Creates a Reader that emits exactly one Char, zero-boxing on the read path.
-   */
+  /** Returns a reader on the `Char` lane that produces `value` once. */
   def singleChar(value: Char): SyncReader[Char] =
     new SingletonPrim[Char](value.toLong, JvmType.Char.ordinal << 8)
 
-  /**
-   * Creates a Reader that emits exactly one Double, zero-boxing on the read
-   * path.
-   */
+  /** Returns a reader on the `Double` lane that produces `value` once. */
   def singleDouble(value: Double): SyncReader[Double] =
     new SingletonPrim[Double](JDouble.doubleToRawLongBits(value), JvmType.Double.ordinal << 8)
 
-  /**
-   * Creates a Reader that emits exactly one Float, zero-boxing on the read
-   * path.
-   */
+  /** Returns a reader on the `Float` lane that produces `value` once. */
   def singleFloat(value: Float): SyncReader[Float] =
     new SingletonPrim[Float](JFloat.floatToRawIntBits(value).toLong, JvmType.Float.ordinal << 8)
 
-  /**
-   * Creates a Reader that emits exactly one Int, zero-boxing on the read path.
-   */
+  /** Returns a reader on the `Int` lane that produces `value` once. */
   def singleInt(value: Int): SyncReader[Int] =
     new SingletonPrim[Int](value.toLong, JvmType.Int.ordinal << 8)
 
-  /**
-   * Creates a Reader that emits exactly one Long, zero-boxing on the read path.
-   */
+  /** Returns a reader on the `Long` lane that produces `value` once. */
   def singleLong(value: Long): SyncReader[Long] =
     new SingletonPrim[Long](value, JvmType.Long.ordinal << 8)
 
-  /**
-   * Creates a Reader that emits exactly one Short, zero-boxing on the read
-   * path.
-   */
+  /** Returns a reader on the `Short` lane that produces `value` once. */
   def singleShort(value: Short): SyncReader[Short] =
     new SingletonPrim[Short](value.toLong, JvmType.Short.ordinal << 8)
 
   /**
-   * A reader produced by unfolding state `s` with `f`. `f` returns `None` to
-   * signal completion, or `Some((elem, nextState))` to emit an element and
-   * advance state. Closes when `f` returns `None`. No virtual thread or queue
-   * needed — `read()` never blocks.
+   * Returns a reader that computes its elements from a state: each pull calls
+   * `f` with the current state, and `Some((element, next))` produces `element`
+   * and moves to `next`, while `None` ends the reader. `f` runs on the pulling
+   * thread, once per pull, and not again after `None`.
+   *
+   * An exception from `f` is thrown by the pull and leaves the state unchanged,
+   * so the next pull calls `f` with the same state. `isClosed` becomes `true`
+   * only after `f` has returned `None`. `reset()` restarts from `s`.
+   *
+   * {{{
+   * import zio.blocks.streams.io.Reader
+   *
+   * val powers = Reader.unfold(1)(n => if (n > 100) None else Some((n, n * 2)))
+   * powers.readAll[Int]() // Chunk(1,2,4,8,16,32,64)
+   * }}}
    */
   def unfold[S, A](s: S)(f: S => Option[(A, S)])(implicit jt: JvmType.Infer[A]): SyncReader[A] =
     new Unfold(s, (state: S) => StreamError.callback(f(state)), jt.jvmType)
 
   /**
-   * Creates a native asynchronous Reader by unfolding state `s` with `f`.
-   * Exactly one state callback may be active. The next state is committed only
-   * when that callback succeeds while its reader generation is still current.
+   * Returns an asynchronous reader that computes its elements from a state:
+   * each pull runs the `Async` from `f` with the current state, and
+   * `Some((element, next))` produces `element` and moves to `next`, while
+   * `None` ends the reader. Nothing runs until the pull's `Async` runs.
+   *
+   * A failure of `f`'s `Async` fails the pull and ends the reader: `isClosed`
+   * becomes `true`, and every later pull fails with the same error without
+   * calling `f` again, until `reset()`. The next state is kept only when `f`
+   * succeeds before a `reset()` or `close()`, which discard a result still in
+   * flight. `reset()` restarts from `s`.
+   *
+   * {{{
+   * import zio.blocks.async._
+   * import zio.blocks.streams.io.Reader
+   *
+   * val pages = Reader.unfoldAsync(1)(page => Async.succeed(if (page > 3) None else Some(("page " + page, page + 1))))
+   * pages.readAll[String]().block // Chunk(page 1,page 2,page 3)
+   * }}}
    */
   def unfoldAsync[S, A](s: S)(f: S => Async[Option[(A, S)]])(implicit jt: JvmType.Infer[A]): AsyncReader[A] =
     new UnfoldAsync(s, f, jt.jvmType)
@@ -6762,7 +7372,14 @@ object Reader {
    * zero-allocation direct wrapper.
    */
   private[streams] sealed trait WrappedReader {
+
+    /** The reader this wrapper maps or filters. */
     def source: SyncReader[_]
+
+    /**
+     * Rebuilds this wrapper as a `SyncInterpreter` that can take more
+     * operations.
+     */
     def toInterpreter: SyncInterpreter
   }
 }

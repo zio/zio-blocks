@@ -16,4 +16,8 @@
 
 package zio.blocks.streams.io
 
+/**
+ * The platform-specific members of [[Reader.AsyncReader]]: `toSync` on the JVM,
+ * none on Scala.js.
+ */
 private[io] trait AsyncReaderPlatform[+A] { self: Reader.AsyncReader[A] => }
