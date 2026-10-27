@@ -469,6 +469,7 @@ const sidebars = {
         "guides/build-a-schema-registry",
         "guides/override-codec-for-one-type",
         "guides/tune-json-throughput",
+        "guides/avoid-allocation-on-hot-paths",
         "guides/validated-newtypes",
         "guides/diff-and-patch",
         "guides/derive-your-own-type-class",

@@ -3113,6 +3113,8 @@ val decoded: Option[Chunk[Int]] = json match {
 
 The [DynamicValue](./schema/dynamic-value.md) system also works with Chunk, allowing schema-driven navigation of chunk data.
 
+See also [How to Avoid Allocation on Hot Paths](../guides/avoid-allocation-on-hot-paths.md) for reading and building chunks without boxing.
+
 ## Running the Examples
 
 All code from this guide is available as runnable examples in the appropriate example modules.
