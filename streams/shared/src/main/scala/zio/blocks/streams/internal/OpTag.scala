@@ -153,13 +153,19 @@ object OpTag {
   /** A pull from a source on the `Int` lane, through `readInt`. */
   final val READ_I = 35
 
-  /** A pull from a source on the `Long` lane, through `readLong`. */
+  /**
+   * A pull from a source on the `Long` lane, through a one-element `readLongs`,
+   * whose count marks the end.
+   */
   final val READ_L = 36
 
   /** A pull from a source on the `Float` lane, through `readFloat`. */
   final val READ_F = 37
 
-  /** A pull from a source on the `Double` lane, through `readDouble`. */
+  /**
+   * A pull from a source on the `Double` lane, through a one-element
+   * `readDoubles`, whose count marks the end.
+   */
   final val READ_D = 38
 
   /** A pull from a source on the reference lane, through `read`. */
