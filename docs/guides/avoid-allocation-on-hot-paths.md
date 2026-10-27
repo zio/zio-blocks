@@ -302,7 +302,7 @@ priceChunk.foldLeft(0L)(_ + _)
 totalMicros(priceChunk)
 ```
 
-The same accessor exists for every primitive: `Chunk#int`, `Chunk#double`, `Chunk#byte`, `Chunk#float`, `Chunk#short`, `Chunk#char` and `Chunk#boolean`. They read the array directly only when the chunk is backed by a primitive array, which is what `Chunk.fromArray`, `Chunk#map` on such a chunk, and the primitive builders below produce. A chunk made by `++`, `drop` or `slice` is a view over other chunks, and its accessors go through `Chunk#apply`, which returns a boxed element; call `Chunk#materialize` once before the loop to get an array-backed copy. On an array-backed chunk, `Chunk#long` never boxes, whatever the JIT does.
+The same accessor exists for every primitive: `Chunk#int`, `Chunk#double`, `Chunk#byte`, `Chunk#float`, `Chunk#short`, `Chunk#char` and `Chunk#boolean`. They read the array directly only when the chunk is backed by a primitive array, which is what `Chunk.fromArray`, `Chunk#map` on such a chunk, and the primitive builders below produce. A chunk made by `Chunk#++`, `Chunk#drop` or `Chunk#slice` is a view over other chunks, and its accessors go through `Chunk#apply`, which returns a boxed element; call `Chunk#materialize` once before the loop to get an array-backed copy. On an array-backed chunk, `Chunk#long` never boxes, whatever the JIT does.
 
 ### Build a Chunk With a Primitive Builder
 
@@ -483,7 +483,7 @@ println(s"LabeledCounter#add: ${labeledBytes.toDouble / tickCount} bytes per tic
 println(s"bound handle:       ${handleBytes.toDouble / tickCount} bytes per tick")
 ```
 
-When label values change per tick but come from a small, known set (the symbols the feed carries), bind each combination once at startup and pick the handle in the loop. The [labeled instruments reference](../reference/telemetry/metrics/labeled-instruments.md) describes `Counter#bind` and the matching `bind` methods of the other instrument kinds.
+When label values change per tick but come from a small, known set (the symbols the feed carries), bind each combination once at startup and pick the handle in the loop. The [labeled instruments reference](../reference/telemetry/metrics/labeled-instruments.md) describes `Counter#bind`, `Histogram#bind`, `Gauge#bind` and `LabeledCounter#bind`.
 
 ## Check the Numbers With JMH
 
