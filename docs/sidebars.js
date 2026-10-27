@@ -500,6 +500,7 @@ const sidebars = {
         "guides/validate-query-parameters-and-headers",
         "guides/your-first-streaming-pipeline",
         "guides/stream-files-and-sockets",
+        "guides/process-binary-data-without-boxing",
         "guides/run-streams-without-blocking",
         "guides/async-getting-started",
         "guides/wrap-callback-and-future-apis",

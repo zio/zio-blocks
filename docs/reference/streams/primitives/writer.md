@@ -720,3 +720,4 @@ cd streams-examples && sbt "runMain writer.WriterAsyncExample"
 - [Reader](./reader.md) — the pull-based dual of this type, and the reader kinds a sink drains
 - [Sink](../core/sink.md) — the consumer side of a stream, which drains a `Reader` rather than feeding a `Writer`
 - [Zero-Boxing Streams](../execution-and-compatibility/zero-boxing.md) — why the specialized write family exists and how a primitive lane is chosen
+- [How to Process Binary Data Without Boxing](../../../guides/process-binary-data-without-boxing.md) — read, transform, aggregate and write `ByteBuffer`s, mapped files and `InputStream`s as unboxed `Long` and `Double` streams

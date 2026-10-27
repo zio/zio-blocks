@@ -1532,3 +1532,4 @@ cd streams-examples && sbt "runMain reader.ReaderCompositionExample"
 - [Sink](../core/sink.md) — the consumer that drains a `Reader`
 - [How to Run Streams Without Blocking](../../../guides/run-streams-without-blocking.md) — reads a `fetch` body through `ReadableStreamReaders` and runs the stream with the `*Async` terminals
 - [Async](../../async.md#the-pollable-protocol) — `Async[A]`, `Pollable`, and what awaiting an asynchronous result means
+- [How to Process Binary Data Without Boxing](../../../guides/process-binary-data-without-boxing.md) — read, transform, aggregate and write `ByteBuffer`s, mapped files and `InputStream`s as unboxed `Long` and `Double` streams
