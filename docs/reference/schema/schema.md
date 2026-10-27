@@ -90,6 +90,8 @@ object Shape {
 
 Under the hood, the derivation process includes deriving schemas for cases of enum (i.e. `Circle` and `Rectangle`) and finally creating a schema for the `Shape` trait itself.
 
+On Scala 3.7 and newer, `Schema.derived` also works for named tuples such as `(name: String, age: Int)`. See [How to Use Scala 3 Named Tuples with Schema](../../guides/use-named-tuples-with-schema.md) for deriving, encoding, optics and conversion to case classes.
+
 ## Built-in Schemas
 
 ZIO Blocks ships with a comprehensive set of pre-defined schemas for standard Scala and Java types, eliminating boilerplate and ensuring consistent behavior across your application.
