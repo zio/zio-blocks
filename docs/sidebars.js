@@ -487,6 +487,7 @@ const sidebars = {
         "guides/test-database-code-against-sqlite",
         "guides/connect-to-postgresql-with-a-connection-pool",
         "guides/upsert-and-paginate-with-keyset-cursors",
+        "guides/migrate-table-rows-online",
         "guides/map-custom-column-types",
         "guides/store-and-search-vector-embeddings",
         "guides/stream-large-query-results",
