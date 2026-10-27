@@ -520,19 +520,19 @@ Each example writes its own copy of the sensor files to a temporary directory an
 
 Each section has its own example, run from the `streams-examples` directory:
 
-| Section                                                                            | Run                                                         |
-|------------------------------------------------------------------------------------|-------------------------------------------------------------|
-| [Reading Values From a ByteBuffer](#reading-values-from-a-bytebuffer)              | `sbt "runMain processbinarydata.Step1ReadBuffer"`           |
-| [Matching the File's Byte Order](#matching-the-files-byte-order)                   | `sbt "runMain processbinarydata.Step2ByteOrder"`            |
-| [Mapping a File Instead of Copying It](#mapping-a-file-instead-of-copying-it)      | `sbt "runMain processbinarydata.Step3MapFile"`              |
-| [Transforming Values on the Primitive Lane](#transforming-values-on-the-primitive-lane) | `sbt "runMain processbinarydata.Step4Transform"`           |
-| [Aggregating With the Built-in Folds](#aggregating-with-the-built-in-folds)        | `sbt "runMain processbinarydata.Step5Aggregate"`            |
-| [Writing a Custom Primitive Sink](#writing-a-custom-primitive-sink)                | `sbt "runMain processbinarydata.Step6CustomSink"`           |
-| [Ending the Loop Without Losing Values](#ending-the-loop-without-losing-values)     | `sbt "runMain processbinarydata.Step7EndOfStream"`          |
-| [Decoding Values From an InputStream](#decoding-values-from-an-inputstream)        | `sbt "runMain processbinarydata.Step8DecodeInputStream"`    |
-| [Writing Values Back Out](#writing-values-back-out)                                | `sbt "runMain processbinarydata.Step9WriteBack"`            |
-| [Measuring Bytes per Element](#measuring-bytes-per-element)                        | `sbt "runMain processbinarydata.Step10Measure"`             |
-| [Putting It Together](#putting-it-together)                                        | `sbt "runMain processbinarydata.CompleteExample"`           |
+| Section                                                                                 | Run                                                      |
+|-----------------------------------------------------------------------------------------|----------------------------------------------------------|
+| [Reading Values From a ByteBuffer](#reading-values-from-a-bytebuffer)                   | `sbt "runMain processbinarydata.Step1ReadBuffer"`        |
+| [Matching the File's Byte Order](#matching-the-files-byte-order)                        | `sbt "runMain processbinarydata.Step2ByteOrder"`         |
+| [Mapping a File Instead of Copying It](#mapping-a-file-instead-of-copying-it)           | `sbt "runMain processbinarydata.Step3MapFile"`           |
+| [Transforming Values on the Primitive Lane](#transforming-values-on-the-primitive-lane) | `sbt "runMain processbinarydata.Step4Transform"`         |
+| [Aggregating With the Built-in Folds](#aggregating-with-the-built-in-folds)             | `sbt "runMain processbinarydata.Step5Aggregate"`         |
+| [Writing a Custom Primitive Sink](#writing-a-custom-primitive-sink)                     | `sbt "runMain processbinarydata.Step6CustomSink"`        |
+| [Ending the Loop Without Losing Values](#ending-the-loop-without-losing-values)         | `sbt "runMain processbinarydata.Step7EndOfStream"`       |
+| [Decoding Values From an InputStream](#decoding-values-from-an-inputstream)             | `sbt "runMain processbinarydata.Step8DecodeInputStream"` |
+| [Writing Values Back Out](#writing-values-back-out)                                     | `sbt "runMain processbinarydata.Step9WriteBack"`         |
+| [Measuring Bytes per Element](#measuring-bytes-per-element)                             | `sbt "runMain processbinarydata.Step10Measure"`          |
+| [Putting It Together](#putting-it-together)                                             | `sbt "runMain processbinarydata.CompleteExample"`        |
 
 `Step5Aggregate` also measures `Stream#count` and `Sink.sumLong` against `runFold(0L)`, and `Step10Measure` prints the table in [Measuring Bytes per Element](#measuring-bytes-per-element).
 
