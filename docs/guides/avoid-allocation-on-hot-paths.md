@@ -228,9 +228,9 @@ Measured the same way as before, a run over 10,000 ticks allocates about 224 byt
 
 ### Choose an End-of-Stream Signal That Cannot Collide
 
-Each primitive lane has a read that signals the end of the stream with a value outside the element's range, so no real element can be mistaken for it. `Reader#readInt` returns a `Long` and uses `Long.MinValue` as the end marker, `Reader#readFloat` returns a `Double` and uses `Double.MaxValue`, and `Reader#readByte` returns `0` to `255`, or `-1` at the end.
+Each primitive lane has a read that widens the element into a larger type, so a sentinel outside the element's range can mark the end of the stream and no real element can be mistaken for it. `Reader#readInt(sentinel)` returns a `Long`, and the convention is to pass `Long.MinValue`; `Reader#readFloat(sentinel)` returns a `Double`, and the convention is to pass `Double.MaxValue`; `Reader#readByte()` returns `0` to `255`, or `-1` at the end.
 
-`Long` and `Double` have no wider type to escape into, so `Reader#readLong` and `Reader#readDouble` return the element type itself and take the end marker as an argument. A real element equal to that marker ends the loop early, and nothing tells us it happened. For example, a sink that sums price changes and picks `0L` as its marker stops at the first unchanged price:
+`Long` and `Double` have no wider type to escape into, so `Reader#readLong` and `Reader#readDouble` return the element type itself, and the sentinel we pass in can equal a real element. A real element equal to that marker ends the loop early, and nothing tells us it happened. For example, a sink that sums price changes and picks `0L` as its marker stops at the first unchanged price:
 
 ```scala mdoc:silent
 val priceChanges = Array(5L, -3L, 0L, 7L)
