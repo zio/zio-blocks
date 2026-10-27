@@ -504,6 +504,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Your First Schema: Round-Trip a Type Through JSON](./guides/your-first-schema.md) - Start here: describe a type once with `Schema`, then encode, decode, and read errors
 - [Evolve Your Data: Change Your Types with Into, As and Migration](./guides/evolve-your-data.md) - Validate incoming data with `Into`, convert between versions both ways with `As`, and rename a field with a compile-checked `Migration`
 - [Navigate and Update Nested Data with Optics](./guides/nested-data-with-optics.md) - Read and update fields deep inside immutable data with lenses, optionals, and traversals instead of nested `copy` calls
+- [How to Use Scala 3 Named Tuples with Schema](./guides/use-named-tuples-with-schema.md) - Derive a `Schema` for a Scala 3 named tuple, round-trip it through JSON, update fields with optics, and convert it to a case class
 - [One Type, Many Formats](./guides/one-type-many-formats.md) - Derive JSON, YAML, XML, TOON, MessagePack, Avro and CSV codecs from one `Schema` and round-trip a catalog through each
 - [How to Read and Write YAML Documents](./guides/read-and-write-yaml.md) - Read YAML into case classes, write CI-style YAML, convert it to JSON, and guard against YAML the reader silently misreads
 - [How to Derive Your Own Type Class from a Schema](./guides/derive-your-own-type-class.md) - Write a `Deriver` once and get a type class instance for every record, variant and primitive in your model
@@ -550,6 +551,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [How to Generate JSON Schema from a Type and Validate Payloads Against It](./guides/generate-json-schema-and-validate-payloads.md) - Derive a JSON Schema from a `Schema`, publish it, and validate incoming JSON payloads
 - [How to Tune JSON Encoding and Decoding for Throughput](./guides/tune-json-throughput.md) - Decode JSON straight from bytes, buffers and streams, reuse derived codecs, size reader and writer buffers, and measure with JMH
 - [How to Write an OpenAPI Document and Export It as JSON or YAML](./guides/write-and-export-openapi.md) - Build an OpenAPI 3.1 document from component schemas and render it as JSON or YAML
+- [Generate Scala Code from a Smithy Model](./guides/generate-scala-code-from-smithy.md) - Parse a Smithy model, map its shapes to the codegen IR, emit Scala 3 and Scala 2 with `Schema` derivation, and run the generator as an sbt source generator
 - [How to Define Validated Newtypes and Collect Every Validation Error](./guides/validated-newtypes.md) - Wrap a primitive in a validated newtype, reject bad values at construction, and collect every validation error in one `SchemaError`
 - [How to Compute, Store and Replay Changes with Diff and Patch](./guides/diff-and-patch.md) - Diff two versions of a value, store the patch as JSON, replay an edit history with undo, and send changes as JSON patches, including RFC 6902
 - [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
