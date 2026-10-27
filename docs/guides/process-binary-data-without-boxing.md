@@ -151,7 +151,7 @@ Setting the buffer's order with `ByteBuffer#order` before the stream reads it fi
 println(NioStreams.fromByteBufferDouble(ByteBuffer.wrap(sampleBytes).order(ByteOrder.LITTLE_ENDIAN)).take(3).runCollect)
 ```
 
-:::warning[`duplicate` and `slice` reset the byte order]
+:::warning[`ByteBuffer#duplicate` and `ByteBuffer#slice` reset the byte order]
 `ByteBuffer#duplicate` and `ByteBuffer#slice` return a big-endian buffer, whatever the original's order. Call `ByteBuffer#order` on the copy every time: `buf.duplicate().order(ByteOrder.LITTLE_ENDIAN)`. A `MappedByteBuffer` from `FileChannel#map` also starts big-endian.
 :::
 
