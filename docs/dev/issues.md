@@ -8342,6 +8342,187 @@ object WriterLeaksAfterError {
 
 **Suggested fix.** Track "stopped accepting writes" separately from "underlying resource closed": on an `IOException`, set a `failed` flag (and keep the exception, for example to rethrow from `close()` or expose through `fail`), and let `close()` close the wrapped stream or channel once whenever it has not closed it yet. Add a test per writer that fails a write, closes the writer and checks that the resource was closed.
 
+### data-migration: `LargeMigrator#complete` swaps the shadow table in while keys are still queued, so a write made between `drain()` and `complete()` is lost
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
+
+**Summary.** `LargeMigrator#complete` only checks that the migrator is in the `Drained` state; it never re-reads the queue. A source write that lands after `drain()` returns (the capture trigger queues its key) is not copied, and `complete()` still renames the tables, so the row exists only in `<table>_old_<suffix>`. `SmallMigrator#complete` checks the queue and refuses in the same situation.
+
+**Reproducer.** Start PostgreSQL 16:
+
+```bash
+docker run --rm -d --name shop-db -p 5432:5432 \
+  -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -e POSTGRES_DB=shop \
+  postgres:16
+```
+
+Then, in an empty directory:
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
+  "org.postgresql" % "postgresql"                     % "42.7.14"
+)
+run / fork := true
+```
+
+`project/build.properties`:
+
+```
+sbt.version=1.13.0
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.schema.*
+import zio.blocks.schema.migration.Migration
+import zio.blocks.data.migration.*
+import zio.blocks.sql.*
+
+case class Item(id: Long, name: String)
+object Item { implicit val schema: Schema[Item] = Schema.derived }
+
+@main def repro(): Unit = {
+  given transactor: Transactor =
+    JdbcTransactor.fromUrl("jdbc:postgresql://localhost:5432/shop", "shop", "shop", SqlDialect.PostgreSQL)
+  given Dialect = Dialect.Postgres
+  val items = Repo.derived[Item, Long]("items", "id", _.id)
+  transactor.transact {
+    Frag.literal("DROP TABLE IF EXISTS items, items_v2, items_old_v2, items_q CASCADE").update
+    Frag.literal("DROP FUNCTION IF EXISTS items_q_notify() CASCADE").update
+    Frag.literal("CREATE TABLE items (id BIGINT PRIMARY KEY, name TEXT NOT NULL)").update
+  }
+  QueueTable.create[Long]("items_q", transactor)
+  val migrator = LargeMigrator[Item, Item, Long, Long](
+    items, items, Migration.identity[Item], "items_q", 100, TargetStrategy.ShadowTable("v2"), captureTriggers = true
+  )
+  migrator.init()
+  migrator.fence()
+  println(s"drained: ${migrator.drain()}")
+  transactor.transact(items.insert(Item(1, "written after drain()")))
+  println(s"pending before complete(): ${migrator.pendingCount}")
+  migrator.complete()
+  println(s"pending after complete(): ${migrator.pendingCount}")
+  transactor.connect {
+    println(s"items (the swapped-in table): ${items.all}")
+    println(s"items_old_v2: ${Frag.literal("SELECT name FROM items_old_v2").query[String]}")
+  }
+}
+```
+
+Run with `sbt run`. Real output:
+
+```scala
+// drained: 0
+// pending before complete(): 1
+// pending after complete(): 1
+// items (the swapped-in table): List()
+// items_old_v2: List(written after drain())
+```
+
+**Expected.** `complete()` throws `IllegalArgumentException("cannot complete(): 1 item(s) still pending in queue 'items_q'")`, as `SmallMigrator#complete` does, and the tables stay unswapped.
+
+**Root cause.** `dataMigration/shared/src/main/scala/zio/blocks/data/migration/LargeMigrator.scala:141-147`: `complete()` requires `state == State.Drained` and calls `TargetStrategyApplier.finalizeTarget`; the queue count is never consulted. Compare `SmallMigrator.scala:71-80`, which runs `QueueTable.pending` and `require(pending == 0, ...)` first. `fence()` (`LargeMigrator.scala:91-97`) only flips a state flag and blocks nothing, so the capture trigger keeps queuing writes after `drain()`.
+
+**Impact.** Silent data loss at cutover, the exact window the "safe completion protocol" is meant to protect. Any writer still running after `drain()` returns (a slow instance, a background job) loses its writes from the live table with no error. The reference page promises the opposite (see the separate Documentation errors entry on `docs/reference/data-migration.md`).
+
+**Test gap.** `LargeMigratorSpec` ("happy path init -> fence -> drain -> complete transitions cleanly", "complete() before drain() fails") and `PostgresMigrationIntegrationSpec` ("LargeMigrator fence/drain/complete protocol") never write between `drain()` and `complete()`. `SmallMigratorSpec` has "complete() refuses while the queue still has pending items"; `LargeMigratorSpec` has no counterpart.
+
+**Suggested fix.** In `LargeMigrator#complete`, read `QueueTable.pending` and `require(pending == 0, ...)` before the swap, as `SmallMigrator#complete` does (better: count and swap in the same transaction, under `LOCK TABLE <source> IN EXCLUSIVE MODE` on PostgreSQL, so no write can slip in between). Add a `LargeMigratorSpec` test mirroring the `SmallMigratorSpec` one, and a PostgreSQL test that writes after `drain()`.
+
+### data-migration: `LargeMigrator#run` returns early, with keys still queued, when a batch holds only keys of rows deleted in the meantime
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
+
+**Summary.** `LargeMigrator#run` stops as soon as a batch writes no rows. A batch whose keys all belong to rows that were deleted after they were queued (insert then delete, both captured by the trigger) writes nothing to a shadow table that never had them, so `run()` returns `0` while later keys are still queued. The same "0 means empty" assumption is in the reference page's `SmallMigrator` loop (`pending = count > 0`).
+
+**Reproducer.** Start PostgreSQL 16:
+
+```bash
+docker run --rm -d --name shop-db -p 5432:5432 \
+  -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -e POSTGRES_DB=shop \
+  postgres:16
+```
+
+Then, in an empty directory:
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
+  "org.postgresql" % "postgresql"                     % "42.7.14"
+)
+run / fork := true
+```
+
+`project/build.properties`:
+
+```
+sbt.version=1.13.0
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.schema.*
+import zio.blocks.schema.migration.Migration
+import zio.blocks.data.migration.*
+import zio.blocks.sql.*
+
+case class Item(id: Long, name: String)
+object Item { implicit val schema: Schema[Item] = Schema.derived }
+
+@main def repro(): Unit = {
+  given transactor: Transactor =
+    JdbcTransactor.fromUrl("jdbc:postgresql://localhost:5432/shop", "shop", "shop", SqlDialect.PostgreSQL)
+  given Dialect = Dialect.Postgres
+  val items = Repo.derived[Item, Long]("items", "id", _.id)
+  transactor.transact {
+    Frag.literal("DROP TABLE IF EXISTS items, items_v2, items_old_v2, items_q CASCADE").update
+    Frag.literal("DROP FUNCTION IF EXISTS items_q_notify() CASCADE").update
+    Frag.literal("CREATE TABLE items (id BIGINT PRIMARY KEY, name TEXT NOT NULL)").update
+  }
+  QueueTable.create[Long]("items_q", transactor)
+  val migrator = LargeMigrator[Item, Item, Long, Long](
+    items, items, Migration.identity[Item], "items_q", 1, TargetStrategy.ShadowTable("v2"), captureTriggers = true
+  )
+  migrator.init()
+  transactor.transact { items.insert(Item(1, "deleted again")); items.delete(1L) }
+  transactor.transact(items.insert(Item(2, "kept")))
+  println(s"pending before run(): ${migrator.pendingCount}")
+  println(s"run() returned: ${migrator.run()}")
+  println(s"pending after run(): ${migrator.pendingCount}")
+  println(s"items_v2 rows: ${transactor.connect(Frag.literal("SELECT COUNT(*) FROM items_v2").queryOne[Long])}")
+}
+```
+
+Run with `sbt run`. Real output:
+
+```scala
+// pending before run(): 2
+// run() returned: 0
+// pending after run(): 1
+// items_v2 rows: 0
+```
+
+**Expected.** `run()` keeps claiming batches until a claim returns no keys: `run() returned: 1`, `pending after run(): 0`, `items_v2 rows: 1`.
+
+**Root cause.** `dataMigration/shared/src/main/scala/zio/blocks/data/migration/LargeMigrator.scala:175-192`: the loop ends on `if (batch == 0) keepGoing = false` (line 189), where `batch` is `processBatch`'s return value, the number of rows written plus deleted (`LargeMigrator.scala:194-223`). For a dequeued key whose source row is gone, `writeRepo.deleteAll` (line 220) deletes nothing from a shadow table that never had the row, so the batch counts `0` although it claimed keys. `SmallMigrator#processBatch` returns the same count (`SmallMigrator.scala:105-114`, `writeBatch` at 116-145), so caller loops on it stop early too.
+
+**Impact.** `run()` returning is not a reliable "caught up" signal; a worker that calls `run()` once and reports progress, or then tears down, leaves keys behind. `drain()` is safe (it checks `pendingCount` and counts the empty round), so the fenced cutover still converges. The reference page's `SmallMigrator` loop stops early the same way.
+
+**Test gap.** `LargeMigratorSpec` "run() initializes implicitly and returns 0 on an empty batch stream" only covers a truly empty queue; no test queues a key whose source row is missing ahead of a live key. `PostgresMigrationIntegrationSpec` "SmallMigrator with ShadowTable init" asserts `processed == 0` for exactly such a key without checking what follows.
+
+**Suggested fix.** Make the loop end on an empty claim, not on a zero write count: have the batch step return the number of claimed keys (or a `(claimed, written)` pair) and stop when `claimed == 0`. Document `processBatch`'s return value as "rows written", and change the reference loop to `while (QueueTable.pending(...) > 0)`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -11144,6 +11325,190 @@ On Scala 3.9.0 (`zio-blocks-next-schema:0.0.56`, `-experimental`) the same two l
 
 **Suggested fix.** Add implicit tuple instances: on Scala 2, `implicit def tuple2[A: Schema, B: Schema]: Schema[(A, B)]` up to `tuple22` (generated, like ZIO Schema's `Schema.scala:2977-3483`), built from the element schemas with the same `Reflect.Record` (`_1`, `_2`, ...) that derivation produces; on Scala 3, one `inline given` for `Tuple` that defers to `Schema.derived`. Add a `SchemaSpec` case that summons `Schema[(Int, String)]` and `Schema[List[(Int, String)]]` and checks they equal `Schema.derived`. Until then, add a sentence to `schema.md` "Built-in Schemas": tuples have no implicit schema; use `Schema.derived[(A, B)]`.
 
+### data-migration: `TargetStrategy.ShadowTable` creates the shadow table `LIKE` the target's current shape, so a migration that changes columns fails
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
+
+**Summary.** For `TargetStrategy.ShadowTable(suffix)`, `init()` runs `CREATE TABLE IF NOT EXISTS <v2table>_<suffix> (LIKE <v2table> INCLUDING ALL)`. When the V2 repo names the live table (the only way the final swap replaces it), the shadow table gets the OLD columns, and the first batch fails writing a V2 row into it. The workaround is to create the shadow table yourself, with the new columns, before `init()`; `IF NOT EXISTS` then leaves it alone. Nothing documents this.
+
+**Reproducer.** Start PostgreSQL 16:
+
+```bash
+docker run --rm -d --name shop-db -p 5432:5432 \
+  -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -e POSTGRES_DB=shop \
+  postgres:16
+```
+
+Then, in an empty directory:
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
+  "org.postgresql" % "postgresql"                     % "42.7.14"
+)
+run / fork := true
+```
+
+`project/build.properties`:
+
+```
+sbt.version=1.13.0
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.schema.*
+import zio.blocks.schema.migration.Migration
+import zio.blocks.data.migration.*
+import zio.blocks.sql.*
+
+case class CustomerV1(id: Long, fullName: String)
+object CustomerV1 { implicit val schema: Schema[CustomerV1] = Schema.derived }
+case class CustomerV2(id: Long, firstName: String, lastName: String)
+object CustomerV2 { implicit val schema: Schema[CustomerV2] = Schema.derived }
+
+@main def repro(): Unit = {
+  given transactor: Transactor =
+    JdbcTransactor.fromUrl("jdbc:postgresql://localhost:5432/shop", "shop", "shop", SqlDialect.PostgreSQL)
+  given Dialect = Dialect.Postgres
+  val v1 = Repo.derived[CustomerV1, Long]("customers", "id", _.id)
+  val v2 = Repo.derived[CustomerV2, Long]("customers", "id", _.id)
+  transactor.transact {
+    Frag.literal("DROP TABLE IF EXISTS customers, customers_v2, customers_old_v2, customers_q CASCADE").update
+    Frag.literal("DROP FUNCTION IF EXISTS customers_q_notify() CASCADE").update
+    Frag.literal("CREATE TABLE customers (id BIGINT PRIMARY KEY, full_name TEXT NOT NULL)").update
+    v1.insert(CustomerV1(1, "Ada Lovelace"))
+  }
+  val migration: Migration[CustomerV1, CustomerV2] = Migration
+    .newBuilder[CustomerV1, CustomerV2]
+    .addField(_.firstName, SchemaExpr.literal("Ada"))
+    .addField(_.lastName, SchemaExpr.literal("Lovelace"))
+    .dropField(_.fullName, SchemaExpr.literal(""))
+    .build
+  QueueTable.create[Long]("customers_q", transactor)
+  val migrator = LargeMigrator[CustomerV1, CustomerV2, Long, Long](
+    v1, v2, migration, "customers_q", 100, TargetStrategy.ShadowTable("v2"), captureTriggers = true
+  )
+  migrator.init()
+  val columns = transactor.connect(
+    Frag.literal("SELECT column_name FROM information_schema.columns WHERE table_name = 'customers_v2' ORDER BY ordinal_position").query[String]
+  )
+  println(s"customers_v2 columns after init(): $columns")
+  transactor.transact(QueueTable.enqueue("customers_q", List(1L)))
+  try println(s"run(): ${migrator.run()}")
+  catch { case e: java.sql.SQLException => println(s"run() failed: ${e.getMessage.linesIterator.next()}") }
+}
+```
+
+Run with `sbt run`. Real output:
+
+```scala
+// customers_v2 columns after init(): List(id, full_name)
+// run() failed: ERROR: column "first_name" of relation "customers_v2" does not exist
+```
+
+**Expected.** Either the shadow table is created from the V2 `Table` metadata (`repoV2.table.createTable(...)` under the shadow name), so it has `id, first_name, last_name`, and `run()` copies the row; or the docs say plainly that the shadow table must be created up front with the new shape.
+
+**Root cause.** `dataMigration/shared/src/main/scala/zio/blocks/data/migration/ShadowTable.scala:34-41` (`ShadowTable.create`) calls `dialect.createShadowTableDDL(shadowName, table.name)`, which is `CREATE TABLE IF NOT EXISTS $shadow (LIKE $source INCLUDING ALL)` (`sql/shared/src/main/scala/zio/blocks/sql/Dialect.scala:107-111`). The V2 `Table`'s columns, which `TargetStrategyApplier.prepare` has in hand (`TargetStrategyApplier.scala:40-47`), are never used. The reference page says the shadow table is created "with the target schema" (`docs/reference/data-migration.md:110`).
+
+**Impact.** Every shadow-table migration that adds, drops or renames a column (the main reason to use a shadow table) fails on its first batch with a confusing `column ... does not exist`. Shadow tables only work as written for migrations that keep the column set.
+
+**Test gap.** `PostgresMigrationIntegrationSpec` "SmallMigrator with ShadowTable init" uses separate `v1`/`v2` tables that already exist with the right columns and never writes a row into the shadow table; `MigrationPreviewSpec` checks only the DDL text.
+
+**Suggested fix.** Create the shadow table from `repoV2.table` (its `createTable` DDL under the shadow name, plus the primary key), or take an explicit shadow `Table`/DDL parameter; keep `IF NOT EXISTS` for restarts. Until then, document "create `<table>_<suffix>` with the new columns before `init()`".
+
+### data-migration: `init()` doesn't create the queue table, and with `captureTriggers = true` the installed trigger then makes every application write to the source table fail
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
+
+**Summary.** `SmallMigrator#init` and `LargeMigrator#init` never create the queue table, although `previewSql()` lists its `CREATE TABLE` first, which reads as "init runs this". With `captureTriggers = true`, `init()` succeeds and installs a trigger whose function inserts into the missing queue table, so the next ordinary application `INSERT`, `UPDATE` or `DELETE` on the source table fails. The migration setup takes production writes down.
+
+**Reproducer.** Start PostgreSQL 16:
+
+```bash
+docker run --rm -d --name shop-db -p 5432:5432 \
+  -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -e POSTGRES_DB=shop \
+  postgres:16
+```
+
+Then, in an empty directory:
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
+  "org.postgresql" % "postgresql"                     % "42.7.14"
+)
+run / fork := true
+```
+
+`project/build.properties`:
+
+```
+sbt.version=1.13.0
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.schema.*
+import zio.blocks.schema.migration.Migration
+import zio.blocks.data.migration.*
+import zio.blocks.sql.*
+
+case class Item(id: Long, name: String)
+object Item { implicit val schema: Schema[Item] = Schema.derived }
+
+@main def repro(): Unit = {
+  given transactor: Transactor =
+    JdbcTransactor.fromUrl("jdbc:postgresql://localhost:5432/shop", "shop", "shop", SqlDialect.PostgreSQL)
+  given Dialect = Dialect.Postgres
+  val items = Repo.derived[Item, Long]("items", "id", _.id)
+  transactor.transact {
+    Frag.literal("DROP TABLE IF EXISTS items, items_v2, items_old_v2, items_q CASCADE").update
+    Frag.literal("DROP FUNCTION IF EXISTS items_q_notify() CASCADE").update
+    Frag.literal("CREATE TABLE items (id BIGINT PRIMARY KEY, name TEXT NOT NULL)").update
+  }
+  // No QueueTable.create: previewSql() lists the queue DDL, so it looks as if init() runs it.
+  val migrator = LargeMigrator[Item, Item, Long, Long](
+    items, items, Migration.identity[Item], "items_q", 100, TargetStrategy.ShadowTable("v2"), captureTriggers = true
+  )
+  println(s"preview starts with: ${migrator.previewSql().head.linesIterator.next()}")
+  migrator.init()
+  println("init() succeeded")
+  try {
+    transactor.transact(items.insert(Item(1, "an ordinary application write")))
+    println("application insert succeeded")
+  } catch { case e: java.sql.SQLException => println(s"application insert failed: ${e.getMessage.linesIterator.next()}") }
+}
+```
+
+Run with `sbt run`. Real output:
+
+```scala
+// preview starts with: CREATE TABLE IF NOT EXISTS items_q (
+// init() succeeded
+// application insert failed: ERROR: relation "items_q" does not exist
+```
+
+**Expected.** `init()` creates the queue table (it is `CREATE TABLE IF NOT EXISTS`, so this is idempotent), or at least fails before installing triggers when the queue table is missing.
+
+**Root cause.** `dataMigration/shared/src/main/scala/zio/blocks/data/migration/LargeMigrator.scala:68-80` and `SmallMigrator.scala:50-63`: `init()` calls `TargetStrategyApplier.prepare` and `QueueTable.installTriggers` only; `QueueTable.create` (`QueueTable.scala:79`) is never called. `previewSql()` (`LargeMigrator.scala:156-164`, `SmallMigrator.scala:89-102`) starts with `QueueTable.queueTableDDL`. PL/pgSQL doesn't resolve table names when the function is created, so the trigger installs cleanly and fails at the first write.
+
+**Impact.** Following the reference page (its Full Example never calls `QueueTable.create`) on a live PostgreSQL table breaks every write to that table until someone creates the queue table or drops the trigger.
+
+**Test gap.** Every spec calls `QueueTable.create` before constructing a migrator (`PostgresMigrationIntegrationSpec`, `MigrationIntegrationSpec`); none constructs one without it.
+
+**Suggested fix.** Run `QueueTable.queueTableDDL` in `init()`'s transaction before installing triggers (it is already part of `previewSql()`); if keeping creation separate, check the queue table exists and fail `init()` before `installTriggers`.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -12296,6 +12661,218 @@ import zio.blocks.streams._
 **Test gap.** None (doc text).
 
 **Suggested fix.** Replace the sentence with: "Pulls elements from the run's `Reader` with the read that matches the lane (`readInt`, `readFloat`, or the count-returning `readLongs`/`readDoubles`), so built-in sinks such as `Sink.sumLong` and `Stream#runFold` never box. Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads." and link `../primitives/reader.md`.
+
+### docs: `reference/data-migration.md` says `fence()` stops producers and that the protocol migrates every row written before `complete()`
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
+
+**Summary.** The Safe Completion Protocol section of `docs/reference/data-migration.md` describes guarantees the code doesn't give. Line 85: "`fence()` signals cutover and stops new producers from writing to the old table". Line 135: "Because fencing stopped new writes, the queue is guaranteed to reach zero." Line 141: "The protocol ensures that every row modified between `init()` and `complete()` is migrated". Line 110: `ShadowTable(suffix)` "creates a shadow table with the target schema". Line 265: "The failure is returned to the caller." In the code, `fence()` only changes an in-memory state flag and blocks no write; a write between `drain()` and `complete()` is lost; the shadow table copies the current shape; a failed batch throws a `RuntimeException`. The source Scaladoc of `fence()` itself says the opposite of the page: "The application MUST ensure that producers stop writing to the old table before calling fence(). Writes arriving after fence() may be lost".
+
+**Reproducer.** Start PostgreSQL 16:
+
+```bash
+docker run --rm -d --name shop-db -p 5432:5432 \
+  -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -e POSTGRES_DB=shop \
+  postgres:16
+```
+
+Then, in an empty directory:
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
+  "org.postgresql" % "postgresql"                     % "42.7.14"
+)
+run / fork := true
+```
+
+`project/build.properties`:
+
+```
+sbt.version=1.13.0
+```
+
+`Repro.scala`:
+
+```scala
+import zio.blocks.schema.*
+import zio.blocks.schema.migration.Migration
+import zio.blocks.data.migration.*
+import zio.blocks.sql.*
+
+case class Item(id: Long, name: String)
+object Item { implicit val schema: Schema[Item] = Schema.derived }
+
+@main def repro(): Unit = {
+  given transactor: Transactor =
+    JdbcTransactor.fromUrl("jdbc:postgresql://localhost:5432/shop", "shop", "shop", SqlDialect.PostgreSQL)
+  given Dialect = Dialect.Postgres
+  val items = Repo.derived[Item, Long]("items", "id", _.id)
+  transactor.transact {
+    Frag.literal("DROP TABLE IF EXISTS items, items_v2, items_old_v2, items_q CASCADE").update
+    Frag.literal("DROP FUNCTION IF EXISTS items_q_notify() CASCADE").update
+    Frag.literal("CREATE TABLE items (id BIGINT PRIMARY KEY, name TEXT NOT NULL)").update
+  }
+  QueueTable.create[Long]("items_q", transactor)
+  val migrator = LargeMigrator[Item, Item, Long, Long](
+    items, items, Migration.identity[Item], "items_q", 100, TargetStrategy.ShadowTable("v2"), captureTriggers = true
+  )
+  migrator.init()
+  migrator.fence()
+  transactor.transact(items.insert(Item(1, "written after fence()")))
+  println("insert after fence() succeeded")
+  println(s"pending after the insert: ${migrator.pendingCount}")
+  println(s"drain() processed: ${migrator.drain()}")
+}
+```
+
+Run with `sbt run`. Real output:
+
+```scala
+// insert after fence() succeeded
+// pending after the insert: 1
+// drain() processed: 1
+```
+
+The write after `fence()` goes through and is queued by the trigger; nothing was stopped. (The loss of a write made after `drain()` is reproduced in the Library bugs entry on `LargeMigrator#complete`.)
+
+**Expected.** The page states the real contract: the application stops its writers before `fence()`; `fence()` only moves the migrator into the cutover state; `drain()` converts until a count finds the queue empty; check `pendingCount` before `complete()`, which doesn't; create the shadow table with the new columns first; a failed batch throws, rolls back, and keeps its keys queued.
+
+**Root cause.** `dataMigration/shared/src/main/scala/zio/blocks/data/migration/LargeMigrator.scala:82-97` (`fence()` sets `state = State.Fenced`, with the Scaladoc quoted above), `LargeMigrator.scala:141-147` (`complete()` doesn't check the queue), `SmallMigrator.scala:121`/`LargeMigrator.scala:199` (`throw new RuntimeException(s"Migration failed: $err")`). Page lines 85, 110, 135, 141, 265 of `docs/reference/data-migration.md`.
+
+**Impact.** A reader who trusts "fence() stops new producers" keeps writers running through cutover and loses writes silently.
+
+**Test gap.** No docs check; the reference page's blocks are plain fences, so nothing compiles or runs them.
+
+**Suggested fix.** Rewrite those five sentences to the contract above and link the how-to guide `guides/migrate-table-rows-online.md`, which demonstrates it against PostgreSQL.
+
+### docs: the "Full Example" in `reference/data-migration.md` doesn't compile, and as written it would not migrate the live table
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
+
+**Summary.** The Full Example (`docs/reference/data-migration.md:200-262`) fails to compile, and fixing the compile error still leaves a program that doesn't migrate anything: it targets the wrong table, never creates the queue table, and never queues the existing rows.
+
+**Reproducer.** In an empty directory:
+
+`build.sbt`:
+
+```scala
+scalaVersion := "3.9.0"
+scalacOptions += "-experimental"
+libraryDependencies ++= Seq(
+  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
+  "org.postgresql" % "postgresql"                     % "42.7.14"
+)
+run / fork := true
+```
+
+`project/build.properties`:
+
+```
+sbt.version=1.13.0
+```
+
+`FullExample.scala`:
+
+```scala
+object FullExample {
+  val transactor: zio.blocks.sql.Transactor = null
+  import zio.blocks.schema._
+  import zio.blocks.schema.migration.Migration
+  import zio.blocks.sql.{DbCodec, DbCodecDeriver, Repo, Table, Transactor}
+  import zio.blocks.data.migration._
+  
+  case class UserV1(id: Int, name: String)
+  case class UserV2(id: Int, name: String, age: Int)
+  
+  object UserV1 { implicit val schema: Schema[UserV1] = Schema.derived }
+  object UserV2 { implicit val schema: Schema[UserV2] = Schema.derived }
+  
+  val v1Table = Table.derived[UserV1]
+  val v2Table = Table.derived[UserV2]
+  
+  implicit val codecInt: DbCodec[Int] = implicitly[Schema[Int]].deriving(DbCodecDeriver).derive
+  implicit val codecV1: DbCodec[UserV1] = UserV1.schema.deriving(DbCodecDeriver).derive
+  implicit val codecV2: DbCodec[UserV2] = UserV2.schema.deriving(DbCodecDeriver).derive
+  
+  val v1Repo = Repo(v1Table, "id", summon[DbCodec[Int]], (_: UserV1).id)
+  val v2Repo = Repo(v2Table, "id", summon[DbCodec[Int]], (_: UserV2).id)
+  
+  // Migration that transforms UserV1 to UserV2
+  val migration: Migration[UserV1, UserV2] = Migration
+    .newBuilder[UserV1, UserV2]
+    .addField(_.age, SchemaExpr.literal(0))
+    .build
+  
+  // SmallMigrator: queue-based batch processing
+  val smallMigrator = SmallMigrator[UserV1, UserV2, Int, Int](
+    repoV1 = v1Repo,
+    repoV2 = v2Repo,
+    migration = migration,
+    queueTable = "user_migration_q",
+    batchSize = 100,
+    target = TargetStrategy.ShadowTable("v2")
+  )(using transactor, summon[DbCodec[Int]], Dialect.Postgres)
+  
+  // Lifecycle: init, process batches, complete
+  smallMigrator.init()
+  // ... loop processBatch() ...
+  smallMigrator.complete()
+  
+  // LargeMigrator: incremental worker with safe completion protocol
+  val largeMigrator = LargeMigrator[UserV1, UserV2, Int, Int](
+    repoV1 = v1Repo,
+    repoV2 = v2Repo,
+    migration = migration,
+    queueTable = "user_migration_q",
+    batchSize = 100,
+    target = TargetStrategy.ShadowTable("v2"),
+    captureTriggers = true
+  )(using transactor, summon[DbCodec[Int]], Dialect.Postgres)
+  
+  // Safe lifecycle: init, fence, drain, complete
+  largeMigrator.init()
+  largeMigrator.fence()
+  val total = largeMigrator.drain()
+  largeMigrator.complete()
+}
+```
+
+Run with `sbt compile`. Real output:
+
+```scala
+// -- [E006] Not Found Error: ./FullExample.scala:38:44 
+// 38 |  )(using transactor, summon[DbCodec[Int]], Dialect.Postgres)
+//    |                                            ^^^^^^^
+//    |          Not found: Dialect - did you mean Reflect? or perhaps reflect?
+//    |
+//    | longer explanation available when compiling with `-explain`
+```
+
+`FullExample.scala` is the page's block verbatim, wrapped in `object FullExample` with a `transactor` stub, because the block uses `transactor` without defining it.
+
+**What is wrong, beyond the compile error** (each verified against the source):
+
+- `Dialect` is used (`Dialect.Postgres`, lines 238 and 254) but not imported: the import is `zio.blocks.sql.{DbCodec, DbCodecDeriver, Repo, Table, Transactor}`. `transactor` is never defined.
+- `Table.derived[UserV1]` and `Table.derived[UserV2]` (lines 214-215) name two different tables, `user_v1` and `user_v2`. `ShadowTable("v2")` shadows and swaps the V2 repo's table (`TargetStrategyApplier.scala:40-47`, `ShadowTable.scala:49-60`), so the swap renames `user_v2`/`user_v2_v2` and never replaces the live `user_v1`. Neither table is ever created.
+- The queue table `user_migration_q` is never created; `init()` doesn't create it (`LargeMigrator.scala:68-80`), so with `captureTriggers = true` every write to `user_v1` fails (see the Usability traps entry on `init()`).
+- No existing row is ever queued. Capture triggers only see writes after `init()`, and the example goes straight from `init()` to `fence()`/`drain()`/`complete()`, so `complete()` swaps in an empty shadow table.
+- Both migrators reuse the same queue and the same shadow suffix; after the `SmallMigrator`'s `complete()` has renamed `user_v2` to `user_v2_old_v2`, the `LargeMigrator`'s `complete()` tries the same rename and fails because that table exists.
+- The `SmallMigrator` loop earlier on the page (`pending = count > 0`, line 70) stops early when a batch's rows were deleted (see the Library bugs entry on `run()`).
+
+**Expected.** A Full Example that compiles under mdoc and, run against PostgreSQL, migrates the live table: one V1 and one V2 repo on the same table name, `QueueTable.create` first, the shadow table created with the V2 columns before `init()`, existing keys queued after `init()` (`INSERT INTO q (id) SELECT CAST(id AS TEXT) FROM t ON CONFLICT DO NOTHING`), writers stopped before `fence()`, `pendingCount == 0` checked before `complete()`.
+
+**Root cause.** The example was never compiled or run: the page uses plain `scala` fences, and `dataMigration` was not on the docs mdoc classpath until H-23 added it.
+
+**Impact.** The first code a reader copies from the reference fails to compile, and the "fixed" version silently migrates nothing or breaks writes.
+
+**Test gap.** Plain fences; no mdoc. `dataMigration.jvm` is now on the docs classpath (H-23), so the block can become `mdoc:compile-only`.
+
+**Suggested fix.** Replace the Full Example with a short pointer to `guides/migrate-table-rows-online.md` (whose `CompleteExample` runs this flow against PostgreSQL 16), or rewrite it per "Expected" as an `mdoc:compile-only` block.
 
 ## Resolved
 
