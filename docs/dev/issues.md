@@ -11722,6 +11722,175 @@ Run with `sbt run`. Real output:
 
 **Suggested fix.** Run `QueueTable.queueTableDDL` in `init()`'s transaction before installing triggers (it is already part of `previewSql()`); if keeping creation separate, check the queue table exists and fail `init()` before `installTriggers`.
 
+### mux: Two threads calling `takeOutbound` (or `receive`) on one stream duplicate and lose messages, then stall the queue for good, and nothing detects it
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/run-a-mux-over-a-socket.md` (backlog H-29), on `main` at efc51f19b. Same at v0.0.56 (`mux/` and `ringbuffer/` are unchanged since the tag).
+
+**Summary.** `MuxStream#takeOutbound` and `MuxStream#receive` are single-consumer: each one calls `MpscRingBuffer#take`, which reads the consumer index with a plain read. Two threads draining one stream at once (for example, two writer loops, or a writer loop plus a "flush" helper) get some messages twice and lose others. The consumer index can also move backwards, after which the queue looks full forever, and every later `send` returns `QueueFull`. There is no error or assertion, only wrong data followed by a hang.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-mux:0.0.56
+import zio.blocks.mux._
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
+import scala.jdk.CollectionConverters._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val n   = 200000
+    val mux = Mux[Int, Integer, Integer](1)
+    val stream = mux.open(1) match {
+      case s: MuxStream[Int, Integer, Integer] @unchecked => s
+      case e: MuxError => sys.error(e.toString)
+    }
+    val taken    = new ConcurrentLinkedQueue[Integer]()
+    val done     = new AtomicBoolean(false)
+    // Two "writer loops" that both drain the same stream: violates the single-consumer contract.
+    def drainer() = new Thread(() => {
+      while (!done.get) stream.takeOutbound() match {
+        case Some(m) => taken.add(m)
+        case _       => ()
+      }
+    })
+    val d1 = drainer(); val d2 = drainer()
+    d1.start(); d2.start()
+    var i = 0
+    val start = System.nanoTime()
+    while (i < n && System.nanoTime() - start < 10_000_000_000L) {
+      stream.send(Integer.valueOf(i)) match {
+        case () => i += 1
+        case _  => Thread.onSpinWait()
+      }
+    }
+    println(s"sent $i of $n")
+    Thread.sleep(500)
+    done.set(true); d1.join(); d2.join()
+    val all    = taken.asScala.toVector.map(_.intValue)
+    val unique = all.distinct
+    println(s"taken: ${all.size}, unique: ${unique.size}, duplicates: ${all.size - unique.size}, missing: ${i - unique.size}")
+  }
+}
+// Two consecutive runs (the numbers vary from run to run; every run so far stalled, duplicated and lost):
+// sent 359 of 200000
+// taken: 124, unique: 114, duplicates: 10, missing: 245
+// sent 389 of 200000
+// taken: 164, unique: 136, duplicates: 28, missing: 253
+```
+
+"sent 359 of 200000" means `send` returned `QueueFull` for the rest of the 10-second budget: the queue never drained again, even though both drainers kept polling.
+
+**Expected.** Either the misuse is detected (a debug-mode owner check, or a CAS on the consumer index that fails loudly), or the documentation says plainly what the failure looks like (duplicates, losses and a permanent `QueueFull`), so that a user who sees those symptoms recognises the cause.
+
+**Root cause.** `ringbuffer/jvm/src/main/scala/zio/blocks/ringbuffer/MpscRingBuffer.scala:152-164`: `take()` reads `consumerIndex` with a plain read (`:155`), takes the slot, and publishes `cIdx + 1` with `CONSUMER_INDEX.setRelease` (`:162`). Two consumers that read the same `cIdx` both return the same element (a duplicate). A consumer that publishes a stale `cIdx + 1` after another has advanced moves the index backwards, onto a slot that is already `null`, so `take` returns `null` (empty) from then on. Producers compute their limit from that stale index, so they see the buffer as full (`:115-120`). `MuxStream#takeOutbound`/`#receive` (`mux/jvm/src/main/scala-3/zio/blocks/mux/PlatformMux.scala:122`, `:144`) call `take()` with no guard.
+
+**Impact.** A protocol that drains streams from more than one thread silently corrupts the message order and then deadlocks the connection. The symptom (permanent `QueueFull`) looks like ordinary back-pressure, so it is hard to trace back to the cause.
+
+**Test gap.** `mux/shared/src/test/scala-3/zio/blocks/mux/MuxSpec.scala` has no concurrent-consumer test, and the ring buffer specs test only the supported single-consumer use. A test can't assert "works" for a contract violation, but a debug-mode check could be tested.
+
+**Suggested fix.** Document the symptoms on `mux.mdx` and in the `MuxStream#receive`/`#takeOutbound` Scaladoc (the branch `mux-socket` does the `mux.mdx` part). Optionally, add a cheap single-consumer guard to `MuxStream` (record the first consumer thread and throw on another while one is active), enabled by a system property, so that the hot path stays a single plain read.
+
+### mux: On a half-closed-remote stream, `receive()` returns `None` forever: the application can't tell that the peer finished
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/run-a-mux-over-a-socket.md` (backlog H-29), on `main` at efc51f19b. Same at v0.0.56.
+
+**Summary.** After the protocol calls `MuxStream#signalRemoteClose` (the peer sent END_STREAM), `MuxStream#receive` drains the buffered messages and then returns `None`, exactly as it does when the next message simply hasn't arrived yet. `MuxStream#isHalfClosed` is `true` in both HALF_CLOSED_LOCAL and HALF_CLOSED_REMOTE, so it doesn't tell the application which side finished, and no other method does. Only when the local side also half-closes does `receive()` return the terminal `StreamClosed`. An application that waits for "the peer is done" before it replies (an upload, a request body) can't learn it from the stream.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-mux:0.0.56
+import zio.blocks.mux._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val mux = Mux[Int, String, String](4)
+    val stream = mux.open(1) match {
+      case s: MuxStream[Int, String, String] => s
+      case e: MuxError                       => sys.error(e.toString)
+    }
+    stream.offerInbound("last message from the peer")
+    stream.signalRemoteClose() // the peer sent END_STREAM
+    println(s"receive #1: ${stream.receive()}")
+    println(s"receive #2: ${stream.receive()}")
+    println(s"receive #3: ${stream.receive()}")
+    println(s"isHalfClosed: ${stream.isHalfClosed}, isClosed: ${stream.isClosed}")
+
+    val other = mux.open(2) match {
+      case s: MuxStream[Int, String, String] => s
+      case e: MuxError                       => sys.error(e.toString)
+    }
+    other.halfClose() // WE finished sending; the peer has not
+    println(s"local half-close: receive = ${other.receive()}, isHalfClosed = ${other.isHalfClosed}")
+  }
+}
+// receive #1: Some(last message from the peer)
+// receive #2: None
+// receive #3: None
+// isHalfClosed: true, isClosed: false
+// local half-close: receive = None, isHalfClosed = true
+```
+
+The two streams are in opposite half-closed states, and every observable value is the same.
+
+**Expected.** Once the inbound queue of a HALF_CLOSED_REMOTE stream is drained, `receive()` reports end-of-stream (for example a `MuxError.StreamClosed`, or a dedicated end value), or the stream exposes which side is closed (`isLocalClosed`/`isRemoteClosed`).
+
+**Root cause.** `mux/jvm/src/main/scala-3/zio/blocks/mux/PlatformMux.scala:122-130`: `receive()` returns `terminalError` when the queue is empty, and only `cancelWith` (`:173-176`) and `closeClosedStream` (`:178-182`) set it. `signalRemoteClose()` (`:159-162`) only CASes the state to `HalfClosedRemote`. `isHalfClosed` (`:166-169`) folds both half-closed states into one boolean. The Scala.js `PlatformMux` behaves the same way.
+
+**Impact.** Every protocol has to invent an in-band end marker to tell the application that the peer finished (the H-29 guide sends `Message.End` through the inbound queue just before `signalRemoteClose()`). An application that relies on `receive()` alone polls `None` forever. `docs/reference/mux.mdx:776` said only "You can still call `receive()` to drain any buffered inbound messages" (the branch `mux-socket` adds what happens after that).
+
+**Test gap.** `MuxSpec` "signalRemoteClose transitions OPEN to HALF_CLOSED_REMOTE" (`mux/shared/src/test/scala-3/zio/blocks/mux/MuxSpec.scala:198`) asserts only `isHalfClosed`. No test calls `receive()` on a drained HALF_CLOSED_REMOTE stream.
+
+**Suggested fix.** Add `isRemoteClosed`/`isLocalClosed` (cheap: one volatile read of `state`). Alternatively, make `receive()` return a distinct end-of-stream value once a HALF_CLOSED_REMOTE stream is drained. Either way, document it on `mux.mdx` and in the `MuxStream#receive` Scaladoc.
+
+### mux: A fully closed stream leaves the `Mux` while its outbound queue still holds messages, and `Mux` can't list its streams
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/run-a-mux-over-a-socket.md` (backlog H-29), on `main` at efc51f19b. Same at v0.0.56.
+
+**Summary.** When the second side half-closes (or `close()` is called), the stream is removed from the registry at once: `Mux#get(id)` returns `None` and `Mux#activeCount` drops. But the stream's outbound queue still holds whatever the application sent last (typically the final reply or an end marker), and `takeOutbound()` on the stream object still returns it. `Mux` has no method that lists its streams (only `get(id)` and `activeCount`). So a protocol that finds the streams to drain through the `Mux` silently never sends those last messages. A protocol must keep its own id → stream table and keep each stream there until `takeOutbound()` returns an error.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-mux:0.0.56
+import zio.blocks.mux._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val mux = Mux[Int, String, String](4)
+    val stream = mux.open(1) match {
+      case s: MuxStream[Int, String, String] => s
+      case e: MuxError                       => sys.error(e.toString)
+    }
+    stream.signalRemoteClose()     // the peer already finished
+    stream.send("final reply")     // the application's last message
+    stream.halfClose()             // ... and it is done: both sides closed
+    println(s"isClosed: ${stream.isClosed}, mux.get(1): ${mux.get(1)}, activeCount: ${mux.activeCount}")
+    // A protocol writer that finds streams through mux.get(id) never sees "final reply" again,
+    // but it is still queued on the stream object:
+    println(s"takeOutbound: ${stream.takeOutbound()}")
+    println(s"takeOutbound: ${stream.takeOutbound()}")
+  }
+}
+// isClosed: true, mux.get(1): None, activeCount: 0
+// takeOutbound: Some(final reply)
+// takeOutbound: StreamClosed(1)
+```
+
+**Expected.** Either the `Mux` keeps a closed stream reachable until its outbound queue is drained, or it offers a way to enumerate streams with pending output (for example `Mux#streams` or `Mux#foreachPending`). At the least, the docs should say that the protocol owns this bookkeeping.
+
+**Root cause.** `mux/jvm/src/main/scala-3/zio/blocks/mux/PlatformMux.scala:178-182`: `closeClosedStream` sets `Closed` and calls `mux.removeStream(streamId)` (`:70-74`), regardless of `outboundQueue`. The `Mux` trait (`mux/shared/src/main/scala-3/zio/blocks/mux/Mux.scala:81-116`) exposes only `open`, `get`, `cancel`, `closeAll` and `activeCount`. Scala.js behaves the same way.
+
+**Impact.** A natural writer loop (`for id <- knownIds; s <- mux.get(id)` drain `s`) drops each stream's final messages exactly when a conversation ends, which is the hardest case to notice in tests. `close()` behaves the same way: its Scaladoc lists what `send`/`receive`/`offerInbound` do afterwards, but not that queued outbound messages stay drainable.
+
+**Test gap.** `MuxSpec` has no test that sends, closes both sides, and then drains `takeOutbound()`. The "close after halfClose sets isClosed" test (`MuxSpec.scala:181`) checks only the state.
+
+**Suggested fix.** Document it on `mux.mdx` and in the `close()`/`halfClose()` Scaladoc ("the outbound queue survives closing; drain it with `takeOutbound()` until it returns an error"). Consider adding an enumeration method to `Mux` so that protocols don't have to mirror the registry.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -13086,6 +13255,40 @@ Run with `sbt compile`. Real output:
 **Test gap.** Plain fences; no mdoc. `dataMigration.jvm` is now on the docs classpath (H-23), so the block can become `mdoc:compile-only`.
 
 **Suggested fix.** Replace the Full Example with a short pointer to `guides/migrate-table-rows-online.md` (whose `CompleteExample` runs this flow against PostgreSQL 16), or rewrite it per "Expected" as an `mdoc:compile-only` block.
+
+### docs: `mux.mdx` reads as if the registry were both lock-based and lock-free, and says `receive`/`takeOutbound` must share one thread
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/run-a-mux-over-a-socket.md` (backlog H-29), on `main` at efc51f19b. Same at v0.0.56 (the same lines are in `git show v0.0.56:docs/reference/mux.mdx`).
+
+**Summary.** `docs/reference/mux.mdx:37` says the stream registry is "lock-based on JVM, lock-free on JS", and `:823` says "No `synchronized`, so it stays friendly to virtual threads". Read together, they look like a contradiction. Both are true, but neither says what the code does. Also, `:815` tells readers to "Call `receive()` and `takeOutbound()` from the same thread only". The contract in the Scaladoc (`mux/shared/src/main/scala-3/zio/blocks/mux/Mux.scala:56-60`) is different: each of the two operations has its own single consumer, and the usual layout uses two threads (the application receives, the protocol's writer takes).
+
+**Reproduction.** This is a documentation contradiction, so the reproduction is the source. Run it from a zio-blocks checkout:
+
+```bash
+git show v0.0.56:mux/jvm/src/main/scala-3/zio/blocks/mux/PlatformMux.scala | grep -n "ReentrantLock\|lock.lock()\|def get\|def activeCount\|synchronized"
+# 21:import java.util.concurrent.locks.ReentrantLock
+# 37:      lock.lock()
+# 48:    def get(id: Id): Option[MuxStream[Id, In, Out]] =
+# 52:      lock.lock()
+# 60:      lock.lock()
+# 68:    def activeCount: Int = streams.size()
+# 71:      lock.lock()
+git show v0.0.56:mux/js/src/main/scala-3/zio/blocks/mux/PlatformMux.scala | grep -n "mutable.HashMap\|lock"
+# 29:    private val streams         = mutable.HashMap.empty[Id, JsMuxStream[Id, In, Out]]
+```
+
+**Expected.** The page states what the code does. On the JVM, `open` (`PlatformMux.scala:37`), `cancel` (`:52`), `closeAll` (`:60`) and the internal `removeStream` (`:71`) take a `java.util.concurrent.locks.ReentrantLock`. `get` (`:48`) and `activeCount` (`:68`) read the `ConcurrentHashMap` without the lock. Per-stream queues are `MpscRingBuffer`s, and state transitions use `VarHandle` CAS, with no lock. There is no `synchronized` anywhere, which is why virtual threads are not pinned. Scala.js uses a plain `mutable.HashMap` with no locking, because it runs on one thread ("lock-free" is the wrong word for it). Each of `receive()` and `takeOutbound()` has its own single consumer.
+
+**Root cause.** The page's wording at `docs/reference/mux.mdx:37`, `:815` and `:823`.
+
+**Impact.** Readers can't tell whether `Mux` blocks. The "same thread only" sentence also suggests that a protocol must run its writer on the application's thread, which is exactly the wrong layout for a socket.
+
+**Test gap.** None. This is documentation only.
+
+**Suggested fix (applied in branch `mux-socket`, commit 68ee8acc8).**
+- `:37` becomes: "**Thread-safe stream registry** — `open`, `get`, `cancel`, `closeAll` and `activeCount` are safe to call from any thread. On the JVM, `open`, `cancel` and `closeAll` take a `ReentrantLock`, while `get` and `activeCount` read a `ConcurrentHashMap` without it; on Scala.js, which runs one thread, the registry is a plain `HashMap` with no locking".
+- `:815` becomes: "`receive()` and `takeOutbound()` are **single-consumer**: on each stream, at most one thread at a time may call `receive()`, and at most one thread at a time may call `takeOutbound()`. The two can be different threads, which is the usual layout: the application calls `receive()` and the protocol's writer calls `takeOutbound()`. Two threads calling the same one concurrently corrupt the ring buffer: messages are delivered twice or lost, and the queue can stop accepting new messages."
+- `:823` becomes: "No `synchronized`: the registry's lock is a `ReentrantLock`, and the per-stream queues and state transitions take no lock, so a virtual thread never pins its carrier thread inside `Mux`".
 
 ## Resolved
 
