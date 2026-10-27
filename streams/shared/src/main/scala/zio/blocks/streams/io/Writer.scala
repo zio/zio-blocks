@@ -99,10 +99,12 @@ abstract class Writer[-Elem] {
    * evaluated once, at the switch, and never if this writer accepts every
    * element.
    *
-   * A write that throws propagates the exception and does not switch, so later
-   * writes still go to this writer. [[close]] closes this writer and, after a
-   * switch, `next`. [[isClosed]] is `true` after [[close]], or once the writer
-   * has switched and `next` is closed.
+   * A write that throws propagates the exception, and from then on the writer
+   * never switches: later writes go to this writer only, a rejection returns
+   * `false`, and `next` is never used. [[close]] closes this writer and, after
+   * a switch, `next`, ignoring exceptions from both. [[isClosed]] is `true`
+   * after [[close]], once the writer has switched and `next` is closed, or,
+   * after a throwing write, once this writer is closed.
    *
    * {{{
    * import zio.blocks.streams.io.Writer
@@ -155,8 +157,8 @@ abstract class Writer[-Elem] {
 
   /**
    * The lane this writer takes its elements in: a primitive type, or
-   * `JvmType.AnyRef`. The writers in this file report `JvmType.AnyRef`; the JVM
-   * NIO writers report their primitive lane.
+   * `JvmType.AnyRef`. The writers from the companion object report
+   * `JvmType.AnyRef`; the `NioWriters` writers report their primitive lane.
    */
   def jvmType: JvmType = JvmType.AnyRef
 
