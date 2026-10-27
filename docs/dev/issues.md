@@ -7164,6 +7164,138 @@ object B3SamplingOnly {
 
 **Suggested fix.** Return `None` from `extract` for sampling-only values. If the deny decision should still reach the sampler, add a separate API (or a `SpanContext` flag that the samplers read) rather than an invalid context. Align the Scaladoc and the tests.
 
+### schema (Scala 3): `.when[...]` after a named-tuple field fails at runtime with "Expected a variant"
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10), on `main` at `b6c0c30e4`. Reproduced against the published 0.0.56 artifacts. The macro code is the same on main (`CompanionOptics.scala:286-292`), but only 0.0.56 was run.
+
+**Summary.** On a named tuple, `$(_.field)` lenses work, as do `.each`, `.at(i)` and `.atKey(k)` after a field. But `.when[Case]` after a named-tuple field compiles, then throws `RuntimeException: Expected a variant` when the optic is first built. This hits both `Option` fields (`_.humidity.when[Some[Int]].value`) and sealed-trait fields (`_.sky.when[Cloudy].cover`). The same paths on a case class work.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`), run on JDK 21, and this `build.sbt`:
+
+```scala
+scalaVersion := "3.7.4"
+
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
+```
+
+**Reproduction.** `Repro.scala`, run with `sbt run`:
+
+```scala
+import zio.blocks.schema._
+
+sealed trait Sky
+case class Clear()             extends Sky
+case class Cloudy(cover: Int)  extends Sky
+
+type Reading = (city: String, humidity: Option[Int], sky: Sky)
+
+object Reading extends CompanionOptics[Reading] {
+  given Schema[Reading] = Schema.derived
+  lazy val humidity: Optional[Reading, Int] = $(_.humidity.when[Some[Int]].value)
+  lazy val cover: Optional[Reading, Int]    = $(_.sky.when[Cloudy].cover)
+}
+
+case class ReadingC(city: String, humidity: Option[Int], sky: Sky)
+
+object ReadingC extends CompanionOptics[ReadingC] {
+  given Schema[ReadingC] = Schema.derived
+  lazy val humidity: Optional[ReadingC, Int] = $(_.humidity.when[Some[Int]].value)
+  lazy val cover: Optional[ReadingC, Int]    = $(_.sky.when[Cloudy].cover)
+}
+
+@main def repro(): Unit = {
+  def attempt(label: String)(f: => Any): Unit =
+    try println(s"$label: $f")
+    catch { case e: RuntimeException => println(s"$label: $e") }
+
+  attempt("case class humidity")(ReadingC.humidity.getOption(ReadingC("Oslo", Some(81), Cloudy(6))))
+  // case class humidity: Some(81)
+  attempt("case class cover")(ReadingC.cover.getOption(ReadingC("Oslo", Some(81), Cloudy(6))))
+  // case class cover: Some(6)
+  attempt("named tuple humidity")(Reading.humidity.getOption((city = "Oslo", humidity = Some(81), sky = Cloudy(6))))
+  // named tuple humidity: java.lang.RuntimeException: Expected a variant
+  attempt("named tuple cover")(Reading.cover.getOption((city = "Oslo", humidity = Some(81), sky = Cloudy(6))))
+  // named tuple cover: java.lang.RuntimeException: Expected a variant
+}
+```
+
+The same failure occurs on Scala 3.9.0 with both `zio-blocks-schema` and `zio-blocks-next-schema` 0.0.56 plus `-experimental`.
+
+**Expected.** `Some(81)` and `Some(6)`, the same as for the case class.
+
+**Root cause.** On a named tuple, `x.humidity` is typed as `NamedTuple.apply(x)(0)`. Its type, after `.widen.dealias`, is the unreduced match type `scala.Tuple.Elem[scala.NamedTupleDecomposition.DropNames[NamedTuple[("humidity", ...), (Option[Int], ...)]], 0]`, whose `typeSymbol` is `scala.Tuple$.Elem` with no children. The `when` case in `CompanionOptics.optic` computes `val parentTpe = parent.tpe.widen.dealias`, then `directSubTypes(parentTpe)` returns `Nil`, so `caseIdx = subTypes.indexWhere(_ =:= caseTpe)` is `-1`. The generated code calls `prismByIndex(-1)`, which gives `None`, so it reaches `.getOrElse(sys.error("Expected a variant"))` (`schema/shared/src/main/scala-3/zio/blocks/schema/CompanionOptics.scala:171-177` at v0.0.56; `:286-292` on main). A probe macro confirmed it: `parent.tpe.widen.dealias` shows the `Tuple.Elem[...]` type with `children=List()`, and `.simplified` reduces it to `scala.Option[scala.Int]` with `children=List(Some, None)`. Field selection itself works because the fallback case uses the literal index (`:701-704` on main) and never needs the field type's subtypes.
+
+**Impact.** No optic can reach a case of an `Option` or sealed-trait field inside a named tuple. The error comes at runtime, when the optic is first built, not at compile time. A lens to the whole `Option` field (`$(_.humidity)`) with `.modify(_.map(...))` still works as a workaround.
+
+**Test gap.** `SchemaVersionSpecificScalaNextSpec` (scalaNextTests, built only for 3.10 on main) tests named-tuple lenses with `$(_.i)` and `$(_(0))`, and `.fold` over a `List` field. It never uses `.when` (or `.wrapped`/`.searchFor`) after a named-tuple field.
+
+**Suggested fix.** Use `parent.tpe.widen.dealias.simplified` (a helper that also reduces match types) for `parentTpe` in the `when` case and the other cases that inspect the parent type (`wrapped`, `searchFor`). Also make the macro `fail(...)` at compile time when `caseIdx < 0`, instead of emitting `sys.error("Expected a variant")`. Add a scalaNextTests case: `type T = (o: Option[Int], s: Sky)` with `$(_.o.when[Some[Int]].value)` and `$(_.s.when[Cloudy].cover)`.
+
+### schema (Scala 3): `Into.derived` / `As.derived` reject named tuples ("Unsupported type combination ... (other)")
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10), on `main` at `b6c0c30e4`. Reproduced against 0.0.56; main has the same classification code (`IntoVersionSpecific.scala:592`, and neither `IntoVersionSpecific.scala` nor `AsVersionSpecific.scala` mentions named tuples).
+
+**Summary.** `Into.derived[NamedTuple, CaseClass]`, `Into.derived[CaseClass, NamedTuple]` and `As.derived[NamedTuple, CaseClass]` fail to compile. The macro classifies the named tuple as "(other)". Its own error message lists "Product ↔ Tuple (case class to/from tuple)" as supported, and a reader expects a named tuple to count as a tuple. Converting through the plain tuple works.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`), run on JDK 21, and this `build.sbt`:
+
+```scala
+scalaVersion := "3.7.4"
+
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
+```
+
+**Reproduction.** `Repro.scala`, run with `sbt run`:
+
+```scala
+import zio.blocks.schema._
+
+type Reading = (city: String, tempC: Double)
+
+case class WeatherReading(city: String, tempC: Double)
+
+@main def repro(): Unit = {
+  val oslo: Reading = (city = "Oslo", tempC = 3.8)
+
+  // Works: go through the plain tuple
+  println(Into.derived[(String, Double), WeatherReading].into(oslo.toTuple))
+
+  // Does not compile: named tuple on either side
+  println(Into.derived[Reading, WeatherReading].into(oslo))
+  println(As.derived[Reading, WeatherReading].into(oslo))
+}
+// [error] -- Error: .../Repro.scala:14:22
+// [error] 14 |  println(Into.derived[Reading, WeatherReading].into(oslo))
+// [error]    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// [error]    |Cannot derive Into[Repro$package.Reading, WeatherReading]: Unsupported type combination
+// [error]    |
+// [error]    |Source type: Repro$package.Reading (other)
+// [error]    |Target type: WeatherReading (product)
+// [error]    |
+// [error]    |Into derivation supports:
+// [error]    |  - Product → Product (case class to case class)
+// [error]    |  - Product ↔ Tuple (case class to/from tuple)
+// [error]    |  - Tuple → Tuple
+// ...
+// [error] -- Error: .../Repro.scala:15:20
+// [error]  15 |  println(As.derived[Reading, WeatherReading].into(oslo))
+// [error]     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// [error]     |Cannot derive Into[Repro$package.Reading, WeatherReading]: Unsupported type combination
+// ...
+```
+
+With the two failing lines removed, the program prints `Right(WeatherReading(Oslo,3.8))`. The reverse direction also works through the plain tuple: `Into.derived[WeatherReading, (String, Double)]` yields an `Either[SchemaError, (String, Double)]`, which can be assigned to `Either[SchemaError, Reading]` because a plain tuple conforms to a named tuple with the same element types.
+
+**Expected.** Named tuples treated like tuples (or products, with fields matched by label), so both directions derive. Ideally labels would be matched by name, as for case classes.
+
+**Root cause.** `isTupleType` is `tpe <:< TypeRepr.of[Tuple] || defn.isTupleClass(tpe.typeSymbol)` (`schema/shared/src/main/scala-3/zio/blocks/schema/IntoVersionSpecific.scala:538` at v0.0.56, `:592` on main; same helper in `AsVersionSpecific.scala:161` / `:176`). `NamedTuple[N, V]` is an opaque type, so it is neither a subtype of `Tuple` nor a tuple class. It isn't a product either, so the classification at `IntoVersionSpecific.scala:92-93` and `:185-187` falls through to "other". `CommonMacroOps.isNamedTuple` exists, but only `Schema` and `Binding` derivation use it.
+
+**Impact.** Readers can't use the documented Into/As workflow (T-02 "evolve your data") between a named-tuple query row and a domain case class. The workaround is `.toTuple` on the source side, plus the plain-tuple-to-named-tuple conformance on the target side. The `As` error message names `Into`, which is a little confusing.
+
+**Test gap.** No Into/As test uses named tuples (`grep -rn NamedTuple schema/shared/src/test scalaNextTests` shows only Schema, Binding and optics specs).
+
+**Suggested fix.** In `IntoVersionSpecific` and `AsVersionSpecific`, detect `isNamedTuple(tpe)` and either (a) treat it as a product whose field names are the labels (best: name-based matching, as for case classes), or (b) dealias it to its value tuple, `NamedTuple.DropNames`, and reuse the tuple path. Add scalaNextTests cases for both directions and for As.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -9330,6 +9462,70 @@ The JSON line has no `traceId` or `spanId`, although a span is active.
 
 **Suggested fix.** Make the default storage public (for example `ContextStorage.defaultSpanContext`), so a service can scope a remote parent without owning a storage. Or offer one builder that configures both providers with one storage. At minimum, document on both `setContextStorage` methods that the logger and the tracer must get the same instance. The H-43 guide warns about it.
 
+### schema (Scala 3): a `given Schema` inside `object X` next to `type X = (named tuple)` is not found implicitly
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10), on `main` at `b6c0c30e4`. Same at v0.0.56; this is Scala language behaviour, not a zio-blocks code change.
+
+**Summary.** The docs' habit of putting `implicit val schema`/`given Schema` in the type's companion object doesn't carry over to named tuples. A named tuple is usually named with a type alias, and an `object` with the same name as an alias is not a companion. Its givens aren't in implicit scope (the implicit scope of `NamedTuple[N, V]` is `scala.NamedTuple`'s), so `x.toJsonString`, `fromJson[X]` and `Schema[X]` fail outside that object. Inside a `CompanionOptics[X]` object, `$(...)` works because the given is lexically in scope there, which hides the problem until the value is encoded somewhere else.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`), run on JDK 21, and this `build.sbt`:
+
+```scala
+scalaVersion := "3.7.4"
+
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
+```
+
+**Reproduction.** `Repro.scala`, run with `sbt compile`:
+
+```scala
+import zio.blocks.schema._
+
+type Reading = (city: String, tempC: Double)
+
+object Reading {
+  given Schema[Reading] = Schema.derived
+}
+
+case class WeatherReading(city: String, tempC: Double)
+
+object WeatherReading {
+  given Schema[WeatherReading] = Schema.derived
+}
+
+@main def repro(): Unit = {
+  println(WeatherReading("Oslo", 3.8).toJsonString) // compiles: companion given
+  val oslo: Reading = (city = "Oslo", tempC = 3.8)
+  println(oslo.toJsonString) // does not compile
+}
+// [error] -- [E008] Not Found Error: .../Repro.scala:18:15
+// [error] 18 |  println(oslo.toJsonString) // does not compile
+// [error]    |          ^^^^^^^^^^^^^^^^^
+// [error]    |value toJsonString is not a member of Reading.
+// [error]    |An extension method was tried, but could not be fully constructed:
+// [error]    |
+// [error]    |    zio.blocks.schema.toJsonString[Reading](oslo)(
+// [error]    |      /* missing */summon[zio.blocks.schema.Schema[Reading]])
+// [error]    |
+// [error]    |    failed with:
+// [error]    |
+// [error]    |        No given instance of type zio.blocks.schema.Schema[Reading] was found for parameter schema of method toJsonString in trait SyntaxVersionSpecific
+// [error]    |
+// [error]    |        The following import might fix the problem:
+// [error]    |
+// [error]    |          import Reading.given_Schema_Reading
+```
+
+**Expected.** Readers expect the "companion" given to work as it does for case classes.
+
+**Root cause.** Scala 3 implicit scope: a type alias has no companion, and `NamedTuple` is an opaque type in `scala.NamedTuple`, whose implicit scope doesn't include user objects. Nothing in zio-blocks can change this.
+
+**Impact.** The first named-tuple program a reader writes in the docs style fails with "value toJsonString is not a member of Reading". The compiler's suggested import fixes it.
+
+**Test gap.** Not applicable (language behaviour). The docs gap is that no page mentions it; the H-10 guide documents it in a `:::warning` with `import Reading.given`, or a top-level `given`.
+
+**Suggested fix.** Docs only: a schema reference note (near derivation) saying to define named-tuple schemas as top-level or imported givens.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -10058,6 +10254,46 @@ done
 **Test gap.** Nothing checks docs claims against `crossScalaVersions`.
 
 **Suggested fix.** Replace the line with "Supported Scala versions: 3.x (no Scala 2.13 artifact)" and add the 3.9+ `zio-blocks-next-datastar` / `-experimental` variant to the install block.
+
+### docs: `typeid.md:1927` lists "named tuples" under `TypeRepr.Tuple(elems)`, but a named tuple's TypeId is an applied `NamedTuple`, and its `TupleElement` labels are always `None`
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10, research item 7), on `main` at `b6c0c30e4`. Same line and content at v0.0.56.
+
+**Summary.** The `TypeRepr` variant table puts `Tuple(elems)` next to "`(A, B, C)`, named tuples", which suggests a named tuple is a `Tuple` whose elements carry labels. In fact `TypeId.of[(city: String, tempC: Double)]` is the type `scala.NamedTuple.NamedTuple` applied to two plain `Tuple` reprs: one of label string constants and one of element types. Every `TupleElement` label is `None`.
+
+**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`), run on JDK 21, and this `build.sbt`:
+
+```scala
+scalaVersion := "3.7.4"
+
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
+```
+
+**Reproduction.** `Repro.scala` (`zio-blocks-schema` brings in typeid), run with `sbt run`:
+
+```scala
+import zio.blocks.typeid._
+
+@main def repro(): Unit = {
+  val id = TypeId.of[(city: String, tempC: Double)]
+  println(id)
+  // NamedTuple[("city", "tempC"), (String, Double)]
+  println(id.fullName)
+  // scala.NamedTuple.NamedTuple
+  println(id.typeArgs)
+  // List(Tuple(List(TupleElement(None,StringConst(city)), TupleElement(None,StringConst(tempC)))), Tuple(List(TupleElement(None,Ref(String)), TupleElement(None,Ref(Double)))))
+}
+```
+
+**Expected (doc).** The row should not imply that named tuples map to labelled `Tuple` elements.
+
+**Root cause.** `typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeIdMacros.scala` `buildTupleTypeRepr` (`:1597-1609` on main) builds every element as `TupleElement(None, …)`, with the comment "Named tuple support would require additional detection" (`:1603-1604`). `isTupleType` (`:1583-1585`) doesn't match `NamedTuple`, so a named tuple takes the generic applied-type path. `TypeRepr.scala:378-382` documents `TupleElement.label` as being for named tuples, but the macro never fills it in.
+
+**Impact.** Low. A reader who matches on `TypeRepr.Tuple` to find named-tuple labels gets nothing. The labels are reachable as `StringConst` elements of `typeArgs.head`.
+
+**Test gap.** Nothing checks the `TypeRepr` table against what the macro builds for named tuples.
+
+**Suggested fix.** Change the row's example to "`(A, B, C)`" and add a sentence below the table: "A named tuple `(a: A, b: B)` is the applied type `NamedTuple[("a", "b"), (A, B)]`: its `typeArgs` hold a tuple of label constants and a tuple of element types." Alternatively, fill `TupleElement.label` in the macro and keep the row.
 
 ## Resolved
 
