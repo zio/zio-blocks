@@ -504,6 +504,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Your First Schema: Round-Trip a Type Through JSON](./guides/your-first-schema.md) - Start here: describe a type once with `Schema`, then encode, decode, and read errors
 - [Evolve Your Data: Change Your Types with Into, As and Migration](./guides/evolve-your-data.md) - Validate incoming data with `Into`, convert between versions both ways with `As`, and rename a field with a compile-checked `Migration`
 - [Navigate and Update Nested Data with Optics](./guides/nested-data-with-optics.md) - Read and update fields deep inside immutable data with lenses, optionals, and traversals instead of nested `copy` calls
+- [How to Use Scala 3 Named Tuples with Schema](./guides/use-named-tuples-with-schema.md) - Derive a `Schema` for a Scala 3 named tuple, round-trip it through JSON, update fields with optics, and convert it to a case class
 - [One Type, Many Formats](./guides/one-type-many-formats.md) - Derive JSON, YAML, XML, TOON, MessagePack, Avro and CSV codecs from one `Schema` and round-trip a catalog through each
 - [How to Read and Write YAML Documents](./guides/read-and-write-yaml.md) - Read YAML into case classes, write CI-style YAML, convert it to JSON, and guard against YAML the reader silently misreads
 - [How to Derive Your Own Type Class from a Schema](./guides/derive-your-own-type-class.md) - Write a `Deriver` once and get a type class instance for every record, variant and primitive in your model
