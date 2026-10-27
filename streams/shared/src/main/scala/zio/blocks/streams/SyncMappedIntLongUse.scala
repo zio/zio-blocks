@@ -20,6 +20,11 @@ import zio.blocks.async.{Async, _}
 import zio.blocks.streams.internal.StreamError
 import zio.blocks.streams.io.Reader
 
+/**
+ * A fast path of `Stream#runFoldAsync` with a `Long` accumulator over an `Int`
+ * source followed by `Int => Int` maps: it acquires the source's reader, maps
+ * and folds every element, and closes the reader.
+ */
 private[streams] abstract class SyncMappedIntLongUse[E](
   acquire0: () => Async[Reader[Int]],
   map0: AnyRef,
@@ -211,6 +216,10 @@ private[streams] abstract class SyncMappedIntLongUse[E](
   }
 }
 
+/**
+ * [[SyncMappedIntLongUse]] for one map, marking an acquisition failure as a
+ * callback failure.
+ */
 private[streams] final class SyncMappedIntLongUseProtected[E](
   acquire: () => Async[Reader[Int]],
   map: Int => Int,
@@ -222,6 +231,7 @@ private[streams] final class SyncMappedIntLongUseProtected[E](
   protected def evaluateMap(map: AnyRef, value: Int): Int                                  = map.asInstanceOf[Int => Int](value)
 }
 
+/** [[SyncMappedIntLongUse]] for one map. */
 private[streams] final class SyncMappedIntLongUseUnprotected[E](
   acquire: () => Async[Reader[Int]],
   map: Int => Int,
@@ -232,6 +242,10 @@ private[streams] final class SyncMappedIntLongUseUnprotected[E](
   protected def evaluateMap(map: AnyRef, value: Int): Int                                  = map.asInstanceOf[Int => Int](value)
 }
 
+/**
+ * [[SyncMappedIntLongUse]] for a chain of maps, marking an acquisition failure
+ * as a callback failure.
+ */
 private[streams] final class SyncMappedIntChainLongUseProtected[E](
   acquire: () => Async[Reader[Int]],
   maps: Array[Int => Int],
@@ -254,6 +268,7 @@ private[streams] final class SyncMappedIntChainLongUseProtected[E](
   }
 }
 
+/** [[SyncMappedIntLongUse]] for a chain of maps. */
 private[streams] final class SyncMappedIntChainLongUseUnprotected[E](
   acquire: () => Async[Reader[Int]],
   maps: Array[Int => Int],

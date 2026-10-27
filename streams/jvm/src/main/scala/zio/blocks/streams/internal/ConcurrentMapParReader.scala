@@ -24,6 +24,12 @@ import zio.blocks.ringbuffer.SpscRingBuffer
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference, AtomicReferenceArray}
 import java.util.concurrent.locks.LockSupport
 
+/**
+ * Threaded `mapPar` reader (JVM) for a synchronous upstream on the reference
+ * lane: a coordinator thread reads `upstream` in batches of up to `bufferSize`
+ * elements and deals them out to `n` worker threads, each with its own input
+ * and output queues, trying the queues in turn.
+ */
 private[streams] final class ConcurrentMapParReader[A, B](
   upstream: Reader.SyncReader[A],
   n: Int,

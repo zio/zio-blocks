@@ -19,51 +19,64 @@ package zio.blocks.streams
 import zio.blocks.streams.io.Reader
 
 /**
- * Cross-platform abstraction for thread management in the streams module.
+ * The platform capabilities that the stream engine builds its concurrent
+ * operators on: a flag that says whether threads exist, a thread starter, and
+ * the factories for the readers behind `buffer`, `mapPar`, `flatMapPar` and
+ * `mergeAll`. The companion object [[Platform]] implements it for the platform
+ * the code runs on.
  *
- * Platform-specific implementations are provided in:
- *   - jvm/src/main/scala/zio/blocks/streams/PlatformSpecific.scala (JVM)
- *   - js/src/main/scala/zio/blocks/streams/PlatformSpecific.scala (JS)
- *
- * On the JVM, [[startVirtualThread]] launches a virtual thread (JDK 21+,
- * detected via reflection) or a raw daemon thread as fallback. On Scala.js
- * there is no concurrency, so [[supportsConcurrency]] is `false` and
- * [[startVirtualThread]] throws [[UnsupportedOperationException]].
- *
- * [[createBufferedReader]] is a factory that returns a platform-appropriate
- * buffered reader: concurrent on JVM, synchronous prefetch on JS.
+ * On the JVM, [[supportsConcurrency]] is `true` and [[startVirtualThread]]
+ * starts a virtual thread, or a daemon platform thread when the JDK has none.
+ * On Scala.js, [[supportsConcurrency]] is `false` and [[startVirtualThread]]
+ * throws `UnsupportedOperationException`.
  */
 trait Platform {
 
   /**
-   * Whether this platform supports true concurrent threads. `true` on JVM,
-   * `false` on Scala.js.
+   * Whether this platform can run code on more than one thread: `true` on the
+   * JVM, `false` on Scala.js.
    */
   def supportsConcurrency: Boolean
 
   /**
-   * Starts a new thread and runs `task` on it. Returns the started thread
-   * (which can be [[java.lang.Thread#join]]ed). On JVM, uses a virtual thread
-   * (JDK 21+) if available, otherwise a raw daemon thread. On Scala.js, always
-   * throws [[UnsupportedOperationException]].
+   * Starts a thread that runs `task` and returns it, already started.
+   *
+   * On the JVM it starts a virtual thread when the JDK has them (JDK 21 and
+   * later), and a daemon platform thread named `name` otherwise or when
+   * starting the virtual thread fails. A known bug: a virtual thread is named
+   * `name` followed by `0` (`"worker"` becomes `"worker0"`). On Scala.js it
+   * throws `UnsupportedOperationException`.
    */
   def startVirtualThread(name: String, task: Runnable): Thread
 
   /**
-   * Returns a [[Reader]] that buffers elements produced by `upstream` into a
-   * bounded buffer of size `bufferSize`. On JVM, the producer runs on a
-   * separate virtual thread (concurrent). On JS, the reader prefetches elements
-   * synchronously.
+   * Returns a reader that reads `upstream` ahead into a buffer of `bufferSize`
+   * elements, as `Stream#buffer` does.
+   *
+   * For a synchronous `upstream`, the JVM fills the buffer on a thread of its
+   * own (started with [[startVirtualThread]]), and Scala.js fills it on the
+   * reading thread whenever it runs empty. For an asynchronous `upstream`, both
+   * platforms return the same asynchronous buffered reader.
    */
   def createBufferedReaderFromReader[A](upstream: Reader[A], bufferSize: Int): Reader[A]
 
+  /**
+   * [[createBufferedReaderFromReader]] for a synchronous `upstream`, with the
+   * result typed as a `Reader.SyncReader`.
+   */
   final def createBufferedReader[A](upstream: Reader.SyncReader[A], bufferSize: Int): Reader.SyncReader[A] =
     createBufferedReaderFromReader(upstream, bufferSize).asInstanceOf[Reader.SyncReader[A]]
 
   /**
-   * Returns a [[Reader]] that merges elements from N inner streams produced by
-   * `outerReader`, up to `maxOpen` concurrent inner streams at a time. On JVM,
-   * producers run on virtual threads. On JS, degrades to sequential flatMap.
+   * Returns an asynchronous reader that merges the inner streams that
+   * `outerReader` yields (each of its elements is a `Stream`), with at most
+   * `maxOpen` of them open at a time, as `Stream#flatMapPar` and
+   * `Stream.mergeAll` do. `bufferSize` is the buffer size each inner stream is
+   * compiled with, and `elemType` is the lane of the result.
+   *
+   * Both platforms use the same asynchronous merge, which interleaves the open
+   * inner streams on one engine and starts no threads of its own. The threaded
+   * merge of a JVM blocking terminal is built elsewhere.
    */
   def createMergeReaderFromReader[A](
     outerReader: Reader[?],
@@ -72,6 +85,12 @@ trait Platform {
     elemType: JvmType
   ): Reader[A]
 
+  /**
+   * The synchronous merge that the synchronous interpreter builds for
+   * `flatMapPar` and `mergeAll` (what a JVM blocking terminal runs): on the JVM
+   * it drains each open inner stream on a thread of its own; on Scala.js it
+   * reads the inner streams one after another.
+   */
   private[streams] def createMergeReader[A](
     outerReader: Reader.SyncReader[?],
     maxOpen: Int,
@@ -80,9 +99,15 @@ trait Platform {
   ): Reader.SyncReader[A]
 
   /**
-   * Returns a [[Reader]] that applies `f` to each element of `upstream` using
-   * `n` concurrent workers. On JVM, workers run on virtual threads. On JS,
-   * degrades to sequential map.
+   * Returns a reader that applies `f` to the elements of `upstream` with up to
+   * `n` calls at a time, as `Stream#mapPar` does. `inType` and `outType` are
+   * the lanes of `A` and `B`.
+   *
+   * For a synchronous `upstream`, the JVM runs `f` on `n` worker threads
+   * (started with [[startVirtualThread]]) with queues of `bufferSize`, and
+   * Scala.js maps the elements one after another on the reading thread. For an
+   * asynchronous `upstream`, both platforms use the same asynchronous engine
+   * and wrap each call in a completed `Async`, so the calls do not overlap.
    */
   def createMapParReaderFromReader[A, B](
     upstream: Reader[A],
@@ -93,6 +118,10 @@ trait Platform {
     outType: JvmType
   ): Reader[B]
 
+  /**
+   * [[createMapParReaderFromReader]] for a synchronous `upstream`, with the
+   * result typed as a `Reader.SyncReader`.
+   */
   final def createMapParReader[A, B](
     upstream: Reader.SyncReader[A],
     n: Int,
@@ -104,4 +133,5 @@ trait Platform {
     createMapParReaderFromReader(upstream, n, f, bufferSize, inType, outType).asInstanceOf[Reader.SyncReader[B]]
 }
 
+/** The [[Platform]] capabilities of the platform the code runs on. */
 object Platform extends PlatformSpecific

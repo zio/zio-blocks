@@ -20,7 +20,12 @@ import zio.blocks.streams.io.Reader
 
 import java.util.concurrent.atomic.AtomicBoolean
 
+/** Shutdown helpers shared by the threaded readers. */
 private[internal] object ConcurrentShutdown {
+
+  /**
+   * Closes `reader` at most once, passing a close failure to `recordFailure`.
+   */
   final class CloseOnce(reader: Reader.SyncReader[?]) {
     private val closed = new AtomicBoolean(false)
 
@@ -51,6 +56,10 @@ private[internal] object ConcurrentShutdown {
     result
   }
 
+  /**
+   * Restores the caller's interrupt status when `interrupted` is set, then
+   * throws `error`, if any, with `interrupted` added as suppressed.
+   */
   def replay(error: Throwable, interrupted: InterruptedException): Unit = {
     if (interrupted ne null) Thread.currentThread().interrupt()
     if (error ne null) {
