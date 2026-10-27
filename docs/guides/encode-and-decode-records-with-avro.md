@@ -136,7 +136,7 @@ println(SchemaFormatter.format("json/pretty", Schema.derived[OrderCancelled].der
 
 The namespace above is `repl.MdocSession.MdocApp` because the documentation build compiles this page inside its own object. In your project, the namespace is the package of the case class (`avrorecords` in the example files), so moving a case class to another package changes the schema you share.
 
-For the whole sealed trait, `SchemaFormatter.format("json/pretty", codec.avroSchema)` prints a union: a JSON array with one record per event, in the order the events are declared. Write that text to `order-event.avsc` with `java.nio.file.Files#writeString` and hand the file to the team that reads your events; the example file for this section does exactly that.
+For the whole sealed trait, `SchemaFormatter.format("json/pretty", codec.avroSchema)` prints a union: a JSON array with one record per event, in the order the events are declared. Write that text to `order-event.avsc` with `java.nio.file.Files#writeString` and hand the file to the team that reads your events; the example file for this section does exactly that. `SchemaFormatter` is the printer since Apache Avro 1.12; the older `Schema#toString(true)` is deprecated.
 
 <details>
   <summary>Runnable version, which also writes <code>order-event.avsc</code>: <code>Step1WriteAvscSchemaExample.scala</code></summary>
@@ -144,7 +144,7 @@ For the whole sealed trait, `SchemaFormatter.format("json/pretty", codec.avroSch
 ```scala mdoc:embed:schema-examples/src/main/scala/avrorecords/Step1WriteAvscSchemaExample.scala:show-line-numbers
 ```
 
-</details> `SchemaFormatter` is the printer since Apache Avro 1.12; the older `Schema#toString(true)` is deprecated.
+</details>
 
 ## Encode and Decode One Event
 
