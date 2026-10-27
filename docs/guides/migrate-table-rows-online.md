@@ -280,7 +280,7 @@ The migrators find the `Transactor` and `Dialect` as givens, so we declare both 
 
 ### Add the New Columns
 
-An in-place migration writes `first_name` and `last_name` into `customers`, so the table needs those columns before the first batch. A `TinyMigrator` runs schema changes like this one in a single transaction, typically at application startup. We extend it and put the statements in `run()`:
+An in-place migration writes `first_name` and `last_name` into `customers`, so the table needs those columns before the first batch. A `TinyMigrator` runs schema changes like this one in a single transaction, typically at application startup. We extend it and put the statements in `TinyMigrator#run`:
 
 ```scala mdoc:silent
 class AddNameColumns(transactor: Transactor) extends TinyMigrator(transactor) {
@@ -712,7 +712,7 @@ As before, the example deletes its database file at the end:
 Files.deleteIfExists(dbFile)
 ```
 
-The same holds when the process itself dies mid-migration. The queue is a table, and a batch claims its keys and writes its rows in one transaction, so a crash leaves the keys of the unfinished batch queued and the finished batches written. After the restart, we create a new migrator with the same arguments and call `LargeMigrator#init` again: it creates nothing twice, because the shadow table's DDL uses `CREATE TABLE IF NOT EXISTS` and the triggers `CREATE OR REPLACE TRIGGER`. A shadow table makes reruns safe, too: a row copied twice is updated, not inserted again. A `LargeMigrator` keeps its cutover state in memory, so a new one starts before `LargeMigrator#fence` and needs its own `LargeMigrator#fence`, `LargeMigrator#drain` and `LargeMigrator#complete`. To stop a `LargeMigrator` on purpose, call `LargeMigrator#pause` from another thread: `LargeMigrator#run` finishes its current batch and returns, and `LargeMigrator#resume` lets the next `run()` continue.
+The same holds when the process itself dies mid-migration. The queue is a table, and a batch claims its keys and writes its rows in one transaction, so a crash leaves the keys of the unfinished batch queued and the finished batches written. After the restart, we create a new migrator with the same arguments and call `LargeMigrator#init` again: it creates nothing twice, because the shadow table's DDL uses `CREATE TABLE IF NOT EXISTS` and the triggers `CREATE OR REPLACE TRIGGER`. A shadow table makes reruns safe, too: a row copied twice is updated, not inserted again. A `LargeMigrator` keeps its cutover state in memory, so a new one starts before `LargeMigrator#fence` and needs its own `LargeMigrator#fence`, `LargeMigrator#drain` and `LargeMigrator#complete`. To stop a `LargeMigrator` on purpose, call `LargeMigrator#pause` from another thread: `LargeMigrator#run` finishes its current batch and returns, and `LargeMigrator#resume` lets the next `LargeMigrator#run` continue.
 
 <details>
   <summary>Runnable version, with the failing run and the fixed run in one program: <code>Step5FailureAndRestartExample.scala</code></summary>
