@@ -33,12 +33,12 @@ import scala.util.{Failure, Success}
  * for the types they use, so no DOM library is needed.
  *
  * Each factory calls `stream.getReader()` at once, which locks the stream (a
- * stream that is already locked makes the factory throw the JavaScript
- * `TypeError`), and keeps that reader until `close()`. The reader reads one
- * `Uint8Array` chunk at a time, skips empty chunks, allows one pull at a time
- * (a pull started while another is in flight fails with
- * `IllegalStateException`), and later calls to `close()` return the outcome of
- * the first.
+ * stream that is already locked makes the factory throw a
+ * `js.JavaScriptException` that wraps the JavaScript `TypeError`), and keeps
+ * that reader until `close()`. The reader reads one `Uint8Array` chunk at a
+ * time, skips empty chunks, allows one pull at a time (a pull started while
+ * another is in flight fails with `IllegalStateException`), and later calls to
+ * `close()` return the outcome of the first.
  *
  * A rejected read fails the pull's `Async` with a
  * `zio.blocks.streams.internal.StreamError` whose `value` is the rejection (a
