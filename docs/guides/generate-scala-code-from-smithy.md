@@ -585,4 +585,4 @@ You now own a small, readable code generator. The next step is to extend it for 
 - **Want to know everything the parser reads?** The [smithy module reference](../reference/smithy.md) lists every shape and trait type, and shows how to build models in code.
 - **Want to generate more than data types?** The [codegen module reference](../reference/codegen/index.md) covers the whole IR, including traits, objects, methods and opaque types, and the [`ScalaEmitter`](../reference/codegen/scala-emitter.md) and [`EmitterConfig`](../reference/codegen/emitter-config.md) pages describe every output option.
 - **New to schemas?** [Your First Schema](./your-first-schema.md) explains what the derived `Schema` gives the generated types, from JSON codecs to JSON Schema.
-- **Using OpenAPI instead of Smithy?** The same codegen module can generate types from an OpenAPI document; a guide for that is planned.
+- **Using OpenAPI instead of Smithy?** [How to Generate Scala Types from an OpenAPI Spec at Build Time](./generate-scala-types-from-openapi.md) builds the same kind of generator for the component schemas of an OpenAPI document.
