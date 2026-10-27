@@ -76,7 +76,7 @@ import zio.http.htmx.headers._
 
 ## The Tea Shop
 
-Let's start with the data: five teas in three categories, prices in cents, and one in-memory cart that every handler shares:
+The data is five teas in three categories, prices in cents, and one in-memory cart that every handler shares:
 
 ```scala mdoc:silent
 final case class Product(id: String, name: String, category: String, priceCents: Int)
@@ -198,7 +198,7 @@ The code above builds every element the later sections talk to:
 - `cartBadge` is the `#cart-count` element in the header, `cartSummary` refreshes itself when a `cart-updated` event reaches the page, and the `hxOn("show-message")` handler on `<body>` writes a message into `#message`. Sections below explain each one when the server starts using it.
 - `nav(hxBoost := true)` turns the two header links into boosted links: htmx fetches the next page with an AJAX request and swaps its `<body>` in, instead of a full browser navigation.
 
-Let's render the layout around an empty main area to check the hooks:
+Render the layout around an empty main area to check the hooks:
 
 ```scala mdoc
 println(layout("Teas", div).render(indent = 2))
@@ -263,7 +263,7 @@ The code above:
 - `pageOrFragment` takes the fragment and the main content as by-name parameters, so only the one it needs is built.
 - `addHeader("vary", ...)` tells browsers and caches that the answer depends on these three headers, so a cached fragment is never shown as a page.
 
-Let's ask `wantsFragment` about each row of the table, plus a request whose `HX-Request` value is not a boolean:
+Ask `wantsFragment` about each row of the table, plus a request whose `HX-Request` value is not a boolean:
 
 ```scala mdoc
 println(wantsFragment(get("/?category=Green")))
@@ -273,7 +273,7 @@ println(wantsFragment(get("/?category=Green", HxRequest(true), HxHistoryRestoreR
 println(get("/", Header.Custom("hx-request", "yes")).header(HxRequest))
 ```
 
-Only the category link gets a fragment. The last line shows that `HX-Request: yes` does not parse, so `Request#header` returns `None` and that request gets the full page. Now let's send the category link's request to the handler:
+Only the category link gets a fragment. The last line shows that `HX-Request: yes` does not parse, so `Request#header` returns `None` and that request gets the full page. Send the category link's request to the handler:
 
 ```scala mdoc
 show(catalogPage(get("/?category=Green", HxRequest(true))))
@@ -304,7 +304,7 @@ def addToCart(productId: String): Response =
 
 The response is the new button, which htmx swaps into the button's own place, followed by the badge. `cartBadge(hxSwapOob := HxSwapOob.True)` adds the attribute to the same element the layout renders, so the badge's markup lives in one place. The two elements are rendered separately and concatenated: a fragment can contain any number of top-level elements.
 
-Let's add a Sencha to the cart:
+Add a Sencha to the cart:
 
 ```scala mdoc
 show(addToCart("sencha"))
@@ -344,7 +344,7 @@ The code above sends two events with two kinds of payload:
 
 Both event names are lowercase with dashes. HTML lowercases attribute names, so an `hx-on:` attribute can't name an event with capital letters; `hx-trigger` values keep their case, but one style for every event is easier to follow.
 
-Let's add an Assam and look at the headers:
+Add an Assam and read the headers:
 
 ```scala mdoc
 show(addToCartAndAnnounce("assam"))
@@ -367,7 +367,7 @@ val greeting = Json.Object("show-message" -> Json.Object("text" -> Json.String("
 val escaped = htmlResponse("").addHeader(HxTriggerHeader.name, greeting.print(WriterConfig.withEscapeUnicode(true)))
 ```
 
-Let's print the header value on the wire, and then read it back as a typed `HxTriggerHeader`:
+Print the header value on the wire, then read it back as a typed `HxTriggerHeader`:
 
 ```scala mdoc
 println(escaped.headers.rawGet(HxTriggerHeader.name))
@@ -441,7 +441,7 @@ The code above:
 - The checkout empties the cart, but htmx never swaps the body of a response with `HX-Location`, so an out-of-band badge there would be ignored. `checkout` announces `cart-updated` instead, which refreshes the summary, and the receipt fragment carries the out-of-band badge. htmx also finds `hx-swap-oob` elements nested inside the main fragment.
 - `clearCart` sends `HxRefresh(true)`, and the browser reloads `/cart` with the badge back at 0.
 
-Let's place an order with the two teas in the cart, and check the header text:
+Place an order with the two teas in the cart, and check the header text:
 
 ```scala mdoc
 show(checkout())
@@ -482,13 +482,13 @@ The code above handles the two outcomes:
 - An invalid code sends the message only. `HxRetarget(CssSelector.id("promo-error"))` sends it to `#promo-error` instead of `#cart-total`, and `HxReswap(HxSwap.InnerHTML)` puts it inside that element instead of replacing the element. The code the reader typed is rendered as text by the HTML module, so a code such as `<b>` can't add markup to the page.
 - `Form.fromString` decodes the `application/x-www-form-urlencoded` body that htmx sends for a form.
 
-The checkout above emptied the cart, so let's put a Matcha in it first:
+The checkout above emptied the cart, so put a Matcha in it first:
 
 ```scala mdoc:silent
 cart.add("matcha")
 ```
 
-Now let's try a wrong code, then the right one:
+Try a wrong code, then the right one:
 
 ```scala mdoc
 show(applyPromo(post("/cart/promo", Form("code" -> "TEA5"), HxRequest(true))))
@@ -498,7 +498,7 @@ show(applyPromo(post("/cart/promo", Form("code" -> "tea10"), HxRequest(true))))
 In a browser, the wrong code leaves the total alone and shows "TEA5 is not a valid promo code" under the form, and the right code updates the total, clears the message and refreshes the summary.
 
 :::warning
-Send the error with status `200`. htmx 2 swaps only `2xx` and `3xx` responses by default: in the browser, the same response with status `422 Unprocessable Entity` swapped nothing, ignored `HX-Retarget` and `HX-Reswap`, and fired `htmx:responseError`. To keep a `4xx` status, change `htmx.config.responseHandling` on the page so that htmx swaps that status.
+Send the error with status `200`. htmx 2 swaps `2xx` and `3xx` responses by default, except `204`: in the browser, the same response with status `422 Unprocessable Entity` swapped nothing, ignored `HX-Retarget` and `HX-Reswap`, and fired `htmx:responseError`. To keep a `4xx` status, change `htmx.config.responseHandling` on the page so that htmx swaps that status.
 :::
 
 ## Update the Address Bar from the Server
@@ -529,7 +529,7 @@ Every URL the server pushes or replaces must work as a full page, because htmx a
 
 ## Putting It Together
 
-The complete example serves the whole shop with the JDK HTTP server from [How to Serve http-model Requests with the JDK HTTP Server](./serve-http-model-requests.md). It routes each URL to the handlers from the sections above, and it differs from them only in the routing function and in `main`, which starts the server on port 8080 or on the port given as the first argument:
+The complete example serves the whole shop with the JDK HTTP server from [How to Serve http-model Requests with the JDK HTTP Server](./serve-http-model-requests.md). It routes each URL to the handlers from the sections above. It differs from them in four ways: the shop lives in its own `CompleteShop` object, because an object that defines `main` would make the `main(...)` element in the layout call that method; it declares the model and helpers itself instead of importing them from `TeaShop.scala`, so the file stands alone; it adds a `notFound` handler; and a single `app` function routes every URL. `main` starts the server on port 8080 or on the port given as the first argument:
 
 ```scala mdoc:embed:zio-blocks-htmx-examples/src/main/scala/returnhtmxfragments/CompleteExample.scala
 ```
