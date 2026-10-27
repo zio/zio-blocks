@@ -483,6 +483,7 @@ const sidebars = {
     "guides/sql-from-zio",
     "guides/your-first-html-page",
     "guides/add-interactivity-with-htmx",
+    "guides/return-htmx-fragments-and-response-headers",
     "guides/serve-http-model-requests",
     "guides/send-server-sent-events",
     "guides/build-a-live-dashboard-with-datastar",
