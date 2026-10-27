@@ -975,6 +975,8 @@ The same exception is thrown with `sliding(2, 2)`, `scan`, `mapAccum`, `grouped(
 
 **Suggested fix.** Before compiling a pushed inner stream in `SyncInterpreter.handlePush`, check whether it can run synchronously, and when it cannot, compile it with `stream.compile` and bridge the resulting reader in, as `compileBlockingFallback` does for the whole stream. Alternatively, make the up-front blocking compile detect recovery nodes under `flatMap` and pick the fallback engine from the start. Add a regression spec for each stateful operator listed above.
 
+**Also seen (2026-10-26, streams Scaladoc wave 1).** `AsyncBoundaryRequired` is also thrown when `orElse`, `catchDefect` or any `*Async` operator sits inside the `flatMap` instead of `catchAll`.
+
 ### Streams: a blocking terminal deadlocks inside an object initializer once `catchAll` is in the pipeline
 
 Found 2026-10-20 while building the companion examples for `docs/guides/your-first-streaming-pipeline.md` (backlog T-06), on `main` at `db589bd0`. The `streams/` and `async/` sources are the same at tag `v0.0.56`.
@@ -1185,6 +1187,148 @@ The change runs once per inner stream, when `handlePush` materializes it: one ar
 
 - interpreter-level: `appendRead(ref reader)` → `addPush(AnyRef, AnyRef)` → `addMap(AnyRef, Int/Long/Double)`, read with `readInt`/`readLong`/`readDouble`/`readN`, and the erased `addPush(Int, AnyRef)` + inner `Int` stream + `addMap(AnyRef, Int)` case;
 - stream-level: the reproduction above for `grouped`, `sliding`, `take`, `takeWhile`, `scan` and `mapAccum`, plus a nested `flatMap` of pages, each checked against `runCollectAsync.block`.
+
+### Streams: `Stream#repeated` resets readers instead of rebuilding the stream, so effects run once, state carries over, and some sources hang or throw
+
+Found 2026-10-26 while writing the Scaladoc for `Stream#repeated` (wave 1 of the streams Scaladoc, branch `streams-scaladoc-wave-1`), on `streams-scaladocs` at `b93330329`. The same at tag `v0.0.56`. Verified against the published 0.0.56 on Scala 2.13.18 and on Scala 3.9.0 (`zio-blocks-next-streams`, `-experimental`); both print the output below. Not filed on GitHub yet.
+
+**Summary.** `repeated` was documented as "rematerializes this stream after each clean completion" (the reference page `docs/reference/streams/core/stream.md`, "Repeating", says the same). It does not: on the synchronous engine a new cycle calls `reset()` on the previous cycle's reader. A pure source such as `Stream(1, 2)` repeats correctly, but:
+
+- effects that run when the stream opens (`Stream.eval`, `Stream.suspend`, the `acquire` of `Stream.fromAcquireRelease`) run once in total instead of once per cycle, and a release or `ensuring` finalizer around the whole cycle also runs only once, at the end;
+- `mapAccum` keeps its state from one cycle to the next, and `distinct` keeps its seen-set, so its second cycle emits nothing and the reader loops forever (a busy loop, no error);
+- `Stream.fromIterator(Iterator(1, 2)).repeated` loops forever on the blocking terminals (the reset re-reads the exhausted iterator) and stops after one cycle on the async terminal;
+- `Stream.fromInputStream(...).repeated` throws `UnsupportedOperationException: This reader does not support reset` as a defect.
+
+The `*Async` terminals are affected too: under `runCollectAsync`, `Stream.suspend`, `fromAcquireRelease`, an `ensuring` around the cycle, `mapAccum` and `fromInputStream` behave exactly as under `runCollect`; only `Stream.eval(...) ++ Stream(1)` is rebuilt per cycle there, and `distinct` and `fromIterator` stop after one cycle instead of hanging.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli run --server=false Repeated.scala`; on Scala 3.9.0 with `zio-blocks-next-streams` 0.0.56 and `-experimental` the output is identical):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.streams._
+
+object Repeated {
+  // Runs `body` on a daemon thread and reports a hang after 3 seconds.
+  def show(label: String)(body: => Any): Unit = {
+    val t = new Thread(() => {
+      val r = try body.toString catch { case e: Throwable => s"throws ${e.getClass.getName}: ${e.getMessage}" }
+      println(s"$label -> $r")
+    })
+    t.setDaemon(true); t.start(); t.join(3000)
+    if (t.isAlive) println(s"$label -> still running after 3 s")
+  }
+
+  def main(args: Array[String]): Unit = {
+    // Correct: a pure source repeats.
+    show("Stream(1, 2)")(Stream(1, 2).repeated.take(5).runCollect)
+
+    // Effects that run when the stream opens run once, not once per cycle.
+    show("eval, blocking") {
+      var opened = 0
+      val r = (Stream.eval(opened += 1) ++ Stream(1)).repeated.take(3).runCollect
+      s"$r opened=$opened"
+    }
+    show("eval, async") {
+      import zio.blocks.async._
+      var opened = 0
+      val r = (Stream.eval(opened += 1) ++ Stream(1)).repeated.take(3).runCollectAsync.block
+      s"$r opened=$opened"
+    }
+    show("fromAcquireRelease") {
+      val log = new StringBuilder
+      val r = Stream.fromAcquireRelease({ log ++= "acquire;"; 1 }, (_: Int) => log ++= "release;")(_ => Stream(1))
+        .repeated.take(3).runCollect
+      s"$r $log"
+    }
+
+    // State carries over from one cycle to the next.
+    show("mapAccum")(Stream(1, 1).mapAccum(0)((s, a) => (s + a, s + a)).repeated.take(4).runCollect)
+    show("distinct")(Stream(1, 2).distinct.repeated.take(4).runCollect)
+
+    // Sources whose reader cannot restart.
+    show("fromIterator, blocking")(Stream.fromIterator(Iterator(1, 2)).repeated.take(5).runCollect)
+    show("fromIterator, async") {
+      import zio.blocks.async._
+      Stream.fromIterator(Iterator(1, 2)).repeated.take(5).runCollectAsync.block
+    }
+    show("fromInputStream")(
+      Stream.fromInputStream(new java.io.ByteArrayInputStream(Array[Byte](1, 2))).repeated.take(4).runCollect
+    )
+  }
+}
+// Stream(1, 2) -> Right(Chunk(1,2,1,2,1))
+// eval, blocking -> Right(Chunk(1,1,1)) opened=1
+// eval, async -> Right(Chunk(1,1,1)) opened=3
+// fromAcquireRelease -> Right(Chunk(1,1,1)) acquire;release;
+// mapAccum -> Right(Chunk(1,2,3,4))
+// distinct -> still running after 3 s
+// fromIterator, blocking -> still running after 3 s
+// fromIterator, async -> Right(Chunk(1,2))
+// fromInputStream -> throws java.lang.UnsupportedOperationException: This reader does not support reset
+```
+
+**Expected.** Each cycle builds the stream again, as the old Scaladoc and the reference page say: `opened=3` on both engines, `acquire;release;acquire;release;acquire;release;`, `mapAccum` giving `Chunk(1,2,1,2)`, `distinct` giving `Chunk(1,2,1,2)`, `fromIterator` giving `Chunk(1,2,1,2,1)` on both engines, and `fromInputStream` reading the (by then consumed) stream again instead of throwing. A cycle that emits nothing either ends the repetition or is documented, on both engines (today `Stream.empty.repeated` hangs on both, while `Stream(1, 2).filter(_ > 5).repeated` hangs on `runCollect` and returns `Right(Chunk())` on `runCollectAsync`).
+
+**Root cause.** `Stream.Repeated` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:10763`) wraps a synchronous upstream with `Reader.repeated(reader)` (`:10804`, and `:10786` on the interpreter path). `Reader.Repeated` (`streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala:5391`) restarts a cycle with `inner.reset()` (`:5394-5396`) and, on the generic path, loops `while (true)` until an element arrives (`:5398-5411`), so a cycle that emits nothing spins forever. `reset()` is not "build again": deferred nodes (`Stream.Deferred`, `:4008`, which `eval` and `suspend` use) and `FromAcquireRelease` reset their current reader instead of re-running their thunk or `acquire`; `mapAccum` and `distinct` keep the state captured when the stream was first built; `iteratorReader` (`Stream.scala:3586`) wraps one iterator in an `Iterable` whose `iterator` returns that same, exhausted iterator; and readers over one-shot resources use the default `reset()`, which throws (`Reader.scala:834`). Only two routes rebuild `self` per cycle: `wrapReader`'s branch for an asynchronous upstream reader (`Stream.scala:10805-10820`) and `Repeated.materializeAsync` (`:10788-10799`). A synchronous upstream reader is reset whichever terminal runs it, which is why most cases fail under `runCollectAsync` too.
+
+**Impact.** `repeated` is the obvious way to poll a source ("read the file again", "query again", "retry this request forever"), and those are exactly the cases that use `eval`, `suspend`, `fromAcquireRelease`, `fromIterator` or `fromInputStream`. They silently repeat stale data, hang with a busy loop, or throw a defect. `distinct` or a filter that rejects a whole cycle turns into an infinite loop that holds a thread at 100% CPU.
+
+**Test gap.** `NewCombinatorsSpec.scala:640-761`, `AsyncFacadeCoverageSpec.scala:172` and `StreamMetadataSpec.scala:162` repeat only pure sources and `++` segments with `ensuring`. `ResourceLeakSpec.scala:737-765` repeats a stream with `ensuring` and one from `fromAcquireRelease`, but asserts only that the release ran at least once, which the bug satisfies. `StreamRepresentationSpec.scala:34-40` checks only the `jvmType`. `AsyncStreamSinkStateCoverageSpec.scala:76` and `AsyncStreamSinkResidualCoverageSpec.scala:146` repeat a `Stream.suspend` over an asynchronous stream and check that it runs once per cycle, which is the route that does rebuild. No test counts acquisitions or effects per cycle over a synchronous source, runs `repeated` over `eval`, a synchronous `suspend`, `mapAccum`, `distinct`, `fromIterator` or `fromInputStream`, or compares the two terminal families.
+
+**Suggested fix.** Make every cycle rematerialize: in `Repeated.wrapReader` and `Repeated.compileInterpreter`, on end of a cycle close the current reader and compile `self` again (as `materializeAsync` already does), instead of `Reader.repeated(reader)`. This runs once per cycle, not per element, so the hot read loop and the primitive sentinels are untouched (AGENTS.md sentinel policy). If resetting is kept for performance, restrict it to sources whose reset is a true rebuild (chunks, ranges, `Stream(...)`), and fall back to rematerializing otherwise. Either way, document that a cycle emitting nothing never returns, or end the repetition when a whole cycle is empty. Add regression tests for each case above on both terminals.
+
+### Streams: `Stream.bufferSize` has no effect on a JVM blocking terminal unless the stream has an asynchronous stage or a `catchAll`
+
+Found 2026-10-26 while reviewing the Scaladoc of `Stream.bufferSize` (wave 1 of the streams Scaladoc, branch `streams-scaladoc-wave-1`), on `streams-scaladocs` at `b93330329`. The same at tag `v0.0.56`. Verified against the published 0.0.56 on Scala 2.13.18 and on Scala 3.9.0 (`zio-blocks-next-streams`, `-experimental`); both print the output below. Not filed on GitHub yet.
+
+**Summary.** `Stream.bufferSize(n)(body)` is documented (Scaladoc and `docs/reference/streams/core/stream.md`, "Buffer Sizing") to size the queues of the concurrent operators in `body` "on the synchronous lane". On a JVM blocking terminal (`runCollect`, `run`, `runForeach`, ...) it does nothing: `mapPar` keeps its default queues of 64 whatever `n` is. It works under the `*Async` terminals, and under a blocking terminal only when the stream also has an asynchronous stage, `catchAll`, `catchDefect` or `orElse` (each moves the run off the synchronous interpreter).
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli --power run --server=false --offline BufferSizeIgnored.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.async._
+import zio.blocks.streams._
+import java.util.concurrent.atomic.AtomicInteger
+
+object BufferSizeIgnored {
+  // How many elements mapPar has processed when the consumer, after one pull, has slept 300 ms.
+  // mapPar's workers stop when its output queue is full, so this shows the queue size in use.
+  def aheadOfConsumer(size: Option[Int], blocking: Boolean): Int = {
+    val processed = new AtomicInteger
+    val body      = Stream.range(0, 1000).mapPar(2) { i => processed.incrementAndGet(); i }
+    val stream    = size.fold(body)(n => Stream.bufferSize(n)(body))
+    val sink = Sink.create[Nothing, Int, Int] { reader =>
+      reader.read[Any](null)
+      Thread.sleep(300)
+      processed.get
+    }
+    val result = if (blocking) stream.run(sink) else stream.runAsync(sink).block
+    result.fold(_ => -1, identity)
+  }
+
+  def main(args: Array[String]): Unit =
+    for (size <- List(None, Some(1), Some(1024)))
+      println(s"bufferSize $size: runAsync ${aheadOfConsumer(size, blocking = false)}, run ${aheadOfConsumer(size, blocking = true)}")
+}
+// bufferSize None: runAsync 131, run 131
+// bufferSize Some(1): runAsync 5, run 131
+// bufferSize Some(1024): runAsync 1000, run 131
+```
+
+**Expected.** `run` matches `runAsync`: about 5 elements ahead with `bufferSize(1)` and all 1000 with `bufferSize(1024)`.
+
+**Root cause.** `compileBlockingFallback` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:3379-3383`) compiles a blocking run with `SyncInterpreter.fromStream`, which calls `compileInterpreter` on each node. `WithBufferSize.compileInterpreter` (`Stream.scala:4485`) forwards to the body and drops `n`, and `MapPar.compileInterpreter` (`:4517-4528`) and `MergedAll.compileInterpreter` (`:4595-4604`) pass the constant `Stream.DefaultBufferSize` to `Platform.createMapParReader`/`createMergeReader`. Only `WithBufferSize.compile` (`:4482-4484`) and `materializeAsync` (`:4486-4489`) pass `n` on, and those run for the `*Async` terminals or after the interpreter gives up with `AsyncBoundaryRequired`.
+
+**Impact.** The one documented knob for the memory and look-ahead of `mapPar`, `flatMapPar` and `mergeAll` silently does nothing on the JVM's main path; a user who lowers it to bound memory, or raises it for throughput, sees no change. For `flatMapPar` and `mergeAll` no route sizes a merge queue from it at all: the threaded merge readers are built only by the interpreter (always 64), and on the reader route `AsyncConcurrentReaders.merge` uses the size only to compile each inner stream.
+
+**Test gap.** `streams/jvm/src/test/scala/zio/blocks/streams/BufferSizeSpec.scala:24-41` runs `bufferSize` with `mapPar`/`flatMapPar` under `runCollect`, including "nested bufferSize: inner wins", but asserts only the result length, never the size in use.
+
+**Suggested fix.** Carry the buffer size through the interpreter: give `SyncInterpreter` a current buffer size, set it in `WithBufferSize.compileInterpreter` (restoring the outer one after `inner.compileInterpreter`), and read it in `MapPar`/`MergedAll.compileInterpreter` instead of `Stream.DefaultBufferSize`. This is per materialization, not per element, so no read loop or sentinel changes. Add a spec that observes the queue size (as above) on both terminal families.
 
 ### jwt: `Jwt.sign` writes a registered claim twice when `extra` also contains it, and verifiers read the `extra` value
 
@@ -9526,6 +9670,105 @@ object WeatherReading {
 
 **Suggested fix.** Docs only: a schema reference note (near derivation) saying to define named-tuple schemas as top-level or imported givens.
 
+### Streams: a finalizer that fails after a typed error turns the `Left` into a thrown `zio.blocks.streams.internal.StreamError` with a null message
+
+Found 2026-10-26 while writing the Scaladoc for `Stream#ensuring` and `Stream#ensuringAsync` (wave 1 of the streams Scaladoc, branch `streams-scaladoc-wave-1`), on `streams-scaladocs` at `b93330329`. The same at tag `v0.0.56`. Verified against the published 0.0.56 on Scala 2.13.18. Not filed on GitHub yet.
+
+**Summary.** A stream that fails with a typed error returns `Left(e)` from its terminal. If a finalizer (`ensuring`, `ensuringAsync`, a `fromAcquireRelease` release) then throws, the terminal no longer returns the `Left`, and it does not throw the finalizer's exception either. It throws (or fails its `Async` with) the library's internal wrapper `zio.blocks.streams.internal.StreamError`, whose `getMessage` is `null`. The typed error is only reachable through `StreamError#value` and the finalizer's exception only as a suppressed exception, so a stack trace or log line shows `zio.blocks.streams.internal.StreamError: null` and nothing else. The reference pages describe the rule ("that defect is attached to the primary failure rather than replacing it") but not what the user then sees. The same happens when the typed error comes from a sink (`Stream(1).ensuring(throw ...).run(Sink.fail("sinkErr"))`, or `Stream.defer(throw ...).run(Sink.fail("sinkErr"))`), and with a `fromAcquireRelease` whose release throws after `use` fails with a typed error.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli run --server=false FinalizerAfterTypedError.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.async._
+import zio.blocks.streams._
+
+object FinalizerAfterTypedError {
+  def main(args: Array[String]): Unit = {
+    val failing: Stream[String, Int] = Stream(1) ++ Stream.fail("book not found")
+
+    // The typed error alone is a Left.
+    println(failing.runCollect)
+
+    // A finalizer that throws, on a stream that never fails: the finalizer's exception is thrown.
+    try Stream(1).ensuring(throw new RuntimeException("close failed")).runCollect
+    catch { case e: Throwable => println(s"threw ${e.getClass.getName}: ${e.getMessage}") }
+
+    // The same finalizer after a typed error: neither the Left nor the finalizer's exception,
+    // but the library's internal wrapper, with a null message.
+    try println(failing.ensuring(throw new RuntimeException("close failed")).runCollect)
+    catch {
+      case e: Throwable =>
+        println(s"threw ${e.getClass.getName}: ${e.getMessage}")
+        println(s"suppressed: ${e.getSuppressed.toList}")
+    }
+
+    // The async terminal fails its Async with the same wrapper.
+    try println(failing.ensuring(throw new RuntimeException("close failed")).runCollectAsync.block)
+    catch { case e: Throwable => println(s"async failed with ${e.getClass.getName}: ${e.getMessage}") }
+  }
+}
+// Left(book not found)
+// threw java.lang.RuntimeException: close failed
+// threw zio.blocks.streams.internal.StreamError: null
+// suppressed: List(java.lang.RuntimeException: close failed)
+// async failed with zio.blocks.streams.internal.StreamError: null
+```
+
+**Expected.** Either the terminal returns `Left(book not found)` and reports the cleanup failure some other way, or it throws the finalizer's exception with the typed error attached; and in any case the thrown exception has a message that names the typed error (for example `StreamError#getMessage` returning `"typed stream error: book not found"`).
+
+**Root cause.** `Stream#runBlocking` attaches the close failure to the primary failure with `StreamError.attachCleanupReplay` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:1430-1432`), which marks the `StreamError` with `cleanupFailed = true` (`streams/shared/src/main/scala/zio/blocks/streams/internal/StreamError.scala:163-176`, `attachCleanup`, reached from `attachCleanupReplay` at `:178-181`). The `Left` conversion then skips it (`case error: StreamError if error.isTrusted && !error.cleanupFailed`, `Stream.scala:1435`), so the wrapper is rethrown as is. The async terminal does the same (`Stream.scala:1498`). `StreamError` extends `Exception(null, null, true, false)` (`StreamError.scala:28-33`), so its message is `null`.
+
+**Impact.** Code that matches on the `Either` never sees the typed error once a finalizer also fails, and the exception it gets names an `internal` class and carries no message. Debugging needs `getSuppressed` and a cast to an internal type.
+
+**Test gap.** `ErrorHandlingSpec.scala:565` and `:590` and `AsyncSinkExhaustiveCoverageSpec.scala:246` pin the engine behaviour (a typed failure followed by a cleanup failure fails the run with the cleanup-marked `StreamError`), so a fix may have to update them (they assert `cleanupFailed` and the suppressed list, not the exception class or message). No spec checks what a user of the public API sees in this case: the exception's class and message from `ensuring`, `fromAcquireRelease` or `Stream.defer` at a terminal.
+
+**Suggested fix.** Give `StreamError` a message (override `getMessage` to describe `value` and whether it came from the stream or the sink), and decide on one documented contract for this case, then state it in the Scaladoc of the terminals and of `ensuring`. Update the specs above to match. The change is on the failure path only and touches no read loop.
+
+### Streams: on Scala 2, `++` between two streams of `Nothing` does not compile (ambiguous `JvmType.Infer`)
+
+Found 2026-10-26 while probing `Stream.defer` for its Scaladoc (wave 1 of the streams Scaladoc, branch `streams-scaladoc-wave-1`), on `streams-scaladocs` at `b93330329`. The same at tag `v0.0.56`. Verified against the published 0.0.56: fails on Scala 2.13.18, compiles and runs on Scala 3.9.0 (`zio-blocks-next-streams`, `-experimental`). Not filed on GitHub yet.
+
+**Summary.** `Stream.eval(...) ++ Stream.defer(...)`, `Stream.empty ++ Stream.empty`, or any `++`/`concat` whose two sides both have element type `Nothing`, fails on Scala 2.13 with `ambiguous implicit values: both value nothing in object Infer ... and value int in object Infer ... match expected type JvmType.Infer[A3]`. Two element-free streams are a natural pair (an effect, then a finalizer), and the error message gives no hint of the workaround: pass the type arguments, `a.++[Nothing, Nothing, Nothing, Nothing](b)`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli run --server=false Ambiguous.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.streams._
+
+object Ambiguous {
+  def main(args: Array[String]): Unit = {
+    val both = Stream.eval(println("start")) ++ Stream.defer(println("done"))
+    println(both.runCollect)
+  }
+}
+// Ambiguous.scala:8: error: ambiguous implicit values:
+//  both value nothing in object Infer of type zio.blocks.streams.JvmType.Infer[Nothing]
+//  and value int in object Infer of type zio.blocks.streams.JvmType.Infer[Int]
+//  match expected type zio.blocks.streams.JvmType.Infer[A3]
+//     val both = Stream.eval(println("start")) ++ Stream.defer(println("done"))
+//                                              ^
+// 1 error
+// Compilation failed
+```
+
+The same file with `//> using scala 3.9.0`, `//> using options -experimental` and `zio-blocks-next-streams` prints `start`, `done` and `Right(Chunk())`. On 2.13, `Stream.eval(println("start")).++[Nothing, Nothing, Nothing, Nothing](Stream.defer(println("done")))` compiles and prints the same.
+
+**Expected.** `Stream.empty ++ Stream.empty` compiles on Scala 2.13 as on Scala 3 and has type `Stream[Nothing, Nothing]`.
+
+**Root cause.** Scala 2 treats a type parameter inferred as `Nothing` as not yet determined. In `Stream#++` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:74-78`) the result type `A3` comes from `Concat.WithOut[Nothing, Nothing, A3]`, so when the compiler searches `JvmType.Infer[A3]` it is still open, and every instance in `object Infer` (`streams/shared/src/main/scala/zio/blocks/streams/JvmType.scala:104-112`: `nothing`, `int`, `long`, ...) matches at the same priority.
+
+**Impact.** Small but confusing: a two-line program that compiles on Scala 3 fails on Scala 2 with an error about an internal type class. The same error comes from `concat`, `orElse`/`||` and `catchAll` when both sides have element type `Nothing`, for example `Stream.fail(1) ++ Stream.fail("a")`, `Stream.eval(...).orElse(Stream.empty)` or `Stream.eval(...).catchAll(_ => Stream.empty)` (each checked on 2.13.18 against 0.0.56).
+
+**Test gap.** No Scala 2 test concatenates two streams of `Nothing`.
+
+**Suggested fix.** Give `Infer.nothing` a higher priority than the primitive instances (move the eight primitive instances into a lower-priority parent trait of `object Infer`, above `LowPriorityJvmTypeInferPlatform`), so an undetermined `A3` resolves to `Nothing`; or add a dedicated `++` overload for `Stream[_, Nothing]`. Add a cross-built test for `Stream.empty ++ Stream.empty`.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -10294,6 +10537,23 @@ import zio.blocks.typeid._
 **Test gap.** Nothing checks the `TypeRepr` table against what the macro builds for named tuples.
 
 **Suggested fix.** Change the row's example to "`(A, B, C)`" and add a sentence below the table: "A named tuple `(a: A, b: B)` is the applied type `NamedTuple[("a", "b"), (A, B)]`: its `typeArgs` hold a tuple of label constants and a tuple of element types." Alternatively, fill `TupleElement.label` in the macro and keep the row.
+
+### Streams: `docs/reference/streams/core/stream.md` claims `repeated` rematerializes, cites the old `mapPar` Scaladoc, and prints the wrong release message
+
+Found 2026-10-26 while fact-checking the reference page against the wave 1 streams Scaladoc (branch `streams-scaladoc-wave-1`), on `streams-scaladocs` at `b93330329`. Not filed on GitHub yet.
+
+**Summary.** Six statements in `docs/reference/streams/core/stream.md` (one also in `platform-differences.md`) do not match the code or the new Scaladoc:
+
+1. "Repeating" (line 1604): "Rematerializes the stream after each clean completion". The code resets readers instead (Entry 1); the page should describe the known bug, as the Scaladoc now does.
+2. The warning box "The scaladoc is a throughput claim, not an ordering claim" (lines 1315-1317) quotes the old Scaladoc of `mapPar`, `flatMapPar` and `mergeAll` ("degrades to sequential `map`"). Wave 1 replaced that text, so the box now quotes Scaladoc that no longer exists; drop the box or reword it.
+3. `Stream.fromAcquireRelease` example (lines 1776-1793): the output comment says `Closing database connection`, but `close()` prints `Closing connection db-1`.
+4. "Motivation", point 2 (lines 127-134): "If FileReader throws ... cleanup still runs". `new FileReader("build.sbt")` runs before `Stream.fromJavaReader` is called, so an exception there is thrown at construction, outside the stream; there is nothing to clean up, but the comment claims the stream handles it. Line 128 also says the `FileReader` is acquired lazily; it is opened eagerly, at that same construction.
+5. Lines 1311-1313 (and `docs/reference/streams/execution-and-compatibility/platform-differences.md:225`) describe a Scala.js parallel-merge path that no public API can reach.
+6. Line 1215 repeats the false `bufferSize` claim (see the Library bugs entry "`Stream.bufferSize` has no effect on a JVM blocking terminal unless the stream has an asynchronous stage or a `catchAll`").
+
+**Expected.** The page matches the code; for 1, describe the real behaviour and call it a known bug.
+
+**Suggested fix.** Edit the six places, then run `docs/mdoc` on the page.
 
 ## Resolved
 
