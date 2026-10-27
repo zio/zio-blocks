@@ -47,7 +47,7 @@ System.setOut(pageStream)
 def println(x: Any): Unit = pageStream.println(x)
 ```
 
-One request to a shop crosses two services: the checkout service takes the order and calls the payment service over HTTP. In this guide, we connect the logs and spans of both services, so that every log line written while handling one order carries the same trace id, whichever service wrote it. We use the `telemetry` module for logs and spans, the `otel` module's propagators to carry the trace context in HTTP headers, and the `http-model` module's `Request` as the HTTP message.
+One request to a shop crosses two services: the checkout service takes the order and calls the payment service over HTTP. In this guide, we connect the logs and spans of both services, so that every log line written while handling one order carries the same trace id, whichever service wrote it. We use the `telemetry` module for logs and spans, the `otel` module's propagators to carry the trace context in HTTP headers, the `http-model` module's `Request` as the HTTP message, and the `async` module to run work on a background thread.
 
 We take it in five moves:
 
@@ -95,21 +95,23 @@ Tracing already solves the "which steps belong together" half: a trace is one id
 
 ## Prerequisites
 
-Add the `telemetry`, `telemetry-otel` and `http-model` modules to your `build.sbt`:
+Add the `telemetry`, `telemetry-otel`, `http-model` and `async` modules to your `build.sbt`:
 
 ```scala
 // Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-blocks-telemetry"      % "@VERSION@",
   "dev.zio" %% "zio-blocks-telemetry-otel" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-http-model"     % "@VERSION@"
+  "dev.zio" %% "zio-blocks-http-model"     % "@VERSION@",
+  "dev.zio" %% "zio-blocks-async"          % "@VERSION@"
 )
 
 // Scala 3.9 and newer
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-blocks-next-telemetry"      % "@VERSION@",
   "dev.zio" %% "zio-blocks-next-telemetry-otel" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-http-model"     % "@VERSION@"
+  "dev.zio" %% "zio-blocks-next-http-model"     % "@VERSION@",
+  "dev.zio" %% "zio-blocks-next-async"          % "@VERSION@"
 )
 scalacOptions += "-experimental"
 ```
@@ -123,7 +125,7 @@ In version 0.0.56, the `log.*` calls don't compile on Scala 2.13 outside the lib
 We assume you know how to write log lines, open spans with `trace.span`, and switch the log output to JSON, as shown in [Instrument a Program with Logs, Traces and Metrics](./instrument-a-program-with-logs-traces-and-metrics.md). The code below uses these imports:
 
 ```scala mdoc:silent
-import java.util.concurrent.{CompletableFuture, Executors}
+import zio.blocks.async._
 import zio.blocks.telemetry._
 import zio.blocks.telemetry.otel._
 import zio.http._
@@ -242,18 +244,14 @@ object PaymentService {
 
 `Telemetry.storage.scoped(parent) { ... }` makes `parent` the active context while the block runs and restores the previous one afterward. `Tracer#span` takes its parent from the storage, so `payment.authorize` reuses the caller's trace id, gets a new span id of its own, and records the caller's span as its parent. `log.annotated("service.name" -> "payment")` adds a `service.name` field to the lines written inside it, so we can tell the two services' lines apart. `OtelContext.withSpan(span, storage)` is not an alternative here: it takes a `Span`, not the `SpanContext` that `W3CTraceContextPropagator.extract` returns, and a span you start yourself with `Tracer#spanBuilder` is local only and never reaches the span processors, so `ContextStorage#scoped` around `Tracer#span` is the way to continue a remote trace.
 
-To run both services in one program, we need a stand-in for the network. A real call crosses a process boundary, and the receiving service gets nothing from the caller's memory. Running the payment handler on a thread of its own gives the same guarantee: the storage is bound to the thread that runs a block, so the payment thread starts with an empty storage, and the request is the only thing that crosses over:
+To run both services in one program, we need a stand-in for the network. A real call crosses a process boundary, and the receiving service gets nothing from the caller's memory. Running the payment handler on another thread gives the same guarantee: the storage is bound to the thread that runs a block, so the other thread starts with an empty storage, and the request is the only thing that crosses over. `Async.start` from the [`async`](../reference/async.md) module runs a block on a background worker thread, and `Async#block` waits for its result, the way a client waits for a response:
 
 ```scala mdoc:silent
-// Stand-in for the network: the payment service runs on its own thread,
-// so the only thing it receives from checkout is the request.
+// Stand-in for the network: the payment service runs on a background worker
+// thread, so the only thing it receives from checkout is the request.
 object Network {
-  private val paymentThread = Executors.newSingleThreadExecutor()
-
   def send(request: Request): Response =
-    CompletableFuture.supplyAsync(() => PaymentService.handle(request), paymentThread).join()
-
-  def shutdown(): Unit = paymentThread.shutdown()
+    Async.start(PaymentService.handle(request)).block
 }
 ```
 
@@ -299,29 +297,21 @@ All three lines carry the same `traceId`, although the middle one was written by
 
 ## Carry the Span Context to Another Thread
 
-The storage follows the call stack of one thread. That is what kept the payment service's context separate in the previous section, and it is also what loses the context when your own code hands work to a thread pool: a task running on a pool thread sees an empty storage. `OtelContext` is a snapshot of the storage's current value that you can pass along like any other parameter, and restore with `ContextStorage#scoped` where the work runs.
+The storage follows the call stack of one thread. That is what kept the payment service's context separate in the previous section, and it is also what loses the context when your own code hands work to another thread, with `Async.start` or a thread pool: the work running there sees an empty storage. `OtelContext` is a snapshot of the storage's current value that you can pass along like any other parameter, and restore with `ContextStorage#scoped` where the work runs.
 
-Here the checkout service sends the confirmation email on a worker thread, once without the context and once with an `OtelContext` snapshot:
+Here the checkout service sends the confirmation email on a background worker with `Async.start`, once without the context and once with an `OtelContext` snapshot:
 
 ```scala mdoc:silent
 object Emails {
-  private val worker = Executors.newSingleThreadExecutor()
-
   def sendWithoutContext(orderId: String): Unit =
-    CompletableFuture.runAsync(() => log.info("Confirmation email sent", "order.id" -> orderId), worker).join()
+    Async.start(log.info("Confirmation email sent", "order.id" -> orderId)).block
 
   def send(orderId: String, context: OtelContext): Unit =
-    CompletableFuture
-      .runAsync(
-        () =>
-          Telemetry.storage.scoped(context.spanContext) {
-            log.info("Confirmation email sent", "order.id" -> orderId)
-          },
-        worker
-      )
-      .join()
-
-  def shutdown(): Unit = worker.shutdown()
+    Async.start {
+      Telemetry.storage.scoped(context.spanContext) {
+        log.info("Confirmation email sent", "order.id" -> orderId)
+      }
+    }.block
 }
 ```
 
@@ -333,8 +323,6 @@ Telemetry.tracer.span("checkout.placeOrder") { _ =>
   Emails.sendWithoutContext("order-1042")
   Emails.send("order-1042", OtelContext.current(Telemetry.storage))
 }
-
-Emails.shutdown()
 ```
 
 The first email line has no `traceId` or `spanId`, so a search by trace id never finds it. The second one carries the ids of `checkout.placeOrder`, because `Emails.send` restored the snapshot before logging. Only the span context travels this way; fields added with `log.annotated` are bound to the calling thread too, so add them again on the worker when you need them there.
@@ -414,8 +402,6 @@ Telemetry.tracer.span("checkout.callPayment", SpanKind.Client) { _ =>
   val response = Network.send(untraced)
   log.info("Payment answered", "status" -> response.status.code)
 }
-
-Network.shutdown()
 ```
 
 The payment service's line has a different trace id from the two checkout lines: its work is still traced and its lines still correlate with each other, but they no longer join the caller's trace. That is the right outcome for a header you can't trust.
@@ -445,14 +431,14 @@ The complete example places two orders. For each one, the checkout service calls
 Each order has its own trace id, and all four lines of an order carry it, from both services and from the worker thread (output from one run, with the times, file paths and ids replaced by placeholders):
 
 ```text
-{"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Order received"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/CompleteExample.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.CompleteExample$.CheckoutService$"}},{"key":"code.function","value":{"stringValue":"placeOrder"}},{"key":"code.lineno","value":{"intValue":"38"}},{"key":"service.name","value":{"stringValue":"checkout"}},{"key":"order.id","value":{"stringValue":"order-1042"}}],"traceId":"<trace-id-1>","spanId":"<span-id-1>"}
+{"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Order received"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/CompleteExample.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.CompleteExample$.CheckoutService$"}},{"key":"code.function","value":{"stringValue":"placeOrder"}},{"key":"code.lineno","value":{"intValue":"30"}},{"key":"service.name","value":{"stringValue":"checkout"}},{"key":"order.id","value":{"stringValue":"order-1042"}}],"traceId":"<trace-id-1>","spanId":"<span-id-1>"}
 {"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Card charged"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/PaymentService.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.PaymentService$"}},{"key":"code.function","value":{"stringValue":"handle"}},{"key":"code.lineno","value":{"intValue":"19"}},{"key":"service.name","value":{"stringValue":"payment"}}],"traceId":"<trace-id-1>","spanId":"<span-id-2>"}
-{"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Payment answered"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/CompleteExample.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.CompleteExample$.CheckoutService$"}},{"key":"code.function","value":{"stringValue":"placeOrder"}},{"key":"code.lineno","value":{"intValue":"46"}},{"key":"service.name","value":{"stringValue":"checkout"}},{"key":"status","value":{"intValue":"200"}}],"traceId":"<trace-id-1>","spanId":"<span-id-3>"}
-{"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Confirmation email sent"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/CompleteExample.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.CompleteExample$.Emails$"}},{"key":"code.function","value":{"stringValue":"send"}},{"key":"code.lineno","value":{"intValue":"25"}},{"key":"order.id","value":{"stringValue":"order-1042"}}],"traceId":"<trace-id-1>","spanId":"<span-id-1>"}
-{"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Order received"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/CompleteExample.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.CompleteExample$.CheckoutService$"}},{"key":"code.function","value":{"stringValue":"placeOrder"}},{"key":"code.lineno","value":{"intValue":"38"}},{"key":"service.name","value":{"stringValue":"checkout"}},{"key":"order.id","value":{"stringValue":"order-1043"}}],"traceId":"<trace-id-2>","spanId":"<span-id-4>"}
+{"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Payment answered"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/CompleteExample.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.CompleteExample$.CheckoutService$"}},{"key":"code.function","value":{"stringValue":"placeOrder"}},{"key":"code.lineno","value":{"intValue":"38"}},{"key":"service.name","value":{"stringValue":"checkout"}},{"key":"status","value":{"intValue":"200"}}],"traceId":"<trace-id-1>","spanId":"<span-id-3>"}
+{"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Confirmation email sent"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/CompleteExample.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.CompleteExample$.Emails$"}},{"key":"code.function","value":{"stringValue":"send"}},{"key":"code.lineno","value":{"intValue":"21"}},{"key":"order.id","value":{"stringValue":"order-1042"}}],"traceId":"<trace-id-1>","spanId":"<span-id-1>"}
+{"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Order received"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/CompleteExample.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.CompleteExample$.CheckoutService$"}},{"key":"code.function","value":{"stringValue":"placeOrder"}},{"key":"code.lineno","value":{"intValue":"30"}},{"key":"service.name","value":{"stringValue":"checkout"}},{"key":"order.id","value":{"stringValue":"order-1043"}}],"traceId":"<trace-id-2>","spanId":"<span-id-4>"}
 {"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Card charged"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/PaymentService.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.PaymentService$"}},{"key":"code.function","value":{"stringValue":"handle"}},{"key":"code.lineno","value":{"intValue":"19"}},{"key":"service.name","value":{"stringValue":"payment"}}],"traceId":"<trace-id-2>","spanId":"<span-id-5>"}
-{"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Payment answered"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/CompleteExample.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.CompleteExample$.CheckoutService$"}},{"key":"code.function","value":{"stringValue":"placeOrder"}},{"key":"code.lineno","value":{"intValue":"46"}},{"key":"service.name","value":{"stringValue":"checkout"}},{"key":"status","value":{"intValue":"200"}}],"traceId":"<trace-id-2>","spanId":"<span-id-6>"}
-{"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Confirmation email sent"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/CompleteExample.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.CompleteExample$.Emails$"}},{"key":"code.function","value":{"stringValue":"send"}},{"key":"code.lineno","value":{"intValue":"25"}},{"key":"order.id","value":{"stringValue":"order-1043"}}],"traceId":"<trace-id-2>","spanId":"<span-id-4>"}
+{"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Payment answered"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/CompleteExample.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.CompleteExample$.CheckoutService$"}},{"key":"code.function","value":{"stringValue":"placeOrder"}},{"key":"code.lineno","value":{"intValue":"38"}},{"key":"service.name","value":{"stringValue":"checkout"}},{"key":"status","value":{"intValue":"200"}}],"traceId":"<trace-id-2>","spanId":"<span-id-6>"}
+{"timeUnixNano":"<time>","severityNumber":9,"severityText":"INFO","body":{"stringValue":"Confirmation email sent"},"attributes":[{"key":"code.filepath","value":{"stringValue":"<path>/CompleteExample.scala"}},{"key":"code.namespace","value":{"stringValue":"correlatelogsandtraces.CompleteExample$.Emails$"}},{"key":"code.function","value":{"stringValue":"send"}},{"key":"code.lineno","value":{"intValue":"21"}},{"key":"order.id","value":{"stringValue":"order-1043"}}],"traceId":"<trace-id-2>","spanId":"<span-id-4>"}
 ```
 
 ## Running the Examples

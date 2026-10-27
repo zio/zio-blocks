@@ -35,7 +35,5 @@ object Step6MissingHeadersExample {
       val response = Network.send(untraced)
       log.info("Payment answered", "status" -> response.status.code)
     }
-
-    Network.shutdown()
   }
 }

@@ -36,7 +36,5 @@ object Step3ContinueTraceExample {
     Telemetry.installLogger()
 
     CheckoutService.placeOrder("order-1042", 5990)
-
-    Network.shutdown()
   }
 }

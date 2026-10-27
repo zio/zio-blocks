@@ -1,6 +1,6 @@
 package correlatelogsandtraces
 
-import java.util.concurrent.{CompletableFuture, Executors}
+import zio.blocks.async._
 import zio.blocks.telemetry._
 import zio.blocks.telemetry.otel._
 
@@ -15,23 +15,15 @@ import zio.blocks.telemetry.otel._
 // Run from telemetry-examples:  sbt "runMain correlatelogsandtraces.Step4CarrySpanContextExample"
 object Step4CarrySpanContextExample {
   object Emails {
-    private val worker = Executors.newSingleThreadExecutor()
-
     def sendWithoutContext(orderId: String): Unit =
-      CompletableFuture.runAsync(() => log.info("Confirmation email sent", "order.id" -> orderId), worker).join()
+      Async.start(log.info("Confirmation email sent", "order.id" -> orderId)).block
 
     def send(orderId: String, context: OtelContext): Unit =
-      CompletableFuture
-        .runAsync(
-          () =>
-            Telemetry.storage.scoped(context.spanContext) {
-              log.info("Confirmation email sent", "order.id" -> orderId)
-            },
-          worker
-        )
-        .join()
-
-    def shutdown(): Unit = worker.shutdown()
+      Async.start {
+        Telemetry.storage.scoped(context.spanContext) {
+          log.info("Confirmation email sent", "order.id" -> orderId)
+        }
+      }.block
   }
 
   def main(args: Array[String]): Unit = {
@@ -43,7 +35,5 @@ object Step4CarrySpanContextExample {
       Emails.sendWithoutContext("order-1042")
       Emails.send("order-1042", OtelContext.current(Telemetry.storage))
     }
-
-    Emails.shutdown()
   }
 }

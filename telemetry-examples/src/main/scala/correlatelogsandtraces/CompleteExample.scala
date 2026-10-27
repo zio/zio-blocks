@@ -1,6 +1,6 @@
 package correlatelogsandtraces
 
-import java.util.concurrent.{CompletableFuture, Executors}
+import zio.blocks.async._
 import zio.blocks.telemetry._
 import zio.blocks.telemetry.otel._
 
@@ -15,20 +15,12 @@ import zio.blocks.telemetry.otel._
 // Run from telemetry-examples:  sbt "runMain correlatelogsandtraces.CompleteExample"
 object CompleteExample {
   object Emails {
-    private val worker = Executors.newSingleThreadExecutor()
-
     def send(orderId: String, context: OtelContext): Unit =
-      CompletableFuture
-        .runAsync(
-          () =>
-            Telemetry.storage.scoped(context.spanContext) {
-              log.info("Confirmation email sent", "order.id" -> orderId)
-            },
-          worker
-        )
-        .join()
-
-    def shutdown(): Unit = worker.shutdown()
+      Async.start {
+        Telemetry.storage.scoped(context.spanContext) {
+          log.info("Confirmation email sent", "order.id" -> orderId)
+        }
+      }.block
   }
 
   object CheckoutService {
@@ -55,8 +47,5 @@ object CompleteExample {
 
     CheckoutService.placeOrder("order-1042", 5990)
     CheckoutService.placeOrder("order-1043", 1250)
-
-    Network.shutdown()
-    Emails.shutdown()
   }
 }
