@@ -44,7 +44,7 @@ import java.util.concurrent.{CancellationException, ExecutionException, Executor
  * any other failure fails it as is. Every later pull fails with the same
  * failure again. A stream built with `Stream.fromReader` turns the
  * `IOException` into its typed error (`Left(e)`); any other failure fails the
- * terminal's `Async`.
+ * terminal's `Async` (a blocking terminal throws it).
  */
 object AsyncNioReaders {
   private val futurePoller = Executors.newSingleThreadScheduledExecutor { (r: Runnable) =>
