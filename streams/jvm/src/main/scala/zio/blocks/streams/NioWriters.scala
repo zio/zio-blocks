@@ -71,9 +71,9 @@ object NioWriters {
 
   /**
    * Returns a writer of bytes into `ch`, through a buffer of `bufSize` bytes.
-   * Bytes reach `ch` when the buffer is full and on `close()`, which writes
-   * what is left and closes `ch`; the writer owns `ch`. After `close()`, writes
-   * return `false`.
+   * Bytes reach `ch` when a write finds the buffer full and on `close()`, which
+   * writes what is left and closes `ch`; the writer owns `ch`. After `close()`,
+   * `write` returns `false` and `writeBytes` returns 0.
    *
    * An `IOException` from `ch` is not thrown. Inside `close()`, it is ignored
    * and `ch` is still closed. When a write has to flush the buffer and the

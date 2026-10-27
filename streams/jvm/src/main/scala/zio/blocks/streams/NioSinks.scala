@@ -126,8 +126,8 @@ object NioSinks {
 
   /**
    * Returns a sink that writes every byte of the stream to `ch`, through a
-   * buffer of `bufSize` bytes that it writes out when full and at the end of
-   * the stream. It does not close `ch`.
+   * buffer of `bufSize` bytes that it writes out when the next byte finds it
+   * full and at the end of the stream. It does not close `ch`.
    *
    * An `IOException` from `ch` ends the run with it as the typed error
    * (`Left(e)`). The asynchronous drain also calls `ch.write` directly, so a
