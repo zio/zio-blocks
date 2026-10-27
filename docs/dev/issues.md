@@ -11085,6 +11085,65 @@ object SentinelCollisionLoss {
 
 **Suggested fix.** Fix only the generic `read` path, with no added per-element work: in `SyncToAsyncReader.read`, pull the source with the private `EndOfStream` (as the synchronous `ConcatReader` does) and latch `eof` only on that marker, translating it to the caller's sentinel on the way out; in `AsyncConcatReader.read`, pull each part with `EndOfStream` and advance only on that marker. Each keeps one reference comparison per call (the translation back to the caller's sentinel can reuse the same test or a local flag), on the generic boxed path only, so no per-element work is added to any primitive-lane loop. The primitive scalar pulls of the `toAsync` view (`value == sentinel`) fall under the AGENTS.md sentinel policy: document them, or take a zero-cost route that needs an out-of-band EOF flag the readers do not have today (`lastReadWasEOF`, which AGENTS.md mentions, does not exist in `streams/`), and validate any change with the streams JMH benchmarks before and after. Alternatively, keep the behaviour and document it on the reference page next to the sentinel protocol.
 
+### schema: there is no implicit `Schema` for tuples, so `Schema[(String, Int)]` and `Schema[List[(String, Int)]]` do not compile, unlike ZIO Schema 1.x
+
+Found 2026-10-27 while fixing the migration guide `docs/guides/zio-schema-migration.md` (backlog M-02), on `main` at `9d5ca8f91`. Same at v0.0.56.
+
+**Summary.** ZIO Blocks Schema has built-in implicit schemas for primitives, `Option`, `Either`, collections and maps, but none for tuples. A tuple inside a derived case class works, and `Schema.derived[(String, Int)]` works, but summoning one fails: `Schema[(String, Int)]`, and every built-in instance that needs one as an element, such as `Schema[List[(String, Int)]]` or `Schema[Map[String, (Int, Int)]]`. ZIO Schema 1.x resolves all of these through `Schema.tuple2` to `Schema.tuple22`, so code migrated from it stops compiling with a bare "could not find implicit value" error that does not mention derivation.
+
+**Reproduction.** Scala 2.13.18, `dev.zio::zio-blocks-schema:0.0.56`. Two files; run `scala-cli run --server=false Repro.scala` and `scala-cli compile --server=false ReproFail.scala`.
+
+```scala
+// Repro.scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object Repro extends App {
+  final case class Order(id: String, lines: List[(String, Int)])
+  object Order { implicit val schema: Schema[Order] = Schema.derived[Order] }
+
+  // A tuple inside a derived case class works
+  println(Order.schema.jsonCodec.encodeToString(Order("o-1", List(("widget", 2)))))
+  // A tuple schema derived on its own works
+  println(Schema.derived[(String, Int)].jsonCodec.encodeToString(("widget", 2)))
+}
+// {"id":"o-1","lines":[["widget",2]]}
+// ["widget",2]
+```
+
+```scala
+// ReproFail.scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+
+object ReproFail {
+  // ZIO Schema 1.x resolves both of these through Schema.tuple2
+  val pair  = Schema[(String, Int)]
+  val pairs = Schema[List[(String, Int)]]
+}
+// ReproFail.scala:7: error: could not find implicit value for parameter schema: zio.blocks.schema.Schema[(String, Int)]
+//   val pair  = Schema[(String, Int)]
+//                     ^
+// ReproFail.scala:8: error: could not find implicit value for parameter schema: zio.blocks.schema.Schema[List[(String, Int)]]
+//   val pairs = Schema[List[(String, Int)]]
+//                     ^
+// 2 errors
+```
+
+On Scala 3.9.0 (`zio-blocks-next-schema:0.0.56`, `-experimental`) the same two lines fail with `No given instance of type zio.blocks.schema.Schema[(String, Int)] was found for parameter schema of method apply in object Schema`.
+
+**Expected.** `Schema[(A, B)]` resolves when `Schema[A]` and `Schema[B]` do, as `Schema[Either[A, B]]` does, giving the same schema as `Schema.derived[(A, B)]`; or, failing that, the docs list tuples among the types that need `Schema.derived`.
+
+**Root cause.** The `Schema` companion declares implicit instances for collections, maps and `Either` (`schema/shared/src/main/scala/zio/blocks/schema/Schema.scala:703-757`, `implicit def either` at `:757`) but no tuple instance. Tuples are handled only inside the derivation macros (Scala 3 `isGenericTuple`, `schema/shared/src/main/scala-3/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:274`), which run for `Schema.derived` and for case-class fields, not for implicit search.
+
+**Impact.** Every ZIO Schema 1.x codebase that summons or passes a tuple schema (pairs in lists or maps, tuple return types of endpoints, `Schema[(K, V)]` for key-value rows) fails to compile after migration. The error says nothing about `Schema.derived`, and `docs/reference/schema/schema.md` "Built-in Schemas" does not mention tuples, so users can't tell whether tuples are supported at all.
+
+**Test gap.** No spec summons `Schema[(A, B)]`: the specs that need one declare it by hand, e.g. `implicit val schema: Schema[(Int, String)] = Schema.derived` in `schema/shared/src/test/scala/zio/blocks/schema/json/JsonInterpolatorSpec.scala:633` and `:843`. `SchemaSpec` has no tuple case for implicit resolution.
+
+**Suggested fix.** Add implicit tuple instances: on Scala 2, `implicit def tuple2[A: Schema, B: Schema]: Schema[(A, B)]` up to `tuple22` (generated, like ZIO Schema's `Schema.scala:2977-3483`), built from the element schemas with the same `Reflect.Record` (`_1`, `_2`, ...) that derivation produces; on Scala 3, one `inline given` for `Tuple` that defers to `Schema.derived`. Add a `SchemaSpec` case that summons `Schema[(Int, String)]` and `Schema[List[(Int, String)]]` and checks they equal `Schema.derived`. Until then, add a sentence to `schema.md` "Built-in Schemas": tuples have no implicit schema; use `Schema.derived[(A, B)]`.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
