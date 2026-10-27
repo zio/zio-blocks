@@ -21,23 +21,17 @@ import zio.blocks.ringbuffer.SpscRingBuffer
 import java.util.concurrent.locks.LockSupport
 
 /**
- * A blocking single-producer single-consumer queue.
+ * A bounded, blocking queue for one producer thread and one consumer thread
+ * (JVM only), on top of a lock-free ring buffer. A blocked side spins briefly
+ * and then parks until the other side wakes it or the queue closes.
  *
- * Backed by [[SpscRingBuffer]] for the fast path; uses [[LockSupport.park]] and
- * [[LockSupport.unpark]] for blocking when the buffer is full or empty.
- *
- * Two separate waiter slots are maintained — `consumerWaiter` and
- * `producerWaiter` — so that each side registers in its own slot without
- * overwriting the other side's registration. A single shared slot would
- * introduce a lost-wakeup race: the producer could overwrite the consumer's
- * registration before the consumer parks, causing the consumer's park to return
- * via stale permit and then clear the producer's registration, leaving the
- * producer permanently blocked.
- *
- * Null elements are not permitted.
+ * At most one thread at a time may call [[offer]], and at most one thread at a
+ * time may call [[take]]. Elements must not be `null`, because [[take]] uses
+ * `null` to report a closed, empty queue.
  *
  * @param capacity
- *   The logical capacity. Rounded up to the next power of two internally.
+ *   The number of elements the queue holds, rounded up to a power of two (`3`
+ *   holds 4). Throws `IllegalArgumentException` when it is below 1.
  */
 final class BlockingSpscQueue[A <: AnyRef](capacity: Int) {
   require(capacity >= 1, s"BlockingSpscQueue requires capacity >= 1, got: $capacity")
@@ -52,9 +46,9 @@ final class BlockingSpscQueue[A <: AnyRef](capacity: Int) {
   @volatile private var closed: Boolean        = false
 
   /**
-   * Offers an element to the queue, blocking until space is available or the
-   * queue is closed. Returns `true` on success, `false` if the queue was
-   * closed.
+   * Adds `a`, blocking while the queue is full. Returns `true` once `a` is in
+   * the queue, or `false`, without adding it, when the queue is closed. Throws
+   * `NullPointerException` for a `null` element.
    */
   def offer(a: A): Boolean = {
     if (a == null) throw new NullPointerException("BlockingSpscQueue.offer(null) is not permitted")
@@ -94,8 +88,9 @@ final class BlockingSpscQueue[A <: AnyRef](capacity: Int) {
   }
 
   /**
-   * Takes an element from the queue, blocking until one is available or the
-   * queue is closed. Returns the element, or `null` if closed and empty.
+   * Removes and returns the oldest element, blocking while the queue is empty.
+   * After [[close]], it still returns the elements left in the queue, and then
+   * `null`.
    */
   def take(): A = {
     while (true) {
@@ -149,6 +144,7 @@ final class BlockingSpscQueue[A <: AnyRef](capacity: Int) {
     null.asInstanceOf[A]
   }
 
+  /** Removes and returns the oldest element without blocking, or `null`. */
   private[streams] def poll(): A = {
     val e = ringBuffer.take().asInstanceOf[A]
     if (e ne null) {
@@ -158,7 +154,10 @@ final class BlockingSpscQueue[A <: AnyRef](capacity: Int) {
     e
   }
 
-  /** Closes the queue, unblocking any waiting thread on either side. */
+  /**
+   * Closes the queue: later offers return `false`, and threads blocked in
+   * [[offer]] or [[take]] wake up and see it.
+   */
   def close(): Unit = {
     closed = true
     val cw = consumerWaiter
@@ -167,10 +166,13 @@ final class BlockingSpscQueue[A <: AnyRef](capacity: Int) {
     if (pw ne null) LockSupport.unpark(pw)
   }
 
-  /** Whether the queue has been closed. */
+  /** Returns `true` once [[close]] has been called. */
   def isClosed: Boolean = closed
 
-  /** Whether the ring buffer contains no elements. */
+  /**
+   * Returns `true` when the queue holds no elements; with other threads
+   * offering or taking, the answer may be stale by the time it returns.
+   */
   def isEmpty: Boolean = ringBuffer.isEmpty
 
   private def nextPowerOfTwo(n: Int): Int =

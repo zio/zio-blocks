@@ -25,7 +25,11 @@ import zio.blocks.streams.queues.BlockingSpscQueue
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.LockSupport
 
-/** A bounded, primitive-specialized producer/consumer reader. */
+/**
+ * A bounded, primitive-specialized producer/consumer reader, behind
+ * `Stream#buffer` on the JVM: a producer thread reads `upstream` ahead into a
+ * queue of about `bufferSize` elements.
+ */
 private[streams] final class ConcurrentBufferedReader[A](upstream: Reader.SyncReader[A], bufferSize: Int)
     extends Reader.SyncReader[A] {
   import ConcurrentBufferedReader._

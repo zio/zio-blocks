@@ -295,3 +295,4 @@ The axis that changes what you can call is JVM versus Scala.js, which is what th
 - [Reader](../primitives/reader.md#from-native-asynchronous-sources) — the JVM NIO and Scala.js `ReadableStream` adapters
 - [Bounded Concurrency](../core/stream.md#bounded-concurrency) — `Stream#mapPar`, `Stream#flatMapPar`, `Stream.mergeAll`, and `Stream#mapParAsync`
 - [Async](../../async.md) — the effect type and both execution models
+- [How to Run Streams Without Blocking](../../../guides/run-streams-without-blocking.md) — porting a blocking pipeline to the `*Async` terminals and running it on Scala.js

@@ -19,6 +19,12 @@ package zio.blocks.streams
 import zio.blocks.async.Async
 import zio.blocks.streams.io.Reader
 
+/**
+ * The platform-specific members of the [[Sink]] companion. On the JVM it adds
+ * `Sink.create`, whose callback reads a blocking reader. The Scala.js copy adds
+ * no public member; cross-platform code uses `Sink.createAsync` or
+ * `Sink.createBoth`.
+ */
 trait SinkCompanionPlatformSpecific {
 
   /**

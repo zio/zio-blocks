@@ -37,26 +37,48 @@ import zio.blocks.streams.io.Reader
 
 /**
  * A lazy, pull-based, resource-safe sequence of elements of type `A` that may
- * fail with an error of type `E`.
+ * fail with a typed error of type `E`.
  *
- * A [[Stream]] is a ''description'': nothing executes until a terminal
- * operation is driven. Cross-platform terminals such as [[runAsync]],
- * [[runCollectAsync]], and [[headAsync]] return `Async[Either[E, Z]]`. The JVM
- * additionally provides blocking terminals such as `run`, `runCollect`, and
- * `head`, which return `Either[E, Z]`. `Left` contains typed stream errors;
- * defects fail the outer `Async` or propagate from a JVM blocking terminal.
+ * A `Stream` is a description: building one runs nothing. A terminal operation
+ * compiles it and pulls elements from the sink's end, so work stops as soon as
+ * the sink has what it needs, and every resource the stream opened is closed on
+ * completion, failure, early stop or cancellation. Use it for data that is
+ * large, infinite or backed by a resource, such as the bytes of a file, the
+ * lines of a log or the rows of a query.
+ *
+ * Terminals come in two families. The `*Async` terminals ([[runAsync]],
+ * [[runCollectAsync]], [[runForeachAsync]] and the rest) exist on the JVM and
+ * on Scala.js and return `Async[Either[E, Z]]`. The JVM also has blocking
+ * terminals (`run`, `runCollect`, `runForeach` and the rest) that return
+ * `Either[E, Z]`. In both, a typed error is a `Left`, while a defect (an
+ * exception thrown by a callback, a failed finalizer) fails the `Async` or is
+ * thrown by the blocking terminal.
+ *
+ * {{{
+ * import zio.blocks.async._
+ *
+ * val titles = Stream("Zionomicon", "Programming in Scala", "Scala with Cats")
+ * val lengths: Stream[Nothing, Int] = titles.filter(_.contains("Scala")).map(_.length)
+ *
+ * lengths.runCollect            // Right(Chunk(20,15)), JVM only
+ * lengths.runCollectAsync.block // Right(Chunk(20,15)), `block` is JVM only
+ * }}}
  *
  * @tparam E
  *   Error type.
  * @tparam A
  *   Element type.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/streams/core/stream/ Stream]]
  */
 abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
 
   /**
-   * Zips this stream with `that`, pairing elements positionally. Shorter stream
-   * determines length. Uses [[zio.blocks.combinators.Tuples]] for flattened
-   * composition: `a && b && c` produces a `Stream` of `(A, B, C)`.
+   * Zips this stream with `that`, pairing elements by position. The result ends
+   * when the shorter stream ends, and a typed error from either side fails it.
+   * Tuples are flattened through [[Stream.Zip]], so `a && b && c` is a stream
+   * of `(A, B, C)`, not of `((A, B), C)`.
    */
   def &&[E2, E3, B, C](that: Stream[E2, B])(implicit
     errorConcat: Concat.WithOut[E @uncheckedVariance, E2, E3],
@@ -78,8 +100,8 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   ): Stream[E3, A3] = concat(that)
 
   /**
-   * Alias for [[orElse]]. The fallback stream is evaluated lazily, only on
-   * error.
+   * Alias for [[orElse]]. The fallback stream is built only if this stream
+   * fails with a typed error.
    */
   def ||[E2, A2, A3](that: => Stream[E2, A2])(implicit
     valueConcat: Concat.WithOut[A @uncheckedVariance, A2, A3],
@@ -89,8 +111,12 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
 
   /**
    * Decouples upstream production from downstream consumption with a bounded
-   * buffer of `n` elements while preserving order. `n` must be at least one.
-   * Failure, downstream close, or cancellation closes the producer.
+   * buffer of `n` elements, preserving order. On the JVM a synchronous upstream
+   * runs on its own thread and fills the buffer ahead of the consumer. Failure,
+   * downstream close or cancellation closes the producer.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `n < 1`
    */
   def buffer(n: Int): Stream[E, A] = {
     require(n >= 1, s"buffer requires n >= 1, got n=$n")
@@ -98,8 +124,27 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   }
 
   /**
-   * On the first typed error, closes the failing stream and lazily switches to
-   * the stream returned by `f`. Defects are not handled.
+   * Recovers from a typed error: on the first one, closes the failing stream
+   * and continues with the stream that `f` returns for that error. Elements
+   * emitted before the error stay emitted, and defects are not handled (see
+   * [[catchDefect]]).
+   *
+   * {{{
+   * val readings: Stream[String, Int] = Stream(12, 7) ++ Stream.fail("sensor offline")
+   *
+   * readings.runCollect                           // Left(sensor offline)
+   * readings.catchAll(_ => Stream(-1)).runCollect // Right(Chunk(12,7,-1))
+   * }}}
+   *
+   * Two known bugs affect the JVM blocking terminals (`runCollect`, `run` and
+   * the rest). When `catchAll` sits inside a `flatMap` and a stateful operator
+   * such as `grouped`, `sliding`, `scan` or `mapAccum` follows, they throw the
+   * internal `Stream.AsyncBoundaryRequired` signal instead of running; the
+   * `*Async` terminals are correct. And they run the stages before `catchAll`
+   * on `ForkJoinPool.commonPool` while the caller waits, so a run started while
+   * an object is being initialized (a `val` in an `object`, or on Scala 3 the
+   * body of `object Main extends App`) deadlocks when one of those stages reads
+   * a field of that object; call it from `def main` instead.
    */
   def catchAll[E2, A2, A3](f: E => Stream[E2, A2])(implicit
     valueConcat: Concat.WithOut[A @uncheckedVariance, A2, A3],
@@ -119,9 +164,10 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
       )
 
   /**
-   * On the first non-fatal defect matched by `f`, closes the failing stream and
-   * lazily switches to the selected stream. Typed errors and unmatched defects
-   * are not handled.
+   * Recovers from a defect: on the first non-fatal exception for which `f` is
+   * defined, closes the failing stream and continues with the stream `f`
+   * returns. Typed errors and unmatched defects pass through unchanged. The JVM
+   * blocking-terminal caveats of [[catchAll]] apply here too.
    */
   def catchDefect[E2, E3, A2, A3](f: PartialFunction[Throwable, Stream[E2, A2]])(implicit
     errorConcat: Concat.WithOut[E @uncheckedVariance, E2, E3],
@@ -140,8 +186,12 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   }
 
   /**
-   * Groups elements into `Chunk`s of size `n`, preserving order. The final
-   * group may be smaller; `n` must be at least one.
+   * Groups consecutive elements into `Chunk`s of `n`, preserving order. The
+   * last chunk holds what is left and may be smaller; an empty stream emits no
+   * chunk.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `n < 1`
    */
   def chunked(n: Int): Stream[E, Chunk[A]] = {
     require(n >= 1, s"chunked requires n >= 1, got n=$n")
@@ -167,18 +217,36 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     )
   }
 
-  /** Applies a partial function, emitting only defined results. */
+  /**
+   * Emits `pf(a)` for each element `a` where `pf` is defined and drops the
+   * rest. An exception thrown by `pf` is a defect.
+   */
   def collect[B](pf: PartialFunction[A, B])(implicit
     jtB: JvmType.Infer[B]
   ): Stream[E, B] =
     new Stream.Collected(this, pf, jtB)
 
-  /** Asynchronously transforms defined elements, dropping `None` results. */
+  /**
+   * Runs `f` on each element, one at a time and in order, emitting the value of
+   * each `Some` and dropping each `None`. A failed `Async` is a defect.
+   */
   def collectAsync[B](f: A => Async[Option[B]])(implicit
     jtB: JvmType.Infer[B]
   ): Stream[E, B] = new Stream.AsyncCollected(this, f, jtB)
 
-  /** Emits all elements of `this` followed by all elements of `that`. */
+  /**
+   * Emits all elements of this stream, then all elements of `that`. `that` is
+   * opened only after this stream completes and closes, and a typed error in
+   * this stream ends the result without opening `that`. `++` is an alias.
+   *
+   * When the element types (or the error types) differ, the result keeps the
+   * wider one, or a meaningful common supertype such as a sealed parent;
+   * otherwise it becomes a union on Scala 3 and an `Either` on Scala 2. A known
+   * issue on Scala 2: concatenating two streams of `Nothing`, such as
+   * `Stream.empty ++ Stream.empty`, does not compile (ambiguous
+   * `JvmType.Infer`); pass the type arguments, as in
+   * `a.++[Nothing, Nothing, Nothing, Nothing](b)`.
+   */
   def concat[E2, E3, A2, A3](that: Stream[E2, A2])(implicit
     errorConcat: Concat.WithOut[E @uncheckedVariance, E2, E3],
     valueConcat: Concat.WithOut[A @uncheckedVariance, A2, A3],
@@ -190,12 +258,13 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
       jtA3.jvmType
     )
 
-  /** Asynchronously counts the number of elements. */
+  /** Counts the elements; the cross-platform form of `count`. */
   def countAsync: Async[Either[E, Long]] = runAsync(Sink.count)
 
   /**
-   * Emits the first occurrence of each element, preserving order. Distinctness
-   * state is allocated per materialization and may grow without bound.
+   * Emits the first occurrence of each element, preserving order. Each run
+   * starts with an empty set of seen elements, and the set grows with every new
+   * element, so memory is unbounded on a stream with unbounded distinct values.
    */
   def distinct: Stream[E, A] =
     new Stream.Deferred(
@@ -207,8 +276,9 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     )
 
   /**
-   * Emits the first element for each key computed by `f`, preserving order. Key
-   * state is allocated per materialization and may grow without bound.
+   * Emits the first element for each key computed by `f`, preserving order.
+   * Each run starts with an empty set of seen keys, and the set grows without
+   * bound.
    */
   def distinctBy[K](f: A => K): Stream[E, A] =
     new Stream.Deferred(
@@ -220,52 +290,92 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     )
 
   /**
-   * Sequentially computes keys and emits the first element for each key,
-   * preserving order. Key state is per materialization and may grow without
-   * bound; asynchronous failures are defects.
+   * Computes each element's key with `f`, one at a time and in order, and emits
+   * the first element for each key. Each run starts with an empty set of seen
+   * keys, which grows without bound; a failed `Async` is a defect.
    */
   def distinctByAsync[K](f: A => Async[K]): Stream[E, A] =
     new Stream.AsyncDistinctBy(this, f)
 
-  /** Skips the first `n` elements, then emits the rest. `n <= 0` is a no-op. */
+  /**
+   * Skips the first `n` elements, then emits the rest. `n <= 0` skips nothing.
+   */
   def drop(n: Long): Stream[E, A] = new Stream.Dropped(this, n)
 
   /**
-   * Registers `finalizer` lazily and runs it exactly once when the materialized
-   * stream closes, including normal completion, failure, early termination, and
-   * cancellation. A finalizer exception is a defect.
+   * Runs `finalizer` once each time a run of this stream closes: after
+   * completion, a failure, an early stop (such as a downstream `take`) or
+   * cancellation. An exception thrown by `finalizer` is a defect. If it throws
+   * after the stream has failed with a typed error, the terminal does not
+   * return that `Left`: it throws (or fails its `Async` with) the library's
+   * internal `StreamError`, whose `value` is the typed error, whose suppressed
+   * exception is the finalizer's, and whose message is `null`.
    */
   def ensuring(finalizer: => Unit): Stream[E, A] =
     new Stream.Ensuring(this, finalizer)
 
   /**
-   * Registers an asynchronous finalizer lazily and awaits it exactly once when
-   * the materialized stream closes, including normal completion, failure, early
-   * termination, and cancellation. Finalizer failure is a defect.
+   * Runs and awaits the asynchronous `finalizer` once each time a run of this
+   * stream closes: after completion, a failure, an early stop or cancellation.
+   * The close completes only after the finalizer does. A failed finalizer is a
+   * defect; if the stream had already failed, it is attached to that failure as
+   * a suppressed exception, as described for [[ensuring]].
    */
   def ensuringAsync(finalizer: => Async[Unit]): Stream[E, A] =
     new Stream.AsyncEnsuring(this, () => finalizer)
 
-  /** Asynchronously tests whether any element satisfies `pred`. */
+  /**
+   * Tests elements one at a time with `pred` and returns `true` at the first
+   * match, without pulling further, or `false` at the end. A failed `Async` is
+   * a defect.
+   */
   def existsAsync(pred: A => Async[Boolean]): Async[Either[E, Boolean]] = runAsync(Sink.existsAsync(pred))
 
-  /** Emits only elements satisfying `pred`. */
+  /**
+   * Emits only the elements for which `pred` returns `true`, in order. An
+   * exception thrown by `pred` is a defect.
+   *
+   * {{{
+   * Stream.range(1, 10).filter(_ % 3 == 0).runCollect // Right(Chunk(3,6,9))
+   * }}}
+   */
   def filter(pred: A => Boolean): Stream[E, A] =
     new Stream.Filtered(this, pred)
 
   /**
-   * Tests elements sequentially and emits those satisfying the asynchronous
-   * predicate, preserving order. Predicate failure is a defect.
+   * Tests elements one at a time with the asynchronous `pred` and emits those
+   * for which it yields `true`, in order. A failed `Async` is a defect.
    */
   def filterAsync(pred: A => Async[Boolean]): Stream[E, A] =
     new Stream.AsyncFiltered(this, pred)
 
-  /** Asynchronously returns the first element satisfying `pred`, or `None`. */
+  /**
+   * Tests elements one at a time with `pred` and returns the first match in
+   * `Some`, without pulling further, or `None` at the end. A failed `Async` is
+   * a defect.
+   */
   def findAsync(pred: A => Async[Boolean]): Async[Either[E, Option[A]]] = runAsync(Sink.findAsync(pred))
 
   /**
-   * Maps each element to an inner stream and consumes those streams
-   * sequentially in input order, closing each before advancing to the next.
+   * Maps each element to an inner stream and emits the inner streams' elements
+   * one stream after another, in input order. Each inner stream is closed
+   * before the next one opens, so resources they hold are released in order.
+   * The error type widens to cover the inner streams' errors. For concurrent
+   * inner streams, see [[flatMapPar]].
+   *
+   * {{{
+   * Stream("Zionomicon", "Scala with Cats")
+   *   .flatMap(title => Stream.fromIterable(title.split(" ").toList))
+   *   .runCollect
+   * // Right(Chunk(Zionomicon,Scala,with,Cats))
+   * }}}
+   *
+   * On the JVM blocking terminals, a known bug makes a `flatMap` whose inner
+   * streams emit reference values (such as `String`), followed by a `map` to a
+   * primitive and then `grouped`, `sliding`, `take`, `takeWhile`, `scan` or
+   * `mapAccum`, throw `ClassCastException`; when the inner streams emit
+   * primitives but the `flatMap` is typed as `Any`, the `map` function gets
+   * `null` instead. The `*Async` terminals are correct.
    */
   def flatMap[E2, E3, B](
     f: A => Stream[E2, B]
@@ -289,11 +399,25 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
       )
 
   /**
-   * Applies `f` to each element to produce an inner stream, then merges up to
-   * `n` inner streams concurrently. Output is unordered (arrival order, not
-   * input order). On JVM, each inner stream runs on a virtual thread. On JS,
-   * degrades to sequential `flatMap`. `n` must be at least one. Failure or
-   * cancellation closes the outer stream and all active inner streams.
+   * Maps each element to an inner stream with `f` and merges up to `n` inner
+   * streams at once; the same as `Stream.mergeAll(n)(this.map(f))`. Elements
+   * leave in the order they arrive, so do not rely on input order, on any
+   * platform. With `n == 1` it is exactly [[flatMap]]. The first typed error
+   * fails the result, and failure or cancellation closes the outer stream and
+   * every open inner stream.
+   *
+   * How the inner streams overlap depends on how the stream runs. A JVM
+   * blocking terminal (`runCollect`, `run` and the rest) drains each open inner
+   * stream on its own thread (a virtual thread on JDK 21+), unless the rest of
+   * the stream, outside the inner streams, has an asynchronous stage (an
+   * `*Async` operator or source, or `Stream.unwrap`), `catchAll`, `catchDefect`
+   * or `orElse`. Every other run, which includes every `*Async` terminal and
+   * every run on Scala.js, interleaves the inner streams on one engine: their
+   * asynchronous waits overlap, but synchronous work inside them runs one inner
+   * stream at a time.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `n < 1`
    */
   def flatMapPar[E1 >: E, B](n: Int)(f: A => Stream[E1, B])(implicit
     jtB: JvmType.Infer[B]
@@ -308,19 +432,40 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     }
   }
 
-  /** Asynchronously tests whether all elements satisfy `pred`. */
+  /**
+   * Tests elements one at a time with `pred` and returns `false` at the first
+   * element that fails it, without pulling further, or `true` at the end. A
+   * failed `Async` is a defect.
+   */
   def forallAsync(pred: A => Async[Boolean]): Async[Either[E, Boolean]] = runAsync(Sink.forallAsync(pred))
 
   /** Alias for [[runForeachAsync]]. */
   def foreachAsync(f: A => Async[Unit]): Async[Either[E, Unit]] = runForeachAsync(f)
 
-  /** Alias for [[chunked]]. Matches upstream naming. */
+  /**
+   * Groups consecutive elements into `Chunk`s of `n`; an alias for [[chunked]].
+   * The last chunk may be smaller.
+   *
+   * {{{
+   * Stream(1, 2, 3, 4, 5).grouped(2).runCollect
+   * // Right(Chunk(Chunk(1,2),Chunk(3,4),Chunk(5)))
+   * }}}
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `n < 1`
+   */
   def grouped(n: Int): Stream[E, Chunk[A]] = chunked(n)
 
-  /** Asynchronously returns the first element, or `None` if empty. */
+  /**
+   * Returns the first element in `Some`, or `None` for an empty stream, and
+   * pulls nothing more; the cross-platform form of `head`.
+   */
   def headAsync: Async[Either[E, Option[A]]] = runAsync(Sink.head)
 
-  /** Inserts `sep` between each pair of consecutive elements. */
+  /**
+   * Inserts `sep` between each pair of consecutive elements; a stream of zero
+   * or one element is unchanged. The element type widens as with [[concat]].
+   */
   def intersperse[A2, A3](sep: A2)(implicit
     valueConcat: Concat.WithOut[A @uncheckedVariance, A2, A3],
     jtA3: JvmType.Infer[A3]
@@ -365,29 +510,36 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   }
 
   /**
-   * Returns the underlying `Chunk` if this stream wraps a known, materialized
-   * chunk, `None` otherwise. O(1).
-   *
-   * Only streams created via [[Stream.fromChunk]], [[Stream.fromArray]], or
-   * [[Stream.empty]] return `Some`. All combinators (map, filter, take, drop,
-   * concat, etc.) return `None` because the chunk identity is lost after
-   * transformation.
+   * Returns the chunk this stream emits, without running it, when the stream is
+   * a chunk: `Some` for [[Stream.fromChunk]], [[Stream.fromArray]] and
+   * [[Stream.empty]], `None` for every other stream, including any operator
+   * applied to those three. O(1).
    */
   def knownChunk: Option[Chunk[A]] = None
 
   /**
-   * Returns the number of elements if known without consuming the stream,
+   * Returns the number of elements when it is known without running the stream,
    * `None` otherwise. O(1).
    *
-   * Element-preserving combinators like `map` propagate the count.
-   * Element-filtering combinators like `filter` invalidate it.
+   * Sources with a fixed size know it: `fromChunk`, `fromArray`, `empty`,
+   * `succeed`, `range`, `fromRange`, and `fromIterable` of a collection with a
+   * known size (a `Vector`, but not a `List`). `Stream(...)` does not. Of the
+   * operators, `map`, `mapError`, `ensuring`, `take`, `drop` and `++` (when
+   * both sides know theirs) keep or adjust a known count; every other operator,
+   * `filter` included, returns `None`.
    */
   def knownLength: Option[Long] = None
 
-  /** Asynchronously returns the last element, or `None` if empty. */
+  /**
+   * Returns the last element in `Some`, or `None` for an empty stream; the
+   * cross-platform form of `last`.
+   */
   def lastAsync: Async[Either[E, Option[A]]] = runAsync(Sink.last)
 
-  /** Lazily transforms each element with `f`, preserving order. */
+  /**
+   * Overload of `map` for a function that never returns, such as one that
+   * always throws. It keeps type inference working for `Nothing` results.
+   */
   def map(f: A => Nothing)(implicit dummy: DummyImplicit): Stream[E, Nothing] = {
     val _ = dummy
     this match {
@@ -402,7 +554,15 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     }
   }
 
-  /** Lazily transforms each element with `f`, preserving order. */
+  /**
+   * Transforms each element with `f`, in order, as it is pulled. An exception
+   * thrown by `f` is a defect. The `JvmType.Infer` evidence, which the compiler
+   * supplies, lets a primitive result travel unboxed.
+   *
+   * {{{
+   * Stream(1, 2, 3).map(_ * 2).runCollect // Right(Chunk(2,4,6))
+   * }}}
+   */
   def map[B](f: A => B)(implicit
     jtB: JvmType.Infer[B]
   ): Stream[E, B] = this match {
@@ -417,8 +577,9 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   }
 
   /**
-   * Transforms elements with a stateful function `f`, threading state `S`
-   * through each step and emitting the `B` from each result.
+   * Transforms elements with a function that also threads a state: `f` gets the
+   * current state and an element and returns the next state and the element to
+   * emit. Each run starts again from `init`.
    *
    * @param init
    *   Initial state value.
@@ -442,38 +603,55 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     )
 
   /**
-   * Asynchronously transforms elements while threading state sequentially. At
-   * most one invocation of `f` is active at a time.
+   * The asynchronous form of [[mapAccum]]: `f` returns the next state and the
+   * element to emit in an `Async`. At most one invocation of `f` is active at a
+   * time, so the state is threaded in order. A failed `Async` is a defect.
    */
   def mapAccumAsync[S, B](init: S)(f: (S, A) => Async[(S, B)])(implicit
     jtB: JvmType.Infer[B]
   ): Stream[E, B] =
     new Stream.AsyncMapAccum(this, init, f, jtB)
 
-  /** Asynchronously transforms each element. */
+  /**
+   * Transforms each element with the asynchronous `f`, one element at a time
+   * and in order. A failed `Async` is a defect, not a typed error. For several
+   * calls in flight at once, see [[mapParAsync]].
+   */
   def mapAsync[B](f: A => Async[B])(implicit
     jtB: JvmType.Infer[B]
   ): Stream[E, B] =
     new Stream.AsyncMapped(this, f, jtB)
 
   /**
-   * Transforms the error channel with `f`, leaving elements unchanged.
+   * Transforms the typed error with `f`, leaving elements and defects
+   * unchanged. An exception thrown by `f` is a defect.
    */
   def mapError[E2](f: E => E2): Stream[E2, A] =
     new Stream.ErrorMapped(this, f)
 
   /**
-   * Asynchronously transforms the typed error channel. It runs only when the
-   * source fails with a typed error; callback failure is a defect.
+   * Transforms the typed error with the asynchronous `f`. `f` runs only when
+   * this stream fails with a typed error; a failed `Async` is a defect.
    */
   def mapErrorAsync[E2](f: E => Async[E2]): Stream[E2, A] =
     new Stream.AsyncErrorMapped(this, f)
 
   /**
-   * Applies `f` to each element using `n` concurrent workers. Output is
-   * UNORDERED (arrival order, not input order). On JVM, workers run on virtual
-   * threads. On JS, degrades to sequential `map`. `n` must be at least one;
-   * failure or cancellation stops the workers and closes upstream.
+   * Applies `f` to up to `n` elements at once. Elements leave in the order
+   * their calls finish, so do not rely on input order. With `n == 1` it is
+   * exactly `map`. Failure or cancellation stops the workers and closes
+   * upstream.
+   *
+   * How the calls overlap depends on the stages before `mapPar`. When they are
+   * all synchronous, the JVM runs `f` on `n` worker threads (virtual threads on
+   * JDK 21+), under either terminal family, and Scala.js runs it as a plain
+   * `map`. When an asynchronous stage (an `*Async` operator or source) or a
+   * `catchAll`, `catchDefect` or `orElse` comes before it, each call is wrapped
+   * in a completed `Async`, so nothing overlaps on either platform. For
+   * asynchronous work, use [[mapParAsync]].
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `n < 1`
    *
    * @param n
    *   number of concurrent workers
@@ -492,10 +670,13 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   }
 
   /**
-   * Applies an asynchronous callback with at most `n` callbacks in flight.
-   * Results are emitted in completion order. `n` must be at least one; callback
-   * failure is a defect, and failure or cancellation stops all active callbacks
-   * and closes upstream.
+   * Applies the asynchronous `f` with at most `n` calls in flight and emits
+   * each result when its call completes, so output is not in input order. With
+   * `n == 1` it is exactly [[mapAsync]]. A failed `Async` is a defect; failure
+   * or cancellation stops every active call and closes upstream.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `n < 1`
    */
   def mapParAsync[B](n: Int)(f: A => Async[B])(implicit
     jtB: JvmType.Infer[B]
@@ -506,8 +687,10 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   }
 
   /**
-   * Falls back to `that` on the first typed error; defects are not handled.
-   * Alias: `||`.
+   * Continues with `that` when this stream fails with a typed error; the same
+   * as `catchAll(_ => that)`. `that` is built only on failure, elements emitted
+   * before the error stay emitted, and defects are not handled. `||` is an
+   * alias.
    */
   def orElse[E2, A2, A3](that: => Stream[E2, A2])(implicit
     valueConcat: Concat.WithOut[A @uncheckedVariance, A2, A3],
@@ -515,19 +698,43 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   ): Stream[E2, A3] =
     catchAll(_ => that)
 
-  /** Renders this stream as a human-readable description of its pipeline. */
+  /**
+   * Describes this stream's pipeline as text, such as
+   * `Stream(1, 2, 3).map(...).filter(...)`. It runs nothing and is meant for
+   * logs and debugging.
+   */
   def render: String
 
   /**
-   * Rematerializes this stream after each clean completion, producing an
-   * infinite repetition when a cycle emits elements. Typed errors and defects
-   * terminate repetition; closing the result closes the active cycle.
+   * Repeats this stream forever: when a cycle completes, the next one starts. A
+   * typed error or a defect ends the repetition, and closing the result (for
+   * example with a downstream `take`) closes the active cycle.
+   *
+   * A known bug, with both terminal families: a new cycle usually resets the
+   * previous cycle's readers instead of building the stream again.
+   * `Stream(...)`, `fromChunk`, `fromIterable`, `range` and `unfold`, with
+   * `map` or `filter` over them, repeat correctly. But effects that run when
+   * the stream opens (`Stream.eval`, `Stream.suspend`, the `acquire` of
+   * `fromAcquireRelease`) and an `ensuring` finalizer around the whole cycle
+   * can run only once in total, `mapAccum` and `distinct` keep their state,
+   * `fromIterator` hangs or stops after one cycle, and `fromInputStream` fails
+   * with `UnsupportedOperationException`. A cycle that emits nothing can make
+   * the pull loop forever.
    */
   def repeated: Stream[E, A] = new Stream.Repeated(this)
 
   /**
-   * Runs this stream through the asynchronous drain of `sink`. Materialization
-   * and cleanup are lazy, cancellation-safe, and performed exactly once.
+   * Runs this stream into `sink` and returns the sink's result; the
+   * cross-platform form of `run`. Nothing starts until the returned `Async` is
+   * driven. The stream is opened and closed once, also when the run fails or is
+   * cancelled. A typed error of the stream or of the sink is a `Left` (the
+   * error type combines both); a defect fails the `Async`.
+   *
+   * {{{
+   * import zio.blocks.async._
+   *
+   * Stream(1, 2, 3).runAsync(Sink.sumInt).block // Right(6), `block` is JVM only
+   * }}}
    */
   def runAsync[ES, E3, Z](sink: Sink[ES, A, Z])(implicit
     errorConcat: Concat.WithOut[E @uncheckedVariance, ES, E3]
@@ -557,9 +764,17 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     }
 
   /**
-   * Runs the stream asynchronously and collects all elements in order. This
-   * requires memory proportional to the entire output and does not terminate
+   * Collects every element, in order, into a `Chunk`; the cross-platform form
+   * of `runCollect`. It holds the whole output in memory and never completes
    * for an infinite stream.
+   *
+   * {{{
+   * import zio.blocks.async._
+   * import zio.blocks.chunk.Chunk
+   *
+   * val collected: Async[Either[Nothing, Chunk[Int]]] = Stream(1, 2, 3).runCollectAsync
+   * collected.block // Right(Chunk(1,2,3)), `block` is JVM only
+   * }}}
    */
   def runCollectAsync: Async[Either[E, Chunk[A]]] = {
     val direct = this match {
@@ -571,7 +786,10 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     else runAsync(Sink.collectAll)
   }
 
-  /** Runs the stream asynchronously, discarding all elements. */
+  /**
+   * Runs the stream for its effects and discards every element; the
+   * cross-platform form of `runDrain`.
+   */
   def runDrainAsync: Async[Either[E, Unit]] = {
     val direct = this match {
       case source: Stream.AsyncSource[E @unchecked, A @unchecked]    => source.runDrainDirect()
@@ -582,7 +800,11 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     else runAsync(Sink.drain)
   }
 
-  /** Specialized asynchronous fold with a `Double` accumulator. */
+  /**
+   * Folds the elements from `z` with the asynchronous `f`, one element at a
+   * time and in order; the overload for a `Double` accumulator, chosen when `z`
+   * is a `Double`. A failed `Async` is a defect.
+   */
   def runFoldAsync(z: Double)(f: (Double, A) => Async[Double]): Async[Either[E, Double]] = {
     val direct = this match {
       case mapped: Stream.Mapped[E @unchecked, _, A @unchecked]               => mapped.runFoldDoubleDirect(z, f)
@@ -596,7 +818,11 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     else runAsync(Sink.foldLeftAsync[A, Double](z)(f)(JvmType.Infer.double))
   }
 
-  /** Specialized asynchronous fold with a `Float` accumulator. */
+  /**
+   * Folds the elements from `z` with the asynchronous `f`, one element at a
+   * time and in order; the overload for a `Float` accumulator, chosen when `z`
+   * is a `Float`. A failed `Async` is a defect.
+   */
   def runFoldAsync(z: Float)(f: (Float, A) => Async[Float]): Async[Either[E, Float]] = {
     val direct = this match {
       case mapped: Stream.Mapped[E @unchecked, _, A @unchecked]               => mapped.runFoldFloatDirect(z, f)
@@ -610,7 +836,11 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     else runAsync(Sink.foldLeftAsync[A, Float](z)(f)(JvmType.Infer.float))
   }
 
-  /** Specialized asynchronous fold with an `Int` accumulator. */
+  /**
+   * Folds the elements from `z` with the asynchronous `f`, one element at a
+   * time and in order; the overload for an `Int` accumulator, chosen when `z`
+   * is an `Int`. A failed `Async` is a defect.
+   */
   def runFoldAsync(z: Int)(f: (Int, A) => Async[Int]): Async[Either[E, Int]] = {
     val direct = this match {
       case mapped: Stream.Mapped[E @unchecked, _, A @unchecked]               => mapped.runFoldIntDirect(z, f)
@@ -624,7 +854,11 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     else runAsync(Sink.foldLeftAsync[A, Int](z)(f)(JvmType.Infer.int))
   }
 
-  /** Specialized asynchronous fold with a `Long` accumulator. */
+  /**
+   * Folds the elements from `z` with the asynchronous `f`, one element at a
+   * time and in order; the overload for a `Long` accumulator, chosen when `z`
+   * is a `Long`. A failed `Async` is a defect.
+   */
   def runFoldAsync(z: Long)(f: (Long, A) => Async[Long]): Async[Either[E, Long]] = {
     val direct = dispatchFoldLongDirect(z, f)
     if (direct.asInstanceOf[AnyRef] ne null) direct
@@ -670,7 +904,12 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
       case _ => null
     }
 
-  /** Runs the stream, folding sequentially with an asynchronous callback. */
+  /**
+   * Folds the elements from `z` with the asynchronous `f`, one element at a
+   * time and in order; the cross-platform form of `runFold`. A failed `Async`
+   * is a defect. The overloads for `Double`, `Float`, `Int` and `Long`
+   * accumulators are chosen by the static type of `z` (write `0L` for `Long`).
+   */
   def runFoldAsync[Z](z: Z)(f: (Z, A) => Async[Z])(implicit
     jtZ: JvmType.Infer[Z]
   ): Async[Either[E, Z]] = {
@@ -700,7 +939,22 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
     else runAsync(Sink.foldLeftAsync[A, Z](z)(f))
   }
 
-  /** Runs the stream, applying the asynchronous callback sequentially. */
+  /**
+   * Runs the asynchronous `f` for each element, one at a time and in order; the
+   * cross-platform form of `runForeach`. A failed `Async` is a defect and stops
+   * the run. [[foreachAsync]] is an alias.
+   *
+   * {{{
+   * import zio.blocks.async._
+   *
+   * Stream("Zionomicon", "Scala with Cats")
+   *   .runForeachAsync(title => Async.succeed(println(title)))
+   *   .block // `block` is JVM only
+   * // Zionomicon
+   * // Scala with Cats
+   * // the result is Right(())
+   * }}}
+   */
   def runForeachAsync(f: A => Async[Unit]): Async[Either[E, Unit]] = {
     val direct = this match {
       case source: Stream.AsyncSource[E @unchecked, A @unchecked] => source.runForeachDirect(f)
@@ -711,8 +965,9 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   }
 
   /**
-   * Emits the accumulator at each step, starting with `init`. The output stream
-   * has one more element than the input.
+   * Emits `init`, then the running result of folding each element into it with
+   * `f`, so the output has one more element than the input. An empty stream
+   * emits `init` alone. An exception thrown by `f` is a defect.
    */
   def scan[S](init: S)(f: (S, A) => S)(implicit jtS: JvmType.Infer[S]): Stream[E, S] = {
     val self               = this
@@ -963,17 +1218,24 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   }
 
   /**
-   * Asynchronously emits the accumulator at each step, starting with `init`.
-   * The output stream has one more element than the input.
+   * The asynchronous form of [[scan]]: emits `init`, then each result of the
+   * asynchronous `f`, one step at a time. The output has one more element than
+   * the input. A failed `Async` is a defect.
    */
   def scanAsync[S](init: S)(f: (S, A) => Async[S])(implicit jtS: JvmType.Infer[S]): Stream[E, S] =
     new Stream.AsyncScan(this, init, f, jtS)
 
   /**
-   * Emits sliding windows of up to `n` elements as `Chunk`s, preserving order.
-   * Each window starts `step` elements after the previous one; gaps are skipped
-   * when `step > n`. One final partial window is emitted when it adds elements
-   * not present in the preceding window. Both arguments must be at least one.
+   * Emits windows of `n` consecutive elements as `Chunk`s, each starting `step`
+   * elements after the previous one; with `step > n` the elements in between
+   * are skipped. At the end, a shorter last window is emitted only if it holds
+   * elements no earlier window had: `Stream(1, 2, 3, 4).sliding(3, 2)` gives
+   * `Chunk(1,2,3)` and `Chunk(3,4)`, while `sliding(3, 1)` gives `Chunk(1,2,3)`
+   * and `Chunk(2,3,4)`. A stream shorter than `n` gives one short window, and
+   * an empty stream gives none.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `n < 1` or `step < 1`
    */
   def sliding(n: Int, step: Int = 1): Stream[E, Chunk[A]] = {
     require(n >= 1 && step >= 1, s"sliding requires n >= 1 and step >= 1, got n=$n, step=$step")
@@ -1286,15 +1548,18 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   }
 
   /**
-   * Materializes this stream as a caller-owned asynchronous reader. The caller
-   * must drive and await `close()` on the published reader.
+   * Opens this stream and hands its reader to the caller, who owns it: the
+   * caller pulls elements and must await the reader's `close()`, which is what
+   * runs the stream's finalizers. Do not overlap pulls. Prefer
+   * [[useReaderAsync]], which closes the reader for you.
    */
   def startAsync: Async[Reader.AsyncReader[A]] =
     acquireReaderAsync
 
   /**
-   * Emits at most the first `n` elements, then closes upstream. `n <= 0` yields
-   * an empty stream without pulling an element.
+   * Emits at most the first `n` elements, then closes upstream, which stops its
+   * work and releases its resources. `n <= 0` gives an empty stream without
+   * pulling an element.
    */
   def take(n: Long): Stream[E, A] = this match {
     case dropped: Stream.Dropped[E @unchecked, A @unchecked] =>
@@ -1307,34 +1572,46 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
   }
 
   /**
-   * Emits elements while `pred` holds, then closes on the first element where
-   * `pred` returns `false`.
+   * Emits elements while `pred` returns `true`. At the first element for which
+   * it returns `false`, the stream ends without emitting that element and
+   * closes upstream.
    */
   def takeWhile(pred: A => Boolean): Stream[E, A] =
     new Stream.TakenWhile(this, pred)
 
   /**
-   * Tests elements sequentially and emits them while the asynchronous predicate
-   * holds, then closes upstream at the first `false`. Predicate failure is a
-   * defect.
+   * The asynchronous form of [[takeWhile]]: tests elements one at a time and
+   * emits them while `pred` yields `true`, then ends and closes upstream at the
+   * first `false`. A failed `Async` is a defect.
    */
   def takeWhileAsync(pred: A => Async[Boolean]): Stream[E, A] =
     new Stream.AsyncTakeWhile(this, pred)
 
   /**
-   * Applies `f` to each element for side-effects, passing the element through.
+   * Runs `f` on each element for its side effect, such as logging, and emits
+   * the element unchanged. An exception thrown by `f` is a defect.
    */
   def tapEach(f: A => Unit): Stream[E, A] =
     new Stream.Filtered[E, A](this, a => { f(a); true })
 
-  /** Runs an asynchronous effect for each element and passes it through. */
+  /**
+   * Runs the asynchronous `f` on each element, one at a time, and emits the
+   * element unchanged once `f` completes. A failed `Async` is a defect.
+   */
   def tapEachAsync(f: A => Async[Unit]): Stream[E, A] =
     new Stream.AsyncTapped(this, f)
 
   /** Returns [[render]]. */
   override def toString: String = render
 
-  /** Uses an asynchronous reader and awaits its close on every outcome. */
+  /**
+   * Opens this stream, passes its reader to `f` and closes the reader when the
+   * `Async` returned by `f` completes, fails or is cancelled; the result is
+   * `f`'s. The reader must not escape `f`. Unlike the terminals, the result is
+   * not an `Either`: a typed stream error met by a pull fails the returned
+   * `Async` with the library's internal `StreamError`, whose `value` is the
+   * error.
+   */
   def useReaderAsync[Z](f: Reader.AsyncReader[A] => Async[Z]): Async[Z] =
     this match {
       case source: Stream.AsyncSource[_, _] =>
@@ -1344,7 +1621,15 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
       case _ => useReaderManagedAsync(f)
     }
 
-  /** Transforms this stream by applying a [[Pipeline]]. */
+  /**
+   * Transforms this stream with `pipe`; the same as `pipe.applyToStream(this)`.
+   *
+   * {{{
+   * val evensDoubled = Pipeline.filter[Int](_ % 2 == 0).andThen(Pipeline.map[Int, Int](_ * 2))
+   *
+   * Stream(1, 2, 3, 4).via(evensDoubled).runCollect // Right(Chunk(4,8))
+   * }}}
+   */
   final def via[B](pipe: Pipeline[A, B]): Stream[E, B] =
     pipe.applyToStream(this)
 
@@ -1542,7 +1827,9 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
 }
 
 /**
- * Companion object for [[Stream]]. Provides factory constructors:
+ * Constructors for [[Stream]]. Each one is lazy: it describes a source and runs
+ * nothing until a terminal pulls from it. The constructors whose names end in
+ * `Async` take `Async` effects in place of plain values.
  *
  *   - '''Values''': `Stream.succeed`, [[Stream.fail fail]],
  *     [[Stream.empty empty]], [[Stream.die die]]
@@ -2768,8 +3055,10 @@ object Stream {
   }
 
   /**
-   * Variance-safe adapter for tuple-flattening zip composition. Instances are
-   * derived from [[zio.blocks.combinators.Tuples.Tuples]].
+   * Evidence that combines an `A` and a `B` into the element `C` that
+   * [[Stream#&&]] emits, flattening tuples so that zipping three streams gives
+   * triples. The compiler derives it from
+   * [[zio.blocks.combinators.Tuples.Tuples]]; you do not write instances.
    */
   sealed trait Zip[-A, -B, +C] {
 
@@ -2777,12 +3066,12 @@ object Stream {
     def combine(left: A, right: B): C
   }
 
-  /** Derives [[Zip]] instances from tuple-flattening [[Tuples.Tuples]]. */
+  /**
+   * Derives [[Zip]] instances from [[zio.blocks.combinators.Tuples.Tuples]].
+   */
   object Zip {
 
-    /**
-     * Derives a zip adapter from the corresponding tuple-composition instance.
-     */
+    /** Derives a [[Zip]] from the matching `Tuples.Tuples` instance. */
     implicit def fromTuples[A, B, C](implicit tuples: Tuples.Tuples[A, B] { type Out = C }): Zip[A, B, C] =
       new Zip[A, B, C] {
         def combine(left: A, right: B): C = tuples.combine(left, right)
@@ -2800,8 +3089,8 @@ object Stream {
       with scala.util.control.NoStackTrace
 
   /**
-   * Creates a reusable stream from the given elements, preserving argument
-   * order.
+   * Creates a stream of the given elements, in argument order. Every run emits
+   * all of them again.
    */
   def apply[A](as: A*)(implicit jt: JvmType.Infer[A]): Stream[Nothing, A] = {
     val label =
@@ -2816,8 +3105,9 @@ object Stream {
   }
 
   /**
-   * Lazily evaluates `f` once per materialization and emits its result.
-   * Non-fatal exceptions become typed errors; fatal throwables remain defects.
+   * Evaluates `f` when the stream runs (once per run) and emits its result. A
+   * non-fatal exception thrown by `f` becomes the typed error; a fatal one
+   * (such as `OutOfMemoryError`) stays a defect.
    */
   def attempt[A](f: => A)(implicit jtA: JvmType.Infer[A]): Stream[Throwable, A] =
     new FromSyncReader(
@@ -2829,9 +3119,9 @@ object Stream {
     )
 
   /**
-   * Lazily evaluates an asynchronous thunk once per materialization and emits
-   * its result. Non-fatal synchronous throws and asynchronous failures become
-   * typed errors; fatal throwables remain defects.
+   * Evaluates the asynchronous `f` when the stream runs (once per run) and
+   * emits its result. A non-fatal exception, thrown or carried by the failed
+   * `Async`, becomes the typed error; a fatal one stays a defect.
    */
   def attemptAsync[A](f: => Async[A])(implicit jtA: JvmType.Infer[A]): Stream[Throwable, A] =
     new GenericAsyncSource[Throwable, A](
@@ -2846,8 +3136,9 @@ object Stream {
     )
 
   /**
-   * Lazily executes `f` once per materialization and emits nothing. Non-fatal
-   * exceptions become typed errors; fatal throwables remain defects.
+   * Runs `f` when the stream runs (once per run) and emits nothing. A non-fatal
+   * exception thrown by `f` becomes the typed error; a fatal one stays a
+   * defect.
    */
   def attemptEval(f: => Any): Stream[Throwable, Nothing] =
     suspend {
@@ -2856,9 +3147,9 @@ object Stream {
     }
 
   /**
-   * Lazily executes an asynchronous effect once per materialization and emits
-   * nothing. Non-fatal synchronous throws and asynchronous failures become
-   * typed errors; fatal throwables remain defects.
+   * Runs the asynchronous `f` when the stream runs (once per run) and emits
+   * nothing. A non-fatal exception, thrown or carried by the failed `Async`,
+   * becomes the typed error; a fatal one stays a defect.
    */
   def attemptEvalAsync(f: => Async[Any]): Stream[Throwable, Nothing] =
     new GenericAsyncSource[Throwable, Nothing](
@@ -2871,9 +3162,15 @@ object Stream {
     )
 
   /**
-   * Lazily constructs `body` with `n` as the materialization buffer size for
-   * concurrent operators in that region. Nested regions use the innermost size.
-   * `n` must be a positive power of two.
+   * Builds `body` with `n` as the buffer size of the concurrent operators
+   * inside it, in place of the default 64: on the JVM, the size of each queue
+   * of a `mapPar` whose upstream is synchronous. Nested regions use the
+   * innermost size. A known bug: a JVM blocking terminal (`runCollect`, `run`
+   * and the rest) ignores `n` and keeps 64, unless the stream has an
+   * asynchronous stage, `catchAll`, `catchDefect` or `orElse`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `n` is not a positive power of two
    */
   def bufferSize[E, A](n: Int)(body: => Stream[E, A]): Stream[E, A] = {
     require(n >= 1 && (n & (n - 1)) == 0, s"bufferSize must be a positive power of 2, got $n")
@@ -2881,9 +3178,10 @@ object Stream {
   }
 
   /**
-   * Creates an empty stream that lazily registers `f` as a release action. `f`
-   * runs exactly once when each materialization closes, including after
-   * failure, early termination, or cancellation; exceptions are defects.
+   * Creates an empty stream whose close runs `f`, once per run: after
+   * completion, a failure, an early stop or cancellation. As the left side of
+   * `++` it closes, and so runs `f`, before the right side starts. An exception
+   * thrown by `f` is a defect.
    */
   def defer(f: => Unit): Stream[Nothing, Nothing] =
     new FromSyncReader[Nothing, Nothing](
@@ -2893,10 +3191,8 @@ object Stream {
     )
 
   /**
-   * Creates an empty stream that lazily registers an asynchronous release
-   * action. It is awaited exactly once when each materialization closes,
-   * including after failure, early termination, or cancellation; failure is a
-   * defect.
+   * The asynchronous form of [[defer]]: creates an empty stream whose close
+   * runs and awaits `finalizer`, once per run. A failed `Async` is a defect.
    */
   def deferAsync(finalizer: => Async[Unit]): Stream[Nothing, Nothing] =
     new StableAsyncSource(
@@ -2905,11 +3201,15 @@ object Stream {
       ElementRepresentation.Boxed
     )
 
-  /** Creates a stream that, when pulled, terminates with `t` as a defect. */
+  /**
+   * Creates a stream that fails with the defect `t` when pulled: a blocking
+   * terminal throws `t` and an `*Async` terminal fails its `Async` with it.
+   * Only [[Stream#catchDefect]] recovers from it.
+   */
   def die(t: Throwable): Stream[Nothing, Nothing] =
     new FromSyncReader(() => new DyingReader(t), "Stream.die(...)", ElementRepresentation.Boxed)
 
-  /** The empty stream that emits no elements. */
+  /** A stream that emits no elements and completes at once. */
   val empty: Stream[Nothing, Nothing] =
     new FromSyncReader(() => Reader.closed, "Stream.empty", ElementRepresentation.Boxed) {
       override def knownChunk: Option[Chunk[Nothing]] = Some(Chunk.empty)
@@ -2917,15 +3217,16 @@ object Stream {
     }
 
   /**
-   * Lazily executes `f` once per materialization and emits nothing. Any thrown
-   * exception is a defect.
+   * Runs `f` when the stream runs (once per run) and emits nothing. An
+   * exception thrown by `f` is a defect; use [[attemptEval]] to turn it into a
+   * typed error.
    */
   def eval(f: => Any): Stream[Nothing, Nothing] =
     suspend { f; empty }
 
   /**
-   * Lazily executes an asynchronous effect once per materialization and emits
-   * nothing; synchronous throws and asynchronous failures are defects.
+   * Runs the asynchronous `f` when the stream runs (once per run) and emits
+   * nothing. A thrown exception or a failed `Async` is a defect.
    */
   def evalAsync(f: => Async[Any]): Stream[Nothing, Nothing] =
     new GenericAsyncSource(
@@ -2934,8 +3235,8 @@ object Stream {
     )
 
   /**
-   * Creates a stream that, when pulled, fails in the typed channel with
-   * `error`.
+   * Creates a stream that fails with the typed error `error` when pulled, so a
+   * terminal returns `Left(error)`.
    */
   def fail[E](error: E): Stream[E, Nothing] =
     new FromSyncReader(
@@ -2945,18 +3246,41 @@ object Stream {
     )
 
   /**
-   * Consumes the inner streams sequentially in outer-stream order, closing each
-   * inner stream before advancing to the next.
+   * Flattens a stream of streams, emitting the inner streams one after another
+   * in order; the same as `streams.flatMap(identity)`. Each inner stream is
+   * closed before the next opens. For concurrent inner streams, see
+   * [[mergeAll]].
    */
   def flattenAll[E, A](streams: Stream[E, Stream[E, A]])(implicit jtA: JvmType.Infer[A]): Stream[E, A] =
     streams.flatMap(identity)(Concat.derive[E, E].asInstanceOf[Concat.WithOut[E, E, E]], jtA)
 
   /**
-   * Lazily acquires one resource per materialization, constructs the stream
-   * with `use`, and releases the resource exactly once after completion,
-   * failure, early termination, or cancellation. If omitted, `release` closes
-   * an `AutoCloseable` and otherwise does nothing. Thrown exceptions are
-   * defects; use [[attempt]] to model acquisition failures as typed errors.
+   * Acquires a resource when the stream runs, builds the stream with `use`, and
+   * runs `release` once when that stream closes: after completion, a failure,
+   * an early stop (such as a downstream `take`) or cancellation. Each run
+   * acquires its own resource, and nested resources are released in reverse
+   * order of acquisition. The default `release` closes an `AutoCloseable` and
+   * does nothing for other values.
+   *
+   * {{{
+   * import java.io.{BufferedReader, StringReader}
+   *
+   * val lines = Stream.fromAcquireRelease(
+   *   { println("open"); new BufferedReader(new StringReader("Zionomicon\nScala with Cats")) },
+   *   (in: BufferedReader) => { in.close(); println("close") }
+   * )(in => Stream.fromIterator(Iterator.continually(in.readLine()).takeWhile(_ != null)))
+   *
+   * lines.take(1).runCollect
+   * // open
+   * // close
+   * // the result is Right(Chunk(Zionomicon))
+   * }}}
+   *
+   * An exception thrown by `acquire`, by `use` or by `release` is a defect, not
+   * a typed error; when `use` throws, `release` still runs first. To get a
+   * failed acquisition as a typed error, acquire with [[attempt]] and pass the
+   * resource on:
+   * `Stream.attempt(open()).flatMap(r => Stream.fromAcquireRelease(r, close)(use))`.
    */
   def fromAcquireRelease[R, E, A](
     acquire: => R,
@@ -2965,11 +3289,11 @@ object Stream {
     new FromAcquireRelease(acquire, release, use)
 
   /**
-   * Lazily acquires one resource per materialization, constructs the stream
-   * with `use`, and awaits release exactly once after completion, failure,
-   * early termination, or cancellation (including cancellation during
-   * acquisition after the resource is obtained). Acquisition, `use`, and
-   * release failures are defects.
+   * The asynchronous form of [[fromAcquireRelease]]: runs `acquire` when the
+   * stream runs, builds the stream with `use`, and runs and awaits `release`
+   * once when that stream closes, also when it is cancelled during acquisition
+   * after the resource is obtained. A failure of `acquire`, `use` or `release`
+   * is a defect.
    */
   def fromAcquireReleaseAsync[R, E, A](
     acquire: => Async[R],
@@ -2978,21 +3302,32 @@ object Stream {
     new FromAcquireReleaseAsync(() => acquire, release, use, jtA)
 
   /**
-   * Creates a stream from an array. The array is wrapped via `Chunk.fromArray`
-   * without copying, so later array mutation may be observable.
+   * Creates a stream of the array's elements. The array is wrapped without
+   * copying, so a later change to it shows in later runs.
    */
   def fromArray[A](array: Array[A])(implicit jt: JvmType.Infer[A]): Stream[Nothing, A] =
     fromChunk(Chunk.fromArray(array))
 
-  /** Creates a reusable, already-materialized stream backed by `chunk`. */
+  /**
+   * Creates a stream of the chunk's elements. Every run emits all of them, and
+   * [[Stream#knownChunk]] returns the chunk.
+   */
   def fromChunk[A](chunk: Chunk[A])(implicit jt: JvmType.Infer[A]): Stream[Nothing, A] =
     new FromChunkStream(chunk, jt)
 
   /**
-   * Lazily wraps an already-created [[java.io.InputStream]] as bytes. Read
-   * failures are typed [[java.io.IOException]] values; close failures are
-   * defects. The stream is closed after completion, failure, early termination,
-   * or cancellation; each materialization reuses the same supplied instance.
+   * Creates a stream of the bytes read from `is` and closes `is` when the
+   * stream closes: after completion, a failure, an early stop or cancellation.
+   * An `IOException` while reading is the typed error; one while closing is a
+   * defect. Every run reads the same `is`, which the first run closes, so a
+   * second run usually returns `Left(IOException)`; a `ByteArrayInputStream`
+   * ignores `close`, and there it continues where the first run stopped.
+   *
+   * {{{
+   * val bytes = Stream.fromInputStream(new java.io.ByteArrayInputStream("ZIO".getBytes("UTF-8")))
+   *
+   * bytes.runCollect // Right(Chunk(90,73,79))
+   * }}}
    */
   def fromInputStream(is: java.io.InputStream): Stream[java.io.IOException, Byte] =
     new FromAcquireRelease(
@@ -3003,9 +3338,9 @@ object Stream {
     )
 
   /**
-   * Wraps a [[java.io.InputStream]] as a stream of bytes without managing its
-   * lifecycle. I/O failures are typed [[java.io.IOException]] values. The
-   * caller owns closing, and each materialization reuses the supplied instance.
+   * Creates a stream of the bytes read from `is` without ever closing it; the
+   * caller owns `is`. An `IOException` while reading is the typed error. Every
+   * run reads the same `is`.
    */
   def fromInputStreamUnmanaged(is: java.io.InputStream): Stream[java.io.IOException, Byte] =
     new FromSyncReader(
@@ -3015,9 +3350,15 @@ object Stream {
     )
 
   /**
-   * Lazily obtains and consumes an iterator from `it` for each materialization,
-   * preserving iteration order. If the iterable has a known size, `knownLength`
-   * is set. Iterator exceptions are defects.
+   * Creates a stream of the collection's elements, in iteration order. Every
+   * run takes a fresh iterator from `it`. When `it.knownSize` is known (a
+   * `Vector`, but not a `List`), so is [[Stream#knownLength]]. An exception
+   * thrown by the iterator is a defect.
+   *
+   * {{{
+   * Stream.fromIterable(List("Zionomicon", "Scala with Cats")).map(_.length).runCollect
+   * // Right(Chunk(10,15))
+   * }}}
    */
   def fromIterable[A](it: Iterable[A])(implicit jtA: JvmType.Infer[A]): Stream[Nothing, A] = {
     val size = it.knownSize
@@ -3040,9 +3381,11 @@ object Stream {
   }
 
   /**
-   * Evaluates `it` once per materialization and consumes it in order. Supply a
-   * fresh iterator for repeatable runs; iterator and thunk exceptions are
-   * defects.
+   * Creates a stream of the iterator's elements. `it` is a by-name argument
+   * evaluated once per run, so an expression that builds a new iterator
+   * (`Iterator(1, 2)`) gives every run all elements, while a `val` holding one
+   * iterator is used up by the first run. An exception thrown by `it` or by the
+   * iterator is a defect.
    */
   def fromIterator[A](it: => Iterator[A])(implicit jtA: JvmType.Infer[A]): Stream[Nothing, A] =
     new FromSyncReader(
@@ -3052,17 +3395,19 @@ object Stream {
     )
 
   /**
-   * Asynchronously obtains one iterator per materialization and consumes it in
-   * order. Acquisition and iterator failures are defects.
+   * Obtains an iterator from the asynchronous `it` when the stream runs (once
+   * per run) and emits its elements. A failed `Async` or an exception thrown by
+   * the iterator is a defect.
    */
   def fromIteratorAsync[A](it: => Async[Iterator[A]])(implicit jtA: JvmType.Infer[A]): Stream[Nothing, A] =
     fromReaderAsync(StreamError.callbackAsync(it).map(iter => iteratorReader(iter)))
 
   /**
-   * Lazily wraps an already-created [[java.io.Reader]] as characters. Read
-   * failures are typed [[java.io.IOException]] values; close failures are
-   * defects. The reader is closed after completion, failure, early termination,
-   * or cancellation; each materialization reuses the same supplied instance.
+   * Creates a stream of the characters read from `r` and closes `r` when the
+   * stream closes: after completion, a failure, an early stop or cancellation.
+   * An `IOException` while reading is the typed error; one while closing is a
+   * defect. Every run reads the same `r`, which the first run closes, so a
+   * second run usually returns `Left(IOException)`.
    */
   def fromJavaReader(r: java.io.Reader): Stream[java.io.IOException, Char] =
     new FromAcquireRelease(
@@ -3073,9 +3418,9 @@ object Stream {
     )
 
   /**
-   * Wraps a [[java.io.Reader]] as a stream of Chars without managing its
-   * lifecycle. I/O failures are typed [[java.io.IOException]] values. The
-   * caller owns closing, and each materialization reuses the supplied instance.
+   * Creates a stream of the characters read from `r` without ever closing it;
+   * the caller owns `r`. An `IOException` while reading is the typed error.
+   * Every run reads the same `r`.
    */
   def fromJavaReaderUnmanaged(r: java.io.Reader): Stream[java.io.IOException, Char] =
     new FromSyncReader(
@@ -3085,8 +3430,8 @@ object Stream {
     )
 
   /**
-   * Creates a stream of integers from a Scala `Range`. The `knownLength` is set
-   * from the range size.
+   * Creates a stream of the integers in `range`, including its step, such as
+   * `1 to 10 by 3`. [[Stream#knownLength]] is the range's size.
    */
   def fromRange(range: Range): Stream[Nothing, Int] =
     new FromSyncReader(
@@ -3102,16 +3447,24 @@ object Stream {
     }
 
   /**
-   * Lazily obtains one `Reader` per materialization and closes it when the
-   * stream closes. Reader-thunk failures are defects. This advanced overload
-   * preserves whether the returned reader is synchronous or asynchronous.
+   * Creates a stream from a reader that `mkReader` builds when the stream runs
+   * (once per run), and closes that reader when the stream closes. An advanced
+   * overload for a reader whose kind is known only at run time: the stream
+   * keeps the reader synchronous or asynchronous as built. An exception thrown
+   * by `mkReader` is a defect.
+   *
+   * Because the stream cannot tell that the reader is synchronous, a blocking
+   * terminal does not treat it as one: `flatMapPar` and `mergeAll` over it run
+   * on `ForkJoinPool.commonPool`, with no overlap. The overload below, which
+   * takes a synchronous reader, avoids this.
    */
   def fromReader[E, A](mkReader: => Reader[A]): Stream[E, A] =
     new FromReader(() => StreamError.callback(mkReader))
 
   /**
-   * Lazily obtains one synchronous reader per materialization and closes it
-   * when the stream closes. Reader-thunk failures are defects.
+   * Creates a stream from the synchronous reader that `mkReader` builds when
+   * the stream runs (once per run), and closes that reader when the stream
+   * closes. An exception thrown by `mkReader` is a defect.
    */
   def fromReader[E, A](mkReader: => Reader.SyncReader[A])(implicit
     dummy1: DummyImplicit,
@@ -3122,8 +3475,9 @@ object Stream {
   }
 
   /**
-   * Preserves overload resolution for a reader thunk that never returns.
-   * Evaluation remains lazy and a thrown exception is a defect.
+   * Overload for a `mkReader` that never returns a reader, such as one that
+   * always throws; it keeps overload resolution unambiguous. `mkReader` runs
+   * when the stream runs, and its exception is a defect.
    */
   def fromReader[E, A](mkReader: => Nothing)(implicit
     dummy1: DummyImplicit,
@@ -3135,8 +3489,9 @@ object Stream {
   }
 
   /**
-   * Lazily obtains one asynchronous reader per materialization and awaits its
-   * close when the stream closes. Reader-thunk failures are defects.
+   * Creates a stream from the asynchronous reader that `mkReader` builds when
+   * the stream runs (once per run), and closes and awaits that reader when the
+   * stream closes. An exception thrown by `mkReader` is a defect.
    */
   def fromReader[E, A](mkReader: => Reader.AsyncReader[A])(implicit dummy: DummyImplicit): Stream[E, A] = {
     val _ = dummy
@@ -3144,26 +3499,41 @@ object Stream {
   }
 
   /**
-   * Lazily runs `mkReader` once per materialization and closes the resulting
-   * reader when the stream closes. Effect and thunk failures are defects.
+   * Creates a stream from the reader that the asynchronous `mkReader` yields
+   * when the stream runs (once per run), and closes that reader when the stream
+   * closes. A thrown exception or a failed `Async` is a defect.
    */
   def fromReaderAsync[E, A](mkReader: => Async[Reader[A]])(implicit jtA: JvmType.Infer[A]): Stream[E, A] =
     new ProtectedAsyncSource(() => mkReader, ElementRepresentation.fromJvmType(jtA.jvmType))
 
   /**
-   * Lazily creates a `Scope` per materialization, acquires `resource` in it,
-   * and closes the scope after completion, failure, early termination, or
-   * cancellation. Acquisition and scope-finalization failures are defects.
+   * Opens a new `Scope` when the stream runs (once per run), acquires
+   * `resource` in it, builds the stream with `use`, and closes the scope when
+   * that stream closes: after completion, a failure, an early stop or
+   * cancellation. A failure of acquisition or of a scope finalizer is a defect.
    */
   def fromResource[R, E, A](resource: Resource[R])(use: R => Stream[E, A]): Stream[E, A] =
     new FromResource(resource, use)
 
   /**
-   * Merges up to `maxOpen` inner streams concurrently into a single output
-   * stream. Elements arrive in completion order (unordered with respect to
-   * input position). On JVM, each inner stream runs on a virtual thread. On JS,
-   * degrades to sequential `flatMap`. `maxOpen` must be at least one. Failure
-   * or cancellation closes the outer stream and all active inner streams.
+   * Merges a stream of streams, draining up to `maxOpen` inner streams at once.
+   * Elements leave in the order they arrive, so do not rely on input order, on
+   * any platform. With `maxOpen == 1` it is exactly [[flattenAll]]. The first
+   * typed error fails the result, and failure or cancellation closes the outer
+   * stream and every open inner stream.
+   *
+   * How the inner streams overlap depends on how the stream runs. A JVM
+   * blocking terminal (`runCollect`, `run` and the rest) drains each open inner
+   * stream on its own thread (a virtual thread on JDK 21+), unless the rest of
+   * the stream, outside the inner streams, has an asynchronous stage (an
+   * `*Async` operator or source, or `Stream.unwrap`), `catchAll`, `catchDefect`
+   * or `orElse`. Every other run, which includes every `*Async` terminal and
+   * every run on Scala.js, interleaves the inner streams on one engine: their
+   * asynchronous waits overlap, but synchronous work inside them runs one inner
+   * stream at a time.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `maxOpen < 1`
    *
    * @param maxOpen
    *   maximum number of concurrently active inner streams
@@ -3186,15 +3556,18 @@ object Stream {
   }
 
   /**
-   * Creates a stream of integers from `from` (inclusive) to `until`
-   * (exclusive).
+   * Creates a stream of the integers from `from` (inclusive) to `until`
+   * (exclusive); empty when `until <= from`.
    */
   def range(from: Int, until: Int): Stream[Nothing, Int] = {
     val range = Range(from, until)
     new IntRange(from, until, range.length)
   }
 
-  /** Creates a lazy infinite stream that repeatedly emits `a`. */
+  /**
+   * Creates an infinite stream that emits `a` again and again; limit it with an
+   * operator such as `take`.
+   */
   def repeat[A](a: A)(implicit jt: JvmType.Infer[A]): Stream[Nothing, A] =
     new FromSyncReader(
       () => Reader.repeat[A](a),
@@ -3202,7 +3575,7 @@ object Stream {
       ElementRepresentation.fromJvmType(jt.jvmType)
     )
 
-  /** Creates a stream that emits a single Boolean. */
+  /** Creates a stream that emits the single `Boolean` `a`, unboxed. */
   def succeed(a: Boolean): Stream[Nothing, Boolean] =
     new FromSyncReader(
       () => Reader.singleBoolean(a),
@@ -3214,9 +3587,7 @@ object Stream {
       override def scalarBoolean: Boolean    = a
     }
 
-  /**
-   * Creates a stream that emits a single Byte.
-   */
+  /** Creates a stream that emits the single `Byte` `a`, unboxed. */
   def succeed(a: Byte): Stream[Nothing, Byte] =
     new FromSyncReader(() => Reader.singleByte(a), "Stream.succeed(...)", ElementRepresentation.Known(JvmType.Byte))
       with ScalarNode {
@@ -3225,7 +3596,7 @@ object Stream {
       override def scalarByte: Byte          = a
     }
 
-  /** Creates a stream that emits a single Char. */
+  /** Creates a stream that emits the single `Char` `a`, unboxed. */
   def succeed(a: Char): Stream[Nothing, Char] =
     new FromSyncReader(() => Reader.singleChar(a), "Stream.succeed(...)", ElementRepresentation.Known(JvmType.Char))
       with ScalarNode {
@@ -3234,7 +3605,7 @@ object Stream {
       override def scalarChar: Char          = a
     }
 
-  /** Creates a stream that emits a single Double. */
+  /** Creates a stream that emits the single `Double` `a`, unboxed. */
   def succeed(a: Double): Stream[Nothing, Double] =
     new FromSyncReader(
       () => Reader.singleDouble(a),
@@ -3246,7 +3617,7 @@ object Stream {
       override def scalarDouble: Double      = a
     }
 
-  /** Creates a stream that emits a single Float. */
+  /** Creates a stream that emits the single `Float` `a`, unboxed. */
   def succeed(a: Float): Stream[Nothing, Float] =
     new FromSyncReader(() => Reader.singleFloat(a), "Stream.succeed(...)", ElementRepresentation.Known(JvmType.Float))
       with ScalarNode {
@@ -3255,11 +3626,11 @@ object Stream {
       override def scalarFloat: Float        = a
     }
 
-  /** Creates a stream that emits a single Int. */
+  /** Creates a stream that emits the single `Int` `a`, unboxed. */
   def succeed(a: Int): Stream[Nothing, Int] =
     new SingletonInt(a)
 
-  /** Creates a stream that emits a single Long. */
+  /** Creates a stream that emits the single `Long` `a`, unboxed. */
   def succeed(a: Long): Stream[Nothing, Long] =
     new FromSyncReader(() => Reader.singleLong(a), "Stream.succeed(...)", ElementRepresentation.Known(JvmType.Long))
       with ScalarNode {
@@ -3268,7 +3639,7 @@ object Stream {
       override def scalarLong: Long          = a
     }
 
-  /** Creates a stream that emits a single Short. */
+  /** Creates a stream that emits the single `Short` `a`, unboxed. */
   def succeed(a: Short): Stream[Nothing, Short] =
     new FromSyncReader(() => Reader.singleShort(a), "Stream.succeed(...)", ElementRepresentation.Known(JvmType.Short))
       with ScalarNode {
@@ -3277,7 +3648,11 @@ object Stream {
       override def scalarShort: Short        = a
     }
 
-  /** Creates a stream that emits a single element `a`, then closes. */
+  /**
+   * Creates a stream that emits the single element `a`. Primitive arguments
+   * pick the unboxed overloads, so `Stream.succeed(1.toByte)` is a
+   * `Stream[Nothing, Byte]`.
+   */
   def succeed[A](a: A): Stream[Nothing, A] =
     new FromSyncReader(
       () => Reader.single[A](a)(JvmType.Infer.boxed[A]),
@@ -3290,14 +3665,17 @@ object Stream {
     }
 
   /**
-   * Defers stream construction until run-time. Useful for recursive streams.
+   * Builds the stream with `stream` when it runs (once per run) rather than
+   * when it is defined, which makes recursive definitions safe.
    */
   def suspend[E, A](stream: => Stream[E, A]): Stream[E, A] =
     new Deferred(() => stream)
 
   /**
-   * Lazily unfolds state sequentially, emitting each `A` and continuing with
-   * the paired state until `f` returns `None`. Callback exceptions are defects.
+   * Generates elements from a state: starting with `s`, each `Some((a, next))`
+   * returned by `f` emits `a` and continues with `next`, and `None` ends the
+   * stream. Every run starts again from `s`. An exception thrown by `f` is a
+   * defect.
    */
   def unfold[S, A](s: S)(f: S => Option[(A, S)])(implicit jtA: JvmType.Infer[A]): Stream[Nothing, A] =
     new FromSyncReader(
@@ -3307,9 +3685,9 @@ object Stream {
     )
 
   /**
-   * Lazily unfolds state sequentially, emitting each `A` and continuing with
-   * the paired state until `f` returns `None`. At most one callback is active;
-   * callback failure is a defect.
+   * The asynchronous form of [[unfold]]: each step's `Async` yields
+   * `Some((a, next))` to emit `a` and continue, or `None` to end. At most one
+   * step runs at a time, and a failed `Async` is a defect.
    */
   def unfoldAsync[S, A](s: S)(f: S => Async[Option[(A, S)]])(implicit jtA: JvmType.Infer[A]): Stream[Nothing, A] =
     new StableAsyncSource(
@@ -3319,8 +3697,9 @@ object Stream {
     )
 
   /**
-   * Flattens an asynchronously produced stream. The effect is evaluated lazily
-   * for each materialization, and failures in the effect are stream defects.
+   * Overload of `unwrap` for a stream of `Nothing`, which keeps type inference
+   * working. Runs `stream` when the result runs and emits what the produced
+   * stream emits; a failed `Async` is a defect.
    */
   def unwrap[E](stream: => Async[Stream[E, Nothing]])(implicit dummy: DummyImplicit): Stream[E, Nothing] = {
     val _ = dummy
@@ -3328,9 +3707,11 @@ object Stream {
   }
 
   /**
-   * Flattens an asynchronously produced stream. The effect is evaluated lazily
-   * once per materialization; effect failures are defects, while the produced
-   * stream retains its typed error channel.
+   * Turns an `Async` that produces a stream into that stream: runs `stream`
+   * when the result runs (once per run) and then emits what the produced stream
+   * emits. A failed `Async` is a defect, while a typed error of the produced
+   * stream stays a typed error. Use it to feed an asynchronously built stream
+   * to an operator with no `*Async` form, such as `flatMap` or `catchAll`.
    */
   def unwrap[E, A](stream: => Async[Stream[E, A]])(implicit jtA: JvmType.Infer[A]): Stream[E, A] =
     new Unwrapped(() => stream, jtA.jvmType)
@@ -3488,6 +3869,8 @@ object Stream {
   )
 
   private[streams] trait StackCompileNode { self: Stream[_, _] =>
+
+    /** The frame that compiles this node without recursion. */
     def stackFrame(bufferSize: Int): CompileFrame
   }
 
@@ -3521,8 +3904,14 @@ object Stream {
   }
 
   private[streams] trait AsyncFusableNode extends StackCompileNode { self: Stream[_, _] =>
+
+    /** Appends this node's operation to `interpreter`. */
     def appendFused(interpreter: AsyncInterpreter): Unit
+
+    /** Whether this node needs the asynchronous engine. */
     def forcesAsync: Boolean
+
+    /** The upstream node this one fuses onto. */
     def fusableSource: Stream[_, _]
   }
 
@@ -3711,9 +4100,17 @@ object Stream {
   ): Reader.AsyncReader[B] = transformSync(source)(configure)
 
   private[streams] trait LinearOperator extends StackCompileNode { self: Stream[_, _] =>
+
+    /** Appends this operator to an asynchronous interpreter. */
     def appendAsync(interpreter: AsyncInterpreter): Unit
+
+    /** Appends this operator to a synchronous interpreter. */
     def appendSync(interpreter: SyncInterpreter): Unit
+
+    /** The upstream node of this operator. */
     def linearSource: Stream[_, _]
+
+    /** Compiles the chain of linear operators above a source in one frame. */
     final def stackFrame(bufferSize: Int): CompileFrame =
       unaryFrame(
         linearSource,
@@ -6270,16 +6667,38 @@ object Stream {
    * terminal types.
    */
   private[streams] trait ScalarNode { self: Stream[_, _] =>
+
+    /** The lane of the single element. */
     def scalarType: JvmType
+
+    /** The element, when [[scalarType]] is `Boolean`; throws otherwise. */
     def scalarBoolean: Boolean = throw new IllegalStateException("not a Boolean scalar")
-    def scalarByte: Byte       = throw new IllegalStateException("not a Byte scalar")
-    def scalarChar: Char       = throw new IllegalStateException("not a Char scalar")
-    def scalarDouble: Double   = throw new IllegalStateException("not a Double scalar")
-    def scalarFloat: Float     = throw new IllegalStateException("not a Float scalar")
-    def scalarInt: Int         = throw new IllegalStateException("not an Int scalar")
-    def scalarLong: Long       = throw new IllegalStateException("not a Long scalar")
-    def scalarShort: Short     = throw new IllegalStateException("not a Short scalar")
-    def scalarRef: AnyRef      = throw new IllegalStateException("not a reference scalar")
+
+    /** The element, when [[scalarType]] is `Byte`; throws otherwise. */
+    def scalarByte: Byte = throw new IllegalStateException("not a Byte scalar")
+
+    /** The element, when [[scalarType]] is `Char`; throws otherwise. */
+    def scalarChar: Char = throw new IllegalStateException("not a Char scalar")
+
+    /** The element, when [[scalarType]] is `Double`; throws otherwise. */
+    def scalarDouble: Double = throw new IllegalStateException("not a Double scalar")
+
+    /** The element, when [[scalarType]] is `Float`; throws otherwise. */
+    def scalarFloat: Float = throw new IllegalStateException("not a Float scalar")
+
+    /** The element, when [[scalarType]] is `Int`; throws otherwise. */
+    def scalarInt: Int = throw new IllegalStateException("not an Int scalar")
+
+    /** The element, when [[scalarType]] is `Long`; throws otherwise. */
+    def scalarLong: Long = throw new IllegalStateException("not a Long scalar")
+
+    /** The element, when [[scalarType]] is `Short`; throws otherwise. */
+    def scalarShort: Short = throw new IllegalStateException("not a Short scalar")
+
+    /**
+     * The element, when [[scalarType]] is a reference type; throws otherwise.
+     */
+    def scalarRef: AnyRef = throw new IllegalStateException("not a reference scalar")
   }
 
   private final class LazyBlockingReader[A](outType: JvmType, initialize: () => Reader.SyncReader[A])

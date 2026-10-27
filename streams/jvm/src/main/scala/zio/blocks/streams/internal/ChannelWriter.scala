@@ -25,7 +25,8 @@ import java.nio.channels.WritableByteChannel
 
 /**
  * Writer adapter that writes bytes to a `WritableByteChannel` with internal
- * buffering.
+ * buffering. A known bug: a failed flush marks the writer closed, so a later
+ * `close()` never closes the channel.
  */
 private[streams] final class ChannelWriter(ch: WritableByteChannel, bufSize: Int) extends Writer[Byte] {
 

@@ -10,8 +10,8 @@ import zio.blocks.schema.patch._
  *   - Computing a diff between two values (schema.diff — same call site)
  *   - Applying a patch (schema.patch — error type changes from String to
  *     SchemaError)
- *   - Creating patches programmatically (new in ZIO Blocks; no equivalent in
- *     ZIO Schema)
+ *   - Creating patches programmatically with optics (ZIO Schema has no
+ *     optic-based patch constructors)
  *   - Patch composition with ++
  *   - PatchMode.Strict / Lenient / Clobber
  *
@@ -36,7 +36,7 @@ object Step4DiffAndPatch extends App {
 
   // ─────────────────────────────────────────────────────────────────────────
   // 1. Computing a diff
-  //    ZIO Schema: Differ.fromSchema(schema).diff(a, b) or schema.diff(a, b)
+  //    ZIO Schema: Differ.fromSchema(schema)(a, b) or schema.diff(a, b)
   //    ZIO Blocks: schema.diff(a, b)  ← same call site
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -57,9 +57,9 @@ object Step4DiffAndPatch extends App {
   println(s"Patch applied:     $applied")
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 3. Creating patches programmatically (new in ZIO Blocks)
-  //    ZIO Schema has no structured API for this; you had to produce a Patch
-  //    only by diffing two values.
+  // 3. Creating patches programmatically with optics (new in ZIO Blocks)
+  //    ZIO Schema has no optic-based constructors: you diff two values or
+  //    assemble the cases of its Patch ADT by hand.
   // ─────────────────────────────────────────────────────────────────────────
 
   val renamePatch: Patch[Person] = Patch.set(Person.nameLens, "Charlie")
@@ -79,9 +79,10 @@ object Step4DiffAndPatch extends App {
 
   // ─────────────────────────────────────────────────────────────────────────
   // 5. PatchMode variants
-  //    Strict  — fail if any operation fails
-  //    Lenient — skip failed operations, apply the rest
-  //    Clobber — allow overwrite on type conflicts
+  //    Strict  — stop at the first operation that fails
+  //    Lenient — skip the operations that fail, apply the rest
+  //    Clobber — like Lenient, but a map add replaces an existing key and an
+  //              out-of-range sequence insert or delete is clamped
   // ─────────────────────────────────────────────────────────────────────────
 
   val empty: Patch[Person] = Patch.empty[Person]

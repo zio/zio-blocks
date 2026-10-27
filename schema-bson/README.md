@@ -16,7 +16,7 @@ Add to your `build.sbt`:
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "<version>"
 ```
 
-This module depends on `org.mongodb:bson:5.2.1`, which is included transitively.
+This module depends on `org.mongodb:bson:5.13.0`, which is included transitively.
 
 ## Usage
 

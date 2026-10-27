@@ -51,6 +51,8 @@ val flat: Maybe[Int] = maybeNested.flatten
 // flat is absent (Absent)
 ```
 
+See also [How to Avoid Allocation on Hot Paths](../guides/avoid-allocation-on-hot-paths.md) for swapping `Option` for `Maybe` in a hot loop and measuring the effect.
+
 ## Motivation
 
 When working with optional values, you face a choice: `Option[A]` provides type safety and functional composition but allocates a wrapper object for every value. `Maybe[A]` provides an alternative with different trade-offs depending on your Scala version.

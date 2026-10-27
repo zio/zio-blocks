@@ -240,4 +240,4 @@ Within the module, the dependency direction is one-way: attributes and events bo
 
 ## Next Steps
 
-Start with [Signals](./signals.md), which every other page builds on, then [Attributes](./attributes.md) for the declarative surface and [Event Handlers](./events.md) for triggers. [Server-Sent Events](./sse.md) covers the server half.
+Start with [Signals](./signals.md), which every other page builds on, then [Attributes](./attributes.md) for the declarative surface and [Event Handlers](./events.md) for triggers. [Server-Sent Events](./sse.md) covers the server half. To build a counter and a live dashboard step by step, follow [Build a Live Counter and Dashboard with Datastar](../../guides/build-a-live-dashboard-with-datastar.md).

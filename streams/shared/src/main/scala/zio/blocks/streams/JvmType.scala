@@ -17,27 +17,25 @@
 package zio.blocks.streams
 
 /**
- * Tag identifying which JVM type `A` corresponds to: one of the 8 primitives,
- * or `AnyRef` for reference types.
+ * The lane an element type travels on: one of the eight JVM primitive types, or
+ * `AnyRef` for every other type, whose values travel boxed.
  *
- * Used throughout the streaming library for runtime specialization dispatch:
- *   - [[zio.blocks.streams.io.Reader]] checks `jvmType` to select
- *     sentinel-return pull paths (`readInt`, `readLong`, etc.).
- *   - [[zio.blocks.streams.Sink]] dispatches on `jvmType` to avoid boxing in
- *     drain, fold, and collect loops.
- *
- * Identity comparison (`eq`) is safe because each variant is a singleton
- * `case object`.
+ * Readers and writers report their lane through `jvmType`, and streams, sinks
+ * and pipelines find it through [[JvmType.Infer]]; the engine dispatches on it
+ * to move primitive values without boxing, for example through `Reader#readInt`
+ * on the `Int` lane. Each lane is a `case object`, so comparing lanes with `eq`
+ * is safe.
  *
  * @param ordinal
- *   Stable integer identifier for serialization or indexing.
+ *   The lane's index, from 0 (`Int`) to 8 (`AnyRef`), in the order the
+ *   companion declares them; [[JvmType.fromOrdinal]] maps it back.
  */
 sealed abstract class JvmType(val ordinal: scala.Int)
 
 /**
- * Companion enumerating all 8 JVM primitive types plus the `AnyRef` fallback
- * for reference types. Also contains [[JvmType.Infer]], the type-class that
- * maps Scala types to their `JvmType` at compile time.
+ * The nine lanes: the eight JVM primitive types and `AnyRef`. Also holds
+ * [[JvmType.Infer]], the type class that finds the lane of a type at compile
+ * time.
  */
 object JvmType {
 
@@ -65,13 +63,20 @@ object JvmType {
   /** Scala `Boolean` / Java `boolean`. */
   case object Boolean extends JvmType(7)
 
-  /** Any reference type (String, case classes, etc.). */
+  /**
+   * Every type that is not one of the eight primitives (`String`, case classes,
+   * and so on), and any type the compiler cannot see as a primitive, such as an
+   * abstract type parameter.
+   */
   case object AnyRef extends JvmType(8)
 
   private val byOrdinal: Array[JvmType] =
     Array(Int, Long, Double, Float, Byte, Short, Char, Boolean, AnyRef)
 
-  /** Returns the [[JvmType]] for the given ordinal index (0–8). */
+  /**
+   * Returns the lane whose [[JvmType#ordinal]] is `i`. Throws
+   * `ArrayIndexOutOfBoundsException` when `i` is outside 0 to 8.
+   */
   def fromOrdinal(i: scala.Int): JvmType = byOrdinal(i)
 
   // --------------------------------------------------------------------------
@@ -79,40 +84,64 @@ object JvmType {
   // --------------------------------------------------------------------------
 
   /**
-   * A type class that records at compile time which JVM type `A` maps to.
+   * A type class that records at compile time which lane `A` travels on.
    *
-   * Invariant in `A`, so primitive evidence cannot accidentally satisfy
-   * `Infer[Nothing]` and fallback evidence cannot drive output inference toward
-   * `Any` when the precise primitive type is available.
+   * An instance exists for every type: the eight primitives have their own, and
+   * every other type gets the low-priority `AnyRef` fallback, so an
+   * `(implicit jt: JvmType.Infer[A])` parameter always resolves. Resolution
+   * happens where `A` is known: inside generic code, where `A` is an abstract
+   * type parameter, it finds the `AnyRef` fallback even when the caller later
+   * passes an `Int`, unless that code takes its own `Infer[A]` parameter.
    *
-   * Adding `(implicit jt: JvmType.Infer[A])` to a method is always
-   * source-compatible — it never fails to resolve.
+   * `Infer` is invariant in `A`, so the instance for one primitive never stands
+   * in for another type's.
    */
   sealed trait Infer[A] {
 
-    /** The [[JvmType]] tag for `A`, or `AnyRef` for reference types. */
+    /** The lane of `A`: its primitive lane, or `AnyRef`. */
     def jvmType: JvmType
 
-    /** Convenience check: `true` when `A` is `Byte`. */
+    /** Returns `true` when `A` is on the `Byte` lane. */
     final def isByte: scala.Boolean = jvmType eq JvmType.Byte
   }
 
   /**
-   * Implicit instances for all 8 JVM primitive types and a low-priority
-   * fallback.
+   * The instances for the eight primitive types and `Nothing`, plus the
+   * low-priority `AnyRef` fallback for every other type.
    */
   object Infer extends LowPriorityJvmTypeInferPlatform {
-    implicit val nothing: Infer[Nothing]       = boxed[Nothing]
-    implicit val int: Infer[scala.Int]         = new Infer[scala.Int] { def jvmType = JvmType.Int }
-    implicit val long: Infer[scala.Long]       = new Infer[scala.Long] { def jvmType = JvmType.Long }
-    implicit val double: Infer[scala.Double]   = new Infer[scala.Double] { def jvmType = JvmType.Double }
-    implicit val float: Infer[scala.Float]     = new Infer[scala.Float] { def jvmType = JvmType.Float }
-    implicit val byte: Infer[scala.Byte]       = new Infer[scala.Byte] { def jvmType = JvmType.Byte }
-    implicit val short: Infer[scala.Short]     = new Infer[scala.Short] { def jvmType = JvmType.Short }
-    implicit val char: Infer[scala.Char]       = new Infer[scala.Char] { def jvmType = JvmType.Char }
+
+    /** `Nothing` has no values to carry, so its lane is `AnyRef`. */
+    implicit val nothing: Infer[Nothing] = boxed[Nothing]
+
+    /** The `Int` lane. */
+    implicit val int: Infer[scala.Int] = new Infer[scala.Int] { def jvmType = JvmType.Int }
+
+    /** The `Long` lane. */
+    implicit val long: Infer[scala.Long] = new Infer[scala.Long] { def jvmType = JvmType.Long }
+
+    /** The `Double` lane. */
+    implicit val double: Infer[scala.Double] = new Infer[scala.Double] { def jvmType = JvmType.Double }
+
+    /** The `Float` lane. */
+    implicit val float: Infer[scala.Float] = new Infer[scala.Float] { def jvmType = JvmType.Float }
+
+    /** The `Byte` lane. */
+    implicit val byte: Infer[scala.Byte] = new Infer[scala.Byte] { def jvmType = JvmType.Byte }
+
+    /** The `Short` lane. */
+    implicit val short: Infer[scala.Short] = new Infer[scala.Short] { def jvmType = JvmType.Short }
+
+    /** The `Char` lane. */
+    implicit val char: Infer[scala.Char] = new Infer[scala.Char] { def jvmType = JvmType.Char }
+
+    /** The `Boolean` lane. */
     implicit val boolean: Infer[scala.Boolean] = new Infer[scala.Boolean] { def jvmType = JvmType.Boolean }
 
-    /** Safe boxed fallback for statically erased input types. */
+    /**
+     * Returns an instance on the `AnyRef` lane for any `A`, for code that
+     * passes an `Infer` explicitly and wants the boxed lane.
+     */
     def boxed[A]: Infer[A] = new Infer[A] { def jvmType = JvmType.AnyRef }
   }
 

@@ -29,19 +29,17 @@ import java.util.concurrent.locks.LockSupport
  * The per-worker input queue is `IntSpscRingBuffer`; the worker reads primitive
  * `Int` values directly without boxing.
  *
- * The per-worker output queue is selected at construction time based on
- * `outType`:
- *   - `JvmType.Int` → `IntSpscRingBuffer`
+ * The per-worker output queue is selected at construction time from `outType`:
+ *   - `JvmType.Boolean` / `Byte` / `Char` / `Short` / `Int` →
+ *     `IntSpscRingBuffer`
  *   - `JvmType.Long` → a full-domain raw 64-bit SPSC queue
  *   - `JvmType.Float` → `FloatSpscRingBuffer`
  *   - `JvmType.Double` → a full-domain raw 64-bit SPSC queue
- *   - everything else → `SpscRingBuffer[AnyRef]` (boxed fallback for reference
- *     types and unspecialized primitives like `Byte`/`Short`/etc.)
+ *   - everything else → `SpscRingBuffer[AnyRef]` (boxed fallback)
  *
  * When the output queue is primitive there is **zero allocation** on the
- * worker-to-consumer hot path. End-of-stream is signalled with the in-band DONE
- * sentinel of each output queue; the consumer counts DONE markers and
- * terminates once all `n` workers have signalled.
+ * worker-to-consumer hot path. Each worker signals its end on its output queue,
+ * and the consumer ends once all `n` workers have.
  */
 private[streams] final class IntConcurrentMapParReader[B](
   upstream: Reader.SyncReader[_],

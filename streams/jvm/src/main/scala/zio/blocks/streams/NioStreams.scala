@@ -20,56 +20,66 @@ import java.nio.ByteBuffer
 import java.nio.channels.ReadableByteChannel
 
 /**
- * JVM-only convenience constructors for creating [[Stream]] instances backed by
- * NIO [[ByteBuffer]]s and [[ReadableByteChannel]]s.
+ * Streams over `java.nio` sources (JVM only): a `ByteBuffer` read as bytes or
+ * as `Int`, `Long`, `Float` or `Double` values, and a blocking
+ * `ReadableByteChannel`. Each one reads through the matching [[NioReaders]]
+ * reader.
  *
- * Each method wraps an NIO source as a Stream.
+ * The buffer streams consume the buffer: a run advances its position to the
+ * limit, so running the same stream again emits nothing. A known bug: a `take`
+ * or `drop` on such a stream is pushed into the reader and moves the buffer's
+ * limit and position, and the run leaves them there: after `take(2)` the
+ * buffer's limit is its old position plus 2, so the rest of the buffer is
+ * hidden from later readers.
  */
 object NioStreams {
 
-  /** Creates a stream of bytes from a [[ByteBuffer]]. */
+  /** Returns a stream of the bytes from `buf`'s position to its limit. */
   def fromByteBuffer(buf: ByteBuffer): Stream[Nothing, Byte] =
     Stream.fromReader(NioReaders.fromByteBuffer(buf))
 
   /**
-   * Creates a stream of Doubles from a [[ByteBuffer]] (8 bytes per element).
+   * Returns a stream of the `Double`s in `buf`, 8 bytes each, in `buf`'s byte
+   * order; fewer than 8 bytes left over at the end are not read.
    */
   def fromByteBufferDouble(buf: ByteBuffer): Stream[Nothing, Double] =
     Stream.fromReader(NioReaders.fromByteBufferDouble(buf))
 
-  /** Creates a stream of Floats from a [[ByteBuffer]] (4 bytes per element). */
+  /**
+   * Returns a stream of the `Float`s in `buf`, 4 bytes each, in `buf`'s byte
+   * order; fewer than 4 bytes left over at the end are not read.
+   */
   def fromByteBufferFloat(buf: ByteBuffer): Stream[Nothing, Float] =
     Stream.fromReader(NioReaders.fromByteBufferFloat(buf))
 
-  /** Creates a stream of Ints from a [[ByteBuffer]] (4 bytes per element). */
+  /**
+   * Returns a stream of the `Int`s in `buf`, 4 bytes each, in `buf`'s byte
+   * order; fewer than 4 bytes left over at the end are not read.
+   */
   def fromByteBufferInt(buf: ByteBuffer): Stream[Nothing, Int] =
     Stream.fromReader(NioReaders.fromByteBufferInt(buf))
 
-  /** Creates a stream of Longs from a [[ByteBuffer]] (8 bytes per element). */
+  /**
+   * Returns a stream of the `Long`s in `buf`, 8 bytes each, in `buf`'s byte
+   * order; fewer than 8 bytes left over at the end are not read.
+   */
   def fromByteBufferLong(buf: ByteBuffer): Stream[Nothing, Long] =
     Stream.fromReader(NioReaders.fromByteBufferLong(buf))
 
   /**
-   * Creates a buffered stream of bytes from a
-   * [[java.nio.channels.ReadableByteChannel]]. Closes the channel when done.
+   * Returns a stream of the bytes of `ch`, read through a buffer of `bufSize`
+   * bytes. The stream closes `ch` when it ends, fails or is stopped early (for
+   * example by `take`), and an `IOException` from `ch` ends the run with it as
+   * the typed error (`Left(e)`).
    *
-   * @param ch
-   *   The channel to read from.
-   * @param bufSize
-   *   Internal buffer size in bytes (default 8192).
+   * `ch` must be in blocking mode: a channel read that returns no bytes ends
+   * the stream early, with no error.
    */
   def fromChannel(ch: ReadableByteChannel, bufSize: Int = 8192): Stream[java.io.IOException, Byte] =
     Stream.fromAcquireRelease(ch, (c: ReadableByteChannel) => c.close())(c => fromChannelUnmanaged(c, bufSize))
 
   /**
-   * Creates a buffered stream of bytes from a
-   * [[java.nio.channels.ReadableByteChannel]] without managing its lifecycle.
-   * The caller is responsible for closing the channel.
-   *
-   * @param ch
-   *   The channel to read from.
-   * @param bufSize
-   *   Internal buffer size in bytes (default 8192).
+   * [[fromChannel]] without closing `ch`: the caller owns `ch` and closes it.
    */
   def fromChannelUnmanaged(ch: ReadableByteChannel, bufSize: Int = 8192): Stream[java.io.IOException, Byte] =
     Stream.fromReader(NioReaders.fromChannelUnmanaged(ch, bufSize))

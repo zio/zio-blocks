@@ -22,14 +22,17 @@ import zio.blocks.streams.io.Reader
 import StreamState.{stageStart => ss, incomingLen => il, stageEnd => se, outgoingLen => ol, outputLane => olane}
 
 /**
- * An optimized interpreter that compiles a chain of stream operations (map,
- * filter, flatMap, source reads) into a flat-array representation for efficient
- * dispatch. This is the fallback compilation strategy for deep pipelines
- * (beyond `Stream.DepthCutoff`) and is used by `SyncInterpreter.fromStream`.
+ * The synchronous interpreter: a reader that runs a chain of stream operations
+ * (source reads, `map`, `filter` and `flatMap` steps) as flat arrays, with the
+ * value of each step kept on its primitive lane. A JVM blocking terminal
+ * compiles a stream into it (`SyncInterpreter.fromStream`) unless the stream
+ * has a blocking compilation of its own, as plain sources do, or needs an
+ * asynchronous boundary; chains of linear operators over a synchronous reader
+ * also compile into it.
  *
- * Internally, each op is a (Long, AnyRef) pair stored at the same index in two
- * parallel arrays. The Long's bottom 8 bits hold the [[OpTag]]; the upper 56
- * bits hold [[StreamState]] for Read/Push ops.
+ * Each operation is a pair at the same index of two parallel arrays: a `Long`
+ * whose low 8 bits hold its `OpTag`, and the function or reader it runs. The
+ * stage positions are kept apart, as `StreamState` values.
  */
 final class SyncInterpreter private[internal] () extends Reader.SyncReader[Any] {
   import SyncInterpreter._
@@ -64,6 +67,12 @@ final class SyncInterpreter private[internal] () extends Reader.SyncReader[Any] 
   private var closing: Boolean                      = false
   private var closePending: Boolean                 = false
 
+  /**
+   * Closes every source reader the interpreter holds (deferred while a reset or
+   * another operation runs) and throws the first failure, which is an earlier
+   * pull failure if there was one and otherwise the first close failure; later
+   * calls throw it again.
+   */
   def close(): Unit = {
     if (resetting) {
       closeRequestedDuringReset = true
@@ -115,6 +124,7 @@ final class SyncInterpreter private[internal] () extends Reader.SyncReader[Any] 
     }
   }
 
+  /** `true` once closed, at the end, after a failure, or during a reset. */
   def isClosed: Boolean = resetting || transitionFailure != null || closed || exhausted
 
   override def readable(): Boolean = {
@@ -131,8 +141,15 @@ final class SyncInterpreter private[internal] () extends Reader.SyncReader[Any] 
 
   override def jvmType: JvmType = if (stableOutputType eq null) outputType else stableOutputType
 
+  /**
+   * The lane of the elements the interpreter emits, or `AnyRef` once closed.
+   */
   def outputType: JvmType = if (!closed) logicalOutputType else JvmType.AnyRef
 
+  /**
+   * Pulls the next element through the operations, or returns `sentinel` at the
+   * end.
+   */
   def read[A1 >: Any](sentinel: A1): A1 = {
     if (resetting) return sentinel
     if (transitionFailure != null) throw transitionFailure
@@ -1637,6 +1654,7 @@ final class SyncInterpreter private[internal] () extends Reader.SyncReader[Any] 
   private def stageStart: Int = ss(state)
 }
 
+/** Builders and lane helpers for [[SyncInterpreter]]. */
 private[streams] object SyncInterpreter {
   private[streams] final val ConcurrentOperationMessage = "Cannot perform a reentrant reader operation"
   private[streams] final case class MaterializationCheckpoint(state: StreamState, lane: Lane, logicalType: JvmType)

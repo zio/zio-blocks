@@ -3,6 +3,7 @@ id: index
 title: "Guides"
 description: "Step-by-step guides to building with ZIO Blocks."
 displayed_sidebar: guides
+pagination_next: null
 ---
 
 import SidebarCards from '../SidebarCards.jsx';

@@ -23,7 +23,7 @@ final case class OpenAPI(
 )
 ```
 
-See also: [How to Write an OpenAPI Document and Export It as JSON or YAML](../guides/write-and-export-openapi.md) walks through a complete document, from component schemas to JSON and YAML output.
+See also: [How to Write an OpenAPI Document and Export It as JSON or YAML](../guides/write-and-export-openapi.md) walks through a complete document, from component schemas to JSON and YAML output. For the opposite direction, [How to Generate Scala Types from an OpenAPI Spec at Build Time](../guides/generate-scala-types-from-openapi.md) parses a document and generates Scala types from its component schemas.
 
 ## Introduction
 

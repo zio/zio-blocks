@@ -4,15 +4,130 @@ on:
     types: [published]
   workflow_dispatch:  # Manual trigger
 
-# The site is built by Netlify itself (netlify.toml, build.sh). A release rebuilds it so the install line on the landing
-# page shows the new version; this workflow only triggers that build.
+# The website is built here, in GitHub Actions, so every step (mdoc, Scaladoc, Docusaurus) shows its log in this run.
+# Netlify only hosts the finished files: the deploy job uploads the build artifact to the production site.
+permissions: {}
+
+# One production deploy at a time. A running deploy is never cancelled half-way through an upload.
+concurrency:
+  group: deploy-website
+  cancel-in-progress: false
+
 jobs:
-  deploy:
+  build:
+    name: Build website
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    # Only a release or a run on main reaches production: a manual run on another branch is refused here.
+    if: ${{ (github.event_name == 'release') || (github.ref == 'refs/heads/main') }}
+    steps:
+      - name: Git Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Setup Scala
+        uses: actions/setup-java@v6.0.1
+        with:
+          distribution: corretto
+          java-version: '25'
+          check-latest: true
+      - name: Setup SBT
+        uses: sbt/setup-sbt@v1.5.7
+      - name: Cache Dependencies
+        uses: coursier/cache-action@v8.1.1
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.12.0
+      - name: Install yarn
+        run: npm install -g yarn
+      - name: Install website dependencies
+        run: yarn install --cwd website --frozen-lockfile
+      - name: Generate documentation with mdoc
+        run: sbt docs/mdoc
+      - name: Generate API documentation with Scaladoc
+        run: sbt docs/generateApiDocs
+      - name: Build website
+        run: yarn --cwd website build
+        env:
+          # The Google Analytics tag is added only when this is "production" (website/docusaurus.config.js). Netlify used to
+          # set it; this workflow now sets it, so only this production deploy sends page views.
+          CONTEXT: production
+          SITE_URL: ${{ vars.SITE_URL }}
+          # The docs search box (website/src/algolia.js). Unset values leave the search box out of the build.
+          ALGOLIA_APP_ID: ${{ vars.ALGOLIA_APP_ID }}
+          ALGOLIA_SEARCH_API_KEY: ${{ vars.ALGOLIA_SEARCH_API_KEY }}
+          ALGOLIA_INDEX_NAME: ${{ vars.ALGOLIA_INDEX_NAME }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload website build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-build
+          path: ./website/build
+          overwrite: true
+          retention-days: 7
+
+  deploy:
+    name: Deploy website to Netlify
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions: {}
     steps:
-      - name: Trigger Netlify Deploy
-        run: |
-          curl -fsS -X POST -d {} "$NETLIFY_DEPLOY_WEBHOOK"
+      - name: Download website build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: website-build
+          path: website-build
+      - name: Deploy to Netlify production
+        id: netlify
+        uses: nwtgck/actions-netlify@v4.0
+        with:
+          publish-dir: ./website-build
+          production-deploy: true
+          enable-pull-request-comment: false
+          enable-commit-comment: false
+          enable-github-deployment: false
+          deploy-message: 'Deploy ${{ github.ref_name }} ${{ github.sha }}'
         env:
-          NETLIFY_DEPLOY_WEBHOOK: ${{ secrets.NETLIFY_DEPLOY_WEBHOOK }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          # The production site, not the preview site that NETLIFY_SITE_ID points at (see deploy-preview.yml).
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_PRODUCTION_SITE_ID }}
+      - name: Write run summary
+        if: ${{ always() }}
+        env:
+          OUTCOME: ${{ steps.netlify.outcome }}
+          DEPLOY_URL: ${{ steps.netlify.outputs.deploy-url }}
+        run: |
+          {
+            echo "### Website deploy"
+            echo ""
+            if [ "$OUTCOME" = "success" ]; then
+              echo "Deployed to production: $DEPLOY_URL"
+            else
+              echo "Deploy to Netlify failed. Build logs above; the Netlify dashboard has the upload details."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Check the live site serves this commit
+        if: ${{ steps.netlify.outcome == 'success' }}
+        env:
+          # The production domain (website/docusaurus.config.js). version.txt is written by the build with the commit SHA.
+          LIVE_URL: https://zioblocks.com
+          EXPECTED: ${{ github.sha }}
+        run: |
+          # Netlify's CDN can keep serving old files for a short time, so poll for up to 5 minutes. The query string is
+          # a timestamp, so no cached copy answers the request.
+          served=""
+          for attempt in $(seq 1 20); do
+            served=$(curl -fsS "$LIVE_URL/version.txt?check=$(date +%s)" | head -n 1 | sed 's/^commit: //' || true)
+            if [ "$served" = "$EXPECTED" ]; then
+              echo "Live site serves $EXPECTED (attempt $attempt)."
+              echo "Live site at $LIVE_URL serves commit \`$EXPECTED\`." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::$LIVE_URL still serves commit '${served:-unknown}' after 5 minutes; expected $EXPECTED."
+          exit 1

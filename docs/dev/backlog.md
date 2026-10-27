@@ -550,3 +550,15 @@ Plan: `docs/superpowers/plans/2026-10-21-schema-scaladoc.md`. Style: `docs/dev/s
 | 8b. JSON I/O             | Done        | #1843 | 3206 / 6919 (46%) | 3230 / 6919 (47%) |
 
 Completed 2026-10-26: coverage 1208 / 6917 → 3334 / 6919 (old heuristic, which also counted locals); with the scope-aware count from this PR, 3232 of 3775 API members are documented (85%), and every undocumented one inherits its doc or is tier 3.
+
+## 12. Scaladoc: streams module
+
+Plan: `docs/superpowers/plans/2026-10-26-streams-scaladoc.md`. Style: `docs/dev/scaladoc-style.md`. Coverage: `python3 -I .claude/scripts/scaladoc-coverage.py streams` (TOTAL row, documented / declarations).
+
+| Wave                       | Status      | PR | Coverage before | Coverage after |
+|----------------------------|-------------|----|-----------------|----------------|
+| 0. Tooling                 | Done        | #1850 | 361 / 561 (64%) | 361 / 561 (64%) |
+| 1. Stream, Sink, Pipeline  | Done        | #1855 | 361 / 561 (64%) | 388 / 561 (69%) |
+| 2. io (Reader, Writer)     | Done        | #1862 | 388 / 561 (69%) | 431 / 561 (76%) |
+| 3. Platform and internals  | In review   |    | 431 / 561 (76%) | 561 / 561 (100%) |
+| 4. Close-out               | Not started |    |                 |                |

@@ -28,35 +28,83 @@ import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
 /**
- * Minimal facades for the WHATWG byte-stream API. They avoid imposing a DOM
- * library on users of the streams module.
+ * Asynchronous readers over a byte `ReadableStream` of the WHATWG Streams API
+ * (Scala.js only), such as the body of a `fetch` response, with minimal facades
+ * for the types they use, so no DOM library is needed.
+ *
+ * Each factory calls `stream.getReader()` at once, which locks the stream (a
+ * stream that is already locked makes the factory throw a
+ * `js.JavaScriptException` that wraps the JavaScript `TypeError`), and keeps
+ * that reader until `close()`. The reader reads one `Uint8Array` chunk at a
+ * time, skips empty chunks, allows one pull at a time (a pull started while
+ * another is in flight fails with `IllegalStateException`), and later calls to
+ * `close()` return the outcome of the first.
+ *
+ * A rejected read fails the pull's `Async` with a
+ * `zio.blocks.streams.internal.StreamError` whose `value` is the rejection (a
+ * `js.JavaScriptException` for a JavaScript error), and every later pull fails
+ * with it again. A known bug: a stream built with `Stream.fromReader` over such
+ * a reader does not turn that failure into its typed error; the terminal's
+ * `Async` fails with the `StreamError` instead.
  */
 object ReadableStreamReaders {
+
+  /** The result of one `StreamReader#read`: a chunk, or the end. */
   @js.native
   trait ReadResult extends js.Object {
-    val done: Boolean     = js.native
+
+    /** `true` when the stream has no more chunks. */
+    val done: Boolean = js.native
+
+    /** The chunk of bytes, when `done` is `false`. */
     val value: Uint8Array = js.native
   }
+
+  /**
+   * The reader that `ReadableStream#getReader` returns, which locks the stream.
+   */
   @js.native
   trait StreamReader extends js.Object {
+
+    /** Reads the next chunk. */
     def read(): js.Promise[ReadResult] = js.native
-    def cancel(): js.Promise[Unit]     = js.native
-    def releaseLock(): Unit            = js.native
+
+    /** Cancels the stream. */
+    def cancel(): js.Promise[Unit] = js.native
+
+    /** Releases the lock on the stream. */
+    def releaseLock(): Unit = js.native
   }
+
+  /** A JavaScript `ReadableStream` whose chunks are `Uint8Array`s. */
   @js.native
   trait ReadableStream extends js.Object {
+
+    /** Returns a reader and locks the stream to it. */
     def getReader(): StreamReader = js.native
   }
 
-  /** Owns the acquired reader and cancels the JavaScript stream on close. */
+  /**
+   * Returns a reader of the bytes of `stream` that owns it: `close()` cancels
+   * `stream`, waits for a read in flight, and then releases the lock. When the
+   * cancel fails, for example because `stream` has already failed, `close()`
+   * fails with that error.
+   */
   def fromReadableStream(stream: ReadableStream): Reader.AsyncReader[Byte] =
     new JsReadableStreamReader(stream.getReader(), managed = true)
 
-  /** Releases, but never cancels, the caller-owned JavaScript reader. */
+  /**
+   * Returns a reader of the bytes of `stream` that leaves it to the caller:
+   * `close()` releases the lock and never cancels `stream`.
+   */
   def fromReadableStreamUnmanaged(stream: ReadableStream): Reader.AsyncReader[Byte] =
     new JsReadableStreamReader(stream.getReader(), managed = false)
 }
 
+/**
+ * The reader behind [[ReadableStreamReaders]]; `managed` selects the owning
+ * form.
+ */
 private final class JsReadableStreamReader(
   reader: ReadableStreamReaders.StreamReader,
   managed: Boolean

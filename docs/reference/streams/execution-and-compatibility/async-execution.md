@@ -659,4 +659,5 @@ cd streams-examples && sbt "runMain stream.StreamAsyncOrderPipelineExample"
 - [Bounded Concurrency](../core/stream.md#bounded-concurrency) — `mapPar`, `mapParAsync`, `mergeAll`, and `flatMapPar`
 - [Platform Differences](./platform-differences.md) — what exists on the JVM, what exists on Scala.js, and what throws
 - [Async](../../async.md) — `Async[A]`, `Pollable`, `Completer`, `Async.Running`, and cancellation
+- [How to Run Streams Without Blocking](../../../guides/run-streams-without-blocking.md) — swapping blocking terminals for their `Async` twins, with a Scala.js run and a `ReadableStream` source
 - [Zero-Boxing Optimization](./zero-boxing.md) — primitive lanes, and why async is lane-aware rather than end-to-end allocation-free

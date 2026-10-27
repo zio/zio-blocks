@@ -729,7 +729,7 @@ val verbose = model.prettyPrint(indent = 8)
 
 ## Common Use-Cases
 
-See how to apply Smithy parsing and querying to real-world workflows: code generation, validation, and model transformation.
+See how to apply Smithy parsing and querying to real-world workflows: code generation, validation, and model transformation. For a complete, compiled walk-through of code generation, see [Generate Scala Code from a Smithy Model](../guides/generate-scala-code-from-smithy.md).
 
 ### Use-Case 1: Code Generation
 

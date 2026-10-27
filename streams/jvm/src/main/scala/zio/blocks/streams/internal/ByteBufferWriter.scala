@@ -22,7 +22,8 @@ import zio.blocks.streams.io.{Reader, Writer}
 import java.nio.ByteBuffer
 
 /**
- * Writer that writes bytes to a `ByteBuffer`; auto-closes when buffer is full.
+ * Writer that writes bytes to a `ByteBuffer`; closes when a write finds the
+ * buffer full.
  */
 private[streams] final class ByteBufferWriter(buffer: ByteBuffer) extends Writer[Byte] {
 

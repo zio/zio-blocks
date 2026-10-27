@@ -23,28 +23,46 @@ import zio.blocks.streams.JvmType
 import java.io.{IOException, OutputStream, Writer => JWriter}
 
 /**
- * The write-side dual of [[Reader]]: a producer pushes elements and observes
- * when the channel is done. Used internally by channel-based implementations
- * and available directly for push-based integration.
+ * A push-based sink for elements, the counterpart of [[Reader]]: the producer
+ * calls [[write]] for each element, and `false` tells it that the writer is
+ * closed and takes no more. Use it to adapt a destination such as a
+ * `java.io.OutputStream` or `java.io.Writer`, or write your own by implementing
+ * [[write]], [[isClosed]] and [[close]].
+ *
+ * ==Closing==
+ * [[close]] ends the writer cleanly, and [[fail]] ends it with an error. The
+ * default [[fail]] only calls [[close]]; a subclass can override it to keep the
+ * error and throw it from later writes, but none of the library's writers does.
+ * Implementations should make both idempotent and keep [[isClosed]] `true` once
+ * it is.
+ *
+ * ==Deferred writes==
+ * Each operation has a mirror ending in `Async` ([[writeAsync]],
+ * [[closeAsync]], ...) that returns an `Async`: building it does nothing, and
+ * running it calls the operation once, on the running thread. If the `Async` is
+ * cancelled first, the writer is closed. The mirrors do not move a blocking
+ * write to another thread or make it non-blocking.
  *
  * ==Thread safety==
- * Writer instances are ''not'' thread-safe unless otherwise documented. They
- * are designed for single-threaded push-based production.
+ * Writers are not thread-safe: write from one thread at a time.
  *
- * ==Termination==
- * A writer is closed by calling [[close]] (clean) or [[fail]] (with error).
- * After [[close]], [[write]] returns `false`. After [[fail]], subclasses that
- * override [[fail]] may cause [[write]] to throw the stored error; the default
- * [[fail]] simply delegates to [[close]]. Both are idempotent; only the first
- * call wins.
+ * {{{
+ * import zio.blocks.chunk.Chunk
+ * import zio.blocks.streams.io.Writer
  *
- * ==Laws==
- *   - `isClosed` is monotone: once `true` it never returns `false`.
- *   - After `isClosed`: `write` returns `false` (clean close) or throws (error
- *     close, if the subclass implements error storage via [[fail]]).
+ * val out    = new java.io.StringWriter
+ * val writer = Writer.fromWriter(out)
+ * writer.write('Z')                // true
+ * writer.writeAll(Chunk('I', 'O')) // Chunk()
+ * writer.close()
+ * writer.write('!')                // false
+ * out.toString                     // ZIO
+ * }}}
  *
  * @tparam Elem
- *   Element type (contravariant).
+ *   the type of the elements this writer accepts
+ * @see
+ *   [[https://zioblocks.com/reference/streams/primitives/writer/ Writer]]
  */
 abstract class Writer[-Elem] {
 
@@ -57,76 +75,131 @@ abstract class Writer[-Elem] {
   private def deferred[A](operation: => A): Async[A] =
     Async.deferCancelable(() => operation, () => close())
 
-  /** Alias for [[concat]]. */
+  /**
+   * Returns a writer that writes to this writer until it rejects an element,
+   * then to `next`. Alias for `concat`.
+   */
   def ++[Elem1 <: Elem](next: => Writer[Elem1]): Writer[Elem1] = concat(next)
 
   /**
-   * Closes the writer. After this call, [[write]] returns `false` and
-   * [[isClosed]] returns `true`. Idempotent.
+   * Closes this writer cleanly: later writes return `false`, and [[isClosed]]
+   * returns `true`. Closing twice has no further effect. The writers from
+   * `Writer.fromOutputStream` and `Writer.fromWriter` flush and close the
+   * stream they wrap, except after a failed write (a known bug: they then leave
+   * it open).
    */
   def close(): Unit
 
-  /** Deferred, cancellable mirror of [[close]]. */
+  /** Returns an `Async` that calls [[close]] when it runs. */
   final def closeAsync(): Async[Unit] = deferred(close())
 
   /**
-   * Returns a `Writer` that writes to `this` until it closes, then
-   * transparently switches to `next`. If `this` closes with an error, the error
-   * is propagated immediately without consulting `next`.
+   * Returns a writer that writes to this writer until a write returns `false`,
+   * then switches to `next` and writes the rejected element there. `next` is
+   * evaluated once, at the switch, and never if this writer accepts every
+   * element.
    *
-   * The dual of [[Reader.concat]].
+   * A write that throws propagates the exception, and from then on the writer
+   * never switches: later writes go to this writer only, a rejection returns
+   * `false`, and `next` is never used. [[close]] closes this writer and, after
+   * a switch, `next`, ignoring exceptions from both. [[isClosed]] is `true`
+   * after [[close]], once the writer has switched and `next` is closed, or,
+   * after a throwing write, once this writer is closed.
+   *
+   * {{{
+   * import zio.blocks.streams.io.Writer
+   *
+   * val first  = new java.io.StringWriter
+   * val second = new java.io.StringWriter
+   * val writer = Writer.limited(Writer.fromWriter(first), 3) ++ Writer.fromWriter(second)
+   * "Zionomicon".foreach(c => writer.write(c))
+   * first.toString  // Zio
+   * second.toString // nomicon
+   * }}}
    */
   def concat[Elem1 <: Elem](next: => Writer[Elem1]): Writer[Elem1] =
     new Writer.ConcatWith(this, next)
 
   /**
-   * Returns a `Writer` that transforms incoming elements with `g` before
-   * passing them to this writer. All other operations (`isClosed`, `close`,
-   * `fail`) delegate unchanged.
+   * Returns a writer that applies `g` to each element and writes the result to
+   * this writer. [[isClosed]], [[close]] and [[fail]] go to this writer
+   * unchanged.
+   *
+   * {{{
+   * import zio.blocks.streams.io.Writer
+   *
+   * val out   = new java.io.StringWriter
+   * val codes = Writer.fromWriter(out).contramap[Int](_.toChar)
+   * codes.write(90) // true
+   * out.toString    // Z
+   * }}}
    */
   def contramap[Elem2](g: Elem2 => Elem): Writer[Elem2] =
     new Writer.Contramapped(this, g)
 
   /**
-   * Closes the writer with an error. After this call, [[isClosed]] returns
-   * `true`. Subclasses that override this method may cause [[write]] to throw
-   * `error` on subsequent calls; the default simply delegates to [[close]].
-   * Close and fail are idempotent; only the first call wins.
+   * Closes this writer with `error`. The default discards `error` and calls
+   * [[close]]; a subclass can override it to keep `error` and throw it from
+   * later writes, but none of the library's writers does. `Writer.closed`
+   * ignores the call, and `contramap` and `Writer.limited` pass it to the
+   * writer they wrap.
    */
   def fail(error: Throwable): Unit = { val _ = error; close() }
 
-  /** Deferred, cancellable mirror of [[fail]]. */
+  /** Returns an `Async` that calls [[fail]] with `error` when it runs. */
   final def failAsync(error: Throwable): Async[Unit] = deferred(fail(error))
 
-  /** `true` once the writer is closed. */
+  /** Returns `true` once this writer is closed and accepts no more elements. */
   def isClosed: Boolean
 
-  /** Deferred, cancellable mirror of [[isClosed]]. */
+  /** Returns an `Async` that reads [[isClosed]] when it runs. */
   final def isClosedAsync: Async[Boolean] = deferred(isClosed)
 
   /**
-   * The primitive type of elements in this writer, or `AnyRef` for reference
-   * types.
+   * The lane this writer takes its elements in: a primitive type, or
+   * `JvmType.AnyRef`. The writers from the companion object report
+   * `JvmType.AnyRef`; the `NioWriters` writers report their primitive lane.
    */
   def jvmType: JvmType = JvmType.AnyRef
 
-  /** Deferred, cancellable mirror of [[jvmType]]. */
+  /** Returns an `Async` that reads [[jvmType]] when it runs. */
   final def jvmTypeAsync: Async[JvmType] = deferred(jvmType)
 
   /**
-   * Writes one element. Returns `true` on success, `false` if the writer is
-   * closed. Implementations backed by bounded buffers may block until space is
-   * available. Throws if the writer was closed with an error via [[fail]].
+   * Writes `a` and returns `true`, or returns `false` when this writer is
+   * closed and did not take it. A writer over a bounded destination may block
+   * until there is room.
+   *
+   * The writers from `Writer.fromOutputStream` and `Writer.fromWriter` catch an
+   * `IOException` from the stream they wrap, close themselves and return
+   * `false`, so the exception is lost. Other exceptions propagate.
    */
   def write(a: Elem): Boolean
 
-  /** Deferred, cancellable mirror of [[write]]. */
+  /**
+   * Returns an `Async` that calls [[write]] with `a` when it runs and produces
+   * its result. Running the same `Async` again does not write again.
+   *
+   * {{{
+   * import zio.blocks.async._
+   * import zio.blocks.streams.io.Writer
+   *
+   * val out   = new java.io.StringWriter
+   * val write = Writer.fromWriter(out).writeAsync('Z')
+   * out.toString // (empty: nothing is written yet)
+   * write.block  // true
+   * out.toString // Z
+   * }}}
+   */
   final def writeAsync(a: Elem): Async[Boolean] = deferred(write(a))
 
   /**
-   * Writes every element in chunk. Returns the suffix not delivered. If the
-   * writer is already closed, returns the entire chunk. Exceptions from
-   * individual writes propagate to the caller.
+   * Writes the elements of `chunk` in order, stopping at the first one this
+   * writer rejects, and returns the elements it did not write: empty when all
+   * were written, the whole chunk when the writer is already closed. An
+   * exception from a write propagates. The writer from `Writer.fromWriter`
+   * writes the chunk in one call and returns the whole chunk if that call
+   * fails.
    */
   def writeAll[Elem1 <: Elem](chunk: Chunk[Elem1]): Chunk[Elem1] = {
     var i = 0
@@ -138,35 +211,38 @@ abstract class Writer[-Elem] {
     Chunk.empty
   }
 
-  /** Deferred, cancellable mirror of [[writeAll]]. */
+  /** Returns an `Async` that calls [[writeAll]] with `chunk` when it runs. */
   final def writeAllAsync[Elem1 <: Elem](chunk: Chunk[Elem1]): Async[Chunk[Elem1]] = deferred(writeAll(chunk))
 
   /**
-   * Specialized Boolean write. Default delegates to generic `write`. Requires
-   * implicit evidence that `Boolean` is a subtype of `Elem`.
+   * Writes a `Boolean` and returns whether this writer took it. The default
+   * calls [[write]]; a writer on the `Boolean` lane can override it to avoid
+   * boxing.
    */
   def writeBoolean(value: Boolean)(implicit ev: Boolean <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
-  /** Deferred, cancellable mirror of [[writeBoolean]]. */
+  /** Returns an `Async` that calls [[writeBoolean]] when it runs. */
   final def writeBooleanAsync(value: Boolean)(implicit ev: Boolean <:< Elem): Async[Boolean] =
     deferred(writeBoolean(value))
 
   /**
-   * Blocking byte write. Equivalent to `write(b.asInstanceOf[Elem])` but avoids
-   * boxing when `Elem = Byte`. Returns `false` if the writer is closed.
-   * Requires implicit evidence that `Byte` is a subtype of `Elem`.
+   * Writes a `Byte` and returns whether this writer took it. The default calls
+   * [[write]]; the writer from `Writer.fromOutputStream` overrides it to write
+   * without boxing.
    */
   def writeByte(b: Byte)(implicit ev: Byte <:< Elem): Boolean = write(b.asInstanceOf[Elem])
 
-  /** Deferred, cancellable mirror of [[writeByte]]. */
+  /** Returns an `Async` that calls [[writeByte]] when it runs. */
   final def writeByteAsync(b: Byte)(implicit ev: Byte <:< Elem): Async[Boolean] = deferred(writeByte(b))
 
   /**
-   * Blocking bulk byte write. Calls [[writeByte]] for each byte in
-   * `buf[offset, offset+len)`, stopping early if the channel closes. Returns
-   * the number of bytes successfully written, which may be less than `len` if
-   * the channel closes mid-way. Requires implicit evidence that `Byte` is a
-   * subtype of `Elem`.
+   * Writes `len` bytes of `buf`, starting at `offset`, and returns how many
+   * this writer took, fewer than `len` when it closes part-way. The default
+   * calls [[writeByte]] for each byte and throws `NullPointerException` or
+   * `IndexOutOfBoundsException` for an invalid range. The writer from
+   * `Writer.fromOutputStream` passes the whole range to one
+   * `OutputStream#write` call and returns `len`, or `0` when that call fails
+   * with an `IOException`.
    */
   def writeBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Elem): Int = {
     if (buf eq null) throw new NullPointerException("buf")
@@ -180,83 +256,87 @@ abstract class Writer[-Elem] {
     written
   }
 
-  /** Deferred, cancellable mirror of [[writeBytes]]. */
+  /** Returns an `Async` that calls [[writeBytes]] when it runs. */
   final def writeBytesAsync(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Elem): Async[Int] =
     deferred(writeBytes(buf, offset, len))
 
   /**
-   * Specialized Char write. Default delegates to generic `write`. Requires
-   * implicit evidence that `Char` is a subtype of `Elem`.
+   * Writes a `Char` and returns whether this writer took it. The default calls
+   * [[write]]; a writer on the `Char` lane can override it to avoid boxing.
    */
   def writeChar(value: Char)(implicit ev: Char <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
-  /** Deferred, cancellable mirror of [[writeChar]]. */
+  /** Returns an `Async` that calls [[writeChar]] when it runs. */
   final def writeCharAsync(value: Char)(implicit ev: Char <:< Elem): Async[Boolean] = deferred(writeChar(value))
 
   /**
-   * Specialized Double write. Default delegates to generic `write`. Requires
-   * implicit evidence that `Double` is a subtype of `Elem`.
+   * Writes a `Double` and returns whether this writer took it. The default
+   * calls [[write]]; a writer on the `Double` lane can override it to avoid
+   * boxing.
    */
   def writeDouble(value: Double)(implicit ev: Double <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
-  /** Deferred, cancellable mirror of [[writeDouble]]. */
+  /** Returns an `Async` that calls [[writeDouble]] when it runs. */
   final def writeDoubleAsync(value: Double)(implicit ev: Double <:< Elem): Async[Boolean] = deferred(writeDouble(value))
 
   /**
-   * Specialized Float write. Default delegates to generic `write`. Requires
-   * implicit evidence that `Float` is a subtype of `Elem`.
+   * Writes a `Float` and returns whether this writer took it. The default calls
+   * [[write]]; a writer on the `Float` lane can override it to avoid boxing.
    */
   def writeFloat(value: Float)(implicit ev: Float <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
-  /** Deferred, cancellable mirror of [[writeFloat]]. */
+  /** Returns an `Async` that calls [[writeFloat]] when it runs. */
   final def writeFloatAsync(value: Float)(implicit ev: Float <:< Elem): Async[Boolean] = deferred(writeFloat(value))
 
   /**
-   * Specialized Int write. Default delegates to generic `write`. Requires
-   * implicit evidence that `Int` is a subtype of `Elem`.
+   * Writes an `Int` and returns whether this writer took it. The default calls
+   * [[write]]; a writer on the `Int` lane can override it to avoid boxing.
    */
   def writeInt(value: Int)(implicit ev: Int <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
-  /** Deferred, cancellable mirror of [[writeInt]]. */
+  /** Returns an `Async` that calls [[writeInt]] when it runs. */
   final def writeIntAsync(value: Int)(implicit ev: Int <:< Elem): Async[Boolean] = deferred(writeInt(value))
 
   /**
-   * Specialized Long write. Default delegates to generic `write`. Requires
-   * implicit evidence that `Long` is a subtype of `Elem`.
+   * Writes a `Long` and returns whether this writer took it. The default calls
+   * [[write]]; a writer on the `Long` lane can override it to avoid boxing.
    */
   def writeLong(value: Long)(implicit ev: Long <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
-  /** Deferred, cancellable mirror of [[writeLong]]. */
+  /** Returns an `Async` that calls [[writeLong]] when it runs. */
   final def writeLongAsync(value: Long)(implicit ev: Long <:< Elem): Async[Boolean] = deferred(writeLong(value))
 
   /**
-   * Specialized Short write. Default delegates to generic `write`. Requires
-   * implicit evidence that `Short` is a subtype of `Elem`.
+   * Writes a `Short` and returns whether this writer took it. The default calls
+   * [[write]]; a writer on the `Short` lane can override it to avoid boxing.
    */
   def writeShort(value: Short)(implicit ev: Short <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
-  /** Deferred, cancellable mirror of [[writeShort]]. */
+  /** Returns an `Async` that calls [[writeShort]] when it runs. */
   final def writeShortAsync(value: Short)(implicit ev: Short <:< Elem): Async[Boolean] = deferred(writeShort(value))
 
   /**
-   * Returns `true` if the next [[write]] would accept a value without blocking
-   * (space is available and the writer is not closed). Default implementation
-   * returns `!isClosed`. Subclasses backed by bounded buffers should override
-   * for accuracy.
+   * Returns `true` when the next [[write]] is expected to take an element
+   * without blocking. The default is `!isClosed`, and none of the library's
+   * writers overrides it, so `true` does not promise that a write will not
+   * block.
    */
   def writeable(): Boolean = !isClosed
 
-  /** Deferred, cancellable mirror of [[writeable]]. */
+  /** Returns an `Async` that calls [[writeable]] when it runs. */
   final def writeableAsync(): Async[Boolean] = deferred(writeable())
 }
 
 /**
- * Companion object for [[Writer]]. Provides factory constructors for common
- * sinks: `closed`, `single`, `limited`, `fromOutputStream`, and `fromWriter`.
+ * Constructors for [[Writer]]: [[closed]], [[single]], [[limited]], and the
+ * adapters [[fromOutputStream]] and [[fromWriter]].
  */
 object Writer {
 
-  /** A pre-closed writer that rejects all writes. */
+  /**
+   * Returns a writer that is already closed: every write returns `false`, and
+   * `close()` and `fail` do nothing.
+   */
   def closed: Writer[Any] = new Writer[Any] {
     def isClosed: Boolean                 = true
     def write(a: Any): Boolean            = false
@@ -265,29 +345,52 @@ object Writer {
   }
 
   /**
-   * Wraps a [[java.io.OutputStream]] as a `Writer[Byte]`. Calling `close()`
-   * flushes and closes the underlying stream.
+   * Returns a writer that writes bytes to `os`. [[Writer#close]] flushes and
+   * closes `os`.
+   *
+   * An `IOException` from `os` is not thrown: the write returns `false` (or
+   * `writeBytes` returns `0`) and the writer closes itself. A known bug: after
+   * that, `close()` neither flushes nor closes `os`. An `IOException` from
+   * `close()` is ignored.
+   *
+   * {{{
+   * import zio.blocks.streams.io.Writer
+   *
+   * val out    = new java.io.ByteArrayOutputStream()
+   * val writer = Writer.fromOutputStream(out)
+   * writer.writeBytes("Zionomicon".getBytes("UTF-8"), 0, 3) // 3
+   * writer.close()
+   * out.toString("UTF-8")                                  // Zio
+   * }}}
    */
   def fromOutputStream(os: OutputStream): Writer[Byte] =
     new OutputStreamWriter(os)
 
   /**
-   * Wraps a [[java.io.Writer]] as a `Writer[Char]`. Calling `close()` flushes
-   * and closes the underlying writer.
+   * Returns a writer that writes characters to `w`. [[Writer#close]] flushes
+   * and closes `w`.
+   *
+   * An `IOException` from `w` is not thrown: the write returns `false` (or
+   * `writeAll` returns the whole chunk) and the writer closes itself. A known
+   * bug: after that, `close()` neither flushes nor closes `w`. An `IOException`
+   * from `close()` is ignored.
    */
   def fromWriter(w: JWriter): Writer[Char] =
     new CharWriter(w)
 
   /**
-   * A writer that accepts at most `n` elements from `inner`, then auto-closes.
-   * The dual of `Stream.take`.
+   * Returns a writer that passes at most `n` elements to `inner`. After `n`
+   * accepted writes it reports closed and rejects every write, but it does not
+   * close `inner`; its own [[Writer#close]] does. It also reports closed when
+   * `inner` is closed, and when `n <= 0`.
    */
   def limited[Elem](inner: Writer[Elem], n: Long): Writer[Elem] =
     new LimitedWriter[Elem](inner, n)
 
   /**
-   * A writer that accepts exactly one element, then auto-closes. The dual of
-   * [[Reader.single]].
+   * Returns a writer that takes one element, then reports closed and rejects
+   * every later write. It does not store or forward the element: the first
+   * write only returns `true`.
    */
   def single[Elem]: Writer[Elem] =
     new SingleWriter[Elem]
