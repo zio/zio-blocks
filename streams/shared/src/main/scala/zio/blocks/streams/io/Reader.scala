@@ -461,11 +461,12 @@ object Reader {
      * reading this reader again (until `reset()`). For `read`, that is an
      * element that is the same object as the sentinel: on the JVM a boxed
      * `Boolean`, a boxed number from -128 to 127 or an interned string can be
-     * (`read(-1)` matches an element `-1`), and on Scala.js any equal number
-     * is; for `readBoolean`, `readChar`, `readShort`, `readInt` and
-     * `readFloat`, an element equal to the sentinel. So an element that
-     * collides with the sentinel ends the view early. The view's `readLong` and
-     * `readDouble` detect the end by count and never stop early.
+     * (`read(-1)` matches an element `-1`), and on Scala.js any equal `String`,
+     * `Int`, `Float` or `Double` is (an equal `Long` or `Char` is not); for
+     * `readBoolean`, `readChar`, `readShort`, `readInt` and `readFloat`, an
+     * element equal to the sentinel. So an element that collides with the
+     * sentinel ends the view early. The view's `readLong` and `readDouble`
+     * detect the end by count and never stop early.
      *
      * A known bug: when this reader is on the `AnyRef` lane, the result's
      * primitive pulls (`readInt`, `readLongs`, ...) throw, or fail with,
@@ -1347,8 +1348,8 @@ object Reader {
      *
      * `sentinel` must not occur as an element: on most readers an element equal
      * to it is returned as is, and the caller cannot tell it from the end. Two
-     * readers lose more: the `SyncReader#toAsync` view stops for good (see
-     * there), and an asynchronous concatenation built by `++`, `concat` or
+     * readers lose more: the `SyncReader#toAsync` view stops until `reset()`
+     * (see there), and an asynchronous concatenation built by `++`, `concat` or
      * `concatAsync` treats an element that is the same object as the sentinel
      * as the end of its current part, skipping that element and the rest of the
      * part.
@@ -3007,8 +3008,10 @@ object Reader {
    * each time `inner` ends, it calls `inner.reset()` and keeps reading. An
    * exception from `inner`, including the `UnsupportedOperationException` of an
    * `inner` that cannot reset, is thrown by the pull; `isClosed` turns `true`
-   * only when the failing pull was `read`. If `inner` produces no element
-   * between two resets, a pull loops forever.
+   * only when the failing pull went through `read`, which is what the bulk
+   * reads of an `AnyRef`-lane `inner` use; the primitive pulls leave it
+   * `false`. If `inner` produces no element between two resets, a pull loops
+   * forever.
    *
    * A known bug: after `close()`, the next pull resets `inner` and keeps
    * producing elements (the asynchronous overload stops as expected).
