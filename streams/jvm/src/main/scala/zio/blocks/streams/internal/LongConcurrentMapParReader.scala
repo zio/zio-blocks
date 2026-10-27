@@ -30,16 +30,16 @@ import java.util.concurrent.locks.LockSupport
  * out of band, so every `Long` and raw `Double` bit pattern is preserved.
  *
  * The per-worker output queue is selected at construction time from `outType`:
- *   - `JvmType.Int` → `IntSpscRingBuffer`
+ *   - `JvmType.Boolean` / `Byte` / `Char` / `Short` / `Int` →
+ *     `IntSpscRingBuffer`
  *   - `JvmType.Long` → a full-domain raw 64-bit SPSC queue
  *   - `JvmType.Float` → `FloatSpscRingBuffer`
  *   - `JvmType.Double` → a full-domain raw 64-bit SPSC queue
  *   - everything else → `SpscRingBuffer[AnyRef]` (boxed fallback)
  *
  * When the output queue is primitive there is **zero allocation** on the
- * worker-to-consumer hot path. End-of-stream is signalled with the in-band DONE
- * sentinel of each output queue; the consumer counts DONE markers and
- * terminates once all `n` workers have signalled.
+ * worker-to-consumer hot path. Each worker signals its end on its output queue,
+ * and the consumer ends once all `n` workers have.
  */
 private[streams] final class LongConcurrentMapParReader[B](
   upstream: Reader.SyncReader[Long],

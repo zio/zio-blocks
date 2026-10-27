@@ -54,6 +54,11 @@ private[streams] final class CircularBufferByte(capacity: Int) {
   }
 }
 
+/**
+ * A fixed-size, non-concurrent circular buffer specialized for unboxed
+ * `Boolean` values. Used internally by the `sliding` combinator to avoid O(n)
+ * array copies on each step.
+ */
 private[streams] final class CircularBufferBoolean(capacity: Int) {
   private val arr  = new Array[Boolean](capacity)
   private var head = 0
@@ -84,6 +89,11 @@ private[streams] final class CircularBufferBoolean(capacity: Int) {
   }
 }
 
+/**
+ * A fixed-size, non-concurrent circular buffer specialized for unboxed `Char`
+ * values. Used internally by the `sliding` combinator to avoid O(n) array
+ * copies on each step.
+ */
 private[streams] final class CircularBufferChar(capacity: Int) {
   private val arr  = new Array[Char](capacity)
   private var head = 0
@@ -114,6 +124,11 @@ private[streams] final class CircularBufferChar(capacity: Int) {
   }
 }
 
+/**
+ * A fixed-size, non-concurrent circular buffer specialized for unboxed `Short`
+ * values. Used internally by the `sliding` combinator to avoid O(n) array
+ * copies on each step.
+ */
 private[streams] final class CircularBufferShort(capacity: Int) {
   private val arr  = new Array[Short](capacity)
   private var head = 0

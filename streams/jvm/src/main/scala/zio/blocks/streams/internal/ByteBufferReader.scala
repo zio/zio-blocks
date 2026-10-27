@@ -23,8 +23,8 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import java.nio.ByteBuffer
 
 /**
- * Reads bytes from a [[java.nio.ByteBuffer]]. Supports `reset()` via
- * `buffer.rewind()`.
+ * Reads bytes from a [[java.nio.ByteBuffer]]. `reset()` restores the position
+ * and limit the buffer had when the reader was made.
  */
 private[streams] final class ByteBufferReader(buffer: ByteBuffer) extends Reader.SyncReader[Byte] {
 
