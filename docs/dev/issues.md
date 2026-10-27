@@ -8736,6 +8736,85 @@ In an earlier run in a different JVM, `Sink.sumLong` measured 23.98 bytes per el
 
 **Suggested fix.** Give each primitive-accumulator sink a dedicated loop with a primitive accumulator, as `FoldLeftLong` does. For example, `loopLongToLong`'s sync drain becomes `val one = new Array[Long](1); var acc = zero; var n = reader.readLongsPhysical(one, 0, 1); while (n >= 0) { acc = step(acc, one(0)); n = reader.readLongsPhysical(one, 0, 1) }; acc`, with `step: (Long, Long) => Long` statically typed so the call goes to `apply$mcJJJ$sp`. Apply the same to `count` (Long accumulator, per-lane loop), `sumInt`/`sumFloat`/`sumDouble` and `FoldLeftDouble.foldDouble`/`foldLong`. Add a JMH benchmark with `-prof gc`, or a `ThreadMXBean` spec on the JVM, that asserts about 0 bytes per element. The per-element loop change is within the AGENTS.md streams performance policy: it removes allocation and adds no per-element work.
 
+### Streams (JVM): `Platform.startVirtualThread` names a virtual thread `name` followed by `0`
+
+Found 2026-10-27 while writing the Scaladoc for `Platform.startVirtualThread` (wave 3 of the streams Scaladoc, branch `streams-scaladoc-wave-3`), on `main` at `59e7cb81e`. The same at tag `v0.0.56`. Citations at `origin/main` `59e7cb81e`.
+
+**Summary.** `Platform.startVirtualThread(name, task)` is meant to start a thread named `name` (the fallback platform thread gets exactly that name). On JDK 21 and later it starts a virtual thread through `Thread.Builder.name(String prefix, long start)`, which names threads `prefix` followed by a counter, so every virtual thread gets `name + "0"`. Every thread the stream engine starts is affected: `zio-blocks-mappar-worker-0-0` shows up as `zio-blocks-mappar-worker-0-00`, `zio-blocks-buffer-0` as `zio-blocks-buffer-00`, and so on. The reference page `docs/reference/streams/execution-and-compatibility/platform-differences.md:213` documents the names without the suffix.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, JDK 25, `scala-cli --power run --server=false --offline VirtualThreadName.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.streams._
+
+object VirtualThreadName {
+  def main(args: Array[String]): Unit = {
+    val t = Platform.startVirtualThread("my-worker", () => ())
+    t.join()
+    println(s"name=${t.getName} virtual=${t.isVirtual}")
+    println(Stream.range(0, 2).mapPar(2)(_ => Thread.currentThread().getName).runCollect)
+  }
+}
+// name=my-worker0 virtual=true
+// Right(Chunk(zio-blocks-mappar-worker-0-00,zio-blocks-mappar-worker-1-10))
+```
+
+**Expected.** `name=my-worker virtual=true`, and worker names `zio-blocks-mappar-worker-0-0` and `zio-blocks-mappar-worker-1-1`, as the fallback platform thread and the reference page have them.
+
+**Root cause.** `streams/jvm/src/main/scala/zio/blocks/streams/PlatformSpecific.scala:164` looks up the two-argument `Thread.Builder.name(String, long)`, and `:169` calls it as `nameHandle.invoke(builder, name, Long.box(0L))`. That overload sets the name to the prefix followed by the counter's current value (`0`). The fallback, `fallbackThread` (`:147-153`), calls `thread.setName(name)`.
+
+**Impact.** Low: names in thread dumps, profilers and logs differ by platform and from the documentation, and tools or tests that match exact thread names miss them.
+
+**Test gap.** `PlatformSpec.scala:45-48` ("startVirtualThread runs the task") starts `Platform.startVirtualThread("test-vthread", ...)` and checks only that the task ran; no test checks the name of a started thread (`grep -rn "getName" streams/*/src/test` finds only class names in `SinkExactLaneSpec.scala:206-207` and thread filters in `AsyncReaderJvmSpec.scala:1136`, `:1520` and `ConcurrentStressSpec.scala:159`, which match engine threads by substring or prefix (or compare a test-made thread with itself)).
+
+**Suggested fix.** Look up the one-argument `Thread.Builder.name(String)` (`builderClass.getMethod("name", classOf[String])`) and invoke it with `name` only. Add an assertion to `PlatformSpec` that the started thread's `getName` equals the given name, and fix nothing on the reference page (it is right once the code is).
+
+### Streams (JVM): a `take` on `NioStreams.fromByteBuffer*` (or `setLimit` on a `NioReaders.fromByteBuffer*` reader) permanently lowers the caller's buffer limit
+
+Found 2026-10-27 in the fact-check review of the wave 3 Scaladoc for `NioStreams`, `NioReaders` and `ByteBufferReader` (branch `streams-scaladoc-wave-3`), on `main` at `59e7cb81e`. The same at tag `v0.0.56`. Citations at `origin/main` `59e7cb81e`.
+
+**Summary.** The `ByteBuffer` readers implement `setLimit` (and `setSkip`) by changing the wrapped buffer's own limit (and position). The stream engine pushes a `take` (and a `drop`) on `NioStreams.fromByteBuffer*` into the reader as `setLimit`/`setSkip`, so after `take(2)` on a 5-byte buffer the caller's `ByteBuffer` reports `limit == 2`: bytes 3 to 5 are hidden from every later reader or `get`, and nothing restores the original limit (`close()` moves the position to the lowered limit; `reset()` restores the original limit and then applies the pushed limit again). A plain run without `take`/`drop` leaves the limit alone.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, JDK 25, `scala-cli --power run --server=false --offline BufferLimit.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import java.nio.ByteBuffer
+import zio.blocks.async._
+import zio.blocks.streams._
+
+object BufferLimit {
+  def main(args: Array[String]): Unit = {
+    val buf = ByteBuffer.wrap(Array[Byte](1, 2, 3, 4, 5))
+    println("take(2):       " + NioStreams.fromByteBuffer(buf).take(2).runCollect)
+    println(s"buffer after:  position=${buf.position} limit=${buf.limit} remaining=${buf.remaining}")
+
+    val buf2 = ByteBuffer.wrap(Array[Byte](1, 2, 3, 4, 5))
+    println("drop(1).take(2) async: " + NioStreams.fromByteBuffer(buf2).drop(1).take(2).runCollectAsync.block)
+    println(s"buffer after:  position=${buf2.position} limit=${buf2.limit} remaining=${buf2.remaining}")
+  }
+}
+// take(2):       Right(Chunk(1,2))
+// buffer after:  position=2 limit=2 remaining=0
+// drop(1).take(2) async: Right(Chunk(2,3))
+// buffer after:  position=3 limit=3 remaining=0
+```
+
+**Expected.** The elements are right, but the buffer keeps its own limit: `buffer after: position=2 limit=5 remaining=3` (and `position=3 limit=5 remaining=2`), so the bytes the stream did not take are still readable from `buf`.
+
+**Root cause.** `streams/jvm/src/main/scala/zio/blocks/streams/internal/ByteBufferReader.scala` at `59e7cb81e`: `ByteBufferReader.setLimit` (`:103-108`) does `buffer.limit(newLimit)` on the caller's buffer, and the typed copies do the same (`ByteBufferIntReader` `:200`, `ByteBufferLongReader` `:300`, `ByteBufferDoubleReader` `:400`, `ByteBufferFloatReader` `:498`); `setSkip` (`:110`, `:207`, `:307`, `:407`, `:505`) moves the position. `close()` (`:37`, `:136`, `:234`, `:334`, `:434`) sets the position to the current (lowered) limit, and `reset()` (`:92-101` and copies) restores `originalLimit` and then re-applies `limitN`. Nothing restores `originalLimit` once the reader is done.
+
+**Impact.** A caller who streams a prefix of a buffer with `take` (for example a header) and then reads the rest of the same `ByteBuffer` finds it empty, with no error. Shared or reused buffers (pooled direct buffers, a buffer handed on to another component) end up with a wrong limit.
+
+**Test gap.** The buffer-reader `reset` tests (`NioReadersWritersSpec.scala:70`, `:152`, `:180`, `:200`, `:220`) rewind without a limit or skip, and no test runs `take` or `drop` on `NioStreams.fromByteBuffer*` or checks the buffer's limit afterwards (`grep -rn "setLimit\|setSkip" streams/*/src/test` finds calls on other readers only, none on a `NioReaders.fromByteBuffer*` reader; `grep -n "take(\|drop(" NioStreamsSinksSpec.scala NioReadersWritersSpec.scala` finds only `Chunk#take` on results at `NioStreamsSinksSpec.scala:332`, `:334`).
+
+**Suggested fix.** Keep the reader's own end index (`originalPosition + skip + limit`, clamped to `originalLimit`) in a field and check it in the pulls instead of writing it into `buffer.limit`, or work on `buffer.duplicate()` and copy the final position back. Either costs nothing per element beyond the bound check the reader already does through `remaining()`. Add a test that runs `take` and `drop` on each buffer stream and checks the buffer's limit and remaining bytes afterwards.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -11891,6 +11970,64 @@ object Repro {
 
 **Suggested fix.** Document it on `mux.mdx` and in the `close()`/`halfClose()` Scaladoc ("the outbound queue survives closing; drain it with `takeOutbound()` until it returns an error"). Consider adding an enumeration method to `Mux` so that protocols don't have to mirror the registry.
 
+### Streams (JVM): `NioReaders.fromChannel` and `NioStreams.fromChannel` end the data at the first zero-byte read of a non-blocking channel
+
+Found 2026-10-27 while writing the Scaladoc for `NioReaders.fromChannel` and `NioStreams.fromChannel` (wave 3 of the streams Scaladoc, branch `streams-scaladoc-wave-3`), on `main` at `59e7cb81e`. The same at tag `v0.0.56`. Citations at `origin/main` `59e7cb81e`.
+
+**Summary.** `NioReaders.fromChannel(ch)` and `NioStreams.fromChannel(ch)` accept any `ReadableByteChannel`. A `SocketChannel` or `Pipe.SourceChannel` in non-blocking mode returns `0` from `read` when no bytes are available yet. The reader takes that as the end of the data: `readByte()` returns `-1` (while `isClosed` stays `false`), bulk reads return `-1`, and a stream built on it ends with `Right` and only the bytes read so far. Nothing fails, so the data is silently cut short. The asynchronous adapter, `AsyncNioReaders`, retries a zero-byte read instead (`docs/reference/streams/primitives/reader.md:503` states that rule for it).
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, JDK 25, `scala-cli --power run --server=false --offline NonBlockingChannel.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import java.nio.ByteBuffer
+import java.nio.channels.{Pipe, ReadableByteChannel}
+import zio.blocks.streams._
+
+object NonBlockingChannel {
+  // A channel that has 1 byte, then nothing yet (0, as a non-blocking channel returns), then 2 more bytes.
+  final class Slow extends ReadableByteChannel {
+    private var script = List(Array[Byte](1), Array.emptyByteArray, Array[Byte](2, 3))
+    def read(dst: ByteBuffer): Int = script match {
+      case h :: t => script = t; dst.put(h); h.length
+      case Nil    => -1
+    }
+    def isOpen: Boolean = true
+    def close(): Unit   = ()
+  }
+
+  def main(args: Array[String]): Unit = {
+    println("stream:         " + NioStreams.fromChannel(new Slow).runCollect)
+    val reader = NioReaders.fromChannel(new Slow)
+    println("reader:         " + List(reader.readByte(), reader.readByte()) + s" isClosed=${reader.isClosed}")
+
+    // The same with a real non-blocking pipe: the writer has not written yet.
+    val pipe = Pipe.open()
+    pipe.source().configureBlocking(false)
+    val fromPipe = NioReaders.fromChannel(pipe.source())
+    println("empty pipe:     " + fromPipe.readByte() + s" isClosed=${fromPipe.isClosed}")
+    pipe.sink().write(ByteBuffer.wrap(Array[Byte](7)))
+    println("after a write:  " + fromPipe.readByte())
+  }
+}
+// stream:         Right(Chunk(1))
+// reader:         List(1, -1) isClosed=false
+// empty pipe:     -1 isClosed=false
+// after a write:  7
+```
+
+**Expected.** Either the reader rejects a non-blocking channel (for example by checking `SelectableChannel#isBlocking` at construction and throwing `IllegalArgumentException`), or it does not report the end until `read` returns `-1`. The stream should never end with `Right(Chunk(1))` while the channel still has bytes to deliver.
+
+**Root cause.** `streams/jvm/src/main/scala/zio/blocks/streams/internal/ChannelReader.scala:132-138`: `fill()` returns `buf.hasRemaining`, which is `false` after a zero-byte read, and only `n < 0` marks the reader finished (`st = 1`). `readByte` (`:65-70`) and `readBytes` (`:72-85`) then return `-1`, the end value, without changing state; `readN` (`:98`) even notes "non-blocking channel with no available data" as a reason to stop.
+
+**Impact.** A program that wraps a non-blocking socket or pipe (common when the channel also serves a selector elsewhere) gets a silently truncated stream, with `Right` as the result; a hand-written pull loop stops early and sees `isClosed == false`.
+
+**Test gap.** The reader tests (`NioReadersWritersSpec.scala:350`, `:368`, `:376`) and the stream tests (`NioStreamsSinksSpec.scala:82-131`) use channels that never return `0`; the only non-blocking channels in the tests (`NioStreamsSinksSpec.scala:272`, `:294`) are pipe sources the test itself drains after a `NioSinks.fromChannel` run, not channels read through `NioReaders` or `NioStreams` (`grep -rn "configureBlocking" streams/*/src/test`).
+
+**Suggested fix.** The cheapest: document that `ch` must be in blocking mode (the branch Scaladoc now does) and reject a `SelectableChannel` that is not blocking when the reader is made, once per reader, so no per-element cost is added. Alternatively, loop in `fill()` while `read` returns `0` (with `Thread.onSpinWait()` or a short park), which matches `AsyncNioReaders` but busy-waits; it runs only on a buffer refill, not per element. Add a test with a non-blocking `Pipe` source for each choice.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -13289,6 +13426,25 @@ git show v0.0.56:mux/js/src/main/scala-3/zio/blocks/mux/PlatformMux.scala | grep
 - `:37` becomes: "**Thread-safe stream registry** — `open`, `get`, `cancel`, `closeAll` and `activeCount` are safe to call from any thread. On the JVM, `open`, `cancel` and `closeAll` take a `ReentrantLock`, while `get` and `activeCount` read a `ConcurrentHashMap` without it; on Scala.js, which runs one thread, the registry is a plain `HashMap` with no locking".
 - `:815` becomes: "`receive()` and `takeOutbound()` are **single-consumer**: on each stream, at most one thread at a time may call `receive()`, and at most one thread at a time may call `takeOutbound()`. The two can be different threads, which is the usual layout: the application calls `receive()` and the protocol's writer calls `takeOutbound()`. Two threads calling the same one concurrently corrupt the ring buffer: messages are delivered twice or lost, and the queue can stop accepting new messages."
 - `:823` becomes: "No `synchronized`: the registry's lock is a `ReentrantLock`, and the per-stream queues and state transitions take no lock, so a virtual thread never pins its carrier thread inside `Mux`".
+
+### Streams: reference pages contradict the source on worker thread names, the virtual-thread fallback, Scala.js read failures, `NioReaders.fromChannel`, `NioWriters.fromByteBuffer` closing and full-buffer `NioSinks`
+
+Found 2026-10-27 while writing the Scaladoc for the platform files, queues and internals (wave 3 of the streams Scaladoc rollout, PR #1868), on `main` at `59e7cb81e`. Same text at v0.0.56. Each claim was checked against the source (and probed where stated); the reference pages were not edited.
+
+**Summary.** Six statements or omissions:
+
+1. `docs/reference/streams/execution-and-compatibility/platform-differences.md:213`: worker names `zio-blocks-mappar-worker-<n>-<index>`; on JDK 21+ they end in an extra `0` (Entry 1). Correct once Entry 1 is fixed.
+2. `platform-differences.md:211`: the fallback to a platform thread happens "when the reflective lookup fails"; it also happens when starting the virtual thread throws (`PlatformSpecific.scala:43-48`). Minor.
+3. `docs/reference/streams/primitives/reader.md:405` (table row "A source failure ... A rejected promise, trusted") and `:542` (Scala.js invariant 4, "surfaces in the typed error channel"): false on Scala.js, the existing issues.md entry; re-probed (`js1/J2.scala`: `Stream.fromReader[Throwable, Byte](fromReadableStream(...)).runCollectAsync.either` gives `Left(StreamError)`, the `Async`'s own failure).
+4. `reader.md:365-382` (`NioReaders`): no mention that `fromChannel` needs a blocking channel (Entry 2), nor that a failed read is thrown as `StreamError`.
+5. `docs/reference/streams/primitives/writer.md:167` ("`NioWriters.fromByteBuffer` ... auto-close when the buffer fills"): it closes when a write finds no room; a write that fills the buffer exactly leaves it open (probed: two writes into a 2-byte buffer, `isClosed == false`, the third returns `false` and closes). Minor.
+6. `docs/reference/streams/core/sink.md:771-800` (`NioSinks.fromByteBuffer*`): does not say that a full buffer throws `BufferOverflowException` from a blocking terminal and fails the `Async` of an `*Async` one, with no `Left`.
+
+Item 3 is the documentation side of the existing Library bugs entry "streams (Scala.js): a rejected `ReadableStream` read fails the `Async` with an internal `StreamError` instead of producing `Left`" (also a backlog doc-fix follow-up from H-26).
+
+**Expected.** The pages match the code and the wave 3 Scaladoc; known bugs are described as known bugs in 0.0.56.
+
+**Suggested fix.** Edit the six places using the wave 3 Scaladoc wording, then run `docs/mdoc` on the four pages. Item 1 changes again once the virtual-thread naming bug is fixed.
 
 ## Resolved
 
