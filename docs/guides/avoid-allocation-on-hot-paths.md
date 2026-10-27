@@ -19,7 +19,7 @@ Each section is independent: pick the one that matches the allocation you have. 
 - Keeping stream elements on a primitive lane, and reading them in a custom `Sink`
 - Wrapping, reading and building `Chunk`s without boxing
 - Replacing `Option` with `Maybe` for state written on every tick
-- Pre-binding metric labels with `bind`
+- Pre-binding metric labels with `Counter#bind`
 - Checking the results with JMH and its GC profiler
 
 ## The Problem
@@ -48,7 +48,7 @@ final class TickHandler {
 }
 ```
 
-Nothing here looks expensive, yet on this machine `onTick` allocates 40 to 64 bytes per tick and `turnoverCents` about 62 bytes per price. The tick handler pays for the `Some`, the boxed count and, unless the JIT removes it, the tuple key; the turnover pays for a boxed `Long` at every step of the `Iterator`'s `map`, `filter` and `foldLeft`. None of it is visible in the source.
+Nothing here looks expensive, yet on this machine `TickHandler#onTick` allocates 40 to 64 bytes per tick and `turnoverCents` about 62 bytes per price. The tick handler pays for the `Some`, the boxed count and, unless the JIT removes it, the tuple key; the turnover pays for a boxed `Long` at every step of `Iterator#map`, `Iterator#filter` and `Iterator#foldLeft`. None of it is visible in the source.
 
 ZIO Blocks has a tool for each of these allocations. In this guide, we replace them one by one and measure what each change saves.
 
@@ -120,7 +120,7 @@ Dividing `Allocation.bytesPerRun` by `tickCount` gives bytes per tick. The figur
 
 ## Keep a Stream on a Primitive Lane
 
-A ZIO Blocks `Stream` carries each element on a lane: one of the primitive JVM types, or `AnyRef` for objects. On a primitive lane a `Long` moves from the source through `map`, `filter` and the sink as a raw `long`, so the pipeline allocates nothing per element. The lane is picked at compile time from the element type each operator produces, so the same code that boxed with an `Iterator` stops boxing when it is a `Stream`:
+A ZIO Blocks `Stream` carries each element on a lane: one of the primitive JVM types, or `AnyRef` for objects. On a primitive lane a `Long` moves from the source through `Stream#map`, `Stream#filter` and the sink as a raw `long`, so the pipeline allocates nothing per element. The lane is picked at compile time from the element type each operator produces, so the same code that boxed with an `Iterator` stops boxing when it is a `Stream`:
 
 ```scala mdoc:compile-only
 val iteratorBytes = Allocation.bytesPerRun {
@@ -164,14 +164,14 @@ Stream.fromArray(prices).grouped(100).run(lane)
 
 The rules behind these results:
 
-| Operators                                                | Lane of the result                                             |
-| -------------------------------------------------------- | -------------------------------------------------------------- |
-| `filter`, `take`, `drop`, `takeWhile`, `tapEach`         | The input's lane                                               |
-| `map`, `collect`, `scan`, `mapAccum`, `flatMap`, `++`    | The lane of the result type (`Long => Double` moves to `Double`) |
-| `&&` (zip), `grouped`, `chunked`, `sliding`              | `AnyRef`: their elements are tuples or `Chunk`s                |
-| any operator whose result type is a reference or `Any`   | `AnyRef`                                                       |
+| Operators                                                                                       | Lane of the result                                               |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `Stream#filter`, `Stream#take`, `Stream#drop`, `Stream#takeWhile`, `Stream#tapEach`             | The input's lane                                                 |
+| `Stream#map`, `Stream#collect`, `Stream#scan`, `Stream#mapAccum`, `Stream#flatMap`, `Stream#++` | The lane of the result type (`Long => Double` moves to `Double`) |
+| `Stream#&&` (zip), `Stream#grouped`, `Stream#chunked`, `Stream#sliding`                         | `AnyRef`: their elements are tuples or `Chunk`s                  |
+| Any operator whose result type is a reference or `Any`                                          | `AnyRef`                                                         |
 
-None of these changes is reported at compile time. A `map` whose function returns `Any` (for example, an `if` with a `Long` in one branch and a `String` in the other) quietly moves the stream to the `AnyRef` lane and boxes every element from there on.
+None of these changes is reported at compile time. A `Stream#map` whose function returns `Any` (for example, an `if` with a `Long` in one branch and a `String` in the other) quietly moves the stream to the `AnyRef` lane and boxes every element from there on.
 
 ### Replace a Zip With an Index
 
@@ -222,7 +222,7 @@ It reads every price on the `Long` lane:
 Stream.fromArray(prices).run(highestPrice)
 ```
 
-Measured the same way as before, a run over 10,000 ticks allocates about 224 bytes in total, all of it per run (the stream, the reader and the one-element array), none of it per tick. Asking for more than one element per call, say `readLongs(buffer, 0, 256)`, does not help here: on this machine it allocated about 54 bytes per call.
+Measured the same way as before, a run over 10,000 ticks allocates about 224 bytes in total, all of it per run (the stream, the reader and the one-element array), none of it per tick.
 
 `Sink.create` exists only on the JVM. On Scala.js, or to support both blocking and asynchronous runs, build the sink with `Sink.createBoth`, which takes one function for a `Reader.SyncReader` and one for a `Reader.AsyncReader`; both reader kinds have the same primitive reads. The [Sink reference](../reference/streams/core/sink.md) covers both factories.
 
@@ -253,7 +253,7 @@ Stream.fromArray(priceChanges).run(sumUntilMarker)
 Stream.fromArray(priceChanges).run(Sink.sumLong)
 ```
 
-No marker value is safe for every feed, so read `Long` and `Double` lanes with `readLongs` or `readDoubles` and a one-element array, as `highestPrice` does. The library's own sinks do the same, which is why `Sink.sumLong` keeps the zero. Do not add a check against the marker inside the loop to work around a collision: the count-returning read costs nothing extra per element and never collides. The [zero-boxing reference](../reference/streams/execution-and-compatibility/zero-boxing.md) lists the end-of-stream signal of every lane.
+No marker value is safe for every feed, so read `Long` and `Double` lanes with `Reader#readLongs` or `Reader#readDoubles` and a one-element array, as `highestPrice` does. The library's own sinks do the same, which is why `Sink.sumLong` keeps the zero. Do not add a check against the marker inside the loop to work around a collision: the count-returning read costs nothing extra per element and never collides. The [zero-boxing reference](../reference/streams/execution-and-compatibility/zero-boxing.md) lists the end-of-stream signal of every lane.
 
 ## Read and Build Chunks Without Boxing
 
@@ -302,7 +302,7 @@ priceChunk.foldLeft(0L)(_ + _)
 totalMicros(priceChunk)
 ```
 
-The same accessor exists for every primitive: `Chunk#int`, `Chunk#double`, `Chunk#byte`, `Chunk#float`, `Chunk#short`, `Chunk#char` and `Chunk#boolean`. They read the array directly only when the chunk is backed by a primitive array, which is what `Chunk.fromArray`, `Chunk#map` on such a chunk, and the primitive builders below produce. A chunk made by `++`, `drop` or `slice` is a view over other chunks, and its accessors go through `Chunk#apply`, which returns a boxed element; call `Chunk#materialize` once before the loop to get an array-backed copy. A plain `chunk(i)` loop also measured 0 bytes on this machine, because the JIT removed the box it made and unboxed right away, but `Chunk#long` does not depend on that optimization.
+The same accessor exists for every primitive: `Chunk#int`, `Chunk#double`, `Chunk#byte`, `Chunk#float`, `Chunk#short`, `Chunk#char` and `Chunk#boolean`. They read the array directly only when the chunk is backed by a primitive array, which is what `Chunk.fromArray`, `Chunk#map` on such a chunk, and the primitive builders below produce. A chunk made by `++`, `drop` or `slice` is a view over other chunks, and its accessors go through `Chunk#apply`, which returns a boxed element; call `Chunk#materialize` once before the loop to get an array-backed copy. On an array-backed chunk, `Chunk#long` never boxes, whatever the JIT does.
 
 ### Build a Chunk With a Primitive Builder
 
@@ -386,11 +386,19 @@ Absence is the `Absent` singleton, not `null`: `Maybe.absent` returns it, and `M
 
 Three details decide whether `Maybe` saves anything:
 
-- Read it with `fold`, `getOrElse`, `isPresent` and `get`, or `foreach`. On Scala 3, `case Present(t)` calls `Present.unapply`, which returns an `Option` and so allocates a `Some` per match unless the JIT removes it.
+- Read it with `Maybe#fold`, `Maybe#getOrElse`, `Maybe#isPresent` and `Maybe#get`, or `Maybe#foreach`. On Scala 3, `case Present(t)` calls `Present.unapply`, which returns an `Option` and so allocates a `Some` per match unless the JIT removes it.
 - `Maybe[Long]`, `Maybe[Double]` and other primitive types still box the value, because `Maybe[A]` erases to `Object`. The companion example measures 24 bytes per tick for a `Maybe[Long]` price field against 40 for `Option[Long]`. For a primitive, keep the value in a primitive field, or keep the object it belongs to in a `Maybe`, as `LastTrade` does.
 - On Scala 2.13, `Maybe` is a sealed trait, and `Maybe.present` allocates a `MaybeValue.Present` for every present value, so it saves nothing over `Option` there.
 
 The [Maybe reference](../reference/maybe.md) covers the full API.
+
+<details>
+  <summary>Runnable version, with the <code>Maybe[Long]</code> price-field measurement: <code>Step6MaybeExample.scala</code></summary>
+
+```scala mdoc:embed:schema-examples/src/main/scala/avoidallocation/Step6MaybeExample.scala:show-line-numbers
+```
+
+</details>
 
 ## Pre-Bind Metric Labels Outside the Loop
 
@@ -475,7 +483,7 @@ println(s"LabeledCounter#add: ${labeledBytes.toDouble / tickCount} bytes per tic
 println(s"bound handle:       ${handleBytes.toDouble / tickCount} bytes per tick")
 ```
 
-When label values change per tick but come from a small, known set (the symbols the feed carries), bind each combination once at startup and pick the handle in the loop. The [labeled instruments reference](../reference/telemetry/metrics/labeled-instruments.md) describes `bind` for every instrument kind.
+When label values change per tick but come from a small, known set (the symbols the feed carries), bind each combination once at startup and pick the handle in the loop. The [labeled instruments reference](../reference/telemetry/metrics/labeled-instruments.md) describes `Counter#bind` and the matching `bind` methods of the other instrument kinds.
 
 ## Check the Numbers With JMH
 
@@ -589,15 +597,15 @@ scala-cli --power run --jmh HotPathBench.scala -- -wi 3 -i 3 -f 1 -w 2s -r 2s -p
 
 Each benchmark handles 10,000 ticks per call, so dividing `gc.alloc.rate.norm` by 10,000 gives bytes per tick. On this machine, with JDK 25, the results were roughly:
 
-| Hot-path code                                   | Before (bytes per tick) | After (bytes per tick) |
-| ----------------------------------------------- | ----------------------- | ---------------------- |
-| `Iterator` pipeline → `Stream` on the `Long` lane | 62                      | 0.07                   |
-| `&&` zip → `Stream.range` index                 | 55                      | 0.01                   |
-| `Chunk.from` copy → `Chunk.fromArray` wrap      | 8                       | 32 bytes per batch     |
-| `Chunk#foldLeft` → `Chunk#long` index loop      | 24                      | 0                      |
-| `Chunk.newBuilder[Long]` → sized `ChunkBuilder.Long` | 58                 | 16                     |
-| `Option` field → `Maybe` field                  | 16                      | 0                      |
-| Label pairs per call → `BoundCounter`           | 232                     | 0                      |
+| Hot-path code                                        | Before (bytes per tick) | After (bytes per tick)     |
+| ---------------------------------------------------- | ----------------------- | -------------------------- |
+| `Iterator` pipeline → `Stream` on the `Long` lane    | 62                      | 0.07                       |
+| `&&` zip → `Stream.range` index                      | 55                      | 0.01                       |
+| `Chunk.from` copy → `Chunk.fromArray` wrap           | 8                       | 0.003 (32 bytes per batch) |
+| `Chunk#foldLeft` → `Chunk#long` index loop           | 24                      | 0                          |
+| `Chunk.newBuilder[Long]` → sized `ChunkBuilder.Long` | 58                      | 16                         |
+| `Option` field → `Maybe` field                       | 16                      | 0                          |
+| Label pairs per call → `BoundCounter`                | 232                     | 0                          |
 
 Throughput moves with allocation but varies more between runs, so compare `gc.alloc.rate.norm` first. A benchmark is the only way to know: the JIT removes some allocations on its own (the plain `chunk(i)` loop above) and keeps others that look free, so measure before and after every change. [How to Tune JSON Encoding and Decoding for Throughput](./tune-json-throughput.md) shows how to run the repository's own benchmarks.
 
