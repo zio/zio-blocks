@@ -532,6 +532,6 @@ Plan: `docs/superpowers/plans/2026-10-26-streams-scaladoc.md`. Style: `docs/dev/
 |----------------------------|-------------|----|-----------------|----------------|
 | 0. Tooling                 | Done        | #1850 | 361 / 561 (64%) | 361 / 561 (64%) |
 | 1. Stream, Sink, Pipeline  | Done        | #1855 | 361 / 561 (64%) | 388 / 561 (69%) |
-| 2. io (Reader, Writer)     | In review   |    | 388 / 561 (69%) | 431 / 561 (77%) |
+| 2. io (Reader, Writer)     | In review   |    | 388 / 561 (69%) | 431 / 561 (76%) |
 | 3. Platform and internals  | Not started |    |                 |                |
 | 4. Close-out               | Not started |    |                 |                |
