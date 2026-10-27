@@ -126,7 +126,7 @@ All of these ship in `zio-blocks-scope`.
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
 | [Chunk](./reference/chunk.md) | `zio-blocks-chunk` | JVM · JS | 2.13 · 3.x | High-performance immutable indexed sequences with zero-boxing builders |
-| [Maybe](./reference/maybe.md) | `zio-blocks-maybe` | JVM · JS | 2.13 · 3.x | Low-allocation optional values backed by `null` |
+| [Maybe](./reference/maybe.md) | `zio-blocks-maybe` | JVM · JS | 2.13 · 3.x | Optional values that store a present reference as is, without a wrapper object (Scala 3) |
 | [Combinators](./reference/combinators.md) | `zio-blocks-combinators` | JVM · JS | 2.13 · 3.x | Compile-time composition and decomposition of tuples, eithers, and unions |
 
 ### Concurrency
@@ -555,6 +555,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Coming from Magnum or doobie](./guides/migrate-from-magnum-or-doobie.md) - Map Magnum and doobie entities, transactors, queries and streams onto the `sql` module
 - [How to Generate JSON Schema from a Type and Validate Payloads Against It](./guides/generate-json-schema-and-validate-payloads.md) - Derive a JSON Schema from a `Schema`, publish it, and validate incoming JSON payloads
 - [How to Tune JSON Encoding and Decoding for Throughput](./guides/tune-json-throughput.md) - Decode JSON straight from bytes, buffers and streams, reuse derived codecs, size reader and writer buffers, and measure with JMH
+- [How to Avoid Allocation on Hot Paths](./guides/avoid-allocation-on-hot-paths.md) - Keep streams on primitive lanes, read and build `Chunk`s without boxing, swap `Option` for `Maybe`, pre-bind metric labels, and measure each change
 - [How to Write an OpenAPI Document and Export It as JSON or YAML](./guides/write-and-export-openapi.md) - Build an OpenAPI 3.1 document from component schemas and render it as JSON or YAML
 - [Generate Scala Code from a Smithy Model](./guides/generate-scala-code-from-smithy.md) - Parse a Smithy model, map its shapes to the codegen IR, emit Scala 3 and Scala 2 with `Schema` derivation, and run the generator as an sbt source generator
 - [How to Generate Scala Types from an OpenAPI Spec at Build Time](./guides/generate-scala-types-from-openapi.md) - Turn the component schemas of an OpenAPI document into case classes, enums and sealed traits with `Schema` derivation, regenerated on every sbt build

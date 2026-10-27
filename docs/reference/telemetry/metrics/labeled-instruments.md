@@ -72,3 +72,5 @@ bound.add(1L)
 ```
 
 Values flow through the wrapped `Counter`, `Histogram`, or `Gauge` and are collected by `MetricReader.collectAllMetrics()` like any other instrument — see [MetricData](./metric-data.md).
+
+See also [How to Avoid Allocation on Hot Paths](../../../guides/avoid-allocation-on-hot-paths.md) for pre-binding label values on a hot path and measuring the effect.
