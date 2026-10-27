@@ -454,9 +454,9 @@ final class ReaderLoop(
 }
 ```
 
-`ReaderLoop#streamFor` opens a stream the first time the peer uses an id, but only on the side that accepts streams (the server here) and only for an id this connection has never used. When `Mux#open` fails, which happens when `Mux#activeCount` has reached the capacity given to `Mux.apply`, the loop refuses the stream with a `Frame.Reset`, as HTTP/2 refuses streams over its limit.
+`ReaderLoop#streamFor` opens a stream the first time the peer uses an id, but only on the side that accepts streams (the server here) and only for an id this connection has never used. When `Mux#open` returns `CapacityExceeded`, which happens when `Mux#activeCount` has reached the capacity given to `Mux.apply`, the loop refuses the stream with a `Frame.Reset`, as HTTP/2 refuses streams over its limit.
 
-An end frame becomes two calls, in this order: `ReaderLoop#deliver` puts `Message.End` into the inbound queue behind the data, and then `MuxStream#signalRemoteClose` tells the `Mux` that the peer sends nothing more. The order matters, because after `MuxStream#signalRemoteClose` the stream's `MuxStream#offerInbound` returns `StreamClosed`. A reset frame becomes `Mux#cancel` with a `MuxError.Cancelled` reason, which the application sees the next time it calls `MuxStream#receive`.
+An end frame becomes two calls, in this order: `ReaderLoop#deliver` puts `Message.End` into the inbound queue behind the data, and then `MuxStream#signalRemoteClose` tells the `Mux` that the peer sends nothing more. The order matters, because after `MuxStream#signalRemoteClose` the stream's `MuxStream#offerInbound` returns `StreamClosed`. A reset frame becomes `Mux#cancel` with a `MuxError.Cancelled` reason, which the application sees from `MuxStream#receive` once it has read the messages already queued.
 
 When the connection ends, for any reason, the `finally` block calls `Mux#closeAll`, so every application thread waiting on a stream sees an error instead of waiting forever.
 
@@ -665,6 +665,7 @@ server | client opened stream 3
 client | stream 3: Text(ready for release-notes.txt)
 server | client opened stream 5
 client | stream 5: Text(pong 0)
+client | stream 7: Cancelled(7,refused: CapacityExceeded(3))
 client | stream 1: Text([room] alice: the build is green)
 client | stream 5: Text(pong 1) after 2 ms
 client | stream 5: Text(pong 2) after 302 ms
@@ -821,12 +822,12 @@ println(s"offerInbound #257 again: ${slowStream.offerInbound(Message.Text("line 
 
 Over a socket, the inbound queue fills when the application reads a stream more slowly than the peer sends. The upload handler above stores one line per millisecond, while the client sends 1,500 lines as fast as it can. The reader loop then gets `QueueFull` from `MuxStream#offerInbound`, and it has to do something with the frame it is holding. These are the options:
 
-| Strategy                        | Data       | Memory    | Other streams on the connection         |
-| ------------------------------- | ---------- | --------- | --------------------------------------- |
-| Drop the frame                  | Lost       | Bounded   | Unaffected                              |
-| Buffer it outside the `Mux`     | Kept       | Unbounded | Unaffected                              |
-| Stop reading until there's room | Kept       | Bounded   | Wait behind the slow stream             |
-| Per-stream flow control         | Kept       | Bounded   | Unaffected, at the cost of more protocol |
+| Strategy                        | Data | Memory    | Other streams on the connection          |
+| ------------------------------- | ---- | --------- | ---------------------------------------- |
+| Drop the frame                  | Lost | Bounded   | Unaffected                               |
+| Buffer it outside the `Mux`     | Kept | Unbounded | Unaffected                               |
+| Stop reading until there's room | Kept | Bounded   | Wait behind the slow stream              |
+| Per-stream flow control         | Kept | Bounded   | Unaffected, at the cost of more protocol |
 
 `ReaderLoop#deliver` stops reading: it parks for a millisecond and retries the same frame until the queue has room. While it waits, it reads nothing from the socket, so the kernel's receive buffer fills, TCP tells the client to stop sending, the client's writer loop blocks in its socket write, the client's outbound queues fill, and `MuxConnection#send` on the client starts to wait on `QueueFull`. The pressure travels all the way back to the code that produces the data, and no queue grows past its bound.
 
