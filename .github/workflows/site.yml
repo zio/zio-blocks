@@ -56,6 +56,10 @@ jobs:
           # set it; this workflow now sets it, so only this production deploy sends page views.
           CONTEXT: production
           SITE_URL: ${{ vars.SITE_URL }}
+          # The docs search box (website/src/algolia.js). Unset values leave the search box out of the build.
+          ALGOLIA_APP_ID: ${{ vars.ALGOLIA_APP_ID }}
+          ALGOLIA_SEARCH_API_KEY: ${{ vars.ALGOLIA_SEARCH_API_KEY }}
+          ALGOLIA_INDEX_NAME: ${{ vars.ALGOLIA_INDEX_NAME }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload website build artifact
         uses: actions/upload-artifact@v7

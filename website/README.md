@@ -198,6 +198,7 @@ Required configuration (a maintainer sets these once):
 | `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID` | GitHub secrets | Used only by the existing PR preview workflow (`deploy-preview.yml`) |
 | `GITHUB_TOKEN` | Netlify environment variable (optional) | Avoids the unauthenticated GitHub API rate limit when the build looks up the latest release |
 | `SITE_URL` | environment variable (optional) | Overrides the canonical site URL; defaults to `https://zioblocks.com` |
+| `ALGOLIA_APP_ID`, `ALGOLIA_SEARCH_API_KEY`, `ALGOLIA_INDEX_NAME` | GitHub variables and Netlify environment variables (optional) | Turn on the docs search box (see Search below). Set all three or none |
 
 The install line shows the latest release version, read from the GitHub API at build time (`GITHUB_TOKEN` avoids the
 unauthenticated rate limit) and falling back to the pinned `FALLBACK_VERSION` in `scripts/lib/version.mjs`.
@@ -244,6 +245,24 @@ build is killed for memory, lower it for that build.
 
 Alternative: point the domain's GoDaddy nameservers at Netlify DNS (Netlify shows them in Domain management) and let
 Netlify manage every record and renew certificates itself.
+
+### Search (Algolia)
+
+The docs search box is Algolia DocSearch, as on zio.dev and ziohttp.com. `src/algolia.js` reads three values from the
+environment and passes them to `themeConfig.algolia`:
+
+- `ALGOLIA_APP_ID`: the Algolia application ID
+- `ALGOLIA_SEARCH_API_KEY`: the search-only API key (never the admin key)
+- `ALGOLIA_INDEX_NAME`: the index the crawler writes to
+
+Set all three as GitHub Actions variables (`site.yml` passes them to the build) and as Netlify environment variables. If
+none is set, the build has no search box. If only some are set, the build warns and also has none. Local check:
+`ALGOLIA_APP_ID=... ALGOLIA_SEARCH_API_KEY=... ALGOLIA_INDEX_NAME=... yarn build:landing`, then look for `DocSearch-Button`
+in `build/index.html`.
+
+The index is filled by the DocSearch crawler, not by this repository. Apply for DocSearch (docsearch.algolia.com) or
+ask Algolia for a crawler on `https://zioblocks.com/`, then check the crawl in the Algolia dashboard before relying on
+the search box.
 
 ### Google Analytics and Search Console
 

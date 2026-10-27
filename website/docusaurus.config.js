@@ -1,5 +1,6 @@
 // @ts-check
 const prismThemes = require('./src/prism-themes');
+const { algoliaConfig } = require('./src/algolia');
 
 // LANDING_ONLY=1 builds just the landing page (no docs plugin, so no mdoc output or sbt is needed); broken links to
 // the docs only warn then. The full build, which CI deploys, never sets it.
@@ -9,6 +10,9 @@ const LANDING_ONLY = process.env.LANDING_ONLY === '1';
 // CONTEXT=production only for the production build; PR previews are built in CI without it, so they never send page views.
 const GA_MEASUREMENT_ID = 'G-D1FMWLNJ8K';
 const ANALYTICS = process.env.CONTEXT === 'production';
+
+// The docs search box (Algolia DocSearch). Undefined unless the ALGOLIA_* variables are set; see src/algolia.js and README.md.
+const ALGOLIA = algoliaConfig();
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -102,6 +106,7 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       image: 'brand/zio-blocks-social-og.png',
+      ...(ALGOLIA ? { algolia: ALGOLIA } : {}),
       colorMode: {
         defaultMode: 'light',
         respectPrefersColorScheme: true,
