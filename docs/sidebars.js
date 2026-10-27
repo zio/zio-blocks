@@ -467,6 +467,7 @@ const sidebars = {
     "guides/nested-data-with-optics",
     "guides/use-named-tuples-with-schema",
     "guides/one-type-many-formats",
+    "guides/encode-and-decode-records-with-avro",
     "guides/read-and-write-csv-and-tsv-files",
     "guides/read-and-write-yaml",
     "guides/typed-config-loader",
