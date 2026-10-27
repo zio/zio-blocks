@@ -136,7 +136,7 @@ An unknown field is ignored by default, so a station that adds a `wind` field do
 """{"city":"Oslo","tempC":3.8,"wind":4}""".fromJson[Reading]
 ```
 
-To change field naming, reject unknown fields or require optional fields, derive a customized codec as shown in [How to Customize JSON Encoding](./customize-json-encoding.md); it works the same for named tuples.
+To change field naming, reject unknown fields or require optional fields, derive a customized codec with `JsonCodecDeriver` settings such as `withFieldNameMapper`, `withRejectExtraFields` and `withRequireOptionFields`, as shown in [How to Customize JSON Encoding](./customize-json-encoding.md). Those global settings apply to named tuples; the per-type `@Modifier` annotations don't, because a named tuple has nothing to annotate.
 
 ## Nest Named Tuples and Add Optional Fields
 
