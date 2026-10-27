@@ -20,6 +20,10 @@ import java.util.concurrent.CountDownLatch
 import zio.blocks.async._
 import zio.blocks.streams.JvmType
 
+/**
+ * The blocking view that `AsyncReader#toSync` returns: each operation runs the
+ * matching operation of `source` and blocks until it completes, one at a time.
+ */
 private[streams] final class AsyncToSyncReader[A](val source: Reader.AsyncReader[A])
     extends Reader.SyncReader[A]
     with Reader.AsyncToSyncView[A]
