@@ -509,6 +509,7 @@ const sidebars = {
     "guides/migrate-from-magnum-or-doobie",
     "guides/generate-json-schema-and-validate-payloads",
     "guides/write-and-export-openapi",
+    "guides/generate-scala-code-from-smithy",
     "guides/llm-data-with-toon",
     {
       type: "category",

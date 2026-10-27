@@ -550,6 +550,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [How to Generate JSON Schema from a Type and Validate Payloads Against It](./guides/generate-json-schema-and-validate-payloads.md) - Derive a JSON Schema from a `Schema`, publish it, and validate incoming JSON payloads
 - [How to Tune JSON Encoding and Decoding for Throughput](./guides/tune-json-throughput.md) - Decode JSON straight from bytes, buffers and streams, reuse derived codecs, size reader and writer buffers, and measure with JMH
 - [How to Write an OpenAPI Document and Export It as JSON or YAML](./guides/write-and-export-openapi.md) - Build an OpenAPI 3.1 document from component schemas and render it as JSON or YAML
+- [Generate Scala Code from a Smithy Model](./guides/generate-scala-code-from-smithy.md) - Parse a Smithy model, map its shapes to the codegen IR, emit Scala 3 and Scala 2 with `Schema` derivation, and run the generator as an sbt source generator
 - [How to Define Validated Newtypes and Collect Every Validation Error](./guides/validated-newtypes.md) - Wrap a primitive in a validated newtype, reject bad values at construction, and collect every validation error in one `SchemaError`
 - [How to Compute, Store and Replay Changes with Diff and Patch](./guides/diff-and-patch.md) - Diff two versions of a value, store the patch as JSON, replay an edit history with undo, and send changes as JSON patches, including RFC 6902
 - [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
