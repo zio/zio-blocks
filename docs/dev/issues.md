@@ -12160,6 +12160,143 @@ import zio.blocks.maybe._
 
 **Suggested fix.** Replace the description with "Optional values that store a present reference as is, without a wrapper object (Scala 3)". Done on the H-51 branch `avoid-allocation` in commit `1dfba0647`; regenerate the README after it merges.
 
+### docs: `docs/reference/maybe.md` says flat primitive `Maybe`s allocate nothing; any `Long`, `Double` or `Int` outside the box cache is boxed
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/avoid-allocation-on-hot-paths.md` (backlog H-51), on `main` at `8bb71c48c`. Same at v0.0.56.
+
+**Summary.** The "Allocation Profile" table (`docs/reference/maybe.md:26-28`) lists `Maybe.present(42)`, `Maybe(42)` and `Maybe.fromOption(Some(42))` as **0** allocations ("raw `42`"), and `:33` and `:60` say "All other flat cases store the value raw with zero allocation overhead" / "Flat values (non-nested, non-null) are stored raw with zero allocation". That holds for reference types only. `Maybe[A]` erases to `Object`, so a primitive is stored as its box: `42` merely hits the `Integer` cache (-128..127). `Maybe.present(1000)` allocates a fresh `java.lang.Integer`, every `Double` allocates a `java.lang.Double`, and writing `Maybe(price)` into a `Maybe[Long]` field allocates 24 bytes per write (one `java.lang.Long`).
+
+**Reproduction.** File `Repro.scala`, run with `scala-cli run --server=false Repro.scala` (JDK 25, scala-cli 1.10.1):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-maybe:0.0.56
+import zio.blocks.maybe._
+import java.lang.management.ManagementFactory
+
+final class LastPrice { var price: Maybe[Long] = Maybe.absent }
+
+@main def repro(): Unit = {
+  val a = Maybe.present(42)
+  val b = Maybe.present(42)
+  println(s"present(42) twice, same object:   ${a.asInstanceOf[AnyRef] eq b.asInstanceOf[AnyRef]}")
+  val c = Maybe.present(1000)
+  val d = Maybe.present(1000)
+  println(s"present(1000) twice, same object: ${c.asInstanceOf[AnyRef] eq d.asInstanceOf[AnyRef]}")
+  println(s"present(1000) runtime class:      ${c.asInstanceOf[AnyRef].getClass.getName}")
+  println(s"present(1.5) runtime class:       ${Maybe.present(1.5).asInstanceOf[AnyRef].getClass.getName}")
+
+  val threads = ManagementFactory.getThreadMXBean.asInstanceOf[com.sun.management.ThreadMXBean]
+  val holder  = new LastPrice
+  def writes(): Unit = {
+    var i = 0L
+    while (i < 100000L) { holder.price = Maybe.present(187000000L + i); i += 1 }
+  }
+  for (_ <- 1 to 300) writes() // let the JIT compile the loop
+  val before = threads.getCurrentThreadAllocatedBytes
+  writes()
+  println(s"Maybe[Long] field write: ${(threads.getCurrentThreadAllocatedBytes - before) / 100000.0} bytes per write")
+}
+// present(42) twice, same object:   true
+// present(1000) twice, same object: false
+// present(1000) runtime class:      java.lang.Integer
+// present(1.5) runtime class:       java.lang.Double
+// Maybe[Long] field write: 24.0 bytes per write
+```
+
+For comparison, the H-51 companion example `schema-examples/src/main/scala/avoidallocation/Step6MaybeExample.scala` measures 40 bytes per write for an `Option[Long]` field and 0 for a `Maybe[Tick]` field holding a case-class reference.
+
+**Expected.** The table distinguishes references (0 allocations) from primitives (one box per value outside the JVM's box caches), so readers do not reach for `Maybe[Long]`/`Maybe[Double]` expecting zero allocation.
+
+**Root cause.** The doc generalises from the reference case. Source: `maybe/shared/src/main/scala-3/zio/blocks/maybe/Maybe.scala:67` (`opaque type Maybe[+A] = A | Absent.type | Present[A]`, erased to `Object`) and `:98-105` (`present` stores `a.asInstanceOf[Maybe[A]]`, i.e. the boxed primitive).
+
+**Impact.** Performance-minded users swap `Option[Long]` for `Maybe[Long]` expecting zero allocation and still allocate 24 bytes per value (they save the 16-byte `Some` only). The `42` example hides it because of the `Integer` cache.
+
+**Test gap.** No allocation test; `MaybeScala3Spec` / `MaybeSpec` check values, not identity or allocation. `MaybeBoxingBenchmark` measures `Maybe[String]` through a JSON codec only.
+
+**Suggested fix.** Change rows 26-28 to e.g. `Maybe.present(tick)` → **0** (raw reference), add a row "Flat present, primitive | `Maybe.present(1000L)` | **1** box (`java.lang.Long`), 0 only for values in the JVM box cache", and qualify `:33` and `:60` ("Flat reference values are stored raw; primitives are stored as their box"). The H-51 guide already says this in its Maybe section.
+
+### docs/examples: `streams-examples` `SinkSentinelGuardExample` and `SinkSentinelLimitationExample` describe a sentinel guard that was removed in #1672, and print contradictory results
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/avoid-allocation-on-hot-paths.md` (backlog H-51), on `main` at `8bb71c48c`. Same at v0.0.56.
+
+**Summary.** `streams-examples/src/main/scala/sink/SinkSentinelGuardExample.scala` claims `NioSinks.fromByteBufferLong`/`fromByteBufferDouble` use `Long.MaxValue`/`Double.MaxValue` as an end-of-stream sentinel and throw `IllegalArgumentException` when an element equals it ("Collisions Are Rejected Loudly"). `SinkSentinelLimitationExample.scala` claims the same sinks *silently truncate* at that value. Both are wrong since PR #1672 (commit `544a735ab`, released in v0.0.52): the `Long` and `Double` lanes now detect the end of the stream by the count that the bulk read returns, so the sinks write every value, `Long.MaxValue` included, and throw nothing. Running the examples shows it: the guard example prints `✗ UNEXPECTED: drain completed without error`, and the limitation example prints `⚠️  Expected 5 values, but only wrote 5 to buffer!` followed by `✗ Data loss: Elements at indices 2, 3, 4 were silently dropped` right after listing all five values. Their closing "Sentinels per typed sink" tables (`fromByteBufferLong: sentinel = Long.MaxValue (collision throws)`) are also stale.
+
+**Reproduction.** File `Repro.scala`, run with `scala-cli run --server=false Repro.scala` (JDK 25, scala-cli 1.10.1):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+import zio.blocks.streams._
+import java.nio.ByteBuffer
+
+@main def repro(): Unit = {
+  val longs  = ByteBuffer.allocate(5 * 8)
+  val result = Stream.fromIterable(List(100L, 200L, Long.MaxValue, 300L, 400L)).run(NioSinks.fromByteBufferLong(longs))
+  println(s"fromByteBufferLong result: $result, position: ${longs.position()} bytes")
+  println(s"  written: ${(0 until 5).map(i => longs.getLong(i * 8)).mkString(", ")}")
+
+  val doubles = ByteBuffer.allocate(3 * 8)
+  val result2 = Stream.fromIterable(List(1.5, Double.MaxValue, 2.5)).run(NioSinks.fromByteBufferDouble(doubles))
+  println(s"fromByteBufferDouble result: $result2, position: ${doubles.position()} bytes")
+  println(s"  written: ${(0 until 3).map(i => doubles.getDouble(i * 8)).mkString(", ")}")
+}
+// fromByteBufferLong result: Right(()), position: 40 bytes
+//   written: 100, 200, 9223372036854775807, 300, 400
+// fromByteBufferDouble result: Right(()), position: 24 bytes
+//   written: 1.5, 1.7976931348623157E308, 2.5
+```
+
+The examples themselves, from `streams-examples/`: `sbt "runMain sink.SinkSentinelGuardExample" "runMain sink.SinkSentinelLimitationExample"` prints the lines quoted above.
+
+**Expected.** The examples teach current behaviour: `fromByteBufferLong`/`fromByteBufferDouble` are lossless for every value; only a custom sink that calls the scalar `Reader#readLong(sentinel)`/`readDouble(sentinel)` can collide, and the fix there is the one-element `readLongs`/`readDoubles` loop.
+
+**Root cause.** The examples were written for the #1458 design (`lastReadWasEOF`, `markReadEOF`, a post-loop throw in `NioSinks`), which #1672 removed (`git show 544a735ab -- streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala streams/jvm/src/main/scala/zio/blocks/streams/NioSinks.scala`). Today `NioSinks.scala:110-121` drains through `Sink.foldSyncReader`, whose `Long` and `Double` branches (`streams/shared/src/main/scala/zio/blocks/streams/Sink.scala:1196` and `:1207`) loop on `readLongsPhysical(one, 0, 1)` / `readDoublesPhysical(one, 0, 1)` until the count is `-1`. AGENTS.md's "Sentinel performance policy" cites the same removed mechanism (`lastReadWasEOF` and the `NioSinks` post-loop throw).
+
+**Impact.** Readers learn that the typed NIO sinks lose or reject `Long.MaxValue`/`Double.MaxValue` and avoid them for no reason, or add per-element checks the sentinel policy forbids. The two files contradict each other and their own printed output.
+
+**Test gap.** CI only compiles the examples, never runs them. `streams/jvm/src/test/scala/zio/blocks/streams/NioStreamsSinksSpec.scala` has "writes all longs into buffer" (`:240`) but no case with `Long.MaxValue`/`Double.MaxValue` data, so nothing pins the lossless behaviour.
+
+**Suggested fix.** Rewrite both examples (or merge them into one) to show that `fromByteBufferLong`/`fromByteBufferDouble` write `Long.MaxValue`/`Double.MaxValue` like any other value, and to show the real collision case: a custom `Sink.create` using `readLong(sentinel)` that stops early, next to the one-element `readLongs` loop that does not. Add a `NioStreamsSinksSpec` test with `Long.MaxValue` and `Double.MaxValue` in the data. Update AGENTS.md's sentinel policy and the backlog's H-27 row.
+
+### docs: `zero-boxing.md` says `Sink` accepts elements through unboxed `write` methods; `Sink` has no `write` methods
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/avoid-allocation-on-hot-paths.md` (backlog H-51), on `main` at `8bb71c48c`. Same at v0.0.56.
+
+**Summary.** Under "### Sink[E, A, Z]", `docs/reference/streams/execution-and-compatibility/zero-boxing.md:303` says: "Accepts elements via unboxed `write` methods matched to the detected type". `Sink` has no public members for feeding elements at all; its abstract members are the internal `drain(reader)` methods, and a sink *pulls* from a `Reader` through the lane-specific reads (`readInt`, `readLongs`, ...). The `write` family belongs to `Writer`. The example under that sentence (`nums.runFold(0)(_ + _)`) does not show any `write` either.
+
+**Reproduction.** File `Repro.scala`, run with `scala-cli run --server=false Repro.scala` (JDK 25, scala-cli 1.10.1):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+import zio.blocks.streams._
+
+@main def repro(): Unit = {
+  val sum: Sink[Nothing, Long, Long] = Sink.sumLong
+  sum.write(1L)
+}
+// -- [E008] Not Found Error: Repro.scala:8:6
+// 8 |  sum.write(1L)
+//   |  ^^^^^^^^^
+//   |value write is not a member of zio.blocks.streams.Sink[Nothing, Long, Long] - did you mean sum.wait?
+// 1 error found
+// Compilation failed
+```
+
+**Expected.** The section says how a sink consumes a primitive lane: it pulls from the run's `Reader` with that lane's read (`Reader#readInt(Long.MinValue)`, the one-element `readLongs`/`readDoubles` loop, ...), which the built-in sinks do through `Sink.foldSyncReader`.
+
+**Root cause.** Wrong API named in the prose. Source: `streams/shared/src/main/scala/zio/blocks/streams/Sink.scala:58` (`abstract class Sink[+E, -A, +Z]`) has only `private[streams] def drain(reader: Reader.SyncReader[_])` (`:114`) and `drain(reader: Reader.AsyncReader[_])` (`:119`) as abstract members; the `Long`/`Double` drain loops are at `Sink.scala:1196` and `:1207`.
+
+**Impact.** Readers look for `Sink#write*` to build a custom sink, find nothing, and miss `Sink.create`/`Sink.createBoth` plus the reader-side primitive reads.
+
+**Test gap.** None (doc text).
+
+**Suggested fix.** Replace the sentence with: "Pulls elements from the run's `Reader` with the read that matches the lane (`readInt`, `readFloat`, or the count-returning `readLongs`/`readDoubles`), so built-in sinks such as `Sink.sumLong` and `Stream#runFold` never box. Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads." and link `../primitives/reader.md`.
+
 ## Resolved
 
 - `telemetry-guide.md` propagation examples started a new trace instead of continuing the caller's: the HTTP server example took its tracer before `trace.install`, and `traceIncoming` extracted the parent but never scoped it. The "Span-log correlation" line called the `private[telemetry]` `new TracerProvider(...)`, and `reference/telemetry/otel/index.md` listed `X-B3-ParentSpanId` and `X-B3-Flags` as headers `B3Propagator.multi` writes (it writes only TraceId, SpanId and Sampled). Fixed in #1853 (H-43, commit `4df2713bc`). Still open: the same wrong header list in the Scaladoc at `otel/src/main/scala/zio/blocks/telemetry/otel/B3Propagator.scala:41-42` (backlog doc-fix follow-up).
