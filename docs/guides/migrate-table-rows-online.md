@@ -146,7 +146,7 @@ println(splitName(CustomerV1(2, "Grace Brewster Hopper", "grace@example.com")))
 
 `Migration#apply` returns an `Either`, so a row that the conversion can't handle becomes a `Left`, not an exception. We meet such a row in [Recover from a Failed Batch and Restart](#recover-from-a-failed-batch-and-restart).
 
-All the examples in this guide share these definitions, together with two pieces we show in later sections, in one file:
+All the examples in this guide share these definitions, together with three pieces we show in later sections, in one file:
 
 <details>
   <summary>The shared model: <code>Customers.scala</code></summary>
