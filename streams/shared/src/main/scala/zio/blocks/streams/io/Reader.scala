@@ -71,9 +71,11 @@ import java.lang.{Double => JDouble, Float => JFloat}
  *
  * The bulk reads (`readAll`, `readN`, `readUpToN`, `skip`) handle the end of
  * the stream themselves and never mistake an element for it. On a reader on the
- * `AnyRef` lane, the default primitive pulls unbox each element, except that
- * `readBytes`, `readInts` and `readFloats` throw `IllegalStateException` there
- * (a known bug).
+ * `AnyRef` lane, the default primitive pulls unbox each element. Known bugs:
+ * `readBytes`, `readInts` and `readFloats` throw `IllegalStateException` there,
+ * and so does every primitive pull of a reader that wraps an `AnyRef`-lane
+ * reader (`toAsync`, `toSync`, `withRelease`, `withReleaseAsync`,
+ * `Reader.repeated`, and the result of `++` or `concat`).
  *
  * ==Thread safety==
  * A reader is a single-consumer cursor and is not thread-safe. Pull from one
@@ -120,6 +122,10 @@ abstract class Reader[+Elem] {
    * (`readInt`, `readBytes`, ...) throw, or fail with, `IllegalStateException`;
    * read it with `read`, `readAll`, `readN` or `readUpToN`, or through a
    * stream.
+   *
+   * When the result is an `AsyncReader`, an element that is the same object as
+   * the `read` sentinel ends the current part early: that element and the rest
+   * of its part are skipped (see `AsyncReader#read`).
    */
   def concat[Elem2 >: Elem](next: () => Reader[Elem2]): Reader[Elem2]
 
@@ -136,6 +142,10 @@ abstract class Reader[+Elem] {
    * it is closed and waits for it to finish. `release` runs once, however many
    * times the reader is closed; reading to the end does not run it. A failure
    * of `release` fails that `close()` and every later one.
+   *
+   * A known bug: when this reader is on the `AnyRef` lane, the result's
+   * primitive pulls (`readInt`, `readLongs`, ...) throw, or fail with,
+   * `IllegalStateException`; `read`, `readAll`, `readN` and `readUpToN` work.
    */
   def withReleaseAsync(release: () => Async[Unit]): Reader.AsyncReader[Elem]
 
@@ -390,7 +400,8 @@ object Reader {
      * Returns an `AsyncReader` that produces this reader's elements, then those
      * of `next`. Chosen when `next` is statically a `Reader` of unknown kind;
      * this reader is adapted with [[toAsync]]. The result is on the `AnyRef`
-     * lane, with the known bug described on `Reader#concat`.
+     * lane, with the known bug and the sentinel limitation described on
+     * `Reader#concat`.
      */
     final override def ++[Elem2 >: Elem](next: => Reader[Elem2]): AsyncReader[Elem2] =
       new AsyncConcatReader[Elem2](toAsync, () => StreamError.callbackAsync(Async.succeed(next)), JvmType.AnyRef)
@@ -399,8 +410,8 @@ object Reader {
      * Returns an `AsyncReader` that produces this reader's elements, then those
      * of the reader that `next` returns. Chosen when `next` statically returns
      * a `Reader` of unknown kind; this reader is adapted with [[toAsync]]. The
-     * result is on the `AnyRef` lane, with the known bug described on
-     * `Reader#concat`.
+     * result is on the `AnyRef` lane, with the known bug and the sentinel
+     * limitation described on `Reader#concat`.
      */
     final override def concat[Elem2 >: Elem](next: () => Reader[Elem2]): AsyncReader[Elem2] =
       new AsyncConcatReader[Elem2](toAsync, () => StreamError.callbackAsync(Async.succeed(next())), JvmType.AnyRef)
@@ -415,7 +426,7 @@ object Reader {
      * Returns an `AsyncReader` that produces this reader's elements, then those
      * of the reader that the `Async` from `next` produces. `next` runs when
      * this reader is exhausted. The result is on the `AnyRef` lane, with the
-     * known bug described on `Reader#concat`.
+     * known bug and the sentinel limitation described on `Reader#concat`.
      */
     final def concatAsync[Elem2 >: Elem](next: () => Async[Reader[Elem2]]): AsyncReader[Elem2] =
       new AsyncConcatReader[Elem2](toAsync, () => StreamError.callbackAsync(next()), JvmType.AnyRef)
@@ -426,6 +437,10 @@ object Reader {
      * times the reader is closed; reading to the end does not run it. A failure
      * of `release` fails that `close()` and every later one. Use
      * [[withRelease]] to stay synchronous.
+     *
+     * A known bug: when this reader is on the `AnyRef` lane, the result's
+     * primitive pulls (`readInt`, `readLongs`, ...) throw, or fail with,
+     * `IllegalStateException`; `read`, `readAll`, `readN` and `readUpToN` work.
      */
     final def withReleaseAsync(release: () => Async[Unit]): AsyncReader[Elem] =
       new AsyncReleaseReader[Elem](toAsync, release)
@@ -444,12 +459,17 @@ object Reader {
      * Once one of the view's pulls returns its end value, the view treats the
      * reader as exhausted, and every later pull returns the end value without
      * reading this reader again (until `reset()`). For `read`, that is an
-     * element that is the same object as the sentinel, which a boxed number
-     * from -128 to 127 can be (`read(-1)` matches an element `-1`); for
-     * `readBoolean`, `readChar`, `readShort`, `readInt` and `readFloat`, an
-     * element equal to the sentinel. So an element that collides with the
-     * sentinel ends the view early. The view's `readLong` and `readDouble`
-     * detect the end by count and never stop early.
+     * element that is the same object as the sentinel: on the JVM a boxed
+     * `Boolean`, a boxed number from -128 to 127 or an interned string can be
+     * (`read(-1)` matches an element `-1`), and on Scala.js any equal number
+     * is; for `readBoolean`, `readChar`, `readShort`, `readInt` and
+     * `readFloat`, an element equal to the sentinel. So an element that
+     * collides with the sentinel ends the view early. The view's `readLong` and
+     * `readDouble` detect the end by count and never stop early.
+     *
+     * A known bug: when this reader is on the `AnyRef` lane, the result's
+     * primitive pulls (`readInt`, `readLongs`, ...) throw, or fail with,
+     * `IllegalStateException`; `read`, `readAll`, `readN` and `readUpToN` work.
      *
      * {{{
      * import zio.blocks.async._
@@ -1131,6 +1151,10 @@ object Reader {
      * another thread waits until the first one has finished. The result can be
      * [[reset]] while it is open, if this reader supports it.
      *
+     * A known bug: when this reader is on the `AnyRef` lane, the result's
+     * primitive pulls (`readInt`, `readLongs`, ...) throw, or fail with,
+     * `IllegalStateException`; `read`, `readAll`, `readN` and `readUpToN` work.
+     *
      * {{{
      * import zio.blocks.streams.io.Reader
      *
@@ -1318,9 +1342,13 @@ object Reader {
      * this reader is exhausted or closed. A failure of the source fails the
      * `Async`.
      *
-     * `sentinel` must not occur as an element: an element equal to it is
-     * returned as is, and the caller cannot tell it from the end (see
-     * `SyncReader#toAsync` for how its view treats such an element).
+     * `sentinel` must not occur as an element: on most readers an element equal
+     * to it is returned as is, and the caller cannot tell it from the end. Two
+     * readers lose more: the `SyncReader#toAsync` view stops for good (see
+     * there), and an asynchronous concatenation built by `++`, `concat` or
+     * `concatAsync` treats an element that is the same object as the sentinel
+     * as the end of its current part, skipping that element and the rest of the
+     * part.
      */
     def read[A >: Elem](sentinel: A): Async[A]
 
@@ -1582,6 +1610,10 @@ object Reader {
      * element per call on a reader such as [[Reader.unfoldAsync]]. An invalid
      * range fails the `Async` with `IndexOutOfBoundsException` (or
      * `NullPointerException`).
+     *
+     * A known bug: on a reader on the `AnyRef` lane, such as a custom reader
+     * that does not override `jvmType`, it throws `IllegalStateException` at
+     * the call site instead of unboxing.
      */
     def readBytes(dest: Array[Byte], offset: Int, length: Int)(implicit ev: Elem <:< Byte): Async[Int] =
       validateArrayRangeAsync(dest, offset, length).flatMap(_ =>
@@ -1601,6 +1633,10 @@ object Reader {
      * element per call on a reader such as [[Reader.unfoldAsync]]. An invalid
      * range fails the `Async` with `IndexOutOfBoundsException` (or
      * `NullPointerException`).
+     *
+     * A known bug: on a reader on the `AnyRef` lane, such as a custom reader
+     * that does not override `jvmType`, it throws `IllegalStateException` at
+     * the call site instead of unboxing.
      */
     def readInts(dest: Array[Int], offset: Int, length: Int)(implicit ev: Elem <:< Int): Async[Int] =
       validateArrayRangeAsync(dest, offset, length).flatMap(_ =>
@@ -1645,6 +1681,10 @@ object Reader {
      * reads one element per call on a reader such as [[Reader.unfoldAsync]]. An
      * invalid range fails the `Async` with `IndexOutOfBoundsException` (or
      * `NullPointerException`).
+     *
+     * A known bug: on a reader on the `AnyRef` lane, such as a custom reader
+     * that does not override `jvmType`, it throws `IllegalStateException` at
+     * the call site instead of unboxing.
      */
     def readFloats(dest: Array[Float], offset: Int, length: Int)(implicit ev: Elem <:< Float): Async[Int] =
       validateArrayRangeAsync(dest, offset, length).flatMap(_ =>
@@ -2968,6 +3008,10 @@ object Reader {
    *
    * A known bug: after `close()`, the next pull resets `inner` and keeps
    * producing elements (the asynchronous overload stops as expected).
+   *
+   * A known bug: when `inner` is on the `AnyRef` lane, the result's primitive
+   * pulls (`readInt`, `readLongs`, ...) throw `IllegalStateException`; `read`,
+   * `readAll`, `readN` and `readUpToN` work.
    *
    * {{{
    * import zio.blocks.chunk.Chunk

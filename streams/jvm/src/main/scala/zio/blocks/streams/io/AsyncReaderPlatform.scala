@@ -30,10 +30,14 @@ private[io] trait AsyncReaderPlatform[+A] { self: Reader.AsyncReader[A] =>
    * then returns the end value.
    *
    * The view shares this reader's position and lifecycle: closing the view
-   * closes this reader, and after that its control operations (`reset()`,
-   * `skip`, `setLimit`, ...) throw `IOException`. On a reader made by
-   * `SyncReader#toAsync`, it returns the original synchronous reader instead of
-   * wrapping again.
+   * closes this reader, and after that the view's control operations
+   * (`reset()`, `skip`, `setLimit`, ...) throw `IOException`. On a reader made
+   * by `SyncReader#toAsync`, it returns the original synchronous reader instead
+   * of wrapping again.
+   *
+   * A known bug: when this reader is on the `AnyRef` lane, the view's primitive
+   * pulls (`readInt`, `readLongs`, ...) throw `IllegalStateException`; `read`,
+   * `readAll`, `readN` and `readUpToN` work.
    */
   final def toSync: Reader.SyncReader[A] = self match {
     case inverse: Reader.SyncToAsyncView[A @unchecked] => inverse.source
