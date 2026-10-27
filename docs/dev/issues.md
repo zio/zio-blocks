@@ -7982,6 +7982,51 @@ Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-fro
 
 **Suggested fix.** Resolve simple trait names against the `use` statements, then the model namespace when the trait is defined there, then `smithy.api`. Add tests for all three, and update the "Trait identifiers are the exception" paragraph of `docs/reference/smithy.md`.
 
+### Avro: `Array[Byte]` encodes as an Avro array of `int`, not `bytes`
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/encode-and-decode-records-with-avro.md` (backlog H-13), on `main` at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** `Schema[Array[Byte]]` and `Chunk[Byte]` derive the Avro schema `{"type":"array","items":"int"}`. Avro has a `bytes` type for this. Each byte is written as a zig-zag varint inside an array block, so the output is larger than the payload. `BigInt` in the same module already maps to `bytes`.
+
+**Reproduction.** File `ArrayByte.scala`, run with `scala-cli run --server=false ArrayByte.scala -M ArrayByte`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-avro:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.avro._
+
+object ArrayByte {
+  def main(args: Array[String]): Unit = {
+    implicit val bytesSchema: Schema[Array[Byte]] = Schema.derived
+
+    val payload = Array.fill[Byte](100)(1)
+    val codec   = bytesSchema.derive(AvroFormat)
+
+    println(codec.avroSchema.toString)
+    println(s"Array[Byte] of 100 bytes encodes to ${codec.encode(payload).length} bytes")
+    println(Schema[BigInt].derive(AvroFormat).avroSchema.toString)
+    println(s"BigInt of 2^700 encodes to ${Schema[BigInt].derive(AvroFormat).encode(BigInt(2).pow(700)).length} bytes")
+  }
+}
+// {"type":"array","items":"int"}
+// Array[Byte] of 100 bytes encodes to 103 bytes
+// "bytes"
+// BigInt of 2^700 encodes to 90 bytes
+```
+
+**Expected.** `Array[Byte]` and `Chunk[Byte]` map to Avro `bytes`, the same way `BigInt` does. Output is then about the payload size and a non-Scala reader sees a byte string.
+
+**Root cause.** The specialised `Col[Byte]` codec, `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodecDeriver.scala:291-297`, takes `elementCodec = codec.asInstanceOf[AvroCodec[Byte]]` and builds its schema with `AvroSchema.createArray(elementCodec.avroSchema)` (line 297). The element codec is `AvroCodec.byteCodec` (`AvroCodecDeriver.scala:46`), whose schema is `AvroSchema.create(AvroSchema.Type.INT)` (`AvroCodec.scala:147`). For contrast, `bigIntCodec` at `AvroCodec.scala:214-219` uses `AvroSchema.Type.BYTES`.
+
+**Impact.** Non-Scala readers see an array of `int` where they expect bytes. Payloads are bigger on the wire: a value below 64 takes one byte per element, a value outside -64..63 takes two, plus array block headers. Here 100 bytes become 103 bytes, and random data is about twice its size.
+
+**Test gap.** `schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:498` asserts `avroSchema[Array[Byte]]("{\"type\":\"array\",\"items\":\"int\"}")`, so the mapping is pinned as if deliberate. No spec checks `Array[Byte]` against Avro `bytes`.
+
+**Suggested fix.** Add a bytes codec for `Col[Byte]` (`AvroSchema.create(AvroSchema.Type.BYTES)`, with `encoder.writeBytes` and `decoder.readBytes`), mirroring `bigIntCodec`. Change the pinned assertion at line 498 in the same change, and note the schema change in the Avro reference. This changes the wire format for existing `Array[Byte]` users, so it needs a release note. If the team keeps the int array on purpose, the reference should say so and give the size cost.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -10514,6 +10559,90 @@ object Repro {
 
 **Suggested fix.** Render `derives` on `SealedTrait` and `Enum` under `scala3Syntax`, the same way `emitCaseClass` does. Render `Field.doc` as a `/** ... */` line above the parameter (valid in Scala 2 and 3, through the escaping helper from the doc-escaping entry). If any of this is deliberate, say so in the field's Scaladoc and in `docs/reference/codegen/{sealed-trait,field}.md`.
 
+### Avro `decode` accepts input with trailing bytes and returns the first record
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/encode-and-decode-records-with-avro.md` (backlog H-13), on `main` at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** `codec.decode(bytes)` decodes one value and returns `Right`, without checking that the input is used up. A message with extra bytes at the end decodes as if the extra bytes were not there.
+
+**Reproduction.** File `Trailing.scala`, run with `scala-cli run --server=false Trailing.scala -M Trailing`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-avro:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.avro._
+
+object Trailing {
+  def main(args: Array[String]): Unit = {
+    val codec = Schema[Int].derive(AvroFormat)
+
+    // One zig-zag varint for 42 is the single byte 0x54. The next two bytes are extra.
+    val oneRecord = Array[Byte](0x54)
+    val withExtra = Array[Byte](0x54, 0x01, 0x02)
+
+    println(codec.decode(oneRecord))
+    println(codec.decode(withExtra))
+  }
+}
+// Right(42)
+// Right(42)
+```
+
+**Expected.** `decode` returns `Left` with an error for `withExtra`, because the input holds two bytes that are not part of the value. Or the behaviour is documented as the chosen contract.
+
+**Root cause.** `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodec.scala:82-84`: `decode(input: Array[Byte])` builds a `binaryDecoder` over the whole array and calls `decodeValue` once. It never checks that the decoder is at the end of the input (for example `decoder.isEnd`). The stream variant at lines 94-98 has the same shape.
+
+**Impact.** Framing mistakes go unnoticed. A payload with padding, or two messages in one buffer, is read as one value. The loss is silent.
+
+**Test gap.** `grep -rn -i "trailing\|remaining\|isEnd" schema-avro/src/test` returns nothing. `schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala` tests truncated input (lines 92-115) but no input that is too long.
+
+**Suggested fix.** In `decode(Array[Byte])`, after `decodeValue`, check that the decoder is at the end and return `Left(new SchemaError(...))` if not. Add a spec case next to the truncated-input cases. Keep the stream variant as is, because it reads one record at a time by design.
+
+### Avro bytes from one type decode silently as a different type
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/encode-and-decode-records-with-avro.md` (backlog H-13), on `main` at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** Avro binary carries no schema or type name. A reader decodes whatever bytes it is given with its own schema. Bytes written for `Shipped(orderId: Long, carrier: String)` decode without error as `Priority(orderId: Long, priority: Int)` and return wrong values.
+
+**Reproduction.** File `CrossType.scala`, run with `scala-cli run --server=false CrossType.scala -M CrossType`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-avro:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.avro._
+
+case class Shipped(orderId: Long, carrier: String)
+case class Priority(orderId: Long, priority: Int)
+
+object CrossType {
+  def main(args: Array[String]): Unit = {
+    implicit val shippedSchema: Schema[Shipped] = Schema.derived
+    implicit val prioritySchema: Schema[Priority] = Schema.derived
+
+    val shippedBytes = shippedSchema.derive(AvroFormat).encode(Shipped(7L, "DHL"))
+
+    println(prioritySchema.derive(AvroFormat).decode(shippedBytes))
+  }
+}
+// Right(Priority(7,3))
+```
+
+**Expected.** Either an error, or the codec exposes a way to check the writer's schema (a fingerprint or a name check). If neither is planned, the behaviour is documented as the caller's responsibility.
+
+**Root cause.** Avro's binary format has no type information, so this is inherent to the format. zio-blocks adds no check at `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodec.scala:82-84`: `decode` trusts the codec's own schema and never compares it with anything in the bytes. The record fields are read in order, so the length prefix of `DHL` is read as the `int` for `priority` (`0x06` is `3`).
+
+**Impact.** Wrong values with no error, in any service that reads a topic or a file with the wrong type. The failure is found later, if at all.
+
+**Test gap.** No spec in `schema-avro/src/test` decodes bytes written by a different type and expects a result. `grep -n "mismatch\|wrong schema\|different schema" AvroFormatSpec.scala` returns nothing.
+
+**Suggested fix.** Document it on the Avro reference page as a caller responsibility, with a pointer to a registry or a version field. Do not add framing in this codec; registry framing is backlog item X-09.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -11391,6 +11520,44 @@ object SilentDrop {
 **Test gap.** The adapter has no test for a failing `writeResponse`.
 
 **Suggested fix.** Wrap `writeResponse` in its own `try`/`catch NonFatal` that logs to `System.err` and, if `exchange.getResponseCode == -1`, sends a `500` with no body; update the copies.
+
+### Avro reference: `Option`, `Char` and the temporal types are listed without their Avro shape
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/encode-and-decode-records-with-avro.md` (backlog H-13), on `main` at `b6c0c30e4`. Same at v0.0.56.
+
+**Summary.** `docs/reference/schema/built-in-codecs/avro.md:349-352` ("Primitive Type Support") lists `Char` under "Logical", lists `Instant`, `LocalDate`, `LocalDateTime` and the other temporal types, and lists `UUID` under "Special", without saying what Avro shape each one takes. `Option` and `Either` are not mentioned. The biggest interop surprise is `Option`: it is a union of two records, not `["null", T]`. Also `Char` is an `int` code point, not a `string`, so "Logical" is the wrong word.
+
+**Reproduction.** File `Mapping.scala`, run with `scala-cli run --server=false Mapping.scala -M Mapping`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema-avro:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.avro._
+
+object Mapping {
+  def main(args: Array[String]): Unit = {
+    println(Schema[Option[Int]].derive(AvroFormat).avroSchema.toString)
+    println(Schema[Char].derive(AvroFormat).avroSchema.toString)
+    println(Schema[Either[String, Int]].derive(AvroFormat).avroSchema.toString)
+  }
+}
+// [{"type":"record","name":"None","namespace":"scala","fields":[]},{"type":"record","name":"Some","namespace":"scala","fields":[{"name":"value","type":"int"}]}]
+// "int"
+// [{"type":"record","name":"Left","namespace":"scala.util","fields":[{"name":"value","type":"string"}]},{"type":"record","name":"Right","namespace":"scala.util","fields":[{"name":"value","type":"int"}]}]
+```
+
+**Expected.** The reference states, for each type it lists, the Avro schema shape. For `Option`, that it is a union with `None` first, so `None` is index 0 and `["null", T]` is not produced. For `Char`, `int`, under a heading that is not "Logical". For `Instant`, `LocalDate` and `UUID`, that they are records or `fixed(16)`, not the logical types.
+
+**Root cause.** Documentation gap, not a code bug. The behaviour is pinned by `schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:739-745` (the `option` test expects the `None`/`Some` union) and `AvroFormatSpec.scala:101-103` (`Char` expects `"int"`). The union is produced by `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodecDeriver.scala:210` (`AvroSchema.createUnion(caseAvroSchemas)` in case order).
+
+**Impact.** A team that writes a Java or Python reader from the reference alone expects `["null", T]` and a string for `Char`. They find out at runtime.
+
+**Test gap.** The spec pins the behaviour, but nothing checks the reference page; the docs mdoc build does not run the reference page's type list.
+
+**Suggested fix.** Add the mapping table from the H-13 guide ("How Scala Types Map to Avro") to `avro.md`, with the `Option` union called out. Change the "Logical" heading so `Char` sits under the int-encoded types.
 
 ## Resolved
 
