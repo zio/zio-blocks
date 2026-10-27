@@ -17,9 +17,10 @@
 package zio.blocks.streams.internal
 
 /**
- * Packs a `SyncInterpreter` stage position into one `Long`: four 15-bit indices
- * (`stageStart`, `incomingLen`, `stageEnd` and `outgoingLen`, from the high
- * bits down) and a 4-bit output lane in the low bits.
+ * Packs an interpreter stage position (of the `SyncInterpreter` or the
+ * `AsyncInterpreter`) into one `Long`: four 15-bit indices (`stageStart`,
+ * `incomingLen`, `stageEnd` and `outgoingLen`, from the high bits down) and a
+ * 4-bit output lane in the low bits.
  */
 object StreamState {
   private final val IDX_BITS  = 15

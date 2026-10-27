@@ -26,9 +26,8 @@ package object internal extends InternalVersionSpecific {
   type Lane = Int
 
   /**
-   * A `SyncInterpreter` stage position packed into one `Long`: four 15-bit
-   * indices and a 4-bit output lane, all 64 bits (see the `StreamState`
-   * object).
+   * An interpreter stage position packed into one `Long`: four 15-bit indices
+   * and a 4-bit output lane, all 64 bits (see the `StreamState` object).
    */
   type StreamState = Long
 

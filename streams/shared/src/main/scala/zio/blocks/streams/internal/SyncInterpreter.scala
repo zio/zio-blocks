@@ -24,9 +24,11 @@ import StreamState.{stageStart => ss, incomingLen => il, stageEnd => se, outgoin
 /**
  * The synchronous interpreter: a reader that runs a chain of stream operations
  * (source reads, `map`, `filter` and `flatMap` steps) as flat arrays, with the
- * value of each step kept on its primitive lane. JVM blocking terminals compile
- * a stream into it first (`SyncInterpreter.fromStream`), and chains of linear
- * operators over a synchronous reader compile into it.
+ * value of each step kept on its primitive lane. A JVM blocking terminal
+ * compiles a stream into it (`SyncInterpreter.fromStream`) unless the stream
+ * has a blocking compilation of its own, as plain sources do, or needs an
+ * asynchronous boundary; chains of linear operators over a synchronous reader
+ * also compile into it.
  *
  * Each operation is a pair at the same index of two parallel arrays: a `Long`
  * whose low 8 bits hold its `OpTag`, and the function or reader it runs. The
@@ -66,8 +68,10 @@ final class SyncInterpreter private[internal] () extends Reader.SyncReader[Any] 
   private var closePending: Boolean                 = false
 
   /**
-   * Closes every source reader the interpreter holds (deferred while a reset
-   * runs), and throws the first close failure, again on every later call.
+   * Closes every source reader the interpreter holds (deferred while a reset or
+   * another operation runs) and throws the first failure, which is an earlier
+   * pull failure if there was one and otherwise the first close failure; later
+   * calls throw it again.
    */
   def close(): Unit = {
     if (resetting) {
