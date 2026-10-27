@@ -77,7 +77,7 @@ libraryDependencies += "org.xerial"     % "sqlite-jdbc" % "3.53.4.0"
 libraryDependencies += "org.postgresql" % "postgresql"  % "42.7.14"
 ```
 
-The module is published for Scala 3 only; there is no Scala 2.13 artifact. It runs on the JVM, through [`JdbcTransactor`](../reference/sql/transactor.md), and needs JDK 17 or newer.
+The module is published for Scala 3 only; there is no Scala 2.13 artifact. It runs on the JVM, through [`JdbcTransactor`](../reference/sql/transactor.md); the code in this guide runs on JDK 17 and newer.
 
 The large-table section needs PostgreSQL 14 or newer, because the capture triggers use `CREATE OR REPLACE TRIGGER`. If you have Docker, this command starts PostgreSQL 16 with a `shop` database, user and password:
 
