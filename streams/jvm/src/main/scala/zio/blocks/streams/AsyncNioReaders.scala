@@ -39,10 +39,12 @@ import java.util.concurrent.{CancellationException, ExecutionException, Executor
  * read in flight, whose pull then returns the end value, and later calls return
  * the outcome of the first.
  *
- * A failure of the channel fails the pull's `Async` with a
- * `zio.blocks.streams.internal.StreamError` whose `value` is the failure, and
- * every later pull fails with it again. A stream built with `Stream.fromReader`
- * turns an `IOException` into its typed error (`Left(e)`).
+ * An `IOException` from the channel fails the pull's `Async` with a
+ * `zio.blocks.streams.internal.StreamError` whose `value` is the `IOException`;
+ * any other failure fails it as is. Every later pull fails with the same
+ * failure again. A stream built with `Stream.fromReader` turns the
+ * `IOException` into its typed error (`Left(e)`); any other failure fails the
+ * terminal's `Async`.
  */
 object AsyncNioReaders {
   private val futurePoller = Executors.newSingleThreadScheduledExecutor { (r: Runnable) =>
