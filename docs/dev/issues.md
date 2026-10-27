@@ -8523,6 +8523,146 @@ Run with `sbt run`. Real output:
 
 **Suggested fix.** Make the loop end on an empty claim, not on a zero write count: have the batch step return the number of claimed keys (or a `(claimed, written)` pair) and stop when `claimed == 0`. Document `processBatch`'s return value as "rows written", and change the reference loop to `while (QueueTable.pending(...) > 0)`.
 
+### schema-bson: `Option` is stored as a `{"Some": ...}` / `{"None": {}}` sub-document; `null` and missing fields don't decode
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/store-case-classes-in-mongodb.md` (backlog H-14), on `main` at `efc51f19b`. Same at v0.0.56 (`git diff v0.0.56 -- schema-bson/src/main` is empty).
+
+**Summary.** `BsonCodecDeriver` derives `Option[A]` like any other sealed trait, so an `Option` field is written as a variant: `Some("x")` becomes `{"Some": {"value": "x"}}` and `None` becomes `{"None": {}}` (with a codec-wide `DiscriminatorField("type")`, `{"value": "x", "type": "Some"}` and `{"type": "None"}`). A document where the field is BSON `null`, a plain value, or missing (without a Scala default) fails to decode. `schema-bson/README.md:177` promises "`Option` (Null or missing)". As an `_id`, `Option[ObjectId] = None` is stored as the id `{"None": {}}`, so the second such insert fails with E11000.
+
+**Reproduction 1** (no MongoDB). File `ReproOption.scala`, run `scala-cli run --server=false ReproOption.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-bson:0.0.56
+//> using options -experimental
+
+import org.bson.BsonDocument
+import zio.blocks.schema._
+import zio.blocks.schema.bson._
+import zio.blocks.schema.bson.BsonSchemaCodec.{Config, SumTypeHandling}
+
+final case class Ticket(title: String, customerEmail: Option[String])
+object Ticket { implicit val schema: Schema[Ticket] = Schema.derived }
+
+object ReproOption {
+  def main(args: Array[String]): Unit = {
+    val codec = Schema[Ticket].derive(BsonCodecDeriver)
+    println(codec.encoder.toBsonValue(Ticket("a", Some("kim@example.com"))).asDocument().toJson)
+    // {"title": "a", "customerEmail": {"Some": {"value": "kim@example.com"}}}
+    println(codec.encoder.toBsonValue(Ticket("a", None)).asDocument().toJson)
+    // {"title": "a", "customerEmail": {"None": {}}}
+    println(codec.decoder.fromBsonValue(BsonDocument.parse("""{"title": "a"}""")))
+    // Left(zio.blocks.schema.bson.BsonDecoder$Error: Path: , error: Missing required field: customerEmail)
+    println(codec.decoder.fromBsonValue(BsonDocument.parse("""{"title": "a", "customerEmail": null}""")))
+    // Left(zio.blocks.schema.bson.BsonDecoder$Error: Path: .customerEmail, error: Expected DOCUMENT but got NULL)
+    println(codec.decoder.fromBsonValue(BsonDocument.parse("""{"title": "a", "customerEmail": "kim@example.com"}""")))
+    // Left(zio.blocks.schema.bson.BsonDecoder$Error: Path: .customerEmail, error: Expected DOCUMENT but got STRING)
+    val typed = BsonSchemaCodec.bsonCodec(Schema[Ticket], Config.withSumTypeHandling(SumTypeHandling.DiscriminatorField("type")))
+    println(typed.encoder.toBsonValue(Ticket("a", None)).asDocument().toJson)
+    // {"title": "a", "customerEmail": {"type": "None"}}
+  }
+}
+```
+
+**Reproduction 2** (`_id`, needs MongoDB: `docker run --rm -d -p 27017:27017 --name mongo mongo:7`). File `ReproOptionId.scala`, run `scala-cli run --server=false ReproOptionId.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-bson:0.0.56
+//> using dep org.mongodb:mongodb-driver-sync:5.13.0
+//> using options -experimental
+// Needs: docker run --rm -d -p 27017:27017 --name mongo mongo:7
+
+import com.mongodb.client.MongoClients
+import org.bson.BsonDocument
+import org.bson.types.ObjectId
+import zio.blocks.schema._
+import zio.blocks.schema.bson._
+
+final case class Draft(@Modifier.rename("_id") id: Option[ObjectId], title: String)
+object Draft {
+  import ObjectIdSupport.objectIdSchema
+  implicit val schema: Schema[Draft] = Schema.derived
+}
+
+object ReproOptionId {
+  def main(args: Array[String]): Unit = {
+    val codec  = Schema[Draft].derive(BsonCodecDeriver)
+    val client = MongoClients.create("mongodb://localhost:27017/?serverSelectionTimeoutMS=2000")
+    try {
+      val drafts = client.getDatabase("repro").getCollection("drafts", classOf[BsonDocument])
+      drafts.drop()
+      drafts.insertOne(codec.encoder.toBsonValue(Draft(None, "first")).asDocument())
+      drafts.find().forEach(d => println(d.toJson))
+      // {"_id": {"None": {}}, "title": "first"}
+      try drafts.insertOne(codec.encoder.toBsonValue(Draft(None, "second")).asDocument())
+      catch { case e: Exception => println(e.getMessage) }
+      // Write operation error on MongoDB server localhost:27017. Write error: WriteError{code=11000, message='E11000 duplicate key error collection: repro.drafts index: _id_ dup key: { _id: { None: {} } }', details={}}.
+    } finally client.close()
+  }
+}
+```
+
+(The driver also prints an SLF4J "not found on the classpath" warning to stderr; omitted.)
+
+**Expected.** `None` is stored as BSON `null` or the field is left out, `Some(x)` as `x` itself, as `schema-bson/README.md:177` says and as `JsonCodecDeriver` does for JSON. A missing field and a `null` field decode to `None`; a plain value decodes to `Some`. The sum-type setting doesn't apply to `Option`.
+
+**Root cause.** `BsonCodecDeriver.deriveVariant` (`schema-bson/src/main/scala/zio/blocks/schema/bson/BsonCodecDeriver.scala:561-579`) special-cases only `Json`; it has no `typeId.isOption` branch, so `Option` gets the generic variant codec with the configured `sumTypeHandling`. `JsonCodecDeriver` has that branch (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:894-895`) and treats `Option` record fields as optional (`:579`). On decode, a missing field falls back only to the field's Scala default value (`BsonCodecDeriver.scala:252-257`), so an `Option` field without `= None` is "Missing required field".
+
+**Impact.** Documents don't look like MongoDB documents written by any other tool: queries for "no email" must match `{"None": {}}` instead of `null`, documents written by other programs (null / plain value / absent field) fail to decode, and `Option[ObjectId]` cannot be used to let the driver generate the `_id`. The H-14 guide works around it with a hand-written `BsonCodec[Option[String]]` installed through `Schema#deriving(BsonCodecDeriver).instance(TypeId.of[Option[String]], ...)` and documents the bug.
+
+**Test gap.** `schema-bson/src/test/scala/zio/blocks/schema/bson/BsonCodecOptionEitherSpec.scala` only round-trips `Some`/`None` through the same codec; nothing asserts the encoded BSON shape or decodes a `null`/missing/plain-value field.
+
+**Suggested fix.** Add an `Option` (and `Maybe`) branch to `BsonCodecDeriver.deriveVariant`, as in `JsonCodecDeriver`: encode `None` as `BsonNull` (or omit the field, behind a config flag), `Some(x)` with the inner codec; decode `null` to `None`, anything else through the inner codec; make missing `Option` fields decode to `None` in `deriveRecord`. Add shape assertions to `BsonCodecOptionEitherSpec`. The change is wire-incompatible with documents 0.0.56 already wrote, so call it out in the release notes (or accept the old wrapper shape on decode).
+
+### schema-bson: `BsonSchemaCodec.Config#withNativeObjectId` has no effect; its Scaladoc and the README describe behaviour that doesn't exist
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/store-case-classes-in-mongodb.md` (backlog H-14), on `main` at `efc51f19b`. Same at v0.0.56.
+
+**Summary.** `withNativeObjectId(false)` and `withNativeObjectId(true)` produce the same codec: an `ObjectId` field (with `ObjectIdSupport.objectIdSchema` in scope) is always stored as BSON `OBJECT_ID`. The Scaladoc (`BsonSchemaCodec.scala:55-61`) says that with `false` "ObjectId will be treated as a regular wrapper and encoded as a string"; `schema-bson/README.md:74` and `:122` say the flag "treats `org.bson.types.ObjectId` wrappers as native" / lets you "force specific wrappers to be treated as ObjectIds". Neither is true. (The reference page `docs/reference/schema/built-in-codecs/bson.md` Pattern 4 presented `withNativeObjectId(true)` as the switch; fixed on the H-14 branch `mongodb-bson`, commit `a8c4f7c7a`. README lines 74 and 122 are not fixed there.)
+
+**Reproduction.** File `ReproNativeObjectId.scala`, run `scala-cli run --server=false ReproNativeObjectId.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-bson:0.0.56
+//> using options -experimental
+
+import org.bson.types.ObjectId
+import zio.blocks.schema._
+import zio.blocks.schema.bson._
+import zio.blocks.schema.bson.BsonSchemaCodec.Config
+
+final case class Doc(id: ObjectId)
+object Doc {
+  import ObjectIdSupport.objectIdSchema
+  implicit val schema: Schema[Doc] = Schema.derived
+}
+
+object ReproNativeObjectId {
+  def main(args: Array[String]): Unit = {
+    val id = new ObjectId("6720f1a2b3c4d5e6f7a8b9c0")
+    for (native <- List(false, true)) {
+      val codec = BsonSchemaCodec.bsonCodec(Schema[Doc], Config.withNativeObjectId(native))
+      val value = codec.encoder.toBsonValue(Doc(id)).asDocument().get("id")
+      println(s"withNativeObjectId($native): ${value.getBsonType}")
+    }
+    // withNativeObjectId(false): OBJECT_ID
+    // withNativeObjectId(true): OBJECT_ID
+  }
+}
+```
+
+**Expected.** Either the flag changes the encoding as documented (false → hex string), or the flag is deprecated/removed and the docs say the `ObjectIdSupport` import alone selects the native type.
+
+**Root cause.** `schema-bson/src/main/scala/zio/blocks/schema/bson/BsonCodecDeriver.scala:1032`: `if (isObjectId || (config.useNativeObjectId && isObjectId))` — the second disjunct implies the first, so `useNativeObjectId` is never consulted; `isObjectId` (`:1027`) is true for every schema with `ObjectIdSupport`'s `TypeId`. `useNativeObjectId` is read nowhere else.
+
+**Impact.** Readers following the README or Scaladoc set a flag that does nothing, and anyone who wants ObjectIds stored as hex strings (the documented `false` behaviour) cannot get it through the config.
+
+**Test gap.** `schema-bson/src/test/scala/zio/blocks/schema/bson/BsonCodecObjectIdSpec.scala:223-284` only tests `withNativeObjectId(true)` (which matches the default), and `:286-288` only asserts the default value is `false`; no test encodes with `false` and checks for a string.
+
+**Suggested fix.** Decide the semantics. Simplest: deprecate `withNativeObjectId`/`useNativeObjectId`, drop the dead disjunct, and fix the Scaladoc and README:74/122 to say `ObjectIdSupport` selects the native type. Alternatively implement `false` as "encode as the hex string" — but that changes the default output, so it would need the default flipped to `true`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
