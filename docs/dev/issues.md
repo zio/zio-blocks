@@ -8663,6 +8663,79 @@ object ReproNativeObjectId {
 
 **Suggested fix.** Decide the semantics. Simplest: deprecate `withNativeObjectId`/`useNativeObjectId`, drop the dead disjunct, and fix the Scaladoc and README:74/122 to say `ObjectIdSupport` selects the native type. Alternatively implement `false` as "encode as the hex string" — but that changes the default output, so it would need the default flipped to `true`.
 
+### Streams: `Sink.count`, the `Sink.sum*` sinks and `Double`-accumulator folds box the accumulator for every element
+
+Found 2026-10-27 while writing the how-to guide `docs/guides/process-binary-data-without-boxing.md` (backlog H-27), on `main` at `efc51f19b`. Same at v0.0.56: the code involved is unchanged since that tag apart from Scaladoc.
+
+**Summary.** On the JVM blocking path, `Sink.sumLong`, `Sink.sumDouble`, `Sink.sumInt`, `Sink.sumFloat`, `Sink.count` (and therefore `Stream#count`), and `Stream#runFold(z: Double)` / `Sink.foldLeft(z: Double)` over a `Long` or `Double` stream allocate 24 to 48 bytes per element: a boxed accumulator, and sometimes a boxed element too. The input stays on its primitive lane; the accumulator is what gets boxed. `runFold(0L)` and `Sink.foldLeft(0L)` over the same streams allocate nothing per element. So the sinks the docs present as the zero-boxing way to aggregate are the ones that box.
+
+**Reproduction.** File `SumBoxing.scala`. Run with `scala-cli run --server=false SumBoxing.scala -- <case name>`, one case per JVM (JDK 25.0.2):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.streams.*
+import java.lang.management.ManagementFactory
+
+object SumBoxing {
+  private val threads = ManagementFactory.getThreadMXBean.asInstanceOf[com.sun.management.ThreadMXBean]
+  @volatile private var blackhole = 0
+
+  // Warms the block up until the JIT compiles it, then returns bytes per element.
+  def bytesPerElement(n: Int)(body: => Any): Double = {
+    var i = 0
+    while (i < 2000) { blackhole ^= body.hashCode; i += 1 }
+    val before = threads.getCurrentThreadAllocatedBytes
+    i = 0
+    while (i < 200) { blackhole ^= body.hashCode; i += 1 }
+    (threads.getCurrentThreadAllocatedBytes - before) / 200.0 / n
+  }
+
+  def main(args: Array[String]): Unit = {
+    val n       = 10000
+    val longs   = Array.tabulate(n)(_.toLong)
+    val doubles = Array.tabulate(n)(_.toDouble)
+    val cases: Map[String, () => Any] = Map(
+      "Sink.sumLong"             -> (() => Stream.fromArray(longs).run(Sink.sumLong)),
+      "Sink.sumDouble"           -> (() => Stream.fromArray(doubles).run(Sink.sumDouble)),
+      "Stream#count"             -> (() => Stream.fromArray(longs).count),
+      "runFold(0.0) on Doubles"  -> (() => Stream.fromArray(doubles).runFold(0.0)(_ + _)),
+      "foldLeft(0.0) on Doubles" -> (() => Stream.fromArray(doubles).run(Sink.foldLeft(0.0)((a: Double, v: Double) => a + v))),
+      "runFold(0L) on Longs"     -> (() => Stream.fromArray(longs).runFold(0L)(_ + _)),
+      "runFold(0L) on Doubles"   -> (() => Stream.fromArray(doubles).runFold(0L)((c, _) => c + 1L))
+    )
+    // One case per JVM, so the JIT profile of one case cannot affect another.
+    val name = args.mkString(" ")
+    println(f"$name%-25s ${bytesPerElement(n)(cases(name)())}%6.2f bytes per element")
+  }
+}
+// Sink.sumLong               47.67 bytes per element
+// Sink.sumDouble             24.02 bytes per element
+// Stream#count               47.40 bytes per element
+// runFold(0.0) on Doubles    24.02 bytes per element
+// foldLeft(0.0) on Doubles   24.02 bytes per element
+// runFold(0L) on Longs        0.02 bytes per element
+// runFold(0L) on Doubles      0.02 bytes per element
+```
+
+In an earlier run in a different JVM, `Sink.sumLong` measured 23.98 bytes per element; the figure moves between 24 and 48 depending on whether the JIT removes the element box. The same numbers appear with `NioStreams.fromByteBufferLong`/`fromByteBufferDouble`, after `map` or `filter`, and on Scala 3.9 with `zio-blocks-next-streams:0.0.56`. A JFR allocation profile (`jdk.ObjectAllocationSample`) puts every sample at `java.lang.Long.valueOf` ← `scala.runtime.java8.JFunction2$mcJJJ$sp.apply(Object, Object)` / `BoxesRunTime.boxToLong` ← `Sink$.foldSyncReader` ← `Sink$$anon$23.drain`.
+
+**Expected.** These sinks allocate nothing per element on a primitive lane, as `Sink.foldLeft(0L)` / `FoldLeftLong` already do.
+
+**Root cause.** `Sink.foldSyncReader[A, Z]` (`streams/shared/src/main/scala/zio/blocks/streams/Sink.scala:1176-1213`) is generic in `Z`. Its `Long` branch (`:1194-1197`) holds the accumulator in `var acc: Z` and calls `step(acc, one(0))` through the erased `Function2.apply(Object, Object)`, which boxes the accumulator and the result on every element; the `Int`, `Float` and `Double` branches do the same. That costs nothing when `Z` is `Unit` (`BoxedUnit` is a singleton), which is why `NioSinks.fromByteBuffer*` stays at 0. These callers pass a primitive `Z`:
+- `Sink.count`, `Sink.scala:215` (`foldSyncReader[Any, Long]`); `Stream#count` uses it (`streams/jvm/.../StreamPlatformSpecific.scala:42`)
+- `loopDoubleToDouble` `:2716`, `loopFloatToDouble` `:2728`, `loopIntToLong` `:2740` and `loopLongToLong` `:2752`, behind `sumDouble`/`sumFloat`/`sumInt`/`sumLong` (`:728-743`)
+- `FoldLeftDouble.foldDouble` `:3060-3064` and `FoldLeftDouble.foldLong` `:3094-3098`, behind `runFold(z: Double)` (`Stream.scala:1727`) and `Sink.foldLeft` with a `Double` start value on the `Double` or `Long` lane
+
+`FoldLeftLong` and `FoldLeftInt` write their own loops with a primitive `var acc`, so they don't box.
+
+**Impact.** Every user who follows the docs' advice to aggregate a primitive stream with `Sink.sumLong`/`sumDouble`/`count`/`runFold(0.0)` pays one or two allocations per element, which is the boxing the primitive lanes exist to prevent. On a 100k-sample `Double` file it is about 2.4 MB per run. Docs that say these sinks read "without boxing" are true of the read but not of the sink as a whole.
+
+**Test gap.** `SinkExactLaneSpec` (`streams/shared/src/test/scala/zio/blocks/streams/SinkExactLaneSpec.scala:225-242`) proves that these sinks pull through the exact lane. Nothing measures allocation: no spec reads `ThreadMXBean`, and `streams-benchmark` has no benchmark for `sumLong`/`sumDouble`/`count`/`runFold(0.0)` with `-prof gc`.
+
+**Suggested fix.** Give each primitive-accumulator sink a dedicated loop with a primitive accumulator, as `FoldLeftLong` does. For example, `loopLongToLong`'s sync drain becomes `val one = new Array[Long](1); var acc = zero; var n = reader.readLongsPhysical(one, 0, 1); while (n >= 0) { acc = step(acc, one(0)); n = reader.readLongsPhysical(one, 0, 1) }; acc`, with `step: (Long, Long) => Long` statically typed so the call goes to `apply$mcJJJ$sp`. Apply the same to `count` (Long accumulator, per-lane loop), `sumInt`/`sumFloat`/`sumDouble` and `FoldLeftDouble.foldDouble`/`foldLong`. Add a JMH benchmark with `-prof gc`, or a `ThreadMXBean` spec on the JVM, that asserts about 0 bytes per element. The per-element loop change is within the AGENTS.md streams performance policy: it removes allocation and adds no per-element work.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
