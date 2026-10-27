@@ -8080,6 +8080,268 @@ Separately, `JsonSchema#conforms` with `format: "date-time"` should reject `"202
 
 **Suggested fix.** Write seconds always in `writeLocalTime` (JVM and JS). Stop declaring `date-time` and `time` for `LocalDateTime` and `LocalTime` (use a `pattern`, or no format). Make `dateTimePattern` and `timePattern` follow RFC 3339 (`:ss` and the offset required), and keep any lenient parse on the decode side only. Add a property test: for each `java.time` type with a format, `toJsonSchema.conforms(encode(x))` holds under a strict RFC 3339 check.
 
+### Streams: primitive pulls through `Reader` wrappers and concatenations of an `AnyRef`-lane reader throw `IllegalStateException`
+
+Found 2026-10-27 while writing the Scaladoc for `Reader#concat`, `SyncReader#readBytes`/`readInts`/`readFloats`, `Reader.closed` and the reader wrappers (wave 2 of the streams Scaladoc, branch `streams-scaladoc-wave-2`), on `main` at `b6c0c30e4`; widened after review the same day. The same at tag `v0.0.56`. All `file:line` citations in this entry are at `b6c0c30e4` (`origin/main` when the entry was written); `Reader.scala` and `Writer.scala` are unchanged between that commit and the merge of wave 1, and the method names are given so the lines can be re-anchored after the wave 2 Scaladoc lands.
+
+**Summary.** A reader on the `JvmType.AnyRef` lane is supposed to support every primitive pull by unboxing (the `Reader` reference page says the `AnyRef` lane "is the only lane on which all eight of those methods work, because it satisfies them by pulling boxed and converting"; the scalar pulls `readInt`, `readLong`, ... of `SyncReader` and `AsyncReader` do exactly that on the reader itself). Four groups of readers break that:
+
+- The result of the public `Reader#++` / `concat` / `concatAsync` (sync and async) is put on the `AnyRef` lane, whatever the lanes of its parts, and every one of its primitive pulls (`readInt`, `readLong`, `readByte`, `readChar`, ..., `readBytes`, `readInts`, `readLongs`, ...) throws `IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int` (or fails the `Async` with it). Only `read`, `readAll`, `readN`, `readUpToN` and `skip` work.
+- Every library wrapper of an `AnyRef`-lane reader forwards the primitive pulls to the exact-lane methods of what it wraps, so they throw (or fail the `Async`) the same way: `SyncReader#toAsync`, `AsyncReader#toSync` (JVM), `SyncReader#withRelease`, `withReleaseAsync` and `Reader.repeated`. A custom reader that keeps the default lane answers `readInt` itself but not through any of these. `read`/`readAll`/`readN` through the wrappers still work.
+- The default `readBytes`, `readInts` and `readFloats` require the exact lane, so they throw on any `AnyRef`-lane reader: a custom `SyncReader[Byte]` that does not override `jvmType` cannot use `readBytes`, although `readByte` works on it. The `AsyncReader` defaults throw too, and **at the call site** instead of failing the returned `Async` (the exact-lane call runs inside a `flatMap` over an already-completed `Async`).
+- `Reader.closed` is on the `AnyRef` lane and overrides every pull except `readBytes`, `readInts` and `readFloats`, so those three throw instead of returning `-1`.
+
+Streams are not affected: the stream engine reads these readers through `read`, or builds its own concatenations on the right lane (`concatWithJvmType`). Review probes confirmed `map`, `filter` with `runFold`, `Sink.foldLeft`, `mapAsync` and `take` over such readers all give `Right`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli --power run --server=false --offline AnyRefLanePulls.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.async._
+import zio.blocks.chunk.Chunk
+import zio.blocks.streams.io.Reader
+
+object AnyRefLanePulls {
+  def show(label: String)(body: => Any): Unit =
+    println(s"$label -> " + (try String.valueOf(body) catch { case e: Throwable => s"throws ${e.getClass.getName}: ${e.getMessage}" }))
+
+  // Custom readers that do not override jvmType, so they are on the AnyRef lane.
+  final class Bytes(data: Array[Byte]) extends Reader.SyncReader[Byte] {
+    private var i = 0
+    def read[A >: Byte](sentinel: A): A = if (i < data.length) { i += 1; data(i - 1) } else sentinel
+    def isClosed: Boolean               = i >= data.length
+    def close(): Unit                   = i = data.length
+  }
+  final class Ints(data: Int*) extends Reader.SyncReader[Int] {
+    private var i = 0
+    def read[A >: Int](sentinel: A): A = if (i < data.length) { i += 1; data(i - 1) } else sentinel
+    def isClosed: Boolean              = i >= data.length
+    def close(): Unit                  = i = data.length
+  }
+  final class AsyncBytes(data: Array[Byte]) extends Reader.AsyncReader[Byte] {
+    private var i = 0
+    def read[A >: Byte](sentinel: A): Async[A] =
+      Async.succeed(if (i < data.length) { i += 1; data(i - 1) } else sentinel)
+    def readable(): Async[Boolean] = Async.succeed(i < data.length)
+    def isClosed: Async[Boolean]   = Async.succeed(i >= data.length)
+    def close(): Async[Unit]       = Async.succeed { i = data.length }
+  }
+
+  def main(args: Array[String]): Unit = {
+    val ints = Reader.fromChunk(Chunk(1, 2)) ++ Reader.fromChunk(Chunk(3))
+    show("concat jvmType")(ints.jvmType)
+    show("concat readInt")(ints.readInt(Long.MinValue))
+    show("concat readByte")(ints.readByte())
+    show("concat readInts")(ints.readInts(new Array[Int](3), 0, 3))
+    show("concat readAll")(ints.readAll[Int]())
+
+    val longs = Reader.fromChunk(Chunk(1L)) ++ Reader.fromChunk(Chunk(2L))
+    show("concat readLongs")(longs.readLongs(new Array[Long](2), 0, 2))
+
+    val asyncInts = Reader.fromChunk(Chunk(1, 2)).toAsync ++ Reader.fromChunk(Chunk(3))
+    show("async concat readInt")(asyncInts.readInt(Long.MinValue).either.block)
+
+    show("closed readBytes")(Reader.closed.readBytes(new Array[Byte](2), 0, 2))
+    show("closed readLongs")(Reader.closed.readLongs(new Array[Long](2), 0, 2))
+
+    val custom = new Bytes(Array[Byte](1, 2, 3))
+    show("custom jvmType")(custom.jvmType)
+    show("custom readByte")(custom.readByte())
+    show("custom readBytes")(custom.readBytes(new Array[Byte](4), 0, 4))
+
+    show("custom ints readInt")(new Ints(1, 2).readInt(Long.MinValue))
+    show("toAsync readInt")(new Ints(1, 2).toAsync.readInt(Long.MinValue).either.block)
+    show("withRelease readInt")(new Ints(1, 2).withRelease(() => ()).readInt(Long.MinValue))
+    show("withReleaseAsync readInt")(new Ints(1, 2).withReleaseAsync(() => Async.succeed(())).readInt(Long.MinValue).either.block)
+    show("repeated readInt")(Reader.repeated(new Ints(1, 2)).readInt(Long.MinValue))
+    show("withRelease readAll")(new Ints(1, 2).withRelease(() => ()).readAll[Int]())
+
+    val asyncCustom = new AsyncBytes(Array[Byte](1, 2))
+    show("custom async readByte")(asyncCustom.readByte().block)
+    show("toSync readByte")(new AsyncBytes(Array[Byte](1, 2)).toSync.readByte())
+    show("custom async readBytes (call)")(new AsyncBytes(Array[Byte](1, 2)).readBytes(new Array[Byte](2), 0, 2))
+  }
+}
+// concat jvmType -> AnyRef
+// concat readInt -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int
+// concat readByte -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Byte
+// concat readInts -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int
+// concat readAll -> Chunk(1,2,3)
+// concat readLongs -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Long
+// async concat readInt -> Left(java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int)
+// closed readBytes -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Byte
+// closed readLongs -> -1
+// custom jvmType -> AnyRef
+// custom readByte -> 1
+// custom readBytes -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Byte
+// custom ints readInt -> 1
+// toAsync readInt -> Left(java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int)
+// withRelease readInt -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int
+// withReleaseAsync readInt -> Left(java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int)
+// repeated readInt -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Int
+// withRelease readAll -> Chunk(1,2)
+// custom async readByte -> 1
+// toSync readByte -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Byte
+// custom async readBytes (call) -> throws java.lang.IllegalStateException: Reader physical lane AnyRef cannot be pulled as Byte
+```
+
+The last line shows the call-site throw: `readBytes(...)` throws before it returns an `Async`, so `show` prints the exception instead of an `Async` value.
+
+**Expected.** Every primitive pull above returns the element (`1`), a count, or `-1` for `Reader.closed`, as the `AnyRef` lane promises; an `AsyncReader` failure, if any, arrives in the returned `Async`. Alternatively, `concat` of two readers on the same primitive lane keeps that lane (as the internal `concatWithJvmType` does).
+
+**Root cause.** `streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala` at `b6c0c30e4`:
+- `requirePhysicalLane` (`SyncReader`, `:816-818`; `AsyncReader`, `:1366-1368`) throws whenever `jvmType ne expected`, so every exact-lane `*Physical` call on an `AnyRef` reader fails, although the methods it guards (`readInt`, `readLong`, ...) have an unboxing branch for `AnyRef`.
+- The public concatenations pass `JvmType.AnyRef` as the output lane: `SyncReader#concat` (`:211-212`), `SyncReader#++`/`concat`/`concatAsync` over a `Reader` (`:223-236`), and `AsyncReader#concat`/`concatAsync` (`:982-990`). `ConcatReader` wraps its head as an `AnyRef` reader (`normalizeSyncChild(rawHead, outType)`, `:2722`), and its primitive pulls call the `*Physical` methods on it (`current.readIntPhysical(sentinel)`, `:2811`; `readLong` via `readLongsPhysical`, `:2818-2820`; the bulk overrides at `:2878-2924`).
+- The wrappers forward to `*Physical`: `SyncToAsyncReader` (`toAsync`, class at `:1453`, pulls `:1564-1608`), `AsyncToSyncReader` (`toSync`, `streams/jvm/src/main/scala/zio/blocks/streams/io/AsyncToSyncReader.scala:285` and the pulls around it), `DelegatingReader` (`withRelease`, `:2988-2994` and after), `AsyncReleaseReader` (`withReleaseAsync`, class at `:2264`, e.g. `readInt` at `:2301-2302`), `Repeated` (synchronous `Reader.repeated`, e.g. `readInt` at `:5413-5415`) and `AsyncRepeated` (asynchronous `Reader.repeated`, class at `:5544`, e.g. `readBoolean` at `:5728`), where the async overload fails the returned `Async` instead of throwing.
+- `SyncReader#readBytes` (`:535-547`), `readInts` (`:568-581`) and `readFloats` (`:668-681`) pull through `readBytePhysical`, `readIntPhysical` and `readFloatPhysical`, while `readLongs` (`:602-614`) and `readDoubles` (`:635-647`) have an `AnyRef` branch that unboxes. The `AsyncReader` defaults (`bulk` at `:1162`, `readBytes` `:1175`, `readInts` `:1184`, `readFloats` `:1204`) call the `*Physical` method inside `validateArrayRangeAsync(...).flatMap(...)`, which runs at once on the already-succeeded validation, so the throw escapes at the call site.
+- `ClosedReader` (`:2664-2687`) overrides every scalar pull and `readLongs`/`readDoubles` but not `readBytes`, `readInts` or `readFloats`.
+
+**Impact.** Anyone who concatenates readers by hand (`Reader#++` is shown on the reference page), or wraps a custom reader with `toAsync`, `withRelease`, `repeated` and the like, and then pulls a primitive lane, gets an exception on the first pull; a custom byte reader cannot be read in bulk, and an async caller cannot catch the bulk failure in the `Async`. Code that only uses `read`/`readAll`, and every stream, is unaffected.
+
+**Test gap.** `AsyncReaderSpec.scala:50-77`, `ReaderCompositionSignatureSpec.scala:44-49`, `AsyncReaderJvmSpec.scala:1366` and `ErrorHandlingSpec.scala:443` build public concatenations but read them only with `read`/`readAll`. No test calls a primitive pull on a public concatenation, `readBytes`/`readInts`/`readFloats` on `Reader.closed` (the only `Reader.closed` bulk calls, `AsyncReaderSpec.scala:252-263`, are zero-length on a closed view and never reach the source), a bulk read on a custom reader that keeps the default lane, or a primitive pull through `toAsync`, `toSync`, `withRelease`, `withReleaseAsync` or `Reader.repeated` over such a reader (`grep -rn "cannot be pulled as" streams/*/src/test` finds nothing; `ReaderBulkValidationSpec` uses the private `concatReaderWithJvmType(..., JvmType.Int)`).
+
+**Suggested fix.** The smallest one: let `requirePhysicalLane` accept `JvmType.AnyRef`, so a `*Physical` call on an `AnyRef` reader reaches its unboxing default. The check is `if (jvmType ne expected) throw ...`; with `if ((jvmType ne expected) && (jvmType ne JvmType.AnyRef)) throw ...`, the second test runs only on the branch that throws today, so the primitive hot path and its sentinels are unchanged (AGENTS.md sentinel policy). Then give the default `readBytes`, `readInts` and `readFloats` an `AnyRef` branch that unboxes through `read[Any](EndOfStream)`, as `readLongs`/`readDoubles` already do, add the three overrides to `ClosedReader` (`if (length == 0) 0 else -1` after validation), and run the `AsyncReader` bulk defaults inside the `Async` so a failure fails it. Add a test for each case above.
+
+### Streams: `Reader.repeat` and the synchronous `Reader.repeated` keep producing elements after `close()`
+
+Found 2026-10-27 while writing the Scaladoc for `Reader.repeat`, `Reader.repeated` and `SyncReader#close` (wave 2 of the streams Scaladoc, branch `streams-scaladoc-wave-2`), on `main` at `b6c0c30e4`. The same at tag `v0.0.56`. All `file:line` citations in this entry are at `b6c0c30e4` (`origin/main` when the entry was written); `Reader.scala` and `Writer.scala` are unchanged between that commit and the merge of wave 1, and the method names are given so the lines can be re-anchored after the wave 2 Scaladoc lands.
+
+**Summary.** After `close()`, a reader's pulls should return the end value. `Reader.repeat(a)` ignores `close()` entirely: `isClosed` stays `false` and every pull still returns `a`. The synchronous `Reader.repeated(inner)` reports `isClosed == true` after `close()`, but its next pull sees the closed `inner` as a clean end, resets it and keeps producing `inner`'s elements. The asynchronous `Reader.repeated` stops as expected.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli --power run --server=false --offline RepeatIgnoresClose.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.async._
+import zio.blocks.chunk.Chunk
+import zio.blocks.streams.io.Reader
+
+object RepeatIgnoresClose {
+  def main(args: Array[String]): Unit = {
+    val forever = Reader.repeat("tick")
+    forever.close()
+    println(s"repeat:         isClosed=${forever.isClosed} read=${forever.read[AnyRef]("EOF")}")
+
+    val cycle = Reader.repeated(Reader.fromChunk(Chunk(1, 2)))
+    cycle.read(-1)
+    cycle.close()
+    println(s"repeated sync:  isClosed=${cycle.isClosed} read=${cycle.read(-1)}")
+
+    val asyncCycle = Reader.repeated(Reader.fromChunk(Chunk(1, 2)).toAsync)
+    asyncCycle.read(-1).block
+    asyncCycle.close().block
+    println(s"repeated async: isClosed=${asyncCycle.isClosed.block} read=${asyncCycle.read(-1).block}")
+
+    val once = Reader.single("tick")
+    once.close()
+    println(s"single:         isClosed=${once.isClosed} read=${once.read[AnyRef]("EOF")}")
+  }
+}
+// repeat:         isClosed=false read=tick
+// repeated sync:  isClosed=true read=1
+// repeated async: isClosed=true read=-1
+// single:         isClosed=true read=EOF
+```
+
+**Expected.** `repeat: isClosed=true read=EOF` and `repeated sync: isClosed=true read=-1`, like the asynchronous overload and `Reader.single`.
+
+**Root cause.** `streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala`: `Reader.repeat` (`:2436-2440`) puts a `single` reader in mode 2 (repeat forever), and both `SingletonGeneric.close()` (`:5862`) and `SingletonPrim.close()` (`:5983`) are `if (mode != 2) ...`, so close is a no-op in that mode. `Repeated.close()` (`:5540`) sets `done = true` and closes `inner`, but `Repeated.read` (`:5398-5411`) and the typed pulls (`:5413-5520`) never check `done`: they read `inner`, see the end, and call `inner.reset()`, which reopens a chunk, range or iterable reader.
+
+**Impact.** Low for streams, which stop pulling once they close a reader. Code that drives these readers by hand cannot stop them with `close()`, and a loop that waits for the end value after closing never ends.
+
+**Test gap.** `ReaderConstructorSpec.scala:222-238` and `IntSpecializationSpec.scala:116-124` and `:514-517` cover `Reader.repeated` and `Reader.repeat` without calling `close()`; only the asynchronous overload's close is tested (`AsyncReaderCriticalResidualCoverageSpec.scala:114-140`).
+
+**Suggested fix.** Let `close()` leave mode 2 in `SingletonGeneric`/`SingletonPrim` (set mode 1), and make the `Repeated` pulls return the end value when `done` is set before touching `inner`. Both are one check per close or per cycle restart, not per element, so the hot loops and sentinels are unchanged. Add tests that close each reader and pull again.
+
+### Streams: `Writer.fromOutputStream`, `Writer.fromWriter` and `NioWriters.fromChannel` never close the wrapped stream or channel after a failed write
+
+Found 2026-10-27 while writing the Scaladoc for `Writer#close`, `Writer.fromOutputStream` and `Writer.fromWriter` (wave 2 of the streams Scaladoc, branch `streams-scaladoc-wave-2`), on `main` at `b6c0c30e4`; `NioWriters.fromChannel` added after review the same day. The same at tag `v0.0.56`. All `file:line` citations in this entry are at `b6c0c30e4` (`origin/main` when the entry was written); `Reader.scala` and `Writer.scala` are unchanged between that commit and the merge of wave 1, and the method names are given so the lines can be re-anchored after the wave 2 Scaladoc lands. The `NioWriters` Scaladoc belongs to wave 3, which should describe this bug on `fromChannel`.
+
+**Summary.** `Writer.fromOutputStream` and `Writer.fromWriter` are documented as "Calling `close()` flushes and closes the underlying stream", and `NioWriters.fromChannel` as "Closing the returned writer flushes the internal buffer and closes the underlying channel. The writer takes ownership of `ch`." When a write (or, for the channel writer, a buffer flush) fails with an `IOException`, the writer swallows the exception, marks itself closed and returns `false` (or `0` from `writeBytes`, or the whole chunk from `writeAll`). A later `close()` then sees the writer already closed and does nothing, so the `OutputStream`, `java.io.Writer` or channel is never flushed or closed: the file handle or socket leaks, and the `IOException` is lost.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, JVM, `scala-cli --power run --server=false --offline WriterLeaksAfterError.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import java.io.{IOException, OutputStream, Writer => JWriter}
+import java.nio.ByteBuffer
+import java.nio.channels.WritableByteChannel
+import zio.blocks.streams.NioWriters
+import zio.blocks.streams.io.Writer
+
+object WriterLeaksAfterError {
+  // An OutputStream whose disk fills up after the first byte.
+  final class FullDisk extends OutputStream {
+    var written = 0; var flushed = false; var closed = false
+    def write(b: Int): Unit = if (written >= 1) throw new IOException("No space left on device") else written += 1
+    override def flush(): Unit = flushed = true
+    override def close(): Unit = closed = true
+  }
+  final class FullWriter extends JWriter {
+    var flushed = false; var closed = false
+    def write(cbuf: Array[Char], off: Int, len: Int): Unit = throw new IOException("No space left on device")
+    def flush(): Unit = flushed = true
+    def close(): Unit = closed = true
+  }
+  final class FullChannel extends WritableByteChannel {
+    var open = true
+    def write(src: ByteBuffer): Int = throw new IOException("No space left on device")
+    def isOpen: Boolean = open
+    def close(): Unit = open = false
+  }
+
+  def main(args: Array[String]): Unit = {
+    val ok = new FullDisk
+    val w0 = Writer.fromOutputStream(ok)
+    w0.write(1.toByte); w0.close()
+    println(s"no error:     flushed=${ok.flushed} closed=${ok.closed}")
+
+    val os = new FullDisk
+    val w1 = Writer.fromOutputStream(os)
+    println(s"write 1 -> ${w1.write(1.toByte)}, write 2 -> ${w1.write(2.toByte)}, isClosed=${w1.isClosed}")
+    w1.close()
+    println(s"after error:  flushed=${os.flushed} closed=${os.closed}")
+
+    val jw = new FullWriter
+    val w2 = Writer.fromWriter(jw)
+    println(s"write 'Z' -> ${w2.write('Z')}, isClosed=${w2.isClosed}")
+    w2.close()
+    println(s"fromWriter:   flushed=${jw.flushed} closed=${jw.closed}")
+
+    val ch = new FullChannel
+    val w3 = NioWriters.fromChannel(ch, bufSize = 1)
+    println(s"write 1 -> ${w3.write(1.toByte)}, write 2 -> ${w3.write(2.toByte)}, isClosed=${w3.isClosed}")
+    w3.close()
+    println(s"fromChannel:  channel open=${ch.isOpen}")
+  }
+}
+// no error:     flushed=true closed=true
+// write 1 -> true, write 2 -> false, isClosed=true
+// after error:  flushed=false closed=false
+// write 'Z' -> false, isClosed=true
+// fromWriter:   flushed=false closed=false
+// write 1 -> true, write 2 -> false, isClosed=true
+// fromChannel:  channel open=true
+```
+
+**Expected.** `close()` closes the wrapped stream or channel exactly once whatever happened before (`after error: ... closed=true`, `fromWriter: ... closed=true`, `fromChannel: channel open=false`); flushing after a failed write may be skipped or attempted, but the resource must not stay open.
+
+**Root cause.** At `b6c0c30e4`, the failure paths set the same `closed` flag that `close()` tests:
+- `streams/shared/src/main/scala/zio/blocks/streams/io/Writer.scala`: `CharWriter.writeChar` (`:304-308`) and `writeAll` (`:310-317`), `OutputStreamWriter.writeByte` (`:401-405`) and `writeBytes` (`:407-412`) all do `catch { case _: IOException => closed = true; ... }`, and `close()` is `if (!closed) { closed = true; flush(); close() }` (`:319-324`, `:414-419`).
+- `streams/jvm/src/main/scala/zio/blocks/streams/internal/ChannelWriter.scala`: `flush()` sets `closed = true` on an `IOException` (`:80-91`), and `close()` is `if (!closed) { ...; ch.close() }` (`:35-46`).
+
+**Impact.** A `Writer.fromOutputStream(new FileOutputStream(...))` or `NioWriters.fromChannel(FileChannel.open(...))` that hits a full disk or a broken pipe leaks the descriptor even when the caller closes it in a `finally`, and the error that explains why writes stopped is gone (the writer only reports `false`, as if it had been closed normally).
+
+**Test gap.** `WriterFromJavaSpec.scala:138-155` checks that an `IOException` makes `write` return `false` (and `writeBytes` return `0`) and marks the writer closed, but never calls `close()` afterwards; the close tests (`:113-135`, `:189-210`) run without a prior failure. `NioReadersWritersSpec.scala:667-695` ("ChannelWriter close safety") covers a channel whose flush fails inside `close()` itself, which works, and the suite at `:454` plus `:566` cover the normal `NioWriters.fromChannel` cases and cancellation; but no test makes a `write` or buffer flush fail before `close()` (`bufSize = 1`, as in the reproducer) and then closes the writer, so no test covers the leak for `NioWriters.fromChannel`.
+
+**Suggested fix.** Track "stopped accepting writes" separately from "underlying resource closed": on an `IOException`, set a `failed` flag (and keep the exception, for example to rethrow from `close()` or expose through `fail`), and let `close()` close the wrapped stream or channel once whenever it has not closed it yet. Add a test per writer that fails a write, closes the writer and checks that the resource was closed.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -10759,6 +11021,70 @@ At the least, a known keyword with a wrong-typed value should be kept in `extens
 - Keep wrong-typed known keywords in `extensions` in `JsonSchema.fromJson`.
 - Document the behaviour in `docs/reference/openapi.md`.
 
+### Streams: a sentinel collision on a `toAsync` view or an asynchronous reader concatenation loses the rest of the data, not one element
+
+Found 2026-10-27 while writing the Scaladoc for `SyncReader#toAsync` and `AsyncReader#read` (wave 2 of the streams Scaladoc, branch `streams-scaladoc-wave-2`), on `main` at `b6c0c30e4`; the concatenation case was found in review the same day. The same at tag `v0.0.56`. All `file:line` citations in this entry are at `b6c0c30e4` (`origin/main` when the entry was written); `Reader.scala` and `Writer.scala` are unchanged between that commit and the merge of wave 1, and the method names are given so the lines can be re-anchored after the wave 2 Scaladoc lands.
+
+**Summary.** `read(sentinel)` callers must pick a sentinel that never occurs as an element; a colliding element is the accepted edge case of the AGENTS.md sentinel policy. On a plain reader the mistake costs one element: the reader returns it as is, the caller takes it for the end, and the rest is still readable. Two readers lose much more, silently:
+
+- The `SyncReader#toAsync` view latches end-of-stream once a pull returns its end value. For `read` the check is reference identity with the sentinel, which on the JVM a boxed `Boolean`, a boxed number from -128 to 127 or an interned string satisfies, so `read(-1)` collides with an element `-1` and `read(true)` with every `true`. After that, every pull, `readAll` included, returns the end value without reading the source again, until `reset()`.
+- An asynchronous concatenation (`++`, `concat` or `concatAsync` whose result is an `AsyncReader`) treats an element that is the same object as the `read` sentinel as the end of its current part and moves to the next part, skipping that element and the rest of the part. The synchronous `ConcatReader` is not affected.
+
+The Scaladoc on the branch describes both on `toAsync`, `AsyncReader#read` and `Reader#concat`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-streams` 0.0.56, `scala-cli --power run --server=false --offline SentinelCollisionLoss.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+
+import zio.blocks.async._
+import zio.blocks.chunk.Chunk
+import zio.blocks.streams.io.Reader
+
+object SentinelCollisionLoss {
+  def main(args: Array[String]): Unit = {
+    // A plain reader returns the colliding element as is and keeps going.
+    val plain = Reader.fromChunk(Chunk(1, -1, 2))
+    println("plain read(-1) x4:          " + List.fill(4)(plain.read(-1)))
+
+    // The toAsync view stops for good after the collision.
+    val view = Reader.fromChunk(Chunk(1, -1, 2)).toAsync
+    println("toAsync read(-1) x3:        " + List.fill(3)(view.read(-1).block))
+    println("toAsync readAll afterwards: " + view.readAll[Int]().block)
+
+    // Boxed Booleans are shared objects, so read(true) collides with every true.
+    val flags = Reader.fromChunk(Chunk(true, false, true, false)).toAsync
+    println("toAsync read(true) x3:      " + List.fill(3)(flags.read[Any](true).block))
+
+    // An asynchronous concatenation skips the colliding element and the rest of its part.
+    val xs   = Vector(1, -1, 2)
+    val head = Reader.unfoldAsync(0)(i => Async.succeed(if (i >= xs.size) None else Some((xs(i), i + 1))))
+    val cat  = head ++ Reader.fromChunk(Chunk(3))
+    println("async concat read(-1) x4:   " + List.fill(4)(cat.read(-1).block))
+
+    val sync = Reader.fromChunk(Chunk(1, -1, 2)) ++ Reader.fromChunk(Chunk(3))
+    println("sync concat read(-1) x5:    " + List.fill(5)(sync.read(-1)))
+  }
+}
+// plain read(-1) x4:          List(1, -1, 2, -1)
+// toAsync read(-1) x3:        List(1, -1, -1)
+// toAsync readAll afterwards: Chunk()
+// toAsync read(true) x3:      List(true, true, true)
+// async concat read(-1) x4:   List(1, 3, -1, -1)
+// sync concat read(-1) x5:    List(1, -1, 2, 3, -1)
+```
+
+**Expected.** A colliding element costs what it costs on a plain reader: the view and the asynchronous concatenation return it as is and keep reading (`toAsync read(-1)` giving `1, -1, 2, -1` and `readAll` `Chunk()` only at the real end; `async concat` giving `1, -1, 2, 3`).
+
+**Root cause.** `streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala` at `b6c0c30e4`: `SyncToAsyncReader.read` marks `eof = true` when the value is `eq` the sentinel (`:1552-1554`), and `deferred` returns the closed value for every later pull while `eof` is set (`:1506`, `:1512`); the scalar pulls do the same with `==` (`:1564-1576`). `AsyncConcatReader.read` passes `value eq sentinel` as the end test of `pull` (`:1953-1954`), which then advances to the next part (`pull`, `:1931-1950`); `readBoolean`/`readChar`/`readShort` use `_ == sentinel`. The synchronous `ConcatReader.read` pulls its parts with the private `EndOfStream` (`:2801`) and is lossless.
+
+**Impact.** A caller who picks a natural sentinel (`-1` for ids, `true`/`false` for flags, `"EOF"` for strings) and drives a reader through `toAsync` or an asynchronous concatenation gets a silently truncated or gapped sequence, with no error. With `read(true)` on a `Boolean` reader the first `true` element ends the view.
+
+**Test gap.** No test pulls a `toAsync` view or an `AsyncConcatReader` with a `read` sentinel that occurs among the elements. The sentinel-collision tests that exist cover other readers: `AsyncInterpreterReadResidualCoverageSpec.scala:184` ("physical lane conversions preserve values and sentinel collisions", the `AsyncInterpreter`), `StreamSpecializationConformanceSpec.scala:89` (`intersperse`) and `NioStreamsSinksSpec.scala:307` (NIO sinks); the view and concatenation tests read with out-of-range sentinels (`grep -rn "collision\|collid" streams/*/src/test`).
+
+**Suggested fix.** Fix only the generic `read` path, with no added per-element work: in `SyncToAsyncReader.read`, pull the source with the private `EndOfStream` (as the synchronous `ConcatReader` does) and latch `eof` only on that marker, translating it to the caller's sentinel on the way out; in `AsyncConcatReader.read`, pull each part with `EndOfStream` and advance only on that marker. Each keeps one reference comparison per call (the translation back to the caller's sentinel can reuse the same test or a local flag), on the generic boxed path only, so no per-element work is added to any primitive-lane loop. The primitive scalar pulls of the `toAsync` view (`value == sentinel`) fall under the AGENTS.md sentinel policy: document them, or take a zero-cost route that needs an out-of-band EOF flag the readers do not have today (`lastReadWasEOF`, which AGENTS.md mentions, does not exist in `streams/`), and validate any change with the streams JMH benchmarks before and after. Alternatively, keep the behaviour and document it on the reference page next to the sentinel protocol.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -11716,6 +12042,24 @@ object Mapping {
 **Test gap.** The spec pins the behaviour, but nothing checks the reference page; the docs mdoc build does not run the reference page's type list.
 
 **Suggested fix.** Add the mapping table from the H-13 guide ("How Scala Types Map to Avro") to `avro.md`, with the `Option` union called out. Change the "Logical" heading so `Char` sits under the int-encoded types.
+
+### Streams: `docs/reference/streams/primitives/reader.md` and `writer.md` contradict the code on `isClosed`, the `AnyRef` lane, error-closed writers, `Writer.single` and `concat`
+
+Found 2026-10-27 while writing the Scaladoc for `Reader` and `Writer` (wave 2 of the streams Scaladoc rollout, PR #1862, branch `streams-scaladoc-wave-2`), on `main` at `b6c0c30e4`. Line numbers refer to that commit. Same text at v0.0.56. Each claim was checked with a probe against 0.0.56; the reference pages were not edited.
+
+**Summary.** Seven statements or omissions on the two reader/writer reference pages:
+
+1. `docs/reference/streams/primitives/reader.md:980`: "`isClosed` ... Its result is monotone: once `true`, it never becomes `false`". `reset()` makes it `false` again on every resettable reader (probe: `fromChunk` read to the end, `isClosed` `true`, `reset()`, `isClosed` `false`). Suggested: "Once `true`, it stays `true` until `reset()` rewinds the reader."
+2. `reader.md:1080` (second sentence) and `:1457`: the `AnyRef` lane "is the only lane on which all eight of those methods work". True for the scalar pulls of a plain `AnyRef` reader, false for the result of `Reader#++`/`concat` (all pulls throw) and for `readBytes`/`readInts`/`readFloats` (Entry 1). `:1151-1190` (Concatenation) does not say the result is on the `AnyRef` lane.
+3. `reader.md:1080` (first sentence): "Calling one of these on a reader whose `jvmType` is a different primitive lane does not throw at the call site: it returns a failed `Async` carrying an `UnsupportedOperationException`". True for the `AsyncReader` defaults; the `toAsync` view's `readLong`/`readDouble` throw `IllegalStateException` at the call site, and its other pulls fail with `IllegalStateException` (probe; reachable only through a cast, so low priority).
+4. `reader.md:349-363` (`fromInputStream`, `fromReader`): no mention that closing the reader leaves the wrapped stream open, or that an `IOException` arrives wrapped in `StreamError`. `reader.md:604-638` (`repeat`, `repeated`): no mention of the close bug (Entry 2).
+5. `writer.md:20` ("throws when error-closed") and `:42` ("a writer closed with `fail` may throw the stored error"): no library writer throws after `fail`. `writer.md:286` and `:294` (`fromOutputStream`/`fromWriter` "Calling `close()` flushes and closes"): false after a failed write (Entry 3), and the page does not say that `IOException`s are swallowed.
+6. `writer.md:231` (`Writer.single` "accepts exactly one element, then auto-closes. The dual of `Reader.single`"): it stores nothing and has no accessor; suggested "accepts one element and discards it, then reports closed". (Added in fix round 1 from the review.)
+7. `writer.md:464` (`Writer#concat` "If `this` closes with an error, the error is propagated immediately without consulting `next`"): incomplete; after a throwing write the writer never switches (review I2). Suggested: the wording now on `Writer#concat`'s Scaladoc. (Added in fix round 1.)
+
+**Expected.** The pages match the code and the wave 2 Scaladoc; the known bugs (the Library bugs entries on `AnyRef`-lane primitive pulls, `Reader.repeat`/`repeated` after `close()`, and `Writer.fromOutputStream`/`fromWriter` after a failed write) are described as known bugs in 0.0.56.
+
+**Suggested fix.** Apply the replacement text given in items 1, 6 and 7 (and the wording of the wave 2 Scaladoc for the rest), then run `docs/mdoc` on both pages. The wave 3 Scaladoc for `NioWriters` should describe the `fromChannel` leak.
 
 ## Resolved
 
