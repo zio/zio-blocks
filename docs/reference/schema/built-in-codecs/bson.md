@@ -3,7 +3,7 @@ id: bson
 title: "BSON Codec Module"
 ---
 
-`zio-blocks-schema-bson` is a **schema-driven BSON codec module** for serializing and deserializing Scala types to and from BSON (Binary JSON) format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. 
+`zio-blocks-schema-bson` is a **schema-driven BSON codec module** for serializing and deserializing Scala types to and from BSON (Binary JSON) format. It provides comprehensive encoding and decoding with support for 30 primitive types, records, variants, sequences, maps, and recursive types. 
 
 Core types: `BsonCodec`, `BsonEncoder`, `BsonDecoder`, `BsonCodecDeriver`, and the compatibility facade `BsonSchemaCodec`.
 
@@ -11,7 +11,7 @@ The module integrates with org.bson to provide native BSON type support includin
 
 ## Motivation
 
-BSON is the native wire format for MongoDB and appears widely across modern applications. Manually writing BSON encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-bson` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+BSON is the native wire format for MongoDB and appears widely across modern applications. Manually writing BSON encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-bson` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Blocks Schema. You describe your data shape once, and the module handles:
 - Full BSON type support (documents, arrays, strings, numbers, ObjectId, Decimal128, timestamps, etc.)
 - Configurable sum type handling (discriminator fields, wrapper types, or no discriminator)
 - Flexible field name mapping for compatibility with MongoDB conventions
@@ -34,7 +34,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "@VERSION@"
 
 **Note:** This module is JVM-only and is not available for Scala.js.
 
-Supported Scala versions: 2.13.x and 3.x
+Supported Scala versions: 2.13.x and 3.x. On Scala 3.9 and newer, use the `zio-blocks-next-schema-bson` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../guides/add-zio-blocks-to-your-build.md) explains.
 
 ## Introduction
 
@@ -45,7 +45,7 @@ The module provides a complete pipeline for BSON codec derivation and usage:
 3. **Encode or decode** — Call `codec.encoder.toBsonValue()` or `codec.decoder.fromBsonValue()`
 4. **Handle errors** — Catch `BsonDecoder.Error` with location traces showing where the error occurred
 
-The derivation process is automatic for all supported types (all 27 primitives, records, variants, sequences, maps). The module provides flexible configuration for sum type handling, field mapping, and ObjectId support.
+The derivation process is automatic for all supported types (all 30 primitives, records, variants, sequences, maps). The module provides flexible configuration for sum type handling, field mapping, and ObjectId support.
 
 ## How They Work Together
 
@@ -175,7 +175,7 @@ val codec = BsonSchemaCodec.bsonCodec(Status.schema, discriminatorConfig)
 
 ### Pattern 4: Use ObjectId with Native BSON Encoding
 
-ObjectId fields are encoded using BSON's native ObjectId type for compatibility with MongoDB. Importing `ObjectIdSupport._` is all it takes; `BsonSchemaCodec.Config#withNativeObjectId` is not needed and has no effect in this version.
+ObjectId fields are encoded using BSON's native ObjectId type for compatibility with MongoDB. Importing `ObjectIdSupport._` is all it takes; `BsonSchemaCodec.Config#withNativeObjectId` is not needed and has no effect in 0.0.56.
 
 To derive a codec that stores an `ObjectId` field natively:
 
@@ -289,19 +289,16 @@ trait BsonEncoder[A] {
 
 ### Contramap for Transformations
 
-Transform the input before encoding using contramap:
+To encode `WrappedInt` through the existing `Int` encoder, use `BsonEncoder#contramap`:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.bson._
 import zio.blocks.schema._
+import zio.blocks.schema.bson._
 
 case class WrappedInt(value: Int)
-object WrappedInt {
-  implicit val schema: Schema[WrappedInt] = Schema.derived
-}
 
-val codec = BsonSchemaCodec.bsonCodec(WrappedInt.schema)
-// The codec provides encoder and decoder for bidirectional serialization
+val intEncoder: BsonEncoder[Int]            = BsonSchemaCodec.bsonCodec(Schema[Int]).encoder
+val wrappedEncoder: BsonEncoder[WrappedInt] = intEncoder.contramap(_.value)
 ```
 
 ---
@@ -330,12 +327,10 @@ trait BsonDecoder[A] {
 
 ### Error Handling
 
-Errors provide location information for debugging:
+`BsonDecoder#fromBsonValue` reports a failed decode as a `Left` holding `BsonDecoder.Error(trace: List[BsonTrace], message: String)`, and `BsonTrace.render` turns its trace into a path:
 
 ```scala
 import zio.blocks.schema.bson._
-
-case class BsonError(message: String, trace: List[BsonTrace])
 
 // Innermost step first, the order the decoder builds the trace in
 val trace = List(BsonTrace.Field("age"), BsonTrace.Array(0), BsonTrace.Field("user"))
@@ -348,7 +343,7 @@ val rendered = BsonTrace.render(trace) // ".user[0].age"
 
 `BsonCodecDeriver` implements the shared `Deriver[BsonCodec]` contract. It supports direct derivation as well as `Schema.deriving` instance and modifier overrides by type, exact optic, or parent type and term name.
 
-`BsonSchemaCodec` retains `bsonCodec`, `bsonEncoder`, `bsonDecoder`, and `Config` as compatibility and convenience APIs. These methods delegate to `BsonCodecDeriver`, so both entry points have the same BSON behavior.
+`BsonSchemaCodec` retains `BsonSchemaCodec.bsonCodec`, `BsonSchemaCodec.bsonEncoder`, `BsonSchemaCodec.bsonDecoder`, and `BsonSchemaCodec.Config` as compatibility and convenience APIs. These methods delegate to `BsonCodecDeriver`, so both entry points have the same BSON behavior.
 
 ### Configuration
 
@@ -386,7 +381,7 @@ val none = BsonSchemaCodec.SumTypeHandling.NoDiscriminator
 
 To create a codec from a schema:
 
-```scala mdoc:reset
+```scala mdoc:reset:silent
 import zio.blocks.schema._
 import zio.blocks.schema.bson._
 
@@ -404,11 +399,15 @@ val compatibleCodec = BsonSchemaCodec.bsonCodec(Person.schema)
 val configuredCompatibleCodec = BsonSchemaCodec.bsonCodec(Person.schema, BsonSchemaCodec.Config)
 ```
 
-### Derivation overrides
+### Derivation Overrides
 
 Use `Schema.deriving` when part of a schema needs a custom codec or runtime modifier:
 
 ```scala
+import zio.blocks.schema._
+import zio.blocks.schema.bson._
+
+// customIntCodec: BsonCodec[Int], defined by you
 val codec = Person.schema
   .deriving(BsonCodecDeriver)
   .instance(Person.schema.reflect.typeId, "age", customIntCodec)
@@ -420,7 +419,7 @@ Type-level overrides affect every matching occurrence. Parent-type and term-name
 
 Record-level `Modifier.fieldNaming` and `Modifier.noExtraFields` annotations override the corresponding default BSON behavior. Variant-level `Modifier.caseNaming` and `Modifier.discriminator` annotations override class-name mapping and sum-type handling for the annotated variant.
 
-### Semantic Json values
+### Semantic Json Values
 
 `zio.blocks.schema.json.Json` objects, arrays, scalars, and nulls map directly to their semantic BSON equivalents. Finite BSON doubles other than signed zero retain their exact value when converted through `Json`; BSON signed zero is normalized to JSON zero because `Json.Number` does not retain its sign. Duplicate `Json.Object` field names are rejected because `BsonDocument` cannot represent them without data loss.
 
