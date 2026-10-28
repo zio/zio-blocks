@@ -501,7 +501,7 @@ val firstOrderIds: List[Long] = Scope.global.scoped { scope =>
 println(firstOrderIds)
 ```
 
-On Scala 2.13, pass the scope as `parsedOrders.start(scope)`. The reader closes with the scope. For a primitive stream, choose a sentinel your stream never emits; the [Reader reference](../reference/streams/primitives/reader.md) covers the primitive read methods.
+On Scala 2.13, pass the scope as `parsedOrders.start(scope)`. The reader closes with the scope. For a primitive stream, read each lane with its own method, as [Primitive Streams Signal the End Without Boxing](#primitive-streams-signal-the-end-without-boxing) describes; the [Reader reference](../reference/streams/primitives/reader.md) covers the primitive read methods.
 
 ### Batches
 
@@ -823,7 +823,7 @@ You gain:
 What is different:
 
 - **Blocking and asynchronous terminals.** On the JVM, `runCollect`, `runFold`, `runDrain`, `count`, `run(sink)` and `start` block the calling thread. Every platform has the asynchronous versions (`runCollectAsync`, `runFoldAsync`, `runAsync(sink)`, `countAsync` and so on), which return `Async[Either[E, Z]]`.
-- **Scala.js has only the asynchronous terminals.** JavaScript cannot block, so there is no `runCollect` or `start` there, and `mapPar`, `flatMapPar` and `Stream.mergeAll` run sequentially.
+- **Scala.js has only the asynchronous terminals.** JavaScript cannot block, so there is no `runCollect` or `start` there, and no work in `mapPar`, `flatMapPar` or `Stream.mergeAll` runs in parallel: only asynchronous waits overlap.
 - **No time, schedules or environment.** No `Schedule`, timers, `groupedWithin`, throttling or `R` channel.
 - **Parallel operators are unordered.** `mapPar` is `mapParUnordered` under another name.
 - **No `Pull`, `ZChannel` or fibers.** Custom operators use `mapAccum`, `scan` or `start`, and concurrency lives inside the parallel operators.
