@@ -428,7 +428,7 @@ strictCodec.decode("""{"title":"Zionomicon","publishedYear":2024,"author":{"full
 }
 ```
 
-`JsonCodecDeriver#withRequireCollectionFields` does the same for collections, and `JsonCodecDeriver#withRequireDefaultValueFields` ignores field defaults when decoding, so a field such as `language` must be present even though it has a default.
+`JsonCodecDeriver#withRequireCollectionFields` does the same for collections, and `JsonCodecDeriver#withRequireDefaultValueFields` ignores field defaults when decoding, so a field such as `language` must be present even though it has a default. Both settings also change the encoder: with `withRequireCollectionFields(true)` the encoder writes empty collections, and with `withRequireDefaultValueFields(true)` it writes default values, instead of leaving them out. Set them only when you want that output too.
 
 ## Reject Unknown Fields
 
