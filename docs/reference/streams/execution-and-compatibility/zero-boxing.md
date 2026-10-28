@@ -300,7 +300,7 @@ val asLong = stream.map(_.toLong)
 
 ### Sink[E, A, Z]
 
-Pulls elements from the run's [`Reader`](../primitives/reader.md) with the read that matches the lane (`readInt`, `readFloat`, or the count-returning `readLongs`/`readDoubles`), so built-in sinks such as `Sink.sumLong` and `Stream#runFold` never box. Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads:
+Pulls elements from the run's [`Reader`](../primitives/reader.md) with the read that matches the lane (`Reader#readInt`, `Reader#readFloat`, or the count-returning `Reader#readLongs` and `Reader#readDoubles`), so built-in sinks such as `Sink.sumLong` and `Stream#runFold` never box. Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads. To fold an `Int` stream through the unboxed `Int` lane:
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
