@@ -12404,26 +12404,6 @@ import zio.blocks.schema.json._
 
 Pages that contradict the source. None of these were copied into the new guides.
 
-**schema / JSON**
-
-- `customize-json-encoding.md` (H-02; the table around lines 357-361 and the prose around line 431) presents `withRequireCollectionFields` and `withRequireDefaultValueFields` as decoder-only settings. Setting either to true also makes the encoder write empty collections and default values (see Usability traps). Found while writing M-01.
-- `modifier.md`, `transient`: does not say that a transient field's JSON value is ignored on decode and the default is used.
-- `schema-error.md` (lines 56-57, 171-172, 283-289, 313-316) shows `Missing field 'x' at: .path` as the decode result. JSON decoding reports `missing required field "x" at: .path` (`JsonReader.scala:89`).
-- `syntax.md` shows `show` output as `Record { name = Alice, age = 30 }`; the real output is the EJSON form (`DynamicValue.toString`).
-- `Schema.fromJsonSchema` Scaladoc (`Schema.scala:357-358`) says values are validated "during construction"; validation happens at decode time (`:366-370`). Fixed in the wave 1 Scaladoc (branch `scaladoc-wave-1`).
-- `validation.md:356-373` says `Validation` constraints become `minimum`, `maxLength`, `pattern` and so on in `toJsonSchema`. They do not; only parsing a JSON Schema maps them (`JsonSchemaToReflect.scala:261-285`).
-- `validation.md:304` uses `JsonDecoder[Order].decodeString`; `JsonDecoder` was removed in #1240.
-- `validation.md` code blocks that do not compile at 0.0.56 (verified with scala-cli on Scala 2.13.18 while writing H-04; the page has no mdoc blocks, so nothing caught them): `.withTypeName[...]` at lines 218, 235, 252, 401 and 420 (`value withTypeName is not a member of zio.blocks.schema.Schema[...]`; the type name comes from the implicit `TypeId` that `Schema#transform` takes, `Schema.scala:185`); `transform(wrap = ..., unwrap = ...)` at lines 266-273 (`unknown parameter name: wrap`; the parameters are `to` and `from`); `DynamicValue.Record(Vector(...))` at lines 324 and 348 (`overloaded method apply ... cannot be applied`; it takes a `Chunk` or `(String, DynamicValue)*`, `DynamicValue.scala:595`).
-- `validation.md` output comments do not match the real messages (verified while writing H-04): line 177 shows `at: $.user.age`, the real text is `at: .user.age`; line 305 shows `must be positive at $.quantity`, the real text is `must be positive at: .quantity.wrapped`; line 353 shows `Expected String, got Int at $.name`, the real text is `Expected String, got Int at: .name at: .wrapped`.
-- `validation.md:13` ("Automatic enforcement during schema-based decoding") and `:281` apply only to `Schema#transform` wrappers. `Validation` constraints are enforced only by `DynamicSchema#check` (see the Usability traps entry on `Validation`). Its newtype examples (`case class Email private (value: String)` and so on) also keep a public `apply` and `copy` on Scala 2.13, so `Email("junk")` compiles and skips the check (see Usability traps).
-- `schema-error.md:41-43` says multiple independent problems are surfaced all at once and that every `Codec#decode` returns them in one `SchemaError`. The JSON and TOON codecs stop at the first failure; only `Schema#fromDynamicValue` (and `Into.derived`) collect every error. Found while writing H-04, which shows both.
-- `json-schema.md:366` shows an error message without the ` at: <path>` suffix that `SchemaError.message` adds. The page also does not mention the `pattern` anchoring behaviour above.
-- `json/index.md:66-67` lists "order" as a `WriterConfig` option and "number handling" as a `ReaderConfig` option. Neither exists: `WriterConfig` has `indentionStep`, `preferredBufSize` and `escapeUnicode` (`WriterConfig.scala:42-44`), and `ReaderConfig` has only buffer sizes and `checkForEndOfInput` (`ReaderConfig.scala:50-54`). Found while writing H-50.
-
-- `json.md:66-86` ("String Interpolators") says the `json"..."` interpolator is compile-time validated, without saying it does not compile on Scala 2.13 in user code (see Library bugs).
-- `json.md:732-736` shows `toKV` output as `($.a.b, Json.Number(1))`. It prints `Chunk((.a.b,1),(.a.c,2))`; `DynamicOptic` has no `$` prefix. Verified.
-- `json-selection.md:92` says to access elements "using `JsonSelection#apply` or `JsonSelection#get`". `JsonSelection` has `apply(index: Int)` (`JsonSelection.scala:182`) but no `get(Int)`; the example compiles only because `data` is a `Json`, which has `get(index)`.
-
 **schema / optics and paths**
 
 - `path-interpolator.md:294-305`: the escape table implies all six escapes work in both strings and chars. Strings accept only `\"`, `\\`, `\n`, `\t`, `\r`; chars accept only `\'`, `\\`, `\n`, `\t`, `\r` (`PathParser.scala:399-442`).
@@ -12682,53 +12662,6 @@ Found 2026-10-21 while writing the how-to guide `docs/guides/sql-from-zio.md` (b
 
 **Suggested fix.** Turn both pages into `mdoc` pages now that `sql-zio` is on the docs classpath, on a temporary SQLite file, and link `docs/guides/sql-from-zio.md` for the recipes.
 
-### docs: `csv.md` promises error locations the codec doesn't give, and documents unused API
-
-Found 2026-10-20 while writing the how-to guide `docs/guides/read-and-write-csv-and-tsv-files.md` (backlog H-11), on `main` at `b4179489`. Verified by running. PR #1773 (merged) fixed other parts of this page (TSV "Pattern 2", run-time rejection, `Option` fields); the statements below are still on `main` after it.
-
-**Summary.** `docs/reference/schema/built-in-codecs/csv.md` makes these claims that the source contradicts:
-
-- `:31` "Precise error reporting with row/column locations" and `:153` "CSV errors report the exact row and column where parsing or type conversion failed". Decode errors carry no row, column or field (see "decode errors never name the column" above), and parse errors count rows from the failing row (see "`CsvError` row and column count from the start of the failing row" above).
-- `:151-178` "Pattern 3" decodes a whole document, header included, with `CsvCodec#decode`. The codec reads only the first row, so the example reports the header, not the bad `salary` cell.
-- `:357-366` presents `CsvError.TypeError` as the error for a failed conversion; nothing produces it.
-- `:321` and `:335` document `nullValue`, which nothing reads.
-- `:522` "Flat case classes (records with no variant or sequence fields) are fully supported" leaves out that a nested record field is accepted and written as one cell with a line break inside.
-
-**Reproduction of Pattern 3** (Scala 3.9.0, `zio-blocks-next-schema-csv` 0.0.56, run with scala-cli):
-
-```scala
-//> using scala 3.9.0
-//> using options -experimental
-//> using dep dev.zio::zio-blocks-next-schema:0.0.56
-//> using dep dev.zio::zio-blocks-next-schema-csv:0.0.56
-
-import java.nio.CharBuffer
-import zio.blocks.schema._
-import zio.blocks.schema.csv._
-
-case class Employee(id: Int, name: String, salary: BigDecimal)
-object Employee { implicit val schema: Schema[Employee] = Schema.derived }
-
-@main def repro(): Unit = {
-  // csv.md "Pattern 3: Handle CSV Errors with Location Information", verbatim input
-  val codec   = Employee.schema.derive(CsvFormat)
-  val csvData = "id,name,salary\n1,Alice,invalid\n"
-  println(codec.decode(CharBuffer.wrap(csvData)))
-  // Left(zio.blocks.schema.SchemaError: Cannot parse 'id' as Int: For input string: "id" at: .)
-}
-```
-
-**Suggested fix.** Say that `CsvCodec#decode` decodes one row and its errors name the bad value but not the column, and rewrite Pattern 3 to read the document with `CsvReader.readAll` and decode each row, counting rows itself (as the H-11 guide does). Mark `TypeError` and `nullValue` as unused, and add nested records to the "Record Type Support" section.
-
-**Other modules**
-
-- `html.md`: artifact name for Scala 3.7+, `Css.Declaration`, `hx-*` URL attributes, `selector""`. Filed as #1766.
-- `streams/index.md:78` lists Kyo RC6 and Ox 1.0.6; the build pins RC7 and 1.1.0.
-- `docs/index.md` and `built-in-codecs/json/index.md:39,45` give `zio-blocks-schema` for every Scala version; Scala 3.7+ uses `zio-blocks-next-schema`. H-01 (stalled) includes this fix.
-- `combinators.md` documents a `Choices` module that does not exist (research §9.6).
-- `query-dsl-sql.md` "Compile-time SQL Dumps" (around lines 1080-1095) and the `Dump` Scaladoc (`Dump.scala:25-30`, `:547-549`) say query dumps are named `<owner>-<dialect>.sql` and fall back to `query`. `Dump.dumpQuery` writes `<name>_query-<dialect>.sql` (the `-query` suffix is sanitized to `_query`), named after the `val` it is assigned to, else after the owner, else `<type>_query`. Found while writing H-19; see the `Dump.dumpQuery` library bug.
-- `docs/dev/research.md` cites stale line numbers (for example `Transactor.scala:65` is now `:261`/`:275`, `Table.scala:32` is now `:262`).
-
 ### docs: telemetry pages give the wrong JDK requirement, no Scala 3.9 artifact, and a double-printing example
 
 Found 2026-10-21 while writing T-12, on `main` at `a44dc6db` (same at `v0.0.56`). Verified against the published 0.0.56 on JDK 17, 21 and 25.
@@ -12783,73 +12716,6 @@ AddField(.edition,Literal(1,Schema {
 **Test gap.** No test encodes a `DynamicMigration` or `MigrationAction`; `DynamicMigrationSpec` builds them in memory only.
 
 **Suggested fix.** Add schemas for `DynamicSchemaExpr`, `MigrationAction` and `DynamicMigration` (dropping the `Schema` from `Literal`, or rebuilding it from a type tag), then restore the claim; until then, correct `migration.md`.
-
-### `docs/reference/schema/built-in-codecs/yaml.md` shows output the codec does not produce and omits kebab-case keys
-
-Found 2026-10-21 while writing the how-to guide `docs/guides/read-and-write-yaml.md` (backlog H-15), on `main` at `4ec6dd90`. `schema-yaml` has no changes since tag `v0.0.56`, so the behaviour is the same in the 0.0.56 release. Verified by running.
-
-**Summary.** The YAML reference page has no mdoc blocks, and several of its plain-fence examples and claims contradict 0.0.56:
-1. "Pattern 3: Pretty-Print with Configuration" (`yaml.md:176-202`) says `YamlOptions` controls the output, but its code calls `codec.encodeToString(server)`, which takes no options and never writes `---`; the comment shows a `---` line that is not printed. `YamlCodec` has no method that takes `YamlOptions`; options apply only to `YamlWriter.write` and `Yaml#print`/`printPretty`.
-2. The `Yaml.print` example (`yaml.md:285-304`) shows `active: true` for `Yaml.Scalar("true")`; the writer prints `active: "true"` because the scalar has no `Bool` tag.
-3. "Each field becomes a named key" (`yaml.md:446`) doesn't say the key is the field name in kebab-case: `zipCode` is written as `zip-code`. The page never mentions this, nor that field modifiers are ignored.
-4. "Sealed traits and sum types are encoded as YAML mappings with discriminator information" (`yaml.md:463`, also `:65`) — there is no discriminator: a case is a one-key mapping named after the case (`Stopped:` / `  exit-code: 1`).
-5. "27 primitive types" (`yaml.md:6`, `:51`, `:417`); the deriver handles 30 (by reading `YamlCodecDeriver.scala`, not run).
-6. The page never mentions `YamlReader`, `YamlWriter`, `YamlSyntax`, the `yaml"..."` interpolator, `YamlTag`, or that the reader is lenient and never reports syntax errors.
-
-**Reproduction** (scala-cli, run exactly as written; the output is pasted at the end):
-
-```scala
-//> using scala 3.3.7
-//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
-import zio.blocks.schema._
-import zio.blocks.schema.yaml._
-
-case class Server(name: String, endpoints: List[String], timeout: Int)
-object Server { implicit val schema: Schema[Server] = Schema.derived }
-
-case class Address(street: String, city: String, zipCode: String)
-object Address { implicit val schema: Schema[Address] = Schema.derived }
-
-sealed trait Status
-case class Running(pid: Int) extends Status
-case class Stopped(exitCode: Int) extends Status
-object Status { implicit val schema: Schema[Status] = Schema.derived }
-
-@main def referencePage(): Unit = {
-  // Pattern 3: "Pretty-Print with Configuration"
-  println(Server.schema.derive(YamlFormat).encodeToString(Server("api-server", List("GET /health", "POST /data"), 30)))
-  // "Format YAML nodes using compact or pretty-printed output"
-  val yaml = Yaml.Mapping.fromStringKeys("name" -> Yaml.Scalar("Bob"), "active" -> Yaml.Scalar("true"))
-  println(yaml.print)
-  // Record support: "Each field becomes a named key"
-  println(Address.schema.derive(YamlFormat).encodeToString(Address("Unter den Linden 1", "Berlin", "10117")))
-  // Variant support: "encoded as YAML mappings with discriminator information"
-  println(Status.schema.derive(YamlFormat).encodeToString(Stopped(1)))
-}
-// Output:
-// name: api-server
-// endpoints:
-//   - GET /health
-//   - POST /data
-// timeout: 30
-// name: Bob
-// active: "true"
-// street: Unter den Linden 1
-// city: Berlin
-// zip-code: "10117"
-// Stopped:
-//   exit-code: 1
-```
-
-**Expected.** The page's comments match this output; Pattern 3 uses `YamlWriter.write(codec.encodeValue(server), YamlOptions.pretty)` (or `codec.encodeValue(server).printPretty`); the records section states the kebab-case rule; the variants section shows the wrapper shape.
-
-**Root cause.** Hand-written, never-compiled examples (`yaml.md` has 0 mdoc blocks).
-
-**Impact.** Readers copy Pattern 3 and get no document marker; expect camelCase keys and fail to read their files; expect a discriminator field.
-
-**Test gap.** The page isn't checked by mdoc.
-
-**Suggested fix.** Convert the page's examples to `mdoc` blocks so the output is generated, fix the five statements above, and add sections on `YamlReader`/`YamlWriter`, `YamlSyntax`, the interpolator (with its Scala 2.13 limitation) and the unsupported YAML features. The H-15 guide (`docs/guides/read-and-write-yaml.md`) has a verified table of unsupported features that can be linked.
 
 ### docs: `table.md` and `db-codec-deriver.md` say `createTable` handles collection and nested-record fields
 
@@ -13013,44 +12879,6 @@ Found 2026-10-26 while fact-checking the reference page against the wave 1 strea
 **Expected.** The page matches the code; for 1, describe the real behaviour and call it a known bug.
 
 **Suggested fix.** Edit the six places, then run `docs/mdoc` on the page.
-
-### Avro reference: `Option`, `Char` and the temporal types are listed without their Avro shape
-
-Found 2026-10-27 while writing the how-to guide `docs/guides/encode-and-decode-records-with-avro.md` (backlog H-13), on `main` at `b6c0c30e4`. Same at v0.0.56.
-
-**Summary.** `docs/reference/schema/built-in-codecs/avro.md:349-352` ("Primitive Type Support") lists `Char` under "Logical", lists `Instant`, `LocalDate`, `LocalDateTime` and the other temporal types, and lists `UUID` under "Special", without saying what Avro shape each one takes. `Option` and `Either` are not mentioned. The biggest interop surprise is `Option`: it is a union of two records, not `["null", T]`. Also `Char` is an `int` code point, not a `string`, so "Logical" is the wrong word.
-
-**Reproduction.** File `Mapping.scala`, run with `scala-cli run --server=false Mapping.scala -M Mapping`:
-
-```scala
-//> using scala 3.9.0
-//> using options -experimental
-//> using dep dev.zio::zio-blocks-next-schema-avro:0.0.56
-
-import zio.blocks.schema._
-import zio.blocks.schema.avro._
-
-object Mapping {
-  def main(args: Array[String]): Unit = {
-    println(Schema[Option[Int]].derive(AvroFormat).avroSchema.toString)
-    println(Schema[Char].derive(AvroFormat).avroSchema.toString)
-    println(Schema[Either[String, Int]].derive(AvroFormat).avroSchema.toString)
-  }
-}
-// [{"type":"record","name":"None","namespace":"scala","fields":[]},{"type":"record","name":"Some","namespace":"scala","fields":[{"name":"value","type":"int"}]}]
-// "int"
-// [{"type":"record","name":"Left","namespace":"scala.util","fields":[{"name":"value","type":"string"}]},{"type":"record","name":"Right","namespace":"scala.util","fields":[{"name":"value","type":"int"}]}]
-```
-
-**Expected.** The reference states, for each type it lists, the Avro schema shape. For `Option`, that it is a union with `None` first, so `None` is index 0 and `["null", T]` is not produced. For `Char`, `int`, under a heading that is not "Logical". For `Instant`, `LocalDate` and `UUID`, that they are records or `fixed(16)`, not the logical types.
-
-**Root cause.** Documentation gap, not a code bug. The behaviour is pinned by `schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala:739-745` (the `option` test expects the `None`/`Some` union) and `AvroFormatSpec.scala:101-103` (`Char` expects `"int"`). The union is produced by `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodecDeriver.scala:210` (`AvroSchema.createUnion(caseAvroSchemas)` in case order).
-
-**Impact.** A team that writes a Java or Python reader from the reference alone expects `["null", T]` and a string for `Char`. They find out at runtime.
-
-**Test gap.** The spec pins the behaviour, but nothing checks the reference page; the docs mdoc build does not run the reference page's type list.
-
-**Suggested fix.** Add the mapping table from the H-13 guide ("How Scala Types Map to Avro") to `avro.md`, with the `Option` union called out. Change the "Logical" heading so `Char` sits under the int-encoded types.
 
 ### Streams: `docs/reference/streams/primitives/reader.md` and `writer.md` contradict the code on `isClosed`, the `AnyRef` lane, error-closed writers, `Writer.single` and `concat`
 
@@ -13490,6 +13318,7 @@ Found 2026-10-28 by the coordinator while preparing the streams doc-fix batch, o
 
 ## Resolved
 
+- Codec doc errors fixed in #1878 (batch 2b, merge `13423e664`): `avro.md` now has the Scala-to-Avro type table and the decode-trusts-the-reader-schema note, and names the three Avro library bugs; `yaml.md` (now evaluated mdoc) no longer shows `YamlOptions` output from `encodeToString` or a `---` line it never prints, and documents kebab-case keys; `csv.md` no longer promises document-level error rows and columns, marks `CsvError.TypeError` and `CsvConfig.nullValue` as unused, and states the nested-record behaviour; the whole "schema / JSON" list (the `require*` encoder effect in `customize-json-encoding.md`, `transient` on decode in `modifier.md`, `schema-error.md` messages and first-failure behaviour, `syntax.md` `show` output, `validation.md` rewritten as evaluated mdoc, `json-schema.md:366` and `pattern` anchoring, `json/index.md:66-67`, the `json"..."` Scala 2.13 note and `toKV` output in `json.md`, and `json-selection.md:92`); the `Schema.fromJsonSchema` Scaladoc was already correct on main. Also fixed there: `schema-bson/README.md` showed class-level `@Modifier.rename`/`alias` on a record, which the BSON deriver ignores (probed against 0.0.56: a record with class-level `rename("NewName")` still encodes as `{"x": 1}`; on a sealed-trait case, `rename("Round")` gives `{"Round": {...}}` and `alias("Circle")` decodes), and the README now says `withNativeObjectId` has no effect and shows the `Option` sub-document shape. The library-bug entries for Avro, YAML, CSV and BSON stay open.
 - Web doc errors fixed in #1879 (batch 3, merge `1a5561f65`): `reference/datastar/index.md` claimed Scala 2.13 support (the module is Scala 3 only) and lacked the 3.9+ `zio-blocks-next-datastar` + `-experimental` install line; `reference/htmx/response-headers.md` paired `HX-Redirect` with `HX-Trigger-After-Settle`, which htmx 2 never fires after a redirect (browser-verified); `reference/htmx/index.md` never said its syntax targets htmx 2.x; and the `JdkHttp` adapter (7 copies plus the 2 `StreamingJdkHttp` copies) wrote the response outside its `catch`, so a failed write dropped the connection silently (now a logged 500). The same PR documented the htmx `HX-Boosted`/history-restore traps, the html shadowing and `search` ambiguity traps, and the docs side of the `HxLocation` and four http-model-schema bugs (those entries stay open with a Status line).
 - `docs/index.md` described `Maybe` as "Low-allocation optional values backed by `null`"; since #1532 absence is an `Absent` singleton and `Maybe.present(null)` is present. Fixed in #1866 (H-51, commit `1dfba0647`); regenerate the README.
 - `telemetry-guide.md` propagation examples started a new trace instead of continuing the caller's: the HTTP server example took its tracer before `trace.install`, and `traceIncoming` extracted the parent but never scoped it. The "Span-log correlation" line called the `private[telemetry]` `new TracerProvider(...)`, and `reference/telemetry/otel/index.md` listed `X-B3-ParentSpanId` and `X-B3-Flags` as headers `B3Propagator.multi` writes (it writes only TraceId, SpanId and Sampled). Fixed in #1853 (H-43, commit `4df2713bc`). Still open: the same wrong header list in the Scaladoc at `otel/src/main/scala/zio/blocks/telemetry/otel/B3Propagator.scala:41-42` (backlog doc-fix follow-up).
