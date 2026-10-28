@@ -823,7 +823,7 @@ You gain:
 What is different:
 
 - **Blocking and asynchronous terminals.** On the JVM, `runCollect`, `runFold`, `runDrain`, `count`, `run(sink)` and `start` block the calling thread. Every platform has the asynchronous versions (`runCollectAsync`, `runFoldAsync`, `runAsync(sink)`, `countAsync` and so on), which return `Async[Either[E, Z]]`.
-- **Scala.js has only the asynchronous terminals.** JavaScript cannot block, so there is no `runCollect` or `start` there, and no work in `mapPar`, `flatMapPar` or `Stream.mergeAll` runs in parallel: only asynchronous waits overlap.
+- **Scala.js has only the asynchronous terminals.** JavaScript cannot block, so there is no `Stream#runCollect` or `Stream#start` there, and no work in `Stream#mapPar`, `Stream#flatMapPar` or `Stream.mergeAll` runs in parallel: only asynchronous waits overlap.
 - **No time, schedules or environment.** No `Schedule`, timers, `groupedWithin`, throttling or `R` channel.
 - **Parallel operators are unordered.** `mapPar` is `mapParUnordered` under another name.
 - **No `Pull`, `ZChannel` or fibers.** Custom operators use `mapAccum`, `scan` or `start`, and concurrency lives inside the parallel operators.

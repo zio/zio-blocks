@@ -636,9 +636,9 @@ def drainN(n: Int): Unit = {
 drainN(3)
 ```
 
-A known bug in 0.0.56: `close()` does not stop a `Reader.repeat` reader. After `close()`, `isClosed` stays `false` and every pull still returns the value.
+A known bug in 0.0.56: `SyncReader#close` does not stop a `Reader.repeat` reader. After `SyncReader#close`, `SyncReader#isClosed` stays `false` and every pull still returns the value.
 
-`Reader.repeated` — Restarts an inner reader each time it ends, by calling `reset()` on it. Used by `Stream.repeated` to create indefinitely repeating streams:
+`Reader.repeated` — Restarts an inner reader each time it ends, by calling `SyncReader#reset` on it. Used by `Stream.repeated` to create indefinitely repeating streams:
 
 ```scala
 object Reader {
@@ -648,7 +648,7 @@ object Reader {
 }
 ```
 
-Each time `inner` ends, the synchronous overload calls `inner.reset()` and keeps reading, so `inner` must support `reset()`; one that does not makes the pull throw `UnsupportedOperationException`, and an `inner` that produces nothing between two resets makes the pull loop forever. A known bug in 0.0.56: after `close()`, the synchronous overload's next pull resets `inner` and keeps producing elements (the asynchronous overload stops as expected).
+Each time `inner` ends, the synchronous overload calls `inner.reset()` and keeps reading, so `inner` must support `SyncReader#reset`; one that does not makes the pull throw `UnsupportedOperationException`, and an `inner` that produces nothing between two resets makes the pull loop forever. A known bug in 0.0.56: after `SyncReader#close`, the synchronous overload's next pull resets `inner` and keeps producing elements (the asynchronous overload stops as expected).
 
 ### Unfold (State Machine)
 
@@ -990,7 +990,7 @@ abstract class Reader.AsyncReader[+Elem] {
 
 ### State Queries
 
-`isClosed` reports whether the reader is exhausted or closed. Once `true`, it stays `true` until `reset()` rewinds the reader:
+`SyncReader#isClosed` and `AsyncReader#isClosed` report whether the reader is exhausted or closed. Once `true`, the answer stays `true` until `SyncReader#reset` or `AsyncReader#reset` rewinds the reader:
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
@@ -1002,7 +1002,7 @@ abstract class Reader.AsyncReader[+Elem] {
 }
 ```
 
-`readable` reports whether this reader expects to produce another element. The default is `!isClosed`, so `true` does not promise that the next pull returns an element; readers over a collection answer exactly. On `AsyncReader` the answer itself is asynchronous. Buffered readers can override it for an accurate, non-consuming probe:
+`SyncReader#readable` and `AsyncReader#readable` report whether the reader expects to produce another element. The `SyncReader` default is `!isClosed`, and on either kind `true` does not promise that the next pull returns an element; readers over a collection answer exactly. On `AsyncReader` the answer itself is asynchronous. Buffered readers can override it for an accurate, non-consuming probe:
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {

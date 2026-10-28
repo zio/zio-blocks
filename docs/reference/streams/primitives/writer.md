@@ -283,7 +283,7 @@ println(s"Collected: $collected")  // Collected: Buffer(1, 2)
 
 ### I/O Adapters
 
-`Writer.fromOutputStream` — Wraps a `java.io.OutputStream` as a `Writer[Byte]`. Calling `close()` flushes and closes the underlying stream. An `IOException` from the stream is not thrown: the write returns `false` (or `Writer#writeBytes` returns `0`) and the writer closes itself. A known bug in 0.0.56: after that failed write, `close()` neither flushes nor closes the stream, so it leaks. An `IOException` from `close()` is ignored:
+`Writer.fromOutputStream` — Wraps a `java.io.OutputStream` as a `Writer[Byte]`. Calling `Writer#close` flushes and closes the underlying stream. An `IOException` from the stream is not thrown: the write returns `false` (or `Writer#writeBytes` returns `0`) and the writer closes itself. A known bug in 0.0.56: after that failed write, `Writer#close` neither flushes nor closes the stream, so it leaks. An `IOException` from `Writer#close` is ignored:
 
 ```scala
 object Writer {
@@ -291,7 +291,7 @@ object Writer {
 }
 ```
 
-`Writer.fromWriter` — Wraps a `java.io.Writer` as a `Writer[Char]`. Calling `close()` flushes and closes the underlying writer. It handles an `IOException` the same way: the write returns `false` (or `Writer#writeAll` returns the whole chunk), the writer closes itself, and, by the same known bug, a later `close()` leaves the underlying writer unflushed and open:
+`Writer.fromWriter` — Wraps a `java.io.Writer` as a `Writer[Char]`. Calling `Writer#close` flushes and closes the underlying writer. It handles an `IOException` the same way: the write returns `false` (or `Writer#writeAll` returns the whole chunk), the writer closes itself, and, by the same known bug, a later `Writer#close` leaves the underlying writer unflushed and open:
 
 ```scala
 object Writer {

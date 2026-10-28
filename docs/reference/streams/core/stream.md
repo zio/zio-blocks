@@ -2262,7 +2262,7 @@ For primitive types, specialized methods avoid boxing:
 
 These are the eight exact physical methods selected by `Reader.jvmType`. The tag describes the reader's actual representation and method contract, so a known primitive lane survives type-preserving wrappers and static widening. Operations that produce a different element type select their output lane from result `JvmType.Infer` evidence.
 
-On the `Long` and `Double` lanes, the library never detects end-of-stream with `readLong(sentinel)` or `readDouble(sentinel)`, because every `Long` and `Double` value is legal data: it reads one element at a time with `readLongs(scratch, 0, 1)` or `readDoubles(scratch, 0, 1)` and stops when the returned count is negative. [EOF Signalling Per Lane](../execution-and-compatibility/zero-boxing.md#eof-signalling-per-lane) lists the end-of-stream signal of every lane.
+On the `Long` and `Double` lanes, the library never detects end-of-stream with `Reader#readLong(sentinel)` or `Reader#readDouble(sentinel)`, because every `Long` and `Double` value is legal data: it reads one element at a time with `Reader#readLongs(scratch, 0, 1)` or `Reader#readDoubles(scratch, 0, 1)` and stops when the returned count is negative. [EOF Signalling Per Lane](../execution-and-compatibility/zero-boxing.md#eof-signalling-per-lane) lists the end-of-stream signal of every lane.
 
 :::note
 Avoid holding references to a `Reader` obtained via `start` outside its `Scope`. The scope guarantees cleanup; escaping the reader defeats that guarantee.
