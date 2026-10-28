@@ -16,13 +16,7 @@ import TabItem from '@theme/TabItem';
 
 In this guide, we use ZIO Blocks inside an application that already runs on ZIO 2 or cats-effect 3. By the end, you will have a small orders service that parses JSON orders, stores them in SQLite, authorizes payments through an asynchronous gateway, writes an archive file and streams order events, with every ZIO Blocks call running where your effect system expects it, and with interruption and cleanup working across the boundary.
 
-ZIO Blocks has no effect-system dependency. Its modules are plain Scala values, functions and direct-style code, so "interop" is not one adapter but five cases, and we take them one at a time:
-
-- Pure modules, such as `schema` and its codecs, need no interop at all.
-- Blocking calls, such as SQL queries and stream terminals, go on the effect system's blocking pool, and their results join its error channel.
-- Resources: a ZIO Blocks `Resource` becomes a ZIO `Scope` or a cats-effect `Resource`, and the other way round.
-- `Async` values become `ZIO` or `IO` effects, and the other way round, with cancellation carried in both directions.
-- Streams: a ZIO Blocks `Stream` becomes a `ZStream` or an fs2 `Stream`, and the other way round, closed exactly once.
+We take five cases one at a time: pure modules, blocking calls, resources, `Async` values and streams.
 
 Every section shows a ZIO tab and a cats-effect tab. Only ZIO has library help, the [`sql-zio` module](./sql-from-zio.md). Every other bridge on this page is a few lines of your own code, which you copy into your project.
 
@@ -233,7 +227,7 @@ archive opened
 archive closed
 ```
 
-The cats-effect program prints the same lines, with "cancellation" and "cats-effect-managed" in its labels.
+The cats-effect program prints the same lines, with `-- success` in place of `-- success, through a ZLayer`, `-- cancellation` in place of `-- interruption`, and "cats-effect-managed" in the last label.
 
 <details>
   <summary>Runnable version, the ZIO tab: <code>Step3ResourcesZio.scala</code></summary>
@@ -399,7 +393,7 @@ zio blocks took: Right(Chunk(1,2,3))
 
 ## Putting It Together
 
-The complete service uses each case once. It parses three JSON requests (the third has no total), authorizes each payment through the gateway with a one-second timeout, stores the order on the blocking pool, and appends it to the archive, which the program opens as a lifted ZIO Blocks resource for its whole run. Then it sums the revenue with a stream inside `JdbcTransactor#connect`, and streams a shipment events file through `ZStream` or fs2. Unlike the sections, the gateway answers after 50 ms:
+The complete service uses each case once. It parses three JSON requests (the third has no total), authorizes each payment through the gateway with a one-second timeout that fails the order instead of returning `None`, stores the order on the blocking pool, and appends it to the archive, which the program opens as a lifted ZIO Blocks resource for its whole run. A request that fails to parse or to authorize is printed as `rejected: …` and does not stop the run. Then it sums the revenue with a stream inside `JdbcTransactor#connect`, and streams a shipment events file through `ZStream` or fs2, keeping only the `shipped` events. Unlike the sections, the gateway answers after 50 ms:
 
 <Tabs groupId="effect-system" defaultValue="zio">
   <TabItem value="zio" label="ZIO">
