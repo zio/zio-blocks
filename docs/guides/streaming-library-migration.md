@@ -906,3 +906,4 @@ sbt compile
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./resource-and-di-migration.md): the resource side of the same migration.
 - [How to Stream Large Query Results](./stream-large-query-results.md) and [How to Stream Files and Sockets Without Leaking Resources](./stream-files-and-sockets.md): streams over database results, files and sockets.
 - The tutorial "Build your first streaming pipeline" is in progress.
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](./use-zio-blocks-in-zio-or-cats-effect.md): calling ZIO Blocks streams from a ZIO or cats-effect application, with cancellation.

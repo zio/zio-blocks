@@ -1498,3 +1498,4 @@ cd async-examples && sbt "run"
 - [Stream Reference](streams/core/stream.md) — pull-based streaming with resource safety; use `Async.promise` and `Completer` to bridge callback-based push sources into the pull-based stream model
 - [Scope Reference](resource-management/scope.md) — compile-time resource safety; `Async.Running` extends `AutoCloseable` and can be used inside `scala.util.Using` or any Scope-managed context for structured cancellation
 - [Compile-Time Resource Safety with Scope](../guides/compile-time-resource-safety-with-scope.md) — step-by-step tutorial on resource ownership that applies equally to `Async.Running` handles
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](../guides/use-zio-blocks-in-zio-or-cats-effect.md) — calling `Async` from ZIO or cats-effect, with cancellation carried across

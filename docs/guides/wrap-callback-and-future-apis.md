@@ -475,3 +475,4 @@ sbt "runMain zio.blocks.async.wrapcallbackandfutureapis.CompleteExample"
 - The [Async reference](../reference/async.md) covers the [`Pollable` protocol](../reference/async.md#the-pollable-protocol), [`Completer`](../reference/async.md#completer), and [`Running#cancel`](../reference/async.md#runningcancel) in full.
 - [Asynchronous Stream Execution](../reference/streams/execution-and-compatibility/async-execution.md) shows how `Async` sources feed streams.
 - [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md) ties `Async.Running` handles, which are `AutoCloseable`, to lexical scopes so they are cancelled on exit.
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](./use-zio-blocks-in-zio-or-cats-effect.md) calls `Async` from ZIO or cats-effect, with cancellation carried across.

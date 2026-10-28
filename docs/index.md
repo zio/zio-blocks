@@ -21,6 +21,8 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 - **High Performance**: Implementations that avoid boxing, minimize allocations, and use platform-specific features where they pay off.
 - **Type Safety**: Scala's type system carries the correctness guarantees, without runtime overhead.
 
+To call ZIO Blocks from a ZIO or cats-effect application, see [How to Use ZIO Blocks in a ZIO or cats-effect Application](./guides/use-zio-blocks-in-zio-or-cats-effect.md).
+
 ## Getting Started
 
 Add a block and use it. Nothing else to wire up—no runtime to install, no effect
@@ -344,6 +346,7 @@ Scope.global.scoped { scope =>
 - [How to Fix Common Scope and Wire Compile Errors](./guides/fix-scope-and-wire-compile-errors.md) — every Scope, Wire and `Resource.from` error message, with its cause and its fix
 - [Resource Management reference](./reference/resource-management/index.md) — `Scope`, `Resource`, `Wire`, `Unscoped`, and finalization order
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./guides/resource-and-di-migration.md) — port `Resource`, `ZLayer`, macwire or `Using` code to `Scope`, `Resource` and `Wire`
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](./guides/use-zio-blocks-in-zio-or-cats-effect.md) — call blocking code, resources, `Async` and streams from ZIO or cats-effect, with cancellation and cleanup carried across
 
 ---
 
@@ -409,6 +412,7 @@ val program: Async[Int] =
 
 - [Getting Started with Async](./guides/async-getting-started.md) — create, compose, and run async effects
 - [Async reference](./reference/async.md) — the full API, including `zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and `Future` / `CompletionStage` interop
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](./guides/use-zio-blocks-in-zio-or-cats-effect.md) — call `Async` from ZIO or cats-effect, with cancellation carried across
 - [`async-examples`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala) — a single-file order-fulfillment demo (`cd async-examples && sbt run`)
 
 ---
@@ -554,6 +558,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [How to Store Case Classes in MongoDB](./guides/store-case-classes-in-mongodb.md) - Derive a BSON codec from a Schema, store support tickets in MongoDB with the Java driver, and pick how sealed traits and options are stored
 - [Coming from circe, zio-json or jsoniter-scala](./guides/json-library-migration.md) - Move JSON codecs from circe, zio-json or jsoniter-scala to one ZIO Blocks Schema
 - [Coming from fs2, ZIO Streams or Ox](./guides/streaming-library-migration.md) - Map fs2, ZIO Streams and Ox code onto ZIO Blocks `Stream`, `Pipeline` and `Sink`
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](./guides/use-zio-blocks-in-zio-or-cats-effect.md) - Call blocking code, resources, `Async` and streams from ZIO or cats-effect, with cancellation and cleanup carried across
 - [Coming from Magnum or doobie](./guides/migrate-from-magnum-or-doobie.md) - Map Magnum and doobie entities, transactors, queries and streams onto the `sql` module
 - [How to Generate JSON Schema from a Type and Validate Payloads Against It](./guides/generate-json-schema-and-validate-payloads.md) - Derive a JSON Schema from a `Schema`, publish it, and validate incoming JSON payloads
 - [How to Tune JSON Encoding and Decoding for Throughput](./guides/tune-json-throughput.md) - Decode JSON straight from bytes, buffers and streams, reuse derived codecs, size reader and writer buffers, and measure with JMH

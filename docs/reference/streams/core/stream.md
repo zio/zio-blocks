@@ -2427,3 +2427,4 @@ Each platform ships adapters that turn a native byte source into a `Reader.Async
 - [Scope Reference](../../resource-management/scope.md) — compile-time resource safety for stream acquisition and release; `fromAcquireRelease` follows the same ownership rules as Scope-managed resources
 - [Your First Streaming Pipeline](../../../guides/your-first-streaming-pipeline.md) — a step-by-step tutorial that builds a sales-log report with a `Stream`, from reading a file to recovering from a bad line
 - [How to Stream Files and Sockets Without Leaking Resources](../../../guides/stream-files-and-sockets.md) — `fromAcquireRelease` and the NIO constructors applied to files and sockets, with leak checks for success, failure and early stop
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](../../../guides/use-zio-blocks-in-zio-or-cats-effect.md) — calling streams from ZIO or cats-effect, with cancellation carried across
