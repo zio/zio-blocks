@@ -16,7 +16,7 @@ This page is a detailed reference for the `TransactorZIO` class specifically. If
 `TransactorZIO` exposes two pairs of methods. The **blocking wrappers** (`connect`, `transact`) run a synchronous body on ZIO's blocking thread pool via `ZIO.attemptBlocking` and return `Task[A]`. The **effect-aware methods** (`connectZIO`, `transactZIO`) accept a body that itself returns a `ZIO[R, E, A]`, bracket the JDBC connection with `ZIO.acquireRelease`, and return `ZIO[R, E | Throwable, A]` — guaranteeing connection cleanup even under fiber interruption.
 
 - **Immutable** — `TransactorZIO` holds no mutable state; each `connect` or `transact` invocation opens a fresh connection via the provided `connectionFactory`.
-- **Interrupt-safe** — `connectZIO` and `transactZIO` close the underlying JDBC connection even when the enclosing fiber is interrupted, because they use `ZIO.acquireRelease` internally. Closing is not rolling back: in 0.0.56, interrupting a running `transactZIO` (for example with `ZIO#timeout`) commits the statements its body already ran, and so does a statement in the body that throws before the body's effect is returned. [How to Use the sql Module from a ZIO Application](../../guides/sql-from-zio.md#mix-database-writes-with-other-effects-in-one-transaction) shows how to avoid both.
+- **Interrupt-safe** — `TransactorZIO#connectZIO` and `TransactorZIO#transactZIO` close the underlying JDBC connection even when the enclosing fiber is interrupted, because they use `ZIO.acquireRelease` internally. Closing is not rolling back: in 0.0.56, interrupting a running `TransactorZIO#transactZIO` (for example with `ZIO#timeout`) commits the statements its body already ran, and so does a statement in the body that throws before the body's effect is returned. [How to Use the sql Module from a ZIO Application](../../guides/sql-from-zio.md#mix-database-writes-with-other-effects-in-one-transaction) shows how to avoid both.
 - **Thread-safe** — the transactor is safe to share across fibers; each invocation manages its own connection.
 - **JDBC-based** — available on JVM only; Scala 3 is required.
 
@@ -48,7 +48,7 @@ object TransactorZIO {
 
 ## Usage
 
-The following example demonstrates all four execution modes — a read with `connect`, an atomic write with `transact`, an effect-aware connection with `connectZIO`, and a full transactional ZIO pipeline with `transactZIO`. The transactor points at a temporary SQLite file: `TransactorZIO.fromUrl` opens a new connection for every call, and each connection to `jdbc:sqlite::memory:` would get its own empty database:
+The following example demonstrates all four execution modes — a read with `TransactorZIO#connect`, an atomic write with `TransactorZIO#transact`, an effect-aware connection with `TransactorZIO#connectZIO`, and a full transactional ZIO pipeline with `TransactorZIO#transactZIO`. The transactor points at a temporary SQLite file: `TransactorZIO.fromUrl` opens a new connection for every call, and each connection to `jdbc:sqlite::memory:` would get its own empty database:
 
 ```scala mdoc:silent
 import zio._
@@ -187,7 +187,7 @@ val tx: TransactorZIO =
 ```
 
 :::caution
-`fromUrl` opens a new physical connection for every `connect` or `transact` call and does no pooling. For applications with concurrent request workloads, prefer `fromDataSource` backed by a pooling `DataSource`. Because every call gets a new connection, `jdbc:sqlite::memory:` gives each `TransactorZIO#connect`, `TransactorZIO#transact`, `TransactorZIO#connectZIO` or `TransactorZIO#transactZIO` call its own empty database: tables and rows created in one call are gone in the next. Use a file URL such as `jdbc:sqlite:/path/to/app.db` when data must outlive a single call.
+`TransactorZIO.fromUrl` opens a new physical connection for every `TransactorZIO#connect` or `TransactorZIO#transact` call and does no pooling. For applications with concurrent request workloads, prefer `TransactorZIO.fromDataSource` backed by a pooling `DataSource`. Because every call gets a new connection, `jdbc:sqlite::memory:` gives each `TransactorZIO#connect`, `TransactorZIO#transact`, `TransactorZIO#connectZIO` or `TransactorZIO#transactZIO` call its own empty database: tables and rows created in one call are gone in the next. Use a file URL such as `jdbc:sqlite:/path/to/app.db` when data must outlive a single call.
 :::
 
 ### `TransactorZIO.fromUrl` (with credentials) — Create from a JDBC URL with username and password
@@ -424,7 +424,7 @@ If `commit` itself fails after a successful body, a rollback is attempted. If bo
 |---------------------------|------------------------------------------------------|-------------------------------------------------------------------------------------|
 | **Return type**           | `A` (synchronous, blocking)                          | `Task[A]` or `ZIO[R, E \| Throwable, A]`                                           |
 | **Thread model**          | Blocks the calling thread directly                   | `connect`/`transact` run on ZIO's blocking thread pool via `ZIO.attemptBlocking`   |
-| **Interruption safety**   | None — body runs to completion                       | `connectZIO`/`transactZIO` close the connection on fiber interruption (an interrupted `TransactorZIO#transactZIO` commits in 0.0.56) |
+| **Interruption safety**   | None — body runs to completion                       | `TransactorZIO#connectZIO`/`TransactorZIO#transactZIO` close the connection on fiber interruption (an interrupted `TransactorZIO#transactZIO` commits in 0.0.56) |
 | **ZIO dependency**        | None — zero ZIO runtime dependency                   | Requires ZIO runtime                                                                |
 | **Dependency injection**  | Manual construction                                  | `TransactorZIO.layer` provides a `ZLayer[Any, Nothing, TransactorZIO]`              |
 | **Scala versions**        | Scala 3 only (the `sql` module is cross-built JVM + JS, but `JdbcTransactor` itself is JVM-only) | Scala 3 only (JVM only)                                                             |

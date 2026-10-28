@@ -3,7 +3,7 @@ id: sql-zio
 title: "ZIO Integration"
 ---
 
-`zio-blocks-sql-zio` is the ZIO adapter for the [`sql` module](./sql/index.md). It lets a ZIO application use the same `sql"..."` fragments, `Repo` and `Table` values as a plain Scala program, with every JDBC call moved off ZIO's main thread pool.
+`zio-blocks-sql-zio` is the ZIO adapter for the [`sql` module](./sql/index.md). It lets a ZIO application use the same `sql"..."` fragments, `Repo` and `Table` values as a plain Scala program, and `TransactorZIO#connect` and `TransactorZIO#transact` run their JDBC calls off ZIO's main thread pool.
 
 The module offers two integration styles. The `TransactorZIO` class wraps the synchronous transactor in methods that return ZIO effects; it is the one to use in ZIO code. The `JdbcTransactor.postgresLayer` and `JdbcTransactor.sqliteLayer` extension methods build a `ZLayer` of the synchronous `Transactor` from a `DataSource`, for code that already works with `Transactor`. This page gives an overview of both; [TransactorZIO](./sql/transactor-zio.md) documents each method, and [How to Use the sql Module from a ZIO Application](../guides/sql-from-zio.md) builds a complete ZIO service on it.
 
@@ -160,7 +160,7 @@ val syncTransactorLayer: ZLayer[Any, Nothing, Transactor] =
   dataSourceLayer >>> JdbcTransactor.sqliteLayer
 
 val bookCount: ZIO[Transactor, Throwable, Long] =
-  ZIO.serviceWithZIO[Transactor](transactor => ZIO.attemptBlocking(transactor.connect(books.count)))
+  ZIO.serviceWithZIO[Transactor](syncTransactor => ZIO.attemptBlocking(syncTransactor.connect(books.count)))
 ```
 
 The effect counts the books through the synchronous transactor:
