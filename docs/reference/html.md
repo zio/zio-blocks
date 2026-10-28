@@ -297,11 +297,11 @@ val objElement = `object`("data.bin")
 
 ### Tag Names That Clash With Your Imports
 
-`import zio.blocks.html._` brings a value for every tag, so some tag names collide with names from other imports or with your own helpers. The compiler reports these clashes as ambiguous references or as type errors that point somewhere else, so it helps to know them in advance:
+`import zio.blocks.html._` brings a member for every tag, so some tag names collide with names from other imports or with your own helpers. The compiler reports these clashes as ambiguous references or as type errors that point somewhere else, so it helps to know them in advance:
 
 - **`span` and `scala.concurrent.duration._`.** A wildcard import of `scala.concurrent.duration._` also brings an object named `span` into scope, so `span("1")` fails with "Reference to span is ambiguous". Import only the extension you need, such as `scala.concurrent.duration.DurationInt`, and keep the DSL's `span`.
 - **`main` inside an object that defines `def main(args: Array[String])`.** A call to `main(id := "main")(...)` resolves to your method, and the error names `Array[String]`, not the element. Qualify the element as `zio.blocks.html.main(...)`, or rename the import.
-- **Tag names as helper names.** Values such as `search`, `title`, `select`, `label`, `header`, `option`, `data`, `time` and `output` clash with helpers of the same name, such as a `def search(query: String)` that you import with a wildcard. Import your own helpers by name, or rename them.
+- **Tag names as helper names.** Names such as `search`, `title`, `select`, `label`, `header`, `option`, `data`, `time` and `output` clash with helpers of the same name, such as a `def search(query: String)` that you import with a wildcard. Import your own helpers by name, or rename them.
 
 Import only the duration extension next to the DSL:
 
