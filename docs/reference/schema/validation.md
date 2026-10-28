@@ -11,8 +11,10 @@ The validation system in ZIO Blocks provides:
 
 - **Declarative constraints** on numeric and string values, checked by `DynamicSchema#check`
 - **Enforcement during decoding** for wrapper types built with `Schema#transform`, whose check runs when a value is decoded
-- **Integration with wrapper types** via `transform` for custom validation logic
+- **Integration with wrapper types** via `Schema#transform` for custom validation logic
 - **Schema error reporting** with path information for debugging via [`SchemaError`](./schema-error.md)
+
+The `Validation` cases form a tree of numeric and string constraints:
 
 ```
 Validation[A]
@@ -36,6 +38,8 @@ Validation[A]
 ```
 
 ## Built-in Validations
+
+`Validation` has two families of built-in constraints, one for numeric primitives and one for strings.
 
 ### Numeric Validations
 
@@ -147,7 +151,7 @@ val convError = SchemaError.conversionFailed(Nil, "Expected ISO date format")
 
 ### Error Messages and Paths
 
-`SchemaError` includes path information showing where in the data structure the error occurred. Its `message` prints the errors together with their paths, and the path methods add a segment to the front of every error:
+`SchemaError` includes path information showing where in the data structure the error occurred. `SchemaError#message` prints the errors together with their paths, and the path methods add a segment to the front of every error:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -170,7 +174,7 @@ The decoding examples below show real messages with their paths.
 
 ## Integration with Wrapper Types
 
-The most common way to use validation in ZIO Blocks is through `transform`, which creates a schema for a wrapper type with validation logic. The check runs when a value is decoded, so an invalid input never builds the wrapper.
+The most common way to use validation in ZIO Blocks is through `Schema#transform`, which creates a schema for a wrapper type with validation logic. The check runs when a value is decoded, so an invalid input never builds the wrapper.
 
 ### Basic Wrapper with Validation
 
@@ -222,7 +226,7 @@ object Email {
 }
 ```
 
-### NonEmptyString with Length Validation
+### NonEmptyString with a Non-Empty Check
 
 To reject an empty string in a wrapper type:
 
@@ -262,7 +266,7 @@ object Percentage {
 
 ### Bidirectional Validation
 
-Use the two-function `transform` when both building and unwrapping the value need a check. The `to` function builds the wrapper from the raw value, and the `from` function unwraps it:
+Use the two-function `Schema#transform` when both building and unwrapping the value need a check. The `to` function builds the wrapper from the raw value, and the `from` function unwraps it:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema.{Schema, SchemaError}
@@ -282,6 +286,8 @@ object BoundedValue {
 ```
 
 ## Validation at Decode Time
+
+Decoding runs the check of a wrapper built with `Schema#transform`, but it does not enforce `Validation` constraints; `DynamicSchema#check` does.
 
 ### Decoding with Validation
 
@@ -315,7 +321,7 @@ println(Order.schema.derive(JsonFormat).decode("""{"quantity": -5, "price": 99.9
 
 ### DynamicValue Validation
 
-Use `DynamicSchema#check` to validate `DynamicValue` instances against the structure of a schema, and to check its `Validation` constraints. Decoding does not run these checks, so call `check` on a value before you use it:
+Use `DynamicSchema#check` to validate `DynamicValue` instances against the structure of a schema, and to check its `Validation` constraints. Decoding does not run these checks, so call `DynamicSchema#check` on a value before you use it:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema._
@@ -362,6 +368,8 @@ val invalidValue = DynamicValue.Record(
 )
 ```
 
+Converting `invalidValue` with `validatingSchema` returns `Left` with the error:
+
 ```scala mdoc
 println(validatingSchema.fromDynamicValue(invalidValue).left.map(_.message))
 ```
@@ -374,7 +382,7 @@ The constraints do come back in the other direction. Parsing a JSON Schema with 
 
 ## Composing Validations
 
-The current `Validation` ADT does not support combining multiple validations on a single primitive (e.g., both `NonEmpty` and `Pattern`). For complex validation logic, use `transform`:
+The current `Validation` ADT does not support combining multiple validations on a single primitive (e.g., both `NonEmpty` and `Pattern`). For complex validation logic, use `Schema#transform`:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema.{Schema, SchemaError}
@@ -404,9 +412,11 @@ object Username {
 
 ## Best Practices
 
+The practices below keep validation rules enforced in one place and make their failures easy to act on.
+
 ### 1. Use Wrapper Types for Domain Validation
 
-Prefer creating dedicated wrapper types with `transform` over relying solely on `Validation` constraints:
+Prefer creating dedicated wrapper types with `Schema#transform` over relying solely on `Validation` constraints:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema.{Schema, SchemaError}
@@ -462,6 +472,8 @@ def validate(input: Input): Either[SchemaError, ValidInput] = {
   else Left(allErrors.reduce(_ ++ _))
 }
 ```
+
+Validating an `Input` with an empty name and a negative age reports both failures in one `SchemaError`:
 
 ```scala mdoc
 println(validate(Input("", -1)).left.map(_.message))

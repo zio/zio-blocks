@@ -13,7 +13,7 @@ title: "JsonSelection"
 - **Fluent chaining:** Operations chain naturally without unwrapping intermediate results
 - **Multi-value support:** Can contain zero, one, or many `Json` values
 - **Error propagation:** Errors short-circuit further operations; querying an error selection returns the same error
-- **Type extraction:** Use `.as[Type]` to decode to Scala types with Schema-based derivation
+- **Type extraction:** Use `JsonSelection#as` to decode to Scala types with Schema-based derivation
 
 ## Creating JsonSelection
 
@@ -230,7 +230,7 @@ val data = Json.Object("x" -> Json.Number(1))
 val x: Option[Json] = data.get("x").values.flatMap(_.headOption)
 
 // Check if selection succeeded
-val success = data.get("exists").isSuccess    // true if "exists" field found
+val success = data.get("x").isSuccess          // true: field "x" exists
 val failed = data.get("notFound").isFailure   // true if field not found
 ```
 
@@ -250,9 +250,9 @@ val isEmpty = selection.isEmpty  // false
 val nonEmpty = selection.nonEmpty  // true
 ```
 
-## Modifying Selections
+## Modifying Values
 
-Use `JsonSelection` to update values at specific paths using `set` for replacement or `modify` for transformation:
+To update the value at a path, call `Json#set` to replace it or `Json#modify` to transform it; both return a new `Json`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -294,7 +294,7 @@ val maybeValues = result.values      // None if error
 
 ## Integration with Codecs
 
-`JsonSelection` integrates seamlessly with `JsonCodec` and `Schema`:
+`JsonSelection` works with `JsonCodec` and `Schema`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -316,10 +316,10 @@ val allUsers: Either[SchemaError, Chunk[User]] = JsonSelection.succeedMany(users
 
 ## Performance Notes
 
-- **Zero-allocation navigation:** `JsonSelection` itself is a value type (AnyVal) and compiles to no allocation
-- **Lazy chaining:** Operations chain without intermediate allocations; only final extraction materializes values
+- **Value class wrapper:** `JsonSelection` extends `AnyVal`, so wrapping the underlying `Either` adds no extra object in most uses
+- **Eager chaining:** Each step builds a new `Chunk` of results, so intermediate selections are allocated
 - **Error short-circuiting:** Failed selections don't execute further operations
-- **Streaming-friendly:** For large JSON, use `JsonSelection#get` selectively rather than iterating over all values
+- **Selective navigation:** For large JSON, call `JsonSelection#get` to reach only the values you need rather than iterating over every element
 
 ## See Also
 

@@ -63,6 +63,8 @@ println(combined.errors.length)  // 2
 
 ## Construction / Creating Instances
 
+The `SchemaError` companion has one factory per kind of failure, each returning a `SchemaError` with a single error inside.
+
 ### `SchemaError.apply`
 
 The simplest constructor — creates a free-form `Message` error at the root path:
@@ -73,6 +75,8 @@ object SchemaError {
 }
 ```
 
+Passing a description to `SchemaError.apply` gives an error whose message is that description alone:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
 
@@ -82,7 +86,7 @@ println(err.message)  // Value must be positive
 
 ### `SchemaError.message`
 
-Creates a `Message` error with a free-form description and an optional `DynamicOptic` path. When no path is supplied it defaults to the root.
+Creates a `Message` error with a free-form description and an optional `DynamicOptic` path. When no path is supplied it defaults to the root:
 
 ```scala
 object SchemaError {
@@ -107,7 +111,7 @@ println(atPath.message)  // Unexpected null at: .address
 
 ### `SchemaError.validationFailed`
 
-Convenience factory for validation failures. Equivalent to `SchemaError.conversionFailed(Nil, message)`, designed for smart constructors that return string-based error messages.
+Convenience factory for validation failures. Equivalent to `SchemaError.conversionFailed(Nil, message)`, designed for smart constructors that return string-based error messages:
 
 ```scala
 object SchemaError {
@@ -126,7 +130,7 @@ println(err.message)  // Age must be between 0 and 150
 
 ### `SchemaError.conversionFailed`
 
-Creates a `ConversionFailed` error for a failed type or value conversion. Two overloads exist.
+Creates a `ConversionFailed` error for a failed type or value conversion. Two overloads exist:
 
 ```scala
 object SchemaError {
@@ -135,7 +139,7 @@ object SchemaError {
 }
 ```
 
-The first overload is used by codecs — `trace` is the list of path nodes accumulated during decoding. Pass `Nil` when constructing an error manually and use the `at*` methods to set the path. The second overload wraps a nested `SchemaError` with additional context; the nested failures are rendered under a "Caused by:" section.
+The first overload is used by codecs — `trace` is the list of path nodes accumulated during decoding. Pass `Nil` when constructing an error manually and use the `at*` methods to set the path. The second overload wraps a nested `SchemaError` with additional context; the nested failures are rendered under a "Caused by:" section. The block below builds a root-level failure with the first overload and wraps two failures with the second:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -159,11 +163,15 @@ println(outer.message)
 
 Creates a `MissingField` error indicating that a required field was absent from the decoded representation. The JSON codec reports the same failure with its own wording, `missing required field "zip" at: .address`, so its message differs from the one this constructor produces.
 
+`SchemaError.missingField` takes the trace and the name of the missing field:
+
 ```scala
 object SchemaError {
   def missingField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError
 }
 ```
+
+To report that the `user` record has no `email` field:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -174,13 +182,15 @@ println(err.message)  // Missing field 'email' at: .user
 
 ### `SchemaError.duplicatedField`
 
-Creates a `DuplicatedField` error indicating that the same field key appeared more than once in the encoded form.
+Creates a `DuplicatedField` error indicating that the same field key appeared more than once in the encoded form:
 
 ```scala
 object SchemaError {
   def duplicatedField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError
 }
 ```
+
+To report that the `id` key appears twice inside `record`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -191,13 +201,15 @@ println(err.message)  // Duplicated field 'id' at: .record
 
 ### `SchemaError.expectationMismatch`
 
-Creates an `ExpectationMismatch` error indicating that the encountered `DynamicValue` variant does not match what the schema expected.
+Creates an `ExpectationMismatch` error indicating that the encountered `DynamicValue` variant does not match what the schema expected:
 
 ```scala
 object SchemaError {
   def expectationMismatch(trace: List[DynamicOptic.Node], expectation: String): SchemaError
 }
 ```
+
+To report that the `data` field holds a `Sequence` where a `Record` was expected:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -210,13 +222,15 @@ println(err.message)  // Expected Record, got Sequence at: .data
 
 ### `SchemaError.unknownCase`
 
-Creates an `UnknownCase` error indicating that the decoded discriminator value does not correspond to any known variant of a sealed trait.
+Creates an `UnknownCase` error indicating that the decoded discriminator value does not correspond to any known variant of a sealed trait:
 
 ```scala
 object SchemaError {
   def unknownCase(trace: List[DynamicOptic.Node], caseName: String): SchemaError
 }
 ```
+
+To report that the `shape` field names a `Triangle` case the sealed trait does not have:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -227,17 +241,23 @@ println(err.message)  // Unknown case 'Triangle' at: .shape
 
 ## Core Operations
 
+The operations on a `SchemaError` value render its messages, combine it with other errors, and add path segments to every failure inside it.
+
 ### Error Messages
+
+`SchemaError` has two ways to render its failures as text, and both return the same string.
 
 #### `message`
 
-Returns all individual error messages joined with newlines.
+Returns all individual error messages joined with newlines:
 
 ```scala
 final case class SchemaError(errors: ::[SchemaError.Single]) {
   def message: String
 }
 ```
+
+Combining two errors with `++` gives a message with one line per failure:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -252,11 +272,15 @@ println(err.message)
 
 Delegates to `message`. Because `SchemaError` extends `Exception`, `getMessage` is called by the JVM when the exception is printed or logged by frameworks.
 
+`getMessage` overrides the method of `Exception`:
+
 ```scala
 final case class SchemaError(errors: ::[SchemaError.Single]) {
   def getMessage: String
 }
 ```
+
+For any `SchemaError`, `getMessage` and `message` return the same string:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -267,15 +291,21 @@ assert(err.getMessage == err.message)
 
 ### Error Aggregation
 
+To report several independent failures together, combine them into one `SchemaError`.
+
 #### `++`
 
 Combines two `SchemaError` values into one, preserving all individual `Single` failures from both sides. We use `++` to accumulate errors from independent parts of a schema — for example, multiple record fields that are each decoded independently.
+
+`++` takes the other `SchemaError` and returns a new one that holds the failures of both:
 
 ```scala
 final case class SchemaError(errors: ::[SchemaError.Single]) {
   def ++(other: SchemaError): SchemaError
 }
 ```
+
+Combining a missing-field error with a conversion failure keeps both failures, in order:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -298,13 +328,15 @@ Path annotation methods prepend a path segment to the `source` of every `SchemaE
 
 #### `atField`
 
-Prepends a record field access to the path of all errors.
+Prepends a record field access to the path of all errors:
 
 ```scala
 final case class SchemaError(errors: ::[SchemaError.Single]) {
   def atField(name: String): SchemaError
 }
 ```
+
+When nested codecs each call `atField` as they unwind, the outer field ends up first in the path:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -318,13 +350,15 @@ println(err.message)   // Missing field 'city' at: .user.address
 
 #### `atIndex`
 
-Prepends a sequence index access to the path of all errors.
+Prepends a sequence index access to the path of all errors:
 
 ```scala
 final case class SchemaError(errors: ::[SchemaError.Single]) {
   def atIndex(index: Int): SchemaError
 }
 ```
+
+To place an error at the third element of the `phones` field:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -337,11 +371,15 @@ println(err.message)  // invalid phone number at: .phones[2]
 
 Prepends a sealed-trait case access to the path of all errors. In the compact path notation used by `Message`, the case name appears as `<CaseName>`.
 
+`atCase` takes the name of the case:
+
 ```scala
 final case class SchemaError(errors: ::[SchemaError.Single]) {
   def atCase(name: String): SchemaError
 }
 ```
+
+To place an error inside the `value` field of the `Right` case:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -354,11 +392,15 @@ println(err.message)  // conversion failed at: <Right>.value
 
 Prepends a map key access to the path of all errors. The key is a [`DynamicValue`](./dynamic-value.md), rendered with `{key}` in the compact path notation.
 
+`atKey` takes the key as a `DynamicValue`:
+
 ```scala
 final case class SchemaError(errors: ::[SchemaError.Single]) {
   def atKey(key: DynamicValue): SchemaError
 }
 ```
+
+To place an error at the `"config"` key of a map:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.{DynamicValue, SchemaError}
@@ -370,7 +412,7 @@ println(err.message)  // missing required entry at: {"config"}
 
 ### Path Chaining
 
-All path methods can be chained. Each call prepends to the existing path, so the outermost call appears as the leftmost segment in the rendered message.
+All path methods can be chained. Each call prepends to the existing path, so the outermost call appears as the leftmost segment in the rendered message:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -400,7 +442,7 @@ println(combined.errors.tail.head.source.nodes.nonEmpty)  // true (age)
 
 ## Subtypes / Variants
 
-`SchemaError.Single` is the sealed base trait for every individual failure. Each variant carries a `source: DynamicOptic` and a `message: String`.
+`SchemaError.Single` is the sealed base trait for every individual failure. Each variant carries a `source: DynamicOptic` and a `message: String`, and the variants form this tree:
 
 ```
 SchemaError.Single (sealed trait)
@@ -452,7 +494,7 @@ sealed trait IntoError extends SchemaError.Single {
 
 ### `SchemaError.ConversionFailed`
 
-Represents a failed type or value conversion. When a `cause: Option[SchemaError]` is present, the rendered `message` includes a "Caused by:" section showing the nested failures.
+Represents a failed type or value conversion. When a `cause: Option[SchemaError]` is present, the rendered `message` includes a "Caused by:" section showing the nested failures, with one cause on the same line and several as a list:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.SchemaError
@@ -477,9 +519,11 @@ println(outer2.message)
 
 ## Integration
 
+`SchemaError` is the error type that decoding, `Schema#transform`, `Validation` and optic operations all report through.
+
 ### With Schema Decoding
 
-`Schema#fromDynamicValue` returns `Either[SchemaError, A]`. Every codec accumulates path nodes during decoding and calls `atField`, `atIndex`, or `atCase` as it unwinds, producing a fully-annotated `SchemaError` on failure.
+`Schema#fromDynamicValue` returns `Either[SchemaError, A]`. Every codec accumulates path nodes during decoding and calls `atField`, `atIndex`, or `atCase` as it unwinds, producing a fully-annotated `SchemaError` on failure. The `Person` round trip below decodes a value that `Schema#toDynamicValue` just built:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.{Schema, SchemaError}
@@ -534,7 +578,7 @@ The [Validation](./validation.md) system uses `SchemaError` to report constraint
 
 ### With DynamicOptic and Optics
 
-Path annotation (`atField`, `atIndex`, `atKey`, `atCase`) builds a [`DynamicOptic`](./dynamic-optic.md) inside each error. Operations such as `DynamicValue#setOrFail` and `DynamicValue#modifyAtPathOrFail` return `Either[SchemaError, DynamicValue]`, using the same factory methods.
+Path annotation (`atField`, `atIndex`, `atKey`, `atCase`) builds a [`DynamicOptic`](./dynamic-optic.md) inside each error. Operations such as `DynamicValue#setOrFail` and `DynamicValue#modifyAtPathOrFail` return `Either[SchemaError, DynamicValue]`, using the same factory methods. Setting index 10 of a two-element sequence fails with a path error:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema, SchemaError}
@@ -544,7 +588,7 @@ val optic  = DynamicOptic.root.at(10)
 
 val result: Either[SchemaError, DynamicValue] = data.setOrFail(optic, DynamicValue.int(99))
 result match {
-  case Left(err) => println(err.message)  // index out of range or similar
+  case Left(err) => println(err.message)  // Path not found at: [10]
   case Right(v)  => println(v)
 }
 ```
