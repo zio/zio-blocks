@@ -12443,34 +12443,11 @@ Pages that contradict the source. None of these were copied into the new guides.
 - Line 1044 shows `Expected sequence, got: invalid`; the source message is `Expected array header with [`.
 - Lines 14 and 659 say there are three array formats; there are four.
 
-**openapi (`openapi.md`)**
-
-Found while writing H-39 (`docs/guides/write-and-export-openapi.md`, 2026-10-21) and fixed in the same PR:
-
-- The signature at the top of the page showed `servers` and `security` as `Option[Chunk[...]] = None`; both are `Chunk[...] = Chunk.empty`, and the signature left out `jsonSchemaDialect`, `webhooks`, `tags`, `externalDocs` and `extensions` (`OpenAPI.scala:58-70`). The type diagram had the same `Option` types, `requestBody` without its `Option`, and `Map` where the source uses `ChunkMap`.
-- Installation showed only `zio-blocks-openapi`, without the `zio-blocks-next-openapi` artifact for Scala 3.9 and newer or the `schema-yaml` module for YAML.
-- "Integration Points" said Markdown descriptions round-trip correctly; a document with `md"..."` descriptions is not `==` to itself after a round trip (see Library bugs), and the page never said that `encodeToString` throws.
-- "Parameter" listed `schema` as required; it is `Option[ReferenceOr[SchemaObject]] = None` (`OpenAPI.scala:589`).
-- "Operation" called `responses` required; it defaults to `Responses()` (`OpenAPI.scala:311`).
-- "Common Extension Fields" said all types have `x-*` extensions; `Reference`, `XML`, `Discriminator` and `SecurityRequirement` have no `extensions` field.
-
 **config (`formats.md`, HOCON section)**
 
 - Line 191 says `include` directives are resolved through a callback, so includes "come from a classpath, an archive, or a test fixture". Through the public `ConfigSource` API there is no callback (see the dropped-includes bug) and no classpath loader.
 - Line 247 says `HoconError` carries the line and column. That holds only for lexer errors; resolution errors report 0:0. From source.
 - The HOCON section has no warnings for the dropped includes, environment substitutions, array concatenation and duration/size syntax above.
-
-**http-model (`schema.md`)**
-
-- "RequestSchemaOps" says it "exposes all methods from `QueryParamsSchemaOps` and `HeadersSchemaOps` directly on `Request`", "ResponseSchemaOps" says the same for `Response`, and the "How They Work Together" diagram lists `RequestSchemaOps.header[T](name)` and `ResponseSchemaOps.header[T](name)`. `request.header[T](name)` and `response.header[T](name)` do not compile (see Library bugs). The page's own examples quietly use `request.headers.header[T]`. Found while writing H-36.
-- "Supported Types" says the module "supports decoding to any type with a `Schema[T]` instance", and "Custom Types" says to "provide a `Schema[T]` instance". Only primitive schemas decode; `Option`, collections and wrapper types return `Malformed(..., "Unsupported schema type for string decoding")` (see Usability traps). Found while writing H-36.
-
-**schema / binding** (found and fixed while writing the `binding` Scaladoc, wave 3)
-
-- `binding.md` showed `defaultValue` and `examples` fields on every `Binding` case class, a `Wrapper` with `wrap: B => Either[SchemaError, A]`, `Binding[T <: BindingType, A]`, a `SeqConstructor.Boxed` class with `ObjectBuilder`/`newObjectBuilder`/`addObject`, field names `seqConstructor`/`mapConstructor`, an `ArraySeq` binding in `Binding.Seq`'s companion and "stack-allocated" arrays. None of these match `Binding.scala`, `SeqConstructor.scala` or `MapConstructor.scala`; the page now shows the real signatures.
-- `registers.md` said a `RegisterOffset` is an `Int` with 16-bit halves; it is a `Long` with 32-bit halves (`schema/shared/src/main/scala-2/zio/blocks/schema/binding/RegisterOffset.scala:44`, `:73`, the same lines in the `scala-3` copy). Its list said `RegisterOffset(bytes = 4, ints = 2, objects = 3)` points at byte 8; it is byte 12, as the page's own `getBytes` example shows.
-- `binding-resolver.md` bound `Binding.of[Email]` and then called `resolveWrapper[Email]`, which returns `None`: for a plain single-field case class, `Binding.of` derives a `Binding.Record` (verified with 0.0.56; rebinding the `Schema#transform` schema with it throws `RebindException: Missing Wrapper binding for type Email`). The `UserId` example in "Combining Resolvers" had the same mistake. Both now bind a `Binding.Wrapper` explicitly.
-- Scaladoc: `Registry#bind` said `Binding.of[A]` returns `Any` on Scala 2 (its static type is `Binding[_, A]`); `StructuralReflection` said the `Binding.of` macro uses it (only tests do; the macros generate their own `getMethod` calls).
 
 ### docs: `formats.md` says infinite HOCON numbers keep their `Double` rendering
 
@@ -12886,40 +12863,6 @@ import zio.blocks.streams._
 
 **Suggested fix.** Replace the sentence with: "Pulls elements from the run's `Reader` with the read that matches the lane (`readInt`, `readFloat`, or the count-returning `readLongs`/`readDoubles`), so the elements never box. (Correction, 2026-10-28: the accumulator does box in `Sink.count`, the `Sink.sum*` sinks and `Double`-accumulator folds; see the Library bugs entry "Streams: `Sink.count`, the `Sink.sum*` sinks and `Double`-accumulator folds box the accumulator for every element". #1881 names it on the page as a known bug in 0.0.56.) Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads." and link `../primitives/reader.md`.
 
-### docs: `mux.mdx` reads as if the registry were both lock-based and lock-free, and says `receive`/`takeOutbound` must share one thread
-
-Found 2026-10-27 while writing the how-to guide `docs/guides/run-a-mux-over-a-socket.md` (backlog H-29), on `main` at efc51f19b. Same at v0.0.56 (the same lines are in `git show v0.0.56:docs/reference/mux.mdx`).
-
-**Summary.** `docs/reference/mux.mdx:37` says the stream registry is "lock-based on JVM, lock-free on JS", and `:823` says "No `synchronized`, so it stays friendly to virtual threads". Read together, they look like a contradiction. Both are true, but neither says what the code does. Also, `:815` tells readers to "Call `receive()` and `takeOutbound()` from the same thread only". The contract in the Scaladoc (`mux/shared/src/main/scala-3/zio/blocks/mux/Mux.scala:56-60`) is different: each of the two operations has its own single consumer, and the usual layout uses two threads (the application receives, the protocol's writer takes).
-
-**Reproduction.** This is a documentation contradiction, so the reproduction is the source. Run it from a zio-blocks checkout:
-
-```bash
-git show v0.0.56:mux/jvm/src/main/scala-3/zio/blocks/mux/PlatformMux.scala | grep -n "ReentrantLock\|lock.lock()\|def get\|def activeCount\|synchronized"
-# 21:import java.util.concurrent.locks.ReentrantLock
-# 37:      lock.lock()
-# 48:    def get(id: Id): Option[MuxStream[Id, In, Out]] =
-# 52:      lock.lock()
-# 60:      lock.lock()
-# 68:    def activeCount: Int = streams.size()
-# 71:      lock.lock()
-git show v0.0.56:mux/js/src/main/scala-3/zio/blocks/mux/PlatformMux.scala | grep -n "mutable.HashMap\|lock"
-# 29:    private val streams         = mutable.HashMap.empty[Id, JsMuxStream[Id, In, Out]]
-```
-
-**Expected.** The page states what the code does. On the JVM, `open` (`PlatformMux.scala:37`), `cancel` (`:52`), `closeAll` (`:60`) and the internal `removeStream` (`:71`) take a `java.util.concurrent.locks.ReentrantLock`. `get` (`:48`) and `activeCount` (`:68`) read the `ConcurrentHashMap` without the lock. Per-stream queues are `MpscRingBuffer`s, and state transitions use `VarHandle` CAS, with no lock. There is no `synchronized` anywhere, which is why virtual threads are not pinned. Scala.js uses a plain `mutable.HashMap` with no locking, because it runs on one thread ("lock-free" is the wrong word for it). Each of `receive()` and `takeOutbound()` has its own single consumer.
-
-**Root cause.** The page's wording at `docs/reference/mux.mdx:37`, `:815` and `:823`.
-
-**Impact.** Readers can't tell whether `Mux` blocks. The "same thread only" sentence also suggests that a protocol must run its writer on the application's thread, which is exactly the wrong layout for a socket.
-
-**Test gap.** None. This is documentation only.
-
-**Suggested fix (applied in branch `mux-socket`, commit 68ee8acc8).**
-- `:37` becomes: "**Thread-safe stream registry** — `open`, `get`, `cancel`, `closeAll` and `activeCount` are safe to call from any thread. On the JVM, `open`, `cancel` and `closeAll` take a `ReentrantLock`, while `get` and `activeCount` read a `ConcurrentHashMap` without it; on Scala.js, which runs one thread, the registry is a plain `HashMap` with no locking".
-- `:815` becomes: "`receive()` and `takeOutbound()` are **single-consumer**: on each stream, at most one thread at a time may call `receive()`, and at most one thread at a time may call `takeOutbound()`. The two can be different threads, which is the usual layout: the application calls `receive()` and the protocol's writer calls `takeOutbound()`. Two threads calling the same one concurrently corrupt the ring buffer: messages are delivered twice or lost, and the queue can stop accepting new messages."
-- `:823` becomes: "No `synchronized`: the registry's lock is a `ReentrantLock`, and the per-stream queues and state transitions take no lock, so a virtual thread never pins its carrier thread inside `Mux`".
-
 ### Streams: reference pages contradict the source on worker thread names, the virtual-thread fallback, Scala.js read failures, `NioReaders.fromChannel`, `NioWriters.fromByteBuffer` closing and full-buffer `NioSinks`
 
 Found 2026-10-27 while writing the Scaladoc for the platform files, queues and internals (wave 3 of the streams Scaladoc rollout, PR #1868), on `main` at `59e7cb81e`. Same text at v0.0.56. Each claim was checked against the source (and probed where stated); the reference pages were not edited.
@@ -12994,6 +12937,7 @@ A wider probe gave these counts after `take(2)`/`take(6)`/`take(12)`: `eval` blo
 
 ## Resolved
 
+- Already fixed on `main`, moved here on 2026-10-28 after checking each page: `docs/reference/mux.mdx` registry and single-consumer wording (#1870, H-29); the `openapi.md` signature, install, round-trip, `Parameter`/`Operation` and extensions bullets (H-39); the `http-model/schema.md` `RequestSchemaOps`/`ResponseSchemaOps` and "Supported Types" bullets (#1879); the `binding.md`, `registers.md`, `binding-resolver.md` and `Registry#bind`/`StructuralReflection` Scaladoc bullets (schema Scaladoc wave 3).
 - Schema-core doc errors fixed in #1877 (batch 2a, merge `edd42b4a2`, three review rounds): `maybe.md` said flat primitive `Maybe`s allocate nothing (they are stored as JVM boxes; only cached small values are free); `typeid.md:1927` listed named tuples under `TypeRepr.Tuple` (a named tuple is an applied `NamedTuple`, labels `None`); `as.md` called dropping a one-sided `Option` field a clean round trip (`Some(v)` comes back `None`; `into.md` qualified too); `migration.md` and the ZIO Schema migration guide called `DynamicMigration` serializable or "plain data" (no `Schema`, so no codec); `dynamic-schema.md` and three `schema-examples` comments said a `DynamicSchema` can be stored as JSON and that `BindingResolver.defaults` covers `Option` (now a compiled Avro storage subsection, a compiled `Option` binding, and the `toSchema`/`check` JSON caveat); `data-migration.md` promised that `fence()` stops producers and that `complete()` migrates every queued row, and its Full Example did not compile (rewritten after H-23, run against PostgreSQL 16 and SQLite). `schema.md` gained a compiled "Tuples" subsection and the named-tuple `given` rule and known bugs; those library entries stay open with a Status line.
 - Codec doc errors fixed in #1878 (batch 2b, merge `13423e664`): `avro.md` now has the Scala-to-Avro type table and the decode-trusts-the-reader-schema note, and names the three Avro library bugs; `yaml.md` (now evaluated mdoc) no longer shows `YamlOptions` output from `encodeToString` or a `---` line it never prints, and documents kebab-case keys; `csv.md` no longer promises document-level error rows and columns, marks `CsvError.TypeError` and `CsvConfig.nullValue` as unused, and states the nested-record behaviour; the whole "schema / JSON" list (the `require*` encoder effect in `customize-json-encoding.md`, `transient` on decode in `modifier.md`, `schema-error.md` messages and first-failure behaviour, `syntax.md` `show` output, `validation.md` rewritten as evaluated mdoc, `json-schema.md:366` and `pattern` anchoring, `json/index.md:66-67`, the `json"..."` Scala 2.13 note and `toKV` output in `json.md`, and `json-selection.md:92`); the `Schema.fromJsonSchema` Scaladoc was already correct on main. Also fixed there: `schema-bson/README.md` showed class-level `@Modifier.rename`/`alias` on a record, which the BSON deriver ignores (probed against 0.0.56: a record with class-level `rename("NewName")` still encodes as `{"x": 1}`; on a sealed-trait case, `rename("Round")` gives `{"Round": {...}}` and `alias("Circle")` decodes), and the README now says `withNativeObjectId` has no effect and shows the `Option` sub-document shape. The library-bug entries for Avro, YAML, CSV and BSON stay open.
 - Web doc errors fixed in #1879 (batch 3, merge `1a5561f65`): `reference/datastar/index.md` claimed Scala 2.13 support (the module is Scala 3 only) and lacked the 3.9+ `zio-blocks-next-datastar` + `-experimental` install line (fixed in source, but not live until the stale `docs/reference/datastar.md` is deleted; see the Test and CI entry "docs build: a stale `docs/reference/datastar.md` shadows ..."); `reference/htmx/response-headers.md` paired `HX-Redirect` with `HX-Trigger-After-Settle`, which htmx 2 never fires after a redirect (browser-verified); `reference/htmx/index.md` never said its syntax targets htmx 2.x; and the `JdkHttp` adapter (7 copies plus the 2 `StreamingJdkHttp` copies) wrote the response outside its `catch`, so a failed write dropped the connection silently (now a logged 500). The same PR documented the htmx `HX-Boosted`/history-restore traps, the html shadowing and `search` ambiguity traps, and the docs side of the `HxLocation` and four http-model-schema bugs (those entries stay open with a Status line).
