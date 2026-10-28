@@ -253,6 +253,8 @@ object Repro {
 
 ### scope: on Scala 3, a closed `AutoCloseable` can escape its scope
 
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
+
 Found 2026-10-20 while writing M-05 (`docs/guides/resource-and-di-migration.md`). Verified with mdoc.
 
 **Summary.** On Scala 3, `Unscoped` is derived automatically for any case class whose fields are all `Unscoped`, even when the class extends `AutoCloseable`. So `Resource.fromAutoCloseable(Conn("x")).use(c => c)` compiles and returns a resource that has already been closed. This is a hole in the compile-time escape check that the Scope tutorial and M-05 present as the main advantage over cats-effect `Resource`.
@@ -261,6 +263,8 @@ Found 2026-10-20 while writing M-05 (`docs/guides/resource-and-di-migration.md`)
 
 ### scope: a `Resource.from[T]` stored in a `val` can be used only once
 
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
+
 Found 2026-10-20 while writing M-05. Verified with mdoc.
 
 **Summary.** After the first scope that uses `val r = Resource.from[T](...)` closes, a second use throws `IllegalStateException: Cannot allocate from a destroyed shared resource`. A `def` works. Several doc pages teach `val appResource = Resource.from(...)`, so readers hit this.
@@ -268,6 +272,8 @@ Found 2026-10-20 while writing M-05. Verified with mdoc.
 **Next step.** Decide whether a `Resource` value is meant to be reusable. If yes, reset or recreate the shared state per allocation. If no, document it prominently and change the docs to `def`.
 
 ### scope: `Wire(value)` evaluates eagerly
+
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
 
 Found 2026-10-20 while writing M-05. Verified with mdoc.
 
@@ -280,6 +286,8 @@ Found 2026-10-20 while writing M-05. Verified with mdoc.
 **Summary.** When the function passed to `Wire.Shared.fromFunction` returns an `AutoCloseable`, its `close()` is not registered as a finalizer, so the resource leaks. `Resource.from[T]` registers it; `fromFunction` should too, or document the difference.
 
 ### scope: `Resource.from` never reports a dependency cycle (E10); the macro crashes instead
+
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
 
 Filed: [zio/zio-blocks#1767](https://github.com/zio/zio-blocks/issues/1767).
 
@@ -713,6 +721,8 @@ Found 2026-10-19 while writing T-05. Verified.
 
 ### config-hocon: array concatenation `[a] [b]` becomes an empty string
 
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
+
 Found 2026-10-20 while writing the migration guide `docs/guides/config-library-migration.md` (backlog M-06), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`. Verified by running.
 
 **Summary.** HOCON lets two arrays written next to each other concatenate into one list (`tags = [scala] [zio]` is `[scala, zio]` in the HOCON spec and in Typesafe Config). `config-hocon` accepts the syntax but turns the value into the empty string `""`. There is no error, so a `List[String]` field loads as one empty element or fails far from the cause.
@@ -747,6 +757,8 @@ keys("tags = [scala, zio]")
 **Suggested fix.** In the `MConcat` case, when every part resolves to an array, concatenate the arrays; when every part resolves to an object, merge them as HOCON does. Report a parse error when arrays or objects are mixed with strings. Add `HoconParserSpec` tests for both cases.
 
 ### config-hocon: `ConfigSource.fromHocon` silently drops every `include`
+
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
 
 Found 2026-10-20 while writing the migration guide `docs/guides/config-library-migration.md` (backlog M-06), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`. Verified by running.
 
@@ -795,6 +807,8 @@ println(source.map(_.all("").keys.toList.sorted))
 **Suggested fix.** Add a public overload, for example `ConfigSource.fromHocon(hocon, sourceId, includeResolver: String => Option[String])`. Also consider an option, or a different default, that makes an unresolved `include` an error. HOCON's `include required(...)` form, which `config-hocon` does not parse yet, is the standard way to say an include must exist.
 
 ### config-hocon: `${VAR}` and `${?VAR}` never fall back to environment variables
+
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
 
 Found 2026-10-20 while writing the migration guide `docs/guides/config-library-migration.md` (backlog M-06), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`. Verified by running.
 
@@ -880,6 +894,8 @@ println(provenance.dump())
 **Suggested fix.** In the key-format wrapper's `all`, map environment-style keys with the target format in mind: for `UpperSnakeCase`, treat each `_`-separated word of the original variable name as a camelCase word boundary. One way is for `EnvSource.all` to return keys whose segments keep `_`, so `toCanonical` can rebuild `featuredTitle`. Add a `dump` test for a key-formatted env layer over a file layer.
 
 ### config-hocon: parse errors lose their line and column
+
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
 
 Found 2026-10-20 while writing the migration guide `docs/guides/config-library-migration.md` (backlog M-06), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`. Verified by running.
 
@@ -1417,6 +1433,8 @@ println(signed.flatMap(t => Jwt.decode(t, secret, Algorithm.HS256, JwtDecodeOpti
 
 ### config: Rollout buckets depend on the key alone, so every percentage rollout picks the same users
 
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
+
 Documented in #1788 (H-32, merged). Not filed on GitHub yet.
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/roll-out-feature-gradually.md` (backlog H-32), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`.
@@ -1451,6 +1469,8 @@ object WishlistSharing      extends DynamicFlag[Boolean](false, "true@*/10%; fal
 **Suggested fix.** Bucket on `name + ":" + key` inside `DynamicFlag` (keep `Rollout.bucketFor(key)` as is for direct use), or add an optional salt parameter that defaults to the flag name. This moves existing users between buckets, so mention it in the release notes.
 
 ### config: `Rollout.validate` assumes percentages are slices, but evaluation treats them as thresholds
+
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
 
 Documented in #1788 (H-32, merged). Not filed on GitHub yet.
 
@@ -3640,6 +3660,8 @@ object RestockJob {
 
 ### telemetry: on Scala 2.13, `log.info` and the other `log.*` calls don't compile outside the library's package
 
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
+
 Found 2026-10-21 while writing T-12, on `main` at `a44dc6db`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
 
 **Summary.** On Scala 2.13, every `log.trace`, `log.debug`, `log.info`, `log.warn`, `log.error` and `log.fatal` call in user code fails to compile, in any package and in the empty package. The Scala 2 macro expands to code that reads `GlobalLogState` and other objects that are `private[telemetry]`, and Scala 2 type-checks a macro expansion with the access rights of the call site. The module is published for Scala 2.13, and the reference pages say it supports 2.13, but its main logging API can't be used there. Spans and metrics are not affected.
@@ -3676,6 +3698,8 @@ Without the `package bookstore` line, the error is the same except that it ends 
 **Suggested fix.** Make the members the expansion needs public and mark them as internal in their Scaladoc (or move them to an `internal` object that is public but documented as not for users), then add a test in a different package, for example `package zio.blocks.telemetry.external`, that calls each `log.*` method on Scala 2.13 and Scala 3.
 
 ### telemetry: after `log.removeAll()`, `log.writer` and `log.addProcessor` never bring logging back
+
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
 
 Found 2026-10-21 while writing T-12, on `main` at `a44dc6db`. The telemetry sources are the same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
 
@@ -10504,6 +10528,8 @@ Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (b
 
 ### async: cancelling an `Async` never reaches the underlying call for `fromFuture`, `fromCompletionStage`, `fromJsPromise` or `Async.promise`
 
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
+
 Found 2026-10-22 while writing the how-to guide `docs/guides/wrap-callback-and-future-apis.md` (backlog H-28), on branch `async-interop` at `94080050`. Same at tag `v0.0.56`: `async/` differs from the tag only by an import cleanup in `scala-3/AsyncSyntaxVersionSpecific.scala`. Verified by running.
 
 **Summary.** Cancelling a running `Async` (`Running#cancel`) stops the driver and calls `Pollable#cancel` on the pending leaf. Every built-in bridge's leaf is a `Completer`, which is `final` and inherits the no-op `Pollable#cancel`, so the source keeps running: a `CompletableFuture` is not cancelled, and a callback API's cancel handle can't be passed anywhere, because `Async.promise` only hands the body a `Completer`. `docs/reference/async.md` doesn't say so.
@@ -10958,6 +10984,8 @@ object Repro {
 **Update (2026-10-26).** #1842 (H-41) reworded the "Streaming bodies" note in `serve-http-model-requests.md` to say that an endless body never reaches the client and that its producer never stops, and links the SSE guide, whose `StreamingJdkHttp` streams. The adapter itself still buffers; the optional streaming path in `JdkHttp` is still open.
 
 ### async: on Scala 3, an `Async.promise` body written `(c: Completer[A]) => ...` compiles, and the `Async` never completes
+
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
 
 Found 2026-10-26 while writing H-26 (`docs/guides/run-streams-without-blocking.md`), on `main` at `7f551627c`. Tested against `zio-blocks-async` 0.0.56; the Scala 3 signature is the same on `main`. Verified by running (scratch sbt project, since scala-cli hung on that machine).
 
@@ -12449,192 +12477,6 @@ Pages that contradict the source. None of these were copied into the new guides.
 - Line 1044 shows `Expected sequence, got: invalid`; the source message is `Expected array header with [`.
 - Lines 14 and 659 say there are three array formats; there are four.
 
-**config (`formats.md`, HOCON section)**
-
-- Line 191 says `include` directives are resolved through a callback, so includes "come from a classpath, an archive, or a test fixture". Through the public `ConfigSource` API there is no callback (see the dropped-includes bug) and no classpath loader.
-- Line 247 says `HoconError` carries the line and column. That holds only for lexer errors; resolution errors report 0:0. From source.
-- The HOCON section has no warnings for the dropped includes, environment substitutions, array concatenation and duration/size syntax above.
-
-### docs: `formats.md` says infinite HOCON numbers keep their `Double` rendering
-
-Found 2026-10-20 while writing `docs/guides/config-library-migration.md` (backlog M-06), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`. Verified by running.
-
-**Summary.** `docs/reference/config/formats.md:164` says: "Non-integral and infinite values keep their `Double` rendering." The HOCON parser never produces an infinite number. A literal too large for a `Double` (such as `1e400`), `Infinity` and `-1e400` are all kept as the text that was written, as strings.
-
-**Reproduction** (Scala 3.9.0, `zio-blocks-next-config-hocon` 0.0.56):
-
-```scala
-import zio.blocks.config._
-import zio.blocks.config.hocon._
-
-List("big = 1e400", "big = Infinity", "big = 1.5", "big = -1e400").foreach { doc =>
-  println(ConfigSource.fromHocon(doc).map(_.all("").map { case (k, v) => s"$k='${v.value}'" }.toList))
-}
-// Right(List(big='1e400'))
-// Right(List(big='Infinity'))
-// Right(List(big='1.5'))
-// Right(List(big='-1e400'))
-
-println(HoconParser.parse("big = 1e400"))
-// Right(Obj(Map(big -> Str(1e400))))
-```
-
-**Root cause.** `interpretUnquoted` keeps a number only when `!d.isNaN && !d.isInfinite`, and otherwise falls back to a string (`config-hocon/shared/src/main/scala/zio/blocks/config/hocon/HoconParser.scala:392-393`).
-
-**Suggested fix.** Replace the sentence with: "Non-integral values keep their `Double` rendering. A number too large for a `Double`, such as `1e400`, is kept as the text that was written."
-
-### docs: `formats.md` leaves out the 1 MiB file-size limit of `ConfigSource.fromFile`
-
-Found 2026-10-20 while writing `docs/guides/config-library-migration.md` (backlog M-06), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`. Verified by running.
-
-**Summary.** The "Loading from a File" section of `docs/reference/config/formats.md` (`:199-228`) lists `allowedBase` and `maxIncludeDepth` as the two guards on `ConfigSource.fromFile`. It does not mention the third one: `fromFile` refuses a file or include larger than 1 MiB, and the only way to raise the limit is `ConfigSource.fromFileWithLimits(..., maxFileBytes = ...)`, which the page never names. A reader whose generated configuration grows past 1 MiB gets a parse error that the page does not explain.
-
-**Reproduction** (Scala 3.9.0, `zio-blocks-next-config-hocon` 0.0.56, JVM):
-
-```scala
-import zio.blocks.config._
-import zio.blocks.config.hocon._
-import java.nio.file.Files
-
-val file = Files.createTempDirectory("bookstore").resolve("application.conf")
-Files.writeString(file, "bookstore.name = \"Scala Bookstore\"\n" + ("# padding\n" * 120000))
-println(Files.size(file))
-
-ConfigSource.fromFile(file.toString) match {
-  case Left(e: ConfigError.ParseError) => println(e.cause.map(_.getMessage))
-  case other                           => println(other)
-}
-
-ConfigSource.fromFileWithLimits(file.toString, maxFileBytes = 4L * 1024 * 1024).map(_.all("").keys.toList).foreach(println)
-// 1200035
-// Some(File size exceeds limit (1048576 bytes) (line 0, column 0))
-// List(bookstore.name)
-```
-
-**Root cause.** `fromFile` delegates to `fromFileWithLimits` with `DefaultMaxFileBytes = 1024L * 1024L` (`config-hocon/jvm/src/main/scala/zio/blocks/config/hocon/HoconConfigSourcePlatform.scala:28`, `:204`), and the read throws `File size exceeds limit` above it (`:36`, `:54`). The docs table was written before the limit existed (added by PR #1649).
-
-**Suggested fix.** Add a third row to the table: `maxFileBytes` | `1 MiB` | "Maximum size of the file and of each include; a larger one is a parse failure. Set it with `ConfigSource.fromFileWithLimits`." Then change "Two parameters guard ..." to "Three parameters guard ...", and add the size failure to the failures paragraph.
-
-**config (flags and rollouts)**
-
-- `rollout.md` says "a percentage behaves as the literal share of keys it names". That holds only for the first choice on a pattern; later choices are thresholds (see the `Rollout.validate` entry).
-- `rollout.md` says a sum above 100 "usually means someone added a rule instead of adjusting one". This follows from the same slice reading, which evaluation does not use.
-- `flags.md` says the two parse exceptions are "wrapped in ExceptionInInitializerError by the JVM". The library constructs the `ExceptionInInitializerError` itself (`StaticFlag.scala:109`, `DynamicFlag` `initSnapshot`); the effect for callers is the same.
-- The `DynamicFlag` Scaladoc example `"true@beta/50%; false"` (`DynamicFlag.scala:32`) matches only the key `beta`, not 50% of beta users.
-
-**scope**
-
-- `scope.md:1065` lists a non-existent `andThen`; `scope.md:19-22` have wrong `scoped`, `allocate` and `open` signatures; `scope.md:943` quotes `Cannot acquire resource: scope has already been closed.`; the real text is `Cannot allocate resource: scope is already closed.`
-- `wire.md:66` (`new UserService($(db)(identity))`) does not compile; `wire.md:28` calls Wire a "lazy recipe" (see the eager `Wire(value)` bug).
-- `finalization.md` says `abstract class` in five places (the source is `final class`); line 173 has wrong LIFO comments; line 280 names the private `runFinalizers`.
-- Thread ownership (`scope.md:952`, Scope tutorial lines 690, 706, 749): only `scoped` checks the owner thread; `allocate`, `defer` and `$` do not.
-- `unscoped.md:114` and the Scope tutorial (lines 316, 332) do not mention Scala 3 automatic derivation (see the `AutoCloseable` escape bug).
-- Several pages teach `val appResource = Resource.from(...)` (see the single-use bug).
-
-### docs: `context.md` shows `Wire.make[Config & Logger, Service]`, which does not exist
-
-Found 2026-10-20 while writing the how-to guide `docs/guides/feed-config-into-a-wire-graph.md` (backlog H-30), on `main` at `b4179489`. The same at tag `v0.0.56`. Verified by compiling.
-
-**Summary.** The section "Integration with Wire and Scope" of `docs/reference/context.md:470-493` builds a service with `val buildService = Wire.make[Config & Logger, Service]`. The block is a plain fence labelled pseudocode, so mdoc never compiles it, but it reads as the API. `Wire` has no `make` method on its companion; `make(scope, ctx)` is an instance method of `Wire.Shared` and `Wire.Unique`. The macro that derives a wire from `Service`'s constructor is `Wire.shared[Service]` (or `Wire.unique[Service]`), and it infers the input type `Config & Logger` itself.
-
-**Reproduction** (`scala-cli run .`; the page's code with `Wire.shared`, then the page's line):
-
-```scala
-//> using scala 3.9.0
-//> using options -experimental
-//> using dep dev.zio::zio-blocks-next-scope:0.0.56
-
-import zio.blocks.context.*
-import zio.blocks.scope.*
-
-case class Config(debug: Boolean)
-case class Logger(name: String)
-case class Service(config: Config, logger: Logger)
-
-@main def contextWire(): Unit = {
-  val buildService = Wire.shared[Service]
-  val deps         = Context(Config(debug = true), Logger("app"))
-  Scope.global.scoped { scope =>
-    val service: Service = buildService.make(scope, deps)
-    println(service)
-  }
-}
-// Service(Config(true),Logger(app))
-```
-
-With the page's line instead, `val buildService = Wire.make[Config & Logger, Service]`, compilation fails:
-
-```
-[error] ./ContextWireMake.scala:15:22
-[error] value make is not a member of object zio.blocks.scope.Wire
-[error]   val buildService = Wire.make[Config & Logger, Service]
-[error]                      ^^^^^^^^^
-```
-
-**Expected.** The page shows code that compiles.
-
-**Root cause.** The page was written against an API that doesn't exist: `Wire`'s companion offers `apply`, `shared`, `unique` and `Shared.fromFunction`/`Unique.fromFunction` (`scope/shared/src/main/scala/zio/blocks/scope/Wire.scala:282`, `scope/shared/src/main/scala-3/zio/blocks/scope/WireVersionSpecific.scala:59`, `:72`, `:93`, `:114`), and no `make`.
-
-**Impact.** A reader who copies the snippet gets a compile error with no hint of the right method. The backlog already warns writers not to copy it (`docs/dev/backlog.md`, rows H-30 and the context entry).
-
-**Test gap.** The block is a plain ` ```scala ` fence labelled pseudocode, so mdoc doesn't compile it.
-
-**Suggested fix.** Replace the line with `val buildService = Wire.shared[Service]`, drop the "pseudocode" label, and make the block `mdoc:compile-only` so it stays compiled.
-
-### Scope tutorial, reference pages and example contradict the source
-
-Found 2026-10-20 while writing the how-to guide `docs/guides/fix-scope-and-wire-compile-errors.md` (backlog H-31), on `main` at `64b2f666`. Reproduced against the published `0.0.56`. Listed here and not fixed in that PR.
-
-**Wrong statements:**
-
-- `docs/guides/compile-time-resource-safety-with-scope.md:726` says `defer` throws `IllegalStateException` on a closed scope. `defer` returns a no-op `DeferHandle` and ignores the finalizer (`Scope.scala:202-211`).
-- The same line quotes the exception as `Scope is closed`. The real messages are `Cannot allocate resource: scope is already closed.` (allocate), `Cannot open child scope: scope is already closed.` (open) and `Cannot access scoped value: scope is already closed.` (`$`).
-- The same file at `:820` says `Wire.shared[Database]`, where `Database(url: String)`, fails with "no Wire[String] for url". It compiles. The error only appears later, from `Resource.from`, as E7 `Cannot auto-create java.lang.String`.
-- The same file uses the fence `scala mdoc:compile-only mdoc:silent:reset` at `:27` and `:728`. That fence mixes two modifier lists, `compile-only` and `silent:reset`, so it isn't clear which one the author meant mdoc to apply.
-- `docs/reference/resource-management/scope.md:943` quotes `Cannot acquire resource: scope has already been closed.` The real text is `Cannot allocate resource: scope is already closed.`
-- `docs/reference/resource-management/wire.md:85` and `:506`, and `index.md:18`, promise compile-time cycle detection and "missing dependency" errors. Cycles crash the macro (#1767), and `renderMissingDependency` is never called (see the entry above).
-- `scope-examples/src/main/scala/scope/examples/CircularDependencyDemoExample.scala:28` and `:41` say that uncommenting the cycle "would produce a compile error" with a cycle diagram. It crashes the macro instead. `scope.md:1258` presents that example as cycle detection.
-
-**Reproduction** (`scala-cli run .` per file; same header as above):
-
-```scala
-// Closed.scala: defer is a no-op, and the allocate message
-import zio.blocks.scope.*
-
-class Db extends AutoCloseable { def close(): Unit = () }
-
-@main def closed(): Unit = {
-  val shop  = Scope.global.open()
-  val scope = shop.scope
-  shop.close()
-  val handle = scope.defer(println("never runs"))
-  println(s"defer on a closed scope returned: $handle")
-  try scope.allocate(Resource(new Db))
-  catch { case e: IllegalStateException => println(e.getMessage.linesIterator.take(3).mkString("\n")) }
-}
-// defer on a closed scope returned: zio.blocks.scope.DeferHandle$Noop$@2f7a2457
-// ── Scope Error ─────────────────────────────────────────────────────────────────
-//
-//   Cannot allocate resource: scope is already closed.
-```
-
-```scala
-// WireDb.scala: Wire.shared[Database] compiles
-import zio.blocks.scope.*
-
-case class Database(url: String) extends AutoCloseable {
-  override def close(): Unit = ()
-}
-
-@main def wireDb(): Unit = {
-  val dbWire = Wire.shared[Database]
-  println(s"Wire.shared[Database] compiled: $dbWire")
-}
-// Wire.shared[Database] compiled: Shared(WireDb$package$$$Lambda/0x000070e180002900@45c8e616)
-```
-
-**Suggested fix.** Correct each statement to match the source, and point section 12 of the tutorial and the error sections of `scope.md` at `docs/guides/fix-scope-and-wire-compile-errors.md` instead of keeping a second list of messages. Fix the example's comment, and the cycle claims, once #1767 is fixed.
-
 ### docs: `db-codec.md` says non-optional types throw on SQL `NULL`, but `String` decodes to `null` and numeric types to `0`
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/stream-large-query-results.md` (backlog H-20), on `main` at `b4179489`. Verified with `zio-blocks-next-sql` 0.0.56 and sqlite-jdbc 3.53.4.0; the code is the same at tag `v0.0.56`.
@@ -12669,18 +12511,6 @@ Found 2026-10-21 while writing the how-to guide `docs/guides/sql-from-zio.md` (b
 
 **Suggested fix.** Turn both pages into `mdoc` pages now that `sql-zio` is on the docs classpath, on a temporary SQLite file, and link `docs/guides/sql-from-zio.md` for the recipes.
 
-### docs: telemetry pages give the wrong JDK requirement, no Scala 3.9 artifact, and a double-printing example
-
-Found 2026-10-21 while writing T-12, on `main` at `a44dc6db` (same at `v0.0.56`). Verified against the published 0.0.56 on JDK 17, 21 and 25.
-
-- **JDK.** The JVM module is compiled with `-release 21` (`build.sbt:746-755`). On JDK 17 even compiling a `log.*` call fails, because the log macros run inside the compiler: `java.lang.UnsupportedClassVersionError: zio/blocks/telemetry/LogMacros$ has been compiled by a more recent version of the Java Runtime (class file version 65.0), this version of the Java Runtime only recognizes class file versions up to 61.0` (verified with `scala-cli run --server=false --jvm 17`; without `--server=false`, scala-cli compiles on its own newer JVM and hides this). Code that only uses spans or metrics compiles on JDK 17 and fails the same way at run time (`zio/blocks/telemetry/trace$`). On JDK 21 it works without `--enable-preview`, including span context propagation through `ScopedValue` (a preview API in JDK 21 to 24, final in 25): a log line inside a nested span carries the span's ids, and the child's parent is the outer span. `telemetry-guide.md:1032` and `:1113` call `ScopedValue` storage "JDK 25+", and the `ContextStorage` Scaladoc says "Pure ScopedValue storage for JDK 25+" (`telemetry/jvm/src/main/scala/zio/blocks/telemetry/ContextStorage.scala:49`); the installation sections of `reference/telemetry/index.md` and `telemetry-guide.md` gave no JDK requirement. Fixed in the T-12 PR: both installation sections now say JDK 21 or newer, and the guide's JDK 25 wording is corrected.
-- **Test and CI gap.** The telemetry and otel tests run only on JDK 25 (`whenJdkAtLeast(25, "telemetryJVM/test; otel/test")`, `build.sbt:149` and `:155`), although the published jar targets Java 21. Nothing in CI runs the module on JDK 21.
-- **Scala 3.9.** Neither installation section said that Scala 3.9 and newer use `zio-blocks-next-telemetry` with `-experimental` (without the flag, 0.0.56 fails with `LogVersionSpecific is marked @experimental`). Fixed in the T-12 PR in `reference/telemetry/index.md`.
-- **Double printing.** `reference/telemetry/logging/index.md:178-183` adds `log.writer(TextLogFormatter, StdoutWriter)` and `log.writer(JsonLogFormatter, StderrWriter)` as "human-readable text to stdout, JSON to stderr". `log.writer` is additive and the default console output stays, so every line is printed twice on standard output, once by the default output and once by the new writer, plus once as JSON. The example needs `log.install(LoggerProvider.builder.build().get(...))` first. Not fixed here.
-- **`removeAll`.** `reference/telemetry/logging/index.md:176` says `log.*` calls become no-ops after `log.removeAll()` "until you add an output again"; adding an output with `writer` or `addProcessor` doesn't restore them (see the library bug above). Not fixed here.
-- **Histogram boundaries.** The `HistogramDataPoint` Scaladoc calls `boundaries` "upper exclusive boundaries for each bucket" (`telemetry/shared/src/main/scala/zio/blocks/telemetry/MetricData.scala:68`), but `Histogram.findBucketIndex` puts a value in the first bucket whose boundary is `>=` the value (`value <= boundaries(i)`, `Histogram.scala:98-105`), so the boundaries are inclusive upper bounds, as in OpenTelemetry. From source; not fixed here.
-- **Missing ADR.** `ContextStorage.scala:28` links `docs/adr/0001-scoped-context-no-set.md`, which never existed (already noted in `backlog.md`).
-
 ### docs: `table.md` and `db-codec-deriver.md` say `createTable` handles collection and nested-record fields
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
@@ -12688,67 +12518,6 @@ Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-t
 **Summary.** `docs/reference/sql/table.md:238` says fields that fall back to JSONB "such as `List[A]`" produce "a `TEXT` or `JSONB` column", and that "nested records that are flattened into multiple columns are fully supported". `Table.derived` throws for a `List[A]` field, and it flattens every nested record even though the codec stores a non-inline record as one JSON column (see the `Table.derived` entry under Library bugs). `table.md:273` repeats "nested records are flattened". `docs/reference/sql/db-codec-deriver.md:23` says the fallback is "a single `TEXT` / `JSONB` column"; no code path emits `JSONB`, since `SqlDialect` maps `DbString` to `TEXT` on both dialects (`sql/shared/src/main/scala/zio/blocks/sql/SqlDialect.scala:36,64`).
 
 **Suggested fix.** Until the library bug is fixed, say that `Table.derived`, `Repo.derived` and `createTable` work only for records whose nested record fields carry `sql.inline`, and that a JSON column on PostgreSQL must be declared `JSONB` by hand.
-
-### docs: `telemetry-guide.md` tells tests to "restore state" with `log.removeAll()`, which silences later tests
-
-Found 2026-10-21 while writing the how-to guide `docs/guides/test-telemetry.md` (backlog H-48), on `main` at `7e8ac787` (same at `v0.0.56`). Verified by running against the published 0.0.56 on JDK 21. Not fixed here.
-
-**Summary.** The "Testing with telemetry" section of `docs/guides/telemetry-guide.md:334-376` captures logs with a `CapturingLogProcessor` installed through `log.install`, then says "Don't forget to restore state between tests" and shows `log.removeAll()`. `removeAll` restores nothing. It calls `shutdown()` on the test's processor, which in the guide's own processor clears the captured records; it leaves no output at all instead of the default console output; and, because of the `log.removeAll()` bug in the Library bugs section, a later test that adds its processor with `log.addProcessor` (or an output with `log.writer`) captures nothing. Line 1099 repeats the pattern.
-
-**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 21, run with `scala-cli run --server=false --jvm temurin:21 RestoreRepro.scala`):
-
-```scala
-//> using scala 3.9.0
-//> using options -experimental
-//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
-package bookstore
-
-import java.util.concurrent.CopyOnWriteArrayList
-import zio.blocks.telemetry._
-
-// The processor from telemetry-guide.md, "Testing with telemetry"
-class CapturingLogProcessor extends LogRecordProcessor {
-  val records = new CopyOnWriteArrayList[LogRecord]()
-
-  def onEmit(record: LogRecord): Unit = records.add(record)
-  def shutdown(): Unit = records.clear()
-  def forceFlush(): Unit = ()
-}
-
-object RestoreRepro {
-  def main(args: Array[String]): Unit = {
-    // Test 1, as the guide shows it
-    val first = new CapturingLogProcessor
-    log.install(LoggerProvider.builder.addLogRecordProcessor(first).build().get("test"))
-    log.warn("payment retried")
-    println(s"test 1 captured: ${first.records.size}")
-
-    // "Don't forget to restore state between tests"
-    log.removeAll()
-
-    // Test 2 adds its processor to the global logger
-    val second = new CapturingLogProcessor
-    log.addProcessor(second)
-    log.warn("payment retried")
-    println(s"test 2 captured: ${second.records.size}")
-
-    // Code that expects the default console output
-    log.info("printed by the default output?")
-    println("end")
-  }
-}
-// test 1 captured: 1
-// test 2 captured: 0
-// end
-```
-
-**Expected.** The guide's teardown leaves logging working: test 2 captures one record, and the last `log.info` prints a line.
-
-**Root cause.** Documentation. `log.removeAll()` shuts down every processor and installs the silent state (`telemetry/shared/src/main/scala/zio/blocks/telemetry/log.scala:65-73`, `GlobalLogState.scala:130-132`); there is no public call that restores the default console logger.
-
-**Impact.** Readers who follow the guide get tests that pass alone and fail, capturing nothing, when another test ran first.
-
-**Suggested fix.** Replace the teardown with "install a fresh capturing logger with `log.install` at the start of each test, and run such tests sequentially", or recommend passing a `Logger` to the code under test, as `docs/guides/test-telemetry.md` does. Drop the `records.clear()` from `shutdown()` in the example processor.
 
 ### docs: the `Frag#queryChunked` Scaladoc example calls `Transactor.connect(transactor)`, which does not exist
 
@@ -12846,6 +12615,7 @@ println(n308.fromJson[BigDecimal].left.map(_.message))// Left(value exceeds limi
 
 ## Resolved
 
+- Runtime doc errors fixed in #1885 (batch 4a, merge `ac8a1d76a`, three review rounds): config `formats.md` (infinite HOCON numbers are kept as written strings; the 1 MiB `fromFile` limit and `fromFileWithLimits`; the include-callback and `HoconError` position claims, plus warnings for the config-hocon known bugs) and the flags/rollouts bullets (`rollout.md` share and sum-above-100 wording, `flags.md` exception wording, the `DynamicFlag` Scaladoc example); the scope bullets and the Scope tutorial entry (signatures, `andThen`, error text, `wire.md`, `finalization.md`, thread ownership, Scala 3 `Unscoped` derivation, single-use `Resource.from`, plus leftover cycle-detection claims in two guides); `context.md` `Wire.make`; the telemetry JDK 21, 3.9 artifact and double-printing items (and the `HistogramDataPoint` boundaries Scaladoc); `telemetry-guide.md` `log.removeAll()` teardown; the `B3Propagator.multi` Scaladoc header list; the async Scala 3 `Completer` warning; and the T-12 entry in the `docs/index.md` Guides list. The library entries those pages now name carry a Status line.
 - Streams doc errors fixed in #1881 (batch 1, merge `c8c65babe`, three review rounds): `stream.md` (`repeated` described as rematerializing, a warning box quoting replaced `mapPar` Scaladoc, the wrong `fromAcquireRelease` output, the eager `FileReader`, an unreachable Scala.js merge path, the `bufferSize` claim, and no Long/Double count note in "The Reader Protocol"); the worker-thread-name, virtual-thread-fallback, Scala.js `ReadableStream`, `NioReaders.fromChannel`, `NioWriters.fromByteBuffer` and full-buffer `NioSinks` statements in `platform-differences.md`, `reader.md`, `writer.md` and `sink.md` (the thread-name text changes again once that library bug is fixed); `zero-boxing.md` saying `Sink` has unboxed `write` methods (it now also names the accumulator boxing as a known bug); `streaming-library-migration.md` telling readers to pick a sentinel on every lane; and the `SinkSentinelGuardExample`/`SinkSentinelLimitationExample` pair, replaced by `streams-examples/src/main/scala/sink/SinkSentinelExample.scala`, with a `NioStreamsSinksSpec` case that writes `Long.MaxValue` and `Double.MaxValue`. The same PR documents the two `Stream#start` findings from H-53.
 - Already fixed on `main`, moved here on 2026-10-28 after checking each page: `docs/reference/mux.mdx` registry and single-consumer wording (#1870, H-29); the `openapi.md` signature, install, round-trip, `Parameter`/`Operation` and extensions bullets (H-39); the `http-model/schema.md` `RequestSchemaOps`/`ResponseSchemaOps` and "Supported Types" bullets (#1879); the `binding.md`, `registers.md`, `binding-resolver.md` and `Registry#bind`/`StructuralReflection` Scaladoc bullets (schema Scaladoc wave 3).
 - Schema-core doc errors fixed in #1877 (batch 2a, merge `edd42b4a2`, three review rounds): `maybe.md` said flat primitive `Maybe`s allocate nothing (they are stored as JVM boxes; only cached small values are free); `typeid.md:1927` listed named tuples under `TypeRepr.Tuple` (a named tuple is an applied `NamedTuple`, labels `None`); `as.md` called dropping a one-sided `Option` field a clean round trip (`Some(v)` comes back `None`; `into.md` qualified too); `migration.md` and the ZIO Schema migration guide called `DynamicMigration` serializable or "plain data" (no `Schema`, so no codec); `dynamic-schema.md` and three `schema-examples` comments said a `DynamicSchema` can be stored as JSON and that `BindingResolver.defaults` covers `Option` (now a compiled Avro storage subsection, a compiled `Option` binding, and the `toSchema`/`check` JSON caveat); `data-migration.md` promised that `fence()` stops producers and that `complete()` migrates every queued row, and its Full Example did not compile (rewritten after H-23, run against PostgreSQL 16 and SQLite). `schema.md` gained a compiled "Tuples" subsection and the named-tuple `given` rule and known bugs; those library entries stay open with a Status line.
