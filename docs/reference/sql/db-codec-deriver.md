@@ -14,13 +14,13 @@ keywords:
 
 `DbCodecDeriver` is a schema-driven derivation engine that converts a `Schema[A]` into a `DbCodec[A]`. 
 
-The companion object `DbCodecDeriver` is itself an instance of the class constructed with the default `SqlNameMapper.SnakeCase`. `DbCodec.derived`, `DbCodec.builder`, `DbCodec.derivedWith`, and `Table.derived` all delegate to this deriver; application code rarely constructs or calls it directly.
+The companion object `DbCodecDeriver` is itself an instance of the class constructed with the default `SqlNameMapper.SnakeCase`. `DbCodec.derived`, `DbCodec.builder`, `DbCodec.derivedWith`, and `Table.derived` all delegate to this deriver for the row codec; application code rarely constructs or calls it directly.
 
 Key properties:
 - **Schema-driven** — derivation is entirely data-driven from the `Schema`'s `Reflect` tree; no separate macro or annotation processor is involved beyond `Schema.derived`.
 - **Configurable naming** — the `columnNameMapper: SqlNameMapper` constructor parameter controls how Scala field names become SQL column names; the default is `SnakeCase`.
 - **Annotation-aware** — `@Modifier.transient` fields are skipped; `@Modifier.rename` overrides the mapper for individual fields; `@Modifier.config("sql.inline","true")` flattens a nested record into the parent's column list.
-- **JSONB fallback** — non-inline nested records, sequences, maps, and dynamic values fall back to a single `TEXT` / `JSONB` column backed by `DbCodec.jsonb`.
+- **JSON fallback** — non-inline nested records, sequences, maps, and dynamic values are stored as JSON in a single column backed by `DbCodec.jsonb`. The codec binds the JSON as a string (`DbValue.DbString`), which both dialects map to `TEXT`; no dialect emits `JSONB`, so a `JSONB` column on PostgreSQL must be declared by hand. In 0.0.56, `Table.derived` and `Repo.derived` don't follow this fallback, a known bug: they split a non-inline nested record into one column per field and throw for a collection field, so they work only for records whose nested record fields carry `sql.inline` (see the caution under [`Table#createTable`](./table.md#createtable--generate-a-create-table-statement)).
 
 The structural shape of `DbCodecDeriver` is:
 
