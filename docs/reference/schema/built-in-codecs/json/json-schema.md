@@ -339,7 +339,7 @@ emailSchema.check(invalidEmail, ValidationOptions.annotationOnly)  // None
 
 Validation errors include path information:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.schema.json.{JsonSchema, Json, JsonSchemaType}
 import zio.blocks.chunk.ChunkMap
 
@@ -363,7 +363,6 @@ val invalid = Json.Object(
 
 schema.check(invalid) match {
   case Some(err) => println(err.message)
-  // "String 'invalid' is not a valid email address"
   case None => println("Valid")
 }
 ```
@@ -483,6 +482,8 @@ val strictArray = JsonSchema.Object(
 - `minLength`, `maxLength`, `pattern`
 - `minItems`, `maxItems`, `uniqueItems`, `minContains`, `maxContains`
 - `minProperties`, `maxProperties`, `required`, `dependentRequired`
+
+JSON Schema applies `pattern` anywhere in the string, so `"[0-9]{3}"` matches `"a123b"`. A known bug in 0.0.56: `JsonSchema#check` enforces `pattern` only when it starts with `^` and ends with `$`, and it ignores any other pattern. Write the pattern with both anchors, such as `"^[0-9]{3}$"`, until the bug is fixed, so that the check and the JSON Schema agree.
 
 ### Format Vocabulary
 - `format`

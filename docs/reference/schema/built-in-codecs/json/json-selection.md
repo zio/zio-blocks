@@ -89,7 +89,7 @@ val email = data.get("user").get("email")
 
 ### Array Navigation
 
-Access array elements by index using `JsonSelection#apply` or `JsonSelection#get`:
+Access array elements by index with `Json#get` on a `Json` value, or with `JsonSelection#apply` on a selection:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
