@@ -54,7 +54,7 @@ object ReaderCompositionExample extends App {
 
   println("\n=== Stream.start: manual pull with Scope ===")
   Scope.global.scoped { scope =>
-    import scope.*
+    import scope._
 
     // Create a stream and open it for manual pulling
     val reader: scope.$[Reader.SyncReader[Int]] = Stream.range(1, 6).start(using scope)

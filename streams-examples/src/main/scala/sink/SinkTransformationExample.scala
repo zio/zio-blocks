@@ -1,6 +1,6 @@
 package sink
 
-import zio.blocks.streams.*
+import zio.blocks.streams._
 import zio.sbt.ExprEval.show
 
 object SinkTransformationExample extends App {
