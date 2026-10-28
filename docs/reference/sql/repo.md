@@ -533,7 +533,7 @@ val updated: Int  = repo.insertOrUpdate(User(1, "Alice Smith", "alice.smith@exam
 ```
 
 :::caution
-`ON CONFLICT` needs a `PRIMARY KEY` or `UNIQUE` constraint on the ID column, and `Table#createTable` doesn't declare one. On a table created with `Table#createTable`, `Repo#insertOrUpdate` fails; SQLite reports `ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint`. The method also throws `IllegalArgumentException` when the table has no columns besides the ID.
+Known bug in 0.0.56: `Table#createTable` declares no `PRIMARY KEY`, so `Repo#insertOrUpdate` fails on a table that it creates. `ON CONFLICT` needs a `PRIMARY KEY` or `UNIQUE` constraint on the ID column, and SQLite reports `ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint`. The method also throws `IllegalArgumentException` when the table has no columns besides the ID. Until the bug is fixed, create such a table with a hand-written statement, as shown below.
 :::
 
 To use `Repo#insertOrUpdate`, we create the table ourselves and declare the ID column as the primary key:
