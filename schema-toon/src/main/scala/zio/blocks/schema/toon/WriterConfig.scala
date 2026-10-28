@@ -23,17 +23,23 @@ package zio.blocks.schema.toon
  * All configuration params are already initialized to default values, but in
  * some cases they should be altered:
  *   - change the indentation step (default 2 spaces per level)
- *   - change the delimiter for inline arrays (comma, tab, or pipe)
- *   - enable key folding to produce more compact output for shallow structures
+ *   - change the delimiter for inline arrays (comma, tab, or pipe) written by
+ *     the `DynamicValue` codec; a derived codec takes its delimiter from
+ *     [[ToonCodecDeriver.withDelimiter]] instead
+ *   - enable key folding to write a chain of single-field records as one
+ *     dot-separated key (`DynamicValue` codec only)
  *   - adjust flatten depth to control when nested records use indentation
  *   - set discriminator field for DynamicValue variant encoding
  *
  * @param indent
  *   the number of spaces per indentation level (default: 2)
  * @param delimiter
- *   the delimiter character for inline arrays (default: Comma)
+ *   the delimiter character for inline arrays written by the `DynamicValue`
+ *   codec (default: Comma); derived codecs ignore it and use
+ *   [[ToonCodecDeriver.withDelimiter]]
  * @param keyFolding
- *   strategy for folding nested keys (default: Off)
+ *   strategy for folding chains of single-field records into dot-separated
+ *   keys; only the `DynamicValue` codec reads it (default: Off)
  * @param flattenDepth
  *   maximum depth at which to flatten nested structures (default: Int.MaxValue)
  * @param discriminatorField

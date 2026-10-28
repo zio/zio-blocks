@@ -210,7 +210,7 @@ The DDL Generation category provides `createTable` and `dropTable`, which produc
 
 #### `createTable` — Generate a CREATE TABLE statement
 
-`Table#createTable` accepts a `SqlDialect` and returns a `Frag` whose SQL text is a `CREATE TABLE IF NOT EXISTS` statement. Each column definition uses the dialect's `typeName` method to convert the column's `DbValue` representative to the appropriate SQL type string (for example, `DbValue.DbString` becomes `TEXT` in PostgreSQL and `TEXT` in SQLite; `DbValue.DbInt` becomes `INTEGER` in both). Non-nullable columns carry a `NOT NULL` constraint; nullable columns do not. The statement declares no `PRIMARY KEY` or `UNIQUE` constraint, not even on the column that a `Repo` uses as its ID, so `Repo#insertOrUpdate` needs a table you create yourself (see [Repo](./repo.md)).
+`Table#createTable` accepts a `SqlDialect` and returns a `Frag` whose SQL text is a `CREATE TABLE IF NOT EXISTS` statement. Each column definition uses the dialect's `typeName` method to convert the column's `DbValue` representative to the appropriate SQL type string (for example, `DbValue.DbString` becomes `TEXT` in PostgreSQL and `TEXT` in SQLite; `DbValue.DbInt` becomes `INTEGER` in both). Non-nullable columns carry a `NOT NULL` constraint; nullable columns do not. The statement declares no `PRIMARY KEY` or `UNIQUE` constraint, not even on the column that a `Repo` uses as its ID, so in 0.0.56 `Repo#insertOrUpdate` fails on a table made by `createTable`, a known bug; create the table yourself for it (see [Repo](./repo.md)).
 
 ```scala
 final case class Table[A](...) {
@@ -234,8 +234,10 @@ val createPg = table.createTable(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQ
 val createSq = table.createTable(SqlDialect.SQLite).sql(SqlDialect.SQLite)
 ```
 
-:::caution
-`Table#createTable` only supports column types whose `DbValue` representative maps to a primitive SQL type. Fields whose codec falls back to JSONB serialization (for example, `List[A]` or a sealed trait with multiple variants) will produce a `TEXT` or `JSONB` column — the DDL column type depends on the representative `DbValue` assigned during column metadata derivation, which in those cases is `DbValue.DbString`. Nested records that are flattened into multiple columns are fully supported.
+:::caution[Nested Records and Collections]
+`Table.derived` computes its column list from the `Schema` on its own, not from the row codec, and in 0.0.56 the two disagree for some field types, a known bug. A nested case class field becomes `<field>_<subfield>` columns, but the codec stores it as one JSON column unless the field is annotated with `@Modifier.config("sql.inline", "true")`, so without the annotation the table and the codec have different columns and `Repo#insert` fails. A `List`, `Set`, `Map` or other collection field, and a sealed trait whose cases have fields, make `Table.derived` and `Repo.derived` throw `UnsupportedOperationException` before any SQL runs. An enumeration of case objects becomes a `TEXT` column.
+
+So `Table.derived`, `Repo.derived` and `Table#createTable` work only for records whose nested record fields carry `sql.inline`. To keep a field as a JSON column, build the `Table` with `Table.apply` from the codec's own `DbCodec#columns`, pass it to `Repo.apply`, and write the `CREATE TABLE` statement by hand. No dialect emits `JSONB`, so a JSON column on PostgreSQL must be declared `JSONB` yourself. [How to Map Custom Column Types](../../guides/map-custom-column-types.md#store-a-nested-case-class-as-json) shows both.
 :::
 
 #### `dropTable` — Generate a DROP TABLE statement
@@ -270,7 +272,7 @@ table.dropTable.sql(SqlDialect.SQLite)
 
 ### `ColumnMeta`
 
-`ColumnMeta` is a final case class that carries the per-column metadata consumed by `Table#createTable` for DDL generation. Each field in a schema-derived type produces exactly one `ColumnMeta` (nested records are flattened; optional fields set `nullable = true`).
+`ColumnMeta` is a final case class that carries the per-column metadata consumed by `Table#createTable` for DDL generation. Each primitive field in a schema-derived type produces exactly one `ColumnMeta`; optional fields set `nullable = true`. A nested record field produces one `ColumnMeta` per subfield, named `<field>_<subfield>`, even when the codec stores it as one JSON column (see the caution under [`createTable`](#createtable--generate-a-create-table-statement)).
 
 ```scala
 final case class ColumnMeta(name: String, dbValue: DbValue, nullable: Boolean)

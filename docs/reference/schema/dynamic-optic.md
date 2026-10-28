@@ -97,7 +97,7 @@ Each of the `DynamicOptic` nodes represents a different way to navigate through 
 Key design decisions:
 
 - **Map keys as `DynamicValue`** — Map keys can be any type (`String`, `Int`, `Boolean`, etc.), so `AtMapKey` stores the key as a `DynamicValue` to remain type-agnostic.
-- **Dual rendering** — `toString` produces a compact interpolator syntax (`.field[0]{key}`), while `toScalaString` produces Scala method-call syntax (`.field.at(0).atKey(key)`). The compact format is designed to be copy-pasteable into the `p"..."` string interpolator (except for wrapper steps `.~`, the empty path `.` and `Char` keys with an escape, which the interpolator rejects), while the Scala format is used in error messages.
+- **Dual rendering** — `toString` produces a compact interpolator syntax (`.field[0]{key}`), while `toScalaString` produces Scala method-call syntax (`.field.at(0).atKey(key)`). The compact format is designed to be copy-pasteable into the `p"..."` string interpolator (except for wrapper steps `.~`, the empty path `.` and `Char` keys with an escape, which the interpolator rejects, a known bug in 0.0.56), while the Scala format is used in error messages.
 - **Every typed `Optic` has a `toDynamic` method** — This bridges the typed and untyped worlds, allowing any `Lens`, `Prism`, `Optional`, or `Traversal` to produce its `DynamicOptic` representation.
 
 ## Construction
@@ -335,7 +335,8 @@ OpticCheck(errors: ::[Single])
  └── Single (sealed trait)
       ├── Error (sealed trait)
       │    ├── UnexpectedCase    — prism matched wrong variant case
-      │    └── WrappingError     — wrapper conversion failed
+      │    ├── WrappingError     — wrapper conversion failed
+      │    └── DynamicConversionError — SchemaExpr#eval could not decode its result
       └── Warning (sealed trait)
            ├── EmptySequence     — traversal over empty sequence
            ├── SequenceIndexOutOfBounds — index beyond sequence length
@@ -343,12 +344,12 @@ OpticCheck(errors: ::[Single])
            └── EmptyMap          — traversal over empty map
 ```
 
-Every `OpticCheck.Single` carries two `DynamicOptic` paths:
+Every `OpticCheck.Single` carries two `DynamicOptic` paths (for `DynamicConversionError`, which has no step, both are the root path):
 
 - **`full`** — The complete optic path that was being evaluated
 - **`prefix`** — The path up to the point where the error occurred
 
-Error messages use `toScalaString` for human-readable output:
+[Error Reporting with OpticCheck](./optics.md#error-reporting-with-opticcheck) describes each problem and its fields. Error messages use `toScalaString` for human-readable output:
 
 ```
 During attempted access at .when[Email].subject,
@@ -360,7 +361,7 @@ expected Email, but got Push
 
 `DynamicOptic` provides two string formats for different contexts:
 
-- **`toString`** — Compact path syntax matching the [`p"..."` interpolator](./path-interpolator.md) format
+- **`toString`** — Compact path syntax matching the [`p"..."` interpolator](./path-interpolator.md) format, except for wrapper steps (`.~`), the root (`.`) and `Char` keys with an escape, which the interpolator rejects (a known bug in 0.0.56)
 - **`toScalaString`** — Scala method call syntax used in error messages
 
 | Node                      | `toString`   | `toScalaString`     |

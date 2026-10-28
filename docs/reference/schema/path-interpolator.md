@@ -293,16 +293,18 @@ p"#list(Person)#Person"        // Chained searches
 
 ## Escape Sequences
 
-String and character literals support standard escape sequences:
+String and character literals accept a small set of escape sequences, and the two kinds of literal accept different quote escapes:
 
-| Escape | Result  | Description     |
-|--------|---------|-----------------|
-| `\n`   | newline | Line feed       |
-| `\t`   | tab     | Horizontal tab  |
-| `\r`   | return  | Carriage return |
-| `\'`   | `'`     | Single quote    |
-| `\"`   | `"`     | Double quote    |
-| `\\`   | `\`     | Backslash       |
+| Escape | Result  | In `"..."` strings | In `'...'` chars |
+|--------|---------|--------------------|------------------|
+| `\n`   | newline | Yes                | Yes              |
+| `\t`   | tab     | Yes                | Yes              |
+| `\r`   | return  | Yes                | Yes              |
+| `\\`   | `\`     | Yes                | Yes              |
+| `\"`   | `"`     | Yes                | No               |
+| `\'`   | `'`     | No                 | Yes              |
+
+Any other escape, including `\'` inside a string and `\"` inside a char, is a parse error, so the `p"..."` interpolator rejects it at compile time.
 
 Here are some examples of escape sequences in use:
 
@@ -675,19 +677,18 @@ val emailPath = basePath(p"[*].email")
 
 ### Working with DynamicValue
 
-To navigate and extract values from dynamic data:
+`DynamicValue#get` takes a path and returns a `DynamicValueSelection`, which can hold any number of values because a path with `[*]` or a search can match several. `DynamicValueSelection#one` extracts the value when the path matched exactly one, and `DynamicValue#set` replaces the value at a path:
 
-```scala mdoc:compile-only
-import zio.blocks.schema._
+```scala mdoc
+val directory: DynamicValue = DynamicValue.Record(
+  "users" -> DynamicValue.Sequence(
+    DynamicValue.Record("email" -> DynamicValue.string("alice@example.com"), "age" -> DynamicValue.int(30))
+  )
+)
 
-val data: DynamicValue = ???
+val firstEmail = directory.get(p".users[0].email").one
 
-// Navigate and extract
-val value = data.get(p".users[0].email")
-
-// Update at path (using appropriate constructor)
-val ageValue: DynamicValue = ???
-val updated = data.set(p".users[0].age", ageValue)
+val olderDirectory = directory.set(p".users[0].age", DynamicValue.int(31))
 ```
 
 ### Integration with Schema Optics
@@ -742,11 +743,11 @@ These limitations ensure compile-time safety and zero runtime overhead.
 
 ## Debug-Friendly toString
 
-`DynamicOptic` instances have a custom `toString` that produces output matching the `p"..."` interpolator syntax. This makes debugging easier because you can copy the output directly into your code, except for wrapper steps (`.~`), the empty path (`.`) and `Char` keys with an escape, which the interpolator rejects:
+`DynamicOptic` instances have a custom `toString` that produces output matching the `p"..."` interpolator syntax. This makes debugging easier because you can copy the output directly into your code, except for wrapper steps (`.~`), the empty path (`.`) and `Char` keys with an escape, which the interpolator rejects, a known bug in 0.0.56:
 
 ```scala mdoc
 val optic = DynamicOptic.root.field("users").elements.field("email")
-println(optic)  // Output: .users[*].email
+println(optic)
 
 // The output can be copy-pasted into p"..."
 val same = p".users[*].email"

@@ -74,12 +74,15 @@ In this guide, we let the stream own the handle: it opens the handle when it sta
 Add the streams module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 LTS
+// Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
 
-// Scala 3.7 and newer
+// Scala 3.9 and newer, which also needs -experimental
 libraryDependencies += "dev.zio" %% "zio-blocks-next-streams" % "@VERSION@"
+scalacOptions += "-experimental"
 ```
+
+[How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains which artifact name each Scala version uses.
 
 The streams module depends on the scope module, so `zio.blocks.scope.Resource` and `Scope` are available without another dependency. On the JVM, the streams module needs JDK 21 or newer. `NioStreams`, `NioSinks`, `Stream#start` and the blocking terminals such as `Stream#runCollect` exist only on the JVM; the other constructors on this page also work on Scala.js, where you run the stream with an asynchronous terminal such as `Stream#runCollectAsync`.
 
