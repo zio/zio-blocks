@@ -8918,6 +8918,93 @@ object Repro {
 
 **Suggested fix.** In `FlatMappedBase#close`, drop the `operationFailed` rethrow (keep `closeFailure`), or rethrow only when the failure was never delivered to a caller. Add a `StreamStartSpec` case: pull a failing `flatMap` stream, catch the failure, then assert that `close()` returns normally and that `Scope#scoped` exits normally.
 
+### sql: `Option[BigDecimal]`, `Option[Char]` and their `Maybe` forms throw on SQL `NULL`, with an error that recommends using them
+
+Found 2026-10-28 while fixing `docs/reference/sql/db-codec.md` (batch 4b doc-fix sweep, branch `data-doc-fixes` on top of `4e288c5f2`). The code is the same at tag `v0.0.56` (`git diff v0.0.56 -- sql/` is empty). Verified by running the reproduction below against the published 0.0.56.
+
+**Summary.** A nullable column read into an `Option[BigDecimal]` field fails on `NULL` with `IllegalStateException: Encountered SQL NULL while decoding non-optional BigDecimal. Use Option[BigDecimal] or Maybe[BigDecimal] for nullable columns.` The field already is `Option[BigDecimal]`. `Maybe[BigDecimal]` and a derived `Option[Char]` field fail the same way. So 0.0.56 has no codec that reads a nullable decimal or char column. On SQLite, a single-column `query[Option[BigDecimal]]` fails earlier with `java.sql.SQLException: column -1 out of bounds [1,1]`.
+
+**Reproduction** (Scala 3.3.7, `zio-blocks-sql` 0.0.56, sqlite-jdbc 3.53.4.0, run with `scala-cli run --server=false OptionalDecimal.scala`):
+
+```scala
+//> using scala 3.3.7
+//> using dep dev.zio::zio-blocks-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import scala.util.Try
+import zio.blocks.maybe.Maybe
+import zio.blocks.sql.*
+
+case class Book(id: Long, price: Option[BigDecimal]) derives DbCodec
+case class BookMaybe(id: Long, price: Maybe[BigDecimal]) derives DbCodec
+case class Grade(id: Long, letter: Option[Char]) derives DbCodec
+
+@main def optionalDecimal(): Unit = {
+  val tx = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+  tx.transact {
+    sql"CREATE TABLE book (id INTEGER NOT NULL, price NUMERIC, letter TEXT)".update
+    sql"INSERT INTO book (id) VALUES (1)".update
+    println(Try(sql"SELECT id, price FROM book".query[Book]))
+    println(Try(sql"SELECT id, price FROM book".query[BookMaybe]))
+    println(Try(sql"SELECT id, letter FROM book".query[Grade]))
+    println(Try(sql"SELECT price FROM book".query[Option[BigDecimal]]))
+  }
+}
+// Failure(java.lang.IllegalStateException: Encountered SQL NULL while decoding non-optional BigDecimal. Use Option[BigDecimal] or Maybe[BigDecimal] for nullable columns.)
+// Failure(java.lang.IllegalStateException: Encountered SQL NULL while decoding non-optional BigDecimal. Use Option[BigDecimal] or Maybe[BigDecimal] for nullable columns.)
+// Failure(java.lang.IllegalStateException: Encountered SQL NULL while decoding non-optional Char. Use Option[Char] or Maybe[Char] for nullable columns.)
+// Failure(java.sql.SQLException: column -1 out of bounds [1,1])
+```
+
+**Expected.** `List(Book(1,None))`, `List(BookMaybe(1,Maybe.absent))`, `List(Grade(1,None))` and `List(None)`.
+
+**Root cause.** `DbCodec.optionCodec` and `maybeCodec` (`sql/shared/src/main/scala/zio/blocks/sql/DbCodec.scala:196-215`, `:233-247`) and the deriver's optional wrapper (`DbCodecDeriver.scala:365-386`) first ask `reader.isNull(...)`, then run the inner codec, then check `reader.wasNull`. The JDBC reader fills its null bitmap only when a getter has read the column (`sql/jvm/src/main/scala/zio/blocks/sql/JdbcResultReader.scala:61-65`, `:283-285`; the `isNull` Scaladoc at `DbCodec.scala:460-470` says so), so `isNull` is always `false` before the read. The inner `bigDecimalCodec` (`DbCodec.scala:333-341`) and the deriver's `decodeChar` (`DbCodecDeriver.scala:661-662`) throw on `null` during that read, before the wrapper reaches its `wasNull` check. The SQLite-only `column -1 out of bounds` comes from sqlite-jdbc: after `getBigDecimal` returns `null` for the first column read in a row, its `wasNull()` throws, and `JdbcResultReader.getBigDecimal` calls `wasNull()` (`JdbcResultReader.scala:139-149`).
+
+**Impact.** Any table with a nullable `NUMERIC`/`DECIMAL` money column, or a nullable `CHAR(1)`, can't be read through the derived codec at all, and the error message sends readers to the type they already use. `Repo#find`/`Repo#all` on such a table throw on the first `NULL`.
+
+**Test gap.** `DbCodecSpec.scala:612-616` tests that a plain `BigDecimal` throws on `NULL`; no test reads `NULL` into `Option[BigDecimal]`, `Maybe[BigDecimal]` or `Option[Char]` through a JDBC reader.
+
+**Suggested fix.** In the optional wrappers, let the inner codec see the `null` instead of failing: for example give `bigDecimalCodec` and `decodeChar` a variant that returns `null` and let the wrapper map it with `wasNull`, or have the wrapper read the raw column with `getObject` and check for `null` before calling the inner codec. Add JDBC-backed tests for `Option`/`Maybe` of `BigDecimal` and `Char`. The docs (`db-codec.md`, fixed in the batch 4b PR) name this as a known bug and suggest reading the column as `Option[String]`.
+
+### schema-toon: the `DynamicValue` codec ignores the array length in the header
+
+Found 2026-10-28 while fixing `docs/reference/schema/built-in-codecs/toon.md` (batch 4b, branch `data-doc-fixes` on top of `4e288c5f2`). schema-toon has only Scaladoc changes since `v0.0.56`. Verified by running the reproduction below against 0.0.56.
+
+**Summary.** A TOON array header carries the element count (`[3]:`). A derived codec checks it and fails with `Array count mismatch`; the `DynamicValue` codec (`Schema[DynamicValue].derive(ToonFormat)`) accepts any number of elements, so truncated or padded input decodes silently.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema-toon` 0.0.56, run with `scala-cli run --server=false DynamicCount.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.toon._
+
+object DynamicCount extends App {
+  val dynamicCodec = Schema[DynamicValue].derive(ToonFormat)
+  val listCodec    = Schema[List[String]].derive(ToonFormat)
+  // The header says 3 items, the line holds 2
+  println(dynamicCodec.decode("[3]: scala,zio"))
+  println(listCodec.decode("[3]: scala,zio"))
+}
+// Right([
+//   "scala",
+//   "zio"
+// ])
+// Left(zio.blocks.schema.SchemaError: Array count mismatch: expected 3 items but got 2 at: .)
+```
+
+**Expected.** Both decoders fail with `Array count mismatch: expected 3 items but got 2`.
+
+**Root cause.** The `DynamicValue` codec's `decodeArrayFieldValue` (`schema-toon/src/main/scala/zio/blocks/schema/toon/ToonCodec.scala:965-998`) parses the header's length, but `decodeInlinePrimitives` (`:723-733`) never looks at it, and `decodeTabularRows` (`:700-721`) and the list reader use it only as an upper bound (`count < length`, `:708`), so a short array is accepted. The derived codec checks the count in every form (`ToonCodecDeriver.scala:927`, `:1017`, `:1078`, `:1105`).
+
+**Impact.** Readers who use the `DynamicValue` codec to validate LLM output or files (as the key-folding and path-expansion features require) don't get the length check TOON's header exists for.
+
+**Test gap.** No test decodes a mismatched count with the `DynamicValue` codec.
+
+**Suggested fix.** Check the count in the `DynamicValue` codec's inline, list and tabular array readers, with the same error message as the derived codec.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -12476,6 +12563,39 @@ Pages that contradict the source. None of these were copied into the new guides.
 - Line 693 shows `items:` for `ArrayFormat.List`; the output is `items[N]:`.
 - Line 1044 shows `Expected sequence, got: invalid`; the source message is `Expected array header with [`.
 - Lines 14 and 659 say there are three array formats; there are four.
+- `toon.md` "Safe Flattening" (`:947-957` on `4e288c5f2`) shows `KeyFolding.Safe` folding a two-field `address` record into `address.street`/`address.city`. Even on the `DynamicValue` codec, `KeyFolding.Safe` only folds chains of single-field records (`settings.server.port: 8080`); a record with two or more fields stays an indented block. Verified with the reproduction below (found by batch 4b, 2026-10-28; fixed in the batch 4b PR).
+- `toon.md` "Delimiter Configuration" under `ReaderConfig` (`:631-640`) and the `ReaderConfig` Scaladoc say `ReaderConfig.withDelimiter(Delimiter.Tab)` makes the reader expect tabs in inline arrays. It has no effect on decoding arrays: the reader takes each array's delimiter from its header (`ToonReader.scala:340`, `:413-420`), and a header without a delimiter marker means comma. Fixed in the batch 4b PR (page and Scaladoc).
+- `toon.md` "Inline Format"/"Tabular Format" didn't say that `ArrayFormat.Inline` writes record arrays in list form and `ArrayFormat.Tabular` writes primitive arrays in list form; the `Delimiter` examples showed `tags[3]: scala|zio|functional` where the output is `tags[3|]: scala|zio|functional`. Fixed in the batch 4b PR with evaluated mdoc.
+
+  Reproduction for the first two (Scala 2.13.18, `zio-blocks-schema-toon` 0.0.56, `scala-cli run --server=false KeyFoldingDoc.scala`):
+
+  ```scala
+  //> using scala 2.13.18
+  //> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+
+  import zio.blocks.schema._
+  import zio.blocks.schema.toon._
+
+  object KeyFoldingDoc extends App {
+    case class Address(street: String, city: String)
+    object Address { implicit val schema: Schema[Address] = Schema.derived }
+    case class Person(name: String, address: Address)
+    object Person { implicit val schema: Schema[Person] = Schema.derived }
+
+    val dynamicCodec = Schema[DynamicValue].derive(ToonFormat)
+    val person       = Person("Alice", Address("Main St", "Springfield"))
+    val safe         = WriterConfig.withKeyFolding(KeyFolding.Safe)
+    // toon.md "Safe Flattening" promises: address.street: Main St / address.city: Springfield
+    println(dynamicCodec.encodeToString(Person.schema.toDynamicValue(person), safe))
+    // toon.md "Delimiter Configuration" (ReaderConfig) promises tab-separated inline arrays
+    println(Schema[List[String]].derive(ToonFormat).decode("[3]: a\tb\tc", ReaderConfig.withDelimiter(Delimiter.Tab)))
+  }
+  // name: Alice
+  // address:
+  //   street: Main St
+  //   city: Springfield
+  // Left(zio.blocks.schema.SchemaError: Array count mismatch: expected 3 items but got 1 at: .)
+  ```
 
 ### docs: `db-codec.md` says non-optional types throw on SQL `NULL`, but `String` decodes to `null` and numeric types to `0`
 
