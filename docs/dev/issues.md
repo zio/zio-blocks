@@ -9021,6 +9021,167 @@ object DynamicCount extends App {
 
 **Suggested fix.** Check the count in the `DynamicValue` codec's inline, list and tabular array readers, with the same error message as the derived codec.
 
+### sql: `Rel.manyToOne` and `Rel.oneToMany` ignore `@Modifier.rename`, so a `Rel` on a renamed column throws when it is built
+
+Found 2026-10-28 while writing the reference page `docs/reference/sql/rel.md`, on `main` at `6462ef6e9`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 -- sql/shared/src/main/scala/zio/blocks/sql/query` is empty.
+
+**Summary.** The selector forms `Rel.manyToOne(from, _.field, to, _.key)` and `Rel.oneToMany(...)` turn the selected field's name into a column name with `SqlNameMapper.SnakeCase`, whatever the table really calls that column. `Table.derived` honours `@Modifier.rename`, so for a renamed field the two disagree: the macro asks for `customer_id`, the table has `buyer_id`, and the `Rel` constructor throws `IllegalArgumentException` at run time. The compile-time field check passes, so the code compiles and fails on first use. Only the string form `Rel(from, "buyer_id", to, "customer_id")` works.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56). `Repro.sc`, run with `scala-cli run --server=false Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+
+import scala.util.Try
+import zio.blocks.schema.{Modifier, Schema}
+import zio.blocks.sql.query.*
+import zio.blocks.sql.*
+
+case class Customer(customerId: Int, name: String)
+object Customer { given Schema[Customer] = Schema.derived }
+
+case class Invoice(invoiceId: Int, @Modifier.rename("buyer_id") customerId: Int)
+object Invoice { given Schema[Invoice] = Schema.derived }
+
+val customers = Table.derived[Customer]
+val invoices  = Table.derived[Invoice]
+
+println(invoices.columns)
+// Vector(invoice_id, buyer_id)
+println(Try(Rel.manyToOne(invoices, _.customerId, customers, _.customerId)))
+// Failure(java.lang.IllegalArgumentException: FK column invoice.customer_id (validated as 'customer_id') not found in table 'invoice' columns: invoice_id, buyer_id)
+println(SqlQuery.from(invoices).join(Rel(invoices, "buyer_id", customers, "customer_id")).sql(SqlDialect.SQLite))
+// SELECT t0."invoice_id", t0."buyer_id", t1."customer_id", t1."name" FROM "invoice" AS t0 INNER JOIN "customer" AS t1 ON t0."buyer_id" = t1."customer_id"
+```
+
+**Expected.** `Rel.manyToOne(invoices, _.customerId, customers, _.customerId)` builds `Rel(invoices, "buyer_id", customers, "customer_id")`, the column the table actually has.
+
+**Root cause.** `RelMacros.extractColumn` (`sql/shared/src/main/scala/zio/blocks/sql/query/RelMacros.scala:47-66`) checks the field name against the case class's fields and returns `SqlNameMapper.SnakeCase(fieldName)` (`:65`). It never reads the field's modifiers. `TableMetadata.columnsFor` uses `@Modifier.rename` first (`sql/shared/src/main/scala/zio/blocks/sql/TableMetadata.scala:76-77`). `Rel`'s constructor then rejects the snake-cased name (`sql/shared/src/main/scala/zio/blocks/sql/query/Rel.scala:35-42`).
+
+**Impact.** Any schema that renames a key column (common when a legacy database has its own naming) can't use the selector constructors, which are the ones the docs teach. The failure is a run-time exception on a line that compiled.
+
+**Test gap.** `QueryRenderSpec` and `ExplainSpec` build every `Rel` with string column names or on tables without modifiers; no test uses a selector on a renamed field.
+
+**Suggested fix.** Have the macro read the field's `@Modifier.rename` annotation (as `TableMetadata.columnsFor` does), or, simpler and robust to any naming, resolve the column at run time: pass the field's position and take `table.columns(position)` instead of a name. Add a test with a renamed foreign-key field.
+
+### sql: `SqlQuery#offset` without `limit` renders `OFFSET n` alone, which SQLite rejects
+
+Found 2026-10-28 while writing the reference page `docs/reference/sql/sql-query.md`, on `main` at `6462ef6e9`. The code is the same at tag `v0.0.56`.
+
+**Summary.** `SqlQuery.from(t).offset(n)` without a `limit` renders `... OFFSET n` with no `LIMIT`. SQLite's grammar only allows `OFFSET` after `LIMIT`, so the query fails with a syntax error when it runs. The builder accepts the call, and `sql`/`explain` show the broken SQL without a warning. (PostgreSQL's grammar allows `OFFSET` on its own, so the same query works there.)
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0). `Repro.sc`, run with `scala-cli run --server=false Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import java.nio.file.Files
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.query.*
+import zio.blocks.sql.*
+
+case class Customer(customerId: Int, name: String)
+object Customer { given Schema[Customer] = Schema.derived }
+
+val customers = Table.derived[Customer]
+val tx        = JdbcTransactor.fromUrl(s"jdbc:sqlite:${Files.createTempFile("offset", ".db")}", SqlDialect.SQLite)
+val page2     = SqlQuery.from(customers).orderBy("name").offset(1)
+
+println(page2.sql(SqlDialect.SQLite))
+// SELECT t0."customer_id", t0."name" FROM "customer" AS t0 ORDER BY t0."name" ASC OFFSET 1
+println(Try(tx.connect {
+  sql"CREATE TABLE customer (customer_id INTEGER PRIMARY KEY, name TEXT NOT NULL)".update
+  page2.toFrag(SqlDialect.SQLite).query[Customer]
+}))
+// Failure(org.sqlite.SQLiteException: [SQLITE_ERROR] SQL error or missing database (near "OFFSET": syntax error))
+```
+
+**Expected.** Either the SQLite rendering adds `LIMIT -1` before a lone `OFFSET` (SQLite's documented "no limit"), or `offset` without `limit` is rejected up front.
+
+**Root cause.** `QueryRenderer.render` appends `LIMIT` and `OFFSET` independently (`sql/shared/src/main/scala/zio/blocks/sql/query/QueryRenderer.scala:99-105`) and ignores its `dialect` parameter (`@unused`, `:31`), so it can't render the SQLite form.
+
+**Impact.** "Skip the first n rows" fails on SQLite, the database the docs and tests use most. The workaround is to always pass a `limit` with an `offset`.
+
+**Test gap.** `QueryRenderSpec` (`sql/shared/src/test/scala/zio/blocks/sql/query/QueryRenderSpec.scala:122-138`) and `ExplainSpec` (`sql/shared/src/test/scala/zio/blocks/sql/ExplainSpec.scala:111-131`) only test `offset` together with `limit`, and only compare strings; none runs the SQL.
+
+**Suggested fix.** In `QueryRenderer.render`, when `offset` is set and `limit` isn't, emit `LIMIT -1` for `SqlDialect.SQLite` (PostgreSQL can keep `OFFSET n` alone). Add a SQLite test that runs `offset` without `limit`.
+
+### sql: `Dump.dumpTable` ignores `@Modifier.rename` and the table's real name, so the dumped DDL differs from the table
+
+Found 2026-10-28 while writing the reference page `docs/reference/sql/dump.md`, on `main` at `6462ef6e9`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 -- sql/shared/src/main/scala/zio/blocks/sql/Dump.scala` is empty.
+
+**Summary.** `Dump.dumpTable(table)` doesn't dump the `Table` it is given. It rebuilds a `CREATE TABLE` from the row type's case-class fields at compile time. Each column is the field name in snake_case, even when `@Modifier.rename` gives the column another name. The table name is the first string literal in the argument expression, or else the type name in snake_case. So a table named by `TableNamingPolicy.Plural`, or by a string held in another `val`, is dumped under the singular type name. The files are meant for review, so a reviewer reads DDL for a column and a table that don't exist.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56). `DumpRepro.scala`, run with `JAVA_TOOL_OPTIONS="-Dzib.sql.dumpDir=$PWD/dumps" scala-cli run --server=false DumpRepro.scala`, then `for f in dumps/*; do echo "// $f"; cat $f; done`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+
+package dumprepro
+
+import zio.blocks.schema.{Modifier, Schema}
+import zio.blocks.sql.*
+
+case class Invoice(invoiceId: Int, @Modifier.rename("buyer_id") customerId: Int, note: Option[String])
+object Invoice { given Schema[Invoice] = Schema.derived }
+
+object Tables {
+  val invoices = Table.derived[Invoice]("invoices")
+  val plural   = Table.derived[Invoice](TableNamingPolicy.Plural)
+}
+
+object Dumps {
+  Dump.dumpTable(Table.derived[Invoice]("invoices"))
+  Dump.dumpTable(Tables.plural)
+
+  @main def show(): Unit = {
+    println(Tables.invoices.createTable(SqlDialect.SQLite).sql(SqlDialect.SQLite))
+    println(Tables.plural.name)
+  }
+}
+
+// Program output:
+// CREATE TABLE IF NOT EXISTS invoices (
+//   invoice_id INTEGER NOT NULL,
+//   buyer_id INTEGER NOT NULL,
+//   note TEXT
+// )
+// invoices
+//
+// Dump files:
+// dumps/invoice-postgresql.sql
+// CREATE TABLE IF NOT EXISTS invoice (
+//   invoice_id INTEGER NOT NULL,
+//   customer_id INTEGER NOT NULL,
+//   note TEXT
+// )
+// dumps/invoices-postgresql.sql
+// CREATE TABLE IF NOT EXISTS invoices (
+//   invoice_id INTEGER NOT NULL,
+//   customer_id INTEGER NOT NULL,
+//   note TEXT
+// )
+// (invoice-sqlite.sql and invoices-sqlite.sql have the same content as their postgresql files)
+```
+
+**Expected.** Each dump has the same table name and columns as `table.createTable(dialect)`: `invoices` with `buyer_id` in both files.
+
+**Root cause.** `dumpTableImpl` (`sql/shared/src/main/scala/zio/blocks/sql/Dump.scala:562-587`) never evaluates the `Table`. It takes the name from `explicitTableNameFromTerm` (the first identifier-shaped string literal in the tree, `:224-241`) or `SqlNameMapper.SnakeCase(typeName)` (`:571-572`), and the columns from `deriveColumns` (`:196-222`). That maps each case field through `SqlNameMapper.SnakeCase` (`:205`) without reading its modifiers, and guesses the column type from the Scala type (`dbValueFor`, `:122-167`) instead of the codec. `Dump.dumpQuery` shares `tableInfoFromTerm`/`deriveColumns` (`:243-258`) for its `SELECT` list and table names, so a dumped query on such a table names the wrong columns and table too.
+
+**Impact.** The point of dump files is to review the SQL a program runs. For any schema with a rename or a non-default table name, the dump silently disagrees with the real DDL and query.
+
+**Test gap.** `ExplainDumpGoldenSpec` (`sql/jvm/src/test/scala/zio/blocks/sql/ExplainDumpGoldenSpec.scala`) dumps only tables whose names and columns are the defaults, and only when `-Dzib.sql.dumpDir` is set (otherwise its cases pass trivially).
+
+**Suggested fix.** Render from the `Table`'s own metadata. If the macro can't evaluate the value, emit code that writes the file on first use at run time, or require a statically known `Table.derived` call and replay its arguments (name, naming policy) through `TableMetadata.columnsFor`. Add golden cases with a renamed column and `TableNamingPolicy.Plural`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -12560,6 +12721,32 @@ Found 2026-10-28 in one local run by the `remove-stale-datastar` session (worktr
 **Test gap.** Nothing checks that every page under `docs/` (outside `docs/dev/`) gets an output file in `website/docs`.
 
 **Suggested fix.** First reproduce with plain `sbt --client` and a small heap (`SBT_OPTS=-Xmx2g`) to find who swallows the error. Then make `docs/mdoc` fail on it, or add a post-mdoc check, for example in `docs/checkDocsOnFreshWebsite` or a website unit test, that every source page has an output.
+
+### sql: the published `zio-blocks-sql` jar contains the test fixture `zio.blocks.sql.JoinsDumpExample`
+
+Found 2026-10-28 while writing the reference page `docs/reference/sql/dump.md`, on `main` at `6462ef6e9`. The file is unchanged since `v0.0.56`.
+
+**Summary.** `sql/shared/src/main/scala/zio/blocks/sql/JoinsDumpExample.scala` is a dump fixture (`User`/`Repo`/`Star` case classes, their tables, and `Dump.dumpQuery`/`Dump.dumpTable` calls). But it sits in `src/main`, so it ships in every published `zio-blocks-sql` and `zio-blocks-next-sql` jar as a public `zio.blocks.sql.JoinsDumpExample` object. Users see it in IDE completion next to the real API. A project that compiles against the module with `-Dzib.sql.dumpDir` doesn't get its dumps (those were written when the zio-blocks build compiled), but its classes are on the classpath. Nothing in the repo references it.
+
+**Reproduction** (Verified; the 0.0.56 jars from coursier's cache):
+
+```bash
+unzip -l ~/.cache/coursier/v1/https/repo1.maven.org/maven2/dev/zio/zio-blocks-next-sql_3/0.0.56/zio-blocks-next-sql_3-0.0.56.jar | grep JoinsDump
+#      2800  01-01-2010 00:00   zio/blocks/sql/JoinsDumpExample$.class
+#      ... (15 entries: JoinsDumpExample, JoinsDumpExample$, $User, $Repo, $Star and their companions and anonymous codec classes, JoinsDumpExample.tasty)
+unzip -l ~/.cache/coursier/v1/https/repo1.maven.org/maven2/dev/zio/zio-blocks-sql_3/0.0.56/zio-blocks-sql_3-0.0.56.jar | grep -c JoinsDump
+# 15
+grep -rln JoinsDumpExample sql/ build.sbt project/
+# sql/shared/src/main/scala/zio/blocks/sql/JoinsDumpExample.scala
+```
+
+**Expected.** Fixtures live under `src/test`; the published jar contains only the module's API.
+
+**Root cause.** The file was added in `src/main` with the dump feature (#1632) and never moved.
+
+**Impact.** Low: API noise (a public `zio.blocks.sql.JoinsDumpExample` with `User`, `Repo`, `Star`, `userTable`, `pg` and `sqlite` members) and a few KB on every user's classpath. Its `Repo` case class shadows nothing, but `import zio.blocks.sql.JoinsDumpExample.*` would bring in a `Repo` that isn't `zio.blocks.sql.Repo`.
+
+**Suggested fix.** Move the file to `sql/shared/src/test/scala/zio/blocks/sql/` (the golden spec already has its own fixtures), or delete it. A MiMa exclusion is needed for the removed classes.
 
 ## Documentation errors
 
