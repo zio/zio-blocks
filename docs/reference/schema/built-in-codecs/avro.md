@@ -3,7 +3,7 @@ id: avro
 title: "Avro Codec Module"
 ---
 
-`zio-blocks-schema-avro` is a **schema-driven Avro codec module** for serializing and deserializing Scala types to and from Avro binary format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `AvroCodec`, `AvroCodecDeriver`, `AvroFormat`.
+`zio-blocks-schema-avro` is a **schema-driven Avro codec module** for serializing and deserializing Scala types to and from Avro binary format. It provides comprehensive encoding and decoding with support for 30 primitive types, records, variants, sequences, maps, and recursive types. Core types: `AvroCodec`, `AvroCodecDeriver`, `AvroFormat`.
 
 The module integrates with Apache Avro to provide native binary serialization with automatic schema generation and support for recursive data structures with cycle detection.
 
@@ -11,7 +11,7 @@ See also the [How to Encode and Decode Records with Avro](../../../guides/encode
 
 ## Motivation
 
-Avro is a powerful serialization format prevalent in distributed systems, messaging platforms, and data pipelines. Manually writing Avro encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-avro` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+Avro is a powerful serialization format prevalent in distributed systems, messaging platforms, and data pipelines. Manually writing Avro encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-avro` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Blocks Schema. You describe your data shape once, and the module handles:
 - Full Avro type support (records, unions, arrays, maps, nested structures)
 - Automatic Avro schema generation from Scala types
 - Configurable sum type handling (union fields with discriminators)
@@ -31,18 +31,18 @@ Add the module to your `build.sbt` (JVM-only, not available for Scala.js):
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x
+This artifact is for Scala 2.13 and Scala 3.3 to 3.8. On Scala 3.9 and newer, use the `zio-blocks-next-schema-avro` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../guides/add-zio-blocks-to-your-build.md) explains.
 
 ## Introduction
 
 The module provides a complete pipeline for Avro codec derivation and usage:
 
 1. **Define your type** — Any Scala type with a `Schema` instance
-2. **Derive a codec** — Use `Schema.derive(AvroFormat)` to obtain an `AvroCodec[A]`
+2. **Derive a codec** — Use `Schema#derive` with `AvroFormat` to obtain an `AvroCodec[A]`
 3. **Encode or decode** — Call `codec.encode(value)` or `codec.decode(bytes)`
 4. **Handle errors** — Catch `SchemaError` with location traces showing where the error occurred
 
-The derivation process is automatic for all supported types (all 27 primitives, records, variants, sequences, maps). The module automatically generates Avro schemas and handles encoding/decoding without manual configuration.
+The derivation process is automatic for all supported types (all 30 primitives, records, variants, sequences, maps). The module automatically generates Avro schemas and handles encoding/decoding without manual configuration.
 
 ## How They Work Together
 
@@ -98,7 +98,7 @@ Handle SchemaError with location trace on failure
 
 - **`AvroCodec[A]`** — Main public API; contains encoder and decoder for bidirectional serialization
 - **`AvroCodecDeriver`** — Configuration and derivation system; generates codecs from Schema
-- **`AvroFormat`** — Integration with ZIO Schema format system; enables `Schema[A].derive(AvroFormat)`
+- **`AvroFormat`** — Integration with ZIO Blocks Schema format system; enables `Schema[A].derive(AvroFormat)`
 - **`SchemaError`** — Error type with location traces; renders as paths like `.field[0].nested`
 
 ## Common Patterns
@@ -109,7 +109,7 @@ This section shows practical patterns for working with Avro codecs in real-world
 
 To derive and use an Avro codec for a record type:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -130,7 +130,7 @@ When decoding Avro data, errors include location traces showing where the proble
 
 To decode bytes and handle errors with location information:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -158,7 +158,7 @@ Access the derived Avro schema to verify compatibility or document the serializa
 
 To inspect the Avro schema for a type:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -179,7 +179,7 @@ Recursive types (types that reference themselves) are fully supported with autom
 
 To define and encode a recursive data structure:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -210,7 +210,7 @@ Main codec type for encoding and decoding values to and from Avro binary format.
 
 To get the derived Avro schema from a codec:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -228,7 +228,7 @@ val avroSchema = codec.avroSchema
 
 Use the codec to convert values to byte arrays:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -247,7 +247,7 @@ val bytes = codec.encode(product)
 
 Write encoded values directly to an output stream:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 import java.io.ByteArrayOutputStream
@@ -269,7 +269,7 @@ val bytes = output.toByteArray
 
 Use the codec to convert byte arrays back to values:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -295,7 +295,7 @@ val result: Either[zio.blocks.schema.SchemaError, Record] = codec.decode(bytes)
 
 Read and decode values from an input stream:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 import java.io.ByteArrayInputStream
@@ -334,13 +334,13 @@ Configuration and derivation system for creating `AvroCodec[A]` instances from `
 
 ### Overview
 
-`AvroCodecDeriver` implements the schema-driven derivation of Avro codecs. It automatically handles 27 primitive types and complex types (records, variants, sequences, maps), generating appropriate Avro schemas and encoder/decoder implementations.
+`AvroCodecDeriver` implements the schema-driven derivation of Avro codecs. It automatically handles 30 primitive types and complex types (records, variants, sequences, maps), generating appropriate Avro schemas and encoder/decoder implementations.
 
 ### How Derivation Works
 
 To create a codec from a schema:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -355,7 +355,7 @@ val codec = Person.schema.derive(AvroFormat)
 
 ### Primitive Type Support
 
-All 27 ZIO Schema primitives are supported. Each one maps to an Avro type, and the table in [Avro Types for Scala Types](#avro-types-for-scala-types) lists the shape of the common ones:
+All 30 ZIO Blocks Schema primitives are supported. Each one maps to an Avro type, and the table in [Avro Types for Scala Types](#avro-types-for-scala-types) lists the shape of the common ones:
 - Numeric: `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `BigInt`, `BigDecimal`
 - Character and text: `Char` (written as an `int` code point), `Boolean`, `String`
 - Temporal: `Instant`, `LocalDate`, `LocalDateTime`, `LocalTime`, `Duration`, `Period`, `Year`, `YearMonth`, `MonthDay`, `Month`, `DayOfWeek`, `ZonedDateTime`, `OffsetDateTime`, `OffsetTime`, `ZoneId`, `ZoneOffset`
@@ -441,11 +441,9 @@ The how-to guide [Encode and Decode Records with Avro](../../../guides/encode-an
 
 ### Record Type Support
 
-### Record Type Support
-
 Case classes (records) are fully supported. Each field becomes a named field in the Avro record schema:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -462,7 +460,7 @@ val codec = Address.schema.derive(AvroFormat)
 
 Sealed traits and sum types are encoded as Avro union types:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -481,13 +479,13 @@ val codec = Status.schema.derive(AvroFormat)
 
 ## AvroFormat
 
-Integration point with ZIO Schema's format system. Provides `BinaryFormat[AvroCodec]` to enable `Schema[A].derive(AvroFormat)` for any supported type.
+Integration point with ZIO Blocks Schema's format system. Provides `BinaryFormat[AvroCodec]` to enable `Schema[A].derive(AvroFormat)` for any supported type.
 
 ### Using AvroFormat
 
 To derive an Avro codec using the standard format:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
