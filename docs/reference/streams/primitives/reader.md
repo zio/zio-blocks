@@ -1425,6 +1425,8 @@ Scope.global.scoped { scope =>
 Avoid holding references to a `SyncReader` obtained via `Stream#start` outside its [`Scope`](../../resource-management/scope.md). The scope guarantees cleanup; escaping the reader defeats that guarantee.
 :::
 
+A pull on a started reader throws the stream's typed error wrapped in the internal `StreamError` rather than returning `Left(e)`, and, as a known bug in 0.0.56, a stream with a `flatMap` throws that failure again from `close()` and from the owning `Scope#scoped`; [Manual Pull via `start`](../core/stream.md#manual-pull-via-start) has the details.
+
 ## Integration with Sink
 
 `Reader` and `Sink` are dual: `Reader` is the source, and `Sink` is the consumer. A terminal compiles the stream to the reader kind required by the graph, hands that reader to the sink's drain, and retains ownership of it. On the JVM, plain terminals such as `run` use the blocking `SyncReader` path when the graph is synchronous and bridge genuine asynchronous boundaries at the final edge. Cross-platform `runAsync` drains an `AsyncReader` without blocking. Both terminal families close the owned reader on success, typed failure, defect, or cancellation.

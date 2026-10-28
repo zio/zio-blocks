@@ -2239,6 +2239,8 @@ SourceFile.print("streams-examples/src/main/scala/stream/ManualPullUsingStart.sc
 
 Use these methods when you need element-by-element control rather than running through a Sink. Do not overlap asynchronous pulls: an async reader allows one active pull, and its lifecycle operations must be awaited.
 
+A started reader does not turn a typed error into `Left(e)` the way the terminals do: a failed pull throws the library's internal `zio.blocks.streams.internal.StreamError`, whose `value` is the stream's error. A known bug in 0.0.56: when the stream has a `flatMap`, every `close()` after a failed pull throws that failure again, and so does the `Scope#scoped` block that owns the reader.
+
 ### The Reader Protocol
 
 The pull protocol uses a **sentinel value** to signal end-of-stream:
