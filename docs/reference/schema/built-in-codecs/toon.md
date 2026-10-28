@@ -555,11 +555,11 @@ val codec = Sensor.schema.derive(ToonFormat)
 
 ## WriterConfig
 
-Configuration for TOON output formatting. Controls indentation, key folding, and discriminator field naming.
+Configuration for TOON output formatting. Controls indentation for every codec, and key folding, the delimiter and the discriminator field for the `DynamicValue` codec.
 
 ### Overview
 
-`WriterConfig` provides predefined configurations and factory methods for customizing TOON serialization output. It controls how records are nested, whether keys are flattened, and how variant discriminators are named.
+`WriterConfig` provides predefined configurations and factory methods for customizing TOON serialization output. Every codec reads its indentation; the other settings (key folding, flatten depth, delimiter and discriminator field) apply only to the `DynamicValue` codec, `Schema[DynamicValue].derive(ToonFormat)`. A codec derived for your own type takes them from `ToonCodecDeriver` instead.
 
 ### Indentation Configuration
 
@@ -586,13 +586,12 @@ val config = WriterConfig.withKeyFolding(KeyFolding.Safe)
 
 ### Discriminator Field Configuration
 
-Configure how variant discriminators appear in output:
+`WriterConfig.withDiscriminatorField` makes the `DynamicValue` codec write a variant as a record with a discriminator field (`_type: Running`) instead of a key. A derived codec ignores it; choose its discriminator with `ToonCodecDeriver.withDiscriminatorKind` (see [DiscriminatorKind](#discriminatorkind)):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.toon._
 
 val config = WriterConfig.withDiscriminatorField(Some("_type"))
-// Variants use "_type" field instead of default key discriminator
 ```
 
 ---
