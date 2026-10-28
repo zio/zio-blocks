@@ -109,7 +109,7 @@ request.header(HxCurrentUrl)
 
 ## Setting Response Headers
 
-Response headers tell HTMX what to do with a response: redirect, refresh, change what gets swapped or where, fire client-side events, or update the URL bar. Redirect, location and refresh act before any swap happens, and the other headers act on the swap. Several reuse types already documented for the attribute DSL, so the same modifiers and constructors apply on both sides of the exchange.
+Response headers tell HTMX what to do with a response: redirect, refresh, change what gets swapped or where, fire client-side events, or update the URL bar. Redirect, location and refresh act before any swap happens. The after-swap and after-settle triggers fire from the swap. Several reuse types already documented for the attribute DSL, so the same modifiers and constructors apply on both sides of the exchange.
 
 ### Redirecting and Refreshing
 
