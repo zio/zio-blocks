@@ -23,11 +23,13 @@ Key features:
 - **Validation** - Validate JSON values against schemas with detailed error messages
 - **Round-trip serialization** - Parse from JSON and serialize back without loss
 - **Combinators** - Compose schemas with `&&` (allOf), `||` (anyOf), `!` (not)
-- **817 of 844 official tests passing** (97%+)
+- **817 of 844 official tests passing** (about 97%)
 
 ## Deriving JSON Schema from Schema
 
 The most common use case is deriving a JSON Schema from an existing `Schema[A]`. You can derive directly from the schema or through a `JsonCodec` for more control.
+
+To derive the JSON Schema of `Person` both ways and check two JSON values against it with `JsonSchema#conforms`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -54,6 +56,8 @@ jsonSchema.conforms(invalid) // false
 ```
 
 ## Creating Schemas
+
+To build a schema by hand instead of deriving it, `JsonSchema` provides values and constructors for each kind of schema: boolean, type, string, numeric, array, object, enum and const schemas.
 
 ### Boolean Schemas
 
@@ -195,6 +199,8 @@ val person = JsonSchema.obj(
 
 ### Enum and Const
 
+To restrict a value to a fixed set of strings, a fixed set of mixed JSON values, or a single constant value:
+
 ```scala mdoc:compile-only
 import zio.blocks.chunk.NonEmptyChunk
 import zio.blocks.schema.json.{JsonSchema, Json}
@@ -214,6 +220,8 @@ val alwaysTrue = JsonSchema.constOf(Json.Boolean(true))
 ```
 
 ## Schema Combinators
+
+Combinators build a new schema from existing ones, either by logical composition or by making a schema also accept `null`.
 
 ### Logical Composition
 
@@ -256,6 +264,8 @@ val nullableString = stringSchema.withNullable
 
 ## Conditional Schemas
 
+Conditional schemas apply a subschema only when a condition holds: `if`/`then`/`else` tests the value against a schema, and dependent schemas test which properties are present.
+
 ### if/then/else
 
 Apply different schemas based on conditions:
@@ -293,7 +303,11 @@ val paymentSchema = JsonSchema.Object(
 
 ## Validation
 
+A `JsonSchema` validates `Json` values directly: `JsonSchema#check` returns the error, if any, and `JsonSchema#conforms` returns a `Boolean`.
+
 ### Basic Validation
+
+To validate `Json` values with `JsonSchema#check` and `JsonSchema#conforms`, and to turn format checking on or off with `ValidationOptions`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{JsonSchema, Json, JsonSchemaType, ValidationOptions}
@@ -316,11 +330,11 @@ val invalidJson = Json.Object(
   "age" -> Json.Number(-5)
 )
 
-// Using check() - returns Option[SchemaError]
+// Using JsonSchema#check - returns Option[SchemaError]
 schema.check(validJson)   // None (valid)
 schema.check(invalidJson) // Some(SchemaError(...))
 
-// Using conforms() - returns Boolean
+// Using JsonSchema#conforms - returns Boolean
 schema.conforms(validJson)   // true
 schema.conforms(invalidJson) // false
 
@@ -369,7 +383,11 @@ schema.check(invalid) match {
 
 ## Parsing and Serialization
 
+A `JsonSchema` converts to and from JSON, so a schema can be read from an existing document and written out for other tools.
+
 ### Parsing from JSON
+
+To parse a schema from a JSON string with `JsonSchema.parse`, or from a `Json` value with `JsonSchema.fromJson`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{JsonSchema, Json}
@@ -395,6 +413,8 @@ val fromJson = JsonSchema.fromJson(json)
 
 ### Serializing to JSON
 
+To turn a schema back into a `Json` value with `JsonSchema#toJson` and print it as a string:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{JsonSchema, NonNegativeInt}
 
@@ -413,21 +433,21 @@ val jsonString = json.print
 
 The following formats are supported for validation:
 
-| Format | Description | Example |
-|--------|-------------|---------|
-| `date-time` | RFC 3339 date-time | `2024-01-15T10:30:00Z` |
-| `date` | RFC 3339 full-date | `2024-01-15` |
-| `time` | RFC 3339 full-time | `10:30:00Z` |
-| `email` | Email address | `user@example.com` |
-| `uuid` | RFC 4122 UUID | `550e8400-e29b-41d4-a716-446655440000` |
-| `uri` | RFC 3986 URI | `https://example.com/path` |
-| `uri-reference` | RFC 3986 URI-reference | `/path/to/resource` |
-| `ipv4` | IPv4 address | `192.168.1.1` |
-| `ipv6` | IPv6 address | `2001:db8::1` |
-| `hostname` | RFC 1123 hostname | `example.com` |
-| `regex` | ECMA-262 regex | `^[a-z]+$` |
-| `duration` | ISO 8601 duration | `P3Y6M4DT12H30M5S` |
-| `json-pointer` | RFC 6901 JSON Pointer | `/foo/bar/0` |
+| Format          | Description            | Example                                |
+|-----------------|------------------------|----------------------------------------|
+| `date-time`     | RFC 3339 date-time     | `2024-01-15T10:30:00Z`                 |
+| `date`          | RFC 3339 full-date     | `2024-01-15`                           |
+| `time`          | RFC 3339 full-time     | `10:30:00Z`                            |
+| `email`         | Email address          | `user@example.com`                     |
+| `uuid`          | RFC 4122 UUID          | `550e8400-e29b-41d4-a716-446655440000` |
+| `uri`           | RFC 3986 URI           | `https://example.com/path`             |
+| `uri-reference` | RFC 3986 URI-reference | `/path/to/resource`                    |
+| `ipv4`          | IPv4 address           | `192.168.1.1`                          |
+| `ipv6`          | IPv6 address           | `2001:db8::1`                          |
+| `hostname`      | RFC 1123 hostname      | `example.com`                          |
+| `regex`         | ECMA-262 regex         | `^[a-z]+$`                             |
+| `duration`      | ISO 8601 duration      | `P3Y6M4DT12H30M5S`                     |
+| `json-pointer`  | RFC 6901 JSON Pointer  | `/foo/bar/0`                           |
 
 Format validation is enabled by default. Use `ValidationOptions.annotationOnly` to treat `format` as annotation only (per JSON Schema spec).
 
@@ -497,33 +517,37 @@ JSON Schema applies `pattern` anywhere in the string, so `"[0-9]{3}"` matches `"
 
 ## Limitations
 
+`JsonSchema` does not implement every part of JSON Schema 2020-12; the subsections below list the unsupported features, the known edge cases and the official test-suite results.
+
 ### Not Implemented
 
 The following features require reference resolution and are **not supported**:
 
-| Feature | Description |
-|---------|-------------|
-| `$ref` to external URIs | References to other files or URLs |
-| `$dynamicRef` / `$dynamicAnchor` | Dynamic reference resolution |
-| `$id` resolution | Base URI changing and resolution |
-| Remote references | Fetching schemas from URLs |
-| Recursive schemas via `$ref` | Self-referential schemas using references |
+| Feature                          | Description                               |
+|----------------------------------|-------------------------------------------|
+| `$ref` to external URIs          | References to other files or URLs         |
+| `$dynamicRef` / `$dynamicAnchor` | Dynamic reference resolution              |
+| `$id` resolution                 | Base URI changing and resolution          |
+| Remote references                | Fetching schemas from URLs                |
+| Recursive schemas via `$ref`     | Self-referential schemas using references |
 
 Local `$ref` within the same schema is partially supported for `#/$defs/...` references only.
 
 ### Known Edge Cases
 
-| Case | Behavior |
-|------|----------|
-| Float/integer numeric equality | `1.0` is not treated as equal to `1` for `const`/`enum` |
-| String length | Measured in codepoints, not grapheme clusters |
-| Some `unevaluatedItems` with `contains` | Edge cases involving item evaluation tracking |
+| Case                                    | Behavior                                                |
+|-----------------------------------------|---------------------------------------------------------|
+| Float/integer numeric equality          | `1.0` is not treated as equal to `1` for `const`/`enum` |
+| String length                           | Measured in codepoints, not grapheme clusters           |
+| Some `unevaluatedItems` with `contains` | Edge cases involving item evaluation tracking           |
 
 ### Test Suite Compliance
 
-The implementation passes **817 of 844 tests** (97%+) from the official JSON Schema Test Suite for draft2020-12. The remaining tests require reference resolution features listed above.
+The implementation passes **817 of 844 tests** (about 97%) from the official JSON Schema Test Suite for draft2020-12. The remaining tests require reference resolution features listed above.
 
 ## Complete Example
+
+To combine string formats, numeric ranges, an enum-valued array and a closed object in one user schema, then validate two users against it and serialize it:
 
 ```scala mdoc:compile-only
 import zio.blocks.chunk.{ChunkMap, NonEmptyChunk}
@@ -589,12 +613,7 @@ val schemaJson = userSchema.toJson.print
 
 ## Cross-Platform Support
 
-`JsonSchema` works across 2 platforms:
-
-- **JVM** - Full functionality
-- **Scala.js** - Browser and Node.js
-
-All features work identically across platforms.
+`JsonSchema` works on the JVM with full functionality and on Scala.js in both the browser and Node.js. All features work identically across platforms.
 
 ## See Also
 
