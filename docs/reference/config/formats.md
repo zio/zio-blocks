@@ -226,7 +226,7 @@ Three limits guard against a hostile or accidentally-recursive configuration tre
 | `maxIncludeDepth`  | `10`    | Maximum nesting depth for includes; exceeding it is a parse failure.               |
 | `maxFileBytes`     | `1 MiB` | Maximum size of the file and of each include; a larger one is a parse failure. |
 
-`maxFileBytes` is set only through `ConfigSource.fromFileWithLimits`; `ConfigSource.fromFile` accepts `allowedBase` and `maxIncludeDepth`.
+`maxFileBytes` has a default only on `ConfigSource.fromFileWithLimits`, which also takes `allowedBase` and `maxIncludeDepth` with defaults. `ConfigSource.fromFile(path, allowedBase, maxIncludeDepth)` always uses the 1 MiB default; the four-argument overload `ConfigSource.fromFile(path, allowedBase, maxIncludeDepth, maxFileBytes)` takes the limit explicitly.
 
 Pass `allowedBase` whenever the path comes from outside the program. Paths are canonicalized before the check, so `../` sequences cannot escape:
 
