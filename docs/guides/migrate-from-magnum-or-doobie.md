@@ -338,7 +338,7 @@ transactor.connect {
 }
 ```
 
-For Magnum's `Spec#seek`, which pages by key, use `Repo#pageAfter(cursorId, limit)`. For joins between tables, see [How to Write Joins and Inspect the Generated SQL](./write-joins-and-inspect-generated-sql.md). To build `WHERE` clauses from typed Scala expressions instead of SQL strings, see [Query DSL with Reified Optics — Part 2: SQL Generation](./query-dsl-sql.md).
+The [SqlQuery](../reference/sql/sql-query.md) reference lists every builder method. For Magnum's `Spec#seek`, which pages by key, use `Repo#pageAfter(cursorId, limit)`. For joins between tables, see [How to Write Joins and Inspect the Generated SQL](./write-joins-and-inspect-generated-sql.md). To build `WHERE` clauses from typed Scala expressions instead of SQL strings, see [Query DSL with Reified Optics — Part 2: SQL Generation](./query-dsl-sql.md).
 
 ### Custom Column Types
 

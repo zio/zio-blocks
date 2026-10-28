@@ -370,7 +370,7 @@ A file is only rewritten when its content changes, so the files can be committed
 Check the dump files before you rely on them:
 
 - A `where(sql"...")` condition loses its parameter in the dump: `t0."year" > $publishedAfter` is written as `WHERE t0."year" >` with no `?`. Use `explain` for filtered queries.
-- A `Dump.dumpQuery` call that isn't assigned to a `val` is named after the enclosing object, as `_local_<Object>__query-<dialect>.sql`, and a second such call in the same object overwrites the first one's file.
+- A `Dump.dumpQuery` call that isn't assigned to a `val` is named after the enclosing object, as `_local_<Object>___query-<dialect>.sql`, and a second such call in the same object overwrites the first one's file.
 - Every `sql"..."` fragment also writes its own file, named after its enclosing method or object, while the property is set.
 :::
 
@@ -512,6 +512,7 @@ sbt "runMain writejoinsandinspectgeneratedsql.CompleteExample"
 
 ## Going Further
 
+- [SqlQuery](../reference/sql/sql-query.md), [Rel](../reference/sql/rel.md) and [Dump](../reference/sql/dump.md) are the reference pages for every builder method, `Rel` constructor and dump rule this guide uses.
 - [Frag](../reference/sql/frag.md) documents `Frag#query`, `Frag#queryOne` and the other ways to run the fragment `SqlQuery#toFrag` returns.
 - [How to Stream Large Query Results](./stream-large-query-results.md) reads a large join as a stream of row chunks: call `Frag#queryStream` or `Frag#queryChunked` on the fragment `SqlQuery#toFrag` returns, instead of `Frag#query`.
 - [DbCodec](../reference/sql/db-codec.md) explains how rows decode into case classes and tuples, and how SQL `NULL` is handled.
