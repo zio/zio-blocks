@@ -214,7 +214,7 @@ Workers are named, which makes them identifiable in a thread dump or profiler. T
 
 ### Scala.js
 
-`Platform.supportsConcurrency` is `false` on Scala.js and `Platform.startVirtualThread` throws `UnsupportedOperationException`. The observable effect is that `Stream#mapPar`, `Stream#flatMapPar`, and `Stream.mergeAll` do not overlap any work: there is no second execution context for work to overlap on.
+`Platform.supportsConcurrency` is `false` on Scala.js and `Platform.startVirtualThread` throws `UnsupportedOperationException`. The observable effect is that synchronous work inside `Stream#mapPar`, `Stream#flatMapPar`, and `Stream.mergeAll` does not overlap: there is no second execution context for it to overlap on.
 
 They do not all become `Stream#map` and `Stream#flatMap` on Scala.js. The factories that build the concurrent readers, `Platform.createMergeReaderFromReader` and `Platform.createMapParReaderFromReader`, route to the same shared concurrent engine on Scala.js as they do on the JVM — merge unconditionally, and `Stream#mapPar` whenever the upstream compiles to an asynchronous reader, with the mapping function wrapped in an immediately-ready effect:
 
