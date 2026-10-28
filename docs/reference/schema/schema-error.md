@@ -40,7 +40,7 @@ SchemaError
 
 When decoding a complex nested value, a single structural problem — a missing field, a type mismatch, an unknown case discriminator — must be reported together with the location where it occurred. In a large schema, multiple independent problems can coexist, and surfacing them all at once saves the caller round-trips.
 
-Every `Schema#fromDynamicValue`, every `Codec#decode`, and every optic traversal that can fail returns `Either[SchemaError, A]`. The same type carries both structural errors (missing fields, wrong types) and domain validation errors (value out of range, blank string), so callers deal with a single error channel.
+Every `Schema#fromDynamicValue`, every `Codec#decode`, and every optic traversal that can fail returns `Either[SchemaError, A]`. The JSON and TOON codecs stop at the first failure, so their `Codec#decode` returns one error; only `Schema#fromDynamicValue` and `Into.derived` collect every error. The same type carries both structural errors (missing fields, wrong types) and domain validation errors (value out of range, blank string), so callers deal with a single error channel.
 
 `SchemaError` was introduced to replace the earlier `JsonError` and `DynamicValueError` types that existed as separate error channels for each format. Those types used string concatenation (`"error1; error2"`) to combine failures via `++`, which silently discarded path information from the second error onward. `SchemaError` solves this by maintaining a non-empty list (`::`) of `Single` failures — each one independently annotated with its own `DynamicOptic` path — so no information is lost during aggregation.
 
@@ -157,7 +157,7 @@ println(outer.message)
 
 ### `SchemaError.missingField`
 
-Creates a `MissingField` error indicating that a required field was absent from the decoded representation.
+Creates a `MissingField` error indicating that a required field was absent from the decoded representation. The JSON codec reports the same failure with its own wording, `missing required field "zip" at: .address`, so its message differs from the one this constructor produces.
 
 ```scala
 object SchemaError {

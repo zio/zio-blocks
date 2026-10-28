@@ -63,8 +63,8 @@ Json (ADT: Object, Array, String, Number, Boolean, Null)
     └─ Transform via JsonPatch (composable operations)
     ↓
 JsonCodec (encode/decode)
-    ├─ WriterConfig (indent, escaping, order)
-    ├─ ReaderConfig (strict validation, number handling)
+    ├─ WriterConfig (indent step, preferred buffer size, Unicode escaping)
+    ├─ ReaderConfig (buffer sizes, end-of-input check)
     └─ MergeStrategy (field conflict resolution)
     ↓
 JsonDiffer (diff algorithm)
