@@ -804,9 +804,11 @@ println(bytesPerRun.count)
 
 The same pattern works for a channel with `NioStreams.fromChannelUnmanaged`; [How to Stream Files and Sockets Without Leaking Resources](./stream-files-and-sockets.md) covers files, channels and sockets in depth. In ZIO Streams, `ZStream.fromInputStream` never closes the stream at all.
 
-### Primitive Streams Use End-of-Stream Sentinels
+### Primitive Streams Signal the End Without Boxing
 
-A stream of `Int`, `Long`, `Double`, `Float`, `Byte`, `Short`, `Char` or `Boolean` runs without boxing. Internally, the end of the stream is signalled with an in-band sentinel value, so each element costs one primitive comparison. This design is deliberate, and the library does not add per-element checks to it. It shows up in user code only when you pull by hand with `start` and `Reader#read(sentinel)`: choose a sentinel your stream never produces. The [Reader reference](../reference/streams/primitives/reader.md) describes the primitive read methods.
+A stream of `Int`, `Long`, `Double`, `Float`, `Byte`, `Short`, `Char` or `Boolean` runs without boxing, so the end of the stream cannot be an `Option` or a boxed marker. Each lane signals it in a way no real element can match: `Byte` returns `-1` from `readByte()` (bytes come back as `0` to `255`), `Boolean` and `Char` return a negative `Int`, `Short`, `Int` and `Float` return a sentinel in a wider carrier type (`Int.MinValue`, `Long.MinValue`, `Double.MaxValue`), and `Long` and `Double` use no sentinel at all: a one-element `readLongs` or `readDoubles` returns a negative count at the end. Every lane is lossless, so `Long.MaxValue` or `Double.MaxValue` in your data is an ordinary element.
+
+None of this shows up in user code unless you pull by hand with `start`. Then read each lane with its own method, and on a `Long` or `Double` reader loop on `readLongs(scratch, 0, 1)` or `readDoubles(scratch, 0, 1)` rather than `readLong(sentinel)` or `readDouble(sentinel)`, since any sentinel you pick there is also a value the stream may carry. [EOF Signalling Per Lane](../reference/streams/execution-and-compatibility/zero-boxing.md#eof-signalling-per-lane) lists every lane's signal, and the [Reader reference](../reference/streams/primitives/reader.md) describes the primitive read methods.
 
 ## What You Gain and What Is Different
 
