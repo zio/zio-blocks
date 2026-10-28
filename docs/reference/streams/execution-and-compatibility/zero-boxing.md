@@ -300,7 +300,7 @@ val asLong = stream.map(_.toLong)
 
 ### Sink[E, A, Z]
 
-Accepts elements via unboxed `write` methods matched to the detected type:
+Pulls elements from the run's [`Reader`](../primitives/reader.md) with the read that matches the lane (`readInt`, `readFloat`, or the count-returning `readLongs`/`readDoubles`), so built-in sinks such as `Sink.sumLong` and `Stream#runFold` never box. Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads:
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*
