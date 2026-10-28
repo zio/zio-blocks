@@ -19,7 +19,7 @@ Key properties:
 - **Multi-column** — a single codec spans any number of database columns; a case class codec produces one column per field.
 - **Label-based and positional** — `readValue` supports order-independent decoding by column label or fast 1-based positional access per the JDBC convention.
 - **Schema-driven** — `DbCodec.derived` and `DbCodecDeriver` produce codecs automatically from a `Schema[A]` at compile time, with no runtime reflection.
-- **Explicit about `NULL`** — `Option[A]` and `Maybe[A]` codecs read SQL `NULL` as `None` and `Maybe.absent`. Non-optional types do not all reject it: `BigDecimal` and a derived `Char` field throw `IllegalStateException`, but in 0.0.56 a `String` reads `NULL` as `null` and the numeric types and `Boolean` read it as `0` and `false`, a known bug (see [Reading SQL `NULL`](#reading-sql-null)). Map every nullable column to `Option`, except a decimal one: in 0.0.56, `Option[BigDecimal]` also throws on `NULL`.
+- **Explicit about `NULL`** — `Option[A]` and `Maybe[A]` codecs read SQL `NULL` as `None` and `Maybe.absent`. Non-optional types do not all reject it: `BigDecimal` and a derived `Char` field throw `IllegalStateException`, but in 0.0.56 a `String` or `Instant` reads `NULL` as `null` and the numeric types and `Boolean` read it as `0` and `false`, a known bug (see [Reading SQL `NULL`](#reading-sql-null)). Map every nullable column to `Option`, except a decimal one: in 0.0.56, `Option[BigDecimal]` also throws on `NULL`.
 
 ## Core API
 
@@ -501,7 +501,7 @@ val codec = DbCodec[User]
 
 A column that may hold `NULL` belongs in an `Option` (or `Maybe`) field. The `Option` codec reads the inner value, then checks `DbResultReader#wasNull` and returns `None` for a `NULL`.
 
-A non-optional field does not reliably reject a `NULL`. Only the `BigDecimal` codec and the `Char` codec that `DbCodecDeriver` uses throw `IllegalStateException`. In 0.0.56, the other primitive codecs return whatever the JDBC getter returns, a known bug: a `String` field holds `null`, and an `Int`, `Long`, `Double` or other numeric field holds `0` (`false` for a `Boolean`). `Frag#query`, `Frag#queryStream` and `Repo` all decode through these codecs, so a nullable column mapped to a non-`Option` field passes silently.
+A non-optional field does not reliably reject a `NULL`. Only the `BigDecimal` codec and the `Char` codec that `DbCodecDeriver` uses throw `IllegalStateException`. In 0.0.56, the other primitive codecs return whatever the JDBC getter returns, a known bug: a `String` or `java.time.Instant` field holds `null`, and an `Int`, `Long`, `Double` or other numeric field holds `0` (`false` for a `Boolean`). `Frag#query`, `Frag#queryStream` and `Repo` all decode through these codecs, so a nullable column mapped to a non-`Option` field passes silently.
 
 The two codecs that do throw have the opposite problem. The JDBC reader only learns that a column is `NULL` after the inner codec has read it, and the `BigDecimal` and `Char` codecs throw during that read, so in 0.0.56 `Option[BigDecimal]`, `Option[Char]` and their `Maybe` forms throw on `NULL` too, another known bug. Until it is fixed, read a nullable decimal column as `Option[String]` and convert it with `BigDecimal(_)`.
 
