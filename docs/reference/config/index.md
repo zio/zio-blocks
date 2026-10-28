@@ -212,7 +212,7 @@ object Db {
 final class DbService(val config: Db)
 
 val source   = ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432"), "graph")
-val resource = Resource.from[DbService](Wire(source), Config.wire[Db])
+def resource = Resource.from[DbService](Wire(source), Config.wire[Db])
 
 Scope.global.scoped { scope =>
   import scope._

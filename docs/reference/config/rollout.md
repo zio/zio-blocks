@@ -101,7 +101,7 @@ The percentage is compared against the bucket, with three values special-cased: 
 | `100%`     | Always                          |
 | `n%`       | `bucket < n`                    |
 
-Because the comparison is a strict less-than against a bucket in `0..99`, a percentage behaves as the literal share of keys it names.
+Each choice is a threshold on the same bucket, not a slice of the traffic. The first matching choice wins, so a percentage is the share of keys it names only when no earlier choice has matched them. A later choice with a higher percentage adds the buckets between the two thresholds. For example, `"a@*/40%; b@*/80%; c"` gives `a` the buckets below 40, `b` the buckets from 40 to 79, and `c` the rest: a 40/40/20 split. A later choice whose percentage is at or below an earlier one never matches: in `"a@*/30%; b@*/20%; c"`, every bucket below 20 already matched `a`, so `b` gets no keys.
 
 ### Bucketing
 
@@ -166,6 +166,10 @@ Rollout.evaluateIndex(choices, "user-1/eu", 42)
 Rollout.evaluateIndex(choices, "user-1/us", 42)
 ```
 
+:::warning[Buckets ignore the flag name]
+A known bug in 0.0.56: `DynamicFlag` buckets a call by the key alone, so two flags rolled out to the same percentage pick the same users. A user in a low bucket gets every early rollout at once. Salt the key with the flag's purpose, as in `flag(s"recommendations:$id")`, and use the same salt at every call site.
+:::
+
 ### Rollout.validate
 
 `Rollout.validate` parses an expression and returns warnings about rules that are suspicious rather than invalid. It flags choices rendered unreachable by an earlier catch-all:
@@ -174,11 +178,13 @@ Rollout.evaluateIndex(choices, "user-1/us", 42)
 Rollout.validate("off; on@prod")
 ```
 
-It also flags a pattern whose percentages sum above 100, which usually means someone added a rule instead of adjusting one:
+It also flags a pattern whose percentages sum above 100. That check treats each percentage as a slice of the traffic, which evaluation does not do, so it can warn about a correct split. This 40/40/20 split is valid, and it gets a warning:
 
 ```scala mdoc
-Rollout.validate("a@prod/70%; b@prod/60%")
+Rollout.validate("a@*/40%; b@*/80%; c")
 ```
+
+A known bug in 0.0.56: the check cannot see a choice that never matches. The shadowed `b` in `"a@*/30%; b@*/20%; c"` produces no warning, so use the threshold rule above when you review an expression by hand.
 
 A clean expression returns an empty list:
 
