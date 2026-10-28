@@ -772,7 +772,7 @@ object NioSinks {
 - `NioSinks.fromByteBuffer` — writes individual `Byte` elements.
 - `NioSinks.fromByteBufferInt`, `NioSinks.fromByteBufferLong`, `NioSinks.fromByteBufferFloat`, `NioSinks.fromByteBufferDouble` — write primitives directly using the buffer's native methods (`putInt`, `putLong`, etc.), one buffer write per element rather than one per byte.
 
-The sinks write at the buffer's position and advance it, encoding multi-byte values in the buffer's byte order, and keep every value, `Long.MaxValue`, `Double.MaxValue` and `NaN` included. They never grow the buffer. When it runs out of room, the `BufferOverflowException` of `ByteBuffer#put` is not a typed error, so no `Left` comes back: a blocking terminal such as `Stream#run` throws it, and an `*Async` terminal's `Async` fails with it. The values written before it stay in the buffer, so allocate the buffer for the whole stream or bound the stream with `Stream#take`.
+The sinks write at the buffer's position and advance it, encoding multi-byte values in the buffer's byte order, and keep every value, `Long.MaxValue`, `Double.MaxValue` and `NaN` included. They never grow the buffer. When it runs out of room, the `BufferOverflowException` that the buffer throws is not a typed error, so no `Left` comes back: a blocking terminal such as `Stream#run` throws it, and an `*Async` terminal's `Async` fails with it. The values written before it stay in the buffer, so allocate the buffer for the whole stream or bound the stream with `Stream#take`.
 
 Here's an example using ByteBuffer with typed primitive writes:
 

@@ -300,7 +300,7 @@ val asLong = stream.map(_.toLong)
 
 ### Sink[E, A, Z]
 
-Pulls elements from the run's [`Reader`](../primitives/reader.md) with the read that matches the lane (`Reader#readInt`, `Reader#readFloat`, or the count-returning `Reader#readLongs` and `Reader#readDoubles`), so built-in sinks such as `Sink.sumLong` and `Stream#runFold` never box. Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads. To fold an `Int` stream through the unboxed `Int` lane:
+Pulls elements from the run's [`Reader`](../primitives/reader.md) with the read that matches the lane (`Reader#readInt`, `Reader#readFloat`, or the count-returning `Reader#readLongs` and `Reader#readDoubles`), so the elements a built-in sink reads never box. A known bug in 0.0.56: `Sink.sumLong`, `Sink.sumDouble`, `Sink.sumInt`, `Sink.sumFloat`, `Sink.count` and `Stream#runFold(z: Double)` over a `Long` or `Double` stream still box their accumulator for every element, while `Stream#runFold(0L)` does not. Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads. To fold an `Int` stream through the unboxed `Int` lane:
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*

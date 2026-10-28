@@ -548,7 +548,7 @@ The JVM adapter's rules about deferral and exclusivity hold here too — pulls a
 4. **A rejected promise fails the read.** The rejection fails the pull's `Async` with a `StreamError` whose `value` is the rejection, and every later pull fails with it again.
 
 :::warning[Known bug in 0.0.56: a rejected read does not arrive as `Left`]
-In a stream built with `Stream.fromReader` over this reader, a read that the JavaScript stream rejects, for example a dropped connection, does not arrive as `Left` in the `Either` the way the JVM channel adapter's failures do. It fails the `Async` itself with an internal `StreamError`, whose message is empty, so handle it with `Async#either` or a `catch` at the edge.
+In a stream built with `Stream.fromReader` over this reader, a read that the JavaScript stream rejects, for example a dropped connection, does not arrive as `Left` in the `Either` the way the JVM channel adapter's failures do. It fails the `Async` itself with an internal `StreamError`, whose message is `null`, so handle it with `Async#either` or a `catch` at the edge.
 :::
 
 #### Scala.js Limitations
