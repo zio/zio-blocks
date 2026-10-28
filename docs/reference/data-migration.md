@@ -128,10 +128,11 @@ def cutOver(migrator: LargeMigrator[UserV1, UserV2, Long, Long]): Unit = {
 
 ## Target Strategies
 
-`TargetStrategy` controls where migrated rows are written:
+`TargetStrategy` controls where migrated rows are written. It has two cases.
 
-- **`TargetStrategy.InPlace`** updates rows in the table that both repositories name. The table needs the new columns before the first batch, for example from a `TinyMigrator`, so it suits changes where the old and new columns can live side by side for a while.
-- **`TargetStrategy.ShadowTable(suffix)`** writes migrated rows into `<table>_<suffix>`, where `<table>` is the V2 repository's table, and at completion renames `<table>` to `<table>_old_<suffix>` and the shadow table to `<table>`. `init()` creates the shadow table with `CREATE TABLE IF NOT EXISTS <table>_<suffix> (LIKE <table> INCLUDING ALL)`, a copy of the table's current columns, not of the V2 columns. When the migration changes columns, create the shadow table yourself with the new columns before `init()`; `IF NOT EXISTS` then leaves it alone. Shadow tables need PostgreSQL.
+`TargetStrategy.InPlace` updates rows in the table that both repositories name. The table needs the new columns before the first batch, for example from a `TinyMigrator`, so it suits changes where the old and new columns can live side by side for a while.
+
+`TargetStrategy.ShadowTable(suffix)` writes migrated rows into `<table>_<suffix>`, where `<table>` is the V2 repository's table, and at completion renames `<table>` to `<table>_old_<suffix>` and the shadow table to `<table>`. `init()` creates the shadow table with `CREATE TABLE IF NOT EXISTS <table>_<suffix> (LIKE <table> INCLUDING ALL)`, a copy of the table's current columns, not of the V2 columns. When the migration changes columns, create the shadow table yourself with the new columns before `init()`; `IF NOT EXISTS` then leaves it alone. Shadow tables need PostgreSQL.
 
 With `usersV2` as the V2 repository, the two strategies look like this:
 
@@ -148,21 +149,21 @@ val shadow: TargetStrategy  = TargetStrategy.ShadowTable("v2") // shadow table: 
 Initialized → Fenced → Drained → Completed
 ```
 
-Each lifecycle method below moves it to the next state.
+A new migrator starts in `Initialized`. `fence()`, `drain()` and `complete()` each move it to the next state; `init()` leaves the state alone and records that the migrator is prepared, which `fence()` requires.
 
-### `init()` (Initialized)
+### `LargeMigrator#init` (Initialized)
 
 Prepares the target table. For `TargetStrategy.ShadowTable`, it creates the shadow table, as described in [Target Strategies](#target-strategies), and with `captureTriggers = true` it installs the capture triggers. The source table continues to accept writes normally. `init()` doesn't create the queue table, and it doesn't queue the rows that already exist: the triggers see only the writes made after `init()`. Create the queue with `QueueTable.create` before `init()`, and queue the existing keys after it, so that no write falls between the two.
 
-### `fence()` (Fenced)
+### `LargeMigrator#fence` (Fenced)
 
 Moves the migrator into its cutover state. It changes nothing in the database and blocks no write: the application **must** stop writing to the source table before calling `fence()`. A write that still arrives is queued by its trigger, and `drain()` converts it if it lands before `drain()` returns.
 
-### `drain()` (Drained)
+### `LargeMigrator#drain` (Drained)
 
 Converts batches until a `COUNT` of the queue table finds it empty, then returns the number of rows it wrote. If batches come back empty while keys stay queued for 100 rounds in a row, for example because another worker holds their rows locked, `drain()` throws an `IllegalStateException`. A call to `pause()` makes `drain()` return early, and the migrator stays fenced.
 
-### `complete()` (Completed)
+### `LargeMigrator#complete` (Completed)
 
 For `TargetStrategy.ShadowTable`, renames the source table to `<table>_old_<suffix>` and the shadow table to `<table>` in one transaction; for `TargetStrategy.InPlace`, it changes no table. In 0.0.56, `complete()` doesn't check the queue (a known bug), so a write that lands after `drain()` returns is missing from the new table: check `LargeMigrator#pendingCount` first. The migrator leaves the old table, the queue table and the trigger function behind; drop them after verifying the result.
 
@@ -184,10 +185,7 @@ The queue table stores V1 IDs (`ID1`). The `ID1` type must have a `DbCodec` inst
 | `op`      | `TEXT NOT NULL DEFAULT 'I'` | The operation type: `'I'` (insert), `'U'` (update), or `'D'` (delete)         |
 | `payload` | `TEXT`                      | JSON-serialized V1 row data, captured only for `'D'` operations on PostgreSQL |
 
-Queue entries are coalesced by primary key. There are two ways keys enter the queue:
-
-1. **Manual enqueue** — the application calls `QueueTable.enqueue` for every row it writes (or for a batch of rows to backfill).
-2. **Capture triggers** — pass `captureTriggers = true` when constructing `SmallMigrator` or `LargeMigrator`; `init()` then installs triggers via `QueueTable.installTriggers` so every source INSERT/UPDATE/DELETE upserts the affected key in the writer's own transaction. Trigger installation is idempotent (PostgreSQL requires PG 14+ for `CREATE OR REPLACE TRIGGER`). Do not enable capture triggers when the migrator writes to the same physical table it captures from: the worker's own writes would re-enqueue processed keys forever.
+Queue entries are coalesced by primary key. Keys enter the queue in two ways. The application can call `QueueTable.enqueue` for every row it writes, or for a batch of rows to backfill. Alternatively, pass `captureTriggers = true` when constructing `SmallMigrator` or `LargeMigrator`: `init()` then installs triggers via `QueueTable.installTriggers` so every source INSERT/UPDATE/DELETE upserts the affected key in the writer's own transaction. Trigger installation is idempotent (PostgreSQL requires PG 14+ for `CREATE OR REPLACE TRIGGER`). Do not enable capture triggers when the migrator writes to the same physical table it captures from: the worker's own writes would re-enqueue processed keys forever.
 
 For `INSERT` and `UPDATE`, only the key and operation type are stored. For `DELETE`, PostgreSQL additionally captures the full row as JSON via `row_to_json(OLD)::text` into the `payload` column; the payload is reserved for future delete-recovery and is not read by the current workers. SQLite does not support `row_to_json`, so its delete entries carry no payload.
 
