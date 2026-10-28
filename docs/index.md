@@ -510,7 +510,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Instrument a Program with Logs, Traces and Metrics](./guides/instrument-a-program-with-logs-traces-and-metrics.md) - Add structured logs, nested spans, a counter and a histogram to a batch job, switch to JSON logs, and test the spans
 - [Build a Small JSON Backend from Blocks](./guides/small-json-backend-from-blocks.md) - Capstone: combine schema, config, scope, SQL, the HTTP model and telemetry into one small JSON backend
 
-These six follow the learning path, from installing the library to a small working backend. The [guides index](./guides/index.md) lists every tutorial, how-to guide, migration guide and deep dive.
+These six follow the learning path, from installing the library to a small working backend. The [guides index](https://zioblocks.com/guides/) on the website lists every tutorial, how-to guide, migration guide and deep dive.
 
 ## Full API Reference
 
