@@ -12,7 +12,7 @@ The guides section has grown to 74 pages, and it shows them as one flat list:
 - The `/guides/` index page (`docs/guides/index.md`) renders `SidebarCards`, so it shows the same 74 entries as a wall of cards.
 - The pages are of different kinds (tutorials, how-to guides, migration guides, deep dives), but the reader can't tell them apart without opening each one.
 - A newcomer has no visible starting point. The backlog (`docs/dev/backlog.md` §3) defines a learning path, but the site does not show it.
-- A third, hand-written list of guides lives in the `## Guides` section of `docs/index.md`. It feeds the Overview page, the generated `README.md`, and the website landing page (`website/scripts/lib/parse-index.mjs`). It has drifted: it lists 67 of the 74 guides, in no particular order.
+- A third, hand-written list of guides lives in the `## Guides` section of `docs/index.md`. It feeds the Overview page (`/overview`) and the generated `README.md`. The landing page does not show it, but its build (`website/scripts/lib/parse-index.mjs`) parses it and fails if it is empty or malformed. It has drifted: it lists 67 of the 74 guides, in no particular order.
 
 ## Goal
 
@@ -179,11 +179,11 @@ The `### Learn More` links elsewhere in `docs/index.md` point to single guides a
 1. A script compares the doc ids in the `guides` sidebar with `ls docs/guides/*.md` (minus `index.md`) and `docs/guides/query-dsl/index.md`. Every guide must appear exactly once, and the sidebar must name no missing file.
 2. Full website build (`yarn build`, not the landing-only build), which fails on broken links.
 3. In a browser: `/guides/` shows four cards. Each section card opens its generated page. Each topic card opens its topic page. A guide page shows the sidebar with its topic expanded and the breadcrumb Home › Guides › section › topic › page.
-4. `yarn test` and `yarn check:landing` pass, and the landing page shows the six curated guides.
+4. `yarn test` (its `parseIndex accepts the real docs/index.md` test reads the edited file) and `yarn check:landing` pass, and `/overview` and the regenerated `README.md` show the six curated guides.
 5. Scoped `docs/mdoc` on `docs/index.md` passes before `docs/generateReadme`.
 
 ## Risks
 
 - **Generated slugs vs. trailing slashes.** `src/clientModules/folderIndexes.js` adds a trailing slash to `/guides` and `/reference`. The generated pages are new paths, so check in the browser that `/guides/how-to` and `/guides/how-to/` both resolve.
 - **Card count text.** Docusaurus prints "N items" on a category card. For "How-to guides" that counts the 8 topics, not the 46 guides. The description line on the generated page makes the contents clear. Accepted as is.
-- **Landing page shrinks** from 67 guide tiles to 6. This is intended: the landing page becomes a starting point, and `/guides/` holds the full catalog.
+- **The Overview page and README shrink** from 67 guide links to 6. This is intended: they become a starting point, and `/guides/` holds the full catalog.
