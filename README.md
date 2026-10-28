@@ -25,6 +25,8 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 - **High Performance**: Implementations that avoid boxing, minimize allocations, and use platform-specific features where they pay off.
 - **Type Safety**: Scala's type system carries the correctness guarantees, without runtime overhead.
 
+To call ZIO Blocks from a ZIO or cats-effect application, see [How to Use ZIO Blocks in a ZIO or cats-effect Application](docs/./guides/use-zio-blocks-in-zio-or-cats-effect.md).
+
 ## Getting Started
 
 Add a block and use it. Nothing else to wire up—no runtime to install, no effect
@@ -348,6 +350,7 @@ Scope.global.scoped { scope =>
 - [How to Fix Common Scope and Wire Compile Errors](docs/./guides/fix-scope-and-wire-compile-errors.md) — every Scope, Wire and `Resource.from` error message, with its cause and its fix
 - [Resource Management reference](docs/./reference/resource-management/index.md) — `Scope`, `Resource`, `Wire`, `Unscoped`, and finalization order
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](docs/./guides/resource-and-di-migration.md) — port `Resource`, `ZLayer`, macwire or `Using` code to `Scope`, `Resource` and `Wire`
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](docs/./guides/use-zio-blocks-in-zio-or-cats-effect.md) — call blocking code, resources, `Async` and streams from ZIO or cats-effect, with cancellation and cleanup carried across
 
 ---
 
@@ -414,6 +417,7 @@ val program: Async[Int] =
 
 - [Getting Started with Async](docs/./guides/async-getting-started.md) — create, compose, and run async effects
 - [Async reference](docs/./reference/async.md) — the full API, including `zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and `Future` / `CompletionStage` interop
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](docs/./guides/use-zio-blocks-in-zio-or-cats-effect.md) — call `Async` from ZIO or cats-effect, with cancellation carried across
 - [`async-examples`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala) — a single-file order-fulfillment demo (`cd async-examples && sbt run`)
 
 ---
@@ -515,7 +519,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Instrument a Program with Logs, Traces and Metrics](docs/./guides/instrument-a-program-with-logs-traces-and-metrics.md) - Add structured logs, nested spans, a counter and a histogram to a batch job, switch to JSON logs, and test the spans
 - [Build a Small JSON Backend from Blocks](docs/./guides/small-json-backend-from-blocks.md) - Capstone: combine schema, config, scope, SQL, the HTTP model and telemetry into one small JSON backend
 
-These six follow the learning path, from installing the library to a small working backend. The [guides index](docs/./guides/index.md) lists every tutorial, how-to guide, migration guide and deep dive.
+These six follow the learning path, from installing the library to a small working backend. The [guides index](https://zioblocks.com/guides/) on the website lists every tutorial, how-to guide, migration guide and deep dive.
 
 ## Full API Reference
 
