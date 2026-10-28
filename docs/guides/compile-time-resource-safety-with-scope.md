@@ -309,7 +309,7 @@ case class Config(host: String, port: Int)
 Scope.global.scoped { scope =>
   import scope._
 
-  // Config is a case class—it has Unscoped by default
+  // Config is a case class: on Scala 3 it has Unscoped automatically
   Config("localhost", 5432)
 }
 ```
@@ -404,7 +404,7 @@ Scope.global.scoped { scope =>
     txn.rollback()
   }
 
-  // If we commit, cancel the rollback
+  // The rollback still runs when the scope exits, even after commit
   txn.commit()
 }
 ```
@@ -441,7 +441,7 @@ Scope.global.scoped { scope =>
 
 Finalizers run in **LIFO order** (last registered, first executed) and are guaranteed to run even if the scoped block throws an exception. If multiple finalizers throw, they are collected:
 
-```scala mdoc:compile-only mdoc
+```scala mdoc:compile-only
 import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
@@ -728,7 +728,7 @@ This section lists the most common runtime and compile errors, explains what cau
 
 ### Runtime Errors
 
-**`IllegalStateException`** when calling `allocate`, `$`, or `open` on a closed scope. The message is one of `Cannot allocate resource: scope is already closed.`, `Cannot access scoped value: scope is already closed.` or `Cannot open child scope: scope is already closed.`. `defer` does not throw: on a closed scope it returns a no-op handle and the finalizer never runs.
+**`IllegalStateException`** when calling `allocate`, `$`, or `open` on a closed scope. The message is one of `Cannot allocate resource: scope is already closed.`, `Cannot access scoped value: scope is already closed.` or `Cannot open child scope: scope is already closed.`. `defer` does not throw: on a closed scope it returns a no-op handle and the finalizer never runs. The most common way to reach a closed scope is to let a resource escape the scoped block and use it afterwards:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
