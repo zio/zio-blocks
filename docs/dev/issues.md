@@ -7314,6 +7314,8 @@ object B3SamplingOnly {
 
 ### schema (Scala 3): `.when[...]` after a named-tuple field fails at runtime with "Expected a variant"
 
+**Status.** Named as a known bug in 0.0.56 on `reference/schema/schema.md` (#1877); the library bug is open.
+
 Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10), on `main` at `b6c0c30e4`. Reproduced against the published 0.0.56 artifacts. The macro code is the same on main (`CompanionOptics.scala:286-292`), but only 0.0.56 was run.
 
 **Summary.** On a named tuple, `$(_.field)` lenses work, as do `.each`, `.at(i)` and `.atKey(k)` after a field. But `.when[Case]` after a named-tuple field compiles, then throws `RuntimeException: Expected a variant` when the optic is first built. This hits both `Option` fields (`_.humidity.when[Some[Int]].value`) and sealed-trait fields (`_.sky.when[Cloudy].cover`). The same paths on a case class work.
@@ -7380,6 +7382,8 @@ The same failure occurs on Scala 3.9.0 with both `zio-blocks-schema` and `zio-bl
 **Suggested fix.** Use `parent.tpe.widen.dealias.simplified` (a helper that also reduces match types) for `parentTpe` in the `when` case and the other cases that inspect the parent type (`wrapped`, `searchFor`). Also make the macro `fail(...)` at compile time when `caseIdx < 0`, instead of emitting `sys.error("Expected a variant")`. Add a scalaNextTests case: `type T = (o: Option[Int], s: Sky)` with `$(_.o.when[Some[Int]].value)` and `$(_.s.when[Cloudy].cover)`.
 
 ### schema (Scala 3): `Into.derived` / `As.derived` reject named tuples ("Unsupported type combination ... (other)")
+
+**Status.** Named as a known bug in 0.0.56 on `reference/schema/schema.md` (#1877); the library bug is open.
 
 Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10), on `main` at `b6c0c30e4`. Reproduced against 0.0.56; main has the same classification code (`IntoVersionSpecific.scala:592`, and neither `IntoVersionSpecific.scala` nor `AsVersionSpecific.scala` mentions named tuples).
 
@@ -11113,6 +11117,8 @@ The JSON line has no `traceId` or `spanId`, although a span is active.
 
 ### schema (Scala 3): a `given Schema` inside `object X` next to `type X = (named tuple)` is not found implicitly
 
+**Status.** Documented in #1877 (`reference/schema/schema.md` says to use a top-level or imported `given`).
+
 Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10), on `main` at `b6c0c30e4`. Same at v0.0.56; this is Scala language behaviour, not a zio-blocks code change.
 
 **Summary.** The docs' habit of putting `implicit val schema`/`given Schema` in the type's companion object doesn't carry over to named tuples. A named tuple is usually named with a type alias, and an `object` with the same name as an alias is not a companion. Its givens aren't in implicit scope (the implicit scope of `NamedTuple[N, V]` is `scala.NamedTuple`'s), so `x.toJsonString`, `fromJson[X]` and `Schema[X]` fail outside that object. Inside a `CompanionOptics[X]` object, `$(...)` works because the given is lexically in scope there, which hides the problem until the value is encoded somewhere else.
@@ -11642,6 +11648,8 @@ object SentinelCollisionLoss {
 **Suggested fix.** Fix only the generic `read` path, with no added per-element work: in `SyncToAsyncReader.read`, pull the source with the private `EndOfStream` (as the synchronous `ConcatReader` does) and latch `eof` only on that marker, translating it to the caller's sentinel on the way out; in `AsyncConcatReader.read`, pull each part with `EndOfStream` and advance only on that marker. Each keeps one reference comparison per call (the translation back to the caller's sentinel can reuse the same test or a local flag), on the generic boxed path only, so no per-element work is added to any primitive-lane loop. The primitive scalar pulls of the `toAsync` view (`value == sentinel`) fall under the AGENTS.md sentinel policy: document them, or take a zero-cost route that needs an out-of-band EOF flag the readers do not have today (`lastReadWasEOF`, which AGENTS.md mentions, does not exist in `streams/`), and validate any change with the streams JMH benchmarks before and after. Alternatively, keep the behaviour and document it on the reference page next to the sentinel protocol.
 
 ### schema: there is no implicit `Schema` for tuples, so `Schema[(String, Int)]` and `Schema[List[(String, Int)]]` do not compile, unlike ZIO Schema 1.x
+
+**Status.** Documented in #1877 (`reference/schema/schema.md` "Tuples" shows `Schema.derived[(A, B)]` made implicit); the library still has no implicit tuple schema.
 
 Found 2026-10-27 while fixing the migration guide `docs/guides/zio-schema-migration.md` (backlog M-02), on `main` at `9d5ca8f91`. Same at v0.0.56.
 
@@ -12674,49 +12682,6 @@ Found 2026-10-21 while writing T-12, on `main` at `a44dc6db` (same at `v0.0.56`)
 - **Histogram boundaries.** The `HistogramDataPoint` Scaladoc calls `boundaries` "upper exclusive boundaries for each bucket" (`telemetry/shared/src/main/scala/zio/blocks/telemetry/MetricData.scala:68`), but `Histogram.findBucketIndex` puts a value in the first bucket whose boundary is `>=` the value (`value <= boundaries(i)`, `Histogram.scala:98-105`), so the boundaries are inclusive upper bounds, as in OpenTelemetry. From source; not fixed here.
 - **Missing ADR.** `ContextStorage.scala:28` links `docs/adr/0001-scoped-context-no-set.md`, which never existed (already noted in `backlog.md`).
 
-### docs: `DynamicMigration` and `MigrationAction` are described as serializable, but have no `Schema`, and a literal holds a `Schema`
-
-Found 2026-10-22 while writing the Scaladoc of `DynamicMigration` (wave 7 of the schema Scaladoc, branch `scaladoc-wave-7` on top of `6c264853`). The code is the same at tag `v0.0.56`. Verified with the reproducer below.
-
-**Summary.** `migration.md` calls `DynamicMigration` "fully serializable" and "the transport-friendly representation you can inspect, serialize, or apply dynamically", and the old Scaladoc said it "contains no closures or functions" and can be "stored in registries" and "transmitted over the network". ZIO Blocks defines no `Schema` (and so no codec) for `DynamicMigration`, `MigrationAction` or `DynamicSchemaExpr`, unlike `DynamicPatch`. And `DynamicSchemaExpr.Literal`, which every `SchemaExpr.literal` default becomes, holds the `Schema` of its value, bindings included, so a schema for it could not be derived either.
-
-**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false MigrationSchema.scala`):
-
-```scala
-//> using scala 2.13.18
-//> using dep dev.zio::zio-blocks-schema:0.0.56
-
-import zio.blocks.schema._
-import zio.blocks.schema.migration._
-
-object Repro extends App {
-  val addEdition = DynamicMigration(
-    MigrationAction.AddField(DynamicOptic.root.field("edition"), SchemaExpr.literal(1).toDynamic)
-  )
-  println(addEdition.actions.head)
-  println(implicitly[Schema[DynamicMigration]])
-}
-// MigrationSchema.scala:12: error: could not find implicit value for parameter e: zio.blocks.schema.Schema[zio.blocks.schema.migration.DynamicMigration]
-```
-
-Without the last line, it prints:
-
-```
-AddField(.edition,Literal(1,Schema {
-  Int
-}))
-```
-
-**Expected.** Either a `Schema[DynamicMigration]` (with literals stored as `DynamicValue`s only, as `DynamicPatch` stores its values), or documentation that says migrations are data that can be inspected and composed but not encoded.
-
-**Root cause.** `schema/shared/src/main/scala/zio/blocks/schema/DynamicSchemaExpr.scala:100` (`final case class Literal(value: DynamicValue, schema: Schema[_])`); no schema instance exists in `DynamicMigration.scala` or `MigrationAction.scala`.
-
-**Impact.** Readers plan to store or send migrations, as `migration.md` suggests, and find no way to encode them. The Scaladoc of `Migration`, `DynamicMigration` and `MigrationAction` now describes the actions as data that cannot be encoded yet.
-
-**Test gap.** No test encodes a `DynamicMigration` or `MigrationAction`; `DynamicMigrationSpec` builds them in memory only.
-
-**Suggested fix.** Add schemas for `DynamicSchemaExpr`, `MigrationAction` and `DynamicMigration` (dropping the `Schema` from `Literal`, or rebuilding it from a type tag), then restore the claim; until then, correct `migration.md`.
-
 ### docs: `table.md` and `db-codec-deriver.md` say `createTable` handles collection and nested-record fields
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
@@ -12724,31 +12689,6 @@ Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-t
 **Summary.** `docs/reference/sql/table.md:238` says fields that fall back to JSONB "such as `List[A]`" produce "a `TEXT` or `JSONB` column", and that "nested records that are flattened into multiple columns are fully supported". `Table.derived` throws for a `List[A]` field, and it flattens every nested record even though the codec stores a non-inline record as one JSON column (see the `Table.derived` entry under Library bugs). `table.md:273` repeats "nested records are flattened". `docs/reference/sql/db-codec-deriver.md:23` says the fallback is "a single `TEXT` / `JSONB` column"; no code path emits `JSONB`, since `SqlDialect` maps `DbString` to `TEXT` on both dialects (`sql/shared/src/main/scala/zio/blocks/sql/SqlDialect.scala:36,64`).
 
 **Suggested fix.** Until the library bug is fixed, say that `Table.derived`, `Repo.derived` and `createTable` work only for records whose nested record fields carry `sql.inline`, and that a JSON column on PostgreSQL must be declared `JSONB` by hand.
-
-### schema: `dynamic-schema.md` and three examples say a `DynamicSchema` can be stored as JSON and that `BindingResolver.defaults` covers `Option`
-
-Found 2026-10-21 while writing the how-to guide `docs/guides/build-a-schema-registry.md` (backlog H-09), on `main` at `d1b4fe52`. The code is the same at tag `v0.0.56` (only Scaladoc changed in these files since). Verified on Scala 2.13.18 and 3.9.0 against published 0.0.56. Not filed.
-
-**Summary.** Five places contradict the code at 0.0.56:
-- `docs/reference/schema/dynamic-schema.md:16`: "Can be serialized to a `DynamicValue` and deserialized back, making it storable in databases or transmittable over the network". True in memory, but no format except Avro stores that `DynamicValue` losslessly (see the Library bugs entry on JSON round trips).
-- `schema-examples/src/main/scala/dynamicschema/DynamicSchemaRegistryExample.scala:30-32`: "the blob can be stored as JSON or bytes without any issue". Stored as JSON, it reads back as an accept-anything schema.
-- `schema-examples/src/main/scala/bindingresolvers/BindingResolverSchemaRegistryExample.scala:12-14`: "DynamicSchema carries only field names, type names, and annotations, so it can be stored as JSON or bytes". Same problem. (This example is linked from no page.)
-- `docs/reference/schema/dynamic-schema.md:267`: "`BindingResolver.defaults` covers all standard primitives, `java.time` types, `List`, `Map`, `Option`, and other standard collections." It has no `Option` binding (see the Usability traps entry), so a reader who follows it gets `Missing Record binding for type scala.Some`. `binding-resolver.md:88-96` lists the defaults correctly, without `Option`.
-- `schema-examples/src/main/scala/dynamicschema/DynamicSchemaRebindExample.scala:39`: "BindingResolver.defaults covers all primitives, java.time, List, Map, Option, etc." Same error; the example works only because its types have no `Option` field.
-
-Also misleading: `dynamic-schema.md:410` recommends `DynamicSchema#toSchema` for "validation gateway[s] or format converter[s]". Used with JSON input, its `check` rejects valid events with `Double`, `Float`, small `Long`, whole-number `BigDecimal` or `Option` fields (see the Usability traps entry on `check`).
-
-**Reproduction.** The `LossyRoundTrip213.scala`, `OptionRebind.scala` and `CheckVsDecode.scala` reproductions in the entries above (Verified on Scala 2.13.18 and 3.9.0 against 0.0.56).
-
-**Expected.** The page and the examples say that only `Schema[DynamicSchema].derive(AvroFormat)` round-trips a `DynamicSchema` in 0.0.56, that `defaults` has no `Option`, how to bind one, and that `check`/`toSchema` expect `DynamicValue`s built by `Schema#toDynamicValue`.
-
-**Root cause.** The page and examples were written from the API's intent; no test round-trips through a format or rebinds `Option` with `defaults` alone.
-
-**Impact.** Readers build registries that validate nothing, or hit a `RebindException` they were told can't happen.
-
-**Test gap.** The examples only compile in CI; none checks its claims.
-
-**Suggested fix.** Correct the five sentences, add a "Storing a DynamicSchema" subsection to `dynamic-schema.md` that uses Avro, and link the H-09 guide (it now has a See-also line there). Update the three example comments.
 
 ### docs: `telemetry-guide.md` tells tests to "restore state" with `log.removeAll()`, which silences later tests
 
@@ -12815,54 +12755,6 @@ object RestoreRepro {
 
 Found 2026-10-22 by the M-03 session, checked against source on `main` (same at `v0.0.56`). `sql/shared/src/main/scala/zio/blocks/sql/Frag.scala:375` shows `Transactor.connect(transactor) { ... }`, and `:370` mentions `Transactor.connect`. There is no `object Transactor`: `Transactor` is a trait (`Transactor.scala:65`) whose `connect` is an instance method (`:68`). The example should read `transactor.connect { ... }`.
 
-### docs: `as.md` calls dropping an `Option` field "round-trips cleanly"
-
-Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (backlog T-02), on `main` at `2f73284b`.
-
-**Summary.** `docs/reference/schema/schema-evolution/as.md:359` says an `Option` field that is absent from the other type "round-trips cleanly: `Some(v)` becomes `None` after a round-trip". That is data loss, not a clean round trip: line `A` of the script in "schema: `Into.derived` silently drops a value when a same-name field changes from `A` to `Option[A]`" shows `TypeA(x,Some(n))` coming back as `TypeA(x,None)`.
-
-**Suggested text.** "**`Option` fields on one side are allowed.** An `Option` field absent from the other type is dropped on the way out and comes back as `None`, so `Some(v)` does not survive a round trip:"
-
-### docs: `typeid.md:1927` lists "named tuples" under `TypeRepr.Tuple(elems)`, but a named tuple's TypeId is an applied `NamedTuple`, and its `TupleElement` labels are always `None`
-
-Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10, research item 7), on `main` at `b6c0c30e4`. Same line and content at v0.0.56.
-
-**Summary.** The `TypeRepr` variant table puts `Tuple(elems)` next to "`(A, B, C)`, named tuples", which suggests a named tuple is a `Tuple` whose elements carry labels. In fact `TypeId.of[(city: String, tempC: Double)]` is the type `scala.NamedTuple.NamedTuple` applied to two plain `Tuple` reprs: one of label string constants and one of element types. Every `TupleElement` label is `None`.
-
-**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`), run on JDK 21, and this `build.sbt`:
-
-```scala
-scalaVersion := "3.7.4"
-
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
-```
-
-**Reproduction.** `Repro.scala` (`zio-blocks-schema` brings in typeid), run with `sbt run`:
-
-```scala
-import zio.blocks.typeid._
-
-@main def repro(): Unit = {
-  val id = TypeId.of[(city: String, tempC: Double)]
-  println(id)
-  // NamedTuple[("city", "tempC"), (String, Double)]
-  println(id.fullName)
-  // scala.NamedTuple.NamedTuple
-  println(id.typeArgs)
-  // List(Tuple(List(TupleElement(None,StringConst(city)), TupleElement(None,StringConst(tempC)))), Tuple(List(TupleElement(None,Ref(String)), TupleElement(None,Ref(Double)))))
-}
-```
-
-**Expected (doc).** The row should not imply that named tuples map to labelled `Tuple` elements.
-
-**Root cause.** `typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeIdMacros.scala` `buildTupleTypeRepr` (`:1597-1609` on main) builds every element as `TupleElement(None, …)`, with the comment "Named tuple support would require additional detection" (`:1603-1604`). `isTupleType` (`:1583-1585`) doesn't match `NamedTuple`, so a named tuple takes the generic applied-type path. `TypeRepr.scala:378-382` documents `TupleElement.label` as being for named tuples, but the macro never fills it in.
-
-**Impact.** Low. A reader who matches on `TypeRepr.Tuple` to find named-tuple labels gets nothing. The labels are reachable as `StringConst` elements of `typeArgs.head`.
-
-**Test gap.** Nothing checks the `TypeRepr` table against what the macro builds for named tuples.
-
-**Suggested fix.** Change the row's example to "`(A, B, C)`" and add a sentence below the table: "A named tuple `(a: A, b: B)` is the applied type `NamedTuple[("a", "b"), (A, B)]`: its `typeArgs` hold a tuple of label constants and a tuple of element types." Alternatively, fill `TupleElement.label` in the macro and keep the row.
-
 ### Streams: `docs/reference/streams/core/stream.md` claims `repeated` rematerializes, cites the old `mapPar` Scaladoc, and prints the wrong release message
 
 Found 2026-10-26 while fact-checking the reference page against the wave 1 streams Scaladoc (branch `streams-scaladoc-wave-1`), on `streams-scaladocs` at `b93330329`. Not filed on GitHub yet.
@@ -12897,63 +12789,6 @@ Found 2026-10-27 while writing the Scaladoc for `Reader` and `Writer` (wave 2 of
 **Expected.** The pages match the code and the wave 2 Scaladoc; the known bugs (the Library bugs entries on `AnyRef`-lane primitive pulls, `Reader.repeat`/`repeated` after `close()`, and `Writer.fromOutputStream`/`fromWriter` after a failed write) are described as known bugs in 0.0.56.
 
 **Suggested fix.** Apply the replacement text given in items 1, 6 and 7 (and the wording of the wave 2 Scaladoc for the rest), then run `docs/mdoc` on both pages. The wave 3 Scaladoc for `NioWriters` should describe the `fromChannel` leak.
-
-### docs: `docs/reference/maybe.md` says flat primitive `Maybe`s allocate nothing; any `Long`, `Double` or `Int` outside the box cache is boxed
-
-Found 2026-10-27 while writing the how-to guide `docs/guides/avoid-allocation-on-hot-paths.md` (backlog H-51), on `main` at `8bb71c48c`. Same at v0.0.56.
-
-**Summary.** The "Allocation Profile" table (`docs/reference/maybe.md:26-28`) lists `Maybe.present(42)`, `Maybe(42)` and `Maybe.fromOption(Some(42))` as **0** allocations ("raw `42`"), and `:33` and `:60` say "All other flat cases store the value raw with zero allocation overhead" / "Flat values (non-nested, non-null) are stored raw with zero allocation". That holds for reference types only. `Maybe[A]` erases to `Object`, so a primitive is stored as its box: `42` merely hits the `Integer` cache (-128..127). `Maybe.present(1000)` allocates a fresh `java.lang.Integer`, every `Double` allocates a `java.lang.Double`, and writing `Maybe(price)` into a `Maybe[Long]` field allocates 24 bytes per write (one `java.lang.Long`).
-
-**Reproduction.** File `Repro.scala`, run with `scala-cli run --server=false Repro.scala` (JDK 25, scala-cli 1.10.1):
-
-```scala
-//> using scala 3.9.0
-//> using options -experimental
-//> using dep dev.zio::zio-blocks-next-maybe:0.0.56
-import zio.blocks.maybe._
-import java.lang.management.ManagementFactory
-
-final class LastPrice { var price: Maybe[Long] = Maybe.absent }
-
-@main def repro(): Unit = {
-  val a = Maybe.present(42)
-  val b = Maybe.present(42)
-  println(s"present(42) twice, same object:   ${a.asInstanceOf[AnyRef] eq b.asInstanceOf[AnyRef]}")
-  val c = Maybe.present(1000)
-  val d = Maybe.present(1000)
-  println(s"present(1000) twice, same object: ${c.asInstanceOf[AnyRef] eq d.asInstanceOf[AnyRef]}")
-  println(s"present(1000) runtime class:      ${c.asInstanceOf[AnyRef].getClass.getName}")
-  println(s"present(1.5) runtime class:       ${Maybe.present(1.5).asInstanceOf[AnyRef].getClass.getName}")
-
-  val threads = ManagementFactory.getThreadMXBean.asInstanceOf[com.sun.management.ThreadMXBean]
-  val holder  = new LastPrice
-  def writes(): Unit = {
-    var i = 0L
-    while (i < 100000L) { holder.price = Maybe.present(187000000L + i); i += 1 }
-  }
-  for (_ <- 1 to 300) writes() // let the JIT compile the loop
-  val before = threads.getCurrentThreadAllocatedBytes
-  writes()
-  println(s"Maybe[Long] field write: ${(threads.getCurrentThreadAllocatedBytes - before) / 100000.0} bytes per write")
-}
-// present(42) twice, same object:   true
-// present(1000) twice, same object: false
-// present(1000) runtime class:      java.lang.Integer
-// present(1.5) runtime class:       java.lang.Double
-// Maybe[Long] field write: 24.0 bytes per write
-```
-
-For comparison, the H-51 companion example `schema-examples/src/main/scala/avoidallocation/Step6MaybeExample.scala` measures 40 bytes per write for an `Option[Long]` field and 0 for a `Maybe[Tick]` field holding a case-class reference.
-
-**Expected.** The table distinguishes references (0 allocations) from primitives (one box per value outside the JVM's box caches), so readers do not reach for `Maybe[Long]`/`Maybe[Double]` expecting zero allocation.
-
-**Root cause.** The doc generalises from the reference case. Source: `maybe/shared/src/main/scala-3/zio/blocks/maybe/Maybe.scala:67` (`opaque type Maybe[+A] = A | Absent.type | Present[A]`, erased to `Object`) and `:98-105` (`present` stores `a.asInstanceOf[Maybe[A]]`, i.e. the boxed primitive).
-
-**Impact.** Performance-minded users swap `Option[Long]` for `Maybe[Long]` expecting zero allocation and still allocate 24 bytes per value (they save the 16-byte `Some` only). The `42` example hides it because of the `Integer` cache.
-
-**Test gap.** No allocation test; `MaybeScala3Spec` / `MaybeSpec` check values, not identity or allocation. `MaybeBoxingBenchmark` measures `Maybe[String]` through a JSON codec only.
-
-**Suggested fix.** Change rows 26-28 to e.g. `Maybe.present(tick)` → **0** (raw reference), add a row "Flat present, primitive | `Maybe.present(1000L)` | **1** box (`java.lang.Long`), 0 only for values in the JVM box cache", and qualify `:33` and `:60` ("Flat reference values are stored raw; primitives are stored as their box"). The H-51 guide already says this in its Maybe section.
 
 ### docs/examples: `streams-examples` `SinkSentinelGuardExample` and `SinkSentinelLimitationExample` describe a sentinel guard that was removed in #1672, and print contradictory results
 
@@ -13035,218 +12870,6 @@ import zio.blocks.streams._
 
 **Suggested fix.** Replace the sentence with: "Pulls elements from the run's `Reader` with the read that matches the lane (`readInt`, `readFloat`, or the count-returning `readLongs`/`readDoubles`), so built-in sinks such as `Sink.sumLong` and `Stream#runFold` never box. Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads." and link `../primitives/reader.md`.
 
-### docs: `reference/data-migration.md` says `fence()` stops producers and that the protocol migrates every row written before `complete()`
-
-Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
-
-**Summary.** The Safe Completion Protocol section of `docs/reference/data-migration.md` describes guarantees the code doesn't give. Line 85: "`fence()` signals cutover and stops new producers from writing to the old table". Line 135: "Because fencing stopped new writes, the queue is guaranteed to reach zero." Line 141: "The protocol ensures that every row modified between `init()` and `complete()` is migrated". Line 110: `ShadowTable(suffix)` "creates a shadow table with the target schema". Line 265: "The failure is returned to the caller." In the code, `fence()` only changes an in-memory state flag and blocks no write; a write between `drain()` and `complete()` is lost; the shadow table copies the current shape; a failed batch throws a `RuntimeException`. The source Scaladoc of `fence()` itself says the opposite of the page: "The application MUST ensure that producers stop writing to the old table before calling fence(). Writes arriving after fence() may be lost".
-
-**Reproducer.** Start PostgreSQL 16:
-
-```bash
-docker run --rm -d --name shop-db -p 5432:5432 \
-  -e POSTGRES_USER=shop -e POSTGRES_PASSWORD=shop -e POSTGRES_DB=shop \
-  postgres:16
-```
-
-Then, in an empty directory:
-
-`build.sbt`:
-
-```scala
-scalaVersion := "3.9.0"
-scalacOptions += "-experimental"
-libraryDependencies ++= Seq(
-  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
-  "org.postgresql" % "postgresql"                     % "42.7.14"
-)
-run / fork := true
-```
-
-`project/build.properties`:
-
-```
-sbt.version=1.13.0
-```
-
-`Repro.scala`:
-
-```scala
-import zio.blocks.schema.*
-import zio.blocks.schema.migration.Migration
-import zio.blocks.data.migration.*
-import zio.blocks.sql.*
-
-case class Item(id: Long, name: String)
-object Item { implicit val schema: Schema[Item] = Schema.derived }
-
-@main def repro(): Unit = {
-  given transactor: Transactor =
-    JdbcTransactor.fromUrl("jdbc:postgresql://localhost:5432/shop", "shop", "shop", SqlDialect.PostgreSQL)
-  given Dialect = Dialect.Postgres
-  val items = Repo.derived[Item, Long]("items", "id", _.id)
-  transactor.transact {
-    Frag.literal("DROP TABLE IF EXISTS items, items_v2, items_old_v2, items_q CASCADE").update
-    Frag.literal("DROP FUNCTION IF EXISTS items_q_notify() CASCADE").update
-    Frag.literal("CREATE TABLE items (id BIGINT PRIMARY KEY, name TEXT NOT NULL)").update
-  }
-  QueueTable.create[Long]("items_q", transactor)
-  val migrator = LargeMigrator[Item, Item, Long, Long](
-    items, items, Migration.identity[Item], "items_q", 100, TargetStrategy.ShadowTable("v2"), captureTriggers = true
-  )
-  migrator.init()
-  migrator.fence()
-  transactor.transact(items.insert(Item(1, "written after fence()")))
-  println("insert after fence() succeeded")
-  println(s"pending after the insert: ${migrator.pendingCount}")
-  println(s"drain() processed: ${migrator.drain()}")
-}
-```
-
-Run with `sbt run`. Real output:
-
-```scala
-// insert after fence() succeeded
-// pending after the insert: 1
-// drain() processed: 1
-```
-
-The write after `fence()` goes through and is queued by the trigger; nothing was stopped. (The loss of a write made after `drain()` is reproduced in the Library bugs entry on `LargeMigrator#complete`.)
-
-**Expected.** The page states the real contract: the application stops its writers before `fence()`; `fence()` only moves the migrator into the cutover state; `drain()` converts until a count finds the queue empty; check `pendingCount` before `complete()`, which doesn't; create the shadow table with the new columns first; a failed batch throws, rolls back, and keeps its keys queued.
-
-**Root cause.** `dataMigration/shared/src/main/scala/zio/blocks/data/migration/LargeMigrator.scala:82-97` (`fence()` sets `state = State.Fenced`, with the Scaladoc quoted above), `LargeMigrator.scala:141-147` (`complete()` doesn't check the queue), `SmallMigrator.scala:121`/`LargeMigrator.scala:199` (`throw new RuntimeException(s"Migration failed: $err")`). Page lines 85, 110, 135, 141, 265 of `docs/reference/data-migration.md`.
-
-**Impact.** A reader who trusts "fence() stops new producers" keeps writers running through cutover and loses writes silently.
-
-**Test gap.** No docs check; the reference page's blocks are plain fences, so nothing compiles or runs them.
-
-**Suggested fix.** Rewrite those five sentences to the contract above and link the how-to guide `guides/migrate-table-rows-online.md`, which demonstrates it against PostgreSQL.
-
-### docs: the "Full Example" in `reference/data-migration.md` doesn't compile, and as written it would not migrate the live table
-
-Found 2026-10-27 while writing the how-to guide `docs/guides/migrate-table-rows-online.md` (backlog H-23), on `main` at 59e7cb81e. Same at v0.0.56.
-
-**Summary.** The Full Example (`docs/reference/data-migration.md:200-262`) fails to compile, and fixing the compile error still leaves a program that doesn't migrate anything: it targets the wrong table, never creates the queue table, and never queues the existing rows.
-
-**Reproducer.** In an empty directory:
-
-`build.sbt`:
-
-```scala
-scalaVersion := "3.9.0"
-scalacOptions += "-experimental"
-libraryDependencies ++= Seq(
-  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
-  "org.postgresql" % "postgresql"                     % "42.7.14"
-)
-run / fork := true
-```
-
-`project/build.properties`:
-
-```
-sbt.version=1.13.0
-```
-
-`FullExample.scala`:
-
-```scala
-object FullExample {
-  val transactor: zio.blocks.sql.Transactor = null
-  import zio.blocks.schema._
-  import zio.blocks.schema.migration.Migration
-  import zio.blocks.sql.{DbCodec, DbCodecDeriver, Repo, Table, Transactor}
-  import zio.blocks.data.migration._
-  
-  case class UserV1(id: Int, name: String)
-  case class UserV2(id: Int, name: String, age: Int)
-  
-  object UserV1 { implicit val schema: Schema[UserV1] = Schema.derived }
-  object UserV2 { implicit val schema: Schema[UserV2] = Schema.derived }
-  
-  val v1Table = Table.derived[UserV1]
-  val v2Table = Table.derived[UserV2]
-  
-  implicit val codecInt: DbCodec[Int] = implicitly[Schema[Int]].deriving(DbCodecDeriver).derive
-  implicit val codecV1: DbCodec[UserV1] = UserV1.schema.deriving(DbCodecDeriver).derive
-  implicit val codecV2: DbCodec[UserV2] = UserV2.schema.deriving(DbCodecDeriver).derive
-  
-  val v1Repo = Repo(v1Table, "id", summon[DbCodec[Int]], (_: UserV1).id)
-  val v2Repo = Repo(v2Table, "id", summon[DbCodec[Int]], (_: UserV2).id)
-  
-  // Migration that transforms UserV1 to UserV2
-  val migration: Migration[UserV1, UserV2] = Migration
-    .newBuilder[UserV1, UserV2]
-    .addField(_.age, SchemaExpr.literal(0))
-    .build
-  
-  // SmallMigrator: queue-based batch processing
-  val smallMigrator = SmallMigrator[UserV1, UserV2, Int, Int](
-    repoV1 = v1Repo,
-    repoV2 = v2Repo,
-    migration = migration,
-    queueTable = "user_migration_q",
-    batchSize = 100,
-    target = TargetStrategy.ShadowTable("v2")
-  )(using transactor, summon[DbCodec[Int]], Dialect.Postgres)
-  
-  // Lifecycle: init, process batches, complete
-  smallMigrator.init()
-  // ... loop processBatch() ...
-  smallMigrator.complete()
-  
-  // LargeMigrator: incremental worker with safe completion protocol
-  val largeMigrator = LargeMigrator[UserV1, UserV2, Int, Int](
-    repoV1 = v1Repo,
-    repoV2 = v2Repo,
-    migration = migration,
-    queueTable = "user_migration_q",
-    batchSize = 100,
-    target = TargetStrategy.ShadowTable("v2"),
-    captureTriggers = true
-  )(using transactor, summon[DbCodec[Int]], Dialect.Postgres)
-  
-  // Safe lifecycle: init, fence, drain, complete
-  largeMigrator.init()
-  largeMigrator.fence()
-  val total = largeMigrator.drain()
-  largeMigrator.complete()
-}
-```
-
-Run with `sbt compile`. Real output:
-
-```scala
-// -- [E006] Not Found Error: ./FullExample.scala:38:44 
-// 38 |  )(using transactor, summon[DbCodec[Int]], Dialect.Postgres)
-//    |                                            ^^^^^^^
-//    |          Not found: Dialect - did you mean Reflect? or perhaps reflect?
-//    |
-//    | longer explanation available when compiling with `-explain`
-```
-
-`FullExample.scala` is the page's block verbatim, wrapped in `object FullExample` with a `transactor` stub, because the block uses `transactor` without defining it.
-
-**What is wrong, beyond the compile error** (each verified against the source):
-
-- `Dialect` is used (`Dialect.Postgres`, lines 238 and 254) but not imported: the import is `zio.blocks.sql.{DbCodec, DbCodecDeriver, Repo, Table, Transactor}`. `transactor` is never defined.
-- `Table.derived[UserV1]` and `Table.derived[UserV2]` (lines 214-215) name two different tables, `user_v1` and `user_v2`. `ShadowTable("v2")` shadows and swaps the V2 repo's table (`TargetStrategyApplier.scala:40-47`, `ShadowTable.scala:49-60`), so the swap renames `user_v2`/`user_v2_v2` and never replaces the live `user_v1`. Neither table is ever created.
-- The queue table `user_migration_q` is never created; `init()` doesn't create it (`LargeMigrator.scala:68-80`), so with `captureTriggers = true` every write to `user_v1` fails (see the Usability traps entry on `init()`).
-- No existing row is ever queued. Capture triggers only see writes after `init()`, and the example goes straight from `init()` to `fence()`/`drain()`/`complete()`, so `complete()` swaps in an empty shadow table.
-- Both migrators reuse the same queue and the same shadow suffix; after the `SmallMigrator`'s `complete()` has renamed `user_v2` to `user_v2_old_v2`, the `LargeMigrator`'s `complete()` tries the same rename and fails because that table exists.
-- The `SmallMigrator` loop earlier on the page (`pending = count > 0`, line 70) stops early when a batch's rows were deleted (see the Library bugs entry on `run()`).
-
-**Expected.** A Full Example that compiles under mdoc and, run against PostgreSQL, migrates the live table: one V1 and one V2 repo on the same table name, `QueueTable.create` first, the shadow table created with the V2 columns before `init()`, existing keys queued after `init()` (`INSERT INTO q (id) SELECT CAST(id AS TEXT) FROM t ON CONFLICT DO NOTHING`), writers stopped before `fence()`, `pendingCount == 0` checked before `complete()`.
-
-**Root cause.** The example was never compiled or run: the page uses plain `scala` fences, and `dataMigration` was not on the docs mdoc classpath until H-23 added it.
-
-**Impact.** The first code a reader copies from the reference fails to compile, and the "fixed" version silently migrates nothing or breaks writes.
-
-**Test gap.** Plain fences; no mdoc. `dataMigration.jvm` is now on the docs classpath (H-23), so the block can become `mdoc:compile-only`.
-
-**Suggested fix.** Replace the Full Example with a short pointer to `guides/migrate-table-rows-online.md` (whose `CompleteExample` runs this flow against PostgreSQL 16), or rewrite it per "Expected" as an `mdoc:compile-only` block.
-
 ### docs: `mux.mdx` reads as if the registry were both lock-based and lock-free, and says `receive`/`takeOutbound` must share one thread
 
 Found 2026-10-27 while writing the how-to guide `docs/guides/run-a-mux-over-a-socket.md` (backlog H-29), on `main` at efc51f19b. Same at v0.0.56 (the same lines are in `git show v0.0.56:docs/reference/mux.mdx`).
@@ -13318,6 +12941,7 @@ Found 2026-10-28 by the coordinator while preparing the streams doc-fix batch, o
 
 ## Resolved
 
+- Schema-core doc errors fixed in #1877 (batch 2a, merge `edd42b4a2`, three review rounds): `maybe.md` said flat primitive `Maybe`s allocate nothing (they are stored as JVM boxes; only cached small values are free); `typeid.md:1927` listed named tuples under `TypeRepr.Tuple` (a named tuple is an applied `NamedTuple`, labels `None`); `as.md` called dropping a one-sided `Option` field a clean round trip (`Some(v)` comes back `None`; `into.md` qualified too); `migration.md` and the ZIO Schema migration guide called `DynamicMigration` serializable or "plain data" (no `Schema`, so no codec); `dynamic-schema.md` and three `schema-examples` comments said a `DynamicSchema` can be stored as JSON and that `BindingResolver.defaults` covers `Option` (now a compiled Avro storage subsection, a compiled `Option` binding, and the `toSchema`/`check` JSON caveat); `data-migration.md` promised that `fence()` stops producers and that `complete()` migrates every queued row, and its Full Example did not compile (rewritten after H-23, run against PostgreSQL 16 and SQLite). `schema.md` gained a compiled "Tuples" subsection and the named-tuple `given` rule and known bugs; those library entries stay open with a Status line.
 - Codec doc errors fixed in #1878 (batch 2b, merge `13423e664`): `avro.md` now has the Scala-to-Avro type table and the decode-trusts-the-reader-schema note, and names the three Avro library bugs; `yaml.md` (now evaluated mdoc) no longer shows `YamlOptions` output from `encodeToString` or a `---` line it never prints, and documents kebab-case keys; `csv.md` no longer promises document-level error rows and columns, marks `CsvError.TypeError` and `CsvConfig.nullValue` as unused, and states the nested-record behaviour; the whole "schema / JSON" list (the `require*` encoder effect in `customize-json-encoding.md`, `transient` on decode in `modifier.md`, `schema-error.md` messages and first-failure behaviour, `syntax.md` `show` output, `validation.md` rewritten as evaluated mdoc, `json-schema.md:366` and `pattern` anchoring, `json/index.md:66-67`, the `json"..."` Scala 2.13 note and `toKV` output in `json.md`, and `json-selection.md:92`); the `Schema.fromJsonSchema` Scaladoc was already correct on main. Also fixed there: `schema-bson/README.md` showed class-level `@Modifier.rename`/`alias` on a record, which the BSON deriver ignores (probed against 0.0.56: a record with class-level `rename("NewName")` still encodes as `{"x": 1}`; on a sealed-trait case, `rename("Round")` gives `{"Round": {...}}` and `alias("Circle")` decodes), and the README now says `withNativeObjectId` has no effect and shows the `Option` sub-document shape. The library-bug entries for Avro, YAML, CSV and BSON stay open.
 - Web doc errors fixed in #1879 (batch 3, merge `1a5561f65`): `reference/datastar/index.md` claimed Scala 2.13 support (the module is Scala 3 only) and lacked the 3.9+ `zio-blocks-next-datastar` + `-experimental` install line; `reference/htmx/response-headers.md` paired `HX-Redirect` with `HX-Trigger-After-Settle`, which htmx 2 never fires after a redirect (browser-verified); `reference/htmx/index.md` never said its syntax targets htmx 2.x; and the `JdkHttp` adapter (7 copies plus the 2 `StreamingJdkHttp` copies) wrote the response outside its `catch`, so a failed write dropped the connection silently (now a logged 500). The same PR documented the htmx `HX-Boosted`/history-restore traps, the html shadowing and `search` ambiguity traps, and the docs side of the `HxLocation` and four http-model-schema bugs (those entries stay open with a Status line).
 - `docs/index.md` described `Maybe` as "Low-allocation optional values backed by `null`"; since #1532 absence is an `Absent` singleton and `Maybe.present(null)` is present. Fixed in #1866 (H-51, commit `1dfba0647`); regenerate the README.
