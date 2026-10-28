@@ -9182,6 +9182,55 @@ object Dumps {
 
 **Suggested fix.** Render from the `Table`'s own metadata. If the macro can't evaluate the value, emit code that writes the file on first use at run time, or require a statically known `Table.derived` call and replay its arguments (name, naming policy) through `TableMetadata.columnsFor`. Add golden cases with a renamed column and `TableNamingPolicy.Plural`.
 
+### sql: `Rel.manyToOne` and `Rel.oneToMany` accept a selector that does more than name a field, and silently join on the first field it touches
+
+Found 2026-10-28 while writing the reference page `docs/reference/sql/rel.md` (PR #1889), on `main` at `6462ef6e9`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 -- sql/shared/src/main/scala/zio/blocks/sql/query` is empty.
+
+**Summary.** The selector constructors are documented as taking a plain field access such as `_.buyerId`, and the macro rejects a selector that calls a method on the row (`_.hashCode`). But a selector that goes on from a field, such as `_.note.length` or `_.buyerId + 1`, compiles with no error or warning, and the macro uses the first field the selector touches as the column. The `Rel` then joins on a different condition than the code says: `_.note.length` builds `ON t0."note" = t1."customer_id"`, and `_.buyerId + 1` builds `ON t0."buyer_id" = t1."customer_id"`, dropping the `+ 1`.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56). `Repro.sc`, run with `scala-cli run --server=false Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.query.*
+import zio.blocks.sql.*
+
+case class Customer(customerId: Int, name: String)
+object Customer { given Schema[Customer] = Schema.derived }
+
+case class Invoice(invoiceId: Int, buyerId: Int, note: String)
+object Invoice { given Schema[Invoice] = Schema.derived }
+
+val customers = Table.derived[Customer]
+val invoices  = Table.derived[Invoice]
+
+val byNoteLength = Rel.manyToOne(invoices, _.note.length, customers, _.customerId)
+println(byNoteLength.fkColumn)
+// note
+println(SqlQuery.from(invoices).join(byNoteLength).sql(SqlDialect.SQLite))
+// SELECT t0."invoice_id", t0."buyer_id", t0."note", t1."customer_id", t1."name" FROM "invoice" AS t0 INNER JOIN "customer" AS t1 ON t0."note" = t1."customer_id"
+
+val offByOne = Rel.manyToOne(invoices, _.buyerId + 1, customers, _.customerId)
+println(offByOne.fkColumn)
+// buyer_id
+println(SqlQuery.from(invoices).join(offByOne).sql(SqlDialect.SQLite))
+// SELECT t0."invoice_id", t0."buyer_id", t0."note", t1."customer_id", t1."name" FROM "invoice" AS t0 INNER JOIN "customer" AS t1 ON t0."buyer_id" = t1."customer_id"
+```
+
+**Expected.** Both calls fail to compile with the macro's "selector must be a simple field access like _.field or x => x.field" error, as `_.hashCode` already fails with "unknown field 'hashCode' for type ... Valid fields: ...".
+
+**Root cause.** `RelMacros.extractFieldName`'s `findInTerm` (`sql/shared/src/main/scala/zio/blocks/sql/query/RelMacros.scala:73-95`) unwraps `Apply(fun, _)` to `fun` (`:82`). For a `Select(qual, name)` whose qualifier isn't the lambda parameter, it recurses into the qualifier and returns the innermost field (`:84-91`, the `findInTerm(qual).orElse(Some(name))` at `:90`). So `_.note.length` (`Select(Select(Ident(_), note), length)`) and `_.buyerId + 1` (`Apply(Select(Select(Ident(_), buyerId), +), 1)`) both reduce to their first field, which `extractColumn` (`:47-66`) then validates as a real field and snake-cases. The comment at `:88-89` shows the chained case was meant for nested fields (`_.foo.bar`), but nothing checks that the rest of the chain is a field, and the column is the outer field anyway.
+
+**Impact.** A selector that reads as an expression compiles and builds a join on a different condition, with no warning. The SQL is valid, so wrong rows come back silently: `_.note.length` joins a text column to an integer key, and an arithmetic selector drops its arithmetic.
+
+**Test gap.** No test in `sql/shared/src/test` passes anything but a plain field access to `Rel.manyToOne`/`oneToMany`; `QueryRenderSpec` and `ExplainSpec` build most `Rel`s from string column names.
+
+**Suggested fix.** Accept only `Select(Ident(param), field)` (after unwrapping `Inlined`/`Block`/`Typed` and the lambda), and abort with the existing "selector must be a simple field access" error for anything else, including chained selects and applications. If nested fields are ever wanted, map the full path through `TableMetadata`'s flattened names instead of taking the outer field. Add negative compile tests (`typeCheckErrors`) for `_.f.length`, `_.f + 1` and `_.f.g`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
