@@ -729,7 +729,7 @@ This section lists the most common runtime and compile errors, explains what cau
 
 **`IllegalStateException`** when calling `allocate`, `$`, or `open` on a closed scope. The message is one of `Cannot allocate resource: scope is already closed.`, `Cannot access scoped value: scope is already closed.` or `Cannot open child scope: scope is already closed.`. `defer` does not throw: on a closed scope it returns a no-op handle and the finalizer never runs.
 
-```scala mdoc:silent:reset
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.scope.Resource
 

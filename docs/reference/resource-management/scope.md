@@ -13,7 +13,7 @@ title: "Scope"
 Here's the interface definition:
 
 ```scala
-trait Scope {
+sealed abstract class Scope {
   type $[+A]
 
   def scoped[A](f: Scope.Child[this.type] => A)(using Unscoped[A]): A  // Scala 2: implicit Unscoped[A]
@@ -286,7 +286,7 @@ try {
 Allocates a `Resource[A]` in this scope, acquiring the underlying value immediately and registering its finalizer:
 
 ```scala
-trait Scope {
+sealed abstract class Scope {
   def allocate[A](resource: Resource[A]): $[A]
   def allocate[A <: AutoCloseable](value: => A): $[A]
 }
@@ -471,7 +471,7 @@ If the scope is already closed, `defer` is silently ignored (no-op). The finaliz
 Returns whether this scope's finalizers have already run:
 
 ```scala
-trait Scope {
+sealed abstract class Scope {
   def isClosed: Boolean
 }
 ```
@@ -550,7 +550,7 @@ println(s"Query after shutdown: $result2")
 Returns whether the calling thread is the owner of this scope:
 
 ```scala
-trait Scope {
+sealed abstract class Scope {
   def isOwner: Boolean
 }
 ```
