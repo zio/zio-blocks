@@ -3765,6 +3765,8 @@ object PlusInQuery {
 
 ### http-model-schema: `request.header[T](name)` and `response.header[T](name)` do not compile
 
+**Status.** Docs side fixed in #1879 (`reference/http-model/schema.md` uses `request.headers.header` and names this as a known bug); the library bug is open.
+
 Not filed on GitHub yet.
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/validate-query-parameters-and-headers.md` (backlog H-36), on `main` at `a44dc6db` plus the unmerged H-35 branch. The http-model and http-model-schema sources are the same at tag `v0.0.56`. Verified by compiling against the published 0.0.56 on Scala 3.9.0 and 2.13.16.
@@ -3813,6 +3815,8 @@ The same file with `//> using scala 2.13.16` and `zio-blocks-http-model-schema` 
 **Suggested fix.** Either add `header[T](name: String)(implicit Schema[T])` overloads to `Request` and `Response` themselves (http-model would then depend on schema, which it does not today), or rename the extension (for example `headerAs[T]`) and keep `header[T]` only on `Headers`. Change both specs to call the methods through `import zio.http.schema._` so the tests compile the way users write the code.
 
 ### http-model-schema: derived `QueryCodec` and `HeaderCodec` ignore field default values
+
+**Status.** Docs side fixed in #1879 (`reference/http-model/schema.md`); the library bug is open.
 
 Not filed on GitHub yet.
 
@@ -7491,6 +7495,8 @@ The bare form (third line) swapped both the main fragment and the badge.
 
 ### htmx: `HxLocation` accepts relative `HxTarget`s (`closest`, `find`, `next`, `previous`, `this`) that htmx 2 can't resolve, and the reference page's example uses one
 
+**Status.** Docs side fixed in #1879 (the `response-headers.md` example uses a CSS selector and names this as a known bug); the API still accepts relative targets.
+
 Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56 (code and `docs/reference/htmx/response-headers.md:197` unchanged).
 
 **Summary.** `HxLocation.apply(path, target: Option[HxTarget], swap)` takes any `HxTarget`. htmx 2 resolves the `target` of an `HX-Location` header with `document.querySelector` (no element to be relative to), so `closest main` fails: htmx fires `htmx:targetError` and does nothing. `docs/reference/htmx/response-headers.md:197` teaches exactly this shape: `HxLocation("/next", target = Some(HxTarget.closest("section")), swap = Some(HxSwap.AfterEnd))`.
@@ -8942,6 +8948,8 @@ object Main {
 
 ### http-model-schema: `query[T]` and `header[T]` compile for any schema but decode only primitives
 
+**Status.** Docs side fixed in #1879 (`reference/http-model/schema.md`); the library bug is open.
+
 Found 2026-10-21 while writing H-36 (`docs/guides/validate-query-parameters-and-headers.md`). Verified against the published 0.0.56.
 
 `request.query[Option[Int]]("limit")`, `query[List[Int]]` and `query[Isbn]` for a wrapper type compile, because any `Schema[T]` is accepted, but always return `Malformed(key, value, "Unsupported schema type for string decoding")`, even for `?limit=5`. `StringDecoder.decode` handles `Reflect.Primitive` only (`http-model-schema/shared/src/main/scala/zio/http/schema/StringDecoder.scala:26-29`). The error blames the client's value for a programming mistake, and a 400 handler sends it back to the client. The reference page says the module "supports decoding to any type with a `Schema[T]` instance". Reproduction (`scala-cli run`, Scala 3.9.0, `zio-blocks-next-http-model-schema` 0.0.56):
@@ -8976,6 +8984,8 @@ object OptionQuery {
 Suggested fix: support wrappers (the codec derivers already do, through `ParamCodecSupport.wrapperFieldCodec`) and map `Option[T]` to "missing is `None`". At least document the primitive-only limit on the reference page, and consider reporting it as a distinct error rather than `Malformed`.
 
 ### http-model-schema: `queryOrElse` and `headerOrElse` also swallow malformed values, and no decoder applies `Validation`
+
+**Status.** Docs side fixed in #1879 (`reference/http-model/schema.md`); the library bug is open.
 
 Found 2026-10-21 while writing H-36. Verified against the published 0.0.56.
 
@@ -10663,6 +10673,8 @@ object Repro {
 
 ### htmx: answering every `HxRequest` with a fragment breaks the Back button on htmx 2
 
+**Status.** Documented in #1879 (`reference/htmx/response-headers.md` "Presence Flags").
+
 Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`, opus run, branch `docs/t10-htmx-opus-run`), from `origin/main` `a643b7cb0`. The htmx module sources are identical at tag `v0.0.56`. Verified with htmx.org 2.0.11 in headless Chromium.
 
 **Summary.** The usual htmx server pattern is "return a fragment when `HX-Request: true`, otherwise the full page". The response-headers reference teaches exactly that read and calls `HxRequest` "always `true` on an HTMX request". htmx 2 also sends `HX-Request: true` on a history cache miss (config `historyRestoreAsHxRequest` defaults to `true`), together with `HX-History-Restore-Request: true`, and swaps the answer into the whole `<body>`. A handler that follows the reference answers that request with a fragment, so pressing Back to a page that has left htmx's history cache replaces the whole page with a bare list: no heading, no search box.
@@ -10714,6 +10726,8 @@ def wantsFragment(request: Request): Boolean =
 
 ### htmx: a fragment check that ignores `HX-Boosted` breaks `hxBoost` links (addendum to "answering every `HxRequest` with a fragment breaks the Back button on htmx 2")
 
+**Status.** Documented in #1879 (`response-headers.md` "Presence Flags" and a sentence in T-10 section 7 linking H-40).
+
 Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56.
 
 **Summary.** A link inside an `hx-boost="true"` element sends `HX-Request: true` and `HX-Boosted: true`, and htmx swaps the response into `<body>` and takes the `<title>` from it, so it needs the full page. T-10's check (`HxRequest && !HxHistoryRestoreRequest`, `docs/guides/add-interactivity-with-htmx.md:369-371`) is correct for T-10's page, which has no boosted links, but answers a boosted request with a fragment.
@@ -10762,6 +10776,8 @@ With the three-header check (`HxRequest && !HxBoosted && !HxHistoryRestoreReques
 **Suggested fix.** One sentence in T-10 section 7 and in the reference's presence-flags section pointing to the three-header check; H-40 now shows it.
 
 ### html: tag values such as `search` make same-named helpers ambiguous under wildcard imports
+
+**Status.** Documented in #1879 (`reference/html.md`, next to the shadowing warning); the ambiguity remains.
 
 Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`), from `origin/main` `a643b7cb0`. Same at tag `v0.0.56`. Related to the existing entry "html and schema: `p(...)` is ambiguous on Scala 3 when both packages are imported".
 
@@ -11300,6 +11316,8 @@ Observed in the browser with a listener for `cart-updated` on `<body>`: the resp
 **Suggested fix.** `final case class JsonValue(json: Json.Object)`; `parse` accepts only `{`.
 
 ### html: common Scala names shadow DSL elements (`span` vs `scala.concurrent.duration._`, `main` vs `def main`)
+
+**Status.** Documented in #1879 (`reference/html.md` now warns and shows compiling workarounds); the names still clash.
 
 Found while writing the examples for the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`. Same at v0.0.56.
 
@@ -12939,44 +12957,6 @@ Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (b
 
 **Suggested text.** "**`Option` fields on one side are allowed.** An `Option` field absent from the other type is dropped on the way out and comes back as `None`, so `Some(v)` does not survive a round trip:"
 
-### docs: the htmx reference never says which htmx version its attribute syntax targets
-
-Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md`), from `origin/main` `a643b7cb0`.
-
-**Summary.** `docs/reference/htmx/index.md` documents attributes such as `hx-trigger` and `hx-swap` without saying which htmx release they target. The syntax targets htmx 2.x; htmx 4.x parses these attributes differently (HCON), so readers pasting the attributes into a 4.x page get different behaviour.
-
-**Suggested fix.** One sentence on the reference index: "The attribute syntax targets htmx 2.x" and the pinned script version (for example `htmx@2.0.11`).
-
-**Also seen (opus run, 2026-10-23).** The module's `hxDisable: Boolean` renders `hx-disable="true"`, which htmx 4 reads as a CSS selector, and htmx 4.0.0 reads none of `hx-params`, `hx-disinherit`, `hx-prompt`, `hx-disabled-elt` or `hx-ext`. Typed attributes therefore compile and do nothing under htmx 4. This is the strongest reason to pin the version in the reference.
-
-### datastar reference: "Supported Scala versions: 2.13.x and 3.x" is wrong, the module is Scala 3 only
-
-Found 2026-10-26 while writing `docs/guides/build-a-live-dashboard-with-datastar.md` (T-11), on `main` at `d00e7d1af`. Same text at tag `v0.0.56`.
-
-**Summary.** `docs/reference/datastar/index.md:53` says "Supported Scala versions: 2.13.x and 3.x". The module is built for Scala 3 only, and no Scala 2.13 artifact is published.
-
-**Reproduction** (shell, run exactly as written 2026-10-26):
-
-```bash
-for a in zio-blocks-datastar_3 zio-blocks-next-datastar_3 zio-blocks-datastar_2.13 zio-blocks-next-datastar_2.13; do
-  echo "$a: $(curl -s -m 20 -o /dev/null -w '%{http_code}' https://repo1.maven.org/maven2/dev/zio/$a/0.0.56/$a-0.0.56.pom)"
-done
-# zio-blocks-datastar_3: 200
-# zio-blocks-next-datastar_3: 200
-# zio-blocks-datastar_2.13: 404
-# zio-blocks-next-datastar_2.13: 404
-```
-
-**Expected.** The page says "Scala 3 only" (the module table in `docs/index.md:121` already says `3.x`).
-
-**Root cause.** `build.sbt:1905` declares `stdSettings("zio-blocks-datastar", Seq(Scala3, Scala3Next))`, with no 2.13 entry, so no `_2.13` artifact exists. The reference line was never updated, and the installation block on the same page also omits the Scala 3.9+ rule (`zio-blocks-next-datastar` plus `-experimental`).
-
-**Impact.** A Scala 2.13 user follows the install instructions and gets an unresolved dependency.
-
-**Test gap.** Nothing checks docs claims against `crossScalaVersions`.
-
-**Suggested fix.** Replace the line with "Supported Scala versions: 3.x (no Scala 2.13 artifact)" and add the 3.9+ `zio-blocks-next-datastar` / `-experimental` variant to the install block.
-
 ### docs: `typeid.md:1927` lists "named tuples" under `TypeRepr.Tuple(elems)`, but a named tuple's TypeId is an applied `NamedTuple`, and its `TupleElement` labels are always `None`
 
 Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-with-schema.md` (backlog H-10, research item 7), on `main` at `b6c0c30e4`. Same line and content at v0.0.56.
@@ -13033,98 +13013,6 @@ Found 2026-10-26 while fact-checking the reference page against the wave 1 strea
 **Expected.** The page matches the code; for 1, describe the real behaviour and call it a known bug.
 
 **Suggested fix.** Edit the six places, then run `docs/mdoc` on the page.
-
-### docs: `response-headers.md` combines `HX-Redirect` with `HX-Trigger-After-Settle`, which htmx never fires in that case
-
-Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`; `docs/reference/htmx/response-headers.md:214-219` ("Reading and Writing Through Request and Response"). Same at v0.0.56.
-
-**Summary.** The example builds `afterSubmit` with `HxRedirect(...)` and `HxTriggerAfterSettle(HxEventPayload.Event("orderPlaced"))`, presented as the common case after a form submission. htmx 2 handles `HX-Redirect` (and `HX-Location`, `HX-Refresh`) by navigating and returning before the swap, so the after-swap and after-settle trigger headers are never processed; only `HX-Trigger` fires.
-
-**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
-
-```scala
-scalaVersion := "3.9.0"
-scalacOptions += "-experimental"
-libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
-run / fork := true
-```
-
-**Reproducer.** `src/main/scala/RedirectSettle.scala`, run with `sbt -batch "runMain redirectSettle"` (the page's own code):
-```scala
-import zio.http.{Response, URL}
-import zio.http.htmx.headers.{HxEventPayload, HxRedirect, HxTriggerAfterSettle}
-
-@main def redirectSettle(): Unit = {
-  val afterSubmit = Response.ok
-    .addHeader(HxRedirect(URL.parse("/orders").toOption.get))
-    .addHeader(HxTriggerAfterSettle(HxEventPayload.Event("orderPlaced")))
-  afterSubmit.headers.toList.foreach { case (name, value) => println(s"$name: $value") }
-}
-// hx-redirect: /orders
-// hx-trigger-after-settle: orderPlaced
-```
-Observed in the browser with a response carrying `HX-Redirect: /orders/1001`, `HX-Trigger: cart-updated` and `HX-Trigger-After-Settle: order-placed`, listeners for both on `<body>`:
-```
-// console: EVENT cart-updated
-// url now http://127.0.0.1:8615/orders/1001     (no order-placed event)
-```
-**Expected.** An example whose headers all take effect, or a note that redirect/location/refresh skip after-swap/after-settle triggers.
-
-**Root cause.** htmx.js `handleAjaxResponse`: `HX-Trigger` at 4863-4865, then early `return`s for `HX-Location` (4867-4880), `HX-Redirect` (4884-4889) and `HX-Refresh` (4891-4895); after-swap/settle triggers are handled only in the swap callbacks (4987-5001).
-
-**Impact.** Readers wire client logic to an event that never fires after a redirect.
-
-**Test gap.** Doc-only.
-
-**Suggested fix.** Replace `HxTriggerAfterSettle` with `HxTriggerHeader` in the example (or drop the redirect), and add one sentence on the ordering. H-40 states the rule.
-
-### docs/examples: the `JdkHttp` adapter drops the connection silently when writing the response fails
-
-Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-response-headers.md` (backlog H-40), 2026-10-27, main at `b6c0c30e4`; `http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala` (H-35 guide `docs/guides/serve-http-model-requests.md`), copied unchanged into T-10, H-40 and others. Not in v0.0.56 (the file was added after the tag).
-
-**Summary.** `handler` catches `NonFatal` only around `app(request)`; `writeResponse` runs outside that `try`. When writing fails (e.g. a header value the JDK rejects, see the non-ASCII entry), the exception escapes to the JDK dispatcher, the exchange is closed, the client sees an empty reply, and nothing is logged.
-
-**Setup.** A scratch sbt project with `project/build.properties` (`sbt.version=1.13.0`) and this `build.sbt`; the file goes in `src/main/scala/`. Browser observations are from Chromium driven by Playwright 1.63, with htmx 2.0.11 from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js`; htmx line numbers refer to the unminified `htmx.js` of that version.
-
-```scala
-scalaVersion := "3.9.0"
-scalacOptions += "-experimental"
-libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
-run / fork := true
-```
-
-**Reproducer.** Copy `http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala` to `src/main/scala/JdkHttp.scala` with its package line changed to `package jdkrepro`, add `src/main/scala/SilentDrop.scala`, run with `sbt -batch "runMain jdkrepro.SilentDrop"`:
-```scala
-package jdkrepro
-
-import java.net.URI
-import java.net.http.{HttpClient, HttpRequest, HttpResponse}
-import zio.http._
-
-object SilentDrop {
-  def main(args: Array[String]): Unit = {
-    val app: Request => Response = _ => Response.text("ok").addHeader("hx-trigger", "Added Sencha ✓")
-    JdkHttp.withServer(app) { port =>
-      val client = HttpClient.newHttpClient()
-      val uri    = URI.create(s"http://127.0.0.1:$port/")
-      try println(client.send(HttpRequest.newBuilder(uri).build(), HttpResponse.BodyHandlers.ofString()).statusCode)
-      catch { case e: java.io.IOException => println(s"client: $e") }
-    }
-    println("server printed nothing")
-  }
-}
-// client: java.io.IOException: HTTP/1.1 header parser received no bytes
-// server printed nothing
-```
-**Expected.** A logged error and, when headers are not yet sent, a `500` response.
-
-**Root cause.** `JdkHttp.scala:67-82`: the `catch` at 76 covers only `toRequest`/`app`; `writeResponse(exchange, response)` at 81 sits outside it, inside only `try ... finally exchange.close()`.
-
-**Impact.** Hard-to-debug "empty reply from server" in every guide that copies the adapter (this cost time in H-40 before the cause was found).
-
-**Test gap.** The adapter has no test for a failing `writeResponse`.
-
-**Suggested fix.** Wrap `writeResponse` in its own `try`/`catch NonFatal` that logs to `System.err` and, if `exchange.getResponseCode == -1`, sends a `500` with no body; update the copies.
 
 ### Avro reference: `Option`, `Char` and the temporal types are listed without their Avro shape
 
@@ -13602,6 +13490,7 @@ Found 2026-10-28 by the coordinator while preparing the streams doc-fix batch, o
 
 ## Resolved
 
+- Web doc errors fixed in #1879 (batch 3, merge `1a5561f65`): `reference/datastar/index.md` claimed Scala 2.13 support (the module is Scala 3 only) and lacked the 3.9+ `zio-blocks-next-datastar` + `-experimental` install line; `reference/htmx/response-headers.md` paired `HX-Redirect` with `HX-Trigger-After-Settle`, which htmx 2 never fires after a redirect (browser-verified); `reference/htmx/index.md` never said its syntax targets htmx 2.x; and the `JdkHttp` adapter (7 copies plus the 2 `StreamingJdkHttp` copies) wrote the response outside its `catch`, so a failed write dropped the connection silently (now a logged 500). The same PR documented the htmx `HX-Boosted`/history-restore traps, the html shadowing and `search` ambiguity traps, and the docs side of the `HxLocation` and four http-model-schema bugs (those entries stay open with a Status line).
 - `docs/index.md` described `Maybe` as "Low-allocation optional values backed by `null`"; since #1532 absence is an `Absent` singleton and `Maybe.present(null)` is present. Fixed in #1866 (H-51, commit `1dfba0647`); regenerate the README.
 - `telemetry-guide.md` propagation examples started a new trace instead of continuing the caller's: the HTTP server example took its tracer before `trace.install`, and `traceIncoming` extracted the parent but never scoped it. The "Span-log correlation" line called the `private[telemetry]` `new TracerProvider(...)`, and `reference/telemetry/otel/index.md` listed `X-B3-ParentSpanId` and `X-B3-Flags` as headers `B3Propagator.multi` writes (it writes only TraceId, SpanId and Sampled). Fixed in #1853 (H-43, commit `4df2713bc`). Still open: the same wrong header list in the Scaladoc at `otel/src/main/scala/zio/blocks/telemetry/otel/B3Propagator.scala:41-42` (backlog doc-fix follow-up).
 - `reference/http-model/headers.md:660` said `ServerSentEvent` uses `Headers` indirectly through `Response`; it renders a `String` and touches neither. Fixed in #1842 (H-41), which also links the SSE guide from that sentence.
