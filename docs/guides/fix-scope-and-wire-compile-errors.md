@@ -18,7 +18,7 @@ This guide is a lookup table for the errors that `Scope`, `Resource.from` and `W
 
 The entries cover:
 
-- the errors you will most likely hit first: escaping `$[A]` values, the `$` receiver rule, dependency cycles, duplicate providers, and dependencies the macro cannot build;
+- the errors you will most likely hit first: escaping `$[A]` values, the `$` receiver rule, dependency cycles (which crash the macro in 0.0.56), duplicate providers, and dependencies the macro cannot build;
 - every remaining code from E1 to E17, in code order;
 - the leak warning (W1) and the closed-scope runtime errors (RE1 to RE3);
 - the differences between the Scala 2 and Scala 3 macros.

@@ -668,7 +668,7 @@ appResource.use { app =>
 
 The compiler verifies that:
 - Every dependency can be satisfied.
-- No unsatisfiable circular dependencies exist.
+- No dependency is missing or provided twice. (A circular dependency is not reported yet: in 0.0.56 it crashes the macro, a known bug, #1767.)
 - Types match correctly.
 
 If you violate any of these rules, you get a clear compile error before runtime.
