@@ -1,6 +1,12 @@
 ---
 id: sql-zio
 title: "ZIO Integration"
+description: "Overview of zio-blocks-sql-zio: TransactorZIO for running sql queries and transactions as ZIO effects, and ZLayer constructors for the synchronous Transactor."
+keywords:
+  - "sql-zio"
+  - "TransactorZIO"
+  - "ZLayer"
+  - "ZIO Database Access"
 ---
 
 `zio-blocks-sql-zio` is the ZIO adapter for the [`sql` module](./sql/index.md). It lets a ZIO application use the same `sql"..."` fragments, `Repo` and `Table` values as a plain Scala program, and `TransactorZIO#connect` and `TransactorZIO#transact` run their JDBC calls off ZIO's main thread pool.
