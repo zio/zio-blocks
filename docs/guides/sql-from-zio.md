@@ -635,3 +635,4 @@ sbt "testOnly sqlfromzio.BookRepoSpec"
 - [How to Connect to PostgreSQL with a Connection Pool](./connect-to-postgresql-with-a-connection-pool.md) sizes the pool that `databaseLayer` opens.
 - [SQL Transactions: Isolation, Read-Only and Savepoints](./sql-transactions.md) covers isolation levels and nested transactions with savepoints.
 - [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) shows fixtures and rollback-only tests.
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](./use-zio-blocks-in-zio-or-cats-effect.md) covers what `sql-zio` doesn't: cats-effect, and lifting resources, `Async` and streams into ZIO with cancellation carried across.
