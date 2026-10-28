@@ -17,7 +17,7 @@ keywords:
 
 - **Lazy and Push-Based** — nothing happens until the producer calls `write()`
 - **Non-Thread-Safe** — designed for single-threaded production; concurrent access requires external synchronization
-- **Explicit Closure Signal** — returns `false` when closed; none of the library's writers throws after `fail`
+- **Explicit Closure Signal** — returns `false` when closed; none of the library's writers throws after `Writer#fail`
 
 Here is the structural shape of the `Writer` type:
 
@@ -39,7 +39,7 @@ Imagine you're building a data pipeline where a producer feeds items to a bounde
 
 With Java's `OutputStream`, you call `write()` and either it succeeds (void return) or throws an exception. This leaves ambiguity: Was the exception transient (try again later) or permanent (the stream is done)? If the buffer fills, the thread blocks—but you don't know how long, or even that it will block beforehand. There's no way to check capacity upfront, so you're forced to either over-allocate buffers (wasting memory) or catch exceptions and guess the right strategy.
 
-`Writer` makes the state explicit and non-throwing. You check readiness with `writeable()`, then push with `write()`, which returns a `Boolean` indicating success or closure. The protocol is explicit: when `write()` returns `false`, the sink is permanently closed and you should stop. It is not exception-free, though: an exception other than an `IOException` from a wrapped stream propagates, and a writer of your own can override `fail` to keep the error and throw it from later writes (none of the library's writers does).
+`Writer` makes the state explicit and non-throwing. You check readiness with `writeable()`, then push with `write()`, which returns a `Boolean` indicating success or closure. The protocol is explicit: when `write()` returns `false`, the sink is permanently closed and you should stop. It is not exception-free, though: an exception other than an `IOException` from a wrapped stream propagates, and a writer of your own can override `Writer#fail` to keep the error and throw it from later writes (none of the library's writers does).
 
 ## Quick Showcase
 
@@ -283,7 +283,7 @@ println(s"Collected: $collected")  // Collected: Buffer(1, 2)
 
 ### I/O Adapters
 
-`Writer.fromOutputStream` — Wraps a `java.io.OutputStream` as a `Writer[Byte]`. Calling `close()` flushes and closes the underlying stream. An `IOException` from the stream is not thrown: the write returns `false` (or `writeBytes` returns `0`) and the writer closes itself. A known bug in 0.0.56: after that failed write, `close()` neither flushes nor closes the stream, so it leaks. An `IOException` from `close()` is ignored:
+`Writer.fromOutputStream` — Wraps a `java.io.OutputStream` as a `Writer[Byte]`. Calling `close()` flushes and closes the underlying stream. An `IOException` from the stream is not thrown: the write returns `false` (or `Writer#writeBytes` returns `0`) and the writer closes itself. A known bug in 0.0.56: after that failed write, `close()` neither flushes nor closes the stream, so it leaks. An `IOException` from `close()` is ignored:
 
 ```scala
 object Writer {
@@ -291,7 +291,7 @@ object Writer {
 }
 ```
 
-`Writer.fromWriter` — Wraps a `java.io.Writer` as a `Writer[Char]`. Calling `close()` flushes and closes the underlying writer. It handles an `IOException` the same way: the write returns `false` (or `writeAll` returns the whole chunk), the writer closes itself, and, by the same known bug, a later `close()` leaves the underlying writer unflushed and open:
+`Writer.fromWriter` — Wraps a `java.io.Writer` as a `Writer[Char]`. Calling `close()` flushes and closes the underlying writer. It handles an `IOException` the same way: the write returns `false` (or `Writer#writeAll` returns the whole chunk), the writer closes itself, and, by the same known bug, a later `close()` leaves the underlying writer unflushed and open:
 
 ```scala
 object Writer {

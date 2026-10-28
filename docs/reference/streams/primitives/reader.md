@@ -1090,7 +1090,7 @@ abstract class Reader.AsyncReader[+Elem] extends Reader[Elem] {
 }
 ```
 
-Calling one of these on a reader whose `jvmType` is a different primitive lane does not throw at the call site: the default returns a failed `Async` carrying an `UnsupportedOperationException` that names both lanes. The view that `SyncReader#toAsync` returns is the exception, reachable only through a cast: its `readLong` and `readDouble` throw `IllegalStateException` at the call site, and its other primitive pulls fail the `Async` with it. A plain reader on the `AnyRef` lane satisfies all eight by pulling boxed and converting.
+Calling one of these on a reader whose `jvmType` is a different primitive lane does not throw at the call site: the default returns a failed `Async` carrying an `UnsupportedOperationException` that names both lanes. The view that `SyncReader#toAsync` returns is the exception, reachable only through a cast: its `Reader#readLong` and `Reader#readDouble` throw `IllegalStateException` at the call site, and its other primitive pulls fail the `Async` with it. A plain reader on the `AnyRef` lane satisfies all eight by pulling boxed and converting.
 
 Five bulk array transfers fill a caller-supplied array and report how many elements were written, or `-1` when the reader was already at end-of-stream:
 
@@ -1197,7 +1197,7 @@ def drain(): Unit = {
 drain()
 ```
 
-The result is on the `AnyRef` lane, whatever the lanes of its parts. A known bug in 0.0.56: its primitive pulls (`readInt`, `readBytes`, ...) throw, or fail with, `IllegalStateException`, so read it with `read`, `readAll`, `readN` or `readUpToN`, or through a stream.
+The result is on the `AnyRef` lane, whatever the lanes of its parts. A known bug in 0.0.56: its primitive pulls (`Reader#readInt`, `Reader#readBytes`, ...) throw, or fail with, `IllegalStateException`, so read it with `Reader#read`, `Reader#readAll`, `Reader#readN` or `Reader#readUpToN`, or through a stream.
 
 These are the root's declarations, which answer with a `Reader[Elem2]`. `SyncReader` narrows them with a second pair of overloads so that concatenating two synchronous readers gives back a `SyncReader`; see [Mixed-kind composition](#mixed-kind-composition) for which combination produces which kind.
 
@@ -1470,7 +1470,7 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`JvmType` has nine lanes: the eight JVM primitives — `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, `Double` — and `AnyRef` for everything else. The eight primitive tags map exactly to `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`; `AnyRef` is the ninth, and a plain reader on that lane answers all eight of those methods itself by pulling boxed and converting. A known bug in 0.0.56 limits that: on an `AnyRef`-lane reader the default bulk reads `readBytes`, `readInts` and `readFloats` throw `IllegalStateException`, and so does every primitive pull of a `Reader#concat` result (which is always on the `AnyRef` lane) and of the library's wrappers around an `AnyRef`-lane reader (`SyncReader#toAsync`, `SyncReader#withRelease`, `Reader.repeated`); `read`, `readAll`, `readN` and `readUpToN` work on all of them. For example, a `SyncReader[Int]` backed by a `Chunk[Int]` reports `JvmType.Int`, so consumers may use `readInt`; a pull belonging to another lane throws `UnsupportedOperationException` unless that particular reader happens to implement it too.
+`JvmType` has nine lanes: the eight JVM primitives — `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, `Double` — and `AnyRef` for everything else. The eight primitive tags map exactly to `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`; `AnyRef` is the ninth, and a plain reader on that lane answers all eight of those methods itself by pulling boxed and converting. A known bug in 0.0.56 limits that: on an `AnyRef`-lane reader the default bulk reads `Reader#readBytes`, `Reader#readInts` and `Reader#readFloats` throw `IllegalStateException`, and so does every primitive pull of a `Reader#concat` result (which is always on the `AnyRef` lane) and of the library's wrappers around an `AnyRef`-lane reader (`SyncReader#toAsync`, `SyncReader#withRelease`, `Reader.repeated`); `Reader#read`, `Reader#readAll`, `Reader#readN` and `Reader#readUpToN` work on all of them. For example, a `SyncReader[Int]` backed by a `Chunk[Int]` reports `JvmType.Int`, so consumers may use `readInt`; a pull belonging to another lane throws `UnsupportedOperationException` unless that particular reader happens to implement it too.
 
 The lane is a property of the reader, not of the kind. A `SyncReader` and the `AsyncReader` it becomes under `toAsync` report the same `jvmType`, and asynchronous readers expose the corresponding values through `Async`.
 
