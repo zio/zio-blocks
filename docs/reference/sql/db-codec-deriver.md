@@ -9,7 +9,7 @@ keywords:
   - "SqlNameMapper column naming"
   - "withColumnNameMapper"
   - "deriveRecord deriveVariant"
-  - "JSONB fallback codec"
+  - "JSON fallback codec"
 ---
 
 `DbCodecDeriver` is a schema-driven derivation engine that converts a `Schema[A]` into a `DbCodec[A]`. 

@@ -234,7 +234,7 @@ val createPg = table.createTable(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQ
 val createSq = table.createTable(SqlDialect.SQLite).sql(SqlDialect.SQLite)
 ```
 
-:::caution[Nested records and collections]
+:::caution[Nested Records and Collections]
 `Table.derived` computes its column list from the `Schema` on its own, not from the row codec, and in 0.0.56 the two disagree for some field types, a known bug. A nested case class field becomes `<field>_<subfield>` columns, but the codec stores it as one JSON column unless the field is annotated with `@Modifier.config("sql.inline", "true")`, so without the annotation the table and the codec have different columns and `Repo#insert` fails. A `List`, `Set`, `Map` or other collection field, and a sealed trait whose cases have fields, make `Table.derived` and `Repo.derived` throw `UnsupportedOperationException` before any SQL runs. An enumeration of case objects becomes a `TEXT` column.
 
 So `Table.derived`, `Repo.derived` and `Table#createTable` work only for records whose nested record fields carry `sql.inline`. To keep a field as a JSON column, build the `Table` with `Table.apply` from the codec's own `DbCodec#columns`, pass it to `Repo.apply`, and write the `CREATE TABLE` statement by hand. No dialect emits `JSONB`, so a JSON column on PostgreSQL must be declared `JSONB` yourself. [How to Map Custom Column Types](../../guides/map-custom-column-types.md#store-a-nested-case-class-as-json) shows both.
