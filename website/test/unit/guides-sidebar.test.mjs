@@ -48,11 +48,12 @@ test('How-to guides holds the eight topics, and each topic holds only guides', (
 });
 
 test('every guide page appears in the sidebar exactly once', () => {
-  const pages = readdirSync(new URL('guides/', docs))
+  // Recursive, so a page in a subfolder (a new part under query-dsl/, or a folder's index.md) is checked as well.
+  const pages = readdirSync(new URL('guides/', docs), { recursive: true })
     .filter((f) => /\.mdx?$/.test(f) && f !== 'index.md')
     .map((f) => `guides/${f.replace(/\.mdx?$/, '')}`)
     .sort();
-  const ids = docIds([root]).filter((id) => id !== 'guides/index' && id !== 'guides/query-dsl/index');
+  const ids = docIds([root]).filter((id) => id !== 'guides/index');
   assert.deepEqual(ids.filter((id, i) => ids.indexOf(id) !== i), [], 'listed twice');
   assert.deepEqual([...ids].sort(), pages);
 });
