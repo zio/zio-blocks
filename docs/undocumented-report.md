@@ -26,7 +26,7 @@ Every figure in this revision, including those four, is restated under the priva
 | Reference pages | 169 |
 | Guides | 9 |
 | Declarations found (`class` / `trait` / `object` / `enum`) | 2,662 |
-| — of which public | 1,811 |
+| — of which public | 1,798 |
 | — of which private or nested in a private scope | 864 |
 | Public types never named anywhere in `docs/` | **325** |
 | Public types with no prose or heading reference | **637** |
@@ -70,13 +70,13 @@ This report file is excluded from the scan, so listing a type here does not make
 | config (+ `-yaml`/`-json`/`-hocon`) | 82 | 25 | 7 | 24 | 71% | 3,914 | 2,212 | 0.57 |
 | chunk | 20 | 35 | 2 | 5 | 75% | 5,069 | 3,140 | 0.62 |
 | htmx | 88 | 2 | 6 | 20 | 77% | 1,548 | 2,750 | 1.78 |
-| smithy | 42 | 4 | 0 | 4 | 90% | 2,585 | 882 | 0.34 |
-| datastar | 57 | 11 | 0 | 1 | **98%** | 1,881 | 1,196 | 0.64 |
 | markdown | 46 | 3 | 3 | 10 | 78% | 2,596 | 1,539 | 0.59 |
 | schema-toon | 25 | 14 | 1 | 4 | 84% | 4,690 | 1,050 | 0.22 |
 | openapi | 46 | 1 | 1 | 6 | 87% | 2,431 | 1,301 | 0.54 |
 | schema-csv | 9 | 1 | 0 | 1 | 89% | 1,247 | 564 | 0.45 |
+| smithy | 42 | 4 | 0 | 4 | 90% | 2,585 | 882 | 0.34 |
 | sql | 53 | 14 | 1 | 3 | 94% | 4,234 | 4,047 | 0.96 |
+| datastar | 57 | 11 | 0 | 1 | **98%** | 1,881 | 1,196 | 0.64 |
 | http-model-schema | 16 | 10 | 0 | 0 | **100%** | 1,249 | 1,073 | 0.86 |
 | mux | 9 | 40 | 0 | 0 | **100%** | 1,222 | 823 | 0.67 |
 | otel | 12 | 8 | 0 | 0 | **100%** | 1,325 | 422 | 0.32 |
@@ -214,7 +214,7 @@ At 84,969 source lines and 23,842 documentation lines, `schema` is the best-docu
 **Patch operations** — `DynamicPatchOp` ✗, `MapEdit` ✗, `MapOp` ✗, `SeqOp` ✗, `SequenceEdit` ✗, `BigIntDelta` ✗, `ForInstant` ✗, `ForLocalDate` ✗, `ForPeriod` ✗.
 - [ ] Document the patch operation ADT, the map/sequence edit encodings, and the temporal delta types
 
-**Search, traversal, and transformation — done for all three parts of this cluster.** `reference/schema/schema-search.md` (251 lines, mdoc-verified) documents `SchemaMatch`'s structural matching rules, `SearchTraversal`'s `fold`/`modify`/`modifyOption`/`modifyOrFail`/`check` and its composition with other optics, and `Reflect.Updater`/`Term.Updater` (including how `Term.Updater` deletes a field/case by returning `None`) — `TypeSearch`/`SchemaSearch` themselves were already covered by `dynamic-optic.md`'s `## Search Optics` section, which now cross-links to the new page. `reference/schema/reflect-transformer.md` (140 lines, mdoc-verified) documents `ReflectTransformer` (230 lines) and its `OnlyMetadata` base class, `RebindTransformer` (237 lines, `private[schema]` — documented through its public entry point `DynamicSchema#rebind`), and `RebindException`. `Frame` turned out to be unrelated to this cluster despite the grouping — it's an internal traversal-stack ADT used by `DynamicValue`/`Json` patch application, not by `ReflectTransformer` or the search/update surface. **`SchemaAspect`/`SchemaRepr` — done:** `schema.md`'s `## Schema Aspects` section was corrected — it showed a `recursive` method on the `SchemaAspect` trait that never existed in source — and expanded to cover the `Reflect#aspect` overloads `Schema#@@` delegates to and the silent no-op fallback when a path-targeted aspect's optic doesn't resolve. `dynamic-optic.md`'s `## Search Optics` section gained a new `### The SchemaRepr Pattern Type` subsection covering the 8-case ADT as a constructible value (not just interpolator sugar), its `render`/`toString`, and `SchemaParser`'s grammar and error reporting; its `Nominal` limitation note now covers the one exception (`Reflect`-tree search, which has real `TypeId`s to match against); and its pattern table now lists `set(...)`/`vector(...)` as synonyms for `list(...)`, which it previously omitted. Still absent: `Frame` ✗ and `SchemaParser` (344 lines) unexplained.
+**Search, traversal, and transformation — done for all three parts of this cluster.** `reference/schema/schema-search.md` (251 lines, mdoc-verified) documents `SchemaMatch`'s structural matching rules, `SearchTraversal`'s `fold`/`modify`/`modifyOption`/`modifyOrFail`/`check` and its composition with other optics, and `Reflect.Updater`/`Term.Updater` (including how `Term.Updater` deletes a field/case by returning `None`) — `TypeSearch`/`SchemaSearch` themselves were already covered by `dynamic-optic.md`'s `## Search Optics` section, which now cross-links to the new page. `reference/schema/reflect-transformer.md` (140 lines, mdoc-verified) documents `ReflectTransformer` (230 lines) and its `OnlyMetadata` base class, `RebindTransformer` (237 lines, `private[schema]` — documented through its public entry point `DynamicSchema#rebind`), and `RebindException`. `Frame` turned out to be unrelated to this cluster despite the grouping — it's an internal traversal-stack ADT used by `DynamicValue`/`Json` patch application, not by `ReflectTransformer` or the search/update surface. **`SchemaAspect`/`SchemaRepr` — done:** `schema.md`'s `## Schema Aspects` section was corrected — it showed a `recursive` method on the `SchemaAspect` trait that never existed in source — and expanded to cover the `Reflect#aspect` overloads `Schema#@@` delegates to and the silent no-op fallback when a path-targeted aspect's optic doesn't resolve. `dynamic-optic.md`'s `## Search Optics` section gained a new `### The SchemaRepr Pattern Type` subsection covering the 8-case ADT as a constructible value (not just interpolator sugar), its `SchemaRepr#render` and `SchemaRepr#toString`, and `SchemaParser`'s grammar and error reporting; its `Nominal` limitation note now covers the one exception (`Reflect`-tree search, which has real `TypeId`s to match against); and its pattern table now lists `set(...)`/`vector(...)` as synonyms for `list(...)`, which it previously omitted. Still absent: `Frame` ✗ and `SchemaParser` (344 lines) unexplained.
 - [x] Write `reference/schema/schema-search.md` covering `SchemaSearch` / `SchemaMatch` / `TypeSearch` / `SearchTraversal` / `Updater` — **done**: 251 lines, mdoc-verified, wired into `sidebars.js` and cross-linked from `dynamic-optic.md` and `schema.md`
 - [x] Write `reference/schema/reflect-transformer.md` covering `ReflectTransformer` and `RebindTransformer` — **done**: 140 lines, mdoc-verified, wired into `sidebars.js` and cross-linked from `binding.md` (which had a stale forward-reference promising this coverage) and `dynamic-schema.md`
 - [x] Document `SchemaAspect` and `SchemaRepr` — **done**: `schema.md` and `dynamic-optic.md` sections corrected/expanded (see above), `path-interpolator.md` gained the `set`/`vector` synonym note
@@ -325,7 +325,7 @@ Actions:
   - **Naming only: concrete element classes.** `LiElement` ✗, `ThElement` ✗, `TdElement` ✗, `TrElement` ✗, `OptElement` ✗, `OptgroupElement` ✗ — the implementations behind the documented marker traits.
   - **Skip: interpolator plumbing.** `CssStringContext` ✗, `HtmlStringContext` ✗, `JsStringContext` ✗, `SelectorStringContext` ✗, `TemplateInterpolators` ✗, `InterpolatorRuntime` ✗, `HtmlElements` ✗, `DomModifierConversions` ✗, `LowPriorityToJs` ✗, `JsValue` ✗. These match the naming patterns in *Deliberately Undocumented*; the interpolator syntax is documented, its machinery should not be.
   - [ ] Add an ADT reference section naming the selector, colour, and modifier types behind the DSL
-- **`datastar`** (28 unexplained) — same shape: `EventModifier` ✗, `CaseModifier` ✗, `InitModifier` ✗, `IntersectModifier` ✗, `OnIntervalModifier` ✗, `OnSignalPatchModifier` ✗, `DataOn` ✗, `PatchSignals` ✗, `PatchElements` ✗, `DatastarAttributes` ✗, `DatastarAttrKey` ✗, `ToDatastarExpr` ✗, `DataSignalsBuilder` ✗, `EventType` ✗. The 0.18 ratio is the bigger problem: 346 lines for 1,881 source lines.
+- **`datastar`** — resolved by the five-page split under `reference/datastar/`: 0 absent, 1 unexplained, ratio 0.64 (1,196 doc lines for 1,881 source lines).
   - [x] Expand `datastar.md` — **done** in the split under `reference/datastar/`: each SSE event has a worked example in `sse.md`, and `attributes.md` covers the attribute-DSL types (`ToDatastarExpr`, `DatastarAttrKey`)
 - **`schema-xml`** (15 unexplained) — `XmlCodecError` ✗, `XmlWriter` ✗, `XmlCodecDeriver` ✗ (657 lines), `SetAttribute` ✗, `RemoveAttribute` ✗, `ElementBuilder` ✗
   - [ ] Add error-handling and deriver/customization sections to `built-in-codecs/xml.md`
@@ -405,10 +405,10 @@ Ordered by user impact per unit of writing effort. The ranking below predates th
 | 2 | `maybe` | 6 / 10 | 40% | Small surface, but more than half of it unnamed |
 | 3 | `typeid` | 26 / 90 | 52% | `Member` ADT and owner segments |
 | 4 | `schema-xml` | 9 / 38 | 53% | Error types and the deriver |
-| 5 | `schema` | 156 / 466 | 56% | Largest absolute, but six separable subsystems remain |
+| 5 | `schema` | 156 / 466 | 55% | Largest absolute, but six separable subsystems remain |
 | 6 | `endpoint` | 18 / 60 | 67% | `Alternator`, `CanCombine`, segment shortcuts |
 
-`smithy` has left the list — the shape catalog took it from 24% to 86% with no absent types. `streams` and `async` drop out entirely once internal declarations are excluded. `htmx` and `datastar` left earlier: #1619 took `htmx` to 77%, and the five-page datastar split took it to 98%.
+`smithy` has left the list — the shape catalog took it from 24% to 90% with no absent types. `streams` and `async` drop out entirely once internal declarations are excluded. `htmx` and `datastar` left earlier: #1619 took `htmx` to 77%, and the five-page datastar split took it to 98%.
 
 `html` grew from 100 public types to 110 between revisions while its documentation did not, which is the one row where waiting makes the work larger.
 
