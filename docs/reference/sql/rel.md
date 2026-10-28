@@ -85,7 +85,7 @@ object Rel {
 }
 ```
 
-A misspelled field fails to compile as any unknown member does. A selector that names a method instead of a field is rejected by the macro, which lists the valid fields:
+A misspelled field fails to compile as any unknown member does. The macro reads the first name the selector applies to the row: a chained selector such as `_.name.length` isn't rejected but is read as `_.name`, so write the plain field access. A name that isn't a field of the row type, such as a method called on the row, is rejected by the macro, which lists the valid fields:
 
 ```scala mdoc:fail
 Rel.manyToOne(invoices, _.hashCode, customers, _.customerId)
