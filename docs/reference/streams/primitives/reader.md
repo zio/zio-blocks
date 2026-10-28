@@ -1425,7 +1425,7 @@ Scope.global.scoped { scope =>
 Avoid holding references to a `SyncReader` obtained via `Stream#start` outside its [`Scope`](../../resource-management/scope.md). The scope guarantees cleanup; escaping the reader defeats that guarantee.
 :::
 
-A pull on a started reader throws the stream's typed error wrapped in the internal `StreamError` rather than returning `Left(e)`, and, as a known bug in 0.0.56, a stream with a `flatMap` throws that failure again from `close()` and from the owning `Scope#scoped`; [Manual Pull via `start`](../core/stream.md#manual-pull-via-start) has the details.
+A pull on a started reader throws the stream's typed error wrapped in the internal `StreamError` rather than returning `Left(e)`, and, as a known bug in 0.0.56, a stream with a `Stream#flatMap` throws that failure again from `Reader#close` and from the owning `Scope#scoped`; [Manual Pull via `start`](../core/stream.md#manual-pull-via-start) has the details.
 
 ## Integration with Sink
 

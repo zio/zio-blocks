@@ -1216,7 +1216,7 @@ The practical consequence is that `n` can be a configuration value that is allow
 
 ### Buffer Sizing
 
-`Stream.bufferSize(n)` sets the queue size of the concurrent operators built inside it, in place of the default 64 (the library-internal `Stream.DefaultBufferSize`, which is not part of the public API). On the JVM, `n` is the size of each ring-buffer queue of a `mapPar` whose upstream is synchronous:
+`Stream.bufferSize(n)` sets the queue size of the concurrent operators built inside it, in place of the default 64 (the library-internal `Stream.DefaultBufferSize`, which is not part of the public API). On the JVM, `n` is the size of each ring-buffer queue of a `Stream#mapPar` whose upstream is synchronous:
 
 ```scala mdoc:compile-only
 import zio.blocks.streams._
@@ -1238,7 +1238,7 @@ require(n >= 1 && (n & (n - 1)) == 0, s"bufferSize must be a positive power of 2
 Nested regions use the innermost size. Larger buffers absorb bursty producers; smaller ones cut memory when many slots are open at once. The default suits most workloads. On the asynchronous lane its reach is narrower: `mapPar` and `mapParAsync` ignore it entirely, because each slot holds exactly one unfinished effect and the bound is the slot count, while `mergeAll` and `flatMapPar` still pass it down, where it sizes the buffered stages inside each compiled inner stream.
 
 :::warning[Known bug in 0.0.56: blocking terminals ignore `bufferSize`]
-A JVM blocking terminal (`runCollect`, `run` and the rest) ignores `n` and keeps queues of 64, unless the stream also has an asynchronous stage, `catchAll`, `catchDefect` or `orElse`. The `*Async` terminals (`runCollectAsync`, `runAsync` and the rest) use `n`, so run the stream with one of them when the queue size matters.
+A JVM blocking terminal (`Stream#runCollect`, `Stream#run` and the rest) ignores `n` and keeps queues of 64, unless the stream also has an asynchronous stage, `Stream#catchAll`, `Stream#catchDefect` or `Stream#orElse`. The `*Async` terminals (`Stream#runCollectAsync`, `Stream#runAsync` and the rest) use `n`, so run the stream with one of them when the queue size matters.
 :::
 
 `Pipeline.buffer(n)` is a different tool for a different job: it inserts a bounded buffer between two stages rather than resizing the queues inside one concurrent reader, and it participates in the asynchronous reader graph on both platforms.
@@ -1312,7 +1312,7 @@ The threads are named, which makes them identifiable in a thread dump. `mapPar` 
 
 There is no parallelism on Scala.js — `Platform.supportsConcurrency` is `false` and `Platform.startVirtualThread` throws `UnsupportedOperationException`. What runs in its place depends on the operator.
 
-`Stream#mapPar` runs as a plain `map` when every stage before it is synchronous: `Platform.createMapParReaderFromReader` builds an ordinary mapped reader (`Reader.MappedIntInt`, `Reader.MappedInt`, `Reader.MappedLong`, and the rest) that maps one element at a time. When an asynchronous stage, `catchAll`, `catchDefect` or `orElse` comes before it, the upstream compiles to an `AsyncReader` and the shared asynchronous engine runs it with each call wrapped in a completed `Async`, so nothing overlaps.
+`Stream#mapPar` runs as a plain `Stream#map` when every stage before it is synchronous: `Platform.createMapParReaderFromReader` builds an ordinary mapped reader (`Reader.MappedIntInt`, `Reader.MappedInt`, `Reader.MappedLong`, and the rest) that maps one element at a time. When an asynchronous stage, `Stream#catchAll`, `Stream#catchDefect` or `Stream#orElse` comes before it, the upstream compiles to an `AsyncReader` and the shared asynchronous engine runs it with each call wrapped in a completed `Async`, so nothing overlaps.
 
 `Stream#flatMapPar` and `Stream.mergeAll` always run on the shared asynchronous engine (`AsyncConcurrentReaders.merge`), because Scala.js has only the `*Async` terminals and the synchronous merge reader is built only by the JVM's blocking interpreter. The inner streams' asynchronous waits overlap, but synchronous work inside them runs one inner stream at a time, and elements leave in the order they arrive. As on the JVM, none of the three operators promises input order.
 
@@ -1601,7 +1601,7 @@ val result = separated.runCollect
 
 ### Repeating
 
-`repeated` — Repeats the stream forever: when a cycle completes, the next one starts. A typed error or a defect ends the repetition, and closing the result (for example with a downstream `take`) closes the active cycle:
+`repeated` — Repeats the stream forever: when a cycle completes, the next one starts. A typed error or a defect ends the repetition, and closing the result (for example with a downstream `Stream#take`) closes the active cycle:
 
 ```scala
 abstract class Stream[+E, +A] {
@@ -1620,7 +1620,7 @@ val result = repeated.runCollect
 ```
 
 :::warning[Known bug in 0.0.56: a new cycle resets readers instead of rebuilding the stream]
-With both terminal families, a new cycle usually resets the previous cycle's readers instead of building the stream again. `Stream(...)`, `Stream.fromChunk`, `Stream.fromIterable`, `Stream.range` and `Stream.unfold`, with `map` or `filter` over them, repeat correctly, as above. But effects that run when the stream opens (`Stream.eval`, `Stream.suspend`, the `acquire` of `Stream.fromAcquireRelease`) and an `ensuring` finalizer around the whole cycle can run only once in total, `mapAccum` and `distinct` keep their state from one cycle to the next, `Stream.fromIterator` hangs or stops after one cycle, and `Stream.fromInputStream` fails with `UnsupportedOperationException`. A cycle that emits nothing can make the pull loop forever.
+With both terminal families, a new cycle usually resets the previous cycle's readers instead of building the stream again. `Stream(...)`, `Stream.fromChunk`, `Stream.fromIterable`, `Stream.range` and `Stream.unfold`, with `Stream#map` or `Stream#filter` over them, repeat correctly, as above. But effects that run when the stream opens (`Stream.eval`, `Stream.suspend`, the `acquire` of `Stream.fromAcquireRelease`) and a `Stream#ensuring` finalizer around the whole cycle can run only once in total, `Stream#mapAccum` and `Stream#distinct` keep their state from one cycle to the next, `Stream.fromIterator` hangs or stops after one cycle, and `Stream.fromInputStream` fails with `UnsupportedOperationException`. A cycle that emits nothing can make the pull loop forever.
 :::
 
 ### Side Effects
@@ -1772,7 +1772,7 @@ This is the fundamental pattern for safe resource handling:
 2. **Use** — streams elements from the resource
 3. **Release** — closes the resource in a `finally` block (always runs, even on error)
 
-In the example below, the connection opens when `runCollect` starts and closes when the stream ends:
+In the example below, the connection opens when `Stream#runCollect` starts and closes when the stream ends:
 
 ```scala mdoc:reset
 import zio.blocks.streams.*
@@ -2239,7 +2239,7 @@ SourceFile.print("streams-examples/src/main/scala/stream/ManualPullUsingStart.sc
 
 Use these methods when you need element-by-element control rather than running through a Sink. Do not overlap asynchronous pulls: an async reader allows one active pull, and its lifecycle operations must be awaited.
 
-A started reader does not turn a typed error into `Left(e)` the way the terminals do: a failed pull throws the library's internal `zio.blocks.streams.internal.StreamError`, whose `value` is the stream's error. A known bug in 0.0.56: when the stream has a `flatMap`, every `close()` after a failed pull throws that failure again, and so does the `Scope#scoped` block that owns the reader.
+A started reader does not turn a typed error into `Left(e)` the way the terminals do: a failed pull throws the library's internal `zio.blocks.streams.internal.StreamError`, whose `value` is the stream's error. A known bug in 0.0.56: when the stream has a `Stream#flatMap`, every `Reader#close` after a failed pull throws that failure again, and so does the `Scope#scoped` block that owns the reader.
 
 ### The Reader Protocol
 
