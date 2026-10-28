@@ -714,12 +714,13 @@ abstract class Stream[+E, +A] extends StreamPlatformSpecific[E, A] {
    * previous cycle's readers instead of building the stream again.
    * `Stream(...)`, `fromChunk`, `fromIterable`, `range` and `unfold`, with
    * `map` or `filter` over them, repeat correctly. But effects that run when
-   * the stream opens (`Stream.eval`, `Stream.suspend`, the `acquire` of
-   * `fromAcquireRelease`) and an `ensuring` finalizer around the whole cycle
-   * can run only once in total, `mapAccum` and `distinct` keep their state,
-   * `fromIterator` hangs or stops after one cycle, and `fromInputStream` fails
-   * with `UnsupportedOperationException`. A cycle that emits nothing can make
-   * the pull loop forever.
+   * the stream opens (`Stream.suspend`, the `acquire` of `fromAcquireRelease`)
+   * and an `ensuring` finalizer around the whole cycle can run only once in
+   * total, and so does `Stream.eval` under the blocking terminals (the
+   * asynchronous terminals run it again in every cycle). `mapAccum` and
+   * `distinct` keep their state, `fromIterator` hangs or stops after one cycle,
+   * and `fromInputStream` fails with `UnsupportedOperationException`. A cycle
+   * that emits nothing makes a blocking pull loop forever.
    */
   def repeated: Stream[E, A] = new Stream.Repeated(this)
 
