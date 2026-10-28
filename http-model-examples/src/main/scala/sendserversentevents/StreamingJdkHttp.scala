@@ -67,10 +67,18 @@ object StreamingJdkHttp {
             System.err.println(s"Handler failed: $error")
             Response.text(Status.InternalServerError, "Internal Server Error")
         }
-      if (isEventStream(response)) writeEventStream(exchange, response)
-      else JdkHttp.writeResponse(exchange, response)
-    } catch {
-      case _: IOException => ()
+      try
+        if (isEventStream(response)) writeEventStream(exchange, response)
+        else JdkHttp.writeResponse(exchange, response)
+      catch {
+        case _: IOException  => ()
+        case NonFatal(error) =>
+          System.err.println(s"Writing the response failed: $error")
+          if (exchange.getResponseCode == -1) {
+            exchange.getResponseHeaders.clear()
+            exchange.sendResponseHeaders(Status.InternalServerError.code, -1L)
+          }
+      }
     } finally exchange.close()
 
   private val daemonThreads: ThreadFactory = runnable => {
