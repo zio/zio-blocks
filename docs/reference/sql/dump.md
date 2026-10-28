@@ -110,7 +110,7 @@ JAVA_TOOL_OPTIONS="-Dzib.sql.dumpDir=$PWD/sql-dumps" scala-cli compile --server=
 
 ## Core Operations
 
-`Dump` has two operations, one per kind of SQL it writes, plus the files that the `sql"..."` interpolator writes on its own while the property is set. All of them write through the same file rules, described in [File Handling](#file-handling).
+`Dump` has two operations, one per kind of SQL it writes, plus the files that the `sql"..."` interpolator writes on its own while the property is set. All of them write through the same file rules, described in [File Handling](#file-handling). `Dump` also has public `dumpQueryIrImpl` and `dumpTableImpl` methods: they are the macro implementations behind the two inline methods, and you don't call them directly.
 
 ### Dumping a Query
 
@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS customer (
 ```
 
 :::warning
-`Dump.dumpTable` doesn't read the `Table` value; it rebuilds the statement from the row type, a known bug in 0.0.56. Every column is the field name in snake case, even when `@Modifier.rename` gives the column another name, and the table name is the first string literal in the argument, such as `Table.derived[Invoice]("invoices")`, or else the type name in snake case. A table created with `TableNamingPolicy.Plural`, or named by a string stored elsewhere, is dumped under the singular type name. `Dump.dumpQuery` takes its table and column names the same way. Compare the dumps of such tables with `Table#createTable` before you rely on them.
+`Dump.dumpTable` doesn't read the `Table` value; it rebuilds the statement from the row type, a known bug in 0.0.56. Every column is the field name in snake case, even when `@Modifier.rename` gives the column another name, and the table name is the first string literal in the argument that is a plain SQL identifier, such as `Table.derived[Invoice]("invoices")`, or else the type name in snake case. A table created with `TableNamingPolicy.Plural`, or named by a string stored elsewhere, is dumped under the singular type name. `Dump.dumpQuery` takes its table and column names the same way. Compare the dumps of such tables with `Table#createTable` before you rely on them.
 :::
 
 ### Fragment Files
@@ -196,7 +196,7 @@ All dump files follow the same rules:
 - The directory and any missing parent directories are created on the first write.
 - Files are written as UTF-8 with a trailing newline.
 - A file whose content is already the same isn't rewritten, so committed dump files only change when the SQL does.
-- A name that isn't a plain SQL identifier has every other character replaced with `_`, which is why `largeInvoices-query` becomes `largeInvoices_query`.
+- A name that isn't a plain SQL identifier is sanitized: every character other than an ASCII letter, digit or `_` becomes `_`, and a name that starts with a digit gets a leading `_`. That is why `largeInvoices-query` becomes `largeInvoices_query`.
 - A write that fails gives a compiler warning that starts `[zib.sql.dumpDir] Failed to dump` and doesn't fail the build.
 - Nothing is ever deleted, so the files of a removed or renamed query stay until you clear the directory.
 
