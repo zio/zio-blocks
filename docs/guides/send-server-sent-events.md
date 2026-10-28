@@ -206,7 +206,7 @@ def useThreadPerExchange(server: HttpServer): Unit =
   server.setExecutor(Executors.newCachedThreadPool(daemonThreads))
 ```
 
-The handler sends `text/event-stream` responses through `writeEventStream` and every other response through `JdkHttp.writeResponse`, and treats an `IOException` while writing as the client having gone away. The whole adapter is about a hundred lines; it is embedded under [Running the Examples](#running-the-examples).
+The handler sends `text/event-stream` responses through `writeEventStream` and every other response through `JdkHttp.writeResponse`, and treats an `IOException` while writing as the client having gone away. Any other failure while writing is logged, and becomes a 500 when no headers have gone out yet, the same as in the serving guide's adapter. The whole adapter is about a hundred lines; it is embedded under [Running the Examples](#running-the-examples).
 
 The live-feed example serves three books, one per second, first through `JdkHttp` and then through the streaming adapter, and its client prints when each event arrives. Its output, from one run:
 

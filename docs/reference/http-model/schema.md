@@ -5,9 +5,9 @@ title: "Schema-Based Typed Access"
 
 `zio-blocks-http-model-schema` adds **type-safe, validated extraction** of query parameters and headers to the core HTTP model. It provides extension methods on `QueryParams`, `Headers`, `Request`, and `Response` that automatically decode string values to typed objects using schema-based decoding with comprehensive error reporting.
 
-Core features are built on **extension methods** — `QueryParamsSchemaOps`, `HeadersSchemaOps`, `RequestSchemaOps`, `ResponseSchemaOps` — which add typed, schema-based extraction to query parameters and headers. Complemented by error types `QueryParamError` and `HeaderError`, the module provides automatic decoding for 11 primitive types and extensible support for custom types via `Schema[T]`.
+Core features are built on **extension methods** — `QueryParamsSchemaOps`, `HeadersSchemaOps`, `RequestSchemaOps`, `ResponseSchemaOps` — which add typed, schema-based extraction to query parameters and headers. Complemented by error types `QueryParamError` and `HeaderError`, the module provides automatic decoding for 12 primitive types (see [Supported Types](#supported-types)).
 
-This page covers extraction one field at a time. The module also derives whole-value codecs — a `QueryCodec[A]` or `HeaderCodec[A]` that encodes and decodes an entire case class in one call — which are documented in [Codecs](./schema-codecs.md).
+This page covers extraction one field at a time. The module also derives whole-value codecs — a `QueryCodec[A]` or `HeaderCodec[A]` that encodes and decodes an entire case class in one call — which are documented in [Codecs](./schema-codecs.md). A known bug in 0.0.56: a derived codec ignores field default values, so a field such as `limit: Int = 20` is still required. Model optional parameters with `Option` instead.
 
 ## Motivation
 
@@ -41,7 +41,7 @@ val userId = params.query[java.util.UUID]("userId")  // 1 line, automatic UUID p
 
 `zio-blocks-http-model-schema` separates **extraction logic from business logic**. The module achieves this through:
 
-- **Automatic decoding** — Pass a `Schema[T]`, get `Either[Error, T]` back. Works for 11 primitive types out of the box.
+- **Automatic decoding** — Pass a `Schema[T]`, get `Either[Error, T]` back. Works for 12 primitive types out of the box. Other types compile but do not decode in 0.0.56; see [Supported Types](#supported-types).
 - **Explicit error handling** — `Either` forces error handling. `QueryParamError` and `HeaderError` distinguish "missing" from "malformed" cases.
 - **Composable** — Works directly on `QueryParams`, `Headers`, `Request`, `Response` with zero configuration.
 - **Zero-dependency** — Pure extraction layer; doesn't pull in ZIO, async runtimes, or HTTP client libraries.
@@ -65,7 +65,7 @@ For cross-platform projects (Scala.js):
 libraryDependencies += "dev.zio" %%% "zio-blocks-http-model-schema" % "@VERSION@"
 ```
 
-Supported Scala versions: Scala 2.13 and Scala 3.x. On Scala 3.9 and newer the artifact is `zio-blocks-next-http-model-schema` (see [How to Add ZIO Blocks to Your Build](../../guides/add-zio-blocks-to-your-build.md)). It brings in `zio-blocks-http-model` and `zio-blocks-schema` transitively.
+Supported Scala versions: Scala 2.13 and Scala 3.x. Scala 2.13 and Scala 3.3 to 3.8 use `zio-blocks-http-model-schema`. On Scala 3.9 and newer, use `zio-blocks-next-http-model-schema` and add `scalacOptions += "-experimental"`, because the `zio-blocks-next-*` artifacts are compiled with `-experimental` (see [How to Add ZIO Blocks to Your Build](../../guides/add-zio-blocks-to-your-build.md)). It brings in `zio-blocks-http-model` and `zio-blocks-schema` transitively.
 
 ## How They Work Together
 
@@ -82,8 +82,8 @@ Schema-Based Extraction (this module)
     ├─ QueryParamsSchemaOps.query[T](key) ─────┐
     ├─ HeadersSchemaOps.header[T](name) ───────┼──> StringDecoder.decode(raw, Schema[T])
     ├─ RequestSchemaOps.query[T](key) ─────────┤   ├─> Right(typedValue)
-    ├─ RequestSchemaOps.header[T](name) ───────┤   └─> Left(error)
-    └─ ResponseSchemaOps.header[T](name) ──────┘
+    ├─ request.headers.header[T](name) ────────┤   └─> Left(error)
+    └─ response.headers.header[T](name) ───────┘
 
 Typical Workflow:
 1. Parse URL or receive Request (core HTTP model)
@@ -139,7 +139,7 @@ Extract a single query parameter value and decode it to type `T`.
 
 **Signature:** `query[T](key: String): Either[QueryParamError, T]`
 
-Returns `Right(value)` if parameter exists and decoding succeeds. Returns `Left(QueryParamError.Missing(key))` if parameter is missing. Returns `Left(QueryParamError.Malformed(...))` if parameter exists but decoding fails.
+Returns `Right(value)` if parameter exists and decoding succeeds. Returns `Left(QueryParamError.Missing(key))` if parameter is missing. Returns `Left(QueryParamError.Malformed(...))` if parameter exists but decoding fails. Decoding works for primitive schemas only; see [Supported Types](#supported-types).
 
 When a query parameter is required, use `query[T]` and handle the error:
 
@@ -201,7 +201,7 @@ Extract a query parameter with a default fallback.
 
 **Signature:** `queryOrElse[T](key: String, default: => T): T`
 
-Returns the decoded value if parameter exists and decodes successfully. Returns `default` if parameter is missing or decoding fails (errors are silently ignored).
+Returns the decoded value if parameter exists and decodes successfully. Returns `default` if parameter is missing or decoding fails. A malformed value is ignored silently, so `queryOrElse[Int]("limit", 20)` returns `20` for `?limit=abc` and the client's mistake is never reported. Use `query[T]` and fall back only on `QueryParamError.Missing` when a malformed value must be an error.
 
 **Pattern: Extract with Default Fallback**
 
@@ -229,7 +229,7 @@ val limit = params.queryOrElse[Int]("limit", 20)
 
 ### HeadersSchemaOps
 
-Extension methods for `Headers` to extract and decode header values with type safety. Uses `rawGet`/`rawGetAll` internally for raw string header access. API identical to `QueryParamsSchemaOps`.
+Extension methods for `Headers` to extract and decode header values with type safety. Uses `rawGet`/`rawGetAll` internally for raw string header access. The methods mirror those of `QueryParamsSchemaOps`, with `name` in place of `key`.
 
 #### `Headers#header[T]`
 
@@ -339,7 +339,7 @@ repeatedHeaders.headerAll(TraceIdHeader)
 
 #### `Headers#headerOrElse[T]`
 
-Extract a header with a default fallback (errors are silently ignored).
+Extract a header with a default fallback. Like `queryOrElse`, it returns `default` for a malformed value as well as a missing one, without reporting the malformed value.
 
 **Signature:** `headerOrElse[T](name: String, default: => T): T`
 
@@ -372,9 +372,13 @@ headers.headerOrElse[Int]("x-missing", 0)
 
 Extension methods for `Request` to extract query parameters and headers using the same schema-based API.
 
-Exposes all methods from `QueryParamsSchemaOps` and `HeadersSchemaOps` directly on `Request` — they work identically but operate on the request object.
+Exposes the query methods from `QueryParamsSchemaOps` and the header methods from `HeadersSchemaOps` on `Request`. The query methods and `headerAll`/`headerOrElse` work as they do on `QueryParams` and `Headers`; `header[T]` does not (see the caution below).
 
-Query parameters and headers are extracted identically; just use `header[T]` or `headerAll[T]`:
+:::caution[Known bug in 0.0.56]
+`request.header[T](name)` does not compile. `Request` already has a `header` method that takes a `Header.Codec`, and Scala uses that member instead of the extension, so the call fails with "Required: zio.http.Header.Codec[T]". Call the typed accessor on the headers instead: `request.headers.header[T](name)`. `request.headerAll[T]` and `request.headerOrElse[T]` do not clash and work on `Request`. The examples below use `request.headers`.
+:::
+
+Query parameters and headers are extracted identically; use `request.query[T]` for a query parameter and `request.headers.header[T]` or `request.headers.headerAll[T]` for a header:
 
 ```scala mdoc
 import zio.http.{Request, URL}
@@ -401,9 +405,9 @@ val apiVersion = request.headers.headerOrElse[Int]("x-api-version", 1)
 
 Extension methods for `Response` to extract headers using the schema-based API.
 
-Exposes all header methods from `HeadersSchemaOps` directly on `Response` — they work identically but operate on the response object. Note: `Response` does not have `query*` methods (responses don't have query parameters).
+Exposes the header methods from `HeadersSchemaOps` on `Response`, except that `header[T]` does not compile (see below). Note: `Response` does not have `query*` methods (responses don't have query parameters). As with `Request`, `response.header[T](name)` does not compile in 0.0.56 (the same known bug), so use `response.headers.header[T](name)`.
 
-`Response` provides the same header extraction methods:
+`Response` provides the same header extraction methods through its headers:
 
 ```scala mdoc
 import zio.http.Response
@@ -557,7 +561,11 @@ request.headers.header[Int]("x-token") match {
 
 ## Supported Types
 
-The module supports decoding to any type with a `Schema[T]` instance. Built-in support includes:
+The decoders in this module handle primitive schemas. `query[T]` and `header[T]` accept any `Schema[T]` at compile time, but in 0.0.56 a type that is not a primitive, such as `Option[T]`, a `List[T]` or a wrapper built with `Schema#transform`, always returns `Malformed` with the message "Unsupported schema type for string decoding", even for a valid value such as `?limit=5`. This is a known bug. Decode the primitive and convert it yourself, or derive a [`QueryCodec` or `HeaderCodec`](./schema-codecs.md), which handles `Option` fields and wrappers.
+
+The decoders also parse only. They do not check the `Validation` a schema can carry, so a `Schema[Int]` with a range of 1 to 100 still decodes `?limit=500` to `500`. Check ranges after decoding. This is a known bug in 0.0.56, and the same applies to `queryOrElse` and `headerOrElse`.
+
+Built-in primitive support includes:
 
 ### Primitives
 
@@ -602,7 +610,7 @@ Expected single character but got ''
 
 ### Custom Types
 
-To support custom types, provide a `Schema[T]` instance. The module automatically uses the schema's primitive type information via `StringDecoder`. For case classes or other compound types, derive a whole-value codec instead — see [Codecs](./schema-codecs.md), which maps a case class onto a whole collection of parameters or headers rather than a single value.
+In 0.0.56 only the primitive types listed above decode through `query[T]` and `header[T]`. A custom type, including one built with `Schema#transform`, returns `Malformed` (see [Supported Types](#supported-types)). To read a custom type, decode the primitive and convert it yourself, or derive a whole-value codec instead — see [Codecs](./schema-codecs.md), which maps a case class onto a whole collection of parameters or headers rather than a single value.
 
 ## See Also
 
