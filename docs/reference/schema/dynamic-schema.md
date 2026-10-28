@@ -322,7 +322,7 @@ object Book { implicit val schema: Schema[Book] = Schema.derived[Book] }
 val stored: DynamicSchema = Schema[Book].toDynamicSchema
 ```
 
-The rebind stops at the first `Option` case it can't bind and names its type and path:
+The rebind fails on an `Option` case it can't bind and names its type and path:
 
 ```scala mdoc
 try stored.rebind[Book](BindingResolver.empty.bind(Binding.of[Book]) ++ BindingResolver.defaults)

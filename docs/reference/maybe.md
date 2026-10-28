@@ -19,7 +19,7 @@ val absent: Maybe[Int]  = Maybe.absent
 
 ## Allocation Profile
 
-On Scala 3, the encoding stores a present value as the value itself whenever it can. `Maybe[A]` erases to `Object`, though, so on the JVM a primitive is stored as its box, and the box is what may allocate:
+On Scala 3, the encoding stores a present value as the value itself whenever it can. `Maybe[A]` erases to `Object`, though, so on the JVM a primitive is stored as its box, and the box is what may allocate. In the first rows below, `tick` stands for any reference value, such as a `String` or a case-class instance:
 
 | Case                        | Example                                 | Allocations                                                |
 | --------------------------- | --------------------------------------- | ---------------------------------------------------------- |
