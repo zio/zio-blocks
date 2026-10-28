@@ -51,7 +51,7 @@ object User extends CompanionOptics[User] {
 }
 ```
 
-In the above example, we derived a JSON codec for `User` and applied the `rename` and `transient` modifiers to the `name` and `cache` fields respectively, while keeping the domain type free of any schema-related annotations. Now when encoding a `User` to JSON, the `name` field will be serialized as `username`, and the `cache` field will be omitted. During decoding, the codec will look for `username` in the input JSON and populate the `name` field accordingly:
+In the above example, we derive a JSON codec for `User` and apply the `rename` and `transient` modifiers to the `name` and `cache` fields respectively, while keeping the domain type free of any schema-related annotations. Now when encoding a `User` to JSON, the `name` field will be serialized as `username`, and the `cache` field will be omitted. During decoding, the codec will look for `username` in the input JSON and populate the `name` field accordingly:
 
 ```scala mdoc:compile-only
 val user = User(
@@ -67,9 +67,9 @@ println(decodedUser)
 // Prints: Right(User(123,Alice,Map()))
 ```
 
-Please note that when deriving codecs, you can access these modifiers programmatically, allowing you to build custom logic based on the presence of certain modifiers. For example, your SQL codec could check for the presence of `db.table-name` in the schema modifiers to determine which table to read from or write to.
+When deriving codecs, you can access these modifiers programmatically, allowing you to build custom logic based on the presence of certain modifiers. For example, your SQL codec could check for the presence of `db.table-name` in the schema modifiers to determine which table to read from or write to.
 
-2. **Annotation Syntax**: Using the `@` syntax to annotate fields and cases directly in your case classes and sealed traits. These annotations are processed during schema derivation to attach the corresponding modifiers to the schema elements. At runtime, you can access these modifiers through the `Reflect` structure of the schema.
+2. **Annotation Syntax**: Using the `@` syntax to annotate fields and cases directly in your case classes and sealed traits. These annotations are processed during schema derivation to attach the corresponding modifiers to the schema elements. At runtime, you can access these modifiers through the `Reflect` structure of the schema. The `User` below carries the same modifiers as annotations:
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema._
@@ -92,7 +92,7 @@ object User extends CompanionOptics[User] {
 }
 ```
 
-In this example, we applied the same modifiers as in the programmatic example, but using annotation syntax directly on the case class fields. Let's try encoding and decoding a `User` instance:
+In this example, we apply the same modifiers as in the programmatic example, but using annotation syntax directly on the case class fields. Let's try encoding and decoding a `User` instance:
 
 ```scala mdoc:compile-only
 val user = User(
@@ -111,10 +111,7 @@ println(decodedUser)
 
 ## Modifier Hierarchy
 
-Modifiers are organized into two main categories:
-
-1. **Term modifiers** - annotate record fields or variant cases (the data structure elements)
-2. **Reflect modifiers** - annotate schemas/reflect values themselves (the metadata about types)
+Modifiers are organized into two main categories. **Term modifiers** annotate record fields or variant cases (the data structure elements), and **Reflect modifiers** annotate schemas/reflect values themselves (the metadata about types). The tree below lists the modifiers in each category:
 
 ```
 Modifier
@@ -133,7 +130,7 @@ Modifier
       └── caseNaming(strategy)   : JSON naming strategy for variant cases
 ```
 
-As you can see, `config` is the only modifier that extends both `Term` and `Reflect`, allowing it to be used on both fields and types.
+`config` is the only modifier that extends both `Term` and `Reflect`, so it applies to both fields and types.
 
 ## Term Modifiers
 
@@ -143,11 +140,11 @@ Term modifiers annotate record fields and variant cases. They are used to contro
 
 The `transient` modifier marks a field as transient, meaning it will be excluded from serialization. This is useful for computed fields, caches, or sensitive data that shouldn't be persisted.
 
-On decode, a transient field's value in the input is skipped, as for any unknown key, so it is rejected when `Modifier.noExtraFields` is on. The field takes its default value. Because of that, a transient field needs a default value.
+On decode, a transient field's value in the input is skipped, as for any unknown key, so it is rejected when `Modifier.noExtraFields` is on. The field takes its default value. Because of that, a transient field needs a default value unless it is an `Option` or a collection.
 
 ### rename
 
-The `rename` modifier changes the serialized name of a field or variant case. This is useful when the field name in your Scala code differs from the expected name in the serialized format.
+The `rename` modifier changes the serialized name of a field or variant case. This is useful when the field name in your Scala code differs from the expected name in the serialized format. `Person` renames both of its fields:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -182,7 +179,7 @@ object PaymentMethod {
 
 ### alias
 
-The `alias` modifier provides an alternative name for a term during decoding. This is useful for supporting multiple names during schema evolution or data migration.
+The `alias` modifier provides an alternative name for a term during decoding. This is useful for supporting multiple names during schema evolution or data migration. `MyClass` renames its field to `NewName` and still accepts two older names:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -199,17 +196,13 @@ object MyClass {
 }
 ```
 
-With this configuration:
-- **Encoding** always uses the `rename` value: `"NewName"`
-- **Decoding** accepts any of: `"NewName"`, `"OldName"`, or `"LegacyName"`
+With this configuration, encoding always uses the `rename` value, `"NewName"`, and decoding accepts any of `"NewName"`, `"OldName"`, or `"LegacyName"`.
 
 This pattern is particularly useful when migrating data formats without breaking compatibility with existing data.
 
 ### id
 
-The `id` modifier marks a record field as its primary key. It is interpreted by
-`zio-blocks-sql` when deriving a `Repo[E, ID]`, and takes precedence over
-name- and type-based ID discovery.
+The `id` modifier marks a record field as its primary key. It is interpreted by `zio-blocks-sql` when deriving a `Repo[E, ID]`, and takes precedence over name- and type-based ID discovery. In `User`, `@Modifier.id()` makes `externalKey` the primary key:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -224,7 +217,7 @@ Mark exactly one field with `@Modifier.id()` for a derived repository.
 
 ### config
 
-The `config` modifier attaches arbitrary key-value metadata to a term (record fields or variant cases) or a type itself. The convention for keys is `<format>.<property>`, allowing format-specific configuration.
+The `config` modifier attaches arbitrary key-value metadata to a term (record fields or variant cases) or a type itself. The convention for keys is `<format>.<property>`, allowing format-specific configuration. `Event` gives each of its fields a `protobuf.field-id` entry:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -239,7 +232,7 @@ object Event {
 }
 ```
 
-The `config` modifier extends both `Term` and `Reflect`, making it usable on both fields and types. We will discuss using `config` on types in the reflect modifiers section below.
+The `config` modifier extends both `Term` and `Reflect`, making it usable on both fields and types. The Reflect Modifiers section below covers using `config` on types.
 
 ## Reflect Modifiers
 
@@ -261,9 +254,9 @@ object Person {
 }
 ```
 
-### JSON reflect modifiers
+### JSON Reflect Modifiers
 
-These reflect modifiers are consumed by `JsonCodecDeriver` and let you keep JSON-specific settings next to the annotated type instead of passing them programmatically at every call site.
+These reflect modifiers are consumed by `JsonCodecDeriver` and let you keep JSON-specific settings next to the annotated type instead of passing them programmatically at every call site. `Event` sets its discriminator field and case naming, and `UserProfile` rejects extra fields and applies snake_case to its field names:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -359,6 +352,7 @@ import zio.blocks.schema._
 Schema[Modifier.transient]
 Schema[Modifier.encodeTransient]
 Schema[Modifier.rename]
+Schema[Modifier.id]
 Schema[Modifier.alias]
 Schema[Modifier.discriminator]
 Schema[Modifier.noExtraFields]
@@ -389,11 +383,8 @@ This means you can serialize modifiers as part of your schema metadata, allowing
 ## Best Practices
 
 1. **Use `rename` for external APIs**: When integrating with external systems that use different naming conventions (snake_case vs camelCase), use `rename` to match the expected format.
-
 2. **Use `alias` for migrations**: When evolving your data model, add `alias` modifiers to support reading old data while writing with new names.
-
-3. **Use `transient` sparingly**: Only mark fields as transient when they are truly derived or temporary. Remember that transient fields need default values.
-
+3. **Use `transient` sparingly**: Only mark fields as transient when they are truly derived or temporary. Transient fields need default values unless they are `Option`s or collections.
 4. **Use namespaced keys for `config`**: Follow the `<format>.<property>` convention to avoid conflicts between different formats or tools.
 
 ## See Also
