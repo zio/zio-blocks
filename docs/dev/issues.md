@@ -12545,6 +12545,22 @@ Found 2026-10-28 by the coordinator after the manual website deploy (run 4071028
 
 **Suggested fix.** Delete `docs/reference/datastar.md`, redeploy, and check that `/reference/datastar/` shows "Scala 3.x only". Optionally add a website test (`website/` already has `yarn test`) that fails when `docs/**/X.md` and `docs/**/X/index.md` both exist.
 
+### docs build: `docs/mdoc` ran out of heap and still reported success, leaving `website/docs` incomplete
+
+Found 2026-10-28 in one local run by the `remove-stale-datastar` session (worktree on `main` at `4e288c5f2`; sbt 2.0.8 launcher, JDK 25, sbt server heap `-Xmx6g`). Not seen on other machines or in CI so far.
+
+**Summary.** `sbt --client -Dsbt.color=false "++3.9.0; docs/mdoc"` hit `java.lang.OutOfMemoryError: Java heap space` (with `[warn] In the last 10 seconds, 85.875 (908.9%) were spent in GC. [Heap: 0.02GB free of 6.00GB, max 6.00GB]`) after 785 s, and the run was reported as a success. `website/docs/reference/sql/*` and `website/docs/reference/streams/core/*` were never written, and a later `yarn build` failed with "These sidebar document ids do not exist", which hides the real cause.
+
+**Caveat.** The run went through the short-lived `sbtq` wrapper (since removed), which printed the exit status. Whether plain `sbt --client` also returns 0 here, or whether mdoc swallows the error, isn't verified.
+
+**Expected.** Any exception during `docs/mdoc` fails the command with a non-zero exit code.
+
+**Impact.** A docs build can look green with pages missing, and the failure shows up later as an unrelated site-build error. CI's Build Docs job runs on a larger runner, so it may never hit this, but nothing guards against it.
+
+**Test gap.** Nothing checks that every page under `docs/` (outside `docs/dev/`) gets an output file in `website/docs`.
+
+**Suggested fix.** First reproduce with plain `sbt --client` and a small heap (`SBT_OPTS=-Xmx2g`) to find who swallows the error. Then make `docs/mdoc` fail on it, or add a post-mdoc check, for example in `docs/checkDocsOnFreshWebsite` or a website unit test, that every source page has an output.
+
 ## Documentation errors
 
 Pages that contradict the source. None of these were copied into the new guides.
