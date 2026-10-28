@@ -647,6 +647,19 @@ const sidebars = {
                 "guides/process-binary-data-without-boxing",
               ]
             },
+            {
+              type: "category",
+              label: "Interop",
+              link: {
+                type: "generated-index",
+                slug: "/guides/how-to/interop",
+                description: "Use ZIO Blocks from ZIO and cats-effect applications.",
+              },
+              collapsed: true,
+              items: [
+                "guides/use-zio-blocks-in-zio-or-cats-effect",
+              ]
+            },
           ]
         },
         {

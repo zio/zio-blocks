@@ -744,3 +744,4 @@ Stream.fromIterable(List("10", "abc", "-3", "7", "0", "25"))
 - [Your First Streaming Pipeline](../../guides/your-first-streaming-pipeline.md) -- a newcomer tutorial: read a sales log, parse, filter and batch it, sum it with a `Sink`, and recover from a bad line
 - [How to Stream Files and Sockets Without Leaking Resources](../../guides/stream-files-and-sockets.md) -- read files, NIO channels and sockets as streams that close their handles on every exit path
 - [Coming from fs2, ZIO Streams or Ox](../../guides/streaming-library-migration.md) -- a guide that maps fs2, ZIO Streams and Ox code onto ZIO Blocks streams
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](../../guides/use-zio-blocks-in-zio-or-cats-effect.md) -- calling streams from ZIO or cats-effect, with cancellation carried across

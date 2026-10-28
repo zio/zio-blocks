@@ -723,8 +723,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
       }
     },
     libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-time"            % "2.7.0",
-      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.7.0",
+      "io.github.cquiroz" %%% "scala-java-time"            % "2.9.0",
+      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.9.0",
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {

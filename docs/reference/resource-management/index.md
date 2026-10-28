@@ -47,3 +47,4 @@ The typical flow is:
 
 - [Compile-Time Resource Safety with Scope](../../guides/compile-time-resource-safety-with-scope.md) — a step-by-step tutorial covering `Scope`, `Resource` and `Wire`
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](../../guides/resource-and-di-migration.md) — maps each of those libraries onto `Scope`, `Resource` and `Wire`
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](../../guides/use-zio-blocks-in-zio-or-cats-effect.md) — using `Scope` and `Resource` from ZIO or cats-effect, with cleanup carried across

@@ -143,6 +143,8 @@ Term modifiers annotate record fields and variant cases. They are used to contro
 
 The `transient` modifier marks a field as transient, meaning it will be excluded from serialization. This is useful for computed fields, caches, or sensitive data that shouldn't be persisted.
 
+On decode, a transient field's value in the input is skipped, as for any unknown key, so it is rejected when `Modifier.noExtraFields` is on. The field takes its default value. Because of that, a transient field needs a default value.
+
 ### rename
 
 The `rename` modifier changes the serialized name of a field or variant case. This is useful when the field name in your Scala code differs from the expected name in the serialized format.

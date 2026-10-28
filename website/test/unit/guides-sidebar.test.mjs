@@ -38,11 +38,11 @@ test('the Guides category holds the four sections, in order, and nothing else', 
   );
 });
 
-test('How-to guides holds the eight topics, and each topic holds only guides', () => {
+test('How-to guides holds the nine topics, and each topic holds only guides', () => {
   assert.deepEqual(
     howTo.items.map((t) => t.label),
     ['Schema', 'Formats & codecs', 'SQL & persistence', 'Streams & async', 'Config, resources & DI', 'Web & HTTP',
-      'Observability', 'Performance'],
+      'Observability', 'Performance', 'Interop'],
   );
   for (const topic of howTo.items) assert.ok(topic.items.every((i) => typeof i === 'string'), topic.label);
 });

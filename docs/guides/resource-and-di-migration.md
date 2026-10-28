@@ -670,3 +670,4 @@ sbt compile
 - [Scope](../reference/resource-management/scope.md), [Resource](../reference/resource-management/resource.md) and [Wire](../reference/resource-management/wire.md): the full API.
 - [Unscoped](../reference/resource-management/unscoped.md) and [Finalization](../reference/resource-management/finalization.md): escape rules and finalizer errors.
 - The how-to guide "How to fix common Scope and Wire compile errors", in progress, will explain each `Resource.from` and `$` compile error.
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](./use-zio-blocks-in-zio-or-cats-effect.md): using ZIO Blocks resources from a ZIO or cats-effect application, with cleanup carried across.

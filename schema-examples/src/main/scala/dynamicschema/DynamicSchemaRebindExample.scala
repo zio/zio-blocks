@@ -36,7 +36,10 @@ object DynamicSchemaRebindExample extends App {
 
   // ── Step 3: build a BindingResolver ───────────────────────────────────────
   // Binding.of[T] derives a Binding from the implicit Schema[T].
-  // BindingResolver.defaults covers all primitives, java.time, List, Map, Option, etc.
+  // BindingResolver.defaults covers primitives, java.time, List, Map and the other
+  // standard collections, but not Option: an Option[A] field also needs
+  // Binding.of[Option[A]], a Some binding (Binding.Record.some[A], or someInt and
+  // the other primitive variants) and Binding.Record.none.
 
   val resolver: BindingResolver =
     BindingResolver.empty

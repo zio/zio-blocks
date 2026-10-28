@@ -33,6 +33,7 @@ The guides section has grown to 74 pages, and it shows them as one flat list:
 | `docs/index.md` `## Guides` list | Replaced by about six "start here" picks plus a link to the full guides index |
 | "How to Add ZIO Blocks to Your Build" | First in Tutorials (every tutorial links to it for the install step) |
 | "How to Process Binary Data Without Boxing" | How-to › Performance |
+| "How to Use ZIO Blocks in a ZIO or cats-effect Application" (H-53, merged from `main` during review with no sidebar entry) | A ninth how-to topic, Interop |
 | OpenAPI guides | Folded into How-to › Web & HTTP (no separate topic) |
 | `sql-transactions`, `sql-checked-interpolation` | How-to › SQL & persistence |
 
@@ -71,7 +72,7 @@ The four sections start expanded (`collapsed: false`). The how-to topics start c
 
 Breadcrumbs become Home › Guides › How-to guides › SQL & persistence › page.
 
-### 2. Generated index pages (12 new URLs)
+### 2. Generated index pages (13 new URLs)
 
 | Category | Slug | Description |
 |---|---|---|
@@ -85,12 +86,13 @@ Breadcrumbs become Home › Guides › How-to guides › SQL & persistence › p
 | How-to › Web & HTTP | `/guides/how-to/web` | Serve requests, validate input, push events, render HTMX, secure endpoints with JWT and work with OpenAPI. |
 | How-to › Observability | `/guides/how-to/observability` | Test and correlate logs, traces and metrics. |
 | How-to › Performance | `/guides/how-to/performance` | Cut allocation and boxing, and tune codec throughput. |
+| How-to › Interop | `/guides/how-to/interop` | Use ZIO Blocks from ZIO and cats-effect applications. |
 | Migration guides | `/guides/migration` | Move code from another Scala library to ZIO Blocks. |
 | Deep dives | `/guides/deep-dives` | Long-form explanations of how a part of ZIO Blocks works and why. |
 
 No guide id clashes with these slugs (no guide is named `tutorials`, `how-to`, `migration` or `deep-dives`). The Query DSL group keeps its existing doc link, `guides/query-dsl/index`.
 
-### 3. Guide placement (all 74 guides, each exactly once)
+### 3. Guide placement (all 75 guides, each exactly once)
 
 **Tutorials (17)**, in this order:
 
@@ -116,7 +118,7 @@ No guide id clashes with these slugs (no guide is named `tutorials`, `how-to`, `
 
 The stage column explains the order. It does not appear on the site.
 
-**How-to guides (46)**, by topic:
+**How-to guides (47)**, by topic:
 
 | Topic | Doc ids (`guides/...`), in sidebar order |
 |---|---|
@@ -128,12 +130,13 @@ The stage column explains the order. It does not appear on the site.
 | Web & HTTP (8) | `serve-http-model-requests`, `validate-query-parameters-and-headers`, `send-server-sent-events`, `return-htmx-fragments-and-response-headers`, `issue-and-verify-jwts`, `protect-endpoints-with-jwt`, `write-and-export-openapi`, `generate-scala-types-from-openapi` |
 | Observability (2) | `test-telemetry`, `correlate-logs-and-traces` |
 | Performance (3) | `tune-json-throughput`, `avoid-allocation-on-hot-paths`, `process-binary-data-without-boxing` |
+| Interop (1) | `use-zio-blocks-in-zio-or-cats-effect` |
 
 **Migration guides (6)**, in learning-path module order: `zio-schema-migration`, `json-library-migration`, `resource-and-di-migration`, `config-library-migration`, `streaming-library-migration`, `migrate-from-magnum-or-doobie`.
 
 **Deep dives (5)**: `telemetry-guide`, then the existing "Query DSL" category (link `guides/query-dsl/index`) with `query-dsl-reified-optics`, `query-dsl-sql`, `query-dsl-extending`, `query-dsl-fluent-builder`.
 
-Total: 17 tutorials + 46 how-tos + 6 migration guides + 5 deep dives (the telemetry guide and 4 Query DSL parts) = 74, matching the 74 guide files (`docs/guides/*.md` minus `index.md`).
+Total: 17 tutorials + 47 how-tos + 6 migration guides + 5 deep dives (the telemetry guide and 4 Query DSL parts) = 75, matching the 75 guide files (`docs/guides/*.md` minus `index.md`).
 
 ### 4. The `/guides/` index page
 
@@ -185,5 +188,5 @@ The `### Learn More` links elsewhere in `docs/index.md` point to single guides a
 ## Risks
 
 - **Generated slugs vs. trailing slashes.** `src/clientModules/folderIndexes.js` adds a trailing slash to `/guides` and `/reference`. The generated pages are new paths, so check in the browser that `/guides/how-to` and `/guides/how-to/` both resolve.
-- **Card count text.** Docusaurus prints "N items" on a category card. For "How-to guides" that counts the 8 topics, not the 46 guides. The description line on the generated page makes the contents clear. Accepted as is.
+- **Card count text.** Docusaurus prints "N items" on a category card. For "How-to guides" that counts the 9 topics, not the 47 guides. The description line on the generated page makes the contents clear. Accepted as is.
 - **The Overview page and README shrink** from 67 guide links to 6. This is intended: they become a starting point, and `/guides/` holds the full catalog.

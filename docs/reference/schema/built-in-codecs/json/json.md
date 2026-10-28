@@ -83,7 +83,7 @@ val person2 = json"""{"name": $name, "age": $age}"""
 val path = p".users[0].name"
 ```
 
-The `json"..."` interpolator validates JSON syntax at compile time, catching errors before runtime.
+The `json"..."` interpolator validates JSON syntax at compile time, catching errors before runtime. A known bug in 0.0.56: on Scala 2.13, the interpolator does not compile in user code outside the `zio.blocks.schema` package, so the examples above fail there unless the code is inside that package. Use `Json.parseUnsafe` on Scala 2.13 until the bug is fixed.
 
 ## Type Testing and Access
 
@@ -729,10 +729,7 @@ import zio.blocks.chunk.Chunk
 val json = Json.parseUnsafe("""{"a": {"b": 1, "c": 2}}""")
 
 val pairs: Chunk[(DynamicOptic, Json)] = json.toKV
-// Chunk(
-//   ($.a.b, Json.Number(1)),
-//   ($.a.c, Json.Number(2))
-// )
+// Chunk((.a.b,1),(.a.c,2))
 ```
 
 ## Comparison and Equality

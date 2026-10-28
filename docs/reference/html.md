@@ -295,6 +295,36 @@ val horizontalRule = hr
 val objElement = `object`("data.bin")
 ```
 
+### Tag Names That Clash With Your Imports
+
+`import zio.blocks.html._` brings a member for every tag, so some tag names collide with names from other imports or with your own helpers. The compiler reports these clashes as ambiguous references or as type errors that point somewhere else, so it helps to know them in advance:
+
+- **`span` and `scala.concurrent.duration._`.** A wildcard import of `scala.concurrent.duration._` also brings an object named `span` into scope, so `span("1")` fails with "Reference to span is ambiguous". Import only the extension you need, such as `scala.concurrent.duration.DurationInt`, and keep the DSL's `span`.
+- **`main` inside an object that defines `def main(args: Array[String])`.** A call to `main(id := "main")(...)` resolves to your method, and the error names `Array[String]`, not the element. Qualify the element as `zio.blocks.html.main(...)`, or rename the import.
+- **Tag names as helper names.** Names such as `search`, `title`, `select`, `label`, `header`, `option`, `data`, `time` and `output` clash with helpers of the same name, such as a `def search(query: String)` that you import with a wildcard. Import your own helpers by name, or rename them.
+
+Import only the duration extension next to the DSL:
+
+```scala mdoc:reset:silent
+import scala.concurrent.duration.DurationInt
+import zio.blocks.html._
+
+val delay  = 300.millis
+val banner = span(id := "banner")("Saved")
+```
+
+Qualify the element inside an object with its own `main` method:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+object Layout {
+  def page: Dom.Element = html(body(zio.blocks.html.main(id := "main")("content")))
+
+  def main(args: Array[String]): Unit = println(page.render)
+}
+```
+
 ### Setting Attributes
 
 Attributes are set using the `:=` operator on `AttributeKey` builders:

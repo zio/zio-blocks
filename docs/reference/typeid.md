@@ -1924,7 +1924,7 @@ Here is a reference of the different `TypeRepr` variants you may encounter when 
 |              | `Applied(tycon, args)`                           | `List[Int]` — parameterized type            |
 | **Compound** | `Intersection(types)`                            | `A & B` (Scala 3) or `A with B` (Scala 2)   |
 |              | `Union(types)`                                   | `A \| B` (Scala 3)                          |
-|              | `Tuple(elems)`                                   | `(A, B, C)`, named tuples                   |
+|              | `Tuple(elems)`                                   | `(A, B, C)`                                 |
 |              | `Function(params, result)`                       | `(A, B) => C`                               |
 |              | `ContextFunction(params, result)`                | `(A, B) ?=> C` (Scala 3)                    |
 | **Special**  | `Singleton(path)`                                | `x.type`                                    |
@@ -1939,6 +1939,16 @@ Here is a reference of the different `TypeRepr` variants you may encounter when 
 |              | `Annotated(underlying, annotations)`             | `A @anno`                                   |
 |              | `Constant.*`                                     | `42`, `"foo"`, `true` (literal types)       |
 | **Builtins** | `AnyType`, `NothingType`, `NullType`, `UnitType` | Special types                               |
+
+A Scala 3 named tuple is not a `Tuple` with labelled elements. Its `TypeId` is the type `scala.NamedTuple.NamedTuple` applied to two plain `Tuple`s, one of label constants and one of element types, and every `TupleElement` label is `None`:
+
+```scala mdoc
+val reading = TypeId.of[(city: String, tempC: Double)]
+reading.fullName
+reading.typeArgs
+```
+
+The labels are the `Constant.StringConst` elements of the first type argument.
 
 ## Erased TypeId
 

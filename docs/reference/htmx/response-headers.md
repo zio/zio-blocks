@@ -55,7 +55,10 @@ These headers describe the HTMX request itself: whether it came from HTMX at all
 
 ### Presence Flags
 
-`HxRequest`, `HxBoosted`, and `HxHistoryRestoreRequest` are boolean headers—present with value `"true"` or `"false"`, parsed case-insensitively. Checking whether a request came from HTMX at all is the most common read:
+`HxRequest`, `HxBoosted`, and `HxHistoryRestoreRequest` are boolean headers—present with value `"true"` or `"false"`, parsed case-insensitively. Checking `HxRequest` tells you whether a request came from HTMX at all, which is the first step when a route answers with a fragment for htmx and a full page for the browser. It is not enough on its own, because htmx also sends `HX-Request: true` in two cases that need the full page:
+
+- a link inside an `hx-boost` element sends `HX-Boosted: true`, and htmx swaps the response into `<body>` and takes the page title from it;
+- a Back-button request that misses htmx's history cache sends `HX-History-Restore-Request: true`, and htmx swaps the response into `<body>` as well.
 
 ```scala mdoc:silent
 import zio.http.{Headers, Request, URL}
@@ -70,6 +73,17 @@ Reading each flag back through `Request#header` parses the stored string into th
 boosted.header(HxRequest)
 boosted.header(HxBoosted)
 ```
+
+A route that answers a fragment only when `HX-Request` is `true` must also check the other two flags:
+
+```scala mdoc:compile-only
+def wantsFragment(request: Request): Boolean =
+  request.header(HxRequest).exists(_.enabled) &&
+    !request.header(HxBoosted).exists(_.enabled) &&
+    !request.header(HxHistoryRestoreRequest).exists(_.enabled)
+```
+
+The [Add Interactivity to a Page with HTMX](../../guides/add-interactivity-with-htmx.md) tutorial checks `HxRequest` and `HxHistoryRestoreRequest` only, which is enough for a page without `hxBoost`. [How to Return HTMX Fragments, Full Pages and Response Headers](../../guides/return-htmx-fragments-and-response-headers.md) shows the full check in a browser.
 
 ### Identifiers and Text Values
 
@@ -95,7 +109,7 @@ request.header(HxCurrentUrl)
 
 ## Setting Response Headers
 
-Response headers tell HTMX what to do once the response body has been swapped in—redirect, refresh, change what gets swapped or where, fire client-side events, or update the URL bar. Several reuse types already documented for the attribute DSL, so the same modifiers and constructors apply on both sides of the exchange.
+Response headers tell HTMX what to do with a response: redirect, refresh, change what gets swapped or where, fire client-side events, or update the URL bar. Redirect, location and refresh act before any swap happens. The after-swap and after-settle triggers fire from the swap. Several reuse types already documented for the attribute DSL, so the same modifiers and constructors apply on both sides of the exchange.
 
 ### Redirecting and Refreshing
 
@@ -194,8 +208,10 @@ The response header is named `HxTriggerHeader` rather than `HxTrigger` to avoid 
 import zio.http.htmx.{HxSwap, HxTarget}
 import zio.http.htmx.headers.HxLocation
 
-val location = HxLocation("/next", target = Some(HxTarget.closest("section")), swap = Some(HxSwap.AfterEnd))
+val location = HxLocation("/next", target = Some(HxTarget.css("#main")), swap = Some(HxSwap.AfterEnd))
 ```
+
+htmx finds the `target` of an `HX-Location` header with `document.querySelector`, so give it a CSS selector such as `HxTarget.css("#main")`. The relative forms, `HxTarget.closest`, `find`, `next`, `previous` and `this`, cannot be resolved there: htmx fires `htmx:targetError` and does nothing, and the path is never requested. `HxLocation` still accepts them, which is a known bug in 0.0.56.
 
 Rendering it produces the JSON object HTMX expects on the wire:
 
@@ -211,12 +227,14 @@ Every header in this module is a `Header.Typed[H]`, so it works with the same `R
 
 ```scala mdoc:compile-only
 import zio.http.{Response, URL}
-import zio.http.htmx.headers.{HxRedirect, HxRefresh, HxTriggerAfterSettle, HxEventPayload}
+import zio.http.htmx.headers.{HxRedirect, HxTriggerHeader, HxEventPayload}
 
 val afterSubmit = Response.ok
   .addHeader(HxRedirect(URL.parse("/orders").toOption.get))
-  .addHeader(HxTriggerAfterSettle(HxEventPayload.Event("orderPlaced")))
+  .addHeader(HxTriggerHeader(HxEventPayload.Event("orderPlaced")))
 ```
+
+Choose the trigger header with care when the same response also carries `HX-Redirect`, `HX-Location` or `HX-Refresh`. htmx 2 handles those three before it swaps anything: it navigates or reloads and stops, so the response never reaches the swap. `HX-Trigger` still fires, but `HX-Trigger-After-Swap` and `HX-Trigger-After-Settle` never do in that case. Use `HxTriggerAfterSettle` only with a response that is swapped into the page.
 
 Because parsing failures return `Left` rather than throwing, `Request#header`/`Response#header` return `None` for a header that is present but malformed, exactly as they do for any other typed header in `zio.http`—see [Header](../http-model/headers.md) for the full read/write surface these types plug into.
 

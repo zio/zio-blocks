@@ -144,7 +144,15 @@ object JdkHttp {
             System.err.println(s"Handler failed: $error")
             Response.text(Status.InternalServerError, "Internal Server Error")
         }
-      writeResponse(exchange, response)
+      try writeResponse(exchange, response)
+      catch {
+        case NonFatal(error) =>
+          System.err.println(s"Writing the response failed: $error")
+          if (exchange.getResponseCode == -1) {
+            exchange.getResponseHeaders.clear()
+            exchange.sendResponseHeaders(Status.InternalServerError.code, -1L)
+          }
+      }
     } finally exchange.close()
 
   def start(app: Request => Response, port: Int = 0): HttpServer = {

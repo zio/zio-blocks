@@ -373,6 +373,8 @@ def wantsFragment(request: Request): Boolean =
 
 The code above reads the header in two steps. `request.header(HxRequest)` parses the `HX-Request` header into an `HxRequest` value, or returns `None` when the header is missing, and `exists(_.enabled)` is `true` only for `HX-Request: true`. `HxHistoryRestoreRequest` handles one special case: when the reader goes back to a search that htmx no longer has in its history cache, htmx 2 requests that URL with `HX-Request: true` and `HX-History-Restore-Request: true`, and it puts the answer in place of the whole `<body>`. Answering with a fragment there would replace the heading and the search box with a bare list, so we answer with the full page.
 
+This check is enough for this page because it has no `hxBoost` links; a page that uses `hxBoost` must also check `HxBoosted`, since a boosted link needs the full page too, as [How to Return HTMX Fragments, Full Pages and Response Headers](return-htmx-fragments-and-response-headers.md) shows.
+
 Now the page itself takes the current search, so a full page loaded from `/search?q=zio&category=Effects` shows "zio" in the box, "Effects" selected and the matching books:
 
 ```scala mdoc:silent

@@ -501,7 +501,7 @@ val firstOrderIds: List[Long] = Scope.global.scoped { scope =>
 println(firstOrderIds)
 ```
 
-On Scala 2.13, pass the scope as `parsedOrders.start(scope)`. The reader closes with the scope. For a primitive stream, choose a sentinel your stream never emits; the [Reader reference](../reference/streams/primitives/reader.md) covers the primitive read methods.
+On Scala 2.13, pass the scope as `parsedOrders.start(scope)`. The reader closes with the scope. For a primitive stream, read each lane with its own method, as [Primitive Streams Signal the End Without Boxing](#primitive-streams-signal-the-end-without-boxing) describes; the [Reader reference](../reference/streams/primitives/reader.md) covers the primitive read methods.
 
 ### Batches
 
@@ -804,9 +804,11 @@ println(bytesPerRun.count)
 
 The same pattern works for a channel with `NioStreams.fromChannelUnmanaged`; [How to Stream Files and Sockets Without Leaking Resources](./stream-files-and-sockets.md) covers files, channels and sockets in depth. In ZIO Streams, `ZStream.fromInputStream` never closes the stream at all.
 
-### Primitive Streams Use End-of-Stream Sentinels
+### Primitive Streams Signal the End Without Boxing
 
-A stream of `Int`, `Long`, `Double`, `Float`, `Byte`, `Short`, `Char` or `Boolean` runs without boxing. Internally, the end of the stream is signalled with an in-band sentinel value, so each element costs one primitive comparison. This design is deliberate, and the library does not add per-element checks to it. It shows up in user code only when you pull by hand with `start` and `Reader#read(sentinel)`: choose a sentinel your stream never produces. The [Reader reference](../reference/streams/primitives/reader.md) describes the primitive read methods.
+A stream of `Int`, `Long`, `Double`, `Float`, `Byte`, `Short`, `Char` or `Boolean` runs without boxing, so the end of the stream cannot be an `Option` or a boxed marker. Each lane signals it in a way no real element can match: `Byte` returns `-1` from `Reader#readByte` (bytes come back as `0` to `255`), `Boolean` and `Char` return a negative `Int`, `Short`, `Int` and `Float` return a sentinel in a wider carrier type (`Int.MinValue`, `Long.MinValue`, `Double.MaxValue`), and `Long` and `Double` use no sentinel at all: a one-element `Reader#readLongs` or `Reader#readDoubles` returns a negative count at the end. Every lane is lossless, so `Long.MaxValue` or `Double.MaxValue` in your data is an ordinary element.
+
+None of this shows up in user code unless you pull by hand with `Stream#start`. Then read each lane with its own method, and on a `Long` or `Double` reader loop on `Reader#readLongs(scratch, 0, 1)` or `Reader#readDoubles(scratch, 0, 1)` rather than `Reader#readLong(sentinel)` or `Reader#readDouble(sentinel)`, since any sentinel you pick there is also a value the stream may carry. [EOF Signalling Per Lane](../reference/streams/execution-and-compatibility/zero-boxing.md#eof-signalling-per-lane) lists every lane's signal, and the [Reader reference](../reference/streams/primitives/reader.md) describes the primitive read methods.
 
 ## What You Gain and What Is Different
 
@@ -821,7 +823,7 @@ You gain:
 What is different:
 
 - **Blocking and asynchronous terminals.** On the JVM, `runCollect`, `runFold`, `runDrain`, `count`, `run(sink)` and `start` block the calling thread. Every platform has the asynchronous versions (`runCollectAsync`, `runFoldAsync`, `runAsync(sink)`, `countAsync` and so on), which return `Async[Either[E, Z]]`.
-- **Scala.js has only the asynchronous terminals.** JavaScript cannot block, so there is no `runCollect` or `start` there, and `mapPar`, `flatMapPar` and `Stream.mergeAll` run sequentially.
+- **Scala.js has only the asynchronous terminals.** JavaScript cannot block, so there is no `Stream#runCollect` or `Stream#start` there, and no work in `Stream#mapPar`, `Stream#flatMapPar` or `Stream.mergeAll` runs in parallel: only asynchronous waits overlap.
 - **No time, schedules or environment.** No `Schedule`, timers, `groupedWithin`, throttling or `R` channel.
 - **Parallel operators are unordered.** `mapPar` is `mapParUnordered` under another name.
 - **No `Pull`, `ZChannel` or fibers.** Custom operators use `mapAccum`, `scan` or `start`, and concurrency lives inside the parallel operators.
@@ -906,3 +908,4 @@ sbt compile
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./resource-and-di-migration.md): the resource side of the same migration.
 - [How to Stream Large Query Results](./stream-large-query-results.md) and [How to Stream Files and Sockets Without Leaking Resources](./stream-files-and-sockets.md): streams over database results, files and sockets.
 - The tutorial "Build your first streaming pipeline" is in progress.
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](./use-zio-blocks-in-zio-or-cats-effect.md): calling ZIO Blocks streams from a ZIO or cats-effect application, with cancellation.
