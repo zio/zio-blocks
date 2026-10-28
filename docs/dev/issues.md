@@ -13406,6 +13406,22 @@ Item 3 is the documentation side of the existing Library bugs entry "streams (Sc
 
 **Suggested fix.** Edit the six places using the wave 3 Scaladoc wording, then run `docs/mdoc` on the four pages. Item 1 changes again once the virtual-thread naming bug is fixed.
 
+### docs: `streaming-library-migration.md` says every primitive lane ends on an in-band sentinel and tells readers to pick one
+
+Found 2026-10-28 by the coordinator while preparing the streams doc-fix batch, on `main` at `dae327892`. Same text at v0.0.56.
+
+**Summary.** `docs/guides/streaming-library-migration.md:807-809` ("Primitive Streams Use End-of-Stream Sentinels") says that for every primitive stream "the end of the stream is signalled with an in-band sentinel value", and that a hand-written pull should "choose a sentinel your stream never produces". Since #1672 (v0.0.52) that is false for `Long` and `Double`: those lanes detect the end by the count that a one-element `readLongs`/`readDoubles` returns, because every `Long` value and every `Double` bit pattern is legal data. On those two lanes no sentinel is safe, so the advice leads readers to write the lossy custom sink that `process-binary-data-without-boxing.md` warns against.
+
+**Expected.** The paragraph gives the per-lane rule: `Byte` ends on `readByte()` = -1, `Short`/`Int`/`Float` on a widened sentinel no element can equal, `Long`/`Double` on the bulk-read count; it links `reference/streams/execution-and-compatibility/zero-boxing.md#eof-signalling-per-lane`.
+
+**Root cause.** The paragraph predates #1672. Source: `Sink.foldSyncReader`, `streams/shared/src/main/scala/zio/blocks/streams/Sink.scala:1176-1213`.
+
+**Impact.** Readers who pull by hand on a `Long` or `Double` stream pick a sentinel and silently drop data at the first element equal to it.
+
+**Test gap.** None (doc text).
+
+**Suggested fix.** Rewrite the paragraph as in "Expected" (assigned to the streams doc-fix batch, session `streams-doc-fixes`).
+
 ## Resolved
 
 - `docs/index.md` described `Maybe` as "Low-allocation optional values backed by `null`"; since #1532 absence is an `Absent` singleton and `Maybe.present(null)` is present. Fixed in #1866 (H-51, commit `1dfba0647`); regenerate the README.
