@@ -87,9 +87,9 @@ The fundamental protocol is: call `write(element)` to push an element. It return
 import zio.blocks.streams.io.Writer
 
 val w = Writer.single[Int]
-println(s"First write: ${w.write(42)}")      // true (accepted)
-println(s"Second write: ${w.write(99)}")     // false (writer auto-closed after one element)
-println(s"Third write: ${w.write(77)}")      // false (still closed)
+println(s"First write: ${w.write(42)}")
+println(s"Second write: ${w.write(99)}")
+println(s"Third write: ${w.write(77)}")
 ```
 
 ## Asynchronous Writes
@@ -162,7 +162,7 @@ The structural combinators `concat` and `contramap` have no mirrors, and that is
 The default `writeable()` method returns `!isClosed`—it only tells you if the writer is closed, not whether the buffer has space. Bounded implementations can override `writeable()` to reflect remaining capacity, but this is not guaranteed by the interface. The important distinction:
 
 - **`writeable()` returns `false`**: the writer is closed (permanent state)
-- **`writeable()` returns `true` but `write()` would block**: the buffer is full but not closed. What happens next is implementation-defined: a writer backed by a bounded buffer may block the calling thread until space becomes available, while the buffer-backed writers in this library instead auto-close and return `false`.
+- **`writeable()` returns `true` but `write()` would block**: the buffer is full but not closed. What happens next is implementation-defined: a writer backed by a bounded buffer may block the calling thread until space becomes available, while the buffer-backed writers in this library instead close and return `false` once a write finds no room.
 
 The writers behind `NioWriters.fromByteBuffer` and its typed variants close when a write finds no room: the write that fills the buffer exactly still returns `true` and leaves the writer open, and the next write returns `false` and closes it. A writer you implement yourself may instead block indefinitely waiting for space.
 

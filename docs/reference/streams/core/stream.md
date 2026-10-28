@@ -1154,7 +1154,7 @@ All four operators are unordered with respect to input position. An element leav
 The single exception is `n = 1`, which is exactly sequential — and the `n = 1` tests do assert exact [`Chunk`](../../chunk.md) equality, because at that value the operator is not the concurrent engine at all. See [The `n = 1` Guarantee](#the-n-1-guarantee).
 
 :::warning[Unordered means unordered on Scala.js too]
-Single-threaded execution does not restore input order. The concurrent engine runs on Scala.js with immediately-ready effects, and its arrival-order semantics are retained there. Code that depends on Scala.js emitting source order is a bug that will not reproduce on the JVM.
+Single-threaded execution does not restore input order. Wherever the concurrent engine runs on Scala.js, which is always for `Stream#flatMapPar` and `Stream.mergeAll` and for a `Stream#mapPar` after an asynchronous stage, its arrival-order semantics are retained. Code that depends on Scala.js emitting source order is a bug that will not reproduce on the JVM.
 :::
 
 If input order is what you need, use sequential `map`, `mapAsync`, or `flatMap`. Sorting afterwards — `.runCollectAsync.map(_.map(_.sorted))` — recovers *a* total order, but not the input one unless the elements happen to sort that way.
