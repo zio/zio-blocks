@@ -743,11 +743,11 @@ These limitations ensure compile-time safety and zero runtime overhead.
 
 ## Debug-Friendly toString
 
-`DynamicOptic` instances have a custom `toString` that produces output matching the `p"..."` interpolator syntax. This makes debugging easier because you can copy the output directly into your code, except for wrapper steps (`.~`), the empty path (`.`) and `Char` keys with an escape, which the interpolator rejects:
+`DynamicOptic` instances have a custom `toString` that produces output matching the `p"..."` interpolator syntax. This makes debugging easier because you can copy the output directly into your code, except for wrapper steps (`.~`), the empty path (`.`) and `Char` keys with an escape, which the interpolator rejects, a known bug in 0.0.56:
 
 ```scala mdoc
 val optic = DynamicOptic.root.field("users").elements.field("email")
-println(optic)  // Output: .users[*].email
+println(optic)
 
 // The output can be copy-pasted into p"..."
 val same = p".users[*].email"

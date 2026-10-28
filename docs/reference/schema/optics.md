@@ -1130,7 +1130,7 @@ println(Depot.stockOfBooks)
 println(Depot.someShelves)
 ```
 
-The output is not always code you can paste back into `optic`: a step that focuses a map key prints the placeholder `atKey(<key>)` instead of the key, steps for several indices or keys print `atIndices(<indices>)` and `atKeys(<keys>)`, and a traversal built with `searchFor` prints only the type it searches for. `DynamicOptic#toString`, the path syntax of the `p"..."` interpolator, has gaps of its own, listed in [Path Interpolator](./path-interpolator.md#debug-friendly-tostring).
+The output is not always code you can paste back into `optic`: a step that focuses a map key prints the placeholder `atKey(<key>)` instead of the key, steps for several indices or keys print `atIndices(<indices>)` and `atKeys(<keys>)`, and a traversal built with `searchFor` prints only the type it searches for. `DynamicOptic#toString`, the path syntax of the `p"..."` interpolator, has gaps of its own, a known bug in 0.0.56, listed in [Path Interpolator](./path-interpolator.md#debug-friendly-tostring).
 
 **Examples by optic type:**
 
