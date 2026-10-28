@@ -78,7 +78,7 @@ The code above:
 Converting can fail, because not every `Double` is a whole number. That's why `Into#into` returns an `Either[SchemaError, BookV1]`. Let's convert a book from the feed:
 
 ```scala mdoc
-val zionomiconDto = BookDto("Zionomicon", "John A. De Goes", 2024.0, 1.0)
+val zionomiconDto = BookDto("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024.0, 1.0)
 
 println(dtoToBook.into(zionomiconDto))
 ```

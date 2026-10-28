@@ -183,7 +183,7 @@ readCsv(bookCodec, damagedCsv, CsvConfig.default).foreach { report =>
 The message for row 3 comes from the derived codec. It quotes the bad value, but it doesn't name the column: the trailing `at: .` is the position inside the record, which the CSV codec leaves empty. The cell count message for row 4 comes from our `RowDecoder`. A file that lacks a whole column fails before any row is decoded:
 
 ```scala mdoc
-println(readCsv(bookCodec, "title,year,authors\nZionomicon,2024,John A. De Goes\n", CsvConfig.default))
+println(readCsv(bookCodec, "title,year,authors\nZionomicon,2024,\"John A. De Goes, Adam Fraser and Milad Khajavi\"\n", CsvConfig.default))
 ```
 
 A quote that is opened but never closed is a different kind of error. Everything after the opening quote, up to the end of the file, belongs to one cell, so no later row can be trusted. `CsvReader.readAll` returns a `CsvError.ParseError` for the whole document. In the following file, the authors cell on the last line has no closing quote:

@@ -232,7 +232,7 @@ Magnum builds a `Transactor` from a `DataSource` and runs blocks with `connect` 
 val xa = Transactor(dataSource)
 
 transact(xa) {
-  bookRepo.insert(Book(1L, "Zionomicon", "John A. De Goes", 2024, None))
+  bookRepo.insert(Book(1L, "Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, None))
 }
 
 val total: Long = connect(xa) {
@@ -243,7 +243,7 @@ val total: Long = connect(xa) {
 ZIO Blocks has the same two blocks as methods on the transactor. `JdbcTransactor.fromDataSource(dataSource, dialect)` replaces `Transactor(dataSource)`, and `JdbcTransactor.fromUrl` skips the `DataSource` entirely. We put three books on the shelf:
 
 ```scala mdoc:silent
-val zionomicon         = Book(1L, "Zionomicon", "John A. De Goes", 2024, None)
+val zionomicon         = Book(1L, "Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, None)
 val programmingInScala = Book(2L, "Programming in Scala", "Martin Odersky", 2008, Some("9780981531601"))
 val fpInScala          = Book(3L, "Functional Programming in Scala", "Paul Chiusano", 2014, Some("9781617290657"))
 ```
@@ -590,7 +590,7 @@ val books = Repo.derived[Book, Long]
 val xa    = TransactorZIO.fromUrl("jdbc:sqlite:bookshelf.db", SqlDialect.SQLite)
 
 val countBooks: Task[Long] = xa.connect(books.count)
-val addBook: Task[Int]     = xa.transact(books.insert(Book(5L, "Zionomicon", "John A. De Goes", 2024, None)))
+val addBook: Task[Int]     = xa.transact(books.insert(Book(5L, "Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, None)))
 ```
 
 Keep `import zio.blocks.sql.*` after every other `zio` import, as above: once `sql-zio` is on the classpath, it brings the subpackage `zio.blocks.sql.zio` into scope under the name `zio`, and a later `import zio.blocks...` fails to compile. `TransactorZIO.layer(url, dialect)` provides the transactor as a `ZLayer`. [How to Use the sql Module from a ZIO Application](./sql-from-zio.md) covers layers and mixing database writes with other effects, and [TransactorZIO](../reference/sql/transactor-zio.md) lists every method.

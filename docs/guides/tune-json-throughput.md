@@ -452,7 +452,7 @@ import zio.blocks.schema.json._
 @Fork(1)
 class CatalogBenchmark {
   val catalog: List[Book] =
-    List.tabulate(4000)(i => Book(i.toLong, "Zionomicon", List("John A. De Goes"), 2024, List("zio")))
+    List.tabulate(4000)(i => Book(i.toLong, "Zionomicon", List("John A. De Goes", "Adam Fraser", "Milad Khajavi"), 2024, List("zio")))
   val bytes: Array[Byte] = Book.catalogCodec.encode(catalog)
   val text: String       = new String(bytes, UTF_8)
 

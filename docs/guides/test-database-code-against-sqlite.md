@@ -38,7 +38,7 @@ val statement  = connection.createStatement()
 
 // Each test first deletes what the previous tests wrote, then inserts its own rows
 statement.executeUpdate("DELETE FROM book")
-statement.executeUpdate("INSERT INTO book VALUES (1, 'Zionomicon', 'John A. De Goes', 2024, NULL, 5)")
+statement.executeUpdate("INSERT INTO book VALUES (1, 'Zionomicon', 'John A. De Goes, Adam Fraser and Milad Khajavi', 2024, NULL, 5)")
 statement.executeUpdate("INSERT INTO book VALUES (2, 'Programming in Scala', 'Martin Odersky', 2008, '9780981531601', 3)")
 ```
 
@@ -162,10 +162,10 @@ The statement has a column for every field, but no `PRIMARY KEY`. That matters i
 withTempDb { transactor =>
   transactor.connect {
     bookTable.createTable(SqlDialect.SQLite).update
-    Bookshop.books.insert(Book(1L, "Zionomicon", "John A. De Goes", 2024, None, 5))
-    Bookshop.books.insert(Book(1L, "Zionomicon", "John A. De Goes", 2024, None, 5))
+    Bookshop.books.insert(Book(1L, "Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, None, 5))
+    Bookshop.books.insert(Book(1L, "Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, None, 5))
     println(s"Rows with id 1 in the derived table: ${Bookshop.books.count}")
-    println(Try(Bookshop.books.insertOrUpdate(Book(1L, "Zionomicon", "John A. De Goes", 2024, None, 7))))
+    println(Try(Bookshop.books.insertOrUpdate(Book(1L, "Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, None, 7))))
   }
 }
 ```
@@ -190,8 +190,8 @@ A hand-written schema can drift from the case class, so we check it against the 
 withTempDb { transactor =>
   transactor.connect {
     createSchema()
-    Bookshop.books.insert(Book(1L, "Zionomicon", "John A. De Goes", 2024, None, 5))
-    println(Try(Bookshop.books.insert(Book(1L, "Zionomicon", "John A. De Goes", 2024, None, 5))))
+    Bookshop.books.insert(Book(1L, "Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, None, 5))
+    println(Try(Bookshop.books.insert(Book(1L, "Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, None, 5))))
 
     val columns = sql"SELECT name FROM pragma_table_info('book')".query[String]
     println(s"Columns match the derived table: ${columns == bookTable.columns.toList}")
@@ -206,7 +206,7 @@ The `SQLiteException` that SQLite raises is the same one the application would s
 Most tests need some data to work on. We define the fixture books once and share them across the whole suite. Since they are immutable values, a test can compare the database against them directly:
 
 ```scala mdoc:silent
-val zionomicon         = Book(1L, "Zionomicon", "John A. De Goes", 2024, None, 5)
+val zionomicon         = Book(1L, "Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, None, 5)
 val programmingInScala = Book(2L, "Programming in Scala", "Martin Odersky", 2008, Some("9780981531601"), 3)
 val fpInScala          = Book(3L, "Functional Programming in Scala", "Paul Chiusano", 2014, Some("9781617290657"), 0)
 
