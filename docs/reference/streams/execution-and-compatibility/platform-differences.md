@@ -208,27 +208,23 @@ Underneath the availability split sits a capability split: the JVM has threads a
 
 ### The JVM
 
-Concurrent stream operators run their workers on virtual threads when the runtime provides them. `Platform.startVirtualThread` obtains `Thread.ofVirtual()` reflectively, so the module compiles and runs against any supported JDK and uses virtual threads on JDK 21 and later; when the reflective lookup fails for any reason — an older JDK, a security restriction, a linkage error — it falls back to starting a named daemon platform thread rather than failing class initialization.
+Concurrent stream operators run their workers on virtual threads when the runtime provides them. `Platform.startVirtualThread` obtains `Thread.ofVirtual()` reflectively, so the module compiles and runs against any supported JDK and uses virtual threads on JDK 21 and later; when the reflective lookup fails for any reason — an older JDK, a security restriction, a linkage error — or when starting the virtual thread throws, it falls back to starting a named daemon platform thread rather than failing.
 
-Workers are named, which makes them identifiable in a thread dump or profiler. The `Stream#mapPar` family names its workers `zio-blocks-mappar-worker-<n>-<index>` and its coordinator `zio-blocks-mappar-coordinator-<n>`, where `<n>` is drawn from a counter shared by every thread that lane's reader class starts and `<index>` identifies the worker within one reader.
+Workers are named, which makes them identifiable in a thread dump or profiler. The `Stream#mapPar` family names its workers `zio-blocks-mappar-worker-<n>-<index>` and its coordinator `zio-blocks-mappar-coordinator-<n>`, where `<n>` is drawn from a counter shared by every thread that lane's reader class starts and `<index>` identifies the worker within one reader. A known bug in 0.0.56 adds a `0` to every virtual thread's name, so on JDK 21 and later a worker shows up in a thread dump as `zio-blocks-mappar-worker-<n>-<index>0` (for example `zio-blocks-mappar-worker-0-00`) and the coordinator as `zio-blocks-mappar-coordinator-<n>0`; only the platform-thread fallback uses the names as written.
 
 ### Scala.js
 
-`Platform.supportsConcurrency` is `false` on Scala.js and `Platform.startVirtualThread` throws `UnsupportedOperationException`. The observable effect is that `Stream#mapPar`, `Stream#flatMapPar`, and `Stream.mergeAll` do not overlap any work: there is no second execution context for work to overlap on.
+`Platform.supportsConcurrency` is `false` on Scala.js and `Platform.startVirtualThread` throws `UnsupportedOperationException`. The observable effect is that synchronous work inside `Stream#mapPar`, `Stream#flatMapPar`, and `Stream.mergeAll` does not overlap: there is no second execution context for it to overlap on.
 
-The mechanism is not what the scaladoc on those three operators says. They do not simply become `Stream#map` and `Stream#flatMap` on Scala.js. The factories that build the concurrent readers, `Platform.createMergeReaderFromReader` and `Platform.createMapParReaderFromReader`, route to the same shared concurrent engine on Scala.js as they do on the JVM — merge unconditionally, and `Stream#mapPar` whenever the upstream compiles to an asynchronous reader, with the mapping function wrapped in an immediately-ready effect:
+They do not all become `Stream#map` and `Stream#flatMap` on Scala.js. The factories that build the concurrent readers, `Platform.createMergeReaderFromReader` and `Platform.createMapParReaderFromReader`, route to the same shared concurrent engine on Scala.js as they do on the JVM — merge unconditionally, and `Stream#mapPar` whenever the upstream compiles to an asynchronous reader, with the mapping function wrapped in an immediately-ready effect:
 
 ```scala
 internal.AsyncConcurrentReaders.mapPar(reader, n, (a: A) => zio.blocks.async.Async.succeed(f(a)), outType)
 ```
 
-The genuinely sequential implementations exist only on the synchronous lane, and are reached when the pipeline compiles end to end to a `SyncReader`: there `Stream#mapPar` becomes a plain mapped reader and merge becomes a flat-mapped one. That single case is what the scaladoc describes, stated as if it were the whole story.
+Only `Stream#mapPar` has a sequential implementation that a Scala.js program reaches: when every stage before it is synchronous, it becomes a plain mapped reader that maps one element at a time. The synchronous merge reader is built only by the JVM's blocking interpreter, and Scala.js has only the `*Async` terminals, so `Stream#flatMapPar` and `Stream.mergeAll` always run on the shared engine there: the inner streams' asynchronous waits overlap, but synchronous work inside them runs one inner stream at a time.
 
-The consequence matters more than the plumbing. Wherever the concurrent engine runs, **unordered arrival is retained on Scala.js**. `Stream#mapPar` and `Stream#flatMapPar` are documented to emit in completion order rather than input order, and that stays true on a single-threaded platform. Do not write code that relies on Scala.js restoring source order.
-
-:::warning[The scaladoc is stale here]
-The scaladoc on `Stream#mapPar`, `Stream#flatMapPar`, and `Stream.mergeAll` states that on Scala.js each "degrades to sequential `map`" or "sequential `flatMap`". Treat that as a statement about throughput, not about ordering. Relying on it for element order is a bug that will not reproduce on the JVM.
-:::
+The consequence matters more than the plumbing. Wherever the concurrent engine runs, **unordered arrival is retained on Scala.js**. `Stream#mapPar`, `Stream#flatMapPar` and `Stream.mergeAll` are documented to emit in completion or arrival order rather than input order, on every platform, and that stays true on a single-threaded platform. Do not write code that relies on Scala.js restoring source order.
 
 ### The Async Execution Model
 
