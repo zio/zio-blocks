@@ -367,12 +367,12 @@ object Frag {
      * from terminal operations such as `runCollect`.
      *
      * Because acquisition is lazy, the stream must be consumed within the scope
-     * that provides the `DbCon`: leaving `Transactor.connect`/`transact` closes
+     * that provides the `DbCon`: leaving `Transactor#connect`/`transact` closes
      * the captured connection, and pulling afterwards fails.
      *
      * @example
      *   {{{
-     * Transactor.connect(transactor) {
+     * transactor.connect {
      *   sql"SELECT id, name FROM users"
      *     .queryChunked[User](500)
      *     .runFold(0)((acc, chunk) => acc + chunk.size)
