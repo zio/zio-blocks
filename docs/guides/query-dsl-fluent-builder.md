@@ -4,7 +4,7 @@ title: "Query DSL with Reified Optics — Part 4: A Fluent SQL Builder"
 description: "Build type-safe SELECT, UPDATE, INSERT and DELETE statements with a fluent builder that takes both SchemaExpr and Expr conditions without manual lifting."
 ---
 
-In this guide, we will build a fluent, type-safe SQL statement builder on top of the query expression language from Parts 1–3. By the end, you will have builder functions for SELECT, UPDATE, INSERT, and DELETE that compose naturally with both built-in `SchemaExpr` operators and extended `Expr` operators — no manual `.toExpr` lifting required.
+In this guide, we will build a fluent, type-safe SQL statement builder on top of the query expression language from Parts 1–3. By the end, you will have builder functions for SELECT, UPDATE, INSERT, and DELETE that compose naturally with both built-in [`SchemaExpr`](../reference/schema/schema-expr.md) operators and extended `Expr` operators — no manual `SchemaExprBooleanBridge#toExpr` lifting required.
 
 We'll take an incremental approach: starting with seamless condition composition, then adding table references and fluent statement builders for each SQL operation until we have a complete, native-feeling SQL DSL.
 
@@ -15,8 +15,8 @@ This is Part 4 of the Query DSL series. [Part 1](./query-dsl-reified-optics.md) 
 - Bridging `SchemaExpr` and `Expr` for seamless `&&` / `||` composition
 - Defining table references with `Table[S]`
 - Deriving table names from `Schema` metadata via `Modifier.config` and auto-pluralization
-- Building fluent SELECT queries with `.columns()`, `.where()`, `.orderBy()`, `.limit()`
-- Building UPDATE statements with `.set()` and `.where()`
+- Building fluent SELECT queries with `SelectStmt#columns`, `SelectStmt#where`, `SelectStmt#orderBy`, `SelectStmt#limit`
+- Building UPDATE statements with `UpdateStmt#set` and `UpdateStmt#where`
 - Building INSERT and DELETE statements
 - Rendering all statement types to SQL strings
 
@@ -31,7 +31,7 @@ val sql = s"UPDATE products SET price = 9.99 WHERE $whereSql"
 
 Column names in SET clauses are hand-written strings that can drift from your schema, table names are repeated magic strings, and there is no compile-time connection between the statement structure and your domain types.
 
-Additionally, mixing built-in `SchemaExpr` operators (`===`, `>=`) with extended `Expr` operators (`between`, `like`) required explicit `.toExpr` calls in Part 3:
+Additionally, mixing built-in `SchemaExpr` operators (`===`, `>=`) with extended `Expr` operators (`between`, `like`) required explicit `SchemaExprBooleanBridge#toExpr` calls in Part 3:
 
 ```scala
 // Part 3: explicit .toExpr required
@@ -51,11 +51,11 @@ update(Product.table)
   )
 ```
 
-In this guide, we solve both problems: bridge extensions eliminate `.toExpr`, and type-safe statement builders eliminate string manipulation for SQL construction.
+In this guide, we solve both problems: bridge extensions eliminate `SchemaExprBooleanBridge#toExpr`, and type-safe statement builders eliminate string manipulation for SQL construction.
 
 ## Prerequisites
 
-This guide builds on [Part 1: Expressions](./query-dsl-reified-optics.md), [Part 2: SQL Generation](./query-dsl-sql.md), and [Part 3: Extending the Expression Language](./query-dsl-extending.md).
+This guide builds on [Part 1: Expressions](./query-dsl-reified-optics.md), [Part 2: SQL Generation](./query-dsl-sql.md), and [Part 3: Extending the Expression Language](./query-dsl-extending.md). To add the schema module to an sbt build:
 
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
@@ -63,7 +63,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
 ## Domain Setup
 
-We carry forward the product catalog domain and the Part 3 independent `Expr` ADT. The key additions in Part 4 are bridge extension methods, schema-driven table names, and statement builder types. As in Part 3, the public expression layer stays typed: built-in logic remains `SchemaExpr`, and the SQL builder only drops to the dynamic AST inside interpreter helpers.
+We carry forward the product catalog domain and the Part 3 independent `Expr` ADT. The key additions in Part 4 are bridge extension methods, schema-driven table names, and statement builder types. As in Part 3, the public expression layer stays typed: built-in logic remains `SchemaExpr`, and the SQL builder only drops to the dynamic AST inside interpreter helpers. The following block defines the table type, the domain, the `Expr` ADT, the bridge classes, and the SQL interpreter:
 
 ```scala mdoc:silent
 import zio.blocks.schema._
@@ -322,7 +322,7 @@ def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
 
 ## Seamless Condition Composition
 
-In Part 3, composing `SchemaExpr` and `Expr` values required explicit `.toExpr` calls because `SchemaExpr.&&` is a direct method that only accepts other `SchemaExpr` values. Part 4 adds **bridge implicit classes** that handle the cross-type case automatically:
+In Part 3, composing `SchemaExpr` and `Expr` values required explicit `SchemaExprBooleanBridge#toExpr` calls because `SchemaExpr.&&` is a direct method that only accepts other `SchemaExpr` values. Part 4 adds **bridge implicit classes** that handle the cross-type case automatically:
 
 ```scala
 // When SchemaExpr.&& receives an Expr argument, the direct method
@@ -348,7 +348,7 @@ Scala's implicit conversion resolution makes this work:
 3. **`Expr && SchemaExpr`** — the bridge overload on `ExprBooleanOps` matches, returns `Expr`
 4. **`Expr && Expr`** — the standard `ExprBooleanOps.&&` overload matches, returns `Expr`
 
-The result type automatically widens to `Expr` whenever an `Expr` value enters the chain. No `.toExpr` needed:
+The result type automatically widens to `Expr` whenever an `Expr` value enters the chain. No `SchemaExprBooleanBridge#toExpr` needed:
 
 ```scala mdoc
 val condition =
@@ -404,7 +404,7 @@ object OrderItem extends CompanionOptics[OrderItem] {
 }
 ```
 
-Without the annotation, `OrderItem` would become `orderitems`. The `Modifier.config("sql.table_name", "order_items")` annotation gives you precise control when the default doesn't match your database convention.
+Without the annotation, `OrderItem` would become `orderitems`. The `Modifier.config("sql.table_name", "order_items")` annotation gives you precise control when the default doesn't match your database convention. To print both derived table names:
 
 ```scala mdoc
 Product.table.name
@@ -463,7 +463,7 @@ def renderSelect[S](stmt: SelectStmt[S]): String = {
 }
 ```
 
-Each builder method returns a new `SelectStmt` with the updated field. The `.where()` method is overloaded to accept both `Expr` and `SchemaExpr` — `SchemaExpr` values are translated via `fromSchemaExpr`, so pure `SchemaExpr` chains and mixed chains both work:
+Each builder method returns a new `SelectStmt` with the updated field. The `SelectStmt#where` method is overloaded to accept both `Expr` and `SchemaExpr` — `SchemaExpr` values are translated via `Expr.fromSchemaExpr`, so pure `SchemaExpr` chains and mixed chains both work:
 
 ```scala mdoc
 // Pure SchemaExpr conditions
@@ -489,7 +489,7 @@ renderSelect(advancedSelect)
 
 ## The UPDATE Builder
 
-The UPDATE builder accumulates `.set()` calls, each pairing an optic with a value:
+The UPDATE builder accumulates `UpdateStmt#set` calls, each pairing an optic with a value:
 
 ```scala mdoc:silent
 case class Assignment(column: String, value: String)
@@ -516,7 +516,7 @@ def renderUpdate[S](stmt: UpdateStmt[S]): String = {
 }
 ```
 
-The `.set()` method uses the optic to extract the column name and `sqlLiteral` (via the implicit `Schema[A]`) to render the value. The type parameter `A` on `set[A](optic: Optic[S, A], value: A)` ensures you cannot assign a `String` to a `Double` field.
+The `UpdateStmt#set` method uses the optic to extract the column name and `sqlLiteral` (via the implicit `Schema[A]`) to render the value. The type parameter `A` on `set[A](optic: Optic[S, A], value: A)` ensures you cannot assign a `String` to a `Double` field. To build an UPDATE with a condition that mixes `SchemaExpr` and `Expr` operators:
 
 ```scala mdoc
 val basicUpdate =
@@ -533,7 +533,7 @@ val basicUpdate =
 renderUpdate(basicUpdate)
 ```
 
-Multiple `.set()` calls accumulate:
+Multiple `UpdateStmt#set` calls accumulate:
 
 ```scala mdoc
 val multiUpdate =
@@ -547,7 +547,7 @@ renderUpdate(multiUpdate)
 
 ## INSERT and DELETE
 
-The INSERT builder collects column-value pairs via `.set()`:
+The INSERT builder collects column-value pairs via `InsertStmt#set`:
 
 ```scala mdoc:silent
 case class InsertStmt[S](
@@ -588,6 +588,8 @@ def renderDelete[S](stmt: DeleteStmt[S]): String = {
 }
 ```
 
+To build and render an INSERT and a DELETE statement:
+
 ```scala mdoc
 val ins = insertInto(Product.table)
   .set(Product.name, "Wireless Mouse")
@@ -613,7 +615,7 @@ For batch inserts, create one `InsertStmt` per row and render each separately. T
 
 ## Putting It Together
 
-Here is a complete example combining schema-driven table names, bridge extensions, all four statement builders, and the renderers. The `Expr` ADT, extension methods, SQL rendering, and builder types are defined in `Common.scala` and `package.scala` — the usage code stays focused on building queries with typed optics and `SchemaExpr`, not on manipulating `Dynamic*` nodes directly:
+Here is a complete example combining schema-driven table names, bridge extensions, all four statement builders, and the renderers. The block is self-contained: it repeats the `Expr` ADT, extension methods, SQL rendering, and builder types so the usage code at the end stays focused on building queries with typed optics and `SchemaExpr`, not on manipulating `Dynamic*` nodes directly:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
