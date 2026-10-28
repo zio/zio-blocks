@@ -33,7 +33,7 @@ object Concept3InsertExample extends App {
 
   val books = Repo.derived[Book, Long]
 
-  val zionomicon         = Book(1L, "Zionomicon", "John A. De Goes", 2024, None)
+  val zionomicon         = Book(1L, "Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, None)
   val programmingInScala = Book(2L, "Programming in Scala", "Martin Odersky", 2008, Some("9780981531601"))
   val fpInScala          = Book(3L, "Functional Programming in Scala", "Paul Chiusano", 2014, Some("9781617290657"))
   val handsOnScala       = Book(4L, "Hands-on Scala Programming", "Li Haoyi", 2020, None)

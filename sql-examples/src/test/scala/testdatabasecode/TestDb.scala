@@ -12,7 +12,7 @@ import zio.blocks.sql.*
  */
 object TestDb {
 
-  val zionomicon         = Book(1L, "Zionomicon", "John A. De Goes", 2024, None, 5)
+  val zionomicon         = Book(1L, "Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, None, 5)
   val programmingInScala = Book(2L, "Programming in Scala", "Martin Odersky", 2008, Some("9780981531601"), 3)
   val fpInScala          = Book(3L, "Functional Programming in Scala", "Paul Chiusano", 2014, Some("9781617290657"), 0)
 

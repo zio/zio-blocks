@@ -58,7 +58,7 @@ object CompleteExample extends App {
     bookTable.createTable(SqlDialect.SQLite).update
     books.insertBatch(
       List(
-        Book(1L, "Zionomicon", "John A. De Goes", 2024, None),
+        Book(1L, "Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024, None),
         Book(2L, "Programming in Scala", "Martin Odersky", 2008, Some("9780981531601")),
         Book(3L, "Functional Programming in Scala", "Paul Chiusano", 2014, Some("9781617290657"))
       )
