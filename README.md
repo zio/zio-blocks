@@ -25,6 +25,8 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 - **High Performance**: Implementations that avoid boxing, minimize allocations, and use platform-specific features where they pay off.
 - **Type Safety**: Scala's type system carries the correctness guarantees, without runtime overhead.
 
+To call ZIO Blocks from a ZIO or cats-effect application, see [How to Use ZIO Blocks in a ZIO or cats-effect Application](docs/./guides/use-zio-blocks-in-zio-or-cats-effect.md).
+
 ## Getting Started
 
 Add a block and use it. Nothing else to wire up—no runtime to install, no effect
@@ -130,7 +132,7 @@ All of these ship in `zio-blocks-scope`.
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
 | [Chunk](docs/./reference/chunk.md) | `zio-blocks-chunk` | JVM · JS | 2.13 · 3.x | High-performance immutable indexed sequences with zero-boxing builders |
-| [Maybe](docs/./reference/maybe.md) | `zio-blocks-maybe` | JVM · JS | 2.13 · 3.x | Low-allocation optional values backed by `null` |
+| [Maybe](docs/./reference/maybe.md) | `zio-blocks-maybe` | JVM · JS | 2.13 · 3.x | Optional values that store a present reference as is, without a wrapper object (Scala 3) |
 | [Combinators](docs/./reference/combinators.md) | `zio-blocks-combinators` | JVM · JS | 2.13 · 3.x | Compile-time composition and decomposition of tuples, eithers, and unions |
 
 ### Concurrency
@@ -245,7 +247,10 @@ val updated = Person.age.replace(person, 31)
 ### Learn More
 
 - [Your First Schema](docs/./guides/your-first-schema.md) — a getting-started tutorial: describe a type once, round-trip it through JSON, and read decode errors
+- [Evolve Your Data](docs/./guides/evolve-your-data.md) — a tutorial that validates incoming data with `Into`, converts between versions with `As`, and renames a stored field with a compile-checked `Migration`
 - [One Type, Many Formats](docs/./guides/one-type-many-formats.md) — a tutorial that exports one catalog as JSON, YAML, XML, TOON, MessagePack, Avro and CSV from the same schema
+- [How to Encode and Decode Records with Avro](docs/./guides/encode-and-decode-records-with-avro.md) — a how-to guide that writes the `.avsc` schema for a sealed trait, streams Avro records, maps each Scala type to its Avro type, and reads the bytes with Apache Avro
+- [How to Store Case Classes in MongoDB](docs/./guides/store-case-classes-in-mongodb.md) — a how-to guide that derives a BSON codec, uses `ObjectId` as the `_id`, chooses how sealed traits and options are stored, and inserts and queries tickets with the MongoDB Java driver
 - [Schema reference](docs/./reference/schema/index.md) — the full API surface, from `Reflect` and `Binding` through optics, validation, and schema evolution
 - [Migrating from ZIO Schema](docs/./guides/zio-schema-migration.md) — a step-by-step port from ZIO Schema 1.x
 - [Coming from circe, zio-json or jsoniter-scala](docs/./guides/json-library-migration.md) — move JSON codecs to one derived `Schema`, keeping field names, discriminators and custom formats
@@ -345,6 +350,7 @@ Scope.global.scoped { scope =>
 - [How to Fix Common Scope and Wire Compile Errors](docs/./guides/fix-scope-and-wire-compile-errors.md) — every Scope, Wire and `Resource.from` error message, with its cause and its fix
 - [Resource Management reference](docs/./reference/resource-management/index.md) — `Scope`, `Resource`, `Wire`, `Unscoped`, and finalization order
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](docs/./guides/resource-and-di-migration.md) — port `Resource`, `ZLayer`, macwire or `Using` code to `Scope`, `Resource` and `Wire`
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](docs/./guides/use-zio-blocks-in-zio-or-cats-effect.md) — call blocking code, resources, `Async` and streams from ZIO or cats-effect, with cancellation and cleanup carried across
 
 ---
 
@@ -411,6 +417,7 @@ val program: Async[Int] =
 
 - [Getting Started with Async](docs/./guides/async-getting-started.md) — create, compose, and run async effects
 - [Async reference](docs/./reference/async.md) — the full API, including `zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and `Future` / `CompletionStage` interop
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](docs/./guides/use-zio-blocks-in-zio-or-cats-effect.md) — call `Async` from ZIO or cats-effect, with cancellation carried across
 - [`async-examples`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala) — a single-file order-fulfillment demo (`cd async-examples && sbt run`)
 
 ---
@@ -506,39 +513,79 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 ## Guides
 
 - [Your First Schema: Round-Trip a Type Through JSON](docs/./guides/your-first-schema.md) - Start here: describe a type once with `Schema`, then encode, decode, and read errors
+- [Evolve Your Data: Change Your Types with Into, As and Migration](docs/./guides/evolve-your-data.md) - Validate incoming data with `Into`, convert between versions both ways with `As`, and rename a field with a compile-checked `Migration`
 - [Navigate and Update Nested Data with Optics](docs/./guides/nested-data-with-optics.md) - Read and update fields deep inside immutable data with lenses, optionals, and traversals instead of nested `copy` calls
+- [How to Use Scala 3 Named Tuples with Schema](docs/./guides/use-named-tuples-with-schema.md) - Derive a `Schema` for a Scala 3 named tuple, round-trip it through JSON, update fields with optics, and convert it to a case class
 - [One Type, Many Formats](docs/./guides/one-type-many-formats.md) - Derive JSON, YAML, XML, TOON, MessagePack, Avro and CSV codecs from one `Schema` and round-trip a catalog through each
+- [How to Read and Write YAML Documents](docs/./guides/read-and-write-yaml.md) - Read YAML into case classes, write CI-style YAML, convert it to JSON, and guard against YAML the reader silently misreads
+- [How to Read and Write CSV and TSV Files](docs/./guides/read-and-write-csv-and-tsv-files.md) - Read CSV and TSV files into case classes by header name, report every bad row, write records back out and process large files row by row
 - [How to Derive Your Own Type Class from a Schema](docs/./guides/derive-your-own-type-class.md) - Write a `Deriver` once and get a type class instance for every record, variant and primitive in your model
 - [Build a Typed Configuration Loader](docs/./guides/typed-config-loader.md) - Load a typed case class from YAML, environment overrides and defaults, report every error at once, and see where each value came from
 - [How to Feed Configuration into a Wire Dependency Graph](docs/./guides/feed-config-into-a-wire-graph.md) - Give each service in a Wire graph its own typed, checked settings from one layered `ConfigSource`, and shut everything down in order
+- [How to Load Configuration Files on the JVM and in the Browser](docs/./guides/load-configuration-files.md) - Load HOCON, JSON and YAML files into a typed case class, split them with includes, load them safely, and run the same settings in the browser
 - [How to Roll Out a Feature Gradually with Flags](docs/./guides/roll-out-feature-gradually.md) - Ship a feature to 10% of readers, target one region, widen the rollout at runtime, and test the code that reads the flag
 - [Build Your First Database Repository on SQLite](docs/./guides/your-first-sqlite-repository.md) - Connect to SQLite, derive a table and `Repo` from one schema, write your own queries, and roll back a transaction
 - [How to Test Database Code Against SQLite](docs/./guides/test-database-code-against-sqlite.md) - Give every test its own SQLite database, create the schema from code, seed fixtures and roll back writes in ZIO Test specs
 - [How to Connect to PostgreSQL with a Connection Pool](docs/./guides/connect-to-postgresql-with-a-connection-pool.md) - Set up a HikariCP pool for PostgreSQL, build a `JdbcTransactor` on it, size it for virtual threads and close it with a `Scope`
 - [How to Upsert Rows and Paginate with Keyset Cursors](docs/./guides/upsert-and-paginate-with-keyset-cursors.md) - Insert or update rows in one statement, choose which columns an upsert changes, and walk large tables page by page with keyset cursors
+- [How to Migrate Table Rows to a New Version Online](docs/./guides/migrate-table-rows-online.md) - Convert every row of a live table to a new row type with `SmallMigrator` or `LargeMigrator` while the application keeps reading and writing
+- [How to Map Custom Column Types](docs/./guides/map-custom-column-types.md) - Store newtypes, opaque types, enums, JSON documents, PostgreSQL arrays and timestamps in SQL columns, on SQLite and PostgreSQL
+- [How to Store and Search Vector Embeddings in PostgreSQL](docs/./guides/store-and-search-vector-embeddings.md) - Store embeddings in a pgvector column with a `DbCodec` built on `String`, search by nearest neighbour, pick a distance operator and add an HNSW index
 - [How to Stream Large Query Results](docs/./guides/stream-large-query-results.md) - Read a large result set as a stream of row chunks with `queryStream` and `queryChunked`, aggregate it, export it to a file and handle its errors
 - [How to Write Joins and Inspect the Generated SQL](docs/./guides/write-joins-and-inspect-generated-sql.md) - Join related tables with `SqlQuery` and `Rel`, read the rows as tuples, and print or dump the SQL each join generates
 - [How to Use the sql Module from a ZIO Application](docs/./guides/sql-from-zio.md) - Run `sql` queries and transactions as ZIO effects with `TransactorZIO`, provide it as a layer, and mix database writes with other effects in one transaction
+- [sql(table) Checked Interpolation](docs/./guides/sql-checked-interpolation.md) - Catch typos in hand-written SQL at compile time: `sql(table)` checks table and column names against your `Table` values, with did-you-mean suggestions
+- [SQL Transactions: Isolation, Read-Only and Savepoints](docs/./guides/sql-transactions.md) - Choose isolation levels and read-only mode, and nest transactions with savepoints, on SQLite and PostgreSQL
 - [Render Your First Server-Side HTML Page](docs/./guides/your-first-html-page.md) - Build a book page with the HTML DSL, escape user input, add CSS and JSON state, and save it as a file
+- [Add Interactivity to a Page with HTMX](docs/./guides/add-interactivity-with-htmx.md) - Turn a book list into a live search with typed hx-* attributes, a debounced search box, a category filter and HTML fragments
+- [How to Return HTMX Fragments, Full Pages and Response Headers](docs/./guides/return-htmx-fragments-and-response-headers.md) - Answer one URL with a full page or a fragment, swap extra regions out of band, and steer the browser with HX-Trigger, HX-Location, HX-Redirect, HX-Retarget and HX-Reswap
+- [How to Serve http-model Requests with the JDK HTTP Server](docs/./guides/serve-http-model-requests.md) - Turn a JDK `HttpExchange` into an http-model `Request`, write a `Response` back, and run a handler function on the built-in server
+- [How to Send Server-Sent Events with http-model](docs/./guides/send-server-sent-events.md) - Stream `ServerSentEvent` values as a `text/event-stream` `Response` through the JDK HTTP server, resume from `Last-Event-ID`, and read them with the browser's `EventSource`
+- [Build a Live Counter and Dashboard with Datastar](docs/./guides/build-a-live-dashboard-with-datastar.md) - Build a weather station with Datastar signals, a button that posts them, `patchSignals` and `patchElements` events, and a dashboard streamed over one open connection
+- [How to Validate Query Parameters and Headers and Answer 400](docs/./guides/validate-query-parameters-and-headers.md) - Read query parameters and headers as typed values and answer missing, malformed or out-of-range input with a JSON 400 that names every problem
+- [Your First Streaming Pipeline: Turn a Sales Log into a Report](docs/./guides/your-first-streaming-pipeline.md) - Read a sales log with a `Stream`, parse, filter and batch it, sum it with a `Sink`, and recover from a bad line
 - [How to Stream Files and Sockets Without Leaking Resources](docs/./guides/stream-files-and-sockets.md) - Read files, NIO channels and sockets as streams that close their handles on success, failure, early stop and missing input
+- [How to Process Binary Data Without Boxing](docs/./guides/process-binary-data-without-boxing.md) - Read binary files, buffers and InputStreams as unboxed Long and Double streams, aggregate them, write them back and measure allocation
+- [How to Run Streams Without Blocking](docs/./guides/run-streams-without-blocking.md) - Swap blocking stream terminals for their `Async` twins, do async work per element, and run the same pipeline on Scala.js, including a `ReadableStream` source
 - [Getting Started with Async](docs/./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
+- [How to Wrap Callback and Future-Based APIs in Async](docs/./guides/wrap-callback-and-future-apis.md) - Bring `Future`, `CompletionStage`, `js.Promise` and callback APIs into `Async`, and cancel the underlying call when the `Async` is cancelled
 - [Compile-Time Resource Safety with Scope](docs/./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
 - [How to Fix Common Scope and Wire Compile Errors](docs/./guides/fix-scope-and-wire-compile-errors.md) - Look up a Scope or Wire error message and apply the fix
 - [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](docs/./guides/resource-and-di-migration.md) - Move resource handling and dependency wiring to ZIO Blocks Scope, Resource, and Wire
 - [Getting Started with Mux](docs/./guides/getting-started-with-mux.md) - Manage multiplexed bidirectional message streams with capacity limits
+- [How to Run a Mux over a Real Socket](docs/./guides/run-a-mux-over-a-socket.md) - Carry a chat, a file upload and a heartbeat over one TCP connection, with framing, half-close, back-pressure, resets and a clean shutdown
 - [Build a Small JSON Backend from Blocks](docs/./guides/small-json-backend-from-blocks.md) - Capstone: combine schema, config, scope, SQL, the HTTP model and telemetry into one small JSON backend
+- [Instrument a Program with Logs, Traces and Metrics](docs/./guides/instrument-a-program-with-logs-traces-and-metrics.md) - Add structured logs, nested spans, a counter and a histogram to a batch job, switch to JSON logs, and test the spans
+- [How to Test Code That Logs, Traces and Records Metrics](docs/./guides/test-telemetry.md) - Capture spans, log records and counter values in memory during tests, assert on them, and keep tests from leaking into each other
+- [How to Correlate Logs and Traces Across Services](docs/./guides/correlate-logs-and-traces.md) - Carry the trace id from one service to the next in W3C `traceparent` or B3 headers on an http-model `Request`, so every log line of one request shares one trace id
 - [Telemetry: Architecture, Patterns, and Real-World Usage](docs/./guides/telemetry-guide.md) - Wire tracing, logging, and metrics into a running application
 - [Migrating from ZIO Schema](docs/./guides/zio-schema-migration.md) - Step-by-step migration from ZIO Schema 1.x to ZIO Blocks Schema
 - [Coming from PureConfig, Typesafe Config or zio-config](docs/./guides/config-library-migration.md) - Keep your `application.conf` and move its loader to ZIO Blocks config
+- [How to Read and Modify JSON Without Case Classes](docs/./guides/json-without-case-classes.md) - Parse JSON into a tree, read and change values by path, print it back, and decode only the part you need into a case class
+- [How to Build a Schema Registry with DynamicSchema](docs/./guides/build-a-schema-registry.md) - Store versioned event schemas as data, check incoming events against them, rebind them to Scala types, and compare versions
+- [How to Encode and Decode Records with Avro](docs/./guides/encode-and-decode-records-with-avro.md) - Derive an Avro codec for order events, write the `.avsc` schema, encode and decode records and streams, and read the bytes with Apache Avro
+- [How to Store Case Classes in MongoDB](docs/./guides/store-case-classes-in-mongodb.md) - Derive a BSON codec from a Schema, store support tickets in MongoDB with the Java driver, and pick how sealed traits and options are stored
 - [Coming from circe, zio-json or jsoniter-scala](docs/./guides/json-library-migration.md) - Move JSON codecs from circe, zio-json or jsoniter-scala to one ZIO Blocks Schema
 - [Coming from fs2, ZIO Streams or Ox](docs/./guides/streaming-library-migration.md) - Map fs2, ZIO Streams and Ox code onto ZIO Blocks `Stream`, `Pipeline` and `Sink`
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](docs/./guides/use-zio-blocks-in-zio-or-cats-effect.md) - Call blocking code, resources, `Async` and streams from ZIO or cats-effect, with cancellation and cleanup carried across
+- [Coming from Magnum or doobie](docs/./guides/migrate-from-magnum-or-doobie.md) - Map Magnum and doobie entities, transactors, queries and streams onto the `sql` module
 - [How to Generate JSON Schema from a Type and Validate Payloads Against It](docs/./guides/generate-json-schema-and-validate-payloads.md) - Derive a JSON Schema from a `Schema`, publish it, and validate incoming JSON payloads
+- [How to Tune JSON Encoding and Decoding for Throughput](docs/./guides/tune-json-throughput.md) - Decode JSON straight from bytes, buffers and streams, reuse derived codecs, size reader and writer buffers, and measure with JMH
+- [How to Customize JSON Field Names, ADT Encoding and Optional Fields](docs/./guides/customize-json-encoding.md) - Change the JSON shape a `Schema` produces: snake_case names, renamed fields, type discriminators, null handling and strict decoding
+- [How to Override the Codec for One Type Everywhere](docs/./guides/override-codec-for-one-type.md) - Encode `LocalDate` (or any type) your own way in every derived codec by registering one custom codec on the deriver
+- [How to Avoid Allocation on Hot Paths](docs/./guides/avoid-allocation-on-hot-paths.md) - Keep streams on primitive lanes, read and build `Chunk`s without boxing, swap `Option` for `Maybe`, pre-bind metric labels, and measure each change
+- [How to Write an OpenAPI Document and Export It as JSON or YAML](docs/./guides/write-and-export-openapi.md) - Build an OpenAPI 3.1 document from component schemas and render it as JSON or YAML
+- [Generate Scala Code from a Smithy Model](docs/./guides/generate-scala-code-from-smithy.md) - Parse a Smithy model, map its shapes to the codegen IR, emit Scala 3 and Scala 2 with `Schema` derivation, and run the generator as an sbt source generator
+- [How to Generate Scala Types from an OpenAPI Spec at Build Time](docs/./guides/generate-scala-types-from-openapi.md) - Turn the component schemas of an OpenAPI document into case classes, enums and sealed traits with `Schema` derivation, regenerated on every sbt build
+- [How to Define Validated Newtypes and Collect Every Validation Error](docs/./guides/validated-newtypes.md) - Wrap a primitive in a validated newtype, reject bad values at construction, and collect every validation error in one `SchemaError`
+- [How to Compute, Store and Replay Changes with Diff and Patch](docs/./guides/diff-and-patch.md) - Diff two versions of a value, store the patch as JSON, replay an edit history with undo, and send changes as JSON patches, including RFC 6902
 - [Query DSL Part 1: Expressions](docs/./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
 - [Query DSL Part 2: SQL Generation](docs/./guides/query-dsl-sql.md) - Translate query expressions into SQL
 - [Query DSL Part 3: Extending the Expression Language](docs/./guides/query-dsl-extending.md) - Add custom operators beyond `SchemaExpr`
 - [Query DSL Part 4: A Fluent SQL Builder](docs/./guides/query-dsl-fluent-builder.md) - Build type-safe SELECT, UPDATE, INSERT, and DELETE statements
 - [How to Send Compact Data to an LLM with TOON and Parse the Reply](docs/./guides/llm-data-with-toon.md) - Encode records as tabular TOON for a prompt, then decode the model's TOON reply into case classes
 - [How to Issue and Verify JWTs](docs/./guides/issue-and-verify-jwts.md) - Sign JWTs with HMAC, RSA or EdDSA keys, verify `iss`, `aud` and `exp` with a fixed clock, and reject tampered or hostile tokens
+- [How to Protect an Endpoint with JWT Bearer Tokens](docs/./guides/protect-endpoints-with-jwt.md) - Read the bearer token, verify the JWT, and answer 401 or 403 correctly for an `http-model` endpoint
 
 ## Full API Reference
 
