@@ -33,9 +33,13 @@ Create a `ColumnDef` for each column, then pass them to `Ddl.createTable`:
 
 ```scala mdoc:reset
 import zio.blocks.sql._
+```
 
+```scala mdoc:silent
 val transactor: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+```
 
+```scala mdoc
 val columns = IndexedSeq(
   ColumnDef("id",         "INTEGER", nullable = false),
   ColumnDef("name",       "TEXT",    nullable = false),

@@ -45,11 +45,15 @@ case class User(id: Int, name: String, email: String)
 object User {
   implicit val schema: Schema[User] = Schema.derived
 }
+```
 
-// All SQL is generated here, once, from User's Schema.
+```scala mdoc:silent
+// The table metadata and quoted identifiers are built here, once, from User's Schema.
 val repo = Repo.derived[User, Int]("users", "id", _.id)
 val tx   = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+```
 
+```scala mdoc
 tx.transact {
   repo.table.createTable(summon[DbTx].dialect).update // CREATE TABLE IF NOT EXISTS users …
 
@@ -100,8 +104,13 @@ case class Article(id: Int, title: String, body: String)
 object Article {
   implicit val schema: Schema[Article] = Schema.derived
 }
+```
 
+```scala mdoc:silent
 val repo = Repo.derived[Article, Int]("id", _.id)
+```
+
+```scala mdoc
 repo.table.name
 repo.table.codec.columns
 ```
@@ -130,9 +139,14 @@ case class OrderLine(lineId: Int, qty: Int, unitPrice: BigDecimal)
 object OrderLine {
   implicit val schema: Schema[OrderLine] = Schema.derived
 }
+```
 
+```scala mdoc:silent
 // Overrides the default "order_line" table name with the legacy one
 val repo = Repo.derived[OrderLine, Int]("tbl_order_lines", "line_id", _.lineId)
+```
+
+```scala mdoc
 repo.table.name
 ```
 
@@ -163,9 +177,14 @@ case class Tag(id: Long, label: String)
 object Tag {
   implicit val schema: Schema[Tag] = Schema.derived
 }
+```
 
+```scala mdoc:silent
 // Inspects Tag's Schema, finds the unique Long field "id", maps it to column "id"
 val repo = Repo.derived[Tag, Long]
+```
+
+```scala mdoc
 repo.idColumn
 ```
 
@@ -206,7 +225,7 @@ val repo  = Repo(table, "category_id", DbCodec[Int], _.categoryId)
 given DbCon = ???
 
 repo.table.createTable(summon[DbCon].dialect).update  // DDL from Table
-repo.all                                              // pre-built SELECT from Repo
+repo.all                                              // SELECT from Repo
 ```
 
 ## Core Operations
