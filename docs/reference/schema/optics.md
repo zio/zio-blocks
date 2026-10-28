@@ -1060,17 +1060,17 @@ Team.allMembers.modifyOrFail(emptyTeam, _.toUpperCase)
 
 ## Error Reporting with OpticCheck
 
-The `...OrFail` methods, such as `Prism#getOrFail`, `Optional#getOrFail`, `Optional#replaceOrFail`, `Traversal#modifyOrFail` and `Traversal#reduceOrFail`, return `Left(OpticCheck)` when the optic can't reach its focus. An `OpticCheck` holds a non-empty list of problems, `OpticCheck#errors`. Each problem is an `OpticCheck.Error`, which stops the optic, or an `OpticCheck.Warning`, which reports a missing part:
+The `...OrFail` methods, such as `Prism#getOrFail`, `Optional#getOrFail`, `Optional#replaceOrFail`, `Traversal#modifyOrFail` and `Traversal#reduceOrFail`, return `Left(OpticCheck)` when the optic cannot reach its focus. An `OpticCheck` holds a non-empty list of problems, `OpticCheck#errors`. Each problem is an `OpticCheck.Error`, which stops the optic, or an `OpticCheck.Warning`, which reports a missing part:
 
-| Problem                    | Kind    | Reported when                                                                    | Extra fields                          |
-|----------------------------|---------|----------------------------------------------------------------------------------|---------------------------------------|
-| `UnexpectedCase`           | Error   | A prism step found another case of the variant                                   | `expectedCase`, `actualCase`, `actualValue` |
-| `WrappingError`            | Error   | A wrapper step's conversion failed                                               | `error` (a `SchemaError`)             |
-| `DynamicConversionError`   | Error   | `SchemaExpr#eval` could not decode its result, or failed for another reason      | `error` (a `String`)                  |
-| `EmptySequence`            | Warning | A step over every element found an empty sequence                                | none                                  |
-| `SequenceIndexOutOfBounds` | Warning | An index step went past the end of the sequence                                  | `index`, `size`                       |
-| `MissingKey`               | Warning | A key step found a map without the key                                           | `key`                                 |
-| `EmptyMap`                 | Warning | A step over every key or value found an empty map                                | none                                  |
+| Problem                    | Kind    | Reported when                                                               | Extra fields                                |
+| -------------------------- | ------- | --------------------------------------------------------------------------- | ------------------------------------------- |
+| `UnexpectedCase`           | Error   | A prism step found another case of the variant                              | `expectedCase`, `actualCase`, `actualValue` |
+| `WrappingError`            | Error   | A wrapper step's conversion failed                                          | `error` (a `SchemaError`)                   |
+| `DynamicConversionError`   | Error   | `SchemaExpr#eval` could not decode its result, or failed for another reason | `error` (a `String`)                        |
+| `EmptySequence`            | Warning | A step over every element found an empty sequence                           | none                                        |
+| `SequenceIndexOutOfBounds` | Warning | An index step went past the end of the sequence                             | `index`, `size`                             |
+| `MissingKey`               | Warning | A key step found a map without the key                                      | `key`                                       |
+| `EmptyMap`                 | Warning | A step over every key or value found an empty map                           | none                                        |
 
 Every problem has `full`, the path of the whole optic, `prefix`, the path up to and including the step that failed, and `OpticCheck.Single#message`. `DynamicConversionError` has no step, so both of its paths are the root and its message gives only the reason; every other message names both paths. Only `UnexpectedCase` carries the value it found. `OpticCheck#message` joins the messages of all problems, one per line, and `OpticCheck#hasError` and `OpticCheck#hasWarning` tell the two kinds apart.
 
@@ -1116,10 +1116,10 @@ case class Depot(name: String, warehouse: Warehouse, shelves: List[String], stoc
 object Depot extends CompanionOptics[Depot] {
   implicit val schema: Schema[Depot] = Schema.derived
 
-  val street: Lens[Depot, String]          = optic(_.warehouse.street)
-  val shelves: Traversal[Depot, String]    = optic(_.shelves.each)
-  val firstShelf: Optional[Depot, String]  = optic(_.shelves.at(0))
-  val stockOfBooks: Optional[Depot, Int]   = optic(_.stock.atKey("books"))
+  val street: Lens[Depot, String]           = optic(_.warehouse.street)
+  val shelves: Traversal[Depot, String]     = optic(_.shelves.each)
+  val firstShelf: Optional[Depot, String]   = optic(_.shelves.at(0))
+  val stockOfBooks: Optional[Depot, Int]    = optic(_.stock.atKey("books"))
   val someShelves: Traversal[Depot, String] = optic(_.shelves.atIndices(0, 2))
 }
 
@@ -1130,7 +1130,7 @@ println(Depot.stockOfBooks)
 println(Depot.someShelves)
 ```
 
-The output is not always code you can paste back into `optic`: a map-key step prints the placeholder `.atKey(<key>)` instead of the key, `atIndices` and `atKeys` steps print `.atIndices(<indices>)` and `.atKeys(<keys>)`, and a traversal built with `searchFor` prints only the type it searches for. `DynamicOptic#toString`, the path syntax of the `p"..."` interpolator, has gaps of its own, listed in [Path Interpolator](./path-interpolator.md#debug-friendly-tostring).
+The output is not always code you can paste back into `optic`: a step that focuses a map key prints the placeholder `atKey(<key>)` instead of the key, steps for several indices or keys print `atIndices(<indices>)` and `atKeys(<keys>)`, and a traversal built with `searchFor` prints only the type it searches for. `DynamicOptic#toString`, the path syntax of the `p"..."` interpolator, has gaps of its own, listed in [Path Interpolator](./path-interpolator.md#debug-friendly-tostring).
 
 **Examples by optic type:**
 
