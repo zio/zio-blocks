@@ -3,11 +3,12 @@ package scope.examples
 import zio.blocks.scope._
 
 /**
- * Demonstrates compile-time cycle detection in ZIO Blocks Scope.
+ * Demonstrates how to break a circular dependency in ZIO Blocks Scope.
  *
- * The `Resource.from[T]` macro analyzes the dependency graph at compile time
- * and rejects circular dependencies with a descriptive error message showing
- * the exact cycle path.
+ * The `Resource.from[T]` macro analyzes the dependency graph at compile time.
+ * It is meant to reject circular dependencies with an error that shows the
+ * cycle path, but in 0.0.56 a cycle makes the macro crash instead (a known bug,
+ * #1767), so the cycle shown below is a shape to avoid.
  *
  * ==The Problem==
  * Circular dependencies (A → B → A) cannot be resolved by constructor injection
@@ -21,11 +22,12 @@ import zio.blocks.scope._
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROBLEMATIC: Circular Dependency (would not compile)
+// PROBLEMATIC: Circular Dependency (do not compile)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // These classes form a cycle: ServiceA → ServiceB → ServiceA
-// Uncommenting the Resource.from call below would produce a compile error.
+// Uncommenting the Resource.from call below crashes the macro in 0.0.56 (#1767);
+// it does not print a cycle diagram.
 
 // class ServiceA(b: ServiceB) {
 //   def greet(): String = s"A says hello, B says: ${b.respond()}"
@@ -35,10 +37,10 @@ import zio.blocks.scope._
 //   def respond(): String = s"B responds, A type: ${a.getClass.getSimpleName}"
 // }
 //
-// Attempting to wire this would fail at compile time:
+// Attempting to wire this should fail at compile time:
 // val circularResource = Resource.from[ServiceA]()
 //
-// Expected compile error:
+// Intended compile error (not produced in 0.0.56):
 // ┌────────────────────────────┐
 // │                            ▼
 //     ServiceA ──► ServiceB
@@ -84,7 +86,7 @@ class Application(a: ServiceAImpl, @annotation.unused b: ServiceBApi) {
  */
 @main def circularDependencyDemoExample(): Unit = {
   println("=== Circular Dependency Demo ===\n")
-  println("Demonstrating compile-time cycle detection and how to break cycles.\n")
+  println("Demonstrating how to break a dependency cycle.\n")
 
   Scope.global.scoped { scope =>
     import scope._
@@ -98,13 +100,11 @@ class Application(a: ServiceAImpl, @annotation.unused b: ServiceBApi) {
     )
 
     println(s"Result: ${$(app)(_.run())}")
-    println("\nThe dependency graph was validated at compile time.")
-    println("No cycles detected - application wired successfully.")
+    println("\nNo cycles in the dependency graph - application wired successfully.")
   }
 
   println("\n─── Key Takeaways ───")
-  println("• Resource.from[T] detects cycles at compile time")
-  println("• Cycles produce clear ASCII diagrams showing the path")
+  println("• Resource.from[T] should reject cycles at compile time (not yet in 0.0.56)")
   println("• Break cycles by introducing interfaces/traits")
   println("• The Dependency Inversion Principle resolves most cycles")
 }

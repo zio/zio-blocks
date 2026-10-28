@@ -313,7 +313,7 @@ Flag failures are exceptions rather than values because they occur inside object
 | `FlagNameException`                       | The defining class is not a Scala object, or is a lambda or anonymous class.  |
 | `FlagDuplicateNameException`              | A second flag registers under an existing name.                              |
 
-`FlagValueParseException` and `FlagExpressionParseException` are wrapped in `ExceptionInInitializerError` by the JVM when thrown from an initializer, so catch that and inspect its cause:
+The library creates the `ExceptionInInitializerError` itself, with the `FlagValueParseException` or `FlagExpressionParseException` as its cause, so catch that error and inspect its cause:
 
 ```scala mdoc:compile-only
 import zio.blocks.config._

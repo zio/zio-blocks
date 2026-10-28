@@ -473,8 +473,7 @@ Here is a comparison of Context with related alternatives:
 
 `Context` is the dependency carrier in ZIO Blocks' Wire-based dependency injection system. A `Wire[-In, +Out]` describes how to build an output given input dependencies, and contexts supply those dependencies. Wire and Scope work together to provide type-safe, compile-checked dependency injection:
 
-```scala
-// Pseudocode illustrating how Context integrates with Wire and Scope
+```scala mdoc:reset
 import zio.blocks.scope._
 import zio.blocks.context._
 
@@ -482,17 +481,20 @@ case class Config(debug: Boolean)
 case class Logger(name: String)
 case class Service(config: Config, logger: Logger)
 
-// Define a wire that requires Config and Logger to build Service
-val buildService = Wire.make[Config & Logger, Service]
+// Derive a wire for Service from its constructor. The inputs it needs, Config & Logger, are inferred.
+val buildService = Wire.shared[Service]
 
 // Create a context with the required dependencies
 val deps = Context(Config(debug = true), Logger("app"))
 
-// Create a scope and instantiate the service
+// Create a scope and instantiate the service inside it
 Scope.global.scoped { scope =>
   val service: Service = buildService.make(scope, deps)
+  println(service)
 }
 ```
+
+`Wire.shared[Service]` and `Wire.unique[Service]` are the entry points. The `make(scope, context)` method is on the wire they return, not on the `Wire` companion.
 
 ## Running the Examples
 

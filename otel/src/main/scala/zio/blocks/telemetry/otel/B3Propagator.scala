@@ -38,8 +38,9 @@ object B3Propagator {
   /**
    * Returns a B3 multi-header propagator.
    *
-   * Uses `X-B3-TraceId`, `X-B3-SpanId`, `X-B3-Sampled`, `X-B3-ParentSpanId`,
-   * and `X-B3-Flags` headers.
+   * Injects the `X-B3-TraceId`, `X-B3-SpanId` and `X-B3-Sampled` headers.
+   * Extraction also reads `X-B3-Flags`: a value of `1` (debug) samples the
+   * span. `X-B3-ParentSpanId` is neither written nor read.
    */
   val multi: Propagator = B3MultiPropagator
 

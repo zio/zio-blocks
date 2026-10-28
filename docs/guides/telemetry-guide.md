@@ -344,7 +344,7 @@ class CapturingLogProcessor extends LogRecordProcessor {
   val records = new CopyOnWriteArrayList[LogRecord]()
 
   def onEmit(record: LogRecord): Unit = records.add(record)
-  def shutdown(): Unit = records.clear()
+  def shutdown(): Unit = ()
   def forceFlush(): Unit = ()
 }
 
@@ -367,13 +367,7 @@ val warns = capturing.records.toArray.collect {
 assert(warns.exists(_.body.value.contains("payment")))
 ```
 
-Don't forget to restore state between tests:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-log.removeAll()  // drops every writer and processor; log.* becomes a no-op
-```
+Don't clean up the global logger with `log.removeAll()`. It silences logging, and in version 0.0.56 a later `log.addProcessor` or `log.writer` does not bring it back, so every test after it captures nothing (a known bug in that version). Instead, install a fresh capturing logger with `log.install` at the start of each test, and run tests that share the global logger one at a time. Passing a `Logger` to the code under test avoids the shared state altogether. [How to Test Code That Logs, Traces and Records Metrics](./test-telemetry.md) shows both patterns.
 
 ---
 

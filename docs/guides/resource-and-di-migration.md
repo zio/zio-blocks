@@ -568,7 +568,7 @@ You gain:
 
 - **A compile-time check on escapes.** `$[A]` and `Unscoped` turn use-after-close into a compile error. None of the four source libraries offers this.
 - **Lifecycle and wiring in one model.** The constructor graph from macwire and the reverse-order cleanup from `Using`, cats-effect and ZIO come from the same `Resource`.
-- **A compile-time checked graph.** `Resource.from` reports missing dependencies, ambiguous providers and cycles at compile time, like `ZLayer.make`.
+- **A compile-time checked graph.** `Resource.from` reports missing dependencies and ambiguous providers at compile time, like `ZLayer.make`. In 0.0.56 a dependency cycle crashes the macro instead of producing an error (a known bug, #1767).
 - **No third-party dependencies and no effect type.** The module runs on Scala 2.13 and 3, on the JVM and Scala.js, in direct-style code.
 
 What is different:

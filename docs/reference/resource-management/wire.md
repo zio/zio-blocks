@@ -25,7 +25,7 @@ Wires are the building blocks of dependency injection in Scope. They form the fo
 
 ## Overview
 
-A `Wire` is a **lazy recipe**, not an execution. It holds a construction function `(Scope, Context[In]) => Out` and a **sharing strategy** — either `Shared` (reference-counted via `Resource.shared`) or `Unique` (fresh instance per allocation). The Wire itself does nothing until you convert it to a `Resource` and allocate it within a scope.
+A `Wire` built with `Wire.shared` or `Wire.unique` is a **lazy recipe**, not an execution. It holds a construction function `(Scope, Context[In]) => Out` and a **sharing strategy** — either `Shared` (reference-counted via `Resource.shared`) or `Unique` (fresh instance per allocation). Such a Wire does nothing until you convert it to a `Resource` and allocate it within a scope. `Wire(value)` is the exception: a known bug in 0.0.56 evaluates `value` when the Wire is created, not when it is allocated.
 
 Here's the typical flow:
 
@@ -63,11 +63,14 @@ Scope.global.scoped { scope =>
   import scope._
   val config = Config("jdbc:postgres://localhost/db")
   val db = Resource.fromAutoCloseable(new Database(config)).allocate
-  val service = new UserService($(db)(identity))
-  val app = new App(service)
-  app.run()
+  $(db) { database =>
+    val service = new UserService(database)
+    new App(service).run()
+  }
 }
 ```
+
+The `$` block is needed: `$(db)(identity)` would take the `Database` out of the scope, and a `Database` is not `Unscoped`, so it does not compile.
 
 With `Wire` + `Resource.from`, the macro handles the dependency graph:
 
@@ -81,8 +84,12 @@ Scope.global.scoped { scope =>
 }
 ```
 
+:::note
+Write a `Resource.from` as a `def`, not a `val`. A known bug in 0.0.56: a `Resource.from[T]` stored in a `val` works in its first scope and then fails on a second use with `IllegalStateException: Cannot allocate from a destroyed shared resource`.
+:::
+
 **Benefits:**
-- **Compile-time graph validation** — cycle detection, duplicate providers, missing dependencies
+- **Compile-time graph validation** — missing dependencies and duplicate providers are reported at compile time; a dependency cycle is not (see the note below)
 - **Automatic finalization** — `AutoCloseable` resources are finalized in LIFO order
 - **Sharing control** — choose which services are singletons (shared) vs fresh per allocation (unique)
 - **Type-safe construction** — no stringly-typed dependency resolution
@@ -278,7 +285,7 @@ final class App(userService: UserService, orderService: OrderService) {
 }
 
 // Using shared wires for all dependencies
-val resource = Resource.from[App](
+def resource = Resource.from[App](
   Wire.shared[Database],
   Wire.shared[UserService],
   Wire.shared[OrderService]
@@ -503,7 +510,9 @@ When `Resource.from` composes wires, it respects the sharing strategy:
 - **Shared wires** → reference-counted (single instance in the graph)
 - **Unique wires** → fresh per allocation
 
-The macro detects cycles, duplicate providers, and missing dependencies at compile time. For what each error looks like and how to fix it, see [How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md).
+The macro reports missing dependencies and duplicate providers at compile time. For what each error looks like and how to fix it, see [How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md).
+
+A known bug in 0.0.56: a dependency cycle does not produce a cycle error. The `Resource.from` macro crashes instead (#1767), so do not rely on cycle detection yet.
 
 The `AppConfig` leaf above is hardcoded, which is rarely what a real graph wants. `Config.wire[A]` produces a `Wire.Shared[ConfigSource, A]` that decodes `A` from an injected `ConfigSource`, so configuration becomes a node in the graph rather than something resolved before it — see [Config](../config/index.md). For a complete walkthrough, see [How to Feed Configuration into a Wire Dependency Graph](../../guides/feed-config-into-a-wire-graph.md).
 
@@ -512,7 +521,7 @@ The `AppConfig` leaf above is hardcoded, which is rarely what a real graph wants
 | Feature | Wire | Manual Passing | Service Locator |
 |---------|------|----------------|-----------------|
 | **Type safety** | ✓ (compile-time validation) | ✓ (implicit) | ✗ (string keys) |
-| **Cycle detection** | ✓ (compile time) | ✗ | ✗ (runtime) |
+| **Cycle detection** | ✗ (a cycle crashes the macro in 0.0.56) | ✗ | ✗ (runtime) |
 | **Sharing semantics** | ✓ (configurable) | Manual | ✓ (singleton pattern) |
 | **Finalization** | ✓ (LIFO, automatic) | Manual | Manual |
 | **Performance** | ~0 overhead (macro-generated) | ~0 overhead | ~1 allocation overhead |

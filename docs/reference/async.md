@@ -1108,6 +1108,10 @@ val fetched: Async[Int] = Async.promise[Int] { c ?=>
 
 Naming it, as the examples below do, is equally valid and reads better when the callback is registered several lines away from where it fires.
 
+:::warning[Do not write the Scala 2 binder on Scala 3]
+On Scala 3, `Async.promise[Int] { (c: Completer[Int]) => ... }` compiles. The typed binder turns the body into an ordinary function value, which the context function discards, so its statements never run. The `Async` never completes, and the only sign is compiler warning E190 at the call site. Write `{ c ?=> ... }` on Scala 3, as in the example below.
+:::
+
 <Tabs groupId="scala-version" defaultValue="scala2">
 <TabItem value="scala2" label="Scala 2">
 
@@ -1305,6 +1309,10 @@ Be precise about what it stops. Cancellation does two things, and they reach dif
 - **It signals the active pending operation.** When cancellation wins the race against completion, the driver calls [`Pollable.cancel()`](#the-pollable-protocol) on whatever leaf the run is currently suspended on. A leaf that owns abortable work — an in-flight socket read, a timer, a registration with a third-party library — implements that hook and gets the chance to tear it down.
 
 The second point is the part to get right, because the default hook is a **no-op**. A leaf that does not override `cancel()` is not aborted by cancelling the run: its socket read stays outstanding, its timer still fires, its `js.Promise` still settles. Whether cancellation reaches the work is a property of the leaf, not of the handle you called `cancel()` on.
+
+:::warning[Bridges do not cancel their source]
+A known bug in 0.0.56: the built-in bridges, `Async.fromFuture`, `Async.fromCompletionStage`, `Async.fromJsPromise` and `Async.promise`, leave the default no-op `cancel()` in place. Cancelling an `Async` built on them stops the driver, but the `Future`, `CompletionStage` or callback keeps running. A `CompletableFuture` is not cancelled, and a callback API's cancel handle cannot be reached from the `Completer` that `Async.promise` passes in. To stop the underlying work, keep its own handle and cancel that yourself.
+:::
 
 Cancellation is also **cooperative**, never preemptive. It does not wait for an already-running `poll` invocation to return, and it interrupts no thread. Calling `cancel()` publishes the signal and returns; whatever teardown that triggers is driven afterwards, on whichever party wins the claim.
 
