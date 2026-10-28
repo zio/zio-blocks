@@ -8815,6 +8815,71 @@ object BufferLimit {
 
 **Suggested fix.** Keep the reader's own end index (`originalPosition + skip + limit`, clamped to `originalLimit`) in a field and check it in the pulls instead of writing it into `buffer.limit`, or work on `buffer.duplicate()` and copy the final position back. Either costs nothing per element beyond the bound check the reader already does through `remaining()`. Add a test that runs `take` and `drop` on each buffer stream and checks the buffer's limit and remaining bytes afterwards.
 
+### Streams: closing a `Stream#start` reader after a failed pull throws the delivered failure again, and so does the enclosing `Scope#scoped`
+
+Found 2026-10-28 while writing the how-to guide `docs/guides/use-zio-blocks-in-zio-or-cats-effect.md` (backlog H-53), on `main` at `be09a9cdd`. Same at v0.0.56.
+
+**Summary.** When a pull on a reader opened with `Stream#start` fails with the stream's typed error, and the stream has a `flatMap` in it, every later `close()` on that reader throws the same failure again, even though the stream's finalizers already ran at the failure. The `Scope#scoped` block that owns the reader then throws it at exit too, so a caller that caught and handled the pull failure still gets an exception. A plain `Stream.fail` reader closes silently. Effect-system bridges see it as a failing release: cats-effect prints a stack-less `zio.blocks.streams.internal.StreamError` to stderr from `fs2.Stream.bracket`, and ZIO silently drops the defect because `ZIO#either` prefers the failure.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+//> using options -experimental
+//> using jvm 21
+
+import zio.blocks.scope._
+import zio.blocks.streams._
+
+object Repro {
+  def readThenClose(label: String, stream: Stream[Exception, Int]): Unit =
+    Scope.global.scoped { scope =>
+      import scope._
+      val reader = stream.start
+      $(reader) { r =>
+        try println(s"$label read: ${r.readUpToN[Int](10)}")
+        catch { case t: Throwable => println(s"$label read threw ${t.getClass.getName}") }
+        try { r.close(); println(s"$label close: ok") }
+        catch { case t: Throwable => println(s"$label close threw ${t.getClass.getName}") }
+        try { r.close(); println(s"$label second close: ok") }
+        catch { case t: Throwable => println(s"$label second close threw ${t.getClass.getName}") }
+      }
+    }
+
+  def main(args: Array[String]): Unit = {
+    readThenClose("Stream.fail", Stream.fail(new Exception("bad order")))
+    readThenClose(
+      "flatMap",
+      Stream
+        .fromAcquireRelease("file", (_: String) => println("flatMap: finalizer ran"))(_ =>
+          Stream.fromIterable(List(1, 2, 3))
+        )
+        .flatMap(n => if (n == 2) Stream.fail(new Exception("bad order")) else Stream.succeed(n))
+    )
+  }
+}
+
+// Stream.fail read threw zio.blocks.streams.internal.StreamError
+// Stream.fail close: ok
+// Stream.fail second close: ok
+// flatMap read threw zio.blocks.streams.internal.StreamError
+// flatMap: finalizer ran
+// flatMap close threw zio.blocks.streams.internal.StreamError
+// flatMap second close threw zio.blocks.streams.internal.StreamError
+// Exception in thread "main" zio.blocks.streams.internal.StreamError
+```
+
+**Expected.** A failure that a pull has already delivered is not thrown again by `close()`. `close()` throws only a failure of the close itself (a finalizer that throws), the way the `Stream.fail` reader behaves, and `Scope#scoped` exits normally once the caller has handled the pull failure.
+
+**Root cause.** `Reader.FlatMappedBase#close` ends with `if (operationFailed) throw operationFailure` (`streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala:4224`; `:3611` at v0.0.56). `operationFailure` is the failure `protect` recorded when the pull threw it (`Reader.scala:4009-4018`), so every close replays it. `Stream#start` registers `_.close()` as the reader's release (`streams/jvm/src/main/scala/zio/blocks/streams/StreamPlatformSpecific.scala:172-173`), so the owning scope's close throws it as well.
+
+**Impact.** Any code that pulls a stream from outside a terminal, which is what a ZStream or fs2 bridge does, gets a spurious release failure after every typed stream error. `try ... finally reader.close()` replaces nothing but throws a second time; a `Scope#scoped` block cannot handle the failure and exit cleanly. The H-53 guide works around it by ignoring close errors after a failed pull (`BlockingPull#close`), which would also hide a genuine finalizer failure in that case.
+
+**Test gap.** `streams/jvm/src/test/scala/zio/blocks/streams/StreamStartSpec.scala:90` ("blocking flatMap readers latch source callback and inner-compilation failures") reads twice after a failure and then calls `scala.util.Try(reader.close())` (`:95`) without asserting the result. No spec checks what `close()` or the owning scope does after a failed pull.
+
+**Suggested fix.** In `FlatMappedBase#close`, drop the `operationFailed` rethrow (keep `closeFailure`), or rethrow only when the failure was never delivered to a caller. Add a `StreamStartSpec` case: pull a failing `flatMap` stream, catch the failure, then assert that `close()` returns normally and that `Scope#scoped` exits normally.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -12027,6 +12092,119 @@ object NonBlockingChannel {
 **Test gap.** The reader tests (`NioReadersWritersSpec.scala:350`, `:368`, `:376`) and the stream tests (`NioStreamsSinksSpec.scala:82-131`) use channels that never return `0`; the only non-blocking channels in the tests (`NioStreamsSinksSpec.scala:272`, `:294`) are pipe sources the test itself drains after a `NioSinks.fromChannel` run, not channels read through `NioReaders` or `NioStreams` (`grep -rn "configureBlocking" streams/*/src/test`).
 
 **Suggested fix.** The cheapest: document that `ch` must be in blocking mode (the branch Scaladoc now does) and reject a `SelectableChannel` that is not blocking when the reader is made, once per reader, so no per-element cost is added. Alternatively, loop in `fill()` while `read` returns `0` (with `Thread.onSpinWait()` or a short park), which matches `AsyncNioReaders` but busy-waits; it runs only on a buffer refill, not per element. Add a test with a non-blocking `Pipe` source for each choice.
+
+### Streams: a `Stream#start` reader throws the stream's typed error as the internal `StreamError`, with a null message, so recovering `E` needs an internal class
+
+Found 2026-10-28 while writing the how-to guide `docs/guides/use-zio-blocks-in-zio-or-cats-effect.md` (backlog H-53), on `main` at `be09a9cdd`. Same at v0.0.56.
+
+**Summary.** Terminals turn a stream's typed failure into `Left(e)`. A reader opened with `Stream#start` does not: its pulls throw `zio.blocks.streams.internal.StreamError`, whose message and cause are `null`, even when the error type is already a `Throwable` such as `IOException`. The only way to get `e` back is `StreamError#value`, on a class in the `internal` package. Every bridge to another streaming library (ZStream, fs2, a Java `Iterator`) has to pull this way.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+//> using options -experimental
+//> using jvm 21
+
+import java.io.IOException
+import zio.blocks.scope._
+import zio.blocks.streams._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val stream: Stream[IOException, Int] = Stream.fail(new IOException("disk gone"))
+
+    println(s"runCollect: ${stream.runCollect}")
+
+    Scope.global.scoped { scope =>
+      import scope._
+      val reader = stream.start
+      $(reader) { r =>
+        try r.readUpToN[Int](10)
+        catch {
+          case t: Throwable =>
+            println(s"pull threw: ${t.getClass.getName}")
+            println(s"message: ${t.getMessage}, cause: ${t.getCause}")
+            println(s"is IOException: ${t.isInstanceOf[IOException]}")
+            t match {
+              case e: zio.blocks.streams.internal.StreamError => println(s"internal StreamError#value: ${e.value}")
+              case _                                          => ()
+            }
+        }
+        ()
+      }
+    }
+  }
+}
+
+// runCollect: Left(java.io.IOException: disk gone)
+// pull threw: zio.blocks.streams.internal.StreamError
+// message: null, cause: null
+// is IOException: false
+// internal StreamError#value: java.io.IOException: disk gone
+```
+
+**Expected.** A public way to read a started stream with typed errors: for example a pull that returns `Either[E, Chunk[A]]`, or a public failure type in place of `internal.StreamError`. At the least, `StreamError` has a message naming `value`, and `Stream#start`'s Scaladoc says what a pull throws.
+
+**Root cause.** `Stream.fail` builds `new FailedReader(StreamError.source(error))` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:3241-3245`), and `FailedReader#read` throws it (`Stream.scala:5256`); other sources wrap the same way (`Stream.scala:3116`, `Reader.scala:350`). The terminals unwrap it (`Stream.scala:1757` and `:1776`, `Left(error.value.asInstanceOf[E])`), but `Stream#start` (`streams/jvm/src/main/scala/zio/blocks/streams/StreamPlatformSpecific.scala:172-173`) returns the raw reader. `StreamError` is declared in `zio.blocks.streams.internal` with `Exception(null, null, true, false)` (`streams/shared/src/main/scala/zio/blocks/streams/internal/StreamError.scala:32`).
+
+**Impact.** User glue that bridges a ZIO Blocks stream into ZStream or fs2 must import `zio.blocks.streams.internal.StreamError` to keep typed errors typed (the H-53 guide's `BlockingPull` does, and says so). Code that catches `IOException` around a pull never matches, and a logged failure reads only `zio.blocks.streams.internal.StreamError`.
+
+**Test gap.** `streams/jvm/src/test/scala/zio/blocks/streams/StreamStartSpec.scala` covers successful reads and close, but no case pulls a stream that fails with a typed error and checks what is thrown.
+
+**Suggested fix.** Add a public typed pull to `Stream#start`'s reader, or a `Stream#startEither`-style entry point that unwraps `StreamError` into `Left`; give `StreamError` a `getMessage` built from `value`; document the thrown type in `Stream#start`'s Scaladoc and on `docs/reference/streams/primitives/reader.md`.
+
+### sql: there is no way to keep a connection open past `Transactor#connect`, so `Frag#queryStream` can't be handed to fs2, ZStream or any other streaming consumer
+
+Found 2026-10-28 while writing the how-to guide `docs/guides/use-zio-blocks-in-zio-or-cats-effect.md` (backlog H-53), on `main` at `be09a9cdd`. Same at v0.0.56.
+
+**Summary.** `Frag#queryStream` captures the `DbCon` of the `Transactor#connect` or `Transactor#transact` block it is built in, and that connection closes when the block returns. Returning the stream from the block and running it later fails with `database connection closed`. The only public way to get a `DbCon` is the callback, `JdbcConnection` is `private[sql]`, and there is no `Resource` or stream-shaped connection, so a query result can't be exposed as a stream whose lifetime is controlled by its consumer, which is what an fs2 or ZStream bridge needs. Doobie's `query.stream.transact(xa)` and the like do exactly that.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+//> using options -experimental
+//> using jvm 21
+
+import java.nio.file.Files
+import zio.blocks.sql._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val file       = Files.createTempFile("orders", ".db")
+    val transactor = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+    transactor.connect {
+      sql"CREATE TABLE orders (id INTEGER PRIMARY KEY, total_cents INTEGER NOT NULL)".update
+      sql"INSERT INTO orders VALUES (1, 4200), (2, 1999)".update
+    }
+
+    // Consumed inside the block: works.
+    println(s"inside connect: ${transactor.connect(sql"SELECT total_cents FROM orders".queryStream[Long].runCollect)}")
+
+    // Handed out of the block, as an fs2 or ZStream bridge would need it:
+    val escaped = transactor.connect(sql"SELECT total_cents FROM orders".queryStream[Long])
+    println(s"outside connect: ${escaped.runCollect}")
+    Files.delete(file)
+  }
+}
+
+// inside connect: Right(Chunk(Chunk(4200,1999)))
+// outside connect: Left(java.sql.SQLException: database connection closed)
+```
+
+**Expected.** A way to build a query stream that owns its connection: it opens the connection on the first pull and closes it when the stream ends, fails or is closed early. For example `Transactor#stream[E, A](f: DbCon ?=> Stream[E, A]): Stream[E | Throwable, A]`, built on `Stream.fromAcquireRelease`, or a public `Resource[DbCon]` from `JdbcTransactor`.
+
+**Root cause.** By design today: `Transactor#connect` is callback-only (`sql/shared/src/main/scala/zio/blocks/sql/Transactor.scala:68`, implemented at `sql/jvm/src/main/scala/zio/blocks/sql/JdbcTransactor.scala:29`, which closes the connection when `f` returns), the connection wrapper is `private[sql] class JdbcConnection` (`sql/jvm/src/main/scala/zio/blocks/sql/JdbcConnection.scala:21`), and `Frag#queryStream`'s Scaladoc states the limitation (`sql/shared/src/main/scala/zio/blocks/sql/Frag.scala:369-371`).
+
+**Impact.** An application on fs2 or ZIO Streams can't stream a large result set through its own pipeline with back-pressure from the consumer; it has to consume the rows inside the `connect` block (holding a connection and a blocking thread for the whole consumption) or collect them. The H-53 guide states this and streams files instead; H-21 says `sql-zio` has no ZStream bridge for the same reason.
+
+**Test gap.** None for the behaviour itself (it is documented); `sql/shared/src/test/scala/zio/blocks/sql/FragSpec.scala` has no case for a stream used after its block.
+
+**Suggested fix.** Add a connection-owning stream constructor on `Transactor` (above), document it on `docs/reference/sql/` and in H-21, and point the `queryStream` Scaladoc at it.
 
 ## Test and CI
 
