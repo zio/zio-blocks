@@ -452,8 +452,11 @@ const sidebars = {
           },
   ],
   // Guides get their own sidebar, reached from the "Guides" navbar item, so the reference sidebar stays reference-only.
-  // The "Guides" category is what gives every guide its breadcrumb trail (Home > Guides > guide), as the reference pages
-  // get theirs from their categories. Its link is the guides index, so the crumb leads back there.
+  // The "Guides" category is what gives every guide its breadcrumb trail (Home > Guides > section > topic > guide), as the
+  // reference pages get theirs from their categories. Its link is the guides index, so the crumb leads back there, and
+  // that page (SidebarCards) shows the four sections as cards. Each section and how-to topic links a generated index
+  // page that lists its items as cards, so a new guide only needs an entry here, under its section and topic
+  // (website/test/unit/guides-sidebar.test.mjs fails if a guide page is missing).
   guides: [
     {
       type: "category",
@@ -461,88 +464,234 @@ const sidebars = {
       link: { type: "doc", id: "guides/index" },
       collapsed: false,
       items: [
-        "guides/add-zio-blocks-to-your-build",
-        "guides/your-first-schema",
-        "guides/evolve-your-data",
-        "guides/customize-json-encoding",
-        "guides/json-without-case-classes",
-        "guides/build-a-schema-registry",
-        "guides/override-codec-for-one-type",
-        "guides/tune-json-throughput",
-        "guides/avoid-allocation-on-hot-paths",
-        "guides/validated-newtypes",
-        "guides/diff-and-patch",
-        "guides/derive-your-own-type-class",
-        "guides/nested-data-with-optics",
-        "guides/use-named-tuples-with-schema",
-        "guides/one-type-many-formats",
-        "guides/encode-and-decode-records-with-avro",
-        "guides/store-case-classes-in-mongodb",
-        "guides/read-and-write-csv-and-tsv-files",
-        "guides/read-and-write-yaml",
-        "guides/typed-config-loader",
-        "guides/feed-config-into-a-wire-graph",
-        "guides/load-configuration-files",
-        "guides/roll-out-feature-gradually",
-        "guides/your-first-sqlite-repository",
-        "guides/test-database-code-against-sqlite",
-        "guides/connect-to-postgresql-with-a-connection-pool",
-        "guides/upsert-and-paginate-with-keyset-cursors",
-        "guides/migrate-table-rows-online",
-        "guides/map-custom-column-types",
-        "guides/store-and-search-vector-embeddings",
-        "guides/stream-large-query-results",
-        "guides/write-joins-and-inspect-generated-sql",
-        "guides/sql-from-zio",
-        "guides/your-first-html-page",
-        "guides/add-interactivity-with-htmx",
-        "guides/return-htmx-fragments-and-response-headers",
-        "guides/serve-http-model-requests",
-        "guides/send-server-sent-events",
-        "guides/build-a-live-dashboard-with-datastar",
-        "guides/validate-query-parameters-and-headers",
-        "guides/your-first-streaming-pipeline",
-        "guides/stream-files-and-sockets",
-        "guides/process-binary-data-without-boxing",
-        "guides/run-streams-without-blocking",
-        "guides/async-getting-started",
-        "guides/wrap-callback-and-future-apis",
-        "guides/compile-time-resource-safety-with-scope",
-        "guides/fix-scope-and-wire-compile-errors",
-        "guides/resource-and-di-migration",
-        "guides/getting-started-with-mux",
-        "guides/run-a-mux-over-a-socket",
-        "guides/small-json-backend-from-blocks",
-        "guides/instrument-a-program-with-logs-traces-and-metrics",
-        "guides/test-telemetry",
-        "guides/correlate-logs-and-traces",
-        "guides/telemetry-guide",
-        "guides/zio-schema-migration",
-        "guides/config-library-migration",
-        "guides/json-library-migration",
-        "guides/streaming-library-migration",
-        "guides/migrate-from-magnum-or-doobie",
-        "guides/generate-json-schema-and-validate-payloads",
-        "guides/write-and-export-openapi",
-        "guides/generate-scala-code-from-smithy",
-        "guides/generate-scala-types-from-openapi",
-        "guides/llm-data-with-toon",
         {
           type: "category",
-          label: "Query DSL",
-          link: { type: "doc", id: "guides/query-dsl/index" },
+          label: "Tutorials",
+          link: {
+            type: "generated-index",
+            slug: "/guides/tutorials",
+            description: "Step-by-step lessons for newcomers, in the order to read them. Start with the first one.",
+          },
           collapsed: false,
+          // The learning path of docs/dev/backlog.md §3 (foundations, runtime blocks, building applications, capstone),
+          // then the electives.
           items: [
-            "guides/query-dsl-reified-optics",
-            "guides/query-dsl-sql",
-            "guides/query-dsl-extending",
-            "guides/query-dsl-fluent-builder",
+            "guides/add-zio-blocks-to-your-build",
+            "guides/your-first-schema",
+            "guides/evolve-your-data",
+            "guides/compile-time-resource-safety-with-scope",
+            "guides/typed-config-loader",
+            "guides/async-getting-started",
+            "guides/your-first-streaming-pipeline",
+            "guides/your-first-sqlite-repository",
+            "guides/your-first-html-page",
+            "guides/instrument-a-program-with-logs-traces-and-metrics",
+            "guides/small-json-backend-from-blocks",
+            "guides/nested-data-with-optics",
+            "guides/one-type-many-formats",
+            "guides/add-interactivity-with-htmx",
+            "guides/build-a-live-dashboard-with-datastar",
+            "guides/getting-started-with-mux",
+            "guides/generate-scala-code-from-smithy",
           ]
         },
-        "guides/sql-transactions",
-        "guides/sql-checked-interpolation",
-        "guides/issue-and-verify-jwts",
-        "guides/protect-endpoints-with-jwt",
+        {
+          type: "category",
+          label: "How-to guides",
+          link: {
+            type: "generated-index",
+            slug: "/guides/how-to",
+            description: "Recipes for one task each, grouped by topic.",
+          },
+          collapsed: false,
+          items: [
+            {
+              type: "category",
+              label: "Schema",
+              link: {
+                type: "generated-index",
+                slug: "/guides/how-to/schema",
+                description: "Validate, compare, register and derive with Schema.",
+              },
+              collapsed: true,
+              items: [
+                "guides/validated-newtypes",
+                "guides/derive-your-own-type-class",
+                "guides/diff-and-patch",
+                "guides/build-a-schema-registry",
+                "guides/use-named-tuples-with-schema",
+                "guides/generate-json-schema-and-validate-payloads",
+              ]
+            },
+            {
+              type: "category",
+              label: "Formats & codecs",
+              link: {
+                type: "generated-index",
+                slug: "/guides/how-to/formats",
+                description: "Read and write JSON, YAML, CSV, Avro, BSON and TOON, and customize codecs.",
+              },
+              collapsed: true,
+              items: [
+                "guides/customize-json-encoding",
+                "guides/override-codec-for-one-type",
+                "guides/json-without-case-classes",
+                "guides/read-and-write-yaml",
+                "guides/read-and-write-csv-and-tsv-files",
+                "guides/encode-and-decode-records-with-avro",
+                "guides/store-case-classes-in-mongodb",
+                "guides/llm-data-with-toon",
+              ]
+            },
+            {
+              type: "category",
+              label: "SQL & persistence",
+              link: {
+                type: "generated-index",
+                slug: "/guides/how-to/sql",
+                description: "Connect, query, page, stream, migrate and test database code with the sql module.",
+              },
+              collapsed: true,
+              items: [
+                "guides/connect-to-postgresql-with-a-connection-pool",
+                "guides/test-database-code-against-sqlite",
+                "guides/sql-transactions",
+                "guides/sql-checked-interpolation",
+                "guides/write-joins-and-inspect-generated-sql",
+                "guides/upsert-and-paginate-with-keyset-cursors",
+                "guides/map-custom-column-types",
+                "guides/stream-large-query-results",
+                "guides/migrate-table-rows-online",
+                "guides/store-and-search-vector-embeddings",
+                "guides/sql-from-zio",
+              ]
+            },
+            {
+              type: "category",
+              label: "Streams & async",
+              link: {
+                type: "generated-index",
+                slug: "/guides/how-to/streams",
+                description: "Run streams safely and without blocking, and bridge callback-based APIs.",
+              },
+              collapsed: true,
+              items: [
+                "guides/stream-files-and-sockets",
+                "guides/run-streams-without-blocking",
+                "guides/wrap-callback-and-future-apis",
+                "guides/run-a-mux-over-a-socket",
+              ]
+            },
+            {
+              type: "category",
+              label: "Config, resources & DI",
+              link: {
+                type: "generated-index",
+                slug: "/guides/how-to/config",
+                description: "Load configuration, wire dependencies, fix Scope errors and roll out feature flags.",
+              },
+              collapsed: true,
+              items: [
+                "guides/load-configuration-files",
+                "guides/feed-config-into-a-wire-graph",
+                "guides/fix-scope-and-wire-compile-errors",
+                "guides/roll-out-feature-gradually",
+              ]
+            },
+            {
+              type: "category",
+              label: "Web & HTTP",
+              link: {
+                type: "generated-index",
+                slug: "/guides/how-to/web",
+                description: "Serve requests, validate input, push events, render HTMX, secure endpoints with JWT and work with OpenAPI.",
+              },
+              collapsed: true,
+              items: [
+                "guides/serve-http-model-requests",
+                "guides/validate-query-parameters-and-headers",
+                "guides/send-server-sent-events",
+                "guides/return-htmx-fragments-and-response-headers",
+                "guides/issue-and-verify-jwts",
+                "guides/protect-endpoints-with-jwt",
+                "guides/write-and-export-openapi",
+                "guides/generate-scala-types-from-openapi",
+              ]
+            },
+            {
+              type: "category",
+              label: "Observability",
+              link: {
+                type: "generated-index",
+                slug: "/guides/how-to/observability",
+                description: "Test and correlate logs, traces and metrics.",
+              },
+              collapsed: true,
+              items: [
+                "guides/test-telemetry",
+                "guides/correlate-logs-and-traces",
+              ]
+            },
+            {
+              type: "category",
+              label: "Performance",
+              link: {
+                type: "generated-index",
+                slug: "/guides/how-to/performance",
+                description: "Cut allocation and boxing, and tune codec throughput.",
+              },
+              collapsed: true,
+              items: [
+                "guides/tune-json-throughput",
+                "guides/avoid-allocation-on-hot-paths",
+                "guides/process-binary-data-without-boxing",
+              ]
+            },
+          ]
+        },
+        {
+          type: "category",
+          label: "Migration guides",
+          link: {
+            type: "generated-index",
+            slug: "/guides/migration",
+            description: "Move code from another Scala library to ZIO Blocks.",
+          },
+          collapsed: false,
+          items: [
+            "guides/zio-schema-migration",
+            "guides/json-library-migration",
+            "guides/resource-and-di-migration",
+            "guides/config-library-migration",
+            "guides/streaming-library-migration",
+            "guides/migrate-from-magnum-or-doobie",
+          ]
+        },
+        {
+          type: "category",
+          label: "Deep dives",
+          link: {
+            type: "generated-index",
+            slug: "/guides/deep-dives",
+            description: "Long-form explanations of how a part of ZIO Blocks works and why.",
+          },
+          collapsed: false,
+          items: [
+            "guides/telemetry-guide",
+            {
+              type: "category",
+              label: "Query DSL",
+              link: { type: "doc", id: "guides/query-dsl/index" },
+              collapsed: false,
+              items: [
+                "guides/query-dsl-reified-optics",
+                "guides/query-dsl-sql",
+                "guides/query-dsl-extending",
+                "guides/query-dsl-fluent-builder",
+              ]
+            },
+          ]
+        },
       ],
     },
   ]
