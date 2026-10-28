@@ -638,7 +638,7 @@ drainN(3)
 
 A known bug in 0.0.56: `close()` does not stop a `Reader.repeat` reader. After `close()`, `isClosed` stays `false` and every pull still returns the value.
 
-`Reader.repeated` — Restarts an inner reader each time it closes cleanly. Used by `Stream.repeated` to create indefinitely repeating streams:
+`Reader.repeated` — Restarts an inner reader each time it ends, by calling `reset()` on it. Used by `Stream.repeated` to create indefinitely repeating streams:
 
 ```scala
 object Reader {
@@ -1002,7 +1002,7 @@ abstract class Reader.AsyncReader[+Elem] {
 }
 ```
 
-`readable` reports whether the next `read()` would produce a value (not the sentinel). On `AsyncReader` the answer itself is asynchronous. Buffered readers can override it for an accurate, non-consuming probe:
+`readable` reports whether this reader expects to produce another element. The default is `!isClosed`, so `true` does not promise that the next pull returns an element; readers over a collection answer exactly. On `AsyncReader` the answer itself is asynchronous. Buffered readers can override it for an accurate, non-consuming probe:
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
