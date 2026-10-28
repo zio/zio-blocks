@@ -187,6 +187,8 @@ import zio.blocks.schema.yaml._
 
 ### schema-toon: `ArrayFormat.Tabular` with a non-primitive field writes output it cannot decode
 
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1887); the library bug is open.
+
 Filed as #1778. Found 2026-10-20 while writing H-12 (`docs/guides/llm-data-with-toon.md`). Verified on 0.0.56; schema-toon is unchanged since.
 
 **Summary.** With `withArrayFormat(ArrayFormat.Tabular)`, a record list whose records have a non-primitive field (for example `tags: List[String]`) does not fall back to list form, as the `Tabular` Scaladoc says (`ArrayFormat.scala:34-37`). The writer emits a hybrid row such as `Zionomicon,...,2024,[2]:` followed by `- zio` lines. Decoding it fails with `Array count mismatch: expected 2 items but got 0 at: .books.at(0).tags`.
@@ -197,6 +199,8 @@ Filed as #1778. Found 2026-10-20 while writing H-12 (`docs/guides/llm-data-with-
 
 ### schema-toon: a top-level tabular list cannot be decoded
 
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1887); the library bug is open.
+
 Filed as #1779. Found 2026-10-20 while writing H-12. Verified on 0.0.56.
 
 **Summary.** A top-level list written in tabular form (`[N]{f1,f2}:`), including one the codec itself wrote, fails to decode with `Expected key:value, no colon found at: .at(0)`. The same table as a record field (`books[N]{...}:`) decodes fine, so encode then decode is not a round trip for a top-level `List[Record]`.
@@ -206,6 +210,8 @@ Filed as #1779. Found 2026-10-20 while writing H-12. Verified on 0.0.56.
 **Fix.** Decode the whole row for top-level tables. Add a round-trip test for `List[Record]` with `ArrayFormat.Tabular`.
 
 ### schema-toon: `withFieldNameMapper` is ignored in tabular headers
+
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1887); the library bug is open.
 
 Filed as #1780. Found 2026-10-20 while writing H-12. Verified on 0.0.56.
 
@@ -1931,6 +1937,8 @@ The same file with `//> using scala 3.3.7` prints the same two lines. (scala-cli
 
 ### schema: `DynamicOptic#toString` prints paths that `p"..."` rejects: wrapper steps, the root, and `Char` keys with an escape
 
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1887); the library bug is open.
+
 Found 2026-10-21 while writing the Scaladoc of `DynamicOptic` and `p"..."` (wave 4 of the schema Scaladoc, branch `scaladoc-wave-4`, on top of `bffadae7`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified: the reproductions below were run with `scala-cli` against the published `0.0.56`.
 
 **Summary.** `DynamicOptic#toString` is documented as the `p"..."` syntax, so its output can be pasted back into the interpolator (`docs/reference/schema/dynamic-optic.md`, "Dual rendering"; `docs/reference/schema/path-interpolator.md`, "Debug-Friendly toString"). Three renderings cannot: a wrapper step prints `.~` and the empty path prints `.`, which the parser rejects, and a `Char` map key with an escape prints with a doubled backslash, `{'\\n'}` for a newline. The doubled backslash also appears in `toScalaString`, as `.atKey('\\n')`, which is not the Scala literal for a newline. `String` keys are escaped correctly.
@@ -2358,6 +2366,8 @@ The query is only wrong for a codec column that is missing by name *and* lies pa
 
 ### `Table#createTable` declares no `PRIMARY KEY`, so derived tables accept duplicate IDs and reject `Repo#insertOrUpdate`
 
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1887); the library bug is open.
+
 Found 2026-10-20 while writing the how-to guide `docs/guides/test-database-code-against-sqlite.md` (backlog H-47), on `main` at `4e89c0be`. The code is the same at tag `v0.0.56`. This is a usability trap rather than a crash: `docs/reference/sql/repo.md`, `table.md` and `ddl.md` already document it, but nothing in the API steers users away from it.
 
 **Summary.** `Table.derived[A].createTable(dialect)` renders every column as `name type [NOT NULL]` and never adds `PRIMARY KEY`, even when the table backs a `Repo` that knows its ID column. A table created this way silently stores two rows with the same ID, and `Repo#insertOrUpdate` / `Repo#insertOrUpdateBatch` fail on it, because their `ON CONFLICT (id)` clause needs a primary key or unique constraint. Tests suffer most: a test that checks that a duplicate insert is rejected can never pass on a derived schema, so users have to hand-write the DDL and keep it in sync with the case class.
@@ -2397,6 +2407,8 @@ xa.connect {
 **Related (testing ergonomics).** `JdbcTransactor` has no way to hold one connection open across blocks, so `jdbc:sqlite::memory:` loses its tables between `connect`/`transact` calls, and there is no rollback-only `transact` for tests. The repo's own `RepoIntegrationSpec.withFreshDb` (`sql/jvm/src/test/scala/zio/blocks/sql/RepoIntegrationSpec.scala:58-84`) works around the first by subclassing `JdbcTransactor` and overriding `connect` with the `private[sql]` `JdbcConnection`, which users can't copy; its `transact` (not overridden) would close the shared connection. The H-47 guide uses a temporary file per test and a sentinel-exception `rollingBack` helper instead. A public single-connection transactor for tests (whose `close` is a no-op until the test ends) would make both unnecessary.
 
 ### sql-zio: `transactZIO` commits instead of rolling back when its body throws while being built, or when it is interrupted
+
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1887); the library bug is open.
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/sql-from-zio.md` (backlog H-21), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 main -- sql-zio/` is empty. Verified by running the reproduction below against the published 0.0.56 artifacts.
 
@@ -8920,6 +8932,8 @@ object Repro {
 
 ### sql: `Option[BigDecimal]`, `Option[Char]` and their `Maybe` forms throw on SQL `NULL`, with an error that recommends using them
 
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1887); the library bug is open.
+
 Found 2026-10-28 while fixing `docs/reference/sql/db-codec.md` (batch 4b doc-fix sweep, branch `data-doc-fixes` on top of `4e288c5f2`). The code is the same at tag `v0.0.56` (`git diff v0.0.56 -- sql/` is empty). Verified by running the reproduction below against the published 0.0.56.
 
 **Summary.** A nullable column read into an `Option[BigDecimal]` field fails on `NULL` with `IllegalStateException: Encountered SQL NULL while decoding non-optional BigDecimal. Use Option[BigDecimal] or Maybe[BigDecimal] for nullable columns.` The field already is `Option[BigDecimal]`. `Maybe[BigDecimal]` and a derived `Option[Char]` field fail the same way. So 0.0.56 has no codec that reads a nullable decimal or char column. On SQLite, a single-column `query[Option[BigDecimal]]` fails earlier with `java.sql.SQLException: column -1 out of bounds [1,1]`.
@@ -8967,6 +8981,8 @@ case class Grade(id: Long, letter: Option[Char]) derives DbCodec
 **Suggested fix.** In the optional wrappers, let the inner codec see the `null` instead of failing: for example give `bigDecimalCodec` and `decodeChar` a variant that returns `null` and let the wrapper map it with `wasNull`, or have the wrapper read the raw column with `getObject` and check for `null` before calling the inner codec. Add JDBC-backed tests for `Option`/`Maybe` of `BigDecimal` and `Char`. The docs (`db-codec.md`, fixed in the batch 4b PR) name this as a known bug and suggest reading the column as `Option[String]`.
 
 ### schema-toon: the `DynamicValue` codec ignores the array length in the header
+
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1887); the library bug is open.
 
 Found 2026-10-28 while fixing `docs/reference/schema/built-in-codecs/toon.md` (batch 4b, branch `data-doc-fixes` on top of `4e288c5f2`). schema-toon has only Scaladoc changes since `v0.0.56`. Verified by running the reproduction below against 0.0.56.
 
@@ -12549,100 +12565,6 @@ Found 2026-10-28 in one local run by the `remove-stale-datastar` session (worktr
 
 Pages that contradict the source. None of these were copied into the new guides.
 
-**schema / optics and paths**
-
-- `path-interpolator.md:294-305`: the escape table implies all six escapes work in both strings and chars. Strings accept only `\"`, `\\`, `\n`, `\t`, `\r`; chars accept only `\'`, `\\`, `\n`, `\t`, `\r` (`PathParser.scala:399-442`).
-- `path-interpolator.md:686`: `data.get(p"...")` reads as returning a value; it returns a `DynamicValueSelection` (`DynamicValue.scala:166`). Show `.one` to extract.
-- `optics.md:52` says `OpticCheck` includes the actual value encountered; only `UnexpectedCase` does. `optics.md` has no `OpticCheck` section, and `dynamic-optic.md` "Failure Path in OpticCheck" omits `DynamicConversionError`.
-- `optics.md:1061-1089` says optic `toString` matches the macro syntax. Map-key steps print the placeholder `.atKey(<key>)` (`Optic.scala:1227-1228`, `2682`, `2686`).
-
-**schema-toon (`toon.md`)**
-
-- Lines 924-985 show key folding and path expansion on case classes; only the `DynamicValue` codec reads them (`ToonCodec.scala:826-827`, `1000-1005`).
-- Line 636 and the `WriterConfig` Scaladoc say `WriterConfig`/`ReaderConfig.withDelimiter` sets the delimiter for derived arrays; `ToonCodecDeriver.withDelimiter` does, and the reader takes it from the array header.
-- Line 693 shows `items:` for `ArrayFormat.List`; the output is `items[N]:`.
-- Line 1044 shows `Expected sequence, got: invalid`; the source message is `Expected array header with [`.
-- Lines 14 and 659 say there are three array formats; there are four.
-- `toon.md` "Safe Flattening" (`:947-957` on `4e288c5f2`) shows `KeyFolding.Safe` folding a two-field `address` record into `address.street`/`address.city`. Even on the `DynamicValue` codec, `KeyFolding.Safe` only folds chains of single-field records (`settings.server.port: 8080`); a record with two or more fields stays an indented block. Verified with the reproduction below (found by batch 4b, 2026-10-28; fixed in the batch 4b PR).
-- `toon.md` "Delimiter Configuration" under `ReaderConfig` (`:631-640`) and the `ReaderConfig` Scaladoc say `ReaderConfig.withDelimiter(Delimiter.Tab)` makes the reader expect tabs in inline arrays. It has no effect on decoding arrays: the reader takes each array's delimiter from its header (`ToonReader.scala:340`, `:413-420`), and a header without a delimiter marker means comma. Fixed in the batch 4b PR (page and Scaladoc).
-- `toon.md` "Inline Format"/"Tabular Format" didn't say that `ArrayFormat.Inline` writes record arrays in list form and `ArrayFormat.Tabular` writes primitive arrays in list form; the `Delimiter` examples showed `tags[3]: scala|zio|functional` where the output is `tags[3|]: scala|zio|functional`. Fixed in the batch 4b PR with evaluated mdoc.
-
-  Reproduction for the first two (Scala 2.13.18, `zio-blocks-schema-toon` 0.0.56, `scala-cli run --server=false KeyFoldingDoc.scala`):
-
-  ```scala
-  //> using scala 2.13.18
-  //> using dep dev.zio::zio-blocks-schema-toon:0.0.56
-
-  import zio.blocks.schema._
-  import zio.blocks.schema.toon._
-
-  object KeyFoldingDoc extends App {
-    case class Address(street: String, city: String)
-    object Address { implicit val schema: Schema[Address] = Schema.derived }
-    case class Person(name: String, address: Address)
-    object Person { implicit val schema: Schema[Person] = Schema.derived }
-
-    val dynamicCodec = Schema[DynamicValue].derive(ToonFormat)
-    val person       = Person("Alice", Address("Main St", "Springfield"))
-    val safe         = WriterConfig.withKeyFolding(KeyFolding.Safe)
-    // toon.md "Safe Flattening" promises: address.street: Main St / address.city: Springfield
-    println(dynamicCodec.encodeToString(Person.schema.toDynamicValue(person), safe))
-    // toon.md "Delimiter Configuration" (ReaderConfig) promises tab-separated inline arrays
-    println(Schema[List[String]].derive(ToonFormat).decode("[3]: a\tb\tc", ReaderConfig.withDelimiter(Delimiter.Tab)))
-  }
-  // name: Alice
-  // address:
-  //   street: Main St
-  //   city: Springfield
-  // Left(zio.blocks.schema.SchemaError: Array count mismatch: expected 3 items but got 1 at: .)
-  ```
-
-### docs: `db-codec.md` says non-optional types throw on SQL `NULL`, but `String` decodes to `null` and numeric types to `0`
-
-Found 2026-10-20 while writing the how-to guide `docs/guides/stream-large-query-results.md` (backlog H-20), on `main` at `b4179489`. Verified with `zio-blocks-next-sql` 0.0.56 and sqlite-jdbc 3.53.4.0; the code is the same at tag `v0.0.56`.
-
-**Summary.** `docs/reference/sql/db-codec.md:22` says "non-optional types throw `IllegalStateException` on unexpected `NULL`, surfacing schema mismatches immediately rather than silently coercing." Only `BigDecimal` and the deriver's `Char` do that. A `NULL` read into a `String` field becomes `null`, and a `NULL` read into an `Int` field becomes `0`. `Frag#query` and `Frag#queryStream` behave the same way.
-
-**Reproduction.** With `case class Sale(id: Long, title: String, quantity: Int, soldOn: LocalDate)` and one row in a SQLite `sale` table:
-
-- `sql"SELECT id, NULL AS title, quantity, sold_on FROM sale".queryStream[Sale].runCollect` returns `Right(Chunk(Chunk(Sale(1,null,3,2026-10-01))))`.
-- The same query with `.query[Sale]` returns `List(Sale(1,null,3,2026-10-01))`; `title` is a real `null`.
-- `SELECT id, title, NULL AS quantity, sold_on` with `.query[Sale]` returns `List(Sale(1,Zionomicon,0,2026-10-01))`.
-
-**Root cause.** Only `BigDecimal` (`sql/shared/src/main/scala/zio/blocks/sql/DbCodec.scala:336,340`) and the deriver's `Char` (`sql/shared/src/main/scala/zio/blocks/sql/DbCodecDeriver.scala:661-662`) call `unexpectedNull`. `stringCodec` (`DbCodec.scala:278-285`), `intCodec`, `longCodec` and the other primitive codecs return whatever the JDBC getter returns (`null`, `0`, `false`). The type table on the same page (`db-codec.md:360`) says "Throws on SQL NULL" only for `BigDecimal`, which matches the code, so the page contradicts itself.
-
-**Impact.** A schema mismatch (a nullable column mapped to a non-`Option` field) passes silently: a `String` field holds `null` and can throw a `NullPointerException` far from the query, and a numeric field holds `0`, which looks like real data.
-
-**Test gap.** Only `DbCodecSpec.scala:612-616` tests the `NULL` failure, for `BigDecimal`. No test reads `NULL` into a `String` or a numeric field.
-
-**Suggested fix.** Either change `db-codec.md:22` to say that only `BigDecimal` and `Char` fail fast, `String` gives `null` and the numeric and `Boolean` types give the JDBC default, or make the primitive codecs check `wasNull` and throw. The second is a behaviour change with a per-column cost.
-
-### docs: `sql-zio.md` and `transactor-zio.md` show code that doesn't compile or blocks ZIO's main threads
-
-Found 2026-10-21 while writing the how-to guide `docs/guides/sql-from-zio.md` (backlog H-21), on `main` at `a44dc6db`. The import order was verified by compiling (see the shadowing entry under Library bugs); the rest is from source.
-
-**Summary.** Both pages are all plain `scala` fences, so nothing on them is compiled. The H-21 branch fixes the import order in every snippet (it was `import zio.blocks.sql.*` before `import zio.blocks.sql.zio.*`, which never compiles), says that `postgresLayer`/`sqliteLayer` need `import zio.blocks.sql.zio.*`, and corrects the "interrupt-safe" bullet in `transactor-zio.md` (interrupting `transactZIO` commits; see Library bugs). These remain:
-
-- `sql-zio.md` "Quick Start" runs `transactor.connect { sql"SELECT 1"... }` inside `ZIO.serviceWith[Transactor]`, which executes the JDBC call on ZIO's default thread pool. It should be `ZIO.serviceWithZIO[Transactor](t => ZIO.attemptBlocking(t.connect(...)))`, or use `TransactorZIO`.
-- `sql-zio.md` uses `userRepo`, `newUser` and `User` without defining them, and calls itself a "guide" although it is a reference page.
-- `transactor-zio.md` builds its examples on `TransactorZIO.fromUrl("jdbc:sqlite::memory:", ...)` and then uses the table in a later call, which its own `fromUrl` section (`:149`) says can't work: every call gets a fresh, empty database.
-- `transactor-zio.md` shows the class shape without the two-argument `transact(isolation, readOnly)` and `transactZIO(isolation, readOnly)` overloads (`TransactorZIO.scala:80`, `:132`).
-- Neither page says that inside `connectZIO`/`transactZIO` the body's statements must be wrapped in `ZIO.attemptBlocking` to leave the default pool, which `TransactorZIO.scala:200` makes necessary.
-
-**Suggested fix.** Turn both pages into `mdoc` pages now that `sql-zio` is on the docs classpath, on a temporary SQLite file, and link `docs/guides/sql-from-zio.md` for the recipes.
-
-### docs: `table.md` and `db-codec-deriver.md` say `createTable` handles collection and nested-record fields
-
-Found 2026-10-21 while writing the how-to guide `docs/guides/map-custom-column-types.md` (backlog H-22), on `main` at `7d8e0b44`. The code is the same at tag `v0.0.56`. Verified. Not filed.
-
-**Summary.** `docs/reference/sql/table.md:238` says fields that fall back to JSONB "such as `List[A]`" produce "a `TEXT` or `JSONB` column", and that "nested records that are flattened into multiple columns are fully supported". `Table.derived` throws for a `List[A]` field, and it flattens every nested record even though the codec stores a non-inline record as one JSON column (see the `Table.derived` entry under Library bugs). `table.md:273` repeats "nested records are flattened". `docs/reference/sql/db-codec-deriver.md:23` says the fallback is "a single `TEXT` / `JSONB` column"; no code path emits `JSONB`, since `SqlDialect` maps `DbString` to `TEXT` on both dialects (`sql/shared/src/main/scala/zio/blocks/sql/SqlDialect.scala:36,64`).
-
-**Suggested fix.** Until the library bug is fixed, say that `Table.derived`, `Repo.derived` and `createTable` work only for records whose nested record fields carry `sql.inline`, and that a JSON column on PostgreSQL must be declared `JSONB` by hand.
-
-### docs: the `Frag#queryChunked` Scaladoc example calls `Transactor.connect(transactor)`, which does not exist
-
-Found 2026-10-22 by the M-03 session, checked against source on `main` (same at `v0.0.56`). `sql/shared/src/main/scala/zio/blocks/sql/Frag.scala:375` shows `Transactor.connect(transactor) { ... }`, and `:370` mentions `Transactor.connect`. There is no `object Transactor`: `Transactor` is a trait (`Transactor.scala:65`) whose `connect` is an instance method (`:68`). The example should read `transactor.connect { ... }`.
-
 ### Streams: `docs/reference/streams/primitives/reader.md` and `writer.md` contradict the code on `isClosed`, the `AnyRef` lane, error-closed writers, `Writer.single` and `concat`
 
 **Status.** The pages are fixed in #1881. Left: the wave 3 `NioWriters` Scaladoc should describe the `fromChannel` leak (library source).
@@ -12735,6 +12657,7 @@ println(n308.fromJson[BigDecimal].left.map(_.message))// Left(value exceeds limi
 
 ## Resolved
 
+- Data doc errors fixed in #1887 (batch 4b, merge `5779e440d`, three review rounds): `db-codec.md` said non-optional types throw on SQL `NULL` (`String` gives `null`, numbers `0`); `sql-zio.md` and `transactor-zio.md` (JDBC calls on ZIO's default pool, undefined names, `:memory:` examples that can't work; both pages now compiled mdoc); `table.md` and `db-codec-deriver.md` on `createTable` with collection and nested-record fields; the `Frag#queryChunked` Scaladoc's `Transactor.connect(transactor)`; the "schema / optics and paths" bullets (`path-interpolator.md` escapes and `.one`, `OpticCheck`, map-key `toString`); the "schema-toon (`toon.md`)" bullets, including today's three (`KeyFolding.Safe`, `ReaderConfig.withDelimiter`, inline/tabular forms); and the `stream-files-and-sockets.md` "Scala 3.7" install line. The sql, optics and toon library bugs those pages name carry a Status line.
 - Fixed in #1886 (merge `6462ef6e9`): a stale `docs/reference/datastar.md`, deleted by #1638 and re-added by the #1672 squash merge, shadowed `docs/reference/datastar/index.md`, so no Datastar overview fix since 2026-08-28 reached the site. `onDuplicateRoutes: 'throw'` didn't fire because Docusaurus compares routes as exact strings: `/reference/datastar` and `/reference/datastar/` differ only by the trailing slash, yet both write `reference/datastar/index.html` (the stale copy won in production). The PR deletes the file and adds `website/test/unit/page-beside-folder-index.test.mjs`, which fails on any `docs/**/X.md` next to `docs/**/X/index.md(x)` (140/141 before, 141/141 after). Checked in the PR's CI `website-artifact`: `reference/datastar/index.html` now contains `zio-blocks-next-datastar` and "Scala 3.x only". Goes live with the next deploy.
 - Runtime doc errors fixed in #1885 (batch 4a, merge `ac8a1d76a`, three review rounds): config `formats.md` (infinite HOCON numbers are kept as written strings; the 1 MiB `fromFile` limit and `fromFileWithLimits`; the include-callback and `HoconError` position claims, plus warnings for the config-hocon known bugs) and the flags/rollouts bullets (`rollout.md` share and sum-above-100 wording, `flags.md` exception wording, the `DynamicFlag` Scaladoc example); the scope bullets and the Scope tutorial entry (signatures, `andThen`, error text, `wire.md`, `finalization.md`, thread ownership, Scala 3 `Unscoped` derivation, single-use `Resource.from`, plus leftover cycle-detection claims in two guides); `context.md` `Wire.make`; the telemetry JDK 21, 3.9 artifact and double-printing items (and the `HistogramDataPoint` boundaries Scaladoc); `telemetry-guide.md` `log.removeAll()` teardown; the `B3Propagator.multi` Scaladoc header list; the async Scala 3 `Completer` warning; and the T-12 entry in the `docs/index.md` Guides list. The library entries those pages now name carry a Status line.
 - Streams doc errors fixed in #1881 (batch 1, merge `c8c65babe`, three review rounds): `stream.md` (`repeated` described as rematerializing, a warning box quoting replaced `mapPar` Scaladoc, the wrong `fromAcquireRelease` output, the eager `FileReader`, an unreachable Scala.js merge path, the `bufferSize` claim, and no Long/Double count note in "The Reader Protocol"); the worker-thread-name, virtual-thread-fallback, Scala.js `ReadableStream`, `NioReaders.fromChannel`, `NioWriters.fromByteBuffer` and full-buffer `NioSinks` statements in `platform-differences.md`, `reader.md`, `writer.md` and `sink.md` (the thread-name text changes again once that library bug is fixed); `zero-boxing.md` saying `Sink` has unboxed `write` methods (it now also names the accumulator boxing as a known bug); `streaming-library-migration.md` telling readers to pick a sentinel on every lane; and the `SinkSentinelGuardExample`/`SinkSentinelLimitationExample` pair, replaced by `streams-examples/src/main/scala/sink/SinkSentinelExample.scala`, with a `NioStreamsSinksSpec` case that writes `Long.MaxValue` and `Double.MaxValue`. The same PR documents the two `Stream#start` findings from H-53.
