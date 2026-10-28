@@ -16,10 +16,10 @@ Here's the interface definition:
 trait Scope {
   type $[+A]
 
-  def scoped[A](f: Scope => A): A
+  def scoped[A](f: Scope.Child[this.type] => A)(using Unscoped[A]): A  // Scala 2: implicit Unscoped[A]
   def allocate[A](resource: Resource[A]): $[A]
-  def allocate(value: => AutoCloseable): $[AutoCloseable]
-  def open(): $[OpenScope]
+  def allocate[A <: AutoCloseable](value: => A): $[A]
+  def open(): $[Scope.OpenScope]
   def defer(f: => Unit): DeferHandle
   def lower[A](value: parent.$[A]): $[A]
   def isClosed: Boolean
@@ -812,7 +812,7 @@ final class App(service: UserService) {
 // Wire describes the dependency graph: App -> UserService -> Database -> Config
 // Resource.from uses the Wire to automatically construct the entire graph
 val config = Config("jdbc:postgres://localhost/db")
-val appResource = Resource.from[App](
+def appResource = Resource.from[App](
   Wire(config)
 )
 
@@ -936,11 +936,13 @@ Runtime errors occur when you violate scope rules at runtime—typically by acce
 
 ### `IllegalStateException` — accessing a closed scope
 
-This error occurs when you attempt to acquire resources (via `allocate`, `open`, or the `$` operator) on a scope that has already closed. Every `scoped { }` block cleans up its resources as soon as the block exits, so any attempt to use the scope after that point fails.
+This error occurs when you attempt to acquire resources (via `allocate`, `open`, or the `$` operator) on a scope that has already closed. Every `scoped { }` block cleans up its resources as soon as the block exits, so any attempt to use the scope after that point fails. `defer` does not throw on a closed scope: it returns a no-op `DeferHandle` and ignores the finalizer.
 
-The error message is typically:
+The error message starts with one of these lines, depending on the operation:
 ```
-Cannot acquire resource: scope has already been closed. ...
+Cannot allocate resource: scope is already closed.
+Cannot open child scope: scope is already closed.
+Cannot access scoped value: scope is already closed.
 ```
 
 This usually happens when you:
@@ -951,9 +953,9 @@ To avoid this, keep the scope's lifetime clear: allocate resources, use them, th
 
 ### `IllegalStateException` — cross-thread scope usage
 
-Scopes are thread-owned by default. When you create a child scope using `scoped { }`, it's owned by the thread that created it. If you try to access that scope (allocate resources, create child scopes) from a different thread, the scope will reject it.
+Scopes created by `scoped { }` are owned by the thread that entered the block. Only `scoped` checks the owner: calling `scoped` on a scope from a different thread fails. `allocate`, `open`, `defer` and `$` do not check the owner, so a closure that runs on another thread can still allocate into a scope that is open. Keep allocation on the owning thread.
 
-The error message is typically:
+The error message for a `scoped` call from another thread is typically:
 ```
 Cannot create child scope: current thread '...' does not own this scope (owner: '...')
 ```
@@ -1066,7 +1068,7 @@ Scope integrates seamlessly with ZIO Blocks' other data types for building compl
 
 Key integration points:
 - Use `Resource[A].allocate` to acquire within a scope
-- Compose resources with `flatMap`, `andThen`, and other combinators before allocating
+- Compose resources with `map`, `flatMap`, `zip`, and other combinators before allocating
 - Use `Resource.shared` for multiple-use resources within a scope
 
 ### Finalizer
@@ -1257,7 +1259,7 @@ cd scope-examples && sbt "runMain runThreadOwnershipExample"
 
 ### Detecting and Demonstrating Circular Dependency Scenarios
 
-This example shows how to detect and handle circular dependencies in resource management, illustrating how scopes help prevent subtle bugs in complex dependency graphs.
+This example shows a circular dependency between two services, which the Wire macro should reject at compile time. It does not do that in 0.0.56: a cycle makes the `Resource.from` macro crash instead of printing a cycle diagram (a known bug, tracked as #1767). The commented-out code is the shape to avoid, not a working compile-error demo.
 
 ```scala mdoc:passthrough
 import docs.SourceFile

@@ -375,7 +375,7 @@ Resource.from[Catalog]
 That form doesn't resolve a dependency graph. Use the wires form: pass wires for the dependencies, or an empty argument list to let the macro build every dependency it can:
 
 ```scala mdoc:compile-only
-val explicitDb = Resource.from[Catalog](Wire.shared[Db])
+def explicitDb = Resource.from[Catalog](Wire.shared[Db])
 val autoDb     = Resource.from[Catalog]()
 ```
 

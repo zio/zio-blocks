@@ -113,6 +113,12 @@ All built-in instances follow a simple principle: **if a type cannot hold resour
 
 All other types (resources, handles, connections) must be manually defined if needed.
 
+**Scala 3 derives instances for you.** A case class or enum whose fields are all `Unscoped` gets an `Unscoped` instance automatically, so you rarely need to write one. On Scala 2, ask for an instance with `Unscoped.derived[A]` or write one by hand.
+
+:::warning[A closed `AutoCloseable` can escape on Scala 3]
+A known bug in 0.0.56: the automatic derivation does not check whether the class extends `AutoCloseable`. For example, `case class Conn(url: String) extends AutoCloseable` is `Unscoped` on Scala 3, so `Resource.fromAutoCloseable(Conn("x")).use(c => c)` compiles and returns a resource that is already closed. Return only computed results, never the resource itself, and check your own types for this.
+:::
+
 
 ## Thread Safety
 
