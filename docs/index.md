@@ -503,73 +503,14 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ## Guides
 
-- [Your First Schema: Round-Trip a Type Through JSON](./guides/your-first-schema.md) - Start here: describe a type once with `Schema`, then encode, decode, and read errors
-- [Evolve Your Data: Change Your Types with Into, As and Migration](./guides/evolve-your-data.md) - Validate incoming data with `Into`, convert between versions both ways with `As`, and rename a field with a compile-checked `Migration`
-- [Navigate and Update Nested Data with Optics](./guides/nested-data-with-optics.md) - Read and update fields deep inside immutable data with lenses, optionals, and traversals instead of nested `copy` calls
-- [How to Use Scala 3 Named Tuples with Schema](./guides/use-named-tuples-with-schema.md) - Derive a `Schema` for a Scala 3 named tuple, round-trip it through JSON, update fields with optics, and convert it to a case class
-- [One Type, Many Formats](./guides/one-type-many-formats.md) - Derive JSON, YAML, XML, TOON, MessagePack, Avro and CSV codecs from one `Schema` and round-trip a catalog through each
-- [How to Read and Write YAML Documents](./guides/read-and-write-yaml.md) - Read YAML into case classes, write CI-style YAML, convert it to JSON, and guard against YAML the reader silently misreads
-- [How to Derive Your Own Type Class from a Schema](./guides/derive-your-own-type-class.md) - Write a `Deriver` once and get a type class instance for every record, variant and primitive in your model
-- [Build a Typed Configuration Loader](./guides/typed-config-loader.md) - Load a typed case class from YAML, environment overrides and defaults, report every error at once, and see where each value came from
-- [How to Feed Configuration into a Wire Dependency Graph](./guides/feed-config-into-a-wire-graph.md) - Give each service in a Wire graph its own typed, checked settings from one layered `ConfigSource`, and shut everything down in order
-- [How to Load Configuration Files on the JVM and in the Browser](./guides/load-configuration-files.md) - Load HOCON, JSON and YAML files into a typed case class, split them with includes, load them safely, and run the same settings in the browser
-- [How to Roll Out a Feature Gradually with Flags](./guides/roll-out-feature-gradually.md) - Ship a feature to 10% of readers, target one region, widen the rollout at runtime, and test the code that reads the flag
-- [Build Your First Database Repository on SQLite](./guides/your-first-sqlite-repository.md) - Connect to SQLite, derive a table and `Repo` from one schema, write your own queries, and roll back a transaction
-- [How to Test Database Code Against SQLite](./guides/test-database-code-against-sqlite.md) - Give every test its own SQLite database, create the schema from code, seed fixtures and roll back writes in ZIO Test specs
-- [How to Connect to PostgreSQL with a Connection Pool](./guides/connect-to-postgresql-with-a-connection-pool.md) - Set up a HikariCP pool for PostgreSQL, build a `JdbcTransactor` on it, size it for virtual threads and close it with a `Scope`
-- [How to Upsert Rows and Paginate with Keyset Cursors](./guides/upsert-and-paginate-with-keyset-cursors.md) - Insert or update rows in one statement, choose which columns an upsert changes, and walk large tables page by page with keyset cursors
-- [How to Migrate Table Rows to a New Version Online](./guides/migrate-table-rows-online.md) - Convert every row of a live table to a new row type with `SmallMigrator` or `LargeMigrator` while the application keeps reading and writing
-- [How to Map Custom Column Types](./guides/map-custom-column-types.md) - Store newtypes, opaque types, enums, JSON documents, PostgreSQL arrays and timestamps in SQL columns, on SQLite and PostgreSQL
-- [How to Store and Search Vector Embeddings in PostgreSQL](./guides/store-and-search-vector-embeddings.md) - Store embeddings in a pgvector column with a `DbCodec` built on `String`, search by nearest neighbour, pick a distance operator and add an HNSW index
-- [How to Stream Large Query Results](./guides/stream-large-query-results.md) - Read a large result set as a stream of row chunks with `queryStream` and `queryChunked`, aggregate it, export it to a file and handle its errors
-- [How to Write Joins and Inspect the Generated SQL](./guides/write-joins-and-inspect-generated-sql.md) - Join related tables with `SqlQuery` and `Rel`, read the rows as tuples, and print or dump the SQL each join generates
-- [How to Use the sql Module from a ZIO Application](./guides/sql-from-zio.md) - Run `sql` queries and transactions as ZIO effects with `TransactorZIO`, provide it as a layer, and mix database writes with other effects in one transaction
-- [Render Your First Server-Side HTML Page](./guides/your-first-html-page.md) - Build a book page with the HTML DSL, escape user input, add CSS and JSON state, and save it as a file
-- [Add Interactivity to a Page with HTMX](./guides/add-interactivity-with-htmx.md) - Turn a book list into a live search with typed hx-* attributes, a debounced search box, a category filter and HTML fragments
-- [How to Return HTMX Fragments, Full Pages and Response Headers](./guides/return-htmx-fragments-and-response-headers.md) - Answer one URL with a full page or a fragment, swap extra regions out of band, and steer the browser with HX-Trigger, HX-Location, HX-Redirect, HX-Retarget and HX-Reswap
-- [How to Serve http-model Requests with the JDK HTTP Server](./guides/serve-http-model-requests.md) - Turn a JDK `HttpExchange` into an http-model `Request`, write a `Response` back, and run a handler function on the built-in server
-- [How to Send Server-Sent Events with http-model](./guides/send-server-sent-events.md) - Stream `ServerSentEvent` values as a `text/event-stream` `Response` through the JDK HTTP server, resume from `Last-Event-ID`, and read them with the browser's `EventSource`
-- [Build a Live Counter and Dashboard with Datastar](./guides/build-a-live-dashboard-with-datastar.md) - Build a weather station with Datastar signals, a button that posts them, `patchSignals` and `patchElements` events, and a dashboard streamed over one open connection
-- [How to Validate Query Parameters and Headers and Answer 400](./guides/validate-query-parameters-and-headers.md) - Read query parameters and headers as typed values and answer missing, malformed or out-of-range input with a JSON 400 that names every problem
+- [How to Add ZIO Blocks to Your Build](./guides/add-zio-blocks-to-your-build.md) - Pick the modules you need and add them to an sbt or scala-cli build, for any Scala version and for Scala.js
+- [Your First Schema: Round-Trip a Type Through JSON](./guides/your-first-schema.md) - Describe a type once with `Schema`, then encode, decode, and read errors
 - [Your First Streaming Pipeline: Turn a Sales Log into a Report](./guides/your-first-streaming-pipeline.md) - Read a sales log with a `Stream`, parse, filter and batch it, sum it with a `Sink`, and recover from a bad line
-- [How to Stream Files and Sockets Without Leaking Resources](./guides/stream-files-and-sockets.md) - Read files, NIO channels and sockets as streams that close their handles on success, failure, early stop and missing input
-- [How to Process Binary Data Without Boxing](./guides/process-binary-data-without-boxing.md) - Read binary files, buffers and InputStreams as unboxed Long and Double streams, aggregate them, write them back and measure allocation
-- [How to Run Streams Without Blocking](./guides/run-streams-without-blocking.md) - Swap blocking stream terminals for their `Async` twins, do async work per element, and run the same pipeline on Scala.js, including a `ReadableStream` source
-- [Getting Started with Async](./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
-- [How to Wrap Callback and Future-Based APIs in Async](./guides/wrap-callback-and-future-apis.md) - Bring `Future`, `CompletionStage`, `js.Promise` and callback APIs into `Async`, and cancel the underlying call when the `Async` is cancelled
-- [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
-- [How to Fix Common Scope and Wire Compile Errors](./guides/fix-scope-and-wire-compile-errors.md) - Look up a Scope or Wire error message and apply the fix
-- [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./guides/resource-and-di-migration.md) - Move resource handling and dependency wiring to ZIO Blocks Scope, Resource, and Wire
-- [Getting Started with Mux](./guides/getting-started-with-mux.md) - Manage multiplexed bidirectional message streams with capacity limits
-- [How to Run a Mux over a Real Socket](./guides/run-a-mux-over-a-socket.md) - Carry a chat, a file upload and a heartbeat over one TCP connection, with framing, half-close, back-pressure, resets and a clean shutdown
+- [Build Your First Database Repository on SQLite](./guides/your-first-sqlite-repository.md) - Connect to SQLite, derive a table and `Repo` from one schema, write your own queries, and roll back a transaction
+- [Instrument a Program with Logs, Traces and Metrics](./guides/instrument-a-program-with-logs-traces-and-metrics.md) - Add structured logs, nested spans, a counter and a histogram to a batch job, switch to JSON logs, and test the spans
 - [Build a Small JSON Backend from Blocks](./guides/small-json-backend-from-blocks.md) - Capstone: combine schema, config, scope, SQL, the HTTP model and telemetry into one small JSON backend
-- [How to Test Code That Logs, Traces and Records Metrics](./guides/test-telemetry.md) - Capture spans, log records and counter values in memory during tests, assert on them, and keep tests from leaking into each other
-- [How to Correlate Logs and Traces Across Services](./guides/correlate-logs-and-traces.md) - Carry the trace id from one service to the next in W3C `traceparent` or B3 headers on an http-model `Request`, so every log line of one request shares one trace id
-- [Telemetry: Architecture, Patterns, and Real-World Usage](./guides/telemetry-guide.md) - Wire tracing, logging, and metrics into a running application
-- [Migrating from ZIO Schema](./guides/zio-schema-migration.md) - Step-by-step migration from ZIO Schema 1.x to ZIO Blocks Schema
-- [Coming from PureConfig, Typesafe Config or zio-config](./guides/config-library-migration.md) - Keep your `application.conf` and move its loader to ZIO Blocks config
-- [How to Read and Modify JSON Without Case Classes](./guides/json-without-case-classes.md) - Parse JSON into a tree, read and change values by path, print it back, and decode only the part you need into a case class
-- [How to Build a Schema Registry with DynamicSchema](./guides/build-a-schema-registry.md) - Store versioned event schemas as data, check incoming events against them, rebind them to Scala types, and compare versions
-- [How to Encode and Decode Records with Avro](./guides/encode-and-decode-records-with-avro.md) - Derive an Avro codec for order events, write the `.avsc` schema, encode and decode records and streams, and read the bytes with Apache Avro
-- [How to Store Case Classes in MongoDB](./guides/store-case-classes-in-mongodb.md) - Derive a BSON codec from a Schema, store support tickets in MongoDB with the Java driver, and pick how sealed traits and options are stored
-- [Coming from circe, zio-json or jsoniter-scala](./guides/json-library-migration.md) - Move JSON codecs from circe, zio-json or jsoniter-scala to one ZIO Blocks Schema
-- [Coming from fs2, ZIO Streams or Ox](./guides/streaming-library-migration.md) - Map fs2, ZIO Streams and Ox code onto ZIO Blocks `Stream`, `Pipeline` and `Sink`
-- [Coming from Magnum or doobie](./guides/migrate-from-magnum-or-doobie.md) - Map Magnum and doobie entities, transactors, queries and streams onto the `sql` module
-- [How to Generate JSON Schema from a Type and Validate Payloads Against It](./guides/generate-json-schema-and-validate-payloads.md) - Derive a JSON Schema from a `Schema`, publish it, and validate incoming JSON payloads
-- [How to Tune JSON Encoding and Decoding for Throughput](./guides/tune-json-throughput.md) - Decode JSON straight from bytes, buffers and streams, reuse derived codecs, size reader and writer buffers, and measure with JMH
-- [How to Avoid Allocation on Hot Paths](./guides/avoid-allocation-on-hot-paths.md) - Keep streams on primitive lanes, read and build `Chunk`s without boxing, swap `Option` for `Maybe`, pre-bind metric labels, and measure each change
-- [How to Write an OpenAPI Document and Export It as JSON or YAML](./guides/write-and-export-openapi.md) - Build an OpenAPI 3.1 document from component schemas and render it as JSON or YAML
-- [Generate Scala Code from a Smithy Model](./guides/generate-scala-code-from-smithy.md) - Parse a Smithy model, map its shapes to the codegen IR, emit Scala 3 and Scala 2 with `Schema` derivation, and run the generator as an sbt source generator
-- [How to Generate Scala Types from an OpenAPI Spec at Build Time](./guides/generate-scala-types-from-openapi.md) - Turn the component schemas of an OpenAPI document into case classes, enums and sealed traits with `Schema` derivation, regenerated on every sbt build
-- [How to Define Validated Newtypes and Collect Every Validation Error](./guides/validated-newtypes.md) - Wrap a primitive in a validated newtype, reject bad values at construction, and collect every validation error in one `SchemaError`
-- [How to Compute, Store and Replay Changes with Diff and Patch](./guides/diff-and-patch.md) - Diff two versions of a value, store the patch as JSON, replay an edit history with undo, and send changes as JSON patches, including RFC 6902
-- [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
-- [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL
-- [Query DSL Part 3: Extending the Expression Language](./guides/query-dsl-extending.md) - Add custom operators beyond `SchemaExpr`
-- [Query DSL Part 4: A Fluent SQL Builder](./guides/query-dsl-fluent-builder.md) - Build type-safe SELECT, UPDATE, INSERT, and DELETE statements
-- [How to Send Compact Data to an LLM with TOON and Parse the Reply](./guides/llm-data-with-toon.md) - Encode records as tabular TOON for a prompt, then decode the model's TOON reply into case classes
-- [How to Issue and Verify JWTs](./guides/issue-and-verify-jwts.md) - Sign JWTs with HMAC, RSA or EdDSA keys, verify `iss`, `aud` and `exp` with a fixed clock, and reject tampered or hostile tokens
-- [How to Protect an Endpoint with JWT Bearer Tokens](./guides/protect-endpoints-with-jwt.md) - Read the bearer token, verify the JWT, and answer 401 or 403 correctly for an `http-model` endpoint
+
+These six follow the learning path, from installing the library to a small working backend. The [guides index](./guides/index.md) lists every tutorial, how-to guide, migration guide and deep dive.
 
 ## Full API Reference
 
