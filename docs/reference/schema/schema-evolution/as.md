@@ -331,7 +331,7 @@ numericAs.from(LongModel(Long.MaxValue))
 
 ## Restrictions
 
-`As` enforces constraints that `Into` does not. Because `As.derived` must produce valid conversions in both directions, it rejects configurations that would silently lose data during a round-trip.
+`As` enforces constraints that `Into` does not. Because `As.derived` must produce valid conversions in both directions, it rejects most configurations that would lose data during a round-trip. `Option` fields that only one side has are the exception, as shown below.
 
 **Default values on asymmetric fields are rejected.** A field with a default that has no counterpart in the other type cannot be round-tripped: when converting back, the field is missing and there is no way to distinguish a real default from a missing value:
 
@@ -356,15 +356,21 @@ case class PersonB(name: String, age: Int)
 As.derived[PersonA, PersonB]  // compiles — age is present in both types
 ```
 
-**`Option` fields on one side are allowed.** An `Option` field absent from the other type round-trips cleanly: `Some(v)` becomes `None` after a round-trip, which is the only safe behaviour for a missing field:
+**`Option` fields on one side are allowed.** An `Option` field absent from the other type is dropped on the way out and comes back as `None`, so `Some(v)` does not survive a round trip:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:nest
 import zio.blocks.schema.As
 
 case class TypeA(name: String, nickname: Option[String])
 case class TypeB(name: String)
 
-As.derived[TypeA, TypeB]  // compiles
+val dropsNickname: As[TypeA, TypeB] = As.derived[TypeA, TypeB]
+```
+
+Converting a value with a nickname and back loses the nickname:
+
+```scala mdoc
+dropsNickname.into(TypeA("Ada", Some("Countess"))).flatMap(dropsNickname.from)
 ```
 
 **Numeric coercions must be invertible in both directions.** Widening `Int → Long` is automatically paired with narrowing `Long → Int`. The narrowing validates at runtime, so the round-trip is safe even though it can fail:
