@@ -12811,6 +12811,39 @@ A wider probe gave these counts after `take(2)`/`take(6)`/`take(12)`: `eval` blo
 
 **Suggested fix.** Change `Stream.scala:713-722` to the #1881 page wording: "…can run only once in total, and so does `Stream.eval` under the blocking terminals (the asynchronous terminals run it again in every cycle). … A cycle that emits nothing makes a blocking pull loop forever."
 
+### schema: the `Json`, `JsonCodec.bigIntCodec` and `JsonCodec.bigDecimalCodec` Scaladoc state the digit limit off by one
+
+Found 2026-10-28 in the post-merge review of #1878 (session `codec-review`, PR #1883), on `main` at `4e288c5f2`. Same at v0.0.56.
+
+**Summary.** The Scaladoc of `Json` (`Json.scala:40`, "rejects one with more than 308 digits"), `JsonCodec.bigIntCodec` (`JsonCodec.scala:919`, "a JSON integer of up to 308 digits") and `JsonCodec.bigDecimalCodec` (`JsonCodec.scala:955`, "a JSON number of up to 308 digits") is off by one. The reader rejects a number with 308 or more digits, so the most it accepts is 307. `JsonReader.scala:661` and `:862` on both platforms say so ("[[JsonReader.bigIntDigitsLimit]] (308) or more digits, so at most 307"), and `JsonCodecDeriverSpec.scala:448` and `:471-472` test that `"1" * 308` fails. `json.md` ("rejects one with 308 or more digits") is right.
+
+**Reproducer.** `Repro.sc`, run with `scala-cli run --server=false Repro.sc`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+val n307 = "1" * 307
+val n308 = "1" * 308
+
+println(Json.parse(n307).isRight)                     // true
+println(Json.parse(n308).left.map(_.message))         // Left(value exceeds limit for number of digits at: .)
+println(n307.fromJson[BigInt].isRight)                // true
+println(n308.fromJson[BigInt].left.map(_.message))    // Left(value exceeds limit for number of digits at: .)
+println(n307.fromJson[BigDecimal].isRight)            // true
+println(n308.fromJson[BigDecimal].left.map(_.message))// Left(value exceeds limit for number of digits at: .)
+```
+
+**Expected.** The Scaladoc states the limit the code enforces.
+
+**Impact.** Low: an API reader who sizes input to the documented limit fails at exactly 308 digits.
+
+**Test gap.** None in code (the spec covers 308); Scaladoc text isn't checked.
+
+**Suggested fix.** "rejects one with 308 or more digits" in `Json.scala:40`, and "of up to 307 digits" in `JsonCodec.scala:919` and `:955`.
+
 ## Resolved
 
 - Streams doc errors fixed in #1881 (batch 1, merge `c8c65babe`, three review rounds): `stream.md` (`repeated` described as rematerializing, a warning box quoting replaced `mapPar` Scaladoc, the wrong `fromAcquireRelease` output, the eager `FileReader`, an unreachable Scala.js merge path, the `bufferSize` claim, and no Long/Double count note in "The Reader Protocol"); the worker-thread-name, virtual-thread-fallback, Scala.js `ReadableStream`, `NioReaders.fromChannel`, `NioWriters.fromByteBuffer` and full-buffer `NioSinks` statements in `platform-differences.md`, `reader.md`, `writer.md` and `sink.md` (the thread-name text changes again once that library bug is fixed); `zero-boxing.md` saying `Sink` has unboxed `write` methods (it now also names the accumulator boxing as a known bug); `streaming-library-migration.md` telling readers to pick a sentinel on every lane; and the `SinkSentinelGuardExample`/`SinkSentinelLimitationExample` pair, replaced by `streams-examples/src/main/scala/sink/SinkSentinelExample.scala`, with a `NioStreamsSinksSpec` case that writes `Long.MaxValue` and `Double.MaxValue`. The same PR documents the two `Stream#start` findings from H-53.
