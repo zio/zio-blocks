@@ -68,7 +68,13 @@ object Step2ReportBadRowsExample {
       report.errors.foreach(println)
     }
 
-    println(readCsv(bookCodec, "title,year,authors\nZionomicon,2024,John A. De Goes\n", CsvConfig.default))
+    println(
+      readCsv(
+        bookCodec,
+        "title,year,authors\nZionomicon,2024,\"John A. De Goes, Adam Fraser and Milad Khajavi\"\n",
+        CsvConfig.default
+      )
+    )
 
     val unclosedCsv: String =
       """title,year,authors,copies

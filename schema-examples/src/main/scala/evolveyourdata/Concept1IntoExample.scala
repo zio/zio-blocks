@@ -18,7 +18,7 @@ object Concept1IntoExample extends App {
 
   val dtoToBook: Into[BookDto, BookV1] = Into.derived[BookDto, BookV1]
 
-  val zionomiconDto = BookDto("Zionomicon", "John A. De Goes", 2024.0, 1.0)
+  val zionomiconDto = BookDto("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi", 2024.0, 1.0)
 
   println(dtoToBook.into(zionomiconDto))
 }
