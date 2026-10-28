@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 // topic index pages are all drawn from it, so a guide missing here is missing from the site's navigation.
 const require = createRequire(import.meta.url);
 const docs = new URL('../../../docs/', import.meta.url);
-const [root, ...rest] = require('../../../docs/sidebars.js').guides;
+const sections = require('../../../docs/sidebars.js').guides;
 
 const isCategory = (item) => typeof item === 'object' && item.type === 'category';
 const docIds = (items) =>
@@ -22,16 +22,15 @@ const docIds = (items) =>
   );
 const categoriesIn = (items) => items.filter(isCategory).flatMap((c) => [c, ...categoriesIn(c.items)]);
 
-const sections = root.items;
 const howTo = sections.find((s) => s.label === 'How-to guides');
 
-test('the guides sidebar is one Guides category that links the guides index', () => {
-  assert.equal(rest.length, 0);
-  assert.equal(root.label, 'Guides');
-  assert.deepEqual(root.link, { type: 'doc', id: 'guides/index' });
+// The guides index (/guides/) shows this sidebar beside it (displayed_sidebar) but is not an entry in it: the navbar's
+// Guides item leads there, and its cards are the sidebar's top-level items, the four sections.
+test('the guides index is not an entry of the guides sidebar', () => {
+  assert.equal(docIds(sections).includes('guides/index'), false);
 });
 
-test('the Guides category holds the four sections, in order, and nothing else', () => {
+test('the guides sidebar holds the four sections at its top level, in order, and nothing else', () => {
   assert.deepEqual(
     sections.map((s) => s.label),
     ['Tutorials', 'How-to guides', 'Migration guides', 'Deep dives'],
@@ -53,13 +52,13 @@ test('every guide page appears in the sidebar exactly once', () => {
     .filter((f) => /\.mdx?$/.test(f) && f !== 'index.md')
     .map((f) => `guides/${f.replace(/\.mdx?$/, '')}`)
     .sort();
-  const ids = docIds([root]).filter((id) => id !== 'guides/index');
+  const ids = docIds(sections);
   assert.deepEqual(ids.filter((id, i) => ids.indexOf(id) !== i), [], 'listed twice');
   assert.deepEqual([...ids].sort(), pages);
 });
 
 test('every doc id in the sidebar names a page', () => {
-  for (const id of docIds([root]))
+  for (const id of docIds(sections))
     assert.ok(existsSync(new URL(`${id}.md`, docs)) || existsSync(new URL(`${id}.mdx`, docs)), id);
 });
 
@@ -74,7 +73,7 @@ test('every section and topic opens a generated index page under /guides/ with a
     assert.ok(c.link.description?.length > 0, `${c.label} has a description`);
   }
   // Docs are served at the site root, so guides/<x> is at /guides/<x>: a generated page and a guide never share a URL.
-  for (const id of docIds([root])) assert.equal(slugs.includes(`/${id}`), false, id);
+  for (const id of docIds(sections)) assert.equal(slugs.includes(`/${id}`), false, id);
 });
 
 test('the sections start expanded and the how-to topics start collapsed', () => {

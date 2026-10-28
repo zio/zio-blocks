@@ -41,9 +41,7 @@ The guides section has grown to 74 pages, and it shows them as one flat list:
 
 ### 1. The `guides` sidebar
 
-`docs/sidebars.js` keeps the outer "Guides" category (its link is `guides/index`). That category gives every guide its breadcrumb trail, and `SidebarCards` relies on it: on the page that is the category's link, the category's items become the cards.
-
-Inside it there are four section categories. Each section and each how-to topic gets a generated index page:
+The four section categories sit at the top level of the `guides` sidebar, with no wrapping "Guides" category (removed at the user's request during review). The guides index, `guides/index`, is not an entry in the sidebar: it shows the sidebar beside it through `displayed_sidebar: guides`, and `SidebarCards` draws the sidebar's top-level items, the four sections, as its cards. Each section and each how-to topic gets a generated index page:
 
 ```js
 {
@@ -70,7 +68,7 @@ Inside it there are four section categories. Each section and each how-to topic 
 
 The four sections start expanded (`collapsed: false`). The how-to topics start collapsed (`collapsed: true`), so the sidebar stays short. Docusaurus expands the category of the page being read on its own.
 
-Breadcrumbs become Home › Guides › How-to guides › SQL & persistence › page.
+Breadcrumbs become Home › How-to guides › SQL & persistence › page. They no longer pass through `/guides/` (the section categories give the trail); the navbar's Guides item leads there instead.
 
 ### 2. Generated index pages (13 new URLs)
 
@@ -140,7 +138,7 @@ Total: 17 tutorials + 47 how-tos + 6 migration guides + 5 deep dives (the teleme
 
 ### 4. The `/guides/` index page
 
-`docs/guides/index.md` keeps `displayed_sidebar: guides` and `<SidebarCards />`. `SidebarCards` is not changed: on this page the "Guides" category's items are the four sections, so the page shows four cards, one per section. Docusaurus shows each card's item count.
+`docs/guides/index.md` keeps `displayed_sidebar: guides` and `<SidebarCards />`. `SidebarCards` is not changed: the sidebar's top-level items are the four sections, so the page shows four cards, one per section. Docusaurus shows each card's item count.
 
 The intro paragraph gains one sentence that sends newcomers to the Tutorials section first (a link to `/guides/tutorials`).
 
@@ -181,7 +179,7 @@ The `### Learn More` links elsewhere in `docs/index.md` point to single guides a
 
 1. A script compares the doc ids in the `guides` sidebar with `ls docs/guides/*.md` (minus `index.md`) and `docs/guides/query-dsl/index.md`. Every guide must appear exactly once, and the sidebar must name no missing file.
 2. Full website build (`yarn build`, not the landing-only build), which fails on broken links.
-3. In a browser: `/guides/` shows four cards. Each section card opens its generated page. Each topic card opens its topic page. A guide page shows the sidebar with its topic expanded and the breadcrumb Home › Guides › section › topic › page.
+3. In a browser: `/guides/` shows four cards. Each section card opens its generated page. Each topic card opens its topic page. A guide page shows the sidebar with its topic expanded and the breadcrumb Home › section › topic › page.
 4. `yarn test` (its `parseIndex accepts the real docs/index.md` test reads the edited file) and `yarn check:landing` pass, and `/overview` and the regenerated `README.md` show the six curated guides.
 5. Scoped `docs/mdoc` on `docs/index.md` passes before `docs/generateReadme`.
 
