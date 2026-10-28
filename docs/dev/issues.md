@@ -12884,7 +12884,7 @@ import zio.blocks.streams._
 
 **Test gap.** None (doc text).
 
-**Suggested fix.** Replace the sentence with: "Pulls elements from the run's `Reader` with the read that matches the lane (`readInt`, `readFloat`, or the count-returning `readLongs`/`readDoubles`), so built-in sinks such as `Sink.sumLong` and `Stream#runFold` never box. Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads." and link `../primitives/reader.md`.
+**Suggested fix.** Replace the sentence with: "Pulls elements from the run's `Reader` with the read that matches the lane (`readInt`, `readFloat`, or the count-returning `readLongs`/`readDoubles`), so the elements never box. (Correction, 2026-10-28: the accumulator does box in `Sink.count`, the `Sink.sum*` sinks and `Double`-accumulator folds; see the Library bugs entry "Streams: `Sink.count`, the `Sink.sum*` sinks and `Double`-accumulator folds box the accumulator for every element". #1881 names it on the page as a known bug in 0.0.56.) Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads." and link `../primitives/reader.md`.
 
 ### docs: `mux.mdx` reads as if the registry were both lock-based and lock-free, and says `receive`/`takeOutbound` must share one thread
 
@@ -12954,6 +12954,43 @@ Found 2026-10-28 by the coordinator while preparing the streams doc-fix batch, o
 **Test gap.** None (doc text).
 
 **Suggested fix.** Rewrite the paragraph as in "Expected" (assigned to the streams doc-fix batch, session `streams-doc-fixes`).
+
+### Streams: `Stream#repeated` Scaladoc says `Stream.eval` runs only once "with both terminal families"; the async terminals run it every cycle
+
+Found 2026-10-28 in the round 2 fact-check of the streams doc-fix batch (#1881), on `main` at `4e288c5f2`. The Scaladoc isn't in v0.0.56 (it came with the streams Scaladoc rollout, #1855), but the behaviour is the same in 0.0.56.
+
+**Summary.** `streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:713-722` says: "A known bug, with both terminal families: a new cycle usually resets the previous cycle's readers … effects that run when the stream opens (`Stream.eval`, `Stream.suspend`, the `acquire` of `fromAcquireRelease`) and an `ensuring` finalizer … can run only once in total". That holds for the blocking terminals. Under `runCollectAsync` and the other `*Async` terminals, `Stream.eval` runs again in every cycle; `Stream.suspend`, the `fromAcquireRelease` acquire and `ensuring` still run once under both. Also, an empty cycle hangs only the blocking pull: the async terminal returned `Chunk()` in the probe.
+
+**Reproducer.** `Repro.sc`, run with `scala-cli run --server=false Repro.sc` (JDK 25):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-streams:0.0.56
+import zio.blocks.streams.*
+import zio.blocks.async.*
+import java.util.concurrent.atomic.AtomicInteger
+
+val sync  = AtomicInteger(0)
+val async = AtomicInteger(0)
+println(Stream.eval(sync.incrementAndGet()).++(Stream(1, 2)).repeated.take(12).runCollect)
+println(Stream.eval(async.incrementAndGet()).++(Stream(1, 2)).repeated.take(12).runCollectAsync.block)
+println(s"eval runs: blocking=${sync.get} async=${async.get}")
+// Right(Chunk(1,2,1,2,1,2,1,2,1,2,1,2))
+// Right(Chunk(1,2,1,2,1,2,1,2,1,2,1,2))
+// eval runs: blocking=1 async=6
+```
+
+A wider probe gave these counts after `take(2)`/`take(6)`/`take(12)`: `eval` blocking 1/1/1 and async 1/3/6; `acquire` 1 under both; `ensuring` 1 under both.
+
+**Expected.** The Scaladoc says what the code does: `Stream.eval` runs once in total under the blocking terminals and once per cycle under the async ones.
+
+**Root cause.** The async path rebuilds the stream every cycle: `Stream.Repeated.materializeAsync`'s `cycle()` calls `Stream.compileToReader(self)` (`Stream.scala` ~11182-11240). The sync path wraps the reader in `Reader.repeated`, which only calls `reset()` on it (`Reader.scala` `Repeated.read` / `resetInner`, ~6004-6014). Why `suspend` and the acquire still run once under async wasn't traced.
+
+**Impact.** Readers who trust the Scaladoc expect a one-time `Stream.eval` under `runCollectAsync` and get one per cycle. The page (`stream.md` "Repeating") is corrected in #1881.
+
+**Test gap.** No spec counts `Stream.eval` runs under `repeated` with the async terminals.
+
+**Suggested fix.** Change `Stream.scala:713-722` to the #1881 page wording: "…can run only once in total, and so does `Stream.eval` under the blocking terminals (the asynchronous terminals run it again in every cycle). … A cycle that emits nothing makes a blocking pull loop forever."
 
 ## Resolved
 
