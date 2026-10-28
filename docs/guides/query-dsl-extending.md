@@ -12,7 +12,7 @@ This is Part 3 of the Query DSL series. [Part 1](./query-dsl-reified-optics.md) 
 
 - Why `SchemaExpr` is deliberately closed and what that means for extension
 - Designing an `Expr` ADT that is a superset of `SchemaExpr`
-- Translating `SchemaExpr` into `Expr` via `fromSchemaExpr`
+- Translating `SchemaExpr` into `Expr` via `Expr.fromSchemaExpr`
 - Adding SQL-specific predicates: `IN`, `BETWEEN`, `IS NULL`, `LIKE`
 - Writing bridge extension methods for seamless `SchemaExpr` + `Expr` composition
 - Building a single unified SQL interpreter
@@ -46,15 +46,17 @@ FROM products
 
 None of these can be expressed with `SchemaExpr` alone. You could generate the SQL strings manually, but then you lose composability — you can no longer mix these operations with the type-safe `SchemaExpr` predicates from Parts 1 and 2.
 
-`SchemaExpr` wraps a `DynamicSchemaExpr` sealed trait that you cannot add new cases to. The public API is `SchemaExpr`; `DynamicSchemaExpr` is the raw serializable AST exposed through `.dynamic`. Instead of extending `DynamicSchemaExpr` directly, we define an `Expr` ADT that is a superset — it includes equivalent nodes for everything `SchemaExpr` can express, plus our custom SQL-specific operations. A `fromSchemaExpr` function translates `SchemaExpr` values into `Expr` by reading the underlying `DynamicSchemaExpr`, enabling seamless interoperability with a single unified interpreter.
+`SchemaExpr` wraps a `DynamicSchemaExpr` sealed trait that you cannot add new cases to. The public API is `SchemaExpr`; `DynamicSchemaExpr` is the raw serializable AST exposed through `SchemaExpr#dynamic`. Instead of extending `DynamicSchemaExpr` directly, we define an `Expr` ADT that is a superset — it includes equivalent nodes for everything `SchemaExpr` can express, plus our custom SQL-specific operations. A `Expr.fromSchemaExpr` function translates `SchemaExpr` values into `Expr` by reading the underlying `DynamicSchemaExpr`, enabling seamless interoperability with a single unified interpreter.
 
 ## Prerequisites
 
-This guide builds on [Part 1: Expressions](./query-dsl-reified-optics.md) and [Part 2: SQL Generation](./query-dsl-sql.md). You should be comfortable building `SchemaExpr` values and translating them to SQL.
+This guide builds on [Part 1: Expressions](./query-dsl-reified-optics.md) and [Part 2: SQL Generation](./query-dsl-sql.md). You should be comfortable building `SchemaExpr` values and translating them to SQL. To add the dependency:
 
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
+
+Then import the schema package:
 
 ```scala mdoc:silent
 import zio.blocks.schema._
@@ -86,7 +88,7 @@ object Product extends CompanionOptics[Product] {
 
 ## Designing the Expr ADT
 
-The key insight is the **translation pattern**: keep your public extension API typed, then provide a `fromSchemaExpr` function that lifts any built-in `SchemaExpr` into your extended ADT. Ordinary application code stays on `SchemaExpr`, `Optic`, and typed constructors. Only the interpreter internals need to inspect `.dynamic`.
+The key insight is the **translation pattern**: keep your public extension API typed, then provide an `Expr.fromSchemaExpr` function that lifts any built-in `SchemaExpr` into your extended ADT. Ordinary application code stays on `SchemaExpr`, `Optic`, and typed constructors. Only the interpreter internals need to inspect `SchemaExpr#dynamic`. The following diagram shows how the two layers relate:
 
 ```
   Built-in API                               Your extension layer
@@ -207,11 +209,11 @@ Here are some keynotes on the design:
 
 - **Type-safe aggregates** — `AggFunction[A, B]` encodes the return type: `COUNT` returns `Long`, `SUM`/`AVG` return `Double`, `MIN`/`MAX` preserve the input type.
 - **Typed public constructors** — `Column` stores an `Optic` and `Lit` stores a typed value plus its `Schema`, so extension code stays on the same public abstractions as ordinary `SchemaExpr` code.
-- **`fromSchemaExpr`** — lifts a built-in `SchemaExpr` into the extended ADT. The dynamic representation is only consulted later by the interpreter.
+- **`Expr.fromSchemaExpr`** — lifts a built-in `SchemaExpr` into the extended ADT. The dynamic representation is only consulted later by the interpreter.
 
 ## Extension Methods
 
-To make the new operations feel natural, we define implicit classes on `Optic`, `Expr`, and `SchemaExpr`. The bridge implicit class on `SchemaExpr` auto-translates at the boundary via `fromSchemaExpr`, so `SchemaExpr` and `Expr` values compose seamlessly with `&&` and `||`:
+To make the new operations feel natural, we define implicit classes on `Optic`, `Expr`, and `SchemaExpr`. The bridge implicit class on `SchemaExpr` auto-translates at the boundary via `Expr.fromSchemaExpr`, so `SchemaExpr` and `Expr` values compose seamlessly with `&&` and `||`:
 
 ```scala mdoc:silent
 implicit final class OpticExprOps[S, A](private val optic: Optic[S, A]) {
@@ -242,15 +244,15 @@ implicit final class SchemaExprBooleanBridge[S](private val self: SchemaExpr[S, 
 }
 ```
 
-The bridge implicit classes are the key to ergonomic composition. When you write `Product.category.in("Electronics") && (Product.rating >= 4)`, the `&&` on `Expr[S, Boolean]` sees a `SchemaExpr[S, Boolean]` on the right and auto-translates it. Similarly, `(Product.rating >= 4) && Product.category.in("Electronics")` uses the `SchemaExpr` bridge to translate the left side. No explicit `.toExpr` is needed in most cases.
+The bridge implicit classes are the key to ergonomic composition. When you write `Product.category.in("Electronics") && (Product.rating >= 4)`, the `&&` on `Expr[S, Boolean]` sees a `SchemaExpr[S, Boolean]` on the right and auto-translates it. Similarly, `(Product.rating >= 4) && Product.category.in("Electronics")` uses the `SchemaExpr` bridge to translate the left side. No explicit `SchemaExprBooleanBridge#toExpr` is needed in most cases.
 
 :::tip
-The `.toExpr` method is still available for cases where you need to explicitly lift a `SchemaExpr[S, Boolean]` — for example, when building `CASE WHEN` branch conditions.
+The `SchemaExprBooleanBridge#toExpr` method is still available for cases where you need to explicitly lift a `SchemaExpr[S, Boolean]` — for example, when building `CASE WHEN` branch conditions.
 :::
 
 ## The Unified SQL Interpreter
 
-With the `Expr` ADT, we write a single interpreter that handles all cases directly. Typed extension nodes stay typed; built-in `SchemaExpr` fragments delegate to a helper that reads `.dynamic` internally:
+With the `Expr` ADT, we write a single interpreter that handles all cases directly. Typed extension nodes stay typed; built-in `SchemaExpr` fragments delegate to a helper that reads `SchemaExpr#dynamic` internally:
 
 ```scala mdoc:silent
 def columnName(optic: zio.blocks.schema.Optic[_, _]): String =
@@ -411,7 +413,7 @@ Each extension method on `Optic` returns an `Expr` node. The interpreter handles
 
 ## Composing with SchemaExpr
 
-The bridge implicit classes handle the translation automatically. You can freely mix `SchemaExpr` predicates (from `===`, `>`, etc.) with `Expr` predicates (from `.in`, `.between`, etc.) using `&&` and `||`:
+The bridge implicit classes handle the translation automatically. You can freely mix `SchemaExpr` predicates (from `===`, `>`, etc.) with `Expr` predicates (from `OpticExprOps#in`, `OpticExprOps#between`, etc.) using `&&` and `||`:
 
 ```scala mdoc:silent
 // SchemaExpr values from built-in operators
@@ -426,11 +428,13 @@ val combined: Expr[Product, Boolean] =
   inCategory && priceRange && highRated
 ```
 
+To render the combined predicate:
+
 ```scala mdoc
 exprToSql(combined)
 ```
 
-The `&&` between `priceRange` (an `Expr`) and `highRated` (a `SchemaExpr`) triggers the overloaded `&&` that accepts `SchemaExpr` on the right. It calls `fromSchemaExpr` internally, so no explicit `.toExpr` is needed.
+The `&&` between `priceRange` (an `Expr`) and `highRated` (a `SchemaExpr`) triggers the overloaded `&&` that accepts `SchemaExpr` on the right. It calls `Expr.fromSchemaExpr` internally, so no explicit `SchemaExprBooleanBridge#toExpr` call is needed.
 
 You can also start from a `SchemaExpr` on the left — the bridge implicit class handles it:
 
@@ -442,6 +446,8 @@ val query: Expr[Product, Boolean] =
   Product.name.like("M%")
 ```
 
+To render the query:
+
 ```scala mdoc
 exprToSql(query)
 ```
@@ -452,6 +458,8 @@ A helper function to generate full SELECT statements from `Expr` predicates:
 def selectWhere(table: String, predicate: Expr[_, Boolean]): String =
   s"SELECT * FROM $table WHERE ${exprToSql(predicate)}"
 ```
+
+To produce a full statement:
 
 ```scala mdoc
 selectWhere("products", query)
@@ -483,6 +491,8 @@ def selectGroupBy(
 }
 ```
 
+To render the grouped query:
+
 ```scala mdoc
 selectGroupBy(
   "products",
@@ -498,7 +508,7 @@ selectGroupBy(
 
 ## CASE WHEN Expressions
 
-The `CaseWhen` node represents SQL's conditional expression. Use the `Expr.caseWhen` builder with `(condition -> result)` pairs and an optional `.otherwise` clause:
+The `CaseWhen` node represents SQL's conditional expression. Use the `Expr.caseWhen` builder with `(condition -> result)` pairs and an optional `CaseWhenBuilder#otherwise` clause:
 
 ```scala mdoc:silent
 val priceLabel: Expr[Product, String] = Expr.caseWhen[Product, String](
@@ -506,6 +516,8 @@ val priceLabel: Expr[Product, String] = Expr.caseWhen[Product, String](
   (Product.price > 10.0).toExpr   -> Expr.lit[Product, String]("moderate")
 ).otherwise(Expr.lit[Product, String]("cheap"))
 ```
+
+To render the CASE expression:
 
 ```scala mdoc
 exprToSql(priceLabel)
@@ -518,6 +530,8 @@ val stockStatus: Expr[Product, String] = Expr.caseWhen[Product, String](
   (Product.inStock === true).toExpr -> Expr.lit[Product, String]("available")
 ).otherwise(Expr.lit[Product, String]("out of stock"))
 ```
+
+To print the complete SELECT statement:
 
 ```scala mdoc
 val selectSql = s"SELECT name, price, ${exprToSql(priceLabel)} AS tier, ${exprToSql(stockStatus)} AS status FROM products"
@@ -800,4 +814,4 @@ println(s"SELECT name, price, ${exprToSql(tier)} AS tier FROM products")
 - **[SchemaExpr Reference](../reference/schema/schema-expr.md)** -- Full API coverage of expression types
 - **[Optics Reference](../reference/schema/optics.md)** -- Lens, Prism, Optional, and Traversal
 
-The translation pattern shown here extends to any domain where `SchemaExpr` falls short. The same approach works for MongoDB operators (`$in`, `$exists`, `$elemMatch`), Elasticsearch queries (`terms`, `range`, `exists`), or GraphQL filters. Define an independent ADT, provide a `fromSchemaExpr` lift for built-in expressions, add your domain-specific nodes, and let your interpreter inspect `.dynamic` only inside its internal translation helpers.
+The translation pattern shown here extends to any domain where `SchemaExpr` falls short. The same approach works for MongoDB operators (`$in`, `$exists`, `$elemMatch`), Elasticsearch queries (`terms`, `range`, `exists`), or GraphQL filters. Define an independent ADT, provide a `Expr.fromSchemaExpr` lift for built-in expressions, add your domain-specific nodes, and let your interpreter inspect `SchemaExpr#dynamic` only inside its internal translation helpers.
