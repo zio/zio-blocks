@@ -58,7 +58,27 @@ libraryDependencies += "dev.zio" %% "zio-blocks-http-htmx" % "@VERSION@"
 libraryDependencies += "dev.zio" %%% "zio-blocks-http-htmx" % "@VERSION@"
 ```
 
+On Scala 3.9 or newer, use the `zio-blocks-next-` prefix and enable experimental features:
+
+```scala
+scalaVersion := "3.9.0"
+
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "@VERSION@"
+
+scalacOptions += "-experimental"
+```
+
 Supported Scala versions: Scala 3.x. The module is cross-compiled for JVM and Scala.js.
+
+### Which htmx Version This Reference Targets
+
+The attribute syntax in this reference targets **htmx 2.x**. The examples and browser checks pin `htmx@2.0.11`:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js"></script>
+```
+
+htmx 4 parses several of these attributes differently, so a value that works in htmx 2 may do nothing in htmx 4. Pin the htmx version in your page the same way.
 
 ## Overview
 
@@ -182,7 +202,7 @@ Modifier methods return updated `HxTrigger` instances, so you can chain: `HxTrig
 
 ### Pattern 4: Out-of-Band Swaps
 
-Update multiple DOM regions with a single response using `hxSwapOob` (out-of-bounds):
+Update multiple DOM regions with a single response using `hxSwapOob` (out-of-band swap):
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
