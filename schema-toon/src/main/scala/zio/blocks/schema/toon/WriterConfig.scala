@@ -23,8 +23,8 @@ package zio.blocks.schema.toon
  * All configuration params are already initialized to default values, but in
  * some cases they should be altered:
  *   - change the indentation step (default 2 spaces per level)
- *   - change the delimiter for inline arrays (comma, tab, or pipe) written
- *     by the `DynamicValue` codec; a derived codec takes its delimiter from
+ *   - change the delimiter for inline arrays (comma, tab, or pipe) written by
+ *     the `DynamicValue` codec; a derived codec takes its delimiter from
  *     [[ToonCodecDeriver.withDelimiter]] instead
  *   - enable key folding to write a chain of single-field records as one
  *     dot-separated key (`DynamicValue` codec only)
