@@ -326,7 +326,7 @@ Actions:
   - **Skip: interpolator plumbing.** `CssStringContext` ✗, `HtmlStringContext` ✗, `JsStringContext` ✗, `SelectorStringContext` ✗, `TemplateInterpolators` ✗, `InterpolatorRuntime` ✗, `HtmlElements` ✗, `DomModifierConversions` ✗, `LowPriorityToJs` ✗, `JsValue` ✗. These match the naming patterns in *Deliberately Undocumented*; the interpolator syntax is documented, its machinery should not be.
   - [ ] Add an ADT reference section naming the selector, colour, and modifier types behind the DSL
 - **`datastar`** (28 unexplained) — same shape: `EventModifier` ✗, `CaseModifier` ✗, `InitModifier` ✗, `IntersectModifier` ✗, `OnIntervalModifier` ✗, `OnSignalPatchModifier` ✗, `DataOn` ✗, `PatchSignals` ✗, `PatchElements` ✗, `DatastarAttributes` ✗, `DatastarAttrKey` ✗, `ToDatastarExpr` ✗, `DataSignalsBuilder` ✗, `EventType` ✗. The 0.18 ratio is the bigger problem: 346 lines for 1,881 source lines.
-  - [ ] Expand `datastar.md` — each SSE event type needs a worked example; add an attribute-DSL type reference
+  - [x] Expand `datastar.md` — **done** in the split under `reference/datastar/`: each SSE event has a worked example in `sse.md`, and `attributes.md` covers the attribute-DSL types (`ToDatastarExpr`, `DatastarAttrKey`)
 - **`schema-xml`** (15 unexplained) — `XmlCodecError` ✗, `XmlWriter` ✗, `XmlCodecDeriver` ✗ (657 lines), `SetAttribute` ✗, `RemoveAttribute` ✗, `ElementBuilder` ✗
   - [ ] Add error-handling and deriver/customization sections to `built-in-codecs/xml.md`
 - **`schema-yaml`** (8 unexplained) — `YamlCodecError` ✗, `YamlTag` ✗, `YamlSyntax` ✗, `YamlStringContext` ✗; 552 doc lines for 2,753 source lines
@@ -444,7 +444,7 @@ Ordered by user impact per unit of writing effort. The ranking below predates th
 
 **Tier 3 — depth on thin pages**
 
-25. - [ ] Expand `datastar.md` (ratio 0.18)
+25. - [x] Expand `datastar.md` (ratio 0.18) — **done**: the page is now five pages under `reference/datastar/`, 1,209 lines in all (was 346)
 26. - [ ] Expand `async.md` (ratio 0.20) — the user-facing direct-style surface, not the CPS internals
 27. - [x] Expand `smithy.md` — **done**: ratio 0.21 → 0.34 (533 → 881 lines)
 28. - [ ] Expand `html.md` with the Scala 2 argument encoding, the `DomModifier`/`ToDom`/`ToText` extension points, and a selector-node table — CSS values done
