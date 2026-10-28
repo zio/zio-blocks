@@ -19,7 +19,7 @@ Key properties:
 - **Multi-column** — a single codec spans any number of database columns; a case class codec produces one column per field.
 - **Label-based and positional** — `readValue` supports order-independent decoding by column label or fast 1-based positional access per the JDBC convention.
 - **Schema-driven** — `DbCodec.derived` and `DbCodecDeriver` produce codecs automatically from a `Schema[A]` at compile time, with no runtime reflection.
-- **Null-safe** — `Option[A]` and `Maybe[A]` codecs handle SQL `NULL` transparently; non-optional types throw `IllegalStateException` on unexpected `NULL`, surfacing schema mismatches immediately rather than silently coercing.
+- **Explicit about `NULL`** — `Option[A]` and `Maybe[A]` codecs read SQL `NULL` as `None` and `Maybe.absent`. Non-optional types do not all reject it: `BigDecimal` and a derived `Char` field throw `IllegalStateException`, but in 0.0.56 a `String` reads `NULL` as `null` and the numeric types and `Boolean` read it as `0` and `false`, a known bug (see [Reading SQL `NULL`](#reading-sql-null)). Map every nullable column to `Option`, except a decimal one: in 0.0.56, `Option[BigDecimal]` also throws on `NULL`.
 
 ## Core API
 
@@ -370,12 +370,12 @@ val codec: DbCodec[Order] =
 | `Float`                | `floatCodec`       | `DbValue.DbFloat`            |                                                    |
 | `Short`                | `shortCodec`       | `DbValue.DbShort`            |                                                    |
 | `Byte`                 | `byteCodec`        | `DbValue.DbByte`             |                                                    |
-| `BigDecimal`           | `bigDecimalCodec`  | `DbValue.DbBigDecimal`       | Throws on SQL `NULL`; use `Option[BigDecimal]` for nullable columns. |
+| `BigDecimal`           | `bigDecimalCodec`  | `DbValue.DbBigDecimal`       | Throws on SQL `NULL`; in 0.0.56 `Option[BigDecimal]` throws too (see [Reading SQL `NULL`](#reading-sql-null)). |
 | `java.time.Instant`    | `instantCodec`     | `DbValue.DbInstant`          |                                                    |
 | `Option[A]`            | `optionCodec`      | inner or `DbValue.DbNull`    | Requires a `DbCodec[A]`; single-column inner only. |
 | `Maybe[A]`             | `maybeCodec`       | inner or `DbValue.DbNull`    | Requires a `DbCodec[A]`; single-column inner only. |
 
-All primitive codecs set their single column name to `"value"`. When a primitive codec is used as part of a record derivation, `DbCodecDeriver` replaces the column name with the field name (after applying the `SqlNameMapper`).
+Of these, only `BigDecimal` throws on SQL `NULL`; [Reading SQL `NULL`](#reading-sql-null) shows what the others return. All primitive codecs set their single column name to `"value"`. When a primitive codec is used as part of a record derivation, `DbCodecDeriver` replaces the column name with the field name (after applying the `SqlNameMapper`).
 
 ## Core Operations
 
@@ -495,6 +495,52 @@ val codec = DbCodec[User]
 
 // Calling with explicit labels — useful for custom result processing
 // codec.readValue(reader, IndexedSeq("id", "name")) → User(...)
+```
+
+#### Reading SQL `NULL`
+
+A column that may hold `NULL` belongs in an `Option` (or `Maybe`) field. The `Option` codec reads the inner value, then checks `DbResultReader#wasNull` and returns `None` for a `NULL`.
+
+A non-optional field does not reliably reject a `NULL`. Only the `BigDecimal` codec and the `Char` codec that `DbCodecDeriver` uses throw `IllegalStateException`. In 0.0.56, the other primitive codecs return whatever the JDBC getter returns, a known bug: a `String` field holds `null`, and an `Int`, `Long`, `Double` or other numeric field holds `0` (`false` for a `Boolean`). `Frag#query`, `Frag#queryStream` and `Repo` all decode through these codecs, so a nullable column mapped to a non-`Option` field passes silently.
+
+The two codecs that do throw have the opposite problem. The JDBC reader only learns that a column is `NULL` after the inner codec has read it, and the `BigDecimal` and `Char` codecs throw during that read, so in 0.0.56 `Option[BigDecimal]`, `Option[Char]` and their `Maybe` forms throw on `NULL` too, another known bug. Until it is fixed, read a nullable decimal column as `Option[String]` and convert it with `BigDecimal(_)`.
+
+To see all of this, we read a table with one row of `NULL`s and one complete row into records with plain fields, with `Option` fields, and with a `BigDecimal` price in each form:
+
+```scala mdoc:reset
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql._
+
+case class Sale(id: Long, title: String, quantity: Int) derives DbCodec
+case class NullableSale(id: Long, title: Option[String], quantity: Option[Int]) derives DbCodec
+case class Price(id: Long, price: BigDecimal) derives DbCodec
+case class NullablePrice(id: Long, price: Option[BigDecimal]) derives DbCodec
+case class PriceText(id: Long, price: Option[String]) derives DbCodec
+
+def errorOf[A](read: => A): Either[String, A] = Try(read).toEither.left.map(_.getMessage)
+
+val (plain, nullable, price, nullablePrice, priceFromText) =
+  JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite).transact {
+    sql"CREATE TABLE sale (id INTEGER NOT NULL, title TEXT, quantity INTEGER, price NUMERIC)".update
+    sql"INSERT INTO sale (id) VALUES (1)".update
+    sql"INSERT INTO sale VALUES (2, 'Zionomicon', 3, 49.99)".update
+
+    (
+      sql"SELECT id, title, quantity FROM sale ORDER BY id".query[Sale],
+      sql"SELECT id, title, quantity FROM sale ORDER BY id".query[NullableSale],
+      errorOf(sql"SELECT id, price FROM sale ORDER BY id".query[Price]),
+      errorOf(sql"SELECT id, price FROM sale ORDER BY id".query[NullablePrice]),
+      sql"SELECT id, price FROM sale ORDER BY id".query[PriceText].map(_.price.map(BigDecimal(_)))
+    )
+  }
+```
+
+The plain record reads the first row as `Sale(1, null, 0)`, which looks like a sale of zero copies with no title, while the `Option` record reports both columns as missing. Both `BigDecimal` forms fail on the `NULL` price, and reading the price as text gives `None` for the first row and the decimal for the second.
+
+```scala mdoc:invisible
+// restore the root `zio` package that `import zio.blocks.sql._` above shadows
+import _root_.zio
 ```
 
 ### Writing / Encoding
