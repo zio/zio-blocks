@@ -1,6 +1,7 @@
 ---
 id: query-dsl-reified-optics
 title: "Query DSL with Reified Optics — Part 1: Expressions"
+description: "Write type-safe, composable query expressions over any schema-equipped type using reified optics: comparisons, boolean logic, arithmetic, strings and collections."
 ---
 
 In this guide, we will build a type-safe query DSL for filtering, comparing, and computing over domain data using ZIO Blocks' reified optics and schema expressions. By the end, you will have a composable query language that works on any schema-equipped data type, supporting equality checks, comparisons, boolean logic, arithmetic, and string operations.

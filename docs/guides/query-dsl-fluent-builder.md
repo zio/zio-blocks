@@ -1,6 +1,7 @@
 ---
 id: query-dsl-fluent-builder
 title: "Query DSL with Reified Optics — Part 4: A Fluent SQL Builder"
+description: "Build type-safe SELECT, UPDATE, INSERT and DELETE statements with a fluent builder that takes both SchemaExpr and Expr conditions without manual lifting."
 ---
 
 In this guide, we will build a fluent, type-safe SQL statement builder on top of the query expression language from Parts 1–3. By the end, you will have builder functions for SELECT, UPDATE, INSERT, and DELETE that compose naturally with both built-in `SchemaExpr` operators and extended `Expr` operators — no manual `.toExpr` lifting required.

@@ -1,6 +1,7 @@
 ---
 id: query-dsl-sql
 title: "Query DSL with Reified Optics — Part 2: SQL Generation"
+description: "Turn query expressions into SQL WHERE clauses, SELECT statements and parameterized queries, then add upserts, keyset pagination and compile-time SQL dumps."
 ---
 
 In this guide, we will build a SQL query generator that translates ZIO Blocks' `SchemaExpr` expression trees into SQL WHERE clauses, SELECT statements, and parameterized queries. By the end, you will have an interpreter that takes any `SchemaExpr`-based query and produces executable SQL, covering comparisons, boolean logic, arithmetic, string operations, nested structures, and safe parameterization.

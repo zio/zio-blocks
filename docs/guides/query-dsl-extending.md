@@ -1,6 +1,7 @@
 ---
 id: query-dsl-extending
 title: "Query DSL with Reified Optics — Part 3: Extending the Expression Language"
+description: "Add SQL predicates such as IN, BETWEEN, IS NULL and LIKE, aggregate functions and CASE WHEN to the query language with your own Expr type."
 ---
 
 In this guide, we will extend the ZIO Blocks query DSL with an expression language that goes beyond what `SchemaExpr` provides out of the box. By the end, you will have an `Expr` ADT that adds SQL-specific predicates (`IN`, `BETWEEN`, `IS NULL`, `LIKE`), type-safe aggregate functions (`COUNT`, `SUM`, `AVG`), and conditional expressions (`CASE WHEN`) — all composable with the built-in `SchemaExpr` operators from Parts 1 and 2.

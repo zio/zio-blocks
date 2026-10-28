@@ -1,6 +1,7 @@
 ---
 id: compile-time-resource-safety-with-scope
 title: "Compile-Time Resource Safety with Scope"
+description: "Manage resources with Scope so the compiler rejects leaked or misused ones, then share them through dependency injection with Wire."
 ---
 
 Welcome to ZIO Blocks Scope—a library that makes resource management safe, composable, and verifiable at compile time. If you've ever struggled with `try/finally` chains, wondered when to close a database connection, or worried about resources outliving their owners, this tutorial is for you. You don't need any prior experience with Scope or advanced type system concepts to follow along.
