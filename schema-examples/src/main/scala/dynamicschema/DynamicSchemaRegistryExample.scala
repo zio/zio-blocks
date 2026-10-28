@@ -28,8 +28,10 @@ object DynamicSchemaRegistryExample extends App {
 
   // ── Schema registry (in-memory simulation) ────────────────────────────────
   // In production this would be a remote service (e.g. Confluent Schema Registry).
-  // DynamicSchema.toDynamicValue strips all Scala closures, so the blob can be
-  // stored as JSON or bytes without any issue.
+  // DynamicSchema.toDynamicValue strips all Scala closures. To store the schema,
+  // encode it with Schema[DynamicSchema].derive(AvroFormat): in 0.0.56 a schema
+  // written as JSON, YAML, TOON or MessagePack reads back as one that accepts
+  // any value.
 
   def registerSchema(registry: Map[String, DynamicValue], id: String, schema: Schema[_]): Map[String, DynamicValue] = {
     val blob = DynamicSchema.toDynamicValue(schema.toDynamicSchema)

@@ -1044,17 +1044,21 @@ Use this when you want structural schema evolution as first-class data rather th
 
 ### Schema Serialization
 
-ZIO Schema supports serializing a schema itself (via `schema.serializable`, a `Schema[Schema[A]]`). In ZIO Blocks, the serializable form of a schema is its `DynamicSchema`: `DynamicSchema.schema` is a `Schema[DynamicSchema]`, so any codec can store and load one. A loaded `DynamicSchema` checks values directly, or turns into a `Schema[A]` with `DynamicSchema#rebind`:
+ZIO Schema supports serializing a schema itself (via `schema.serializable`, a `Schema[Schema[A]]`). In ZIO Blocks, the serializable form of a schema is its `DynamicSchema`, and `DynamicSchema.schema` is a `Schema[DynamicSchema]`. In 0.0.56, only its Avro codec reads a stored schema back intact: through JSON, YAML, TOON or MessagePack it comes back as a schema that accepts any value (a known bug). The Avro codec comes from the `zio-blocks-schema-avro` module. A loaded `DynamicSchema` checks values directly, or turns into a `Schema[A]` with `DynamicSchema#rebind`:
 
 ```scala mdoc:silent
-val stored: String = DynamicSchema.schema.jsonCodec.encodeToString(dynSchema)
-val loaded         = DynamicSchema.schema.jsonCodec.decode(stored)
+import zio.blocks.schema.avro.AvroFormat
+
+val dynamicSchemaCodec  = DynamicSchema.schema.derive(AvroFormat)
+val stored: Array[Byte] = dynamicSchemaCodec.encode(dynSchema)
+val loaded              = dynamicSchemaCodec.decode(stored)
 ```
 
-The schema loaded back from JSON accepts the same value:
+The schema loaded back from Avro bytes accepts the complete value and rejects the incomplete one:
 
 ```scala mdoc
 println(loaded.map(_.conforms(value)))
+println(loaded.map(_.conforms(incomplete)))
 ```
 
 The stored form keeps field names, cases, type ids, modifiers, docs and `Validation` constraints, but not the bindings or the default values of case class fields. A schema of a recursive type cannot be stored this way in 0.0.56 (a known bug). [How to Build a Schema Registry](./build-a-schema-registry.md) builds a registry on this API.
@@ -1408,7 +1412,7 @@ The following ZIO Schema features do not yet have equivalents in ZIO Blocks Sche
 |------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
 | `Schema.fail` / fail schemas                               | Not available                                                                                                                              |
 | `schema.migrate` / `schema.coerce`                         | Replaced by explicit [`Migration.newBuilder[A, B]`](../reference/schema/migration.md) and `Into[A, B]`                                     |
-| `MetaSchema` / schema serialization                        | Replaced by `DynamicSchema`: stored with `DynamicSchema.schema`, rebound with `DynamicSchema#rebind`; recursive types cannot be stored yet |
+| `MetaSchema` / schema serialization                        | Replaced by `DynamicSchema`: stored as Avro via `DynamicSchema.schema`, rebound by `DynamicSchema#rebind`; recursive types can't be stored |
 | `Fallback[A, B]` schema                                    | Not available                                                                                                                              |
 | `NonEmptyChunk` / `NonEmptySet` / `NonEmptyMap` schemas    | Not available — use wrapper types                                                                                                          |
 | `Schema.singleton` / singleton schemas                     | Not available                                                                                                                              |
