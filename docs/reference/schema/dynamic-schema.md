@@ -310,7 +310,7 @@ rebound.fromDynamicValue(encoded)
 If `DynamicSchema#rebind` cannot find a binding for any type in the unbound schema tree, it throws a `RebindException` at runtime. Ensure the resolver covers every concrete type — records, variants, wrappers, primitives, and standard collections — that appears in the schema. `BindingResolver.defaults` covers all standard primitives, `java.time` types, `List`, `Vector`, `Set`, `Map` and the other standard collections, but not `Option`.
 :::
 
-Rebinding a schema with an `Option` field and only `BindingResolver.defaults` behind the record fails. The error names `Some`, the first case of the `Option` that has no binding:
+Rebinding a schema with an `Option` field and only `BindingResolver.defaults` behind the record fails. Consider a book with two optional fields:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema._
@@ -322,12 +322,14 @@ object Book { implicit val schema: Schema[Book] = Schema.derived[Book] }
 val stored: DynamicSchema = Schema[Book].toDynamicSchema
 ```
 
+The rebind stops at the first `Option` case it can't bind and names its type and path:
+
 ```scala mdoc
 try stored.rebind[Book](BindingResolver.empty.bind(Binding.of[Book]) ++ BindingResolver.defaults)
 catch { case e: RebindException => e.getMessage }
 ```
 
-Each `Option[A]` needs three bindings: `Binding.of[Option[A]]` for the `Option` itself, a `Some` case for its element type, and `Binding.Record.none`, which serves every element type. `Binding.Record.some[A]` builds the `Some` case for a reference type such as `String`, and `Binding.Record.someInt`, `Binding.Record.someLong`, `Binding.Record.someDouble` and their siblings build it for primitives:
+Each `Option[A]` needs three bindings: `Binding.of[Option[A]]` for the `Option` itself, a `Some` case for its element type, and `Binding.Record.none`, which serves every element type; leaving out the last one fails the same way, naming `scala.None`. `Binding.Record.some[A]` builds the `Some` case for a reference type such as `String`, and `Binding.Record.someInt`, `Binding.Record.someLong`, `Binding.Record.someDouble` and their siblings build it for primitives:
 
 ```scala mdoc:silent
 val withOptions: BindingResolver =
@@ -491,7 +493,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 After transporting a `DynamicSchema`, you may not have the Scala types that `DynamicSchema#rebind` requires. For example, when the consumer is a validation gateway or format converter that handles arbitrary event shapes, any codec pipeline that accepts `Schema[DynamicValue]` can use the result directly. The conversion runs `DynamicSchema#check`, which compares primitive types exactly, so `DynamicSchema#toSchema` suits input whose `DynamicValue`s carry the exact primitive types, such as values made by `Schema#toDynamicValue` or read with `Schema[DynamicValue].derive(AvroFormat)`.
 
-JSON input is a poor fit. The JSON codec of `Schema[DynamicValue]` reads a whole number as an `Int` or a `Long`, every other number as a `BigDecimal`, and an `Option` as a bare value or `null`, so a valid JSON event is rejected when it has a `Double` or `Float` field, a `Long` field holding a value that fits in an `Int`, a `BigDecimal` field holding a whole number, or an `Option` field. For JSON input, rebind the schema and decode with the rebound schema's JSON codec.
+JSON input is a poor fit. The JSON codec of `Schema[DynamicValue]` reads a string as a `String`, a whole number as an `Int` or a `Long`, every other number as a `BigDecimal`, and an `Option` as a bare value or `null`, so a valid JSON event is rejected when it has a field of another primitive type (such as `Double`, `Float`, `BigInt`, `Instant` or `UUID`), a `Long` field holding a value that fits in an `Int`, a `BigDecimal` field holding a whole number, or an `Option` field. For JSON input, rebind the schema and decode with the rebound schema's JSON codec.
 
 :::warning
 Use `DynamicSchema#rebind` instead when you have a `BindingResolver` and need a fully operational `Schema[A]` for typed encoding and decoding.
