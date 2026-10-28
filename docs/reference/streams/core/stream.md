@@ -126,11 +126,11 @@ import java.io.*
 // Open a file and count non-whitespace characters
 val charCount: Either[IOException, Long] =
   Stream
-    .fromJavaReader(new FileReader("build.sbt"))  // lazily acquires file handle
+    .fromAcquireRelease(new FileReader("build.sbt"))(Stream.fromJavaReaderUnmanaged)  // opens the file when the stream runs
     .filter(!_.isWhitespace)  // process only non-whitespace
     .count  // count all matching characters
-// ✓ File automatically closes in finally block (success or error)
-// ✓ If FileReader throws, or filter throws, or count throws—cleanup still runs
+// ✓ The file closes when the stream ends: on success, on a read error, or on an early stop
+// ✓ If reading, filter, or count throws after the file opens, it still closes
 // ✓ No manual try/finally needed; no resource leak risk
 // ✓ Multiple resources (files, connections, etc.) compose naturally
 ```
@@ -1216,7 +1216,7 @@ The practical consequence is that `n` can be a configuration value that is allow
 
 ### Buffer Sizing
 
-Concurrent readers on the synchronous lane use ring-buffer queues sized by the enclosing buffer-size region. The default is 64 (the library-internal `Stream.DefaultBufferSize`, which is not part of the public API).
+`Stream.bufferSize(n)` sets the queue size of the concurrent operators built inside it, in place of the default 64 (the library-internal `Stream.DefaultBufferSize`, which is not part of the public API). On the JVM, `n` is the size of each ring-buffer queue of a `mapPar` whose upstream is synchronous:
 
 ```scala mdoc:compile-only
 import zio.blocks.streams._
@@ -1236,6 +1236,10 @@ require(n >= 1 && (n & (n - 1)) == 0, s"bufferSize must be a positive power of 2
 ```
 
 Nested regions use the innermost size. Larger buffers absorb bursty producers; smaller ones cut memory when many slots are open at once. The default suits most workloads. On the asynchronous lane its reach is narrower: `mapPar` and `mapParAsync` ignore it entirely, because each slot holds exactly one unfinished effect and the bound is the slot count, while `mergeAll` and `flatMapPar` still pass it down, where it sizes the buffered stages inside each compiled inner stream.
+
+:::warning[Known bug in 0.0.56: blocking terminals ignore `bufferSize`]
+A JVM blocking terminal (`runCollect`, `run` and the rest) ignores `n` and keeps queues of 64, unless the stream also has an asynchronous stage, `catchAll`, `catchDefect` or `orElse`. The `*Async` terminals (`runCollectAsync`, `runAsync` and the rest) use `n`, so run the stream with one of them when the queue size matters.
+:::
 
 `Pipeline.buffer(n)` is a different tool for a different job: it inserts a bounded buffer between two stages rather than resizing the queues inside one concurrent reader, and it participates in the asynchronous reader graph on both platforms.
 
@@ -1288,13 +1292,13 @@ Closing is idempotent and it waits. The reader will not report closed until the 
 
 Which engine a concurrent operator materializes depends on the kind of reader its upstream compiled to, and the two engines differ far more than the two platforms do.
 
-| Materialization                 | JVM reader                              | Scala.js reader                 | What actually overlaps                     |
-|---------------------------------|-----------------------------------------|---------------------------------|--------------------------------------------|
-| `mapPar`, synchronous upstream  | `ConcurrentMapParReader` family         | `Reader.MappedInt` and siblings | one worker thread per slot                 |
-| `mapPar`, asynchronous upstream | `AsyncConcurrentReaders.mapPar`         | `AsyncConcurrentReaders.mapPar` | nothing; `f` is wrapped in `Async.succeed` |
-| `mapParAsync`, always           | `AsyncConcurrentReaders.mapPar`         | `AsyncConcurrentReaders.mapPar` | whatever the `Async` callbacks suspend on  |
-| `mergeAll` from a `Reader`      | `AsyncConcurrentReaders.merge`          | `AsyncConcurrentReaders.merge`  | whatever the inner streams suspend on      |
-| `mergeAll` via the interpreter  | `IntConcurrentMergeReader` and siblings | `Reader.FlatMappedRef`          | one drainer thread per slot on the JVM     |
+| Materialization                 | JVM reader                              | Scala.js reader                     | What actually overlaps                     |
+|---------------------------------|-----------------------------------------|-------------------------------------|--------------------------------------------|
+| `mapPar`, synchronous upstream  | `ConcurrentMapParReader` family         | `Reader.MappedInt` and siblings     | one worker thread per slot on the JVM      |
+| `mapPar`, asynchronous upstream | `AsyncConcurrentReaders.mapPar`         | `AsyncConcurrentReaders.mapPar`     | nothing; `f` is wrapped in `Async.succeed` |
+| `mapParAsync`, always           | `AsyncConcurrentReaders.mapPar`         | `AsyncConcurrentReaders.mapPar`     | whatever the `Async` callbacks suspend on  |
+| `mergeAll` from a `Reader`      | `AsyncConcurrentReaders.merge`          | `AsyncConcurrentReaders.merge`      | whatever the inner streams suspend on      |
+| `mergeAll` via the interpreter  | `IntConcurrentMergeReader` and siblings | not reached (no blocking terminals) | one drainer thread per slot on the JVM     |
 
 Read the second row before choosing an operator. Once the upstream compiles to an `AsyncReader`, `Platform.createMapParReaderFromReader` routes `mapPar` to the shared asynchronous engine with the mapping function wrapped as `Async.succeed(f(a))` — an already-complete effect. The slots and the selector are all still there, but there is nothing for them to overlap, on either platform. `mapParAsync` exists precisely because a callback that returns a real `Async` is the only way to get concurrency out of that lane.
 
@@ -1306,15 +1310,11 @@ The threads are named, which makes them identifiable in a thread dump. `mapPar` 
 
 #### Scala.js
 
-There is no parallelism on Scala.js either way — `Platform.supportsConcurrency` is `false` and `Platform.startVirtualThread` throws `UnsupportedOperationException`. But "no parallelism" resolves into two different mechanisms, and only one of them is sequential in the sense the scaladoc suggests.
+There is no parallelism on Scala.js — `Platform.supportsConcurrency` is `false` and `Platform.startVirtualThread` throws `UnsupportedOperationException`. What runs in its place depends on the operator.
 
-When the pipeline compiles end to end to a `SyncReader`, the operator really is sequential: `Platform.createMapParReaderFromReader` builds an ordinary mapped reader (`Reader.MappedIntInt`, `Reader.MappedInt`, `Reader.MappedLong`, and the rest), and the synchronous merge path builds a `Reader.FlatMappedRef` — one that throws `UnsupportedOperationException` if an inner stream turns out to be asynchronous.
+`Stream#mapPar` runs as a plain `map` when every stage before it is synchronous: `Platform.createMapParReaderFromReader` builds an ordinary mapped reader (`Reader.MappedIntInt`, `Reader.MappedInt`, `Reader.MappedLong`, and the rest) that maps one element at a time. When an asynchronous stage, `catchAll`, `catchDefect` or `orElse` comes before it, the upstream compiles to an `AsyncReader` and the shared asynchronous engine runs it with each call wrapped in a completed `Async`, so nothing overlaps.
 
-When the pipeline is on the asynchronous lane, the concurrent engine runs, with immediately-ready effects standing in for suspension. The effect is still sequential, but the *semantics* are the concurrent engine's: **unordered arrival is retained**.
-
-:::warning[The scaladoc is a throughput claim, not an ordering claim]
-The scaladoc on `Stream#mapPar`, `Stream#flatMapPar`, and `Stream.mergeAll` says that on Scala.js each "degrades to sequential `map`" or "sequential `flatMap`". That describes the synchronous-lane case as though it were the whole story. Never read it as a promise about element order.
-:::
+`Stream#flatMapPar` and `Stream.mergeAll` always run on the shared asynchronous engine (`AsyncConcurrentReaders.merge`), because Scala.js has only the `*Async` terminals and the synchronous merge reader is built only by the JVM's blocking interpreter. The inner streams' asynchronous waits overlap, but synchronous work inside them runs one inner stream at a time, and elements leave in the order they arrive. As on the JVM, none of the three operators promises input order.
 
 [Platform Differences](../execution-and-compatibility/platform-differences.md#concurrency-and-threading) states the same split from the platform side, including the full capability surface of `Platform`.
 
@@ -1601,7 +1601,7 @@ val result = separated.runCollect
 
 ### Repeating
 
-`repeated` — Rematerializes the stream after each clean completion, emitting the whole sequence again indefinitely. A typed error or a defect terminates the repetition.:
+`repeated` — Repeats the stream forever: when a cycle completes, the next one starts. A typed error or a defect ends the repetition, and closing the result (for example with a downstream `take`) closes the active cycle:
 
 ```scala
 abstract class Stream[+E, +A] {
@@ -1618,6 +1618,10 @@ val original = Stream(1, 2)
 val repeated = original.repeated.take(6)
 val result = repeated.runCollect
 ```
+
+:::warning[Known bug in 0.0.56: a new cycle resets readers instead of rebuilding the stream]
+With both terminal families, a new cycle usually resets the previous cycle's readers instead of building the stream again. `Stream(...)`, `Stream.fromChunk`, `Stream.fromIterable`, `Stream.range` and `Stream.unfold`, with `map` or `filter` over them, repeat correctly, as above. But effects that run when the stream opens (`Stream.eval`, `Stream.suspend`, the `acquire` of `Stream.fromAcquireRelease`) and an `ensuring` finalizer around the whole cycle can run only once in total, `mapAccum` and `distinct` keep their state from one cycle to the next, `Stream.fromIterator` hangs or stops after one cycle, and `Stream.fromInputStream` fails with `UnsupportedOperationException`. A cycle that emits nothing can make the pull loop forever.
+:::
 
 ### Side Effects
 
@@ -1768,9 +1772,9 @@ This is the fundamental pattern for safe resource handling:
 2. **Use** — streams elements from the resource
 3. **Release** — closes the resource in a `finally` block (always runs, even on error)
 
-Here's an example with automatic cleanup:
+In the example below, the connection opens when `runCollect` starts and closes when the stream ends:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 case class DatabaseConnection(id: String) {
@@ -1787,14 +1791,11 @@ val managed = Stream.fromAcquireRelease(
 )(conn => Stream.fromIterable(conn.query("SELECT *")))
 
 val result = managed.runCollect
-// Output:
-// Opening database connection
-// Closing database connection  <-- always happens
 ```
 
-Even if the stream fails, cleanup runs:
+Even if the stream fails, cleanup runs before the `Left` comes back:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.streams.*
 
 val managed = Stream.fromAcquireRelease(
@@ -1803,10 +1804,6 @@ val managed = Stream.fromAcquireRelease(
 )(_ => Stream.fail("error occurred"))
 
 val result = managed.runCollect
-// Output:
-// Opening
-// Closing resource  <-- cleanup still runs even with error
-// result: Either[String, Chunk[Nothing]] = Left("error occurred")
 ```
 
 ### `Stream.fromResource[R, E, A]`
@@ -2262,6 +2259,8 @@ For primitive types, specialized methods avoid boxing:
 - `readDouble(sentinel: Double): Double`
 
 These are the eight exact physical methods selected by `Reader.jvmType`. The tag describes the reader's actual representation and method contract, so a known primitive lane survives type-preserving wrappers and static widening. Operations that produce a different element type select their output lane from result `JvmType.Infer` evidence.
+
+On the `Long` and `Double` lanes, the library never detects end-of-stream with `readLong(sentinel)` or `readDouble(sentinel)`, because every `Long` and `Double` value is legal data: it reads one element at a time with `readLongs(scratch, 0, 1)` or `readDoubles(scratch, 0, 1)` and stops when the returned count is negative. [EOF Signalling Per Lane](../execution-and-compatibility/zero-boxing.md#eof-signalling-per-lane) lists the end-of-stream signal of every lane.
 
 :::note
 Avoid holding references to a `Reader` obtained via `start` outside its `Scope`. The scope guarantees cleanup; escaping the reader defeats that guarantee.
