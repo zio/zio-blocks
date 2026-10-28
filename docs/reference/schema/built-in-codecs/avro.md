@@ -318,6 +318,14 @@ val input = new ByteArrayInputStream(bytes)
 val result = codec.decode(input)
 ```
 
+### Decoding Trusts the Reader's Schema
+
+Avro binary carries no field names and no type name, so `AvroCodec#decode` reads the bytes with the schema of the type that you asked for. It does not check that the bytes were written for that type. Bytes written for `Shipped(orderId: Long, carrier: String)` decode without error as `Priority(orderId: Long, priority: Int)` and return wrong values. This is a known bug in 0.0.56, not a choice of the format. Keep the writer and the reader on the same schema version, and check a version field before you decode when the two sides can drift apart.
+
+A second known bug in 0.0.56: `AvroCodec#decode` decodes one value and returns `Right` without checking that the input is used up. A message with extra bytes at the end decodes as the first record, and the extra bytes are ignored. Until the bug is fixed, the codec cannot reject such input, so check the message length in your own code when a message must be exact.
+
+The how-to guide [Encode and Decode Records with Avro](../../../guides/encode-and-decode-records-with-avro.md) shows the full round trip with another Avro library.
+
 ---
 
 ## AvroCodecDeriver
@@ -347,11 +355,91 @@ val codec = Person.schema.derive(AvroFormat)
 
 ### Primitive Type Support
 
-All 27 ZIO Schema primitives are supported:
+All 27 ZIO Schema primitives are supported. Each one maps to an Avro type, and the table in [Avro Types for Scala Types](#avro-types-for-scala-types) lists the shape of the common ones:
 - Numeric: `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `BigInt`, `BigDecimal`
-- Logical: `Boolean`, `Char`, `String`
+- Character and text: `Char` (written as an `int` code point), `Boolean`, `String`
 - Temporal: `Instant`, `LocalDate`, `LocalDateTime`, `LocalTime`, `Duration`, `Period`, `Year`, `YearMonth`, `MonthDay`, `Month`, `DayOfWeek`, `ZonedDateTime`, `OffsetDateTime`, `OffsetTime`, `ZoneId`, `ZoneOffset`
 - Special: `UUID`, `Currency`, `Unit`
+
+### Avro Types for Scala Types
+
+A reader in Java, Python or another Avro library works from the `.avsc` schema, so it sees each Scala type as the Avro type that the codec derives. To print that Avro type for common Scala types:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema._
+import zio.blocks.schema.avro._
+import java.time.{Instant, LocalDate}
+import java.util.UUID
+
+def avsc[A](implicit schema: Schema[A]): String = schema.derive(AvroFormat).avroSchema.toString
+
+sealed trait Status
+case object Active extends Status
+case object Closed extends Status
+
+case class CustomerId(value: Long)
+
+case class Sku(value: String)
+
+implicit val statusSchema: Schema[Status]         = Schema.derived
+implicit val customerIdSchema: Schema[CustomerId] = Schema.derived
+implicit val skuSchema: Schema[Sku]               = Schema[String].transform(Sku(_), _.value)
+implicit val bytesSchema: Schema[Array[Byte]]     = Schema.derived
+implicit val chunkSchema: Schema[Chunk[Byte]]     = Schema.derived
+```
+
+To print the Avro type of each one:
+
+```scala mdoc
+List(
+  "Int"                 -> avsc[Int],
+  "Char"                -> avsc[Char],
+  "BigInt"              -> avsc[BigInt],
+  "Array[Byte]"         -> avsc[Array[Byte]],
+  "Instant"             -> avsc[Instant],
+  "LocalDate"           -> avsc[LocalDate],
+  "UUID"                -> avsc[UUID],
+  "Option[Int]"         -> avsc[Option[Int]],
+  "Either[String, Int]" -> avsc[Either[String, Int]],
+  "Status"              -> avsc[Status],
+  "CustomerId"          -> avsc[CustomerId],
+  "Sku"                 -> avsc[Sku]
+).foreach { case (scalaType, avroType) => println(s"$scalaType: $avroType") }
+```
+
+The table below sums up the Avro shape of each type and what a reader in another language should know about it:
+
+| Scala type                            | Avro type                                                 | What a reader in another language sees                                                        |
+| ------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `Int`, `Short`, `Byte`                | `int`                                                     | A 32-bit number; `Short` and `Byte` are widened                                               |
+| `Long`                                | `long`                                                    |                                                                                               |
+| `Float`, `Double`                     | `float`, `double`                                         |                                                                                               |
+| `Boolean`                             | `boolean`                                                 |                                                                                               |
+| `String`                              | `string`                                                  |                                                                                               |
+| `Char`                                | `int`                                                     | The character's code point, not a one-letter string                                           |
+| `Unit`                                | `null`                                                    |                                                                                               |
+| `BigInt`                              | `bytes`                                                   | Two's-complement big-endian bytes                                                             |
+| `BigDecimal`                          | record `scala.BigDecimal`                                 | `mantissa` bytes plus `scale`, `precision` and `roundingMode`; not the `decimal` logical type |
+| `Array[Byte]`, `Chunk[Byte]`          | array of `int`                                            | One number per byte, not `bytes`                                                              |
+| `List[A]`                             | array of `A`                                              |                                                                                               |
+| `Map[String, A]`                      | map of `A`                                                |                                                                                               |
+| `Instant`                             | record `java.time.Instant`                                | `epochSecond` and `nano`; not the `timestamp-millis` logical type                             |
+| `LocalDate`                           | record `java.time.LocalDate`                              | `year`, `month` and `day`; not the `date` logical type                                        |
+| `UUID`                                | `fixed` of 16 bytes named `java.util.UUID`                | Not the `uuid` logical type                                                                   |
+| `Option[A]`                           | union of records `scala.None` and `scala.Some`            | Not `["null", A]`; `None` is branch 0 and `Some` holds `value`                                |
+| `Either[A, B]`                        | union of records `scala.util.Left` and `scala.util.Right` | Each side holds `value`                                                                       |
+| Sealed trait                          | union of one record per case, in declaration order        | A case object is a record with no fields                                                      |
+| Case class                            | record named after the class, namespace from its package  | A one-field class such as `CustomerId` stays a record                                         |
+| Newtype built with `Schema#transform` | the wrapped type                                          | `Sku` is a plain `string`                                                                     |
+
+Four rows surprise readers in other languages. `Option` is a union of two records, not the `["null", T]` union that most Avro libraries write for an optional field, so a reader that expects `null` for a missing value does not find one. `Char` is an `int`, so a reader expecting a string gets a number. The temporal types are records and `UUID` is a `fixed` of 16 bytes, not the Avro logical types, so a reader that expects `timestamp-millis` or `uuid` needs a custom mapping.
+
+A known bug in 0.0.56: `Array[Byte]` and `Chunk[Byte]` encode as an Avro array of `int` instead of `bytes`, as the table shows. Each byte becomes its own array item, so the output is larger than the payload, and a reader in another language sees a list of numbers instead of a byte buffer.
+
+The how-to guide [Encode and Decode Records with Avro](../../../guides/encode-and-decode-records-with-avro.md) walks through reading these schemas with another Avro library.
+
+### Record Type Support
 
 ### Record Type Support
 
