@@ -456,7 +456,7 @@ The call to `jsonString.fromJson[DynamicValue]` parses the JSON string into a `D
 
 #### Polyglot configuration systems
 
-Configuration is often stored externally (Consul, etcd, a JSON file) and must be read, modified in-place, and written back. A naive approach requires two separate conversions — `Into[DynamicValue, DatabaseConfig]` to read and `Into[DatabaseConfig, DynamicValue]` to write — with no guarantee they align. `As` solves this by providing a single bidirectional instance that the macro verifies will round-trip faithfully.
+Configuration is often stored externally (Consul, etcd, a JSON file) and must be read, modified in-place, and written back. A naive approach requires two separate conversions — `Into[DynamicValue, DatabaseConfig]` to read and `Into[DatabaseConfig, DynamicValue]` to write — with no guarantee they align. `As` solves this by providing a single bidirectional instance that the macro checks will round-trip every field the two types share.
 
 Consider a service that:
 1. Reads config from an external store (JSON → `DynamicValue` → typed `DatabaseConfig`)
