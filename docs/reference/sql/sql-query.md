@@ -331,7 +331,7 @@ These methods add the `GROUP BY`, `HAVING`, `ORDER BY`, `LIMIT` and `OFFSET` cla
 
 #### Grouping Rows
 
-`SqlQuery#groupBy` sets the `GROUP BY` columns, and `SqlQuery#having` sets the `HAVING` condition as a `Frag`. Both replace the value of an earlier call instead of adding to it. `groupBy` checks each name as a plain SQL identifier and throws an `IllegalArgumentException` for anything else, including a dotted name such as `t1.city`:
+`SqlQuery#groupBy` sets the `GROUP BY` columns, and `SqlQuery#having` sets the `HAVING` condition as a `Frag`. Both replace the value of an earlier call instead of adding to it. `SqlQuery#groupBy` checks each name as a plain SQL identifier and throws an `IllegalArgumentException` for anything else, including a dotted name such as `t1.city`:
 
 ```scala
 final case class SqlQuery[A] {
@@ -340,7 +340,7 @@ final case class SqlQuery[A] {
 }
 ```
 
-The `SELECT` list is always every column, so a grouped query can't select an aggregate such as `COUNT(*)`; `HAVING` can still use one. That makes `groupBy` useful for keeping the rows whose group passes a test. Here are the customers with at least two invoices, decoded as `Customer` alone, because the first columns of each row are the customer's:
+The `SELECT` list is always every column, so a grouped query can't select an aggregate such as `COUNT(*)`; `HAVING` can still use one. That makes `SqlQuery#groupBy` useful for keeping the rows whose group passes a test. Here are the customers with at least two invoices, decoded as `Customer` alone, because the first columns of each row are the customer's:
 
 ```scala mdoc:silent
 val repeatBuyers = SqlQuery
@@ -375,7 +375,7 @@ final case class SqlQuery[A] {
 }
 ```
 
-`orderBy` checks the column name when you call it, and throws an `IllegalArgumentException` for a name that isn't a plain SQL identifier. `orderByMany` checks its names only when the query is rendered, so a bad name surfaces in `SqlQuery#toFrag`, `SqlQuery#sql` or `SqlQuery#explain`. The two forms below sort the same way, by city and then by name in reverse:
+`SqlQuery#orderBy` checks the column name when you call it, and throws an `IllegalArgumentException` for a name that isn't a plain SQL identifier. `SqlQuery#orderByMany` checks its names only when the query is rendered, so a bad name surfaces in `SqlQuery#toFrag`, `SqlQuery#sql` or `SqlQuery#explain`. The two forms below sort the same way, by city and then by name in reverse:
 
 ```scala mdoc:silent
 val byCityThenName = SqlQuery.from(customers).orderBy("city").orderBy("name", SortOrder.Desc)
@@ -390,12 +390,12 @@ println(byCityThenName == sameOrder)
 ```
 
 :::caution
-`orderBy` and `groupBy` can only name columns of the `FROM` table, a known bug in 0.0.56. A name like `t1.name` throws `IllegalArgumentException: Invalid SQL column identifier 't1.name'`, and a column that exists only in a joined table renders as `t0."<column>"` and fails when the database runs the query. To sort by a joined table's column, start the query from that table, or sort the decoded rows in Scala.
+`SqlQuery#orderBy` and `SqlQuery#groupBy` can only name columns of the `FROM` table, a known bug in 0.0.56. A name like `t1.name` throws `IllegalArgumentException: Invalid SQL column identifier 't1.name'`, and a column that exists only in a joined table renders as `t0."<column>"` and fails when the database runs the query. To sort by a joined table's column, start the query from that table, or sort the decoded rows in Scala.
 :::
 
 #### Paging Rows
 
-`SqlQuery#limit` caps the number of rows, and `SqlQuery#offset` skips rows before the first one returned. Each replaces the value of an earlier call. Both require `n >= 0` and throw an `IllegalArgumentException` ("requirement failed: limit must be >= 0") otherwise. The numbers are written into the SQL text, not bound as parameters:
+`SqlQuery#limit` caps the number of rows, and `SqlQuery#offset` skips rows before the first one returned. Each replaces the value of an earlier call. Both require `n >= 0` and throw an `IllegalArgumentException` otherwise, with the message "requirement failed: limit must be >= 0" for `SqlQuery#limit` and "requirement failed: offset must be >= 0" for `SqlQuery#offset`. The numbers are written into the SQL text, not bound as parameters:
 
 ```scala
 final case class SqlQuery[A] {
