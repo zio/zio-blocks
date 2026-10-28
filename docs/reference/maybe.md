@@ -77,13 +77,13 @@ When working with optional values, you face a choice: `Option[A]` provides type 
 
 The API surface is consistent across Scala 2.13 and Scala 3, but the underlying encoding differs:
 
-| Aspect | Scala 3 | Scala 2.13 |
-|--------|---------|------------|
-| Encoding | `opaque type Maybe[+A] = A \| Absent.type \| Present[A]` | Sealed trait `Present[A]` \| `Absent` |
-| Flat allocation | **0** for a reference or `Absent`; a primitive keeps its JVM box | **1** (wrapper object) |
-| Nested allocation | **1** (`Present(Absent)` only) | **1** (wrapper object) |
-| `Present` type | Public `final class Present[+A]` with manual companion (`apply`/`unapply`) | `MaybeValue.Present[A]` (sealed) |
-| Nesting guard | **Removed** (nesting now sound via `Present`) | N/A (never existed) |
+| Aspect            | Scala 3                                                                    | Scala 2.13                            |
+| ----------------- | -------------------------------------------------------------------------- | ------------------------------------- |
+| Encoding          | `opaque type Maybe[+A] = A \| Absent.type \| Present[A]`                   | Sealed trait `Present[A]` \| `Absent` |
+| Flat allocation   | **0** for a reference or `Absent`; a primitive keeps its JVM box           | **1** (wrapper object)                |
+| Nested allocation | **1** (`Present(Absent)` only)                                             | **1** (wrapper object)                |
+| `Present` type    | Public `final class Present[+A]` with manual companion (`apply`/`unapply`) | `MaybeValue.Present[A]` (sealed)      |
+| Nesting guard     | **Removed** (nesting now sound via `Present`)                              | N/A (never existed)                   |
 
 ### Behavior Differences
 
@@ -99,7 +99,7 @@ On Scala 3, a `Maybe[A]` value can take three runtime shapes. The `Present` comp
 |-------|---------|---------|
 | `Absent` object | `case Absent` | absent (stable-identifier pattern) |
 | `Present(v)` wrapper | `case Present(v)` | present-of-absent (a nested `Maybe`) |
-| raw `v` | `case Present(v)` | present, zero allocation |
+| raw `v` | `case Present(v)` | present, stored without a `Present` wrapper |
 
 (Note: the `Present` companion's `unapply` collapses both present shapes — one `Some` allocation per present match.)
 
@@ -137,7 +137,7 @@ val description: String = maybe match {
 }
 ```
 
-So on Scala 2.13 the sealed `MaybeValue` form is the compiler-checked native idiom; on Scala 3 the opaque union with `Absent` object enables `case Absent` while preserving the zero-allocation encoding.
+So on Scala 2.13 the sealed `MaybeValue` form is the compiler-checked native idiom; on Scala 3 the opaque union with `Absent` object enables `case Absent` while keeping the wrapper-free encoding.
 
 ## Installation
 
@@ -349,7 +349,7 @@ val nested: Maybe[Maybe[Int]] = Maybe.present(Maybe.absent[Int])
 // nested is Present(Absent), distinguishable from Maybe.absent
 ```
 
-> **Note:** Unlike `Maybe.apply`, `Maybe.present` preserves present-ness even for `null`. A non-null value is returned as-is (zero allocation). A `null` value is wrapped in `Present(null)`, which is distinguishable from `Maybe.absent` (the `Absent` object). This is what makes nested `Maybe`s sound.
+> **Note:** Unlike `Maybe.apply`, `Maybe.present` preserves present-ness even for `null`. A non-null value is returned as-is, with no wrapper (a primitive keeps its JVM box). A `null` value is wrapped in `Present(null)`, which is distinguishable from `Maybe.absent` (the `Absent` object). This is what makes nested `Maybe`s sound.
 
 #### Maybe.absent
 

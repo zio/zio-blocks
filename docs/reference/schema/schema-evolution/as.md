@@ -3,7 +3,7 @@ id: as
 title: "As"
 ---
 
-`As[A, B]` is a **bidirectional conversion type class** that extends `Into[A, B]` with a reverse direction. In addition to converting `A → B` via `As#into`, it also converts `B → A` via `As#from`, providing a round-trip guarantee.
+`As[A, B]` is a **bidirectional conversion type class** that extends `Into[A, B]` with a reverse direction. In addition to converting `A → B` via `As#into`, it also converts `B → A` via `As#from`, providing a round-trip guarantee for every field the two types share.
 
 `As`:
 - extends `Into[A, B]`, so every `As` can be used wherever an `Into` is expected
@@ -452,7 +452,7 @@ The call to `jsonString.fromJson[DynamicValue]` parses the JSON string into a `D
 
 ### Use Cases
 
-`As` is ideal when data must flow in both directions within the same system, with guarantees that neither direction silently loses or corrupts data.
+`As` is ideal when data must flow in both directions within the same system, with guarantees that neither direction silently corrupts data, apart from an `Option` field that only one side has, which comes back as `None`.
 
 #### Polyglot configuration systems
 
