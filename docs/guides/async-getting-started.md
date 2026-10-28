@@ -277,7 +277,7 @@ Promise resolved: hello from callback
 - The `block` call waits until the completer fires and returns the resolved value.
 
 :::warning[Scala 3: do not annotate the binder]
-On Scala 3, `Async.promise[String] { (c: Completer[String]) => ... }` compiles, but the body never runs as code, so the completer is never completed and `block` waits forever. Use the Scala 3 form above, `summon[Completer[String]]` or `{ c ?=> ... }`. Compiler warning E190 at the call site is the only hint.
+On Scala 3, `Async.promise[String] { (c: Completer[String]) => ... }` compiles, but the statements inside the lambda never run, so the completer is never completed and `block` waits forever. Use the Scala 3 form above, `summon[Completer[String]]` or `{ c ?=> ... }`. Compiler warning E190 at the call site is the only hint.
 :::
 
 <details>
