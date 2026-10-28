@@ -383,6 +383,16 @@ const sidebars = {
                 },
                 {
                   type: "category",
+                  label: "Query Builder",
+                  collapsed: false,
+                  items: [
+                    "reference/sql/sql-query",
+                    "reference/sql/rel",
+                    "reference/sql/dump",
+                  ],
+                },
+                {
+                  type: "category",
                   label: "Supporting Types",
                   collapsed: false,
                   items: [

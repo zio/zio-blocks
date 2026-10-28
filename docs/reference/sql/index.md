@@ -63,6 +63,14 @@ These seven types form the public API for everyday SQL work:
 - **[`DbCon`](./db-con.md)** — Implicit context available inside a `Transactor` block. Carries the connection, dialect, and logger. Threaded through all SQL operations automatically.
 - **[`DbTx`](./db-tx.md)** — A `DbCon` subtype marking transactional scope (inside `Transactor#transact`). Extends `DbCon` so transactional and non-transactional operations compose freely.
 
+### Query Builder
+
+These three types, in the `zio.blocks.sql.query` package (`Dump` is in `zio.blocks.sql`), build `SELECT` statements with joins instead of writing them by hand, and let you review the SQL they generate:
+
+- **[`SqlQuery`](./sql-query.md)** — Immutable `SELECT` builder over a `Table`: joins, `WHERE` conditions, `GROUP BY`, `ORDER BY`, `LIMIT` and `OFFSET`. Renders to a `Frag` with `toFrag`, and prints its SQL with `sql` and `explain`.
+- **[`Rel`](./rel.md)** — Foreign-key link between two tables, built from field selectors checked at compile time or from column names. Each `Rel` becomes one join's `ON` condition.
+- **[`Dump`](./dump.md)** — Compile-time macros that write a query's `SELECT` or a table's `CREATE TABLE` to `.sql` files for review when the `zib.sql.dumpDir` system property is set.
+
 ### Supporting Types
 
 These types implement the protocol and derivation layers and are rarely used directly in application code:
