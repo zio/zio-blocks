@@ -23,19 +23,21 @@ package zio.blocks.schema.toon
  * All configuration params are already initialized to default values, but in
  * some cases they should be altered:
  *   - change the expected indentation step (default 2 spaces per level)
- *   - change the expected delimiter for inline arrays (comma, tab, or pipe)
  *   - disable strict mode to allow lenient parsing of malformed input
  *   - enable path expansion to parse dot-separated keys as nested records
+ *     (`DynamicValue` codec only)
  *   - set discriminator field for DynamicValue variant decoding
  *
  * @param indent
  *   the expected number of spaces per indentation level (default: 2)
  * @param delimiter
- *   the expected delimiter character for inline arrays (default: Comma)
+ *   the initial delimiter (default: Comma); it has no effect on decoding
+ *   arrays, because the reader takes each array's delimiter from its header
  * @param strict
  *   whether to enforce strict TOON parsing (default: true)
  * @param expandPaths
- *   strategy for expanding dot-separated paths (default: Off)
+ *   strategy for expanding dot-separated paths; only the `DynamicValue` codec
+ *   reads it (default: Off)
  * @param discriminatorField
  *   optional field name to use as discriminator for DynamicValue variants
  *   (default: None, which decodes as Record)

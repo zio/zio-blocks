@@ -13,7 +13,7 @@ See also the [How to Send Compact Data to an LLM with TOON and Parse the Reply](
 
 TOON is a compact, line-oriented text format that encodes the JSON data model with explicit structure and minimal quoting. It appears widely in modern LLM applications, configuration management, and streaming data scenarios where bandwidth and readability are both critical. Manually writing TOON encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-toon` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
 - Full TOON type support (records, sequences, primitives, null)
-- Three array formats: inline (`tags[3]: a,b,c`), tabular (`users[2]{id,name}:`), and list (`- item`)
+- Four array formats: inline (`tags[3]: a,b,c`), tabular (`users[2]{id,name}:`), list (`- item`), and auto, the default, which picks inline or list from the element type
 - Automatic schema generation from Scala types
 - Customizable field/case name mapping (identity, snake_case, kebab-case, etc.)
 - Configurable discriminator strategies for algebraic data types
@@ -66,7 +66,7 @@ The TOON codec pipeline flows through these layers:
    - For primitives: type-specific TOON scalar encoders/decoders
    - For records: field-by-field composition with indented nesting
    - For variants: union encoding with optional discriminators
-   - For sequences: one of three formats (inline, tabular, list)
+   - For sequences: one of four formats (auto, inline, tabular, list)
    - For maps: record-like encoding with key-value pairs
                  ↓
 4. ToonCodec provides multiple encoding paths
@@ -188,11 +188,9 @@ result match {
 
 ### Pattern 3: Work with Arrays in Different Formats
 
-TOON supports three formats for encoding sequences, selectable via `ArrayFormat`.
+TOON has four formats for encoding sequences, selectable via `ArrayFormat` (see [ArrayFormat](#arrayformat)). With the default, `ArrayFormat.Auto`, an array of primitive values is written inline:
 
-To encode arrays using inline format (compact representation):
-
-```scala
+```scala mdoc:reset
 import zio.blocks.schema._
 import zio.blocks.schema.toon._
 
@@ -202,18 +200,12 @@ object Tags {
   implicit val schema: Schema[Tags] = Schema.derived
 }
 
-// Default format: auto (inline for primitives)
-val codec = Tags.schema.derive(ToonFormat)
-val tags = Tags(List("scala", "zio", "functional"))
-
-val toonBytes = codec.encodeToString(tags)
-// Output:
-// items[3]: scala,zio,functional
+println(Tags.schema.derive(ToonFormat).encodeToString(Tags(List("scala", "zio", "functional"))))
 ```
 
-To encode objects using tabular format for compact representation:
+To encode an array of records as a table, derive the codec with `ArrayFormat.Tabular`:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.schema._
 import zio.blocks.schema.toon._
 
@@ -228,16 +220,11 @@ object Team {
   implicit val schema: Schema[Team] = Schema.derived
 }
 
-// Tabular format for uniform object arrays
-val tabularDeriver = ToonCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-val codec = Team.schema.derive(tabularDeriver)
-val team = Team(List(User(1, "Alice"), User(2, "Bob")))
-
-val toonBytes = codec.encodeToString(team)
-// Output:
-// members[2]{id,name}:
-//   1,Alice
-//   2,Bob
+println(
+  Team.schema
+    .derive(ToonCodecDeriver.withArrayFormat(ArrayFormat.Tabular))
+    .encodeToString(Team(List(User(1, "Alice"), User(2, "Bob"))))
+)
 ```
 
 ### Pattern 4: Customize Field Names and Discriminators
@@ -587,14 +574,15 @@ val config = WriterConfig.withIndent(4)
 
 ### Key Folding Strategy
 
-Flatten nested keys for shallow records or keep them separate:
+`WriterConfig.withKeyFolding` folds a chain of nested single-field records into one dot-separated key. Only the `DynamicValue` codec reads it; a codec derived for a case class ignores it (see [KeyFolding](#keyfolding)):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.toon._
 
 val config = WriterConfig.withKeyFolding(KeyFolding.Safe)
-// Converts nested keys to dot-separated paths for shallow nesting
 ```
+
+`WriterConfig.withDelimiter` likewise applies only to the `DynamicValue` codec; a derived codec takes its delimiter from `ToonCodecDeriver.withDelimiter` (see [Delimiter](#delimiter)).
 
 ### Discriminator Field Configuration
 
@@ -611,33 +599,25 @@ val config = WriterConfig.withDiscriminatorField(Some("_type"))
 
 ## ReaderConfig
 
-Configuration for TOON input parsing. Controls path expansion, delimiter selection, and strict parsing mode.
+Configuration for TOON input parsing. Controls path expansion and strict parsing mode.
 
 ### Overview
 
-`ReaderConfig` provides factory methods for customizing TOON deserialization behavior. It controls whether dot-separated keys expand to nested records, which delimiters separate inline array elements, and whether parsing is strict.
+`ReaderConfig` provides factory methods for customizing TOON deserialization behavior. It controls whether dot-separated keys expand to nested records and whether parsing is strict.
 
 ### Path Expansion Configuration
 
-Parse dot-separated keys as nested records:
+`ReaderConfig.withExpandPaths` makes the reader turn a dot-separated key such as `settings.server.port` into nested records. Only the `DynamicValue` codec reads it; a codec derived for a case class ignores it (see [PathExpansion](#pathexpansion)):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.toon._
 
 val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-// Interprets "user.name" as nested {user: {name: value}}
 ```
 
 ### Delimiter Configuration
 
-Specify separator for inline arrays:
-
-```scala
-import zio.blocks.schema.toon._
-
-val config = ReaderConfig.withDelimiter(Delimiter.Tab)
-// Expects tab characters instead of commas in inline arrays
-```
+`ReaderConfig.withDelimiter` exists, but it has no effect on decoding arrays: the reader takes the delimiter of each array from the array's header, where the writer records any delimiter other than the comma (see [Delimiter](#delimiter)).
 
 ### Strict Parsing Mode
 
@@ -658,93 +638,93 @@ Controls how sequences are encoded in TOON output.
 
 ### Overview
 
-`ArrayFormat` selects from three distinct strategies for representing sequences in TOON format: compact inline representation, tabular grid format, or list-style items.
+`ArrayFormat` selects one of four strategies for writing sequences: `Auto` (the default), `Inline`, `Tabular` and `List`. Set it on the deriver with `ToonCodecDeriver.withArrayFormat`. `Inline` and `Tabular` each suit one kind of element; for other elements the codec writes list form instead. Every format keeps the length in the header, so the decoder can check it.
+
+The examples in this section encode the same list of strings and list of records with each format:
+
+```scala mdoc:reset:silent
+import zio.blocks.schema._
+import zio.blocks.schema.toon._
+
+case class Tags(items: List[String])
+object Tags { implicit val schema: Schema[Tags] = Schema.derived }
+
+case class User(id: Int, name: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+case class Team(members: List[User])
+object Team { implicit val schema: Schema[Team] = Schema.derived }
+
+val tags = Tags(List("scala", "zio", "functional"))
+val team = Team(List(User(1, "Alice"), User(2, "Bob")))
+
+def encodeBoth(format: ArrayFormat): Unit = {
+  val deriver = ToonCodecDeriver.withArrayFormat(format)
+  println(Tags.schema.derive(deriver).encodeToString(tags))
+  println(Team.schema.derive(deriver).encodeToString(team))
+}
+```
 
 ### Inline Format
 
-Encode arrays as comma-separated values on a single line:
+`ArrayFormat.Inline` writes an array of primitive values on one line, separated by the delimiter. An array of records is still written in list form:
 
-```scala
-import zio.blocks.schema.toon._
-
-val deriver = ToonCodecDeriver.withArrayFormat(ArrayFormat.Inline)
-// tags[3]: scala,zio,functional
+```scala mdoc
+encodeBoth(ArrayFormat.Inline)
 ```
 
 ### Tabular Format
 
-Encode uniform object arrays as compact tables with headers:
+`ArrayFormat.Tabular` writes an array of records as a table: a header with the field names, then one row per record. An array of primitive values is written in list form:
 
-```scala
-import zio.blocks.schema.toon._
-
-val deriver = ToonCodecDeriver.withArrayFormat(ArrayFormat.Tabular)
-// users[2]{id,name}:
-//   1,Alice
-//   2,Bob
+```scala mdoc
+encodeBoth(ArrayFormat.Tabular)
 ```
+
+:::caution[Known bugs in 0.0.56]
+Three known bugs affect tables in 0.0.56. A record with a non-primitive field, such as `tags: List[String]`, is not written in list form as the `ArrayFormat.Tabular` Scaladoc says; the codec writes a row that it cannot decode ([#1778](https://github.com/zio/zio-blocks/issues/1778)). A top-level `List` of records written as a table cannot be decoded, even when the same codec wrote it ([#1779](https://github.com/zio/zio-blocks/issues/1779)). And `ToonCodecDeriver.withFieldNameMapper` is not applied to the field names in a table header ([#1780](https://github.com/zio/zio-blocks/issues/1780)).
+:::
 
 ### List Format
 
-Encode arrays using list-style items with dashes:
+`ArrayFormat.List` writes every element as a `- ` item on its own line, under a header that keeps the length, such as `items[3]:`:
 
-```scala
-import zio.blocks.schema.toon._
-
-val deriver = ToonCodecDeriver.withArrayFormat(ArrayFormat.List)
-// items:
-//   - item1
-//   - item2
+```scala mdoc
+encodeBoth(ArrayFormat.List)
 ```
 
 ### Auto Format
 
 `Auto` is the default. It chooses the format from the element type: arrays of primitive values are written inline, and arrays of records are written as lists. The one exception is an array of flat records (records whose fields are all primitives) nested inside a list item, which is written as a table. To write record arrays as tables everywhere, use `ArrayFormat.Tabular`:
 
-```scala
-import zio.blocks.schema.toon._
-
-val deriver = ToonCodecDeriver.withArrayFormat(ArrayFormat.Auto)
-// Inline for primitive arrays, list for record arrays
+```scala mdoc
+encodeBoth(ArrayFormat.Auto)
 ```
 
 ---
 
 ## Delimiter
 
-Specifies the separator character for inline array elements.
+Specifies the separator character for inline arrays and table rows.
 
 ### Overview
 
-`Delimiter` controls which character separates elements in inline array format.
+`Delimiter` has three values for writing: `Comma` (the default), `Tab` and `Pipe`; a fourth, `Delimiter.None`, matches no character and is used inside the reader. For a derived codec, set the delimiter with `ToonCodecDeriver.withDelimiter`. `WriterConfig.withDelimiter` applies only to the `DynamicValue` codec, and `ReaderConfig.withDelimiter` has no effect on decoding arrays.
 
 ### Available Delimiters
 
-Use comma as the default separator:
+To encode the same tags with each of the three delimiters:
 
-```scala
-import zio.blocks.schema.toon._
-
-val deriver = ToonCodecDeriver.withDelimiter(Delimiter.Comma)
-// tags[3]: scala,zio,functional
+```scala mdoc
+List(Delimiter.Comma, Delimiter.Tab, Delimiter.Pipe).foreach { delimiter =>
+  println(Tags.schema.derive(ToonCodecDeriver.withDelimiter(delimiter)).encodeToString(tags))
+}
 ```
 
-Use tab for wider compatibility with tab-separated values:
+A delimiter other than the comma is written into the array header, as in `items[3|]:`. The reader takes the delimiter from there, so a codec with the default settings decodes the pipe-separated output:
 
-```scala
-import zio.blocks.schema.toon._
-
-val deriver = ToonCodecDeriver.withDelimiter(Delimiter.Tab)
-// tags[3]: scala	zio	functional
-```
-
-Use pipe for visibility in complex inline arrays:
-
-```scala
-import zio.blocks.schema.toon._
-
-val deriver = ToonCodecDeriver.withDelimiter(Delimiter.Pipe)
-// tags[3]: scala|zio|functional
+```scala mdoc
+Tags.schema.derive(ToonFormat).decode("items[3|]: scala|zio|functional")
 ```
 
 ---
@@ -827,7 +807,7 @@ import zio.blocks.schema.toon._
 // val writer = new ToonWriter()  // private constructor
 // For primitives: direct scalar encoding
 // For records: indented key-value pairs
-// For arrays: one of three formats based on ArrayFormat configuration
+// For arrays: one of four formats based on ArrayFormat configuration
 // For variants: discriminator + nested value
 ```
 
@@ -925,35 +905,50 @@ val deriver = ToonCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)
 
 ## KeyFolding
 
-Strategy for flattening nested record keys into dot-separated paths during encoding.
+Strategy for folding chains of nested single-field records into dot-separated keys during encoding.
 
 ### Overview
 
-`KeyFolding` controls whether deeply nested fields are flattened using dot notation or kept as indented structures. This is useful when generating TOON for consumption by systems expecting flat key-value pairs.
+`KeyFolding` is set with `WriterConfig.withKeyFolding`. Only the `DynamicValue` codec, `Schema[DynamicValue].derive(ToonFormat)`, reads it; a codec derived for a case class ignores it and always writes nested records as indented blocks. Folding follows records that have exactly one field: below, `settings` holds a record whose only field is `server`, which holds a record whose only field is `port`, so the three nested lines become `settings.server.port: 8080`. A field whose record has two or more fields stays an indented block.
 
-### Off (No Flattening)
+The examples in this section use a shop whose settings nest single-field records:
 
-Keep nested structure as indented records:
-
-```scala
+```scala mdoc:reset:silent
+import zio.blocks.schema._
 import zio.blocks.schema.toon._
 
-val config = WriterConfig.withKeyFolding(KeyFolding.Off)
-// address:
-//   street: Main St
-//   city: Springfield
+case class Server(port: Int)
+object Server { implicit val schema: Schema[Server] = Schema.derived }
+
+case class Settings(server: Server)
+object Settings { implicit val schema: Schema[Settings] = Schema.derived }
+
+case class Shop(name: String, settings: Settings)
+object Shop { implicit val schema: Schema[Shop] = Schema.derived }
+
+val shop                    = Shop("bookshop", Settings(Server(8080)))
+val shopValue: DynamicValue = Shop.schema.toDynamicValue(shop)
+
+val dynamicCodec = Schema[DynamicValue].derive(ToonFormat)
+val shopCodec    = Shop.schema.derive(ToonFormat)
 ```
 
-### Safe Flattening
+### Off (No Folding)
 
-Flatten shallow nesting with dot-separated keys:
+`KeyFolding.Off`, the default, writes every nested record as an indented block:
 
-```scala
-import zio.blocks.schema.toon._
+```scala mdoc
+println(dynamicCodec.encodeToString(shopValue, WriterConfig.withKeyFolding(KeyFolding.Off)))
+```
 
-val config = WriterConfig.withKeyFolding(KeyFolding.Safe)
-// address.street: Main St
-// address.city: Springfield
+### Safe Folding
+
+`KeyFolding.Safe` folds the chain into one dotted key when the `DynamicValue` codec writes it, while the codec derived for `Shop` ignores the setting:
+
+```scala mdoc
+println(dynamicCodec.encodeToString(shopValue, WriterConfig.withKeyFolding(KeyFolding.Safe)))
+
+println(shopCodec.encodeToString(shop, WriterConfig.withKeyFolding(KeyFolding.Safe)))
 ```
 
 ---
@@ -964,28 +959,32 @@ Strategy for parsing dot-separated keys as nested records during decoding.
 
 ### Overview
 
-`PathExpansion` controls whether TOON keys like `user.name` are interpreted as nested structures or literal key names. This enables reading flat TOON data as deeply nested types.
+`PathExpansion` is set with `ReaderConfig.withExpandPaths` and controls whether a key such as `settings.server.port` is read as nested records or as one key with dots in its name. Like key folding, only the `DynamicValue` codec reads it. To decode folded TOON into a case class, decode it as a `DynamicValue` with path expansion, then convert the result with `Schema#fromDynamicValue`.
+
+The examples below decode this folded document:
+
+```scala mdoc
+val folded = "name: bookshop\nsettings.server.port: 8080"
+```
 
 ### Off (No Expansion)
 
-Treat dots in keys as literal characters:
+`PathExpansion.Off`, the default, keeps the dotted key as one field name:
 
-```scala
-import zio.blocks.schema.toon._
-
-val config = ReaderConfig.withExpandPaths(PathExpansion.Off)
-// Literal key "user.name" stays flat
+```scala mdoc
+println(dynamicCodec.decode(folded, ReaderConfig.withExpandPaths(PathExpansion.Off)))
 ```
 
 ### Safe Expansion
 
-Expand dot-separated keys to nested records:
+`PathExpansion.Safe` expands the dotted key into nested records. The codec derived for `Shop` ignores the setting and fails, but the expanded `DynamicValue` converts to a `Shop`:
 
-```scala
-import zio.blocks.schema.toon._
+```scala mdoc
+println(dynamicCodec.decode(folded, ReaderConfig.withExpandPaths(PathExpansion.Safe)))
 
-val config = ReaderConfig.withExpandPaths(PathExpansion.Safe)
-// Key "user.name" expands to {user: {name: value}}
+println(shopCodec.decode(folded, ReaderConfig.withExpandPaths(PathExpansion.Safe)))
+
+println(dynamicCodec.decode(folded, ReaderConfig.withExpandPaths(PathExpansion.Safe)).flatMap(Shop.schema.fromDynamicValue))
 ```
 
 ---
@@ -1004,7 +1003,7 @@ The TOON codec module integrates seamlessly with ZIO Schema and other ZIO Blocks
 - `WriterConfig` controls `ToonWriter` behavior during encoding
 - `ReaderConfig` controls `ToonReader` behavior during decoding
 - `NameMapper`, `ArrayFormat`, `Delimiter`, `DiscriminatorKind` all flow through `ToonCodecDeriver` configuration
-- `KeyFolding` and `PathExpansion` affect how nested structures are serialized/deserialized
+- `KeyFolding` and `PathExpansion` affect how the `DynamicValue` codec writes and reads nested records
 
 **With Other Modules:**
 - TOON codecs work alongside other codec modules (JSON, Thrift, YAML, MessagePack) via the format system
@@ -1019,9 +1018,9 @@ TOON decoding errors include location traces showing the path through nested str
 
 ### Understanding Error Traces
 
-Errors render as paths like `.field[0].nested.value` showing exactly where decoding failed:
+Errors render as paths like `.field[0].nested.value` showing exactly where decoding failed. Here a list field holds a plain value instead of an array:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.schema._
 import zio.blocks.schema.toon._
 
@@ -1031,19 +1030,14 @@ object Team {
   implicit val schema: Schema[Team] = Schema.derived
 }
 
-val codec = Team.schema.derive(ToonFormat)
 val invalidToon = """
 name: Engineering
 members: invalid
 """
 
-val result = codec.decode(invalidToon)
-
-result match {
+Team.schema.derive(ToonFormat).decode(invalidToon) match {
   case Right(team) => println(s"Loaded: $team")
-  case Left(error) =>
-    println(s"Error: ${error.getMessage}")
-    // Error: Expected sequence, got: invalid at: .members
+  case Left(error) => println(s"Error: ${error.getMessage}")
 }
 ```
 
