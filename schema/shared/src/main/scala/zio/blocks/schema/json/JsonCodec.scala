@@ -916,7 +916,7 @@ object JsonCodec {
     override val toJsonSchema: JsonSchema = JsonSchema.string()
   }
 
-  /** The codec of `BigInt`: a JSON integer of up to 308 digits. */
+  /** The codec of `BigInt`: a JSON integer of up to 307 digits. */
   val bigIntCodec: JsonCodec[BigInt] = new JsonCodec[BigInt] {
     def decodeValue(in: JsonReader): BigInt = in.readBigInt()
 
@@ -952,7 +952,7 @@ object JsonCodec {
   }
 
   /**
-   * The codec of `BigDecimal`: a JSON number of up to 308 digits, rounded to 34
+   * The codec of `BigDecimal`: a JSON number of up to 307 digits, rounded to 34
    * significant digits on decoding.
    */
   val bigDecimalCodec: JsonCodec[BigDecimal] = new JsonCodec[BigDecimal] {
