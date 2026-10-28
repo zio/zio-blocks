@@ -6,7 +6,7 @@ title: "CSV Codec Module"
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-`zio-blocks-schema-csv` is a **schema-driven CSV codec module** for serializing and deserializing Scala types to and from CSV format. It provides RFC 4180-compliant parsing and generation with zero dependencies and support for 27 primitive types plus flat record (case class) types. Core types: `CsvCodec`, `CsvConfig`, `CsvError`, `CsvReader`, `CsvWriter`, `CsvFormat`.
+`zio-blocks-schema-csv` is a **schema-driven CSV codec module** for serializing and deserializing Scala types to and from CSV format. It provides RFC 4180-compliant parsing and generation with zero dependencies and support for 30 primitive types plus flat record (case class) types. Core types: `CsvCodec`, `CsvConfig`, `CsvError`, `CsvReader`, `CsvWriter`, `CsvFormat`.
 
 See also the [How to Read and Write CSV and TSV Files](../../../guides/read-and-write-csv-and-tsv-files.md) guide, which reads files by header name, reports every bad row, writes TSV through `CsvReader` and `CsvWriter`, and processes large files one row at a time.
 
@@ -26,7 +26,7 @@ trait CsvCodec[A] {
 
 ## Motivation
 
-CSV is the de facto standard for tabular data exchange across systems, but parsing and serialization are often error-prone when done manually. `zio-blocks-schema-csv` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+CSV is the de facto standard for tabular data exchange across systems, but parsing and serialization are often error-prone when done manually. `zio-blocks-schema-csv` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Blocks Schema. You describe your data shape once, and the module handles:
 - RFC 4180-compliant parsing and generation with proper quote escaping
 - Error messages that quote the bad value, and parse errors that carry a row and column, with the limits described in [CsvError](#csverror)
 - Zero-overhead errors (no stack traces) optimized for CSV stream processing
@@ -48,7 +48,7 @@ For Scala.js, use `%%%` instead of `%%`:
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema-csv" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x
+Supported Scala versions: 2.13.x and 3.x. On Scala 3.9 and newer, use the `zio-blocks-next-schema-csv` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../guides/add-zio-blocks-to-your-build.md) explains.
 
 ## Introduction
 
@@ -59,7 +59,7 @@ The module provides a complete pipeline for CSV codec derivation and usage:
 3. **Parse or serialize** — Call `CsvCodec#decode` or `CsvCodec#encode`
 4. **Handle errors** — Catch `CsvError` for malformed input, and `SchemaError` for a cell that doesn't convert to its field's type
 
-The derivation process is automatic for supported types (all 27 primitives and flat records). Unsupported types (sealed traits, `Option` fields, sequences, maps) are rejected at derivation time, when `Schema#derive` runs, with an `UnsupportedOperationException`.
+The derivation process is automatic for supported types (all 30 primitives and flat records). Unsupported types (sealed traits, `Option` fields, sequences, maps) are rejected at derivation time, when `Schema#derive` runs, with an `UnsupportedOperationException`.
 
 ## How They Work Together
 
@@ -285,6 +285,8 @@ object Sales {
 val codec = Sales.schema.derive(CsvFormat)
 ```
 
+Printing `codec.headerNames` shows the cell order that `codec.decode` expects for the row `Widget,99.99`:
+
 ```scala mdoc
 println(codec.headerNames)
 println(codec.decode(CharBuffer.wrap("Widget,99.99\r\n")))
@@ -501,11 +503,11 @@ val csv: String = CsvWriter.writeAll(header, rows, config)
 
 ## CsvCodecDeriver
 
-Implements schema-driven derivation of `CsvCodec[A]` instances. Automatically handles 27 primitive types and flat record types, rejecting unsupported types (sealed traits, `Option` fields, sequences, maps) with clear error messages.
+Implements schema-driven derivation of `CsvCodec[A]` instances. Automatically handles 30 primitive types and flat record types, rejecting unsupported types (sealed traits, `Option` fields, sequences, maps) with clear error messages.
 
 ### Primitive Type Support
 
-All 27 ZIO Schema primitives are supported:
+All 30 ZIO Blocks Schema primitives are supported:
 - Numeric: `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `BigInt`, `BigDecimal`
 - Logical: `Boolean`, `Char`, `String`
 - Temporal: `Instant`, `LocalDate`, `LocalDateTime`, `LocalTime`, `Duration`, `Period`, `Year`, `YearMonth`, `MonthDay`, `Month`, `DayOfWeek`, `ZonedDateTime`, `OffsetDateTime`, `OffsetTime`, `ZoneId`, `ZoneOffset`
@@ -528,6 +530,8 @@ object Address {
 val codec = Address.schema.derive(CsvFormat)
 ```
 
+Printing `codec.headerNames` shows one header per `Address` field:
+
 ```scala mdoc
 println(codec.headerNames)
 ```
@@ -542,9 +546,7 @@ Attempting to derive a codec for unsupported types (sealed traits, `Option` fiel
 
 ## CsvFormat
 
-Integration point with ZIO Schema's format system. Provides `TextFormat[CsvCodec]` to enable `Schema[A].derive(CsvFormat)` for any supported type.
-
-### Using CsvFormat
+Integration point with ZIO Blocks Schema's format system. Provides `TextFormat[CsvCodec]` to enable `Schema[A].derive(CsvFormat)` for any supported type.
 
 To derive a CSV codec using the standard format:
 
