@@ -3,7 +3,7 @@ id: yaml
 title: "YAML Codec Module"
 ---
 
-`zio-blocks-schema-yaml` is a **schema-driven YAML codec module** for serializing and deserializing Scala types to and from YAML format. It provides encoding and decoding for the ZIO Schema primitive types, records, variants, sequences and maps, with optional JSON interoperability, configuration options for pretty-printing, and automatic schema generation.
+`zio-blocks-schema-yaml` is a **schema-driven YAML codec module** for serializing and deserializing Scala types to and from YAML format. It provides encoding and decoding for the ZIO Blocks Schema primitive types, records, variants, sequences and maps, with optional JSON interoperability, configuration options for pretty-printing, and automatic schema generation.
 
 The module integrates with a pure-Scala YAML parser and writer to provide human-readable serialization. Its reader is lenient: it does not report most YAML syntax errors, so read the [known limits](#known-limits) before you load files written by people.
 
@@ -41,7 +41,7 @@ For Scala.js, use `%%%` instead of `%%`:
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema-yaml" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x. On Scala 3.9 and newer, use the `zio-blocks-next-schema-yaml` module instead, as [How to Add ZIO Blocks to Your Build](../../../guides/add-zio-blocks-to-your-build.md) explains.
+Supported Scala versions: 2.13.x and 3.x. On Scala 3.9 and newer, use the `zio-blocks-next-schema-yaml` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../guides/add-zio-blocks-to-your-build.md) explains.
 
 ## Introduction
 
@@ -426,7 +426,7 @@ Configuration and derivation system for creating `YamlCodec[A]` instances from `
 
 ### Overview
 
-`YamlCodecDeriver` implements the schema-driven derivation of YAML codecs. It handles the ZIO Schema primitive types and complex types (records, variants, sequences, maps), generating the matching YAML scalars, mappings and sequences.
+`YamlCodecDeriver` implements the schema-driven derivation of YAML codecs. It handles the ZIO Blocks Schema primitive types and complex types (records, variants, sequences, maps), generating the matching YAML scalars, mappings and sequences.
 
 ### How Derivation Works
 
@@ -447,7 +447,7 @@ val codec = User.schema.derive(YamlFormat)
 
 ### Primitive Type Support
 
-The deriver supports the ZIO Schema primitive types in these groups:
+The deriver supports the ZIO Blocks Schema primitive types in these groups:
 
 - Numeric: `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `BigInt`, `BigDecimal`
 - Logical: `Boolean`, `Char`, `String`
@@ -637,4 +637,4 @@ The guide [How to Read and Write YAML Documents](../../../guides/read-and-write-
 
 [What schema-yaml Does Not Support](../../../guides/read-and-write-yaml.md#what-schema-yaml-does-not-support)
 
-See also: [How to Write an OpenAPI Document and Export It as JSON or YAML](../../../guides/write-and-export-openapi.md) renders an OpenAPI document as YAML with `Yaml.fromJson`.
+See also [How to Write an OpenAPI Document and Export It as JSON or YAML](../../../guides/write-and-export-openapi.md), which renders an OpenAPI document as YAML with `Yaml.fromJson`.
