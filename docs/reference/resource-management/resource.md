@@ -468,7 +468,7 @@ class MetricsCollector extends AutoCloseable {
   def close(): Unit               = println("MetricsCollector closed")
 }
 
-val metricsResource = Resource.from[MetricsCollector]
+def metricsResource = Resource.from[MetricsCollector]
 ```
 
 Internally, the macro inspects `T`'s constructor at compile time, verifies that no external
@@ -506,7 +506,7 @@ class Service(logger: Logger) extends AutoCloseable {
   def close(): Unit = logger.log("Service shutting down")
 }
 
-val serviceResource = Resource.from[Service](
+def serviceResource = Resource.from[Service](
   Wire(Config("localhost", 8080))
 )
 ```
@@ -706,7 +706,7 @@ Resource is a core abstraction in ZIO Blocks' resource management ecosystem:
 For example, `Resource.from[T]` uses `Wire` to construct instances with their dependencies, automatically registering any `AutoCloseable` cleanup:
 
 ```scala
-val serviceResource = Resource.from[Service](
+def serviceResource = Resource.from[Service](
   Wire(Config("localhost", 8080))
 )
 ```

@@ -139,6 +139,15 @@ libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
 
 Moving an existing `application.conf` from Typesafe Config, PureConfig or zio-config? [Coming from PureConfig, Typesafe Config or zio-config](../../guides/config-library-migration.md) lists the HOCON features that behave differently and what to change.
 
+:::warning[Known gaps in 0.0.56]
+The parser differs from Typesafe Config in these ways, each a known bug in 0.0.56:
+
+- **Environment fallback.** `${VAR}` and `${?VAR}` look only inside the document. `${?VAR}` silently resolves to nothing, and `${VAR}` is a parse error even when the variable is set. Read secrets through an `EnvSource` layered beside the file instead.
+- **Array concatenation.** `tags = [scala] [zio]` loads as the empty string `""`, with no error. Write one array per key.
+- **Durations and sizes.** Durations decode through Java's ISO-8601 syntax, so `PT10S` works and `10s` is rejected. Size units such as `512M` are not parsed.
+- **Includes.** See [Includes](#includes): `fromHocon` drops them.
+:::
+
 ### Parsing a String
 
 The package object mixes in both the shared and platform-specific syntax, so one import brings in every constructor available on the current platform:
@@ -161,7 +170,7 @@ Braces nest into dotted keys, and an integral number flattens without a decimal 
 ConfigSource.fromHocon(hoconText, "app.conf")
 ```
 
-That integral-number handling matters because a value rendered as `5432.0` would not parse as an `Int`. Non-integral and infinite values keep their `Double` rendering.
+That integral-number handling matters because a value rendered as `5432.0` would not parse as an `Int`. Non-integral values keep their `Double` rendering. The parser never produces an infinite number. A value such as `1e400`, `Infinity` or `-1e400` is kept as the text that was written, as a string.
 
 ### Substitutions
 
@@ -190,9 +199,13 @@ The resolution pass detects circular references and reports them as a parse fail
 
 ### Includes
 
-`include "file"` directives are resolved through a callback, because the core parser does not assume a filesystem. `HoconParser.parse` accepts a `String => Option[String]` that returns the contents of a named resource, which lets includes come from a classpath, an archive, or a test fixture.
+`include "file"` directives are resolved through a callback, because the core parser does not assume a filesystem. `HoconParser.parse` accepts a `String => Option[String]` that returns the contents of a named resource, so a caller who uses the parser directly can supply the includes from a source of their choice, such as a test fixture. The library has no classpath loader.
 
 On the JVM, `ConfigSource.fromFile` wires that callback to the filesystem for you.
+
+:::warning[Includes are dropped by `ConfigSource.fromHocon`]
+A known bug in 0.0.56: `ConfigSource.fromHocon` passes no callback, so every `include` in a string is silently skipped, and an object whose only content is an include disappears. The public `ConfigSource` API has no way to pass a resolver. Load a file that uses includes with `ConfigSource.fromFile` on the JVM.
+:::
 
 ### Loading from a File
 
@@ -205,12 +218,15 @@ import zio.blocks.config.hocon._
 ConfigSource.fromFile("conf/application.conf")
 ```
 
-Two parameters guard against a hostile or accidentally-recursive configuration tree:
+Three limits guard against a hostile or accidentally-recursive configuration tree:
 
 | Parameter          | Default | Effect                                                                           |
 | ------------------ | ------- | -------------------------------------------------------------------------------- |
 | `allowedBase`      | `None`  | When set, both the file and every include must resolve inside this directory.      |
 | `maxIncludeDepth`  | `10`    | Maximum nesting depth for includes; exceeding it is a parse failure.               |
+| `maxFileBytes`     | `1 MiB` | Maximum size of the file and of each include; a larger one is a parse failure. |
+
+`maxFileBytes` has a default only on `ConfigSource.fromFileWithLimits`, which also takes `allowedBase` and `maxIncludeDepth` with defaults. `ConfigSource.fromFile(path, allowedBase, maxIncludeDepth)` always uses the 1 MiB default; the four-argument overload `ConfigSource.fromFile(path, allowedBase, maxIncludeDepth, maxFileBytes)` takes the limit explicitly.
 
 Pass `allowedBase` whenever the path comes from outside the program. Paths are canonicalized before the check, so `../` sequences cannot escape:
 
@@ -225,7 +241,7 @@ ConfigSource.fromFile(
 )
 ```
 
-Failures are reported as `ConfigError.ParseError`: a missing file expects `"existing file"`, a path outside `allowedBase` expects `"path inside <base>"`, and a malformed document carries the `HoconError` as its cause. The `sourceId` of a file-loaded source is `hocon:` followed by the file's name.
+Failures are reported as `ConfigError.ParseError`: a missing file expects `"existing file"`, a path outside `allowedBase` expects `"path inside <base>"`, a file or include over `maxFileBytes` fails with a cause message that starts `File size exceeds limit`, and a malformed document carries the `HoconError` as its cause. The `sourceId` of a file-loaded source is `hocon:` followed by the file's name.
 
 For a walkthrough that loads a split configuration tree on the JVM and runs the same settings in the browser, see [How to Load Configuration Files on the JVM and in the Browser](../../guides/load-configuration-files.md).
 
@@ -248,7 +264,7 @@ object HoconValue {
 
 `HoconValue.flatten` performs the flattening the adapter uses, and `HoconValue.deepMerge` merges two trees recursively with the right side winning on conflict — the operation a layered HOCON setup needs before flattening, as opposed to `ConfigSource#orElse`, which layers after.
 
-`HoconError` carries a message with the line and column where parsing failed, and extends `Exception` so it can be thrown or attached as a cause:
+`HoconError` carries a message with the line and column where parsing failed, and extends `Exception` so it can be thrown or attached as a cause. The line and column are set for lexer errors only: an error found while resolving a substitution reports line 0, column 0. A known bug in 0.0.56: `ConfigSource.fromHocon` reports a syntax error as `Parse error for key '' (expected valid HOCON) in source '<name>'`, with no position. The `HoconError` survives only in the `cause` field of `ConfigError.ParseError`, which neither `message` nor `getCause` shows:
 
 ```scala
 final case class HoconError(message: String, line: Int, column: Int)

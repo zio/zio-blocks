@@ -29,7 +29,7 @@ import scala.collection.mutable
  *
  * Intended to be extended by Scala `object` definitions:
  * {{{
- *   object MyFeature extends DynamicFlag[Boolean](false, "true@beta/50%; false")
+ *   object MyFeature extends DynamicFlag[Boolean](false, "true@eu/50%; false")
  * }}}
  *
  * Resolution order for initial expression: FlagSource → system property → env

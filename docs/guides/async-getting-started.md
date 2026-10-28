@@ -276,6 +276,10 @@ Promise resolved: hello from callback
 - Calling `c.succeed("hello from callback")` completes the promise; the first call wins and subsequent calls are no-ops.
 - The `block` call waits until the completer fires and returns the resolved value.
 
+:::warning[Scala 3: do not annotate the binder]
+On Scala 3, `Async.promise[String] { (c: Completer[String]) => ... }` compiles, but the statements inside the lambda never run, so the completer is never completed and `block` waits forever. Use the Scala 3 form above, `summon[Completer[String]]` or `{ c ?=> ... }`. Compiler warning E190 at the call site is the only hint.
+:::
+
 <details>
   <summary>Runnable version, the Scala 3 tab: <code>Concept5CallbackBridgingExample.scala</code></summary>
 

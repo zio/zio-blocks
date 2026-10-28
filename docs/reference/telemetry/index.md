@@ -62,7 +62,11 @@ libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry" % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 
-Supports Scala 2.13.x and 3.x. On the JVM, the module needs JDK 21 or newer.
+Supports Scala 2.13.x and 3.x. On the JVM, the module needs JDK 21 or newer, and that includes code that only calls `log.*`: the log macros run inside the compiler, so on JDK 17 even compiling a `log.info` call fails with `UnsupportedClassVersionError` (class file version 65.0).
+
+:::warning[Logging on Scala 2.13]
+A known bug in 0.0.56: on Scala 2.13, every `log.*` call fails to compile outside the `zio.blocks.telemetry` package, with `object GlobalLogState in package telemetry cannot be accessed`. Scala 3 is not affected. Tracing and metrics work on Scala 2.13.
+:::
 
 
 ## Overview

@@ -60,12 +60,12 @@ Parse/Create JSON
 Json (ADT: Object, Array, String, Number, Boolean, Null)
     ├─ Navigate with JsonSelection (fluent query API)
     ├─ Understand with JsonType (type information)
-    └─ Transform via JsonPatch (composable operations)
+    ├─ Transform via JsonPatch (composable operations)
+    └─ Merge with MergeStrategy (field conflict resolution)
     ↓
 JsonCodec (encode/decode)
     ├─ WriterConfig (indent step, preferred buffer size, Unicode escaping)
-    ├─ ReaderConfig (buffer sizes, end-of-input check)
-    └─ MergeStrategy (field conflict resolution)
+    └─ ReaderConfig (buffer sizes, end-of-input check)
     ↓
 JsonDiffer (diff algorithm)
     └─ Produces JsonPatch (minimal changes)
@@ -169,8 +169,7 @@ val data = Json.Object(
 
 // Navigate to first user's age
 val age: Either[SchemaError, Int] = data
-  .get("users")        // JsonSelection
-  (0)                 // Navigate to first array element
+  .get("users")(0)    // first element of the users array
   .get("age")         // Navigate to age field
   .as[Int]            // Decode to Int
 

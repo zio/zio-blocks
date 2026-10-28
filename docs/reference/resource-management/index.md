@@ -15,7 +15,7 @@ These three types solve the fundamental problem of managing resources and depend
 
 **[Resource](./resource.md)** builds on Scope to describe how to acquire and finalize resources. Rather than executing immediately, a Resource is a lazy recipe that composes naturally with `map`, `flatMap`, and `zip`. When allocated within a scope, finalizers run automatically in LIFO order, ensuring cleanup happens even when errors occur.
 
-**[Wire](./wire.md)** brings it all together by describing how to construct services and their dependencies. The Wire macro automatically handles dependency resolution, cycle detection, and AutoCloseable registration, letting you declaratively specify a dependency graph that the compiler validates.
+**[Wire](./wire.md)** brings it all together by describing how to construct services and their dependencies. The Wire macro automatically handles dependency resolution and AutoCloseable registration, letting you declaratively specify a dependency graph that the compiler validates. Cycle detection is not working yet: in 0.0.56 a dependency cycle crashes the macro (a known bug, #1767).
 
 ### How They Work Together
 

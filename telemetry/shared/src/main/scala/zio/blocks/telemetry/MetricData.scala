@@ -65,7 +65,7 @@ final case class SumDataPoint(
  * @param bucketCounts
  *   counts for each bucket (length = boundaries.length + 1)
  * @param boundaries
- *   upper exclusive boundaries for each bucket
+ *   upper inclusive boundaries for each bucket
  */
 final case class HistogramDataPoint(
   attributes: Attributes,
