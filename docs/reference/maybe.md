@@ -19,18 +19,22 @@ val absent: Maybe[Int]  = Maybe.absent
 
 ## Allocation Profile
 
-The new encoding minimizes allocation by using the raw value when possible:
+On Scala 3, the encoding stores a present value as the value itself whenever it can. `Maybe[A]` erases to `Object`, though, so on the JVM a primitive is stored as its box, and the box is what may allocate:
 
-| Case | Example | Allocations |
-|------|---------|-------------|
-| Flat present | `Maybe.present(42)` | **0** (raw `42`) |
-| Flat apply | `Maybe(42)` | **0** (raw `42`) |
-| Flat fromOption | `Maybe.fromOption(Some(42))` | **0** (raw `42`) |
-| Absent | `Maybe.absent` | **0** (`Absent` singleton) |
-| Present-of-absent | `Maybe.present(Maybe.absent)` | **1** (`Present(Absent)`) |
-| Present null | `Maybe.fromOption(Some(null))` | **1** (`Present(null)`) |
+| Case                        | Example                                 | Allocations                                                |
+| --------------------------- | --------------------------------------- | ---------------------------------------------------------- |
+| Flat present, reference     | `Maybe.present(tick)`                   | **0** (the reference itself)                               |
+| Flat apply, reference       | `Maybe(tick)`                           | **0** (the reference itself)                               |
+| Flat fromOption, reference  | `Maybe.fromOption(Some(tick))`          | **0** beyond the caller's `Some`                           |
+| Flat present, primitive     | `Maybe.present(1000L)`                  | **1** box (`java.lang.Long`), unless the JVM caches it     |
+| Flat present, cached box    | `Maybe.present(42)`                     | **0** (the JVM's cached `Integer` for `42`)                |
+| Absent                      | `Maybe.absent`                          | **0** (`Absent` singleton)                                 |
+| Present-of-absent           | `Maybe.present(Maybe.absent)`           | **1** (`Present(Absent)`)                                  |
+| Present null                | `Maybe.fromOption(Some(null))`          | **1** (`Present(null)`)                                    |
 
-The `Present[A]` wrapper is allocated **only** for present-of-absent cases: wrapping a nested `Maybe` that is itself absent (`Present(Absent)`) and wrapping a `null` value (`Present(null)`). All other flat cases store the value raw with zero allocation overhead.
+The JVM caches the boxes of `Boolean`, of `Byte`, `Short`, `Int` and `Long` values from -128 to 127, and of `Char` values up to 127, so those primitives reuse a box. Every other `Int` or `Long`, and every `Float` and `Double`, gets a new box each time: writing `Maybe(price)` into a `Maybe[Long]` field allocates 24 bytes per write, against 40 for `Some(price)` in an `Option[Long]` field. [How to Avoid Allocation on Hot Paths](../guides/avoid-allocation-on-hot-paths.md) measures both.
+
+The `Present[A]` wrapper is allocated **only** for present-of-absent cases: wrapping a nested `Maybe` that is itself absent (`Present(Absent)`) or already a `Present` wrapper, and wrapping a `null` value (`Present(null)`). All other flat cases store the reference raw; for a reference type, that means zero allocation.
 
 ### Nesting Depth
 
@@ -57,13 +61,13 @@ See also [How to Avoid Allocation on Hot Paths](../guides/avoid-allocation-on-ho
 
 When working with optional values, you face a choice: `Option[A]` provides type safety and functional composition but allocates a wrapper object for every value. `Maybe[A]` provides an alternative with different trade-offs depending on your Scala version.
 
-**On Scala 3:** `Maybe[A]` eliminates allocation overhead by leveraging union types and a top-level `Absent` sentinel. The type is an opaque alias for `A | Absent.type | Present[A]`, where `Present[A]` is a public wrapper allocated whenever a present value would otherwise be indistinguishable from absence. Flat values (non-nested, non-null) are stored raw with zero allocation; only present-of-absent values allocate a `Present` wrapper (`Maybe.present(Maybe.absent)` → `Present(Absent)`, `Maybe.present(null)` → `Present(null)`). This gives you a dedicated API (`map`, `flatMap`, `filter`, etc.) with minimal runtime overhead. `case Absent` is a stable-identifier pattern that works directly.
+**On Scala 3:** `Maybe[A]` eliminates allocation overhead by leveraging union types and a top-level `Absent` sentinel. The type is an opaque alias for `A | Absent.type | Present[A]`, where `Present[A]` is a public wrapper allocated whenever a present value would otherwise be indistinguishable from absence. Flat reference values (non-nested, non-null) are stored raw with zero allocation, while a primitive is stored as its JVM box, which allocates unless the JVM caches it; only present-of-absent values allocate a `Present` wrapper (`Maybe.present(Maybe.absent)` → `Present(Absent)`, `Maybe.present(null)` → `Present(null)`). This gives you a dedicated API (`map`, `flatMap`, `filter`, etc.) with minimal runtime overhead. `case Absent` is a stable-identifier pattern that works directly.
 
 **On Scala 2.13:** `Maybe[A]` is implemented as a sealed trait (`Present[A]` | `Absent`). Present values allocate a wrapper, so the allocation savings versus `Option` are less pronounced. However, the unified API and interoperability benefits still apply.
 
 ### Why Maybe over Option?
 
-- **Zero allocation (flat case)**: Non-nested `Maybe` values are either the raw value itself or the `Absent` singleton—no wrapper objects
+- **No wrapper (flat case)**: Non-nested `Maybe` values are either the raw value itself or the `Absent` singleton, so a reference costs nothing; a primitive still costs its box
 - **Sound nesting**: Nested `Maybe[Maybe[A]]` is now sound via `Present[A]`, without requiring a compile-time guard
 - **Familiar API**: All your favorite `Option` combinators (`map`, `flatMap`, `fold`, etc.)
 - **Type safety**: The opaque type prevents accidentally mixing nullable and non-nullable values
@@ -76,7 +80,7 @@ The API surface is consistent across Scala 2.13 and Scala 3, but the underlying 
 | Aspect | Scala 3 | Scala 2.13 |
 |--------|---------|------------|
 | Encoding | `opaque type Maybe[+A] = A \| Absent.type \| Present[A]` | Sealed trait `Present[A]` \| `Absent` |
-| Flat allocation | **0** (raw value or `Absent` singleton) | **1** (wrapper object) |
+| Flat allocation | **0** for a reference or `Absent`; a primitive keeps its JVM box | **1** (wrapper object) |
 | Nested allocation | **1** (`Present(Absent)` only) | **1** (wrapper object) |
 | `Present` type | Public `final class Present[+A]` with manual companion (`apply`/`unapply`) | `MaybeValue.Present[A]` (sealed) |
 | Nesting guard | **Removed** (nesting now sound via `Present`) | N/A (never existed) |
