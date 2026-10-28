@@ -244,6 +244,14 @@ object NioStreamsSinksSpec extends StreamsBaseSpec {
           assertTrue(result == Right(())) &&
           assertTrue(buf.getLong() == 1000L) &&
           assertTrue(buf.getLong() == 2000L)
+        },
+        test("writes Long.MaxValue like any other value") {
+          val data   = List(1000L, Long.MaxValue, 2000L, Long.MaxValue)
+          val buf    = ByteBuffer.allocate(data.length * 8)
+          val result = Stream.fromIterable(data).run(NioSinks.fromByteBufferLong(buf))
+          buf.flip()
+          val written = List.fill(buf.remaining / 8)(buf.getLong())
+          assertTrue(result == Right(()), written == data)
         }
       ),
       suite("fromByteBufferDouble")(
@@ -254,6 +262,14 @@ object NioStreamsSinksSpec extends StreamsBaseSpec {
           assertTrue(result == Right(())) &&
           assertTrue(buf.getDouble() == 1.5) &&
           assertTrue(buf.getDouble() == 2.5)
+        },
+        test("writes Double.MaxValue like any other value") {
+          val data   = List(1.5, Double.MaxValue, 2.5, Double.MaxValue)
+          val buf    = ByteBuffer.allocate(data.length * 8)
+          val result = Stream.fromIterable(data).run(NioSinks.fromByteBufferDouble(buf))
+          buf.flip()
+          val written = List.fill(buf.remaining / 8)(buf.getDouble())
+          assertTrue(result == Right(()), written == data)
         }
       ),
       suite("fromByteBufferFloat")(
