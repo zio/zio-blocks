@@ -48,15 +48,27 @@ DbCodec[User].columns
 // 2. DbCodec.derived — equivalent, explicit
 case class Event(eventId: Long, eventType: String)
 object Event { implicit val schema: Schema[Event] = Schema.derived }
+```
+
+```scala mdoc:silent
 val eventCodec = DbCodec.derived[Event]
+```
+
+```scala mdoc
 eventCodec.columns
 
 // 3. withColumnNameMapper — use Identity when your DB already uses camelCase
 case class Widget(widgetId: Int, widgetName: String)
 object Widget { implicit val schema: Schema[Widget] = Schema.derived }
+```
 
+```scala mdoc:silent
 val identityDeriver = DbCodecDeriver.withColumnNameMapper(SqlNameMapper.Identity)
+
 val widgetCodec     = Widget.schema.deriving(identityDeriver).derive
+```
+
+```scala mdoc
 widgetCodec.columns
 ```
 
