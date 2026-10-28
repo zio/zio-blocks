@@ -10,7 +10,7 @@ title: "Migration"
 The migration system is split into three layers:
 
 - **`Migration[A, B]`** — typed migration between source type `A` and target type `B`
-- **`DynamicMigration`** — pure runtime representation built from actions that are plain data
+- **`DynamicMigration`** — untyped runtime representation built from actions that can be inspected, composed and reversed
 - **`MigrationBuilder[A, B, Changeset]`** — macro-validated builder that accumulates actions and checks that the target shape is fully handled before `build`
 
 ```
@@ -279,9 +279,11 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
 
 Use it when you need to inspect or apply migrations without keeping the original Scala types around, or to build a migration on Scala 2, where the builder does not compile (see [Creating a Migration](#creating-a-migration)).
 
+In 0.0.56 there is no way to store or send a `DynamicMigration`: no codec can write it. Keep migrations in code instead, for example as a map from a stored data version to the `Migration` that upgrades it, and store only the version number next to the data.
+
 ## `MigrationAction`
 
-`MigrationAction` is the ADT used by `DynamicMigration`. Its cases are plain data, but no `Schema` is provided for them yet.
+`MigrationAction` is the ADT used by `DynamicMigration`. Its cases are data that can be inspected and compared, but no `Schema` is provided for them, and a literal inside an action (`DynamicSchemaExpr.Literal`, which every `SchemaExpr.literal` becomes) holds the `Schema` of its value, so an action can't be encoded either.
 
 | Action | Purpose | Reverse behavior |
 |---|---|---|

@@ -1032,12 +1032,12 @@ println(dynSchema.check(incomplete))
 ```
 
 :::info
-ZIO Blocks Schema includes an explicit migration API for evolving values between schema versions. The entry point is [`Migration.newBuilder[A, B]`](../reference/schema/migration.md), which builds a typed `Migration[A, B]` backed by a serializable `DynamicMigration`.
+ZIO Blocks Schema includes an explicit migration API for evolving values between schema versions. The entry point is [`Migration.newBuilder[A, B]`](../reference/schema/migration.md), which builds a typed `Migration[A, B]` backed by a `DynamicMigration`. In 0.0.56, a `DynamicMigration` has no `Schema`, so it can't be stored or sent.
 
 This is a different model from ZIO Schema's `schema.migrate(newSchema)` and `schema.coerce(newSchema)` methods, which work out the conversion from the two schemas at runtime:
 
 1. Build a migration explicitly with operations like `MigrationBuilder#addField`, `MigrationBuilder#dropField`, `MigrationBuilder#renameField`, `MigrationBuilder#changeFieldType`, and `MigrationBuilder#transformField`.
-2. Apply the resulting `Migration[A, B]` to typed values, or inspect/transport the underlying `DynamicMigration`.
+2. Apply the resulting `Migration[A, B]` to typed values, or inspect the underlying `DynamicMigration`.
 
 Use this when you want structural schema evolution as first-class data rather than implicit derivation. To convert between two versions of a type without writing the steps, derive an `Into[A, B]` instead. [Evolve Your Data](./evolve-your-data.md) walks through both.
 :::
