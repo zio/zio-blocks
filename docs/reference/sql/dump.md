@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS invoice (
 )
 ```
 
-The `.sql` listings on this page are copied from the files that a compile of this code against `zio-blocks-sql` 0.0.56 wrote.
+The `.sql` listings on this page are copied from the files that compiling this code against `zio-blocks-sql` 0.0.56 writes.
 
 ## Turning Dumps On
 
@@ -110,7 +110,7 @@ JAVA_TOOL_OPTIONS="-Dzib.sql.dumpDir=$PWD/sql-dumps" scala-cli compile --server=
 
 ## Core Operations
 
-`Dump` has two operations, one per kind of SQL it writes, plus the files that the `sql"..."` interpolator writes on its own while the property is set. All of them write through the same file rules, described in [File Handling](#file-handling). `Dump` also has public `dumpQueryIrImpl` and `dumpTableImpl` methods: they are the macro implementations behind the two inline methods, and you don't call them directly.
+`Dump` has two operations, one per kind of SQL it writes, plus the files that the `sql"..."` interpolator writes on its own while the property is set. All of them write through the same file rules, described in [File Handling](#file-handling). `Dump` also has public `Dump.dumpQueryIrImpl` and `Dump.dumpTableImpl` methods: they are the macro implementations behind the two inline methods, and you don't call them directly.
 
 ### Dumping a Query
 
@@ -127,14 +127,14 @@ object Dump {
 The macro rebuilds the SQL from the source code of the query, so each part of the query must be visible at the call site:
 
 - The query is an `inline def`, or the `SqlQuery.from(...)` chain itself written in the call. A query stored in a plain `val` or built at run time writes no file, and the compiler warns `Dump requires inline query value; preconstructed value will emit no file; ...`.
-- Each `Rel` is built inside the chain. A `Rel` stored in a `val` gives the warning `Dump.dumpQuery: could not decode Rel for join`, and the file is written without that join.
-- `orderBy` columns are string literals, and `limit` and `offset` take integer literals. Anything else gives a warning such as `Dump.dumpQuery: limit expects int literal`, and the file is written without that clause.
+- Each [`Rel`](./rel.md) is built inside the chain. A `Rel` stored in a `val` gives the warning `Dump.dumpQuery: could not decode Rel for join`, and the file is written without that join.
+- `SqlQuery#orderBy` columns are string literals, and `SqlQuery#limit` and `SqlQuery#offset` take integer literals. Anything else gives a warning such as `Dump.dumpQuery: limit expects int literal`, and the file is written without that clause.
 - An `IN` condition built from a `DbArray` whose size isn't known at compile time writes no file, with a warning that starts `IN placeholder: compile-time DbArray cardinality is indeterminate`.
 
 A query that passes these rules is written with the same SQL as `SqlQuery#sql`, plain `?` placeholders included. Unlike `SqlQuery#explain`, the file has no numbered placeholders and no `-- params:` line.
 
 :::warning
-A `where(sql"...")` condition loses its parameter in the dump, a known bug in 0.0.56. A query written as `SqlQuery.from(ShopTables.invoices).where(sql"""t0."year" = ${2026}""")` is dumped as `... WHERE t0."year" = ` with no `?`, while `SqlQuery#explain` shows `WHERE t0."year" = ?1`. A condition built with the `Frag` constructor, as in [Usage](#usage), keeps its `?`. Use `SqlQuery#explain` to check queries with `sql"..."` conditions.
+A `SqlQuery#where` condition written with `sql"..."` loses its parameter in the dump, a known bug in 0.0.56. A query written as `SqlQuery.from(ShopTables.invoices).where(sql"""t0."year" = ${2026}""")` is dumped as `... WHERE t0."year" = ` with no `?`, while `SqlQuery#explain` shows `WHERE t0."year" = ?1`. A condition built with the [`Frag`](./frag.md) constructor, as in [Usage](#usage), keeps its `?`. Use `SqlQuery#explain` to check queries with `sql"..."` conditions.
 :::
 
 #### How Files Are Named
