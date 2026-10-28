@@ -34,7 +34,7 @@ Three singletons cover the common destinations:
 
 ## Example Usage
 
-Pair a writer with a formatter and hand both to `log.writer`. It is additive — each call adds another channel, and every record is sent to all of them:
+Pair a writer with a formatter and hand both to `log.writer`. It is additive — each call adds another channel, and every record is sent to all of them. The default console output stays, so call `log.install(LoggerProvider.builder.build().get("com.example"))` first if you want only these channels:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
