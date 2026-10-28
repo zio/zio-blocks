@@ -772,6 +772,8 @@ object NioSinks {
 - `NioSinks.fromByteBuffer` — writes individual `Byte` elements.
 - `NioSinks.fromByteBufferInt`, `NioSinks.fromByteBufferLong`, `NioSinks.fromByteBufferFloat`, `NioSinks.fromByteBufferDouble` — write primitives directly using the buffer's native methods (`putInt`, `putLong`, etc.), one buffer write per element rather than one per byte.
 
+The sinks write at the buffer's position and advance it, encoding multi-byte values in the buffer's byte order, and keep every value, `Long.MaxValue`, `Double.MaxValue` and `NaN` included. They never grow the buffer. When it runs out of room, the `BufferOverflowException` of `ByteBuffer#put` is not a typed error, so no `Left` comes back: a blocking terminal such as `Stream#run` throws it, and an `*Async` terminal's `Async` fails with it. The values written before it stay in the buffer, so allocate the buffer for the whole stream or bound the stream with `Stream#take`.
+
 Here's an example using ByteBuffer with typed primitive writes:
 
 ```scala mdoc:reset
@@ -797,6 +799,16 @@ val readBack = List(
 ```
 
 This example allocates a 32-byte buffer (4 Longs × 8 bytes each), writes four `Long` values using `NioSinks.fromByteBufferLong` (which calls `putLong` on each element), then rewinds and reads them back to verify. The typed variant writes one 8-byte buffer operation per element, where the byte variant would require the stream to carry each byte separately.
+
+When the buffer is too small, the blocking terminal throws `BufferOverflowException` instead of returning `Left`, and the buffer keeps the values that fit:
+
+```scala mdoc
+val (overflow, bytesWritten) = {
+  val small  = ByteBuffer.allocate(16)
+  val result = scala.util.Try(Stream(1L, 2L, 3L).run(NioSinks.fromByteBufferLong(small)))
+  (result, small.position())
+}
+```
 
 The following example shows streaming voltage sensor readings through a calibration curve and buffering them for downstream computation. When processing sensor arrays or scientific measurements, pre-allocated buffers with typed sinks let each element be written through its exact primitive lane without boxing.
 
