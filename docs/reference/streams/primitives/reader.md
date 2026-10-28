@@ -354,6 +354,8 @@ object Reader {
 }
 ```
 
+Closing the reader does not close `is`. An `IOException` from `is` is thrown wrapped in the library's `zio.blocks.streams.internal.StreamError`, whose `value` is the `IOException`, and every later pull throws it again.
+
 `Reader.fromReader` — Wraps a `java.io.Reader` as a `SyncReader[Char]` for character-based I/O:
 
 ```scala
@@ -361,6 +363,8 @@ object Reader {
   def fromReader(r: java.io.Reader): Reader.SyncReader[Char]
 }
 ```
+
+It follows the same rules as `Reader.fromInputStream`: closing the reader leaves `r` open, and an `IOException` from `r` is thrown wrapped in `StreamError` and again by every later pull.
 
 `NioReaders` is the `java.nio` counterpart, and it is synchronous throughout. It has no asynchronous twins, and the reason is in the type it wraps: `ReadableByteChannel#read` blocks the calling thread. No wrapper can make it non-blocking, so presenting its result as an `AsyncReader` would have promised something the channel cannot deliver. The two objects split by capability — `AsyncNioReaders` for channels that implement the JDK's asynchronous read protocol, `NioReaders` for the blocking ones and for `ByteBuffer`s.
 
@@ -379,6 +383,8 @@ object NioReaders {
 
 These factories return `Reader.SyncReader[Byte]` rather than the root `Reader[Byte]`, which is what makes pulling and closing available on the result: those members belong to the reader kinds, not to the root type. Two details of this object are worth noting at a call site: its channel factory names the buffer parameter `bufSize`, where the asynchronous one names it `bufferSize`, and there is no public unmanaged channel variant here — `NioReaders.fromChannel` always owns the channel it wraps.
 
+`NioReaders.fromChannel` needs a channel in blocking mode. A read that returns no bytes is taken as the end of the data, so over a non-blocking `SocketChannel` or `Pipe.SourceChannel` the reader reports end-of-stream as soon as no bytes are ready, and the data is cut short without an error (a known bug in 0.0.56). An `IOException` from the channel is thrown wrapped in `StreamError`, whose `value` is the `IOException`, and every later pull throws it again.
+
 File bytes are reachable only through this synchronous side: a `java.nio.channels.FileChannel` is a `ReadableByteChannel`, so `NioReaders.fromChannel` accepts it. That reader blocks, and `SyncReader#toAsync` does not change it — the resulting asynchronous reader still blocks the thread that drives it.
 
 ### From Native Asynchronous Sources
@@ -396,13 +402,13 @@ Six factories exist across the two platforms, all of them returning `Reader.Asyn
 | `ReadableStreamReaders.fromReadableStream`          | Scala.js | `ReadableStream`            | Cancels the stream, then releases the lock |
 | `ReadableStreamReaders.fromReadableStreamUnmanaged` | Scala.js | `ReadableStream`            | Releases the lock, never cancels           |
 
-The two adapters follow the same rules, so a cross-platform consumer sees the same behaviour from either one:
+The two adapters follow the same rules, so a cross-platform consumer sees the same behaviour from either one, except for a source failure, where a known bug in 0.0.56 makes a stream over the Scala.js adapter fail its `Async` instead of producing `Left` (see [Scala.js Invariants](#scalajs-invariants)):
 
 | Situation                   | JVM `AsyncNioReaders`                          | Scala.js `ReadableStreamReaders`           |
 |-----------------------------|------------------------------------------------|--------------------------------------------|
 | A delivery carries no bytes | The buffer is cleared and the read resubmitted | The chunk is skipped and `read()` reissued |
 | End of stream               | A negative completion count                    | `done = true` on the read result           |
-| A source failure            | `IOException`, trusted                         | A rejected promise, trusted                |
+| A source failure            | `IOException`; a stream gives `Left`           | A rejection; a stream's `Async` fails      |
 | Read buffer size            | `bufferSize`, default 8192                     | Not configurable                           |
 
 Neither module is a general native-I/O layer. `AsyncNioReaders` reads from channels that implement the JDK's asynchronous read protocol, and `ReadableStreamReaders` reads from a browser or Node byte stream. Everything else — files on the JVM, non-byte sources on Scala.js — is outside what these factories accept.
@@ -539,7 +545,11 @@ The JVM adapter's rules about deferral and exclusivity hold here too — pulls a
 1. **An empty chunk is skipped, never treated as end of stream.** A result with `done = false` and a zero-length value causes the adapter to reissue `read()`; only `done = true` ends the stream.
 2. **Buffered bytes are preserved across pulls.** A chunk delivered by the stream is consumed byte by byte from the adapter's own index, so a pull that the buffer can satisfy issues no `read()` at all, and a partially consumed chunk survives until it is drained.
 3. **End of stream is observed without prefetch.** The adapter never calls `read()` merely to discover whether the stream has finished; it learns that from the read that a pull actually needed.
-4. **A rejected promise is a trusted source failure.** The rejection is wrapped as a source failure, surfaces in the typed error channel, and is replayed by every later pull.
+4. **A rejected promise fails the read.** The rejection fails the pull's `Async` with a `StreamError` whose `value` is the rejection, and every later pull fails with it again.
+
+:::warning[Known bug in 0.0.56: a rejected read does not arrive as `Left`]
+In a stream built with `Stream.fromReader` over this reader, a read that the JavaScript stream rejects, for example a dropped connection, does not arrive as `Left` in the `Either` the way the JVM channel adapter's failures do. It fails the `Async` itself with an internal `StreamError`, whose message is empty, so handle it with `Async#either` or a `catch` at the edge.
+:::
 
 #### Scala.js Limitations
 
@@ -624,8 +634,9 @@ def drainN(n: Int): Unit = {
   }
 }
 drainN(3)
-// Output: 1, 1, 1
 ```
+
+A known bug in 0.0.56: `close()` does not stop a `Reader.repeat` reader. After `close()`, `isClosed` stays `false` and every pull still returns the value.
 
 `Reader.repeated` — Restarts an inner reader each time it closes cleanly. Used by `Stream.repeated` to create indefinitely repeating streams:
 
@@ -636,6 +647,8 @@ object Reader {
   def repeated[A](inner: Reader[A]): Reader[A]
 }
 ```
+
+Each time `inner` ends, the synchronous overload calls `inner.reset()` and keeps reading, so `inner` must support `reset()`; one that does not makes the pull throw `UnsupportedOperationException`, and an `inner` that produces nothing between two resets makes the pull loop forever. A known bug in 0.0.56: after `close()`, the synchronous overload's next pull resets `inner` and keeps producing elements (the asynchronous overload stops as expected).
 
 ### Unfold (State Machine)
 
@@ -977,7 +990,7 @@ abstract class Reader.AsyncReader[+Elem] {
 
 ### State Queries
 
-`isClosed` reports whether the reader is closed. Its result is monotone: once `true`, it never becomes `false`:
+`isClosed` reports whether the reader is exhausted or closed. Once `true`, it stays `true` until `reset()` rewinds the reader:
 
 ```scala
 abstract class Reader.SyncReader[+Elem] {
@@ -1077,7 +1090,7 @@ abstract class Reader.AsyncReader[+Elem] extends Reader[Elem] {
 }
 ```
 
-Calling one of these on a reader whose `jvmType` is a different primitive lane does not throw at the call site: it returns a failed `Async` carrying an `UnsupportedOperationException` that names both lanes. A reader on the `AnyRef` lane, by contrast, satisfies every one of them by pulling boxed and converting.
+Calling one of these on a reader whose `jvmType` is a different primitive lane does not throw at the call site: the default returns a failed `Async` carrying an `UnsupportedOperationException` that names both lanes. The view that `SyncReader#toAsync` returns is the exception, reachable only through a cast: its `readLong` and `readDouble` throw `IllegalStateException` at the call site, and its other primitive pulls fail the `Async` with it. A plain reader on the `AnyRef` lane satisfies all eight by pulling boxed and converting.
 
 Five bulk array transfers fill a caller-supplied array and report how many elements were written, or `-1` when the reader was already at end-of-stream:
 
@@ -1182,8 +1195,9 @@ def drain(): Unit = {
   }
 }
 drain()
-// Output: 1, 2, 3, 4
 ```
+
+The result is on the `AnyRef` lane, whatever the lanes of its parts. A known bug in 0.0.56: its primitive pulls (`readInt`, `readBytes`, ...) throw, or fail with, `IllegalStateException`, so read it with `read`, `readAll`, `readN` or `readUpToN`, or through a stream.
 
 These are the root's declarations, which answer with a `Reader[Elem2]`. `SyncReader` narrows them with a second pair of overloads so that concatenating two synchronous readers gives back a `SyncReader`; see [Mixed-kind composition](#mixed-kind-composition) for which combination produces which kind.
 
@@ -1454,7 +1468,7 @@ abstract class Reader[+Elem] {
 }
 ```
 
-`JvmType` has nine lanes: the eight JVM primitives — `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, `Double` — and `AnyRef` for everything else. The eight primitive tags map exactly to `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`; `AnyRef` is the ninth, and it is the only lane on which all eight of those methods work, because it satisfies them by pulling boxed and converting. For example, a `SyncReader[Int]` backed by a `Chunk[Int]` reports `JvmType.Int`, so consumers may use `readInt`; a pull belonging to another lane throws `UnsupportedOperationException` unless that particular reader happens to implement it too.
+`JvmType` has nine lanes: the eight JVM primitives — `Boolean`, `Byte`, `Char`, `Short`, `Int`, `Long`, `Float`, `Double` — and `AnyRef` for everything else. The eight primitive tags map exactly to `readBoolean`, `readByte`, `readChar`, `readShort`, `readInt`, `readLong`, `readFloat`, and `readDouble`; `AnyRef` is the ninth, and a plain reader on that lane answers all eight of those methods itself by pulling boxed and converting. A known bug in 0.0.56 limits that: on an `AnyRef`-lane reader the default bulk reads `readBytes`, `readInts` and `readFloats` throw `IllegalStateException`, and so does every primitive pull of a `Reader#concat` result (which is always on the `AnyRef` lane) and of the library's wrappers around an `AnyRef`-lane reader (`SyncReader#toAsync`, `SyncReader#withRelease`, `Reader.repeated`); `read`, `readAll`, `readN` and `readUpToN` work on all of them. For example, a `SyncReader[Int]` backed by a `Chunk[Int]` reports `JvmType.Int`, so consumers may use `readInt`; a pull belonging to another lane throws `UnsupportedOperationException` unless that particular reader happens to implement it too.
 
 The lane is a property of the reader, not of the kind. A `SyncReader` and the `AsyncReader` it becomes under `toAsync` report the same `jvmType`, and asynchronous readers expose the corresponding values through `Async`.
 

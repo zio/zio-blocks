@@ -17,7 +17,7 @@ keywords:
 
 - **Lazy and Push-Based** — nothing happens until the producer calls `write()`
 - **Non-Thread-Safe** — designed for single-threaded production; concurrent access requires external synchronization
-- **Explicit Closure Signal** — returns `false` when closed (clean closure) or throws when error-closed
+- **Explicit Closure Signal** — returns `false` when closed; none of the library's writers throws after `fail`
 
 Here is the structural shape of the `Writer` type:
 
@@ -39,7 +39,7 @@ Imagine you're building a data pipeline where a producer feeds items to a bounde
 
 With Java's `OutputStream`, you call `write()` and either it succeeds (void return) or throws an exception. This leaves ambiguity: Was the exception transient (try again later) or permanent (the stream is done)? If the buffer fills, the thread blocks—but you don't know how long, or even that it will block beforehand. There's no way to check capacity upfront, so you're forced to either over-allocate buffers (wasting memory) or catch exceptions and guess the right strategy.
 
-`Writer` makes the state explicit and non-throwing. You check readiness with `writeable()`, then push with `write()`, which returns a `Boolean` indicating success or closure. The protocol is explicit: when `write()` returns `false`, the sink is permanently closed and you should stop. It is not exception-free, though — a writer closed with `fail` may throw the stored error on a subsequent `write()`.
+`Writer` makes the state explicit and non-throwing. You check readiness with `writeable()`, then push with `write()`, which returns a `Boolean` indicating success or closure. The protocol is explicit: when `write()` returns `false`, the sink is permanently closed and you should stop. It is not exception-free, though: an exception other than an `IOException` from a wrapped stream propagates, and a writer of your own can override `fail` to keep the error and throw it from later writes (none of the library's writers does).
 
 ## Quick Showcase
 
@@ -164,7 +164,7 @@ The default `writeable()` method returns `!isClosed`—it only tells you if the 
 - **`writeable()` returns `false`**: the writer is closed (permanent state)
 - **`writeable()` returns `true` but `write()` would block**: the buffer is full but not closed. What happens next is implementation-defined: a writer backed by a bounded buffer may block the calling thread until space becomes available, while the buffer-backed writers in this library instead auto-close and return `false`.
 
-The writers behind `NioWriters.fromByteBuffer` and its typed variants auto-close when the buffer fills, turning the full state into closure. A writer you implement yourself may instead block indefinitely waiting for space.
+The writers behind `NioWriters.fromByteBuffer` and its typed variants close when a write finds no room: the write that fills the buffer exactly still returns `true` and leaves the writer open, and the next write returns `false` and closes it. A writer you implement yourself may instead block indefinitely waiting for space.
 
 ## Error Handling
 
@@ -228,7 +228,7 @@ println(w.isClosed)         // true
 
 ### Single Element
 
-`Writer.single` — Creates a writer that accepts exactly one element, then auto-closes. The dual of `Reader.single`:
+`Writer.single` — Creates a writer that accepts one element and discards it, then reports closed. It stores nothing and has no accessor for the element:
 
 ```scala
 object Writer {
@@ -236,15 +236,15 @@ object Writer {
 }
 ```
 
-Create a writer that accepts exactly one element, then auto-closes:
+The first write returns `true`, and every later write returns `false`:
 
 ```scala mdoc:reset
 import zio.blocks.streams.io.Writer
 
 val w = Writer.single[Int]
-println(w.write(42))        // true
-println(w.write(99))        // false (already accepted one element)
-println(w.isClosed)         // true
+println(w.write(42))
+println(w.write(99))
+println(w.isClosed)
 ```
 
 ### Limited Capacity
@@ -283,7 +283,7 @@ println(s"Collected: $collected")  // Collected: Buffer(1, 2)
 
 ### I/O Adapters
 
-`Writer.fromOutputStream` — Wraps a `java.io.OutputStream` as a `Writer[Byte]`. Calling `close()` flushes and closes the underlying stream:
+`Writer.fromOutputStream` — Wraps a `java.io.OutputStream` as a `Writer[Byte]`. Calling `close()` flushes and closes the underlying stream. An `IOException` from the stream is not thrown: the write returns `false` (or `writeBytes` returns `0`) and the writer closes itself. A known bug in 0.0.56: after that failed write, `close()` neither flushes nor closes the stream, so it leaks. An `IOException` from `close()` is ignored:
 
 ```scala
 object Writer {
@@ -291,7 +291,7 @@ object Writer {
 }
 ```
 
-`Writer.fromWriter` — Wraps a `java.io.Writer` as a `Writer[Char]`. Calling `close()` flushes and closes the underlying writer:
+`Writer.fromWriter` — Wraps a `java.io.Writer` as a `Writer[Char]`. Calling `close()` flushes and closes the underlying writer. It handles an `IOException` the same way: the write returns `false` (or `writeAll` returns the whole chunk), the writer closes itself, and, by the same known bug, a later `close()` leaves the underlying writer unflushed and open:
 
 ```scala
 object Writer {
@@ -307,7 +307,7 @@ Each of these operations also has a deferred mirror, listed in [Asynchronous Wri
 
 ### Writing Elements
 
-`Writer#write` — Pushes one element to the writer. Returns `true` on success, `false` if the writer is closed and cannot accept more elements. Throws if the writer was closed with an error via `Writer#fail`:
+`Writer#write` — Pushes one element to the writer. Returns `true` on success, `false` if the writer is closed and cannot accept more elements. A writer of your own that overrides `Writer#fail` to keep the error may throw it here; none of the library's writers does:
 
 ```scala
 abstract class Writer[-Elem] {
@@ -461,7 +461,7 @@ Writers can be concatenated to chain multiple sinks together, or transformed to 
 
 ### Concatenation
 
-`Writer#concat` — Returns a `Writer` that writes to `this` until it closes, then transparently switches to `next`. If `this` closes with an error, the error is propagated immediately without consulting `next`. The dual of `Reader#concat`:
+`Writer#concat` — Returns a `Writer` that writes to `this` until a write returns `false`, then switches to `next` and writes the rejected element there. `next` is evaluated once, at the switch, and never if `this` accepts every element. A write that throws propagates the exception, and from then on the writer never switches: later writes go to `this` only, a rejection returns `false`, and `next` is never used. The dual of `Reader#concat`:
 
 ```scala
 abstract class Writer[-Elem] {
