@@ -37,7 +37,7 @@ val parsed = """{"name":"Bob","age":25}""".fromJson[Person]
 // Right(Person("Bob", 25))
 
 // Pretty-print
-val shown = alice.show               // Record { name = Alice, age = 30 }
+val shown = alice.show               // EJSON text over several lines: { name: "Alice", age: 30 }
 
 // Compute and apply patches
 val bob = Person("Bob", 30)
@@ -164,7 +164,11 @@ object Address {
 
 val addr = Address("123 Main St", "Springfield", "12345")
 val shown = addr.show
-// Record { street = 123 Main St, city = Springfield, zip = 12345 }
+// {
+//   street: "123 Main St",
+//   city: "Springfield",
+//   zip: "12345"
+// }
 ```
 
 This is useful for debugging and logging, as it provides a consistent, schema-aware representation of any value.
