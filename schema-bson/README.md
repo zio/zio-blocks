@@ -8,6 +8,8 @@ BSON (Binary JSON) codec support for ZIO Blocks Schema.
 
 This module provides automatic BSON serialization and deserialization for any type with a ZIO Blocks `Schema`. It uses MongoDB's native BSON library (`org.mongodb:bson`) to interface directly with MongoDB and other BSON-native tools. This allows you to use your ZIO Schema data models directly with MongoDB drivers without boilerplate code.
 
+For a task-oriented walkthrough that stores case classes in MongoDB, see [How to Store Case Classes in MongoDB](../docs/guides/store-case-classes-in-mongodb.md).
+
 ## Installation
 
 Add to your `build.sbt`:
@@ -71,7 +73,7 @@ val codec = Person.schema.derive(deriver)
 | Option | Description | Default |
 |--------|-------------|---------|
 | `withIgnoreExtraFields` | If true, extra fields in BSON are ignored. If false, decoding fails. | `true` |
-| `withNativeObjectId` | If true, treats `org.bson.types.ObjectId` wrappers as native BSON ObjectIds. | `false` |
+| `withNativeObjectId` | Has no effect in 0.0.56: an `ObjectId` is stored as a native BSON ObjectId whenever `ObjectIdSupport.objectIdSchema` is in scope, whatever the value. | `false` |
 | `withSumTypeHandling` | Strategy for encoding Sealed Traits / Enums. | `WrapperWithClassNameField` |
 | `withClassNameMapping` | Function to transform class names (e.g. for remapping legacy data). | `identity` |
 
@@ -119,7 +121,7 @@ MongoDB `ObjectId` is supported out of the box.
     ```
 
 2.  **Manual Config**:
-    You can force specific wrappers to be treated as ObjectIds using `withNativeObjectId(true)` in the config.
+    `withNativeObjectId(true)` has no effect in 0.0.56, which is a known bug: an `ObjectId` is stored as a native ObjectId with or without the flag. Import `ObjectIdSupport.objectIdSchema` instead.
 
 ## Modifiers
 
@@ -154,16 +156,19 @@ case class Session(
 
 ### Aliases (Migration Support)
 
-Use `@Modifier.alias` (often combined with `@rename`) to support multiple names during decoding. This is useful for migrating data without breaking compatibility.
+Use `@Modifier.alias` (often combined with `@rename`) on a case of a sealed trait to support multiple names during decoding. This is useful for migrating data without breaking compatibility.
 
 ```scala
-// Encodes as "NewName"
-// Decodes "NewName", "OldName", or "LegacyName"
-@Modifier.rename("NewName")
-@Modifier.alias("OldName")
-@Modifier.alias("LegacyName")
-case class MyClass(...)
+sealed trait Shape
+
+// Encodes as {"Round": {"r": 2}}
+// Decodes {"Round": ...} or {"Circle": ...}
+@Modifier.rename("Round")
+@Modifier.alias("Circle")
+case class Ring(r: Int) extends Shape
 ```
+
+On a plain record, a class-level `@Modifier.rename` or `@Modifier.alias` has no effect, because the codec writes the fields of a record and not its class name. Put a rename on a field with `@Modifier.rename`, as shown above, and use `@Modifier.alias` only on sealed-trait cases.
 
 ## Supported Types
 
@@ -174,7 +179,7 @@ All ZIO Blocks Schema primitive types are supported and mapped to their BSON equ
 -   `BigInt`, `BigDecimal` (Decimal128)
 -   `UUID` (Binary)
 -   `Instant`, `LocalDate`, `LocalDateTime` (DateTime)
--   `Option` (Null or missing)
+-   `Option`, stored as a sub-document: `Some("x")` is `{"Some": {"value": "x"}}` and `None` is `{"None": {}}`. A known bug in 0.0.56: a field that holds BSON `null`, a plain value or no value does not decode as an `Option`.
 -   `Collections` (BSON Arrays)
 -   `Maps` (BSON Documents)
 -   `zio.blocks.schema.json.Json` (semantic BSON documents, arrays, and scalar values)

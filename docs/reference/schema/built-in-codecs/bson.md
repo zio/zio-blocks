@@ -362,7 +362,7 @@ val customConfig = defaultConfig
   .withSumTypeHandling(BsonSchemaCodec.SumTypeHandling.DiscriminatorField("_type"))
   .withClassNameMapping(_.toLowerCase)
   .withIgnoreExtraFields(false)
-  .withNativeObjectId(true)
+  .withNativeObjectId(true) // no effect in 0.0.56, see Pattern 4
 ```
 
 ### Sum Type Handling Options
