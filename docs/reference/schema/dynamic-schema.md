@@ -13,7 +13,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_])
 
 - Holds the full structural shape of a type without capturing constructors or deconstructors
 - Can validate any `DynamicValue` against its structure using `DynamicSchema#check` and `DynamicSchema#conforms`
-- Can be serialized to a `DynamicValue` and deserialized back, making it storable in databases or transmittable over the network
+- Can be converted to a `DynamicValue` and back, and stored or sent as Avro bytes (see [Storing a DynamicSchema](#storing-a-dynamicschema))
 - Can be rehydrated into a fully operational `Schema[A]` by supplying runtime bindings via `DynamicSchema#rebind`
 
 ## Motivation
@@ -25,12 +25,12 @@ Schema[OrderPlaced]   ←── compile-time type, closures attached
        │
        │  Schema[A]#toDynamicSchema
        ▼
-DynamicSchema         ←── serializable, no closures
-(Reflect.Unbound[_])       stored in registry or sent over the wire
+DynamicSchema         ←── no closures, stored in a registry
+(Reflect.Unbound[_])       or sent over the wire as Avro bytes
        │
        │  DynamicSchema.toDynamicValue / DynamicSchema.fromDynamicValue
        ▼
-DynamicValue          ←── uniform, format-neutral blob
+DynamicValue          ←── in-memory form that a codec writes
        │
        │  DynamicSchema.fromDynamicValue (on the consumer side)
        ▼
@@ -108,7 +108,11 @@ restored.typeId.name
 
 ## Serializing a DynamicSchema
 
-`DynamicSchema.toDynamicValue` converts a `DynamicSchema` to a `DynamicValue` for storage or transmission. The result contains only field names, type names, validations, and annotations — no Scala closures:
+A `DynamicSchema` turns into a `DynamicValue` in memory, and a codec turns it into bytes for storage or transmission. The format matters: only Avro reads a stored schema back intact in 0.0.56.
+
+### `DynamicSchema.toDynamicValue`
+
+`DynamicSchema.toDynamicValue` converts a `DynamicSchema` to a `DynamicValue`. The result contains only field names, type names, validations, and annotations — no Scala closures:
 
 ```scala
 object DynamicSchema {
@@ -116,7 +120,7 @@ object DynamicSchema {
 }
 ```
 
-The following example converts a simple case class schema and stores the blob:
+The following example converts a simple case class schema to its `DynamicValue` form:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema._
@@ -133,6 +137,45 @@ We inspect the blob's value type to confirm the record structure was preserved:
 ```scala mdoc
 blob.valueType
 ```
+
+### Storing a DynamicSchema
+
+`DynamicSchema.schema` is the `Schema[DynamicSchema]` that every format derives a codec from, and it is found implicitly as `Schema[DynamicSchema]`. In 0.0.56, only the Avro codec from the `zio-blocks-schema-avro` module round-trips a `DynamicSchema`. The JSON, YAML, TOON and MessagePack codecs write each tagged node of the schema as a plain record and narrow its numbers, and `DynamicSchema.fromDynamicValue` falls back to an accept-anything `Reflect.Dynamic` node instead of reporting an error, so the schema they read back accepts any value. This is a known bug. The same happens when the `DynamicValue` form goes through `Json`.
+
+The following example writes a schema with both codecs and checks a value with the wrong field type against each copy:
+
+```scala mdoc:silent:reset
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema._
+import zio.blocks.schema.avro.AvroFormat
+import zio.blocks.schema.json.JsonFormat
+
+case class Tag(name: String, weight: Int)
+object Tag { implicit val schema: Schema[Tag] = Schema.derived[Tag] }
+
+val ds: DynamicSchema = Schema[Tag].toDynamicSchema
+val wrongType = DynamicValue.Record(Chunk(
+  "name"   -> DynamicValue.int(7),
+  "weight" -> DynamicValue.int(1)
+))
+
+val avroCodec = Schema[DynamicSchema].derive(AvroFormat)
+val jsonCodec = Schema[DynamicSchema].derive(JsonFormat)
+
+val fromAvro = avroCodec.decode(avroCodec.encode(ds))
+val fromJson = jsonCodec.decode(jsonCodec.encode(ds))
+```
+
+The copy read from Avro equals the original and rejects the value, while the copy read from JSON decodes without an error, is a `Dynamic` node, and accepts it:
+
+```scala mdoc
+fromAvro.map(_ == ds)
+fromAvro.map(_.conforms(wrongType))
+fromJson.map(_.reflect.isDynamic)
+fromJson.map(_.conforms(wrongType))
+```
+
+Store Avro bytes, and after loading a schema, reject one whose root is `Dynamic` (`DynamicSchema#reflect` and `Reflect#isDynamic`), so a later change of format can't silently turn the registry into one that accepts anything. Also in 0.0.56, the schema of a recursive type can't be stored: `DynamicSchema.toDynamicValue` and the codecs follow the recursion until they throw a `StackOverflowError`. [How to Build a Schema Registry with DynamicSchema](../../guides/build-a-schema-registry.md) builds a registry that stores Avro files.
 
 ## Validating DynamicValues
 
@@ -264,8 +307,49 @@ rebound.fromDynamicValue(encoded)
 ```
 
 :::warning
-If `DynamicSchema#rebind` cannot find a binding for any type in the unbound schema tree, it throws a `RebindException` at runtime. Ensure the resolver covers every concrete type — records, variants, wrappers, primitives, and standard collections — that appears in the schema. `BindingResolver.defaults` covers all standard primitives, `java.time` types, `List`, `Vector`, `Set`, `Map` and the other standard collections, but not `Option`: an `Option` field needs `Binding.of[Option[A]]`, `Binding.of[Some[A]]` and `Binding.of[None.type]`.
+If `DynamicSchema#rebind` cannot find a binding for any type in the unbound schema tree, it throws a `RebindException` at runtime. Ensure the resolver covers every concrete type — records, variants, wrappers, primitives, and standard collections — that appears in the schema. `BindingResolver.defaults` covers all standard primitives, `java.time` types, `List`, `Vector`, `Set`, `Map` and the other standard collections, but not `Option`.
 :::
+
+Rebinding a schema with an `Option` field and only `BindingResolver.defaults` behind the record fails. Consider a book with two optional fields:
+
+```scala mdoc:silent:reset
+import zio.blocks.schema._
+import zio.blocks.schema.binding._
+
+case class Book(title: String, edition: Option[Int], subtitle: Option[String])
+object Book { implicit val schema: Schema[Book] = Schema.derived[Book] }
+
+val stored: DynamicSchema = Schema[Book].toDynamicSchema
+```
+
+The rebind fails on an `Option` case it can't bind and names its type and path:
+
+```scala mdoc
+try stored.rebind[Book](BindingResolver.empty.bind(Binding.of[Book]) ++ BindingResolver.defaults)
+catch { case e: RebindException => e.getMessage }
+```
+
+Each `Option[A]` needs three bindings: `Binding.of[Option[A]]` for the `Option` itself, a `Some` case for its element type, and `Binding.Record.none`, which serves every element type; leaving out the last one fails the same way, naming `scala.None`. `Binding.Record.some[A]` builds the `Some` case for a reference type such as `String`, and `Binding.Record.someInt`, `Binding.Record.someLong`, `Binding.Record.someDouble` and their siblings build it for primitives:
+
+```scala mdoc:silent
+val withOptions: BindingResolver =
+  BindingResolver.empty
+    .bind(Binding.of[Book])
+    .bind(Binding.of[Option[Int]])
+    .bind(Binding.Record.someInt)
+    .bind(Binding.of[Option[String]])
+    .bind(Binding.Record.some[String])
+    .bind(Binding.Record.none)
+    ++ BindingResolver.defaults
+
+val reboundBook: Schema[Book] = stored.rebind[Book](withOptions)
+```
+
+The rebound schema converts a `Book` both ways:
+
+```scala mdoc
+reboundBook.fromDynamicValue(reboundBook.toDynamicValue(Book("Zionomicon", Some(1), None)))
+```
 
 See [BindingResolver](binding-resolver.md) for the full resolver API including `BindingResolver.reflection` for automatic binding via reflection.
 
@@ -407,7 +491,9 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
 `DynamicSchema#toSchema` returns a `Schema[DynamicValue]` — it stays fully in the dynamic world and requires no bindings. Use it when you have received a `DynamicSchema` over the wire and need a codec-compatible schema that enforces structural conformance without binding any Scala types.
 
-After transporting a `DynamicSchema`, you may not have the Scala types that `DynamicSchema#rebind` requires. For example, when the consumer is a validation gateway or format converter that handles arbitrary event shapes, any codec pipeline that accepts `Schema[DynamicValue]` can use the result directly. `DynamicSchema#toSchema` is the right choice for schema validation middleware, event-store gateways, and format converters that must enforce structure without knowing the concrete type.
+After transporting a `DynamicSchema`, you may not have the Scala types that `DynamicSchema#rebind` requires. For example, when the consumer is a validation gateway or format converter that handles arbitrary event shapes, any codec pipeline that accepts `Schema[DynamicValue]` can use the result directly. The conversion runs `DynamicSchema#check`, which compares primitive types exactly, so `DynamicSchema#toSchema` suits input whose `DynamicValue`s carry the exact primitive types, such as values made by `Schema#toDynamicValue` or read with `Schema[DynamicValue].derive(AvroFormat)`.
+
+JSON input is a poor fit. The JSON codec of `Schema[DynamicValue]` reads a string as a `String`, a whole number as an `Int` or a `Long`, every other number as a `BigDecimal`, and an `Option` as a bare value or `null`, so a valid JSON event is rejected when it has a field of another primitive type (such as `Double`, `Float`, `BigInt`, `Instant` or `UUID`), a `Long` field holding a value that fits in an `Int`, a `BigDecimal` field holding a whole number, or an `Option` field. For JSON input, rebind the schema and decode with the rebound schema's JSON codec.
 
 :::warning
 Use `DynamicSchema#rebind` instead when you have a `BindingResolver` and need a fully operational `Schema[A]` for typed encoding and decoding.
@@ -444,6 +530,12 @@ We validate the payload and observe the result:
 
 ```scala mdoc
 gatewaySchema.fromDynamicValue(incoming)
+```
+
+The same order sent as JSON is rejected, because the JSON codec reads `99.95` as a `BigDecimal` while the schema expects a `Double`:
+
+```scala mdoc
+gatewaySchema.jsonCodec.decode("""{"orderId":"ORD-42","amount":99.95}""").left.map(_.getMessage)
 ```
 
 ## Integration
