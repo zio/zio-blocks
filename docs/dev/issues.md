@@ -8675,6 +8675,8 @@ object ReproNativeObjectId {
 
 ### Streams: `Sink.count`, the `Sink.sum*` sinks and `Double`-accumulator folds box the accumulator for every element
 
+**Status.** Named as a known bug in 0.0.56 on `zero-boxing.md` (#1881); the library bug is open.
+
 Found 2026-10-27 while writing the how-to guide `docs/guides/process-binary-data-without-boxing.md` (backlog H-27), on `main` at `efc51f19b`. Same at v0.0.56: the code involved is unchanged since that tag apart from Scaladoc.
 
 **Summary.** On the JVM blocking path, `Sink.sumLong`, `Sink.sumDouble`, `Sink.sumInt`, `Sink.sumFloat`, `Sink.count` (and therefore `Stream#count`), and `Stream#runFold(z: Double)` / `Sink.foldLeft(z: Double)` over a `Long` or `Double` stream allocate 24 to 48 bytes per element: a boxed accumulator, and sometimes a boxed element too. The input stays on its primitive lane; the accumulator is what gets boxed. `runFold(0L)` and `Sink.foldLeft(0L)` over the same streams allocate nothing per element. So the sinks the docs present as the zero-boxing way to aggregate are the ones that box.
@@ -8826,6 +8828,8 @@ object BufferLimit {
 **Suggested fix.** Keep the reader's own end index (`originalPosition + skip + limit`, clamped to `originalLimit`) in a field and check it in the pulls instead of writing it into `buffer.limit`, or work on `buffer.duplicate()` and copy the final position back. Either costs nothing per element beyond the bound check the reader already does through `remaining()`. Add a test that runs `take` and `drop` on each buffer stream and checks the buffer's limit and remaining bytes afterwards.
 
 ### Streams: closing a `Stream#start` reader after a failed pull throws the delivered failure again, and so does the enclosing `Scope#scoped`
+
+**Status.** Named as a known bug in 0.0.56 in `stream.md` "Manual Pull via `start`" and `reader.md` (#1881); the library bug is open.
 
 Found 2026-10-28 while writing the how-to guide `docs/guides/use-zio-blocks-in-zio-or-cats-effect.md` (backlog H-53), on `main` at `be09a9cdd`. Same at v0.0.56.
 
@@ -12121,6 +12125,8 @@ object NonBlockingChannel {
 
 ### Streams: a `Stream#start` reader throws the stream's typed error as the internal `StreamError`, with a null message, so recovering `E` needs an internal class
 
+**Status.** Documented in `stream.md` "Manual Pull via `start`" and `reader.md` (#1881); no public typed pull yet.
+
 Found 2026-10-28 while writing the how-to guide `docs/guides/use-zio-blocks-in-zio-or-cats-effect.md` (backlog H-53), on `main` at `be09a9cdd`. Same at v0.0.56.
 
 **Summary.** Terminals turn a stream's typed failure into `Left(e)`. A reader opened with `Stream#start` does not: its pulls throw `zio.blocks.streams.internal.StreamError`, whose message and cause are `null`, even when the error type is already a `Throwable` such as `IOException`. The only way to get `e` back is `StreamError#value`, on a class in the `internal` package. Every bridge to another streaming library (ZStream, fs2, a Java `Iterator`) has to pull this way.
@@ -12748,24 +12754,9 @@ object RestoreRepro {
 
 Found 2026-10-22 by the M-03 session, checked against source on `main` (same at `v0.0.56`). `sql/shared/src/main/scala/zio/blocks/sql/Frag.scala:375` shows `Transactor.connect(transactor) { ... }`, and `:370` mentions `Transactor.connect`. There is no `object Transactor`: `Transactor` is a trait (`Transactor.scala:65`) whose `connect` is an instance method (`:68`). The example should read `transactor.connect { ... }`.
 
-### Streams: `docs/reference/streams/core/stream.md` claims `repeated` rematerializes, cites the old `mapPar` Scaladoc, and prints the wrong release message
-
-Found 2026-10-26 while fact-checking the reference page against the wave 1 streams Scaladoc (branch `streams-scaladoc-wave-1`), on `streams-scaladocs` at `b93330329`. Not filed on GitHub yet.
-
-**Summary.** Six statements in `docs/reference/streams/core/stream.md` (one also in `platform-differences.md`) do not match the code or the new Scaladoc:
-
-1. "Repeating" (line 1604): "Rematerializes the stream after each clean completion". The code resets readers instead (Entry 1); the page should describe the known bug, as the Scaladoc now does.
-2. The warning box "The scaladoc is a throughput claim, not an ordering claim" (lines 1315-1317) quotes the old Scaladoc of `mapPar`, `flatMapPar` and `mergeAll` ("degrades to sequential `map`"). Wave 1 replaced that text, so the box now quotes Scaladoc that no longer exists; drop the box or reword it.
-3. `Stream.fromAcquireRelease` example (lines 1776-1793): the output comment says `Closing database connection`, but `close()` prints `Closing connection db-1`.
-4. "Motivation", point 2 (lines 127-134): "If FileReader throws ... cleanup still runs". `new FileReader("build.sbt")` runs before `Stream.fromJavaReader` is called, so an exception there is thrown at construction, outside the stream; there is nothing to clean up, but the comment claims the stream handles it. Line 128 also says the `FileReader` is acquired lazily; it is opened eagerly, at that same construction.
-5. Lines 1311-1313 (and `docs/reference/streams/execution-and-compatibility/platform-differences.md:225`) describe a Scala.js parallel-merge path that no public API can reach.
-6. Line 1215 repeats the false `bufferSize` claim (see the Library bugs entry "`Stream.bufferSize` has no effect on a JVM blocking terminal unless the stream has an asynchronous stage or a `catchAll`").
-
-**Expected.** The page matches the code; for 1, describe the real behaviour and call it a known bug.
-
-**Suggested fix.** Edit the six places, then run `docs/mdoc` on the page.
-
 ### Streams: `docs/reference/streams/primitives/reader.md` and `writer.md` contradict the code on `isClosed`, the `AnyRef` lane, error-closed writers, `Writer.single` and `concat`
+
+**Status.** The pages are fixed in #1881. Left: the wave 3 `NioWriters` Scaladoc should describe the `fromChannel` leak (library source).
 
 Found 2026-10-27 while writing the Scaladoc for `Reader` and `Writer` (wave 2 of the streams Scaladoc rollout, PR #1862, branch `streams-scaladoc-wave-2`), on `main` at `b6c0c30e4`. Line numbers refer to that commit. Same text at v0.0.56. Each claim was checked with a probe against 0.0.56; the reference pages were not edited.
 
@@ -12782,121 +12773,6 @@ Found 2026-10-27 while writing the Scaladoc for `Reader` and `Writer` (wave 2 of
 **Expected.** The pages match the code and the wave 2 Scaladoc; the known bugs (the Library bugs entries on `AnyRef`-lane primitive pulls, `Reader.repeat`/`repeated` after `close()`, and `Writer.fromOutputStream`/`fromWriter` after a failed write) are described as known bugs in 0.0.56.
 
 **Suggested fix.** Apply the replacement text given in items 1, 6 and 7 (and the wording of the wave 2 Scaladoc for the rest), then run `docs/mdoc` on both pages. The wave 3 Scaladoc for `NioWriters` should describe the `fromChannel` leak.
-
-### docs/examples: `streams-examples` `SinkSentinelGuardExample` and `SinkSentinelLimitationExample` describe a sentinel guard that was removed in #1672, and print contradictory results
-
-Found 2026-10-27 while writing the how-to guide `docs/guides/avoid-allocation-on-hot-paths.md` (backlog H-51), on `main` at `8bb71c48c`. Same at v0.0.56.
-
-**Summary.** `streams-examples/src/main/scala/sink/SinkSentinelGuardExample.scala` claims `NioSinks.fromByteBufferLong`/`fromByteBufferDouble` use `Long.MaxValue`/`Double.MaxValue` as an end-of-stream sentinel and throw `IllegalArgumentException` when an element equals it ("Collisions Are Rejected Loudly"). `SinkSentinelLimitationExample.scala` claims the same sinks *silently truncate* at that value. Both are wrong since PR #1672 (commit `544a735ab`, released in v0.0.52): the `Long` and `Double` lanes now detect the end of the stream by the count that the bulk read returns, so the sinks write every value, `Long.MaxValue` included, and throw nothing. Running the examples shows it: the guard example prints `✗ UNEXPECTED: drain completed without error`, and the limitation example prints `⚠️  Expected 5 values, but only wrote 5 to buffer!` followed by `✗ Data loss: Elements at indices 2, 3, 4 were silently dropped` right after listing all five values. Their closing "Sentinels per typed sink" tables (`fromByteBufferLong: sentinel = Long.MaxValue (collision throws)`) are also stale.
-
-**Reproduction.** File `Repro.scala`, run with `scala-cli run --server=false Repro.scala` (JDK 25, scala-cli 1.10.1):
-
-```scala
-//> using scala 3.9.0
-//> using options -experimental
-//> using dep dev.zio::zio-blocks-next-streams:0.0.56
-import zio.blocks.streams._
-import java.nio.ByteBuffer
-
-@main def repro(): Unit = {
-  val longs  = ByteBuffer.allocate(5 * 8)
-  val result = Stream.fromIterable(List(100L, 200L, Long.MaxValue, 300L, 400L)).run(NioSinks.fromByteBufferLong(longs))
-  println(s"fromByteBufferLong result: $result, position: ${longs.position()} bytes")
-  println(s"  written: ${(0 until 5).map(i => longs.getLong(i * 8)).mkString(", ")}")
-
-  val doubles = ByteBuffer.allocate(3 * 8)
-  val result2 = Stream.fromIterable(List(1.5, Double.MaxValue, 2.5)).run(NioSinks.fromByteBufferDouble(doubles))
-  println(s"fromByteBufferDouble result: $result2, position: ${doubles.position()} bytes")
-  println(s"  written: ${(0 until 3).map(i => doubles.getDouble(i * 8)).mkString(", ")}")
-}
-// fromByteBufferLong result: Right(()), position: 40 bytes
-//   written: 100, 200, 9223372036854775807, 300, 400
-// fromByteBufferDouble result: Right(()), position: 24 bytes
-//   written: 1.5, 1.7976931348623157E308, 2.5
-```
-
-The examples themselves, from `streams-examples/`: `sbt "runMain sink.SinkSentinelGuardExample" "runMain sink.SinkSentinelLimitationExample"` prints the lines quoted above.
-
-**Expected.** The examples teach current behaviour: `fromByteBufferLong`/`fromByteBufferDouble` are lossless for every value; only a custom sink that calls the scalar `Reader#readLong(sentinel)`/`readDouble(sentinel)` can collide, and the fix there is the one-element `readLongs`/`readDoubles` loop.
-
-**Root cause.** The examples were written for the #1458 design (`lastReadWasEOF`, `markReadEOF`, a post-loop throw in `NioSinks`), which #1672 removed (`git show 544a735ab -- streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala streams/jvm/src/main/scala/zio/blocks/streams/NioSinks.scala`). Today `NioSinks.scala:110-121` drains through `Sink.foldSyncReader`, whose `Long` and `Double` branches (`streams/shared/src/main/scala/zio/blocks/streams/Sink.scala:1196` and `:1207`) loop on `readLongsPhysical(one, 0, 1)` / `readDoublesPhysical(one, 0, 1)` until the count is `-1`. AGENTS.md's "Sentinel performance policy" cites the same removed mechanism (`lastReadWasEOF` and the `NioSinks` post-loop throw).
-
-**Impact.** Readers learn that the typed NIO sinks lose or reject `Long.MaxValue`/`Double.MaxValue` and avoid them for no reason, or add per-element checks the sentinel policy forbids. The two files contradict each other and their own printed output.
-
-**Test gap.** CI only compiles the examples, never runs them. `streams/jvm/src/test/scala/zio/blocks/streams/NioStreamsSinksSpec.scala` has "writes all longs into buffer" (`:240`) but no case with `Long.MaxValue`/`Double.MaxValue` data, so nothing pins the lossless behaviour.
-
-**Suggested fix.** Rewrite both examples (or merge them into one) to show that `fromByteBufferLong`/`fromByteBufferDouble` write `Long.MaxValue`/`Double.MaxValue` like any other value, and to show the real collision case: a custom `Sink.create` using `readLong(sentinel)` that stops early, next to the one-element `readLongs` loop that does not. Add a `NioStreamsSinksSpec` test with `Long.MaxValue` and `Double.MaxValue` in the data. Update AGENTS.md's sentinel policy and the backlog's H-27 row.
-
-### docs: `zero-boxing.md` says `Sink` accepts elements through unboxed `write` methods; `Sink` has no `write` methods
-
-Found 2026-10-27 while writing the how-to guide `docs/guides/avoid-allocation-on-hot-paths.md` (backlog H-51), on `main` at `8bb71c48c`. Same at v0.0.56.
-
-**Summary.** Under "### Sink[E, A, Z]", `docs/reference/streams/execution-and-compatibility/zero-boxing.md:303` says: "Accepts elements via unboxed `write` methods matched to the detected type". `Sink` has no public members for feeding elements at all; its abstract members are the internal `drain(reader)` methods, and a sink *pulls* from a `Reader` through the lane-specific reads (`readInt`, `readLongs`, ...). The `write` family belongs to `Writer`. The example under that sentence (`nums.runFold(0)(_ + _)`) does not show any `write` either.
-
-**Reproduction.** File `Repro.scala`, run with `scala-cli run --server=false Repro.scala` (JDK 25, scala-cli 1.10.1):
-
-```scala
-//> using scala 3.9.0
-//> using options -experimental
-//> using dep dev.zio::zio-blocks-next-streams:0.0.56
-import zio.blocks.streams._
-
-@main def repro(): Unit = {
-  val sum: Sink[Nothing, Long, Long] = Sink.sumLong
-  sum.write(1L)
-}
-// -- [E008] Not Found Error: Repro.scala:8:6
-// 8 |  sum.write(1L)
-//   |  ^^^^^^^^^
-//   |value write is not a member of zio.blocks.streams.Sink[Nothing, Long, Long] - did you mean sum.wait?
-// 1 error found
-// Compilation failed
-```
-
-**Expected.** The section says how a sink consumes a primitive lane: it pulls from the run's `Reader` with that lane's read (`Reader#readInt(Long.MinValue)`, the one-element `readLongs`/`readDoubles` loop, ...), which the built-in sinks do through `Sink.foldSyncReader`.
-
-**Root cause.** Wrong API named in the prose. Source: `streams/shared/src/main/scala/zio/blocks/streams/Sink.scala:58` (`abstract class Sink[+E, -A, +Z]`) has only `private[streams] def drain(reader: Reader.SyncReader[_])` (`:114`) and `drain(reader: Reader.AsyncReader[_])` (`:119`) as abstract members; the `Long`/`Double` drain loops are at `Sink.scala:1196` and `:1207`.
-
-**Impact.** Readers look for `Sink#write*` to build a custom sink, find nothing, and miss `Sink.create`/`Sink.createBoth` plus the reader-side primitive reads.
-
-**Test gap.** None (doc text).
-
-**Suggested fix.** Replace the sentence with: "Pulls elements from the run's `Reader` with the read that matches the lane (`readInt`, `readFloat`, or the count-returning `readLongs`/`readDoubles`), so the elements never box. (Correction, 2026-10-28: the accumulator does box in `Sink.count`, the `Sink.sum*` sinks and `Double`-accumulator folds; see the Library bugs entry "Streams: `Sink.count`, the `Sink.sum*` sinks and `Double`-accumulator folds box the accumulator for every element". #1881 names it on the page as a known bug in 0.0.56.) Custom sinks built with `Sink.create` or `Sink.createBoth` can use the same reads." and link `../primitives/reader.md`.
-
-### Streams: reference pages contradict the source on worker thread names, the virtual-thread fallback, Scala.js read failures, `NioReaders.fromChannel`, `NioWriters.fromByteBuffer` closing and full-buffer `NioSinks`
-
-Found 2026-10-27 while writing the Scaladoc for the platform files, queues and internals (wave 3 of the streams Scaladoc rollout, PR #1868), on `main` at `59e7cb81e`. Same text at v0.0.56. Each claim was checked against the source (and probed where stated); the reference pages were not edited.
-
-**Summary.** Six statements or omissions:
-
-1. `docs/reference/streams/execution-and-compatibility/platform-differences.md:213`: worker names `zio-blocks-mappar-worker-<n>-<index>`; on JDK 21+ they end in an extra `0` (Entry 1). Correct once Entry 1 is fixed.
-2. `platform-differences.md:211`: the fallback to a platform thread happens "when the reflective lookup fails"; it also happens when starting the virtual thread throws (`PlatformSpecific.scala:43-48`). Minor.
-3. `docs/reference/streams/primitives/reader.md:405` (table row "A source failure ... A rejected promise, trusted") and `:542` (Scala.js invariant 4, "surfaces in the typed error channel"): false on Scala.js, the existing issues.md entry; re-probed (`js1/J2.scala`: `Stream.fromReader[Throwable, Byte](fromReadableStream(...)).runCollectAsync.either` gives `Left(StreamError)`, the `Async`'s own failure).
-4. `reader.md:365-382` (`NioReaders`): no mention that `fromChannel` needs a blocking channel (Entry 2), nor that a failed read is thrown as `StreamError`.
-5. `docs/reference/streams/primitives/writer.md:167` ("`NioWriters.fromByteBuffer` ... auto-close when the buffer fills"): it closes when a write finds no room; a write that fills the buffer exactly leaves it open (probed: two writes into a 2-byte buffer, `isClosed == false`, the third returns `false` and closes). Minor.
-6. `docs/reference/streams/core/sink.md:771-800` (`NioSinks.fromByteBuffer*`): does not say that a full buffer throws `BufferOverflowException` from a blocking terminal and fails the `Async` of an `*Async` one, with no `Left`.
-
-Item 3 is the documentation side of the existing Library bugs entry "streams (Scala.js): a rejected `ReadableStream` read fails the `Async` with an internal `StreamError` instead of producing `Left`" (also a backlog doc-fix follow-up from H-26).
-
-**Expected.** The pages match the code and the wave 3 Scaladoc; known bugs are described as known bugs in 0.0.56.
-
-**Suggested fix.** Edit the six places using the wave 3 Scaladoc wording, then run `docs/mdoc` on the four pages. Item 1 changes again once the virtual-thread naming bug is fixed.
-
-### docs: `streaming-library-migration.md` says every primitive lane ends on an in-band sentinel and tells readers to pick one
-
-Found 2026-10-28 by the coordinator while preparing the streams doc-fix batch, on `main` at `dae327892`. Same text at v0.0.56.
-
-**Summary.** `docs/guides/streaming-library-migration.md:807-809` ("Primitive Streams Use End-of-Stream Sentinels") says that for every primitive stream "the end of the stream is signalled with an in-band sentinel value", and that a hand-written pull should "choose a sentinel your stream never produces". Since #1672 (v0.0.52) that is false for `Long` and `Double`: those lanes detect the end by the count that a one-element `readLongs`/`readDoubles` returns, because every `Long` value and every `Double` bit pattern is legal data. On those two lanes no sentinel is safe, so the advice leads readers to write the lossy custom sink that `process-binary-data-without-boxing.md` warns against.
-
-**Expected.** The paragraph gives the per-lane rule: `Byte` ends on `readByte()` = -1, `Short`/`Int`/`Float` on a widened sentinel no element can equal, `Long`/`Double` on the bulk-read count; it links `reference/streams/execution-and-compatibility/zero-boxing.md#eof-signalling-per-lane`.
-
-**Root cause.** The paragraph predates #1672. Source: `Sink.foldSyncReader`, `streams/shared/src/main/scala/zio/blocks/streams/Sink.scala:1176-1213`.
-
-**Impact.** Readers who pull by hand on a `Long` or `Double` stream pick a sentinel and silently drop data at the first element equal to it.
-
-**Test gap.** None (doc text).
-
-**Suggested fix.** Rewrite the paragraph as in "Expected" (assigned to the streams doc-fix batch, session `streams-doc-fixes`).
 
 ### Streams: `Stream#repeated` Scaladoc says `Stream.eval` runs only once "with both terminal families"; the async terminals run it every cycle
 
@@ -12937,6 +12813,7 @@ A wider probe gave these counts after `take(2)`/`take(6)`/`take(12)`: `eval` blo
 
 ## Resolved
 
+- Streams doc errors fixed in #1881 (batch 1, merge `c8c65babe`, three review rounds): `stream.md` (`repeated` described as rematerializing, a warning box quoting replaced `mapPar` Scaladoc, the wrong `fromAcquireRelease` output, the eager `FileReader`, an unreachable Scala.js merge path, the `bufferSize` claim, and no Long/Double count note in "The Reader Protocol"); the worker-thread-name, virtual-thread-fallback, Scala.js `ReadableStream`, `NioReaders.fromChannel`, `NioWriters.fromByteBuffer` and full-buffer `NioSinks` statements in `platform-differences.md`, `reader.md`, `writer.md` and `sink.md` (the thread-name text changes again once that library bug is fixed); `zero-boxing.md` saying `Sink` has unboxed `write` methods (it now also names the accumulator boxing as a known bug); `streaming-library-migration.md` telling readers to pick a sentinel on every lane; and the `SinkSentinelGuardExample`/`SinkSentinelLimitationExample` pair, replaced by `streams-examples/src/main/scala/sink/SinkSentinelExample.scala`, with a `NioStreamsSinksSpec` case that writes `Long.MaxValue` and `Double.MaxValue`. The same PR documents the two `Stream#start` findings from H-53.
 - Already fixed on `main`, moved here on 2026-10-28 after checking each page: `docs/reference/mux.mdx` registry and single-consumer wording (#1870, H-29); the `openapi.md` signature, install, round-trip, `Parameter`/`Operation` and extensions bullets (H-39); the `http-model/schema.md` `RequestSchemaOps`/`ResponseSchemaOps` and "Supported Types" bullets (#1879); the `binding.md`, `registers.md`, `binding-resolver.md` and `Registry#bind`/`StructuralReflection` Scaladoc bullets (schema Scaladoc wave 3).
 - Schema-core doc errors fixed in #1877 (batch 2a, merge `edd42b4a2`, three review rounds): `maybe.md` said flat primitive `Maybe`s allocate nothing (they are stored as JVM boxes; only cached small values are free); `typeid.md:1927` listed named tuples under `TypeRepr.Tuple` (a named tuple is an applied `NamedTuple`, labels `None`); `as.md` called dropping a one-sided `Option` field a clean round trip (`Some(v)` comes back `None`; `into.md` qualified too); `migration.md` and the ZIO Schema migration guide called `DynamicMigration` serializable or "plain data" (no `Schema`, so no codec); `dynamic-schema.md` and three `schema-examples` comments said a `DynamicSchema` can be stored as JSON and that `BindingResolver.defaults` covers `Option` (now a compiled Avro storage subsection, a compiled `Option` binding, and the `toSchema`/`check` JSON caveat); `data-migration.md` promised that `fence()` stops producers and that `complete()` migrates every queued row, and its Full Example did not compile (rewritten after H-23, run against PostgreSQL 16 and SQLite). `schema.md` gained a compiled "Tuples" subsection and the named-tuple `given` rule and known bugs; those library entries stay open with a Status line.
 - Codec doc errors fixed in #1878 (batch 2b, merge `13423e664`): `avro.md` now has the Scala-to-Avro type table and the decode-trusts-the-reader-schema note, and names the three Avro library bugs; `yaml.md` (now evaluated mdoc) no longer shows `YamlOptions` output from `encodeToString` or a `---` line it never prints, and documents kebab-case keys; `csv.md` no longer promises document-level error rows and columns, marks `CsvError.TypeError` and `CsvConfig.nullValue` as unused, and states the nested-record behaviour; the whole "schema / JSON" list (the `require*` encoder effect in `customize-json-encoding.md`, `transient` on decode in `modifier.md`, `schema-error.md` messages and first-failure behaviour, `syntax.md` `show` output, `validation.md` rewritten as evaluated mdoc, `json-schema.md:366` and `pattern` anchoring, `json/index.md:66-67`, the `json"..."` Scala 2.13 note and `toKV` output in `json.md`, and `json-selection.md:92`); the `Schema.fromJsonSchema` Scaladoc was already correct on main. Also fixed there: `schema-bson/README.md` showed class-level `@Modifier.rename`/`alias` on a record, which the BSON deriver ignores (probed against 0.0.56: a record with class-level `rename("NewName")` still encodes as `{"x": 1}`; on a sealed-trait case, `rename("Round")` gives `{"Round": {...}}` and `alias("Circle")` decodes), and the README now says `withNativeObjectId` has no effect and shows the `Option` sub-document shape. The library-bug entries for Avro, YAML, CSV and BSON stay open.
