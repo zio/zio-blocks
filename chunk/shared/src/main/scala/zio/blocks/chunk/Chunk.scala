@@ -700,8 +700,11 @@ private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
  * `ChunkBuilder.Int`, and a development build stops with an
  * `UndefinedBehaviorError` instead.
  *
- * On a chunk made by `take`, `drop` or `slice`, an out-of-range index can
- * return an element from outside the slice instead of throwing (a known bug).
+ * On a chunk made by `take`, `drop` or `slice`, and on a chunk of bits made by
+ * `&`, `|`, `^`, `negate`, `asBitsByte`, `asBitsInt`, `asBitsLong` or
+ * `ChunkBuilder.Boolean`, an out-of-range index can return a value instead of
+ * throwing (a known bug). So can `head` on an empty chunk made by `slice`, such
+ * as `Chunk(1, 2, 3).slice(1, 1)`.
  *
  * The balanced concatenation follows "Conc-Trees for Functional and Parallel
  * Programming" by Aleksandar Prokopec and Martin Odersky.
@@ -1236,8 +1239,10 @@ sealed abstract class Chunk[+A]
   override final def hashCode: Int = MurmurHash3.orderedHash(this, MurmurHash3.seqSeed)
 
   /**
-   * Returns the first element of this chunk. Note that this method is partial
-   * in that it will throw an exception if the chunk is empty. Consider using
+   * Returns the first element of this chunk. It throws an exception when the
+   * chunk is empty, except on an empty chunk made by `slice`, such as
+   * `Chunk(1, 2, 3).slice(1, 1)`, where it returns an element from outside the
+   * slice (a known bug). Consider using
    * `headOption` to explicitly handle the possibility that the chunk is empty
    * or iterating over the elements of the chunk in lower level, performance
    * sensitive code unless you really only need the first element of the chunk.
