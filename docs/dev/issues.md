@@ -9231,6 +9231,43 @@ println(SqlQuery.from(invoices).join(offByOne).sql(SqlDialect.SQLite))
 
 **Suggested fix.** Accept only `Select(Ident(param), field)` (after unwrapping `Inlined`/`Block`/`Typed` and the lambda), and abort with the existing "selector must be a simple field access" error for anything else, including chained selects and applications. If nested fields are ever wanted, map the full path through `TableMetadata`'s flattened names instead of taking the outer field. Add negative compile tests (`typeCheckErrors`) for `_.f.length`, `_.f + 1` and `_.f.g`.
 
+### streams: `NioStreams.fromByteBuffer{Int,Long,Double,Float}(...).take(n).drop(m).repeated` replays the wrong window: `reset()` re-derives `[skip, skip+limit)` instead of the composed `[skip, limit)`
+
+Found 2026-10-29 while checking the FAIL printed by `streams-examples/src/main/scala/nio/NioBinaryTelemetryWalkthrough.scala` (section 6), on branch `streams-examples-213` (PR #1897), on `main` at `fa76f487f`. Same at `v0.0.56`: `ByteBufferReader.scala` has no change to `reset`/`setLimit`/`setSkip` between `v0.0.56` and `fa76f487f`. Verified by running against 0.0.56 and against `main`'s compiled classes. Related but separate: "Streams (JVM): a `take` on `NioStreams.fromByteBuffer*` ... permanently lowers the caller's buffer limit" (same `setLimit`/`setSkip` design).
+
+**Summary.** A `ByteBuffer` reader that has had `take(5)` and then `drop(3)` pushed into it should expose readings [3,5) on every replay. On the first pass it does (30, 40). After `reset()`, which `repeated` calls between passes, the window becomes [3, 3+5), i.e. readings 3 to 7. So the second pass yields 30, 40, 50, 60, 70, and readings outside the slice leak into the output. The walkthrough's comment calls this "BUG-R8-03 (since fixed)"; it isn't fixed in 0.0.56 or on `main`.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+//> using option -experimental
+
+import zio.blocks.streams.*
+import java.nio.ByteBuffer
+
+@main def repro(): Unit =
+  val frame = ByteBuffer.allocate(8 * 8)
+  (0 until 8).foreach(i => frame.putLong(i.toLong * 10L))
+  frame.flip()
+  val replayed = NioStreams.fromByteBufferLong(frame).take(5).drop(3).repeated.take(6).runCollect
+  println(replayed)
+// Right(Chunk(30,40,30,40,50,60))
+```
+
+The real output on 0.0.56 is `Right(Chunk(30,40,30,40,50,60))`. Running against `main`'s compiled `streams/jvm/target/scala-3.9.0/classes` (`fa76f487f`) gives the same.
+
+**Expected.** `Right(Chunk(30,40,30,40,30,40))`, which is what the walkthrough asserts: each replay yields the same two readings.
+
+**Root cause.** In `streams/jvm/src/main/scala/zio/blocks/streams/internal/ByteBufferReader.scala`, `ByteBufferLongReader.reset()` (lines 290-301) computes `startPos = originalPosition + skipN*8`, then calls `buffer.limit(startPos + limitN*8)` (line 299). But `setLimit` stores the raw `take` count `limitN` (303-308, here 5), and `setSkip` stores the raw `drop` count `skipN` (310-317, here 3). `limitN` was meant relative to the position when `setLimit` ran, before the skip, so the window end is `originalPosition + limitN*8`, not `startPos + limitN*8`. The first pass is right because `setLimit` sets the buffer limit from the live position and `setSkip` then clamps to it; `reset()` loses that ordering. The same `startPos + bytesN` pattern is in the Int (line 199), Double (399) and Float (497) readers. Only the Long case was run; the others are from reading the code, and the Byte reader wasn't checked.
+
+**Impact.** Silent wrong data: any `take(n).drop(m)` followed by `repeated` (or another replay or retry) over a `ByteBuffer` source emits elements outside the slice from the second pass on. The reader contract the walkthrough quotes ("store derived window bounds, not raw skip/limit values") isn't met.
+
+**Test gap.** The walkthrough cites "NioSpec 'origin, window and accuracy (round 8)' [AdversarialWindowResetSpec]", but no such test exists in `streams/` or `docs/`, so nothing guards it.
+
+**Suggested fix.** In `setSkip` and `setLimit`, store derived absolute window bounds (start and end positions in bytes), and have `reset()` restore exactly `[windowStart, windowEnd)`, clamped to `originalLimit`. Do it for all four readers, and check the Byte reader. Add a regression test per lane using the reproducer above. No sentinel loop is involved: `reset` isn't a hot path.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -12854,6 +12891,12 @@ Found 2026-10-29 by the backlog-refresh research, on `main` at `bafc31bef`. Same
 **Impact.** Readers of the tutorial think they can't export telemetry at all, while readers of the deep dive copy a trick that can break on any release.
 
 **Suggested fix.** Reword both places as in "Expected", and run mdoc on both pages. This is also input for the X-01 decision (making the built-in exporters public).
+
+### docs/examples: `NioBinaryTelemetryWalkthrough` section 6 says its window-reset bug was "since fixed"
+
+Found 2026-10-29 (PR #1897's session), on `main` at `fa76f487f`. `streams-examples/src/main/scala/nio/NioBinaryTelemetryWalkthrough.scala` section 6 says the replay-window bug it exercises "Originally exposed BUG-R8-03 (since fixed)", and it cites a test "NioSpec 'origin, window and accuracy (round 8)' [AdversarialWindowResetSpec]". Neither is true: the bug is still open (Library bugs entry "streams: `NioStreams.fromByteBuffer{Int,Long,Double,Float}(...).take(n).drop(m).repeated` replays the wrong window ..."), and no such test exists. The example therefore prints a FAIL on 0.0.56 and on `main`. The expected value in the code is correct.
+
+**Suggested fix.** Until the library is fixed, reword the comment to say section 6 shows a known bug in 0.0.56 and on `main`, and drop the dangling test reference. Once the library bug is fixed, restore the wording.
 
 ## Resolved
 
