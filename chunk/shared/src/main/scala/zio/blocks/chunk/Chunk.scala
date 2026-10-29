@@ -2768,6 +2768,13 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
      * The order in which the bits of each `Int` or `Long` element are read or
      * written when a chunk is converted to or from a chunk of bits:
      * `asBitsInt`, `asBitsLong`, `toPackedInt` and `toPackedLong` take it.
+     *
+     * When the bits do not fill the last packed element, the missing bits are
+     * zero. If `k` bits remain, `BigEndian` puts them in the lowest `k` bits of
+     * the element (so `Chunk(true, false, false).toPackedInt(BigEndian)` is
+     * `Chunk(4)`), and `LittleEndian` puts them in the highest `k` bits, the
+     * first one lowest (so the same chunk with `LittleEndian` gives
+     * `Chunk(536870912)`).
      */
     sealed trait Endianness
 
