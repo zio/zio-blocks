@@ -8,7 +8,8 @@ const sidebars = {
       type: "category",
       label: "Getting Started",
       link: { type: "doc", id: "getting-started/index" },
-      collapsed: false,
+      // Always expanded, with no fold toggle: the tour is short and read in order.
+      collapsible: false,
       items: [
         "getting-started/installation",
         "getting-started/first-five-minutes",
@@ -16,7 +17,7 @@ const sidebars = {
         {
           type: "category",
           label: "Core Concepts",
-          collapsed: false,
+          collapsible: false,
           items: [
             "getting-started/concepts/schema",
             "getting-started/concepts/scope",

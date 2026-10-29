@@ -27,7 +27,12 @@ test('the Getting Started sidebar holds the overview, then the Getting Started c
   assert.equal(sidebar.length, 2);
   assert.equal(sidebar[0].id, 'index');
   assert.equal(sidebar[1], gettingStarted);
-  assert.equal(gettingStarted.collapsed, false);
+});
+
+test('no Getting Started category folds: each one is always expanded', () => {
+  const categories = (items) =>
+    items.filter((i) => i.type === 'category').flatMap((c) => [c, ...categories(c.items)]);
+  for (const c of categories(sidebar)) assert.equal(c.collapsible, false, c.label);
 });
 
 test('the reference sidebar holds neither the overview nor a Getting Started page', () => {
