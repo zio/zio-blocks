@@ -3891,11 +3891,24 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 }
 
 /**
- * A `NonEmptyChunk` is a `Chunk` that is guaranteed to contain at least one
- * element. As a result, operations which would not be safe when performed on
- * `Chunk`, such as `head` or `reduce`, are safe when performed on
- * `NonEmptyChunk`. Operations on `NonEmptyChunk` which could potentially return
- * an empty chunk will return a `Chunk` instead.
+ * A `NonEmptyChunk[A]` wraps a `Chunk[A]` that holds at least one element, so
+ * `head`, `last` and `reduce` always return a value instead of throwing. Use it
+ * as a parameter or result type where an empty sequence would be a bug, such as
+ * the authors of a book.
+ *
+ * Operations that keep at least one element, such as `map`, `appended` and
+ * `++`, return a `NonEmptyChunk`; operations that can remove every element,
+ * such as `filter` and `tail`, return a `Chunk`. An implicit conversion to
+ * `Chunk` makes every other `Chunk` method available.
+ *
+ * {{{
+ * val authors = NonEmptyChunk("John A. De Goes", "Adam Fraser", "Milad Khajavi")
+ * authors.head          // John A. De Goes
+ * authors.map(_.length) // NonEmptyChunk(15, 11, 13)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/chunk/#nonemptychunk NonEmptyChunk]]
  */
 final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializable { self =>
 
@@ -4022,8 +4035,8 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
   def groupBy[K](f: A => K): Map[K, NonEmptyChunk[A]] = groupMap(f)(identity)
 
   /**
-   * Groups and transformers the values in this `NonEmptyChunk` using the
-   * specified function.
+   * Groups the values in this `NonEmptyChunk` by `key` and transforms each
+   * value with `f`.
    */
   def groupMap[K, V](key: A => K)(f: A => V): Map[K, NonEmptyChunk[V]] = {
     val m = collection.mutable.Map.empty[K, ChunkBuilder[V]]
@@ -4039,13 +4052,18 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
   override def hashCode: Int = chunk.hashCode
 
   /**
-   * Retrieves the first element of the collection `chunk`.
+   * Returns the first element. It does not throw, because a `NonEmptyChunk` is
+   * never empty.
+   *
+   * {{{
+   * NonEmptyChunk("Zionomicon", "Programming in Scala").head // Zionomicon
+   * }}}
    */
   def head: A = chunk.head
 
   /**
-   * Returns a new chunk containing all elements except the last one. If the
-   * chunk is empty, this method throws an exception.
+   * Returns all elements except the last one, as a `Chunk`. The result is empty
+   * when this chunk has a single element.
    */
   def init: Chunk[A] = chunk.init
 
@@ -4086,15 +4104,28 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
   def prepended[A1 >: A](a: A1): NonEmptyChunk[A1] = new NonEmptyChunk(chunk.prepended(a))
 
   /**
-   * Reduces the elements of this collection using the specified binary
-   * operator.
+   * Combines the elements from left to right with `op`, starting from the first
+   * element. Unlike `Chunk#reduce`, it cannot fail on an empty input.
+   *
+   * {{{
+   * NonEmptyChunk(512, 750, 320).reduce(_ + _) // 1582
+   * }}}
    */
   def reduce[B >: A](op: (B, B) => B): B = chunk.reduce(op)
 
   /**
-   * Reduces the elements of this `NonEmptyChunk` from left to right using the
-   * function `map` to transform the first value to the type `B` and then the
-   * function `reduce` to combine the `B` value with each other `A` value.
+   * Reduces the elements from left to right: `map` turns the first element into
+   * the starting `B`, then `reduce` combines it with each later element. Use it
+   * when the result type differs from the element type and has no natural
+   * starting value.
+   *
+   * If `map` or `reduce` returns `null`, the next element starts the reduction
+   * again with `map` (a known bug), so do not return `null` from either.
+   *
+   * {{{
+   * val titles = NonEmptyChunk("Zionomicon", "Programming in Scala")
+   * titles.reduceMapLeft(_.length)(_ + _.length) // 30
+   * }}}
    */
   def reduceMapLeft[B](map: A => B)(reduce: (B, A) => B): B = {
     var b   = null.asInstanceOf[B]
@@ -4112,8 +4143,11 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
 
   /**
    * Reduces the elements of this `NonEmptyChunk` from right to left using the
-   * function `map` to transform the first value to the type `B` and then the
-   * function `reduce` to combine the `B` value with each other `A` value.
+   * function `map` to transform the last value to the type `B` and then the
+   * function `reduce` to combine each earlier `A` value with the `B` value.
+   *
+   * If `map` or `reduce` returns `null`, the next element starts the reduction
+   * again with `map` (a known bug), so do not return `null` from either.
    */
   def reduceMapRight[B](map: A => B)(reduce: (A, B) => B): B = {
     var b   = null.asInstanceOf[B]
@@ -4162,8 +4196,12 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
   def toArray[B >: A: ClassTag]: Array[B] = chunk.toArray
 
   /**
-   * Converts this `NonEmptyChunk` to a `Chunk`, discarding information about it
-   * not being empty.
+   * Returns the wrapped `Chunk`, without copying. The result type no longer
+   * records that the chunk is non-empty.
+   *
+   * {{{
+   * NonEmptyChunk("Zionomicon").toChunk // Chunk(Zionomicon)
+   * }}}
    */
   def toChunk: Chunk[A] = chunk
 
@@ -4231,12 +4269,23 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
 object NonEmptyChunk {
 
   /**
-   * Constructs a `NonEmptyChunk` from one or more values.
+   * Returns a `NonEmptyChunk` with `a` followed by `as`. Because `a` is a
+   * parameter of its own, a call without arguments does not compile.
+   *
+   * {{{
+   * NonEmptyChunk("Zionomicon", "Programming in Scala") // NonEmptyChunk(Zionomicon, Programming in Scala)
+   * }}}
    */
   def apply[A](a: A, as: A*): NonEmptyChunk[A] = fromIterable(a, as)
 
   /**
-   * Checks if a `chunk` is not empty and constructs a `NonEmptyChunk` from it.
+   * Returns `Some` with a `NonEmptyChunk` that wraps `chunk`, without copying
+   * it, or `None` when `chunk` is empty.
+   *
+   * {{{
+   * NonEmptyChunk.fromChunk(Chunk("Zionomicon")) // Some(NonEmptyChunk(Zionomicon))
+   * NonEmptyChunk.fromChunk(Chunk.empty[String]) // None
+   * }}}
    */
   def fromChunk[A](chunk: Chunk[A]): Option[NonEmptyChunk[A]] =
     if (chunk.isEmpty) None
@@ -4255,6 +4304,10 @@ object NonEmptyChunk {
     else {
       new NonEmptyChunk({
         val builder = ChunkBuilder.make[A](as.size + 1)
+/**
+ * Creates `NonEmptyChunk` values, and converts a `NonEmptyChunk` to a `Chunk`
+ * implicitly, so every `Chunk` method is available on it.
+ */
         builder.addOne(a)
         builder.addAll(as)
         builder.resultUnsafe()
@@ -4274,7 +4327,8 @@ object NonEmptyChunk {
   def single[A](a: A): NonEmptyChunk[A] = new NonEmptyChunk(Chunk.single(a))
 
   /**
-   * Extracts the elements from a `Chunk`.
+   * Matches a `Seq` that is a non-empty `Chunk` and extracts its elements. Any
+   * other `Seq`, such as a `List`, does not match.
    */
   def unapplySeq[A](seq: Seq[A]): Option[Seq[A]] = seq match {
     case chunk: Chunk[A] if chunk.nonEmpty => new Some(chunk)
