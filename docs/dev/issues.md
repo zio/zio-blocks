@@ -12797,6 +12797,22 @@ grep -rln JoinsDumpExample sql/ build.sbt project/
 
 **Suggested fix.** Move the file to `sql/shared/src/test/scala/zio/blocks/sql/` (the golden spec already has its own fixtures), or delete it. A MiMa exclusion is needed for the removed classes.
 
+### Flaky streams test: `AsyncReaderReachableCoverageSpec` "nested concat rejected reset closes its nested head" times out
+
+Seen 2026-10-29 in CI on two docs-only PRs, so neither PR caused it:
+- #1895 (AGENTS.md only), run 40868756469, job `testJVM (25, JVM, 3.9.x)`, coverage step (`streamsJVM / Test / test`): "Timeout of 30 s exceeded", 1 failed and 12,762 passed.
+- #1890 (docs cleanup), job `testJVM (17, JVM, 3.9.x)`, first attempt.
+
+In each run the same test passed in every other job. Re-running only the failed job passed for #1890.
+
+**Test.** `streams/jvm/src/test/scala/zio/blocks/streams/AsyncReaderReachableCoverageSpec.scala:551`, `test("nested concat rejected reset closes its nested head")`.
+
+**Impact.** It fails unrelated PRs at random and sends authors chasing a cause that isn't theirs; the workaround is `gh run rerun <id> --failed`.
+
+**Cause.** Not investigated. Both failures were on Scala 3.9.x, once on JDK 17 and once on JDK 25.
+
+**Suggested fix.** Run the spec in a loop (`streamsJVM/testOnly *AsyncReaderReachableCoverageSpec -- -t "nested concat rejected reset"`, repeated) on 3.9.0 under load to reproduce. Look for an unbounded wait on a completion that a rejected `reset` never fires. If the wait is legitimate, give the test an explicit, larger timeout.
+
 ## Documentation errors
 
 Pages that contradict the source. None of these were copied into the new guides.
