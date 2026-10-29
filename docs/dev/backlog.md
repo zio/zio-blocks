@@ -173,7 +173,7 @@ Each topic is scored from 1 (low) to 3 (high) on five criteria. The score is sho
 - sql, sql-zio, dataMigration, projection, datastar and htmx are Scala 3 only.
 - `*-examples/` projects pin the published 0.0.56. A newer API can appear only in mdoc snippets until the next release.
 - Telemetry needs JDK 21 or later on the JVM (the guide says 25 for `ScopedValue`). State it in the install step.
-- New guides need a `docs/sidebars.js` entry in the `guides` sidebar. Also update the stale hand-maintained list at `docs/index.md:492-502`.
+- New guides need a `docs/sidebars.js` entry in the `guides` sidebar, under their section (Tutorials, How-to guides, Migration guides or Deep dives) and, for a how-to guide, its topic. The `## Guides` list in `docs/index.md` holds only six start-here picks; add a guide there only to replace one of them.
 
 ## 3. Recommended learning path
 

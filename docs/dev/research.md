@@ -124,7 +124,7 @@ There are 41 published modules; `config` and its three format adapters count as 
 - **Sidebars.** `docs/sidebars.js` defines two sidebars:
   - `sidebar`: the reference docs, grouped as Meta Programming, Resource Management, Dependency Injection, Configuration & Feature Flags, Web & HTTP, Data Types, Concurrency, Streams, Telemetry, Persistence, and Tooling & Codegen.
   - `guides`: a flat list, plus a "Query DSL" category.
-- **Guides index.** `docs/guides/index.md` renders cards from the guides sidebar (`docs/SidebarCards.jsx`), so a new guide only needs a sidebar entry.
+- **Guides index.** `docs/guides/index.md` renders cards from the guides sidebar (`docs/SidebarCards.jsx`), so a new guide only needs a sidebar entry, under its section (Tutorials, How-to guides, Migration guides or Deep dives) and, for a how-to guide, its topic.
   - The navbar "Guides" link points to `/guides/async-getting-started` (`website/docusaurus.config.js:114`).
   - `docs/index.md:492-502` keeps a hand-maintained "Guides" list. It is stale: it lists 9 and omits `sql-transactions` and `sql-checked-interpolation`.
 - **Embedding examples.** Example files are embedded with `SourceFile.print("...")` (`zio-blocks-docs/src/main/scala/SourceFile.scala`). Inline code uses `scala mdoc` fences.

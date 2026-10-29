@@ -73,8 +73,11 @@ Every page ends with the same footer: the logo (linking home) and the site tagli
 
 `docs/guides/index.md` and `docs/reference/index.md` give the two folders an index page each. They are not entries in
 `docs/sidebars.js`: `displayed_sidebar` shows the guides or the main sidebar beside them, and `docs/SidebarCards.jsx`
-draws one card per entry of that sidebar (only the categories on `/reference/`) with Docusaurus' `DocCardList`, so a
-new guide or block group appears there without editing the page. `src/clientModules/folderIndexes.js` gives `/guides`
+draws one card per entry of that sidebar with Docusaurus' `DocCardList`: one per section on `/guides/` (Tutorials,
+How-to guides, Migration guides, Deep dives) and one per block category on `/reference/` (`categoriesOnly`). Each guides
+section and how-to topic links a `generated-index` page under `/guides/` that lists its items as cards, so a new guide
+or block group appears on these pages without editing them; `test/unit/guides-sidebar.test.mjs` fails if a guide page
+is missing from the guides sidebar. `src/clientModules/folderIndexes.js` gives `/guides`
 and `/reference` their trailing slash in place (hosts serve the same page for both forms); a unit test checks each
 folder it lists has an index page. The cards are flattened to the brand (no shadow, square, no link underline) in
 `src/css/custom.css`.

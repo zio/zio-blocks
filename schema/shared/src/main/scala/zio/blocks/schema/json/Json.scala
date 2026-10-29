@@ -37,8 +37,8 @@ import scala.util.hashing.MurmurHash3
  *   - An object keeps its fields in order, duplicates included, but `==`,
  *     `hashCode` and `compare` ignore the order.
  *   - A number holds a `BigDecimal`. `Json.parse` rounds a number to 34
- *     significant digits and rejects one with more than 308 digits or an
- *     exponent beyond the reader's scale limit.
+ *     significant digits and rejects one with 308 or more digits or an exponent
+ *     beyond the reader's scale limit.
  *   - Navigation (`get`) returns a [[JsonSelection]], which holds zero or more
  *     values or an error.
  *   - `toString` prints the value indented by two spaces; `print` prints it
