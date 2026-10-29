@@ -8,7 +8,7 @@ Two readers: the `/api` site, built by Scala 3 Scaladoc from the JVM projects, a
 
 ## Tiers
 
-**Tier 1: core types.** In `streams`: `Stream`, `Sink`, `Pipeline`, `Reader`, `Writer`. In `schema`: `Schema`, `Reflect`, `Optic` (`Lens`, `Prism`, `Optional`, `Traversal`), `DynamicValue`, `PrimitiveValue`, `Binding`, `Patch`, `Migration`, `Into`, `As`, `JsonCodec`, `Json`, `JsonSchema`, `Deriver`, `Modifier`, `Validation`, `SchemaError`, `Allows`.
+**Tier 1: core types.** In `chunk`: `Chunk`, `NonEmptyChunk`, `ChunkBuilder`, `ChunkMap`. In `streams`: `Stream`, `Sink`, `Pipeline`, `Reader`, `Writer`. In `schema`: `Schema`, `Reflect`, `Optic` (`Lens`, `Prism`, `Optional`, `Traversal`), `DynamicValue`, `PrimitiveValue`, `Binding`, `Patch`, `Migration`, `Into`, `As`, `JsonCodec`, `Json`, `JsonSchema`, `Deriver`, `Modifier`, `Validation`, `SchemaError`, `Allows`.
 
 - The type: what it is, when to use it, one example, and `@see` the reference page.
 - Its key methods (the ones its reference page shows): one example each.
@@ -51,9 +51,9 @@ def getDefaultValue: Option[A]
 
 ## Examples are compiled
 
-`sbt "++<version>; scaladoc-check/test"` turns every multi-line block in the Scaladoc of the checked modules (`schema` and `streams`) into an object and compiles it. One project serves every module. To check another one, add it to `scaladocCheckedModules` in `build.sbt`; this works when the module's package is `zio.blocks.<module-dir>` with `-` read as `.`, and the comment there lists the modules that need an override first. CI runs it in the `testJVM` job on Scala 2.13.x, 3.9.x and 3.10.x (JDK 17 and 25). Run it locally on all three: `sbt --client "++3.9.0; scaladoc-check/test; ++3.10.0; scaladoc-check/test; ++2.13.18; scaladoc-check/test"`.
+`sbt "++<version>; scaladoc-check/test"` turns every multi-line block in the Scaladoc of the checked modules (`chunk`, `schema` and `streams`) into an object and compiles it. One project serves every module. To check another one, add it to `scaladocCheckedModules` in `build.sbt`; this works when the module's package is `zio.blocks.<module-dir>` with `-` read as `.`, and the comment there lists the modules that need an override first. CI runs it in the `testJVM` job on Scala 2.13.x, 3.9.x and 3.10.x (JDK 17 and 25). Run it locally on all three: `sbt --client "++3.9.0; scaladoc-check/test; ++3.10.0; scaladoc-check/test; ++2.13.18; scaladoc-check/test"`.
 
-- Each block compiles on its own. The wrapper adds the import of the module the file belongs to (`import zio.blocks.schema._` for `schema`, `import zio.blocks.streams._` for `streams`); import anything else inside the block.
+- Each block compiles on its own. The wrapper adds the import of the module the file belongs to (`import zio.blocks.chunk._` for `chunk`, `import zio.blocks.schema._` for `schema`, `import zio.blocks.streams._` for `streams`); import anything else inside the block.
 - Use braces, not indentation syntax.
 - Sample data uses real Scala books, such as Zionomicon.
 - Show results in comments (`// Book("Zionomicon", 2024)`). They are not checked, so run the example once (with `scala-cli` or in a test) before writing the comment.
