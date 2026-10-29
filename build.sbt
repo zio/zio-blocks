@@ -1744,6 +1744,13 @@ lazy val docs = project
       // Lets the PostgreSQL connection-pool guide compile its HikariCP snippets; nothing connects.
       "com.zaxxer" % "HikariCP" % "7.1.0"
     ),
+    // Iron (Scala 3.9+ only) for the Iron refined-types guide. Its ZIO Blocks module depends on a published
+    // `zio-blocks-schema`, which is excluded so the guide compiles against this build's `schema` sources.
+    libraryDependencies ++= {
+      if (scalaBinaryVersion.value == "3")
+        Seq(("io.github.iltotore" %% "iron-zio-blocks-schema" % "3.4.1").exclude("dev.zio", "zio-blocks-schema_3"))
+      else Seq.empty
+    },
     // Override @PROJECT_BADGES@ to exclude the javadoc badge and to anchor the Maven Central /
     // Sonatype Snapshot badges on the "zio-blocks-config" artifact instead of "zio-blocks-schema".
     // A malformed "0.017" version was once published for zio-blocks-schema_3 (and several other
