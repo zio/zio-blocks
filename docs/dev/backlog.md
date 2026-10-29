@@ -682,4 +682,4 @@ All modules other than schema and streams: 2,375 / 10,197 documented (23%), or 3
 
 **Next step:** Milad picks the first module. The recommendation is chunk as a one-wave pilot, then scope.
 
-**Started 2026-10-29:** chunk pilot, session `scaladoc-chunk` (Opus), on Milad's choice.
+**Started 2026-10-29:** chunk pilot, session `scaladoc-chunk` (Opus), on Milad's choice. Phase 0: 153 / 205 (74%), no drift; the 52 missing items are all in `Chunk.scala` (51) and `ChunkMap.scala` (1); chunk has no `{{{` examples, so PR 0 is only the `scaladocCheckedModules` entry and an extractor test; about 220 overrides keep the docs inherited from the Scala collections; most of the work is fact-checking the 153 existing comments (inherited from ZIO 2). Milad's decisions: tier 1 = `Chunk`, `NonEmptyChunk`, `ChunkBuilder`, `ChunkMap`; one PR (tooling + wave); Opus writes tier 1 and fact-checks, Sonnet writes tier 2/3 (answers the §13.4 question for the pilot); W2 (maybe + combinators) is a later task.
