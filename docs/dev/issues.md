@@ -12799,9 +12799,10 @@ grep -rln JoinsDumpExample sql/ build.sbt project/
 
 ### Flaky streams test: `AsyncReaderReachableCoverageSpec` "nested concat rejected reset closes its nested head" times out
 
-Seen 2026-10-29 in CI on two docs-only PRs, so neither PR caused it:
+Seen 2026-10-28/29 in CI on three PRs that changed no code, so none of them caused it:
 - #1895 (AGENTS.md only), run 40868756469, job `testJVM (25, JVM, 3.9.x)`, coverage step (`streamsJVM / Test / test`): "Timeout of 30 s exceeded", 1 failed and 12,762 passed.
 - #1890 (docs cleanup), job `testJVM (17, JVM, 3.9.x)`, first attempt.
+- #1891 (Scaladoc comments only), run 40760261613, job `testJVM (17, JVM, 3.9.x)`: "Timeout of 30 s exceeded", 1 failed and 12,762 passed. Same pattern; not yet confirmed it is the same test name.
 
 In each run the same test passed in every other job. Re-running only the failed job passed for #1890.
 
