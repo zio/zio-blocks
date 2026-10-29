@@ -56,7 +56,7 @@ In this guide, we describe the embedding once, as a type with a `DbCodec`, and l
 
 ## Prerequisites
 
-Add the `sql` module and the PostgreSQL JDBC driver to your `build.sbt`. [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains the two artifact names:
+Add the `sql` module and the PostgreSQL JDBC driver to your `build.sbt`. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names:
 
 ```scala
 // Scala 3.3 to 3.8

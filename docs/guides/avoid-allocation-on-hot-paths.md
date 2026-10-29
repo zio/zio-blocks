@@ -65,7 +65,7 @@ libraryDependencies ++= Seq(
 )
 ```
 
-Scala 3.9 and newer use the `zio-blocks-next-*` artifact names and need `scalacOptions += "-experimental"`; [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) has the details. The `streams` and `telemetry` modules need JDK 21 or newer on the JVM. We assume you know what boxing is and have read [Your First Streaming Pipeline](./your-first-streaming-pipeline.md) or written a `Stream` before.
+Scala 3.9 and newer use the `zio-blocks-next-*` artifact names and need `scalacOptions += "-experimental"`; [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) has the details. The `streams` and `telemetry` modules need JDK 21 or newer on the JVM. We assume you know what boxing is and have read [Your First Streaming Pipeline](./your-first-streaming-pipeline.md) or written a `Stream` before.
 
 The examples use these imports:
 

@@ -34,7 +34,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "@VERSION@"
 
 **Note:** This module is JVM-only and is not available for Scala.js.
 
-Supported Scala versions: 2.13.x and 3.x. On Scala 3.9 and newer, use the `zio-blocks-next-schema-bson` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../guides/add-zio-blocks-to-your-build.md) explains.
+Supported Scala versions: 2.13.x and 3.x. On Scala 3.9 and newer, use the `zio-blocks-next-schema-bson` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../getting-started/installation.md) explains.
 
 ## Introduction
 

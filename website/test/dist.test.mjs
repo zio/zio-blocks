@@ -291,7 +291,7 @@ test('the footer puts the logo and tagline beside three titled link columns', ()
   assert.equal(text(brand), 'Type-safe, modular building blocks for Scala.');
   assert.deepEqual([...footer.matchAll(/<div class="footer__title">([^<]*)<\/div>/g)].map((m) => m[1]), ['Learn', 'Community', 'ZIO ecosystem']);
   const hrefs = [...footer.matchAll(/class="footer__link-item"[^>]*href="([^"]+)"|href="([^"]+)"[^>]*class="footer__link-item"/g)].map((m) => m[1] ?? m[2]);
-  assert.deepEqual(hrefs, ['/overview', '/guides/', '/reference/', '/api/', 'https://github.com/zio/zio-blocks', 'https://discord.gg/2ccFBr4', 'https://zio.dev', 'https://ziohttp.com']);
+  assert.deepEqual(hrefs, ['/getting-started/', '/overview', '/guides/', '/reference/', '/api/', 'https://github.com/zio/zio-blocks', 'https://discord.gg/2ccFBr4', 'https://zio.dev', 'https://ziohttp.com']);
   assert.ok(footer.indexOf('zb-footer-base') > footer.indexOf('footer__links'), 'the credit line comes last');
 });
 

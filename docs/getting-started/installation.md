@@ -1,5 +1,6 @@
 ---
-id: add-zio-blocks-to-your-build
+id: installation
+sidebar_label: "Installation"
 title: "How to Add ZIO Blocks to Your Build"
 description: "Pick the ZIO Blocks modules you need and add them to an sbt or scala-cli build, for any Scala version and for Scala.js."
 keywords:
@@ -212,6 +213,7 @@ Book("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi").toJsonStrin
 
 ## Going Further
 
-- [Your First Schema](./your-first-schema.md) is the next step once `zio-blocks-schema` is on the classpath.
+- [Your First Five Minutes](./first-five-minutes.md) is the next page of Getting Started: one small program that uses three blocks together.
+- [Your First Schema](../guides/your-first-schema.md) is the next step once `zio-blocks-schema` is on the classpath.
 - The [reference](../reference/index.md) has a page for every module in the table above.
 - Each `*-examples/` directory in the [repository](https://github.com/zio/zio-blocks) is a standalone sbt build that depends on the published artifacts; `schema-examples/build.sbt` is a working copy-paste template.

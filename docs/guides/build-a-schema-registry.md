@@ -75,7 +75,7 @@ libraryDependencies ++= Seq(
 scalacOptions += "-experimental"
 ```
 
-For scala-cli, Scala.js, or cross-building, see [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md). The code on this page compiles on Scala 2.13 and Scala 3, and the registry runs on the JVM only: `zio-blocks-schema-avro` is published for the JVM, and the registry writes files with `java.nio.file`. `DynamicSchema` and `BindingResolver` themselves also work on Scala.js, except `BindingResolver.reflection`, which finds classes only on the JVM.
+For scala-cli, Scala.js, or cross-building, see [How to Add ZIO Blocks to Your Build](../getting-started/installation.md). The code on this page compiles on Scala 2.13 and Scala 3, and the registry runs on the JVM only: `zio-blocks-schema-avro` is published for the JVM, and the registry writes files with `java.nio.file`. `DynamicSchema` and `BindingResolver` themselves also work on Scala.js, except `BindingResolver.reflection`, which finds classes only on the JVM.
 
 We assume you can derive a `Schema` for a case class, as shown in [Your First Schema](./your-first-schema.md), and that you know `DynamicValue`, the untyped value tree described on the [DynamicValue reference page](../reference/schema/dynamic-value.md). The [DynamicSchema reference page](../reference/schema/dynamic-schema.md) and the [BindingResolver reference page](../reference/schema/binding-resolver.md) cover the two main types in more depth than this guide needs.
 

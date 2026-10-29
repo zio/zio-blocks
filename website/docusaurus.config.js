@@ -119,6 +119,8 @@ const config = {
           height: 37,
         },
         items: [
+          // The newcomers' tour (docs/getting-started/); activeBaseRegex keeps it highlighted on every page of it.
+          { to: '/getting-started/', label: 'Getting Started', position: 'right', activeBaseRegex: '^/getting-started(/|$)' },
           { to: '/overview', label: 'Docs', position: 'right' },
           // A plain link, not a docSidebar item: the landing-only build has no docs plugin. activeBaseRegex keeps it
           // highlighted on every page of the guides sidebar (docs/sidebars.js).
@@ -146,6 +148,7 @@ const config = {
           {
             title: 'Learn',
             items: [
+              { label: 'Getting Started', to: '/getting-started/' },
               { label: 'Docs', to: '/overview' },
               { label: 'Guides', to: '/guides/' },
               { label: 'Reference', to: '/reference/' },

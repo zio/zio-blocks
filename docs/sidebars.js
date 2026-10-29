@@ -2,6 +2,32 @@ const sidebars = {
   // No "ZIO Blocks" wrapper category: the overview page and the block groups sit at the top level of the sidebar.
   sidebar: [
     { type: "doc", id: "index", label: "Overview" },
+    // The short tour for newcomers, in reading order; the "Getting Started" navbar item leads to its first page.
+    // website/test/unit/getting-started-sidebar.test.mjs fails if a page under docs/getting-started/ is missing here.
+    {
+      type: "category",
+      label: "Getting Started",
+      link: { type: "doc", id: "getting-started/index" },
+      collapsed: false,
+      items: [
+        "getting-started/installation",
+        "getting-started/first-five-minutes",
+        "getting-started/how-zio-blocks-thinks",
+        {
+          type: "category",
+          label: "Core Concepts",
+          collapsed: false,
+          items: [
+            "getting-started/concepts/schema",
+            "getting-started/concepts/scope",
+            "getting-started/concepts/wire-and-context",
+            "getting-started/concepts/streams",
+          ]
+        },
+        "getting-started/use-with-effect-systems",
+        "getting-started/where-next",
+      ]
+    },
          {
            type: "category",
            label: "Meta Programming",
@@ -480,7 +506,6 @@ const sidebars = {
       // The learning path of docs/dev/backlog.md §3 (foundations, runtime blocks, building applications, capstone),
       // then the electives.
       items: [
-        "guides/add-zio-blocks-to-your-build",
         "guides/your-first-schema",
         "guides/evolve-your-data",
         "guides/compile-time-resource-safety-with-scope",

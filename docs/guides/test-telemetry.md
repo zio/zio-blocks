@@ -64,7 +64,7 @@ libraryDependencies ++= Seq(
 )
 ```
 
-The `telemetry` module needs **JDK 21 or newer** on the JVM, to compile as well as to run. [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains the two artifact names and the JDK each module needs.
+The `telemetry` module needs **JDK 21 or newer** on the JVM, to compile as well as to run. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names and the JDK each module needs.
 
 The order service and its tests compile on Scala 2.13 and Scala 3. The section on the global `log` object is Scala 3 only: in version 0.0.56, the `log.*` calls don't compile on Scala 2.13 outside the library's own package, a known bug in that version.
 

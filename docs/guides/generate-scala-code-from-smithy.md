@@ -55,7 +55,7 @@ libraryDependencies ++= Seq(
 scalacOptions += "-experimental"
 ```
 
-The smithy and codegen modules are published for the JVM only. The code in this tutorial is compiled with Scala 3; for scala-cli or cross-building, see [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md).
+The smithy and codegen modules are published for the JVM only. The code in this tutorial is compiled with Scala 3; for scala-cli or cross-building, see [How to Add ZIO Blocks to Your Build](../getting-started/installation.md).
 
 ## 2. Background: One Contract, Many Programs
 

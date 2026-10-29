@@ -26,7 +26,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(effectIntegration)
+  .aggregate(effectIntegration, gettingStarted)
   .settings(
     commonSettings,
     name := "zio-blocks-examples",
@@ -52,5 +52,17 @@ lazy val effectIntegration = (project in file("effect-integration"))
       "dev.zio"       %% "zio-streams" % "2.1.27",
       "org.typelevel" %% "cats-effect" % "3.7.1",
       "co.fs2"        %% "fs2-core"    % "3.14.0"
+    )
+  )
+
+// The program of "Your First Five Minutes" (docs/getting-started/first-five-minutes.md): Schema, Scope and Chunk together.
+// Run with: sbt "gettingStarted/runMain gettingstarted.FirstFiveMinutes"
+lazy val gettingStarted = (project in file("getting-started"))
+  .settings(
+    commonSettings,
+    name := "getting-started",
+    libraryDependencies ++= Seq(
+      zioBlocks("schema").value,
+      zioBlocks("scope").value
     )
   )

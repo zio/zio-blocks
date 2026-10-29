@@ -32,7 +32,7 @@ type to adopt:
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 
-That line is for Scala 2.13 and Scala 3.3 to 3.8. On Scala 3.9 and newer, use `zio-blocks-next-schema` and add `scalacOptions += "-experimental"`. See [How to Add ZIO Blocks to Your Build](./guides/add-zio-blocks-to-your-build.md) for Scala.js, scala-cli, and cross-building.
+That line is for Scala 2.13 and Scala 3.3 to 3.8. On Scala 3.9 and newer, use `zio-blocks-next-schema` and add `scalacOptions += "-experimental"`. See [How to Add ZIO Blocks to Your Build](./getting-started/installation.md) for Scala.js, scala-cli, and cross-building.
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -50,7 +50,7 @@ val jsonStr = alice.toJsonString                      // {"name":"Alice","age":3
 val parsed  = """{"name":"Bob","age":25}""".fromJson[Person]
 ```
 
-New to ZIO Blocks? Start with the [Your First Schema](./guides/your-first-schema.md) tutorial.
+New to ZIO Blocks? [Getting Started](./getting-started/index.md) is a short tour of the core ideas, and the [Your First Schema](./guides/your-first-schema.md) tutorial is the first hands-on lesson.
 
 The four blocks below get a full walkthrough because they have no close
 equivalent elsewhere in Scala. Every other block is one row away in the catalog,
@@ -507,7 +507,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ## Guides
 
-- [How to Add ZIO Blocks to Your Build](./guides/add-zio-blocks-to-your-build.md) - Pick the modules you need and add them to an sbt or scala-cli build, for any Scala version and for Scala.js
+- [How to Add ZIO Blocks to Your Build](./getting-started/installation.md) - Pick the modules you need and add them to an sbt or scala-cli build, for any Scala version and for Scala.js
 - [Your First Schema: Round-Trip a Type Through JSON](./guides/your-first-schema.md) - Describe a type once with `Schema`, then encode, decode, and read errors
 - [Your First Streaming Pipeline: Turn a Sales Log into a Report](./guides/your-first-streaming-pipeline.md) - Read a sales log with a `Stream`, parse, filter and batch it, sum it with a `Sink`, and recover from a bad line
 - [Build Your First Database Repository on SQLite](./guides/your-first-sqlite-repository.md) - Connect to SQLite, derive a table and `Repo` from one schema, write your own queries, and roll back a transaction

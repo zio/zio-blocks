@@ -20,3 +20,14 @@
   from = "/docs/*"
   to = "/:splat"
   status = 301
+
+# "How to Add ZIO Blocks to Your Build" moved from the guides to Getting Started.
+[[redirects]]
+  from = "/guides/add-zio-blocks-to-your-build"
+  to = "/getting-started/installation"
+  status = 301
+
+[[redirects]]
+  from = "/guides/add-zio-blocks-to-your-build/"
+  to = "/getting-started/installation"
+  status = 301

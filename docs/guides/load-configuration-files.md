@@ -93,7 +93,7 @@ libraryDependencies ++= Seq(
 )
 ```
 
-For a Scala.js build, use `%%%` instead of `%%`. [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains which artifact names to pick for each Scala version.
+For a Scala.js build, use `%%%` instead of `%%`. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains which artifact names to pick for each Scala version.
 
 This guide assumes you have loaded a case class from a `ConfigSource`, as in [Build a Typed Configuration Loader](./typed-config-loader.md). If you are moving an existing Typesafe Config or PureConfig application, [Coming from PureConfig, Typesafe Config or zio-config](./config-library-migration.md) maps the old calls one by one. The snippets below share these imports:
 
