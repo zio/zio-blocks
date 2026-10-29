@@ -63,12 +63,14 @@ test('the API pages get the site navbar in place of the Scaladoc header', () => 
 
 test('the navbar links match the Docusaurus navbar, with API as the current page', () => {
   const { themeConfig } = createRequire(import.meta.url)('../../docusaurus.config.js');
-  // The GitHub item is icon-only on the docs (no label), but the API pages keep its text (api-theme.mjs NAV_LINKS).
-  const site = themeConfig.navbar.items.map((i) => ({ label: i.label ?? 'GitHub', href: (i.to ?? i.href).replace('pathname://', '') }));
+  // The GitHub and Discord items are icon-only on the docs (no label), but the API pages keep their text (api-theme.mjs NAV_LINKS).
+  const iconLabels = { 'header-github-link': 'GitHub', 'header-discord-link': 'Discord' };
+  const site = themeConfig.navbar.items.map((i) => ({ label: i.label ?? iconLabels[i.className], href: (i.to ?? i.href).replace('pathname://', '') }));
   assert.deepEqual(NAV_LINKS.map(({ label, href }) => ({ label, href })), site);
   const nav = navbarHtml({ prompt: PROMPT });
   assert.match(nav, /<a class="zb-navbar__link zb-navbar__link--active" href="\/api\/" aria-current="page">API<\/a>/);
   assert.match(nav, /<a class="zb-navbar__link" href="https:\/\/github\.com\/zio\/zio-blocks" target="_blank" rel="noopener noreferrer">GitHub<svg/);
+  assert.match(nav, /<a class="zb-navbar__link" href="https:\/\/discord\.gg\/2ccFBr4" target="_blank" rel="noopener noreferrer">Discord<svg/);
 });
 
 test('the onboard button carries the prompt, escaped for the attribute', () => {

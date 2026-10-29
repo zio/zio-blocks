@@ -29,6 +29,7 @@ export const NAV_LINKS = [
   { label: 'API', href: '/api/', current: true },
   { label: 'Blocks', href: '/#catalog' },
   { label: 'GitHub', href: 'https://github.com/zio/zio-blocks', external: true },
+  { label: 'Discord', href: 'https://discord.gg/2ccFBr4', external: true },
 ];
 
 const escapeAttr = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
