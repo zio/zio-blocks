@@ -1,6 +1,6 @@
 package sink
 
-import zio.blocks.streams.*
+import zio.blocks.streams._
 import zio.blocks.streams.NioSinks
 import java.io.RandomAccessFile
 import java.nio.file.Files

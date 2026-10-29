@@ -1,7 +1,7 @@
 package nio
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 import java.io.IOException
 import java.nio.ByteBuffer

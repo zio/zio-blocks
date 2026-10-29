@@ -1,6 +1,7 @@
 ---
 id: telemetry-guide
 title: "Telemetry: Architecture, Patterns, and Real-World Usage"
+description: "Understand how the logging, tracing and metrics pipeline works, then wire it into a production service with sampling, exporters and ordered shutdown."
 ---
 
 `zio-blocks-telemetry` is an effect-free, zero-allocation observability library that gives you structured logging, distributed tracing, and metrics without pulling in the OpenTelemetry SDK or any effect system. This guide explains why it works the way it does, shows what happens inside each operation, and walks through patterns for production systems.
@@ -28,6 +29,8 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
 ---
 
 ## Part 1: Architecture and Design Philosophy
+
+This part explains why the library is effect-free and how a signal travels from a call site to an exporter.
 
 ### Why effect-free?
 
@@ -111,6 +114,8 @@ The global singletons are intentionally not safe to use across threads during `i
 ---
 
 ## Part 2: Logging Deep Dive
+
+This part covers the logging API, from the first call to multiple outputs and testing.
 
 ### Getting started
 
@@ -317,12 +322,12 @@ import zio.blocks.telemetry._
 log.warn("slow query", "table" -> "orders", "duration_ms" -> 450L)
 ```
 
-**TextLogFormatter output:**
+The text formatter writes one line per record:
 ```
 2026-05-14T09:30:00.123Z WARN  [PaymentService.handleRequest:87] slow query {table="orders", duration_ms=450}
 ```
 
-**JsonLogFormatter output:**
+The JSON formatter writes the same record in the OTLP log data model:
 ```json
 {"timeUnixNano":"1747216200123000000","severityNumber":13,"severityText":"WARN","body":{"stringValue":"slow query"},"attributes":[{"key":"code.filepath","value":{"stringValue":"src/main/scala/com/example/PaymentService.scala"}},{"key":"code.namespace","value":{"stringValue":"com.example.PaymentService"}},{"key":"code.function","value":{"stringValue":"handleRequest"}},{"key":"code.lineno","value":{"intValue":"87"}},{"key":"table","value":{"stringValue":"orders"}},{"key":"duration_ms","value":{"intValue":"450"}}]}
 ```
@@ -372,6 +377,8 @@ Don't clean up the global logger with `log.removeAll()`. It silences logging, an
 ---
 
 ## Part 3: Distributed Tracing Deep Dive
+
+This part covers how spans are created, sampled, propagated and tested.
 
 ### Trace lifecycle
 
@@ -591,6 +598,8 @@ This works out of the box with the global singletons: a provider built without a
 
 ## Part 4: Metrics Deep Dive
 
+This part covers choosing, pre-binding and collecting metric instruments.
+
 ### Instrument selection guide
 
 | What you're measuring | Instrument | Example |
@@ -722,6 +731,8 @@ Unlike the trace and log exporters, the metric exporter has no `BatchProcessor` 
 ---
 
 ## Part 5: Production Setup
+
+This part wires the exporters into a production service and covers tuning and shutdown.
 
 ### Full production wiring
 
@@ -967,6 +978,8 @@ log.install(LoggerProvider.builder.build().get("my-service"), minSeverity = minL
 
 ## Part 6: Integration Patterns
 
+This part shows how to connect telemetry to HTTP frameworks, Java logging and Scala.js.
+
 ### With HTTP frameworks
 
 A typical middleware pattern extracts incoming trace context, starts a server span, and injects context into outbound calls. Here's the conceptual shape (adapting to your specific HTTP library):
@@ -1044,12 +1057,12 @@ If you're writing cross-platform code that uses telemetry, keep your call sites 
 
 **"Why don't I see any log output?"**
 
-Two common causes:
+Three common causes:
 
 1. The global minimum level is filtering it out. The default floor is `Severity.Trace` (severity number 1), so everything passes. If you called `log.install(logger, minSeverity = Severity.Info)` or `log.setMinSeverity(Severity.Info)`, then trace and debug calls are suppressed.
 
 2. The logger was installed but the processor chain is empty. Verify your `LoggerProvider` builder has at least one processor:
-```scala
+   ```scala
    LoggerProvider.builder
      .addLogRecordProcessor(new ConsoleLogRecordProcessor)  // don't forget this
      .build()
@@ -1122,7 +1135,7 @@ Yes, in the sense that a span's context is bound to the current call stack wheth
 - **Complete API reference:** [Telemetry Reference](../reference/telemetry/index.md) for all types, methods, and parameter documentation
 - **Installation and quick start:** same reference doc, Installation section
 - **Context and dependency injection:** [Context Reference](../reference/context.md) for integrating `OtelContext` with the Context module
-- **Resource management:** [Compile-Time Resource Safety with Scope](compile-time-resource-safety-with-scope.md) — the telemetry module has no dependency on `Scope`; the providers are plain `AutoCloseable`s you shut down yourself, as in the wiring recipe above
+- **Resource management:** [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md) — the telemetry module has no dependency on `Scope`; the providers are plain `AutoCloseable`s you shut down yourself, as in the wiring recipe above
 
 ## See Also
 

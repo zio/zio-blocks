@@ -76,9 +76,13 @@ import zio.blocks.sql._
 
 // Derive a codec automatically — field names map to snake_case columns by default
 case class User(id: Int, name: String, email: Option[String]) derives DbCodec
+```
 
+```scala mdoc:silent
 val codec = DbCodec[User]
+```
 
+```scala mdoc
 codec.columns
 codec.columnCount
 
@@ -90,8 +94,13 @@ val nullParams = codec.toDbValues(User(2, "Bob", None))
 
 // Adapt any codec to a newtype with transform — no full Schema needed
 case class UserId(value: Int)
-val userIdCodec: DbCodec[UserId] = DbCodec[Int].transform(UserId(_))(_.value)
+```
 
+```scala mdoc:silent
+val userIdCodec: DbCodec[UserId] = DbCodec[Int].transform(UserId(_))(_.value)
+```
+
+```scala mdoc
 userIdCodec.columns
 userIdCodec.toDbValues(UserId(42))
 ```
@@ -163,7 +172,9 @@ object Tags { implicit val schema: Schema[Tags] = Schema.derived }
 
 case class Product(id: Int, tags: Tags)
 object Product { implicit val schema: Schema[Product] = Schema.derived }
+```
 
+```scala mdoc:silent
 // tags is stored as a JSON string in the "tags" column
 val tagsCodec: DbCodec[Tags] =
   DbCodec[String].transform(json => Tags(json.split(",").toList))(_.values.mkString(","))
@@ -172,7 +183,9 @@ val productCodec: DbCodec[Product] =
   DbCodec.derivedWith[Product](
     _.instance(TypeId.of[Product], "tags", tagsCodec)
   )
+```
 
+```scala mdoc
 productCodec.columns
 productCodec.columnCount
 ```
@@ -200,10 +213,14 @@ object Address {
   implicit val schema: Schema[Address]         = Schema.derived
   implicit val jsonCodec: JsonCodec[Address] = schema.deriving(JsonCodecDeriver).derive
 }
+```
 
+```scala mdoc:silent
 // Address is stored as a JSON string in a single TEXT/JSONB column
 val codec: DbCodec[Address] = DbCodec.jsonb[Address]
+```
 
+```scala mdoc
 codec.columns
 codec.toDbValues(Address("Main St", "NYC"))
 ```
@@ -212,13 +229,17 @@ Use the two-argument overload when you supply custom encode/decode logic instead
 
 ```scala mdoc
 case class Point(x: Double, y: Double)
+```
 
+```scala mdoc:silent
 // Custom JSON encoding using a hand-rolled format
 val pointCodec: DbCodec[Point] = DbCodec.jsonb[Point](
   p => s"${p.x},${p.y}",
   s => { val parts = s.split(","); Point(parts(0).toDouble, parts(1).toDouble) }
 )
+```
 
+```scala mdoc
 pointCodec.toDbValues(Point(1.0, 2.0))
 ```
 
@@ -235,10 +256,12 @@ object DbCodec {
 
 The codec delegates to `DbCodec[Option[String]]` and applies the JSON encode/decode on the inner `String`, so `NULL` detection uses the underlying `Option[String]` codec's standard null handling:
 
-```scala mdoc
+```scala mdoc:silent
 // Assume JsonCodec[Address] is in scope from the previous example
 val nullableCodec: DbCodec[Option[Address]] = DbCodec.jsonbOption[Address]
+```
 
+```scala mdoc
 nullableCodec.toDbValues(Some(Address("Elm St", "LA")))
 
 nullableCodec.toDbValues(None)
@@ -263,9 +286,14 @@ opaque type ProductId <: String = String
 object ProductId {
   def apply(value: String): ProductId = value
 }
+```
 
+```scala mdoc:silent
 // DbCodec[ProductId] is resolved automatically — no explicit given needed
 val codec = DbCodec[ProductId]
+```
+
+```scala mdoc
 codec.columns
 ```
 
@@ -318,9 +346,14 @@ We use `DbCodec.apply` whenever we need a codec value without knowing its deriva
 import zio.blocks.sql._
 
 case class Order(id: Long, status: String) derives DbCodec
+```
 
+```scala mdoc:silent
 // Summon the derived codec
 val codec: DbCodec[Order] = DbCodec[Order]
+```
+
+```scala mdoc
 codec.columns
 ```
 
@@ -589,9 +622,13 @@ trait DbCodec[A] {
 import zio.blocks.sql._
 
 case class Item(id: Int, name: String, price: Option[BigDecimal]) derives DbCodec
+```
 
+```scala mdoc:silent
 val codec = DbCodec[Item]
+```
 
+```scala mdoc
 codec.toDbValues(Item(1, "Widget", Some(BigDecimal("9.99"))))
 
 codec.toDbValues(Item(2, "Gadget", None))
@@ -615,11 +652,15 @@ Both `read` and `write` must be total functions; any exception they throw propag
 import zio.blocks.sql._
 
 case class ProductId(value: String)
+```
 
+```scala mdoc:silent
 // Adapt the String codec to ProductId without a Schema
 val productIdCodec: DbCodec[ProductId] =
   DbCodec[String].transform(ProductId(_))(_.value)
+```
 
+```scala mdoc
 productIdCodec.columns
 productIdCodec.toDbValues(ProductId("abc-1"))
 ```

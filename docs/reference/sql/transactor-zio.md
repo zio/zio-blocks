@@ -13,9 +13,9 @@ keywords:
 This page is a detailed reference for the `TransactorZIO` class specifically. If you only need `ZLayer`-based dependency injection for the plain synchronous `Transactor` (via `JdbcTransactor.postgresLayer` / `sqliteLayer`, extension methods that need `import zio.blocks.sql.zio.*`), see the [ZIO Integration](../sql-zio.md) page instead — it covers both integration styles and when to reach for each.
 :::
 
-`TransactorZIO` exposes two pairs of methods. The **blocking wrappers** (`connect`, `transact`) run a synchronous body on ZIO's blocking thread pool via `ZIO.attemptBlocking` and return `Task[A]`. The **effect-aware methods** (`connectZIO`, `transactZIO`) accept a body that itself returns a `ZIO[R, E, A]`, bracket the JDBC connection with `ZIO.acquireRelease`, and return `ZIO[R, E | Throwable, A]` — guaranteeing connection cleanup even under fiber interruption.
+`TransactorZIO` exposes two pairs of methods. The **blocking wrappers** (`TransactorZIO#connect`, `TransactorZIO#transact`) run a synchronous body on ZIO's blocking thread pool via `ZIO.attemptBlocking` and return `Task[A]`. The **effect-aware methods** (`TransactorZIO#connectZIO`, `TransactorZIO#transactZIO`) accept a body that itself returns a `ZIO[R, E, A]`, bracket the JDBC connection with `ZIO.acquireRelease`, and return `ZIO[R, E | Throwable, A]` — guaranteeing connection cleanup even under fiber interruption.
 
-- **Immutable** — `TransactorZIO` holds no mutable state; each `connect` or `transact` invocation opens a fresh connection via the provided `connectionFactory`.
+- **Immutable** — `TransactorZIO` holds no mutable state; each `TransactorZIO#connect` or `TransactorZIO#transact` invocation opens a fresh connection via the provided `connectionFactory`.
 - **Interrupt-safe** — `TransactorZIO#connectZIO` and `TransactorZIO#transactZIO` close the underlying JDBC connection even when the enclosing fiber is interrupted, because they use `ZIO.acquireRelease` internally. Closing is not rolling back: in 0.0.56, interrupting a running `TransactorZIO#transactZIO` (for example with `ZIO#timeout`) commits the statements its body already ran, and so does a statement in the body that throws before the body's effect is returned. [How to Use the sql Module from a ZIO Application](../../guides/sql-from-zio.md#mix-database-writes-with-other-effects-in-one-transaction) shows how to avoid both.
 - **Thread-safe** — the transactor is safe to share across fibers; each invocation manages its own connection.
 - **JDBC-based** — available on JVM only; Scala 3 is required.
@@ -420,15 +420,15 @@ If `commit` itself fails after a successful body, a rollback is attempted. If bo
 
 [`JdbcTransactor`](./transactor.md) is the synchronous, non-ZIO transactor from the `sql` module. `TransactorZIO` wraps it and adds a ZIO integration layer on top. The table below summarizes when to use each:
 
-| Aspect                    | `JdbcTransactor` (`sql` module)                      | `TransactorZIO` (`sql-zio` module)                                               |
-|---------------------------|------------------------------------------------------|-------------------------------------------------------------------------------------|
-| **Return type**           | `A` (synchronous, blocking)                          | `Task[A]` or `ZIO[R, E \| Throwable, A]`                                           |
-| **Thread model**          | Blocks the calling thread directly                   | `connect`/`transact` run on ZIO's blocking thread pool via `ZIO.attemptBlocking`   |
-| **Interruption safety**   | None — body runs to completion                       | `TransactorZIO#connectZIO`/`TransactorZIO#transactZIO` close the connection on fiber interruption (an interrupted `TransactorZIO#transactZIO` commits in 0.0.56) |
-| **ZIO dependency**        | None — zero ZIO runtime dependency                   | Requires ZIO runtime                                                                |
-| **Dependency injection**  | Manual construction                                  | `TransactorZIO.layer` provides a `ZLayer[Any, Nothing, TransactorZIO]`              |
-| **Scala versions**        | Scala 3 only (the `sql` module is cross-built JVM + JS, but `JdbcTransactor` itself is JVM-only) | Scala 3 only (JVM only)                                                             |
-| **When to use**           | Synchronous code, scripts, or non-ZIO applications   | ZIO-based applications where effects compose across the entire call stack           |
+| Aspect                   | `JdbcTransactor` (`sql` module)                                                                  | `TransactorZIO` (`sql-zio` module)                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Return type**          | `A` (synchronous, blocking)                                                                      | `Task[A]` or `ZIO[R, E \| Throwable, A]`                                                                                                                         |
+| **Thread model**         | Blocks the calling thread directly                                                               | `connect`/`transact` run on ZIO's blocking thread pool via `ZIO.attemptBlocking`                                                                                 |
+| **Interruption safety**  | None — body runs to completion                                                                   | `TransactorZIO#connectZIO`/`TransactorZIO#transactZIO` close the connection on fiber interruption (an interrupted `TransactorZIO#transactZIO` commits in 0.0.56) |
+| **ZIO dependency**       | None — zero ZIO runtime dependency                                                               | Requires ZIO runtime                                                                                                                                             |
+| **Dependency injection** | Manual construction                                                                              | `TransactorZIO.layer` provides a `ZLayer[Any, Nothing, TransactorZIO]`                                                                                           |
+| **Scala versions**       | Scala 3 only (the `sql` module is cross-built JVM + JS, but `JdbcTransactor` itself is JVM-only) | Scala 3 only (JVM only)                                                                                                                                          |
+| **When to use**          | Synchronous code, scripts, or non-ZIO applications                                               | ZIO-based applications where effects compose across the entire call stack                                                                                        |
 
 The following diagram shows how the two types relate within the `sql` and `sql-zio` modules:
 

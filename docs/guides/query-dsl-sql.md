@@ -1,6 +1,7 @@
 ---
 id: query-dsl-sql
 title: "Query DSL with Reified Optics — Part 2: SQL Generation"
+description: "Turn query expressions into SQL WHERE clauses, SELECT statements and parameterized queries, then inspect the generated SQL, preview migration SQL and dump SQL at compile time."
 ---
 
 In this guide, we will build a SQL query generator that translates ZIO Blocks' `SchemaExpr` expression trees into SQL WHERE clauses, SELECT statements, and parameterized queries. By the end, you will have an interpreter that takes any `SchemaExpr`-based query and produces executable SQL, covering comparisons, boolean logic, arithmetic, string operations, nested structures, and safe parameterization.
@@ -15,6 +16,7 @@ This is Part 2 of the Query DSL series. [Part 1](./query-dsl-reified-optics.md) 
 - Building complete `SELECT ... FROM ... WHERE ...` statements
 - Generating parameterized queries for SQL injection safety
 - Handling nested structures with table-qualified column names
+- Building upserts, inspecting generated SQL, and dumping SQL at compile time
 
 ## The Problem
 
@@ -36,15 +38,19 @@ def findProducts(category: Option[String], maxPrice: Option[Double], inStock: Op
 
 This is fragile, repetitive, and vulnerable to SQL injection. Every new query shape requires new string-building code. The query logic is duplicated -- once as a `SchemaExpr` for in-memory filtering, and again as hand-written SQL for the database.
 
-`SchemaExpr` is the user-facing query API. Internally it wraps a `DynamicSchemaExpr` — a sealed trait whose cases represent the full expression AST. That means we can write a single interpreter that accepts `SchemaExpr`, then crosses into the dynamic AST internally to translate *any* query expression into SQL. Write the interpreter once, and every query you build with the Part 1 DSL automatically gets a SQL translation.
+`SchemaExpr` is the user-facing query API. Internally it wraps a `DynamicSchemaExpr` — a sealed trait whose cases represent the expression AST. That means we can write a single interpreter that accepts `SchemaExpr`, then crosses into the dynamic AST internally to translate *any* query expression into SQL. Write the interpreter once, and every query you build with the Part 1 DSL automatically gets a SQL translation.
 
 ## Prerequisites
 
 This guide builds on [Part 1: Expressions](./query-dsl-reified-optics.md). You should be comfortable building `SchemaExpr` values with optic operators (`===`, `>`, `&&`, etc.).
 
+Add the dependency:
+
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
+
+Then import the schema package:
 
 ```scala mdoc:silent
 import zio.blocks.schema._
@@ -76,11 +82,11 @@ object Product extends CompanionOptics[Product] {
 
 ## The SchemaExpr API
 
-Before we build the interpreter, keep the API boundary in mind: application code builds `SchemaExpr[A, B]` values, while interpreter code may inspect the underlying `DynamicSchemaExpr` through `.dynamic`.
+Before we build the interpreter, keep the API boundary in mind: application code builds `SchemaExpr[A, B]` values, while interpreter code may inspect the underlying `DynamicSchemaExpr` through `SchemaExpr#dynamic`, as the following outline shows:
 
 ```
 SchemaExpr[A, B]                        -- user-facing, typed API
-└── .dynamic: DynamicSchemaExpr         -- interpreter/runtime boundary
+└── .dynamic: DynamicSchemaExpr         -- interpreter/runtime boundary (cases used in this guide)
     ├── Select(path: DynamicOptic)      -- field reference
     ├── Literal(value: DynamicValue, schema: Schema[_])  -- constant value
     ├── Relational(left, right, op)     -- comparisons
@@ -96,7 +102,7 @@ Most users never need to construct `DynamicSchemaExpr` directly. The normal work
 
 1. Build a typed `SchemaExpr` with optics and operators.
 2. Pass that `SchemaExpr` to your interpreter.
-3. Let the interpreter read `.dynamic` internally.
+3. Let the interpreter read `SchemaExpr#dynamic` internally.
 
 The dynamic cases are still worth understanding because they are what your interpreter will pattern-match on:
 
@@ -116,8 +122,13 @@ LogicalOperator
 ArithmeticOperator
 ├── Add
 ├── Subtract
-└── Multiply
+├── Multiply
+├── Divide
+├── Pow
+└── Modulo
 ```
+
+The interpreter below handles `Add`, `Subtract` and `Multiply` and emits `?` for every other case.
 
 Each dynamic case carries enough information to produce SQL: `Select` nodes carry field paths, `Literal` nodes carry values, and operator nodes carry the operation type. Our interpreter walks this tree and emits SQL fragments.
 
@@ -136,6 +147,8 @@ def columnName(path: DynamicOptic): String =
 ```
 
 This converts the optic path to a column name. For a simple field like `Product.price`, it produces `"price"`. For a nested path, it joins field names with underscores (we will refine this for table-qualified names later).
+
+Evaluating it on the Part 1 lenses gives:
 
 ```scala mdoc
 columnName(Product.price)
@@ -220,7 +233,7 @@ private def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
   case DynamicSchemaExpr.StringConcat(left, right) =>
     s"CONCAT(${toSqlDynamic(left)}, ${toSqlDynamic(right)})"
 
-  // Regex match → column LIKE pattern (simplified)
+  // Regex match → LIKE (simplified: regex semantics are not preserved)
   case DynamicSchemaExpr.StringRegexMatch(regex, string) =>
     s"(${toSqlDynamic(string)} LIKE ${toSqlDynamic(regex)})"
 
@@ -234,17 +247,17 @@ private def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
 
 The mapping from `DynamicSchemaExpr` to SQL is direct, but that dynamic matching stays inside the interpreter implementation:
 
-| DynamicSchemaExpr Case | SQL Output                           |
-|------------------------|--------------------------------------|
-| `Select(path)`         | Column name from `DynamicOptic`      |
-| `Literal(value, schema)` | SQL literal (`'text'`, `42`, `TRUE`) |
-| `Relational(_, _, op)` | `=`, `<>`, `<`, `>`, `<=`, `>=`      |
-| `Logical(_, _, op)`    | `AND`, `OR`                          |
-| `Not(expr)`            | `NOT (...)`                          |
-| `Arithmetic(_, _, op, _)` | `+`, `-`, `*`                     |
-| `StringConcat`         | `CONCAT(a, b)`                       |
-| `StringRegexMatch`     | `LIKE` (pattern matching)            |
-| `StringLength`         | `LENGTH(col)`                        |
+| DynamicSchemaExpr Case    | SQL Output                                             |
+| ------------------------- | ------------------------------------------------------ |
+| `Select(path)`            | Column name from `DynamicOptic`                        |
+| `Literal(value, schema)`  | SQL literal (`'text'`, `42`, `TRUE`)                   |
+| `Relational(_, _, op)`    | `=`, `<>`, `<`, `>`, `<=`, `>=`                        |
+| `Logical(_, _, op)`       | `AND`, `OR`                                            |
+| `Not(expr)`               | `NOT (...)`                                            |
+| `Arithmetic(_, _, op, _)` | `+`, `-`, `*`                                          |
+| `StringConcat`            | `CONCAT(a, b)`                                         |
+| `StringRegexMatch`        | `LIKE` (simplified: regex semantics are not preserved) |
+| `StringLength`            | `LENGTH(col)`                                          |
 
 ## Generating SQL from Queries
 
@@ -255,6 +268,8 @@ val isElectronics = Product.category === "Electronics"
 val expensiveItems = Product.price > 100.0
 val highRated = Product.rating >= 4
 ```
+
+Each query translates to a WHERE-clause fragment:
 
 ```scala mdoc
 toSql(isElectronics)
@@ -276,6 +291,8 @@ val goodDeal =
 val outOfStock = !Product.inStock
 ```
 
+Each compound query renders with nested parentheses:
+
 ```scala mdoc
 toSql(affordableElectronics)
 toSql(goodDeal)
@@ -290,6 +307,8 @@ val complexQuery =
   ((Product.category === "Office") && (Product.rating >= 4))
 ```
 
+The nested query renders as one expression:
+
 ```scala mdoc
 toSql(complexQuery)
 ```
@@ -302,6 +321,8 @@ Arithmetic expressions translate directly to SQL math:
 val discountedPrice = Product.price * 0.9
 val priceWithTax = Product.price * 1.08
 ```
+
+Arithmetic expressions render as SQL math:
 
 ```scala mdoc
 toSql(discountedPrice)
@@ -322,6 +343,8 @@ val labeledName = Product.name.concat(" [SALE]")
 // String length → LENGTH()
 val nameLength = Product.name.length
 ```
+
+String operations render as SQL functions:
 
 ```scala mdoc
 toSql(startsWithL)
@@ -359,6 +382,8 @@ def selectWithLimit(
 ```scala mdoc:silent
 val query = (Product.category === "Electronics") && (Product.inStock === true) && (Product.price < 500.0)
 ```
+
+The statement builders render complete queries:
 
 ```scala mdoc
 select("products", query)
@@ -459,6 +484,8 @@ val q = (Product.category === "Electronics") && (Product.price < 500.0) && (Prod
 val paramQuery = toParameterized(q)
 ```
 
+The SQL holds placeholders and the parameter list holds the values:
+
 ```scala mdoc
 paramQuery.sql
 paramQuery.params
@@ -519,6 +546,8 @@ def qualifiedColumnName(optic: zio.blocks.schema.Optic[?, ?]): String = {
   else s"${fields.init.mkString("_")}.${fields.last}"
 }
 ```
+
+The qualified names join nested fields with a dot:
 
 ```scala mdoc
 qualifiedColumnName(Seller.name)
@@ -708,13 +737,13 @@ val query =
 
 // Inline SQL for debugging
 println(select("products", query))
-// SELECT * FROM products WHERE (((category = 'Electronics') AND (inStock = TRUE)) AND (price < 500.0)) AND (rating >= 4))
+// SELECT * FROM products WHERE ((((category = 'Electronics') AND (inStock = TRUE)) AND (price < 500.0)) AND (rating >= 4))
 
 // Parameterized SQL for execution
 val pq = toParameterized(query)
 println(s"SQL:    ${pq.sql}")
 println(s"Params: ${pq.params}")
-// SQL:    (((category = ?) AND (inStock = ?)) AND (price < ?)) AND (rating >= ?))
+// SQL:    ((((category = ?) AND (inStock = ?)) AND (price < ?)) AND (rating >= ?))
 // Params: List(Electronics, true, 500.0, 4)
 
 // String operations in SQL
@@ -743,14 +772,14 @@ and `Repo#insertOrUpdateBatch` wrappers, run against a real SQLite database, see
 [How to Upsert Rows and Paginate with Keyset Cursors](./upsert-and-paginate-with-keyset-cursors.md).
 The builders below take column names and `DbValue`s directly, without a `Table`.
 
-### Low-level builders
+### Low-Level Builders
 
 When you need full control over column names and values (e.g. computed or
 transformed data), use the low-level `Upsert.doNothing`, `Upsert.doNothingRaw`,
 and `Upsert.doUpdate` builders:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.*
+import zio.blocks.sql._
 
 // Low-level DO NOTHING with explicit columns and values
 val frag1: Frag = Upsert.doNothing(
@@ -778,13 +807,13 @@ val frag3: Frag = Upsert.doUpdate(
 )
 ```
 
-### Suffix builders
+### Suffix Builders
 
 To append an `ON CONFLICT` clause to an existing `INSERT` `Frag`, use the suffix
 builders:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.*
+import zio.blocks.sql._
 
 val base: Frag = Frag.literal("INSERT INTO users (id, name) VALUES (?, ?)")
 
@@ -834,7 +863,7 @@ placeholders correspond one-to-one with the parameter list you can obtain separa
 `toFrag(dialect).params`. This makes `explain` useful for logging and visual debugging without touching a
 database.
 
-### Inspecting the query IR
+### Inspecting the Query IR
 
 The query itself is a case class, so every part is available programmatically:
 
@@ -853,7 +882,7 @@ Inspecting the IR directly lets you examine joins, filters, ordering, and limits
 
 ### sql(dialect): String
 
-The query IR also provides a simpler `sql` method that renders `?` placeholders for execution:
+The query IR also provides a simpler `SqlQuery#sql` method that renders `?` placeholders for execution:
 
 ```scala
 println(q.sql(SqlDialect.PostgreSQL))
@@ -890,7 +919,7 @@ val statements: Vector[String] = migrator.previewSql()
 
 This gives you a dry run of the migration SQL before any schema changes are applied.
 
-## Compile-time SQL Dumps
+## Compile-Time SQL Dumps
 
 To run joins against a real database and dump their SQL, see [How to Write Joins and Inspect the Generated SQL](./write-joins-and-inspect-generated-sql.md).
 
@@ -942,9 +971,9 @@ target/sql-dumps/
   repo-sqlite.sql
 ```
 
-For `dumpTable`, the owner comes from the `Table`'s type name. For `dumpQuery`, the macro walks the call site to extract the enclosing method, val name, or argument name. If the macro cannot determine a meaningful name, it falls back to `query`.
+For `Dump.dumpTable`, the owner comes from the `Table`'s type name. For `Dump.dumpQuery`, the macro walks the call site to extract the enclosing method, val name, or argument name. If the macro cannot determine a meaningful name, it falls back to `query`.
 
-### Content-hash Skip
+### Content-Hash Skip
 
 Each dump file is written only when its content differs from the existing file. The macro compares the new bytes against any existing file at the target path. If they match, the write is skipped. This means incremental compilations do not produce noisy diffs or unnecessary filesystem writes.
 
@@ -959,7 +988,7 @@ Compile-time dumps work well for statically constructed queries, but some SQL pa
 - **Phase 2 note.** A future phase may extend `Dump` to cover `Repo`-level CRUD operations and dynamic fragment composition. For now, treat the dump as a DDL and static-query snapshot, not a complete representation of every SQL statement your application will execute.
 
 :::tip
-Pair `Dump.dumpTable` with `previewSql()` for a fuller picture: `dumpTable` captures the schema DDL at compile time, while `previewSql` captures the migration SQL at runtime before execution.
+Pair `Dump.dumpTable` with `SmallMigrator#previewSql` for a fuller picture: `Dump.dumpTable` captures the schema DDL at compile time, while `SmallMigrator#previewSql` captures the migration SQL at runtime before execution.
 :::
 
 ## Going Further
@@ -972,4 +1001,4 @@ Pair `Dump.dumpTable` with `previewSql()` for a fuller picture: `dumpTable` capt
 - **[DynamicOptic Reference](../reference/schema/dynamic-optic.md)** -- Runtime optic paths for programmatic field extraction
 - **[How to Upsert Rows and Paginate with Keyset Cursors](./upsert-and-paginate-with-keyset-cursors.md)** -- Insert-or-update rows and page through large tables with keyset cursors
 
-The interpreter pattern shown here extends naturally to other query targets. Because `SchemaExpr` wraps a `DynamicSchemaExpr` sealed trait and `DynamicOptic` carries full path metadata, you can write interpreters for MongoDB filters, Elasticsearch queries, GraphQL filters, or any other query language using the same approach: access `.dynamic`, pattern match on the AST, map operators, and extract field names from optic paths.
+The interpreter pattern shown here extends naturally to other query targets. Because `SchemaExpr` wraps a `DynamicSchemaExpr` sealed trait and `DynamicOptic` carries full path metadata, you can write interpreters for MongoDB filters, Elasticsearch queries, GraphQL filters, or any other query language using the same approach: access `SchemaExpr#dynamic`, pattern match on the AST, map operators, and extract field names from optic paths.
