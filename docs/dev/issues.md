@@ -989,7 +989,7 @@ The same exception is thrown with `sliding(2, 2)`, `scan`, `mapAccum`, `grouped(
 
 **Expected.** `numbers.grouped(2).runCollect` returns `Right(Chunk(Chunk(1,3)))`, the same value as `numbers.grouped(2).runCollectAsync.block`.
 
-**Root cause.** Recovery nodes cannot run in the synchronous interpreter, so `CatchAll.compileInterpreter` throws the internal signal (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:3755`; `CatchDefect` at `:3782` and `AsyncUnary` at `:5024` do the same). The only handler is `Stream.compileBlockingFallback` (`Stream.scala:3379-3383`), which guards the up-front compile of the whole stream and falls back to the reader-based engine. With a stateful operator downstream, the blocking run uses the `SyncInterpreter`, which compiles each inner stream of `flatMap` lazily, while pulling: `SyncInterpreter.handlePush` calls `innerStreamRef.compileInterpreter(this)` (`streams/shared/src/main/scala/zio/blocks/streams/internal/SyncInterpreter.scala:1394`). A `jdb` trace shows the signal thrown there, rethrown by `handlePush`'s rollback handler (`:1410-1416`) and by the read's failure handler (`:713`), and leaving `Stream.runBlocking` (`Stream.scala:1428`) because no fallback exists at pull time.
+**Root cause.** Recovery nodes cannot run in the synchronous interpreter, so `CatchAll.compileInterpreter` throws the internal signal (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:3755`; `CatchDefect` at `:3782` and `AsyncUnary` at `:5024` do the same). The only handler is `Stream.compileBlockingFallback` (`Stream.scala:3379-3383` (now `:3761-3764` on `main` at `630823a42`)), which guards the up-front compile of the whole stream and falls back to the reader-based engine. With a stateful operator downstream, the blocking run uses the `SyncInterpreter`, which compiles each inner stream of `flatMap` lazily, while pulling: `SyncInterpreter.handlePush` calls `innerStreamRef.compileInterpreter(this)` (`streams/shared/src/main/scala/zio/blocks/streams/internal/SyncInterpreter.scala:1394`). A `jdb` trace shows the signal thrown there, rethrown by `handlePush`'s rollback handler (`:1410-1416`) and by the read's failure handler (`:713`), and leaving `Stream.runBlocking` (`Stream.scala:1428`) because no fallback exists at pull time.
 
 **Impact.** Per-element error recovery inside `flatMap` is the usual way to skip bad input, and batching with `grouped` is the usual next step, so ordinary pipelines crash on the JVM blocking terminals with an exception that names an internal type. The docs tutorial works around it by recovering on the outer stream, which stops the stream at the first bad element.
 
@@ -1063,7 +1063,7 @@ A thread dump of the tutorial's companion example `Concept8CatchAllExample` (the
 
 **Expected.** A blocking terminal runs the stream on the calling thread, or at least never deadlocks because of where it is called from: the program prints `Right(Chunk(1,2))` and `done`.
 
-**Root cause.** `catchAll` cannot run in the synchronous interpreter, so `Stream.compileBlockingFallback` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:3379-3383`) compiles the stream with the async reader engine. The blocking read then goes through `AsyncToSyncReader.drive` (`streams/jvm/src/main/scala/zio/blocks/streams/io/AsyncToSyncReader.scala:160-168`), which starts the read with `Async.startRegistered` — scheduled on the `commonPool` by `AsyncRunner` (`async/jvm/src/main/scala/zio/blocks/async/internal/AsyncRunner.scala:211`) — and parks the caller with `running.block`. User functions in the pipeline therefore run on a pool thread while the caller holds the JVM class-initialization lock. Scala 3 lambdas are static methods of the enclosing object, so calling them, and reading the object's fields, waits for that lock.
+**Root cause.** `catchAll` cannot run in the synchronous interpreter, so `Stream.compileBlockingFallback` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:3379-3383` (now `:3761-3764` on `main` at `630823a42`)) compiles the stream with the async reader engine. The blocking read then goes through `AsyncToSyncReader.drive` (`streams/jvm/src/main/scala/zio/blocks/streams/io/AsyncToSyncReader.scala:160-168`), which starts the read with `Async.startRegistered` — scheduled on the `commonPool` by `AsyncRunner` (`async/jvm/src/main/scala/zio/blocks/async/internal/AsyncRunner.scala:211`) — and parks the caller with `running.block`. User functions in the pipeline therefore run on a pool thread while the caller holds the JVM class-initialization lock. Scala 3 lambdas are static methods of the enclosing object, so calling them, and reading the object's fields, waits for that lock.
 
 **Impact.** `object Main extends App` is the first thing most Scala users write, and the streams module's own examples use it. A pipeline works until someone adds `catchAll`, then hangs silently with no error. The tutorial's companion examples hit this and had to switch to `def main`; the tutorial page carries a caution about it.
 
@@ -1183,7 +1183,7 @@ In plain English: the inner stream's elements are converted to the type the whol
 
 A bridge between two primitive lanes happens to be harmless. It writes the target slot, and the outgoing `map` still reads the untouched source slot. The bridge from a reference to a primitive is the only one that casts, so that is where the bug shows. When `flatMap`s are nested, every PUSH bridges to the final lane. The first one whose inner elements are references fails. That is why the SQL case reported `Chunk$AnyRefArray`: the page stream was itself a `flatMap` result, and its inner `Chunk` pages were the first references to reach a bridge.
 
-Why only some pipelines fail: `FlatMapped.compileBlocking` normally builds a dedicated `Reader.FlatMappedRef` (`Stream.scala:5663–5688`), which does not go through `SyncInterpreter`. So `words.map(_.length).runCollect` works. `grouped` is `chunked` (`Stream.scala:318`), a `StatefulReaderStream`. That type has no `compileBlocking` of its own, so it uses `compileBlockingFallback` → `SyncInterpreter.fromStream` (`Stream.scala:3379–3384`). Its `compileInterpreter` then compiles the upstream through the interpreter too (`Stream.scala:6002–6004` → `compileToReader(source, pipeline)` at 3582–3584 → `FlatMapped.compileInterpreter` at 5689–5691). `take`, `takeWhile`, `scan`, `mapAccum` and `sliding` take the same path. The chunk reader then calls `readN` (`io/Reader.scala:365`), which uses the `Int` lane because the interpreter's `jvmType` is `Int`. That lands in `readIntStorage`. `AsyncInterpreter` gets this right: it stores each PUSH's target type in `incomingType(ip)` / `outgoingType(out)` (`AsyncInterpreter.scala:852`, `846`) and bridges to it (`AsyncInterpreter.scala:1734`, `1857`, `2559–2564`). That is why `runCollectAsync.block` is correct.
+Why only some pipelines fail: `FlatMapped.compileBlocking` normally builds a dedicated `Reader.FlatMappedRef` (`Stream.scala:5663–5688`), which does not go through `SyncInterpreter`. So `words.map(_.length).runCollect` works. `grouped` is `chunked` (`Stream.scala:318`), a `StatefulReaderStream`. That type has no `compileBlocking` of its own, so it uses `compileBlockingFallback` → `SyncInterpreter.fromStream` (`Stream.scala:3379–3384` (now `:3761-3764` on `main` at `630823a42`)). Its `compileInterpreter` then compiles the upstream through the interpreter too (`Stream.scala:6002–6004` → `compileToReader(source, pipeline)` at 3582–3584 → `FlatMapped.compileInterpreter` at 5689–5691). `take`, `takeWhile`, `scan`, `mapAccum` and `sliding` take the same path. The chunk reader then calls `readN` (`io/Reader.scala:365`), which uses the `Int` lane because the interpreter's `jvmType` is `Int`. That lands in `readIntStorage`. `AsyncInterpreter` gets this right: it stores each PUSH's target type in `incomingType(ip)` / `outgoingType(out)` (`AsyncInterpreter.scala:852`, `846`) and bridges to it (`AsyncInterpreter.scala:1734`, `1857`, `2559–2564`). That is why `runCollectAsync.block` is correct.
 
 **Impact.** Any JVM blocking terminal (`runCollect`, `runFold`, `runForeach`, ...) can hit this. The pipeline shape is common: flatten a stream of batches (`Chunk`s of rows, lists of records), pick a numeric field, then batch, window, limit or scan it. This is the standard shape for paging through large query results. Results:
 
@@ -1344,7 +1344,7 @@ object BufferSizeIgnored {
 
 **Expected.** `run` matches `runAsync`: about 5 elements ahead with `bufferSize(1)` and all 1000 with `bufferSize(1024)`.
 
-**Root cause.** `compileBlockingFallback` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:3379-3383`) compiles a blocking run with `SyncInterpreter.fromStream`, which calls `compileInterpreter` on each node. `WithBufferSize.compileInterpreter` (`Stream.scala:4485`) forwards to the body and drops `n`, and `MapPar.compileInterpreter` (`:4517-4528`) and `MergedAll.compileInterpreter` (`:4595-4604`) pass the constant `Stream.DefaultBufferSize` to `Platform.createMapParReader`/`createMergeReader`. Only `WithBufferSize.compile` (`:4482-4484`) and `materializeAsync` (`:4486-4489`) pass `n` on, and those run for the `*Async` terminals or after the interpreter gives up with `AsyncBoundaryRequired`.
+**Root cause.** `compileBlockingFallback` (`streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:3379-3383` (now `:3761-3764` on `main` at `630823a42`)) compiles a blocking run with `SyncInterpreter.fromStream`, which calls `compileInterpreter` on each node. `WithBufferSize.compileInterpreter` (`Stream.scala:4485`) forwards to the body and drops `n`, and `MapPar.compileInterpreter` (`:4517-4528`) and `MergedAll.compileInterpreter` (`:4595-4604`) pass the constant `Stream.DefaultBufferSize` to `Platform.createMapParReader`/`createMergeReader`. Only `WithBufferSize.compile` (`:4482-4484`) and `materializeAsync` (`:4486-4489`) pass `n` on, and those run for the `*Async` terminals or after the interpreter gives up with `AsyncBoundaryRequired`.
 
 **Impact.** The one documented knob for the memory and look-ahead of `mapPar`, `flatMapPar` and `mergeAll` silently does nothing on the JVM's main path; a user who lowers it to bound memory, or raises it for throughput, sees no change. For `flatMapPar` and `mergeAll` no route sizes a merge queue from it at all: the threaded merge readers are built only by the interpreter (always 64), and on the reader route `AsyncConcurrentReaders.merge` uses the size only to compile each inner stream.
 
@@ -9182,6 +9182,92 @@ object Dumps {
 
 **Suggested fix.** Render from the `Table`'s own metadata. If the macro can't evaluate the value, emit code that writes the file on first use at run time, or require a statically known `Table.derived` call and replay its arguments (name, naming policy) through `TableMetadata.columnsFor`. Add golden cases with a renamed column and `TableNamingPolicy.Plural`.
 
+### sql: `Rel.manyToOne` and `Rel.oneToMany` accept a selector that does more than name a field, and silently join on the first field it touches
+
+Found 2026-10-28 while writing the reference page `docs/reference/sql/rel.md` (PR #1889), on `main` at `6462ef6e9`. The code is the same at tag `v0.0.56`: `git diff v0.0.56 -- sql/shared/src/main/scala/zio/blocks/sql/query` is empty.
+
+**Summary.** The selector constructors are documented as taking a plain field access such as `_.buyerId`, and the macro rejects a selector that calls a method on the row (`_.hashCode`). But a selector that goes on from a field, such as `_.note.length` or `_.buyerId + 1`, compiles with no error or warning, and the macro uses the first field the selector touches as the column. The `Rel` then joins on a different condition than the code says: `_.note.length` builds `ON t0."note" = t1."customer_id"`, and `_.buyerId + 1` builds `ON t0."buyer_id" = t1."customer_id"`, dropping the `+ 1`.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-next-sql` 0.0.56). `Repro.sc`, run with `scala-cli run --server=false Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.query.*
+import zio.blocks.sql.*
+
+case class Customer(customerId: Int, name: String)
+object Customer { given Schema[Customer] = Schema.derived }
+
+case class Invoice(invoiceId: Int, buyerId: Int, note: String)
+object Invoice { given Schema[Invoice] = Schema.derived }
+
+val customers = Table.derived[Customer]
+val invoices  = Table.derived[Invoice]
+
+val byNoteLength = Rel.manyToOne(invoices, _.note.length, customers, _.customerId)
+println(byNoteLength.fkColumn)
+// note
+println(SqlQuery.from(invoices).join(byNoteLength).sql(SqlDialect.SQLite))
+// SELECT t0."invoice_id", t0."buyer_id", t0."note", t1."customer_id", t1."name" FROM "invoice" AS t0 INNER JOIN "customer" AS t1 ON t0."note" = t1."customer_id"
+
+val offByOne = Rel.manyToOne(invoices, _.buyerId + 1, customers, _.customerId)
+println(offByOne.fkColumn)
+// buyer_id
+println(SqlQuery.from(invoices).join(offByOne).sql(SqlDialect.SQLite))
+// SELECT t0."invoice_id", t0."buyer_id", t0."note", t1."customer_id", t1."name" FROM "invoice" AS t0 INNER JOIN "customer" AS t1 ON t0."buyer_id" = t1."customer_id"
+```
+
+**Expected.** Both calls fail to compile with the macro's "selector must be a simple field access like _.field or x => x.field" error, as `_.hashCode` already fails with "unknown field 'hashCode' for type ... Valid fields: ...".
+
+**Root cause.** `RelMacros.extractFieldName`'s `findInTerm` (`sql/shared/src/main/scala/zio/blocks/sql/query/RelMacros.scala:73-95`) unwraps `Apply(fun, _)` to `fun` (`:82`). For a `Select(qual, name)` whose qualifier isn't the lambda parameter, it recurses into the qualifier and returns the innermost field (`:84-91`, the `findInTerm(qual).orElse(Some(name))` at `:90`). So `_.note.length` (`Select(Select(Ident(_), note), length)`) and `_.buyerId + 1` (`Apply(Select(Select(Ident(_), buyerId), +), 1)`) both reduce to their first field, which `extractColumn` (`:47-66`) then validates as a real field and snake-cases. The comment at `:88-89` shows the chained case was meant for nested fields (`_.foo.bar`), but nothing checks that the rest of the chain is a field, and the column is the outer field anyway.
+
+**Impact.** A selector that reads as an expression compiles and builds a join on a different condition, with no warning. The SQL is valid, so wrong rows come back silently: `_.note.length` joins a text column to an integer key, and an arithmetic selector drops its arithmetic.
+
+**Test gap.** No test in `sql/shared/src/test` passes anything but a plain field access to `Rel.manyToOne`/`oneToMany`; `QueryRenderSpec` and `ExplainSpec` build most `Rel`s from string column names.
+
+**Suggested fix.** Accept only `Select(Ident(param), field)` (after unwrapping `Inlined`/`Block`/`Typed` and the lambda), and abort with the existing "selector must be a simple field access" error for anything else, including chained selects and applications. If nested fields are ever wanted, map the full path through `TableMetadata`'s flattened names instead of taking the outer field. Add negative compile tests (`typeCheckErrors`) for `_.f.length`, `_.f + 1` and `_.f.g`.
+
+### streams: `NioStreams.fromByteBuffer{Int,Long,Double,Float}(...).take(n).drop(m).repeated` replays the wrong window: `reset()` re-derives `[skip, skip+limit)` instead of the composed `[skip, limit)`
+
+Found 2026-10-29 while checking the FAIL printed by `streams-examples/src/main/scala/nio/NioBinaryTelemetryWalkthrough.scala` (section 6), on branch `streams-examples-213` (PR #1897), on `main` at `fa76f487f`. Same at `v0.0.56`: `ByteBufferReader.scala` has no change to `reset`/`setLimit`/`setSkip` between `v0.0.56` and `fa76f487f`. Verified by running against 0.0.56 and against `main`'s compiled classes. Related but separate: "Streams (JVM): a `take` on `NioStreams.fromByteBuffer*` ... permanently lowers the caller's buffer limit" (same `setLimit`/`setSkip` design).
+
+**Summary.** A `ByteBuffer` reader that has had `take(5)` and then `drop(3)` pushed into it should expose readings [3,5) on every replay. On the first pass it does (30, 40). After `reset()`, which `repeated` calls between passes, the window becomes [3, 3+5), i.e. readings 3 to 7. So the second pass yields 30, 40, 50, 60, 70, and readings outside the slice leak into the output. The walkthrough's comment calls this "BUG-R8-03 (since fixed)"; it isn't fixed in 0.0.56 or on `main`.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-streams:0.0.56
+//> using option -experimental
+
+import zio.blocks.streams.*
+import java.nio.ByteBuffer
+
+@main def repro(): Unit =
+  val frame = ByteBuffer.allocate(8 * 8)
+  (0 until 8).foreach(i => frame.putLong(i.toLong * 10L))
+  frame.flip()
+  val replayed = NioStreams.fromByteBufferLong(frame).take(5).drop(3).repeated.take(6).runCollect
+  println(replayed)
+// Right(Chunk(30,40,30,40,50,60))
+```
+
+The real output on 0.0.56 is `Right(Chunk(30,40,30,40,50,60))`. Running against `main`'s compiled `streams/jvm/target/scala-3.9.0/classes` (`fa76f487f`) gives the same.
+
+**Expected.** `Right(Chunk(30,40,30,40,30,40))`, which is what the walkthrough asserts: each replay yields the same two readings.
+
+**Root cause.** In `streams/jvm/src/main/scala/zio/blocks/streams/internal/ByteBufferReader.scala`, `ByteBufferLongReader.reset()` (lines 290-301) computes `startPos = originalPosition + skipN*8`, then calls `buffer.limit(startPos + limitN*8)` (line 299). But `setLimit` stores the raw `take` count `limitN` (303-308, here 5), and `setSkip` stores the raw `drop` count `skipN` (310-317, here 3). `limitN` was meant relative to the position when `setLimit` ran, before the skip, so the window end is `originalPosition + limitN*8`, not `startPos + limitN*8`. The first pass is right because `setLimit` sets the buffer limit from the live position and `setSkip` then clamps to it; `reset()` loses that ordering. The same `startPos + bytesN` pattern is in the Int (line 199), Double (399) and Float (497) readers. Only the Long case was run; the others are from reading the code, and the Byte reader wasn't checked.
+
+**Impact.** Silent wrong data: any `take(n).drop(m)` followed by `repeated` (or another replay or retry) over a `ByteBuffer` source emits elements outside the slice from the second pass on. The reader contract the walkthrough quotes ("store derived window bounds, not raw skip/limit values") isn't met.
+
+**Test gap.** The walkthrough cites "NioSpec 'origin, window and accuracy (round 8)' [AdversarialWindowResetSpec]", but no such test exists in `streams/` or `docs/`, so nothing guards it.
+
+**Suggested fix.** In `setSkip` and `setLimit`, store derived absolute window bounds (start and end positions in bytes), and have `reset()` restore exactly `[windowStart, windowEnd)`, clamped to `originalLimit`. Do it for all four readers, and check the Byte reader. Add a regression test per lane using the reproducer above. No sentinel loop is involved: `reset` isn't a hot path.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -12652,6 +12738,8 @@ Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md
 
 ### streams-examples does not compile on Scala 2.13: `NioBinaryTelemetryWalkthrough.scala` uses `import zio.blocks.streams.*`
 
+**Status (2026-10-29).** Fixed in #1897 (merged 2026-10-29). The scope was 18 files with `import x.*`, plus 12 Scala 3-only files that `build.sbt` now skips on Scala 2.x: 11 call zio-sbt-source 0.8.6 `ExprEval.show`, whose macro expands on 2.13 to the `private[sbt]` `SourceReader.commentsAbove` ("cannot be accessed"); `MixedFeedAuditWalkthrough` uses union types. The files stay in place because docs embed them by path.
+
 Found 2026-10-26 while writing H-26 (`docs/guides/run-streams-without-blocking.md`), on `main` at `7f551627c`.
 
 **Summary.** The AGENTS.md recipe for checking an example on Scala 2.13 (`sbt "++2.13.18!" compile` inside the examples build) fails for `streams-examples`. `streams-examples/src/main/scala/nio/NioBinaryTelemetryWalkthrough.scala` has the Scala 3-only `import zio.blocks.streams.*`, which 2.13 reads as "object * is not a member of package zio.blocks.streams", and every use after it fails too (`Stream.fromChunk`, `NioSinks`, `NioStreams`, `NioWriters`, `NioReaders`).
@@ -12748,102 +12836,74 @@ grep -rln JoinsDumpExample sql/ build.sbt project/
 
 **Suggested fix.** Move the file to `sql/shared/src/test/scala/zio/blocks/sql/` (the golden spec already has its own fixtures), or delete it. A MiMa exclusion is needed for the removed classes.
 
+### Flaky streams test: `AsyncReaderReachableCoverageSpec` "nested concat rejected reset closes its nested head" times out
+
+Seen 2026-10-28/29 in CI on three PRs that changed no code, so none of them caused it:
+- #1895 (AGENTS.md only), run 40868756469, job `testJVM (25, JVM, 3.9.x)`, coverage step (`streamsJVM / Test / test`): "Timeout of 30 s exceeded", 1 failed and 12,762 passed.
+- #1890 (docs cleanup), job `testJVM (17, JVM, 3.9.x)`, first attempt.
+- #1891 (Scaladoc comments only), run 40760261613, job `testJVM (17, JVM, 3.9.x)`: "Timeout of 30 s exceeded", 1 failed and 12,762 passed. Same pattern; not yet confirmed it is the same test name.
+
+In each run the same test passed in every other job. Re-running only the failed job passed for #1890.
+
+**Test.** `streams/jvm/src/test/scala/zio/blocks/streams/AsyncReaderReachableCoverageSpec.scala:551`, `test("nested concat rejected reset closes its nested head")`.
+
+**Impact.** It fails unrelated PRs at random and sends authors chasing a cause that isn't theirs; the workaround is `gh run rerun <id> --failed`.
+
+**Cause.** Not investigated. Both failures were on Scala 3.9.x, once on JDK 17 and once on JDK 25.
+
+**A different CI flake seen the same day:** on #1897, `testJVM (25, JVM, 3.10.x)` exited 1 after every test had passed and sbt printed success; a re-run passed.
+
+**Suggested fix.** Run the spec in a loop (`streamsJVM/testOnly *AsyncReaderReachableCoverageSpec -- -t "nested concat rejected reset"`, repeated) on 3.9.0 under load to reproduce. Look for an unbounded wait on a completion that a rejected `reset` never fires. If the wait is legitimate, give the test an explicit, larger timeout.
+
+### Nine more standalone example builds don't compile on Scala 2.13
+
+Found 2026-10-29 by the `streams-examples-213` session (PR #1897), which ran `sbt "++2.13.18!" compile` in every standalone `*-examples/` build on `main` at `fa76f487f`. AGENTS.md documents this as the way to check an example on 2.13, and CI compiles the examples on Scala 3 only, so nothing catches it.
+
+**Pass on 2.13:** config, html, jwt, and streams once #1897 merges.
+
+**No `_2.13` artifact, so skipped:** datastar, htmx, sql, projection (a root subproject), and capstone and zio-blocks-examples (they need `zio-blocks-sql_2.13`).
+
+**Fail, with the first error:**
+- async: `could not find implicit value for parameter c: Completer[String]` (`AsyncShowcaseExample.scala:177`); `not found: value summon` (`gettingstarted/CompleteExample.scala:23`).
+- endpoint, http-model, mux, scope, smithy: `expected start of definition` at line 7 or later of the first file. Probably `import x.*`.
+- schema: `';' expected but '.' found` (`BindingResolverSchemaRegistryExample.scala:49`); `';' expected but identifier found` (`Step4PackagingExample.scala:14`).
+- openapi: `';' expected but identifier found` in the generated `bookstore-app` `Bookstore.scala:16`. The generator emits Scala 3 syntax.
+- telemetry: `object GlobalLogState in package telemetry cannot be accessed as a member of package zio.blocks.telemetry` (`correlatelogsandtraces/CompleteExample.scala:21`).
+
+**Impact.** Scala 2.13 users who copy these examples get compile errors, and sessions can't follow the AGENTS.md 2.13 check for these builds.
+
+**Suggested fix.** One PR per build, done the way #1897 did it: `._` imports, `implicit` instead of `given`, `implicitly` instead of `summon`, and skipping genuinely Scala 3-only files on 2.x. Look at the telemetry `GlobalLogState` and async `Completer` errors separately: they may be real 2.13 API gaps, not syntax. Then consider adding a 2.13 compile step for the supporting example builds to CI (needs Milad's approval).
+
 ## Documentation errors
 
 Pages that contradict the source. None of these were copied into the new guides.
 
-### Streams: `docs/reference/streams/primitives/reader.md` and `writer.md` contradict the code on `isClosed`, the `AnyRef` lane, error-closed writers, `Writer.single` and `concat`
+### docs: the telemetry tutorial says shipping to a collector "isn't possible yet", and `telemetry-guide.md` reaches the private exporters by declaring a package
 
-**Status.** The pages are fixed in #1881. Left: the wave 3 `NioWriters` Scaladoc should describe the `fromChannel` leak (library source).
+Found 2026-10-29 by the backlog-refresh research, on `main` at `bafc31bef`. Same at `v0.0.56`.
 
-Found 2026-10-27 while writing the Scaladoc for `Reader` and `Writer` (wave 2 of the streams Scaladoc rollout, PR #1862, branch `streams-scaladoc-wave-2`), on `main` at `b6c0c30e4`. Line numbers refer to that commit. Same text at v0.0.56. Each claim was checked with a probe against 0.0.56; the reference pages were not edited.
+**Summary.** Two pages describe exporting telemetry inaccurately:
+1. `docs/guides/instrument-a-program-with-logs-traces-and-metrics.md:562` (T-12) says: "Shipping it to a backend such as an OpenTelemetry Collector, Jaeger or Grafana isn't possible yet, because the module's OTLP exporters are not public." But the public API in 0.0.56 can do it: `docs/reference/telemetry/otel/custom-exporter.md` builds an exporter from the public `OtlpJsonEncoder` (`otel/src/main/scala/zio/blocks/telemetry/otel/OtlpJsonEncoder.scala:52`), `HttpSender.jdk` (`HttpSender.scala:49`) and `ExportResult` (`ExportResult.scala:27`). Only the built-in exporters are `private[otel]`.
+2. `docs/guides/telemetry-guide.md:724-850` (Part 5) has readers put their bootstrap code in package `zio.blocks.telemetry.otel`, so that it can reach the `private[otel]` exporters. That compiles, but it relies on a package-private API that can change without notice, and the page doesn't say so.
 
-**Summary.** Seven statements or omissions on the two reader/writer reference pages:
+**Expected.** (1) "The built-in OTLP exporters aren't public yet; you can build one from the public encoder and sender: see Building an Exporter", linking `reference/telemetry/otel/custom-exporter.md`. (2) Part 5 says plainly that declaring the package is an unsupported workaround, and points to `custom-exporter.md` as the supported route.
 
-1. `docs/reference/streams/primitives/reader.md:980`: "`isClosed` ... Its result is monotone: once `true`, it never becomes `false`". `reset()` makes it `false` again on every resettable reader (probe: `fromChunk` read to the end, `isClosed` `true`, `reset()`, `isClosed` `false`). Suggested: "Once `true`, it stays `true` until `reset()` rewinds the reader."
-2. `reader.md:1080` (second sentence) and `:1457`: the `AnyRef` lane "is the only lane on which all eight of those methods work". True for the scalar pulls of a plain `AnyRef` reader, false for the result of `Reader#++`/`concat` (all pulls throw) and for `readBytes`/`readInts`/`readFloats` (Entry 1). `:1151-1190` (Concatenation) does not say the result is on the `AnyRef` lane.
-3. `reader.md:1080` (first sentence): "Calling one of these on a reader whose `jvmType` is a different primitive lane does not throw at the call site: it returns a failed `Async` carrying an `UnsupportedOperationException`". True for the `AsyncReader` defaults; the `toAsync` view's `readLong`/`readDouble` throw `IllegalStateException` at the call site, and its other pulls fail with `IllegalStateException` (probe; reachable only through a cast, so low priority).
-4. `reader.md:349-363` (`fromInputStream`, `fromReader`): no mention that closing the reader leaves the wrapped stream open, or that an `IOException` arrives wrapped in `StreamError`. `reader.md:604-638` (`repeat`, `repeated`): no mention of the close bug (Entry 2).
-5. `writer.md:20` ("throws when error-closed") and `:42` ("a writer closed with `fail` may throw the stored error"): no library writer throws after `fail`. `writer.md:286` and `:294` (`fromOutputStream`/`fromWriter` "Calling `close()` flushes and closes"): false after a failed write (Entry 3), and the page does not say that `IOException`s are swallowed.
-6. `writer.md:231` (`Writer.single` "accepts exactly one element, then auto-closes. The dual of `Reader.single`"): it stores nothing and has no accessor; suggested "accepts one element and discards it, then reports closed". (Added in fix round 1 from the review.)
-7. `writer.md:464` (`Writer#concat` "If `this` closes with an error, the error is propagated immediately without consulting `next`"): incomplete; after a throwing write the writer never switches (review I2). Suggested: the wording now on `Writer#concat`'s Scaladoc. (Added in fix round 1.)
+**Impact.** Readers of the tutorial think they can't export telemetry at all, while readers of the deep dive copy a trick that can break on any release.
 
-**Expected.** The pages match the code and the wave 2 Scaladoc; the known bugs (the Library bugs entries on `AnyRef`-lane primitive pulls, `Reader.repeat`/`repeated` after `close()`, and `Writer.fromOutputStream`/`fromWriter` after a failed write) are described as known bugs in 0.0.56.
+**Suggested fix.** Reword both places as in "Expected", and run mdoc on both pages. This is also input for the X-01 decision (making the built-in exporters public).
 
-**Suggested fix.** Apply the replacement text given in items 1, 6 and 7 (and the wording of the wave 2 Scaladoc for the rest), then run `docs/mdoc` on both pages. The wave 3 Scaladoc for `NioWriters` should describe the `fromChannel` leak.
+### docs/examples: `NioBinaryTelemetryWalkthrough` section 6 says its window-reset bug was "since fixed"
 
-### Streams: `Stream#repeated` Scaladoc says `Stream.eval` runs only once "with both terminal families"; the async terminals run it every cycle
+Found 2026-10-29 (PR #1897's session), on `main` at `fa76f487f`. `streams-examples/src/main/scala/nio/NioBinaryTelemetryWalkthrough.scala` section 6 says the replay-window bug it exercises "Originally exposed BUG-R8-03 (since fixed)", and it cites a test "NioSpec 'origin, window and accuracy (round 8)' [AdversarialWindowResetSpec]". Neither is true: the bug is still open (Library bugs entry "streams: `NioStreams.fromByteBuffer{Int,Long,Double,Float}(...).take(n).drop(m).repeated` replays the wrong window ..."), and no such test exists. The example therefore prints a FAIL on 0.0.56 and on `main`. The expected value in the code is correct.
 
-Found 2026-10-28 in the round 2 fact-check of the streams doc-fix batch (#1881), on `main` at `4e288c5f2`. The Scaladoc isn't in v0.0.56 (it came with the streams Scaladoc rollout, #1855), but the behaviour is the same in 0.0.56.
-
-**Summary.** `streams/shared/src/main/scala/zio/blocks/streams/Stream.scala:713-722` says: "A known bug, with both terminal families: a new cycle usually resets the previous cycle's readers … effects that run when the stream opens (`Stream.eval`, `Stream.suspend`, the `acquire` of `fromAcquireRelease`) and an `ensuring` finalizer … can run only once in total". That holds for the blocking terminals. Under `runCollectAsync` and the other `*Async` terminals, `Stream.eval` runs again in every cycle; `Stream.suspend`, the `fromAcquireRelease` acquire and `ensuring` still run once under both. Also, an empty cycle hangs only the blocking pull: the async terminal returned `Chunk()` in the probe.
-
-**Reproducer.** `Repro.sc`, run with `scala-cli run --server=false Repro.sc` (JDK 25):
-
-```scala
-//> using scala 3.9.0
-//> using dep dev.zio::zio-blocks-streams:0.0.56
-import zio.blocks.streams.*
-import zio.blocks.async.*
-import java.util.concurrent.atomic.AtomicInteger
-
-val sync  = AtomicInteger(0)
-val async = AtomicInteger(0)
-println(Stream.eval(sync.incrementAndGet()).++(Stream(1, 2)).repeated.take(12).runCollect)
-println(Stream.eval(async.incrementAndGet()).++(Stream(1, 2)).repeated.take(12).runCollectAsync.block)
-println(s"eval runs: blocking=${sync.get} async=${async.get}")
-// Right(Chunk(1,2,1,2,1,2,1,2,1,2,1,2))
-// Right(Chunk(1,2,1,2,1,2,1,2,1,2,1,2))
-// eval runs: blocking=1 async=6
-```
-
-A wider probe gave these counts after `take(2)`/`take(6)`/`take(12)`: `eval` blocking 1/1/1 and async 1/3/6; `acquire` 1 under both; `ensuring` 1 under both.
-
-**Expected.** The Scaladoc says what the code does: `Stream.eval` runs once in total under the blocking terminals and once per cycle under the async ones.
-
-**Root cause.** The async path rebuilds the stream every cycle: `Stream.Repeated.materializeAsync`'s `cycle()` calls `Stream.compileToReader(self)` (`Stream.scala` ~11182-11240). The sync path wraps the reader in `Reader.repeated`, which only calls `reset()` on it (`Reader.scala` `Repeated.read` / `resetInner`, ~6004-6014). Why `suspend` and the acquire still run once under async wasn't traced.
-
-**Impact.** Readers who trust the Scaladoc expect a one-time `Stream.eval` under `runCollectAsync` and get one per cycle. The page (`stream.md` "Repeating") is corrected in #1881.
-
-**Test gap.** No spec counts `Stream.eval` runs under `repeated` with the async terminals.
-
-**Suggested fix.** Change `Stream.scala:713-722` to the #1881 page wording: "…can run only once in total, and so does `Stream.eval` under the blocking terminals (the asynchronous terminals run it again in every cycle). … A cycle that emits nothing makes a blocking pull loop forever."
-
-### schema: the `Json`, `JsonCodec.bigIntCodec` and `JsonCodec.bigDecimalCodec` Scaladoc state the digit limit off by one
-
-Found 2026-10-28 in the post-merge review of #1878 (session `codec-review`, PR #1883), on `main` at `4e288c5f2`. Same at v0.0.56.
-
-**Summary.** The Scaladoc of `Json` (`Json.scala:40`, "rejects one with more than 308 digits"), `JsonCodec.bigIntCodec` (`JsonCodec.scala:919`, "a JSON integer of up to 308 digits") and `JsonCodec.bigDecimalCodec` (`JsonCodec.scala:955`, "a JSON number of up to 308 digits") is off by one. The reader rejects a number with 308 or more digits, so the most it accepts is 307. `JsonReader.scala:661` and `:862` on both platforms say so ("[[JsonReader.bigIntDigitsLimit]] (308) or more digits, so at most 307"), and `JsonCodecDeriverSpec.scala:448` and `:471-472` test that `"1" * 308` fails. `json.md` ("rejects one with 308 or more digits") is right.
-
-**Reproducer.** `Repro.sc`, run with `scala-cli run --server=false Repro.sc`:
-
-```scala
-//> using scala 2.13.18
-//> using dep dev.zio::zio-blocks-schema:0.0.56
-import zio.blocks.schema._
-import zio.blocks.schema.json._
-
-val n307 = "1" * 307
-val n308 = "1" * 308
-
-println(Json.parse(n307).isRight)                     // true
-println(Json.parse(n308).left.map(_.message))         // Left(value exceeds limit for number of digits at: .)
-println(n307.fromJson[BigInt].isRight)                // true
-println(n308.fromJson[BigInt].left.map(_.message))    // Left(value exceeds limit for number of digits at: .)
-println(n307.fromJson[BigDecimal].isRight)            // true
-println(n308.fromJson[BigDecimal].left.map(_.message))// Left(value exceeds limit for number of digits at: .)
-```
-
-**Expected.** The Scaladoc states the limit the code enforces.
-
-**Impact.** Low: an API reader who sizes input to the documented limit fails at exactly 308 digits.
-
-**Test gap.** None in code (the spec covers 308); Scaladoc text isn't checked.
-
-**Suggested fix.** "rejects one with 308 or more digits" in `Json.scala:40`, and "of up to 307 digits" in `JsonCodec.scala:919` and `:955`.
+**Suggested fix.** Until the library is fixed, reword the comment to say section 6 shows a known bug in 0.0.56 and on `main`, and drop the dangling test reference. Once the library bug is fixed, restore the wording.
 
 ## Resolved
 
+- Fixed in #1890 (docs cleanup, merge `0959c8abb`): `reference/sql/repo.md` presented `Repo` as a public concrete class (it is abstract with a protected constructor) and said its SQL is built once at construction (only identifiers are cached; each call builds its statement). `query-dsl-sql.md` had unbalanced parentheses in two hard-coded output comments and an incomplete `ArithmeticOperator` list. `query-dsl-fluent-builder.md` pointed at files the page doesn't use. The Scope tutorial had a malformed mdoc fence. Three `undocumented-report.md` figures were wrong. `ddl.md` and `repo.md` now call the missing `PRIMARY KEY` a known bug in 0.0.56, and the object-hash outputs in `db-codec.md`, `db-codec-deriver.md`, `toon.md`, `ddl.md` and `repo.md` are gone.
+- `docs/guides/write-joins-and-inspect-generated-sql.md` (H-19) gave an unnamed dump file as `_local_<Object>__query-<dialect>.sql`; the real name has three underscores (`_local_<Object>___query-<dialect>.sql`). Fixed in #1889 (merge `bafc31bef`), which also added the `SqlQuery`, `Rel` and `Dump` reference pages and names the four query-layer bugs as known bugs in 0.0.56.
+- Scaladoc fixed in #1891 (merge `fa76f487f`): the `Stream#repeated` Scaladoc (`Stream.scala:713`) said `Stream.eval` runs once "with both terminal families"; it now says once under the blocking terminals and every cycle under the asynchronous ones, and that an empty cycle loops forever only in a blocking pull. The `Json` (`Json.scala:40`), `JsonCodec.bigIntCodec` (`:919`) and `bigDecimalCodec` (`:955`) Scaladoc stated the digit limit off by one; they now say 308 or more digits are rejected and up to 307 are accepted. With these, the Documentation errors section has no open entries.
+- `reader.md`/`writer.md` contradicted the code on `isClosed` after `reset()`, the `AnyRef` lane, error-closed writers, `Writer.single` and `concat` (seven items, from the wave 2 streams Scaladoc): fixed in #1881. Its one leftover, that the `NioWriters.fromChannel` Scaladoc should describe the close-after-failed-write leak, was already done on `main` (`NioWriters.scala:72-84`, checked 2026-10-28).
 - Data doc errors fixed in #1887 (batch 4b, merge `5779e440d`, three review rounds): `db-codec.md` said non-optional types throw on SQL `NULL` (`String` gives `null`, numbers `0`); `sql-zio.md` and `transactor-zio.md` (JDBC calls on ZIO's default pool, undefined names, `:memory:` examples that can't work; both pages now compiled mdoc); `table.md` and `db-codec-deriver.md` on `createTable` with collection and nested-record fields; the `Frag#queryChunked` Scaladoc's `Transactor.connect(transactor)`; the "schema / optics and paths" bullets (`path-interpolator.md` escapes and `.one`, `OpticCheck`, map-key `toString`); the "schema-toon (`toon.md`)" bullets, including today's three (`KeyFolding.Safe`, `ReaderConfig.withDelimiter`, inline/tabular forms); and the `stream-files-and-sockets.md` "Scala 3.7" install line. The sql, optics and toon library bugs those pages name carry a Status line.
 - Fixed in #1886 (merge `6462ef6e9`): a stale `docs/reference/datastar.md`, deleted by #1638 and re-added by the #1672 squash merge, shadowed `docs/reference/datastar/index.md`, so no Datastar overview fix since 2026-08-28 reached the site. `onDuplicateRoutes: 'throw'` didn't fire because Docusaurus compares routes as exact strings: `/reference/datastar` and `/reference/datastar/` differ only by the trailing slash, yet both write `reference/datastar/index.html` (the stale copy won in production). The PR deletes the file and adds `website/test/unit/page-beside-folder-index.test.mjs`, which fails on any `docs/**/X.md` next to `docs/**/X/index.md(x)` (140/141 before, 141/141 after). Checked in the PR's CI `website-artifact`: `reference/datastar/index.html` now contains `zio-blocks-next-datastar` and "Scala 3.x only". Goes live with the next deploy.
 - Runtime doc errors fixed in #1885 (batch 4a, merge `ac8a1d76a`, three review rounds): config `formats.md` (infinite HOCON numbers are kept as written strings; the 1 MiB `fromFile` limit and `fromFileWithLimits`; the include-callback and `HoconError` position claims, plus warnings for the config-hocon known bugs) and the flags/rollouts bullets (`rollout.md` share and sum-above-100 wording, `flags.md` exception wording, the `DynamicFlag` Scaladoc example); the scope bullets and the Scope tutorial entry (signatures, `andThen`, error text, `wire.md`, `finalization.md`, thread ownership, Scala 3 `Unscoped` derivation, single-use `Resource.from`, plus leftover cycle-detection claims in two guides); `context.md` `Wire.make`; the telemetry JDK 21, 3.9 artifact and double-printing items (and the `HistogramDataPoint` boundaries Scaladoc); `telemetry-guide.md` `log.removeAll()` teardown; the `B3Propagator.multi` Scaladoc header list; the async Scala 3 `Completer` warning; and the T-12 entry in the `docs/index.md` Guides list. The library entries those pages now name carry a Status line.
