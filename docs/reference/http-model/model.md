@@ -994,6 +994,8 @@ val lax = SameSite.Lax        // Top-level navigations allowed (links, forms)
 val none = SameSite.None_     // Cross-site allowed; render requires Secure flag
 ```
 
+For a complete login flow, with a session cookie set by `Response#addCookie`, read back with `Request#cookies` and expired on logout, see [How to Protect Pages with Basic Auth or a Session Cookie](../../guides/protect-pages-with-basic-auth-or-a-session-cookie.md).
+
 ---
 
 ## Form

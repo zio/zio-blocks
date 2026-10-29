@@ -446,6 +446,8 @@ All 75 built-in headers, grouped the way the module's own test suites group them
 
 `Unparsed` is the escape hatch: a scheme the ADT does not model is preserved rather than rejected, so an unknown authentication scheme survives a parse-render round trip.
 
+[How to Protect Pages with Basic Auth or a Session Cookie](../../guides/protect-pages-with-basic-auth-or-a-session-cookie.md) reads `Header.Authorization.Basic` from requests and answers with a `Header.WWWAuthenticate` challenge.
+
 ### Content
 
 | Type                               | Wire name                   | Shape                                                      |

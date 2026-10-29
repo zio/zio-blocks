@@ -648,6 +648,7 @@ const sidebars = {
             "guides/return-htmx-fragments-and-response-headers",
             "guides/issue-and-verify-jwts",
             "guides/protect-endpoints-with-jwt",
+            "guides/protect-pages-with-basic-auth-or-a-session-cookie",
             "guides/write-and-export-openapi",
             "guides/generate-scala-types-from-openapi",
           ]
