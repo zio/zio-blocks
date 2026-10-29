@@ -90,8 +90,9 @@ const config = {
               generateMarkdownFiles: true,
               docsDir: 'docs',
               includeBlog: false,
-              // Keep internal planning notes out of llms.txt and the per-page markdown too.
-              ignoreFiles: ['plans/**', 'dev/**'],
+              // Keep internal planning notes out of llms.txt and the per-page markdown too. This list must match the Docusaurus
+              // `exclude` list above for these internal files, or the raw .md copies and llms.txt entries leak them again.
+              ignoreFiles: ['plans/**', 'dev/**', 'superpowers/**', 'undocumented-report.md'],
               // Docs are served at the site root, so drop the docs/ directory from the generated markdown paths: the links
               // in llms.txt are then /<page>.md, next to the pages they describe.
               preserveDirectoryStructure: false,
