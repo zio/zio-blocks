@@ -705,19 +705,22 @@ sealed abstract class Chunk[+A]
   final def ++[A1 >: A](that: NonEmptyChunk[A1]): NonEmptyChunk[A1] = new NonEmptyChunk(this ++ that.toChunk)
 
   /**
-   * Returns the bitwise AND of this chunk and the specified chunk.
+   * Returns the bitwise AND of this chunk and the specified chunk. The result
+   * has the length of the shorter chunk.
    */
   def &(that: Chunk[Boolean])(implicit ev: A <:< Boolean): Chunk.BitChunkByte =
     Chunk.bitwise(self.asInstanceOf[Chunk[Boolean]], that, _ & _)
 
   /**
-   * Returns the bitwise OR of this chunk and the specified chunk.
+   * Returns the bitwise OR of this chunk and the specified chunk. The result
+   * has the length of the shorter chunk.
    */
   def |(that: Chunk[Boolean])(implicit ev: A <:< Boolean): Chunk.BitChunkByte =
     Chunk.bitwise(self.asInstanceOf[Chunk[Boolean]], that, _ | _)
 
   /**
-   * Returns the bitwise XOR of this chunk and the specified chunk.
+   * Returns the bitwise XOR of this chunk and the specified chunk. The result
+   * has the length of the shorter chunk.
    */
   def ^(that: Chunk[Boolean])(implicit ev: A <:< Boolean): Chunk.BitChunkByte =
     Chunk.bitwise(self.asInstanceOf[Chunk[Boolean]], that, _ ^ _)
@@ -759,7 +762,10 @@ sealed abstract class Chunk[+A]
   }
 
   /**
-   * Creates a base64 encoded string based on the chunk's data.
+   * Encodes this chunk as a Base64 string. A chunk of bytes is encoded as is; a
+   * chunk of chars keeps the low 8 bits of each char, so a char above U+00FF
+   * loses its high bits; a chunk of strings is joined and encoded in the
+   * platform's default charset.
    */
   def asBase64String(implicit ev: Chunk.IsText[A]): String = util.Base64.getEncoder.encodeToString(
     if (ev eq Chunk.IsText.byteIsText) self.asInstanceOf[Chunk[Byte]].toArray
@@ -810,7 +816,8 @@ sealed abstract class Chunk[+A]
     else new Chunk.ChunkPackedBoolean[Long](self.asInstanceOf[Chunk[Boolean]], 64, endianness)
 
   /**
-   * Creates a new String based on this chunk's data.
+   * Returns this chunk as a `String`: bytes are decoded with the platform's
+   * default charset, chars are joined, and strings are concatenated.
    */
   final def asString(implicit ev: Chunk.IsText[A]): String = ev.convert(self)
 
@@ -887,7 +894,10 @@ sealed abstract class Chunk[+A]
   }
 
   /**
-   * Deduplicates adjacent elements that are identical.
+   * Removes every element that equals the element before it, so each run of
+   * equal adjacent elements keeps only its first element. Unlike `distinct`, it
+   * keeps equal elements that are not adjacent. Leading `null` elements are
+   * dropped (a known bug).
    */
   def dedupe: Chunk[A] = {
     val len     = length
@@ -937,7 +947,9 @@ sealed abstract class Chunk[+A]
   }
 
   /**
-   * Drops all elements until the predicate returns true.
+   * Drops the elements up to and including the first element that satisfies the
+   * predicate, and returns the rest. Returns an empty chunk when no element
+   * satisfies it.
    */
   def dropUntil(f: A => Boolean): Chunk[A] = {
     val len = length
@@ -1050,7 +1062,9 @@ sealed abstract class Chunk[+A]
 
   /**
    * Returns the concatenation of mapping every element into a new chunk using
-   * the specified function.
+   * the specified function. On the JVM, it throws a `ClassCastException` when
+   * the collections that `f` returns hold different primitive types, such as
+   * `Int` and `Long` (a known bug).
    */
   override final def flatMap[B](f: A => IterableOnce[B]): Chunk[B] = {
     var chunks: List[Chunk[B]]   = Nil
@@ -1461,7 +1475,10 @@ sealed abstract class Chunk[+A]
   override def span(f: A => Boolean): (Chunk[A], Chunk[A]) = splitWhere(!f(_))
 
   /**
-   * Splits this chunk into `n` equally sized chunks.
+   * Splits this chunk into `n` chunks whose lengths differ by at most one, with
+   * the longer chunks first. When `n` is greater than the length, it returns
+   * one single-element chunk per element. `n` must be positive: 0 throws an
+   * `ArithmeticException`, and a negative `n` gives a meaningless result.
    */
   final def split(n: Int): Chunk[Chunk[A]] = {
     val chunks    = ChunkBuilder.make[Chunk[A]](n)
@@ -1653,7 +1670,7 @@ sealed abstract class Chunk[+A]
     zipAllWith(that)(a => (new Some(a), None), b => (None, new Some(b)))((a, b) => (new Some(a), new Some(b)))
 
   /**
-   * Zips with chunk with the specified chunk to produce a new chunk with pairs
+   * Zips this chunk with the specified chunk to produce a new chunk with pairs
    * of elements from each chunk combined using the specified function `both`.
    * If one chunk is shorter than the other, uses the specified function `left`
    * or `right` to map the element that does exist to the result type.
@@ -1788,6 +1805,12 @@ sealed abstract class Chunk[+A]
     }
 }
 
+/**
+ * Creates chunks: from values (`apply`, `single`, `fill`, `iterate`, `unfold`),
+ * from arrays, collections, iterators and `java.nio` buffers (`fromArray`,
+ * `from`, `fromIterable`, `fromIterator`, `fromByteBuffer` and the other buffer
+ * methods), and through a `ChunkBuilder` (`newBuilder`).
+ */
 object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
   /**
@@ -1809,12 +1832,6 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   ): Chunk.BitChunkByte = {
     val bits      = Math.min(left.length, right.length)
     val fullBytes = bits >> 3
-/**
- * Creates chunks: from values (`apply`, `single`, `fill`, `iterate`, `unfold`),
- * from arrays, collections, iterators and `java.nio` buffers (`fromArray`,
- * `from`, `fromIterable`, `fromIterator`, `fromByteBuffer` and the other buffer
- * methods), and through a `ChunkBuilder` (`newBuilder`).
- */
     val remBits   = bits & 7
     val arr       = new Array[Byte](
       if (remBits == 0) fullBytes
@@ -1893,7 +1910,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   }
 
   /**
-   * Returns a chunk backed by a [[java.nio.ByteBuffer]].
+   * Returns a chunk with a copy of the bytes between the buffer's position and
+   * its limit. The buffer's position is left unchanged.
    */
   def fromByteBuffer(buffer: ByteBuffer): Chunk[Byte] = {
     val dest = new Array[Byte](buffer.remaining())
@@ -1904,7 +1922,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   }
 
   /**
-   * Returns a chunk backed by a [[java.nio.CharBuffer]].
+   * Returns a chunk with a copy of the chars between the buffer's position and
+   * its limit. The buffer's position is left unchanged.
    */
   def fromCharBuffer(buffer: CharBuffer): Chunk[Char] = {
     val dest = new Array[Char](buffer.remaining())
@@ -1915,7 +1934,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   }
 
   /**
-   * Returns a chunk backed by a [[java.nio.DoubleBuffer]].
+   * Returns a chunk with a copy of the doubles between the buffer's position
+   * and its limit. The buffer's position is left unchanged.
    */
   def fromDoubleBuffer(buffer: DoubleBuffer): Chunk[Double] = {
     val dest = new Array[Double](buffer.remaining())
@@ -1926,7 +1946,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   }
 
   /**
-   * Returns a chunk backed by a [[java.nio.FloatBuffer]].
+   * Returns a chunk with a copy of the floats between the buffer's position and
+   * its limit. The buffer's position is left unchanged.
    */
   def fromFloatBuffer(buffer: FloatBuffer): Chunk[Float] = {
     val dest = new Array[Float](buffer.remaining())
@@ -1937,7 +1958,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   }
 
   /**
-   * Returns a chunk backed by a [[java.nio.IntBuffer]].
+   * Returns a chunk with a copy of the ints between the buffer's position and
+   * its limit. The buffer's position is left unchanged.
    */
   def fromIntBuffer(buffer: IntBuffer): Chunk[Int] = {
     val dest = new Array[Int](buffer.remaining())
@@ -1948,7 +1970,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   }
 
   /**
-   * Returns a chunk backed by a [[java.nio.LongBuffer]].
+   * Returns a chunk with a copy of the longs between the buffer's position and
+   * its limit. The buffer's position is left unchanged.
    */
   def fromLongBuffer(buffer: LongBuffer): Chunk[Long] = {
     val dest = new Array[Long](buffer.remaining())
@@ -1959,7 +1982,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   }
 
   /**
-   * Returns a chunk backed by a [[java.nio.ShortBuffer]].
+   * Returns a chunk with a copy of the shorts between the buffer's position and
+   * its limit. The buffer's position is left unchanged.
    */
   def fromShortBuffer(buffer: ShortBuffer): Chunk[Short] = {
     val dest = new Array[Short](buffer.remaining())
@@ -1970,7 +1994,9 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   }
 
   /**
-   * Returns a chunk backed by an iterable.
+   * Returns a chunk with the elements of `it`, in order. A `Chunk` of two or
+   * more elements is returned as is, and a `Vector` of two or more elements is
+   * wrapped without copying; other collections, arrays included, are copied.
    */
   def fromIterable[A](it: Iterable[A]): Chunk[A] = {
     val len = it.size
@@ -2010,7 +2036,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     } else Empty
 
   /**
-   * Returns a chunk backed by a Java iterable.
+   * Returns a chunk with a copy of the elements of a Java `Iterable`, in
+   * iteration order.
    */
   def fromJavaIterable[A](iterable: java.lang.Iterable[A]): Chunk[A] = {
     val initCapacity = iterable match {
@@ -2040,8 +2067,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     } else Empty
 
   /**
-   * Creates a new `Chunk` by producing `n` copies of a value generated from the
-   * given expression.
+   * Returns a chunk of `n` elements, evaluating `elem` once for each of them.
+   * Returns an empty chunk when `n` is not positive.
    */
   override def fill[A](n: Int)(elem: => A): Chunk[A] =
     if (n <= 0) Chunk.empty
@@ -2998,8 +3025,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     }
 
     /**
-     * Materializes a chunk into a chunk backed by an array. This method can
-     * improve the performance of bulk operations.
+     * Returns the empty chunk itself: there are no elements to copy into an
+     * array.
      */
     override def materialize[A1]: Chunk[A1] = Empty
 
@@ -4266,6 +4293,10 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
     new NonEmptyChunk(chunk.zipWithIndexFrom(indexOffset))
 }
 
+/**
+ * Creates `NonEmptyChunk` values, and converts a `NonEmptyChunk` to a `Chunk`
+ * implicitly, so every `Chunk` method is available on it.
+ */
 object NonEmptyChunk {
 
   /**
@@ -4304,10 +4335,6 @@ object NonEmptyChunk {
     else {
       new NonEmptyChunk({
         val builder = ChunkBuilder.make[A](as.size + 1)
-/**
- * Creates `NonEmptyChunk` values, and converts a `NonEmptyChunk` to a `Chunk`
- * implicitly, so every `Chunk` method is available on it.
- */
         builder.addOne(a)
         builder.addAll(as)
         builder.resultUnsafe()
