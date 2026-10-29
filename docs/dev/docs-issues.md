@@ -50,6 +50,8 @@ Found 2026-10-29 while writing H-57 (`docs/guides/protect-pages-with-basic-auth-
 
 ### validated-newtypes.md: the "Use Scala 3 Opaque Types" example hangs on Scala 3.3
 
+**Fix in PR #1906** (H-58, open): `Schema.string.transform(` on the page and in `OpaqueTypesExample.scala`, verified on 3.3.7. Move to Resolved when it merges.
+
 Found 2026-10-29 while writing guide H-58, on main `9d8bb9d70`; the page section is the same at v0.0.56's docs. Verified with `scala-cli run --server=false Repro.scala` against the published 0.0.56: Scala 3.3.7 hangs, while 3.7.4, 3.8.3 (`zio-blocks-schema`) and 3.9.0 (`zio-blocks-next-schema` + `-experimental`) print the page's output. 3.4 to 3.6 were not tested.
 
 **Summary.** `docs/guides/validated-newtypes.md:362` defines `given Schema[Isbn] = Schema[String].transform(...)` inside `object catalog`, where `Isbn` is `String`. On Scala 3.3.7, `Schema[String]` resolves to that given itself. The compiler warns `Infinite loop in function body`, and the program hangs at the first use of `Schema[Book]`, because the given is a lazy val that initializes itself. The page's install section covers Scala 3.3 to 3.8 with `zio-blocks-schema`, so readers on the 3.3 LTS copy a hanging example. mdoc and schema-examples run only on 3.9.0, which is why nothing caught it.
