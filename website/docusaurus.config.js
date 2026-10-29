@@ -51,9 +51,9 @@ const config = {
               // Docs live at the site root (no /docs prefix). The landing page owns `/`, so scripts/set-docs-home.mjs gives the docs home the slug /overview.
               routeBasePath: '/',
               sidebarPath: require.resolve('../docs/sidebars.js'),
-              // docs/plans and docs/dev hold internal planning notes: keep them in the repo but out of the site. This replaces
+              // docs/plans, docs/dev, docs/superpowers and docs/undocumented-report.md hold internal planning notes and reports: keep them in the repo but out of the site. This replaces
               // Docusaurus' default excludes, so they are repeated here.
-              exclude: ['**/_*.{js,jsx,ts,tsx,md,mdx}', '**/_*/**', '**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**', 'plans/**', 'dev/**'],
+              exclude: ['**/_*.{js,jsx,ts,tsx,md,mdx}', '**/_*/**', '**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**', 'plans/**', 'dev/**', 'superpowers/**', 'undocumented-report.md'],
             },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
