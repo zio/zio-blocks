@@ -12701,6 +12701,8 @@ Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md
 
 ### streams-examples does not compile on Scala 2.13: `NioBinaryTelemetryWalkthrough.scala` uses `import zio.blocks.streams.*`
 
+**Status (2026-10-29).** Fixed in PR #1897 (open, CI green). The scope was 18 files with `import x.*`, plus 12 Scala 3-only files that `build.sbt` now skips on Scala 2.x: 11 call zio-sbt-source 0.8.6 `ExprEval.show`, whose macro expands on 2.13 to the `private[sbt]` `SourceReader.commentsAbove` ("cannot be accessed"); `MixedFeedAuditWalkthrough` uses union types. The files stay in place because docs embed them by path.
+
 Found 2026-10-26 while writing H-26 (`docs/guides/run-streams-without-blocking.md`), on `main` at `7f551627c`.
 
 **Summary.** The AGENTS.md recipe for checking an example on Scala 2.13 (`sbt "++2.13.18!" compile` inside the examples build) fails for `streams-examples`. `streams-examples/src/main/scala/nio/NioBinaryTelemetryWalkthrough.scala` has the Scala 3-only `import zio.blocks.streams.*`, which 2.13 reads as "object * is not a member of package zio.blocks.streams", and every use after it fails too (`Stream.fromChunk`, `NioSinks`, `NioStreams`, `NioWriters`, `NioReaders`).
@@ -12812,7 +12814,28 @@ In each run the same test passed in every other job. Re-running only the failed 
 
 **Cause.** Not investigated. Both failures were on Scala 3.9.x, once on JDK 17 and once on JDK 25.
 
+**A different CI flake seen the same day:** on #1897, `testJVM (25, JVM, 3.10.x)` exited 1 after every test had passed and sbt printed success; a re-run passed.
+
 **Suggested fix.** Run the spec in a loop (`streamsJVM/testOnly *AsyncReaderReachableCoverageSpec -- -t "nested concat rejected reset"`, repeated) on 3.9.0 under load to reproduce. Look for an unbounded wait on a completion that a rejected `reset` never fires. If the wait is legitimate, give the test an explicit, larger timeout.
+
+### Nine more standalone example builds don't compile on Scala 2.13
+
+Found 2026-10-29 by the `streams-examples-213` session (PR #1897), which ran `sbt "++2.13.18!" compile` in every standalone `*-examples/` build on `main` at `fa76f487f`. AGENTS.md documents this as the way to check an example on 2.13, and CI compiles the examples on Scala 3 only, so nothing catches it.
+
+**Pass on 2.13:** config, html, jwt, and streams once #1897 merges.
+
+**No `_2.13` artifact, so skipped:** datastar, htmx, sql, projection (a root subproject), and capstone and zio-blocks-examples (they need `zio-blocks-sql_2.13`).
+
+**Fail, with the first error:**
+- async: `could not find implicit value for parameter c: Completer[String]` (`AsyncShowcaseExample.scala:177`); `not found: value summon` (`gettingstarted/CompleteExample.scala:23`).
+- endpoint, http-model, mux, scope, smithy: `expected start of definition` at line 7 or later of the first file. Probably `import x.*`.
+- schema: `';' expected but '.' found` (`BindingResolverSchemaRegistryExample.scala:49`); `';' expected but identifier found` (`Step4PackagingExample.scala:14`).
+- openapi: `';' expected but identifier found` in the generated `bookstore-app` `Bookstore.scala:16`. The generator emits Scala 3 syntax.
+- telemetry: `object GlobalLogState in package telemetry cannot be accessed as a member of package zio.blocks.telemetry` (`correlatelogsandtraces/CompleteExample.scala:21`).
+
+**Impact.** Scala 2.13 users who copy these examples get compile errors, and sessions can't follow the AGENTS.md 2.13 check for these builds.
+
+**Suggested fix.** One PR per build, done the way #1897 did it: `._` imports, `implicit` instead of `given`, `implicitly` instead of `summon`, and skipping genuinely Scala 3-only files on 2.x. Look at the telemetry `GlobalLogState` and async `Completer` errors separately: they may be real 2.13 API gaps, not syntax. Then consider adding a 2.13 compile step for the supporting example builds to CI (needs Milad's approval).
 
 ## Documentation errors
 
