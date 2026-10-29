@@ -16,6 +16,7 @@ import protectpageswithbasicauthorasessioncookie.BasicAuth._
 object Step5ReadBasicCredentialsExample {
   def main(args: Array[String]): Unit = {
     val adaHeader = Header.Authorization.Basic("ada", "correct horse battery staple").renderedValue
+    println(adaHeader)
     println(new String(Base64.getDecoder.decode(adaHeader.stripPrefix("Basic ")), UTF_8))
 
     def adminRequest(authorization: Option[String]): Request = {
