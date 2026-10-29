@@ -735,7 +735,10 @@ The complete example serves the whole roastery on port 8080 until you stop it wi
 ```scala mdoc:embed:http-model-examples/src/main/scala/protectpageswithbasicauthorasessioncookie/CompleteExample.scala
 ```
 
-While it runs, open `http://localhost:8080/admin` in a browser to be sent to the sign-in page, or call it with `curl`. `curl` does not store cookies unless you give it a cookie jar, so the session cookie is passed by hand with `-b`. One run, with the `Date` headers removed:
+While it runs, open `http://localhost:8080/admin` in a browser to be sent to the sign-in page, or call it with `curl`. `curl` does not store cookies unless you give it a cookie jar, so the session cookie is passed by hand with `-b`. One run, with the `Date` headers removed, is in the block below.
+
+<details>
+  <summary>A <code>curl</code> session against the complete example</summary>
 
 ```text
 $ curl -s -i http://localhost:8080/admin
@@ -806,6 +809,8 @@ HTTP/1.1 303 See Other
 Content-length: 0
 Location: /login
 ```
+
+</details>
 
 The server prints `Serving http://localhost:8080/ (Ctrl+C to stop)` at startup and `auth: wrong Basic credentials` for the `ada:wrong` request. The JDK server capitalizes header names, so `www-authenticate` arrives as `Www-authenticate`; header names are case-insensitive. The last request shows the server-side logout: the old cookie no longer opens the staff page.
 
