@@ -129,7 +129,7 @@ const config = {
           // A hash link to the landing page: never mark it active. Docusaurus' default prefix match on `/` would light it
           // up on every docs page, now that docs are served at the site root. A pathname is never empty, so '^$' never matches.
           { to: '/#catalog', label: 'Blocks', position: 'right', activeBaseRegex: '^$' },
-          { href: 'https://github.com/zio/zio-blocks', label: 'GitHub', position: 'right' },
+          { href: 'https://github.com/zio/zio-blocks', position: 'right', className: 'header-github-link', 'aria-label': 'GitHub repository' },
         ],
       },
       // Laid out by src/theme/Footer/Layout (logo and tagline beside the columns) and styled by `.zb-footer` in

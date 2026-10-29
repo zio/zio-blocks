@@ -63,7 +63,8 @@ test('the API pages get the site navbar in place of the Scaladoc header', () => 
 
 test('the navbar links match the Docusaurus navbar, with API as the current page', () => {
   const { themeConfig } = createRequire(import.meta.url)('../../docusaurus.config.js');
-  const site = themeConfig.navbar.items.map((i) => ({ label: i.label, href: (i.to ?? i.href).replace('pathname://', '') }));
+  // The GitHub item is icon-only on the docs (no label), but the API pages keep its text (api-theme.mjs NAV_LINKS).
+  const site = themeConfig.navbar.items.map((i) => ({ label: i.label ?? 'GitHub', href: (i.to ?? i.href).replace('pathname://', '') }));
   assert.deepEqual(NAV_LINKS.map(({ label, href }) => ({ label, href })), site);
   const nav = navbarHtml({ prompt: PROMPT });
   assert.match(nav, /<a class="zb-navbar__link zb-navbar__link--active" href="\/api\/" aria-current="page">API<\/a>/);
