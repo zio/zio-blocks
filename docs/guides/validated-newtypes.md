@@ -359,7 +359,7 @@ object catalog {
       else Left(SchemaError.validationFailed(s"ISBN must have 13 digits, got '$input'"))
     }
 
-    given Schema[Isbn] = Schema[String].transform(s => parse(s).fold(e => throw e, identity), identity)
+    given Schema[Isbn] = Schema.string.transform(s => parse(s).fold(e => throw e, identity), identity)
 
     extension (isbn: Isbn) def value: String = isbn
   }
@@ -381,7 +381,7 @@ Json
   .foreach(e => println(e.message))
 ```
 
-Where `Book` is defined matters. Inside `object catalog`, `Isbn` is the same type as `String`, so a `Book` derived there uses the plain `String` schema and accepts any ISBN without calling `parse`. For the same reason, an opaque type needs its own `given Schema`: without one, `Schema.derived` sees through the alias and accepts any string.
+Where `Book` is defined matters. Inside `object catalog`, `Isbn` is the same type as `String`, so a `Book` derived there uses the plain `String` schema and accepts any ISBN without calling `parse`. For the same reason, an opaque type needs its own `given Schema`: without one, `Schema.derived` sees through the alias and accepts any string. The given builds on `Schema.string`, not `Schema[String]`: inside `object catalog`, `Schema[String]` can find this given itself, and on Scala 3.3 the program then hangs the first time it uses the schema.
 
 ## Putting It Together
 
@@ -541,3 +541,4 @@ sbt compile
 - [DynamicValue](../reference/schema/dynamic-value.md) explains the schema-less representation that `Schema#fromDynamicValue` reads.
 - [How to Override the Codec for One Type](./override-codec-for-one-type.md) shows how to change how a type is encoded when a wrapper is not enough.
 - [How to Customize JSON Encoding](./customize-json-encoding.md) covers field names, optional fields and strict decoding for the types around your newtypes.
+- [How to Use Iron Refined Types and Typed IDs with Schema](./use-iron-refined-types-and-typed-ids.md) writes the same kind of rules as Iron constraint types on Scala 3, and gives every entity's ID its own type with one opaque `Id[+A]`.

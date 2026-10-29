@@ -24,7 +24,7 @@ object OpaqueTypesExample extends App {
         else Left(SchemaError.validationFailed(s"ISBN must have 13 digits, got '$input'"))
       }
 
-      given Schema[Isbn] = Schema[String].transform(s => parse(s).fold(e => throw e, identity), identity)
+      given Schema[Isbn] = Schema.string.transform(s => parse(s).fold(e => throw e, identity), identity)
 
       extension (isbn: Isbn) def value: String = isbn
     }

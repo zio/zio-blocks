@@ -550,6 +550,7 @@ const sidebars = {
           collapsed: true,
           items: [
             "guides/validated-newtypes",
+            "guides/use-iron-refined-types-and-typed-ids",
             "guides/derive-your-own-type-class",
             "guides/diff-and-patch",
             "guides/build-a-schema-registry",
