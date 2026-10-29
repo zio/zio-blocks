@@ -13382,9 +13382,23 @@ In each run the same test passed in every other job. Re-running only the failed 
 
 **Cause.** Not investigated. Both failures were on Scala 3.9.x, once on JDK 17 and once on JDK 25.
 
+**Seen again** 2026-10-29 on #1906 (H-58, docs and examples only), job `pr (2.13.18, JVM, 25)`: the same test timed out; one re-run of the failed job passed.
+
 **A different CI flake seen the same day:** on #1897, `testJVM (25, JVM, 3.10.x)` exited 1 after every test had passed and sbt printed success; a re-run passed.
 
 **Suggested fix.** Run the spec in a loop (`streamsJVM/testOnly *AsyncReaderReachableCoverageSpec -- -t "nested concat rejected reset"`, repeated) on 3.9.0 under load to reproduce. Look for an unbounded wait on a completion that a rejected `reset` never fires. If the wait is legitimate, give the test an explicit, larger timeout.
+
+### Flaky async test: `AsyncInteropSpec` "unsafeRunAsync completion wins cancel race" fails with "0 was not equal to 1"
+
+Seen 2026-10-30 in CI on #1907 (H-60, a guide plus `schema-examples` files; no library code), job `testJVM (25, JVM, 3.9.x)`, first attempt. One re-run of the failed job passed. It passed in every other job of the same run.
+
+**Test.** `asyncJVM`, `AsyncInteropSpec` / "WrappedPollable interop" / "unsafeRunAsync completion wins cancel race" / `unsafeRunAsync_pending_completeBeforeCancel_invokesCallback`, which asserted a callback count of 1 and got 0 ("0 was not equal to 1").
+
+**Impact.** Fails unrelated PRs at random, like the `AsyncReaderReachableCoverageSpec` flake above; the workaround is `gh run rerun <id> --failed`.
+
+**Cause.** Not investigated. The test races completion against cancellation; the assertion may run before the callback thread has finished, or the race may really let cancel win.
+
+**Suggested fix.** Run it in a loop under load (`asyncJVM/testOnly *AsyncInteropSpec -- -t "completion wins cancel race"`) to reproduce. If the callback is asynchronous, wait for it (latch or promise with a timeout) before asserting; if cancel can legitimately win, make the test accept both outcomes or force the ordering.
 
 ## Resolved
 
