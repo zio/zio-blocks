@@ -27,15 +27,7 @@ npx skills add $BASE/docs-{document-pr,data-type-ref,module-ref,companion-exampl
 
 ### Sentinel performance policy (streams)
 
-The streams module's primitive lanes signal end-of-stream without boxing or allocating, so the hot drain loops (`Sink.foldSyncReader`, `Reader#readAll`, `Sink.exists`, `Sink.find`) stay a **single primitive comparison per element**. `Long` and `Double` use no sentinel: the loop reads into a one-element scratch array and ends on a negative returned count (`readLongs`/`readDoubles`), so every value stays readable. The other lanes compare the pulled value against a sentinel outside the element's domain (`Int.MinValue` for `Short`, `Long.MinValue` for `Int`, `Double.MaxValue` for `Float`, any negative value for `Boolean`/`Byte`/`Char`), carried in a widened type, so no element can collide with it. See [EOF Signalling Per Lane](docs/reference/streams/execution-and-compatibility/zero-boxing.md#eof-signalling-per-lane) for the table. These loops are deliberately optimized; their shape is a feature, not a bug.
-
-**Any change to end-of-stream handling is disallowed unless it has virtually no impact on performance.** In particular, bug-finding or "correctness" passes (human or agentic) must NOT add per-element work to these loops — no extra branches, flag reads, rawbits conversions, boxing, or allocation. The approved remedies, in order of preference:
-
-1. **Count-returning bulk reads**: for a `Long` or `Double` sink, drain with `readLongs(scratch, 0, 1)` / `readDoubles(scratch, 0, 1)`, allocate `scratch` once outside the loop, and end on a negative count. Never end a loop on a value from `readLong(sentinel)` / `readDouble(sentinel)`: any value you reserve is also data, and the truncation is silent.
-2. **Keep the existing one-comparison sentinel test** on the `Short`/`Int`/`Float`/`Boolean`/`Byte`/`Char` lanes, and take a new sentinel only from outside the element's domain (`Byte` takes no sentinel parameter).
-3. **Document only**: when neither applies, document the limitation; do not "fix" it.
-
-Validate any change near these loops against the streams JMH benchmarks (`streams-benchmark`) before and after; an unexplained regression means the change is rejected.
+The streams drain loops (`Sink.foldSyncReader`, `Reader#readAll`, `Sink.exists`, `Sink.find`) cost one primitive comparison per element, with no boxing or allocation. **Do not add per-element work to them** (branches, flag reads, rawbits conversions, boxing, allocation), not even in a bug-finding or "correctness" pass. `Long` and `Double` already end on a returned count and are lossless; the other lanes use end markers no element can equal. See [EOF Signalling Per Lane](docs/reference/streams/execution-and-compatibility/zero-boxing.md#eof-signalling-per-lane). Validate any change near these loops against the streams JMH benchmarks (`streams-benchmark`) before and after; an unexplained regression means the change is rejected.
 
 ## Mindset
 
