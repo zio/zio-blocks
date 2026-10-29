@@ -64,7 +64,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema-xml"         % "@VERSION@
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-csv"         % "@VERSION@"
 ```
 
-For scala-cli, Scala.js, or cross-building, see [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md).
+For scala-cli, Scala.js, or cross-building, see [How to Add ZIO Blocks to Your Build](../getting-started/installation.md).
 
 Key points:
 - JSON codec support is built into `zio-blocks-schema` — no separate JSON module.

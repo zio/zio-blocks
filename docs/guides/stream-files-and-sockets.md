@@ -82,7 +82,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-next-streams" % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 
-[How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains which artifact name each Scala version uses.
+[How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains which artifact name each Scala version uses.
 
 The streams module depends on the scope module, so `zio.blocks.scope.Resource` and `Scope` are available without another dependency. On the JVM, the streams module needs JDK 21 or newer. `NioStreams`, `NioSinks`, `Stream#start` and the blocking terminals such as `Stream#runCollect` exist only on the JVM; the other constructors on this page also work on Scala.js, where you run the stream with an asynchronous terminal such as `Stream#runCollectAsync`.
 

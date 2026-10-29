@@ -59,7 +59,7 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-async" % "@VERSION@"
 libraryDependencies += "dev.zio" %%% "zio-blocks-next-async" % "@VERSION@"
 ```
 
-[How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains the two artifact names and how to choose one per Scala version. Use `%%%` for a cross-built JVM and Scala.js project, and `%%` for a JVM-only one.
+[How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names and how to choose one per Scala version. Use `%%%` for a cross-built JVM and Scala.js project, and `%%` for a JVM-only one.
 
 This guide assumes you have worked through [Getting Started with Async](./async-getting-started.md), so `Async#map`, `Async#block`, `Async#either`, `Async.async` with `await`, and `Async#start` are familiar. The [Async reference](../reference/async.md) lists every operation with its full signature.
 

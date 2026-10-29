@@ -46,7 +46,7 @@ scalacOptions += "-experimental"
 
 For Scala.js projects, use `%%%` instead of `%%`.
 
-**Supported Scala versions:** 2.13.x and 3.x. See [How to Add ZIO Blocks to Your Build](../../../../guides/add-zio-blocks-to-your-build.md) for details.
+**Supported Scala versions:** 2.13.x and 3.x. See [How to Add ZIO Blocks to Your Build](../../../../getting-started/installation.md) for details.
 
 The JSON codec is fully integrated into ZIO Blocks Schema and provides complete type-safe JSON support with no external dependencies beyond core ZIO libraries.
 

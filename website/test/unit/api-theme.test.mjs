@@ -65,9 +65,17 @@ test('the navbar links match the Docusaurus navbar, with API as the current page
   const { themeConfig } = createRequire(import.meta.url)('../../docusaurus.config.js');
   // The GitHub and Discord items are icon-only on the docs (no label), but the API pages keep their text (api-theme.mjs NAV_LINKS).
   const iconLabels = { 'header-github-link': 'GitHub', 'header-discord-link': 'Discord' };
-  const site = themeConfig.navbar.items.map((i) => ({ label: i.label ?? iconLabels[i.className], href: (i.to ?? i.href).replace('pathname://', '') }));
-  assert.deepEqual(NAV_LINKS.map(({ label, href }) => ({ label, href })), site);
+  const site = themeConfig.navbar.items.map((i) => ({
+    label: i.label ?? iconLabels[i.className],
+    href: (i.to ?? i.href).replace('pathname://', ''),
+    left: i.position === 'left',
+  }));
+  assert.deepEqual(NAV_LINKS.map(({ label, href, left }) => ({ label, href, left: left === true })), site);
   const nav = navbarHtml({ prompt: PROMPT });
+  // The left items follow the logo in the left group; GitHub and Discord stay in the right group.
+  const leftGroup = /<div class="zb-navbar__left">([\s\S]*?)<\/div><div class="zb-navbar__right">/.exec(nav)[1];
+  assert.deepEqual([...leftGroup.matchAll(/class="zb-navbar__link[^"]*" href="[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]),
+    ['Getting Started', 'Reference', 'Guides', 'API', 'Blocks']);
   assert.match(nav, /<a class="zb-navbar__link zb-navbar__link--active" href="\/api\/" aria-current="page">API<\/a>/);
   assert.match(nav, /<a class="zb-navbar__link" href="https:\/\/github\.com\/zio\/zio-blocks" target="_blank" rel="noopener noreferrer">GitHub<svg/);
   assert.match(nav, /<a class="zb-navbar__link" href="https:\/\/discord\.gg\/2ccFBr4" target="_blank" rel="noopener noreferrer">Discord<svg/);
@@ -86,7 +94,7 @@ test('the mobile menu gets the site logo and links, and the stylesheet comes las
   assert.match(html, /<a class="mobile-menu-logo" href="\/"><img src="\/brand\/zio-blocks-logo-on-dark\.svg"[^>]*><\/a><button id="mobile-menu-close"/);
   assert.match(
     html,
-    /<nav class="zb-mobile-links"><a class="zb-mobile-link" href="\/overview">Docs<\/a><a class="zb-mobile-link" href="\/guides\/">Guides<\/a><a class="zb-mobile-link zb-mobile-link--active" href="\/api\/" aria-current="page">API<\/a>.*<\/nav><span id="mobile-theme-toggle"/,
+    /<nav class="zb-mobile-links"><a class="zb-mobile-link" href="\/overview">Getting Started<\/a><a class="zb-mobile-link" href="\/reference\/">Reference<\/a><a class="zb-mobile-link" href="\/guides\/">Guides<\/a><a class="zb-mobile-link zb-mobile-link--active" href="\/api\/" aria-current="page">API<\/a>.*<\/nav><span id="mobile-theme-toggle"/,
   );
   assert.ok(html.includes(`<link rel="stylesheet" href="${STYLESHEET}"></head>`));
   assert.equal(count(html, 'project-logo'), 0);

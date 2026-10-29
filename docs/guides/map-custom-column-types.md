@@ -68,7 +68,7 @@ In this guide, we give each type a single description, mostly through its `Schem
 
 ## Prerequisites
 
-Add the `sql` module and the JDBC drivers to your `build.sbt`. [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains the two artifact names:
+Add the `sql` module and the JDBC drivers to your `build.sbt`. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names:
 
 ```scala
 // Scala 3.3 to 3.8

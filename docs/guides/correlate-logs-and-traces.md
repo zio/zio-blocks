@@ -116,7 +116,7 @@ libraryDependencies ++= Seq(
 scalacOptions += "-experimental"
 ```
 
-`telemetry-otel` exists only for the JVM, and the `telemetry` module needs JDK 21 or newer. [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains the two artifact names. The code in this guide is Scala 3.
+`telemetry-otel` exists only for the JVM, and the `telemetry` module needs JDK 21 or newer. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names. The code in this guide is Scala 3.
 
 :::caution
 In version 0.0.56, the `log.*` calls don't compile on Scala 2.13 outside the library's own package. This is a known bug in that version. The propagators, `OtelContext` and spans work on Scala 2.13.

@@ -45,7 +45,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-next-streams" % "@VERSION@"
 ```
 
-For a Scala.js or cross-built project, use `%%%` instead of `%%`. [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains the two artifact names. Streams need JDK 21 at runtime on the JVM.
+For a Scala.js or cross-built project, use `%%%` instead of `%%`. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names. Streams need JDK 21 at runtime on the JVM.
 
 This guide assumes you have worked through [Your First Streaming Pipeline](./your-first-streaming-pipeline.md) and [Getting Started with Async](./async-getting-started.md). To follow along, we need a stream of order lines and a price service. `MenuPrices.priceInCents` answers after a 100 ms delay on another thread, the way a remote call would, and fails for an item the menu does not list. The prices are sample data:
 

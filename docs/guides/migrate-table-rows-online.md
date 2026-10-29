@@ -62,7 +62,7 @@ In this guide, we let the `dataMigration` module do the bookkeeping. It keeps th
 
 ## Prerequisites
 
-Add the `dataMigration` module, which brings in the `sql` and `schema` modules, and the JDBC drivers of the databases you use to your `build.sbt`. [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains the two artifact names:
+Add the `dataMigration` module, which brings in the `sql` and `schema` modules, and the JDBC drivers of the databases you use to your `build.sbt`. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names:
 
 ```scala
 // Scala 3.3 to 3.8

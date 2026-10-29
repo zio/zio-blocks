@@ -66,7 +66,7 @@ libraryDependencies ++= Seq(
 )
 ```
 
-[How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains the two artifact names and how to choose one per Scala version. Everything in this guide works on Scala 2.13 and Scala 3, except the `yaml"..."` interpolator, which is Scala 3 only in @VERSION@ (see [Build YAML Values in Code](#build-yaml-values-in-code)).
+[How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names and how to choose one per Scala version. Everything in this guide works on Scala 2.13 and Scala 3, except the `yaml"..."` interpolator, which is Scala 3 only in @VERSION@ (see [Build YAML Values in Code](#build-yaml-values-in-code)).
 
 This guide assumes you can derive a `Schema` for a case class, as shown in [Your First Schema](./your-first-schema.md). [One Type, Many Formats](./one-type-many-formats.md) shows a YAML codec next to the other formats; here we go into the details of YAML.
 

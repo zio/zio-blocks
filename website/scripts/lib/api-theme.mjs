@@ -22,12 +22,14 @@ const ICONS = {
     '<svg class="zb-mode__system" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"/></svg>',
 };
 
-// The navbar items of docusaurus.config.js, in the same order, with API as the current page.
+// The navbar items of docusaurus.config.js, in the same order, with API as the current page. `left` marks the items the
+// docs navbar places on the left, after the logo.
 export const NAV_LINKS = [
-  { label: 'Docs', href: '/overview' },
-  { label: 'Guides', href: '/guides/' },
-  { label: 'API', href: '/api/', current: true },
-  { label: 'Blocks', href: '/#catalog' },
+  { label: 'Getting Started', href: '/overview', left: true },
+  { label: 'Reference', href: '/reference/', left: true },
+  { label: 'Guides', href: '/guides/', left: true },
+  { label: 'API', href: '/api/', current: true, left: true },
+  { label: 'Blocks', href: '/#catalog', left: true },
   { label: 'GitHub', href: 'https://github.com/zio/zio-blocks', external: true },
   { label: 'Discord', href: 'https://discord.gg/2ccFBr4', external: true },
 ];
@@ -53,9 +55,10 @@ export function navbarHtml({ prompt }) {
     `<span id="mobile-menu-toggle" class="zb-navbar__toggle" role="button" tabindex="0" aria-label="Toggle navigation bar">${ICONS.menu}</span>` +
     '<a class="zb-navbar__brand" href="/"><img src="/brand/zio-blocks-logo-on-dark.svg" alt="ZIO Blocks" width="160" height="37"></a>' +
     '<span id="dropdown-trigger" hidden></span><div id="version-dropdown" hidden></div>' +
+    NAV_LINKS.filter((l) => l.left).map((l) => linkHtml(l, 'zb-navbar__link')).join('') +
     '</div>' +
     '<div class="zb-navbar__right">' +
-    NAV_LINKS.map((l) => linkHtml(l, 'zb-navbar__link')).join('') +
+    NAV_LINKS.filter((l) => !l.left).map((l) => linkHtml(l, 'zb-navbar__link')).join('') +
     `<button type="button" id="search-toggle" class="zb-navbar__icon" title="Search the API" aria-label="Search the API">${ICONS.search}</button>` +
     `<button type="button" class="zb-navbar__icon zb-onboard" data-onboard-prompt="${escapeAttr(prompt)}" title="Copy the prompt to onboard your coding agent to ZIO Blocks" aria-label="Copy the ZIO Blocks agent onboarding prompt to the clipboard">${ICONS.terminal}${ICONS.check}</button>` +
     `<button type="button" class="zb-navbar__icon zb-mode" data-color-mode-toggle title="system mode" aria-label="Switch between dark and light mode (currently system mode)">${ICONS.light}${ICONS.dark}${ICONS.system}</button>` +

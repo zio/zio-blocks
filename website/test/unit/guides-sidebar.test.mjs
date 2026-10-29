@@ -81,6 +81,8 @@ test('the sections start expanded and the how-to topics start collapsed', () => 
   for (const t of howTo.items) assert.equal(t.collapsed, true, t.label);
 });
 
-test('the tutorials start with installing the library, then the first schema', () => {
-  assert.deepEqual(sections[0].items.slice(0, 2), ['guides/add-zio-blocks-to-your-build', 'guides/your-first-schema']);
+// Installing the library is the second page of Getting Started (docs/getting-started/installation.md), so the tutorials
+// start with the first lesson.
+test('the tutorials start with the first schema', () => {
+  assert.equal(sections[0].items[0], 'guides/your-first-schema');
 });

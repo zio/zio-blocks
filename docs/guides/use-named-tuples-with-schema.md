@@ -47,7 +47,7 @@ In this guide, we derive a `Schema` for the named tuple instead. The field names
 
 ## Prerequisites
 
-This guide builds on [Your First Schema](./your-first-schema.md) (deriving a `Schema` and its JSON round trip) and [Navigate and Update Nested Data with Optics](./nested-data-with-optics.md) (lenses and `CompanionOptics`). Add the schema module to your `build.sbt` (see [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) for the full setup):
+This guide builds on [Your First Schema](./your-first-schema.md) (deriving a `Schema` and its JSON round trip) and [Navigate and Update Nested Data with Optics](./nested-data-with-optics.md) (lenses and `CompanionOptics`). Add the schema module to your `build.sbt` (see [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) for the full setup):
 
 ```scala
 // Scala 3.7 and 3.8

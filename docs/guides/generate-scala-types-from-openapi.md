@@ -86,7 +86,7 @@ libraryDependencies ++= Seq(
 scalacOptions += "-experimental"
 ```
 
-The openapi and schema modules are published for the JVM and Scala.js; codegen is published for the JVM only. That is no limit for a build-time generator, which always runs on the JVM inside the build, and the code it writes depends only on the schema module. For scala-cli or cross-building, see [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md).
+The openapi and schema modules are published for the JVM and Scala.js; codegen is published for the JVM only. That is no limit for a build-time generator, which always runs on the JVM inside the build, and the code it writes depends only on the schema module. For scala-cli or cross-building, see [How to Add ZIO Blocks to Your Build](../getting-started/installation.md).
 
 We also assume you know what a derived `Schema` gives a type; if not, [Your First Schema](./your-first-schema.md) explains it.
 

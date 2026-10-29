@@ -45,7 +45,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 
-The code in this tutorial is compiled with Scala 3. For scala-cli, Scala.js, or cross-building, see [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md).
+The code in this tutorial is compiled with Scala 3. For scala-cli, Scala.js, or cross-building, see [How to Add ZIO Blocks to Your Build](../getting-started/installation.md).
 
 ## 2. Background: Data Outlives Its Types
 

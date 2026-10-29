@@ -31,7 +31,7 @@ Add the module to your `build.sbt` (JVM-only, not available for Scala.js):
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
 ```
 
-This artifact is for Scala 2.13 and Scala 3.3 to 3.8. On Scala 3.9 and newer, use the `zio-blocks-next-schema-avro` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../guides/add-zio-blocks-to-your-build.md) explains.
+This artifact is for Scala 2.13 and Scala 3.3 to 3.8. On Scala 3.9 and newer, use the `zio-blocks-next-schema-avro` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../getting-started/installation.md) explains.
 
 ## Introduction
 

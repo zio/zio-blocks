@@ -83,7 +83,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry" % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 
-On the JVM, the `telemetry` module needs **JDK 21 or newer**. It is compiled for Java 21, so on JDK 17 the compiler fails with `java.lang.UnsupportedClassVersionError` as soon as it expands a `log.*` call (the log macros run inside the compiler), and code without log calls compiles but fails the same way when it runs. JDK 21 needs no extra flags such as `--enable-preview`. [How to Add ZIO Blocks to Your Build](./add-zio-blocks-to-your-build.md) explains the two artifact names and the JDK each module needs. The code in this tutorial is Scala 3.
+On the JVM, the `telemetry` module needs **JDK 21 or newer**. It is compiled for Java 21, so on JDK 17 the compiler fails with `java.lang.UnsupportedClassVersionError` as soon as it expands a `log.*` call (the log macros run inside the compiler), and code without log calls compiles but fails the same way when it runs. JDK 21 needs no extra flags such as `--enable-preview`. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names and the JDK each module needs. The code in this tutorial is Scala 3.
 
 :::caution
 In version 0.0.56, the `log.*` calls don't compile on Scala 2.13 outside the library's own package: the compiler reports `object GlobalLogState in package telemetry cannot be accessed`. This is a known bug in that version. Spans and metrics are not affected.

@@ -119,16 +119,20 @@ const config = {
           height: 37,
         },
         items: [
-          { to: '/overview', label: 'Docs', position: 'right' },
+          // The getting-started sidebar (docs/sidebars.js): the overview page, then the newcomers' tour under
+          // /getting-started/. activeBaseRegex keeps the item highlighted on every page of that sidebar.
+          { to: '/overview', label: 'Getting Started', position: 'left', activeBaseRegex: '^/(overview|getting-started)(/|$)' },
+          // The reference index; activeBaseRegex keeps it highlighted on every page of the reference sidebar.
+          { to: '/reference/', label: 'Reference', position: 'left', activeBaseRegex: '^/reference/' },
           // A plain link, not a docSidebar item: the landing-only build has no docs plugin. activeBaseRegex keeps it
           // highlighted on every page of the guides sidebar (docs/sidebars.js).
-          { to: '/guides/', label: 'Guides', position: 'right', activeBaseRegex: '^/guides/' },
+          { to: '/guides/', label: 'Guides', position: 'left', activeBaseRegex: '^/guides/' },
           // The Scaladoc is plain HTML copied into static/api by `sbt docs/generateApiDocs`, outside the Docusaurus
           // router: pathname:// makes it a full page load and keeps the broken link checker off it.
-          { to: 'pathname:///api/', label: 'API', position: 'right', target: '_self' },
+          { to: 'pathname:///api/', label: 'API', position: 'left', target: '_self' },
           // A hash link to the landing page: never mark it active. Docusaurus' default prefix match on `/` would light it
           // up on every docs page, now that docs are served at the site root. A pathname is never empty, so '^$' never matches.
-          { to: '/#catalog', label: 'Blocks', position: 'right', activeBaseRegex: '^$' },
+          { to: '/#catalog', label: 'Blocks', position: 'left', activeBaseRegex: '^$' },
           { href: 'https://github.com/zio/zio-blocks', position: 'right', className: 'header-github-link', 'aria-label': 'GitHub repository' },
           { href: 'https://discord.gg/2ccFBr4', position: 'right', className: 'header-discord-link', 'aria-label': 'Join the ZIO Discord server' },
         ],
@@ -147,7 +151,7 @@ const config = {
           {
             title: 'Learn',
             items: [
-              { label: 'Docs', to: '/overview' },
+              { label: 'Getting Started', to: '/overview' },
               { label: 'Guides', to: '/guides/' },
               { label: 'Reference', to: '/reference/' },
               { label: 'API', to: 'pathname:///api/', target: '_self' },

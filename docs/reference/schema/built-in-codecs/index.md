@@ -22,7 +22,7 @@ Here's a summary of the codecs currently supported by ZIO Blocks. Most codecs pr
 | `XmlFormat`         | `XmlCodec[A]`         | `application/xml`     | `zio-blocks-schema-xml`         | [XML](./xml.md)                 |
 | `YamlFormat`        | `YamlCodec[A]`        | `application/yaml`    | `zio-blocks-schema-yaml`        | [YAML](./yaml.md)               |
 
-The module names above are for Scala 2.13 and Scala 3.3 to 3.8. On Scala 3.9 and newer, use the `zio-blocks-next-` modules instead, for example `zio-blocks-next-schema-yaml`, and add `scalacOptions += "-experimental"` (see [How to Add ZIO Blocks to Your Build](../../../guides/add-zio-blocks-to-your-build.md)).
+The module names above are for Scala 2.13 and Scala 3.3 to 3.8. On Scala 3.9 and newer, use the `zio-blocks-next-` modules instead, for example `zio-blocks-next-schema-yaml`, and add `scalacOptions += "-experimental"` (see [How to Add ZIO Blocks to Your Build](../../../getting-started/installation.md)).
 
 ## Supported Types
 
