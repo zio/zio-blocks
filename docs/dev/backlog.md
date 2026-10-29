@@ -591,3 +591,87 @@ Plan: `docs/superpowers/plans/2026-10-26-streams-scaladoc.md`. Style: `docs/dev/
 | 4. Close-out               | In review   |    | 561 / 561 (100%) | 561 / 561 (100%) |
 
 Completed 2026-10-27: coverage 361 / 561 (64%) → 561 / 561 (100%) with the scope-aware count. No member is left undocumented, so the close-out audit found no real gaps. Every wave fact-checked its Scaladoc against the code, and the reviews found and fixed false claims in existing comments. The bugs and reference-page errors the waves found are tracked in `docs/dev/issues.md`.
+
+## 13. Scaladoc: next modules
+
+Plan for the next module-wide Scaladoc rollouts, from a read-only research pass on 2026-10-29 (`main` at `bafc31bef`). Coverage was counted with the repo's `.claude/scripts/scaladoc-coverage.py`, the scope-aware count the streams rollout used.
+
+### 13.1 Method (unchanged from §11 and §12)
+
+Follow the `scaladoc-rollout` skill (`~/.claude/skills/scaladoc-rollout/SKILL.md`) and `docs/dev/scaladoc-style.md`.
+
+- **PR 0 for each module:**
+  - add the module to `scaladocCheckedModules` (`build.sbt:1410`, today `Seq(schema.jvm, streams.jvm)`);
+  - make its existing `{{{ }}}` examples compile under `scaladoc-check` on 2.13.18, 3.9.0 and 3.10.0;
+  - add its backlog table.
+- **Then comment-only waves,** under about 3,000 changed lines each (the streams waves were about +900 to +1,130 lines). Then a close-out.
+- **Tiers:**
+  - Tier 1, core types: an overview, a compiled example and `@see` to the reference page.
+  - Tier 2, every other public member: one to three sentences.
+  - Tier 3, internals: one line or nothing.
+- **Rules:**
+  - Describe what the code does, and call bugs "a known bug".
+  - Identical text in `scala-2`/`scala-3` and jvm/js copies, checked with `--drift`.
+  - No `docs/dev/` links.
+- **Roles and gates:**
+  - an Opus implementer, an Opus fact-check reviewer with fresh context, and a Sonnet re-reviewer for each fix round;
+  - only one sbt-running implementer on the machine;
+  - gates: `scaladoc-check` on all three Scala versions, `<proj>JVM/doc` with no new warnings, the comments-only diff check, and `check; headerCheckAll`.
+- **Bugs:** found bugs go to the coordinator as complete entries; the coordinator alone edits `issues.md`. The schema and streams waves produced about 72 `issues.md` entries, 60 of them library bugs.
+- **Adding a module to `scaladoc-check`:** its sources must live under `<module-dir>/`, and its package must be `zio.blocks.<module-dir>`. Modules that break this rule need a `moduleImport` override first (`build.sbt:1399-1405`): `http-model`, `http-model-schema`, `datastar`, `htmx`, `markdown`, `otel`, `dataMigration` and `schema-messagepack`. Scala-3-only modules (`sql`, `htmx`, `datastar`, `projection`, `dataMigration`) need their own handling. `telemetry` and `otel` need JDK 21, which the checker doesn't have while it runs on JDK 17.
+
+### 13.2 Coverage of the other modules, in recommended order
+
+| # | Module | Documented / items | % | Files / LOC | Blocker for `scaladoc-check` |
+|---|---|---|---|---|---|
+| 1 | chunk | 153 / 205 | 74 | 6 / 5,069 | none |
+| 2 | scope | 125 / 223 | 56 | 36 / 7,085 | none (23 existing `{{{` blocks to fix first) |
+| 3 | typeid | 162 / 390 | 41 | 28 / 6,496 | none |
+| 4 | config / -hocon / -json / -yaml | 79/202, 9/22, 0/2, 2/4 | 39 / 40 / 0 / 50 | 35 / 4,150 | none |
+| 5 | sql / sql-zio | 127/405, 7/14 | 31 / 50 | 41 / 8,207 | Scala 3 only; sql-zio has the `zio` package clash |
+| 6 | http-model / -schema | 57/1113, 6/55 | 5 / 10 | 38 / 5,967 | `moduleImport` override (`zio.http`) |
+| 7 | schema-avro / bson / csv / thrift | 0/53, 17/110, 20/22, 7/48 | 0 / 15 / 90 / 14 | 18 / 5,972 | none |
+| 7 | schema-toon / xml / yaml | 37/202, 120/223, 27/117 | 18 / 53 / 23 | 44 / 10,788 | none |
+| 7 | schema-messagepack | 5 / 134 | 3 | 5 / 1,933 | override (`zio.blocks.schema.msgpack`) |
+| 8 | html | 161 / 1001 | 16 | 23 / 5,591 | none |
+| 9 | endpoint | 65 / 314 | 20 | 19 / 3,655 | none |
+| 10 | telemetry / otel | 203/567, 17/33 | 35 / 51 | 80 / 8,835 | JDK 21; otel also needs an override |
+| 11 | async | 105 / 144 | 72 | 34 / 10,719 | none |
+| 12 | jwt | 62 / 146 | 42 | 11 / 2,482 | none |
+| 13 | maybe / combinators / context | 5/135, 7/79, 13/37 | 3 / 8 / 35 | 22 / 2,608 | none |
+| 14 | htmx / datastar | 96/418, 77/252 | 22 / 30 | 38 / 3,429 | override + Scala 3 only |
+| 15 | projection / dataMigration | 167/256, 50/61 | 65 / 81 | 32 / 6,198 | Scala 3 only; dataMigration needs an override |
+| 16 | openapi / codegen / smithy | 43/130, 73/107, 55/64 | 33 / 68 / 85 | 27 / 7,116 | none |
+| 16 | markdown / mux / ringbuffer | 91/107, 43/46, 82/122 | 85 / 93 / 67 | 35 / 6,160 | markdown needs an override (`zio.blocks.docs`) |
+| 17 | mediatype | 0 / 2634 | 0 | 5 / 12,676 | 2,622 items are in the generated `MediaTypes.scala`: document through the generator |
+
+All modules other than schema and streams: 2,375 / 10,197 documented (23%), or 31% without mediatype.
+
+### 13.3 Top 6: proposed waves
+
+| Order | Module | Prerequisites | Waves | Expected gain |
+|---|---|---|---|---|
+| 1 | **chunk** (pilot: 9 modules depend on it, 13 guides import it, no open bugs) | PR 0 adds it to `scaladocCheckedModules` | W1: `Chunk.scala` (185 items), `ChunkMap`, the four platform files. Optional W2: maybe + combinators (+202) | +52 → 205 / 205 |
+| 2 | **scope** (sql, streams, config and projection depend on it; 8 reference pages, 8 guides) | PR 0; fix the 23 existing `{{{` blocks | W1: `Scope`, `Resource`, `Wire`, `Finalization`, `Finalizer`, `DeferHandle`, `InStack`, `*VersionSpecific`. W2: the `Unscoped` scala-2/3 pair (66 missing), `internal/ErrorMessages`, the macros (tier 3) | about +98; its 13 open bugs (macro crashes, E-codes) are named as known bugs |
+| 3 | **typeid** (maybe, context and schema depend on it) | PR 0 | W1: the `TypeId` scala-2/3 pair (127 items, 17 documented), `TypeIdInstances`, `IsNominal*`. W2: `TypeRepr`, `TypeDefKind`, `Owner`, `TypeBounds`, `TypeParam`, `TermPath`, `Annotation`, `Kind`, `Variance`, `Member`, `TypeIdPrinter`, the macros (tier 3) | about +228 |
+| 4 | **config family** (7 reference pages, 7 guides) | PR 0 | W1: `Config`, `ConfigSource`, `ConfigError`, `ConfigDecoderDeriver`, `Provenance`, `Displayable`, `PlatformConfigSource`. W2: the flags (`FlagReader`, `DynamicFlag`, `StaticFlag`, `FlagSource`, `FlagException`, `Rollout`). W3: hocon, json, yaml | about +140; about 30 open config and hocon entries |
+| 5 | **sql** (the most exposure outside the core: 15 guides, 23 reference pages) | `scaladoc-check` handling for Scala-3-only modules. **A build change: ask Milad first.** sql-zio later (the `zio` package clash) | W1: `DbCodec` (91 items, 13 documented), `DbValue`, `PgCodec`. W2: `SqlInterpolator`, `Frag`, `Dialect`, `SqlDialect`, `DbConnection`, `DbTx`. W3: `Repo`, `TableMetadata`, `Upsert`, `query/*` | about +278; about 20 open sql bugs |
+| 6 | **http-model + -schema** (endpoint, htmx and datastar build on it; 9 guides; the largest gap, at 5%) | a `moduleImport` override for `zio.http`; confirm it compiles on 2.13, since it's missing from `testJVMScala2Command` (`build.sbt:164-167`) | W1: `Request`, `Response`, `Body`, `Method`, the `Status` pair, `Scheme`, `URL`, `Path`, `QueryParams`. W2/W3: `Headers` and `Header.scala` (648 items, mostly tier 2, split in half), then `Cookie` and `ServerSentEvent`. W4: http-model-schema | up to about +1,100 |
+
+### 13.4 Risks and open questions
+
+- **API churn from open PRs:**
+  - http-model: #1669 (+911/-326) and #1667;
+  - config, scope, telemetry, otel and projection: #1662 (+3,547);
+  - html, datastar, htmx, mux and ringbuffer: #1661;
+  - codegen, markdown, maybe, mediatype, csv, xml and yaml: #1663;
+  - #1660 (http-model-schema), #1701 and #1648 (sql, +6,772), #1747 (schema-yaml), #1647 (endpoint).
+
+  Most were last touched between September and mid-October. Decide whether #1648 is superseded, since `query/SqlQuery` is already on main, before scheduling sql. Check a module's open PRs before its PR 0.
+- **Counts:**
+  - `scala-2`/`scala-3` and jvm/js copies each count (`Unscoped`, `Status`, `TypeId`, `HtmlElements`).
+  - sql's count includes the fixture `JoinsDumpExample`, which shouldn't ship (see the Test and CI entry).
+  - async shows only 144 items in 10.7k lines; nobody has checked why.
+- **Open question:** should mechanical tier-2 waves (the `Header` case classes, the `HtmlElements` tags) use Sonnet implementers? The earlier rollouts never tried it.
+
+**Next step:** Milad picks the first module. The recommendation is chunk as a one-wave pilot, then scope.
