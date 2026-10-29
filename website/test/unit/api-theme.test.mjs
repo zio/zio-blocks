@@ -65,9 +65,17 @@ test('the navbar links match the Docusaurus navbar, with API as the current page
   const { themeConfig } = createRequire(import.meta.url)('../../docusaurus.config.js');
   // The GitHub and Discord items are icon-only on the docs (no label), but the API pages keep their text (api-theme.mjs NAV_LINKS).
   const iconLabels = { 'header-github-link': 'GitHub', 'header-discord-link': 'Discord' };
-  const site = themeConfig.navbar.items.map((i) => ({ label: i.label ?? iconLabels[i.className], href: (i.to ?? i.href).replace('pathname://', '') }));
-  assert.deepEqual(NAV_LINKS.map(({ label, href }) => ({ label, href })), site);
+  const site = themeConfig.navbar.items.map((i) => ({
+    label: i.label ?? iconLabels[i.className],
+    href: (i.to ?? i.href).replace('pathname://', ''),
+    left: i.position === 'left',
+  }));
+  assert.deepEqual(NAV_LINKS.map(({ label, href, left }) => ({ label, href, left: left === true })), site);
   const nav = navbarHtml({ prompt: PROMPT });
+  // The left items follow the logo in the left group; GitHub and Discord stay in the right group.
+  const leftGroup = /<div class="zb-navbar__left">([\s\S]*?)<\/div><div class="zb-navbar__right">/.exec(nav)[1];
+  assert.deepEqual([...leftGroup.matchAll(/class="zb-navbar__link[^"]*" href="[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]),
+    ['Getting Started', 'Reference', 'Guides', 'API', 'Blocks']);
   assert.match(nav, /<a class="zb-navbar__link zb-navbar__link--active" href="\/api\/" aria-current="page">API<\/a>/);
   assert.match(nav, /<a class="zb-navbar__link" href="https:\/\/github\.com\/zio\/zio-blocks" target="_blank" rel="noopener noreferrer">GitHub<svg/);
   assert.match(nav, /<a class="zb-navbar__link" href="https:\/\/discord\.gg\/2ccFBr4" target="_blank" rel="noopener noreferrer">Discord<svg/);
