@@ -359,7 +359,7 @@ object catalog {
       else Left(SchemaError.validationFailed(s"ISBN must have 13 digits, got '$input'"))
     }
 
-    given Schema[Isbn] = Schema[String].transform(s => parse(s).fold(e => throw e, identity), identity)
+    given Schema[Isbn] = Schema.string.transform(s => parse(s).fold(e => throw e, identity), identity)
 
     extension (isbn: Isbn) def value: String = isbn
   }
@@ -381,7 +381,7 @@ Json
   .foreach(e => println(e.message))
 ```
 
-Where `Book` is defined matters. Inside `object catalog`, `Isbn` is the same type as `String`, so a `Book` derived there uses the plain `String` schema and accepts any ISBN without calling `parse`. For the same reason, an opaque type needs its own `given Schema`: without one, `Schema.derived` sees through the alias and accepts any string.
+Where `Book` is defined matters. Inside `object catalog`, `Isbn` is the same type as `String`, so a `Book` derived there uses the plain `String` schema and accepts any ISBN without calling `parse`. For the same reason, an opaque type needs its own `given Schema`: without one, `Schema.derived` sees through the alias and accepts any string. The given builds on `Schema.string`, not `Schema[String]`: inside `object catalog`, `Schema[String]` can find this given itself, and on Scala 3.3 the program then hangs the first time it uses the schema.
 
 ## Putting It Together
 
