@@ -66,8 +66,8 @@ test('hero', () => {
 test('the navbar and footer carry the brand lockups and the main links', () => {
   assert.match(html, /<img [^>]*src="\/brand\/zio-blocks-logo-on-dark\.svg"[^>]*alt="ZIO Blocks"|<img [^>]*alt="ZIO Blocks"[^>]*src="\/brand\/zio-blocks-logo-on-dark\.svg"/);
   const navbar = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'));
-  // The Guides item opens the guides index page.
-  for (const href of ['/overview', '/guides/']) {
+  // The Getting Started item opens the overview, the Reference item the reference index, the Guides item the guides index.
+  for (const href of ['/overview', '/reference/', '/guides/']) {
     assert.match(navbar, new RegExp(`href="${href.replace(/[./]/g, '\\$&')}"`));
   }
   const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
@@ -295,7 +295,7 @@ test('the footer puts the logo and tagline beside three titled link columns', ()
   assert.equal(text(brand), 'Type-safe, modular building blocks for Scala.');
   assert.deepEqual([...footer.matchAll(/<div class="footer__title">([^<]*)<\/div>/g)].map((m) => m[1]), ['Learn', 'Community', 'ZIO ecosystem']);
   const hrefs = [...footer.matchAll(/class="footer__link-item"[^>]*href="([^"]+)"|href="([^"]+)"[^>]*class="footer__link-item"/g)].map((m) => m[1] ?? m[2]);
-  assert.deepEqual(hrefs, ['/getting-started/', '/overview', '/guides/', '/reference/', '/api/', 'https://github.com/zio/zio-blocks', 'https://discord.gg/2ccFBr4', 'https://zio.dev', 'https://ziohttp.com']);
+  assert.deepEqual(hrefs, ['/overview', '/guides/', '/reference/', '/api/', 'https://github.com/zio/zio-blocks', 'https://discord.gg/2ccFBr4', 'https://zio.dev', 'https://ziohttp.com']);
   assert.ok(footer.indexOf('zb-footer-base') > footer.indexOf('footer__links'), 'the credit line comes last');
 });
 

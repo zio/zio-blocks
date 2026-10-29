@@ -24,8 +24,8 @@ const ICONS = {
 
 // The navbar items of docusaurus.config.js, in the same order, with API as the current page.
 export const NAV_LINKS = [
-  { label: 'Getting Started', href: '/getting-started/' },
-  { label: 'Docs', href: '/overview' },
+  { label: 'Getting Started', href: '/overview' },
+  { label: 'Reference', href: '/reference/' },
   { label: 'Guides', href: '/guides/' },
   { label: 'API', href: '/api/', current: true },
   { label: 'Blocks', href: '/#catalog' },

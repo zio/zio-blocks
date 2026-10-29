@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
-// Getting Started is a category of the main sidebar (docs/sidebars.js), right after the overview: its pages are a tour
-// read in order, so a page missing from the category is missing from the tour.
+// Getting Started has its own sidebar (docs/sidebars.js): the overview, then the Getting Started category. Its pages are
+// a tour read in order, so a page missing from the category is missing from the tour.
 const require = createRequire(import.meta.url);
 const docs = new URL('../../../docs/', import.meta.url);
-const sidebar = require('../../../docs/sidebars.js').sidebar;
+const sidebars = require('../../../docs/sidebars.js');
+const sidebar = sidebars.gettingStarted;
 
 const docIds = (items) =>
   items.flatMap((item) =>
@@ -22,10 +23,17 @@ const docIds = (items) =>
 
 const gettingStarted = sidebar.find((item) => item.type === 'category' && item.label === 'Getting Started');
 
-test('Getting Started is the first category of the main sidebar, right after the overview', () => {
+test('the Getting Started sidebar holds the overview, then the Getting Started category, and nothing else', () => {
+  assert.equal(sidebar.length, 2);
   assert.equal(sidebar[0].id, 'index');
   assert.equal(sidebar[1], gettingStarted);
   assert.equal(gettingStarted.collapsed, false);
+});
+
+test('the reference sidebar holds neither the overview nor a Getting Started page', () => {
+  const ids = docIds(sidebars.sidebar);
+  assert.equal(ids.includes('index'), false);
+  assert.deepEqual(ids.filter((id) => id.startsWith('getting-started/')), []);
 });
 
 test('the Getting Started pages appear in reading order', () => {

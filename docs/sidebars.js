@@ -1,9 +1,9 @@
 const sidebars = {
-  // No "ZIO Blocks" wrapper category: the overview page and the block groups sit at the top level of the sidebar.
-  sidebar: [
+  // Getting Started has its own sidebar, reached from the "Getting Started" navbar item: the overview page, then the short
+  // tour for newcomers in reading order. website/test/unit/getting-started-sidebar.test.mjs fails if a page under
+  // docs/getting-started/ is missing here.
+  gettingStarted: [
     { type: "doc", id: "index", label: "Overview" },
-    // The short tour for newcomers, in reading order; the "Getting Started" navbar item leads to its first page.
-    // website/test/unit/getting-started-sidebar.test.mjs fails if a page under docs/getting-started/ is missing here.
     {
       type: "category",
       label: "Getting Started",
@@ -28,6 +28,10 @@ const sidebars = {
         "getting-started/where-next",
       ]
     },
+  ],
+  // The reference sidebar, reached from the "Reference" navbar item: the block groups sit at its top level, with no
+  // "ZIO Blocks" wrapper category.
+  sidebar: [
          {
            type: "category",
            label: "Meta Programming",

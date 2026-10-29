@@ -86,7 +86,7 @@ test('the mobile menu gets the site logo and links, and the stylesheet comes las
   assert.match(html, /<a class="mobile-menu-logo" href="\/"><img src="\/brand\/zio-blocks-logo-on-dark\.svg"[^>]*><\/a><button id="mobile-menu-close"/);
   assert.match(
     html,
-    /<nav class="zb-mobile-links"><a class="zb-mobile-link" href="\/getting-started\/">Getting Started<\/a><a class="zb-mobile-link" href="\/overview">Docs<\/a><a class="zb-mobile-link" href="\/guides\/">Guides<\/a><a class="zb-mobile-link zb-mobile-link--active" href="\/api\/" aria-current="page">API<\/a>.*<\/nav><span id="mobile-theme-toggle"/,
+    /<nav class="zb-mobile-links"><a class="zb-mobile-link" href="\/overview">Getting Started<\/a><a class="zb-mobile-link" href="\/reference\/">Reference<\/a><a class="zb-mobile-link" href="\/guides\/">Guides<\/a><a class="zb-mobile-link zb-mobile-link--active" href="\/api\/" aria-current="page">API<\/a>.*<\/nav><span id="mobile-theme-toggle"/,
   );
   assert.ok(html.includes(`<link rel="stylesheet" href="${STYLESHEET}"></head>`));
   assert.equal(count(html, 'project-logo'), 0);
