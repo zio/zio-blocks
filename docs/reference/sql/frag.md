@@ -119,6 +119,8 @@ val query = sql"SELECT * FROM users" ++ where
 query.sql(SqlDialect.SQLite)
 ```
 
+See also the [How to Build a Query from Optional Search Filters](../../guides/build-a-query-from-optional-search-filters.md) guide, which joins the conditions a search form needs into one `WHERE` clause and skips the empty ones.
+
 **`Frag.sequence`** — Concatenate multiple fragments with no separator:
 
 ```scala mdoc:reset

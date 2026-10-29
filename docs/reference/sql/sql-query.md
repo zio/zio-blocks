@@ -325,6 +325,8 @@ tx.connect {
 Aliases and column names inside a `where` fragment are not checked. A typo such as `t1."citty"` only fails when the database runs the query. Check the query with `SqlQuery#explain` while you write it.
 :::
 
+See also [How to Build a Query from Optional Search Filters](../../guides/build-a-query-from-optional-search-filters.md), which adds a `SqlQuery#where` condition only for the search fields a user filled in.
+
 ### Grouping and Sorting
 
 These methods add the `GROUP BY`, `HAVING`, `ORDER BY`, `LIMIT` and `OFFSET` clauses. Every column name they take refers to the `FROM` table: the renderer writes it as `t0."<column>"`.
