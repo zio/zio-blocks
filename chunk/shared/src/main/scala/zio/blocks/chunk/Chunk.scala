@@ -195,6 +195,7 @@ object ChunkBuilder {
       this
     }
 
+    /** Appends `b` as one bit; the builder packs eight bits into each byte. */
     def addOne(b: SBoolean): this.type = {
       if (b) {
         if (maxBitIndex == 8) {
@@ -216,6 +217,7 @@ object ChunkBuilder {
       this
     }
 
+    /** Removes every element added so far, so the builder can be reused. */
     def clear(): Unit = {
       len = 0
       maxBitIndex = 0
@@ -231,6 +233,11 @@ object ChunkBuilder {
       case _ => false
     }
 
+    /**
+     * Returns a chunk of the bits added so far, backed by packed bytes. The
+     * builder keeps its elements, so it can receive more after `result`, and
+     * later additions do not change a chunk already returned.
+     */
     def result(): Chunk[SBoolean] = {
       val savedLen         = len
       val savedMaxBitIndex = maxBitIndex
@@ -287,6 +294,7 @@ object ChunkBuilder {
         this
     }
 
+    /** Appends `a` to this builder. */
     def addOne(a: SByte): this.type = {
       val idx = len
       if (idx == array.length) array = util.Arrays.copyOf(array, idx << 1)
@@ -295,6 +303,7 @@ object ChunkBuilder {
       this
     }
 
+    /** Removes every element added so far, so the builder can be reused. */
     def clear(): Unit = len = 0
 
     override def equals(that: Any): SBoolean = that match {
@@ -302,6 +311,11 @@ object ChunkBuilder {
       case _          => false
     }
 
+    /**
+     * Returns a chunk holding a copy of the elements added so far. The builder
+     * keeps its elements, so it can receive more after `result`, and later
+     * additions do not change a chunk already returned.
+     */
     def result(): Chunk[SByte] = Chunk.fromArray(util.Arrays.copyOf(array, len))
 
     override def sizeHint(n: SInt): Unit = if (n >= array.length) array = util.Arrays.copyOf(array, n)
@@ -335,6 +349,7 @@ object ChunkBuilder {
         this
     }
 
+    /** Appends `a` to this builder. */
     def addOne(a: SChar): this.type = {
       val idx = len
       if (idx == array.length) array = util.Arrays.copyOf(array, idx << 1)
@@ -343,6 +358,7 @@ object ChunkBuilder {
       this
     }
 
+    /** Removes every element added so far, so the builder can be reused. */
     def clear(): Unit = len = 0
 
     override def equals(that: Any): SBoolean = that match {
@@ -350,6 +366,11 @@ object ChunkBuilder {
       case _          => false
     }
 
+    /**
+     * Returns a chunk holding a copy of the elements added so far. The builder
+     * keeps its elements, so it can receive more after `result`, and later
+     * additions do not change a chunk already returned.
+     */
     def result(): Chunk[SChar] = Chunk.fromArray(util.Arrays.copyOf(array, len))
 
     override def sizeHint(n: SInt): Unit = if (n >= array.length) array = util.Arrays.copyOf(array, n)
@@ -384,6 +405,7 @@ object ChunkBuilder {
         this
     }
 
+    /** Appends `a` to this builder. */
     def addOne(a: SDouble): this.type = {
       val idx = len
       if (idx == array.length) array = util.Arrays.copyOf(array, idx << 1)
@@ -392,6 +414,7 @@ object ChunkBuilder {
       this
     }
 
+    /** Removes every element added so far, so the builder can be reused. */
     def clear(): Unit = len = 0
 
     override def equals(that: Any): SBoolean = that match {
@@ -399,6 +422,11 @@ object ChunkBuilder {
       case _            => false
     }
 
+    /**
+     * Returns a chunk holding a copy of the elements added so far. The builder
+     * keeps its elements, so it can receive more after `result`, and later
+     * additions do not change a chunk already returned.
+     */
     def result(): Chunk[SDouble] = Chunk.fromArray(util.Arrays.copyOf(array, len))
 
     override def sizeHint(n: SInt): Unit = if (n >= array.length) array = util.Arrays.copyOf(array, n)
@@ -432,6 +460,7 @@ object ChunkBuilder {
         this
     }
 
+    /** Appends `a` to this builder. */
     def addOne(a: SFloat): this.type = {
       val idx = len
       if (idx == array.length) array = util.Arrays.copyOf(array, idx << 1)
@@ -440,6 +469,7 @@ object ChunkBuilder {
       this
     }
 
+    /** Removes every element added so far, so the builder can be reused. */
     def clear(): Unit = len = 0
 
     override def equals(that: Any): SBoolean = that match {
@@ -447,6 +477,11 @@ object ChunkBuilder {
       case _           => false
     }
 
+    /**
+     * Returns a chunk holding a copy of the elements added so far. The builder
+     * keeps its elements, so it can receive more after `result`, and later
+     * additions do not change a chunk already returned.
+     */
     def result(): Chunk[SFloat] = Chunk.fromArray(util.Arrays.copyOf(array, len))
 
     override def sizeHint(n: SInt): Unit = if (n >= array.length) array = util.Arrays.copyOf(array, n)
@@ -480,6 +515,7 @@ object ChunkBuilder {
         this
     }
 
+    /** Appends `a` to this builder. */
     def addOne(a: SInt): this.type = {
       val idx = len
       if (idx == array.length) array = util.Arrays.copyOf(array, idx << 1)
@@ -488,6 +524,7 @@ object ChunkBuilder {
       this
     }
 
+    /** Removes every element added so far, so the builder can be reused. */
     def clear(): Unit = len = 0
 
     override def equals(that: Any): SBoolean = that match {
@@ -495,6 +532,11 @@ object ChunkBuilder {
       case _         => false
     }
 
+    /**
+     * Returns a chunk holding a copy of the elements added so far. The builder
+     * keeps its elements, so it can receive more after `result`, and later
+     * additions do not change a chunk already returned.
+     */
     def result(): Chunk[SInt] = Chunk.fromArray(util.Arrays.copyOf(array, len))
 
     override def sizeHint(n: SInt): Unit = if (n >= array.length) array = util.Arrays.copyOf(array, n)
@@ -528,6 +570,7 @@ object ChunkBuilder {
         this
     }
 
+    /** Appends `a` to this builder. */
     def addOne(a: SLong): this.type = {
       val idx = len
       if (idx == array.length) array = util.Arrays.copyOf(array, idx << 1)
@@ -536,6 +579,7 @@ object ChunkBuilder {
       this
     }
 
+    /** Removes every element added so far, so the builder can be reused. */
     def clear(): Unit = len = 0
 
     override def equals(that: Any): SBoolean = that match {
@@ -543,6 +587,11 @@ object ChunkBuilder {
       case _          => false
     }
 
+    /**
+     * Returns a chunk holding a copy of the elements added so far. The builder
+     * keeps its elements, so it can receive more after `result`, and later
+     * additions do not change a chunk already returned.
+     */
     def result(): Chunk[SLong] = Chunk.fromArray(util.Arrays.copyOf(array, len))
 
     override def sizeHint(n: SInt): Unit = if (n >= array.length) array = util.Arrays.copyOf(array, n)
@@ -576,6 +625,7 @@ object ChunkBuilder {
         this
     }
 
+    /** Appends `a` to this builder. */
     def addOne(a: SShort): this.type = {
       val idx = len
       if (idx == array.length) array = util.Arrays.copyOf(array, idx << 1)
@@ -584,6 +634,7 @@ object ChunkBuilder {
       this
     }
 
+    /** Removes every element added so far, so the builder can be reused. */
     def clear(): Unit = len = 0
 
     override def equals(that: Any): SBoolean = that match {
@@ -591,6 +642,11 @@ object ChunkBuilder {
       case _           => false
     }
 
+    /**
+     * Returns a chunk holding a copy of the elements added so far. The builder
+     * keeps its elements, so it can receive more after `result`, and later
+     * additions do not change a chunk already returned.
+     */
     def result(): Chunk[SShort] = Chunk.fromArray(util.Arrays.copyOf(array, len))
 
     override def sizeHint(n: SInt): Unit = if (n >= array.length) array = util.Arrays.copyOf(array, n)
@@ -602,6 +658,12 @@ object ChunkBuilder {
 }
 
 private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
+
+  /**
+   * Creates a chunk from the elements of `source`: an `Iterable` through
+   * `Chunk.fromIterable`, any other `IterableOnce` through
+   * `Chunk.fromIterator`. Call it as `Chunk.from`.
+   */
   final def from[A](source: IterableOnce[A]): Chunk[A] = source match {
     case iterable: Iterable[A] @unchecked => Chunk.fromIterable(iterable)
     case iterableOnce                     => Chunk.fromIterator(iterableOnce.iterator)
@@ -2148,15 +2210,32 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       case _: BitChunk[_]           => ClassTag.Boolean.asInstanceOf[ClassTag[A]]
     }
 
+  /**
+   * Evidence that a chunk of `T` can be read as text. `Chunk#asString` and
+   * `Chunk#asBase64String` require it; instances exist for `Byte`, `Char` and
+   * `String`.
+   */
   sealed trait IsText[-T] {
+
+    /** Returns the text that `chunk` stands for. */
     def convert(chunk: Chunk[T]): String
   }
 
+  /** The `IsText` instances for `Byte`, `Char` and `String`. */
   object IsText {
+
+    /**
+     * Reads a chunk of bytes as text, decoding it with the platform's default
+     * charset.
+     */
     implicit val byteIsText: IsText[Byte] =
       new IsText[Byte] { def convert(chunk: Chunk[Byte]): String = new String(chunk.toArray) }
+
+    /** Reads a chunk of chars as text by joining them. */
     implicit val charIsText: IsText[Char] =
       new IsText[Char] { def convert(chunk: Chunk[Char]): String = new String(chunk.toArray) }
+
+    /** Reads a chunk of strings as text by concatenating them. */
     implicit val strIsText: IsText[String] =
       new IsText[String] { def convert(chunk: Chunk[String]): String = chunk.toArray.mkString }
   }
@@ -2498,15 +2577,38 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   }
 
   private[chunk] trait BitOps[T] {
+
+    /** The value with every bit clear. */
     def zero: T
+
+    /** The value `1`: only the lowest bit set. */
     def one: T
+
+    /**
+     * Reverses the order of the bits of `a`; the `Byte` instance throws
+     * `UnsupportedOperationException`.
+     */
     def reverse(a: T): T
+
+    /** Shifts `x` left by `n` bits. */
     def <<(x: T, n: Int): T
+
+    /** Shifts `x` right by `n` bits, keeping the sign. */
     def >>(x: T, n: Int): T
+
+    /** Returns the bitwise or of `x` and `y`. */
     def |(x: T, y: T): T
+
+    /** Returns the bitwise and of `x` and `y`. */
     def &(x: T, y: T): T
+
+    /** Returns the bitwise exclusive or of `x` and `y`. */
     def ^(x: T, y: T): T
+
+    /** Returns the bitwise complement of `x`. */
     def invert(x: T): T
+
+    /** The `ClassTag` of `T`. */
     def classTag: ClassTag[T]
   }
 
@@ -2639,10 +2741,23 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     }
   }
 
+  /** Holds the `Endianness` type. */
   object BitChunk {
+
+    /**
+     * The order in which the bits of each `Int` or `Long` element are read or
+     * written when a chunk is converted to or from a chunk of bits:
+     * `asBitsInt`, `asBitsLong`, `toPackedInt` and `toPackedLong` take it.
+     */
     sealed trait Endianness
+
+    /** The two `Endianness` values. */
     object Endianness {
-      case object BigEndian    extends Endianness
+
+      /** Starts with the most significant bit of each element. */
+      case object BigEndian extends Endianness
+
+      /** Starts with the least significant bit of each element. */
       case object LittleEndian extends Endianness
     }
   }
@@ -3836,6 +3951,10 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     final def ++[A1 >: A](that: ChunkIterator[A1]): ChunkIterator[A1] = ChunkIterator.Concat(self, that)
   }
 
+  /**
+   * Creates `ChunkIterator`s: the empty iterator, and iterators over an array
+   * or a `Vector`.
+   */
   object ChunkIterator {
 
     /**
@@ -4191,6 +4310,7 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
     b
   }
 
+  /** Returns a non-empty chunk with the elements in reverse order. */
   def reverse: NonEmptyChunk[A] = new NonEmptyChunk(chunk.reverse)
 
   /**
