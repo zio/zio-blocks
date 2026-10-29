@@ -810,6 +810,7 @@ sbt compile
 
 ## Going Further
 
+- [How to Protect Pages with Basic Auth or a Session Cookie](./protect-pages-with-basic-auth-or-a-session-cookie.md) protects browser pages with Basic credentials or a login form and a session cookie.
 - [How to Issue and Verify JWTs](./issue-and-verify-jwts.md) covers asymmetric keys, PEM files, hostile-token limits and every `JwtError` case.
 - The [JWT reference](../reference/jwt.md) lists every algorithm, key size rule and decode option.
 - The [`AuthType` reference](../reference/endpoint/auth-type.md) shows the other schemes (Basic, Digest, custom headers) and how to combine them.
