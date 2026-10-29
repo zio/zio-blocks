@@ -380,6 +380,8 @@ println(validatingSchema.fromDynamicValue(invalidValue).left.map(_.message))
 
 The constraints do come back in the other direction. Parsing a JSON Schema with `Schema.fromJsonSchema` maps keywords such as `minimum`, `maxLength` and `pattern` to `Validation` instances.
 
+`Schema#toJsonSchema` also leaves out the `Validation` rules that a library attaches for you, such as the ones Iron's ZIO Blocks module adds for its refined types. [How to Use Iron Refined Types and Typed IDs with Schema](../../guides/use-iron-refined-types-and-typed-ids.md) shows where those rules appear and where they do not.
+
 ## Composing Validations
 
 The current `Validation` ADT does not support combining multiple validations on a single primitive (e.g., both `NonEmpty` and `Pattern`). For complex validation logic, use `Schema#transform`:

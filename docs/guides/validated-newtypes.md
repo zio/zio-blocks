@@ -541,3 +541,4 @@ sbt compile
 - [DynamicValue](../reference/schema/dynamic-value.md) explains the schema-less representation that `Schema#fromDynamicValue` reads.
 - [How to Override the Codec for One Type](./override-codec-for-one-type.md) shows how to change how a type is encoded when a wrapper is not enough.
 - [How to Customize JSON Encoding](./customize-json-encoding.md) covers field names, optional fields and strict decoding for the types around your newtypes.
+- [How to Use Iron Refined Types and Typed IDs with Schema](./use-iron-refined-types-and-typed-ids.md) writes the same kind of rules as Iron constraint types on Scala 3, and gives every entity's ID its own type with one opaque `Id[+A]`.
