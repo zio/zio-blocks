@@ -12805,6 +12805,59 @@ println(request)
 
 **Suggested fix.** Override `toString` in both `Basic` cases to hide the password, and mask the values of the four sensitive header names in `Headers#toString`.
 
+### sql: `sql"..."` doesn't process escape sequences, so `\\` and `\t` reach the database as written
+
+Found 2026-10-29 while writing H-59 (`docs/guides/build-a-query-from-optional-search-filters.md`), on `main` `9d8bb9d70`. Same at `v0.0.56`. Verified. No docs page shows a backslash inside `sql"..."` today (grep of `docs/`, excluding `docs/dev`).
+
+**Summary.** Scala's `s"..."` turns `\t` into a tab and `\\` into one backslash. The `sql"..."` interpolator uses the raw string parts, like `raw"..."`, so the same text sends `\t` and `\\` (two characters each) to the database. A reader who writes the usual `LIKE ... ESCAPE '\\'` gets a SQL error on SQLite, and a string literal such as `'c\\d'` holds two backslashes. Nothing on the reference pages says so.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run --server=false SqlEscapes.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import zio.blocks.sql.*
+
+object SqlEscapes {
+  def main(args: Array[String]): Unit = {
+    // s"..." turns \t into a tab and \\ into one backslash; sql"..." keeps both as written
+    println(s"s:   ${s"SELECT 'a\tb', 'c\\d'".length} chars")
+    println(s"sql: ${sql"SELECT 'a\tb', 'c\\d'".sql(SqlDialect.SQLite).length} chars")
+    println(sql"SELECT 'a\tb', 'c\\d'".sql(SqlDialect.SQLite))
+
+    val file = java.nio.file.Files.createTempFile("escapes", ".db")
+    val tx   = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+    tx.connect {
+      println(sql"SELECT 'c\\d'".queryOne[String])
+      val pattern = "%50\\%"
+      try println(sql"SELECT 'save 50%' LIKE $pattern ESCAPE '\\'".queryOne[Int])
+      catch { case e: Exception => println(s"${e.getClass.getSimpleName}: ${e.getMessage}") }
+      println(sql"SELECT 'save 50%' LIKE ${"%50!%"} ESCAPE '!'".queryOne[Int])
+    }
+    java.nio.file.Files.delete(file)
+  }
+}
+// s:   19 chars
+// sql: 21 chars
+// SELECT 'a\tb', 'c\\d'
+// c\\d
+// SQLiteException: [SQLITE_ERROR] SQL error or missing database (ESCAPE expression must be a single character)
+// 1
+```
+
+**Expected.** Either `sql"..."` processes escapes the way `s"..."` does (`StringContext.processEscapes` on each part), or the `Frag`/interpolator docs say it is raw like `raw"..."`, so `ESCAPE '\'` (one backslash in the source) is what to write.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/SqlMacros.scala:29-30` (and `:85-86` for the checked form) take `rawPart.valueOrAbort` for each part and never call `StringContext.processEscapes`; the runtime fallback (`:292`) uses `$sc.parts` unprocessed too.
+
+**Impact.** Silent on string literals (wrong data compared or inserted), loud on `ESCAPE '\\'`. Readers who know `s"..."` assume escapes work. A change now would alter the SQL text of existing queries that contain backslashes, so documenting may be the safer fix.
+
+**Test gap.** No `sql` test has a backslash or escape sequence in an interpolated literal part.
+
+**Suggested fix.** Document the raw behaviour in `reference/sql/frag.md` ("Building Fragments") and the `sql` Scaladoc (`SqlInterpolator.scala:127`), with the `ESCAPE '\'` / `ESCAPE '!'` example. If the maintainers prefer `s"..."` semantics, apply `StringContext.processEscapes` to the parts in both macro paths and the fallback, with a test.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
