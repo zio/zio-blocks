@@ -688,8 +688,10 @@ private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
  * it, and it equals any `Seq` with the same elements in the same order.
  *
  * On the JVM, a chunk built from primitive values, such as `Chunk(1, 2, 3)`,
- * stores them in a primitive array; on Scala.js it stores them in an array of
- * objects. Reading them through `apply` boxes each value; accessors such as
+ * stores them in a primitive array. On Scala.js, `Chunk.apply`, `map` and
+ * `ChunkBuilder.make` store them in an array of objects, while
+ * `Chunk.fromArray` and the primitive builders, such as `ChunkBuilder.Int`,
+ * keep a primitive array. Reading them through `apply` boxes each value; accessors such as
  * `int` and `double` read a JVM array-backed chunk without boxing.
  *
  * `flatMap` and `flatten` fail with a `ClassCastException` when the first
@@ -1337,10 +1339,12 @@ sealed abstract class Chunk[+A]
   }
 
   /**
-   * Returns a chunk with the same elements, backed by one array. Call it before
+   * Returns a chunk with the same elements, backed by one array when there are
+   * two or more of them. Call it before
    * reading a chunk many times when it was built by many `++`, `take`, `drop`
    * or `appended` calls: indexed access then reads the array instead of walking
-   * a tree. An array-backed chunk is returned as is.
+   * a tree. An array-backed chunk is returned as is. A chunk of one element
+   * becomes a single-element chunk, and an empty chunk stays empty.
    *
    * {{{
    * val shelf = Chunk("Zionomicon") ++ Chunk("Programming in Scala")
@@ -4258,8 +4262,9 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
   }
 
   /**
-   * Materialize the elements of this `NonEmptyChunk` into a `NonEmptyChunk`
-   * backed by an array.
+   * Returns a `NonEmptyChunk` with the same elements, materialized as
+   * `Chunk#materialize` does: backed by one array, or a single-element chunk for
+   * one element.
    */
   def materialize[A1 >: A]: NonEmptyChunk[A1] = new NonEmptyChunk(chunk.materialize)
 
