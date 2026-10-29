@@ -1546,9 +1546,8 @@ sealed abstract class Chunk[+A]
   }
 
   /**
-   * Splits this Chunk into two subchunks: the first subchunk contains elements
-   * that satisfy the given predicate `f`, while the second contains the
-   * remainder.
+   * Splits this chunk into the longest prefix whose elements all satisfy `f`, and
+   * the rest, which starts at the first element that does not.
    */
   override def span(f: A => Boolean): (Chunk[A], Chunk[A]) = splitWhere(!f(_))
 
