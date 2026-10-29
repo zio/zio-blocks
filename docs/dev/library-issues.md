@@ -9423,6 +9423,293 @@ The same output appears on Scala 3.3.7, with `//> using scala 3.3.7`, `dev.zio::
 
 **Suggested fix.** In `CommonMacroOps.opaqueDealias`, keep the type arguments. For `AppliedType(tycon, args)` where `tycon` is an opaque alias, substitute the arguments into the right-hand side, for example by `tycon.translucentSuperType` being a `TypeLambda` and taking `tl.appliedTo(args).dealias`, or with `tpe.translucentSuperType` on the applied type. Then loop again. Add a regression test with `opaque type Tagged[A, T] = A` (and the bounded form `<: A`) applied to `Int`, `Long`, `Double` and `Boolean` as record fields, mixed with a `String` field. Cover JSON decode and encode and the `DynamicValue` round trip on Scala 3.3 and 3.9. Optionally add an Iron-shaped fixture, `opaque type IronType[A, C] <: A = A` with `type :|[A, C] = IronType[A, C]`.
 
+### chunk: `ChunkMap.hashCode` differs from `Map.hashCode` although the two are equal
+
+**Where found:** `chunk/shared/src/main/scala/zio/blocks/chunk/ChunkMap.scala`, while checking the `hashCode` Scaladoc ("ensures that equivalent ChunkMap instances produce the same hash code"). 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** `ChunkMap#equals` returns `true` for any `scala.collection.Map` with the same entries, and `Map#equals` returns `true` back, but `ChunkMap#hashCode` uses a different hash (an unordered hash of the tuples with the seed `"ChunkMap".hashCode`) from `Map#hashCode` (`MurmurHash3.mapHash`). Equal objects get different hash codes, which breaks the `equals`/`hashCode` contract. The same happens with `ChunkMap#indexed`: `cm == cm.indexed` is `true`, but `Indexed` (a standard `AbstractMap`) hashes with `mapHash`, so the two hash codes differ.
+
+**Reproducer** (`ChunkMapHash.sc`, Scala 3.9.0, `dev.zio::zio-blocks-chunk:0.0.56`; the same output on Scala 2.13.18):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.ChunkMap
+import scala.collection.immutable.HashSet
+
+val cm = ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008)
+val m  = Map("Zionomicon" -> 2021, "Programming in Scala" -> 2008)
+println(cm == m)                         // true
+println(m == cm)                         // true
+println(cm.hashCode == m.hashCode)       // false
+println(HashSet[Any](m).contains(cm))    // false
+println(cm == cm.indexed)                // true
+println(cm.hashCode == cm.indexed.hashCode) // false
+```
+
+**Expected:** `cm.hashCode == m.hashCode`, and `HashSet(m).contains(cm)` is `true`.
+
+**Root cause:** `ChunkMap.scala:386`, `override def hashCode(): Int = scala.util.hashing.MurmurHash3.unorderedHash(this, "ChunkMap".hashCode)`. Every standard `Map` hashes with `MurmurHash3.mapHash`.
+
+**Impact:** a `ChunkMap` and an equal standard `Map` used as keys in one `HashMap`/`HashSet` (Scala or Java) are treated as different keys; lookups with one miss entries stored with the other. Also on Scala.js (checked: `cm == m` is `true`, the hash codes differ).
+
+**Test gap:** `ChunkMapSpec.scala:234` ("equals works with scala.collection.Map") checks equality in both directions but no hash code; `ChunkMapSpec.scala:239` compares hash codes of two `ChunkMap`s only.
+
+**Suggested fix:** `override def hashCode(): Int = scala.util.hashing.MurmurHash3.mapHash(this)`, plus a test that `ChunkMap(...).hashCode == Map(...).hashCode` for the same entries. Then drop "(a known bug)" from the `ChunkMap` class and `hashCode` Scaladoc.
+
+### chunk: `ChunkMapBuilder.sizeHint` shrinks the buffers instead of growing them
+
+**Where found:** `chunk/shared/src/main/scala/zio/blocks/chunk/ChunkMap.scala`, while checking the `sizeHint` Scaladoc ("Adjusts the internal storage size to accommodate the specified hint"). 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** when `hint` is larger than the current capacity, `sizeHint` copies the key and value buffers to length `size` (the number of entries so far) instead of `hint`. The buffers shrink, so the next `add` has to grow them again; no entry is lost, but the hint does the opposite of what it is for.
+
+**Reproducer** (`ChunkMapSizeHint.sc`, Scala 3.9.0, `dev.zio::zio-blocks-chunk:0.0.56`; the same output on Scala 2.13.18; reads the private buffer by reflection):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.ChunkMap
+
+val b = new ChunkMap.ChunkMapBuilder[String, Int]()
+def capacity(): Int = {
+  val f = b.getClass.getDeclaredFields.find(_.getName.contains("keysBuffer")).get
+  f.setAccessible(true)
+  java.lang.reflect.Array.getLength(f.get(b))
+}
+b.addOne("Zionomicon" -> 2021)
+b.addOne("Programming in Scala" -> 2008)
+println(capacity()) // 4
+b.sizeHint(100)
+println(capacity()) // 2
+```
+
+**Expected:** `100` after `sizeHint(100)`.
+
+**Root cause:** `ChunkMap.scala:538-541`:
+
+```scala
+override def sizeHint(hint: Int): Unit = if (hint > keysBuffer.length) {
+  keysBuffer = java.util.Arrays.copyOf(keysBuffer, size)
+  valsBuffer = java.util.Arrays.copyOf(valsBuffer, size)
+}
+```
+
+`size` should be `hint`.
+
+**Impact:** performance only: a caller that calls `sizeHint` with the expected size pays extra copies instead of saving them. The `seen` hash map is not resized either. (`ChunkMap.from` and `concat` size the builder through its constructor, not `sizeHint`, so they are not affected.)
+
+**Test gap:** the only call is `ChunkMapSpec.scala:282` ("builder can be reused after cleaning"), on an empty builder, and it asserts only the resulting entries, which stay correct. `ChunkBuilderSpec`'s `sizeHint` tests cover `ChunkBuilder`, not `ChunkMapBuilder`.
+
+**Suggested fix:** copy to `hint` in both lines; add a test that reads `knownSize` and entries after `sizeHint` on a non-empty builder (or exposes capacity to the test). Then drop "(a known bug)" from the `sizeHint` Scaladoc and the class's method list.
+
+### chunk: Indexing a sliced chunk or a bit chunk out of range returns a value instead of throwing
+
+**Where found:** `chunk/shared/src/main/scala/zio/blocks/chunk/Chunk.scala`, while checking which index errors `Chunk#head` and `ChunkMap#keyAtIndex` throw (the bit-chunk and empty-slice cases were found by review 1). 2026-10-29/30, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** two families of chunk views index their backing data without checking their own bounds.
+
+- `take`, `drop`, `slice`, `splitAt` and friends return a private `Slice` view whose `apply` adds its offset and indexes the underlying chunk. An out-of-range index returns an element of the underlying chunk (it throws only when it also falls outside that chunk). `ChunkMap#removed` builds its key and value chunks with `take` and `drop`, so `keyAtIndex`, `valueAtIndex` and `atIndex` on a map returned by `removed` can return the removed entry. `slice(from, until)` with `from >= until` inside the chunk returns a zero-length `Slice`, not the empty chunk, so `head` on it (`apply(0)`) returns an element: `Chunk(1, 2, 3).slice(1, 1).head == 2`, while `isEmpty` is `true`.
+- The private bit chunks `BitChunkByte`, `BitChunkInt` and `BitChunkLong` add `minBitIndex` and read the bit without comparing `n` with `length`. They back every chunk of bits: the results of `Chunk#&`, `|`, `^`, `negate`, `asBitsByte`, `asBitsInt` and `asBitsLong`, the result of `ChunkBuilder.Boolean#result`, and their `take`/`drop`. An out-of-range index returns a padding bit or a bit outside the slice.
+
+**Reproducers** (Scala 3.9.0, `dev.zio::zio-blocks-chunk:0.0.56`; the same output on Scala 2.13.18; `SliceApply.sc` also on Scala.js).
+
+`SliceApply.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.{Chunk, ChunkMap}
+import scala.util.Try
+
+val books = Chunk("Zionomicon", "Programming in Scala", "Scala with Cats")
+println(Try(books.take(1)(1)))         // Success(Programming in Scala)
+println(Try(books.drop(1)(-1)))        // Success(Zionomicon)
+println(Try(books.slice(1, 2)(1)))     // Success(Scala with Cats)
+println(Try(books.toList.take(1)(1)))  // Failure(java.lang.IndexOutOfBoundsException: 1)
+val years = ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008)
+println(Try(years.removed("Programming in Scala").keyAtIndex(1))) // Success(Programming in Scala)
+```
+
+`SliceHead.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.Chunk
+import scala.util.Try
+
+val books = Chunk("Zionomicon", "Programming in Scala", "Scala with Cats")
+val none  = books.slice(1, 1)
+println(none.isEmpty)                          // true
+println(Try(none.head))                        // Success(Programming in Scala)
+println(Try(none.headOption))                  // Success(None)
+println(Try(none.last))                        // Failure(java.util.NoSuchElementException: last of empty IndexedSeq)
+println(Try(books.toList.slice(1, 1).head))    // Failure(java.util.NoSuchElementException: head of empty list)
+```
+
+`BitChunkApply.sc` (adapted from review 1):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
+import zio.blocks.chunk.Chunk.BitChunk.Endianness.BigEndian
+import scala.util.Try
+
+val flags = Chunk(true, true, true) & Chunk(true, true, true)
+println(flags.length)                                       // 3
+println(Try(flags(5)))                                      // Success(false)
+val builder = new ChunkBuilder.Boolean
+builder.addOne(true).addOne(true).addOne(true)
+println(Try(builder.result()(4)))                           // Success(false)
+val isbnBits = Chunk[Byte](-1, 0).asBitsByte
+println(Try(isbnBits.take(4)(5)))                           // Success(true)
+println(Try(isbnBits.drop(1)(-1)))                          // Success(true)
+println(Try(Chunk(-1).asBitsInt(BigEndian).take(4)(10)))    // Success(true)
+println(Try(Chunk(-1L).asBitsLong(BigEndian).take(4)(10)))  // Success(true)
+println(Try(Chunk(true, true, true)(5)))                    // Failure(java.lang.ArrayIndexOutOfBoundsException: Index 5 out of bounds for length 3)
+```
+
+**Expected:** each out-of-range access throws an `IndexOutOfBoundsException`, as `List` does and as `Chunk`'s own `AppendN`, `PrependN` and `Update` nodes do, and `head` on an empty chunk throws `NoSuchElementException` or `IndexOutOfBoundsException`, as `last` does.
+
+**Root cause:**
+- `Chunk.scala:2315`, `override def apply(n: Int): A = chunk.apply(offset + n)` in `Slice`; no `n < 0 || n >= length` check. (`Concat.apply` at `Chunk.scala:2211-2215` and `VectorChunk.apply` delegate too, and rely on the child to check.) `Chunk#head` is `apply(0)` (`Chunk.scala:1095`), and `Chunk#slice` (`:1225-1232`) builds a `Slice` of length 0 instead of returning `Chunk.empty`.
+- `BitChunkByte.apply` (`Chunk.scala:2534-2538`), `BitChunkInt.apply` (`:2660-2664`) and `BitChunkLong.apply` (`:2736-2740`): `val bitIndex = n + minBitIndex` with no check of `n`.
+
+**Impact:** silent wrong results instead of an exception for any off-by-one index on a sliced chunk or a chunk of bits, `head` returning a value from an empty chunk, and a removed `ChunkMap` entry resurfacing through positional reads. `lift`, `isDefinedAt`, `headOption`, `last` and the iterators are not affected (they check `length` first); `head` is.
+
+**Test gap:** `ChunkSpec.scala:103` and `:141` check out-of-range `apply` on appended and prepended chunks only (the only other `throwsA[IndexOutOfBoundsException]` is `:853`, for `updated`); no test indexes a `take`/`drop`/`slice` result out of range or calls `head` on an empty slice, `ChunkMapSpec` has no out-of-range `atIndex` test, and `BitChunkApplyBugSpec.scala` checks only in-range reads after `drop`/`take`.
+
+**Suggested fix:** in `Slice.apply` and in the three `BitChunk*.apply` methods, `if (n < 0 || n >= length) throw new IndexOutOfBoundsException(s"... chunk access to $n")` before reading; make `Chunk#slice` return `Chunk.empty` when `end == start`. Add tests for `take`, `drop`, `slice(1, 1).head`, `&` and `asBitsByte.take` followed by out-of-range `apply`, and `ChunkMap#removed` followed by out-of-range `keyAtIndex`. Then drop the "(a known bug)" sentences from the `Chunk` class Scaladoc, `Chunk#head`, and `ChunkMap#atIndex`, `#keyAtIndex` and `#valueAtIndex`.
+
+### chunk: `Chunk#dedupe` drops leading `null` elements
+
+**Where found:** `chunk/shared/src/main/scala/zio/blocks/chunk/Chunk.scala`, while checking the `dedupe` Scaladoc ("Deduplicates adjacent elements that are identical"). 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** `dedupe` starts with `lastA = null` and keeps an element only when it differs from `lastA`, so a run of `null` at the start of the chunk is removed completely instead of being kept once.
+
+**Reproducer** (`Dedupe.sc`, Scala 3.9.0, `dev.zio::zio-blocks-chunk:0.0.56`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.Chunk
+
+println(Chunk[String](null, null, "Zionomicon", "Zionomicon").dedupe) // Chunk(Zionomicon)
+println(Chunk[String]("Zionomicon", null, null).dedupe)               // Chunk(Zionomicon,null)
+```
+
+**Expected:** `Chunk(null,Zionomicon)` for the first line.
+
+**Root cause:** `Chunk.scala:832`, `var lastA = null.asInstanceOf[A]`, compared at `:836` (`if (a != lastA)`) for the first element too.
+
+**Impact:** small: only chunks that start with `null`. The result silently loses an element.
+
+**Test gap:** `ChunkSpec.scala:185` tests one chunk of `Int` without `null`.
+
+**Suggested fix:** always add the element at index 0 (`if (idx == 0 || a != lastA)`), and add a test with leading `null`s. Then drop "Leading `null` elements are dropped (a known bug)" from the `dedupe` Scaladoc.
+
+### chunk: `NonEmptyChunk#reduceMapLeft` and `#reduceMapRight` restart when a step returns `null`
+
+**Where found:** `chunk/shared/src/main/scala/zio/blocks/chunk/Chunk.scala` (`NonEmptyChunk`), while writing the tier-1 Scaladoc for `reduceMapLeft`. 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** both methods use `b == null` to mean "no element seen yet". When `map` or `reduce` returns `null`, the next element is passed to `map` again, and everything reduced so far is discarded.
+
+**Reproducer** (`ReduceMap.sc`, Scala 3.9.0, `dev.zio::zio-blocks-chunk:0.0.56`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.NonEmptyChunk
+
+val titles = NonEmptyChunk("Zionomicon", "Programming in Scala", "Scala with Cats")
+// reduce returns null for the second element, then the third restarts with `map`
+println(titles.reduceMapLeft(identity)((acc, t) => if (t.startsWith("Programming")) null else acc + " / " + t))
+// Scala with Cats
+println(titles.toChunk.tail.foldLeft(titles.head)((acc, t) => if (t.startsWith("Programming")) null else acc + " / " + t))
+// null / Scala with Cats
+println(titles.reduceMapRight(identity)((t, acc) => if (t.startsWith("Programming")) null else t + " / " + acc))
+// Zionomicon
+```
+
+**Expected:** `null / Scala with Cats` (as the `foldLeft` line) and `Zionomicon / null`.
+
+**Root cause:** `Chunk.scala:4005` and `:4011` (`var b = null.asInstanceOf[B]` ... `if (b == null) b = map(a)`), and the same at `:4024`/`:4032` in `reduceMapRight`.
+
+**Impact:** small: only reductions whose `B` is a reference type and whose functions can return `null`; the result is silently wrong.
+
+**Test gap:** `NonEmptyChunkSpec.scala:95` and `:102` compare with `foldLeft`/`foldRight`, but `genIntFunction` returns `Int`, so `null` never occurs.
+
+**Suggested fix:** seed from the first (or last) element and loop over the rest, e.g. `var b = map(chunk(0)); var idx = 1; while (idx < len) { b = reduce(b, chunk(idx)); idx += 1 }`. Then drop the "(a known bug)" paragraph from both Scaladoc comments.
+
+### chunk: `Chunk#flatMap` throws `ClassCastException` when a later result's type differs from a primitive first result
+
+**Where found:** `chunk/shared/src/main/scala/zio/blocks/chunk/Chunk.scala`, while checking the `Chunk` class Scaladoc note ("it is not safe to construct chunks from heterogeneous primitive types"); review 1 widened the trigger, and the Scala.js case was found while checking that. 2026-10-29/30, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** `flatMap` allocates its result array with the `ClassTag` of the first non-empty collection that `f` returns. When that collection holds primitive values, such as `Int`s, the array is an `int[]`, and copying any later result of another type into it (`Long`, `String`, anything) throws. Order matters: when the `String` result comes first, the array is an `Object[]` and the call succeeds. `map`, `ChunkBuilder` and `toArray` catch the same `ClassCastException` and fall back to an `Object[]`; `flatMap` does not. `Chunk#flatten`, `NonEmptyChunk#flatMap` and `NonEmptyChunk#flatten` delegate to `Chunk#flatMap` and fail the same way.
+
+On Scala.js, the class tag of a generic chunk is always `AnyRef`, so `Chunk(1)` or `List(1)` first is fine; but a first result backed by a primitive array (from `Chunk.fromArray`, `Chunk.from` on an array, or `ChunkBuilder.Int`) fails the same way, and since the failed cast is undefined behaviour there, a development build stops with a fatal `UndefinedBehaviorError` that `Try` does not catch.
+
+**Reproducer** (`FlatMapMixed.sc`, Scala 3.9.0, `dev.zio::zio-blocks-chunk:0.0.56`; the same output on Scala 2.13.18):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.{Chunk, NonEmptyChunk}
+import scala.util.Try
+
+val ids = Chunk(1, 2)
+println(Try(ids.map[Any](i => if (i == 1) 1 else 2L)))
+// Success(Chunk(1,2))
+println(Try(ids.flatMap[Any](i => if (i == 1) Chunk(1) else Chunk(2L))))
+// Failure(java.lang.ClassCastException: class java.lang.Long cannot be cast to class java.lang.Integer (java.lang.Long and java.lang.Integer are in module java.base of loader 'bootstrap'))
+println(Try(ids.flatMap[Any](i => if (i == 1) Chunk(1) else Chunk("Zionomicon"))))
+// Failure(java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Integer (java.lang.String and java.lang.Integer are in module java.base of loader 'bootstrap'))
+println(Try(ids.flatMap[Any](i => if (i == 1) Chunk("Zionomicon") else Chunk(2))))
+// Success(Chunk(Zionomicon,2))
+println(Try(Chunk[Chunk[Any]](Chunk(1), Chunk(2L)).flatten))
+// Failure(java.lang.ClassCastException: class java.lang.Long cannot be cast to class java.lang.Integer (java.lang.Long and java.lang.Integer are in module java.base of loader 'bootstrap'))
+println(Try(NonEmptyChunk[Any](1, 2).flatMap(i => if (i == 1) NonEmptyChunk[Any](1) else NonEmptyChunk[Any](2L))))
+// Failure(java.lang.ClassCastException: class java.lang.Long cannot be cast to class java.lang.Integer (java.lang.Long and java.lang.Integer are in module java.base of loader 'bootstrap'))
+println(Try(NonEmptyChunk(NonEmptyChunk[Any](1), NonEmptyChunk[Any]("Zionomicon")).flatten))
+// Failure(java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Integer (java.lang.String and java.lang.Integer are in module java.base of loader 'bootstrap'))
+println(Try(ids.toList.flatMap[Any](i => if (i == 1) List(1) else List(2L))))
+// Success(List(1, 2))
+```
+
+A first result that is a plain `List(1)` fails too: `ids.flatMap[Any](i => if (i == 1) List(1) else List(2L))` gives the same `Failure` (checked on 2.13.18).
+
+Scala.js (`JsFlatMap.scala`, run with `scala-cli run --server=false --js-cli-on-jvm JsFlatMap.scala`; each failing line has to run on its own, because the error is fatal):
+
+```scala
+//> using scala 3.9.0
+//> using platform scala-js
+//> using jsVersion 1.22.0
+//> using dep dev.zio::zio-blocks-chunk::0.0.56
+import zio.blocks.chunk._
+
+object JsFlatMap {
+  def main(args: Array[String]): Unit = {
+    println(Chunk(1, 2).flatMap[Any](i => if (i == 1) Chunk(1) else Chunk(2L)))
+    // Chunk(1,2)
+    println(Chunk(1, 2).flatMap[Any](i => if (i == 1) Chunk.fromArray(Array(1, 2)) else Chunk.fromArray(Array(3L, 4L))))
+    // org.scalajs.linker.runtime.UndefinedBehaviorError: java.lang.ClassCastException: long cannot be cast to java.lang.Integer
+  }
+}
+```
+
+(With `Chunk("a", "b")` as the second result instead, the error reads `string cannot be cast to java.lang.Integer`.)
+
+**Expected:** `Success(Chunk(1,2))` (and `Chunk(1,2,3,4)` on Scala.js), as `map` gives.
+
+**Root cause:** `Chunk.scala:1001` takes the `ClassTag` from the first non-empty result, `:1009` allocates `new Array[B](offset)` with it, and `:1014` (`chunk.toArray(0, bs, offset, bsLen)`) copies each result in. For an array-backed result that is `Arr.toArray` (`Chunk.scala:2925-2926`), which calls `Array.copy`; for an `int[]` destination and a source of another type, `Array.copy` takes its slow path and unboxes each element as an `Int`, which throws. Compare the fallback in `map` (`Chunk.scala:2982-2993`) and `toArray` (`:1487-1492`). `flatten` is `flatMap(ev(_))` (`:1024`); `NonEmptyChunk#flatMap` (`:3899`) and `#flatten` (`:3905`) call it too.
+
+**Impact:** a `Chunk[Any]` built with `flatMap` or `flatten` from mixed results (for example decoded JSON values, numbers next to strings) fails on the JVM whenever the first non-empty result holds primitives, and on Scala.js when that result is a primitive-array chunk. The old class Scaladoc warned that mixing primitive types "is not safe", so it was partly a documented limitation; but the trigger is wider than that note (a `String` after an `Int` fails too), and the rest of the API handles it, so it reads as a bug.
+
+**Test gap:** `ChunkSpec.scala:368` (`flatMap`) generates results of one element type; `:923` uses one primitive type. No test mixes types in `flatten` or `NonEmptyChunk#flatMap`.
+
+**Suggested fix:** catch `ClassCastException` around the copy loop and redo it into an `Array[AnyRef]`, as `toArray[A1: ClassTag]` does, or take `ClassTag.AnyRef` when two results' tags differ (the second also avoids the Scala.js undefined behaviour). Then drop the "(a known bug)" sentences from the `Chunk` class, `Chunk#flatMap`, `Chunk#flatten`, `NonEmptyChunk#flatMap` and `NonEmptyChunk#flatten` Scaladoc.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.

@@ -48,6 +48,104 @@ Found 2026-10-29 while writing H-57 (`docs/guides/protect-pages-with-basic-auth-
 
 **Suggested fix.** `zio.blocks.chunk.Chunk(...)` plus `Cookie.renderRequest(cookies)`; "(no attribute by default; Strict is the safest)"; "cross-site links (top-level GET) only, not cross-site form posts".
 
+### `docs/reference/chunk.md` describes `ChunkBuilder` as a buffer that feeds a tree
+
+**Where found:** `docs/reference/chunk.md:76` (The Solution), `:489` and `:527` (Using ChunkBuilder for Incremental Construction). 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** the page says `ChunkBuilder` "accumulates elements in a small array, and only when the array fills up does it append it to the growing Chunk tree", "without the re-copying overhead when the array grows". The builder from `ChunkBuilder.make` keeps one array and doubles it with `Array.copyOf` when full (`Chunk.scala:101`), and `result()` copies it once more into an array-backed chunk (`:127`); it builds no tree, and it does re-copy when it grows (amortized O(1) per element, like `ArrayBuffer`).
+
+**Reproducer** (`RefDocs.sc`, last part):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.ChunkBuilder
+
+val b = ChunkBuilder.make[Int](2)
+(1 to 100).foreach(b += _)
+println(b.result().getClass.getSimpleName) // IntArray
+```
+
+**Expected:** the page describes a growable array: amortized O(1) appends with occasional copying, and one final copy in `result()`.
+
+**Impact:** readers pick `ChunkBuilder` expecting it to avoid copying; the advice to prefer it over repeated `++` stands, but the reason the page gives is wrong.
+
+**Suggested fix:** rewrite the three sentences, e.g. "`ChunkBuilder` appends into one array and doubles it when it is full, so adding an element takes amortized constant time, and `result()` returns an array-backed chunk." Not fixed in this branch (not a one-word fix).
+
+### `docs/reference/chunk.md` describes `Chunk#dropUntil` as keeping the matching element
+
+**Where found:** `docs/reference/chunk.md:1382-1404`. 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** the heading says "Drop Until Predicate Fails", the text says it "keeps the first failing element and the rest", and the example is introduced as "Drop numbers less than 3". `dropUntil` drops every element up to and including the first one that satisfies the predicate, so `Chunk(1, 2, 3, 4, 5).dropUntil(_ >= 3)` is `Chunk(4,5)`: the rendered mdoc output contradicts the prose.
+
+**Reproducer** (`RefDocs.sc`, first line):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.Chunk
+
+println(Chunk(1, 2, 3, 4, 5).dropUntil(_ >= 3)) // Chunk(4,5)
+```
+
+**Expected:** the section says it drops up to and including the first element that satisfies the predicate (the branch's Scaladoc now says so), and the example line reads "Drop numbers up to and including the first one that is at least 3".
+
+**Impact:** the rendered page contradicts itself: the mdoc output shows `Chunk(4,5)` under prose that says the first matching element is kept.
+
+**Suggested fix:** retitle to "`Chunk#dropUntil` — Drop Through the First Match" and fix the two sentences. Not fixed in this branch.
+
+### `docs/reference/chunk.md` `reduceMapLeft`/`reduceMapRight` examples reduce a one-element chunk
+
+**Where found:** `docs/reference/chunk.md:2989` and `:3014`. 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** both examples write `val nonEmpty = NonEmptyChunk(chunk)` with `chunk: Chunk[Int]`. `NonEmptyChunk.apply(a: A, as: A*)` then builds a `NonEmptyChunk[Chunk[Int]]` of one element, so `reduceMapLeft(_.toString)(...)` returns `"Chunk(10,20,30,40)"` and never calls `reduce`. The examples show neither reduction.
+
+**Reproducer** (`RefDocs.sc`, middle part):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.{Chunk, NonEmptyChunk}
+
+val chunk    = Chunk(10, 20, 30, 40)
+val nonEmpty = NonEmptyChunk(chunk)
+println(nonEmpty.size) // 1
+println(nonEmpty.reduceMapLeft(_.toString)((acc, n) => acc + ", " + n)) // Chunk(10,20,30,40)
+```
+
+**Expected:** `NonEmptyChunk(10, 20, 30, 40).reduceMapLeft(_.toString)((acc, n) => acc + ", " + n)` gives `10, 20, 30, 40`.
+
+**Impact:** neither example shows a reduction; a reader who copies the pattern gets a one-element `NonEmptyChunk[Chunk[Int]]`.
+
+**Suggested fix:** use `NonEmptyChunk(10, 20, 30, 40)` (and `NonEmptyChunk(1, 2, 3, 4)`), or `NonEmptyChunk.fromChunk(chunk).get`. A one-line fix, but it changes mdoc output, so it is left for the docs pass rather than this Scaladoc branch.
+
+### `docs/reference/chunk.md` "Bitwise Operations" section documents private methods and shows unrelated code
+
+**Where found:** `docs/reference/chunk.md:3023-3072` (`BitChunk#and`, `BitChunk#or`, `BitChunk#xor`, `BitChunk#invert`). 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** `BitChunk` and `BitChunkByte` are `private[chunk]`, so readers cannot call `and`/`or`/`xor`; `BitChunk#invert` does not exist (`invert` is a member of the private `BitOps`). The examples then call `Chunk#map` with `&`, `|` and `~` on bytes, which is not what the headings name. The public API for this is `Chunk#&`, `Chunk#|`, `Chunk#^` and `Chunk#negate` on `Chunk[Boolean]`, which the page already covers under "Bit Operations".
+
+**Reproducer:** `Repro10.sc`, run with `scala-cli run --server=false Repro10.sc` (Scala 3.9.0, `zio-blocks-chunk` 0.0.56). The page's `BitChunk#and` is not reachable from user code: `asBitsByte` returns a plain `Chunk[Boolean]`, and `BitChunk`/`BitChunkByte` are `private[chunk]` (`Chunk.scala:2432`, `:2528`; `invert` is declared on the private `BitOps` at `:2387`).
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.Chunk
+
+val bits = Chunk[Byte](5).asBitsByte
+println(bits.and(bits))
+// -- [E008] Not Found Error: Repro10.scala:12:13
+// 12 |println(bits.and(bits))
+//    |        ^^^^^^^^
+//    |        value and is not a member of zio.blocks.chunk.Chunk[Boolean]
+```
+
+**Expected:** no section for private members.
+
+**Impact:** readers look for public `BitChunk#and`, `or`, `xor` and `invert` methods that they cannot call, and the examples teach nothing about bit chunks.
+
+**Suggested fix:** delete the section, or replace it with a pointer to the "Bit Operations" section.
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
