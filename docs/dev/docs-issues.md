@@ -340,6 +340,34 @@ Nothing else is printed: no "Handler failed" line, no stack trace. The same happ
 
 **Suggested fix.** At the handler boundary, catch `Throwable` except `VirtualMachineError` and `InterruptedException` (e.g. `case error: LinkageError =>` added next to `NonFatal`), log it, and answer 500 when no headers have been sent. Change the serving guide's copy and its prose first, then every copy and inline block above in one sweep. H-57 keeps the adapter identical to the serving guide's copy and does not change it.
 
+### website: `netlify.toml` redirects never reach the live site, so `/docs/*` and the old install-guide URL return 404
+
+Found 2026-10-30 by the coordinator's post-deploy check of zioblocks.com (deploy run 40959450265, `main` `b574f40f5`). Verified with `curl` against the live site.
+
+**Summary.** `netlify.toml` declares four kinds of redirects: `/docs` and `/docs/` → `/overview`, `/docs/*` → `/:splat` (old links from before the site moved docs to the root), and, since #1900, `/guides/add-zio-blocks-to-your-build` (with and without `/`) → `/getting-started/installation`. None of them works on zioblocks.com; every one returns 404. The two host redirects in `website/static/_redirects` (`zio-blocks.netlify.app/*` → `zioblocks.com`) do work.
+
+**Reproduction.**
+
+```text
+$ for u in /docs /docs/guides/your-first-schema /guides/add-zio-blocks-to-your-build /guides/add-zio-blocks-to-your-build/; do curl -s -o /dev/null -w "$u -> %{http_code} %{redirect_url}\n" https://zioblocks.com$u; done
+/docs -> 404
+/docs/guides/your-first-schema -> 404
+/guides/add-zio-blocks-to-your-build -> 404
+/guides/add-zio-blocks-to-your-build/ -> 404
+$ curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' https://zio-blocks.netlify.app/overview
+301 https://zioblocks.com/overview
+```
+
+**Expected.** Each old URL answers 301 to its new location, as `netlify.toml` says.
+
+**Root cause.** Netlify no longer builds the site (`netlify.toml` `ignore = "exit 0"`); the "Deploy Website" workflow uploads the build artifact with `nwtgck/actions-netlify@v4.0` (`.github/workflows/site.yml:84-93`). The `deploy` job never checks out the repository (it only downloads `website-build`), and the action's `netlify-config-path` defaults to `./netlify.toml`, which therefore doesn't exist in that job, so no `[[redirects]]` are sent with the deploy. Only `_redirects`, which Docusaurus copies from `website/static/` into the build output, is applied. The `netlify.toml` comment ("This file keeps the redirects") is no longer true.
+
+**Impact.** Every external link and search result to a `/docs/...` URL from before the move, and every link to the old install guide (#1900 moved it), lands on a 404. #1900's redirect was written but never took effect.
+
+**Test gap.** #1847 made the deploy wait until the live site serves the new build, but nothing checks a redirect.
+
+**Suggested fix.** Move the redirects into `website/static/_redirects` (Netlify `_redirects` syntax: `/docs  /overview  301`, `/docs/*  /:splat  301`, `/guides/add-zio-blocks-to-your-build  /getting-started/installation  301`, plus the trailing-slash form), and leave `netlify.toml` with `[build]` only, updating its comment. Alternatively add `actions/checkout` to the deploy job and pass `netlify-config-path: ./netlify.toml`. Either way, add a post-deploy `curl` check for one redirect to the workflow's live-site check, then redeploy and re-run the curl lines above.
+
 ## Resolved
 
 - `guides/validated-newtypes.md:362` ("Use Scala 3 Opaque Types") and `schema-examples/.../validatednewtypes/OpaqueTypesExample.scala:27` built `given Schema[Isbn] = Schema[String].transform(...)` inside the opaque scope, so on Scala 3.3 `Schema[String]` resolved to the given itself and the example hung (found by H-58, 2026-10-29). Fixed in #1906 (H-58, merge `b574f40f5`): both use `Schema.string.transform(`, with one sentence explaining why; verified on 3.3.7. The general trap stays in library-issues.md → Usability traps.
