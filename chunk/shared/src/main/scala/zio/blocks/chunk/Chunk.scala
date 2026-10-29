@@ -691,8 +691,9 @@ private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
  * stores them in a primitive array. On Scala.js, `Chunk.apply`, `map` and
  * `ChunkBuilder.make` store them in an array of objects, while
  * `Chunk.fromArray` and the primitive builders, such as `ChunkBuilder.Int`,
- * keep a primitive array. Reading them through `apply` boxes each value; accessors such as
- * `int` and `double` read a JVM array-backed chunk without boxing.
+ * keep a primitive array. Reading them through `apply` boxes each value;
+ * accessors such as `int` and `double` read a JVM array-backed chunk without
+ * boxing.
  *
  * `flatMap` and `flatten` fail with a `ClassCastException` when the first
  * non-empty collection they join holds primitive values, such as `Int` values,
@@ -1135,11 +1136,11 @@ sealed abstract class Chunk[+A]
    * Returns the concatenation of mapping every element into a new chunk using
    * the specified function. It fails with a `ClassCastException` when the first
    * non-empty collection that `f` returns holds primitive values, such as `Int`
-   * values, and a later one holds another type, such as `Long` or `String` values
-   * (a known bug). On Scala.js this happens only when that first collection is a
-   * chunk backed by a primitive array, such as one made by `Chunk.fromArray` or
-   * `ChunkBuilder.Int`, and a development build stops with an
-   * `UndefinedBehaviorError` instead.
+   * values, and a later one holds another type, such as `Long` or `String`
+   * values (a known bug). On Scala.js this happens only when that first
+   * collection is a chunk backed by a primitive array, such as one made by
+   * `Chunk.fromArray` or `ChunkBuilder.Int`, and a development build stops with
+   * an `UndefinedBehaviorError` instead.
    */
   override final def flatMap[B](f: A => IterableOnce[B]): Chunk[B] = {
     var chunks: List[Chunk[B]]   = Nil
@@ -1244,10 +1245,10 @@ sealed abstract class Chunk[+A]
    * Returns the first element of this chunk. It throws an exception when the
    * chunk is empty, except on an empty chunk made by `slice`, such as
    * `Chunk(1, 2, 3).slice(1, 1)`, where it returns an element from outside the
-   * slice (a known bug). Consider using
-   * `headOption` to explicitly handle the possibility that the chunk is empty
-   * or iterating over the elements of the chunk in lower level, performance
-   * sensitive code unless you really only need the first element of the chunk.
+   * slice (a known bug). Consider using `headOption` to explicitly handle the
+   * possibility that the chunk is empty or iterating over the elements of the
+   * chunk in lower level, performance sensitive code unless you really only
+   * need the first element of the chunk.
    */
   override def head: A = apply(0)
 
@@ -1340,11 +1341,11 @@ sealed abstract class Chunk[+A]
 
   /**
    * Returns a chunk with the same elements, backed by one array when there are
-   * two or more of them. Call it before
-   * reading a chunk many times when it was built by many `++`, `take`, `drop`
-   * or `appended` calls: indexed access then reads the array instead of walking
-   * a tree. An array-backed chunk is returned as is. A chunk of one element
-   * becomes a single-element chunk, and an empty chunk stays empty.
+   * two or more of them. Call it before reading a chunk many times when it was
+   * built by many `++`, `take`, `drop` or `appended` calls: indexed access then
+   * reads the array instead of walking a tree. An array-backed chunk is
+   * returned as is. A chunk of one element becomes a single-element chunk, and
+   * an empty chunk stays empty.
    *
    * {{{
    * val shelf = Chunk("Zionomicon") ++ Chunk("Programming in Scala")
@@ -1550,8 +1551,8 @@ sealed abstract class Chunk[+A]
   }
 
   /**
-   * Splits this chunk into the longest prefix whose elements all satisfy `f`, and
-   * the rest, which starts at the first element that does not.
+   * Splits this chunk into the longest prefix whose elements all satisfy `f`,
+   * and the rest, which starts at the first element that does not.
    */
   override def span(f: A => Boolean): (Chunk[A], Chunk[A]) = splitWhere(!f(_))
 
@@ -4167,17 +4168,17 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
 
   /**
    * Maps each element of this `NonEmptyChunk` to a new `NonEmptyChunk` and then
-   * concatenates them together. It fails like `Chunk#flatMap` when the collections it joins mix a primitive
-   * type with another type, such as `Int` values followed by `Long` or `String`
-   * values (a known bug).
+   * concatenates them together. It fails like `Chunk#flatMap` when the
+   * collections it joins mix a primitive type with another type, such as `Int`
+   * values followed by `Long` or `String` values (a known bug).
    */
   def flatMap[B](f: A => NonEmptyChunk[B]): NonEmptyChunk[B] = new NonEmptyChunk(chunk.flatMap(a => f(a).toChunk))
 
   /**
    * Flattens a `NonEmptyChunk` of `NonEmptyChunk` values to a single
-   * `NonEmptyChunk`. It fails like `Chunk#flatMap` when the collections it joins mix a primitive
-   * type with another type, such as `Int` values followed by `Long` or `String`
-   * values (a known bug).
+   * `NonEmptyChunk`. It fails like `Chunk#flatMap` when the collections it
+   * joins mix a primitive type with another type, such as `Int` values followed
+   * by `Long` or `String` values (a known bug).
    */
   def flatten[B](implicit ev: A <:< NonEmptyChunk[B]): NonEmptyChunk[B] = flatMap(ev)
 
@@ -4263,8 +4264,8 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
 
   /**
    * Returns a `NonEmptyChunk` with the same elements, materialized as
-   * `Chunk#materialize` does: backed by one array, or a single-element chunk for
-   * one element.
+   * `Chunk#materialize` does: backed by one array, or a single-element chunk
+   * for one element.
    */
   def materialize[A1 >: A]: NonEmptyChunk[A1] = new NonEmptyChunk(chunk.materialize)
 
