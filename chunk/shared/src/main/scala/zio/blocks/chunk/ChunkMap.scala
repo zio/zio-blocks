@@ -270,7 +270,9 @@ final class ChunkMap[K, +V] private (
    * take constant time on average instead of scanning the keys. Building the
    * index takes time and memory proportional to the size of the map, so keep
    * the result and reuse it. `updated` and `removed` on the result return a
-   * plain `ChunkMap`, without the index.
+   * plain `ChunkMap`, without the index. Other operations on it, such as
+   * `filter` and `map`, return a standard immutable `Map`, which does not keep
+   * insertion order once it has more than four entries.
    *
    * {{{
    * val index = ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008).indexed
@@ -499,6 +501,16 @@ object ChunkMap extends MapFactory[ChunkMap] {
    * case of duplicates, the latest associated value overwrites the previous
    * value.
    *
+   * Methods:
+   *   - `addOne`: Adds a single key-value pair to the map being built.
+   *   - `clear`: Clears all key-value pairs from the builder, resetting its
+   *     state.
+   *   - `knownSize`: Returns the current size of the map being built.
+   *   - `result`: Finalizes the construction and produces an immutable
+   *     `ChunkMap` instance.
+   *   - `sizeHint`: Meant to reserve room for a number of entries; see its own
+   *     comment for a known bug.
+   *
    * @tparam K
    *   The type of keys in the map.
    * @tparam V
@@ -509,16 +521,6 @@ object ChunkMap extends MapFactory[ChunkMap] {
    * @param initCapacity
    *   The initial capacity for the internal storage of keys and values.
    *   Defaults to 4 if not explicitly provided.
-   *
-   * Methods:
-   *   - `addOne`: Adds a single key-value pair to the map being built.
-   *   - `clear`: Clears all key-value pairs from the builder, resetting its
-   *     state.
-   *   - `knownSize`: Returns the current size of the map being built.
-   *   - `result`: Finalizes the construction and produces an immutable
-   *     `ChunkMap` instance.
-   *   - `sizeHint`: meant to reserve room for a number of entries; see its own
-   *     comment for a known bug.
    */
   final class ChunkMapBuilder[K, V](initCapacity: Int = 4) extends mutable.Builder[(K, V), ChunkMap[K, V]] {
     private[this] val seen: java.util.HashMap[K, Int] = new java.util.HashMap(initCapacity << 1, 0.5f)
