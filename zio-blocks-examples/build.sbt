@@ -26,7 +26,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(effectIntegration, gettingStarted)
+  .aggregate(effectIntegration, gettingStarted, ironRefinedTypes)
   .settings(
     commonSettings,
     name := "zio-blocks-examples",
@@ -64,5 +64,18 @@ lazy val gettingStarted = (project in file("getting-started"))
     libraryDependencies ++= Seq(
       zioBlocks("schema").value,
       zioBlocks("scope").value
+    )
+  )
+
+// Examples for "How to Use Iron Refined Types and Typed IDs with Schema": Iron 3.4 is built with Scala 3.9,
+// where ZIO Blocks is `zio-blocks-next-*`. Iron's module depends on `zio-blocks-schema` (same packages),
+// so that artifact is excluded. Run with: sbt "ironRefinedTypes/runMain ironrefinedtypes.<Object>"
+lazy val ironRefinedTypes = (project in file("iron-refined-types"))
+  .settings(
+    commonSettings,
+    name := "iron-refined-types",
+    libraryDependencies ++= Seq(
+      "dev.zio"            %% "zio-blocks-next-schema" % zioBlocksVersion,
+      ("io.github.iltotore" %% "iron-zio-blocks-schema" % "3.4.1").exclude("dev.zio", "zio-blocks-schema_3")
     )
   )
