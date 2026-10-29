@@ -12858,6 +12858,63 @@ object SqlEscapes {
 
 **Suggested fix.** Document the raw behaviour in `reference/sql/frag.md` ("Building Fragments") and the `sql` Scaladoc (`SqlInterpolator.scala:127`), with the `ESCAPE '\'` / `ESCAPE '!'` example. If the maintainers prefer `s"..."` semantics, apply `StringContext.processEscapes` to the parts in both macro paths and the fallback, with a test.
 
+### sql: a `List` or `Set` interpolated into `sql"..."` binds as one JSON string, so `IN ($values)` compiles and matches nothing
+
+Found 2026-10-29 while writing H-59 (`docs/guides/build-a-query-from-optional-search-filters.md`), on `main` `9d8bb9d70`. Same at `v0.0.56`. Verified. Related to the entry "`sql"... = $isbn"` ... No DbParam/Frag/SqlLiteral/DbValue instance" above (same `DbCodec.derived` path), but a different symptom.
+
+**Summary.** `DbParam` has no instance for collections, but `DbParam.fromDbCodec` accepts any type with a one-column `DbCodec`, and `DbCodec.derived` is an inline `given` that derives one for `List[String]`/`Set[String]` through `Schema`, as a JSON column. So `sql"... WHERE status IN ($statuses)"` compiles, renders `status IN (?)`, binds the text `["open","pending"]`, and returns no rows. No compile error, no runtime error. Readers coming from doobie (`Fragments.in`) or from JDBC habits write exactly this.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run --server=false ListParam.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Ticket(id: Long, status: String)
+object Ticket { given Schema[Ticket] = Schema.derived }
+
+object ListParam {
+  def main(args: Array[String]): Unit = {
+    val file    = java.nio.file.Files.createTempFile("list-param", ".db")
+    val tx      = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+    val tickets = Repo.derived[Ticket, Long]
+    tx.connect {
+      Table.derived[Ticket].createTable(SqlDialect.SQLite).update
+      tickets.insert(Ticket(1L, "open"))
+      tickets.insert(Ticket(2L, "pending"))
+      tickets.insert(Ticket(3L, "closed"))
+
+      val statuses = List("open", "pending")
+      val inList   = sql"SELECT id FROM ticket WHERE status IN ($statuses)"
+      println(inList.sql(SqlDialect.SQLite))
+      println(inList.params)
+      println(inList.query[Long])
+    }
+    java.nio.file.Files.delete(file)
+  }
+}
+// SELECT id FROM ticket WHERE status IN (?)
+// Vector(DbString(["open","pending"]))
+// List()
+```
+
+A `Set("open", "pending")` gives the same `IN (?)` and `DbString(["open","pending"])` (checked in the same session).
+
+**Expected.** Either a compile error for a collection argument (e.g. "a collection can't be one SQL parameter; build the IN list from one fragment per value"), or an expansion of a `Seq`/`Set` argument to `?, ?, ...` with one parameter per element, as doobie's `Fragments.in` does. JSON binding of a collection should require an explicit opt-in.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/SqlMacros.scala:247-249` summons `DbParam[w]` for every non-Frag argument; `SqlInterpolator.scala:112` (`given fromDbCodec[A](using codec: DbCodec[A]): DbParam[A]`) accepts any one-column codec; `DbCodec.scala:190` (`inline given derived[A]: DbCodec[A]`) derives one for any type with a derivable `Schema`, and `DbCodecDeriver.scala:456` (`deriveSequence`) encodes sequences as a JSON column.
+
+**Impact.** Silent empty results for the most common dynamic-SQL pattern after `AND` (multi-select filters, ID lists). The same `inline given derived` also makes other non-primitive arguments bind as JSON instead of failing.
+
+**Test gap.** No interpolator test passes a `List`/`Seq`/`Set` argument.
+
+**Suggested fix.** In `SqlMacros.buildArgFrags`, reject arguments whose type is a collection (`<: Iterable[?]` or `Array[?]` other than `Array[Byte]`) with a compile error that points to building an `IN` list, or expand them to one placeholder per element. At least, say on `reference/sql/frag.md` that collections bind as JSON. Also consider making `DbCodec.derived` not a `given` for `DbParam` lookup (or lower its priority), so only explicit codecs feed `fromDbCodec`.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
