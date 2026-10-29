@@ -167,8 +167,8 @@ const config = {
             ],
           },
         ],
-        // The same credit line as zio.dev; the year is the build year.
-        copyright: `Copyright © ${new Date().getFullYear()} ZIO Maintainers - Built with <a href="https://docusaurus.io/">Docusaurus</a>`,
+        // Copyright, licence and credit on one line; the year is the build year.
+        copyright: `Copyright © ${new Date().getFullYear()} ZIO Maintainers · Licensed under the <a href="https://github.com/zio/zio-blocks/blob/main/LICENSE">Apache License 2.0</a> · Built with <a href="https://docusaurus.io/">Docusaurus</a>`,
       },
       prism: {
         theme: prismThemes.light,

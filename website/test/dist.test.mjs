@@ -274,10 +274,14 @@ test('the users section links every organization by its logo and invites new use
   assert.ok(join.includes(`href="${JOIN_URL}"`));
 });
 
-test('the footer carries the zio.dev credit line with the build year', () => {
+test('the footer carries the copyright, the Apache 2.0 licence link and the build year', () => {
   const credit = /<div class="footer__copyright">([\s\S]*?)<\/div>/.exec(html)?.[1];
   assert.ok(credit, 'missing the footer copyright');
-  assert.equal(text(credit), `Copyright © ${new Date().getFullYear()} ZIO Maintainers - Built with Docusaurus`);
+  assert.equal(
+    text(credit),
+    `Copyright © ${new Date().getFullYear()} ZIO Maintainers · Licensed under the Apache License 2.0 · Built with Docusaurus`,
+  );
+  assert.ok(credit.includes('<a href="https://github.com/zio/zio-blocks/blob/main/LICENSE"'));
   assert.ok(credit.includes('<a href="https://docusaurus.io/"'));
 });
 
