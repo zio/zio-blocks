@@ -690,11 +690,15 @@ private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
  * On the JVM, a chunk built from primitive values, such as `Chunk(1, 2, 3)`,
  * stores them in a primitive array; on Scala.js it stores them in an array of
  * objects. Reading them through `apply` boxes each value; accessors such as
- * `int` and `double` read a JVM array-backed chunk without boxing. On the JVM,
- * some operations do not support a chunk that mixes primitive types, such as
- * `Int` and `Long` values in one `Chunk[AnyVal]`: `flatMap` throws a
- * `ClassCastException` when the chunks it joins hold different primitive types
- * (a known bug).
+ * `int` and `double` read a JVM array-backed chunk without boxing.
+ *
+ * `flatMap` and `flatten` fail with a `ClassCastException` when the first
+ * non-empty collection they join holds primitive values, such as `Int` values,
+ * and a later one holds another type, such as `Long` or `String` values (a
+ * known bug). On Scala.js this happens only when that first collection is a
+ * chunk backed by a primitive array, such as one made by `Chunk.fromArray` or
+ * `ChunkBuilder.Int`, and a development build stops with an
+ * `UndefinedBehaviorError` instead.
  *
  * On a chunk made by `take`, `drop` or `slice`, an out-of-range index can
  * return an element from outside the slice instead of throwing (a known bug).
@@ -1124,9 +1128,13 @@ sealed abstract class Chunk[+A]
 
   /**
    * Returns the concatenation of mapping every element into a new chunk using
-   * the specified function. On the JVM, it throws a `ClassCastException` when
-   * the collections that `f` returns hold different primitive types, such as
-   * `Int` and `Long` (a known bug).
+   * the specified function. It fails with a `ClassCastException` when the first
+   * non-empty collection that `f` returns holds primitive values, such as `Int`
+   * values, and a later one holds another type, such as `Long` or `String` values
+   * (a known bug). On Scala.js this happens only when that first collection is a
+   * chunk backed by a primitive array, such as one made by `Chunk.fromArray` or
+   * `ChunkBuilder.Int`, and a development build stops with an
+   * `UndefinedBehaviorError` instead.
    */
   override final def flatMap[B](f: A => IterableOnce[B]): Chunk[B] = {
     var chunks: List[Chunk[B]]   = Nil
@@ -1159,6 +1167,9 @@ sealed abstract class Chunk[+A]
 
   /**
    * Flattens a chunk of chunks into a single chunk by concatenating all chunks.
+   * It fails like `Chunk#flatMap` when the collections it joins mix a primitive
+   * type with another type, such as `Int` values followed by `Long` or `String`
+   * values (a known bug).
    */
   override def flatten[B](implicit ev: A => IterableOnce[B]): Chunk[B] = flatMap(ev(_))
 
@@ -4148,13 +4159,17 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
 
   /**
    * Maps each element of this `NonEmptyChunk` to a new `NonEmptyChunk` and then
-   * concatenates them together.
+   * concatenates them together. It fails like `Chunk#flatMap` when the collections it joins mix a primitive
+   * type with another type, such as `Int` values followed by `Long` or `String`
+   * values (a known bug).
    */
   def flatMap[B](f: A => NonEmptyChunk[B]): NonEmptyChunk[B] = new NonEmptyChunk(chunk.flatMap(a => f(a).toChunk))
 
   /**
    * Flattens a `NonEmptyChunk` of `NonEmptyChunk` values to a single
-   * `NonEmptyChunk`.
+   * `NonEmptyChunk`. It fails like `Chunk#flatMap` when the collections it joins mix a primitive
+   * type with another type, such as `Int` values followed by `Long` or `String`
+   * values (a known bug).
    */
   def flatten[B](implicit ev: A <:< NonEmptyChunk[B]): NonEmptyChunk[B] = flatMap(ev)
 
