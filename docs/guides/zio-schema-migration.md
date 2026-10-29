@@ -1,6 +1,7 @@
 ---
 id: zio-schema-migration
 title: "Migrating from ZIO Schema to ZIO Blocks Schema"
+description: "Port a ZIO Schema 1.x application to ZIO Blocks Schema by mapping its schemas, annotations, codecs and DynamicValue usage to the new equivalents."
 ---
 
 This guide helps you migrate an application that uses [ZIO Schema](https://github.com/zio/zio-schema) (version 1.x) to [ZIO Blocks Schema](https://github.com/zio/zio-blocks) (the schema module of ZIO Blocks). It covers the conceptual differences between the two libraries, provides a systematic mapping of data types, and shows how to rewrite the most common patterns in the idiomatic ZIO Blocks style.

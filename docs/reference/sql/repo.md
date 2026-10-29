@@ -1,7 +1,7 @@
 ---
 id: repo
 title: "Repo"
-description: "Reference for Repo[E, ID]: a type-safe CRUD repository in the sql module that pre-generates all SQL at construction time from a Schema-derived Table."
+description: "Reference for Repo[E, ID]: a type-safe CRUD repository in the sql module that derives its SQL from a Schema-derived Table."
 keywords:
   - "Repo CRUD repository"
   - "schema-driven SQL derivation"
@@ -12,30 +12,29 @@ keywords:
   - "Table entity mapping"
 ---
 
-`Repo[E, ID]` is a type-safe CRUD repository that provides `all`, `find`, `insert`, `update`, `delete`, and related operations for entities of type `E` identified by a primary key of type `ID`. In the `sql` module's layered architecture, `Repo` sits above `Table[E]` (which it wraps) and below the `Transactor` (which supplies the `DbCon` or `DbTx` context each operation requires). All SQL — `SELECT`, `INSERT`, `UPDATE`, and `DELETE` — is assembled from the `Table`'s column metadata at construction time; individual calls do only parameter binding.
+`Repo[E, ID]` is a type-safe CRUD repository that provides `all`, `find`, `insert`, `update`, `delete`, and related operations for entities of type `E` identified by a primary key of type `ID`. In the `sql` module's layered architecture, `Repo` sits above `Table[E]` (which it wraps) and below the `Transactor` (which supplies the `DbCon` or `DbTx` context each operation requires). All SQL — `SELECT`, `INSERT`, `UPDATE`, and `DELETE` — is assembled from the `Table`'s column metadata, with identifiers validated and quoted once at construction time; each call assembles its statement from them and binds parameters.
 
-Its primary constructor and public fields have this structure:
+Its declaration and public fields have this structure; instances come from the `Repo.apply` and `Repo.derived` factories, or from subclassing `Repo` with the schema and codec givens in scope:
 
 ```scala
-class Repo[E, ID](
-  val table: Table[E],
-  val idColumn: String,
-  val idCodec: DbCodec[ID],
-  val getId: E => ID
-) {
+abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
+  final val table: Table[E]
+  final val idColumn: String
+  final val idCodec: DbCodec[ID]
+  final val getId: E => ID
   // ... all the CRUD methods are defined here ...
 }
 ```
 
 ## Motivation
 
-Writing CRUD SQL by hand requires keeping column names, result-set positions, and prepared-statement parameter counts in sync with your Scala types — a maintenance burden that grows with every added field or renamed column. `Repo` eliminates that burden by deriving all standard CRUD statements from the same `Schema[E]` that already describes your domain type: `Repo.derived` inspects the schema's field names, types, and `@Modifier` annotations once at construction time and stores the resulting parameterized fragments for reuse.
+Writing CRUD SQL by hand requires keeping column names, result-set positions, and prepared-statement parameter counts in sync with your Scala types — a maintenance burden that grows with every added field or renamed column. `Repo` eliminates that burden by deriving all standard CRUD statements from the same `Schema[E]` that already describes your domain type: `Repo.derived` inspects the schema's field names, types, and `@Modifier` annotations once at construction time and quotes the resulting identifiers for reuse.
 
 When the standard operations — select-all, select-by-id, insert, update, delete — cover your needs, `Repo` means zero SQL maintenance. When you need custom queries (filtered selects, joins, aggregations), the `sql"..."` interpolator and `Frag` type compose freely alongside `Repo` inside the same `Transactor#connect` or `Transactor#transact` block, so you never have to choose between a repository pattern and hand-written SQL.
 
 ## Usage
 
-The example below shows the full lifecycle: deriving a repository from a `Schema`, setting up the table, writing and reading entities, and performing both bulk and single-entity operations — all inside one `transact` block:
+The example below shows the full lifecycle: deriving a repository from a `Schema`, setting up the table, writing and reading entities, and performing both bulk and single-entity operations — all inside one `Transactor#transact` block:
 
 ```scala mdoc:reset
 import zio.blocks.schema.Schema
@@ -46,11 +45,15 @@ case class User(id: Int, name: String, email: String)
 object User {
   implicit val schema: Schema[User] = Schema.derived
 }
+```
 
-// All SQL is generated here, once, from User's Schema.
+```scala mdoc:silent
+// The table metadata and quoted identifiers are built here, once, from User's Schema.
 val repo = Repo.derived[User, Int]("users", "id", _.id)
 val tx   = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+```
 
+```scala mdoc
 tx.transact {
   repo.table.createTable(summon[DbTx].dialect).update // CREATE TABLE IF NOT EXISTS users …
 
@@ -75,13 +78,13 @@ tx.transact {
 }
 ```
 
-Operations inside `transact` run under auto-commit disabled; on success the block commits and closes the connection, on any exception it rolls back.
+Operations inside `Transactor#transact` run under auto-commit disabled; on success the block commits and closes the connection, on any exception it rolls back.
 
 ## Construction / Creating Instances
 
 `Repo` exposes four factory methods, three of which auto-derive the underlying `Table[E]` from an implicit `Schema[E]`. The `Repo.derived` overloads differ only in how much naming information is supplied; `Repo.apply` accepts a fully pre-built `Table[E]` for cases where you have already constructed or derived a `Table` manually.
 
-### `Repo.derived` — Derive with ID column and getter
+### `Repo.derived` — Derive with ID Column and Getter
 
 This overload derives the `Table[E]` from the implicit `Schema[E]` and uses the caller-supplied `idColumn` name and `getId` getter. The table name is computed by applying the default singular-snake-case policy to the type name — for example, `User` becomes `"user"` and `BlogPost` becomes `"blog_post"`.
 
@@ -101,8 +104,13 @@ case class Article(id: Int, title: String, body: String)
 object Article {
   implicit val schema: Schema[Article] = Schema.derived
 }
+```
 
+```scala mdoc:silent
 val repo = Repo.derived[Article, Int]("id", _.id)
+```
+
+```scala mdoc
 repo.table.name
 repo.table.codec.columns
 ```
@@ -111,7 +119,7 @@ repo.table.codec.columns
 The `idColumn` string must exactly match a column name in the derived table (after `SqlNameMapper` applies, so `camelCase` fields become `snake_case`). A mismatch throws `IllegalArgumentException` (via `require`) at construction time — not at query time.
 :::
 
-### `Repo.derived` — Derive with table name, ID column, and getter
+### `Repo.derived` — Derive with Table Name, ID Column, and Getter
 
 This overload is identical to the previous one except that it accepts an explicit `tableName`, bypassing the naming policy entirely. Use it when the default snake-case convention does not match the actual database table name — for example, when migrating from a legacy schema.
 
@@ -131,13 +139,18 @@ case class OrderLine(lineId: Int, qty: Int, unitPrice: BigDecimal)
 object OrderLine {
   implicit val schema: Schema[OrderLine] = Schema.derived
 }
+```
 
+```scala mdoc:silent
 // Overrides the default "order_line" table name with the legacy one
 val repo = Repo.derived[OrderLine, Int]("tbl_order_lines", "line_id", _.lineId)
+```
+
+```scala mdoc
 repo.table.name
 ```
 
-### `Repo.derived` — Fully automatic derivation
+### `Repo.derived` — Fully Automatic Derivation
 
 When called without any term arguments, `Repo.derived` requires an additional implicit `Schema[ID]` and locates the ID field in `E` using a four-priority rule, trying each in order until one matches:
 
@@ -164,9 +177,14 @@ case class Tag(id: Long, label: String)
 object Tag {
   implicit val schema: Schema[Tag] = Schema.derived
 }
+```
 
+```scala mdoc:silent
 // Inspects Tag's Schema, finds the unique Long field "id", maps it to column "id"
 val repo = Repo.derived[Tag, Long]
+```
+
+```scala mdoc
 repo.idColumn
 ```
 
@@ -174,7 +192,7 @@ repo.idColumn
 `Repo.derived` (fully auto) throws `IllegalArgumentException` at runtime if `E` is not a case class, if no field matches any of the four priorities, or if a priority level itself is ambiguous — multiple `@Modifier.id`-annotated fields of type `ID`, or multiple type-matching fields when none of them is named `"id"` or `<entity>Id`. When any ambiguity is possible, annotate the intended field with `@Modifier.id`, or prefer the explicit overload that names the ID column and getter directly.
 :::
 
-### `Repo.apply` — Construct from an explicit Table
+### `Repo.apply` — Construct from an Explicit Table
 
 `Repo.apply` is the base constructor. It accepts a fully built `Table[E]` together with the ID column name, codec, and getter. Use it when you already have a `Table` — for example, one obtained from `Table.derived` — and want precise control over all four components.
 
@@ -184,7 +202,7 @@ object Repo {
 }
 ```
 
-Combining `Table.derived` with `Repo.apply` gives access to DDL generation via `createTable` and `dropTable` while also enabling full CRUD:
+Combining `Table.derived` with `Repo.apply` gives access to DDL generation via `Table#createTable` and `Table#dropTable` while also enabling full CRUD:
 
 ```scala mdoc:invisible
 // sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
@@ -207,7 +225,7 @@ val repo  = Repo(table, "category_id", DbCodec[Int], _.categoryId)
 given DbCon = ???
 
 repo.table.createTable(summon[DbCon].dialect).update  // DDL from Table
-repo.all                                              // pre-built SELECT from Repo
+repo.all                                              // SELECT from Repo
 ```
 
 ## Core Operations
@@ -218,7 +236,7 @@ Every `Repo` method requires a `DbCon` (or `DbTx`) given in scope, which is supp
 
 The read operations query the database without modifying it. `Repo#all`, `Repo#findAll`, `Repo#find`, and `Repo#pageAfter` decode and return entity values; `Repo#exists` and `Repo#count` return summary information without decoding full rows.
 
-#### `all` — Retrieve all rows
+#### `all` — Retrieve All Rows
 
 `Repo#all` executes `SELECT "<columns>" FROM "<table>"` and decodes every result-set row into an `E` using the entity's `DbCodec`, returning all rows as a `List[E]` in database-native order.
 
@@ -228,7 +246,7 @@ class Repo[E, ID] {
 }
 ```
 
-Inside a `connect` or `transact` block, the call requires no arguments:
+Inside a `Transactor#connect` or `Transactor#transact` block, the call requires no arguments:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
@@ -245,10 +263,10 @@ val users: List[User] = repo.all
 ```
 
 :::caution
-`all` loads the entire table into memory. For large tables, complement `Repo` with a custom `Frag` query that includes `LIMIT` and `OFFSET` clauses.
+`Repo#all` loads the entire table into memory. For large tables, complement `Repo` with a custom `Frag` query that includes `LIMIT` and `OFFSET` clauses.
 :::
 
-#### `findAll` — Retrieve rows by a set of primary keys
+#### `findAll` — Retrieve Rows by a Set of Primary Keys
 
 `Repo#findAll` executes `SELECT "<columns>" FROM "<table>" WHERE "<idColumn>" IN (...)` for the given IDs and decodes every matching row into an `E`. It returns an empty `List` immediately, without executing any SQL, when `ids` is empty.
 
@@ -258,7 +276,7 @@ class Repo[E, ID] {
 }
 ```
 
-Use it to batch-fetch a known set of rows in a single round-trip instead of calling `find` in a loop:
+Use it to batch-fetch a known set of rows in a single round-trip instead of calling `Repo#find` in a loop:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
@@ -273,7 +291,7 @@ given DbCon = ???
 val users: List[User] = repo.findAll(List(1, 2, 3))
 ```
 
-#### `find` — Find a row by primary key
+#### `find` — Find a Row by Primary Key
 
 `Repo#find` executes `SELECT "<columns>" FROM "<table>" WHERE "<idColumn>" = ?`, binding the ID through `idCodec`. It returns `Maybe.absent` if no row with the given key exists, or `Maybe(entity)` if a row is found.
 
@@ -299,9 +317,9 @@ given DbCon = ???
 val alice: Maybe[User] = repo.find(1)
 ```
 
-#### `exists` — Check whether a row exists
+#### `exists` — Check Whether a Row Exists
 
-`Repo#exists` returns `true` when a row with the given primary key exists in the table. It delegates to `find` and tests whether the result is defined, running a single parameterized `SELECT`.
+`Repo#exists` returns `true` when a row with the given primary key exists in the table. It delegates to `Repo#find` and tests whether the result is defined, running a single parameterized `SELECT`.
 
 ```scala
 class Repo[E, ID] {
@@ -324,7 +342,7 @@ given DbCon = ???
 val exists: Boolean = repo.exists(99)
 ```
 
-#### `count` — Count all rows
+#### `count` — Count All Rows
 
 `Repo#count` executes `SELECT COUNT(*) FROM "<table>"` and returns the row count as a `Long`. The result is `0L` when the table is empty.
 
@@ -349,7 +367,7 @@ given DbCon = ???
 val total: Long = repo.count
 ```
 
-#### `pageAfter` — Read the next page of rows by primary key
+#### `pageAfter` — Read the Next Page of Rows by Primary Key
 
 `Repo#pageAfter` implements keyset pagination: it returns at most `limit` rows whose primary key is strictly greater than `cursorId`, ordered by primary key ascending. It runs `SELECT … FROM "<table>" WHERE "<id>" > ? ORDER BY "<id>" ASC LIMIT <limit>`, so the cursor row itself never repeats, and a cursor equal to the last ID returns an empty list.
 
@@ -385,7 +403,7 @@ See also the [How to Upsert Rows and Paginate with Keyset Cursors](../../guides/
 
 The write operations insert, update, or delete rows in the database. `Repo#insert`, `Repo#insertBatch`, `Repo#insertAll`, `Repo#insertOrUpdate`, `Repo#insertOrUpdateBatch`, `Repo#update`, `Repo#delete`, `Repo#deleteAll`, and `Repo#clear` each return an `Int` row count (`insertAll` returns the inserted IDs instead); `Repo#insertReturning` is the exception and returns the full inserted entity.
 
-#### `insert` — Insert a single entity
+#### `insert` — Insert a Single Entity
 
 `Repo#insert` encodes the entity with `DbCodec[E]` and executes `INSERT INTO "<table>" ("<columns>") VALUES (?, …, ?)`, returning the number of affected rows — normally 1 on success.
 
@@ -395,7 +413,7 @@ class Repo[E, ID] {
 }
 ```
 
-Each call uses the pre-built SQL string and binds fresh parameter values from the entity:
+Each call builds the statement from the validated, pre-quoted identifiers and binds fresh parameter values from the entity:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
@@ -410,9 +428,9 @@ given DbCon = ???
 val rowsAffected: Int = repo.insert(User(1, "Alice", "alice@example.com"))
 ```
 
-#### `insertReturning` — Insert and return the inserted entity
+#### `insertReturning` — Insert and Return the Inserted Entity
 
-`Repo#insertReturning` inserts the entity, retrieves the generated primary key via JDBC's `getGeneratedKeys`, and re-fetches the full row by calling `find` with that key. If the driver returns no generated key, it falls back to `find(getId(entity))`.
+`Repo#insertReturning` inserts the entity, retrieves the generated primary key via JDBC's `getGeneratedKeys`, and re-fetches the full row by calling `Repo#find` with that key. If the driver returns no generated key, it falls back to `Repo#find` with `Repo#getId(entity)`.
 
 ```scala
 class Repo[E, ID] {
@@ -440,7 +458,7 @@ val inserted: User = repo.insertReturning(User(0, "Bob", "bob@example.com"))
 `insertReturning` throws `NoSuchElementException` if the inserted row cannot be found after the insert. This can occur when the JDBC driver returns a key whose type does not match what `idCodec` expects. Verify that `idCodec` matches the database column type before relying on auto-generated keys.
 :::
 
-#### `insertBatch` — Batch-insert multiple entities
+#### `insertBatch` — Batch-Insert Multiple Entities
 
 `Repo#insertBatch` inserts a collection of entities using JDBC batch execution (`addBatch` / `executeBatch`). Sending all parameter sets to the driver in a single round-trip is significantly faster than calling `insert` in a loop for large collections. It returns the total number of affected rows across all batched statements.
 
@@ -470,9 +488,9 @@ val users = List(
 val rowsAffected: Int = repo.insertBatch(users)
 ```
 
-`insertBatch` and `insertAll` solve different problems: `insertBatch` uses JDBC's multi-statement batch protocol (one prepared statement, multiple `executeBatch` rounds) and returns a row count; `insertAll` constructs a single multi-row `VALUES (…), (…)` SQL statement (one round-trip) and returns the primary keys in input order. For large collections or when relying on database-generated keys, prefer `insertBatch`. For moderate-sized collections where the caller controls the keys and wants a single SQL statement, prefer `insertAll`.
+`Repo#insertBatch` and `Repo#insertAll` solve different problems: `Repo#insertBatch` uses JDBC's batch protocol (one prepared statement, one `addBatch` call per entity, and a single `executeBatch` call) and returns a row count; `Repo#insertAll` constructs a single multi-row `VALUES (…), (…)` SQL statement (one round-trip) and returns the primary keys in input order. For large collections or when relying on database-generated keys, prefer `insertBatch`. For moderate-sized collections where the caller controls the keys and wants a single SQL statement, prefer `insertAll`.
 
-#### `insertAll` — Multi-row insert returning primary keys
+#### `insertAll` — Multi-Row Insert Returning Primary Keys
 
 `Repo#insertAll` assembles a single `INSERT INTO "<table>" ("<columns>") VALUES (?, …, ?), …, (?, …, ?)` statement covering all rows and executes it in one database round-trip. It then extracts the primary keys from the input entities via `getId` and returns them in input order.
 
@@ -503,10 +521,10 @@ val ids: Seq[Int] = repo.insertAll(newUsers)
 ```
 
 :::caution
-`insertAll` throws `IllegalArgumentException` for an empty `Seq`. Always verify the input is non-empty before calling it, or use `insertBatch`, which accepts empty collections and returns 0 without error.
+`Repo#insertAll` throws `IllegalArgumentException` for an empty `Seq`. Always verify the input is non-empty before calling it, or use `Repo#insertBatch`, which accepts empty collections and returns 0 without error.
 :::
 
-#### `insertOrUpdate` — Insert or update by primary key
+#### `insertOrUpdate` — Insert or Update by Primary Key
 
 `Repo#insertOrUpdate` writes an entity whether or not its row already exists, an operation often called an upsert. It runs `INSERT INTO "<table>" (…) VALUES (…) ON CONFLICT ("<id>") DO UPDATE SET …`: when no row has the entity's ID, it inserts one; when a row exists, it overwrites every non-ID column with the entity's values. It returns the affected row count, normally 1 on both paths.
 
@@ -533,7 +551,7 @@ val updated: Int  = repo.insertOrUpdate(User(1, "Alice Smith", "alice.smith@exam
 ```
 
 :::caution
-`ON CONFLICT` needs a `PRIMARY KEY` or `UNIQUE` constraint on the ID column, and `Table#createTable` doesn't declare one. On a table created with `Table#createTable`, `Repo#insertOrUpdate` fails; SQLite reports `ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint`. The method also throws `IllegalArgumentException` when the table has no columns besides the ID.
+Known bug in 0.0.56: `Table#createTable` declares no `PRIMARY KEY`, so `Repo#insertOrUpdate` fails on a table that `Table#createTable` creates. `ON CONFLICT` needs a `PRIMARY KEY` or `UNIQUE` constraint on the ID column, and SQLite reports `ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint`. The method also throws `IllegalArgumentException` when the table has no columns besides the ID. Until the bug is fixed, create such a table with a hand-written statement, as shown below.
 :::
 
 To use `Repo#insertOrUpdate`, we create the table ourselves and declare the ID column as the primary key:
@@ -546,9 +564,9 @@ given DbCon = ???
 Frag.literal("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL)").update
 ```
 
-#### `insertOrUpdateBatch` — Upsert many entities in one batch
+#### `insertOrUpdateBatch` — Upsert Many Entities in One Batch
 
-`Repo#insertOrUpdateBatch` runs the same `INSERT … ON CONFLICT … DO UPDATE` statement as `Repo#insertOrUpdate` for every entity, using JDBC batch execution like `Repo#insertBatch`. It returns the total affected row count, returns 0 without touching the database when the input is empty, and has the same `PRIMARY KEY` requirement as `Repo#insertOrUpdate`.
+`Repo#insertOrUpdateBatch` runs the same `INSERT … ON CONFLICT … DO UPDATE` statement as `Repo#insertOrUpdate` for every entity, using JDBC batch execution like `Repo#insertBatch`. It returns the total affected row count, returns 0 without touching the database when the input is empty. It has the same `PRIMARY KEY` requirement as `Repo#insertOrUpdate` and likewise throws `IllegalArgumentException` when the table has no columns besides the ID.
 
 ```scala
 class Repo[E, ID] {
@@ -578,7 +596,7 @@ val rowsAffected: Int = repo.insertOrUpdateBatch(
 
 See also the [How to Upsert Rows and Paginate with Keyset Cursors](../../guides/upsert-and-paginate-with-keyset-cursors.md) guide, which covers `Repo#insertOrUpdate`, `Repo#insertOrUpdateBatch`, and choosing which columns an upsert changes.
 
-#### `update` — Update an entity's non-ID columns
+#### `update` — Update an Entity's Non-ID Columns
 
 `Repo#update` executes `UPDATE "<table>" SET "<col1>" = ?, …, "<colN>" = ? WHERE "<idColumn>" = ?` for all non-ID columns of the entity, identifying the target row by its primary key. It returns the number of affected rows — 0 when no row with that ID exists.
 
@@ -604,10 +622,10 @@ val rowsAffected: Int = repo.update(User(1, "Alice Smith", "alice.smith@example.
 ```
 
 :::note
-`update` returns 0 when the entity type has only an ID column and no other updatable fields. In that case the generated `SET` clause would be empty, and `Repo` skips the statement entirely.
+`Repo#update` returns 0 when the entity type has only an ID column and no other updatable fields. In that case the generated `SET` clause would be empty, and `Repo` skips the statement entirely.
 :::
 
-#### `delete` — Delete by primary key
+#### `delete` — Delete by Primary Key
 
 `Repo#delete` executes `DELETE FROM "<table>" WHERE "<idColumn>" = ?`, binding the ID through `idCodec`. It returns the number of deleted rows — 0 if no row with the given ID exists.
 
@@ -632,9 +650,9 @@ given DbCon = ???
 val rowsAffected: Int = repo.delete(42)
 ```
 
-To delete by an entity value rather than a bare ID, extract the key with `getId` first: `repo.delete(repo.getId(user))`.
+To delete by an entity value rather than a bare ID, extract the key with `Repo#getId` first: `repo.delete(repo.getId(user))`.
 
-#### `deleteAll` — Delete rows by a set of primary keys
+#### `deleteAll` — Delete Rows by a Set of Primary Keys
 
 `Repo#deleteAll` executes `DELETE FROM "<table>" WHERE "<idColumn>" IN (...)` for the given IDs in a single round-trip and returns the total number of deleted rows. It returns `0` immediately, without executing any SQL, when `ids` is empty.
 
@@ -644,7 +662,7 @@ class Repo[E, ID] {
 }
 ```
 
-Use it to batch-delete a known set of rows instead of calling `delete` in a loop:
+Use it to batch-delete a known set of rows instead of calling `Repo#delete` in a loop:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
@@ -659,7 +677,7 @@ given DbCon = ???
 val rowsAffected: Int = repo.deleteAll(List(1, 2, 3))
 ```
 
-#### `clear` — Remove all rows
+#### `clear` — Remove All Rows
 
 `Repo#clear` executes `DELETE FROM "<table>"` without a `WHERE` clause and returns the number of deleted rows.
 

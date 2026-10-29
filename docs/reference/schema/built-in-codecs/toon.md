@@ -312,8 +312,13 @@ case class Person(name: String, email: String)
 object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
+```
 
+```scala mdoc:silent
 val codec = Person.schema.derive(ToonFormat)
+```
+
+```scala mdoc
 val person = Person("Alice", "alice@example.com")
 val bytes = codec.encode(person)
 ```
