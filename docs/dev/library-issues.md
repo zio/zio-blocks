@@ -9269,6 +9269,71 @@ The real output on 0.0.56 is `Right(Chunk(30,40,30,40,50,60))`. Running against 
 
 **Suggested fix.** In `setSkip` and `setLimit`, store derived absolute window bounds (start and end positions in bytes), and have `reset()` restore exactly `[windowStart, windowEnd)`, clamped to `originalLimit`. Do it for all four readers, and check the Byte reader. Add a regression test per lane using the reproducer above. No sentinel loop is involved: `reset` isn't a hot path.
 
+### sql: `SqlQuery#where` joins conditions with `AND` without parentheses, so an `OR` condition matches extra rows
+
+Found 2026-10-29 while writing the how-to guide `docs/guides/build-a-query-from-optional-search-filters.md` (backlog H-59, in progress), on `main` at `9d8bb9d70`. The code is the same at tag `v0.0.56`. Verified.
+
+**Summary.** `SqlQuery#where` (and its alias `SqlQuery#filter`) appends a `Frag`, and the renderer joins all conditions with ` AND ` as written. A condition that contains `OR` is not wrapped in parentheses, so SQL precedence (`AND` binds tighter than `OR`) splits it: `.where(a).where(b OR c)` renders `a AND b OR c`, which means `(a AND b) OR c`. The query returns rows that fail the first condition, silently. A second, smaller problem: `.where(Frag.empty)` renders `WHERE ` with nothing after it.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run --server=false WhereOr.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+import zio.blocks.sql.query.*
+
+case class Ticket(id: Long, customer: String, status: String)
+object Ticket { given Schema[Ticket] = Schema.derived }
+
+object WhereOr {
+  def main(args: Array[String]): Unit = {
+    val file    = java.nio.file.Files.createTempFile("where-or", ".db")
+    val tx      = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+    val tickets = Table.derived[Ticket]
+    val repo    = Repo.derived[Ticket, Long]
+    tx.connect {
+      tickets.createTable(SqlDialect.SQLite).update
+      repo.insert(Ticket(1L, "Acme", "open"))
+      repo.insert(Ticket(2L, "Globex", "pending"))
+
+      // Acme's tickets that are open or pending
+      val q = SqlQuery
+        .from(tickets)
+        .where(sql"customer = ${"Acme"}")
+        .where(sql"status = ${"open"} OR status = ${"pending"}")
+      println(q.sql(SqlDialect.SQLite))
+      println(q.toFrag(SqlDialect.SQLite).query[Ticket])
+
+      // An empty Frag as a filter
+      val e = SqlQuery.from(tickets).where(Frag.empty)
+      println(e.sql(SqlDialect.SQLite))
+      try println(e.toFrag(SqlDialect.SQLite).query[Ticket])
+      catch { case ex: Exception => println(s"${ex.getClass.getSimpleName}: ${ex.getMessage}") }
+    }
+    java.nio.file.Files.delete(file)
+  }
+}
+// SELECT t0."id", t0."customer", t0."status" FROM "ticket" AS t0 WHERE customer = ? AND status = ? OR status = ?
+// List(Ticket(1,Acme,open), Ticket(2,Globex,pending))
+// SELECT t0."id", t0."customer", t0."status" FROM "ticket" AS t0 WHERE 
+// SQLiteException: [SQLITE_ERROR] SQL error or missing database (incomplete input)
+```
+
+**Expected.** `... WHERE (customer = ?) AND (status = ? OR status = ?)`, returning only `Ticket(1,Acme,open)`. An empty condition (`Frag#isEmpty`) is dropped instead of rendering `WHERE ` with nothing after it.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/query/QueryRenderer.scala:65-66`: `query.filters.reduce((a, b) => a ++ Frag.literal(" AND ") ++ b)` concatenates the conditions without parentheses, and the `filters.nonEmpty` check doesn't skip empty fragments. `SqlQuery.scala:132-135` appends any `Frag` as given.
+
+**Impact.** Silent wrong results, and a data leak when the first condition is a tenant or owner check (e.g. `.where(owner = me).where(public OR shared)`). The reference page (`reference/sql/sql-query.md`, "Filtering Rows") says only that conditions "are combined with `AND`". Any search screen that folds optional filters into `SqlQuery#where` hits it as soon as one filter has an `OR`.
+
+**Test gap.** `QueryRenderSpec.scala:150` ("multiple filters combined with AND") uses two single-comparison filters; no test has an `OR` inside a filter or an empty filter.
+
+**Suggested fix.** Render each condition as `(` ++ frag ++ `)` when there are two or more (or always), and skip `frag.isEmpty` in `filter`/`where` or at render time. Update the `QueryRenderSpec` expected strings and add the `OR` and empty-filter cases. Until then, the reference page should tell readers to parenthesize an `OR` condition themselves (H-59 does, calling it "a known bug in 0.0.56").
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
