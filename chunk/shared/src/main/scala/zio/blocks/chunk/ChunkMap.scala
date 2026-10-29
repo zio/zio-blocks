@@ -20,24 +20,31 @@ import scala.collection.immutable.{AbstractMap, MapOps, StrictOptimizedMapOps}
 import scala.collection.{IterableOnce, MapFactory, mutable}
 
 /**
- * An order-preserving immutable map backed by `Chunk`. Keys and values are
- * stored in parallel `Chunk`s, maintaining insertion order.
+ * A `ChunkMap[K, V]` is an immutable map that keeps its entries in insertion
+ * order, stored as a chunk of keys and a parallel chunk of values. Use it for
+ * small maps whose order matters, such as the fields of a record, or when you
+ * need to read entries by position.
  *
- * This map is optimized for small collections where ordering matters. For
- * larger collections requiring frequent lookups, consider using `indexed` to
- * create an optimized version with O(1) key lookup (at the cost of additional
- * memory).
+ * Looking up a key scans the keys, so it takes time proportional to the size of
+ * the map; for frequent lookups in a larger map, `indexed` adds a hash index.
+ * Reading by position (`atIndex`, `keyAtIndex`, `valueAtIndex`) reads the
+ * chunks directly. Equality ignores order, as for other Scala maps: a
+ * `ChunkMap` equals any `scala.collection.Map` with the same entries. Its
+ * `hashCode` differs from that of a standard `Map` with the same entries (a
+ * known bug), so do not mix the two as keys of one hash-based collection.
  *
- * Key characteristics:
- *   - Preserves insertion order during iteration
- *   - O(n) key lookup by default
- *   - O(1) indexed access by position
- *   - Equality is order-independent (like standard Map)
+ * {{{
+ * val years = ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008)
+ * years.get("Zionomicon") // Some(2021)
+ * years.keyAtIndex(1)     // Programming in Scala
+ * }}}
  *
  * @tparam K
  *   The key type
  * @tparam V
  *   The value type
+ * @see
+ *   [[https://zioblocks.com/reference/chunk/#chunkmap ChunkMap]]
  */
 final class ChunkMap[K, +V] private (
   private val _keys: Chunk[K],
@@ -63,7 +70,13 @@ final class ChunkMap[K, +V] private (
   override def isEmpty: Boolean = _keys.isEmpty
 
   /**
-   * Retrieves the value associated with the specified key, if it exists.
+   * Returns the value for `key`, or `None` when the map has no such key. It
+   * scans the keys in order and compares them with `==`; use `indexed` for
+   * faster lookups in a large map.
+   *
+   * {{{
+   * ChunkMap("Zionomicon" -> 2021).get("Zionomicon") // Some(2021)
+   * }}}
    */
   override def get(key: K): Option[V] = {
     val len = _keys.length
@@ -224,23 +237,45 @@ final class ChunkMap[K, +V] private (
   def valuesChunk: Chunk[V] = _values
 
   /**
-   * Retrieves the key-value pair at the specified index in the map.
+   * Retrieves the key-value pair at the specified index in the map, counting
+   * entries in insertion order from 0. An out-of-range `idx` usually throws an
+   * `IndexOutOfBoundsException`, but on a map returned by `removed` it can
+   * return a removed entry instead (a known bug).
    */
   def atIndex(idx: Int): (K, V) = (_keys(idx), _values(idx))
 
   /**
-   * Retrieves the key at the specified index in the internal key collection.
+   * Returns the key at position `idx`, counting entries in insertion order from 0.
+   * An out-of-range `idx` usually throws an `IndexOutOfBoundsException`, but on
+   * a map returned by `removed` it can return a removed entry instead (a known
+   * bug).
+   *
+   * {{{
+   * val years = ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008)
+   * years.keyAtIndex(1) // Programming in Scala
+   * }}}
    */
   def keyAtIndex(idx: Int): K = _keys(idx)
 
   /**
-   * Retrieves the value at the specified index in the internal key collection.
+   * Retrieves the value at the specified index in the map, counting entries in
+   * insertion order from 0. An out-of-range `idx` usually throws an
+   * `IndexOutOfBoundsException`, but on a map returned by `removed` it can
+   * return a removed entry instead (a known bug).
    */
   def valueAtIndex(idx: Int): V = _values(idx)
 
   /**
-   * Provides an indexed view of the `ChunkMap`, enabling efficient access to
-   * key-value pairs based on their internal storage order.
+   * Returns this map with a hash index on its keys, so `get` and `contains`
+   * take constant time on average instead of scanning the keys. Building the
+   * index takes time and memory proportional to the size of the map, so keep
+   * the result and reuse it. `updated` and `removed` on the result return a
+   * plain `ChunkMap`, without the index.
+   *
+   * {{{
+   * val index = ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008).indexed
+   * index.get("Programming in Scala") // Some(2008)
+   * }}}
    */
   def indexed: ChunkMap.Indexed[K, V] = new ChunkMap.Indexed(this)
 
@@ -331,13 +366,9 @@ final class ChunkMap[K, +V] private (
   }
 
   /**
-   * Compares this ChunkMap with another object for equality.\
-   *
-   * The equality check ensures that:
-   *   - Both objects are of compatible types.
-   *   - Their sizes are equal.
-   *   - Each key-value pair in this map has a corresponding key-value pair in
-   *     the other map.
+   * Returns `true` when `that` is a `ChunkMap` or another
+   * `scala.collection.Map` with the same size and the same value for every key.
+   * The order of the entries does not matter.
    */
   override def equals(that: Any): Boolean = that match {
     case m: ChunkMap[_, _] =>
@@ -381,7 +412,9 @@ final class ChunkMap[K, +V] private (
    * The hash code is generated using the MurmurHash3 algorithm, which computes
    * an unordered hash of the object based on its contents and a predefined hash
    * seed. This implementation ensures that equivalent ChunkMap instances
-   * produce the same hash code.
+   * produce the same hash code. It differs from the hash code of a standard
+   * `Map` with the same entries, although `equals` reports the two as equal (a
+   * known bug).
    */
   override def hashCode(): Int = scala.util.hashing.MurmurHash3.unorderedHash(this, "ChunkMap".hashCode)
 
@@ -391,6 +424,11 @@ final class ChunkMap[K, +V] private (
   override def toString(): String = mkString("ChunkMap(", ", ", ")")
 }
 
+/**
+ * Creates `ChunkMap` values: `apply` and `from` from key-value pairs,
+ * `fromChunk` from a chunk of pairs, `fromChunks` from parallel chunks of keys
+ * and values, and `newBuilder` for adding one entry at a time.
+ */
 object ChunkMap extends MapFactory[ChunkMap] {
   private[this] val _empty: ChunkMap[Nothing, Nothing] = new ChunkMap(Chunk.empty, Chunk.empty)
 
@@ -409,7 +447,15 @@ object ChunkMap extends MapFactory[ChunkMap] {
   }
 
   /**
-   * Constructs a `ChunkMap` from a sequence of key-value pairs.
+   * Returns a `ChunkMap` with the given entries, in order. When a key appears
+   * more than once, the map keeps its last value at the position of its first
+   * occurrence.
+   *
+   * {{{
+   * val years =
+   *   ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008, "Zionomicon" -> 2024)
+   * years.toList // List((Zionomicon,2024), (Programming in Scala,2008))
+   * }}}
    */
   override def apply[K, V](elems: (K, V)*): ChunkMap[K, V] = from(elems)
 
@@ -417,6 +463,10 @@ object ChunkMap extends MapFactory[ChunkMap] {
    * Creates a ChunkMap from a Chunk of key-value pairs, handling duplicate keys
    * by keeping the last value for each key (preserving the position of the
    * first occurrence).
+   *
+   * {{{
+   * ChunkMap.fromChunk(Chunk("Zionomicon" -> 2021, "Zionomicon" -> 2024)) // ChunkMap(Zionomicon -> 2024)
+   * }}}
    */
   def fromChunk[K, V](chunk: Chunk[(K, V)]): ChunkMap[K, V] = from(chunk)
 
@@ -467,8 +517,8 @@ object ChunkMap extends MapFactory[ChunkMap] {
    *   - `knownSize`: Returns the current size of the map being built.
    *   - `result`: Finalizes the construction and produces an immutable
    *     `ChunkMap` instance.
-   *   - `sizeHint`: Provides a size hint to optimize internal storage for a
-   *     specified number of elements.
+   *   - `sizeHint`: meant to reserve room for a number of entries; see its own
+   *     comment for a known bug.
    */
   final class ChunkMapBuilder[K, V](initCapacity: Int = 4) extends mutable.Builder[(K, V), ChunkMap[K, V]] {
     private[this] val seen: java.util.HashMap[K, Int] = new java.util.HashMap(initCapacity << 1, 0.5f)
@@ -532,8 +582,10 @@ object ChunkMap extends MapFactory[ChunkMap] {
     )
 
     /**
-     * Adjusts the internal storage size to accommodate the specified hint, if
-     * necessary.
+     * Meant to grow the internal storage to hold `hint` entries. When `hint`
+     * exceeds the current capacity, it instead shrinks the storage to the
+     * current number of entries (a known bug); no entry is lost, but the next
+     * `add` has to grow the storage again.
      */
     override def sizeHint(hint: Int): Unit = if (hint > keysBuffer.length) {
       keysBuffer = java.util.Arrays.copyOf(keysBuffer, size)
@@ -606,7 +658,7 @@ object ChunkMap extends MapFactory[ChunkMap] {
      *
      * If the key already exists in the map, its value is replaced with the new
      * one. If the key does not exist, it is added to the map with the specified
-     * value.
+     * value. The result is a plain `ChunkMap`, without the index.
      */
     override def updated[V1 >: V](key: K, value: V1): Map[K, V1] = underlying.updated(key, value)
 
@@ -614,8 +666,9 @@ object ChunkMap extends MapFactory[ChunkMap] {
      * Removes the mapping for a specified key from the map if it exists.
      *
      * If the key is found, it is removed along with its associated value.
-     * Returns a new map reflecting the removal. If the key is not found, the
-     * current map is returned unchanged.
+     * Returns a new map reflecting the removal: a plain `ChunkMap`, without the
+     * index. If the key is not found, the underlying `ChunkMap` is returned
+     * unchanged.
      */
     override def removed(key: K): Map[K, V] = underlying.removed(key)
 
