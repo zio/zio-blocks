@@ -569,6 +569,7 @@ const sidebars = {
           items: [
             "guides/customize-json-encoding",
             "guides/override-codec-for-one-type",
+            "guides/write-a-codec-for-a-new-wire-format",
             "guides/json-without-case-classes",
             "guides/read-and-write-yaml",
             "guides/read-and-write-csv-and-tsv-files",
