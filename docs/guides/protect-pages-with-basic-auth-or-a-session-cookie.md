@@ -11,7 +11,7 @@ keywords:
   - "WWW-Authenticate"
 ---
 
-In this guide, we protect the staff pages of a small coffee roastery's web shop so that only staff can read the open orders. We do it in the two ways most web applications use: HTTP Basic authentication, where the browser asks for a username and password and sends them with every request, and a login form that sets a session cookie. By the end, you will have a server that sends people to a sign-in page, keeps them signed in with an `HttpOnly` cookie, signs them out on request, and still lets scripts download the orders with Basic credentials.
+In this guide, we protect the staff pages of a small coffee roastery's web shop so that only staff can read the open orders. We do it in the two ways most web applications use: HTTP Basic authentication, where the browser asks for a username and password and sends them with its later requests to the protected area, and a login form that sets a session cookie. By the end, you will have a server that sends people to a sign-in page, keeps them signed in with an `HttpOnly` cookie, signs them out on request, and still lets scripts download the orders with Basic credentials.
 
 We start from pages with no protection at all and add one piece at a time:
 
@@ -368,7 +368,7 @@ Each check takes a noticeable fraction of a second on purpose: that cost is what
 
 ## Reading Basic Credentials
 
-With HTTP Basic authentication, the client sends `Authorization: Basic <credentials>` on every request, where `<credentials>` is `username:password` in Base64. The HTTP model already decodes it: `Request#header(Header.Authorization)` returns a `Header.Authorization.Basic` with the username and the password, split at the first colon, so a password may contain colons. We only need to pick that case:
+With HTTP Basic authentication, the client sends `Authorization: Basic <credentials>` with its requests to the protected area, where `<credentials>` is `username:password` in Base64. The HTTP model already decodes it: `Request#header(Header.Authorization)` returns a `Header.Authorization.Basic` with the username and the password, split at the first colon, so a password may contain colons. We only need to pick that case:
 
 ```scala mdoc:silent
 def basicCredentials(request: Request): Option[Header.Authorization.Basic] =
@@ -667,7 +667,7 @@ JdkHttp.withServer(pagesApp) { port =>
 }
 ```
 
-Only the id from the login opens the page. A made-up id finds no session, so the cookie cannot be guessed or forged.
+Only the id from the login opens the page. A made-up id finds no session, so a client cannot invent a working cookie.
 
 ## Logging Out
 
@@ -724,7 +724,7 @@ The code in this guide checks credentials; it is not a complete security setup. 
 
 - **Use HTTPS.** Basic credentials and session ids work for whoever holds them, and over plain HTTP anyone on the network path can copy them. The loopback server in this guide is for examples only.
 - **No rate limiting.** Nothing stops a client from trying thousands of passwords. Limit failed logins per account and per address.
-- **One server, in memory.** The session store lives in one JVM: a restart signs everyone out, and two instances behind a load balancer do not share sessions. Use a shared store in that case.
+- **One server, in memory.** The session store lives in one JVM: a restart signs everyone out, and two instances behind a load balancer do not share sessions. Use a shared store in that case. `Sessions.find` removes an expired session only when its id comes back, so also purge expired sessions on a timer.
 - **Cross-site requests.** A malicious site can make the user's browser send a request to this site, and the browser attaches the cookie: cross-site request forgery (CSRF). `SameSite=Lax` keeps the cookie off cross-site `POST` requests in current browsers, which protects the form routes. It still sends the cookie on cross-site links, so never change data in a `GET` route. For older browsers, add a CSRF token to every form: a random value the server puts in the form and checks on submit, which another site cannot read.
 - **Caching.** A shared cache could store a private page. Add `Cache-Control: no-store` to responses that show private data.
 
@@ -735,7 +735,7 @@ The complete example serves the whole roastery on port 8080 until you stop it wi
 ```scala mdoc:embed:http-model-examples/src/main/scala/protectpageswithbasicauthorasessioncookie/CompleteExample.scala
 ```
 
-While it runs, open `http://localhost:8080/admin` in a browser to be sent to the sign-in page, or call it with `curl`. `curl` does not store cookies unless you give it a cookie jar, so the session cookie is passed by hand with `-b`. One run, with the `Date` headers removed, is in the block below.
+While it runs, open `http://localhost:8080/admin` in a browser to be sent to the sign-in page, or call it with `curl`. `curl` does not store cookies unless you give it a cookie jar, so the session cookie is passed by hand with `-b`. One run, with the `Date` headers removed, is in the block below:
 
 <details>
   <summary>A <code>curl</code> session against the complete example</summary>
