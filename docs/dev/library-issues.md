@@ -12915,6 +12915,64 @@ A `Set("open", "pending")` gives the same `IN (?)` and `DbString(["open","pendin
 
 **Suggested fix.** In `SqlMacros.buildArgFrags`, reject arguments whose type is a collection (`<: Iterable[?]` or `Array[?]` other than `Array[Byte]`) with a compile error that points to building an `IN` list, or expand them to one placeholder per element. At least, say on `reference/sql/frag.md` that collections bind as JSON. Also consider making `DbCodec.derived` not a `given` for `DbParam` lookup (or lower its priority), so only explicit codecs feed `fromDbCodec`.
 
+### schema (Scala 3): `Schema[<base>]` inside an opaque type's companion summons the companion's own instance (StackOverflowError or a hang)
+
+Found 2026-10-29 while writing guide H-58 (`docs/guides/use-iron-refined-types-and-typed-ids.md`, branch `iron-refined-types` on top of `9d8bb9d70`). This is Scala implicit resolution, not ZIO Blocks code, so it is the same at v0.0.56 and on main. Verified with `scala-cli run --server=false Repro.scala` on Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56) and 3.3.7 (`zio-blocks-schema` 0.0.56).
+
+**Summary.** Inside the scope that defines `opaque type Id[+A] = Long`, `Id[A]` and `Long` are the same type. So `implicit def schema[A]: Schema[Id[A]] = Schema[Long].transform(...)` in the companion resolves `Schema[Long]` to that `schema` itself. The lexical candidate wins over `Schema.long` in `Schema`'s companion. The compiler emits only a warning, `Infinite loop in function body`, and at runtime the first use throws `StackOverflowError`. A non-parameterized `given Schema[Isbn] = Schema[String].transform(...)` (a lazy val) hangs forever on Scala 3.3.7 instead (see the docs-issues entry "validated-newtypes.md: the "Use Scala 3 Opaque Types" example hangs on Scala 3.3"). Observed by version:
+- `implicit def`: loops on 3.3.7 and 3.9.0.
+- `given`: loops or hangs on 3.3.7, and is fine on 3.7.4, 3.8.3 and 3.9.0, where a given is apparently no longer a candidate inside its own right-hand side.
+- 3.4 to 3.6: not tested.
+
+**Reproducer** (`Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+object ids:
+  opaque type Id[+A] = Long
+  object Id:
+    def apply[A](value: Long): Id[A] = value
+    extension [A](id: Id[A]) def value: Long = id
+    // Inside this scope Id[A] =:= Long, so `Schema[Long]` summons this given itself.
+    implicit def schema[A]: Schema[Id[A]] = Schema[Long].transform(Id[A](_), _.value)
+import ids.*
+
+final case class Customer(id: Id[Customer], name: String) derives Schema
+
+@main def run(): Unit =
+  println(Schema[Customer].jsonCodec.encodeToString(Customer(Id(1L), "Ada")))
+// -- Warning: ./Repro.scala:14:44
+// 14 |    implicit def schema[A]: Schema[Id[A]] = Schema[Long].transform(Id[A](_), _.value)
+//    |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//    |Infinite loop in function body
+//    |zio.blocks.schema.Schema.apply[Long](ids.Id.schema²[Any]).transform[Long](
+// Exception in thread "main" java.lang.StackOverflowError
+// 	at ids$Id$.schema(Repro.scala:14)
+// 	at ids$Id$.schema(Repro.scala:14)
+```
+
+The same file on `//> using scala 3.3.7` with `dev.zio::zio-blocks-schema:0.0.56` (no `-experimental`) prints the same warning and the same `StackOverflowError`. With `given schema[A]: Schema[Id[A]] = ...` instead of `implicit def`, 3.9.0 prints `{"id":1,"name":"Ada"}`, while 3.3.7 warns `Infinite loop in function body` and loops.
+
+**Expected.** Either `Schema[Long]` resolves to `Schema.long`, or it fails to compile. A warning plus a runtime StackOverflowError or hang is a trap.
+
+**Root cause.** This is Scala implicit scoping, not ZIO Blocks code. An opaque alias is transparent in its defining scope, so the companion's instance is an eligible, lexically closer candidate for the base type's `Schema`. `Schema.apply[A](implicit schema: Schema[A])` (`schema/shared/src/main/scala/zio/blocks/schema/Schema.scala`) just summons. Since Scala 3.7 (observed), a `given` is excluded from its own right-hand side, but `implicit def` and `implicit val` are not.
+
+**Impact.** The natural way to write a typed ID or an opaque newtype's schema (`Schema[<base>].transform` in the companion, the shape the docs teach) compiles and then crashes or hangs at first use. Repo convention favours `implicit def`/`implicit val` (Scala 2 style), which loops on every Scala 3 version. Pages with the pattern:
+- `docs/guides/validated-newtypes.md:362` (`given Schema[Isbn] = Schema[String].transform(...)` inside `object catalog`) hangs on 3.3.7 (docs-issues entry). Its companion, `schema-examples/src/main/scala/validatednewtypes/OpaqueTypesExample.scala:27`, has the same code, but the build pins 3.9.0, so CI is green.
+- `docs/guides/use-iron-refined-types-and-typed-ids.md` uses `Schema.long` and warns about the trap.
+
+A grep of `docs/` for opaque types with a `Schema[...]` in the companion found no other page with the pattern (`map-custom-column-types.md`'s `BookId` has no Schema in the companion; `structural-types.md:163` and `reflect.md:297` have no companion instance).
+
+**Test gap.** No docs example or test compiles the opaque-companion pattern on Scala 3.3–3.6. mdoc and schema-examples run only on 3.9.0.
+
+**Suggested fix.** Docs only. In every opaque-type companion, build the base schema with the named instance (`Schema.long`, `Schema.string`, `Schema.int`, ...) instead of `Schema[<base>]`, or define the instance outside the opaque scope. Add one sentence explaining why to the "Use Scala 3 Opaque Types" sections. A library-side lint is out of reach, because the compiler resolves the implicit before ZIO Blocks code runs.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
