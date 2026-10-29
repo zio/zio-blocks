@@ -147,8 +147,8 @@ object StreamResourceExample extends App {
 }
 
 object X extends App {
-  import zio.blocks.streams.*
-  import java.io.*
+  import zio.blocks.streams._
+  import java.io._
 
   val charCount: Either[IOException, Long] =
     Stream

@@ -1,6 +1,6 @@
 package pipeline
 
-import zio.blocks.streams.*
+import zio.blocks.streams._
 import zio.sbt.ExprEval.show
 
 object PipelineSinkIntegrationExample extends App {
