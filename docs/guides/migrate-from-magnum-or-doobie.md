@@ -497,7 +497,7 @@ transactor.connect {
 }
 ```
 
-`Fragment.const` becomes `SqlLiteral`, shown in [The sql Interpolator](#the-sql-interpolator). There is no counterpart to `Fragments.in`: for ID lists, use `Repo#findAll(ids)` and `Repo#deleteAll(ids)`, which render the `IN (...)` list for you.
+`Fragment.const` becomes `SqlLiteral`, shown in [The sql Interpolator](#the-sql-interpolator). There is no counterpart to `Fragments.in`: for ID lists, use `Repo#findAll(ids)` and `Repo#deleteAll(ids)`, which render the `IN (...)` list for you. For a whole search form's `WHERE` clause, with an `IN (...)` list of strings, a `LIKE` pattern and paging, see [How to Build a Query from Optional Search Filters](./build-a-query-from-optional-search-filters.md).
 
 ### Query Results
 
