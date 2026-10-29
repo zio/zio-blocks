@@ -36,6 +36,18 @@ Found 2026-10-29 (PR #1897's session), on `main` at `fa76f487f`. `streams-exampl
 
 **Suggested fix.** Until the library is fixed, reword the comment to say section 6 shows a known bug in 0.0.56 and on `main`, and drop the dangling test reference. Once the library bug is fixed, restore the wording.
 
+### reference/http-model/model.md: the cookie sections use ZIO's `Chunk` and misdescribe `SameSite`
+
+Found 2026-10-29 while writing H-57 (`docs/guides/protect-pages-with-basic-auth-or-a-session-cookie.md`), on `main` `9d8bb9d70`.
+
+**Summary.** Three errors in `docs/reference/http-model/model.md`:
+
+1. "Sending Cookies" (`model.md:926`, `mdoc:compile-only`) builds `zio.Chunk(RequestCookie(...), ...)`. That is ZIO's `Chunk`, not `zio.blocks.chunk.Chunk`; it compiles only because `sql-zio` puts ZIO on the docs classpath. A reader without ZIO gets "value Chunk is not a member of zio". The block also ends with a comment "Render as Cookie header value (see Header operations)" and never renders it (`Cookie.renderRequest(cookies)` or `Request#addCookie` does).
+2. "SameSite Attribute" (`model.md:992`) says `SameSite.Strict` is the "default". The default is no attribute: `ResponseCookie.sameSite` defaults to `None` (`http-model/shared/src/main/scala/zio/http/Cookie.scala:44`), and browsers then apply their own default (Lax in Chrome).
+3. The same block says `SameSite.Lax` allows "Top-level navigations allowed (links, forms)". Lax sends the cookie on cross-site top-level `GET` navigations (links), not on cross-site form `POST`s; that is the protection Lax gives.
+
+**Suggested fix.** `zio.blocks.chunk.Chunk(...)` plus `Cookie.renderRequest(cookies)`; "(no attribute by default; Strict is the safest)"; "cross-site links (top-level GET) only, not cross-site form posts".
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
@@ -121,6 +133,8 @@ Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md
 
 **Suggested fix.** Change `minor >= 10` to `minor >= 9` in that helper, as the one-line fix in the T-10 branches does.
 
+**Update (2026-10-29, H-57).** The comparison no longer holds: on `main` `9d8bb9d70`, `http-model-examples/build.sbt:23` also reads `minor >= 10`, the same rule as htmx. On Scala 3.9.0 both resolve the plain `zio-blocks-*_3:0.0.56` artifacts, which compile and run (the H-57 examples do), so nothing is broken today. The real gap is the docs-wide install-rule pass planned for the next release (see backlog, "Install-rule pass after the next release").
+
 ### streams-examples does not compile on Scala 2.13: `NioBinaryTelemetryWalkthrough.scala` uses `import zio.blocks.streams.*`
 
 **Status (2026-10-29).** Fixed in #1897 (merged 2026-10-29). The scope was 18 files with `import x.*`, plus 12 Scala 3-only files that `build.sbt` now skips on Scala 2.x: 11 call zio-sbt-source 0.8.6 `ExprEval.show`, whose macro expands on 2.13 to the `private[sbt]` `SourceReader.commentsAbove` ("cannot be accessed"); `MixedFeedAuditWalkthrough` uses union types. The files stay in place because docs embed them by path.
@@ -171,6 +185,62 @@ Found 2026-10-29 by the `streams-examples-213` session (PR #1897), which ran `sb
 **Impact.** Scala 2.13 users who copy these examples get compile errors, and sessions can't follow the AGENTS.md 2.13 check for these builds.
 
 **Suggested fix.** One PR per build, done the way #1897 did it: `._` imports, `implicit` instead of `given`, `implicitly` instead of `summon`, and skipping genuinely Scala 3-only files on 2.x. Look at the telemetry `GlobalLogState` and async `Completer` errors separately: they may be real 2.13 API gaps, not syntax. Then consider adding a 2.13 compile step for the supporting example builds to CI (needs Milad's approval).
+
+### JdkHttp adapter: an `Error` in a handler (e.g. `ExceptionInInitializerError`, `UnsupportedClassVersionError`) closes the connection with no response and no log line
+
+Found 2026-10-29 while writing H-57 (`docs/guides/protect-pages-with-basic-auth-or-a-session-cookie.md`), on `main` `9d8bb9d70`, when the H-57 examples were run on JDK 17. The adapter is the same in every copy listed below.
+
+**Summary.** `JdkHttp.handler` catches only `NonFatal` throwables. `scala.util.control.NonFatal` excludes `LinkageError` (and `VirtualMachineError`, `InterruptedException`, `ControlThrowable`), so an `ExceptionInInitializerError` from an `object` whose initializer throws, a `NoClassDefFoundError`, or an `UnsupportedClassVersionError` (the http-model 0.0.56 jars on JDK 17) escapes the handler. The `finally` closes the exchange, the JDK server swallows the error, and the client sees only `java.io.IOException: HTTP/1.1 header parser received no bytes`. Nothing is printed on the server, so the reader has no hint of the cause. The server keeps serving other requests.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56, JDK 21). Copy the adapter next to the script and change its package: `sed '1s/.*/package repro/' http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala > JdkHttp.scala`, then save as `Repro.scala` and run `scala-cli run --server=false .`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+//> using options -experimental
+//> using jvm 21
+//> using file JdkHttp.scala
+package repro
+
+import java.net.URI
+import java.net.http.{HttpClient, HttpRequest, HttpResponse}
+import java.time.Duration
+import scala.util.Try
+import zio.http._
+
+object Prices {
+  val table: Map[String, Int] = sys.error("prices.csv is missing") // fails on first use
+}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val app: Request => Response = request =>
+      if (request.path.encode == "/price") Response.text(Prices.table("espresso").toString)
+      else Response.text("ok")
+    val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build()
+    JdkHttp.withServer(app) { port =>
+      def get(path: String): Unit = {
+        val request = HttpRequest.newBuilder(URI.create(s"http://127.0.0.1:$port$path")).timeout(Duration.ofSeconds(3)).build()
+        println(s"GET $path -> " + Try(client.send(request, HttpResponse.BodyHandlers.ofString())).map(r => s"${r.statusCode} ${r.body}"))
+      }
+      get("/price")
+      get("/health")
+    }
+  }
+}
+// GET /price -> Failure(java.io.IOException: HTTP/1.1 header parser received no bytes)
+// GET /health -> Success(200 ok)
+```
+
+Nothing else is printed: no "Handler failed" line, no stack trace. The same happens with the H-57 `Step3UnprotectedAdminExample` under `sbt --java-home ~/.jdks/ms-17.0.15 "runMain ..."`, where the real cause is `java.lang.UnsupportedClassVersionError: zio/blocks/streams/Stream$ has been compiled by a more recent version of the Java Runtime (class file version 65.0), this version of the Java Runtime only recognizes class file versions up to 61.0` (seen only with a direct `scala-cli run --jvm 17` probe).
+
+**Expected.** The adapter logs the error (`Handler failed: java.lang.ExceptionInInitializerError ...`) and answers `500 Internal Server Error`, as it does for an exception.
+
+**Root cause.** `http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala:79` (`case NonFatal(error) =>` around `app(request)`) and `:85` (around `writeResponse`); `:92` `finally exchange.close()` then closes the exchange with no response.
+
+**Impact.** Every copy of the adapter: `http-model-examples/.../servehttpmodelrequests/JdkHttp.scala`, `.../validatequeryparametersandheaders/JdkHttp.scala`, `.../protectpageswithbasicauthorasessioncookie/JdkHttp.scala` (H-57), `jwt-examples/.../protectendpointswithjwt/JdkHttp.scala`, `capstone-examples/.../smalljsonbackendfromblocks/JdkHttp.scala`, `zio-blocks-htmx-examples/.../returnhtmxfragments/JdkHttp.scala` and `.../addinteractivitywithhtmx/JdkHttp.scala`, `datastar-examples/.../buildalivedashboardwithdatastar/JdkHttp.scala`; the inline `mdoc:invisible` copies in `serve-http-model-requests.md`, `validate-query-parameters-and-headers.md`, `protect-endpoints-with-jwt.md`, `small-json-backend-from-blocks.md` and H-57; probably the two `StreamingJdkHttp.scala` copies too (not checked). A reader who runs an example on JDK 17, or whose handler hits a failing initializer, gets a client-side I/O error and no clue.
+
+**Suggested fix.** At the handler boundary, catch `Throwable` except `VirtualMachineError` and `InterruptedException` (e.g. `case error: LinkageError =>` added next to `NonFatal`), log it, and answer 500 when no headers have been sent. Change the serving guide's copy and its prose first, then every copy and inline block above in one sweep. H-57 keeps the adapter identical to the serving guide's copy and does not change it.
 
 ## Resolved
 

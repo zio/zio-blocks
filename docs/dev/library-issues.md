@@ -9334,6 +9334,95 @@ object WhereOr {
 
 **Suggested fix.** Render each condition as `(` ++ frag ++ `)` when there are two or more (or always), and skip `frag.isEmpty` in `filter`/`where` or at render time. Update the `QueryRenderSpec` expected strings and add the `OR` and empty-filter cases. Until then, the reference page should tell readers to parenthesize an `OR` condition themselves (H-59 does, calling it "a known bug in 0.0.56").
 
+### http-model: `Request#cookies` reads only the first `Cookie` header
+
+Found 2026-10-29 while writing H-57 (`docs/guides/protect-pages-with-basic-auth-or-a-session-cookie.md`), on `main` `9d8bb9d70`. Same at tag `v0.0.56`. Verified with the reproduction below (`scala-cli run --server=false Repro.sc`, published `0.0.56`).
+
+**Summary.** `Request#cookies` parses only the first `Cookie` header. HTTP/1.1 user agents send one `Cookie` header (RFC 6265 §5.4), but HTTP/2 and HTTP/3 let a client split the cookies into several `cookie` fields (RFC 9113 §8.2.3), and a server adapter that copies each field into `Headers` with `add` produces a `Request` whose later cookies are invisible to `Request#cookies`. A session cookie in the second field reads as "not signed in".
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), file `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+//> using options -experimental
+//> using jvm 21
+import zio.http._
+
+val url   = URL.parse("/admin").toOption.get
+val split = Request.get(url).addHeader("cookie", "theme=dark").addHeader("cookie", "session=abc")
+println(split.headers.rawGetAll("cookie"))
+println(split.cookies)
+println(split.addCookie(RequestCookie("lang", "en")).headers.rawGetAll("cookie"))
+// Chunk(theme=dark,session=abc)
+// Chunk(RequestCookie(theme,dark))
+// Chunk(theme=dark; lang=en)
+```
+
+**Expected.** `Chunk(RequestCookie(theme,dark), RequestCookie(session,abc))`: every `Cookie` field is parsed, in order, as RFC 9113 §8.2.3 says a receiver concatenates them with `"; "`.
+
+**Root cause.** `def cookies = header(Header.CookieHeader).map(header => Cookie.parseRequest(header.value)).getOrElse(Chunk.empty)` (`http-model/shared/src/main/scala/zio/http/Request.scala:52-53`); `Headers#get` returns the first parseable match only (`Headers.scala:52-72`). `Request#addCookie` (`Request.scala:58-61`) has the same blind spot: it re-renders only the first header's cookies plus the new one and `setHeader`s the result, dropping the others.
+
+**Impact.** Low for HTTP/1.1 adapters such as the JDK server one in the guides; real for any HTTP/2 front end that passes split `cookie` fields through.
+
+**Test gap.** `RequestSpec` "cookies" (`RequestSpec.scala:239-248`) covers one header and no header only.
+
+**Suggested fix.** Use `headers.rawGetAll("cookie")` and parse each value (or join them with `"; "`) in `Request#cookies` and `Request#addCookie`.
+
+### schema (Scala 3): a case-class field whose opaque type's right-hand side is a type parameter (Iron's `Int :| Positive`) decodes as `0`, encodes as `0`, and breaks `DynamicValue` round trips
+
+Found 2026-10-29 while checking Iron 3.4.1's `iron-zio-blocks-schema` against zio-blocks 0.0.56 for guide H-58 (branch `iron-refined-types`, on top of `9d8bb9d70`). It is the same at tag `v0.0.56` and on main `9d8bb9d70`. On main it was verified by running the reproducer's body in a scratch mdoc page through `docs/mdoc` (same three output lines). At `v0.0.51` the output is correct. The reproducer below was run with `scala-cli run --server=false Repro.scala` on Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56) and Scala 3.3.7 (`zio-blocks-schema` 0.0.56), with identical output. It is Scala 3 only, because Scala 2 has no opaque types.
+
+**Summary.** Take an opaque type whose right-hand side is one of its own type parameters, such as `opaque type Tagged[A, T] = A`, or Iron's `opaque type IronType[A, C] <: A = A` behind `Int :| Positive`. Use it with a primitive argument (`Int`, `Long`, `Double`, `Float`, `Boolean`, `Byte`, `Short`, `Char`) as a case-class field. The derived record then stores and reads the field in different register kinds. JSON decoding returns `0` for a valid value, and a constraint check written in `transform` never sees the real value. JSON encoding writes `0`. `toDynamicValue` followed by `fromDynamicValue` throws `ArrayIndexOutOfBoundsException`. With several fields of different types, decoding fails with a `ClassCastException`: Iron `RefinedType[Int, Positive]` next to `RefinedSubtype[BigDecimal, Positive]` gives `class scala.math.BigDecimal cannot be cast to class java.lang.Integer at: .`. A `String` or `BigDecimal` argument is unaffected, because both sides use an object register. So is an opaque type whose right-hand side does not mention its parameters (`opaque type Id[+A] = Long`).
+
+**Reproducer** (`Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+object tags:
+  // An opaque type whose right-hand side is one of its own type parameters,
+  // the shape of Iron's `opaque type IronType[A, C] <: A = A`.
+  opaque type Tagged[A, T] = A
+  def tag[A, T](a: A): Tagged[A, T] = a
+  def untag[A, T](t: Tagged[A, T]): A = t
+import tags.*
+
+trait Positive
+given [T]: Schema[Tagged[Int, T]] = Schema[Int].transform(tag[Int, T], untag[Int, T])
+
+final case class Customer(age: Tagged[Int, Positive]) derives Schema
+
+@main def run(): Unit =
+  println(Schema[Customer].jsonCodec.decode("""{"age":36}"""))
+  // Right(Customer(0))
+  println(Schema[Customer].jsonCodec.encodeToString(Customer(tag(36))))
+  // {"age":0}
+  println(scala.util.Try(Schema[Customer].fromDynamicValue(Schema[Customer].toDynamicValue(Customer(tag(36))))))
+  // Failure(java.lang.ArrayIndexOutOfBoundsException: Index 0 out of bounds for length -3)
+```
+
+The same output appears on Scala 3.3.7, with `//> using scala 3.3.7`, `dev.zio::zio-blocks-schema:0.0.56` and no `-experimental`. With `zio-blocks-schema:0.0.51` it prints `Right(Customer(36))`, `{"age":36}` and `Success(Right(Customer(36)))`. Through Iron (`io.github.iltotore::iron-zio-blocks-schema:3.4.1`, excluding `dev.zio%zio-blocks-schema_3`, with `final case class Customer(name: String :| (MinLength[1] & MaxLength[20]), age: Int :| Positive) derives Schema`), decoding `{"name":"Ada","age":36}` gives `Right(Customer(Ada,0))`.
+
+**Expected.** `Right(Customer(36))`, `{"age":36}` and `Success(Right(Customer(36)))`, as in 0.0.51.
+
+**Root cause.** The macro and the runtime disagree on which register the field uses.
+- Compile time: `fieldOffset` (`schema/shared/src/main/scala-3/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:465-467` on main, `:413-415` at v0.0.56) picks the register from `dealiasOnDemand(fTpe)`, which calls `CommonMacroOps.opaqueDealias` (`schema/shared/src/main/scala-3/zio/blocks/schema/CommonMacroOps.scala:100-116` on main, `:90-106` at v0.0.56). Its loop handles `case AppliedType(atTpe, _) => loop(atTpe.dealias)` (`:108` on main, `:98` at v0.0.56) and throws the type arguments away. It then follows the type constructor's `translucentSuperType`, the lambda `[A, T] =>> A`, into its body and returns the bare type parameter `A`, not `Int`. `A <:< Int` is false, so the macro allocates an object register.
+- Runtime: since #1578 ("Fix opaque wrapper register layout", commit 8c1a9858a, first released in 0.0.52), `Reflect.unwrapToPrimitiveTypeOption` (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:2927-2937` on main, `:2041-2051` at v0.0.56) unwraps an opaque wrapper to its wrapped primitive. `Reflect.registerOffset` (`:2939` on main, `:2053` at v0.0.56) therefore gives the field an int register, and `JsonCodecDeriver` uses that offset (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:320`, `:582`).
+- Result: the codec writes an int register and the macro-generated constructor reads an object register (and the reverse on encode).
+- Before #1578 both sides used an object register for this shape, which is why 0.0.51 works. Opaque types whose right-hand side is concrete (`Age = Int`, `Id[+A] = Long`) dealias correctly, and both sides pick the int (or long) register.
+
+**Impact.** Iron's official zio-blocks module, `iron-zio-blocks-schema`, is unusable for numeric refined fields in derived case classes on 0.0.52 to 0.0.56. That is the most common Iron use (`age: Int :| Positive`, `quantity: Int :| Positive`, and `RefinedType[Int, _]` newtypes). The failure is silent: valid input becomes `0`, and `0` passes through even when the constraint forbids it. Any user opaque type of the form `Tagged[A, T] = A` (phantom tags, units of measure) is affected the same way. Guide H-58 works around it with `String` and `BigDecimal` refinements and a warning.
+
+**Test gap.** The opaque-type fixtures (`schema/shared/src/test/scala-3/zio/blocks/schema/OpaqueTypes.scala`, and `ExternalOpaqueInt` in `json/JsonBinaryCodecDeriverVersionSpecificSpec.scala:24`) are all unparameterized, or parameterized with a concrete right-hand side. None has a right-hand side that is a type parameter, applied to a primitive, used as a record field. The #1578 regression test covers only `opaque type X = Int`.
+
+**Suggested fix.** In `CommonMacroOps.opaqueDealias`, keep the type arguments. For `AppliedType(tycon, args)` where `tycon` is an opaque alias, substitute the arguments into the right-hand side, for example by `tycon.translucentSuperType` being a `TypeLambda` and taking `tl.appliedTo(args).dealias`, or with `tpe.translucentSuperType` on the applied type. Then loop again. Add a regression test with `opaque type Tagged[A, T] = A` (and the bounded form `<: A`) applied to `Int`, `Long`, `Double` and `Boolean` as record fields, mixed with a `String` field. Cover JSON decode and encode and the `DynamicValue` round trip on Scala 3.3 and 3.9. Optionally add an Iron-shaped fixture, `opaque type IronType[A, C] <: A = A` with `type :|[A, C] = IronType[A, C]`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -12681,6 +12770,40 @@ object Repro {
 **Test gap.** None for the behaviour itself (it is documented); `sql/shared/src/test/scala/zio/blocks/sql/FragSpec.scala` has no case for a stream used after its block.
 
 **Suggested fix.** Add a connection-owning stream constructor on `Transactor` (above), document it on `docs/reference/sql/` and in H-21, and point the `queryStream` Scaladoc at it.
+
+### http-model: `Header.Authorization.Basic`, `Request` and `Headers` print credentials in `toString`
+
+Found 2026-10-29 while writing H-57 (`docs/guides/protect-pages-with-basic-auth-or-a-session-cookie.md`), on `main` `9d8bb9d70`. The code is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.sc` against the published `0.0.56`.
+
+**Summary.** `Header.Authorization.Basic(username, password)` is a plain case class, so its `toString` prints the decoded password. `Request` is a case class whose `toString` includes `Headers#toString`, which prints every raw header value, so logging a request prints the `Authorization` header (Base64 of `user:password`, or a bearer token) and the `Cookie` header (session ids). A handler that logs "rejected: $credentials" or "request: $request" writes secrets to the log.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), file `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+//> using options -experimental
+//> using jvm 21
+import zio.http._
+
+val url = URL.parse("/admin").toOption.get
+
+val request = Request.get(url).addHeader("authorization", "Basic YWRhOnMzY3JldA==")
+println(request.header(Header.Authorization))
+println(request)
+// Some(Basic(ada,s3cret))
+// Request(GET,/admin,Headers(authorization: Basic YWRhOnMzY3JldA==),Body(length=0, contentType=ContentType(MediaType(application,octet-stream,true,true,List(bin, dms, lrf, mar, so, dist, distz, pkg, bpk, dump, elc, deploy, exe, dll, deb, dmg, iso, img, msi, msp, msm, buffer),Map(),Map()),None,None)),HTTP/1.1)
+```
+
+**Expected.** `toString` of `Header.Authorization.Basic` (and `ProxyAuthorization.Basic`) masks the password, e.g. `Basic(ada,<redacted>)`. `Headers#toString` masks the values of `authorization`, `proxy-authorization`, `cookie` and `set-cookie`, the way `zio.blocks.config.Secret` prints `<secret>`.
+
+**Root cause.** `final case class Basic(username: String, password: String)` with the default case-class `toString` (`http-model/shared/src/main/scala/zio/http/Header.scala:63`, and `ProxyAuthorization.Basic` at `:132`). `Headers#toString` renders every `name: rawValue` pair (`http-model/shared/src/main/scala/zio/http/Headers.scala:242`).
+
+**Impact.** Credentials and session ids end up in logs whenever a handler logs a parsed credential or a whole request. H-57 warns about it in a `:::warning` and logs neither.
+
+**Test gap.** `HeadersSpec` "toString" (`HeadersSpec.scala:391`) and `AuthHeadersSpec` do not check that sensitive values are hidden.
+
+**Suggested fix.** Override `toString` in both `Basic` cases to hide the password, and mask the values of the four sensitive header names in `Headers#toString`.
 
 ## Test and CI
 
