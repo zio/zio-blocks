@@ -305,7 +305,7 @@ The rest of the guide keeps `/` public and lets only signed-in staff reach `/adm
 
 ## Checking a Password
 
-Both approaches end in the same question: is this the right password for this user? The server should never store the passwords themselves, only a slow, salted hash of each one, so that a leaked user table does not leak the passwords. The JDK ships PBKDF2, a standard password-hashing function: it runs HMAC-SHA256 hundreds of thousands of times over the password and a random salt. We use 600,000 iterations, the OWASP recommendation for PBKDF2-HMAC-SHA256:
+Both approaches end in the same question: is this the right password for this user? The server should never store the passwords themselves, only a slow hash of each one, so that a leaked user table does not leak the passwords. A salt, a random value stored next to each hash and mixed into it, makes two users with the same password get different hashes. The JDK ships PBKDF2, a standard password-hashing function: it repeats a keyed hash (HMAC-SHA256) hundreds of thousands of times over the password and the salt. We use 600,000 iterations, the OWASP recommendation for PBKDF2-HMAC-SHA256:
 
 ```scala mdoc:silent
 final case class PasswordHash(salt: Array[Byte], hash: Array[Byte])
@@ -725,7 +725,7 @@ The code in this guide checks credentials; it is not a complete security setup. 
 - **Use HTTPS.** Basic credentials and session ids work for whoever holds them, and over plain HTTP anyone on the network path can copy them. The loopback server in this guide is for examples only.
 - **No rate limiting.** Nothing stops a client from trying thousands of passwords. Limit failed logins per account and per address.
 - **One server, in memory.** The session store lives in one JVM: a restart signs everyone out, and two instances behind a load balancer do not share sessions. Use a shared store in that case.
-- **Cross-site requests.** `SameSite=Lax` keeps the cookie off cross-site `POST` requests in current browsers, which protects the form routes. It still sends the cookie on cross-site links, so never change data in a `GET` route. For older browsers, add a CSRF token to every form.
+- **Cross-site requests.** A malicious site can make the user's browser send a request to this site, and the browser attaches the cookie: cross-site request forgery (CSRF). `SameSite=Lax` keeps the cookie off cross-site `POST` requests in current browsers, which protects the form routes. It still sends the cookie on cross-site links, so never change data in a `GET` route. For older browsers, add a CSRF token to every form: a random value the server puts in the form and checks on submit, which another site cannot read.
 - **Caching.** A shared cache could store a private page. Add `Cache-Control: no-store` to responses that show private data.
 
 ## Putting It Together
