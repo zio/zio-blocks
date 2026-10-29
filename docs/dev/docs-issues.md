@@ -48,77 +48,6 @@ Found 2026-10-29 while writing H-57 (`docs/guides/protect-pages-with-basic-auth-
 
 **Suggested fix.** `zio.blocks.chunk.Chunk(...)` plus `Cookie.renderRequest(cookies)`; "(no attribute by default; Strict is the safest)"; "cross-site links (top-level GET) only, not cross-site form posts".
 
-### validated-newtypes.md: the "Use Scala 3 Opaque Types" example hangs on Scala 3.3
-
-**Fix in PR #1906** (H-58, open): `Schema.string.transform(` on the page and in `OpaqueTypesExample.scala`, verified on 3.3.7. Move to Resolved when it merges.
-
-Found 2026-10-29 while writing guide H-58, on main `9d8bb9d70`; the page section is the same at v0.0.56's docs. Verified with `scala-cli run --server=false Repro.scala` against the published 0.0.56: Scala 3.3.7 hangs, while 3.7.4, 3.8.3 (`zio-blocks-schema`) and 3.9.0 (`zio-blocks-next-schema` + `-experimental`) print the page's output. 3.4 to 3.6 were not tested.
-
-**Summary.** `docs/guides/validated-newtypes.md:362` defines `given Schema[Isbn] = Schema[String].transform(...)` inside `object catalog`, where `Isbn` is `String`. On Scala 3.3.7, `Schema[String]` resolves to that given itself. The compiler warns `Infinite loop in function body`, and the program hangs at the first use of `Schema[Book]`, because the given is a lazy val that initializes itself. The page's install section covers Scala 3.3 to 3.8 with `zio-blocks-schema`, so readers on the 3.3 LTS copy a hanging example. mdoc and schema-examples run only on 3.9.0, which is why nothing caught it.
-
-**Reproducer** (`Repro.scala`, the page's block verbatim plus a `start` marker):
-
-```scala
-//> using scala 3.3.7
-//> using dep dev.zio::zio-blocks-schema:0.0.56
-
-import zio.blocks.schema._
-import zio.blocks.schema.json._
-
-object catalog {
-  opaque type Isbn = String
-
-  object Isbn {
-    def parse(input: String): Either[SchemaError, Isbn] = {
-      val digits = input.filterNot(c => c == '-' || c == ' ')
-      if (digits.length == 13 && digits.forall(_.isDigit)) Right(digits)
-      else Left(SchemaError.validationFailed(s"ISBN must have 13 digits, got '$input'"))
-    }
-
-    given Schema[Isbn] = Schema[String].transform(s => parse(s).fold(e => throw e, identity), identity)
-
-    extension (isbn: Isbn) def value: String = isbn
-  }
-}
-
-final case class Book(isbn: catalog.Isbn, title: String) derives Schema
-
-@main def run(): Unit = {
-  println("start")
-  println(Schema[Book].jsonCodec.decode("""{"isbn":"978-1-61729-065-7","title":"Functional Programming in Scala"}""").map(_.isbn.value))
-
-  Schema[Book].jsonCodec
-    .decode("""{"isbn":"978-ZIO","title":"Zionomicon"}""")
-    .left
-    .foreach(e => println(e.message))
-
-  Json
-    .parse("""{"isbn":"978-ZIO","title":"Zionomicon"}""")
-    .flatMap(json => Schema[Book].fromDynamicValue(json.toDynamicValue))
-    .left
-    .foreach(e => println(e.message))
-}
-// -- Warning: ./Repro.scala:17:25
-// 17 |    given Schema[Isbn] = Schema[String].transform(s => parse(s).fold(e => throw e, identity), identity)
-//    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//    |Infinite loop in function body
-//    |zio.blocks.schema.Schema.apply[String](catalog.Isbn.given_Schema_Isbn).transform
-// start
-// (no further output; `timeout 60 scala-cli run ...` exits 124)
-```
-
-On 3.7.4, 3.8.3 and 3.9.0 the same file prints `start`, `Right(9781617290657)` and `ISBN must have 13 digits, got '978-ZIO' at: .isbn.wrapped` twice.
-
-**Expected.** The example runs on every Scala 3 version the page's install section lists.
-
-**Root cause.** See the library-issues Usability traps entry "schema (Scala 3): `Schema[<base>]` inside an opaque type's companion summons the companion's own instance": inside the opaque scope `Isbn =:= String`, and Scala 3.3 still treats a given as a candidate in its own right-hand side.
-
-**Impact.** A reader on Scala 3.3 to 3.6 who copies the section gets a program that hangs with no error. Only a compiler warning hints at it.
-
-**Test gap.** mdoc and schema-examples compile only on Scala 3.9.0.
-
-**Suggested fix.** On the page and in `schema-examples/src/main/scala/validatednewtypes/OpaqueTypesExample.scala:27`, replace `Schema[String].transform(` with `Schema.string.transform(`. Add one sentence: "Inside `object catalog`, `Isbn` is a `String`, so `Schema[String]` would find this given itself on older Scala 3 versions; `Schema.string` names the base schema directly." Re-run the scala-cli repro on 3.3.7 to confirm the fix.
-
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
@@ -315,6 +244,7 @@ Nothing else is printed: no "Handler failed" line, no stack trace. The same happ
 
 ## Resolved
 
+- `guides/validated-newtypes.md:362` ("Use Scala 3 Opaque Types") and `schema-examples/.../validatednewtypes/OpaqueTypesExample.scala:27` built `given Schema[Isbn] = Schema[String].transform(...)` inside the opaque scope, so on Scala 3.3 `Schema[String]` resolved to the given itself and the example hung (found by H-58, 2026-10-29). Fixed in #1906 (H-58, merge `b574f40f5`): both use `Schema.string.transform(`, with one sentence explaining why; verified on 3.3.7. The general trap stays in library-issues.md → Usability traps.
 - Fixed in #1890 (docs cleanup, merge `0959c8abb`): `reference/sql/repo.md` presented `Repo` as a public concrete class (it is abstract with a protected constructor) and said its SQL is built once at construction (only identifiers are cached; each call builds its statement). `query-dsl-sql.md` had unbalanced parentheses in two hard-coded output comments and an incomplete `ArithmeticOperator` list. `query-dsl-fluent-builder.md` pointed at files the page doesn't use. The Scope tutorial had a malformed mdoc fence. Three `undocumented-report.md` figures were wrong. `ddl.md` and `repo.md` now call the missing `PRIMARY KEY` a known bug in 0.0.56, and the object-hash outputs in `db-codec.md`, `db-codec-deriver.md`, `toon.md`, `ddl.md` and `repo.md` are gone.
 - `docs/guides/write-joins-and-inspect-generated-sql.md` (H-19) gave an unnamed dump file as `_local_<Object>__query-<dialect>.sql`; the real name has three underscores (`_local_<Object>___query-<dialect>.sql`). Fixed in #1889 (merge `bafc31bef`), which also added the `SqlQuery`, `Rel` and `Dump` reference pages and names the four query-layer bugs as known bugs in 0.0.56.
 - Scaladoc fixed in #1891 (merge `fa76f487f`): the `Stream#repeated` Scaladoc (`Stream.scala:713`) said `Stream.eval` runs once "with both terminal families"; it now says once under the blocking terminals and every cycle under the asynchronous ones, and that an empty cycle loops forever only in a blocking pull. The `Json` (`Json.scala:40`), `JsonCodec.bigIntCodec` (`:919`) and `bigDecimalCodec` (`:955`) Scaladoc stated the digit limit off by one; they now say 308 or more digits are rejected and up to 307 are accepted. With these, the Documentation errors section has no open entries.
