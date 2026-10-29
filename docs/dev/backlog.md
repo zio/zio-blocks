@@ -120,7 +120,7 @@ This table tracks every item that has been written or started. Items not listed 
 
 **Unblocked by T-02 (merged #1831):** M-07 (coming from chimney or ducktape) can start and link T-02.
 
-**Library follow-ups found while writing** (full write-ups, ready to file, are in `docs/dev/issues.md`):
+**Library follow-ups found while writing** (full write-ups, ready to file, are in `docs/dev/library-issues.md`):
 
 - config: `ProvenanceMap#dump` over an unprefixed `EnvSource` prints the whole process environment. Only names that match `Sensitive` markers are redacted.
 - sql: `Table.createTable` emits no `PRIMARY KEY`, so `Repo.insertOrUpdate` fails on tables it creates. #1760 documents this; the code is unchanged.
@@ -619,7 +619,7 @@ Follow the `scaladoc-rollout` skill (`~/.claude/skills/scaladoc-rollout/SKILL.md
   - an Opus implementer, an Opus fact-check reviewer with fresh context, and a Sonnet re-reviewer for each fix round;
   - only one sbt-running implementer on the machine;
   - gates: `scaladoc-check` on all three Scala versions, `<proj>JVM/doc` with no new warnings, the comments-only diff check, and `check; headerCheckAll`.
-- **Bugs:** found bugs go to the coordinator as complete entries; the coordinator alone edits `issues.md`. The schema and streams waves produced about 72 `issues.md` entries, 60 of them library bugs.
+- **Bugs:** found bugs go to the coordinator as complete entries; the coordinator alone edits `library-issues.md` and `docs-issues.md`. The schema and streams waves produced about 72 `issues.md` entries, 60 of them library bugs.
 - **Adding a module to `scaladoc-check`:** its sources must live under `<module-dir>/`, and its package must be `zio.blocks.<module-dir>`. Modules that break this rule need a `moduleImport` override first (`build.sbt:1399-1405`): `http-model`, `http-model-schema`, `datastar`, `htmx`, `markdown`, `otel`, `dataMigration` and `schema-messagepack`. Scala-3-only modules (`sql`, `htmx`, `datastar`, `projection`, `dataMigration`) need their own handling. `telemetry` and `otel` need JDK 21, which the checker doesn't have while it runs on JDK 17.
 
 ### 13.2 Coverage of the other modules, in recommended order
