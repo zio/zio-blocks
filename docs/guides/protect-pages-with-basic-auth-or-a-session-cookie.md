@@ -489,11 +489,11 @@ JdkHttp.withServer(basicApp) { port =>
 }
 ```
 
-A browser that gets the 401 shows its own sign-in dialog, remembers what the user typed, and sends it with every later request to the site. `curl -u ada:'correct horse battery staple' http://localhost:8080/orders.csv` does the same for a script.
+A browser that gets the 401 shows its own sign-in dialog, remembers what the user typed, and sends it with later requests to the same protected area. `curl -u ada:'correct horse battery staple' http://localhost:8080/orders.csv` does the same for a script.
 
 ## Issuing a Session Cookie
 
-Basic authentication has no sign-in page of our own, and no way to sign out: the browser keeps sending the password until it is closed. A login form with a session cookie fixes both. After a correct password, the server creates a session, sends its id to the browser in a cookie, and the browser sends the cookie back with every request. The cookie holds only a random id, never the username or the password, so a client cannot forge or edit it.
+Basic authentication has no sign-in page of our own, and no way to sign out: the browser keeps sending the password until it is closed. A login form with a session cookie fixes both. After a correct password, the server creates a session, sends its id to the browser in a cookie, and the browser sends the cookie back with every request. The cookie holds only a random id, never the username or the password, so a client cannot forge or edit it, although anyone who steals a valid id can use it until the session ends.
 
 The session store keeps each session's user and expiry time, keyed by its id. The id is 32 bytes from `SecureRandom`, encoded as Base64url, which uses only characters that are valid in a cookie value. `TrieMap` is a thread-safe map, which matters once requests run in parallel:
 
@@ -536,13 +536,13 @@ The session expires on the server after 30 minutes, whatever the browser does wi
 
 `ResponseCookie` describes the cookie and its attributes; `Response#addCookie` renders it into a `Set-Cookie` header. Each attribute closes a door:
 
-| Attribute      | `ResponseCookie` field           | Effect                                                                                          |
-| -------------- | -------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `HttpOnly`     | `isHttpOnly = true`              | JavaScript cannot read the cookie, so an injected script cannot steal the session.              |
-| `Secure`       | `isSecure = true`                | The browser sends the cookie only over HTTPS (and to `localhost`), never over plain HTTP.       |
-| `SameSite=Lax` | `sameSite = Some(SameSite.Lax)`  | The browser leaves the cookie off cross-site requests such as a form posted from another site. |
-| `Path=/`       | `path = Some(Path.root)`         | The cookie is sent to every path of the site, not only to the path that set it.                 |
-| `Max-Age=1800` | `maxAge = Some(lifetimeSeconds)` | The browser drops the cookie when the session ends on the server.                              |
+| Attribute      | `ResponseCookie` field           | Effect                                                                                                                                |
+| -------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `HttpOnly`     | `isHttpOnly = true`              | JavaScript cannot read the cookie, so an injected script cannot steal the session.                                                    |
+| `Secure`       | `isSecure = true`                | The browser sends the cookie only over HTTPS. Chrome and Firefox also treat `http://localhost` as secure, so the example works there. |
+| `SameSite=Lax` | `sameSite = Some(SameSite.Lax)`  | The browser leaves the cookie off cross-site requests such as a form posted from another site.                                        |
+| `Path=/`       | `path = Some(Path.root)`         | The cookie is sent to every path of the site, not only to the path that set it.                                                       |
+| `Max-Age=1800` | `maxAge = Some(lifetimeSeconds)` | The browser drops the cookie after 30 minutes, when the server also expires the session.                                              |
 
 The cookie for a session id:
 
@@ -671,7 +671,7 @@ Only the id from the login opens the page. A made-up id finds no session, so the
 
 ## Logging Out
 
-Signing out has two parts: forget the session on the server, and tell the browser to drop the cookie. A `Set-Cookie` with the same name and path, an empty value and `Max-Age=0` replaces the cookie and expires it at once:
+Signing out has two parts: forget the session on the server, and tell the browser to drop the cookie. A `Set-Cookie` with the same name, domain and path, an empty value and `Max-Age=0` replaces the cookie and expires it at once:
 
 ```scala mdoc:silent
 val expiredSessionCookie: ResponseCookie = sessionCookie("").copy(maxAge = Some(0L))
@@ -735,7 +735,7 @@ The complete example serves the whole roastery on port 8080 until you stop it wi
 ```scala mdoc:embed:http-model-examples/src/main/scala/protectpageswithbasicauthorasessioncookie/CompleteExample.scala
 ```
 
-While it runs, open `http://localhost:8080/admin` in a browser to be sent to the sign-in page, or call it with `curl`. `curl` keeps a `Secure` cookie off plain HTTP, so the session cookie is passed by hand with `-b`. One run, with the `Date` headers removed:
+While it runs, open `http://localhost:8080/admin` in a browser to be sent to the sign-in page, or call it with `curl`. `curl` does not store cookies unless you give it a cookie jar, so the session cookie is passed by hand with `-b`. One run, with the `Date` headers removed:
 
 ```text
 $ curl -s -i http://localhost:8080/admin
