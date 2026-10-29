@@ -681,3 +681,5 @@ All modules other than schema and streams: 2,375 / 10,197 documented (23%), or 3
 - **Open question:** should mechanical tier-2 waves (the `Header` case classes, the `HtmlElements` tags) use Sonnet implementers? The earlier rollouts never tried it.
 
 **Next step:** Milad picks the first module. The recommendation is chunk as a one-wave pilot, then scope.
+
+**Started 2026-10-29:** chunk pilot, session `scaladoc-chunk` (Opus), on Milad's choice.
