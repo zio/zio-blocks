@@ -26,6 +26,17 @@ object Step8StatusInExample {
     val transactor = JdbcTransactor.fromUrl(s"jdbc:sqlite:$dbFile", SqlDialect.SQLite)
     seedTickets(transactor)
 
+    println("a List interpolated as one value:")
+    describe(sql"status IN (${List("open", "pending")})")
+
+    transactor.connect {
+      print("matching ids: ")
+      println(
+        (Frag.literal("SELECT id FROM ticket") ++ whereAnd(Some(sql"status IN (${List("open", "pending")})")))
+          .query[Long]
+      )
+    }
+
     val openOrPending = TicketSearch(statuses = Set("pending", "open"))
 
     println("open or pending:")

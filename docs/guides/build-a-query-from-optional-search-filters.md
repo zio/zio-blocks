@@ -13,7 +13,7 @@ keywords:
 
 In this guide, we build the query behind a support desk's ticket search screen. The screen has optional fields: a text box, a customer, a set of status checkboxes and a date range. The user fills in some of them and leaves the rest empty. By the end, you will have one function that turns whatever the user filled in into one SQL query whose `WHERE` clause holds only those conditions, joined with `AND`, followed by a sort order and a page of results, with every value the user typed bound as a parameter.
 
-We build it one field at a time with `Frag`, the `sql` module's piece of SQL text with its parameters kept separate:
+We build it one field at a time with [`Frag`](../reference/sql/frag.md), the `sql` module's piece of SQL text with its parameters kept separate:
 
 - One condition per filled-in field, and nothing for an empty one
 - A small helper that joins the conditions with `AND`
@@ -146,6 +146,14 @@ case class TicketSearch(
 `TicketSearch()` is the empty form, which should list every ticket.
 
 <details>
+  <summary>Runnable version, which prints the empty form and the number of tickets: <code>Step3TicketTableExample.scala</code></summary>
+
+```scala mdoc:embed:sql-examples/src/main/scala/buildaqueryfromoptionalsearchfilters/Step3TicketTableExample.scala:show-line-numbers
+```
+
+</details>
+
+<details>
   <summary>The model and seed data, shared by every example file: <code>Helpdesk.scala</code></summary>
 
 ```scala mdoc:embed:sql-examples/src/main/scala/buildaqueryfromoptionalsearchfilters/Helpdesk.scala:show-line-numbers
@@ -206,7 +214,7 @@ We keep the fixed `SELECT` in a value, since every search starts with it:
 val selectTickets = Frag.literal("SELECT id, subject, customer, status, priority, opened_on FROM ticket")
 ```
 
-Let's put the clause after it, first with no conditions and then with a customer:
+We put the clause after it, first with no conditions and then with a customer:
 
 ```scala mdoc
 describe(selectTickets ++ whereAnd())
@@ -245,7 +253,7 @@ def subjectContains(search: TicketSearch): Option[Frag] =
 
 `likePattern` escapes `!` first, so the `!` characters it adds afterwards aren't escaped a second time. The pattern itself is a bound parameter, like any other value.
 
-Let's search for `50%`, once without escaping and once with `subjectContains`:
+To compare, we search for `50%`, once without escaping and once with `subjectContains`:
 
 ```scala mdoc
 transactor.connect {
@@ -278,7 +286,7 @@ def openedOnOrBefore(search: TicketSearch): Option[Frag] =
   search.openedTo.map(to => sql"opened_on <= $to")
 ```
 
-Let's ask for the tickets opened in the first half of October, and then for those opened from October 20 on, with no end date:
+To see both ends of the range, we ask for the tickets opened in the first half of October, and then for those opened from October 20 on, with no end date:
 
 ```scala mdoc
 transactor.connect {
@@ -302,7 +310,19 @@ Both ends of the range are inclusive. On SQLite, the table stores a `LocalDate` 
 
 ## Match Any of Several Statuses with IN
 
-The status checkboxes allow several values at once, which is an `IN (...)` list with one `?` per value. The interpolator binds one value per `$`, and it has no parameter type for a `List`, so `sql"status IN ($statuses)"` doesn't compile. We build the list from one `sql"$v"` fragment per value instead, joined with commas:
+The status checkboxes allow several values at once, which is an `IN (...)` list with one `?` per value. The interpolator binds one value per `$`, and a `List` or `Set` there still compiles: it binds as one parameter that holds the whole collection as JSON text. So the obvious version renders `status IN (?)` and matches no row:
+
+```scala mdoc
+describe(sql"status IN (${List("open", "pending")})")
+
+transactor.connect {
+  println((Frag.literal("SELECT id FROM ticket") ++ whereAnd(Some(sql"status IN (${List("open", "pending")})"))).query[Long])
+}
+```
+
+The query runs without an error and returns an empty list: the database compares each status with the text `["open","pending"]`, which no ticket has.
+
+We build the list from one `sql"$v"` fragment per value instead, joined with commas:
 
 ```scala mdoc:silent
 def commaSeparated(values: Seq[String]): Frag =
@@ -315,7 +335,7 @@ def statusIn(search: TicketSearch): Option[Frag] =
 
 No ticked box means no condition, so the search shows every status. Sorting the values keeps the SQL and parameter order the same for the same set of boxes, whatever order the `Set` holds them in.
 
-Let's tick two boxes:
+We tick two boxes:
 
 ```scala mdoc:silent
 val openOrPending = TicketSearch(statuses = Set("pending", "open"))
@@ -355,7 +375,7 @@ def orderBy(sortBy: SortBy): Frag = sortBy match {
 
 Each order ends with `id`, so tickets with the same date or priority always come back in the same order, and a ticket can't move from one page to another between two requests.
 
-A web request carries the choice as a string. Let's turn it into a `SortBy` with a default for anything we don't recognize, rather than with `SortBy.valueOf`, which throws:
+A web request carries the choice as a string. We turn it into a `SortBy` with a default for anything we don't recognize, rather than with `SortBy.valueOf`, which throws:
 
 ```scala mdoc
 def parseSortBy(param: String): SortBy =
@@ -370,6 +390,14 @@ The unknown value falls back to `Newest`, and the text of the request never reac
 :::danger
 Never build the `ORDER BY` from the request's text with `Frag.literal` or `SqlLiteral`. Both splice their text into the SQL as it is, without parameters or checks, so they turn a sort field into an injection point.
 :::
+
+<details>
+  <summary>Runnable version, which also prints the <code>ORDER BY</code> text of each choice: <code>Step9SortByExample.scala</code></summary>
+
+```scala mdoc:embed:sql-examples/src/main/scala/buildaqueryfromoptionalsearchfilters/Step9SortByExample.scala:show-line-numbers
+```
+
+</details>
 
 ## Return One Page of Results
 
@@ -386,7 +414,7 @@ def pageOf(search: TicketSearch): Frag =
 
 A page number below 1 becomes 1, and the page size stays between 1 and 100, so a request can't ask for a million rows at once.
 
-The screen also shows how many tickets match, to draw the page links. The count uses the same `WHERE` clause with a different `SELECT` and no sort order or paging. Let's ask for the second page of three tickets, newest first:
+The screen also shows how many tickets match, to draw the page links. The count uses the same `WHERE` clause with a different `SELECT` and no sort order or paging. We ask for the second page of three tickets, newest first:
 
 ```scala mdoc
 transactor.connect {
@@ -431,7 +459,7 @@ def countQuery(search: TicketSearch): Frag =
   sql"SELECT COUNT(*) FROM ticket" ++ whereAnd(conditions(search)*)
 ```
 
-A new filter is one more function and one more line in `conditions`. Let's fill in three of the fields, the way a support agent looking for Acme's unresolved login problems would:
+A new filter is one more function and one more line in `conditions`. We fill in three of the fields, the way a support agent looking for Acme's unresolved login problems would:
 
 ```scala mdoc:silent
 val loginProblems = TicketSearch(text = Some("log"), customer = Some("Acme"), statuses = Set("open", "pending"), sortBy = SortBy.MostUrgent)
@@ -450,7 +478,7 @@ transactor.connect {
 
 The `WHERE` clause holds the three filled-in conditions and nothing for the two empty date fields. Every value is a `?` in the SQL text and an entry in the parameters, in the same order.
 
-That also holds for hostile input. Let's type a classic injection attempt into the text box:
+That also holds for hostile input. We type a classic injection attempt into the text box:
 
 ```scala mdoc:silent
 val hostile = TicketSearch(text = Some("'; DROP TABLE ticket; --"))
@@ -504,13 +532,13 @@ def searchWithBuilder(search: TicketSearch): SqlQuery[Ticket] = {
 }
 ```
 
-`conditions(search).flatten` keeps only the filled-in conditions, and `foldLeft` adds them to the query one by one. An empty form adds none, and the builder then writes no `WHERE`. `SqlQuery#orderBy` checks that each name is a plain SQL identifier, and `SqlQuery#limit` and `SqlQuery#offset` write their numbers into the SQL text.
+`conditions(search).flatten` keeps only the filled-in conditions, and `Seq#foldLeft` adds them to the query one by one. An empty form adds none, and the builder then writes no `WHERE`. `SqlQuery#orderBy` checks that each name is a plain SQL identifier, and `SqlQuery#limit` and `SqlQuery#offset` write their numbers into the SQL text.
 
 :::warning
 `SqlQuery#where` joins its conditions with `AND` without parentheses, a known bug in 0.0.56. A condition that contains `OR` then mixes with the others: `query.where(a).where(b OR c)` means `(a AND b) OR c`, which returns rows that fail `a`. That's why the fold wraps each condition in `sql"($condition)"`. For the same reason, never pass `Frag.empty` to `SqlQuery#where`: it renders `WHERE` with nothing after it.
 :::
 
-Let's build the support agent's search with it:
+We build the support agent's search with it:
 
 ```scala mdoc:silent
 val builderQuery = searchWithBuilder(loginProblems)
