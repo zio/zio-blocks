@@ -2,9 +2,9 @@ package streammigration
 
 import java.io.BufferedReader
 import java.nio.file.{Files, Path}
-import scala.jdk.CollectionConverters.*
+import scala.jdk.CollectionConverters._
 
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 /**
  * The bookstore order pipeline from the "Coming from fs2, ZIO Streams or Ox"

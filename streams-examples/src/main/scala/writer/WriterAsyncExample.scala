@@ -1,6 +1,6 @@
 package writer
 
-import zio.blocks.async.*
+import zio.blocks.async._
 import zio.blocks.chunk.Chunk
 import zio.blocks.streams.io.Writer
 

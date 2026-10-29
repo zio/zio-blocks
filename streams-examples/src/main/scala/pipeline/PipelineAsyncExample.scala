@@ -1,8 +1,8 @@
 package pipeline
 
-import zio.blocks.async.*
+import zio.blocks.async._
 import zio.blocks.chunk.Chunk
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 /**
  * The three asynchronous `Pipeline` factories — `mapAsync`, `filterAsync` and
