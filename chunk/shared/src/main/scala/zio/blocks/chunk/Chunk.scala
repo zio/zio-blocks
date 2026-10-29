@@ -38,24 +38,60 @@ import scala.{
 }
 
 /**
- * A `ChunkBuilder[A]` can build a `Chunk[A]` given elements of type `A`.
- * `ChunkBuilder` is a mutable data structure that is implemented to efficiently
- * build chunks of unboxed primitives and for compatibility with the Scala
- * collection library.
+ * A `ChunkBuilder[A]` is a mutable builder that collects elements of type `A`
+ * one at a time and returns them as a `Chunk[A]`. Use it when elements arrive
+ * one by one, from a loop or an iterator, and their number is not known in
+ * advance; when all the elements are at hand, `Chunk.apply` or `Chunk.from` is
+ * shorter.
+ *
+ * It is a Scala `mutable.Builder`, so `addOne`, `+=`, `addAll` and `result`
+ * work as for any other builder, and `result` copies the elements, so the
+ * builder can keep growing afterwards. It is not thread-safe. The nested
+ * classes, such as `ChunkBuilder.Int`, store primitive values without boxing.
+ *
+ * {{{
+ * val builder = ChunkBuilder.make[String]()
+ * builder += "Zionomicon"
+ * builder.addOne("Programming in Scala")
+ * builder.result() // Chunk(Zionomicon,Programming in Scala)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/chunk/#using-chunkbuilder-for-incremental-construction Chunk]]
  */
 sealed abstract class ChunkBuilder[A] extends mutable.Builder[A, Chunk[A]] with ChunkBuilderPlatformSpecific {
   private[chunk] def resultUnsafe(): Chunk[A] = result()
 }
 
+/**
+ * Creates `ChunkBuilder` instances: `make` for elements of any type, and the
+ * nested classes for unboxed primitive elements.
+ */
 object ChunkBuilder {
 
   /**
-   * Constructs a generic `ChunkBuilder`.
+   * Creates a `ChunkBuilder` for elements of any type, with room for 4 elements
+   * before it first grows.
+   *
+   * {{{
+   * val pageCounts = ChunkBuilder.make[Int]()
+   * pageCounts += 512
+   * pageCounts += 750
+   * pageCounts.result() // Chunk(512,750)
+   * }}}
    */
   def make[A](): ChunkBuilder[A] = make(4)
 
   /**
-   * Constructs a generic `ChunkBuilder` with the size hint.
+   * Creates a `ChunkBuilder` for elements of any type, with room for
+   * `capacityHint` elements before it first grows. A hint close to the final
+   * size saves copying; the builder still grows past it.
+   *
+   * {{{
+   * val titles = ChunkBuilder.make[String](2)
+   * titles ++= List("Zionomicon", "Programming in Scala", "Scala with Cats")
+   * titles.result() // Chunk(Zionomicon,Programming in Scala,Scala with Cats)
+   * }}}
    */
   def make[A](capacityHint: SInt): ChunkBuilder[A] = new ChunkBuilder[A] {
     private[this] var array: Array[A] = null
@@ -573,19 +609,40 @@ private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
 }
 
 /**
- * A `Chunk[A]` represents a chunk of values of type `A`. Chunks are usually
- * backed by arrays, but expose a purely functional, safe interface to the
- * underlying elements, and they become lazy on operations that would be costly
- * with arrays, such as repeated concatenation.
+ * A `Chunk[A]` is an immutable, indexed sequence of `A` values, usually backed
+ * by an array. Use it where you would use a `Vector` or an `Array`: it reads
+ * elements by index quickly, stores primitive values without boxing on the JVM,
+ * and makes repeated concatenation cheap, because `++` links chunks into a
+ * balanced tree instead of copying them.
  *
- * The implementation of balanced concatenation is based on the one for
- * Conc-Trees in "Conc-Trees for Functional and Parallel Programming" by
- * Aleksandar Prokopec and Martin Odersky.
+ * {{{
+ * val books = Chunk("Zionomicon", "Programming in Scala")
+ * val more  = books ++ Chunk("Functional Programming in Scala")
+ * more.length // 3
+ * more(2)     // Functional Programming in Scala
+ * }}}
+ *
+ * `Chunk` is a Scala `IndexedSeq`, so the standard collection methods work on
+ * it, and it equals any `Seq` with the same elements in the same order.
+ *
+ * On the JVM, a chunk built from primitive values, such as `Chunk(1, 2, 3)`,
+ * stores them in a primitive array; on Scala.js it stores them in an array of
+ * objects. Reading them through `apply` boxes each value; accessors such as
+ * `int` and `double` read a JVM array-backed chunk without boxing. On the JVM,
+ * some operations do not support a chunk that mixes primitive types, such as
+ * `Int` and `Long` values in one `Chunk[AnyVal]`: `flatMap` throws a
+ * `ClassCastException` when the chunks it joins hold different primitive types
+ * (a known bug).
+ *
+ * On a chunk made by `take`, `drop` or `slice`, an out-of-range index can
+ * return an element from outside the slice instead of throwing (a known bug).
+ *
+ * The balanced concatenation follows "Conc-Trees for Functional and Parallel
+ * Programming" by Aleksandar Prokopec and Martin Odersky.
  * [[http://aleksandar-prokopec.com/resources/docs/lcpc-conc-trees.pdf]]
  *
- * NOTE: For performance reasons, `Chunk` does not box primitive types. As a
- * result, it is not safe to construct chunks from heterogeneous primitive
- * types.
+ * @see
+ *   [[https://zioblocks.com/reference/chunk/ Chunk]]
  */
 sealed abstract class Chunk[+A]
     extends IndexedSeq[A]
@@ -600,7 +657,13 @@ sealed abstract class Chunk[+A]
   def chunkIterator: Chunk.ChunkIterator[A]
 
   /**
-   * Returns the concatenation of this chunk with the specified chunk.
+   * Returns a chunk with the elements of this chunk followed by the elements of
+   * `that`. It copies neither chunk: it links them in a balanced tree, so a
+   * long run of `++` calls stays cheap and indexed access stays fast.
+   *
+   * {{{
+   * Chunk("Programming in Scala") ++ Chunk("Zionomicon") // Chunk(Programming in Scala,Zionomicon)
+   * }}}
    */
   final def ++[A1 >: A](that: Chunk[A1]): Chunk[A1] = {
     if (length == 0) return that
@@ -1147,7 +1210,11 @@ sealed abstract class Chunk[+A]
   def long(index: Int)(implicit ev: A <:< Long): Long = ev(apply(index))
 
   /**
-   * Returns a chunk with the elements mapped by the specified function.
+   * Returns a chunk with the result of applying `f` to each element, in order.
+   *
+   * {{{
+   * Chunk("Zionomicon", "Programming in Scala").map(_.length) // Chunk(10,20)
+   * }}}
    */
   override def map[B](f: A => B): Chunk[B] = {
     val len     = length
@@ -1178,8 +1245,15 @@ sealed abstract class Chunk[+A]
   }
 
   /**
-   * Materializes a chunk into a chunk backed by an array. This method can
-   * improve the performance of bulk operations.
+   * Returns a chunk with the same elements, backed by one array. Call it before
+   * reading a chunk many times when it was built by many `++`, `take`, `drop`
+   * or `appended` calls: indexed access then reads the array instead of walking
+   * a tree. An array-backed chunk is returned as is.
+   *
+   * {{{
+   * val shelf = Chunk("Zionomicon") ++ Chunk("Programming in Scala")
+   * shelf.materialize // Chunk(Zionomicon,Programming in Scala)
+   * }}}
    */
   def materialize[A1 >: A]: Chunk[A1] = {
     implicit val ct: ClassTag[A] = Chunk.classTagOf(self)
@@ -1717,7 +1791,11 @@ sealed abstract class Chunk[+A]
 object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
   /**
-   * Returns a chunk from a number of values.
+   * Returns a chunk with the given values, in order.
+   *
+   * {{{
+   * Chunk("Zionomicon", "Programming in Scala") // Chunk(Zionomicon,Programming in Scala)
+   * }}}
    */
   override def apply[A](as: A*): Chunk[A] = fromIterable(as)
 
@@ -1731,6 +1809,12 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   ): Chunk.BitChunkByte = {
     val bits      = Math.min(left.length, right.length)
     val fullBytes = bits >> 3
+/**
+ * Creates chunks: from values (`apply`, `single`, `fill`, `iterate`, `unfold`),
+ * from arrays, collections, iterators and `java.nio` buffers (`fromArray`,
+ * `from`, `fromIterable`, `fromIterator`, `fromByteBuffer` and the other buffer
+ * methods), and through a `ChunkBuilder` (`newBuilder`).
+ */
     val remBits   = bits & 7
     val arr       = new Array[Byte](
       if (remBits == 0) fullBytes
@@ -1772,11 +1856,22 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
   override def empty[A]: Chunk[A] = Empty
 
   /**
-   * Returns a chunk backed by an array.
+   * Returns a chunk that wraps `array` without copying it. Use it to pass an
+   * array you own to code that takes a `Chunk` when the copy that `Chunk.from`
+   * makes would cost too much.
    *
-   * WARNING: The array must not be mutated after creating the chunk. If you're
-   * unsure whether the array will be mutated, prefer `Chunk.fromIterable` or
-   * `Chunk.from` which create a copy of the provided array.
+   * The chunk shares the array: a later write to an array of two or more
+   * elements shows through the chunk, so do not mutate the array afterwards. An
+   * array of one element is copied into the chunk, and an empty array gives the
+   * empty chunk. To keep a chunk independent of the array, use `Chunk.from` or
+   * `Chunk.fromIterable`, which copy it.
+   *
+   * {{{
+   * val pages = Array(512, 750)
+   * val chunk = Chunk.fromArray(pages)
+   * pages(0) = 600
+   * chunk(0) // 600
+   * }}}
    */
   def fromArray[A](array: Array[A]): Chunk[A] = {
     val len = array.length
