@@ -83,6 +83,11 @@ trait Unscoped[A]
 private[scope] trait UnscopedLowPriority {
   // Nothing - can always escape (never actually returned)
   // Must be low priority since Nothing <: A for all A
+  /**
+   * Marks `Nothing` as safe to leave a scope. It has low priority so that it
+   * does not compete with the other instances, because `Nothing` is a subtype
+   * of every type.
+   */
   implicit val unscopedNothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
 }
 
@@ -106,66 +111,163 @@ private[scope] trait UnscopedLowPriority {
  */
 object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
   // Primitives
-  implicit val unscopedInt: Unscoped[Int]               = new Unscoped[Int] {}
-  implicit val unscopedLong: Unscoped[Long]             = new Unscoped[Long] {}
-  implicit val unscopedShort: Unscoped[Short]           = new Unscoped[Short] {}
-  implicit val unscopedByte: Unscoped[Byte]             = new Unscoped[Byte] {}
-  implicit val unscopedChar: Unscoped[Char]             = new Unscoped[Char] {}
-  implicit val unscopedBoolean: Unscoped[Boolean]       = new Unscoped[Boolean] {}
-  implicit val unscopedFloat: Unscoped[Float]           = new Unscoped[Float] {}
-  implicit val unscopedDouble: Unscoped[Double]         = new Unscoped[Double] {}
-  implicit val unscopedUnit: Unscoped[Unit]             = new Unscoped[Unit] {}
-  implicit val unscopedString: Unscoped[String]         = new Unscoped[String] {}
-  implicit val unscopedBigInt: Unscoped[BigInt]         = new Unscoped[BigInt] {}
+  /** Marks `Int` values as safe to leave a scope. */
+  implicit val unscopedInt: Unscoped[Int] = new Unscoped[Int] {}
+
+  /** Marks `Long` values as safe to leave a scope. */
+  implicit val unscopedLong: Unscoped[Long] = new Unscoped[Long] {}
+
+  /** Marks `Short` values as safe to leave a scope. */
+  implicit val unscopedShort: Unscoped[Short] = new Unscoped[Short] {}
+
+  /** Marks `Byte` values as safe to leave a scope. */
+  implicit val unscopedByte: Unscoped[Byte] = new Unscoped[Byte] {}
+
+  /** Marks `Char` values as safe to leave a scope. */
+  implicit val unscopedChar: Unscoped[Char] = new Unscoped[Char] {}
+
+  /** Marks `Boolean` values as safe to leave a scope. */
+  implicit val unscopedBoolean: Unscoped[Boolean] = new Unscoped[Boolean] {}
+
+  /** Marks `Float` values as safe to leave a scope. */
+  implicit val unscopedFloat: Unscoped[Float] = new Unscoped[Float] {}
+
+  /** Marks `Double` values as safe to leave a scope. */
+  implicit val unscopedDouble: Unscoped[Double] = new Unscoped[Double] {}
+
+  /** Marks `Unit` values as safe to leave a scope. */
+  implicit val unscopedUnit: Unscoped[Unit] = new Unscoped[Unit] {}
+
+  /** Marks `String` values as safe to leave a scope. */
+  implicit val unscopedString: Unscoped[String] = new Unscoped[String] {}
+
+  /** Marks `BigInt` values as safe to leave a scope. */
+  implicit val unscopedBigInt: Unscoped[BigInt] = new Unscoped[BigInt] {}
+
+  /** Marks `BigDecimal` values as safe to leave a scope. */
   implicit val unscopedBigDecimal: Unscoped[BigDecimal] = new Unscoped[BigDecimal] {}
 
   // Collections of unscoped elements
-  implicit def unscopedArray[A: Unscoped]: Unscoped[Array[A]]           = new Unscoped[Array[A]] {}
-  implicit def unscopedList[A: Unscoped]: Unscoped[List[A]]             = new Unscoped[List[A]] {}
-  implicit def unscopedVector[A: Unscoped]: Unscoped[Vector[A]]         = new Unscoped[Vector[A]] {}
-  implicit def unscopedSet[A: Unscoped]: Unscoped[Set[A]]               = new Unscoped[Set[A]] {}
-  implicit def unscopedOption[A: Unscoped]: Unscoped[Option[A]]         = new Unscoped[Option[A]] {}
-  implicit def unscopedSeq[A: Unscoped]: Unscoped[Seq[A]]               = new Unscoped[Seq[A]] {}
+  /** Marks `Array[A]` as safe to leave a scope when its element type `A` is. */
+  implicit def unscopedArray[A: Unscoped]: Unscoped[Array[A]] = new Unscoped[Array[A]] {}
+
+  /** Marks `List[A]` as safe to leave a scope when its element type `A` is. */
+  implicit def unscopedList[A: Unscoped]: Unscoped[List[A]] = new Unscoped[List[A]] {}
+
+  /**
+   * Marks `Vector[A]` as safe to leave a scope when its element type `A` is.
+   */
+  implicit def unscopedVector[A: Unscoped]: Unscoped[Vector[A]] = new Unscoped[Vector[A]] {}
+
+  /** Marks `Set[A]` as safe to leave a scope when its element type `A` is. */
+  implicit def unscopedSet[A: Unscoped]: Unscoped[Set[A]] = new Unscoped[Set[A]] {}
+
+  /**
+   * Marks `Option[A]` as safe to leave a scope when its element type `A` is.
+   */
+  implicit def unscopedOption[A: Unscoped]: Unscoped[Option[A]] = new Unscoped[Option[A]] {}
+
+  /** Marks `Seq[A]` as safe to leave a scope when its element type `A` is. */
+  implicit def unscopedSeq[A: Unscoped]: Unscoped[Seq[A]] = new Unscoped[Seq[A]] {}
+
+  /**
+   * Marks `IndexedSeq[A]` as safe to leave a scope when its element type `A`
+   * is.
+   */
   implicit def unscopedIndexedSeq[A: Unscoped]: Unscoped[IndexedSeq[A]] = new Unscoped[IndexedSeq[A]] {}
-  implicit def unscopedIterable[A: Unscoped]: Unscoped[Iterable[A]]     = new Unscoped[Iterable[A]] {}
+
+  /**
+   * Marks `Iterable[A]` as safe to leave a scope when its element type `A` is.
+   */
+  implicit def unscopedIterable[A: Unscoped]: Unscoped[Iterable[A]] = new Unscoped[Iterable[A]] {}
 
   // Either
+  /**
+   * Marks `Either[A, B]` as safe to leave a scope when both `A` and `B` are.
+   */
   implicit def unscopedEither[A: Unscoped, B: Unscoped]: Unscoped[Either[A, B]] = new Unscoped[Either[A, B]] {}
 
   // Tuples of unscoped elements
+  /** Marks the tuple `(A, B)` as safe to leave a scope when `A` and `B` are. */
   implicit def unscopedTuple2[A: Unscoped, B: Unscoped]: Unscoped[(A, B)] =
     new Unscoped[(A, B)] {}
+
+  /**
+   * Marks the tuple `(A, B, C)` as safe to leave a scope when `A`, `B` and `C`
+   * are.
+   */
   implicit def unscopedTuple3[A: Unscoped, B: Unscoped, C: Unscoped]: Unscoped[(A, B, C)] =
     new Unscoped[(A, B, C)] {}
+
+  /**
+   * Marks the tuple `(A, B, C, D)` as safe to leave a scope when `A`, `B`, `C`
+   * and `D` are.
+   */
   implicit def unscopedTuple4[A: Unscoped, B: Unscoped, C: Unscoped, D: Unscoped]: Unscoped[(A, B, C, D)] =
     new Unscoped[(A, B, C, D)] {}
 
   // Maps with unscoped keys and values
+  /**
+   * Marks `Map[K, V]` as safe to leave a scope when its key type `K` and value
+   * type `V` are.
+   */
   implicit def unscopedMap[K: Unscoped, V: Unscoped]: Unscoped[Map[K, V]] = new Unscoped[Map[K, V]] {}
 
   // Java time types (immutable value types)
-  implicit val unscopedInstant: Unscoped[java.time.Instant]               = new Unscoped[java.time.Instant] {}
-  implicit val unscopedLocalDate: Unscoped[java.time.LocalDate]           = new Unscoped[java.time.LocalDate] {}
-  implicit val unscopedLocalTime: Unscoped[java.time.LocalTime]           = new Unscoped[java.time.LocalTime] {}
-  implicit val unscopedLocalDateTime: Unscoped[java.time.LocalDateTime]   = new Unscoped[java.time.LocalDateTime] {}
-  implicit val unscopedZonedDateTime: Unscoped[java.time.ZonedDateTime]   = new Unscoped[java.time.ZonedDateTime] {}
+  /** Marks `java.time.Instant` values as safe to leave a scope. */
+  implicit val unscopedInstant: Unscoped[java.time.Instant] = new Unscoped[java.time.Instant] {}
+
+  /** Marks `java.time.LocalDate` values as safe to leave a scope. */
+  implicit val unscopedLocalDate: Unscoped[java.time.LocalDate] = new Unscoped[java.time.LocalDate] {}
+
+  /** Marks `java.time.LocalTime` values as safe to leave a scope. */
+  implicit val unscopedLocalTime: Unscoped[java.time.LocalTime] = new Unscoped[java.time.LocalTime] {}
+
+  /** Marks `java.time.LocalDateTime` values as safe to leave a scope. */
+  implicit val unscopedLocalDateTime: Unscoped[java.time.LocalDateTime] = new Unscoped[java.time.LocalDateTime] {}
+
+  /** Marks `java.time.ZonedDateTime` values as safe to leave a scope. */
+  implicit val unscopedZonedDateTime: Unscoped[java.time.ZonedDateTime] = new Unscoped[java.time.ZonedDateTime] {}
+
+  /** Marks `java.time.OffsetDateTime` values as safe to leave a scope. */
   implicit val unscopedOffsetDateTime: Unscoped[java.time.OffsetDateTime] =
     new Unscoped[java.time.OffsetDateTime] {}
+
+  /** Marks `java.time.Duration` values as safe to leave a scope. */
   implicit val unscopedJavaDuration: Unscoped[java.time.Duration] = new Unscoped[java.time.Duration] {}
-  implicit val unscopedPeriod: Unscoped[java.time.Period]         = new Unscoped[java.time.Period] {}
-  implicit val unscopedZoneId: Unscoped[java.time.ZoneId]         = new Unscoped[java.time.ZoneId] {}
+
+  /** Marks `java.time.Period` values as safe to leave a scope. */
+  implicit val unscopedPeriod: Unscoped[java.time.Period] = new Unscoped[java.time.Period] {}
+
+  /** Marks `java.time.ZoneId` values as safe to leave a scope. */
+  implicit val unscopedZoneId: Unscoped[java.time.ZoneId] = new Unscoped[java.time.ZoneId] {}
+
+  /** Marks `java.time.ZoneOffset` values as safe to leave a scope. */
   implicit val unscopedZoneOffset: Unscoped[java.time.ZoneOffset] = new Unscoped[java.time.ZoneOffset] {}
 
   // Common Java types
+  /** Marks `java.util.UUID` values as safe to leave a scope. */
   implicit val unscopedUUID: Unscoped[java.util.UUID] = new Unscoped[java.util.UUID] {}
 
   // Scala duration
+  /**
+   * Marks `scala.concurrent.duration.Duration` values as safe to leave a scope.
+   */
   implicit val unscopedScalaDuration: Unscoped[scala.concurrent.duration.Duration] =
     new Unscoped[scala.concurrent.duration.Duration] {}
+
+  /**
+   * Marks `scala.concurrent.duration.FiniteDuration` values as safe to leave a
+   * scope.
+   */
   implicit val unscopedFiniteDuration: Unscoped[scala.concurrent.duration.FiniteDuration] =
     new Unscoped[scala.concurrent.duration.FiniteDuration] {}
 
   // zio-blocks types
+  /**
+   * Marks `zio.blocks.chunk.Chunk[A]` as safe to leave a scope when its element
+   * type `A` is.
+   */
   implicit def unscopedChunk[A: Unscoped]: Unscoped[zio.blocks.chunk.Chunk[A]] =
     new Unscoped[zio.blocks.chunk.Chunk[A]] {}
 
