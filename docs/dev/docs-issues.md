@@ -18,6 +18,8 @@ Pages that contradict the source. None of these were copied into the new guides.
 
 ### docs: `resource.md` says `Resource.from[T]` always closes an `AutoCloseable` and calls `Resource.shared` "lock-free" with an initializer that runs "exactly once"
 
+**Fix in PR #1917** (open, CI green, 2026-10-30, session `scope-reference-fixes`); move to Resolved when it merges.
+
 Found 2026-10-30 while writing the `scope` Scaladoc, on `main` at `ed2185ebe`. Same at `v0.0.56` (same line numbers). Verified on Scala 3.9.0 and 2.13.18 with `zio-blocks-scope` 0.0.56.
 
 **Summary.** `docs/reference/resource-management/resource.md` has two errors:
@@ -99,6 +101,8 @@ import zio.blocks.scope.*
 **Suggested fix.** Apply the wording above and run mdoc on the page. Remove the known-bug sentence when the library bug is fixed.
 
 ### docs: `wire.md` promises a fresh instance from every unique wire, and doesn't say `fromFunction` never closes an `AutoCloseable`
+
+**Fix in PR #1917** (open, CI green, 2026-10-30, session `scope-reference-fixes`); move to Resolved when it merges.
 
 Found 2026-10-30 while writing the `scope` Scaladoc, on `main` at `ed2185ebe`. Same at `v0.0.56` (there at lines 138, 185-212, 244-253 and 502-504). Verified on Scala 3.9.0 and 2.13.18 with `zio-blocks-scope` 0.0.56.
 
@@ -208,6 +212,8 @@ The workaround in the suggested wording below works: a `Wire.Shared.fromFunction
 **Suggested fix.** Apply the wording above, and turn the plain fences that are meant to compile into `mdoc:compile-only` blocks so the next `Context` change is caught. Remove the known-bug sentences when the library bugs are fixed.
 
 ### docs: `scope.md` describes `Scope.global` closing and `isOwner` without the Scala.js behaviour
+
+**Fix in PR #1917** (open, CI green, 2026-10-30, session `scope-reference-fixes`); move to Resolved when it merges.
 
 Found 2026-10-30 while writing the `scope` Scaladoc, on `main` at `ed2185ebe`. Same at `v0.0.56` (same line numbers). Verified on Scala 3.9.0 with `zio-blocks-scope` 0.0.56, on the JVM and on Scala.js 1.22.0.
 
@@ -475,6 +481,16 @@ Nothing else is printed: no "Handler failed" line, no stack trace. The same happ
 **Impact.** Every copy of the adapter: `http-model-examples/.../servehttpmodelrequests/JdkHttp.scala`, `.../validatequeryparametersandheaders/JdkHttp.scala`, `.../protectpageswithbasicauthorasessioncookie/JdkHttp.scala` (H-57), `jwt-examples/.../protectendpointswithjwt/JdkHttp.scala`, `capstone-examples/.../smalljsonbackendfromblocks/JdkHttp.scala`, `zio-blocks-htmx-examples/.../returnhtmxfragments/JdkHttp.scala` and `.../addinteractivitywithhtmx/JdkHttp.scala`, `datastar-examples/.../buildalivedashboardwithdatastar/JdkHttp.scala`; the inline `mdoc:invisible` copies in `serve-http-model-requests.md`, `validate-query-parameters-and-headers.md`, `protect-endpoints-with-jwt.md`, `small-json-backend-from-blocks.md` and H-57; probably the two `StreamingJdkHttp.scala` copies too (not checked). A reader who runs an example on JDK 17, or whose handler hits a failing initializer, gets a client-side I/O error and no clue.
 
 **Suggested fix.** At the handler boundary, catch `Throwable` except `VirtualMachineError` and `InterruptedException` (e.g. `case error: LinkageError =>` added next to `NonFatal`), log it, and answer 500 when no headers have been sent. Change the serving guide's copy and its prose first, then every copy and inline block above in one sweep. H-57 keeps the adapter identical to the serving guide's copy and does not change it.
+
+### `wire.md` has no mdoc-checked code blocks
+
+Found 2026-10-30 by the scope reference fixes (#1917), on `main` `8d6216d7a`. From source; the blocks were not compiled.
+
+**Summary.** Every code block on `docs/reference/resource-management/wire.md` was a plain `scala` fence, so mdoc never compiled any of them. That is how four `Context.empty[Any]` calls that don't compile (`Context.empty` is a `val`) reached the site. #1917 converts only the blocks it changes to `mdoc:compile-only`; about 17 plain fences remain unchecked (before #1917 at roughly lines 46-71, 77-85, 265-299, 309-397, 429-457 and 478-507).
+
+**Impact.** Any API drift in those examples goes unnoticed, and readers copy code that may not compile.
+
+**Suggested fix.** Convert the remaining blocks to `mdoc:compile-only` (or `mdoc:silent` where later blocks depend on them), run `docs/mdoc --include reference/resource-management/wire.md`, and fix whatever fails. Worth checking the other `resource-management` pages for plain fences at the same time.
 
 ## Resolved
 
