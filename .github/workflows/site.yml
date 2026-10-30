@@ -131,3 +131,19 @@ jobs:
           done
           echo "::error::$LIVE_URL still serves commit '${served:-unknown}' after 5 minutes; expected $EXPECTED."
           exit 1
+      - name: Check the live site redirects the old install guide
+        if: ${{ steps.netlify.outcome == 'success' }}
+        env:
+          LIVE_URL: https://zioblocks.com
+        run: |
+          # Redirects come from website/static/_redirects; a missing rule answers 404. curl follows no redirects here, so
+          # the status and the location header are the ones the rule sends.
+          headers=$(curl -sS -o /dev/null -D - "$LIVE_URL/guides/add-zio-blocks-to-your-build" | tr -d '\r')
+          status=$(echo "$headers" | grep '^HTTP/' | tail -n 1 | cut -d ' ' -f 2)
+          location=$(echo "$headers" | grep -i '^location:' | cut -d ' ' -f 2)
+          if [ "$status" = "301" ] && echo "$location" | grep -Eq '/getting-started/installation/?$'; then
+            echo "Old install guide redirects to $location."
+            exit 0
+          fi
+          echo "::error::$LIVE_URL/guides/add-zio-blocks-to-your-build answered $status with location '${location:-none}'; expected 301 to /getting-started/installation."
+          exit 1

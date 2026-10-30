@@ -1,33 +1,7 @@
 # Netlify does not build the site. The "Deploy Website" workflow (.github/workflows/site.yml) builds it in GitHub Actions
-# and uploads the finished files; previews come from the "Deploy Preview" workflow. This file keeps the redirects and the
-# publish directory, and the ignore command skips every Git-triggered Netlify build (pushes to main, pull requests).
+# and uploads the finished files; previews come from the "Deploy Preview" workflow. This file keeps the publish directory,
+# and the ignore command skips every Git-triggered Netlify build (pushes to main, pull requests). Redirects are not here:
+# the deploy jobs upload only the built files, so Netlify never reads this file. They live in website/static/_redirects.
 [build]
   publish = "website/build"
   ignore = "exit 0"
-
-# The docs used to live under /docs; keep old links working.
-[[redirects]]
-  from = "/docs"
-  to = "/overview"
-  status = 301
-
-[[redirects]]
-  from = "/docs/"
-  to = "/overview"
-  status = 301
-
-[[redirects]]
-  from = "/docs/*"
-  to = "/:splat"
-  status = 301
-
-# "How to Add ZIO Blocks to Your Build" moved from the guides to Getting Started.
-[[redirects]]
-  from = "/guides/add-zio-blocks-to-your-build"
-  to = "/getting-started/installation"
-  status = 301
-
-[[redirects]]
-  from = "/guides/add-zio-blocks-to-your-build/"
-  to = "/getting-started/installation"
-  status = 301

@@ -1,3 +1,18 @@
+# Netlify redirect rules. Netlify reads this file from the uploaded site files (Docusaurus copies website/static/ into the
+# build as is). Redirects must live here and not in netlify.toml: the deploy jobs upload only the built files, so Netlify
+# never sees netlify.toml. Rules are checked top to bottom and the first match wins; one rule per line: from, to, status.
+# A rule is skipped when a real file answers its "from" path (add "!" to the status to force it); none of the rules below
+# shadows a page, so none needs it.
+
 # Only the production Netlify host redirects; deploy previews live on other hosts (deploy-preview-N--...netlify.app).
 https://zio-blocks.netlify.app/*   https://zioblocks.com/:splat       301!
 http://zio-blocks.netlify.app/*    https://zioblocks.com/:splat       301!
+
+# The docs used to live under /docs; keep old links working.
+/docs                                      /overview                       301
+/docs/                                     /overview                       301
+/docs/*                                    /:splat                         301
+
+# "How to Add ZIO Blocks to Your Build" moved from the guides to Getting Started.
+/guides/add-zio-blocks-to-your-build       /getting-started/installation   301
+/guides/add-zio-blocks-to-your-build/      /getting-started/installation   301

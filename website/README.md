@@ -182,6 +182,10 @@ itself with `netlify.toml` and `build.sh` (which installs Java and sbt through S
 rebuild it: `netlify.toml` sets `ignore = "exit 0"`, which skips every Git-triggered build, and Netlify never cancels a
 build-hook build because of that command. Previews come from the CI workflow.
 
+Redirects live in `static/_redirects`, not in `netlify.toml`: the deploy jobs upload only the built files, so Netlify never
+reads `netlify.toml`, but it does read `_redirects` from the uploaded files (previews included). `test/unit/redirects.test.mjs`
+checks the rules, and `site.yml` curls the old install-guide URL after each production deploy.
+
 GitHub Actions (`.github/workflows/ci.yml`, generated from `project/CiWorkflow.scala`) checks the site on every pull
 request: it runs `sbt docs/mdoc docs/generateApiDocs` and `yarn build`, uploads the build as an artifact, and `deploy-preview.yml` publishes a
 Netlify deploy preview showing both the landing page and the docs. The `landing` job runs `yarn test`,
