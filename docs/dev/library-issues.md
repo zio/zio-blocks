@@ -13276,6 +13276,8 @@ Seen 2026-10-21 on four more docs-only PRs, each with exactly 1 of 12,761 tests 
 
 All three are hang-detection tests in the streams async paths. Docs PRs now fail CI about once per run on these, so either the timeouts need headroom on shared runners or one of these paths has a real race. Worth one investigation pass with the tests looped locally under CPU load (`taskset -c 0,1`).
 
+
+**Seen again** 2026-10-30 on #1913 (comment and docs only), job `testJVM (25, JVM, 2.13.x)`, together with the `AsyncReaderReachableCoverageSpec` timeout in the same run; one re-run of the failed job passed.
 ### `DeriverWithInstanceCsvSpec` asserts with `.contains`
 
 Found 2026-10-20 while writing H-03. The schema-csv spec checks rendered output with `.contains`, against the AGENTS.md rule to assert the full rendered string with `==`. A regression in field order or separators would pass.
