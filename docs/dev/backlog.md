@@ -598,6 +598,16 @@ Plan: `docs/superpowers/plans/2026-10-26-streams-scaladoc.md`. Style: `docs/dev/
 
 Completed 2026-10-27: coverage 361 / 561 (64%) → 561 / 561 (100%) with the scope-aware count. No member is left undocumented, so the close-out audit found no real gaps. Every wave fact-checked its Scaladoc against the code, and the reviews found and fixed false claims in existing comments. The bugs and reference-page errors the waves found are tracked in `docs/dev/issues.md`.
 
+## 13a. Scaladoc: chunk module
+
+Plan: `docs/superpowers/plans/2026-10-29-chunk-scaladoc.md`. Style: `docs/dev/scaladoc-style.md`. Coverage: `python3 -I .claude/scripts/scaladoc-coverage.py chunk` (TOTAL row, documented / declarations).
+
+| Wave | Status | PR | Coverage before | Coverage after |
+|---|---|---|---|---|
+| 0+1. Tooling, Chunk, NonEmptyChunk, ChunkBuilder, ChunkMap (one PR) | In review (CI green) | #1908 | 153 / 205 (74%) | 205 / 205 (100%) |
+
+Pilot of §13 (2026-10-29/30), session `scaladoc-chunk` (Opus controller): one PR, because chunk had no existing `{{{` blocks. Opus wrote tier 1 and fact-checked all 247 existing comments; 37 were false or imprecise (29 of the 153 counted ones, 19%), mostly wrong behaviour claims inherited from ZIO 2 ("backed by" where the code copies, `dropUntil`, `split`, "does not box" on Scala.js, `ChunkMap` "O(1)", `sizeHint`, `hashCode`). Opus's first pass caught 31 of the 37; the fresh-context reviewer found the other 6. Sonnet wrote the 48 tier-2/3 gaps and drew 1 Minor finding. Review: 13 findings (5 Important, 8 Minor) applied; Sonnet re-review APPROVE with 3 Minor applied; 16 / 16 in total. CI green on the first run. About 2 hours of wall-clock (23:02 to 00:58). Six library bugs and four `chunk.md` errors were filed (the "chunk: ..." entries in library-issues.md and the `docs/reference/chunk.md` entries in docs-issues.md); the four `chunk.md` errors are still open and need a small docs PR. The `scaladoc-rollout` skill gained "Lessons from chunk" (`references/lessons.md`) and `scripts/comments-only.py`.
+
 ## 13. Scaladoc: next modules
 
 Plan for the next module-wide Scaladoc rollouts, from a read-only research pass on 2026-10-29 (`main` at `bafc31bef`). Coverage was counted with the repo's `.claude/scripts/scaladoc-coverage.py`, the scope-aware count the streams rollout used.
@@ -610,6 +620,7 @@ Follow the `scaladoc-rollout` skill (`~/.claude/skills/scaladoc-rollout/SKILL.md
   - add the module to `scaladocCheckedModules` (`build.sbt:1410`, today `Seq(schema.jvm, streams.jvm)`);
   - make its existing `{{{ }}}` examples compile under `scaladoc-check` on 2.13.18, 3.9.0 and 3.10.0;
   - add its backlog table.
+- **If PR 0 has no existing examples to seed, ship it with the wave as one PR** (chunk, #1908).
 - **Then comment-only waves,** under about 3,000 changed lines each (the streams waves were about +900 to +1,130 lines). Then a close-out.
 - **Tiers:**
   - Tier 1, core types: an overview, a compiled example and `@see` to the reference page.
@@ -630,7 +641,7 @@ Follow the `scaladoc-rollout` skill (`~/.claude/skills/scaladoc-rollout/SKILL.md
 
 | # | Module | Documented / items | % | Files / LOC | Blocker for `scaladoc-check` |
 |---|---|---|---|---|---|
-| 1 | chunk | 153 / 205 | 74 | 6 / 5,069 | none |
+| 1 | chunk | 153 / 205 → 205 / 205, #1908 | 74 → 100 | 6 / 5,069 | none |
 | 2 | scope | 125 / 223 | 56 | 36 / 7,085 | none (23 existing `{{{` blocks to fix first) |
 | 3 | typeid | 162 / 390 | 41 | 28 / 6,496 | none |
 | 4 | config / -hocon / -json / -yaml | 79/202, 9/22, 0/2, 2/4 | 39 / 40 / 0 / 50 | 35 / 4,150 | none |
@@ -657,7 +668,7 @@ All modules other than schema and streams: 2,375 / 10,197 documented (23%), or 3
 
 | Order | Module | Prerequisites | Waves | Expected gain |
 |---|---|---|---|---|
-| 1 | **chunk** (pilot: 9 modules depend on it, 13 guides import it, no open bugs) | PR 0 adds it to `scaladocCheckedModules` | W1: `Chunk.scala` (185 items), `ChunkMap`, the four platform files. Optional W2: maybe + combinators (+202) | +52 → 205 / 205 |
+| 1 | **chunk** (pilot: 9 modules depend on it, 13 guides import it, no open bugs) | PR 0 adds it to `scaladocCheckedModules` | W1: `Chunk.scala` (185 items), `ChunkMap`, the four platform files. Optional W2: maybe + combinators (+202) | +52 → 205 / 205 | +52 → 205 / 205. **Done in one PR (#1908)**; W2 (maybe + combinators) deferred as a separate task 
 | 2 | **scope** (sql, streams, config and projection depend on it; 8 reference pages, 8 guides) | PR 0; fix the 23 existing `{{{` blocks | W1: `Scope`, `Resource`, `Wire`, `Finalization`, `Finalizer`, `DeferHandle`, `InStack`, `*VersionSpecific`. W2: the `Unscoped` scala-2/3 pair (66 missing), `internal/ErrorMessages`, the macros (tier 3) | about +98; its 13 open bugs (macro crashes, E-codes) are named as known bugs |
 | 3 | **typeid** (maybe, context and schema depend on it) | PR 0 | W1: the `TypeId` scala-2/3 pair (127 items, 17 documented), `TypeIdInstances`, `IsNominal*`. W2: `TypeRepr`, `TypeDefKind`, `Owner`, `TypeBounds`, `TypeParam`, `TermPath`, `Annotation`, `Kind`, `Variance`, `Member`, `TypeIdPrinter`, the macros (tier 3) | about +228 |
 | 4 | **config family** (7 reference pages, 7 guides) | PR 0 | W1: `Config`, `ConfigSource`, `ConfigError`, `ConfigDecoderDeriver`, `Provenance`, `Displayable`, `PlatformConfigSource`. W2: the flags (`FlagReader`, `DynamicFlag`, `StaticFlag`, `FlagSource`, `FlagException`, `Rollout`). W3: hocon, json, yaml | about +140; about 30 open config and hocon entries |
@@ -678,7 +689,7 @@ All modules other than schema and streams: 2,375 / 10,197 documented (23%), or 3
   - `scala-2`/`scala-3` and jvm/js copies each count (`Unscoped`, `Status`, `TypeId`, `HtmlElements`).
   - sql's count includes the fixture `JoinsDumpExample`, which shouldn't ship (see the Test and CI entry).
   - async shows only 144 items in 10.7k lines; nobody has checked why.
-- **Open question:** should mechanical tier-2 waves (the `Header` case classes, the `HtmlElements` tags) use Sonnet implementers? The earlier rollouts never tried it.
+- **Sonnet implementers: answered by the chunk pilot.** Sonnet wrote 48 mechanical tier-2/3 comments with 1 Minor finding (Opus: 15 findings on tier 1 and existing-comment corrections), at about a third of the tokens and a quarter of the time. Use Sonnet for mechanical tier-2/3 member lists (the `Header` case classes, the `HtmlElements` tags), and keep Opus for tier 1, the fact-check of existing comments, bug entries and the review. Caveat: Sonnet's items were the easy ones, and it was not tried on fact-checking or bug write-ups.
 
 **Next step:** Milad picks the first module. The recommendation is chunk as a one-wave pilot, then scope.
 
