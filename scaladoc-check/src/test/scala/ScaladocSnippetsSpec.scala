@@ -151,6 +151,13 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(chunkPath, 12) == "Snippet_chunk_shared_scala_Chunk_L12"
       )
     },
+    test("moduleImport and objectName give a scope example the scope import and drop the scope package") {
+      val scopePath = "scope/shared/src/main/scala-3/zio/blocks/scope/ScopeVersionSpecific.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(scopePath) == "zio.blocks.scope._",
+        ScaladocSnippets.objectName(scopePath, 12) == "Snippet_scope_shared_scala_3_ScopeVersionSpecific_L12"
+      )
+    },
     test("moduleImport follows the module directory") {
       assertTrue(
         ScaladocSnippets.moduleImport("schema/shared/src/main/scala/zio/blocks/schema/Schema.scala") ==
