@@ -73,7 +73,7 @@ When you create a small Chunk directly—say, `Chunk(1, 2, 3, 4, 5)`—it's back
 
 But here's where it gets clever. When you concatenate two Chunks, instead of eagerly copying all the data into a new array, Chunk creates a lightweight tree node that simply links the two chunks together. This is nearly free—just a few pointer assignments. If you concatenate again, you're building a small balanced tree. The beauty is that this tree structure guarantees that no matter how many times you concatenate, random access still works in O(log n) time. The tree stays balanced through careful structural invariants, so the depth never grows too much. For practical sequence sizes you'd work with, O(log n) access is nearly as fast as O(1), with much better memory usage.
 
-Chunk also includes specialized support for incremental building through the ChunkBuilder API. When you're constructing a sequence by repeatedly appending elements, ChunkBuilder appends into one array and doubles it when it is full. This means appending takes amortized O(1) time, like `ArrayBuffer`, with an occasional copy when the array grows, and `result()` returns an array-backed chunk.
+Chunk also includes specialized support for incremental building through the ChunkBuilder API. When you're constructing a sequence by repeatedly appending elements, ChunkBuilder appends into one array. `ChunkBuilder#addOne` doubles the array when it is full, so appending one element at a time takes amortized O(1) time, like `ArrayBuffer`, with an occasional copy when the array grows; `ChunkBuilder#addAll` with a `Chunk` grows it to exactly the size it needs. `result()` returns an array-backed chunk.
 
 There's another important optimization: Chunk is designed to handle primitive types like `Int`, `Long`, `Double`, and `Byte` without boxing them. This is a significant performance win in practice. The specialized constructors and accessors ensure that a `Chunk[Int]` really does store integers directly in memory, not wrapped in Java Integer objects.
 
@@ -486,7 +486,7 @@ val result = builder.result()
 
 `ChunkBuilder[A]` is a mutable builder that accumulates elements and returns a `Chunk[A]`. Use it when building chunks from elements that arrive incrementally—over time, from streaming sources, or when the total size is unknown in advance.
 
-When constructing a chunk from multiple sources, repeatedly calling `++` creates additional tree nodes and increases access depth (O(log n) per operation). Static construction methods like `Chunk.apply` or `Chunk.from` require all elements upfront. `ChunkBuilder` solves this by appending into one array that it doubles when it is full. This yields amortized O(1) append cost, like dynamically sized arrays, with an occasional copy when the array grows, and `result()` returns an array-backed chunk. It is also the standard Scala mutable builder interface, so it integrates with `scala.collection` builders.
+When constructing a chunk from multiple sources, repeatedly calling `++` creates additional tree nodes and increases access depth (O(log n) per operation). Static construction methods like `Chunk.apply` or `Chunk.from` require all elements upfront. `ChunkBuilder` solves this by appending into one array. `ChunkBuilder#addOne` doubles the array when it is full, which yields amortized O(1) append cost, like dynamically sized arrays, with an occasional copy when the array grows; `ChunkBuilder#addAll` with a `Chunk` grows it to exactly the size it needs. `result()` returns an array-backed chunk. It is also the standard Scala mutable builder interface, so it integrates with `scala.collection` builders.
 
 | Scenario                                                                                   | Right choice                                 |
 |--------------------------------------------------------------------------------------------|----------------------------------------------|
@@ -1381,7 +1381,7 @@ numbers.dropWhile(_ % 2 == 0)
 
 #### `Chunk#dropUntil` — Drop Through the First Match
 
-Drop elements up to and including the first one that satisfies the predicate, and keep the rest:
+Drop elements up to and including the first one that satisfies the predicate, and keep the rest. When no element satisfies the predicate, the result is empty:
 
 ```scala
 trait Chunk[+A] {
@@ -1389,7 +1389,7 @@ trait Chunk[+A] {
 }
 ```
 
-When no element satisfies the predicate, the result is empty. Here the first element that satisfies it is `3`, so `dropUntil` drops `1`, `2` and `3`:
+To try it, start with five numbers:
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
@@ -1397,7 +1397,7 @@ import zio.blocks.chunk.Chunk
 val numbers = Chunk(1, 2, 3, 4, 5)
 ```
 
-Drop numbers up to and including the first one that is at least 3:
+The first number that is at least 3 is `3`, so `dropUntil` drops `1`, `2` and `3`:
 
 ```scala mdoc
 numbers.dropUntil(_ >= 3)
@@ -2170,7 +2170,7 @@ trait Chunk[+A] {
 }
 ```
 
-Bitwise AND operates on boolean chunks, returning a `BitChunkByte` representing the packed result:
+Bitwise AND operates on boolean chunks, returning the packed result as a `Chunk[Boolean]` (its declared type, `Chunk.BitChunkByte`, is internal):
 
 ```scala mdoc:reset
 import zio.blocks.chunk.Chunk
