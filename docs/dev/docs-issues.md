@@ -16,40 +16,6 @@ Contents:
 
 Pages that contradict the source. None of these were copied into the new guides.
 
-**2026-10-30:** session `docs-error-fixes-5` (Opus) fact-checked the first three entries below with fresh-context Opus and probes on 0.0.56: all confirmed (E1b partly: Part 5 names `private[otel]` but presents the package trick as the design, and its plain-fenced block also lacks the package line and an import, and never exports metrics); fix in **PR #1914** (open); move the three entries to Resolved when it merges; the four `chunk.md` entries are with session `chunk-docs-followup`.
-
-### docs: the telemetry tutorial says shipping to a collector "isn't possible yet", and `telemetry-guide.md` reaches the private exporters by declaring a package
-
-Found 2026-10-29 by the backlog-refresh research, on `main` at `bafc31bef`. Same at `v0.0.56`.
-
-**Summary.** Two pages describe exporting telemetry inaccurately:
-1. `docs/guides/instrument-a-program-with-logs-traces-and-metrics.md:562` (T-12) says: "Shipping it to a backend such as an OpenTelemetry Collector, Jaeger or Grafana isn't possible yet, because the module's OTLP exporters are not public." But the public API in 0.0.56 can do it: `docs/reference/telemetry/otel/custom-exporter.md` builds an exporter from the public `OtlpJsonEncoder` (`otel/src/main/scala/zio/blocks/telemetry/otel/OtlpJsonEncoder.scala:52`), `HttpSender.jdk` (`HttpSender.scala:49`) and `ExportResult` (`ExportResult.scala:27`). Only the built-in exporters are `private[otel]`.
-2. `docs/guides/telemetry-guide.md:724-850` (Part 5) has readers put their bootstrap code in package `zio.blocks.telemetry.otel`, so that it can reach the `private[otel]` exporters. That compiles, but it relies on a package-private API that can change without notice, and the page doesn't say so.
-
-**Expected.** (1) "The built-in OTLP exporters aren't public yet; you can build one from the public encoder and sender: see Building an Exporter", linking `reference/telemetry/otel/custom-exporter.md`. (2) Part 5 says plainly that declaring the package is an unsupported workaround, and points to `custom-exporter.md` as the supported route.
-
-**Impact.** Readers of the tutorial think they can't export telemetry at all, while readers of the deep dive copy a trick that can break on any release.
-
-**Suggested fix.** Reword both places as in "Expected", and run mdoc on both pages. This is also input for the X-01 decision (making the built-in exporters public).
-
-### docs/examples: `NioBinaryTelemetryWalkthrough` section 6 says its window-reset bug was "since fixed"
-
-Found 2026-10-29 (PR #1897's session), on `main` at `fa76f487f`. `streams-examples/src/main/scala/nio/NioBinaryTelemetryWalkthrough.scala` section 6 says the replay-window bug it exercises "Originally exposed BUG-R8-03 (since fixed)", and it cites a test "NioSpec 'origin, window and accuracy (round 8)' [AdversarialWindowResetSpec]". Neither is true: the bug is still open (Library bugs entry "streams: `NioStreams.fromByteBuffer{Int,Long,Double,Float}(...).take(n).drop(m).repeated` replays the wrong window ..."), and no such test exists. The example therefore prints a FAIL on 0.0.56 and on `main`. The expected value in the code is correct.
-
-**Suggested fix.** Until the library is fixed, reword the comment to say section 6 shows a known bug in 0.0.56 and on `main`, and drop the dangling test reference. Once the library bug is fixed, restore the wording.
-
-### reference/http-model/model.md: the cookie sections use ZIO's `Chunk` and misdescribe `SameSite`
-
-Found 2026-10-29 while writing H-57 (`docs/guides/protect-pages-with-basic-auth-or-a-session-cookie.md`), on `main` `9d8bb9d70`.
-
-**Summary.** Three errors in `docs/reference/http-model/model.md`:
-
-1. "Sending Cookies" (`model.md:926`, `mdoc:compile-only`) builds `zio.Chunk(RequestCookie(...), ...)`. That is ZIO's `Chunk`, not `zio.blocks.chunk.Chunk`; it compiles only because `sql-zio` puts ZIO on the docs classpath. A reader without ZIO gets "value Chunk is not a member of zio". The block also ends with a comment "Render as Cookie header value (see Header operations)" and never renders it (`Cookie.renderRequest(cookies)` or `Request#addCookie` does).
-2. "SameSite Attribute" (`model.md:992`) says `SameSite.Strict` is the "default". The default is no attribute: `ResponseCookie.sameSite` defaults to `None` (`http-model/shared/src/main/scala/zio/http/Cookie.scala:44`), and browsers then apply their own default (Lax in Chrome).
-3. The same block says `SameSite.Lax` allows "Top-level navigations allowed (links, forms)". Lax sends the cookie on cross-site top-level `GET` navigations (links), not on cross-site form `POST`s; that is the protection Lax gives.
-
-**Suggested fix.** `zio.blocks.chunk.Chunk(...)` plus `Cookie.renderRequest(cookies)`; "(no attribute by default; Strict is the safest)"; "cross-site links (top-level GET) only, not cross-site form posts".
-
 ### `docs/reference/chunk.md` describes `ChunkBuilder` as a buffer that feeds a tree
 
 **Where found:** `docs/reference/chunk.md:76` (The Solution), `:489` and `:527` (Using ChunkBuilder for Incremental Construction). 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
@@ -610,6 +576,7 @@ Nothing else is printed: no "Handler failed" line, no stack trace. The same happ
 
 ## Resolved
 
+- Batch 5 doc errors fixed in #1914 (merge `610a89803`, 2026-10-30), each confirmed first by a fresh-context Opus fact-check with probes on 0.0.56: (1) `instrument-a-program-with-logs-traces-and-metrics.md:562` said exporting to an OpenTelemetry Collector "isn't possible yet" (it is, from the public `OtlpJsonEncoder` and `HttpSender`; the page now links the custom-exporter reference); `telemetry-guide.md` Part 5 now uses only public API (the package-declaration trick survives only in a warning), and its uncompilable plain block, its Part 4 `new OtlpJsonMetricExporter`, the shutdown order and the FAQ were fixed; (2) `NioBinaryTelemetryWalkthrough` section 6 no longer says its replay-window bug was "since fixed" (it still fails on 0.0.56, a known library bug), and three references to a nonexistent `NioSpec` test were removed; (3) `reference/http-model/model.md` cookies now use ZIO Blocks' `Chunk` and render the header, say `SameSite` has no default attribute, and describe `Lax` as cross-site top-level GET only.
 - `netlify.toml` redirects never reached zioblocks.com (the deploy job uploads the build without the repo, so `[[redirects]]` were never sent), so `/docs`, `/docs/*` and the old install-guide URL returned 404 (found 2026-10-30 after the post-deploy check). Fixed in #1912 (merge `a47f4502a`): every rule now lives in `website/static/_redirects`, a unit test guards them, and `site.yml` checks one redirect after each deploy. Deployed 2026-10-30 (run 41050926189, which passed its new redirect check); live: `/docs` → 301 `/overview`, `/docs/guides/your-first-schema` → 301 `/guides/your-first-schema`, `/guides/add-zio-blocks-to-your-build` (with and without `/`) → 301 `/getting-started/installation`.
 - `guides/validated-newtypes.md:362` ("Use Scala 3 Opaque Types") and `schema-examples/.../validatednewtypes/OpaqueTypesExample.scala:27` built `given Schema[Isbn] = Schema[String].transform(...)` inside the opaque scope, so on Scala 3.3 `Schema[String]` resolved to the given itself and the example hung (found by H-58, 2026-10-29). Fixed in #1906 (H-58, merge `b574f40f5`): both use `Schema.string.transform(`, with one sentence explaining why; verified on 3.3.7. The general trap stays in library-issues.md → Usability traps.
 - Fixed in #1890 (docs cleanup, merge `0959c8abb`): `reference/sql/repo.md` presented `Repo` as a public concrete class (it is abstract with a protected constructor) and said its SQL is built once at construction (only identifiers are cached; each call builds its statement). `query-dsl-sql.md` had unbalanced parentheses in two hard-coded output comments and an incomplete `ArithmeticOperator` list. `query-dsl-fluent-builder.md` pointed at files the page doesn't use. The Scope tutorial had a malformed mdoc fence. Three `undocumented-report.md` figures were wrong. `ddl.md` and `repo.md` now call the missing `PRIMARY KEY` a known bug in 0.0.56, and the object-hash outputs in `db-codec.md`, `db-codec-deriver.md`, `toon.md`, `ddl.md` and `repo.md` are gone.
