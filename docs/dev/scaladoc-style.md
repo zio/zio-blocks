@@ -55,7 +55,7 @@ def getDefaultValue: Option[A]
 
 - Each block compiles on its own. The wrapper adds the import of the module the file belongs to (`import zio.blocks.chunk._` for `chunk`, `import zio.blocks.schema._` for `schema`, `import zio.blocks.streams._` for `streams`); import anything else inside the block.
 - Use braces, not indentation syntax.
-- Sample data fits the API: numbers, bytes, chars and short strings for collections, port numbers, user ids or word counts for maps. Vary it from one example to the next. Books appear at most once or twice per file; use real Scala books, and if Zionomicon's authors are named, name all three: "John A. De Goes, Adam Fraser and Milad Khajavi".
+- Sample data fits the API: numbers, bytes, chars and short strings for collections, port numbers, user ids or word counts for maps. Vary it from one example to the next. Books appear at most once or twice per file; use real Scala books.
 - Show results in comments (`// Some(80)`). They are not checked, so run the example once (with `scala-cli` or in a test) before writing the comment.
 - The first line of a block can be a marker:
   - `// scala-3-only`: compiled on Scala 3 only (`given`, `using`, `derives`, union types in a shared file).
