@@ -278,6 +278,26 @@ Found 2026-10-20 while writing M-05. Verified with mdoc.
 
 **Next step.** Decide whether a `Resource` value is meant to be reusable. If yes, reset or recreate the shared state per allocation. If no, document it prominently and change the docs to `def`.
 
+**Addition (2026-10-30, scope Scaladoc rollout, verified on 0.0.56).** The cause is `Resource.shared` itself: after the last allocating scope closes, its state is `Destroyed` (`scope/shared/src/main/scala/zio/blocks/scope/Resource.scala:227-228`, lines at v0.0.56 = `ed2185ebe`), and every later `make` throws `IllegalStateException: Cannot allocate from a destroyed shared resource`. So any `val r = Resource.shared(...)` fails the same way on its second scope, not only `Resource.from` (which builds a `Resource.shared`, `scala-3/.../ResourceMacros.scala:86, 112, 124`). Verified on Scala 3.9.0 with `zio-blocks-scope` 0.0.56:
+
+```scala
+// Shared.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+
+final class Conn extends AutoCloseable { def close(): Unit = () }
+
+@main def shared(): Unit = {
+  val shared = Resource.shared[Conn](_ => new Conn)
+  Scope.global.scoped { s => import s.*; allocate(shared); () }
+  println(scala.util.Try(Scope.global.scoped { s => import s.*; allocate(shared); () }))
+}
+// Failure(java.lang.IllegalStateException: Cannot allocate from a destroyed shared resource)
+```
+
+Run with `scala-cli run --server=false .`. The Scaladoc of `Resource.shared` now states this behaviour.
+
 ### scope: `Wire(value)` evaluates eagerly
 
 **Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
@@ -291,6 +311,8 @@ Found 2026-10-20 while writing M-05. Verified with mdoc.
 Found 2026-10-20 while writing M-05. Verified with mdoc.
 
 **Summary.** When the function passed to `Wire.Shared.fromFunction` returns an `AutoCloseable`, its `close()` is not registered as a finalizer, so the resource leaks. `Resource.from[T]` registers it; `fromFunction` should too, or document the difference.
+
+**Addition (2026-10-30, scope Scaladoc rollout, verified on 0.0.56).** `Wire.Unique.fromFunction` behaves the same: both only wrap `f` (`scala-3/zio/blocks/scope/WireVersionSpecific.scala:94` and `:115`, `scala-2/zio/blocks/scope/WireVersionSpecific.scala:93` and `:114`, building the `Wire.Shared`/`Wire.Unique` case classes declared at `Wire.scala:144` and `:213`). Re-verified for `Unique` too: `uf3` (3.9.0, `zio-blocks-scope` 0.0.56) prints `unique:`, `shared:`, `end` with no `Db.close`. Re-verified on Scala 3.9.0 with `zio-blocks-next-scope` 0.0.56 and `-experimental`: `Resource.from[Db](Wire.Shared.fromFunction[Any, Db]((_, _) => new Db)).use(_ => ())` prints nothing from `Db.close`.
 
 ### scope: `Resource.from` never reports a dependency cycle (E10); the macro crashes instead
 
@@ -390,6 +412,8 @@ class Catalog(titles: java.util.ArrayList[String])
 
 **Suggested fix.** In `deriveWire` and `autoCreateWire`, detect Java-defined classes (`sym.flags.is(Flags.JavaDefined)`) and abort with a Scope error asking for an explicit wire. Alternatively, reject any dependency type that is not a value type before calling `AndType`.
 
+**Addition (2026-10-30, scope Scaladoc rollout, verified on 0.0.56).** Scala 3 only. On Scala 2.13.18 (`zio-blocks-scope` 0.0.56) `Wire.shared[java.util.ArrayList[String]]` compiles (`J.scala`: `object J extends App { println(Wire.shared[java.util.ArrayList[String]]); println("compiled") }` prints a `Shared(...)` line and `compiled`), and `Resource.from[Catalog]()` for `class Catalog(titles: java.util.ArrayList[String])` reports E7 `Cannot auto-create Int` (`Required by: ├── java.util.ArrayList[String] └── Catalog`), because the Scala 2 macros take the first constructor that reports `isPrimaryConstructor`, here `ArrayList(int)` (`scala-2/zio/blocks/scope/ResourceVersionSpecific.scala:289` for auto-created dependencies, `scala-2/zio/blocks/scope/ScopeMacros.scala:395-397` for `Wire.shared`; lines at v0.0.56 = `ed2185ebe`). The crash is in Scala 3's `MacroCore.computeInType` (`scala-3/zio/blocks/scope/internal/MacroCore.scala:101`).
+
 ### scope: Duplicate constructor parameter types (E12) are never reported in Scala 3; both parameters get the same instance
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/fix-scope-and-wire-compile-errors.md` (backlog H-31), on `main` at `64b2f666`. Reproduced against the published `0.0.56`.
@@ -430,6 +454,28 @@ class Catalog(val primary: Db, val replica: Db)
 **Test gap.** No test triggers E12 through the macro. `ErrorMessagesSpec` only tests the string renderer.
 
 **Suggested fix.** Run the duplicate check on the constructor's parameter types before they are combined into an intersection (in `WireCodeGen.deriveWire` and in `ResourceMacros`), and abort with `abortDuplicateParamType`. Add `typeCheck` tests for `Wire.shared` and `Resource.from`.
+
+**Addition (2026-10-30, scope Scaladoc rollout, verified on 0.0.56).** Scala 2 `Resource.from` reports E12. Scala 2 `Wire.shared[Catalog]` does not: it compiles, and `toResource(Context(new Db))` gives both parameters one instance, because `ScopeMacros.sharedImpl` (Scala 2) has no duplicate check (only `scala-2/zio/blocks/scope/ResourceVersionSpecific.scala:409` calls `abortDuplicateParamType`). Reproducer (2.13.18, `scala-cli run --server=false .`):
+
+```scala
+// D.scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope._
+import zio.blocks.context.Context
+
+class Db
+class Catalog(val primary: Db, val replica: Db)
+
+object D extends App {
+  val w = Wire.shared[Catalog]
+  println("compiled: " + w.isShared)
+  val same = w.toResource(Context(new Db)).use(c => c.primary eq c.replica)
+  println("primary eq replica: " + same)
+}
+// compiled: true
+// primary eq replica: true
+```
 
 ### scope: The E3 subtype-conflict hint suggests code that isn't valid Scala
 
@@ -487,6 +533,8 @@ class Catalog(inventory: InventoryRepo, sql: SqlInventoryRepo)
 **Test gap.** `ErrorMessagesSpec` tests the renderer only with unqualified names.
 
 **Suggested fix.** Build the identifier from the simple name (the text after the last `.`, with type arguments removed) and keep the full name only on the right-hand side. Show the `opaque type` alternative only in Scala 3.
+
+**Addition (2026-10-30, scope Scaladoc rollout, verified on 0.0.56).** E12's hint has the same Scala 2 problem: on Scala 2.13.18 (`zio-blocks-scope` 0.0.56), `class Catalog(val primary: Db, val replica: Db)` with `Resource.from[Catalog]()` reports E12 correctly but suggests `opaque type FirstDb = Db`, which Scala 2 does not have, next to a valid `case class FirstDb(value: Db)` alternative. (E12 does fire on Scala 2; only Scala 3 misses it, as the existing E12 entry says.)
 
 ### scope: Four Scope error codes can't be reached, and `renderMissingDependency` is dead code
 
@@ -605,6 +653,31 @@ class Db extends AutoCloseable {
 **Impact.** A reader fixing the second error first goes looking for an `Unscoped` problem that doesn't exist. This is a usability trap rather than a wrong result.
 
 **Suggested fix.** Hard to avoid fully, because the compiler drives this. Consider `@implicitNotFound` / `@implicitAmbiguous` messages on `Unscoped` that say "if another error is reported inside the block, fix that first". `@implicitAmbiguous` on the low-priority instances would also make the real escape error (no instance) read better.
+
+**Addition (2026-10-30, scope Scaladoc rollout, verified on 0.0.56).** The same mechanism hits a body with no error at all: a `scoped` block that always throws has result type `Nothing`, and the `Unscoped[A]` search is ambiguous on both versions, although an `Unscoped[Nothing]` instance exists.
+
+```scala
+// Throws.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+
+@main def throws(): Unit = {
+  val r = scala.util.Try(Scope.global.scoped { scope =>
+    import scope.*
+    defer(println("closed"))
+    throw new IllegalStateException("config missing")
+  })
+  println(r)
+}
+// -- [E172] Type Error: Throws.scala:11:3
+// 11 |  })
+//    |   ^
+//    |Ambiguous given instances: both given instance given_Unscoped_Double in object Unscoped and given instance given_Unscoped_ZonedDateTime in object Unscoped match type zio.blocks.scope.Unscoped[A] of parameter ev of method scoped in trait ScopeVersionSpecific
+// 1 error found
+```
+
+Run with `scala-cli run --server=false .`. The Scala 2.13.18 version (`import zio.blocks.scope._`, `import scope._`, `object Throws extends App {`) fails with `error: ambiguous implicit values: both value unscopedInstant in object Unscoped ... and value unscopedLocalDate in object Unscoped ... match expected type zio.blocks.scope.Unscoped[A]`; the instance names in the messages can change between runs. **Expected:** the block compiles with `A = Nothing`, and `r` is a `Failure`. **Workaround:** `Scope.global.scoped[Nothing] { ... }`, which prints `closed` and `Failure(java.lang.IllegalStateException: config missing)` on both versions. **Test gap:** no test returns `Nothing` from `scoped` or `use`. **Suggested fix:** the parent entry's `@implicitAmbiguous` message, naming the `scoped[Nothing]` workaround.
 
 ### config: `ProvenanceMap#dump` over an unprefixed `EnvSource` prints the whole environment
 
@@ -9269,6 +9342,631 @@ The real output on 0.0.56 is `Right(Chunk(30,40,30,40,50,60))`. Running against 
 
 **Suggested fix.** In `setSkip` and `setLimit`, store derived absolute window bounds (start and end positions in bytes), and have `reset()` restore exactly `[windowStart, windowEnd)`, clamped to `originalLimit`. Do it for all four readers, and check the Byte reader. Add a regression test per lane using the reproducer above. No sentinel loop is involved: `reset` isn't a hot path.
 
+### sql: `SqlQuery#where` joins conditions with `AND` without parentheses, so an `OR` condition matches extra rows
+
+Found 2026-10-29 while writing the how-to guide `docs/guides/build-a-query-from-optional-search-filters.md` (backlog H-59, in progress), on `main` at `9d8bb9d70`. The code is the same at tag `v0.0.56`. Verified.
+
+**Summary.** `SqlQuery#where` (and its alias `SqlQuery#filter`) appends a `Frag`, and the renderer joins all conditions with ` AND ` as written. A condition that contains `OR` is not wrapped in parentheses, so SQL precedence (`AND` binds tighter than `OR`) splits it: `.where(a).where(b OR c)` renders `a AND b OR c`, which means `(a AND b) OR c`. The query returns rows that fail the first condition, silently. A second, smaller problem: `.where(Frag.empty)` renders `WHERE ` with nothing after it.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run --server=false WhereOr.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+import zio.blocks.sql.query.*
+
+case class Ticket(id: Long, customer: String, status: String)
+object Ticket { given Schema[Ticket] = Schema.derived }
+
+object WhereOr {
+  def main(args: Array[String]): Unit = {
+    val file    = java.nio.file.Files.createTempFile("where-or", ".db")
+    val tx      = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+    val tickets = Table.derived[Ticket]
+    val repo    = Repo.derived[Ticket, Long]
+    tx.connect {
+      tickets.createTable(SqlDialect.SQLite).update
+      repo.insert(Ticket(1L, "Acme", "open"))
+      repo.insert(Ticket(2L, "Globex", "pending"))
+
+      // Acme's tickets that are open or pending
+      val q = SqlQuery
+        .from(tickets)
+        .where(sql"customer = ${"Acme"}")
+        .where(sql"status = ${"open"} OR status = ${"pending"}")
+      println(q.sql(SqlDialect.SQLite))
+      println(q.toFrag(SqlDialect.SQLite).query[Ticket])
+
+      // An empty Frag as a filter
+      val e = SqlQuery.from(tickets).where(Frag.empty)
+      println(e.sql(SqlDialect.SQLite))
+      try println(e.toFrag(SqlDialect.SQLite).query[Ticket])
+      catch { case ex: Exception => println(s"${ex.getClass.getSimpleName}: ${ex.getMessage}") }
+    }
+    java.nio.file.Files.delete(file)
+  }
+}
+// SELECT t0."id", t0."customer", t0."status" FROM "ticket" AS t0 WHERE customer = ? AND status = ? OR status = ?
+// List(Ticket(1,Acme,open), Ticket(2,Globex,pending))
+// SELECT t0."id", t0."customer", t0."status" FROM "ticket" AS t0 WHERE 
+// SQLiteException: [SQLITE_ERROR] SQL error or missing database (incomplete input)
+```
+
+**Expected.** `... WHERE (customer = ?) AND (status = ? OR status = ?)`, returning only `Ticket(1,Acme,open)`. An empty condition (`Frag#isEmpty`) is dropped instead of rendering `WHERE ` with nothing after it.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/query/QueryRenderer.scala:65-66`: `query.filters.reduce((a, b) => a ++ Frag.literal(" AND ") ++ b)` concatenates the conditions without parentheses, and the `filters.nonEmpty` check doesn't skip empty fragments. `SqlQuery.scala:132-135` appends any `Frag` as given.
+
+**Impact.** Silent wrong results, and a data leak when the first condition is a tenant or owner check (e.g. `.where(owner = me).where(public OR shared)`). The reference page (`reference/sql/sql-query.md`, "Filtering Rows") says only that conditions "are combined with `AND`". Any search screen that folds optional filters into `SqlQuery#where` hits it as soon as one filter has an `OR`.
+
+**Test gap.** `QueryRenderSpec.scala:150` ("multiple filters combined with AND") uses two single-comparison filters; no test has an `OR` inside a filter or an empty filter.
+
+**Suggested fix.** Render each condition as `(` ++ frag ++ `)` when there are two or more (or always), and skip `frag.isEmpty` in `filter`/`where` or at render time. Update the `QueryRenderSpec` expected strings and add the `OR` and empty-filter cases. Until then, the reference page should tell readers to parenthesize an `OR` condition themselves (H-59 does, calling it "a known bug in 0.0.56").
+
+### http-model: `Request#cookies` reads only the first `Cookie` header
+
+Found 2026-10-29 while writing H-57 (`docs/guides/protect-pages-with-basic-auth-or-a-session-cookie.md`), on `main` `9d8bb9d70`. Same at tag `v0.0.56`. Verified with the reproduction below (`scala-cli run --server=false Repro.sc`, published `0.0.56`).
+
+**Summary.** `Request#cookies` parses only the first `Cookie` header. HTTP/1.1 user agents send one `Cookie` header (RFC 6265 §5.4), but HTTP/2 and HTTP/3 let a client split the cookies into several `cookie` fields (RFC 9113 §8.2.3), and a server adapter that copies each field into `Headers` with `add` produces a `Request` whose later cookies are invisible to `Request#cookies`. A session cookie in the second field reads as "not signed in".
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), file `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+//> using options -experimental
+//> using jvm 21
+import zio.http._
+
+val url   = URL.parse("/admin").toOption.get
+val split = Request.get(url).addHeader("cookie", "theme=dark").addHeader("cookie", "session=abc")
+println(split.headers.rawGetAll("cookie"))
+println(split.cookies)
+println(split.addCookie(RequestCookie("lang", "en")).headers.rawGetAll("cookie"))
+// Chunk(theme=dark,session=abc)
+// Chunk(RequestCookie(theme,dark))
+// Chunk(theme=dark; lang=en)
+```
+
+**Expected.** `Chunk(RequestCookie(theme,dark), RequestCookie(session,abc))`: every `Cookie` field is parsed, in order, as RFC 9113 §8.2.3 says a receiver concatenates them with `"; "`.
+
+**Root cause.** `def cookies = header(Header.CookieHeader).map(header => Cookie.parseRequest(header.value)).getOrElse(Chunk.empty)` (`http-model/shared/src/main/scala/zio/http/Request.scala:52-53`); `Headers#get` returns the first parseable match only (`Headers.scala:52-72`). `Request#addCookie` (`Request.scala:58-61`) has the same blind spot: it re-renders only the first header's cookies plus the new one and `setHeader`s the result, dropping the others.
+
+**Impact.** Low for HTTP/1.1 adapters such as the JDK server one in the guides; real for any HTTP/2 front end that passes split `cookie` fields through.
+
+**Test gap.** `RequestSpec` "cookies" (`RequestSpec.scala:239-248`) covers one header and no header only.
+
+**Suggested fix.** Use `headers.rawGetAll("cookie")` and parse each value (or join them with `"; "`) in `Request#cookies` and `Request#addCookie`.
+
+### schema (Scala 3): a case-class field whose opaque type's right-hand side is a type parameter (Iron's `Int :| Positive`) decodes as `0`, encodes as `0`, and breaks `DynamicValue` round trips
+
+Found 2026-10-29 while checking Iron 3.4.1's `iron-zio-blocks-schema` against zio-blocks 0.0.56 for guide H-58 (branch `iron-refined-types`, on top of `9d8bb9d70`). It is the same at tag `v0.0.56` and on main `9d8bb9d70`. On main it was verified by running the reproducer's body in a scratch mdoc page through `docs/mdoc` (same three output lines). At `v0.0.51` the output is correct. The reproducer below was run with `scala-cli run --server=false Repro.scala` on Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56) and Scala 3.3.7 (`zio-blocks-schema` 0.0.56), with identical output. It is Scala 3 only, because Scala 2 has no opaque types.
+
+**Summary.** Take an opaque type whose right-hand side is one of its own type parameters, such as `opaque type Tagged[A, T] = A`, or Iron's `opaque type IronType[A, C] <: A = A` behind `Int :| Positive`. Use it with a primitive argument (`Int`, `Long`, `Double`, `Float`, `Boolean`, `Byte`, `Short`, `Char`) as a case-class field. The derived record then stores and reads the field in different register kinds. JSON decoding returns `0` for a valid value, and a constraint check written in `transform` never sees the real value. JSON encoding writes `0`. `toDynamicValue` followed by `fromDynamicValue` throws `ArrayIndexOutOfBoundsException`. With several fields of different types, decoding fails with a `ClassCastException`: Iron `RefinedType[Int, Positive]` next to `RefinedSubtype[BigDecimal, Positive]` gives `class scala.math.BigDecimal cannot be cast to class java.lang.Integer at: .`. A `String` or `BigDecimal` argument is unaffected, because both sides use an object register. So is an opaque type whose right-hand side does not mention its parameters (`opaque type Id[+A] = Long`).
+
+**Reproducer** (`Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+object tags:
+  // An opaque type whose right-hand side is one of its own type parameters,
+  // the shape of Iron's `opaque type IronType[A, C] <: A = A`.
+  opaque type Tagged[A, T] = A
+  def tag[A, T](a: A): Tagged[A, T] = a
+  def untag[A, T](t: Tagged[A, T]): A = t
+import tags.*
+
+trait Positive
+given [T]: Schema[Tagged[Int, T]] = Schema[Int].transform(tag[Int, T], untag[Int, T])
+
+final case class Customer(age: Tagged[Int, Positive]) derives Schema
+
+@main def run(): Unit =
+  println(Schema[Customer].jsonCodec.decode("""{"age":36}"""))
+  // Right(Customer(0))
+  println(Schema[Customer].jsonCodec.encodeToString(Customer(tag(36))))
+  // {"age":0}
+  println(scala.util.Try(Schema[Customer].fromDynamicValue(Schema[Customer].toDynamicValue(Customer(tag(36))))))
+  // Failure(java.lang.ArrayIndexOutOfBoundsException: Index 0 out of bounds for length -3)
+```
+
+The same output appears on Scala 3.3.7, with `//> using scala 3.3.7`, `dev.zio::zio-blocks-schema:0.0.56` and no `-experimental`. With `zio-blocks-schema:0.0.51` it prints `Right(Customer(36))`, `{"age":36}` and `Success(Right(Customer(36)))`. Through Iron (`io.github.iltotore::iron-zio-blocks-schema:3.4.1`, excluding `dev.zio%zio-blocks-schema_3`, with `final case class Customer(name: String :| (MinLength[1] & MaxLength[20]), age: Int :| Positive) derives Schema`), decoding `{"name":"Ada","age":36}` gives `Right(Customer(Ada,0))`.
+
+**Expected.** `Right(Customer(36))`, `{"age":36}` and `Success(Right(Customer(36)))`, as in 0.0.51.
+
+**Root cause.** The macro and the runtime disagree on which register the field uses.
+- Compile time: `fieldOffset` (`schema/shared/src/main/scala-3/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:465-467` on main, `:413-415` at v0.0.56) picks the register from `dealiasOnDemand(fTpe)`, which calls `CommonMacroOps.opaqueDealias` (`schema/shared/src/main/scala-3/zio/blocks/schema/CommonMacroOps.scala:100-116` on main, `:90-106` at v0.0.56). Its loop handles `case AppliedType(atTpe, _) => loop(atTpe.dealias)` (`:108` on main, `:98` at v0.0.56) and throws the type arguments away. It then follows the type constructor's `translucentSuperType`, the lambda `[A, T] =>> A`, into its body and returns the bare type parameter `A`, not `Int`. `A <:< Int` is false, so the macro allocates an object register.
+- Runtime: since #1578 ("Fix opaque wrapper register layout", commit 8c1a9858a, first released in 0.0.52), `Reflect.unwrapToPrimitiveTypeOption` (`schema/shared/src/main/scala/zio/blocks/schema/Reflect.scala:2927-2937` on main, `:2041-2051` at v0.0.56) unwraps an opaque wrapper to its wrapped primitive. `Reflect.registerOffset` (`:2939` on main, `:2053` at v0.0.56) therefore gives the field an int register, and `JsonCodecDeriver` uses that offset (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:320`, `:582`).
+- Result: the codec writes an int register and the macro-generated constructor reads an object register (and the reverse on encode).
+- Before #1578 both sides used an object register for this shape, which is why 0.0.51 works. Opaque types whose right-hand side is concrete (`Age = Int`, `Id[+A] = Long`) dealias correctly, and both sides pick the int (or long) register.
+
+**Impact.** Iron's official zio-blocks module, `iron-zio-blocks-schema`, is unusable for numeric refined fields in derived case classes on 0.0.52 to 0.0.56. That is the most common Iron use (`age: Int :| Positive`, `quantity: Int :| Positive`, and `RefinedType[Int, _]` newtypes). The failure is silent: valid input becomes `0`, and `0` passes through even when the constraint forbids it. Any user opaque type of the form `Tagged[A, T] = A` (phantom tags, units of measure) is affected the same way. Guide H-58 works around it with `String` and `BigDecimal` refinements and a warning.
+
+**Test gap.** The opaque-type fixtures (`schema/shared/src/test/scala-3/zio/blocks/schema/OpaqueTypes.scala`, and `ExternalOpaqueInt` in `json/JsonBinaryCodecDeriverVersionSpecificSpec.scala:24`) are all unparameterized, or parameterized with a concrete right-hand side. None has a right-hand side that is a type parameter, applied to a primitive, used as a record field. The #1578 regression test covers only `opaque type X = Int`.
+
+**Suggested fix.** In `CommonMacroOps.opaqueDealias`, keep the type arguments. For `AppliedType(tycon, args)` where `tycon` is an opaque alias, substitute the arguments into the right-hand side, for example by `tycon.translucentSuperType` being a `TypeLambda` and taking `tl.appliedTo(args).dealias`, or with `tpe.translucentSuperType` on the applied type. Then loop again. Add a regression test with `opaque type Tagged[A, T] = A` (and the bounded form `<: A`) applied to `Int`, `Long`, `Double` and `Boolean` as record fields, mixed with a `String` field. Cover JSON decode and encode and the `DynamicValue` round trip on Scala 3.3 and 3.9. Optionally add an Iron-shaped fixture, `opaque type IronType[A, C] <: A = A` with `type :|[A, C] = IronType[A, C]`.
+
+### chunk: `ChunkMap.hashCode` differs from `Map.hashCode` although the two are equal
+
+**Where found:** `chunk/shared/src/main/scala/zio/blocks/chunk/ChunkMap.scala`, while checking the `hashCode` Scaladoc ("ensures that equivalent ChunkMap instances produce the same hash code"). 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** `ChunkMap#equals` returns `true` for any `scala.collection.Map` with the same entries, and `Map#equals` returns `true` back, but `ChunkMap#hashCode` uses a different hash (an unordered hash of the tuples with the seed `"ChunkMap".hashCode`) from `Map#hashCode` (`MurmurHash3.mapHash`). Equal objects get different hash codes, which breaks the `equals`/`hashCode` contract. The same happens with `ChunkMap#indexed`: `cm == cm.indexed` is `true`, but `Indexed` (a standard `AbstractMap`) hashes with `mapHash`, so the two hash codes differ.
+
+**Reproducer** (`ChunkMapHash.sc`, Scala 3.9.0, `dev.zio::zio-blocks-chunk:0.0.56`; the same output on Scala 2.13.18):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.ChunkMap
+import scala.collection.immutable.HashSet
+
+val cm = ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008)
+val m  = Map("Zionomicon" -> 2021, "Programming in Scala" -> 2008)
+println(cm == m)                         // true
+println(m == cm)                         // true
+println(cm.hashCode == m.hashCode)       // false
+println(HashSet[Any](m).contains(cm))    // false
+println(cm == cm.indexed)                // true
+println(cm.hashCode == cm.indexed.hashCode) // false
+```
+
+**Expected:** `cm.hashCode == m.hashCode`, and `HashSet(m).contains(cm)` is `true`.
+
+**Root cause:** `ChunkMap.scala:386`, `override def hashCode(): Int = scala.util.hashing.MurmurHash3.unorderedHash(this, "ChunkMap".hashCode)`. Every standard `Map` hashes with `MurmurHash3.mapHash`.
+
+**Impact:** a `ChunkMap` and an equal standard `Map` used as keys in one `HashMap`/`HashSet` (Scala or Java) are treated as different keys; lookups with one miss entries stored with the other. Also on Scala.js (checked: `cm == m` is `true`, the hash codes differ).
+
+**Test gap:** `ChunkMapSpec.scala:234` ("equals works with scala.collection.Map") checks equality in both directions but no hash code; `ChunkMapSpec.scala:239` compares hash codes of two `ChunkMap`s only.
+
+**Suggested fix:** `override def hashCode(): Int = scala.util.hashing.MurmurHash3.mapHash(this)`, plus a test that `ChunkMap(...).hashCode == Map(...).hashCode` for the same entries. Then drop "(a known bug)" from the `ChunkMap` class and `hashCode` Scaladoc.
+
+### chunk: `ChunkMapBuilder.sizeHint` shrinks the buffers instead of growing them
+
+**Where found:** `chunk/shared/src/main/scala/zio/blocks/chunk/ChunkMap.scala`, while checking the `sizeHint` Scaladoc ("Adjusts the internal storage size to accommodate the specified hint"). 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** when `hint` is larger than the current capacity, `sizeHint` copies the key and value buffers to length `size` (the number of entries so far) instead of `hint`. The buffers shrink, so the next `add` has to grow them again; no entry is lost, but the hint does the opposite of what it is for.
+
+**Reproducer** (`ChunkMapSizeHint.sc`, Scala 3.9.0, `dev.zio::zio-blocks-chunk:0.0.56`; the same output on Scala 2.13.18; reads the private buffer by reflection):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.ChunkMap
+
+val b = new ChunkMap.ChunkMapBuilder[String, Int]()
+def capacity(): Int = {
+  val f = b.getClass.getDeclaredFields.find(_.getName.contains("keysBuffer")).get
+  f.setAccessible(true)
+  java.lang.reflect.Array.getLength(f.get(b))
+}
+b.addOne("Zionomicon" -> 2021)
+b.addOne("Programming in Scala" -> 2008)
+println(capacity()) // 4
+b.sizeHint(100)
+println(capacity()) // 2
+```
+
+**Expected:** `100` after `sizeHint(100)`.
+
+**Root cause:** `ChunkMap.scala:538-541`:
+
+```scala
+override def sizeHint(hint: Int): Unit = if (hint > keysBuffer.length) {
+  keysBuffer = java.util.Arrays.copyOf(keysBuffer, size)
+  valsBuffer = java.util.Arrays.copyOf(valsBuffer, size)
+}
+```
+
+`size` should be `hint`.
+
+**Impact:** performance only: a caller that calls `sizeHint` with the expected size pays extra copies instead of saving them. The `seen` hash map is not resized either. (`ChunkMap.from` and `concat` size the builder through its constructor, not `sizeHint`, so they are not affected.)
+
+**Test gap:** the only call is `ChunkMapSpec.scala:282` ("builder can be reused after cleaning"), on an empty builder, and it asserts only the resulting entries, which stay correct. `ChunkBuilderSpec`'s `sizeHint` tests cover `ChunkBuilder`, not `ChunkMapBuilder`.
+
+**Suggested fix:** copy to `hint` in both lines; add a test that reads `knownSize` and entries after `sizeHint` on a non-empty builder (or exposes capacity to the test). Then drop "(a known bug)" from the `sizeHint` Scaladoc and the class's method list.
+
+### chunk: Indexing a sliced chunk or a bit chunk out of range returns a value instead of throwing
+
+**Where found:** `chunk/shared/src/main/scala/zio/blocks/chunk/Chunk.scala`, while checking which index errors `Chunk#head` and `ChunkMap#keyAtIndex` throw (the bit-chunk and empty-slice cases were found by review 1). 2026-10-29/30, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** two families of chunk views index their backing data without checking their own bounds.
+
+- `take`, `drop`, `slice`, `splitAt` and friends return a private `Slice` view whose `apply` adds its offset and indexes the underlying chunk. An out-of-range index returns an element of the underlying chunk (it throws only when it also falls outside that chunk). `ChunkMap#removed` builds its key and value chunks with `take` and `drop`, so `keyAtIndex`, `valueAtIndex` and `atIndex` on a map returned by `removed` can return the removed entry. `slice(from, until)` with `from >= until` inside the chunk returns a zero-length `Slice`, not the empty chunk, so `head` on it (`apply(0)`) returns an element: `Chunk(1, 2, 3).slice(1, 1).head == 2`, while `isEmpty` is `true`.
+- The private bit chunks `BitChunkByte`, `BitChunkInt` and `BitChunkLong` add `minBitIndex` and read the bit without comparing `n` with `length`. They back every chunk of bits: the results of `Chunk#&`, `|`, `^`, `negate`, `asBitsByte`, `asBitsInt` and `asBitsLong`, the result of `ChunkBuilder.Boolean#result`, and their `take`/`drop`. An out-of-range index returns a padding bit or a bit outside the slice.
+
+**Reproducers** (Scala 3.9.0, `dev.zio::zio-blocks-chunk:0.0.56`; the same output on Scala 2.13.18; `SliceApply.sc` also on Scala.js).
+
+`SliceApply.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.{Chunk, ChunkMap}
+import scala.util.Try
+
+val books = Chunk("Zionomicon", "Programming in Scala", "Scala with Cats")
+println(Try(books.take(1)(1)))         // Success(Programming in Scala)
+println(Try(books.drop(1)(-1)))        // Success(Zionomicon)
+println(Try(books.slice(1, 2)(1)))     // Success(Scala with Cats)
+println(Try(books.toList.take(1)(1)))  // Failure(java.lang.IndexOutOfBoundsException: 1)
+val years = ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008)
+println(Try(years.removed("Programming in Scala").keyAtIndex(1))) // Success(Programming in Scala)
+```
+
+`SliceHead.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.Chunk
+import scala.util.Try
+
+val books = Chunk("Zionomicon", "Programming in Scala", "Scala with Cats")
+val none  = books.slice(1, 1)
+println(none.isEmpty)                          // true
+println(Try(none.head))                        // Success(Programming in Scala)
+println(Try(none.headOption))                  // Success(None)
+println(Try(none.last))                        // Failure(java.util.NoSuchElementException: last of empty IndexedSeq)
+println(Try(books.toList.slice(1, 1).head))    // Failure(java.util.NoSuchElementException: head of empty list)
+```
+
+`BitChunkApply.sc` (adapted from review 1):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
+import zio.blocks.chunk.Chunk.BitChunk.Endianness.BigEndian
+import scala.util.Try
+
+val flags = Chunk(true, true, true) & Chunk(true, true, true)
+println(flags.length)                                       // 3
+println(Try(flags(5)))                                      // Success(false)
+val builder = new ChunkBuilder.Boolean
+builder.addOne(true).addOne(true).addOne(true)
+println(Try(builder.result()(4)))                           // Success(false)
+val isbnBits = Chunk[Byte](-1, 0).asBitsByte
+println(Try(isbnBits.take(4)(5)))                           // Success(true)
+println(Try(isbnBits.drop(1)(-1)))                          // Success(true)
+println(Try(Chunk(-1).asBitsInt(BigEndian).take(4)(10)))    // Success(true)
+println(Try(Chunk(-1L).asBitsLong(BigEndian).take(4)(10)))  // Success(true)
+println(Try(Chunk(true, true, true)(5)))                    // Failure(java.lang.ArrayIndexOutOfBoundsException: Index 5 out of bounds for length 3)
+```
+
+**Expected:** each out-of-range access throws an `IndexOutOfBoundsException`, as `List` does and as `Chunk`'s own `AppendN`, `PrependN` and `Update` nodes do, and `head` on an empty chunk throws `NoSuchElementException` or `IndexOutOfBoundsException`, as `last` does.
+
+**Root cause:**
+- `Chunk.scala:2315`, `override def apply(n: Int): A = chunk.apply(offset + n)` in `Slice`; no `n < 0 || n >= length` check. (`Concat.apply` at `Chunk.scala:2211-2215` and `VectorChunk.apply` delegate too, and rely on the child to check.) `Chunk#head` is `apply(0)` (`Chunk.scala:1095`), and `Chunk#slice` (`:1225-1232`) builds a `Slice` of length 0 instead of returning `Chunk.empty`.
+- `BitChunkByte.apply` (`Chunk.scala:2534-2538`), `BitChunkInt.apply` (`:2660-2664`) and `BitChunkLong.apply` (`:2736-2740`): `val bitIndex = n + minBitIndex` with no check of `n`.
+
+**Impact:** silent wrong results instead of an exception for any off-by-one index on a sliced chunk or a chunk of bits, `head` returning a value from an empty chunk, and a removed `ChunkMap` entry resurfacing through positional reads. `lift`, `isDefinedAt`, `headOption`, `last` and the iterators are not affected (they check `length` first); `head` is.
+
+**Test gap:** `ChunkSpec.scala:103` and `:141` check out-of-range `apply` on appended and prepended chunks only (the only other `throwsA[IndexOutOfBoundsException]` is `:853`, for `updated`); no test indexes a `take`/`drop`/`slice` result out of range or calls `head` on an empty slice, `ChunkMapSpec` has no out-of-range `atIndex` test, and `BitChunkApplyBugSpec.scala` checks only in-range reads after `drop`/`take`.
+
+**Suggested fix:** in `Slice.apply` and in the three `BitChunk*.apply` methods, `if (n < 0 || n >= length) throw new IndexOutOfBoundsException(s"... chunk access to $n")` before reading; make `Chunk#slice` return `Chunk.empty` when `end == start`. Add tests for `take`, `drop`, `slice(1, 1).head`, `&` and `asBitsByte.take` followed by out-of-range `apply`, and `ChunkMap#removed` followed by out-of-range `keyAtIndex`. Then drop the "(a known bug)" sentences from the `Chunk` class Scaladoc, `Chunk#head`, and `ChunkMap#atIndex`, `#keyAtIndex` and `#valueAtIndex`.
+
+### chunk: `Chunk#dedupe` drops leading `null` elements
+
+**Where found:** `chunk/shared/src/main/scala/zio/blocks/chunk/Chunk.scala`, while checking the `dedupe` Scaladoc ("Deduplicates adjacent elements that are identical"). 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** `dedupe` starts with `lastA = null` and keeps an element only when it differs from `lastA`, so a run of `null` at the start of the chunk is removed completely instead of being kept once.
+
+**Reproducer** (`Dedupe.sc`, Scala 3.9.0, `dev.zio::zio-blocks-chunk:0.0.56`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.Chunk
+
+println(Chunk[String](null, null, "Zionomicon", "Zionomicon").dedupe) // Chunk(Zionomicon)
+println(Chunk[String]("Zionomicon", null, null).dedupe)               // Chunk(Zionomicon,null)
+```
+
+**Expected:** `Chunk(null,Zionomicon)` for the first line.
+
+**Root cause:** `Chunk.scala:832`, `var lastA = null.asInstanceOf[A]`, compared at `:836` (`if (a != lastA)`) for the first element too.
+
+**Impact:** small: only chunks that start with `null`. The result silently loses an element.
+
+**Test gap:** `ChunkSpec.scala:185` tests one chunk of `Int` without `null`.
+
+**Suggested fix:** always add the element at index 0 (`if (idx == 0 || a != lastA)`), and add a test with leading `null`s. Then drop "Leading `null` elements are dropped (a known bug)" from the `dedupe` Scaladoc.
+
+### chunk: `NonEmptyChunk#reduceMapLeft` and `#reduceMapRight` restart when a step returns `null`
+
+**Where found:** `chunk/shared/src/main/scala/zio/blocks/chunk/Chunk.scala` (`NonEmptyChunk`), while writing the tier-1 Scaladoc for `reduceMapLeft`. 2026-10-29, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** both methods use `b == null` to mean "no element seen yet". When `map` or `reduce` returns `null`, the next element is passed to `map` again, and everything reduced so far is discarded.
+
+**Reproducer** (`ReduceMap.sc`, Scala 3.9.0, `dev.zio::zio-blocks-chunk:0.0.56`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.NonEmptyChunk
+
+val titles = NonEmptyChunk("Zionomicon", "Programming in Scala", "Scala with Cats")
+// reduce returns null for the second element, then the third restarts with `map`
+println(titles.reduceMapLeft(identity)((acc, t) => if (t.startsWith("Programming")) null else acc + " / " + t))
+// Scala with Cats
+println(titles.toChunk.tail.foldLeft(titles.head)((acc, t) => if (t.startsWith("Programming")) null else acc + " / " + t))
+// null / Scala with Cats
+println(titles.reduceMapRight(identity)((t, acc) => if (t.startsWith("Programming")) null else t + " / " + acc))
+// Zionomicon
+```
+
+**Expected:** `null / Scala with Cats` (as the `foldLeft` line) and `Zionomicon / null`.
+
+**Root cause:** `Chunk.scala:4005` and `:4011` (`var b = null.asInstanceOf[B]` ... `if (b == null) b = map(a)`), and the same at `:4024`/`:4032` in `reduceMapRight`.
+
+**Impact:** small: only reductions whose `B` is a reference type and whose functions can return `null`; the result is silently wrong.
+
+**Test gap:** `NonEmptyChunkSpec.scala:95` and `:102` compare with `foldLeft`/`foldRight`, but `genIntFunction` returns `Int`, so `null` never occurs.
+
+**Suggested fix:** seed from the first (or last) element and loop over the rest, e.g. `var b = map(chunk(0)); var idx = 1; while (idx < len) { b = reduce(b, chunk(idx)); idx += 1 }`. Then drop the "(a known bug)" paragraph from both Scaladoc comments.
+
+### chunk: `Chunk#flatMap` throws `ClassCastException` when a later result's type differs from a primitive first result
+
+**Where found:** `chunk/shared/src/main/scala/zio/blocks/chunk/Chunk.scala`, while checking the `Chunk` class Scaladoc note ("it is not safe to construct chunks from heterogeneous primitive types"); review 1 widened the trigger, and the Scala.js case was found while checking that. 2026-10-29/30, commit `9d8bb9d70`; same at `v0.0.56`. The `file:line` citations are at `v0.0.56` (= `9d8bb9d70`).
+
+**Summary:** `flatMap` allocates its result array with the `ClassTag` of the first non-empty collection that `f` returns. When that collection holds primitive values, such as `Int`s, the array is an `int[]`, and copying any later result of another type into it (`Long`, `String`, anything) throws. Order matters: when the `String` result comes first, the array is an `Object[]` and the call succeeds. `map`, `ChunkBuilder` and `toArray` catch the same `ClassCastException` and fall back to an `Object[]`; `flatMap` does not. `Chunk#flatten`, `NonEmptyChunk#flatMap` and `NonEmptyChunk#flatten` delegate to `Chunk#flatMap` and fail the same way.
+
+On Scala.js, the class tag of a generic chunk is always `AnyRef`, so `Chunk(1)` or `List(1)` first is fine; but a first result backed by a primitive array (from `Chunk.fromArray`, `Chunk.from` on an array, or `ChunkBuilder.Int`) fails the same way, and since the failed cast is undefined behaviour there, a development build stops with a fatal `UndefinedBehaviorError` that `Try` does not catch.
+
+**Reproducer** (`FlatMapMixed.sc`, Scala 3.9.0, `dev.zio::zio-blocks-chunk:0.0.56`; the same output on Scala 2.13.18):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.{Chunk, NonEmptyChunk}
+import scala.util.Try
+
+val ids = Chunk(1, 2)
+println(Try(ids.map[Any](i => if (i == 1) 1 else 2L)))
+// Success(Chunk(1,2))
+println(Try(ids.flatMap[Any](i => if (i == 1) Chunk(1) else Chunk(2L))))
+// Failure(java.lang.ClassCastException: class java.lang.Long cannot be cast to class java.lang.Integer (java.lang.Long and java.lang.Integer are in module java.base of loader 'bootstrap'))
+println(Try(ids.flatMap[Any](i => if (i == 1) Chunk(1) else Chunk("Zionomicon"))))
+// Failure(java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Integer (java.lang.String and java.lang.Integer are in module java.base of loader 'bootstrap'))
+println(Try(ids.flatMap[Any](i => if (i == 1) Chunk("Zionomicon") else Chunk(2))))
+// Success(Chunk(Zionomicon,2))
+println(Try(Chunk[Chunk[Any]](Chunk(1), Chunk(2L)).flatten))
+// Failure(java.lang.ClassCastException: class java.lang.Long cannot be cast to class java.lang.Integer (java.lang.Long and java.lang.Integer are in module java.base of loader 'bootstrap'))
+println(Try(NonEmptyChunk[Any](1, 2).flatMap(i => if (i == 1) NonEmptyChunk[Any](1) else NonEmptyChunk[Any](2L))))
+// Failure(java.lang.ClassCastException: class java.lang.Long cannot be cast to class java.lang.Integer (java.lang.Long and java.lang.Integer are in module java.base of loader 'bootstrap'))
+println(Try(NonEmptyChunk(NonEmptyChunk[Any](1), NonEmptyChunk[Any]("Zionomicon")).flatten))
+// Failure(java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Integer (java.lang.String and java.lang.Integer are in module java.base of loader 'bootstrap'))
+println(Try(ids.toList.flatMap[Any](i => if (i == 1) List(1) else List(2L))))
+// Success(List(1, 2))
+```
+
+A first result that is a plain `List(1)` fails too: `ids.flatMap[Any](i => if (i == 1) List(1) else List(2L))` gives the same `Failure` (checked on 2.13.18).
+
+Scala.js (`JsFlatMap.scala`, run with `scala-cli run --server=false --js-cli-on-jvm JsFlatMap.scala`; each failing line has to run on its own, because the error is fatal):
+
+```scala
+//> using scala 3.9.0
+//> using platform scala-js
+//> using jsVersion 1.22.0
+//> using dep dev.zio::zio-blocks-chunk::0.0.56
+import zio.blocks.chunk._
+
+object JsFlatMap {
+  def main(args: Array[String]): Unit = {
+    println(Chunk(1, 2).flatMap[Any](i => if (i == 1) Chunk(1) else Chunk(2L)))
+    // Chunk(1,2)
+    println(Chunk(1, 2).flatMap[Any](i => if (i == 1) Chunk.fromArray(Array(1, 2)) else Chunk.fromArray(Array(3L, 4L))))
+    // org.scalajs.linker.runtime.UndefinedBehaviorError: java.lang.ClassCastException: long cannot be cast to java.lang.Integer
+  }
+}
+```
+
+(With `Chunk("a", "b")` as the second result instead, the error reads `string cannot be cast to java.lang.Integer`.)
+
+**Expected:** `Success(Chunk(1,2))` (and `Chunk(1,2,3,4)` on Scala.js), as `map` gives.
+
+**Root cause:** `Chunk.scala:1001` takes the `ClassTag` from the first non-empty result, `:1009` allocates `new Array[B](offset)` with it, and `:1014` (`chunk.toArray(0, bs, offset, bsLen)`) copies each result in. For an array-backed result that is `Arr.toArray` (`Chunk.scala:2925-2926`), which calls `Array.copy`; for an `int[]` destination and a source of another type, `Array.copy` takes its slow path and unboxes each element as an `Int`, which throws. Compare the fallback in `map` (`Chunk.scala:2982-2993`) and `toArray` (`:1487-1492`). `flatten` is `flatMap(ev(_))` (`:1024`); `NonEmptyChunk#flatMap` (`:3899`) and `#flatten` (`:3905`) call it too.
+
+**Impact:** a `Chunk[Any]` built with `flatMap` or `flatten` from mixed results (for example decoded JSON values, numbers next to strings) fails on the JVM whenever the first non-empty result holds primitives, and on Scala.js when that result is a primitive-array chunk. The old class Scaladoc warned that mixing primitive types "is not safe", so it was partly a documented limitation; but the trigger is wider than that note (a `String` after an `Int` fails too), and the rest of the API handles it, so it reads as a bug.
+
+**Test gap:** `ChunkSpec.scala:368` (`flatMap`) generates results of one element type; `:923` uses one primitive type. No test mixes types in `flatten` or `NonEmptyChunk#flatMap`.
+
+**Suggested fix:** catch `ClassCastException` around the copy loop and redo it into an `Array[AnyRef]`, as `toArray[A1: ClassTag]` does, or take `ClassTag.AnyRef` when two results' tags differ (the second also avoids the Scala.js undefined behaviour). Then drop the "(a known bug)" sentences from the `Chunk` class, `Chunk#flatMap`, `Chunk#flatten`, `NonEmptyChunk#flatMap` and `NonEmptyChunk#flatten` Scaladoc.
+
+### chunk: `ChunkBuilder#addAll(chunk)` grows the array to the exact size, so appending many small chunks is quadratic
+
+**Where found:** while fact-checking `docs/reference/chunk.md` for #1913, 2026-10-30, branch commit 44368d481 (base ed2185ebe); same at `v0.0.56` (the script below runs against the published 0.0.56 jar). Verified.
+
+**Summary:** `addOne` doubles the array when it is full (`Chunk.scala:137`, `array = Array.copyOf(array, idx << 1)`), but `addAll` with a `Chunk` argument grows it to exactly `len + that.length` (`Chunk.scala:110`, `array = Array.copyOf(array, newLen)`). Each `addAll` of a small chunk to a full builder therefore copies the whole array, so n appends cost O(n^2). The same pattern is in the primitive builders (`Chunk.scala:286`, `:341`, `:397`, `:452`; their `addOne` doubles at `:300`, `:355`, `:411`, `:466`).
+
+**Reproducer** (`Repro.sc`, run with `scala-cli run --server=false Repro.sc`; Scala 3.9.0, zio-blocks-chunk 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
+
+// The builder from ChunkBuilder.make keeps its storage in a private field `array`.
+def arrayOf(b: ChunkBuilder[Int]): AnyRef = {
+  val f = b.getClass.getDeclaredField("array")
+  f.setAccessible(true)
+  f.get(b)
+}
+def capacity(b: ChunkBuilder[Int]): Int = java.lang.reflect.Array.getLength(arrayOf(b))
+
+// 1. Capacity and number of array replacements
+def trace(name: String, appends: Int)(append: (ChunkBuilder[Int], Int) => Unit): Unit = {
+  val b            = ChunkBuilder.make[Int]()
+  var reallocs     = 0
+  var last: AnyRef = null
+  (1 to appends).foreach { i =>
+    append(b, i)
+    val a = arrayOf(b)
+    if (a ne last) { reallocs += 1; last = a }
+  }
+  println(s"$name: elements = ${b.result().length}, final capacity = ${capacity(b)}, array replacements = $reallocs")
+}
+val three = Chunk(1, 2, 3)
+trace("addAll(Chunk(1, 2, 3)) x 1000", 1000)((b, _) => b.addAll(three))
+trace("addOne x 3000              ", 3000)((b, i) => b.addOne(i))
+
+// 2. Time N appends of three elements: addAll(Chunk) vs three addOne calls
+def time(f: ChunkBuilder[Int] => Unit): Long = {
+  val t0 = System.nanoTime(); val b = ChunkBuilder.make[Int](); f(b); b.result()
+  (System.nanoTime() - t0) / 1000000
+}
+def viaAddAll(n: Int)(b: ChunkBuilder[Int]): Unit = (1 to n).foreach(_ => b.addAll(three))
+def viaAddOne(n: Int)(b: ChunkBuilder[Int]): Unit = (1 to n).foreach { _ => b.addOne(1); b.addOne(2); b.addOne(3) }
+for (_ <- 1 to 3) { time(viaAddAll(2000)); time(viaAddOne(2000)) } // warm up
+for (n <- List(10000, 20000, 40000, 80000)) {
+  val all = time(viaAddAll(n))
+  val one = time(viaAddOne(n))
+  println(f"N=$n%6d appends of 3 elements: addAll(Chunk) $all%6d ms, addOne x3 $one%4d ms")
+}
+// addAll(Chunk(1, 2, 3)) x 1000: elements = 3000, final capacity = 3000, array replacements = 1000
+// addOne x 3000              : elements = 3000, final capacity = 4096, array replacements = 11
+// N= 10000 appends of 3 elements: addAll(Chunk)    598 ms, addOne x3    2 ms
+// N= 20000 appends of 3 elements: addAll(Chunk)   1389 ms, addOne x3    3 ms
+// N= 40000 appends of 3 elements: addAll(Chunk)   5001 ms, addOne x3    1 ms
+// N= 80000 appends of 3 elements: addAll(Chunk)  11448 ms, addOne x3    2 ms
+```
+
+Timings are machine-dependent; the shape is the point: `addAll` grows super-linearly (doubling N from 10k to 40k costs 8x, 598 → 5001 ms), `addOne` stays flat at a few ms.
+
+**Expected:** `addAll(chunk)` grows like `addOne`: amortized O(1) per element, so 1,000 appends cause about 11 array replacements, not 1,000.
+
+**Root cause:** `Chunk.scala:110` (generic builder) and `:286`, `:341`, `:397`, `:452` (primitive builders) allocate `newLen` instead of a geometric size.
+
+**Impact:** a loop that collects pages, lines or tokens as small chunks with `builder.addAll(chunk)` (the shape the `chunk.md` pagination example uses) is quadratic: 80,000 three-element appends take 11 s instead of 2 ms. `ChunkBuilder#addOne` and `++=` of a non-Chunk iterable are unaffected (they go through `addOne`). A single big `addAll` is fine. Filed as a library bug rather than a usability trap: the API is used as designed and the Scaladoc never says to prefer `addOne`; only the cost is wrong, and the fix is in the library. `chunk.md` (after #1913) documents the current exact-size growth.
+
+**Test gap:** no test checks the growth strategy or builder cost under repeated `addAll`.
+
+**Suggested fix:** grow to `Math.max(newLen, array.length << 1)` in the five `addAll` branches. It keeps `result()` unchanged; only the spare capacity changes. Verify with the timing above before and after. No per-element hot loop is touched, so the AGENTS.md sentinel policy does not apply.
+
+### scope: `Resource.from[T]` does not close an `AutoCloseable` whose constructor takes a `Finalizer` or `Scope`
+
+Found 2026-10-30 while writing the Scaladoc of `Resource.from[T]` (scope Scaladoc rollout, branch `scaladoc-scope`, base `ed2185ebe`). The code is the same at tag `v0.0.56`. Verified by running on Scala 3.9.0 and 2.13.18.
+
+**Summary.** `Resource.from[T]` with no wires registers `close()` for an `AutoCloseable` `T` only when the constructor takes no `Finalizer` or `Scope` parameter. A class that takes an implicit `Finalizer` (the pattern the docs teach for classes that need cleanup) and also implements `AutoCloseable` is never closed. `Resource.from[T]()` (empty wire list) and `Wire.shared[T]` close it, so the same class behaves differently depending on which overload builds it. The Scaladoc and `resource.md` ("If `T` extends `AutoCloseable`, `Resource.from` automatically registers its `close()` method") promise the close.
+
+**Reproduction** (`scala-cli run --server=false .` with this one file; Scala 3.9.0, `zio-blocks-scope` 0.0.56):
+
+```scala
+// Repro.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+
+class Logger(implicit finalizer: Finalizer) extends AutoCloseable {
+  def info(msg: String): Unit = ()
+  def close(): Unit = println("Logger.close")
+}
+
+@main def repro(): Unit = {
+  println("Resource.from[Logger]:")
+  Scope.global.scoped { scope => import scope.*; allocate(Resource.from[Logger]); () }
+  println("Resource.from[Logger]():")
+  Scope.global.scoped { scope => import scope.*; allocate(Resource.from[Logger]()); () }
+  println("Wire.shared[Logger]:")
+  Scope.global.scoped { scope => import scope.*; allocate(Wire.shared[Logger].toResource(zio.blocks.context.Context.empty)); () }
+}
+// Resource.from[Logger]:
+// Resource.from[Logger]():
+// Logger.close
+// Wire.shared[Logger]:
+// Logger.close
+```
+
+The Scala 2 version (same file with `//> using scala 2.13.18`, `import zio.blocks.scope._`, `import scope._`, and `object Repro extends App {` instead of the `@main` line) prints the same five lines.
+
+**Expected.** `Logger.close` after `Resource.from[Logger]:` too, as for the other two.
+
+**Root cause.** `ResourceMacros.deriveResourceImpl` has three branches: a constructor with a `Finalizer`/`Scope` parameter (`scope/shared/src/main/scala-3/zio/blocks/scope/ResourceMacros.scala:83-108`), an `AutoCloseable` without one (`:109-120`, the only branch that calls `scope.defer(instance.asInstanceOf[AutoCloseable].close())` at `:117`), and the plain case. The first branch never checks `isAutoCloseable`. Scala 2 has the same structure (`scope/shared/src/main/scala-2/zio/blocks/scope/ResourceVersionSpecific.scala:117-144` before the `AutoCloseable` branch at `:145-152`).
+
+**Impact.** Any `AutoCloseable` service that also registers its own finalizers through an implicit `Finalizer` leaks its `close()` when built with `Resource.from[T]`. The leak is silent.
+
+**Test gap.** `InjectionPositionScala3Spec.scala:250-317` and `InjectionPositionScala2Spec.scala` test `Resource.from[Svc]` with `Finalizer`/`Scope` parameters in every position, but none of the `Svc` classes is `AutoCloseable` (no `AutoCloseable` in either file, nor in `FinalizerInjectionSpec.scala`).
+
+**Suggested fix.** In the `hasFinalizerParam` branch, wrap the constructor call like the `AutoCloseable` branch does when `isAutoCloseable` holds (both macros). Add a test with `class Svc(implicit f: Finalizer) extends AutoCloseable` to both `InjectionPosition*Spec` files.
+
+### scope: on Scala 3, `Resource.from` treats an explicit `Wire.unique` as shared
+
+Found 2026-10-30 while writing the Scaladoc of `Wire.unique[T]` (scope Scaladoc rollout, branch `scaladoc-scope`, base `ed2185ebe`). The code is the same at tag `v0.0.56`. Verified by running on Scala 3.9.0 and 2.13.18.
+
+**Summary.** When a `Wire.unique[T]` (or `Wire.Unique.fromFunction`) is passed to `Resource.from`, Scala 3 builds `T` once and gives that instance to every dependent, as if the wire were shared. Scala 2 gives each dependent its own instance when the wire's static type is `Wire.Unique`, which is what the docs promise ("unique wires create new instances for each dependent service"; `wire.md` "New instance per allocation"). `Wire#isShared` on the same wire correctly returns `false`.
+
+**Reproduction** (`scala-cli run --server=false .` with this one file; Scala 3.9.0, `zio-blocks-scope` 0.0.56):
+
+```scala
+// Repro.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+
+class RequestId { RequestId.created += 1 }
+object RequestId { var created = 0 }
+class Auth(val id: RequestId)
+class Audit(val id: RequestId)
+class Handler(val auth: Auth, val audit: Audit)
+
+@main def repro(): Unit = {
+  val sameInstance = Resource.from[Handler](Wire.unique[RequestId]).use(h => h.auth.id eq h.audit.id)
+  println("Wire.unique[RequestId]: same instance = " + sameInstance + ", created = " + RequestId.created)
+  println("isShared = " + Wire.unique[RequestId].isShared)
+}
+// Wire.unique[RequestId]: same instance = true, created = 1
+// isShared = false
+```
+
+The same file on Scala 2.13.18 (`//> using scala 2.13.18`, `import zio.blocks.scope._`, `object Repro extends App {` instead of the `@main` line) prints:
+
+```
+// Wire.unique[RequestId]: same instance = false, created = 2
+// isShared = false
+```
+
+**Expected.** `same instance = false, created = 2` on Scala 3, as on Scala 2.
+
+**Root cause.** `parseWireExpr` in `scope/shared/src/main/scala-3/zio/blocks/scope/ResourceMacros.scala:173` computes `isShared = wireTpe.baseType(TypeRepr.of[Wire.Shared[?, ?]].typeSymbol).typeSymbol != defn.NothingClass`. For a type that does not extend `Wire.Shared`, `baseType` returns `NoType`, whose `typeSymbol` is `NoSymbol`, not `Nothing`, so the test is true for every wire. The explicit unique wire then takes the "shared type" path and is wrapped in `Resource.shared`. Both macros decide sharing from the wire's static type. Scala 2 tests the static type's name (`scala-2/zio/blocks/scope/ResourceVersionSpecific.scala:214-215`). That is right for a `Wire.Unique` but wrong for a shared wire whose static type is `Wire[In, Out]`, which Scala 2 treats as unique. With the classes above and `val wire: Wire[Any, RequestId] = Wire.shared[RequestId]`, `Resource.from[Handler](wire)` builds `RequestId` once per dependent on 2.13.18 (`Static.scala`, run with `scala-cli run --server=false .`):
+
+```scala
+// Static.scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope._
+
+class RequestId { RequestId.created += 1 }
+object RequestId { var created = 0 }
+class Auth(val id: RequestId)
+class Audit(val id: RequestId)
+class Handler(val auth: Auth, val audit: Audit)
+
+object Static extends App {
+  val wire: Wire[Any, RequestId] = Wire.shared[RequestId]
+  val sameInstance = Resource.from[Handler](wire).use(h => h.auth.id eq h.audit.id)
+  println("isShared = " + wire.isShared + ", same instance = " + sameInstance + ", created = " + RequestId.created)
+}
+// isShared = true, same instance = false, created = 2
+```
+
+The same program on 3.9.0 prints `isShared = true, same instance = true, created = 1` (correct only by accident).
+
+**Impact.** Request-scoped or per-call state declared with `Wire.unique` is silently shared by every dependent in a `Resource.from` graph on Scala 3, the opposite of what the user asked for. Nothing fails at compile time or at run time.
+
+**Test gap.** `FinalizerInjectionSpec.scala:75` ("Wire.unique[T] injects Scope and cleanup runs") and `InjectionPositionScala3Spec.scala:175` pass a `Wire.unique` to `Resource.from` but assert only that the scope is injected and cleanup runs. No test checks instance identity across two dependents of a unique wire; `DependencySharingSpec` covers only shared wires.
+
+**Suggested fix.** Use `wireTpe <:< TypeRepr.of[Wire.Shared[?, ?]]` (or `wireTpe.baseClasses.contains(TypeRepr.of[Wire.Shared[?, ?]].typeSymbol)`). Add a diamond test with a unique leaf to `DependencySharingSpec` that asserts two instances on both Scala versions. When the static type is neither `Wire.Shared` nor `Wire.Unique`, decide at run time with `wire.isShared`, or reject it with a compile error; add a statically `Wire[In, Out]`-typed shared wire to the same test.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -12617,6 +13315,208 @@ object Repro {
 
 **Suggested fix.** Add a connection-owning stream constructor on `Transactor` (above), document it on `docs/reference/sql/` and in H-21, and point the `queryStream` Scaladoc at it.
 
+### http-model: `Header.Authorization.Basic`, `Request` and `Headers` print credentials in `toString`
+
+Found 2026-10-29 while writing H-57 (`docs/guides/protect-pages-with-basic-auth-or-a-session-cookie.md`), on `main` `9d8bb9d70`. The code is the same at tag `v0.0.56`. Verified: the reproduction below was run with `scala-cli run --server=false Repro.sc` against the published `0.0.56`.
+
+**Summary.** `Header.Authorization.Basic(username, password)` is a plain case class, so its `toString` prints the decoded password. `Request` is a case class whose `toString` includes `Headers#toString`, which prints every raw header value, so logging a request prints the `Authorization` header (Base64 of `user:password`, or a bearer token) and the `Cookie` header (session ids). A handler that logs "rejected: $credentials" or "request: $request" writes secrets to the log.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), file `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+//> using options -experimental
+//> using jvm 21
+import zio.http._
+
+val url = URL.parse("/admin").toOption.get
+
+val request = Request.get(url).addHeader("authorization", "Basic YWRhOnMzY3JldA==")
+println(request.header(Header.Authorization))
+println(request)
+// Some(Basic(ada,s3cret))
+// Request(GET,/admin,Headers(authorization: Basic YWRhOnMzY3JldA==),Body(length=0, contentType=ContentType(MediaType(application,octet-stream,true,true,List(bin, dms, lrf, mar, so, dist, distz, pkg, bpk, dump, elc, deploy, exe, dll, deb, dmg, iso, img, msi, msp, msm, buffer),Map(),Map()),None,None)),HTTP/1.1)
+```
+
+**Expected.** `toString` of `Header.Authorization.Basic` (and `ProxyAuthorization.Basic`) masks the password, e.g. `Basic(ada,<redacted>)`. `Headers#toString` masks the values of `authorization`, `proxy-authorization`, `cookie` and `set-cookie`, the way `zio.blocks.config.Secret` prints `<secret>`.
+
+**Root cause.** `final case class Basic(username: String, password: String)` with the default case-class `toString` (`http-model/shared/src/main/scala/zio/http/Header.scala:63`, and `ProxyAuthorization.Basic` at `:132`). `Headers#toString` renders every `name: rawValue` pair (`http-model/shared/src/main/scala/zio/http/Headers.scala:242`).
+
+**Impact.** Credentials and session ids end up in logs whenever a handler logs a parsed credential or a whole request. H-57 warns about it in a `:::warning` and logs neither.
+
+**Test gap.** `HeadersSpec` "toString" (`HeadersSpec.scala:391`) and `AuthHeadersSpec` do not check that sensitive values are hidden.
+
+**Suggested fix.** Override `toString` in both `Basic` cases to hide the password, and mask the values of the four sensitive header names in `Headers#toString`.
+
+### sql: `sql"..."` doesn't process escape sequences, so `\\` and `\t` reach the database as written
+
+Found 2026-10-29 while writing H-59 (`docs/guides/build-a-query-from-optional-search-filters.md`), on `main` `9d8bb9d70`. Same at `v0.0.56`. Verified. No docs page shows a backslash inside `sql"..."` today (grep of `docs/`, excluding `docs/dev`).
+
+**Summary.** Scala's `s"..."` turns `\t` into a tab and `\\` into one backslash. The `sql"..."` interpolator uses the raw string parts, like `raw"..."`, so the same text sends `\t` and `\\` (two characters each) to the database. A reader who writes the usual `LIKE ... ESCAPE '\\'` gets a SQL error on SQLite, and a string literal such as `'c\\d'` holds two backslashes. Nothing on the reference pages says so.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run --server=false SqlEscapes.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import zio.blocks.sql.*
+
+object SqlEscapes {
+  def main(args: Array[String]): Unit = {
+    // s"..." turns \t into a tab and \\ into one backslash; sql"..." keeps both as written
+    println(s"s:   ${s"SELECT 'a\tb', 'c\\d'".length} chars")
+    println(s"sql: ${sql"SELECT 'a\tb', 'c\\d'".sql(SqlDialect.SQLite).length} chars")
+    println(sql"SELECT 'a\tb', 'c\\d'".sql(SqlDialect.SQLite))
+
+    val file = java.nio.file.Files.createTempFile("escapes", ".db")
+    val tx   = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+    tx.connect {
+      println(sql"SELECT 'c\\d'".queryOne[String])
+      val pattern = "%50\\%"
+      try println(sql"SELECT 'save 50%' LIKE $pattern ESCAPE '\\'".queryOne[Int])
+      catch { case e: Exception => println(s"${e.getClass.getSimpleName}: ${e.getMessage}") }
+      println(sql"SELECT 'save 50%' LIKE ${"%50!%"} ESCAPE '!'".queryOne[Int])
+    }
+    java.nio.file.Files.delete(file)
+  }
+}
+// s:   19 chars
+// sql: 21 chars
+// SELECT 'a\tb', 'c\\d'
+// c\\d
+// SQLiteException: [SQLITE_ERROR] SQL error or missing database (ESCAPE expression must be a single character)
+// 1
+```
+
+**Expected.** Either `sql"..."` processes escapes the way `s"..."` does (`StringContext.processEscapes` on each part), or the `Frag`/interpolator docs say it is raw like `raw"..."`, so `ESCAPE '\'` (one backslash in the source) is what to write.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/SqlMacros.scala:29-30` (and `:85-86` for the checked form) take `rawPart.valueOrAbort` for each part and never call `StringContext.processEscapes`; the runtime fallback (`:292`) uses `$sc.parts` unprocessed too.
+
+**Impact.** Silent on string literals (wrong data compared or inserted), loud on `ESCAPE '\\'`. Readers who know `s"..."` assume escapes work. A change now would alter the SQL text of existing queries that contain backslashes, so documenting may be the safer fix.
+
+**Test gap.** No `sql` test has a backslash or escape sequence in an interpolated literal part.
+
+**Suggested fix.** Document the raw behaviour in `reference/sql/frag.md` ("Building Fragments") and the `sql` Scaladoc (`SqlInterpolator.scala:127`), with the `ESCAPE '\'` / `ESCAPE '!'` example. If the maintainers prefer `s"..."` semantics, apply `StringContext.processEscapes` to the parts in both macro paths and the fallback, with a test.
+
+### sql: a `List` or `Set` interpolated into `sql"..."` binds as one JSON string, so `IN ($values)` compiles and matches nothing
+
+Found 2026-10-29 while writing H-59 (`docs/guides/build-a-query-from-optional-search-filters.md`), on `main` `9d8bb9d70`. Same at `v0.0.56`. Verified. Related to the entry "`sql"... = $isbn"` ... No DbParam/Frag/SqlLiteral/DbValue instance" above (same `DbCodec.derived` path), but a different symptom.
+
+**Summary.** `DbParam` has no instance for collections, but `DbParam.fromDbCodec` accepts any type with a one-column `DbCodec`, and `DbCodec.derived` is an inline `given` that derives one for `List[String]`/`Set[String]` through `Schema`, as a JSON column. So `sql"... WHERE status IN ($statuses)"` compiles, renders `status IN (?)`, binds the text `["open","pending"]`, and returns no rows. No compile error, no runtime error. Readers coming from doobie (`Fragments.in`) or from JDBC habits write exactly this.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-sql` 0.0.56, `sqlite-jdbc` 3.53.4.0, run with `scala-cli run --server=false ListParam.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Ticket(id: Long, status: String)
+object Ticket { given Schema[Ticket] = Schema.derived }
+
+object ListParam {
+  def main(args: Array[String]): Unit = {
+    val file    = java.nio.file.Files.createTempFile("list-param", ".db")
+    val tx      = JdbcTransactor.fromUrl(s"jdbc:sqlite:$file", SqlDialect.SQLite)
+    val tickets = Repo.derived[Ticket, Long]
+    tx.connect {
+      Table.derived[Ticket].createTable(SqlDialect.SQLite).update
+      tickets.insert(Ticket(1L, "open"))
+      tickets.insert(Ticket(2L, "pending"))
+      tickets.insert(Ticket(3L, "closed"))
+
+      val statuses = List("open", "pending")
+      val inList   = sql"SELECT id FROM ticket WHERE status IN ($statuses)"
+      println(inList.sql(SqlDialect.SQLite))
+      println(inList.params)
+      println(inList.query[Long])
+    }
+    java.nio.file.Files.delete(file)
+  }
+}
+// SELECT id FROM ticket WHERE status IN (?)
+// Vector(DbString(["open","pending"]))
+// List()
+```
+
+A `Set("open", "pending")` gives the same `IN (?)` and `DbString(["open","pending"])` (checked in the same session).
+
+**Expected.** Either a compile error for a collection argument (e.g. "a collection can't be one SQL parameter; build the IN list from one fragment per value"), or an expansion of a `Seq`/`Set` argument to `?, ?, ...` with one parameter per element, as doobie's `Fragments.in` does. JSON binding of a collection should require an explicit opt-in.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/SqlMacros.scala:247-249` summons `DbParam[w]` for every non-Frag argument; `SqlInterpolator.scala:112` (`given fromDbCodec[A](using codec: DbCodec[A]): DbParam[A]`) accepts any one-column codec; `DbCodec.scala:190` (`inline given derived[A]: DbCodec[A]`) derives one for any type with a derivable `Schema`, and `DbCodecDeriver.scala:456` (`deriveSequence`) encodes sequences as a JSON column.
+
+**Impact.** Silent empty results for the most common dynamic-SQL pattern after `AND` (multi-select filters, ID lists). The same `inline given derived` also makes other non-primitive arguments bind as JSON instead of failing.
+
+**Test gap.** No interpolator test passes a `List`/`Seq`/`Set` argument.
+
+**Suggested fix.** In `SqlMacros.buildArgFrags`, reject arguments whose type is a collection (`<: Iterable[?]` or `Array[?]` other than `Array[Byte]`) with a compile error that points to building an `IN` list, or expand them to one placeholder per element. At least, say on `reference/sql/frag.md` that collections bind as JSON. Also consider making `DbCodec.derived` not a `given` for `DbParam` lookup (or lower its priority), so only explicit codecs feed `fromDbCodec`.
+
+### schema (Scala 3): `Schema[<base>]` inside an opaque type's companion summons the companion's own instance (StackOverflowError or a hang)
+
+Found 2026-10-29 while writing guide H-58 (`docs/guides/use-iron-refined-types-and-typed-ids.md`, branch `iron-refined-types` on top of `9d8bb9d70`). This is Scala implicit resolution, not ZIO Blocks code, so it is the same at v0.0.56 and on main. Verified with `scala-cli run --server=false Repro.scala` on Scala 3.9.0 (`zio-blocks-next-schema` 0.0.56) and 3.3.7 (`zio-blocks-schema` 0.0.56).
+
+**Summary.** Inside the scope that defines `opaque type Id[+A] = Long`, `Id[A]` and `Long` are the same type. So `implicit def schema[A]: Schema[Id[A]] = Schema[Long].transform(...)` in the companion resolves `Schema[Long]` to that `schema` itself. The lexical candidate wins over `Schema.long` in `Schema`'s companion. The compiler emits only a warning, `Infinite loop in function body`, and at runtime the first use throws `StackOverflowError`. A non-parameterized `given Schema[Isbn] = Schema[String].transform(...)` (a lazy val) hangs forever on Scala 3.3.7 instead (see the docs-issues entry "validated-newtypes.md: the "Use Scala 3 Opaque Types" example hangs on Scala 3.3"). Observed by version:
+- `implicit def`: loops on 3.3.7 and 3.9.0.
+- `given`: loops or hangs on 3.3.7, and is fine on 3.7.4, 3.8.3 and 3.9.0, where a given is apparently no longer a candidate inside its own right-hand side.
+- 3.4 to 3.6: not tested.
+
+**Reproducer** (`Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-schema:0.0.56
+
+import zio.blocks.schema.*
+import zio.blocks.schema.json.*
+
+object ids:
+  opaque type Id[+A] = Long
+  object Id:
+    def apply[A](value: Long): Id[A] = value
+    extension [A](id: Id[A]) def value: Long = id
+    // Inside this scope Id[A] =:= Long, so `Schema[Long]` summons this given itself.
+    implicit def schema[A]: Schema[Id[A]] = Schema[Long].transform(Id[A](_), _.value)
+import ids.*
+
+final case class Customer(id: Id[Customer], name: String) derives Schema
+
+@main def run(): Unit =
+  println(Schema[Customer].jsonCodec.encodeToString(Customer(Id(1L), "Ada")))
+// -- Warning: ./Repro.scala:14:44
+// 14 |    implicit def schema[A]: Schema[Id[A]] = Schema[Long].transform(Id[A](_), _.value)
+//    |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//    |Infinite loop in function body
+//    |zio.blocks.schema.Schema.apply[Long](ids.Id.schema²[Any]).transform[Long](
+// Exception in thread "main" java.lang.StackOverflowError
+// 	at ids$Id$.schema(Repro.scala:14)
+// 	at ids$Id$.schema(Repro.scala:14)
+```
+
+The same file on `//> using scala 3.3.7` with `dev.zio::zio-blocks-schema:0.0.56` (no `-experimental`) prints the same warning and the same `StackOverflowError`. With `given schema[A]: Schema[Id[A]] = ...` instead of `implicit def`, 3.9.0 prints `{"id":1,"name":"Ada"}`, while 3.3.7 warns `Infinite loop in function body` and loops.
+
+**Expected.** Either `Schema[Long]` resolves to `Schema.long`, or it fails to compile. A warning plus a runtime StackOverflowError or hang is a trap.
+
+**Root cause.** This is Scala implicit scoping, not ZIO Blocks code. An opaque alias is transparent in its defining scope, so the companion's instance is an eligible, lexically closer candidate for the base type's `Schema`. `Schema.apply[A](implicit schema: Schema[A])` (`schema/shared/src/main/scala/zio/blocks/schema/Schema.scala`) just summons. Since Scala 3.7 (observed), a `given` is excluded from its own right-hand side, but `implicit def` and `implicit val` are not.
+
+**Impact.** The natural way to write a typed ID or an opaque newtype's schema (`Schema[<base>].transform` in the companion, the shape the docs teach) compiles and then crashes or hangs at first use. Repo convention favours `implicit def`/`implicit val` (Scala 2 style), which loops on every Scala 3 version. Pages with the pattern:
+- `docs/guides/validated-newtypes.md:362` (`given Schema[Isbn] = Schema[String].transform(...)` inside `object catalog`) hangs on 3.3.7 (docs-issues entry). Its companion, `schema-examples/src/main/scala/validatednewtypes/OpaqueTypesExample.scala:27`, has the same code, but the build pins 3.9.0, so CI is green.
+- `docs/guides/use-iron-refined-types-and-typed-ids.md` uses `Schema.long` and warns about the trap.
+
+A grep of `docs/` for opaque types with a `Schema[...]` in the companion found no other page with the pattern (`map-custom-column-types.md`'s `BookId` has no Schema in the companion; `structural-types.md:163` and `reflect.md:297` have no companion instance).
+
+**Test gap.** No docs example or test compiles the opaque-companion pattern on Scala 3.3–3.6. mdoc and schema-examples run only on 3.9.0.
+
+**Suggested fix.** Docs only. In every opaque-type companion, build the base schema with the named instance (`Schema.long`, `Schema.string`, `Schema.int`, ...) instead of `Schema[<base>]`, or define the instance outside the opaque scope. Add one sentence explaining why to the "Use Scala 3 Opaque Types" sections. A library-side lint is out of reach, because the compiler resolves the implicit before ZIO Blocks code runs.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
@@ -12633,6 +13533,10 @@ Seen 2026-10-21 on four more docs-only PRs, each with exactly 1 of 12,761 tests 
 
 All three are hang-detection tests in the streams async paths. Docs PRs now fail CI about once per run on these, so either the timeouts need headroom on shared runners or one of these paths has a real race. Worth one investigation pass with the tests looped locally under CPU load (`taskset -c 0,1`).
 
+
+**Seen again** 2026-10-30 on #1913 (comment and docs only), job `testJVM (25, JVM, 2.13.x)`, together with the `AsyncReaderReachableCoverageSpec` timeout in the same run; one re-run of the failed job passed.
+
+**Seen again** 2026-10-30 on #1916 (Scaladoc comments only), job `testJVM (25, JVM, 3.10.x)` (`UnfoldAsyncSpec`), together with a Landing Lighthouse score of 0.94 below its threshold; one re-run of the failed jobs passed both.
 ### `DeriverWithInstanceCsvSpec` asserts with `.contains`
 
 Found 2026-10-20 while writing H-03. The schema-csv spec checks rendered output with `.contains`, against the AGENTS.md rule to assert the full rendered string with `==`. A regression in field order or separators would pass.
@@ -12739,9 +13643,33 @@ In each run the same test passed in every other job. Re-running only the failed 
 
 **Cause.** Not investigated. Both failures were on Scala 3.9.x, once on JDK 17 and once on JDK 25.
 
+**Seen again** 2026-10-29 on #1906 (H-58, docs and examples only), job `pr (2.13.18, JVM, 25)`: the same test timed out; one re-run of the failed job passed.
+
 **A different CI flake seen the same day:** on #1897, `testJVM (25, JVM, 3.10.x)` exited 1 after every test had passed and sbt printed success; a re-run passed.
 
 **Suggested fix.** Run the spec in a loop (`streamsJVM/testOnly *AsyncReaderReachableCoverageSpec -- -t "nested concat rejected reset"`, repeated) on 3.9.0 under load to reproduce. Look for an unbounded wait on a completion that a rejected `reset` never fires. If the wait is legitimate, give the test an explicit, larger timeout.
+
+### Flaky async test: `AsyncInteropSpec` "unsafeRunAsync completion wins cancel race" fails with "0 was not equal to 1"
+
+Seen 2026-10-30 in CI on #1907 (H-60, a guide plus `schema-examples` files; no library code), job `testJVM (25, JVM, 3.9.x)`, first attempt. One re-run of the failed job passed. It passed in every other job of the same run.
+
+**Test.** `asyncJVM`, `AsyncInteropSpec` / "WrappedPollable interop" / "unsafeRunAsync completion wins cancel race" / `unsafeRunAsync_pending_completeBeforeCancel_invokesCallback`, which asserted a callback count of 1 and got 0 ("0 was not equal to 1").
+
+**Impact.** Fails unrelated PRs at random, like the `AsyncReaderReachableCoverageSpec` flake above; the workaround is `gh run rerun <id> --failed`.
+
+**Cause.** Not investigated. The test races completion against cancellation; the assertion may run before the callback thread has finished, or the race may really let cancel win.
+
+**Suggested fix.** Run it in a loop under load (`asyncJVM/testOnly *AsyncInteropSpec -- -t "completion wins cancel race"`) to reproduce. If the callback is asynchronous, wait for it (latch or promise with a timeout) before asserting; if cancel can legitimately win, make the test accept both outcomes or force the ordering.
+
+### Flaky streams test: `AsyncReader JVM` "toSync interrupted close keeps interruption primary over close failure"
+
+Seen 2026-10-30 in CI on #1913 (Scaladoc comments and docs only), run 41052974323, job `testJVM (17, JVM, 3.9.x)`: 1 failed, 12,762 passed (the test ran in 3 ms). The same run's Build Docs job failed separately on an npm registry `502 Bad Gateway` while installing website dependencies, which is a network flake, not a test.
+
+**Impact.** Fails unrelated PRs at random, like the `AsyncReaderReachableCoverageSpec`, `unfoldAsync` reset and `AsyncInteropSpec` flakes above; the workaround is `gh run rerun <id> --failed`.
+
+**Cause.** Not investigated. The name suggests a race between an interrupt and a failing `close` when an async reader is bridged to a blocking one: which exception ends up primary may depend on thread timing.
+
+**Suggested fix.** Run it in a loop under load (`streamsJVM/testOnly *AsyncReader* -- -t "toSync interrupted close"`) to reproduce, then make the ordering deterministic in the test (latch the interrupt before triggering close) or in `toSync` itself if the primary-exception rule really depends on timing.
 
 ## Resolved
 
