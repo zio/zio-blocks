@@ -9710,6 +9710,76 @@ object JsFlatMap {
 
 **Suggested fix:** catch `ClassCastException` around the copy loop and redo it into an `Array[AnyRef]`, as `toArray[A1: ClassTag]` does, or take `ClassTag.AnyRef` when two results' tags differ (the second also avoids the Scala.js undefined behaviour). Then drop the "(a known bug)" sentences from the `Chunk` class, `Chunk#flatMap`, `Chunk#flatten`, `NonEmptyChunk#flatMap` and `NonEmptyChunk#flatten` Scaladoc.
 
+### chunk: `ChunkBuilder#addAll(chunk)` grows the array to the exact size, so appending many small chunks is quadratic
+
+**Where found:** while fact-checking `docs/reference/chunk.md` for #1913, 2026-10-30, branch commit 44368d481 (base ed2185ebe); same at `v0.0.56` (the script below runs against the published 0.0.56 jar). Verified.
+
+**Summary:** `addOne` doubles the array when it is full (`Chunk.scala:137`, `array = Array.copyOf(array, idx << 1)`), but `addAll` with a `Chunk` argument grows it to exactly `len + that.length` (`Chunk.scala:110`, `array = Array.copyOf(array, newLen)`). Each `addAll` of a small chunk to a full builder therefore copies the whole array, so n appends cost O(n^2). The same pattern is in the primitive builders (`Chunk.scala:286`, `:341`, `:397`, `:452`; their `addOne` doubles at `:300`, `:355`, `:411`, `:466`).
+
+**Reproducer** (`Repro.sc`, run with `scala-cli run --server=false Repro.sc`; Scala 3.9.0, zio-blocks-chunk 0.0.56):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-chunk:0.0.56
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
+
+// The builder from ChunkBuilder.make keeps its storage in a private field `array`.
+def arrayOf(b: ChunkBuilder[Int]): AnyRef = {
+  val f = b.getClass.getDeclaredField("array")
+  f.setAccessible(true)
+  f.get(b)
+}
+def capacity(b: ChunkBuilder[Int]): Int = java.lang.reflect.Array.getLength(arrayOf(b))
+
+// 1. Capacity and number of array replacements
+def trace(name: String, appends: Int)(append: (ChunkBuilder[Int], Int) => Unit): Unit = {
+  val b            = ChunkBuilder.make[Int]()
+  var reallocs     = 0
+  var last: AnyRef = null
+  (1 to appends).foreach { i =>
+    append(b, i)
+    val a = arrayOf(b)
+    if (a ne last) { reallocs += 1; last = a }
+  }
+  println(s"$name: elements = ${b.result().length}, final capacity = ${capacity(b)}, array replacements = $reallocs")
+}
+val three = Chunk(1, 2, 3)
+trace("addAll(Chunk(1, 2, 3)) x 1000", 1000)((b, _) => b.addAll(three))
+trace("addOne x 3000              ", 3000)((b, i) => b.addOne(i))
+
+// 2. Time N appends of three elements: addAll(Chunk) vs three addOne calls
+def time(f: ChunkBuilder[Int] => Unit): Long = {
+  val t0 = System.nanoTime(); val b = ChunkBuilder.make[Int](); f(b); b.result()
+  (System.nanoTime() - t0) / 1000000
+}
+def viaAddAll(n: Int)(b: ChunkBuilder[Int]): Unit = (1 to n).foreach(_ => b.addAll(three))
+def viaAddOne(n: Int)(b: ChunkBuilder[Int]): Unit = (1 to n).foreach { _ => b.addOne(1); b.addOne(2); b.addOne(3) }
+for (_ <- 1 to 3) { time(viaAddAll(2000)); time(viaAddOne(2000)) } // warm up
+for (n <- List(10000, 20000, 40000, 80000)) {
+  val all = time(viaAddAll(n))
+  val one = time(viaAddOne(n))
+  println(f"N=$n%6d appends of 3 elements: addAll(Chunk) $all%6d ms, addOne x3 $one%4d ms")
+}
+// addAll(Chunk(1, 2, 3)) x 1000: elements = 3000, final capacity = 3000, array replacements = 1000
+// addOne x 3000              : elements = 3000, final capacity = 4096, array replacements = 11
+// N= 10000 appends of 3 elements: addAll(Chunk)    598 ms, addOne x3    2 ms
+// N= 20000 appends of 3 elements: addAll(Chunk)   1389 ms, addOne x3    3 ms
+// N= 40000 appends of 3 elements: addAll(Chunk)   5001 ms, addOne x3    1 ms
+// N= 80000 appends of 3 elements: addAll(Chunk)  11448 ms, addOne x3    2 ms
+```
+
+Timings are machine-dependent; the shape is the point: `addAll` grows super-linearly (doubling N from 10k to 40k costs 8x, 598 → 5001 ms), `addOne` stays flat at a few ms.
+
+**Expected:** `addAll(chunk)` grows like `addOne`: amortized O(1) per element, so 1,000 appends cause about 11 array replacements, not 1,000.
+
+**Root cause:** `Chunk.scala:110` (generic builder) and `:286`, `:341`, `:397`, `:452` (primitive builders) allocate `newLen` instead of a geometric size.
+
+**Impact:** a loop that collects pages, lines or tokens as small chunks with `builder.addAll(chunk)` (the shape the `chunk.md` pagination example uses) is quadratic: 80,000 three-element appends take 11 s instead of 2 ms. `ChunkBuilder#addOne` and `++=` of a non-Chunk iterable are unaffected (they go through `addOne`). A single big `addAll` is fine. Filed as a library bug rather than a usability trap: the API is used as designed and the Scaladoc never says to prefer `addOne`; only the cost is wrong, and the fix is in the library. `chunk.md` (after #1913) documents the current exact-size growth.
+
+**Test gap:** no test checks the growth strategy or builder cost under repeated `addAll`.
+
+**Suggested fix:** grow to `Math.max(newLen, array.length << 1)` in the five `addAll` branches. It keeps `result()` unchanged; only the spare capacity changes. Verify with the timing above before and after. No per-element hot loop is touched, so the AGENTS.md sentinel policy does not apply.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
