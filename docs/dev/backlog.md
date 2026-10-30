@@ -613,7 +613,7 @@ Pilot of §13 (2026-10-29/30), session `scaladoc-chunk` (Opus controller): one P
 2. Change `docs/dev/scaladoc-style.md:58` ("Sample data uses real Scala books, such as Zionomicon") to the new rule. The `scaladoc-rollout` skill already has it.
 3. Fix the four `docs/reference/chunk.md` errors in docs-issues.md → Documentation errors (`ChunkBuilder` described as a tree buffer; `dropUntil` keeping the matching element; one-element `reduceMapLeft`/`reduceMapRight` examples; "Bitwise Operations" documenting private methods), then move them to Resolved.
 
-**scope started 2026-10-30:** session `scaladoc-scope` (Sonnet controller, Opus subagents for tier 1, the existing-comment fact-check and the review, per §13.4).
+**scope started 2026-10-30:** session `scaladoc-scope` (Sonnet controller, Opus subagents for tier 1, the existing-comment fact-check and the review, per §13.4). Phase 0: 125 / 223 (56%); 12 members differ between the scala-2 and scala-3 copies; 23 `{{{` blocks (inside 18 `@example` tags), none compiled; scope has its own `scope/AGENTS.md` example-style rules. Milad's Phase 1 decisions: tier 1 = `Scope`, `Resource`, `Wire`, `Finalizer`, `Unscoped`, `Finalization`, `DeferHandle`; one PR (tooling + wave); macros tier 3 one-liners; the `@example` tags are dropped and the plain `{{{` blocks kept; the AGENTS.md edit (lines 113 and 178) approved.
 
 ## 13. Scaladoc: next modules
 
