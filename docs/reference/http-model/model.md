@@ -913,9 +913,10 @@ val value = cookie.value     // "abc123xyz"
 
 ### Sending Cookies
 
-Include cookies in requests:
+Include cookies in requests, either as a raw `cookie` header or from `RequestCookie` values, which `Cookie.renderRequest` renders as a header value and `Request#addCookie` adds one at a time:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
 import zio.http._
 
 val url = URL.parse("https://example.com").toOption.get
@@ -923,11 +924,12 @@ val req = Request.get(url)
   .addHeader("cookie", "sessionId=abc123; userId=456")
 
 // Or build from RequestCookie objects
-val cookies = zio.Chunk(
+val cookies = Chunk(
   RequestCookie("sessionId", "abc123"),
   RequestCookie("userId", "456")
 )
-// Render as Cookie header value (see Header operations)
+val header = Cookie.renderRequest(cookies) // "sessionId=abc123; userId=456"
+val req2   = cookies.foldLeft(Request.get(url))(_.addCookie(_))
 ```
 
 ---
@@ -984,13 +986,13 @@ val response = Response(Status.Ok)
 
 ### SameSite Attribute
 
-Control cross-site request behavior:
+`SameSite` controls whether the browser sends the cookie on cross-site requests. `ResponseCookie` sets no `SameSite` attribute by default (`sameSite = None`), and the browser then applies its own default, so set it explicitly:
 
 ```scala mdoc:compile-only
 import zio.http.SameSite
 
-val strict = SameSite.Strict  // Only same-site requests (default, safest)
-val lax = SameSite.Lax        // Top-level navigations allowed (links, forms)
+val strict = SameSite.Strict  // Only same-site requests (safest)
+val lax = SameSite.Lax        // Also cross-site top-level GET navigations (links), not cross-site form posts
 val none = SameSite.None_     // Cross-site allowed; render requires Secure flag
 ```
 
