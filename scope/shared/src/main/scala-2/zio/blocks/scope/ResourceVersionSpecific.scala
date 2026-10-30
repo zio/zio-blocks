@@ -71,10 +71,11 @@ private[scope] trait ResourceCompanionVersionSpecific {
    * the macro are closed when the scope closes.
    *
    * Known bugs: a dependency cycle crashes the macro instead of reporting the
-   * cycle; a dependency on a Java class whose constructor takes parameters
-   * crashes the macro; on Scala 3, two constructor parameters of the same type
-   * receive the same instance instead of a compile error; and the result, like
-   * `Resource.from[T]`, can be allocated only once if stored in a `val`.
+   * cycle; on Scala 3, a dependency on a Java class whose constructor takes
+   * parameters crashes the macro (Scala 2 uses its first constructor); on Scala
+   * 3, two constructor parameters of the same type receive the same instance
+   * instead of a compile error; and the result, like `Resource.from[T]`, can be
+   * allocated only once if stored in a `val`.
    *
    * {{{
    * final case class DbConfig(url: String)

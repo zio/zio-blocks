@@ -54,9 +54,11 @@ private[scope] trait WireCompanionVersionSpecific {
    * dependencies where one is a subtype of the other are a compile error. When
    * converted to a `Resource` via `toResource`, a shared wire produces a
    * reference-counted `Resource.shared`, so dependents receive the same
-   * instance. Known bugs: a Java class whose constructor takes parameters
-   * crashes the macro, and on Scala 3 two parameters of the same type receive
-   * the same instance instead of a compile error.
+   * instance. Known bugs: on Scala 3, a Java class whose constructor takes
+   * parameters crashes the macro (Scala 2 uses its first constructor). On both
+   * versions, two constructor parameters of the same type receive the same
+   * instance instead of a compile error; only `Resource.from` on Scala 2
+   * reports it (E12).
    *
    * {{{
    * final case class DbConfig(url: String)
