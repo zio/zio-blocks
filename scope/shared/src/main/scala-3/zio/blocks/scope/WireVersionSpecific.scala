@@ -23,9 +23,10 @@ private[scope] trait WireVersionSpecific[-In, +Out] { self: Wire[In, Out] =>
   /**
    * Constructs the service using the given scope and context.
    *
-   * The scope is used to register finalizers (e.g. for `AutoCloseable`
-   * services), while the context provides access to dependencies required by
-   * this wire.
+   * The scope receives the service's finalizers (for example `close()` of an
+   * `AutoCloseable` service), and the context provides the dependencies of this
+   * wire. Unlike `toResource`, this builds a new instance on every call, even
+   * for a shared wire.
    *
    * @param scope
    *   the scope for cleanup registration
@@ -42,14 +43,28 @@ private[scope] trait WireCompanionVersionSpecific {
   /**
    * Derives a shared [[Wire]] for type `T` by inspecting its constructor.
    *
-   * The macro inspects `T`'s primary constructor and generates a wire that:
-   *   - Retrieves constructor parameters from the context
-   *   - Passes a `Scope` parameter if present
-   *   - Registers `close()` as a finalizer if `T` extends `AutoCloseable`
+   * The macro inspects the primary constructor of `T` and generates a wire
+   * that:
+   *   - takes every constructor parameter from the context, except parameters
+   *     of type `Finalizer` or `Scope`, which receive the scope
+   *   - registers `close()` as a finalizer if `T` extends `AutoCloseable`
    *
-   * When converted to a `Resource` via `toResource`, shared wires produce a
-   * reference-counted `Resource.shared` so dependents receive the same
-   * instance.
+   * The wire's `In` type is the intersection of the dependency types. Two
+   * dependencies where one is a subtype of the other are a compile error. When
+   * converted to a `Resource` via `toResource`, a shared wire produces a
+   * reference-counted `Resource.shared`, so dependents receive the same
+   * instance. Known bugs: a Java class whose constructor takes parameters
+   * crashes the macro, and on Scala 3 two parameters of the same type receive
+   * the same instance instead of a compile error.
+   *
+   * {{{
+   * final case class DbConfig(url: String)
+   * final class Database(config: DbConfig) extends AutoCloseable {
+   *   def close(): Unit = println("closed " + config.url)
+   * }
+   *
+   * val database: Wire[DbConfig, Database] = Wire.shared[Database]
+   * }}}
    *
    * @tparam T
    *   the service type to construct (must be a class, not a trait or abstract)
@@ -61,8 +76,11 @@ private[scope] trait WireCompanionVersionSpecific {
   /**
    * Derives a unique [[Wire]] for type `T` by inspecting its constructor.
    *
-   * Like `shared[T]`, but the wire creates a fresh instance each time it's
-   * used. Use for services that should not be shared across dependents.
+   * Like `shared[T]`, but the resource made from the wire creates a fresh
+   * instance each time it is allocated, and `Resource.from` gives each
+   * dependent its own instance. On Scala 3, `Resource.from` treats this wire as
+   * shared instead, so all dependents get one instance (a known bug). Use it
+   * for services that must not be shared, such as per-request state.
    *
    * @tparam T
    *   the service type to construct (must be a class, not a trait or abstract)
@@ -77,8 +95,24 @@ private[scope] trait SharedVersionSpecific {
   /**
    * Creates a [[Wire.Shared]] from a construction function.
    *
-   * Use this to build a shared wire with custom construction logic rather than
-   * relying on macro derivation via `Wire.shared[T]`.
+   * Use it when the constructor of the service is not enough, for example to
+   * call a factory method. `f` receives the scope and the dependencies. Unlike
+   * `Wire.shared[T]`, the wire does not register `close()` for an
+   * `AutoCloseable` result (a known bug); register it in `f` with
+   * `scope.defer`.
+   *
+   * {{{
+   * import java.util.concurrent.{ExecutorService, Executors}
+   *
+   * final case class PoolSize(threads: Int)
+   *
+   * val workers: Wire.Shared[PoolSize, ExecutorService] =
+   *   Wire.Shared.fromFunction[PoolSize, ExecutorService] { (scope, ctx) =>
+   *     val pool = Executors.newFixedThreadPool(ctx.get[PoolSize].threads)
+   *     scope.defer(pool.shutdown())
+   *     pool
+   *   }
+   * }}}
    *
    * @param f
    *   the function that constructs the service given a scope and context
@@ -87,8 +121,7 @@ private[scope] trait SharedVersionSpecific {
    * @tparam Out
    *   the service type produced
    * @return
-   *   a shared wire that constructs the service via `f` and reuses the same
-   *   instance for all dependents according to shared wire semantics
+   *   a shared wire that constructs the service with `f`
    */
   def fromFunction[In, Out](f: (Scope, Context[In]) => Out): Wire.Shared[In, Out] =
     Wire.Shared[In, Out](f)
@@ -99,8 +132,11 @@ private[scope] trait UniqueVersionSpecific {
   /**
    * Creates a [[Wire.Unique]] from a construction function.
    *
-   * Use this to build a unique wire with custom construction logic rather than
-   * relying on macro derivation via `Wire.unique[T]`.
+   * Use it when the constructor of the service is not enough, for example to
+   * call a factory method. `f` receives the scope and the dependencies. Unlike
+   * `Wire.unique[T]`, the wire does not register `close()` for an
+   * `AutoCloseable` result (a known bug); register it in `f` with
+   * `scope.defer`.
    *
    * @param f
    *   the function that constructs the service given a scope and context
@@ -109,7 +145,7 @@ private[scope] trait UniqueVersionSpecific {
    * @tparam Out
    *   the service type produced
    * @return
-   *   a unique wire that creates a fresh instance on each use
+   *   a unique wire that creates a fresh instance with `f` on each use
    */
   def fromFunction[In, Out](f: (Scope, Context[In]) => Out): Wire.Unique[In, Out] =
     Wire.Unique[In, Out](f)
