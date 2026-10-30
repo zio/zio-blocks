@@ -16,7 +16,7 @@ Contents:
 
 Pages that contradict the source. None of these were copied into the new guides.
 
-**2026-10-30:** session `docs-error-fixes-5` (Opus) fact-checked the first three entries below with fresh-context Opus and probes on 0.0.56: all confirmed (E1b partly: Part 5 names `private[otel]` but presents the package trick as the design, and its plain-fenced block also lacks the package line and an import, and never exports metrics); fixing them now; the four `chunk.md` entries are with session `chunk-docs-followup`.
+**2026-10-30:** session `docs-error-fixes-5` (Opus) fact-checked the first three entries below with fresh-context Opus and probes on 0.0.56: all confirmed (E1b partly: Part 5 names `private[otel]` but presents the package trick as the design, and its plain-fenced block also lacks the package line and an import, and never exports metrics); fix in **PR #1914** (open); move the three entries to Resolved when it merges; the four `chunk.md` entries are with session `chunk-docs-followup`.
 
 ### docs: the telemetry tutorial says shipping to a collector "isn't possible yet", and `telemetry-guide.md` reaches the private exporters by declaring a package
 
