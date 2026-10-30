@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicReference
  * A `Resource` does nothing when it is created: the value is acquired when a
  * scope allocates the resource (`scope.allocate(resource)`) or when `use` runs,
  * and that scope runs the release steps when it closes. Build resources with
- * the constructors below and combine them with `map`, `flatMap` and `zip`.
+ * these constructors and combine them with `map`, `flatMap` and `zip`.
  *
  * ==Creating Resources==
  *
@@ -190,7 +190,7 @@ sealed trait Resource[+A] { self =>
    * @param f
    *   callback that uses the acquired value
    * @tparam B
-   *   result type; must be [[Unscoped]] so only plain data leaves the scope
+   *   result type; must have an [[Unscoped]] instance
    * @return
    *   the callback result after all finalizers have run
    */
@@ -363,8 +363,9 @@ object Resource extends ResourceCompanionVersionSpecific {
   /**
    * Creates a resource with explicit acquire and release functions.
    *
-   * The `acquire` thunk is called when the resource is created. The `release`
-   * function is registered as a finalizer and runs when the scope closes.
+   * The `acquire` thunk runs each time a scope allocates the resource. The
+   * `release` function is registered as a finalizer of that scope and runs when
+   * the scope closes.
    *
    * @param acquire
    *   a by-name expression that acquires the resource
