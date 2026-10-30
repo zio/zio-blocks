@@ -608,6 +608,8 @@ Plan: `docs/superpowers/plans/2026-10-29-chunk-scaladoc.md`. Style: `docs/dev/sc
 
 Pilot of §13 (2026-10-29/30), session `scaladoc-chunk` (Opus controller): one PR, because chunk had no existing `{{{` blocks. Opus wrote tier 1 and fact-checked all 247 existing comments; 37 were false or imprecise (29 of the 153 counted ones, 19%), mostly wrong behaviour claims inherited from ZIO 2 ("backed by" where the code copies, `dropUntil`, `split`, "does not box" on Scala.js, `ChunkMap` "O(1)", `sizeHint`, `hashCode`). Opus's first pass caught 31 of the 37; the fresh-context reviewer found the other 6. Sonnet wrote the 48 tier-2/3 gaps and drew 1 Minor finding. Review: 13 findings (5 Important, 8 Minor) applied; Sonnet re-review APPROVE with 3 Minor applied; 16 / 16 in total. CI green on the first run. About 2 hours of wall-clock (23:02 to 00:58). Six library bugs and four `chunk.md` errors were filed (the "chunk: ..." entries in library-issues.md and the `docs/reference/chunk.md` entries in docs-issues.md); the four `chunk.md` errors are still open and need a small docs PR. The `scaladoc-rollout` skill gained "Lessons from chunk" (`references/lessons.md`) and `scripts/comments-only.py`.
 
+**scope started 2026-10-30:** session `scaladoc-scope` (Sonnet controller, Opus subagents for tier 1, the existing-comment fact-check and the review, per §13.4).
+
 ## 13. Scaladoc: next modules
 
 Plan for the next module-wide Scaladoc rollouts, from a read-only research pass on 2026-10-29 (`main` at `bafc31bef`). Coverage was counted with the repo's `.claude/scripts/scaladoc-coverage.py`, the scope-aware count the streams rollout used.
