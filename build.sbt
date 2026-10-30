@@ -1739,7 +1739,7 @@ lazy val docs = project
     publish / skip := true,
     libraryDependencies ++= Seq(
       "dev.zio"   %% "zio-prelude"    % "1.0.0-RC48",
-      "dev.zio"   %% "zio-sbt-source" % "0.8.6",
+      "dev.zio"   %% "zio-sbt-source" % "0.8.7",
       "org.xerial" % "sqlite-jdbc"    % "3.53.2.0",
       // Lets the PostgreSQL connection-pool guide compile its HikariCP snippets; nothing connects.
       "com.zaxxer" % "HikariCP" % "7.1.0"
