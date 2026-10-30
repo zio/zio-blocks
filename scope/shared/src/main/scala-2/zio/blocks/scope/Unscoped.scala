@@ -17,26 +17,63 @@
 package zio.blocks.scope
 
 /**
- * Marker typeclass for types that can escape a scope unscoped.
+ * A typeclass for the types whose values may leave a scope: plain data that
+ * holds no resource.
  *
- * Types with an `Unscoped` instance are considered "safe data" - they don't
- * hold resources and can be freely extracted from a scope without tracking.
+ * `scoped` and `Resource#use` return only a type with an `Unscoped` instance,
+ * and `$` returns a raw `B` instead of `$[B]` when `B` has one. A type without
+ * an instance, such as a connection or a stream, stays inside its scope.
  *
- * Primitives, strings, and collections of unscoped types are unscoped by
- * default. Resource types (streams, connections, handles) should NOT have
- * instances.
+ * ==Default Instances==
  *
- * @example
- *   {{{
- *   // Primitives escape freely (auto-unwrapped by $)
- *   Scope.global.scoped { s =>
- *     import s._
- *     (s $ stream)(_.read()) // returns Int directly since Int: Unscoped
- *   }
+ * The companion provides instances for:
+ *   - Primitives: `Int`, `Long`, `Short`, `Byte`, `Char`, `Boolean`, `Float`,
+ *     `Double`, `Unit`, and `Nothing`
+ *   - Text: `String`
+ *   - Numeric: `BigInt`, `BigDecimal`
+ *   - Collections: `Array`, `List`, `Vector`, `Set`, `Seq`, `IndexedSeq`,
+ *     `Iterable`, `Map` and [[zio.blocks.chunk.Chunk]] (when elements are
+ *     `Unscoped`)
+ *   - Containers: `Option`, `Either` (when elements are `Unscoped`)
+ *   - Tuples: up to 4-tuples (when elements are `Unscoped`)
+ *   - Time: `java.time.Instant`, `LocalDate`, `LocalTime`, `LocalDateTime`,
+ *     `ZonedDateTime`, `OffsetDateTime`, `Duration`, `Period`, `ZoneId` and
+ *     `ZoneOffset`, and `scala.concurrent.duration.Duration` and
+ *     `FiniteDuration`
+ *   - Other: `java.util.UUID`
  *
- *   // Resources stay scoped
- *   val body: $[InputStream] = (scope $ request)(_.body)  // InputStream stays scoped (no Unscoped instance)
- *   }}}
+ * ==Your Own Types==
+ *
+ * On Scala 3, every case class, sealed trait and enum whose fields or cases all
+ * have instances gets one automatically, through the `derived` given. On Scala
+ * 2, define an instance with `Unscoped.derived`, as below (this also compiles
+ * on Scala 3). On Scala 3 the automatic instance is also given to a case class
+ * that extends `AutoCloseable`, so a closed resource can leave its scope (a
+ * known bug). Do not define instances for types that hold resources.
+ *
+ * {{{
+ * final case class Report(title: String, rows: Int)
+ * object Report {
+ *   implicit val unscoped: Unscoped[Report] = Unscoped.derived[Report]
+ * }
+ *
+ * final class Database extends AutoCloseable {
+ *   def count(table: String): Int = table.length
+ *   def close(): Unit             = ()
+ * }
+ *
+ * val report: Report = Scope.global.scoped { scope =>
+ *   import scope._
+ *   val db = allocate(new Database)
+ *   Report("users", $(db)(_.count("users")))
+ * }
+ * // report: Report(users,5)
+ * }}}
+ *
+ * @tparam A
+ *   the type whose values may leave a scope
+ * @see
+ *   [[https://zioblocks.com/reference/resource-management/unscoped/ Unscoped]]
  */
 trait Unscoped[A]
 
@@ -50,21 +87,22 @@ private[scope] trait UnscopedLowPriority {
 }
 
 /**
- * Companion object providing implicit instances for common types.
+ * Instances of [[Unscoped]] for common data types, and `derived` for your own.
  *
  * ==Adding Custom Instances==
  *
- * To mark your own type as safe to escape scopes, define an implicit instance:
+ * To mark your own type as safe to leave a scope, derive an instance (see
+ * `derived`) or define one directly; this form compiles on Scala 2 and 3:
  *
  * {{{
- * case class UserId(value: Long)
+ * final case class UserId(value: Long)
  * object UserId {
  *   implicit val unscopedUserId: Unscoped[UserId] = new Unscoped[UserId] {}
  * }
  * }}}
  *
- * Only add `Unscoped` instances for pure data types that don't hold resources.
- * Resource types (streams, connections, handles) should NOT have instances.
+ * Only add `Unscoped` instances for plain data types that hold no resources.
+ * Resource types (streams, connections, handles) should not have instances.
  */
 object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
   // Primitives

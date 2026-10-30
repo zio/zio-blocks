@@ -24,13 +24,14 @@ private[scope] trait UnscopedVersionSpecific {
   private val singleton: Unscoped[Any] = new Unscoped[Any] {}
 
   /**
-   * Derives [[Unscoped]] for case classes, sealed traits, and enums. All
-   * fields/cases must have `Unscoped` instances.
+   * Derives [[Unscoped]] for a case class, a case object, or a sealed trait or
+   * sealed abstract class (and, on Scala 3, an enum) when every field or case
+   * has an `Unscoped` instance or can itself be derived. A missing instance is
+   * a compile error.
    *
-   * Uses `Mirror.Of[A]` constraint so this given is only a candidate for types
-   * that have a Mirror (case classes, sealed traits, enums). This allows
-   * implicit search to fall through to lower-priority instances for non-Mirror
-   * types.
+   * On Scala 3 it is a `given`, so these types get an instance without asking
+   * for one. On Scala 2 it is a macro, so call it to define an instance:
+   * `implicit val unscoped: Unscoped[Report] = Unscoped.derived[Report]`.
    *
    * @tparam A
    *   the case class, sealed trait, or enum to derive `Unscoped` for
