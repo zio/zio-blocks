@@ -619,7 +619,7 @@ Plan and spec in `docs/superpowers/plans/` and `docs/superpowers/specs/` (2026-1
 
 | Item | Result |
 |---|---|
-| PR | #1916 (one PR, 15 commits), CI green after one re-run of two known flakes |
+| PR | #1916 (one PR, 15 commits), **merged 2026-10-30** (`8d6216d7a`); CI green after one re-run of two known flakes |
 | Coverage | 125 / 223 (56%) → 223 / 223 (100%); scala-2/scala-3 drift 12 → 0 |
 | Examples | 23 uncompiled `{{{` blocks (18 under `@example`) → 32 compiled blocks on 2.13.18, 3.9.0 and 3.10.0 via `scaladoc-check` |
 | Tier 1 | `Scope`, `Resource`, `Wire`, `Finalizer`, `Unscoped`, `Finalization`, `DeferHandle`; macros tier 3 |
