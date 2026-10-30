@@ -19,13 +19,13 @@ Two readers: the `/api` site, built by Scala 3 Scaladoc from the JVM projects, a
  * Use it to read or replace that part without rebuilding the record by hand.
  *
  * {{{
- * case class Book(title: String, year: Int)
- * object Book extends CompanionOptics[Book] {
- *   implicit val schema: Schema[Book] = Schema.derived
- *   val year: Lens[Book, Int] = $(_.year)
+ * case class Server(host: String, port: Int)
+ * object Server extends CompanionOptics[Server] {
+ *   implicit val schema: Schema[Server] = Schema.derived
+ *   val port: Lens[Server, Int] = $(_.port)
  * }
  *
- * Book.year.replace(Book("Zionomicon", 2021), 2024) // Book("Zionomicon", 2024)
+ * Server.port.replace(Server("localhost", 80), 8080) // Server(localhost,8080)
  * }}}
  *
  * @see [[https://zioblocks.com/reference/schema/optics/ Optics]]
@@ -44,7 +44,7 @@ def getDefaultValue: Option[A]
 ## Rules
 
 1. **Write once.** A member declared in `scala-2/` and `scala-3/`, or `jvm/` and `js/`, gets the same text in every copy. Check with `python3 .claude/scripts/scaladoc-coverage.py <module> --drift`.
-2. **Tell the truth.** Read the implementation before writing. Every claim ("returns `Left` when ...", "throws ...") must match the code or a test. When the code looks wrong, do not describe the wrong behaviour as intended: describe what it really does, call it "a known bug", and report it as AGENTS.md describes (a ready-to-paste entry for `docs/dev/issues.md`, sent to the coordinating session).
+2. **Tell the truth.** Read the implementation before writing. Every claim ("returns `Left` when ...", "throws ...") must match the code or a test. When the code looks wrong, do not describe the wrong behaviour as intended: describe what it really does, call it "a known bug", and report it as AGENTS.md describes (a ready-to-paste entry for `docs/dev/library-issues.md`, sent to the coordinating session).
 3. **Prose.** Follow the `docs-writing-style` skill: present tense, active voice, no "simply" or "just". Start with what the member does, not "This method ...".
 4. **Format.** Leave wrapping to `scalafmt`. One blank comment line between paragraphs and before the tags.
 5. **Syntax.** Code in multi-line `{{{` / `}}}` blocks, each marker on its own line (single-line `{{{ x }}}` is not checked). Link types with `[[Type]]` or `[[Type#member]]`. Link a reference page with `@see [[https://zioblocks.com/reference/<module>/<page>/ <Title>]]`, as in `reference/schema/optics/` or `reference/streams/core/sink/` (keep the trailing slash).
@@ -55,8 +55,8 @@ def getDefaultValue: Option[A]
 
 - Each block compiles on its own. The wrapper adds the import of the module the file belongs to (`import zio.blocks.chunk._` for `chunk`, `import zio.blocks.schema._` for `schema`, `import zio.blocks.streams._` for `streams`); import anything else inside the block.
 - Use braces, not indentation syntax.
-- Sample data uses real Scala books, such as Zionomicon.
-- Show results in comments (`// Book("Zionomicon", 2024)`). They are not checked, so run the example once (with `scala-cli` or in a test) before writing the comment.
+- Sample data fits the API: numbers, bytes, chars and short strings for collections, port numbers, user ids or word counts for maps. Vary it from one example to the next.
+- Show results in comments (`// Some(80)`). They are not checked, so run the example once (with `scala-cli` or in a test) before writing the comment.
 - The first line of a block can be a marker:
   - `// scala-3-only`: compiled on Scala 3 only (`given`, `using`, `derives`, union types in a shared file).
   - `// scala-2-only`: compiled on Scala 2 only.

@@ -34,9 +34,9 @@ import scala.collection.{IterableOnce, MapFactory, mutable}
  * known bug), so do not mix the two as keys of one hash-based collection.
  *
  * {{{
- * val years = ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008)
- * years.get("Zionomicon") // Some(2021)
- * years.keyAtIndex(1)     // Programming in Scala
+ * val ports = ChunkMap("http" -> 80, "https" -> 443)
+ * ports.get("http")   // Some(80)
+ * ports.keyAtIndex(1) // https
  * }}}
  *
  * @tparam K
@@ -75,7 +75,7 @@ final class ChunkMap[K, +V] private (
    * faster lookups in a large map.
    *
    * {{{
-   * ChunkMap("Zionomicon" -> 2021).get("Zionomicon") // Some(2021)
+   * ChunkMap("http" -> 80).get("http") // Some(80)
    * }}}
    */
   override def get(key: K): Option[V] = {
@@ -251,8 +251,8 @@ final class ChunkMap[K, +V] private (
    * bug).
    *
    * {{{
-   * val years = ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008)
-   * years.keyAtIndex(1) // Programming in Scala
+   * val ports = ChunkMap("http" -> 80, "https" -> 443)
+   * ports.keyAtIndex(1) // https
    * }}}
    */
   def keyAtIndex(idx: Int): K = _keys(idx)
@@ -275,8 +275,8 @@ final class ChunkMap[K, +V] private (
    * insertion order once it has more than four entries.
    *
    * {{{
-   * val index = ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008).indexed
-   * index.get("Programming in Scala") // Some(2008)
+   * val index = ChunkMap("http" -> 80, "https" -> 443).indexed
+   * index.get("https") // Some(443)
    * }}}
    */
   def indexed: ChunkMap.Indexed[K, V] = new ChunkMap.Indexed(this)
@@ -454,9 +454,8 @@ object ChunkMap extends MapFactory[ChunkMap] {
    * occurrence.
    *
    * {{{
-   * val years =
-   *   ChunkMap("Zionomicon" -> 2021, "Programming in Scala" -> 2008, "Zionomicon" -> 2024)
-   * years.toList // List((Zionomicon,2024), (Programming in Scala,2008))
+   * val counts = ChunkMap("a" -> 1, "b" -> 2, "a" -> 3)
+   * counts.toList // List((a,3), (b,2))
    * }}}
    */
   override def apply[K, V](elems: (K, V)*): ChunkMap[K, V] = from(elems)
@@ -467,7 +466,7 @@ object ChunkMap extends MapFactory[ChunkMap] {
    * first occurrence).
    *
    * {{{
-   * ChunkMap.fromChunk(Chunk("Zionomicon" -> 2021, "Zionomicon" -> 2024)) // ChunkMap(Zionomicon -> 2024)
+   * ChunkMap.fromChunk(Chunk("a" -> 1, "a" -> 2)) // ChunkMap(a -> 2)
    * }}}
    */
   def fromChunk[K, V](chunk: Chunk[(K, V)]): ChunkMap[K, V] = from(chunk)
