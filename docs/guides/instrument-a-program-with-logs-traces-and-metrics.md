@@ -559,7 +559,7 @@ In this tutorial, you learned:
 - How a counter keeps a total per attribute, and how a histogram summarizes durations into buckets
 - How to read spans back with `trace.collectedSpans`, reset them with `trace.clearSpans`, and assert on the shape of a trace
 
-You now have a solid foundation in recording and inspecting telemetry. Shipping it to a backend such as an OpenTelemetry Collector, Jaeger or Grafana isn't possible yet, because the module's OTLP exporters are not public.
+You now have a solid foundation in recording and inspecting telemetry. To ship it to a backend such as an OpenTelemetry Collector, you write a small exporter of your own: the module's built-in OTLP exporters aren't public yet, but the pieces they are built from are. [Building an Exporter](../reference/telemetry/otel/custom-exporter.md) shows how to encode spans, logs and metrics with `OtlpJsonEncoder` and send them with `HttpSender`.
 
 ## 13. Where to Go Next
 
