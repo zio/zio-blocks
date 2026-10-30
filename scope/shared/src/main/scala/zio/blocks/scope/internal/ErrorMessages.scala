@@ -271,6 +271,9 @@ object ErrorMessages {
 
   /**
    * E2: No primary constructor.
+   *
+   * No user code reaches it, because every Scala class has a primary
+   * constructor (a known bug).
    */
   def renderNoPrimaryCtor(typeName: String, color: Boolean): String = {
     import Colors._
@@ -287,6 +290,10 @@ object ErrorMessages {
 
   /**
    * E3: Subtype conflict - two dependencies have subtype relationship.
+   *
+   * Its hint builds the wrapper name by prefixing `Wrapped` to the full type
+   * name, so for a type in a package the suggested code does not compile (a
+   * known bug).
    */
   def renderSubtypeConflict(
     typeName: String,
@@ -346,6 +353,9 @@ object ErrorMessages {
 
   /**
    * E5: Unsupported implicit parameter type.
+   *
+   * The macros report E4 for such a parameter first, so E5 is not reached (a
+   * known bug).
    */
   def renderUnsupportedImplicitParam(
     typeName: String,
@@ -372,6 +382,9 @@ object ErrorMessages {
 
   /**
    * E6: Cannot extract wire types.
+   *
+   * Reached only by an argument whose static type is not `Wire[In, Out]`, such
+   * as `???`.
    */
   def renderCannotExtractWireTypes(wireType: String, color: Boolean): String = {
     import Colors._
@@ -450,6 +463,9 @@ object ErrorMessages {
 
   /**
    * E9: No constructor for auto-create.
+   *
+   * No user code reaches it, because every Scala class has a primary
+   * constructor (a known bug).
    */
   def renderNoCtorForAutoCreate(
     typeName: String,
@@ -481,7 +497,8 @@ object ErrorMessages {
   /**
    * E10: Dependency cycle detected.
    *
-   * Renders an ASCII cycle diagram showing the circular dependency.
+   * Renders an ASCII cycle diagram showing the circular dependency. The macros
+   * never reach it: a cycle crashes `Resource.from` instead (a known bug).
    */
   def renderDependencyCycle(cyclePath: List[String], color: Boolean): String = {
     import Colors._
@@ -540,6 +557,9 @@ object ErrorMessages {
   /**
    * E12: Duplicate parameter type - constructor has multiple params of same
    * type.
+   *
+   * On Scala 3 the macros never reach it: both parameters receive the same
+   * instance (a known bug).
    */
   def renderDuplicateParamType(
     typeName: String,
@@ -683,6 +703,9 @@ object ErrorMessages {
    *   - The resolution stack (how we got here)
    *   - A tree view of all dependencies with their status
    *   - Actionable hints
+   *
+   * Neither macro calls it (a known bug): a missing dependency is derived from
+   * its constructor, or fails with E7 or E8.
    */
   def renderMissingDependency(
     requiredBy: String,
