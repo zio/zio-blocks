@@ -632,6 +632,8 @@ Plan and spec in `docs/superpowers/plans/` and `docs/superpowers/specs/` (2026-1
 
 Lesson (also in the skill's `references/lessons.md`): scope's sharing and closing behaviour differs by Scala version and by a wire's static type, so most Important findings needed per-version probes; the first pass had written "Scala 3 only" or "both" from reading alone. The three scope reference-page errors are still open and need a small docs PR.
 
+**config started 2026-10-30:** session `scaladoc-config` (Sonnet controller, Opus subagents per §13.4), all four config modules.
+
 **scope started 2026-10-30:** session `scaladoc-scope` (Sonnet controller, Opus subagents for tier 1, the existing-comment fact-check and the review, per §13.4). Phase 0: 125 / 223 (56%); 12 members differ between the scala-2 and scala-3 copies; 23 `{{{` blocks (inside 18 `@example` tags), none compiled; scope has its own `scope/AGENTS.md` example-style rules. Milad's Phase 1 decisions: tier 1 = `Scope`, `Resource`, `Wire`, `Finalizer`, `Unscoped`, `Finalization`, `DeferHandle`; one PR (tooling + wave); macros tier 3 one-liners; the `@example` tags are dropped and the plain `{{{` blocks kept; the AGENTS.md edit (lines 113 and 178) approved. **PR #1916** (2026-10-30): 125 / 223 → 223 / 223, 32 compiled examples, no drift; fact-check of 189 existing comments found 26 false and 32 imprecise (about 14% wrong), all fixed; Opus review 5 Important + 9 Minor fixed; Sonnet re-review approve with 3 Minor applied. 2 new library bugs and 6 additions to existing `scope:` entries recorded.
 
 ## 13. Scaladoc: next modules
