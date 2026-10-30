@@ -106,6 +106,8 @@ Most built-in codecs (JSON, Avro, TOON, MessagePack, Thrift, XML and YAML) exten
 
 `TextCodec` is for formats that operate on character data rather than raw bytes. The built-in CSV codec, `CsvCodec`, extends it, and custom text-based formats can extend it too.
 
+To add a format of your own, extend one of these two classes; [How to Write a Codec for a New Wire Format](../../guides/write-a-codec-for-a-new-wire-format.md) builds a `BinaryCodec` and its deriver step by step.
+
 ## Deriving Codecs
 
 ### Using Schema.derive

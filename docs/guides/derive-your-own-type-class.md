@@ -520,3 +520,4 @@ sbt "runMain deriveyourowntypeclass.CompleteExample"
 - [Customizing Derivation with Instance and Modifier Overrides](../reference/schema/type-class-derivation.md#customizing-derivation-with-instance-and-modifier-overrides) covers every `withInstance` and `withModifier` overload and how overrides chain.
 - [Modifier](../reference/schema/modifier.md) lists the built-in modifiers and how to read them from a schema.
 - [Lazy](../reference/schema/lazy.md) documents the `Lazy` operations a deriver uses to compose child instances.
+- [How to Write a Codec for a New Wire Format](./write-a-codec-for-a-new-wire-format.md) applies the same `Deriver` to a binary codec: it builds records back from their fields, decodes collections, and reports decode errors with a path.
