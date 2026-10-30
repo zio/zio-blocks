@@ -17,67 +17,79 @@
 package zio.blocks
 
 /**
- * Scope: A compile-time safe resource management library using scope-local
- * opaque types.
- *
- * ==Quick Start==
+ * Resource management with compile-time checks: a [[scope.Scope]] owns
+ * resources, gives them back to you as values of its own type `$[A]`, and
+ * releases them in reverse order when it closes.
  *
  * {{{
- * import zio.blocks.scope._
- *
- * Scope.global.scoped { scope =>
- *   import scope._
- *   val db: $[Database] = allocate(Resource[Database])
- *   val result: $[Int] = (scope $ db)(_.query("SELECT 1"))
- *   result  // Returns $[Int], unwrapped to Int at boundary
+ * final class Database extends AutoCloseable {
+ *   def query(sql: String): Int = sql.length
+ *   def close(): Unit           = println("database closed")
  * }
+ *
+ * val rows: Int = Scope.global.scoped { scope =>
+ *   import scope._
+ *   val db: $[Database] = allocate(Resource(new Database))
+ *   $(db)(_.query("SELECT 1"))
+ * }
+ * // prints: database closed
+ * // rows: 8
  * }}}
  *
  * ==Key Concepts==
  *
- *   - '''Scoped values''' (`scope.$[A]`): Values tied to a scope, preventing
- *     escape
- *   - '''`import scope._`''': Bring scope operations into lexical scope
- *   - '''`allocate(resource)`''': Allocate a value in the current scope
- *   - '''`(scope $ value)(f)`''': Apply a function to a scoped value
- *   - '''`scoped { s => ... }`''': Create a child scope
- *   - '''`defer { ... }`''': Register cleanup to run when scope closes
+ *   - '''Scoped values''' (`scope.$[A]`): values owned by a scope, which the
+ *     compiler keeps from leaving it
+ *   - '''`import scope._`''': brings the scope's operations into lexical scope
+ *   - '''`allocate(resource)`''': acquires a [[scope.Resource]] in the scope
+ *   - '''`$(value)(f)`''': calls methods on a scoped value
+ *   - '''`scoped { child => ... }`''': opens a child scope
+ *   - '''`defer { ... }`''': registers cleanup to run when the scope closes
+ *   - '''[[scope.Wire]] and `Resource.from[T]`''': build a service and its
+ *     dependencies from constructors
  *
  * ==How It Works==
  *
- * Each scope has its own `$[A]` opaque type. Child scopes create structurally
- * incompatible `$[A]` types, preventing sibling-scoped values from being mixed.
- * Parent-scoped values can be lowered into child scopes via `lower()`.
- *
- * The `.scoped` method requires `Unscoped[A]` evidence on the return type,
- * ensuring only pure data (not resources or closures) can escape.
+ * Each scope has its own `$[A]` type, so values of sibling scopes cannot be
+ * mixed. A child can use its parent's values after `lower(value)`. `scoped`
+ * requires an [[scope.Unscoped]] instance for its result type, so only plain
+ * data (not resources or closures) leaves a scope.
  *
  * @see
- *   [[scope.Scope]] for scope types and operations [[scope.Resource]] for
- *   creating scoped values [[scope.Unscoped]] for types that can cross scope
- *   boundaries
+ *   [[https://zioblocks.com/reference/resource-management/ Resource Management]]
  */
 package object scope {
 
   /**
-   * Registers a finalizer to run when the current scope closes.
+   * Registers a finalizer with the `Finalizer` in implicit scope, to run when
+   * that scope closes.
    *
-   * Finalizers run in LIFO order (last registered runs first). If a finalizer
-   * throws, subsequent finalizers still run.
+   * Use it in a class that takes an implicit `Finalizer` (a `using` parameter
+   * on Scala 3): `Resource.from` and `Wire` pass the scope that owns the
+   * instance. Finalizers run in reverse order of registration, and if one
+   * throws, the others still run.
    *
-   * @example
-   *   {{{
-   *   Scope.global.scoped { scope =>
-   *     val resource = acquire()
-   *     scope.defer { resource.release() }
-   *     // use resource...
-   *   }
-   *   }}}
+   * {{{
+   * final class AuditLog(implicit finalizer: Finalizer) {
+   *   private val lines = scala.collection.mutable.ListBuffer.empty[String]
+   *   defer(println("flushed " + lines.size + " lines"))
+   *   def write(line: String): Unit = lines += line
+   * }
+   *
+   * Scope.global.scoped { scope =>
+   *   import scope._
+   *   val log = allocate(Resource.from[AuditLog])
+   *   $(log)(_.write("user signed in"))
+   * }
+   * // prints: flushed 1 lines
+   * }}}
    *
    * @param finalizer
    *   a by-name expression to execute on scope close
    * @param fin
    *   the finalizer capability to register cleanup with
+   * @return
+   *   a [[scope.DeferHandle]] that cancels the registration
    */
   def defer(finalizer: => Unit)(implicit fin: Finalizer): DeferHandle =
     fin.defer(finalizer)

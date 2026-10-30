@@ -17,16 +17,41 @@
 package zio.blocks.scope
 
 /**
- * A handle for registering cleanup actions (finalizers).
+ * The capability to register cleanup actions (finalizers) with a scope.
  *
- * Finalizers run in LIFO order when the scope closes. This trait exposes only
- * the `defer` capability, preventing user code from accessing scope internals
- * like `allocate` or `close`.
+ * Every [[Scope]] is a `Finalizer`. A class that needs cleanup takes an
+ * implicit `Finalizer` instead of a `Scope`, so its type promises only `defer`,
+ * not `allocate` or `$`. `Resource.from` and `Wire` pass the owning scope to
+ * such a parameter, and the package-level `defer` registers with it. Finalizers
+ * run in reverse order of registration (last in, first out) when the scope
+ * closes.
+ *
+ * {{{
+ * final class Cache(implicit finalizer: Finalizer) {
+ *   private val entries = new java.util.concurrent.ConcurrentHashMap[String, String]()
+ *   defer(println("cache cleared: " + entries.size + " entries"))
+ *   def put(key: String, value: String): Unit = { entries.put(key, value); () }
+ * }
+ *
+ * Scope.global.scoped { scope =>
+ *   import scope._
+ *   val cache = allocate(Resource.from[Cache])
+ *   $(cache)(_.put("user:1", "Ada"))
+ * }
+ * // prints: cache cleared: 1 entries
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/resource-management/finalizer/ Finalizer]]
  */
 trait Finalizer {
 
   /**
    * Registers a finalizer to run when the scope closes.
+   *
+   * Finalizers run in reverse order of registration, and if one throws, the
+   * others still run. If the scope is already closed, `f` never runs and the
+   * returned handle does nothing.
    *
    * @param f
    *   a by-name expression to execute during cleanup
