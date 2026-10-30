@@ -397,8 +397,14 @@ object Scope {
    * }}}
    */
   object global extends Scope { self =>
-    type $[+A]  = A
+
+    /** In `global`, a scoped value is the value itself: `$[A]` is `A`. */
+    type $[+A] = A
+
+    /** The type of `global` itself: it is its own parent. */
     type Parent = global.type
+
+    /** `global` itself. */
     val parent: Parent = this
 
     protected def $wrap[A](a: A): $[A]    = a
@@ -412,6 +418,7 @@ object Scope {
       f
     }
 
+    /** Returns `true` for every thread, because any thread may use `global`. */
     def isOwner: Boolean = true
 
     private[scope] val scopeDisplayName: String = "Scope.global"
@@ -479,6 +486,8 @@ object Scope {
     private[scope] val owner: AnyRef,
     private[scope] val unowned: Boolean = false
   ) extends Scope { self =>
+
+    /** The type of the parent scope, the type argument `P`. */
     type Parent = P
 
     /**
@@ -503,6 +512,11 @@ object Scope {
     //
     // For cross-compilation, we use asInstanceOf which is sound
     // because $[A] = A at runtime for both Scala 2 and 3
+    /**
+     * The type of a value scoped to this child. It is abstract, so a
+     * `child.$[A]` is a different type from the `$[A]` of any other scope; at
+     * runtime it is the `A` itself.
+     */
     type $[+A]
     protected def $wrap[A](a: A): $[A]    = a.asInstanceOf[$[A]]
     protected def $unwrap[A](sa: $[A]): A = sa.asInstanceOf[A]

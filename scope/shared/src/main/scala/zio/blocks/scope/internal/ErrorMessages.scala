@@ -31,29 +31,84 @@ object ErrorMessages {
   // Terminal Colors
   // ─────────────────────────────────────────────────────────────────────────
 
+  /** ANSI escape sequences and helpers that colour text for a terminal. */
   object Colors {
+
+    /**
+     * Returns `true` unless the `NO_COLOR` environment variable is set to a
+     * non-empty value or the `sbt.log.noformat` system property is `true`.
+     */
     def shouldUseColor: Boolean = {
       val noColor     = sys.env.get("NO_COLOR").exists(_.nonEmpty)
       val sbtNoFormat = sys.props.get("sbt.log.noformat").contains("true")
       !noColor && !sbtNoFormat
     }
 
-    val Reset  = "\u001b[0m"
-    val Bold   = "\u001b[1m"
-    val Red    = "\u001b[31m"
-    val Green  = "\u001b[32m"
-    val Yellow = "\u001b[33m"
-    val Blue   = "\u001b[34m"
-    val Cyan   = "\u001b[36m"
-    val Gray   = "\u001b[90m"
+    /** The ANSI escape that resets all attributes. */
+    val Reset = "\u001b[0m"
 
-    def red(s: String, color: Boolean): String    = if (color) s"$Red$s$Reset" else s
-    def green(s: String, color: Boolean): String  = if (color) s"$Green$s$Reset" else s
+    /** The ANSI escape that switches to bold. */
+    val Bold = "\u001b[1m"
+
+    /** The ANSI escape that sets a red foreground. */
+    val Red = "\u001b[31m"
+
+    /** The ANSI escape that sets a green foreground. */
+    val Green = "\u001b[32m"
+
+    /** The ANSI escape that sets a yellow foreground. */
+    val Yellow = "\u001b[33m"
+
+    /** The ANSI escape that sets a blue foreground. */
+    val Blue = "\u001b[34m"
+
+    /** The ANSI escape that sets a cyan foreground. */
+    val Cyan = "\u001b[36m"
+
+    /** The ANSI escape that sets a gray foreground. */
+    val Gray = "\u001b[90m"
+
+    /**
+     * Wraps `s` in the red escape and a reset when `color` is `true`; returns
+     * `s` unchanged otherwise.
+     */
+    def red(s: String, color: Boolean): String = if (color) s"$Red$s$Reset" else s
+
+    /**
+     * Wraps `s` in the green escape and a reset when `color` is `true`; returns
+     * `s` unchanged otherwise.
+     */
+    def green(s: String, color: Boolean): String = if (color) s"$Green$s$Reset" else s
+
+    /**
+     * Wraps `s` in the yellow escape and a reset when `color` is `true`;
+     * returns `s` unchanged otherwise.
+     */
     def yellow(s: String, color: Boolean): String = if (color) s"$Yellow$s$Reset" else s
-    def blue(s: String, color: Boolean): String   = if (color) s"$Blue$s$Reset" else s
-    def cyan(s: String, color: Boolean): String   = if (color) s"$Cyan$s$Reset" else s
-    def gray(s: String, color: Boolean): String   = if (color) s"$Gray$s$Reset" else s
-    def bold(s: String, color: Boolean): String   = if (color) s"$Bold$s$Reset" else s
+
+    /**
+     * Wraps `s` in the blue escape and a reset when `color` is `true`; returns
+     * `s` unchanged otherwise.
+     */
+    def blue(s: String, color: Boolean): String = if (color) s"$Blue$s$Reset" else s
+
+    /**
+     * Wraps `s` in the cyan escape and a reset when `color` is `true`; returns
+     * `s` unchanged otherwise.
+     */
+    def cyan(s: String, color: Boolean): String = if (color) s"$Cyan$s$Reset" else s
+
+    /**
+     * Wraps `s` in the gray escape and a reset when `color` is `true`; returns
+     * `s` unchanged otherwise.
+     */
+    def gray(s: String, color: Boolean): String = if (color) s"$Gray$s$Reset" else s
+
+    /**
+     * Wraps `s` in the bold escape and a reset when `color` is `true`; returns
+     * `s` unchanged otherwise.
+     */
+    def bold(s: String, color: Boolean): String = if (color) s"$Bold$s$Reset" else s
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -63,8 +118,16 @@ object ErrorMessages {
   /** Status of a dependency in the graph. */
   sealed trait DepStatus
   object DepStatus {
-    case object Found   extends DepStatus
+
+    /** The dependency is available; rendered with a green check mark. */
+    case object Found extends DepStatus
+
+    /** The dependency is not available; rendered with a red cross. */
     case object Missing extends DepStatus
+
+    /**
+     * The dependency is not resolved yet; rendered with a gray question mark.
+     */
     case object Pending extends DepStatus
   }
 
