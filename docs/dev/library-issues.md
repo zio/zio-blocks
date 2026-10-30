@@ -13659,6 +13659,16 @@ Seen 2026-10-30 in CI on #1907 (H-60, a guide plus `schema-examples` files; no l
 
 **Suggested fix.** Run it in a loop under load (`asyncJVM/testOnly *AsyncInteropSpec -- -t "completion wins cancel race"`) to reproduce. If the callback is asynchronous, wait for it (latch or promise with a timeout) before asserting; if cancel can legitimately win, make the test accept both outcomes or force the ordering.
 
+### Flaky streams test: `AsyncReader JVM` "toSync interrupted close keeps interruption primary over close failure"
+
+Seen 2026-10-30 in CI on #1913 (Scaladoc comments and docs only), run 41052974323, job `testJVM (17, JVM, 3.9.x)`: 1 failed, 12,762 passed (the test ran in 3 ms). The same run's Build Docs job failed separately on an npm registry `502 Bad Gateway` while installing website dependencies, which is a network flake, not a test.
+
+**Impact.** Fails unrelated PRs at random, like the `AsyncReaderReachableCoverageSpec`, `unfoldAsync` reset and `AsyncInteropSpec` flakes above; the workaround is `gh run rerun <id> --failed`.
+
+**Cause.** Not investigated. The name suggests a race between an interrupt and a failing `close` when an async reader is bridged to a blocking one: which exception ends up primary may depend on thread timing.
+
+**Suggested fix.** Run it in a loop under load (`streamsJVM/testOnly *AsyncReader* -- -t "toSync interrupted close"`) to reproduce, then make the ordering deterministic in the test (latch the interrupt before triggering close) or in `toSync` itself if the primary-exception rule really depends on timing.
+
 ## Resolved
 
 - schema: on Scala 3.10, direct optic access (`Person.name`) on a `DerivedOptics` companion stopped compiling outside `zio.blocks.schema`, because the `given Conversion` behind it needed the `private[schema]` `OpticsFor`; Scala 3.9 only warned. `OpticsFor` is now public. Fixed in #1743. The `DerivedOptics` Scaladoc no longer warns about it (wave 4 of the schema Scaladoc).
