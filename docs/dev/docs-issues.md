@@ -342,7 +342,7 @@ Nothing else is printed: no "Handler failed" line, no stack trace. The same happ
 
 ### website: `netlify.toml` redirects never reach the live site, so `/docs/*` and the old install-guide URL return 404
 
-**Fix in PR #1912** (open, CI green, 2026-10-30): all rules moved to `website/static/_redirects`, a unit test, and a post-deploy curl check in `site.yml`. Needs a production deploy after merge. Move to Resolved once the live curl lines answer 301.
+**Fixed in #1912** (merged 2026-10-30, `a47f4502a`; not yet deployed): all rules moved to `website/static/_redirects`, a unit test, and a post-deploy curl check in `site.yml`. Needs a production deploy after merge. Move to Resolved once the live curl lines answer 301.
 
 Found 2026-10-30 by the coordinator's post-deploy check of zioblocks.com (deploy run 40959450265, `main` `b574f40f5`). Verified with `curl` against the live site.
 
