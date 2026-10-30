@@ -53,7 +53,8 @@ package zio.blocks
  * Each scope has its own `$[A]` type, so values of sibling scopes cannot be
  * mixed. A child can use its parent's values after `lower(value)`. `scoped`
  * requires an [[scope.Unscoped]] instance for its result type, so only plain
- * data (not resources or closures) leaves a scope.
+ * data (not resources or closures) leaves a scope, except, on Scala 3, a case
+ * class that extends `AutoCloseable` (a known bug).
  *
  * @see
  *   [[https://zioblocks.com/reference/resource-management/ Resource Management]]

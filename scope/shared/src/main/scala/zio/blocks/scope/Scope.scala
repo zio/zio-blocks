@@ -27,7 +27,8 @@ import zio.blocks.scope.internal.{ErrorMessages, Finalizers}
  * Each scope has its own type `$[A]` for the values it owns. The `$` macro lets
  * the block call methods on such a value but not pass it on, and `scoped`
  * returns only a value whose type has an [[Unscoped]] instance, so a resource
- * cannot leave its scope by accident. [[Scope.global]] is the root of every
+ * cannot leave its scope by accident (except, on Scala 3, a case class that
+ * extends `AutoCloseable`, a known bug). [[Scope.global]] is the root of every
  * scope tree.
  *
  * {{{
@@ -83,10 +84,11 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   /**
    * The scope that created this one.
    *
-   * [[Scope.global]] is its own parent (`parent == this`). A child closes no
-   * later than its parent: `scoped` closes it when the block exits, and a child
-   * from [[open]] closes when its parent closes if it was not closed before.
-   * This is what makes [[lower]] safe.
+   * [[Scope.global]] is its own parent (`parent == this`). A child from
+   * `scoped` closes when its block exits, and a child from [[open]] closes at
+   * the latest when its parent closes. Closing an `open()` scope while one of
+   * its `scoped` blocks runs breaks this order, and then [[lower]]ed values are
+   * already closed.
    */
   val parent: Parent
 
@@ -124,8 +126,8 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    * Lowers a value of the parent scope into this scope, so that this scope's
    * `$` accepts it.
    *
-   * This is safe because a child closes no later than its parent. At run time
-   * it is a cast and costs nothing.
+   * This is safe because a child normally closes before its parent (see
+   * [[parent]] for the exception). At run time it is a cast and costs nothing.
    *
    * {{{
    * final class Pool extends AutoCloseable {
@@ -475,8 +477,8 @@ object Scope {
    * @param finalizers
    *   the finalizer registry for this child
    * @param owner
-   *   opaque reference to the creating thread (used by [[isOwner]]); `null` on
-   *   Scala.js
+   *   the thread that created this child (used by [[isOwner]]); `null` for a
+   *   child from [[Scope.open]], and on Scala.js
    * @param unowned
    *   if `true`, [[isOwner]] always returns `true` (used by [[Scope.open]])
    */
@@ -506,12 +508,8 @@ object Scope {
 
     private[scope] def close(): Finalization = finalizers.runAll()
 
-    // $[A] type and $wrap/$unwrap are version-specific
-    // Scala 3: opaque type $[+A] = A
-    // Scala 2: module pattern
-    //
-    // For cross-compilation, we use asInstanceOf which is sound
-    // because $[A] = A at runtime for both Scala 2 and 3
+    // $[A] is abstract here on both Scala 2 and 3; $wrap/$unwrap are casts,
+    // which is sound because $[A] = A at runtime.
     /**
      * The type of a value scoped to this child. It is abstract, so a
      * `child.$[A]` is a different type from the `$[A]` of any other scope; at
