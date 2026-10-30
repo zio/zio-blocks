@@ -216,6 +216,9 @@ object Parser {
       innerState.parseBlocks().map(blocks => BlockQuote(blocks))
     }
 
+    private def indentation(line: String): Int =
+      line.takeWhile(_ == ' ').length
+
     private def isBulletListItem(line: String): Boolean = {
       val trimmed = line.dropWhile(_ == ' ')
       if (trimmed.isEmpty) return false
@@ -234,12 +237,18 @@ object Parser {
     }
 
     private def parseBulletList(): Either[ParseError, BulletList] = {
-      val items = Chunk.newBuilder[ListItem]
+      val items             = Chunk.newBuilder[ListItem]
+      val listContentIndent = indentation(currentLine) + 2
 
-      while (lineIndex < lines.length && isBulletListItem(currentLine)) {
-        val line    = currentLine
-        val trimmed = line.dropWhile(_ == ' ')
-        val content = trimmed.drop(2)
+      while (
+        lineIndex < lines.length &&
+        indentation(currentLine) < listContentIndent &&
+        isBulletListItem(currentLine)
+      ) {
+        val line              = currentLine
+        val itemContentIndent = indentation(line) + 2
+        val trimmed           = line.dropWhile(_ == ' ')
+        val content           = trimmed.drop(2)
 
         val (checked, itemContent) = parseTaskListMarker(content)
 
@@ -248,8 +257,8 @@ object Parser {
         val continuationLines = Chunk.newBuilder[String]
         continuationLines += itemContent
 
-        while (lineIndex < lines.length && isListContinuation(currentLine)) {
-          continuationLines += currentLine.dropWhile(_ == ' ')
+        while (lineIndex < lines.length && isListContinuation(currentLine, itemContentIndent)) {
+          continuationLines += normalizeListContinuation(currentLine, itemContentIndent)
           lineIndex += 1
         }
 
@@ -276,24 +285,36 @@ object Parser {
         (None, content)
       }
 
-    private def isListContinuation(line: String): Boolean = {
+    private def isListContinuation(line: String, contentIndent: Int): Boolean = {
       val trimmed = line.dropWhile(_ == ' ')
-      trimmed.nonEmpty &&
-      !isBulletListItem(line) &&
-      !isOrderedListItem(line) &&
-      line.startsWith("  ")
+      trimmed.nonEmpty && indentation(line) >= contentIndent
     }
 
+    // Remove the indentation up to the parent item's content column while
+    // retaining any additional indentation for blocks nested more deeply.
+    private def normalizeListContinuation(line: String, contentIndent: Int): String =
+      line.drop(contentIndent.min(line.length))
+
     private def parseOrderedList(): Either[ParseError, OrderedList] = {
-      val items = Chunk.newBuilder[ListItem]
-      var start = 1
+      val items            = Chunk.newBuilder[ListItem]
+      val firstMarkerWidth = {
+        val trimmed = currentLine.dropWhile(_ == ' ')
+        trimmed.takeWhile(_.isDigit).length + 2
+      }
+      val listContentIndent = indentation(currentLine) + firstMarkerWidth
+      var start             = 1
 
       var first = true
-      while (lineIndex < lines.length && isOrderedListItem(currentLine)) {
-        val line    = currentLine
-        val trimmed = line.dropWhile(_ == ' ')
-        val digits  = trimmed.takeWhile(_.isDigit)
-        val num     = digits.toInt
+      while (
+        lineIndex < lines.length &&
+        indentation(currentLine) < listContentIndent &&
+        isOrderedListItem(currentLine)
+      ) {
+        val line              = currentLine
+        val trimmed           = line.dropWhile(_ == ' ')
+        val digits            = trimmed.takeWhile(_.isDigit)
+        val itemContentIndent = indentation(line) + digits.length + 2
+        val num               = digits.toInt
 
         if (first) {
           start = num
@@ -306,8 +327,8 @@ object Parser {
         val continuationLines = Chunk.newBuilder[String]
         continuationLines += content
 
-        while (lineIndex < lines.length && isListContinuation(currentLine)) {
-          continuationLines += currentLine.dropWhile(_ == ' ')
+        while (lineIndex < lines.length && isListContinuation(currentLine, itemContentIndent)) {
+          continuationLines += normalizeListContinuation(currentLine, itemContentIndent)
           lineIndex += 1
         }
 
