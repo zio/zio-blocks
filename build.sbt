@@ -1407,7 +1407,7 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
 // source generator; the Test configuration compiles that file again to unit-test it.
 lazy val fatalWarningFlags: Set[String] = Set("-Werror", "-Xfatal-warnings")
 
-lazy val scaladocCheckedModules: Seq[Project] = Seq(schema.jvm, streams.jvm)
+lazy val scaladocCheckedModules: Seq[Project] = Seq(chunk.jvm, schema.jvm, streams.jvm)
 
 lazy val `scaladoc-check` = project
   .in(file("scaladoc-check"))

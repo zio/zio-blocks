@@ -144,6 +144,13 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
           "Snippet_schema_shared_scala_io_Reader_L9"
       )
     },
+    test("moduleImport and objectName give a chunk example the chunk import and drop the chunk package") {
+      val chunkPath = "chunk/shared/src/main/scala/zio/blocks/chunk/Chunk.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(chunkPath) == "zio.blocks.chunk._",
+        ScaladocSnippets.objectName(chunkPath, 12) == "Snippet_chunk_shared_scala_Chunk_L12"
+      )
+    },
     test("moduleImport follows the module directory") {
       assertTrue(
         ScaladocSnippets.moduleImport("schema/shared/src/main/scala/zio/blocks/schema/Schema.scala") ==
