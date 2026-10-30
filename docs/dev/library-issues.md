@@ -278,6 +278,26 @@ Found 2026-10-20 while writing M-05. Verified with mdoc.
 
 **Next step.** Decide whether a `Resource` value is meant to be reusable. If yes, reset or recreate the shared state per allocation. If no, document it prominently and change the docs to `def`.
 
+**Addition (2026-10-30, scope Scaladoc rollout, verified on 0.0.56).** The cause is `Resource.shared` itself: after the last allocating scope closes, its state is `Destroyed` (`scope/shared/src/main/scala/zio/blocks/scope/Resource.scala:227-228`, lines at v0.0.56 = `ed2185ebe`), and every later `make` throws `IllegalStateException: Cannot allocate from a destroyed shared resource`. So any `val r = Resource.shared(...)` fails the same way on its second scope, not only `Resource.from` (which builds a `Resource.shared`, `scala-3/.../ResourceMacros.scala:86, 112, 124`). Verified on Scala 3.9.0 with `zio-blocks-scope` 0.0.56:
+
+```scala
+// Shared.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+
+final class Conn extends AutoCloseable { def close(): Unit = () }
+
+@main def shared(): Unit = {
+  val shared = Resource.shared[Conn](_ => new Conn)
+  Scope.global.scoped { s => import s.*; allocate(shared); () }
+  println(scala.util.Try(Scope.global.scoped { s => import s.*; allocate(shared); () }))
+}
+// Failure(java.lang.IllegalStateException: Cannot allocate from a destroyed shared resource)
+```
+
+Run with `scala-cli run --server=false .`. The Scaladoc of `Resource.shared` now states this behaviour.
+
 ### scope: `Wire(value)` evaluates eagerly
 
 **Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
@@ -291,6 +311,8 @@ Found 2026-10-20 while writing M-05. Verified with mdoc.
 Found 2026-10-20 while writing M-05. Verified with mdoc.
 
 **Summary.** When the function passed to `Wire.Shared.fromFunction` returns an `AutoCloseable`, its `close()` is not registered as a finalizer, so the resource leaks. `Resource.from[T]` registers it; `fromFunction` should too, or document the difference.
+
+**Addition (2026-10-30, scope Scaladoc rollout, verified on 0.0.56).** `Wire.Unique.fromFunction` behaves the same: both only wrap `f` (`scala-3/zio/blocks/scope/WireVersionSpecific.scala:94` and `:115`, `scala-2/zio/blocks/scope/WireVersionSpecific.scala:93` and `:114`, building the `Wire.Shared`/`Wire.Unique` case classes declared at `Wire.scala:144` and `:213`). Re-verified for `Unique` too: `uf3` (3.9.0, `zio-blocks-scope` 0.0.56) prints `unique:`, `shared:`, `end` with no `Db.close`. Re-verified on Scala 3.9.0 with `zio-blocks-next-scope` 0.0.56 and `-experimental`: `Resource.from[Db](Wire.Shared.fromFunction[Any, Db]((_, _) => new Db)).use(_ => ())` prints nothing from `Db.close`.
 
 ### scope: `Resource.from` never reports a dependency cycle (E10); the macro crashes instead
 
@@ -390,6 +412,8 @@ class Catalog(titles: java.util.ArrayList[String])
 
 **Suggested fix.** In `deriveWire` and `autoCreateWire`, detect Java-defined classes (`sym.flags.is(Flags.JavaDefined)`) and abort with a Scope error asking for an explicit wire. Alternatively, reject any dependency type that is not a value type before calling `AndType`.
 
+**Addition (2026-10-30, scope Scaladoc rollout, verified on 0.0.56).** Scala 3 only. On Scala 2.13.18 (`zio-blocks-scope` 0.0.56) `Wire.shared[java.util.ArrayList[String]]` compiles (`J.scala`: `object J extends App { println(Wire.shared[java.util.ArrayList[String]]); println("compiled") }` prints a `Shared(...)` line and `compiled`), and `Resource.from[Catalog]()` for `class Catalog(titles: java.util.ArrayList[String])` reports E7 `Cannot auto-create Int` (`Required by: ├── java.util.ArrayList[String] └── Catalog`), because the Scala 2 macros take the first constructor that reports `isPrimaryConstructor`, here `ArrayList(int)` (`scala-2/zio/blocks/scope/ResourceVersionSpecific.scala:289` for auto-created dependencies, `scala-2/zio/blocks/scope/ScopeMacros.scala:395-397` for `Wire.shared`; lines at v0.0.56 = `ed2185ebe`). The crash is in Scala 3's `MacroCore.computeInType` (`scala-3/zio/blocks/scope/internal/MacroCore.scala:101`).
+
 ### scope: Duplicate constructor parameter types (E12) are never reported in Scala 3; both parameters get the same instance
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/fix-scope-and-wire-compile-errors.md` (backlog H-31), on `main` at `64b2f666`. Reproduced against the published `0.0.56`.
@@ -430,6 +454,28 @@ class Catalog(val primary: Db, val replica: Db)
 **Test gap.** No test triggers E12 through the macro. `ErrorMessagesSpec` only tests the string renderer.
 
 **Suggested fix.** Run the duplicate check on the constructor's parameter types before they are combined into an intersection (in `WireCodeGen.deriveWire` and in `ResourceMacros`), and abort with `abortDuplicateParamType`. Add `typeCheck` tests for `Wire.shared` and `Resource.from`.
+
+**Addition (2026-10-30, scope Scaladoc rollout, verified on 0.0.56).** Scala 2 `Resource.from` reports E12. Scala 2 `Wire.shared[Catalog]` does not: it compiles, and `toResource(Context(new Db))` gives both parameters one instance, because `ScopeMacros.sharedImpl` (Scala 2) has no duplicate check (only `scala-2/zio/blocks/scope/ResourceVersionSpecific.scala:409` calls `abortDuplicateParamType`). Reproducer (2.13.18, `scala-cli run --server=false .`):
+
+```scala
+// D.scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope._
+import zio.blocks.context.Context
+
+class Db
+class Catalog(val primary: Db, val replica: Db)
+
+object D extends App {
+  val w = Wire.shared[Catalog]
+  println("compiled: " + w.isShared)
+  val same = w.toResource(Context(new Db)).use(c => c.primary eq c.replica)
+  println("primary eq replica: " + same)
+}
+// compiled: true
+// primary eq replica: true
+```
 
 ### scope: The E3 subtype-conflict hint suggests code that isn't valid Scala
 
@@ -487,6 +533,8 @@ class Catalog(inventory: InventoryRepo, sql: SqlInventoryRepo)
 **Test gap.** `ErrorMessagesSpec` tests the renderer only with unqualified names.
 
 **Suggested fix.** Build the identifier from the simple name (the text after the last `.`, with type arguments removed) and keep the full name only on the right-hand side. Show the `opaque type` alternative only in Scala 3.
+
+**Addition (2026-10-30, scope Scaladoc rollout, verified on 0.0.56).** E12's hint has the same Scala 2 problem: on Scala 2.13.18 (`zio-blocks-scope` 0.0.56), `class Catalog(val primary: Db, val replica: Db)` with `Resource.from[Catalog]()` reports E12 correctly but suggests `opaque type FirstDb = Db`, which Scala 2 does not have, next to a valid `case class FirstDb(value: Db)` alternative. (E12 does fire on Scala 2; only Scala 3 misses it, as the existing E12 entry says.)
 
 ### scope: Four Scope error codes can't be reached, and `renderMissingDependency` is dead code
 
@@ -605,6 +653,31 @@ class Db extends AutoCloseable {
 **Impact.** A reader fixing the second error first goes looking for an `Unscoped` problem that doesn't exist. This is a usability trap rather than a wrong result.
 
 **Suggested fix.** Hard to avoid fully, because the compiler drives this. Consider `@implicitNotFound` / `@implicitAmbiguous` messages on `Unscoped` that say "if another error is reported inside the block, fix that first". `@implicitAmbiguous` on the low-priority instances would also make the real escape error (no instance) read better.
+
+**Addition (2026-10-30, scope Scaladoc rollout, verified on 0.0.56).** The same mechanism hits a body with no error at all: a `scoped` block that always throws has result type `Nothing`, and the `Unscoped[A]` search is ambiguous on both versions, although an `Unscoped[Nothing]` instance exists.
+
+```scala
+// Throws.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+
+@main def throws(): Unit = {
+  val r = scala.util.Try(Scope.global.scoped { scope =>
+    import scope.*
+    defer(println("closed"))
+    throw new IllegalStateException("config missing")
+  })
+  println(r)
+}
+// -- [E172] Type Error: Throws.scala:11:3
+// 11 |  })
+//    |   ^
+//    |Ambiguous given instances: both given instance given_Unscoped_Double in object Unscoped and given instance given_Unscoped_ZonedDateTime in object Unscoped match type zio.blocks.scope.Unscoped[A] of parameter ev of method scoped in trait ScopeVersionSpecific
+// 1 error found
+```
+
+Run with `scala-cli run --server=false .`. The Scala 2.13.18 version (`import zio.blocks.scope._`, `import scope._`, `object Throws extends App {`) fails with `error: ambiguous implicit values: both value unscopedInstant in object Unscoped ... and value unscopedLocalDate in object Unscoped ... match expected type zio.blocks.scope.Unscoped[A]`; the instance names in the messages can change between runs. **Expected:** the block compiles with `A = Nothing`, and `r` is a `Failure`. **Workaround:** `Scope.global.scoped[Nothing] { ... }`, which prints `closed` and `Failure(java.lang.IllegalStateException: config missing)` on both versions. **Test gap:** no test returns `Nothing` from `scoped` or `use`. **Suggested fix:** the parent entry's `@implicitAmbiguous` message, naming the `scoped[Nothing]` workaround.
 
 ### config: `ProvenanceMap#dump` over an unprefixed `EnvSource` prints the whole environment
 
@@ -9779,6 +9852,120 @@ Timings are machine-dependent; the shape is the point: `addAll` grows super-line
 **Test gap:** no test checks the growth strategy or builder cost under repeated `addAll`.
 
 **Suggested fix:** grow to `Math.max(newLen, array.length << 1)` in the five `addAll` branches. It keeps `result()` unchanged; only the spare capacity changes. Verify with the timing above before and after. No per-element hot loop is touched, so the AGENTS.md sentinel policy does not apply.
+
+### scope: `Resource.from[T]` does not close an `AutoCloseable` whose constructor takes a `Finalizer` or `Scope`
+
+Found 2026-10-30 while writing the Scaladoc of `Resource.from[T]` (scope Scaladoc rollout, branch `scaladoc-scope`, base `ed2185ebe`). The code is the same at tag `v0.0.56`. Verified by running on Scala 3.9.0 and 2.13.18.
+
+**Summary.** `Resource.from[T]` with no wires registers `close()` for an `AutoCloseable` `T` only when the constructor takes no `Finalizer` or `Scope` parameter. A class that takes an implicit `Finalizer` (the pattern the docs teach for classes that need cleanup) and also implements `AutoCloseable` is never closed. `Resource.from[T]()` (empty wire list) and `Wire.shared[T]` close it, so the same class behaves differently depending on which overload builds it. The Scaladoc and `resource.md` ("If `T` extends `AutoCloseable`, `Resource.from` automatically registers its `close()` method") promise the close.
+
+**Reproduction** (`scala-cli run --server=false .` with this one file; Scala 3.9.0, `zio-blocks-scope` 0.0.56):
+
+```scala
+// Repro.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+
+class Logger(implicit finalizer: Finalizer) extends AutoCloseable {
+  def info(msg: String): Unit = ()
+  def close(): Unit = println("Logger.close")
+}
+
+@main def repro(): Unit = {
+  println("Resource.from[Logger]:")
+  Scope.global.scoped { scope => import scope.*; allocate(Resource.from[Logger]); () }
+  println("Resource.from[Logger]():")
+  Scope.global.scoped { scope => import scope.*; allocate(Resource.from[Logger]()); () }
+  println("Wire.shared[Logger]:")
+  Scope.global.scoped { scope => import scope.*; allocate(Wire.shared[Logger].toResource(zio.blocks.context.Context.empty)); () }
+}
+// Resource.from[Logger]:
+// Resource.from[Logger]():
+// Logger.close
+// Wire.shared[Logger]:
+// Logger.close
+```
+
+The Scala 2 version (same file with `//> using scala 2.13.18`, `import zio.blocks.scope._`, `import scope._`, and `object Repro extends App {` instead of the `@main` line) prints the same five lines.
+
+**Expected.** `Logger.close` after `Resource.from[Logger]:` too, as for the other two.
+
+**Root cause.** `ResourceMacros.deriveResourceImpl` has three branches: a constructor with a `Finalizer`/`Scope` parameter (`scope/shared/src/main/scala-3/zio/blocks/scope/ResourceMacros.scala:83-108`), an `AutoCloseable` without one (`:109-120`, the only branch that calls `scope.defer(instance.asInstanceOf[AutoCloseable].close())` at `:117`), and the plain case. The first branch never checks `isAutoCloseable`. Scala 2 has the same structure (`scope/shared/src/main/scala-2/zio/blocks/scope/ResourceVersionSpecific.scala:117-144` before the `AutoCloseable` branch at `:145-152`).
+
+**Impact.** Any `AutoCloseable` service that also registers its own finalizers through an implicit `Finalizer` leaks its `close()` when built with `Resource.from[T]`. The leak is silent.
+
+**Test gap.** `InjectionPositionScala3Spec.scala:250-317` and `InjectionPositionScala2Spec.scala` test `Resource.from[Svc]` with `Finalizer`/`Scope` parameters in every position, but none of the `Svc` classes is `AutoCloseable` (no `AutoCloseable` in either file, nor in `FinalizerInjectionSpec.scala`).
+
+**Suggested fix.** In the `hasFinalizerParam` branch, wrap the constructor call like the `AutoCloseable` branch does when `isAutoCloseable` holds (both macros). Add a test with `class Svc(implicit f: Finalizer) extends AutoCloseable` to both `InjectionPosition*Spec` files.
+
+### scope: on Scala 3, `Resource.from` treats an explicit `Wire.unique` as shared
+
+Found 2026-10-30 while writing the Scaladoc of `Wire.unique[T]` (scope Scaladoc rollout, branch `scaladoc-scope`, base `ed2185ebe`). The code is the same at tag `v0.0.56`. Verified by running on Scala 3.9.0 and 2.13.18.
+
+**Summary.** When a `Wire.unique[T]` (or `Wire.Unique.fromFunction`) is passed to `Resource.from`, Scala 3 builds `T` once and gives that instance to every dependent, as if the wire were shared. Scala 2 gives each dependent its own instance when the wire's static type is `Wire.Unique`, which is what the docs promise ("unique wires create new instances for each dependent service"; `wire.md` "New instance per allocation"). `Wire#isShared` on the same wire correctly returns `false`.
+
+**Reproduction** (`scala-cli run --server=false .` with this one file; Scala 3.9.0, `zio-blocks-scope` 0.0.56):
+
+```scala
+// Repro.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+
+class RequestId { RequestId.created += 1 }
+object RequestId { var created = 0 }
+class Auth(val id: RequestId)
+class Audit(val id: RequestId)
+class Handler(val auth: Auth, val audit: Audit)
+
+@main def repro(): Unit = {
+  val sameInstance = Resource.from[Handler](Wire.unique[RequestId]).use(h => h.auth.id eq h.audit.id)
+  println("Wire.unique[RequestId]: same instance = " + sameInstance + ", created = " + RequestId.created)
+  println("isShared = " + Wire.unique[RequestId].isShared)
+}
+// Wire.unique[RequestId]: same instance = true, created = 1
+// isShared = false
+```
+
+The same file on Scala 2.13.18 (`//> using scala 2.13.18`, `import zio.blocks.scope._`, `object Repro extends App {` instead of the `@main` line) prints:
+
+```
+// Wire.unique[RequestId]: same instance = false, created = 2
+// isShared = false
+```
+
+**Expected.** `same instance = false, created = 2` on Scala 3, as on Scala 2.
+
+**Root cause.** `parseWireExpr` in `scope/shared/src/main/scala-3/zio/blocks/scope/ResourceMacros.scala:173` computes `isShared = wireTpe.baseType(TypeRepr.of[Wire.Shared[?, ?]].typeSymbol).typeSymbol != defn.NothingClass`. For a type that does not extend `Wire.Shared`, `baseType` returns `NoType`, whose `typeSymbol` is `NoSymbol`, not `Nothing`, so the test is true for every wire. The explicit unique wire then takes the "shared type" path and is wrapped in `Resource.shared`. Both macros decide sharing from the wire's static type. Scala 2 tests the static type's name (`scala-2/zio/blocks/scope/ResourceVersionSpecific.scala:214-215`). That is right for a `Wire.Unique` but wrong for a shared wire whose static type is `Wire[In, Out]`, which Scala 2 treats as unique. With the classes above and `val wire: Wire[Any, RequestId] = Wire.shared[RequestId]`, `Resource.from[Handler](wire)` builds `RequestId` once per dependent on 2.13.18 (`Static.scala`, run with `scala-cli run --server=false .`):
+
+```scala
+// Static.scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope._
+
+class RequestId { RequestId.created += 1 }
+object RequestId { var created = 0 }
+class Auth(val id: RequestId)
+class Audit(val id: RequestId)
+class Handler(val auth: Auth, val audit: Audit)
+
+object Static extends App {
+  val wire: Wire[Any, RequestId] = Wire.shared[RequestId]
+  val sameInstance = Resource.from[Handler](wire).use(h => h.auth.id eq h.audit.id)
+  println("isShared = " + wire.isShared + ", same instance = " + sameInstance + ", created = " + RequestId.created)
+}
+// isShared = true, same instance = false, created = 2
+```
+
+The same program on 3.9.0 prints `isShared = true, same instance = true, created = 1` (correct only by accident).
+
+**Impact.** Request-scoped or per-call state declared with `Wire.unique` is silently shared by every dependent in a `Resource.from` graph on Scala 3, the opposite of what the user asked for. Nothing fails at compile time or at run time.
+
+**Test gap.** `FinalizerInjectionSpec.scala:75` ("Wire.unique[T] injects Scope and cleanup runs") and `InjectionPositionScala3Spec.scala:175` pass a `Wire.unique` to `Resource.from` but assert only that the scope is injected and cleanup runs. No test checks instance identity across two dependents of a unique wire; `DependencySharingSpec` covers only shared wires.
+
+**Suggested fix.** Use `wireTpe <:< TypeRepr.of[Wire.Shared[?, ?]]` (or `wireTpe.baseClasses.contains(TypeRepr.of[Wire.Shared[?, ?]].typeSymbol)`). Add a diamond test with a unique leaf to `DependencySharingSpec` that asserts two instances on both Scala versions. When the static type is neither `Wire.Shared` nor `Wire.Unique`, decide at run time with `wire.isShared`, or reject it with a compile error; add a statically `Wire[In, Out]`-typed shared wire to the same test.
 
 ## Usability traps
 
