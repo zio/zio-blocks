@@ -613,6 +613,25 @@ Pilot of §13 (2026-10-29/30), session `scaladoc-chunk` (Opus controller): one P
 2. Change `docs/dev/scaladoc-style.md:58` ("Sample data uses real Scala books, such as Zionomicon") to the new rule. The `scaladoc-rollout` skill already has it.
 3. Fix the four `docs/reference/chunk.md` errors in docs-issues.md → Documentation errors (`ChunkBuilder` described as a tree buffer; `dropUntil` keeping the matching element; one-element `reduceMapLeft`/`reduceMapRight` examples; "Bitwise Operations" documenting private methods), then move them to Resolved.
 
+## 13b. Scaladoc: scope module
+
+Plan and spec in `docs/superpowers/plans/` and `docs/superpowers/specs/` (2026-10-30 scope Scaladoc). Session `scaladoc-scope` (Sonnet controller, Opus subagents for tier 1, the existing-comment fact-check and the review).
+
+| Item | Result |
+|---|---|
+| PR | #1916 (one PR, 15 commits), CI green after one re-run of two known flakes |
+| Coverage | 125 / 223 (56%) → 223 / 223 (100%); scala-2/scala-3 drift 12 → 0 |
+| Examples | 23 uncompiled `{{{` blocks (18 under `@example`) → 32 compiled blocks on 2.13.18, 3.9.0 and 3.10.0 via `scaladoc-check` |
+| Tier 1 | `Scope`, `Resource`, `Wire`, `Finalizer`, `Unscoped`, `Finalization`, `DeferHandle`; macros tier 3 |
+| Existing comments | 189 checked: 26 false and 32 imprecise (58, 31%), all fixed; the Opus first pass caught 57, the reviewer 1 more |
+| Review 1 (Opus, fresh) | 5 Important + 9 Minor, all fixed (13 of the 14 in the Opus implementer's new text) |
+| Re-review (Sonnet) | approve, 3 Minor applied |
+| Sonnet tier 2 | 93 members, 1 finding (a rationale copied from a wrong line comment) |
+| Bugs | 2 new library bugs, 6 additions to existing `scope:` entries, 3 docs-issues entries (`resource.md`, `wire.md` incl. `Context.empty[Any]` not compiling, `scope.md`) |
+| Time | about 4 h 40 min from start to PR (about 3 h of it waiting on decisions and agent runs), plus about 1 h 25 min of CI |
+
+Lesson (also in the skill's `references/lessons.md`): scope's sharing and closing behaviour differs by Scala version and by a wire's static type, so most Important findings needed per-version probes; the first pass had written "Scala 3 only" or "both" from reading alone. The three scope reference-page errors are still open and need a small docs PR.
+
 **scope started 2026-10-30:** session `scaladoc-scope` (Sonnet controller, Opus subagents for tier 1, the existing-comment fact-check and the review, per §13.4). Phase 0: 125 / 223 (56%); 12 members differ between the scala-2 and scala-3 copies; 23 `{{{` blocks (inside 18 `@example` tags), none compiled; scope has its own `scope/AGENTS.md` example-style rules. Milad's Phase 1 decisions: tier 1 = `Scope`, `Resource`, `Wire`, `Finalizer`, `Unscoped`, `Finalization`, `DeferHandle`; one PR (tooling + wave); macros tier 3 one-liners; the `@example` tags are dropped and the plain `{{{` blocks kept; the AGENTS.md edit (lines 113 and 178) approved. **PR #1916** (2026-10-30): 125 / 223 → 223 / 223, 32 compiled examples, no drift; fact-check of 189 existing comments found 26 false and 32 imprecise (about 14% wrong), all fixed; Opus review 5 Important + 9 Minor fixed; Sonnet re-review approve with 3 Minor applied. 2 new library bugs and 6 additions to existing `scope:` entries recorded.
 
 ## 13. Scaladoc: next modules
@@ -649,7 +668,7 @@ Follow the `scaladoc-rollout` skill (`~/.claude/skills/scaladoc-rollout/SKILL.md
 | # | Module | Documented / items | % | Files / LOC | Blocker for `scaladoc-check` |
 |---|---|---|---|---|---|
 | 1 | chunk | 153 / 205 → 205 / 205, #1908 | 74 → 100 | 6 / 5,069 | none |
-| 2 | scope | 125 / 223 | 56 | 36 / 7,085 | none (23 existing `{{{` blocks to fix first) |
+| 2 | scope | 125 / 223 → 223 / 223, #1916 | 56 → 100 | 36 / 7,085 | none (23 existing `{{{` blocks to fix first) |
 | 3 | typeid | 162 / 390 | 41 | 28 / 6,496 | none |
 | 4 | config / -hocon / -json / -yaml | 79/202, 9/22, 0/2, 2/4 | 39 / 40 / 0 / 50 | 35 / 4,150 | none |
 | 5 | sql / sql-zio | 127/405, 7/14 | 31 / 50 | 41 / 8,207 | Scala 3 only; sql-zio has the `zio` package clash |
@@ -676,7 +695,7 @@ All modules other than schema and streams: 2,375 / 10,197 documented (23%), or 3
 | Order | Module | Prerequisites | Waves | Expected gain |
 |---|---|---|---|---|
 | 1 | **chunk** (pilot: 9 modules depend on it, 13 guides import it, no open bugs) | PR 0 adds it to `scaladocCheckedModules` | W1: `Chunk.scala` (185 items), `ChunkMap`, the four platform files. Optional W2: maybe + combinators (+202) | +52 → 205 / 205 | +52 → 205 / 205. **Done in one PR (#1908)**; W2 (maybe + combinators) deferred as a separate task 
-| 2 | **scope** (sql, streams, config and projection depend on it; 8 reference pages, 8 guides) | PR 0; fix the 23 existing `{{{` blocks | W1: `Scope`, `Resource`, `Wire`, `Finalization`, `Finalizer`, `DeferHandle`, `InStack`, `*VersionSpecific`. W2: the `Unscoped` scala-2/3 pair (66 missing), `internal/ErrorMessages`, the macros (tier 3) | about +98; its 13 open bugs (macro crashes, E-codes) are named as known bugs |
+| 2 | **scope** (sql, streams, config and projection depend on it; 8 reference pages, 8 guides) | PR 0; fix the 23 existing `{{{` blocks | W1: `Scope`, `Resource`, `Wire`, `Finalization`, `Finalizer`, `DeferHandle`, `InStack`, `*VersionSpecific`. W2: the `Unscoped` scala-2/3 pair (66 missing), `internal/ErrorMessages`, the macros (tier 3) | about +98; its 13 open bugs (macro crashes, E-codes) are named as known bugs |. **Done in one PR (#1916)** 
 | 3 | **typeid** (maybe, context and schema depend on it) | PR 0 | W1: the `TypeId` scala-2/3 pair (127 items, 17 documented), `TypeIdInstances`, `IsNominal*`. W2: `TypeRepr`, `TypeDefKind`, `Owner`, `TypeBounds`, `TypeParam`, `TermPath`, `Annotation`, `Kind`, `Variance`, `Member`, `TypeIdPrinter`, the macros (tier 3) | about +228 |
 | 4 | **config family** (7 reference pages, 7 guides) | PR 0 | W1: `Config`, `ConfigSource`, `ConfigError`, `ConfigDecoderDeriver`, `Provenance`, `Displayable`, `PlatformConfigSource`. W2: the flags (`FlagReader`, `DynamicFlag`, `StaticFlag`, `FlagSource`, `FlagException`, `Rollout`). W3: hocon, json, yaml | about +140; about 30 open config and hocon entries |
 | 5 | **sql** (the most exposure outside the core: 15 guides, 23 reference pages) | `scaladoc-check` handling for Scala-3-only modules. **A build change: ask Milad first.** sql-zio later (the `zio` package clash) | W1: `DbCodec` (91 items, 13 documented), `DbValue`, `PgCodec`. W2: `SqlInterpolator`, `Frag`, `Dialect`, `SqlDialect`, `DbConnection`, `DbTx`. W3: `Repo`, `TableMetadata`, `Upsert`, `query/*` | about +278; about 20 open sql bugs |

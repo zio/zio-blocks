@@ -13535,6 +13535,8 @@ All three are hang-detection tests in the streams async paths. Docs PRs now fail
 
 
 **Seen again** 2026-10-30 on #1913 (comment and docs only), job `testJVM (25, JVM, 2.13.x)`, together with the `AsyncReaderReachableCoverageSpec` timeout in the same run; one re-run of the failed job passed.
+
+**Seen again** 2026-10-30 on #1916 (Scaladoc comments only), job `testJVM (25, JVM, 3.10.x)` (`UnfoldAsyncSpec`), together with a Landing Lighthouse score of 0.94 below its threshold; one re-run of the failed jobs passed both.
 ### `DeriverWithInstanceCsvSpec` asserts with `.contains`
 
 Found 2026-10-20 while writing H-03. The schema-csv spec checks rendered output with `.contains`, against the AGENTS.md rule to assert the full rendered string with `==`. A regression in field order or separators would pass.
