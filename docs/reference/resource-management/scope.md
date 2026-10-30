@@ -543,7 +543,7 @@ val result2 = service.execute("SELECT 2")
 println(s"Query after shutdown: $result2")
 ```
 
-On the JVM, `Scope.global` returns `false` until its shutdown hook runs. On Scala.js it never closes, so `isClosed` is always `false` and finalizers registered on `Scope.global` never run. Child scopes created with `scoped { }` are closed when the block exits, while those created with `open()` remain open until you call `close()`.
+On the JVM, `Scope.global.isClosed` returns `false` until its shutdown hook runs. On Scala.js it never closes, so `isClosed` is always `false` and finalizers registered on `Scope.global` never run. Child scopes created with `scoped { }` are closed when the block exits, while those created with `open()` remain open until you call `close()`.
 
 ### `Scope#isOwner` — Check Thread Ownership
 
@@ -562,7 +562,7 @@ Ownership is used to detect cross-thread scope misuse. Thread ownership rules:
 
 These rules describe the JVM. On Scala.js, `isOwner` returns `true` for every scope, because there is only one thread.
 
-On the JVM, calling `scoped { }` on a scope you don't own throws `IllegalStateException` at runtime. On Scala.js the check never fires:
+On the JVM, calling `scoped { }` on a scope you don't own throws `IllegalStateException` at runtime; on Scala.js the check never fires. This JVM example shows `isOwner` on the owning thread and on another thread:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._

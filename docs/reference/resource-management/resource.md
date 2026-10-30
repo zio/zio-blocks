@@ -707,7 +707,7 @@ Resource is a core abstraction in ZIO Blocks' resource management ecosystem:
 - **[`Finalizer`](./finalizer.md)** — Resources register their cleanup logic with `Finalizer` objects, which execute in LIFO order when scopes close.
 - **[How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md)** — The compile-time errors that `Resource.from` and the Scope macros report, and how to fix each one.
 
-For example, `Resource.from[T]` uses `Wire` to construct instances with their dependencies, registering the `close()` of each `AutoCloseable` whose constructor takes no `Finalizer` or `Scope` parameter:
+For example, `Resource.from[T](wires*)` uses `Wire` values to construct instances with their dependencies, and registers `close()` for each `AutoCloseable` class the macro derives (an explicit wire registers its own cleanup):
 
 ```scala
 def serviceResource = Resource.from[Service](
