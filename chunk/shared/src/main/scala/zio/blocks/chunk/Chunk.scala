@@ -51,9 +51,9 @@ import scala.{
  *
  * {{{
  * val builder = ChunkBuilder.make[String]()
- * builder += "Zionomicon"
- * builder.addOne("Programming in Scala")
- * builder.result() // Chunk(Zionomicon,Programming in Scala)
+ * builder += "a"
+ * builder.addOne("b")
+ * builder.result() // Chunk(a,b)
  * }}}
  *
  * @see
@@ -88,9 +88,9 @@ object ChunkBuilder {
    * size saves copying; the builder still grows past it.
    *
    * {{{
-   * val titles = ChunkBuilder.make[String](2)
-   * titles ++= List("Zionomicon", "Programming in Scala", "Scala with Cats")
-   * titles.result() // Chunk(Zionomicon,Programming in Scala,Scala with Cats)
+   * val ids = ChunkBuilder.make[Int](2)
+   * ids ++= List(10, 20, 30)
+   * ids.result() // Chunk(10,20,30)
    * }}}
    */
   def make[A](capacityHint: SInt): ChunkBuilder[A] = new ChunkBuilder[A] {
@@ -678,10 +678,10 @@ private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
  * balanced tree instead of copying them.
  *
  * {{{
- * val books = Chunk("Zionomicon", "Programming in Scala")
- * val more  = books ++ Chunk("Functional Programming in Scala")
+ * val readings = Chunk(21, 23)
+ * val more     = readings ++ Chunk(25)
  * more.length // 3
- * more(2)     // Functional Programming in Scala
+ * more(2)     // 25
  * }}}
  *
  * `Chunk` is a Scala `IndexedSeq`, so the standard collection methods work on
@@ -734,7 +734,7 @@ sealed abstract class Chunk[+A]
    * long run of `++` calls stays cheap and indexed access stays fast.
    *
    * {{{
-   * Chunk("Programming in Scala") ++ Chunk("Zionomicon") // Chunk(Programming in Scala,Zionomicon)
+   * Chunk(1, 2) ++ Chunk(3) // Chunk(1,2,3)
    * }}}
    */
   final def ++[A1 >: A](that: Chunk[A1]): Chunk[A1] = {
@@ -1308,7 +1308,7 @@ sealed abstract class Chunk[+A]
    * Returns a chunk with the result of applying `f` to each element, in order.
    *
    * {{{
-   * Chunk("Zionomicon", "Programming in Scala").map(_.length) // Chunk(10,20)
+   * Chunk("a", "bb", "ccc").map(_.length) // Chunk(1,2,3)
    * }}}
    */
   override def map[B](f: A => B): Chunk[B] = {
@@ -1348,8 +1348,8 @@ sealed abstract class Chunk[+A]
    * an empty chunk stays empty.
    *
    * {{{
-   * val shelf = Chunk("Zionomicon") ++ Chunk("Programming in Scala")
-   * shelf.materialize // Chunk(Zionomicon,Programming in Scala)
+   * val ports = Chunk(80) ++ Chunk(443)
+   * ports.materialize // Chunk(80,443)
    * }}}
    */
   def materialize[A1 >: A]: Chunk[A1] = {
@@ -1899,7 +1899,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
    * Returns a chunk with the given values, in order.
    *
    * {{{
-   * Chunk("Zionomicon", "Programming in Scala") // Chunk(Zionomicon,Programming in Scala)
+   * Chunk(1, 2, 3) // Chunk(1,2,3)
    * }}}
    */
   override def apply[A](as: A*): Chunk[A] = fromIterable(as)
@@ -4233,7 +4233,7 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
    * never empty.
    *
    * {{{
-   * NonEmptyChunk("Zionomicon", "Programming in Scala").head // Zionomicon
+   * NonEmptyChunk(8080, 8443).head // 8080
    * }}}
    */
   def head: A = chunk.head
@@ -4301,8 +4301,8 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
    * again with `map` (a known bug), so do not return `null` from either.
    *
    * {{{
-   * val titles = NonEmptyChunk("Zionomicon", "Programming in Scala")
-   * titles.reduceMapLeft(_.length)(_ + _.length) // 30
+   * val words = NonEmptyChunk("a", "bb", "ccc")
+   * words.reduceMapLeft(_.length)(_ + _.length) // 6
    * }}}
    */
   def reduceMapLeft[B](map: A => B)(reduce: (B, A) => B): B = {
@@ -4379,7 +4379,7 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
    * records that the chunk is non-empty.
    *
    * {{{
-   * NonEmptyChunk("Zionomicon").toChunk // Chunk(Zionomicon)
+   * NonEmptyChunk(7).toChunk // Chunk(7)
    * }}}
    */
   def toChunk: Chunk[A] = chunk
@@ -4456,7 +4456,7 @@ object NonEmptyChunk {
    * parameter of its own, a call without arguments does not compile.
    *
    * {{{
-   * NonEmptyChunk("Zionomicon", "Programming in Scala") // NonEmptyChunk(Zionomicon, Programming in Scala)
+   * NonEmptyChunk(1, 2) // NonEmptyChunk(1, 2)
    * }}}
    */
   def apply[A](a: A, as: A*): NonEmptyChunk[A] = fromIterable(a, as)
@@ -4466,8 +4466,8 @@ object NonEmptyChunk {
    * it, or `None` when `chunk` is empty.
    *
    * {{{
-   * NonEmptyChunk.fromChunk(Chunk("Zionomicon")) // Some(NonEmptyChunk(Zionomicon))
-   * NonEmptyChunk.fromChunk(Chunk.empty[String]) // None
+   * NonEmptyChunk.fromChunk(Chunk(1))         // Some(NonEmptyChunk(1))
+   * NonEmptyChunk.fromChunk(Chunk.empty[Int]) // None
    * }}}
    */
   def fromChunk[A](chunk: Chunk[A]): Option[NonEmptyChunk[A]] =
