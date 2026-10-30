@@ -35,7 +35,8 @@ package zio.blocks.scope
  *     `Iterable`, `Map` and [[zio.blocks.chunk.Chunk]] (when elements are
  *     `Unscoped`)
  *   - Containers: `Option`, `Either` (when elements are `Unscoped`)
- *   - Tuples: up to 4-tuples (when elements are `Unscoped`)
+ *   - Tuples: up to 4-tuples (when elements are `Unscoped`); on Scala 3, larger
+ *     tuples get one through `derived`
  *   - Time: `java.time.Instant`, `LocalDate`, `LocalTime`, `LocalDateTime`,
  *     `ZonedDateTime`, `OffsetDateTime`, `Duration`, `Period`, `ZoneId` and
  *     `ZoneOffset`, and `scala.concurrent.duration.Duration` and
@@ -46,10 +47,10 @@ package zio.blocks.scope
  *
  * On Scala 3, every case class, sealed trait and enum whose fields or cases all
  * have instances gets one automatically, through the `derived` given. On Scala
- * 2, define an instance with `Unscoped.derived`, as below (this also compiles
- * on Scala 3). On Scala 3 the automatic instance is also given to a case class
- * that extends `AutoCloseable`, so a closed resource can leave its scope (a
- * known bug). Do not define instances for types that hold resources.
+ * 2, define an instance with `Unscoped.derived`, as in the example (this also
+ * compiles on Scala 3). On Scala 3 the automatic instance is also given to a
+ * case class that extends `AutoCloseable`, so a closed resource can leave its
+ * scope (a known bug). Do not define instances for types that hold resources.
  *
  * {{{
  * final case class Report(title: String, rows: Int)
@@ -81,12 +82,13 @@ trait Unscoped[A]
  * Low-priority Unscoped instances to avoid ambiguity.
  */
 private[scope] trait UnscopedLowPriority {
-  // Nothing - can always escape (never actually returned)
-  // Must be low priority since Nothing <: A for all A
+  // Nothing - can always escape (never actually returned); kept in a
+  // lower-priority trait than the other instances
   /**
-   * Marks `Nothing` as safe to leave a scope. It has low priority so that it
-   * does not compete with the other instances, because `Nothing` is a subtype
-   * of every type.
+   * Marks `Nothing` as safe to leave a scope. It is declared in a
+   * lower-priority trait than the other instances. A `scoped` block that always
+   * throws still needs its type written out, as in `scoped[Nothing] { ... }` (a
+   * known bug).
    */
   implicit val unscopedNothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
 }

@@ -43,7 +43,9 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    *
    * On Scala 3, when the last expression of `f` does not type-check, the
    * compiler also reports an "Ambiguous given instances" error for `Unscoped`;
-   * fix the first error first (a known bug).
+   * fix the first error first (a known bug). On both versions, a block that
+   * always throws also fails with an ambiguous `Unscoped` error; write
+   * `scoped[Nothing] { ... }` (a known bug).
    *
    * {{{
    * final class Connection extends AutoCloseable {
@@ -61,8 +63,7 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    * }}}
    *
    * @tparam A
-   *   the return type of the scoped block; must have an `Unscoped` instance, so
-   *   that only plain data leaves the scope
+   *   the return type of the scoped block; must have an `Unscoped` instance
    * @param f
    *   a function that receives a `Scope.Child` and returns a value of type `A`
    * @return
@@ -350,8 +351,8 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
     ${ UseMacros.applyN5[A1, A2, A3, A4, A5, B]('self, 'sa1, 'sa2, 'sa3, 'sa4, 'sa5, 'f) }
 
   /**
-   * Returns the raw value inside `sa`, outside the control of the scope, and
-   * makes the compiler emit a warning at the call site.
+   * Returns the raw value inside `sa`, outside the compile-time checks of `$`,
+   * and makes the compiler emit a warning at the call site.
    *
    * Use it only for interop with code that cannot work with scoped values, such
    * as a library that needs the raw object. The scope still runs the value's
@@ -363,7 +364,7 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    * @param sa
    *   the scoped value to unwrap
    * @return
-   *   the raw value of type `A`, no longer tracked by the scope
+   *   the raw value of type `A`; the scope still closes it
    */
   inline def leak[A](inline sa: $[A]): A = ${ LeakMacros.leakImpl[A]('sa, 'self) }
 }
