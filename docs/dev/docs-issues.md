@@ -16,6 +16,8 @@ Contents:
 
 Pages that contradict the source. None of these were copied into the new guides.
 
+**2026-10-30:** session `docs-error-fixes-5` (Opus) is fact-checking and fixing the first three entries below (telemetry export, the NIO walkthrough, `model.md` cookies); the four `chunk.md` entries are with session `chunk-docs-followup`.
+
 ### docs: the telemetry tutorial says shipping to a collector "isn't possible yet", and `telemetry-guide.md` reaches the private exporters by declaring a package
 
 Found 2026-10-29 by the backlog-refresh research, on `main` at `bafc31bef`. Same at `v0.0.56`.
