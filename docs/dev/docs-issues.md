@@ -342,6 +342,8 @@ Nothing else is printed: no "Handler failed" line, no stack trace. The same happ
 
 ### website: `netlify.toml` redirects never reach the live site, so `/docs/*` and the old install-guide URL return 404
 
+**Fix in PR #1912** (open, CI green, 2026-10-30): all rules moved to `website/static/_redirects`, a unit test, and a post-deploy curl check in `site.yml`. Needs a production deploy after merge. Move to Resolved once the live curl lines answer 301.
+
 Found 2026-10-30 by the coordinator's post-deploy check of zioblocks.com (deploy run 40959450265, `main` `b574f40f5`). Verified with `curl` against the live site.
 
 **Summary.** `netlify.toml` declares four kinds of redirects: `/docs` and `/docs/` → `/overview`, `/docs/*` → `/:splat` (old links from before the site moved docs to the root), and, since #1900, `/guides/add-zio-blocks-to-your-build` (with and without `/`) → `/getting-started/installation`. None of them works on zioblocks.com; every one returns 404. The two host redirects in `website/static/_redirects` (`zio-blocks.netlify.app/*` → `zioblocks.com`) do work.
