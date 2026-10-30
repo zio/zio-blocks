@@ -148,6 +148,272 @@ println(bits.and(bits))
 
 **Suggested fix:** delete the section, or replace it with a pointer to the "Bit Operations" section.
 
+### docs: `resource.md` says `Resource.from[T]` always closes an `AutoCloseable` and calls `Resource.shared` "lock-free" with an initializer that runs "exactly once"
+
+Found 2026-10-30 while writing the `scope` Scaladoc, on `main` at `ed2185ebe`. Same at `v0.0.56` (same line numbers). Verified on Scala 3.9.0 and 2.13.18 with `zio-blocks-scope` 0.0.56.
+
+**Summary.** `docs/reference/resource-management/resource.md` has two errors:
+
+1. Lines 451-453 say: "Derives a `Resource[T]` from `T`'s primary constructor, requiring no external dependencies. If `T` extends `AutoCloseable`, `Resource.from` automatically registers its `close()` method as a finalizer". Lines 474-478 repeat it: the macro "synthesizes a `Resource.shared` that instantiates `T` and — when `T` extends `AutoCloseable` — registers `close()` as a scope finalizer." That holds only when the constructor takes no `Finalizer` or `Scope` parameter. When it does (the pattern the docs teach for classes that clean up after themselves), `Resource.from[T]` never registers `close()`. This is the library bug "scope: `Resource.from[T]` does not close an `AutoCloseable` whose constructor takes a `Finalizer` or `Scope`". The macro has three branches. The `Finalizer`/`Scope` branch (`scope/shared/src/main/scala-3/zio/blocks/scope/ResourceMacros.scala:83-108`) only calls the constructor. The `AutoCloseable` branch (`:109-120`) is the only one that calls `scope.defer(instance.asInstanceOf[AutoCloseable].close())` (`:117`). Scala 2 has the same structure (`scope/shared/src/main/scala-2/zio/blocks/scope/ResourceVersionSpecific.scala:117-144`, then the `AutoCloseable` branch at `:145-153`). `Resource.from[T]()` (empty parentheses) does close it.
+2. Line 376 says the mechanism is "**thread-safe and lock-free**, implemented using `AtomicReference` with atomic compare-and-swap operations to avoid contention", and line 378 says that "no matter how many threads try to allocate simultaneously, the underlying value initializes exactly once". (Line 63 repeats the first claim in the comparison table: "Lock-free atomic reference counting".) Neither is quite true:
+   - It is not lock-free. While the first caller runs the initializer, the state is `Pending`, and every other caller spins on it (`scope/shared/src/main/scala/zio/blocks/scope/Resource.scala:217-218`, `PlatformScope.threadYield()`, which is `Thread.yield()` on the JVM, `scope/jvm/src/main/scala/zio/blocks/scope/PlatformScope.scala:23`). A slow or stuck initializer holds up every concurrent allocation, which is the property "lock-free" rules out. Line 378 itself says other threads "wait via spin-yield".
+   - The value initializes exactly once only if the initializer succeeds. If it throws, the open scope is closed, the state goes back to `Uninitialized` and the exception propagates (`Resource.scala:209-213`), so the next allocation runs the initializer again.
+
+**Reproducer 1** (`Repro.scala`, Scala 3.9.0, `zio-blocks-scope` 0.0.56, `scala-cli run --server=false .`):
+
+```scala
+// Repro.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+
+class Logger(implicit finalizer: Finalizer) extends AutoCloseable {
+  def close(): Unit = println("Logger.close")
+}
+
+@main def repro(): Unit = {
+  println("Resource.from[Logger]:")
+  Resource.from[Logger].use(_ => ())
+  println("Resource.from[Logger]():")
+  Resource.from[Logger]().use(_ => ())
+}
+// Resource.from[Logger]:
+// Resource.from[Logger]():
+// Logger.close
+```
+
+The Scala 2.13.18 version (`//> using scala 2.13.18`, `import zio.blocks.scope._`, `object Repro extends App {` instead of the `@main` line) prints the same three lines.
+
+**Reproducer 2** (`Shared.scala`, Scala 3.9.0, `zio-blocks-scope` 0.0.56, `scala-cli run --server=false .`):
+
+```scala
+// Shared.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+
+@main def shared(): Unit = {
+  // 1. A failed initialisation runs again on the next allocation.
+  var calls = 0
+  val flaky = Resource.shared[String] { _ =>
+    calls += 1
+    if (calls == 1) throw new RuntimeException("first attempt fails")
+    "ready"
+  }
+  println(scala.util.Try(flaky.use(identity)))
+  println(s"${scala.util.Try(flaky.use(identity))}, initialiser calls = $calls")
+
+  // 2. While one thread initialises, a second caller waits (spins) for it.
+  val slow = Resource.shared[String] { _ => Thread.sleep(500); "slow" }
+  val first = new Thread(() => { slow.use(_ => Thread.sleep(200)); () })
+  first.start()
+  Thread.sleep(50)
+  val t0 = System.nanoTime()
+  slow.use(_ => ())
+  println("second caller waited about " + ((System.nanoTime() - t0) / 100000000) * 100 + " ms")
+  first.join()
+}
+// Failure(java.lang.RuntimeException: first attempt fails)
+// Success(ready), initialiser calls = 2
+// second caller waited about 400 ms
+```
+
+**Expected (suggested wording).**
+
+- Lines 451-453: "Derives a `Resource[T]` from `T`'s primary constructor, requiring no external dependencies. If `T` extends `AutoCloseable` and its constructor takes no `Finalizer` or `Scope` parameter, `Resource.from` registers its `close()` method as a finalizer. A known bug in 0.0.56: when the constructor does take a `Finalizer` or `Scope`, `close()` is not registered. Use `Resource.from[T]()` (with empty parentheses), which registers it, or register the cleanup inside the constructor with `finalizer.defer(...)`."
+- Lines 474-478: "... and synthesizes a `Resource.shared` that instantiates `T`, passing the scope to any `Finalizer` or `Scope` parameter, and, when `T` extends `AutoCloseable` and takes no such parameter, registers `close()` as a scope finalizer. ..."
+- Line 376: "This mechanism is thread-safe: the state is an `AtomicReference` updated with compare-and-swap, so concurrent allocations share one instance and one reference count. It is not lock-free: while the first caller runs the initializer, every other caller waits for it."
+- Line 378, last sentence: "This state machine ensures that concurrent allocations share one value, and that cleanup happens once, when the last reference is released. If the initializer throws, the exception reaches the caller that ran it, the state returns to Uninitialized, and the next allocation runs the initializer again."
+- Line 63 (table, Shared column): "Thread-safe atomic (CAS) reference counting".
+
+**Impact.** (1) Readers who combine an implicit `Finalizer` with `AutoCloseable` and build the class with `Resource.from[T]` leak `close()` silently; the page tells them it is called. (2) Readers who put a slow or blocking initializer (a connection pool that dials out) in `Resource.shared` expect no contention and get every concurrent caller waiting; readers whose initializer has side effects (a counter, a registration) get them twice after a failure.
+
+**Suggested fix.** Apply the wording above and run mdoc on the page. Remove the known-bug sentence when the library bug is fixed.
+
+### docs: `wire.md` promises a fresh instance from every unique wire, and doesn't say `fromFunction` never closes an `AutoCloseable`
+
+Found 2026-10-30 while writing the `scope` Scaladoc, on `main` at `ed2185ebe`. Same at `v0.0.56` (there at lines 138, 185-212, 244-253 and 502-504). Verified on Scala 3.9.0 and 2.13.18 with `zio-blocks-scope` 0.0.56.
+
+**Summary.** `docs/reference/resource-management/wire.md` has three errors:
+
+1. **Unique wires inside `Resource.from`.** Line 145 says `Wire.unique[T]` is "Like `Wire.shared[T]`, but creates a fresh instance each time the wire is used." The table at lines 251-260 says, in the "Instance reuse" row, "Same instance across entire dependency graph" (Shared) and "New instance per allocation" (Unique), and lines 509-511 say "When `Resource.from` composes wires, it respects the sharing strategy: **Shared wires** → reference-counted (single instance in the graph); **Unique wires** → fresh per allocation". That holds for `wire.toResource(...)` (line 145's own example), but not when the wire is passed to `Resource.from`, which decides sharing from the wire's static type:
+   - Scala 3 treats every explicit wire as shared, so a `Wire.unique[T]` builds `T` once and gives it to every dependent. This is the library bug "scope: on Scala 3, `Resource.from` treats an explicit `Wire.unique` as shared". `parseWireExpr` computes `isShared = wireTpe.baseType(TypeRepr.of[Wire.Shared[?, ?]].typeSymbol).typeSymbol != defn.NothingClass` (`scope/shared/src/main/scala-3/zio/blocks/scope/ResourceMacros.scala:173`), which is true for every wire type.
+   - Scala 2 tests the static type's name (`scope/shared/src/main/scala-2/zio/blocks/scope/ResourceVersionSpecific.scala:213-215`). A `Wire.unique` is unique, as the page says, but a `Wire.shared` whose static type is `Wire[In, Out]` is treated as unique, so the Shared column's "Same instance across entire dependency graph" fails for it.
+2. **`fromFunction` never closes the result.** The `Wire.Shared.fromFunction` section (lines 192-219) and the `Wire.Unique.fromFunction` section that follows it (lines 221-249, "Like `Wire.Shared.fromFunction`, but for unique wires") don't say that the wire registers no finalizer. Both only wrap the function (`scope/shared/src/main/scala-3/zio/blocks/scope/WireVersionSpecific.scala:93-94` and `:114-115`, `scope/shared/src/main/scala-2/zio/blocks/scope/WireVersionSpecific.scala:93` and `:114`, building the case classes at `scope/shared/src/main/scala/zio/blocks/scope/Wire.scala:144` and `:213`). The macro section at line 425 ("Does `T` extend `AutoCloseable`? — if yes, `close()` is automatically registered") is correct for `Wire.shared[T]`/`Wire.unique[T]`, so a reader concludes `fromFunction` behaves the same. This is the library bug "scope: `Wire.Shared.fromFunction` never closes an `AutoCloseable` result" (it holds for `Wire.Unique.fromFunction` too).
+3. **`Context.empty[Any]` doesn't compile.** Lines 159, 187, 240 and 413 call `Context.empty[Any]`, but `Context.empty` is a `val` (`context/shared/src/main/scala/zio/blocks/context/Context.scala:214`, `val empty: Context[Any]`), so the four blocks fail with "value empty in object Context does not take type parameters". They are plain `scala` fences, so mdoc doesn't catch it.
+
+**Reproducer 1** (`Repro.scala`, Scala 3.9.0, `zio-blocks-scope` 0.0.56, `scala-cli run --server=false .`):
+
+```scala
+// Repro.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+
+class RequestId { RequestId.created += 1 }
+object RequestId { var created = 0 }
+class Auth(val id: RequestId)
+class Audit(val id: RequestId)
+class Handler(val auth: Auth, val audit: Audit)
+
+@main def repro(): Unit = {
+  val sameInstance = Resource.from[Handler](Wire.unique[RequestId]).use(h => h.auth.id eq h.audit.id)
+  println("Wire.unique[RequestId]: same instance = " + sameInstance + ", created = " + RequestId.created)
+}
+// Wire.unique[RequestId]: same instance = true, created = 1
+```
+
+The same file on Scala 2.13.18 (`//> using scala 2.13.18`, `import zio.blocks.scope._`, `object Repro extends App {` instead of the `@main` line) prints `Wire.unique[RequestId]: same instance = false, created = 2`.
+
+**Reproducer 2** (`Static.scala`, Scala 2.13.18, `zio-blocks-scope` 0.0.56, `scala-cli run --server=false .`):
+
+```scala
+// Static.scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope._
+
+class RequestId { RequestId.created += 1 }
+object RequestId { var created = 0 }
+class Auth(val id: RequestId)
+class Audit(val id: RequestId)
+class Handler(val auth: Auth, val audit: Audit)
+
+object Static extends App {
+  val shared: Wire[Any, RequestId] = Wire.shared[RequestId]
+  val same = Resource.from[Handler](shared).use(h => h.auth.id eq h.audit.id)
+  println("Wire.shared typed as Wire: isShared = " + shared.isShared + ", same instance = " + same + ", created = " + RequestId.created)
+}
+// Wire.shared typed as Wire: isShared = true, same instance = false, created = 2
+```
+
+**Reproducer 3** (`FromFn.scala`, Scala 3.9.0, `zio-blocks-scope` 0.0.56, `scala-cli run --server=false .`):
+
+```scala
+// FromFn.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+import zio.blocks.context.Context
+
+final class Client extends AutoCloseable {
+  def close(): Unit = println("Client.close")
+}
+
+@main def fromFn(): Unit = {
+  println("Wire.Shared.fromFunction:")
+  Wire.Shared.fromFunction[Any, Client]((_, _) => new Client).toResource(Context.empty).use(_ => ())
+  println("Wire.Unique.fromFunction:")
+  Wire.Unique.fromFunction[Any, Client]((_, _) => new Client).toResource(Context.empty).use(_ => ())
+  println("Wire.shared[Client]:")
+  Wire.shared[Client].toResource(Context.empty).use(_ => ())
+  println("end")
+}
+// Wire.Shared.fromFunction:
+// Wire.Unique.fromFunction:
+// Wire.shared[Client]:
+// Client.close
+// end
+```
+
+The workaround in the suggested wording below works: a `Wire.Shared.fromFunction { (scope, _) => val client = new Client; scope.defer(client.close()); client }` wire, run the same way, prints `Client.close` then `end`.
+
+**Reproducer 4** (`Unique.sc`: `wire.md` lines 148-170 verbatim under the two directives `//> using scala 3.9.0` and `//> using dep dev.zio::zio-blocks-scope:0.0.56`; `scala-cli run --server=false .`):
+
+```
+// -- Error: .../Unique.scala:20:26
+// 20 |  val deps = Context.empty[Any]
+//    |             ^^^^^^^^^^^^^^^^^^
+//    |             value empty in object Context does not take type parameters
+```
+
+**Expected (suggested wording).**
+
+- Line 145: "Like `Wire.shared[T]`, but its resource is unique: each allocation builds a fresh instance. Use for request-scoped or per-call services. A known bug in 0.0.56: on Scala 3, `Resource.from` treats a unique wire as shared and gives one instance to every dependent; on Scala 2 it follows the wire's static type, so keep it typed as `Wire.Unique` (or `Wire.Shared` for a shared wire), not `Wire`."
+- Below the table at lines 251-260, a sentence: "The Instance reuse row describes `toResource`. Inside `Resource.from` in 0.0.56, Scala 3 shares every wire's instance across the graph (a known bug), and Scala 2 shares only wires whose static type is `Wire.Shared`."
+- Lines 509-511: keep the two bullets and add: "A known bug in 0.0.56: on Scala 3, unique wires are also built once and shared across the graph. Scala 2 follows the wire's static type, so a shared wire stored as a plain `Wire[In, Out]` is built once per dependent."
+- Line 194 (and the unique section at line 223): "Use this for custom construction logic when macro derivation doesn't fit. Unlike `Wire.shared[T]`, `fromFunction` registers no finalizer: if the function returns an `AutoCloseable`, register its cleanup with `scope.defer(client.close())` on the `Scope` the function receives." Ideally the example at lines 206-210 shows the `scope.defer` line.
+- Lines 159, 187, 240, 413: `Context.empty` instead of `Context.empty[Any]`.
+
+**Impact.** (1) Request-scoped state declared with `Wire.unique` is shared by every dependent on Scala 3, while the page tells the reader it is fresh; on Scala 2 a shared wire stored in a `Wire`-typed `val` is silently duplicated. Neither fails at compile time or at run time. (2) Readers who move from `Wire.shared[T]` to `Wire.Shared.fromFunction` for custom construction lose `close()` without any warning. (3) Readers who copy four of the page's examples get a compile error.
+
+**Suggested fix.** Apply the wording above, and turn the plain fences that are meant to compile into `mdoc:compile-only` blocks so the next `Context` change is caught. Remove the known-bug sentences when the library bugs are fixed.
+
+### docs: `scope.md` describes `Scope.global` closing and `isOwner` without the Scala.js behaviour
+
+Found 2026-10-30 while writing the `scope` Scaladoc, on `main` at `ed2185ebe`. Same at `v0.0.56` (same line numbers). Verified on Scala 3.9.0 with `zio-blocks-scope` 0.0.56, on the JVM and on Scala.js 1.22.0.
+
+**Summary.** `docs/reference/resource-management/scope.md` describes JVM-only behaviour as universal in two places:
+
+1. Line 546 (`Scope#isClosed`) says: "`Scope.global` returns `false` until JVM shutdown." On Scala.js `Scope.global` never closes: `PlatformScope.registerShutdownHook` is a no-op there (`scope/js/src/main/scala/zio/blocks/scope/PlatformScope.scala:20`; the JVM version adds a shutdown hook, `scope/jvm/src/main/scala/zio/blocks/scope/PlatformScope.scala:20-21`; `Scope.global` registers its finalizers through it at `scope/shared/src/main/scala/zio/blocks/scope/Scope.scala:308-314`). So `isClosed` is always `false`, and finalizers registered on `Scope.global` never run. The same page says the second half correctly at line 201 ("On Scala.js, global finalizers are not automatically invoked"), so line 546 contradicts it.
+2. Lines 557-561 (`Scope#isOwner`) list the ownership rules: "`Scope.global`: always returns `true` (any thread may use it); Child scopes created via `scoped { }`: returns `true` only on the thread that entered the block; Child scopes created via `open()`: always returns `true` (unowned, usable cross-thread)". On Scala.js, `isOwner` is always `true` for every scope: `PlatformScope.isOwner` returns `true` (`scope/js/src/main/scala/zio/blocks/scope/PlatformScope.scala:26`; `Scope.Child#isOwner` delegates to it at `Scope.scala:394`). So the cross-thread misuse check described at line 563 ("Calling `scoped { }` on a scope you don't own throws `IllegalStateException`") never fires on Scala.js, not even from a later callback.
+
+**Reproducer, Scala.js** (`ScopeJs.scala`; run with `scala-cli run --server=false . --js-cli-on-jvm`, because scala-cli's native Scala.js linker can't read the 0.0.56 IR):
+
+```scala
+// ScopeJs.scala
+//> using scala 3.9.0
+//> using platform scala-js
+//> using jsVersion 1.22.0
+//> using dep dev.zio::zio-blocks-scope::0.0.56
+import zio.blocks.scope.*
+import scala.scalajs.js.timers.setTimeout
+
+@main def scopeJs(): Unit = {
+  Scope.global.defer(println("global finalizer ran"))
+  var captured: Scope = null
+  Scope.global.scoped { scope =>
+    captured = scope
+    println("inside scoped: isOwner = " + scope.isOwner)
+  }
+  setTimeout(10) {
+    println("timer callback: isOwner = " + captured.isOwner + ", Scope.global.isClosed = " + Scope.global.isClosed)
+  }
+  println("main done")
+}
+// inside scoped: isOwner = true
+// main done
+// timer callback: isOwner = true, Scope.global.isClosed = false
+```
+
+`global finalizer ran` is never printed.
+
+**Reproducer, JVM, for contrast** (`ScopeJvm.scala`, Scala 3.9.0, `zio-blocks-scope` 0.0.56, `scala-cli run --server=false .`):
+
+```scala
+// ScopeJvm.scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-scope:0.0.56
+import zio.blocks.scope.*
+
+@main def scopeJvm(): Unit = {
+  Scope.global.defer(println("global finalizer ran"))
+  var captured: Scope = null
+  Scope.global.scoped { scope =>
+    captured = scope
+    println("inside scoped: isOwner = " + scope.isOwner)
+  }
+  val t = new Thread(() =>
+    println("other thread: isOwner = " + captured.isOwner + ", Scope.global.isClosed = " + Scope.global.isClosed)
+  )
+  t.start(); t.join()
+  println("main done")
+}
+// inside scoped: isOwner = true
+// other thread: isOwner = false, Scope.global.isClosed = false
+// main done
+// global finalizer ran
+```
+
+**Expected (suggested wording).**
+
+- Line 546: "On the JVM, `Scope.global` returns `false` until JVM shutdown, when a shutdown hook closes it. On Scala.js it never closes, so it always returns `false` and its finalizers never run. Child scopes created with `scoped { }` are closed when the block exits, while those created with `open()` remain open until you call `close()`."
+- Lines 557-561, after the list: "On Scala.js there is a single thread, and `isOwner` returns `true` for every scope, so the ownership check never fails there."
+
+**Impact.** Scala.js users who rely on `Scope.global.defer` for cleanup, or on `isClosed` to detect shutdown, get neither. The ownership list suggests that misuse is detected on every platform; on Scala.js a scope captured into a callback that runs after the block passes `isOwner` and the `scoped` check.
+
+**Suggested fix.** Apply the wording above and run mdoc on the page.
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
