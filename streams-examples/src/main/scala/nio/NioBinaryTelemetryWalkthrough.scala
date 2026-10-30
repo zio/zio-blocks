@@ -16,9 +16,8 @@ import java.nio.channels.Pipe
  * NioWriters, NioReaders, Stream map/filter/scan/take, catchAll, and manual
  * pull-based consumption.
  *
- * Each section prints EXPECTED vs ACTUAL; a mismatch localizes a defect.
- * (Discovered via this walkthrough + extracted minimal regressions in NioSpec
- * "adversarial regressions": ByteBuffer Long/Double readUpToN sentinel
+ * Each section prints EXPECTED vs ACTUAL; a mismatch localizes a defect. (Bugs
+ * found with this walkthrough: ByteBuffer Long/Double readUpToN sentinel
  * truncation; fromChannel/ChannelWriter close-failure swallowing.)
  */
 object NioBinaryTelemetryWalkthrough extends App {
@@ -148,8 +147,10 @@ object NioBinaryTelemetryWalkthrough extends App {
   // every replay cycle (Reader.setLimit/setSkip contract: store derived window
   // bounds, not raw skip/limit values); re-deriving [skip, skip+limit) on
   // reset() leaks readings that were outside the slice.
-  // Originally exposed BUG-R8-03 (since fixed); minimal regressions in
-  // NioSpec "origin, window and accuracy (round 8)" [AdversarialWindowResetSpec].
+  // This section FAILS on zio-blocks 0.0.56 and on main: a known bug in
+  // ByteBufferReader.reset() re-derives the window from the raw skip and
+  // limit, so the second pass reads 30, 40, 50, 60 instead of repeating
+  // 30, 40. No regression test covers it yet.
   locally {
     val frame = ByteBuffer.allocate(8 * 8)
     (0 until 8).foreach(i => frame.putLong(i.toLong * 10L))
@@ -162,5 +163,5 @@ object NioBinaryTelemetryWalkthrough extends App {
 
   println()
   if (failures == 0) println("All walkthrough sections completed as expected.")
-  else println(s"$failures walkthrough section(s) FAILED — see minimal regressions in NioSpec.")
+  else println(s"$failures walkthrough section(s) FAILED — see the comment above each failing section.")
 }
