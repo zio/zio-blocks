@@ -17,13 +17,16 @@
 package zio.blocks.scope
 
 // InStack is deprecated in the new Scope design.
-// The HList-based Scope structure has been replaced with
-// Scope[ParentTag, Tag]. Dependencies are now resolved via Resource/Wire,
-// not via type-level stack search.
+// The HList-based Scope structure has been replaced with a Scope class whose
+// children have their own `$` types. Dependencies are now resolved via
+// Resource/Wire, not via type-level stack search.
 //
 // This file is kept for source compatibility but the type is unused.
 
 /**
+ * Unused; kept for source compatibility. An earlier design of `scope` used it
+ * as evidence that a type is present in an HList-style stack of scopes.
+ *
  * @tparam T
  *   the type to search for in the stack
  * @tparam Stack
@@ -37,6 +40,8 @@ package zio.blocks.scope
 trait InStack[-T, +Stack]
 
 /**
+ * Unused; kept for source compatibility.
+ *
  * @deprecated
  *   InStack is no longer used in the new Scope design.
  */

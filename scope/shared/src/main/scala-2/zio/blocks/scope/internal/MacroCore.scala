@@ -43,15 +43,11 @@ private[scope] object MacroCore {
   }
 
   /**
-   * Extract the dependency type from a Scope.Has[Y] type.
+   * Returns `Some(H)` if `tpe` is a `Scope.::[H, _]` whose head `H` is a
+   * concrete type (not `Any` or `Nothing`), otherwise `None`.
    *
-   * In the new design, Scope is an HList:
-   *   - Scope.::[H, T] is a cons cell with head type H and tail T <: Scope
-   *   - Scope.Global is the empty scope
-   *   - Scope.Has[T] = Scope.::[T, Scope]
-   *
-   * Returns Some(H) if this is Scope.::[H, _] with H being a concrete type (not
-   * Any/Nothing), otherwise None.
+   * This is left over from an earlier, HList-based design. The current `Scope`
+   * has no `::` member, so for any `Scope` type this returns `None`.
    */
   def extractScopeHasType(c: blackbox.Context)(tpe: c.Type): Option[c.Type] = {
     import c.universe._
@@ -72,9 +68,8 @@ private[scope] object MacroCore {
   /**
    * Classify a parameter type and extract its dependency if applicable.
    *
-   *   - Finalizer → None (no dependency, passed as finalizer)
-   *   - Scope.Has[Y] → Some(Y) as dependency
-   *   - Scope.Any-like → None (no dependency)
+   *   - `Finalizer` or `Scope` → None (no dependency; the parameter receives
+   *     the scope)
    *   - Regular type → Some(type) as dependency
    */
   def classifyAndExtractDep(c: blackbox.Context)(paramType: c.Type): Option[c.Type] =
