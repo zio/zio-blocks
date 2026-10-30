@@ -117,6 +117,8 @@ object ErrorMessages {
 
   /** Status of a dependency in the graph. */
   sealed trait DepStatus
+
+  /** The statuses a [[DepStatus]] can have. */
   object DepStatus {
 
     /** The dependency is available; rendered with a green check mark. */
