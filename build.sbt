@@ -554,7 +554,7 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
   )
   .jvmSettings(
     libraryDependencies ++= Seq(
-      "org.xerial"     % "sqlite-jdbc" % "3.53.4.0" % Test,
+      "org.xerial"     % "sqlite-jdbc" % "3.54.1.0" % Test,
       "org.postgresql" % "postgresql"  % "42.7.14"  % Test
     )
   )
@@ -604,7 +604,7 @@ lazy val `projection-examples` = project
     // Several examples are runnable on their own, so `projection-examples/run` needs to know which one to start.
     Compile / mainClass := Some("projection.examples.ProjectionExampleApp"),
     // The projection module only has the SQLite driver as a test dependency, and the examples run on SQLite files.
-    libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
+    libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.54.1.0"
   )
 
 lazy val projection = crossProject(JVMPlatform)
@@ -1512,7 +1512,7 @@ lazy val `sql-benchmarks` = project
     libraryDependencies ++= Seq(
       // In-memory SQLite table for the decode fixture; sql.jvm only has it as a
       // Test dep, so the benchmark (main sources) declares it directly.
-      "org.xerial" % "sqlite-jdbc" % "3.53.4.0",
+      "org.xerial" % "sqlite-jdbc" % "3.54.1.0",
       // Real-world cross-library comparison: same Postgres server, same data —
       // zio-blocks via JDBC vs kyo-sql's native wire-protocol driver, plus a
       // hand-rolled raw-JDBC floor.

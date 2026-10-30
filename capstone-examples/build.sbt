@@ -35,7 +35,7 @@ libraryDependencies ++= Seq(
   zioBlocks("http-model").value,
   zioBlocks("http-model-schema").value,
   zioBlocks("telemetry").value,
-  "org.xerial" % "sqlite-jdbc"  % "3.53.4.0",
+  "org.xerial" % "sqlite-jdbc"  % "3.54.1.0",
   "dev.zio"   %% "zio-test"     % "2.1.27" % Test,
   "dev.zio"   %% "zio-test-sbt" % "2.1.27" % Test
 )
