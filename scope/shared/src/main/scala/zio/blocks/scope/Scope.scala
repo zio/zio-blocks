@@ -27,9 +27,9 @@ import zio.blocks.scope.internal.{ErrorMessages, Finalizers}
  * Each scope has its own type `$[A]` for the values it owns. The `$` macro lets
  * the block call methods on such a value but not pass it on, and `scoped`
  * returns only a value whose type has an [[Unscoped]] instance, so a resource
- * cannot leave its scope by accident (except, on Scala 3, a case class that
- * extends `AutoCloseable`, a known bug). [[Scope.global]] is the root of every
- * scope tree.
+ * cannot leave its scope by accident (except, on Scala 3, a case class, sealed
+ * trait or enum that extends `AutoCloseable`, a known bug). [[Scope.global]] is
+ * the root of every scope tree.
  *
  * {{{
  * final class Connection(val url: String) extends AutoCloseable {

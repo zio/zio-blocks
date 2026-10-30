@@ -66,9 +66,12 @@ private[scope] trait ResourceCompanionVersionSpecific {
    * or a type such as `String`, `Int`, `Option` or a function, which is a
    * compile error. Shared wires give every dependent the same instance; unique
    * wires give each dependent a fresh one, except on Scala 3, where an explicit
-   * unique wire is treated as shared (a known bug). `Finalizer` and `Scope`
-   * parameters receive the owning scope, and `AutoCloseable` classes derived by
-   * the macro are closed when the scope closes.
+   * unique wire is treated as shared (a known bug). On Scala 2 the choice
+   * follows the wire's static type, so a shared wire whose static type is
+   * `Wire[In, Out]` gives each dependent its own instance (a known bug).
+   * `Finalizer` and `Scope` parameters receive the owning scope, and
+   * `AutoCloseable` classes derived by the macro are closed when the scope
+   * closes.
    *
    * Known bugs: a dependency cycle crashes the macro instead of reporting the
    * cycle; on Scala 3, a dependency on a Java class whose constructor takes

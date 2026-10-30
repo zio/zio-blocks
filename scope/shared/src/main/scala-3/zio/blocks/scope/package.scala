@@ -54,7 +54,7 @@ package zio.blocks
  * mixed. A child can use its parent's values after `lower(value)`. `scoped`
  * requires an [[scope.Unscoped]] instance for its result type, so only plain
  * data (not resources or closures) leaves a scope, except, on Scala 3, a case
- * class that extends `AutoCloseable` (a known bug).
+ * class, sealed trait or enum that extends `AutoCloseable` (a known bug).
  *
  * @see
  *   [[https://zioblocks.com/reference/resource-management/ Resource Management]]

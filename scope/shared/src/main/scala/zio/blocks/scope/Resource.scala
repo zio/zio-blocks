@@ -172,9 +172,9 @@ sealed trait Resource[+A] { self =>
    * It works like allocating the resource inside `Scope.global.scoped`, except
    * that `f` receives the raw value, and it is a short entry point for
    * application code. The result type must have an [[Unscoped]] instance. On
-   * Scala 3, a case class that extends `AutoCloseable` gets one automatically,
-   * so `use(c => c)` on such a resource compiles and returns a closed value (a
-   * known bug).
+   * Scala 3, a case class, sealed trait or enum that extends `AutoCloseable`
+   * gets one automatically, so `use(c => c)` on such a resource compiles and
+   * returns a closed value (a known bug).
    *
    * {{{
    * final class Server(val port: Int) extends AutoCloseable {

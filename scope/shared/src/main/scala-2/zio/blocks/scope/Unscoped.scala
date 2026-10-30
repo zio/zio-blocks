@@ -49,8 +49,9 @@ package zio.blocks.scope
  * have instances gets one automatically, through the `derived` given. On Scala
  * 2, define an instance with `Unscoped.derived`, as in the example (this also
  * compiles on Scala 3). On Scala 3 the automatic instance is also given to a
- * case class that extends `AutoCloseable`, so a closed resource can leave its
- * scope (a known bug). Do not define instances for types that hold resources.
+ * case class, sealed trait or enum that extends `AutoCloseable`, so a closed
+ * resource can leave its scope (a known bug). Do not define instances for types
+ * that hold resources.
  *
  * {{{
  * final case class Report(title: String, rows: Int)
@@ -83,12 +84,12 @@ trait Unscoped[A]
  */
 private[scope] trait UnscopedLowPriority {
   // Nothing - can always escape (never actually returned); kept in a
-  // lower-priority trait than the other instances
+  // lower-priority trait than the instances in `object Unscoped`
   /**
    * Marks `Nothing` as safe to leave a scope. It is declared in a
-   * lower-priority trait than the other instances. A `scoped` block that always
-   * throws still needs its type written out, as in `scoped[Nothing] { ... }` (a
-   * known bug).
+   * lower-priority trait than the instances in `object Unscoped`. A `scoped`
+   * block that always throws still needs its type written out, as in
+   * `scoped[Nothing] { ... }` (a known bug).
    */
   implicit val unscopedNothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
 }
