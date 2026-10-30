@@ -142,9 +142,9 @@ Scope.global.scoped { scope =>
 
 ### Wire.unique[T] — derive a unique wire
 
-Like `Wire.shared[T]`, but creates a fresh instance each time the wire is used. Use for request-scoped or per-call services:
+Like `Wire.shared[T]`, but its resource is unique: each allocation builds a fresh instance. Use for request-scoped or per-call services. A known bug in 0.0.56: `Resource.from` decides sharing from the wire's type. On Scala 3 it treats every explicit wire as shared, so a unique wire gives one instance to every dependent. On Scala 2 it follows the wire's static type, so keep a unique wire typed as `Wire.Unique`, and a shared wire typed as `Wire.Shared`, never as plain `Wire`. The behavior below, where each allocation of `wire.toResource` builds a fresh instance, holds on both versions:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -156,7 +156,7 @@ val wire: Wire.Unique[Any, RequestHandler] = Wire.unique[RequestHandler]
 
 Scope.global.scoped { scope =>
   import scope._
-  val deps = Context.empty[Any]
+  val deps = Context.empty
   val resource = wire.toResource(deps)
 
   val h1 = allocate(resource)
@@ -174,8 +174,9 @@ Scope.global.scoped { scope =>
 
 Creates a shared wire that injects a value you already have. If the value is `AutoCloseable`, its `close()` method is automatically registered as a finalizer:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
+import zio.blocks.context.Context
 
 final case class Config(dbUrl: String)
 
@@ -184,29 +185,32 @@ val wire: Wire.Shared[Any, Config] = Wire(config)
 
 Scope.global.scoped { scope =>
   import scope._
-  val cfg = allocate(wire.toResource(Context.empty[Any]))
+  val cfg = allocate(wire.toResource(Context.empty))
   $(cfg)(_.dbUrl)
 }
 ```
 
 ### Wire.Shared.fromFunction — manual shared wire construction
 
-Use this for custom construction logic when macro derivation doesn't fit:
+Use this for custom construction logic when macro derivation doesn't fit. Unlike `Wire.shared[T]`, `fromFunction` registers no finalizer: if the function returns an `AutoCloseable`, `close()` is not called (a known bug in 0.0.56). Register its cleanup with `scope.defer(client.close())` on the `Scope` the function receives:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
 final case class Config(timeout: Int)
 
-final class Client(config: Config) {
+final class Client(config: Config) extends AutoCloseable {
   def call(): String = s"calling with timeout=${config.timeout}"
+  def close(): Unit  = println("client closed")
 }
 
 val wire: Wire.Shared[Config, Client] =
   Wire.Shared.fromFunction { (scope, ctx) =>
     val config = ctx.get[Config]
-    new Client(config)
+    val client = new Client(config)
+    scope.defer(client.close())
+    client
   }
 
 Scope.global.scoped { scope =>
@@ -220,9 +224,9 @@ Scope.global.scoped { scope =>
 
 ### Wire.Unique.fromFunction — manual unique wire construction
 
-Like `Wire.Shared.fromFunction`, but for unique wires:
+Like `Wire.Shared.fromFunction`, but for unique wires. It registers no finalizer either, so register the cleanup of an `AutoCloseable` result with `scope.defer` inside the function:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -237,7 +241,7 @@ val wire: Wire.Unique[Any, RequestContext] =
 
 Scope.global.scoped { scope =>
   import scope._
-  val deps = Context.empty[Any]
+  val deps = Context.empty
   val resource = wire.toResource(deps)
 
   val r1 = allocate(resource)
@@ -259,6 +263,8 @@ The fundamental difference is **reuse semantics**:
 | **When to use** | Singletons, expensive resources (connections, thread pools) | Request scoped, stateful per-call (request handlers) |
 | **Instance reuse** | Same instance across entire dependency graph | New instance per allocation |
 | **Finalization** | Runs when last referencing scope closes | Runs when each scope closes |
+
+The Instance reuse row describes `Wire#toResource`. Inside `Resource.from` in 0.0.56, Scala 3 shares every wire's instance across the graph (a known bug), and Scala 2 shares only wires whose static type is `Wire.Shared`.
 
 In the diamond pattern (where `App` depends on both `UserService` and `OrderService`, both of which depend on `Database`), a shared wire ensures `Database` is constructed once and both services receive the same instance:
 
@@ -398,7 +404,7 @@ trait Wire.Shared[-In, +Out] {
 
 Here's how to use this method:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -410,7 +416,7 @@ val wire = Wire.shared[Service]
 
 Scope.global.scoped { scope =>
   import scope._
-  val service = wire.asInstanceOf[Wire.Shared[Any, Service]].make(scope, Context.empty[Any])
+  val service = wire.asInstanceOf[Wire.Shared[Any, Service]].make(scope, Context.empty)
   println(service.getName)
 }
 ```
@@ -509,6 +515,8 @@ appResource.use(_.run())
 When `Resource.from` composes wires, it respects the sharing strategy:
 - **Shared wires** → reference-counted (single instance in the graph)
 - **Unique wires** → fresh per allocation
+
+A known bug in 0.0.56: on Scala 3, unique wires are also built once and shared across the graph. Scala 2 follows the wire's static type, so a shared wire stored as a plain `Wire[In, Out]` is built once per dependent.
 
 The macro reports missing dependencies and duplicate providers at compile time. For what each error looks like and how to fix it, see [How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md).
 
