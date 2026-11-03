@@ -35,8 +35,9 @@ import zio.blocks.maybe.Maybe
  *
  * A value that the [[Flag.Reader]] cannot parse throws an
  * `ExceptionInInitializerError` whose cause is a
- * [[FlagException.FlagValueParseException]], so a bad value stops the program
- * at startup; later uses of the object throw `NoClassDefFoundError`.
+ * [[FlagException.FlagValueParseException]] the first time the flag is used.
+ * Later uses throw `NoClassDefFoundError` on the JVM, and the same
+ * `ExceptionInInitializerError` again on Scala.js.
  *
  * {{{
  * object MaxConnections extends StaticFlag[Int](100)

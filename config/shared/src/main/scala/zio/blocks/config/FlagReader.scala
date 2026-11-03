@@ -42,10 +42,12 @@ trait Flag {
   def dump(): String = Flag.dump()
 
   /**
-   * Returns a warning message for each system property or environment variable
-   * that matches `flagName` only in a different letter case, and for each
-   * registered [[FlagSource]] that has a key for `flagName` in another spelling
-   * (other case, or `.` and `_` swapped). The list is empty when none does.
+   * Returns a warning for each system property whose name equals `flagName`
+   * ignoring case but not exactly, for each environment variable whose name
+   * equals the flag's environment name (dots replaced by underscores, upper
+   * case) ignoring case but not exactly, and for each key of a registered
+   * [[FlagSource]] that spells `flagName` in all lower or all upper case, or
+   * with `.` and `_` swapped. The list is empty when none does.
    */
   def nearMissWarnings(flagName: String): List[String] = Flag.nearMissWarnings(flagName)
 
@@ -175,7 +177,8 @@ trait Flag {
      * Parses a comma-separated list: it splits the value on commas, trims each
      * part and parses it with `reader`. An empty value gives an empty `Seq`, an
      * empty part between two commas is parsed like any other part, and the
-     * first part that fails gives the error. A trailing comma adds no element.
+     * first part that fails gives the error. A trailing comma with nothing
+     * after it, not even a space, adds no element.
      */
     implicit def seqReader[A](implicit reader: Scalar[A]): Reader[Seq[A]] =
       Reader(
@@ -384,7 +387,9 @@ object Flag extends Flag {
     case object EnvironmentVariable extends Source
 
     /**
-     * The value came from the registered [[FlagSource]] whose id is `sourceId`.
+     * The value came from a source in [[FlagSource.Registry]]; `sourceId` is
+     * the id in the value's provenance, which for a source built with `orElse`
+     * is the inner source that held the value.
      */
     final case class FlagSourceValue(sourceId: String) extends Source
 

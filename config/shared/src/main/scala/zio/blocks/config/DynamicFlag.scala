@@ -38,7 +38,7 @@ import scala.collection.mutable
  * nothing, a known bug), and `defaultExpression`. An expression that does not
  * parse throws an `ExceptionInInitializerError` whose cause is a
  * [[FlagException.FlagExpressionParseException]]. Values are not checked
- * against the reader until a call matches them.
+ * against the reader until a call matches them, a known bug.
  *
  * Spaces around a `/` in a selector are ignored, so `* / eu / 50%` is the
  * selector `*`, `eu`, `50%`.
@@ -99,7 +99,10 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   def evaluate(key: String, attributes: String*): A =
     evaluateInternal(key, attributes)
 
-  /** The current rollout expression, trimmed. */
+  /**
+   * The current rollout expression. `update` and `reload` store it trimmed; the
+   * initial expression is kept as it was found, a known bug.
+   */
   def expression: String = _snapshot.expression
 
   /**
@@ -108,7 +111,7 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
    * expression when `newExpression` does not parse. An empty or blank
    * expression changes nothing and returns `Right(())`. Values are not checked
    * against the reader, so `maybe` for a `DynamicFlag[Boolean]` is accepted and
-   * every matching call returns the default.
+   * every matching call returns the default, a known bug.
    *
    * {{{
    * object SearchBackend extends DynamicFlag[String]("solr", "solr")

@@ -108,9 +108,10 @@ object Rollout {
   /**
    * Parses `expression`, or returns the first error as a
    * [[ConfigError.InvalidValue]] whose key and source are `rollout`. An empty
-   * expression, an empty choice (as in `a;;b`), a selector that is only a
-   * percentage, and a percentage above 100 are errors. A selector that does not
-   * end in `%` is a path, so `true@x/50` is the two-segment path `x`, `50`.
+   * expression, an empty choice between two `;` (as in `a;;b`; a trailing `;`
+   * is ignored), a selector that is only a percentage, and a percentage above
+   * 100 are errors. A selector that does not end in `%` is a path, so
+   * `true@x/50` is the two-segment path `x`, `50`, a known bug.
    *
    * {{{
    * val parsed = Rollout.parseChoices("v2@canary; v1").map(_.entries.map {
