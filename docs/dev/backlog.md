@@ -632,6 +632,25 @@ Plan and spec in `docs/superpowers/plans/` and `docs/superpowers/specs/` (2026-1
 
 Lesson (also in the skill's `references/lessons.md`): scope's sharing and closing behaviour differs by Scala version and by a wire's static type, so most Important findings needed per-version probes; the first pass had written "Scala 3 only" or "both" from reading alone. The three scope reference-page errors are still open and need a small docs PR.
 
+## 13c. Scaladoc: config family (config, config-hocon, config-json, config-yaml)
+
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-10-30 config Scaladoc). Session `scaladoc-config` (Sonnet controller, Opus subagents), interrupted on 2026-10-30 after Phase 2 by a machine restart and resumed on 2026-11-03 from its saved spec and plan.
+
+| Item | Result |
+|---|---|
+| PR | #1919 (one PR), CI green after one re-run (coverage step failed after all tests passed) |
+| Coverage | 90 / 230 → 230 / 230 (config 79 → 202 / 202, hocon 9 → 22 / 22, json 0 → 2 / 2, yaml 2 → 4 / 4); `EnvSource`/`SysPropSource` jvm/js drift unified, probed on Scala.js 1.22 |
+| Examples | 6 existing `{{{` blocks made to compile (3 used `derives` and failed on 3.9.0; the `DynamicFlag` rollout example could never match a call with attributes; the `Rollout` grammar marked no-check); 28 compiled examples, outputs from real runs on 2.13.18 and 3.9.0 against 0.0.56 |
+| Tooling | the four projects in `scaladocCheckedModules`, one extractor test, the style-guide module list, two AGENTS.md lines (Milad approved) |
+| Tier 1 | `Config`, `ConfigSource`, decoders, `ConfigError`, `Provenance`, `Secret`, flags, `Rollout`, HOCON/JSON/YAML sources (`HoconConfigSource`/`JsonConfigSource` are private, so their text sits on `fromHocon`/`fromFile`/`fromJson`) |
+| Existing comments | 157 checked: 9 false and 47 imprecise (56, 36%), all fixed |
+| Review (Opus, fresh) | 5 Important + 16 Minor; 20 applied (the 21st, an AGENTS.md note, was already covered by the `config*` glob); re-review (Sonnet) 0 findings |
+| Sonnet tier 2 | 84 comments, 1 Important finding (the decoder default/`Option` rule, shared with Task 1 text) |
+| Bugs | 4 library bugs + 1 docs error (see library-issues.md "config:" / "config-hocon:" entries of 2026-11-03 and docs-issues.md `config-source.md`) |
+| Time | about 3 h from resume to green CI (Task 1 65 min, Task 2 19 min, review 12 min, fix round 8 min, CI about 1 h) |
+
+Open question, not filed: a missing sequence or map field decodes to an empty collection instead of a missing-key error. The Scaladoc describes it; it may be intended (candidate usability trap).
+
 **config started 2026-10-30:** session `scaladoc-config` (Sonnet controller, Opus subagents per §13.4), all four config modules. Phase 0: 90 / 230 documented (config 79/202, config-hocon 9/22, config-json 0/2, config-yaml 2/4); 6 existing `{{{` blocks, none compiled; 2 jvm/js drift items (`EnvSource`, `SysPropSource`). Milad's Phase 1 decisions: one PR for all four modules; tier 1 = `Config`, `ConfigSource`, `ConfigDecoder`/`ConfigDecoderDeriver`, `ConfigError`, `Provenance`/`ProvenanceMap`, `Secret`, `DynamicFlag`, `StaticFlag`, `FlagSource`, `Rollout`, `HoconConfigSource`, `JsonConfigSource`, `YamlConfigSource`; flag examples compile-only with distinct names; the AGENTS.md edit approved.
 
 **scope started 2026-10-30:** session `scaladoc-scope` (Sonnet controller, Opus subagents for tier 1, the existing-comment fact-check and the review, per §13.4). Phase 0: 125 / 223 (56%); 12 members differ between the scala-2 and scala-3 copies; 23 `{{{` blocks (inside 18 `@example` tags), none compiled; scope has its own `scope/AGENTS.md` example-style rules. Milad's Phase 1 decisions: tier 1 = `Scope`, `Resource`, `Wire`, `Finalizer`, `Unscoped`, `Finalization`, `DeferHandle`; one PR (tooling + wave); macros tier 3 one-liners; the `@example` tags are dropped and the plain `{{{` blocks kept; the AGENTS.md edit (lines 113 and 178) approved. **PR #1916** (2026-10-30): 125 / 223 → 223 / 223, 32 compiled examples, no drift; fact-check of 189 existing comments found 26 false and 32 imprecise (about 14% wrong), all fixed; Opus review 5 Important + 9 Minor fixed; Sonnet re-review approve with 3 Minor applied. 2 new library bugs and 6 additions to existing `scope:` entries recorded.

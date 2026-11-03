@@ -16,6 +16,43 @@ Contents:
 
 Pages that contradict the source. None of these were copied into the new guides.
 
+### `config-source.md` gives the wrong reason why `SysPropSource` is empty on Scala.js
+
+Found 2026-11-03 while unifying the JVM and Scala.js Scaladoc of `SysPropSource` (config Scaladoc rollout, task 1), on `scaladoc-config` at `593c7f344`. Same at tag `v0.0.56`. Verified by running on Scala.js 1.22.0 under Node.js.
+
+**Summary.** The "Scala.js behavior" note in `docs/reference/config/config-source.md:76-78` says "`SysPropSource` always returns empty results, since JS has no system properties." The first half is true; the reason is not. Scala.js emulates `java.lang.System.setProperty` and `getProperty`, and `SysPropSource` ignores them: it is hard-coded to return nothing on Scala.js. A reader who sets a property with `System.setProperty` would reasonably expect the source to see it.
+
+**Reproduction** (`SysProp.scala`, run with `scala-cli run --server=false --js-cli-on-jvm SysProp.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using platform scala-js
+//> using jsVersion 1.22.0
+//> using dep dev.zio::zio-blocks-config::0.0.56
+
+import zio.blocks.config._
+
+object SysProp {
+  def main(args: Array[String]): Unit = {
+    System.setProperty("app.port", "9090")
+    println(System.getProperty("app.port"))
+    println(SysPropSource.get("app.port").toOption)
+  }
+}
+// 9090
+// None
+```
+
+**Expected.** "`SysPropSource` always returns empty results on Scala.js, even for properties set with `System.setProperty`."
+
+**Root cause.** `config/js/src/main/scala/zio/blocks/config/PlatformConfigSource.scala:85-87` returns `Maybe.absent` and `Map.empty` unconditionally. The Scaladoc of the JS copy carried the same false reason and is corrected in the config Scaladoc PR.
+
+Flags read `System.getProperty` and do see such properties on Scala.js (a `StaticFlag` resolves from one, source `SystemProperty`); only `SysPropSource` ignores them.
+
+**Impact.** Small: a wrong explanation, but it hides the fact that the emulated properties are not read.
+
+**Suggested fix.** Replace the sentence with the expected text above. (If the library should read the emulated properties instead, that is a one-line change to the JS `SysPropSource`.)
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
