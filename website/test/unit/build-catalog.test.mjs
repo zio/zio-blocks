@@ -37,5 +37,15 @@ test('build writes site.json with the version substituted and copies brand asset
   assert.equal(names.includes('Configuration'), true);
   assert.equal(names.some((n) => /Feature Flags/.test(n)), false);
   assert.equal(JSON.stringify(site).includes('@VERSION@'), false);
+  // The /reference/ directory keeps the docs headings, folds the codecs into Schema and the same-artifact rows into Scope.
+  const ref = Object.fromEntries(site.reference.map((g) => [g.name, g.blocks]));
+  assert.ok('Configuration & Feature Flags' in ref && 'Streams' in ref);
+  const schema = ref['Meta Programming'].find((x) => x.name === 'Schema');
+  assert.deepEqual(ref['Meta Programming'].map((x) => x.name), ['Schema', 'TypeId']);
+  assert.equal(schema.related.length, 8);
+  assert.ok(schema.related.every((r) => / Codec$/.test(r.name)));
+  assert.deepEqual(ref['Resource Management'].map((x) => x.name), ['Scope']);
+  assert.deepEqual(ref['Dependency Injection'].map((x) => x.name), ['Wire', 'Context']);
+  assert.deepEqual(ref['Configuration & Feature Flags'][0].related.map((r) => r.name), ['Config YAML', 'Config JSON', 'Config HOCON']);
   for (const file of BRAND_ASSETS) assert.ok(existsSync(join(out, 'static/brand', file)), file);
 });
