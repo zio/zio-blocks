@@ -59,6 +59,10 @@ import scala.util.control.NoStackTrace
  *   [[https://zioblocks.com/reference/config/errors/ Errors]]
  */
 sealed trait ConfigError extends NoStackTrace {
+
+  /**
+   * The text of this error, which is also its `getMessage`.
+   */
   def message: String
   override def getMessage: String = message
 }
@@ -101,6 +105,12 @@ object ConfigError {
    *   the names of the sealed trait's cases, sorted
    */
   case class UnknownDiscriminator(path: String, found: String, expected: Seq[String]) extends ConfigDerivationError {
+
+    /**
+     * Returns
+     * `Unknown discriminator value 'found' at 'path'; expected one of: ...`,
+     * with the expected names separated by commas.
+     */
     def message: String =
       s"Unknown discriminator value '$found' at '$path'; expected one of: ${expected.mkString(", ")}"
   }
@@ -115,6 +125,10 @@ object ConfigError {
    *   the discriminator key that was looked up under `path`
    */
   case class MissingDiscriminatorKey(path: String, key: String) extends ConfigDerivationError {
+
+    /**
+     * Returns `Missing discriminator key 'key' at 'path'`.
+     */
     def message: String = s"Missing discriminator key '$key' at '$path'"
   }
 
@@ -129,6 +143,10 @@ object ConfigError {
    *   `orElse`, the combined id such as `env|defaults`
    */
   case class MissingKey(path: String, source: String) extends ConfigSourceError {
+
+    /**
+     * Returns `Missing required key 'path' in source 'source'`.
+     */
     def message: String = s"Missing required key '$path' in source '$source'"
   }
 
@@ -159,6 +177,13 @@ object ConfigError {
     source: String,
     cause: Option[Throwable] = None
   ) extends ConfigParseError {
+
+    /**
+     * Returns
+     * `Invalid value 'value' for key 'path' (expected type) in source 'source'`,
+     * followed by `: ` and the cause's message when there is a cause. For a
+     * sensitive `path` the value is `<secret>` and the cause is left out.
+     */
     def message: String = {
       val isSensitive = Sensitive.isSensitive(path)
       val display     = if (isSensitive) "<secret>" else value
@@ -182,6 +207,11 @@ object ConfigError {
    *   identifiers of all sources that defined the key
    */
   case class DuplicateKey(path: String, sources: Seq[String]) extends ConfigSourceError {
+
+    /**
+     * Returns `Duplicate key 'path' found in conflicting sources: ...`, with
+     * the source ids separated by commas.
+     */
     def message: String = s"Duplicate key '$path' found in conflicting sources: ${sources.mkString(", ")}"
   }
 
@@ -194,6 +224,10 @@ object ConfigError {
    *   non-empty list of individual errors
    */
   case class Composite(errors: ::[ConfigError]) extends ConfigError {
+
+    /**
+     * Returns the messages of `errors`, one per line.
+     */
     def message: String = {
       val lines = errors.toList.map(e => e.message)
       lines.mkString("\n")
@@ -210,6 +244,10 @@ object ConfigError {
    *   identifier of the source that denied access
    */
   case class Unauthorized(path: String, source: String) extends ConfigSourceError {
+
+    /**
+     * Returns `Unauthorized access to key 'path' in source 'source'`.
+     */
     def message: String = s"Unauthorized access to key '$path' in source '$source'"
   }
 
@@ -239,6 +277,12 @@ object ConfigError {
     expectedType: String,
     cause: Option[Throwable] = None
   ) extends ConfigParseError {
+
+    /**
+     * Returns `Parse error for key 'path' (expected type) in source 'source'`,
+     * followed by `: ` and the cause's message when `path` is not empty and
+     * there is a cause.
+     */
     def message: String = {
       val base = s"Parse error for key '$path' (expected $expectedType) in source '$source'"
       if (path.isEmpty) base

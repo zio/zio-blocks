@@ -421,12 +421,46 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[ConfigDecoder[A]]]
 
+  /**
+   * Placeholder for the element type of a sequence, used only to type the casts
+   * inside the derivation.
+   */
   type Elem
+
+  /**
+   * Placeholder for the key type of a map, used only to type the casts inside
+   * the derivation.
+   */
   type Key
+
+  /**
+   * Placeholder for the value type of a map, used only to type the casts inside
+   * the derivation.
+   */
   type Value
+
+  /**
+   * Placeholder for the wrapped type of a wrapper, used only to type the casts
+   * inside the derivation.
+   */
   type Wrapped
+
+  /**
+   * Placeholder for a sequence type, used only to type the casts inside the
+   * derivation.
+   */
   type Col[_]
+
+  /**
+   * Placeholder for a map type, used only to type the casts inside the
+   * derivation.
+   */
   type Map[_, _]
+
+  /**
+   * Placeholder for the type class, used only to type the casts inside the
+   * derivation.
+   */
   type TC[_]
 
   private def getDefaultValue[F[_, _], A](reflect: Reflect[F, A]): Option[Any] =

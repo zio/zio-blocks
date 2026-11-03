@@ -32,6 +32,9 @@ trait KeyMapper {
   def fromCanonical(key: String, target: KeyFormat): String
 }
 
+/**
+ * Instances of [[KeyMapper]].
+ */
 object KeyMapper {
 
   /**

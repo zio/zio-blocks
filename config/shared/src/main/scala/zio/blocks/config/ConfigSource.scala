@@ -204,9 +204,17 @@ object ConfigSource {
    */
   final case class MapSource(map: Map[String, String], sourceId: String = "map") extends ConfigSource {
 
+    /**
+     * Returns the value stored under exactly `key`, with provenance naming
+     * `sourceId`, `key` and the raw value, or `Maybe.absent`.
+     */
     def get(key: String): Maybe[SourceValue[String]] =
       Maybe.fromOption(map.get(key).map(v => SourceValue(v, Provenance.Resolved(sourceId, key, Maybe.present(v)))))
 
+    /**
+     * Returns the entries whose key is `prefix` or starts with `prefix`
+     * followed by a dot; an empty `prefix` returns every entry.
+     */
     def all(prefix: String): Map[String, SourceValue[String]] = {
       val dotPrefix = if (prefix.isEmpty) "" else s"$prefix."
       map.collect {

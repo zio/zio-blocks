@@ -55,6 +55,10 @@ trait ConfigDecoder[A] {
   def decode(source: ConfigSource, prefix: String): Either[::[ConfigError], A]
 }
 
+/**
+ * Entry points for [[ConfigDecoder]]: `apply` finds an implicit decoder and
+ * `derive` builds one from a schema.
+ */
 object ConfigDecoder {
 
   /** Returns the implicit `ConfigDecoder[A]` in scope. */
