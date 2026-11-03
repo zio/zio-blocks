@@ -22,7 +22,8 @@ test('the docs sidebar has a hide button', () => {
 test('no category in the reference or guides sidebar starts open or is locked open', () => {
   assert.ok(foldable.length > 0);
   for (const c of foldable) {
-    assert.notEqual(c.collapsed, false, c.label);
+    // A category with no `collapsed` key starts closed by Docusaurus' default.
+    assert.equal(c.collapsed ?? true, true, c.label);
     assert.notEqual(c.collapsible, false, c.label);
   }
 });
