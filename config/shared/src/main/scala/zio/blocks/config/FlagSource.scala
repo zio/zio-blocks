@@ -79,6 +79,9 @@ trait FlagSource {
   }
 }
 
+/**
+ * Holds [[FlagSource.Registry]], the global list of flag sources.
+ */
 object FlagSource {
 
   /**

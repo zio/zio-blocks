@@ -245,6 +245,10 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   DynamicFlag.register(this)
 }
 
+/**
+ * Companion of [[DynamicFlag]]. It holds [[DynamicFlag.UpdateRecord]], the
+ * record of one change.
+ */
 object DynamicFlag {
 
   /**

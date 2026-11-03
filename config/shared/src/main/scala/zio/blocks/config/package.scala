@@ -17,5 +17,10 @@
 package zio.blocks
 
 package object config {
+
+  /**
+   * Lets a flag of type [[Secret]] show as `<secret>` in `Flag.dump`. It is
+   * [[Secret.displayable]].
+   */
   implicit val secretDisplayable: Displayable[Secret] = Secret.displayable
 }

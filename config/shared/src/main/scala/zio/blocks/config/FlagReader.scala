@@ -31,10 +31,30 @@ trait Flag {
    */
   def registry: ConcurrentHashMap[String, Any] = Flag.registry
 
+  /**
+   * Returns a table of every registered flag, sorted by name, with the columns
+   * Name, Type, Value and Source, or `(no flags registered)` when there is
+   * none. For a [[StaticFlag]], Type is the flag's `Flag.Source`, Value is
+   * `displayValue` and Source is the id of its provenance. For a
+   * [[DynamicFlag]], Type is `DynamicFlag`, Value is its expression and Source
+   * is `dynamic`. A flag object appears once it has initialized.
+   */
   def dump(): String = Flag.dump()
 
+  /**
+   * Returns a warning message for each system property or environment variable
+   * that matches `flagName` only in a different letter case, and for each
+   * registered [[FlagSource]] that has a key for `flagName` in another spelling
+   * (other case, or `.` and `_` swapped). The list is empty when none does.
+   */
   def nearMissWarnings(flagName: String): List[String] = Flag.nearMissWarnings(flagName)
 
+  /**
+   * Parses the string value of a flag into an `A`. A [[StaticFlag]] and a
+   * [[DynamicFlag]] need an implicit one; the `Flag.Reader` companion provides
+   * readers for `Int`, `Long`, `Double`, `Boolean`, `String`, `Secret`,
+   * `FiniteDuration` and, for a `Flag.Reader.Scalar` element, `Seq`.
+   */
   trait Reader[A] {
 
     /**
@@ -55,6 +75,9 @@ trait Flag {
     def typeName: String
   }
 
+  /**
+   * Constructors and instances for `Flag.Reader`.
+   */
   object Reader {
 
     /**
@@ -64,36 +87,59 @@ trait Flag {
      */
     trait Scalar[A] extends Reader[A]
 
+    /**
+     * Returns a reader that parses with `parseFunc`, which receives the flag
+     * name and the raw value, and names its type `typeNameStr` in error
+     * messages.
+     */
     def apply[A](parseFunc: (String, String) => Either[ConfigError, A], typeNameStr: String): Reader[A] =
       new Reader[A] {
         def parse(flagName: String, raw: String): Either[ConfigError, A] = parseFunc(flagName, raw)
         def typeName: String                                             = typeNameStr
       }
 
+    /**
+     * Like `apply`, but returns a `Flag.Reader.Scalar`, so that `seqReader` can
+     * use it for the elements of a `Seq`.
+     */
     def scalar[A](parseFunc: (String, String) => Either[ConfigError, A], typeNameStr: String): Scalar[A] =
       new Scalar[A] {
         def parse(flagName: String, raw: String): Either[ConfigError, A] = parseFunc(flagName, raw)
         def typeName: String                                             = typeNameStr
       }
 
+    /**
+     * Parses an `Int` with `String#toInt`, so the value is not trimmed.
+     */
     implicit val intReader: Scalar[Int] = scalar(
       (flagName, raw) =>
         Try(raw.toInt).toEither.left.map(e => ConfigError.InvalidValue(flagName, raw, "Int", "flag", Some(e))),
       "Int"
     )
 
+    /**
+     * Parses a `Long` with `String#toLong`, so the value is not trimmed.
+     */
     implicit val longReader: Scalar[Long] = scalar(
       (flagName, raw) =>
         Try(raw.toLong).toEither.left.map(e => ConfigError.InvalidValue(flagName, raw, "Long", "flag", Some(e))),
       "Long"
     )
 
+    /**
+     * Parses a `Double` with `String#toDouble`.
+     */
     implicit val doubleReader: Scalar[Double] = scalar(
       (flagName, raw) =>
         Try(raw.toDouble).toEither.left.map(e => ConfigError.InvalidValue(flagName, raw, "Double", "flag", Some(e))),
       "Double"
     )
 
+    /**
+     * Parses a `Boolean`: `true`, `1`, `yes` and `on` are true, and `false`,
+     * `0`, `no` and `off` are false, in any letter case. Any other value,
+     * including one with surrounding spaces, is an error.
+     */
     implicit val booleanReader: Scalar[Boolean] = scalar(
       (flagName, raw) => {
         val lower = raw.toLowerCase
@@ -105,11 +151,18 @@ trait Flag {
       "Boolean"
     )
 
+    /**
+     * Returns the raw value unchanged.
+     */
     implicit val stringReader: Scalar[String] = scalar(
       (_, raw) => Right(raw),
       "String"
     )
 
+    /**
+     * Wraps the raw value in a [[Secret]]. It is not a `Flag.Reader.Scalar`, so
+     * there is no `Seq[Secret]` reader.
+     */
     implicit val secretReader: Reader[Secret] =
       new Reader[Secret] {
         def parse(flagName: String, raw: String): Either[ConfigError, Secret] =
@@ -118,6 +171,12 @@ trait Flag {
         def typeName: String = "Secret"
       }
 
+    /**
+     * Parses a comma-separated list: it splits the value on commas, trims each
+     * part and parses it with `reader`. An empty value gives an empty `Seq`, an
+     * empty part between two commas is parsed like any other part, and the
+     * first part that fails gives the error. A trailing comma adds no element.
+     */
     implicit def seqReader[A](implicit reader: Scalar[A]): Reader[Seq[A]] =
       Reader(
         (flagName, raw) => {
@@ -133,6 +192,13 @@ trait Flag {
         s"Seq[${reader.typeName}]"
       )
 
+    /**
+     * Parses a duration written as digits followed by a unit: `ms`, `millis` or
+     * `milliseconds`; `s`, `sec`, `secs` or `seconds`; `m`, `min`, `mins` or
+     * `minutes`; `h`, `hour` or `hours`; `d`, `day` or `days`. The unit is
+     * case-insensitive, and no space or fraction is allowed, so `10s` parses
+     * and `10 s` and `1.5s` do not.
+     */
     implicit val durationReader: Scalar[FiniteDuration] = scalar(
       (flagName, raw) => {
         val pattern = """^(\d+)([a-zA-Z]+)$""".r
@@ -161,6 +227,10 @@ trait Flag {
   }
 }
 
+/**
+ * The global [[Flag]]: its `registry`, `dump` and `nearMissWarnings`, and the
+ * `Flag.Reader`, `Flag.Source` and `Flag.ReloadResult` types.
+ */
 object Flag extends Flag {
 
   /**
@@ -297,11 +367,31 @@ object Flag extends Flag {
    */
   sealed trait Source
 
+  /**
+   * The `Flag.Source` cases.
+   */
   object Source {
-    case object SystemProperty                         extends Source
-    case object EnvironmentVariable                    extends Source
+
+    /**
+     * The value came from the system property with the flag's name.
+     */
+    case object SystemProperty extends Source
+
+    /**
+     * The value came from the environment variable named like the flag, with
+     * each dot replaced by an underscore and in upper case.
+     */
+    case object EnvironmentVariable extends Source
+
+    /**
+     * The value came from the registered [[FlagSource]] whose id is `sourceId`.
+     */
     final case class FlagSourceValue(sourceId: String) extends Source
-    case object Default                                extends Source
+
+    /**
+     * No source had a value, so the flag kept its default.
+     */
+    case object Default extends Source
   }
 
   /**
@@ -310,10 +400,30 @@ object Flag extends Flag {
    */
   sealed trait ReloadResult
 
+  /**
+   * The `Flag.ReloadResult` cases.
+   */
   object ReloadResult {
-    case object Unchanged                                                  extends ReloadResult
+
+    /**
+     * The source's expression, trimmed, equals the current one.
+     */
+    case object Unchanged extends ReloadResult
+
+    /**
+     * The flag now uses `newExpression`, which replaced `oldExpression`.
+     */
     final case class Updated(oldExpression: String, newExpression: String) extends ReloadResult
-    case object NoSource                                                   extends ReloadResult
-    final case class Failed(error: ConfigError)                            extends ReloadResult
+
+    /**
+     * No registered [[FlagSource]] has a value for the flag's name.
+     */
+    case object NoSource extends ReloadResult
+
+    /**
+     * The source's expression did not parse, so the flag keeps its current one;
+     * `error` says why.
+     */
+    final case class Failed(error: ConfigError) extends ReloadResult
   }
 }

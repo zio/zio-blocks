@@ -88,6 +88,11 @@ abstract class StaticFlag[A](default: A)(implicit reader: Flag.Reader[A], displa
   StaticFlag.register(this)
 }
 
+/**
+ * Companion of [[StaticFlag]]. A flag takes its value from the first registered
+ * [[FlagSource]] that has it, then from the system property, then from the
+ * environment variable, and keeps its default when none has it.
+ */
 object StaticFlag {
 
   private[config] def deriveName(clazz: Class[_]): String = {

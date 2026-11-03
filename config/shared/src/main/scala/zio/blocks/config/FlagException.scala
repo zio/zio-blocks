@@ -38,6 +38,9 @@ sealed abstract class FlagException extends Exception with NoStackTrace {
   override def getMessage: String
 }
 
+/**
+ * The [[FlagException]] cases.
+ */
 object FlagException {
 
   /**

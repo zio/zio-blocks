@@ -68,6 +68,11 @@ object Provenance {
    * provenance at all.
    */
   case object Default extends Provenance {
+
+    /**
+     * The id `schema-default`, which the Source column of `Flag.dump` shows for
+     * a flag that kept its default.
+     */
     val sourceId: String = "schema-default"
   }
 }
