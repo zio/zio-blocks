@@ -17,7 +17,9 @@
 package zio.blocks.config.hocon
 
 /**
- * A parse error with position information.
+ * A HOCON error. `line` and `column` give the position of a syntax error; they
+ * are 0 for an error found while resolving substitutions and for a file that
+ * cannot be read.
  */
 final case class HoconError(message: String, line: Int, column: Int)
     extends Exception(s"$message (line $line, column $column)")

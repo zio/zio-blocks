@@ -34,8 +34,10 @@ object HoconParser {
    * Parse a HOCON string and return the resolved AST.
    *
    * @param includeCallback
-   *   Optional callback for `include "file"` directives. Returns the contents
-   *   of the included resource as a string. Default: no includes supported.
+   *   returns the text of the resource named in an `include "file"` directive,
+   *   or `None` to skip the include without an error. The default skips every
+   *   include. Includes inside text the callback returns are skipped, a known
+   *   bug.
    */
   def parse(
     input: String,
@@ -269,8 +271,8 @@ object HoconParser {
         if (ch == '}') error("Unexpected '}' in array, expected ']'")
         if (ch == ',') error("Unexpected ',' in array")
         val before = pos
-        // Use single-value parsing to avoid concatenating whitespace-separated tokens
-        // into a single element; array elements are delimited by ',' or newline.
+        // Parse one value per element, so `["a" "b"]` has two elements rather than
+        // one concatenated string; unquoted text runs up to ',', ']' or a newline.
         val value = parseSingleValue(includeResolver)
         if (pos == before) error("Failed to parse array element")
         buf += value
@@ -471,8 +473,8 @@ object HoconParser {
   }
 
   /**
-   * Build a HoconValue from the raw AST, performing object merging and += array
-   * appends, but leaving substitutions as sentinel Subst nodes.
+   * The tree after object merging and `+=` appends, before substitutions are
+   * resolved: `MSubst` nodes are the substitutions still to resolve.
    */
   private sealed trait MergedValue
   private case class MObj(fields: Map[String, MergedValue])  extends MergedValue
@@ -508,7 +510,8 @@ object HoconParser {
   }
 
   private def splitKeyPath(key: String): Seq[String] = {
-    // Split on unquoted dots. Quoted keys preserve dots inside.
+    // Split on dots outside quotes, as in a."b.c". A fully quoted key arrives here
+    // without its quotes, so "a.b" is split too.
     val parts = new scala.collection.mutable.ArrayBuffer[String]()
     val sb    = new java.lang.StringBuilder()
     var i     = 0

@@ -19,7 +19,9 @@ package zio.blocks.config.hocon
 import zio.blocks.config.{ConfigError, ConfigSource}
 
 /**
- * Create a `ConfigSource` from HOCON text using the built-in `HoconParser`.
+ * Builds a `ConfigSource` from HOCON text with [[HoconParser]]; the public
+ * entry points are `ConfigSource.fromHocon` and, on the JVM,
+ * `ConfigSource.fromFile`.
  */
 private[hocon] object HoconConfigSource {
 
