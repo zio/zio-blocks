@@ -1,0 +1,21 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-11-03T09:10:00Z" },
+  "title": "Reference page design",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 240, "w": 1280, "h": 2100, "title": "A · Directory · light", "expand": "fill", "is_interactive": true },
+    "A-Dark.dc.html": { "x": 1360, "y": 240, "w": 1280, "h": 2100, "title": "A · Directory · dark", "expand": "fill", "is_interactive": true },
+    "A-Phone.dc.html": { "x": 2720, "y": 240, "w": 390, "h": 6800, "title": "A · Directory · phone", "expand": "fill", "is_interactive": true },
+    "B-Cards.dc.html": { "x": 0, "y": 7500, "w": 1280, "h": 1900, "title": "B · Cards · light", "expand": "fill", "is_interactive": true },
+    "B-Dark.dc.html": { "x": 1360, "y": 7500, "w": 1280, "h": 1900, "title": "B · Cards · dark", "expand": "fill", "is_interactive": true },
+    "B-Phone.dc.html": { "x": 2720, "y": 7500, "w": 390, "h": 3600, "title": "B · Cards · phone", "expand": "fill", "is_interactive": true }
+  },
+  "order": ["Main.dc.html", "A-Dark.dc.html", "A-Phone.dc.html", "B-Cards.dc.html", "B-Dark.dc.html", "B-Phone.dc.html"],
+  "notes": {
+    "titleA": { "x": 0, "y": 0, "text": "A · Dense directory: every block visible, filter box, jump links", "kind": "title1", "maxW": 3110 },
+    "titleB": { "x": 0, "y": 7260, "text": "B · Card grid: today's group cards, blocks inside, Start here row", "kind": "title1", "maxW": 3110 }
+  },
+  "designSystems": []
+}
