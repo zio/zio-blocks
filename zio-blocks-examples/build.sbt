@@ -47,7 +47,7 @@ lazy val effectIntegration = (project in file("effect-integration"))
       zioBlocks("streams").value,
       zioBlocks("async").value,
       zioBlocks("scope").value,
-      "org.xerial"     % "sqlite-jdbc" % "3.53.4.0",
+      "org.xerial"     % "sqlite-jdbc" % "3.54.1.0",
       "dev.zio"       %% "zio"         % "2.1.27",
       "dev.zio"       %% "zio-streams" % "2.1.27",
       "org.typelevel" %% "cats-effect" % "3.7.1",
@@ -75,7 +75,7 @@ lazy val ironRefinedTypes = (project in file("iron-refined-types"))
     commonSettings,
     name := "iron-refined-types",
     libraryDependencies ++= Seq(
-      "dev.zio"            %% "zio-blocks-next-schema" % zioBlocksVersion,
+      "dev.zio"             %% "zio-blocks-next-schema" % zioBlocksVersion,
       ("io.github.iltotore" %% "iron-zio-blocks-schema" % "3.4.1").exclude("dev.zio", "zio-blocks-schema_3")
     )
   )
