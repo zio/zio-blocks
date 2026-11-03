@@ -19,20 +19,43 @@ package zio.blocks.config
 import zio.blocks.maybe.Maybe
 
 /**
- * A flag whose value is resolved exactly once at class-load time and never
- * changes.
+ * A flag whose value is read once, when its object initializes (the first time
+ * the program uses it), and never changes. Extend it with a Scala `object`; the
+ * flag's name is the object's fully qualified name, such as
+ * `com.example.Limits.MaxConnections`.
  *
- * Intended to be extended by Scala `object` definitions:
+ * The value comes from the first of these that has one:
+ *   1. [[FlagSource.Registry]], under the flag's name;
+ *   1. the system property with the flag's name;
+ *   1. the environment variable named like the flag, with dots replaced by
+ *      underscores and in upper case (`COM_EXAMPLE_LIMITS_MAXCONNECTIONS`). On
+ *      Scala.js this step finds nothing, because `System.getenv` returns `null`
+ *      there, a known bug;
+ *   1. the constructor's `default`.
+ *
+ * A value that the [[Flag.Reader]] cannot parse throws an
+ * `ExceptionInInitializerError` whose cause is a
+ * [[FlagException.FlagValueParseException]], so a bad value stops the program
+ * at startup; later uses of the object throw `NoClassDefFoundError`.
+ *
  * {{{
- *   object MyFlag extends StaticFlag[Int](42)
+ * object MaxConnections extends StaticFlag[Int](100)
+ *
+ * val limit = MaxConnections()
+ * // 100
+ * val from  = MaxConnections.source
+ * // Default
  * }}}
  *
- * Resolution order: FlagSource registry → system property → environment
- * variable → default. Throws at class load on parse/validation failure
- * (fail-fast).
+ * @see
+ *   [[https://zioblocks.com/reference/config/flags/ Flags]]
  */
 abstract class StaticFlag[A](default: A)(implicit reader: Flag.Reader[A], displayable: Displayable[A]) {
 
+  /**
+   * The flag's name: the object's fully qualified class name without the
+   * trailing `$`, with each inner `$` replaced by a dot.
+   */
   val name: String = StaticFlag.deriveName(getClass)
 
   private val envName: String = name.replace('.', '_').toUpperCase
@@ -40,11 +63,26 @@ abstract class StaticFlag[A](default: A)(implicit reader: Flag.Reader[A], displa
   private val resolved: (A, Flag.Source, Provenance) =
     StaticFlag.resolve(name, envName, default, reader)
 
-  val value: A               = resolved._1
-  val source: Flag.Source    = resolved._2
-  val provenance: Provenance = resolved._3
-  val displayValue: String   = displayable.display(value)
+  /** The flag's value, read once at initialization. */
+  val value: A = resolved._1
 
+  /** Which step of the lookup supplied `value`. */
+  val source: Flag.Source = resolved._2
+
+  /**
+   * Where `value` came from: [[Provenance.Default]] for the constructor
+   * default, otherwise a [[Provenance.Resolved]] with the source id, key and
+   * raw string.
+   */
+  val provenance: Provenance = resolved._3
+
+  /**
+   * `value` rendered by the flag's [[Displayable]], as `Flag.dump` shows it:
+   * `<secret>` for a [[Secret]], `toString` for most other types.
+   */
+  val displayValue: String = displayable.display(value)
+
+  /** Returns `value`. */
   def apply(): A = value
 
   StaticFlag.register(this)

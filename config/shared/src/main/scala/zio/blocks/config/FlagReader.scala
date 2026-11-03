@@ -58,8 +58,9 @@ trait Flag {
   object Reader {
 
     /**
-     * Marker subclass for scalar types (types whose string representation
-     * contains no commas). Used to enable comma-separated list parsing.
+     * A reader whose values `seqReader` may split on commas: `seqReader`
+     * requires one. A value that itself contains a comma, such as a `String`
+     * with a comma, cannot be an element of such a sequence.
      */
     trait Scalar[A] extends Reader[A]
 
@@ -304,7 +305,8 @@ object Flag extends Flag {
   }
 
   /**
-   * Result of reloading a dynamic flag's expression from its FlagSource.
+   * Result of [[DynamicFlag#reload]], which reads the flag's expression from
+   * [[FlagSource.Registry]].
    */
   sealed trait ReloadResult
 
