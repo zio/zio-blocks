@@ -158,6 +158,23 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(scopePath, 12) == "Snippet_scope_shared_scala_3_ScopeVersionSpecific_L12"
       )
     },
+    test("moduleImport and objectName give config-family examples their own module import") {
+      val configPath = "config/jvm/src/main/scala/zio/blocks/config/PlatformConfigSource.scala"
+      val hoconPath  = "config-hocon/jvm/src/main/scala/zio/blocks/config/hocon/ConfigSourceHoconPlatformSyntax.scala"
+      val jsonPath   = "config-json/shared/src/main/scala/zio/blocks/config/json/package.scala"
+      val yamlPath   = "config-yaml/shared/src/main/scala/zio/blocks/config/yaml/YamlConfigSource.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(configPath) == "zio.blocks.config._",
+        ScaladocSnippets.objectName(configPath, 12) == "Snippet_config_jvm_scala_PlatformConfigSource_L12",
+        ScaladocSnippets.moduleImport(hoconPath) == "zio.blocks.config.hocon._",
+        ScaladocSnippets
+          .objectName(hoconPath, 7) == "Snippet_config_hocon_jvm_scala_ConfigSourceHoconPlatformSyntax_L7",
+        ScaladocSnippets.moduleImport(jsonPath) == "zio.blocks.config.json._",
+        ScaladocSnippets.objectName(jsonPath, 5) == "Snippet_config_json_shared_scala_package_L5",
+        ScaladocSnippets.moduleImport(yamlPath) == "zio.blocks.config.yaml._",
+        ScaladocSnippets.objectName(yamlPath, 9) == "Snippet_config_yaml_shared_scala_YamlConfigSource_L9"
+      )
+    },
     test("moduleImport follows the module directory") {
       assertTrue(
         ScaladocSnippets.moduleImport("schema/shared/src/main/scala/zio/blocks/schema/Schema.scala") ==
