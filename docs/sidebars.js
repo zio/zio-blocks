@@ -1,3 +1,6 @@
+// Every category except the Getting Started tour folds: `collapsed: true` starts it closed (the category holding the page
+// being read still opens), and the sidebar's hide button (docusaurus.config.js, themeConfig.docs.sidebar.hideable) hides
+// the whole sidebar. website/test/unit/sidebar-collapsible.test.mjs fails if a category starts open.
 const sidebars = {
   // Getting Started has its own sidebar, reached from the "Getting Started" navbar item: the overview page, then the short
   // tour for newcomers in reading order. website/test/unit/getting-started-sidebar.test.mjs fails if a page under
@@ -45,7 +48,7 @@ const sidebars = {
                  {
                    type: "category",
                    label: "Core Type System",
-                   collapsed: false,
+                   collapsed: true,
                    items: [
                      "reference/schema/schema",
                      "reference/schema/reflect",
@@ -60,7 +63,7 @@ const sidebars = {
                  {
                    type: "category",
                    label: "Dynamic Values",
-                   collapsed: false,
+                   collapsed: true,
                    items: [
                      "reference/schema/dynamic-value",
                      "reference/schema/dynamic-schema",
@@ -69,7 +72,7 @@ const sidebars = {
                  {
                    type: "category",
                    label: "Reflective Optics",
-                   collapsed: false,
+                   collapsed: true,
                    items: [
                      "reference/schema/optics",
                      "reference/schema/dynamic-optic",
@@ -82,7 +85,7 @@ const sidebars = {
                  {
                    type: "category",
                    label: "Serialization",
-                   collapsed: false,
+                   collapsed: true,
                    items: [
                      "reference/schema/type-class-derivation",
                      "reference/schema/codec",
@@ -94,13 +97,13 @@ const sidebars = {
                    type: "category",
                    label: "Built-in Formats and Codecs",
                    link: { type: "doc", id: "reference/schema/built-in-codecs/index" },
-                   collapsed: false,
+                   collapsed: true,
                    items: [
                      {
                        type: "category",
                        label: "JSON Codec",
                        link: { type: "doc", id: "reference/schema/built-in-codecs/json/index" },
-                       collapsed: false,
+                       collapsed: true,
                        items: [
                          "reference/schema/built-in-codecs/json/json",
                          "reference/schema/built-in-codecs/json/json-config",
@@ -123,7 +126,7 @@ const sidebars = {
                  {
                    type: "category",
                    label: "Validation & Errors",
-                   collapsed: false,
+                   collapsed: true,
                    items: [
                      "reference/schema/validation",
                      "reference/schema/schema-error",
@@ -281,7 +284,7 @@ const sidebars = {
               {
                 type: "category",
                 label: "Core Types",
-                collapsed: false,
+                collapsed: true,
                 link: { type: "doc", id: "reference/streams/core/index" },
                 items: [
                   "reference/streams/core/stream",
@@ -292,7 +295,7 @@ const sidebars = {
               {
                 type: "category",
                 label: "Low-Level Primitives",
-                collapsed: false,
+                collapsed: true,
                 link: { type: "doc", id: "reference/streams/primitives/index" },
                 items: [
                   "reference/streams/primitives/reader",
@@ -302,7 +305,7 @@ const sidebars = {
               {
                 type: "category",
                 label: "Execution and Compatibility",
-                collapsed: false,
+                collapsed: true,
                 link: { type: "doc", id: "reference/streams/execution-and-compatibility/index" },
                 items: [
                   "reference/streams/execution-and-compatibility/async-execution",
@@ -322,7 +325,7 @@ const sidebars = {
                 type: "category",
                 label: "Tracing",
                 link: { type: "doc", id: "reference/telemetry/tracing/index" },
-                collapsed: false,
+                collapsed: true,
                 items: [
                   "reference/telemetry/tracing/tracer-provider",
                   "reference/telemetry/tracing/tracer",
@@ -340,7 +343,7 @@ const sidebars = {
                 type: "category",
                 label: "Logging",
                 link: { type: "doc", id: "reference/telemetry/logging/index" },
-                collapsed: false,
+                collapsed: true,
                 items: [
                   "reference/telemetry/logging/logger-provider",
                   "reference/telemetry/logging/logger",
@@ -356,7 +359,7 @@ const sidebars = {
                 type: "category",
                 label: "Metrics",
                 link: { type: "doc", id: "reference/telemetry/metrics/index" },
-                collapsed: false,
+                collapsed: true,
                 items: [
                   "reference/telemetry/metrics/meter-provider",
                   "reference/telemetry/metrics/meter",
@@ -369,7 +372,7 @@ const sidebars = {
                 type: "category",
                 label: "Common Types",
                 link: { type: "doc", id: "reference/telemetry/common/index" },
-                collapsed: false,
+                collapsed: true,
                 items: [
                   "reference/telemetry/common/attributes",
                   "reference/telemetry/common/attribute-key",
@@ -382,7 +385,7 @@ const sidebars = {
                 type: "category",
                 label: "OTLP Export",
                 link: { type: "doc", id: "reference/telemetry/otel/index" },
-                collapsed: false,
+                collapsed: true,
                 items: [
                   "reference/telemetry/otel/custom-exporter",
                 ]
@@ -401,7 +404,7 @@ const sidebars = {
                 {
                   type: "category",
                   label: "Core Types",
-                  collapsed: false,
+                  collapsed: true,
                   items: [
                     "reference/sql/db-codec",
                     "reference/sql/frag",
@@ -415,7 +418,7 @@ const sidebars = {
                 {
                   type: "category",
                   label: "Query Builder",
-                  collapsed: false,
+                  collapsed: true,
                   items: [
                     "reference/sql/sql-query",
                     "reference/sql/rel",
@@ -425,7 +428,7 @@ const sidebars = {
                 {
                   type: "category",
                   label: "Supporting Types",
-                  collapsed: false,
+                  collapsed: true,
                   items: [
                     "reference/sql/db-value",
                     "reference/sql/db-param",
@@ -455,7 +458,7 @@ const sidebars = {
                     {
                       type: "category",
                       label: "Stores",
-                      collapsed: false,
+                      collapsed: true,
                       items: [
                         "reference/projection/event-store",
                         "reference/projection/projection-store",
@@ -507,7 +510,7 @@ const sidebars = {
         slug: "/guides/tutorials",
         description: "Step-by-step lessons for newcomers, in the order to read them. Start with the first one.",
       },
-      collapsed: false,
+      collapsed: true,
       // The learning path of docs/dev/backlog.md §3 (foundations, runtime blocks, building applications, capstone),
       // then the electives.
       items: [
@@ -537,7 +540,7 @@ const sidebars = {
         slug: "/guides/how-to",
         description: "Recipes for one task each, grouped by topic.",
       },
-      collapsed: false,
+      collapsed: true,
       items: [
         {
           type: "category",
@@ -708,7 +711,7 @@ const sidebars = {
         slug: "/guides/migration",
         description: "Move code from another Scala library to ZIO Blocks.",
       },
-      collapsed: false,
+      collapsed: true,
       items: [
         "guides/zio-schema-migration",
         "guides/json-library-migration",
@@ -726,14 +729,14 @@ const sidebars = {
         slug: "/guides/deep-dives",
         description: "Long-form explanations of how a part of ZIO Blocks works and why.",
       },
-      collapsed: false,
+      collapsed: true,
       items: [
         "guides/telemetry-guide",
         {
           type: "category",
           label: "Query DSL",
           link: { type: "doc", id: "guides/query-dsl/index" },
-          collapsed: false,
+          collapsed: true,
           items: [
             "guides/query-dsl-reified-optics",
             "guides/query-dsl-sql",

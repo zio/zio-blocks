@@ -107,6 +107,13 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       image: 'brand/zio-blocks-social-og.png',
+      // A hide button at the bottom of the docs sidebar, for more reading width. The categories fold by their own
+      // `collapsed` flags in docs/sidebars.js.
+      docs: {
+        sidebar: {
+          hideable: true,
+        },
+      },
       ...(ALGOLIA ? { algolia: ALGOLIA } : {}),
       colorMode: {
         defaultMode: 'light',

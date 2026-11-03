@@ -76,8 +76,8 @@ test('every section and topic opens a generated index page under /guides/ with a
   for (const id of docIds(sections)) assert.equal(slugs.includes(`/${id}`), false, id);
 });
 
-test('the sections start expanded and the how-to topics start collapsed', () => {
-  for (const s of sections) assert.equal(s.collapsed, false, s.label);
+test('the sections and the how-to topics start collapsed', () => {
+  for (const s of sections) assert.equal(s.collapsed, true, s.label);
   for (const t of howTo.items) assert.equal(t.collapsed, true, t.label);
 });
 
