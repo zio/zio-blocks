@@ -29,7 +29,6 @@ export const NAV_LINKS = [
   { label: 'Reference', href: '/reference/', left: true },
   { label: 'Guides', href: '/guides/', left: true },
   { label: 'API', href: '/api/', current: true, left: true },
-  { label: 'Blocks', href: '/#catalog', left: true },
   { label: 'GitHub', href: 'https://github.com/zio/zio-blocks', external: true },
   { label: 'Discord', href: 'https://discord.gg/2ccFBr4', external: true },
 ];
