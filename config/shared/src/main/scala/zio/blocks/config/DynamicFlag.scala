@@ -20,23 +20,49 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.collection.mutable
 
 /**
- * A flag whose value is determined by a rollout expression that can be updated
- * at runtime.
+ * A flag whose value is chosen on each call by a [[Rollout]] expression, which
+ * can be replaced while the program runs. Extend it with a Scala `object`,
+ * passing the value to use when nothing matches and the initial expression. The
+ * flag's name is the object's fully qualified name.
  *
- * Each call to `apply` evaluates the rollout expression against the provided
- * key/attributes and tracks evaluation counters. Use `evaluate` for evaluation
- * without counter tracking.
+ * `flag(key, attributes*)` matches the expression against the path
+ * `key/attribute1/attribute2/...`, with the percentage bucket of `key`
+ * ([[Rollout.bucketFor]]), and counts the call under `key`. It returns the
+ * matched value parsed by the [[Flag.Reader]], or `default` when no choice
+ * matches or the value does not parse. The bucket ignores the flag's name, so
+ * flags rolled out to the same percentage pick the same keys, a known bug.
  *
- * Intended to be extended by Scala `object` definitions:
+ * The initial expression comes from the first of: [[FlagSource.Registry]], the
+ * system property with the flag's name, the environment variable named like the
+ * flag (dots replaced by underscores, upper case; on Scala.js this step finds
+ * nothing, a known bug), and `defaultExpression`. An expression that does not
+ * parse throws an `ExceptionInInitializerError` whose cause is a
+ * [[FlagException.FlagExpressionParseException]]. Values are not checked
+ * against the reader until a call matches them, a known bug.
+ *
+ * Spaces around a `/` in a selector are ignored, so `* / eu / 50%` is the
+ * selector `*`, `eu`, `50%`.
+ *
  * {{{
- *   object MyFeature extends DynamicFlag[Boolean](false, "true@eu/50%; false")
+ * object NewCheckout extends DynamicFlag[Boolean](false, "true@* / eu / 50%; false")
+ *
+ * val bucket = Rollout.bucketFor("user-5")
+ * // 0
+ * val inEu   = NewCheckout("user-5", "eu")
+ * // true
+ * val inUs   = NewCheckout("user-5", "us")
+ * // false
  * }}}
  *
- * Resolution order for initial expression: FlagSource → system property → env
- * variable → constructor default.
+ * @see
+ *   [[https://zioblocks.com/reference/config/flags/ Flags]]
  */
 abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit reader: Flag.Reader[A]) {
 
+  /**
+   * The flag's name: the object's fully qualified class name without the
+   * trailing `$`, with each inner `$` replaced by a dot.
+   */
   val name: String = DynamicFlag.deriveName(getClass)
 
   private val envName: String = name.replace('.', '_').toUpperCase
@@ -60,25 +86,42 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
     new mutable.ArrayDeque[DynamicFlag.UpdateRecord]()
 
   /**
-   * Evaluates the rollout expression for the given key and attributes, tracking
-   * evaluation counters.
+   * Evaluates the expression for the path `key/attributes...` and the bucket of
+   * `key`, and adds one to the counter of `key`. Returns `default` when no
+   * choice matches or the matched value does not parse.
    */
   def apply(key: String, attributes: String*): A = {
     incrementCounter(key)
     evaluateInternal(key, attributes)
   }
 
-  /**
-   * Evaluates the rollout expression without tracking counters.
-   */
+  /** Evaluates like `apply` without touching the counters. */
   def evaluate(key: String, attributes: String*): A =
     evaluateInternal(key, attributes)
 
   /**
-   * The current rollout expression string.
+   * The current rollout expression. `update` and `reload` store it trimmed; the
+   * initial expression is kept as it was found, a known bug.
    */
   def expression: String = _snapshot.expression
 
+  /**
+   * Replaces the expression with `newExpression`, trimmed, and records the
+   * change in `updateHistory`. Returns the parse error and keeps the old
+   * expression when `newExpression` does not parse. An empty or blank
+   * expression changes nothing and returns `Right(())`. Values are not checked
+   * against the reader, so `maybe` for a `DynamicFlag[Boolean]` is accepted and
+   * every matching call returns the default, a known bug.
+   *
+   * {{{
+   * object SearchBackend extends DynamicFlag[String]("solr", "solr")
+   *
+   * val result = SearchBackend.update("opensearch@* / 10%; solr")
+   * // Right(())
+   * val now    = SearchBackend.expression
+   * // opensearch@* / 10%; solr
+   * }}}
+   */
   def update(newExpression: String): Either[ConfigError, Unit] = {
     val trimmed = newExpression.trim
     if (trimmed.isEmpty) return Right(())
@@ -93,6 +136,13 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
     }
   }
 
+  /**
+   * Reads the expression for this flag's name from [[FlagSource.Registry]] and
+   * applies it like `update`. Returns `NoSource` when no registered source has
+   * a value (system properties and the environment are not read again),
+   * `Unchanged` when the trimmed value equals the current expression, `Failed`
+   * when it does not parse, and otherwise `Updated`.
+   */
   def reload(): Flag.ReloadResult = {
     val resolved = FlagSource.Registry.resolve(name)
     resolved.fold[Flag.ReloadResult](Flag.ReloadResult.NoSource) { raw =>
@@ -113,8 +163,9 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   }
 
   /**
-   * Current evaluation counter snapshot (key → count). Thread-safe but
-   * approximate.
+   * The number of `apply` calls per key. The first 100 distinct keys get their
+   * own entry; calls with any later new key are counted under `other`. Counts
+   * that change while this map is built may be partly included.
    */
   def counters: Map[String, Long] = {
     val builder = Map.newBuilder[String, Long]
@@ -127,7 +178,8 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   }
 
   /**
-   * Update history (most recent first), limited to last 10 updates.
+   * The expression changes made by `update` and `reload`, most recent first, at
+   * most the last 10.
    */
   def updateHistory: List[DynamicFlag.UpdateRecord] =
     _history.synchronized {
@@ -135,9 +187,9 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
     }
 
   /**
-   * Count of evaluations where a matched rollout value could not be parsed and
-   * the call fell back to the flag default. Thread-safe; approximate. A
-   * non-zero value indicates misconfigured rollout expressions.
+   * The number of calls, through `apply` or `evaluate`, whose matched value
+   * could not be parsed and that returned the default instead. A non-zero count
+   * means the expression holds a value the reader rejects.
    */
   def parseErrorCount: Long = _parseErrorCount.sum()
 
@@ -196,6 +248,10 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   DynamicFlag.register(this)
 }
 
+/**
+ * Companion of [[DynamicFlag]]. It holds [[DynamicFlag.UpdateRecord]], the
+ * record of one change.
+ */
 object DynamicFlag {
 
   /**
@@ -206,6 +262,10 @@ object DynamicFlag {
   private[config] val MaxDistinctKeys: Int = 100
   private[config] val MaxHistorySize: Int  = 10
 
+  /**
+   * One change of a [[DynamicFlag]]'s expression, with the time of the change
+   * in milliseconds since the epoch.
+   */
   final case class UpdateRecord(oldExpression: String, newExpression: String, timestampMillis: Long)
 
   private[config] final case class Snapshot[A](

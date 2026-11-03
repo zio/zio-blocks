@@ -22,23 +22,51 @@ import scala.jdk.CollectionConverters._
 import zio.blocks.maybe.Maybe
 
 /**
- * A scalar source of flag values.
+ * A lookup of raw flag values by flag name, with provenance. Register sources
+ * with [[FlagSource.Registry]]: a [[StaticFlag]] or [[DynamicFlag]] reads the
+ * registry when its object initializes, and `DynamicFlag#reload` reads it
+ * again. Every [[ConfigSource]] is also a `FlagSource`.
+ *
+ * {{{
+ * val remote = FlagSource.fromMap(Map("com.example.Limits.maxConnections" -> "200"), "remote")
+ * FlagSource.Registry.register(remote)
+ *
+ * val raw = FlagSource.Registry.resolve("com.example.Limits.maxConnections").toOption.map(_.value)
+ * // Some(200)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/config/flags/ Flags]]
  */
 trait FlagSource {
 
   /**
-   * Unique identifier for this source.
+   * Names this source in provenance. [[FlagSource.Registry]] keys sources by
+   * it.
    */
   def sourceId: String
 
   /**
-   * Resolve a raw string value by name together with provenance.
+   * Looks up the raw value of the flag `name`, with its provenance, or returns
+   * `Maybe.absent`.
    */
   def get(name: String): Maybe[SourceValue[String]]
 
   /**
-   * Compose this source with a fallback. This source is consulted first; if it
-   * returns None, the fallback is tried.
+   * Returns a source that looks a name up in this source first and in
+   * `fallback` only when this source has no value for it. Its `sourceId` is
+   * `this.sourceId|fallback.sourceId`.
+   *
+   * {{{
+   * val local  = FlagSource.fromMap(Map("RequestTimeout" -> "5s"), "local")
+   * val shared = FlagSource.fromMap(Map("RequestTimeout" -> "30s", "MaxRetries" -> "3"), "shared")
+   * val both   = local.orElse(shared)
+   *
+   * val timeout = both.get("RequestTimeout").toOption.map(_.value)
+   * // Some(5s)
+   * val retries = both.get("MaxRetries").toOption.map(_.value)
+   * // Some(3)
+   * }}}
    */
   final def orElse(fallback: FlagSource): FlagSource = {
     val self = this
@@ -51,17 +79,25 @@ trait FlagSource {
   }
 }
 
+/**
+ * Holds [[FlagSource.Registry]], the global list of flag sources.
+ */
 object FlagSource {
 
   /**
-   * Global registry of [[FlagSource]] instances. Thread-safe. Sources are
-   * iterated in registration order so that the first-registered source wins
-   * when multiple sources resolve the same flag name.
+   * The global list of [[FlagSource]]s that flags read. It keeps sources in
+   * registration order, and the first source that has a value for a name wins.
+   * Register sources before any flag object initializes: a [[StaticFlag]] never
+   * reads the registry again.
    */
   object Registry {
     private val byId: ConcurrentHashMap[String, FlagSource] = new ConcurrentHashMap[String, FlagSource]()
     private val ordered: CopyOnWriteArrayList[FlagSource]   = new CopyOnWriteArrayList[FlagSource]()
 
+    /**
+     * Adds `source` at the end, or, when a source with the same `sourceId` is
+     * registered, replaces that source in its position.
+     */
     def register(source: FlagSource): Unit = {
       val existing = byId.putIfAbsent(source.sourceId, source)
       if (existing == null) ordered.add(source)
@@ -73,20 +109,23 @@ object FlagSource {
       }
     }
 
+    /** Removes the source registered under `sourceId`, if any. */
     def unregister(sourceId: String): Unit = {
       val removed = byId.remove(sourceId)
       if (removed != null) ordered.remove(removed)
     }
 
+    /** Returns the source registered under `sourceId`. */
     def get(sourceId: String): Maybe[FlagSource] =
       Maybe.fromOption(Option(byId.get(sourceId)))
 
+    /** Returns the registered sources in registration order. */
     def all: Seq[FlagSource] =
       ordered.asScala.toSeq
 
     /**
-     * Resolve a flag name across all registered sources in registration order.
-     * First Some wins.
+     * Returns the value of `flagName` from the first registered source that has
+     * one, or `Maybe.absent`.
      */
     def resolve(flagName: String): Maybe[SourceValue[String]] = {
       val iter                                 = ordered.iterator()
@@ -99,7 +138,10 @@ object FlagSource {
       resolved
     }
 
-    /** Clear all registered sources (for testing). */
+    /**
+     * Removes every registered source, for example between tests. Flags that
+     * have already initialized keep their values.
+     */
     def clear(): Unit = {
       byId.clear()
       ordered.clear()
@@ -107,7 +149,8 @@ object FlagSource {
   }
 
   /**
-   * Create a [[FlagSource]] backed by an in-memory map. Useful for testing.
+   * Returns a source over `map`, whose keys are flag names, with `id` as its
+   * `sourceId`. Tests and local overrides use it.
    */
   def fromMap(map: Map[String, String], id: String = "map-source"): FlagSource =
     new FlagSource {

@@ -32,12 +32,18 @@ trait KeyMapper {
   def fromCanonical(key: String, target: KeyFormat): String
 }
 
+/**
+ * Instances of [[KeyMapper]].
+ */
 object KeyMapper {
 
   /**
    * Default mapper that normalizes snake_case and kebab-case into camelCase,
    * and renders canonical keys back into camelCase, snake_case, kebab-case, or
-   * UPPER_SNAKE_CASE.
+   * UPPER_SNAKE_CASE. `toCanonical` lower-cases every letter that does not
+   * follow a separator (`DATABASE_URL` becomes `databaseUrl`), returns a key
+   * without `_` or `-` unchanged, and splits a key that has both on `_` only.
+   * Dots are kept, so `db.max_pool_size` becomes `db.maxPoolSize`.
    */
   val default: KeyMapper = new KeyMapper {
     def toCanonical(key: String): String = {

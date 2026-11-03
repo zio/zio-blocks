@@ -18,6 +18,31 @@ package zio.blocks.config
 
 import zio.blocks.schema.Schema
 
+/**
+ * A string that must not be printed, such as a password or an API token. Its
+ * `toString` is `<secret>`; [[Secret.unwrap]] returns the value. Two secrets
+ * are equal when their values are equal. A field of type `Secret` decodes from
+ * a plain string, and a `StaticFlag[Secret]` shows as `<secret>` in
+ * `Flag.dump`.
+ *
+ * Only the value's own printing is hidden: [[Provenance.Resolved]] still holds
+ * the raw value, a known bug.
+ *
+ * {{{
+ * import zio.blocks.schema.Schema
+ *
+ * final case class Smtp(user: String, password: Secret)
+ * object Smtp { implicit val schema: Schema[Smtp] = Schema.derived }
+ *
+ * val smtp     = Config.load[Smtp](ConfigSource.fromMap(Map("user" -> "mailer", "password" -> "s3cr3t")))
+ * // Right(Smtp(mailer,<secret>))
+ * val password = smtp.map(s => Secret.unwrap(s.password))
+ * // Right(s3cr3t)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/config/config-source/ ConfigSource]]
+ */
 final class Secret private (private val value: String) {
   override def toString: String = "<secret>"
 
@@ -29,12 +54,21 @@ final class Secret private (private val value: String) {
   }
 }
 
+/** Constructors and instances for [[Secret]]. */
 object Secret {
+
+  /** Wraps `value` in a [[Secret]]. */
   def apply(value: String): Secret = new Secret(value)
 
+  /** Returns the value that `secret` wraps. */
   def unwrap(secret: Secret): String = secret.value
 
+  /**
+   * A [[Displayable]] that shows every secret as `<secret>`. The
+   * `zio.blocks.config` package object provides it as an implicit.
+   */
   def displayable: Displayable[Secret] = Displayable.instance(_ => "<secret>")
 
+  /** Reads and writes a [[Secret]] as a plain string. */
   implicit val schema: Schema[Secret] = Schema[String].transform(Secret.apply, Secret.unwrap)
 }

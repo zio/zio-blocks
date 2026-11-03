@@ -20,24 +20,49 @@ import zio.blocks.config.{ConfigError, ConfigSource}
 import zio.blocks.schema.yaml.{Yaml, YamlReader}
 
 /**
- * A ConfigSource adapter for YAML data.
+ * Reads YAML text into a [[zio.blocks.config.ConfigSource]] keyed by
+ * dot-separated paths: nested mappings join their keys with dots, and sequence
+ * elements get indexes (`replicas.0`). `ConfigSource.fromYaml` from
+ * `zio.blocks.config.yaml._` calls it.
  *
- * Converts YAML documents into flat key-value maps with dot-separated paths.
- * Nested mappings are flattened using dot notation, and sequences use indexed
- * keys.
+ * {{{
+ * import zio.blocks.config._
+ *
+ * val text =
+ *   """server:
+ *     |  host: 0.0.0.0
+ *     |  port: 8080
+ *     |replicas:
+ *     |  - db-1
+ *     |  - db-2
+ *     |""".stripMargin
+ * val source = ConfigSource.fromYaml(text, "app.yaml")
+ * val keys   = source.map(_.all("").keySet.toList.sorted)
+ * // Right(List(replicas.0, replicas.1, server.host, server.port))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/config/formats/ File Formats]]
  */
 object YamlConfigSource {
 
   /**
-   * Creates a ConfigSource from a YAML string.
+   * Parses `yaml` and returns its values as a source. A value that is `null`,
+   * `~` or missing (`key:` with nothing after it) is left out, as is a mapping
+   * key that is not a scalar; a quoted empty string is kept.
+   *
+   * The parser is lenient: it stops at the first line it cannot read and keeps
+   * what it read so far, without an error, and a document whose top level is a
+   * single scalar gives a source with no keys; both are known bugs. A
+   * [[zio.blocks.config.ConfigError.ParseError]] with an empty path, and no
+   * cause, is returned only when the parser throws.
    *
    * @param yaml
    *   the YAML content as a string
    * @param sourceId
    *   a unique identifier for this source (default: "yaml:string")
    * @return
-   *   Either a ConfigError if parsing fails, or a ConfigSource with flattened
-   *   YAML data
+   *   a `ParseError` if the YAML reader throws, or the source
    */
   def fromString(yaml: String, sourceId: String = "yaml:string"): Either[ConfigError, ConfigSource] =
     try {
@@ -54,7 +79,8 @@ object YamlConfigSource {
    *
    *   - Mappings are recursively flattened with dot-separated keys
    *   - Sequences use indexed keys (e.g., "items.0", "items.1")
-   *   - Scalars are stored as string values
+   *   - Scalars under a key are stored as strings; a top-level scalar is
+   *     dropped
    *   - Null values are skipped
    */
   private def flatten(yaml: Yaml): Map[String, String] = {

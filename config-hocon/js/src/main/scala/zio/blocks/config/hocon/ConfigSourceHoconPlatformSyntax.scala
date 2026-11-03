@@ -16,4 +16,8 @@
 
 package zio.blocks.config.hocon
 
+/**
+ * Adds `ConfigSource.fromFile` and `ConfigSource.fromFileWithLimits`, which
+ * read HOCON files, on the JVM. On Scala.js it adds nothing.
+ */
 trait ConfigSourceHoconPlatformSyntax

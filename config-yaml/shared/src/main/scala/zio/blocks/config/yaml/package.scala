@@ -16,8 +16,16 @@
 
 package zio.blocks.config
 
+/**
+ * Reads YAML configuration: `import zio.blocks.config.yaml._` adds
+ * `ConfigSource.fromYaml`.
+ */
 package object yaml {
+
+  /** The `ConfigSource.fromYaml` constructor. */
   implicit final class ConfigSourceYamlSyntax(private val companion: ConfigSource.type) extends AnyVal {
+
+    /** Same as [[YamlConfigSource.fromString]]. */
     def fromYaml(yaml: String, sourceId: String = "yaml:string"): Either[ConfigError, ConfigSource] =
       YamlConfigSource.fromString(yaml, sourceId)
   }

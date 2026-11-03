@@ -19,6 +19,9 @@ package zio.blocks.config
 /** Supported output formats for source-facing configuration keys. */
 sealed trait KeyFormat
 
+/**
+ * The [[KeyFormat]] cases.
+ */
 object KeyFormat {
 
   /** Lower camelCase keys such as `databaseUrl`. */

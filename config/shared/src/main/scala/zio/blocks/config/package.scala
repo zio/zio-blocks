@@ -17,5 +17,10 @@
 package zio.blocks
 
 package object config {
+
+  /**
+   * Shows a [[Secret]] as `<secret>`; it is [[Secret.displayable]]. The
+   * `toString` fallback would show the same text.
+   */
   implicit val secretDisplayable: Displayable[Secret] = Secret.displayable
 }
