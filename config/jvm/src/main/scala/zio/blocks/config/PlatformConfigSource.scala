@@ -32,8 +32,16 @@ import zio.blocks.maybe.Maybe
  * browser.
  */
 object EnvSource extends ConfigSource {
+
+  /**
+   * The id `env`.
+   */
   val sourceId: String = "env"
 
+  /**
+   * Returns the environment variable for `key`, with provenance naming that
+   * variable, or `Maybe.absent` when it is not set.
+   */
   def get(key: String): Maybe[SourceValue[String]] = {
     val envKey = toEnvKey(key)
     val raw    = System.getenv(envKey)
@@ -41,6 +49,12 @@ object EnvSource extends ConfigSource {
     else Maybe.present(SourceValue(raw, Provenance.Resolved(sourceId, envKey, Maybe.present(raw))))
   }
 
+  /**
+   * Returns the environment variables whose name is `prefix` in upper case with
+   * its dots replaced by underscores, or starts with that name and an
+   * underscore, under their lower-case keys with underscores replaced by dots.
+   * An empty `prefix` returns every variable.
+   */
   def all(prefix: String): Map[String, SourceValue[String]] = {
     val envPrefix = toEnvKey(prefix)
     val dotPrefix = if (envPrefix.isEmpty) "" else s"${envPrefix}_"
@@ -68,14 +82,26 @@ object EnvSource extends ConfigSource {
  * `System.setProperty`.
  */
 object SysPropSource extends ConfigSource {
+
+  /**
+   * The id `sysprop`.
+   */
   val sourceId: String = "sysprop"
 
+  /**
+   * Returns the system property named `key`, or `Maybe.absent` when it is not
+   * set.
+   */
   def get(key: String): Maybe[SourceValue[String]] = {
     val raw = System.getProperty(key)
     if (raw == null) Maybe.absent
     else Maybe.present(SourceValue(raw, Provenance.Resolved(sourceId, key, Maybe.present(raw))))
   }
 
+  /**
+   * Returns the system properties whose name is `prefix` or starts with
+   * `prefix` followed by a dot. An empty `prefix` returns every property.
+   */
   def all(prefix: String): Map[String, SourceValue[String]] = {
     val dotPrefix = if (prefix.isEmpty) "" else s"$prefix."
     System.getProperties.asScala.collect {
