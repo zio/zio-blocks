@@ -272,7 +272,8 @@ object HoconParser {
         if (ch == ',') error("Unexpected ',' in array")
         val before = pos
         // Parse one value per element, so `["a" "b"]` has two elements rather than
-        // one concatenated string; unquoted text runs up to ',', ']' or a newline.
+        // one concatenated string; unquoted text stops at ',', ']', a newline, a
+        // quote, a comment or a brace.
         val value = parseSingleValue(includeResolver)
         if (pos == before) error("Failed to parse array element")
         buf += value
