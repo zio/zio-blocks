@@ -19,35 +19,52 @@ package zio.blocks.config
 import zio.blocks.schema.Schema
 
 /**
- * A typeclass for decoding a value of type `A` from a `ConfigSource` rooted at
- * a given key prefix.
+ * Decodes a value of type `A` from the keys of a [[ConfigSource]] under a
+ * dot-separated path.
  *
- * All errors are accumulated (not fail-fast) and returned as a non-empty list
- * of `ConfigError`.
+ * Derive one from a `Schema[A]` with [[ConfigDecoder.derive]], which is what
+ * `Config.load` does on every call. Derive it once and reuse it when you decode
+ * the same type repeatedly. A derived decoder reads every field before it
+ * returns, so one call reports all the problems it finds.
+ *
+ * {{{
+ * import zio.blocks.schema.Schema
+ *
+ * final case class Http(host: String, port: Int = 8080)
+ * object Http { implicit val schema: Schema[Http] = Schema.derived }
+ *
+ * val decoder = ConfigDecoder.derive[Http]
+ * val source  = ConfigSource.fromMap(Map("http.host" -> "0.0.0.0"))
+ * val http    = decoder.decode(source, "http")
+ * // Right(Http(0.0.0.0,8080))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/config/config-decoder/ ConfigDecoder]]
  */
 trait ConfigDecoder[A] {
 
   /**
-   * Decode a value of type `A` from the given `source`, using `prefix` as the
-   * root path for key lookups (dot-separated, e.g. "db.host").
+   * Decodes an `A` from the keys of `source` under `prefix`, a dot-separated
+   * path such as `db`; an empty `prefix` reads from the root, so a field `host`
+   * is read at `host`.
    *
    * @return
-   *   Right(a) on success, Left(errors) with all accumulated errors on failure.
+   *   the value, or a non-empty list of errors
    */
   def decode(source: ConfigSource, prefix: String): Either[::[ConfigError], A]
 }
 
 object ConfigDecoder {
 
+  /** Returns the implicit `ConfigDecoder[A]` in scope. */
   def apply[A](implicit decoder: ConfigDecoder[A]): ConfigDecoder[A] = decoder
 
   /**
-   * Derive a `ConfigDecoder[A]` from a `Schema[A]` using the default
-   * `ConfigDecoderDeriver`.
-   *
-   * For one-off loads, calling this at the use site is fine. If you decode the
-   * same type repeatedly, derive once at startup and reuse the returned
-   * decoder.
+   * Derives a `ConfigDecoder[A]` from the implicit `Schema[A]` with the default
+   * [[ConfigDecoderDeriver]], whose sealed-trait discriminator key is `type`.
+   * Derivation walks the whole schema at run time, so derive once at startup
+   * when you decode the same type repeatedly.
    */
   def derive[A](implicit schema: Schema[A]): ConfigDecoder[A] =
     schema.deriving(ConfigDecoderDeriver).derive

@@ -20,10 +20,16 @@ import scala.scalajs.js
 import zio.blocks.maybe.Maybe
 
 /**
- * Config source backed by environment variables (Scala.js / Node.js). Uses
- * `process.env` when available. Key lookup converts dots to underscores and
- * uppercases. A missing or undefined env var is treated as absent (None). An
- * empty string `""` is present (Some).
+ * A [[ConfigSource]] over the process environment. A key is read from the
+ * environment variable with the same name, its dots replaced by underscores and
+ * in upper case: `db.host` reads `DB_HOST`. A variable set to the empty string
+ * is present. `all` turns variable names back into keys in lower case with
+ * every underscore replaced by a dot, so `MAX_POOL_SIZE` is listed as
+ * `max.pool.size`.
+ *
+ * On the JVM it reads `System.getenv`. On Scala.js it reads `process.env` under
+ * Node.js, and finds nothing where `process` is not defined, such as in a
+ * browser.
  */
 object EnvSource extends ConfigSource {
   val sourceId: String = "env"
@@ -75,9 +81,10 @@ object EnvSource extends ConfigSource {
 }
 
 /**
- * Config source backed by system properties (Scala.js). System properties are
- * not available in JS environments, so this source always returns empty
- * results.
+ * A [[ConfigSource]] over JVM system properties: a key is read from the
+ * property with the same name, so `http.port` reads `-Dhttp.port=9000`. On
+ * Scala.js it is always empty, even for properties set with
+ * `System.setProperty`.
  */
 object SysPropSource extends ConfigSource {
   val sourceId: String = "sysprop"

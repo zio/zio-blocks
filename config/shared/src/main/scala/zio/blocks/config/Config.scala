@@ -20,13 +20,51 @@ import zio.blocks.schema.Schema
 import zio.blocks.scope.Wire
 
 /**
- * Entry point for loading typed configuration from a `ConfigSource`.
+ * Loads typed configuration: it derives a [[ConfigDecoder]] from a `Schema[A]`
+ * and runs it against a [[ConfigSource]], which maps dot-separated keys such as
+ * `db.port` to strings.
+ *
+ * Use `load` to get the errors as a value, `loadOrThrow` to stop at startup
+ * with a readable report, `loadWithProvenance` to also see where each key came
+ * from, and `wire` to decode inside a `Resource.from` dependency graph.
+ *
+ * {{{
+ * import zio.blocks.schema.Schema
+ *
+ * final case class Db(host: String, port: Int)
+ * object Db { implicit val schema: Schema[Db] = Schema.derived }
+ *
+ * val source = ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432"))
+ * val db     = Config.load[Db](source)
+ * // Right(Db(localhost,5432))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/config/ Config]]
  */
 object Config {
 
   /**
-   * Create a shared config wire that decodes `A` from an injected
-   * [[ConfigSource]].
+   * Returns a shared wire that decodes an `A` from the [[ConfigSource]] of the
+   * wire graph with [[loadOrThrow]], so a decoding failure throws
+   * [[ConfigLoadException]] while the graph is being built.
+   *
+   * {{{
+   * import zio.blocks.schema.Schema
+   * import zio.blocks.scope.{Resource, Unscoped, Wire}
+   *
+   * final case class Db(host: String, port: Int)
+   * object Db {
+   *   implicit val schema: Schema[Db]     = Schema.derived
+   *   implicit val unscoped: Unscoped[Db] = Unscoped.derived[Db]
+   * }
+   * final class DbPool(val config: Db)
+   *
+   * val source = ConfigSource.fromMap(Map("host" -> "db.internal", "port" -> "5432"))
+   * val pool   = Resource.from[DbPool](Wire(source), Config.wire[Db])
+   * val port   = pool.use(_.config.port)
+   * // 5432
+   * }}}
    */
   def wire[A](implicit schema: Schema[A]): Wire.Shared[ConfigSource, A] =
     Wire.Shared.fromFunction { (_, ctx) =>
@@ -34,8 +72,10 @@ object Config {
     }
 
   /**
-   * Create a shared config wire that decodes `A` from an injected
-   * [[ConfigSource]] under the specified prefix.
+   * Returns a shared wire that decodes an `A` from the keys under `prefix` in
+   * the [[ConfigSource]] of the wire graph, so field `port` is read from
+   * `<prefix>.port`. A decoding failure throws [[ConfigLoadException]]; its
+   * report names keys without the prefix (`port`, not `db.port`), a known bug.
    */
   def wire[A](prefix: String)(implicit schema: Schema[A]): Wire.Shared[ConfigSource, A] =
     Wire.Shared.fromFunction { (_, ctx) =>
@@ -43,25 +83,30 @@ object Config {
     }
 
   /**
-   * Decode a value of type `A` from `source` using the implicit `Schema[A]`.
+   * Decodes an `A` from `source` with a decoder derived from the implicit
+   * `Schema[A]`. Each field is read at its name, and a nested field at a
+   * dot-separated path such as `db.port`.
    *
-   * Typical usage in Scala 3 derives both `Schema` and `Unscoped` directly on
-   * the case class and then loads from a `ConfigSource`:
+   * The decoder reads every field before it returns, so one call reports all
+   * the problems it finds. When a record has two or more bad fields, though,
+   * the list holds a single [[ConfigError.Composite]] that wraps them, a known
+   * bug.
+   *
    * {{{
-   * import zio.blocks.scope.Unscoped
+   * import zio.blocks.schema.Schema
    *
-   * final case class Db(host: String, port: Int) derives Schema, Unscoped
+   * final case class Db(host: String, port: Int)
+   * object Db { implicit val schema: Schema[Db] = Schema.derived }
    *
-   * val result = Config.load[Db](
-   *   ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432"))
-   * )
+   * val ok  = Config.load[Db](ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432")))
+   * // Right(Db(localhost,5432))
+   * val bad = Config.load[Db](ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "54x2"))).left.map(_.map(_.message))
+   * // Left(List(Invalid value '54x2' for key 'port' (expected Int) in source 'map': For input string: "54x2"))
    * }}}
    *
-   * This method derives a fresh [[ConfigDecoder]] for each call. If you load
-   * the same type repeatedly (for example during reloads), derive the decoder
-   * once with `ConfigDecoder.derive[A]` and reuse it directly.
-   *
-   * Returns all accumulated `ConfigError`s instead of failing fast.
+   * Each call derives a new [[ConfigDecoder]]. To load the same type
+   * repeatedly, for example on every reload, derive one with
+   * `ConfigDecoder.derive[A]` and call its `decode` method.
    */
   def load[A](source: ConfigSource)(implicit schema: Schema[A]): Either[::[ConfigError], A] = {
     val decoder = ConfigDecoder.derive[A]
@@ -69,8 +114,24 @@ object Config {
   }
 
   /**
-   * Decode a value of type `A` from `source` using an explicit
-   * `ConfigDecoderDeriver` and the implicit `Schema[A]`.
+   * Decodes an `A` from `source` like the other `load`, with a decoder built by
+   * `deriver`, for example one whose sealed-trait discriminator key is not
+   * `type`.
+   *
+   * {{{
+   * import zio.blocks.schema.Schema
+   *
+   * sealed trait Storage
+   * object Storage {
+   *   final case class Memory(maxEntries: Int) extends Storage
+   *   final case class Disk(path: String)      extends Storage
+   *   implicit val schema: Schema[Storage] = Schema.derived
+   * }
+   *
+   * val source  = ConfigSource.fromMap(Map("kind" -> "Disk", "path" -> "/var/cache/app"))
+   * val storage = Config.load[Storage](source, ConfigDecoderDeriver.discriminator("kind"))
+   * // Right(Disk(/var/cache/app))
+   * }}}
    */
   def load[A](source: ConfigSource, deriver: ConfigDecoderDeriver)(implicit
     schema: Schema[A]
@@ -80,21 +141,32 @@ object Config {
   }
 
   /**
-   * Load a value of type `A` from the given source, or throw with a formatted
-   * error report.
+   * Decodes an `A` from `source` like `load`, or throws a
+   * [[ConfigLoadException]].
    *
-   * Requires an implicit `Schema[A]`:
+   * The exception's message starts with `Configuration loading failed with n
+   * error(s):`, followed by one `  - ` line per element of the error list. A
+   * record with several bad fields counts as one error, because they arrive
+   * wrapped in one [[ConfigError.Composite]] (a known bug).
+   *
    * {{{
-   * import zio.blocks.scope.Unscoped
+   * import zio.blocks.schema.Schema
    *
-   * final case class Db(host: String, port: Int) derives Schema, Unscoped
+   * final case class Db(host: String, port: Int)
+   * object Db { implicit val schema: Schema[Db] = Schema.derived }
    *
-   * val db = Config.loadOrThrow[Db](
-   *   ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432"))
-   * )
+   * val db = Config.loadOrThrow[Db](ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432")))
+   * // Db(localhost,5432)
+   *
+   * val report =
+   *   try { Config.loadOrThrow[Db](ConfigSource.fromMap(Map("host" -> "localhost"), "app.conf")); "" }
+   *   catch { case e: ConfigLoadException => e.getMessage }
+   * // Configuration loading failed with 1 error(s):
+   * //   - Missing required key 'port' in source 'app.conf'
    * }}}
    *
-   * Throws [[ConfigLoadException]] when decoding fails.
+   * @throws ConfigLoadException
+   *   when decoding fails
    */
   def loadOrThrow[A](source: ConfigSource)(implicit schema: Schema[A]): A =
     load[A](source) match {
@@ -105,20 +177,24 @@ object Config {
     }
 
   /**
-   * Load a value of type `A` together with provenance information for each
-   * resolved key.
+   * Decodes an `A` from `source` like `load` and pairs it with `source` in a
+   * [[ProvenanceMap]], which reports where a key's value came from.
    *
-   * Requires an implicit `Schema[A]` and returns a `ProvenanceMap[A]` so
-   * callers can inspect where each resolved field came from:
+   * The map asks `source` again on each query, so a field filled from its
+   * default value has no provenance, and a source whose contents change (such
+   * as [[EnvSource]]) can answer differently from the load.
+   *
    * {{{
-   * import zio.blocks.scope.Unscoped
+   * import zio.blocks.schema.Schema
    *
-   * final case class Db(host: String, port: Int) derives Schema, Unscoped
+   * final case class Db(host: String, port: Int)
+   * object Db { implicit val schema: Schema[Db] = Schema.derived }
    *
    * val loaded = Config.loadWithProvenance[Db](
    *   ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432"), "env")
    * )
-   * val hostSource = loaded.map(_.provenanceOf("host"))
+   * val hostSource = loaded.map(_.provenanceOf("host").toOption.map(_.sourceId))
+   * // Right(Some(env))
    * }}}
    */
   def loadWithProvenance[A](
@@ -143,9 +219,10 @@ object Config {
 }
 
 /**
- * Exception thrown by [[Config.loadOrThrow]] when configuration loading fails.
+ * Thrown by [[Config.loadOrThrow]], and by the wires of `Config.wire`, when
+ * decoding fails.
  *
- * Carries both the formatted multi-line report shown to users and the original
- * non-empty list of accumulated `ConfigError`s for programmatic inspection.
+ * `report` is the multi-line text that is also the exception's message, and
+ * `errors` is the non-empty error list the decoder returned.
  */
 final class ConfigLoadException(val report: String, val errors: ::[ConfigError]) extends RuntimeException(report)

@@ -18,28 +18,55 @@ package zio.blocks.config
 
 import zio.blocks.maybe.Maybe
 
-/** Describes where a resolved configuration or flag value came from. */
+/**
+ * Where a configuration or flag value came from: [[Provenance.Resolved]] for a
+ * value that a source supplied, or [[Provenance.Default]] for a [[StaticFlag]]
+ * that fell back to its constructor default.
+ *
+ * {{{
+ * val source = ConfigSource.fromMap(Map("cache.ttl" -> "PT5M"), "defaults")
+ * val where  = source.get("cache.ttl").toOption.map(_.provenance) match {
+ *   case Some(Provenance.Resolved(sourceId, key, _)) => sourceId + " supplied " + key
+ *   case _                                          => "no value"
+ * }
+ * // defaults supplied cache.ttl
+ * }}}
+ *
+ * `Resolved` holds the raw value and its `toString` prints it, even for a field
+ * of type [[Secret]], a known bug.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/config/config-source/ ConfigSource]]
+ */
 sealed trait Provenance {
 
-  /** Stable identifier for the source that produced the value. */
+  /**
+   * Names the source of the value: the `sourceId` of the source for `Resolved`,
+   * and `schema-default` for `Default`.
+   */
   def sourceId: String
 }
 
+/** The [[Provenance]] cases. */
 object Provenance {
 
   /**
-   * Value resolved from an explicit source lookup.
+   * A value that a source supplied.
    *
    * @param sourceId
    *   identifier of the source that answered the lookup
    * @param key
-   *   source-facing key that was resolved
+   *   the key as the source spells it, such as `DB_HOST` for [[EnvSource]]
    * @param rawValue
    *   original string value when the source exposes it
    */
   final case class Resolved(sourceId: String, key: String, rawValue: Maybe[String]) extends Provenance
 
-  /** Value supplied by a schema default rather than an external source. */
+  /**
+   * A [[StaticFlag]] value that is the flag's constructor default because no
+   * source supplied one. A config field filled from its default value gets no
+   * provenance at all.
+   */
   case object Default extends Provenance {
     val sourceId: String = "schema-default"
   }

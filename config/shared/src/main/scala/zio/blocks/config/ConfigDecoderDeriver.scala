@@ -27,10 +27,66 @@ import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
+/**
+ * The default [[ConfigDecoderDeriver]], whose sealed-trait discriminator key is
+ * `type`. [[ConfigDecoder.derive]] and `Config.load` use it.
+ */
 object ConfigDecoderDeriver extends ConfigDecoderDeriver("type")
 
+/**
+ * Derives a [[ConfigDecoder]] for any type with a `Schema`. Pass a deriver to
+ * `Schema#deriving`, or to the two-argument `Config.load`, to change the key
+ * that names the case of a sealed trait.
+ *
+ * The derived decoders read a value at a dot-separated path as follows:
+ *
+ *   - A record reads each field at `<path>.<field>`. A missing field takes its
+ *     default value, or `None` for an `Option`; a value that is present but
+ *     invalid is an error even when the field has a default.
+ *   - A primitive parses the string at the path. `Boolean` accepts `true` /
+ *     `false`, `1` / `0`, `yes` / `no` and `on` / `off`, ignoring case; the
+ *     `java.time` types use their `parse` methods, so a `Duration` is written
+ *     like `PT30S`.
+ *   - A sealed trait reads the case name at `<path>.<discriminatorKey>` and
+ *     decodes that case at `<path>`.
+ *   - A sequence reads `<path>.0`, `<path>.1` and so on, up to the first
+ *     missing index. When there is no `<path>.0`, it splits the value at
+ *     `<path>` on commas and trims each part. A missing or empty value is an
+ *     empty sequence, not an error.
+ *   - A map takes each first segment after `<path>.` as a key and decodes the
+ *     value under it; a missing map is empty.
+ *
+ * An `Option` of a record decodes to `None` when exactly one of the record's
+ * required keys is missing, even if its other keys are set, and fails when two
+ * or more are missing, including when the whole section is absent. Both are a
+ * known bug.
+ *
+ * {{{
+ * import zio.blocks.schema.Schema
+ *
+ * sealed trait Auth
+ * object Auth {
+ *   final case class Token(header: String) extends Auth
+ *   case object Anonymous                  extends Auth
+ *   implicit val schema: Schema[Auth] = Schema.derived
+ * }
+ *
+ * val decoder = Schema[Auth].deriving(ConfigDecoderDeriver.discriminator("mode")).derive
+ * val auth    = decoder.decode(ConfigSource.fromMap(Map("auth.mode" -> "Token", "auth.header" -> "X-Api-Key")), "auth")
+ * // Right(Token(X-Api-Key))
+ * }}}
+ *
+ * @param discriminatorKey
+ *   the key, under a sealed trait's path, that holds the name of its case
+ * @see
+ *   [[https://zioblocks.com/reference/config/config-decoder/ ConfigDecoder]]
+ */
 class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Deriver[ConfigDecoder] {
 
+  /**
+   * Returns a deriver whose sealed-trait decoders read the case name at
+   * `<path>.<key>` instead of `<path>.<discriminatorKey>`.
+   */
   def discriminator(key: String): ConfigDecoderDeriver = new ConfigDecoderDeriver(key)
 
   override def derivePrimitive[A](
@@ -439,8 +495,8 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
     }
 
   private def parseBooleanValue(raw: String): Boolean = {
-    // Config decoding is intentionally more lenient than FlagReader.booleanReader:
-    // it accepts yes/no/on/off in addition to true/false/1/0.
+    // Accepts the same words as Flag.Reader.booleanReader, ignoring case:
+    // true/false, 1/0, yes/no and on/off.
     val lower = raw.toLowerCase
     if (lower == "true" || lower == "1" || lower == "yes" || lower == "on") true
     else if (lower == "false" || lower == "0" || lower == "no" || lower == "off") false
