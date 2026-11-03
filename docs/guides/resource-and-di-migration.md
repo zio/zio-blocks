@@ -438,7 +438,7 @@ To keep one named wire per service, as with `wire[A]`, write `Wire.shared[A]` (o
 
 A macwire module closes nothing, so every `AutoCloseable` needs its own `try`/`finally`, written in reverse order by hand. With ZIO Blocks:
 
-- **`AutoCloseable` services close automatically**, in reverse order of construction, when the scope closes, including when the body throws.
+- **`AutoCloseable` services close automatically**, in reverse order of construction, when the scope closes, including when the body throws. The exception is `Resource.from[T]` without parentheses: when `T`'s constructor takes a `Finalizer` or `Scope`, it does not register `close()` (a known bug in 0.0.56), so write `Resource.from[T]()` instead.
 - **Services can register their own cleanup.** A constructor that takes an implicit `Finalizer` (or `Scope`) gets one injected, and can call `defer`:
 
 ```scala mdoc:silent
