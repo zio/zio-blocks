@@ -29,10 +29,10 @@ Full text: `.superpowers/sdd/2026-10-30-config-scaladoc/global-constraints.md` (
 **Reference pages:** `docs/reference/config/{index,config-source,config-decoder,errors,flags,formats,rollout}.md` (`https://zioblocks.com/reference/config/<page>/`).
 **Known issues:** the `config:`, `config-hocon:` and `config-yaml:` entries in `library-issues.md` (full coordinator copy: `/home/milad/sources/scala/zio-blocks-worktrees/tutorials-and-guides-lists/docs/dev/library-issues.md`).
 
-- [ ] Step 1: add the four projects, the extractor test, run the checker, fix the 6 blocks.
-- [ ] Step 2: unify the `EnvSource` / `SysPropSource` drift (state per-platform behaviour, Scala.js probe).
-- [ ] Step 3: tier 1 Scaladoc; fact-check table for all existing comments.
-- [ ] Step 4: gates, one commit per file group, report.
+- [x] Step 1: add the four projects, the extractor test, run the checker, fix the 6 blocks.
+- [x] Step 2: unify the `EnvSource` / `SysPropSource` drift (state per-platform behaviour, Scala.js probe).
+- [x] Step 3: tier 1 Scaladoc; fact-check table for all existing comments.
+- [x] Step 4: gates, one commit per file group, report.
 
 ## Task 2 (Sonnet): tier 2 and 3 gaps
 
