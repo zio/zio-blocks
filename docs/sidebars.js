@@ -1,6 +1,7 @@
-// Every category except the Getting Started tour folds: `collapsed: true` starts it closed (the category holding the page
-// being read still opens), and the sidebar's hide button (docusaurus.config.js, themeConfig.docs.sidebar.hideable) hides
-// the whole sidebar. website/test/unit/sidebar-collapsible.test.mjs fails if a category starts open.
+// Every category except the Getting Started tour folds: `collapsed: true` starts it closed, and so does a category with
+// no `collapsed` key (Docusaurus' default). The category holding the page being read still opens. The sidebar's hide
+// button (docusaurus.config.js, themeConfig.docs.sidebar.hideable) hides the whole sidebar.
+// website/test/unit/sidebar-collapsible.test.mjs fails if a category starts open.
 const sidebars = {
   // Getting Started has its own sidebar, reached from the "Getting Started" navbar item: the overview page, then the short
   // tour for newcomers in reading order. website/test/unit/getting-started-sidebar.test.mjs fails if a page under
