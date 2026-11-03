@@ -133,8 +133,9 @@ object ConfigError {
   }
 
   /**
-   * A required key has no value in the source: the field has no default and is
-   * not an `Option`.
+   * A required key has no value in the source. A field with a default or of an
+   * `Option` type does not report it, except inside a missing section of two or
+   * more required keys, a known bug.
    *
    * @param path
    *   dot-separated key path that was looked up
@@ -255,12 +256,12 @@ object ConfigError {
    * A document or file could not be read or parsed, as opposed to a single
    * value of the wrong type ([[InvalidValue]]).
    *
-   * `ConfigSource.fromHocon`, `fromJson` and `fromYaml` raise it with an empty
-   * `path` when the text does not parse. `ConfigSource.fromFile` raises it with
-   * the file's path when the file cannot be read, and with an empty `path` when
-   * its text does not parse. When `path` is empty, `message` leaves out the
-   * cause, so the line and column of a HOCON syntax error are only in `cause`,
-   * a known bug.
+   * `ConfigSource.fromHocon` and `fromJson` raise it with an empty `path` when
+   * the text does not parse, and `fromYaml` when its reader throws.
+   * `ConfigSource.fromFile` raises it with the file's path when the file cannot
+   * be read, and with an empty `path` when its text does not parse. When `path`
+   * is empty, `message` leaves out the cause, so the line and column of a HOCON
+   * syntax error are only in `cause`, a known bug.
    *
    * @param path
    *   the key or file path, or empty for a whole document

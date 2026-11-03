@@ -40,13 +40,18 @@ object ConfigDecoderDeriver extends ConfigDecoderDeriver("type")
  *
  * The derived decoders read a value at a dot-separated path as follows:
  *
- *   - A record reads each field at `<path>.<field>`. A missing field takes its
- *     default value, or `None` for an `Option`; a value that is present but
- *     invalid is an error even when the field has a default.
+ *   - A record reads each field at `<path>.<field>`. A missing field of a
+ *     primitive type takes its default value, or `None` for an `Option`; a
+ *     value that is present but invalid is an error even when the field has a
+ *     default. A missing sealed trait, or a missing record with two or more
+ *     required fields, is an error even when the field is an `Option` or has a
+ *     default, a known bug. A missing sequence or map is empty, so an `Option`
+ *     of one is `Some` of an empty collection.
  *   - A primitive parses the string at the path. `Boolean` accepts `true` /
- *     `false`, `1` / `0`, `yes` / `no` and `on` / `off`, ignoring case; the
+ *     `false`, `1` / `0`, `yes` / `no` and `on` / `off`, ignoring case. Most
  *     `java.time` types use their `parse` methods, so a `Duration` is written
- *     like `PT30S`.
+ *     like `PT30S`; `Month` and `DayOfWeek` take their name in any case, and
+ *     `ZoneId` and `ZoneOffset` use `of`.
  *   - A sealed trait reads the case name at `<path>.<discriminatorKey>` and
  *     decodes that case at `<path>`.
  *   - A sequence reads `<path>.0`, `<path>.1` and so on, up to the first
@@ -58,8 +63,8 @@ object ConfigDecoderDeriver extends ConfigDecoderDeriver("type")
  *
  * An `Option` of a record decodes to `None` when exactly one of the record's
  * required keys is missing, even if its other keys are set, and fails when two
- * or more are missing, including when the whole section is absent. Both are a
- * known bug.
+ * or more are missing, which includes a missing section when the record has two
+ * or more required fields. Both are a known bug.
  *
  * {{{
  * import zio.blocks.schema.Schema
