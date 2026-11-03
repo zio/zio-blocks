@@ -16,7 +16,9 @@
 
 package zio.blocks.sql
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.*
+import zio.blocks.typeid.TypeId
 
 final case class ColumnMeta(name: String, dbValue: DbValue, nullable: Boolean)
 
@@ -122,9 +124,15 @@ object TableMetadata {
       case None if reflect.asWrapperUnknown.isDefined =>
         dbValueFor(reflect.asWrapperUnknown.get.wrapper.wrapped)
 
+      case None if reflect.typeId == TypeId.of[Array[Byte]] =>
+        DbValue.DbBytes(Array.emptyByteArray)
+
+      case None if reflect.typeId == TypeId.of[Chunk[Byte]] =>
+        DbValue.DbBytes(Array.emptyByteArray)
+
       case _ =>
-        throw new UnsupportedOperationException(
-          s"Typed DDL does not support reflect node ${reflect.typeId}"
-        )
+        // Sequences, maps, dynamic values, and complex variants are stored via
+        // DbCodec.jsonb, so DDL uses the JSONB marker value.
+        DbValue.DbJsonb("")
     }
 }

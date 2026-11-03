@@ -256,6 +256,18 @@ private[sql] class JdbcResultReader(val underlying: ResultSet) extends DbResultR
     if (s == null) null else UUID.fromString(s)
   }
 
+  override def getJsonb(index: Int): String = {
+    val v = underlying.getString(index)
+    recordWasNull(index)
+    v
+  }
+
+  override def getJsonb(label: String): String = {
+    val v = underlying.getString(label)
+    recordLabelWasNull(label)
+    v
+  }
+
   override def getArray(index: Int): Array[String] = {
     val sqlArray = underlying.getArray(index)
     recordWasNull(index)

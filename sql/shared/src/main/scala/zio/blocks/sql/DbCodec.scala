@@ -161,25 +161,62 @@ object DbCodec extends DbCodecOpaquePriority {
   ): DbCodec[A] =
     configure(builder[A]).derive
 
+  /**
+   * Native JSONB string codec. Binds as [[zio.blocks.sql.DbValue.DbJsonb]] (not
+   * `DbString`) so PostgreSQL receives a `jsonb`-typed parameter without a
+   * manual `::jsonb` cast, and DDL renders as `JSONB` on PostgreSQL (`TEXT` on
+   * SQLite).
+   */
+  private val jsonbStringCodec: DbCodec[String] = new DbCodec[String] {
+    val columns: IndexedSeq[String]                                                 = IndexedSeq("value")
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): String =
+      reader.getJsonb(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): String =
+      reader.getJsonb(startIndex)
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: String): Unit =
+      writer.setJsonb(startIndex, value)
+    def toDbValues(value: String): IndexedSeq[DbValue] =
+      IndexedSeq(DbValue.DbJsonb(value))
+  }
+
   def jsonb[A](using jsonCodec: JsonCodec[A]): DbCodec[A] =
-    DbCodec[String].transform[A](decodeJsonb[A])(value => jsonCodec.encodeToString(value))
+    jsonbStringCodec.transform[A](decodeJsonb[A])(value => jsonCodec.encodeToString(value))
 
   def jsonb[A](encode: A => String, decode: String => A): DbCodec[A] =
-    DbCodec[String].transform[A](decode)(encode)
+    jsonbStringCodec.transform[A](decode)(encode)
 
   def jsonbOption[A](using jsonCodec: JsonCodec[A]): DbCodec[Option[A]] =
-    DbCodec[Option[String]].transform[Option[A]](
-      _.map(str => decodeJsonb[A](str))
-    )(
-      _.map(value => jsonCodec.encodeToString(value))
-    )
+    jsonbOption[A](value => jsonCodec.encodeToString(value), str => decodeJsonb[A](str))
 
-  def jsonbOption[A](encode: A => String, decode: String => A): DbCodec[Option[A]] =
-    DbCodec[Option[String]].transform[Option[A]](
-      _.map(str => decode(str))
-    )(
-      _.map(value => encode(value))
-    )
+  def jsonbOption[A](encode: A => String, decode: String => A): DbCodec[Option[A]] = new DbCodec[Option[A]] {
+    val columns: IndexedSeq[String] = IndexedSeq("value")
+
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Option[A] =
+      if (reader.isNull(columnLabels.head)) None
+      else {
+        val raw = reader.getJsonb(columnLabels.head)
+        if (reader.wasNull || raw == null) None else Some(decode(raw))
+      }
+
+    override def readValue(reader: DbResultReader, startIndex: Int): Option[A] =
+      if (reader.isNull(startIndex)) None
+      else {
+        val raw = reader.getJsonb(startIndex)
+        if (reader.wasNull || raw == null) None else Some(decode(raw))
+      }
+
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Option[A]): Unit =
+      value match {
+        case Some(v) => writer.setJsonb(startIndex, encode(v))
+        case None    => writer.setNull(startIndex, SqlNullType)
+      }
+
+    def toDbValues(value: Option[A]): IndexedSeq[DbValue] =
+      value match {
+        case Some(v) => IndexedSeq(DbValue.DbJsonb(encode(v)))
+        case None    => IndexedSeq(DbValue.DbNull)
+      }
+  }
 
   /**
    * Derives a `DbCodec[A]` using the default column name mapper.
@@ -431,6 +468,20 @@ trait DbResultReader {
   def getUUID(label: String): java.util.UUID
 
   /**
+   * Reads a JSON/JSONB column as its canonical JSON text.
+   *
+   * Defaults to `getString` so existing `DbResultReader` implementations keep
+   * working; PostgreSQL returns `jsonb` columns as text via `getString`, so the
+   * default is already correct for JDBC.
+   */
+  def getJsonb(index: Int): String = getString(index)
+
+  /**
+   * Label-based variant of [[getJsonb]].
+   */
+  def getJsonb(label: String): String = getString(label)
+
+  /**
    * Reads the array column at the given 1-based `index` as a flat
    * `Array[String]`.
    *
@@ -515,4 +566,13 @@ trait DbParamWriter {
   def setUUID(index: Int, value: java.util.UUID): Unit
   def setNull(index: Int, sqlType: Int): Unit
   def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit
+
+  /**
+   * Writes a JSON document to a JSON/JSONB parameter.
+   *
+   * Defaults to `setString` so existing `DbParamWriter` implementations keep
+   * compiling; the JDBC writer overrides this with `setObject(?, Types.OTHER)`
+   * so PostgreSQL infers `jsonb` without requiring a manual `::jsonb` cast.
+   */
+  def setJsonb(index: Int, value: String): Unit = setString(index, value)
 }

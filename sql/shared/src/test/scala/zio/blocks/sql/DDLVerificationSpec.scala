@@ -17,10 +17,9 @@
 package zio.blocks.sql
 
 import zio.test.*
-import zio.blocks.schema.*
 import zio.blocks.chunk.Chunk
+import zio.blocks.schema.*
 import java.time.Instant
-import scala.util.Try
 
 object DDLVerificationSpec extends ZIOSpecDefault {
 
@@ -76,6 +75,12 @@ object DDLVerificationSpec extends ZIOSpecDefault {
   )
   object BytesOnly { implicit val schema: Schema[BytesOnly] = Schema.derived }
 
+  case class WithJson(
+    id: Int,
+    tags: List[String]
+  )
+  object WithJson { implicit val schema: Schema[WithJson] = Schema.derived }
+
   // helper: build DDL string from ColumnMeta
   private def ddlString(cols: IndexedSeq[ColumnMeta], dialect: SqlDialect): String =
     cols.map(c => s"${c.name} ${dialect.typeName(c.dbValue)}${if (c.nullable) "" else " NOT NULL"}").mkString(", ")
@@ -127,17 +132,23 @@ object DDLVerificationSpec extends ZIOSpecDefault {
         val col  = cols.find(_.name == "b").get
         assertTrue(SqlDialect.SQLite.typeName(col.dbValue) == "INTEGER", col.nullable)
       },
-      test("Array[Byte] -> throws (known gap, needs fix for BYTEA/BLOB)") {
-        val result = Try(TableMetadata.columnsFor(summon[Schema[Mixed]]))
-        // Currently Array[Byte] is NOT supported via TableMetadata -> expect exception (gap)
-        assertTrue(result.isFailure)
+      test("Array[Byte] -> BLOB") {
+        val cols = TableMetadata.columnsFor(summon[Schema[Mixed]])
+        val col  = cols.find(_.name == "bytes").get
+        assertTrue(SqlDialect.SQLite.typeName(col.dbValue) == "BLOB", !col.nullable)
       },
-      test("Chunk[Byte] -> throws (known gap, needs fix for BYTEA/BLOB)") {
-        val result = Try(TableMetadata.columnsFor(summon[Schema[ChunkMixed]]))
-        assertTrue(result.isFailure)
+      test("Chunk[Byte] -> BLOB") {
+        val cols = TableMetadata.columnsFor(summon[Schema[ChunkMixed]])
+        val col  = cols.find(_.name == "chunk_bytes").get
+        assertTrue(SqlDialect.SQLite.typeName(col.dbValue) == "BLOB", !col.nullable)
+      },
+      test("List[String] -> TEXT (SQLite stores JSONB as TEXT)") {
+        val cols = TableMetadata.columnsFor(summon[Schema[WithJson]])
+        val col  = cols.find(_.name == "tags").get
+        assertTrue(col.dbValue.isInstanceOf[DbValue.DbJsonb], SqlDialect.SQLite.typeName(col.dbValue) == "TEXT")
       },
       test("Table.derived[Mixed] createTable SQLite") {
-        // Mixed contains Array[Byte] which currently fails; test with Primitives instead
+        // Mixed contains Array[Byte] which maps to BLOB
         val table = Table.derived[Primitives]
         val sql   = table.createTable(SqlDialect.SQLite).sql(SqlDialect.SQLite)
         assertTrue(sql.contains("TEXT NOT NULL"), sql.contains("INTEGER NOT NULL"), sql.contains("REAL NOT NULL"))
@@ -201,13 +212,25 @@ object DDLVerificationSpec extends ZIOSpecDefault {
         val col  = cols.find(_.name == "a").get
         assertTrue(SqlDialect.PostgreSQL.typeName(col.dbValue) == "TEXT", col.nullable)
       },
-      test("Array[Byte] -> throws (known gap, needs fix for BYTEA)") {
-        val result = Try(TableMetadata.columnsFor(summon[Schema[Mixed]]))
-        assertTrue(result.isFailure)
+      test("Array[Byte] -> BYTEA") {
+        val cols = TableMetadata.columnsFor(summon[Schema[Mixed]])
+        val col  = cols.find(_.name == "bytes").get
+        assertTrue(SqlDialect.PostgreSQL.typeName(col.dbValue) == "BYTEA", !col.nullable)
       },
-      test("Chunk[Byte] -> throws (known gap, needs fix for BYTEA)") {
-        val result = Try(TableMetadata.columnsFor(summon[Schema[ChunkMixed]]))
-        assertTrue(result.isFailure)
+      test("Chunk[Byte] -> BYTEA") {
+        val cols = TableMetadata.columnsFor(summon[Schema[ChunkMixed]])
+        val col  = cols.find(_.name == "chunk_bytes").get
+        assertTrue(SqlDialect.PostgreSQL.typeName(col.dbValue) == "BYTEA", !col.nullable)
+      },
+      test("List[String] -> JSONB") {
+        val cols = TableMetadata.columnsFor(summon[Schema[WithJson]])
+        val col  = cols.find(_.name == "tags").get
+        assertTrue(col.dbValue.isInstanceOf[DbValue.DbJsonb], SqlDialect.PostgreSQL.typeName(col.dbValue) == "JSONB")
+      },
+      test("Table.derived with JSON field renders JSONB on PG") {
+        val table = Table.derived[WithJson]
+        val sql   = table.createTable(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+        assertTrue(sql.contains("tags JSONB NOT NULL"))
       },
       test("Table.derived createTable PG") {
         val table = Table.derived[Primitives]

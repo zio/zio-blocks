@@ -16,6 +16,7 @@
 
 package zio.blocks.sql
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.docs.Doc
 import zio.blocks.maybe.Maybe
 import zio.blocks.schema._
@@ -463,9 +464,15 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     examples: Seq[C[A]]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DbCodec[C[A]]] =
     Lazy {
-      val boundElement = toBoundReflect(element)
-      val boundReflect = Reflect.Sequence[Binding, A, C](boundElement, typeId, binding, doc, modifiers)
-      jsonbCodec(new Schema[C[A]](boundReflect))
+      if (typeId == TypeId.of[Array[Byte]])
+        arrayByteCodec.asInstanceOf[DbCodec[C[A]]]
+      else if (typeId == TypeId.of[Chunk[Byte]])
+        chunkByteCodec.asInstanceOf[DbCodec[C[A]]]
+      else {
+        val boundElement = toBoundReflect(element)
+        val boundReflect = Reflect.Sequence[Binding, A, C](boundElement, typeId, binding, doc, modifiers)
+        jsonbCodec(new Schema[C[A]](boundReflect))
+      }
     }
 
   override def deriveMap[F[_, _], M[_, _], K, V](
@@ -729,6 +736,40 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
         writer.setUUID(startIndex, value)
       def toDbValues(value: java.util.UUID): IndexedSeq[DbValue] =
         IndexedSeq(DbValue.DbUUID(value))
+    }
+
+  private val arrayByteCodec: DbCodec[Array[Byte]] =
+    new DbCodec[Array[Byte]] {
+      val columns: IndexedSeq[String]                                                      = IndexedSeq("value")
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Array[Byte] = {
+        val v = reader.getBytes(columnLabels.head)
+        if (v == null) unexpectedNull("Array[Byte]") else v
+      }
+      override def readValue(reader: DbResultReader, startIndex: Int): Array[Byte] = {
+        val v = reader.getBytes(startIndex)
+        if (v == null) unexpectedNull("Array[Byte]") else v
+      }
+      def writeValue(writer: DbParamWriter, startIndex: Int, value: Array[Byte]): Unit =
+        writer.setBytes(startIndex, value)
+      def toDbValues(value: Array[Byte]): IndexedSeq[DbValue] =
+        IndexedSeq(DbValue.DbBytes(value))
+    }
+
+  private val chunkByteCodec: DbCodec[Chunk[Byte]] =
+    new DbCodec[Chunk[Byte]] {
+      val columns: IndexedSeq[String]                                                      = IndexedSeq("value")
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Chunk[Byte] = {
+        val v = reader.getBytes(columnLabels.head)
+        if (v == null) unexpectedNull("Chunk[Byte]") else Chunk.fromArray(v)
+      }
+      override def readValue(reader: DbResultReader, startIndex: Int): Chunk[Byte] = {
+        val v = reader.getBytes(startIndex)
+        if (v == null) unexpectedNull("Chunk[Byte]") else Chunk.fromArray(v)
+      }
+      def writeValue(writer: DbParamWriter, startIndex: Int, value: Chunk[Byte]): Unit =
+        writer.setBytes(startIndex, value.toArray)
+      def toDbValues(value: Chunk[Byte]): IndexedSeq[DbValue] =
+        IndexedSeq(DbValue.DbBytes(value.toArray))
     }
 }
 
