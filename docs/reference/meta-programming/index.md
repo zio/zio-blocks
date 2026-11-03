@@ -19,7 +19,7 @@ The group has two blocks, and [Schema](../schema/index.md) is the one most progr
 
 ## How the Blocks Differ
 
-`Schema` describes the structure of a data type, and one schema drives JSON support, validation and optics. Further formats such as Avro, BSON, CSV, MessagePack, Thrift, TOON, XML and YAML are separate modules listed on the [Schema](../schema/index.md) page.
+`Schema` describes the structure of a data type, and one schema drives JSON support, validation and optics. Further formats such as Avro, BSON, CSV, MessagePack, Thrift, TOON, XML and YAML are separate modules, each with its own artifact (for example `zio-blocks-schema-avro`). The [overview](../../index.md) lists them with their platforms, and the [Schema](../schema/index.md) page documents them.
 
 `TypeId` answers a narrower question: which type is this? It captures names, type parameters, parent types and annotations as data, which suits registries, code generation and dispatching on a type that would otherwise be erased.
 

@@ -6,16 +6,17 @@ description: "Introduction to the Web & HTTP blocks of ZIO Blocks: HTTP data mod
 
 ## Introduction
 
-Building a web service involves several separate concerns: representing requests and responses, describing the API, documenting it, authenticating callers and producing pages. The blocks in this group cover each of these as immutable data types. Most of them describe their subject without committing to a particular server or client, and all eight run on the JVM and in Scala.js.
+Building a web service involves several separate concerns: representing requests and responses, describing the API, documenting it, authenticating callers and producing pages. The blocks in this group cover each of these as immutable data types. Most of them describe their subject without committing to a particular server or client, and all nine run on the JVM and in Scala.js.
 
 ## The Blocks
 
-The eight blocks are listed below in the order the docs present them.
+The nine blocks are listed below in the order the docs present them.
 
 | Block                                   | Artifact                       | What It Is For                                                                              |
 | --------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------- |
 | [MediaType](../media-type.md)           | `zio-blocks-mediatype`         | Type-safe IANA media types with 2,600+ predefined types                                     |
 | [HTTP Model](../http-model/index.md)    | `zio-blocks-http-model`        | Pure HTTP data model with URL parsing, headers, cookies, and forms                          |
+| [HTTP Model Schema](../http-model/schema.md) | `zio-blocks-http-model-schema` | Schema-based typed access to the HTTP model                                                 |
 | [Endpoint](../endpoint/index.md)        | `zio-blocks-endpoint`          | Type-safe HTTP endpoint descriptors with composable codecs and typed auth                   |
 | [OpenAPI](../openapi.md)                | `zio-blocks-openapi`           | Type-safe OpenAPI 3.1 specification generation and rendering                                |
 | [JWT](../jwt.md)                        | `zio-blocks-jwt`               | Zero-dependency JWT signing and verification with HMAC, RSA, ECDSA and EdDSA support        |
@@ -25,7 +26,7 @@ The eight blocks are listed below in the order the docs present them.
 
 ## How the Blocks Fit Together
 
-[MediaType](../media-type.md), [HTTP Model](../http-model/index.md) and [JWT](../jwt.md) are the protocol layer. The HTTP model represents requests, responses, headers, URLs and cookies and keeps protocol concerns apart from effects such as sending a message. `MediaType` supplies the content types those messages carry, and `JWT` signs and verifies tokens without any dependency.
+[MediaType](../media-type.md), [HTTP Model](../http-model/index.md) and [JWT](../jwt.md) are the protocol layer. The HTTP model represents requests, responses, headers, URLs and cookies and keeps protocol concerns apart from effects such as sending a message, and [HTTP Model Schema](../http-model/schema.md) adds schema-based typed access to it. `MediaType` supplies the content types those messages carry, and `JWT` signs and verifies tokens without any dependency.
 
 [Endpoint](../endpoint/index.md) and [OpenAPI](../openapi.md) describe an API. An endpoint is a description of routes, parameters, headers, bodies, errors and authentication, written once and independent of any server or client implementation. The OpenAPI block is a data model of an OpenAPI 3.1 document that can be built in Scala and exported as JSON for tools such as Swagger UI.
 

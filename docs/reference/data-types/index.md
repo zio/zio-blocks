@@ -22,7 +22,7 @@ The group has three blocks.
 
 `Chunk` is an immutable, indexed sequence with a functional interface. It stays fast for element access and is lazy for expensive operations such as repeated concatenation.
 
-`Maybe` is a low-allocation alternative to `Option`. On Scala 3 it is an opaque type, so a present value is stored as it is rather than inside a wrapper object.
+`Maybe` is a low-allocation alternative to `Option`. On Scala 3 it is an opaque type, so a present reference is stored as it is rather than inside a wrapper object, and only `null` and nested `Maybe` values are wrapped in `Present`. On Scala 2.13 it is a sealed trait and allocates like `Option`.
 
 `Combinators` provides compile-time typeclasses for composing and decomposing tuples, `Either` types and union types, which is useful for code that must work with many shapes of the same operation.
 
