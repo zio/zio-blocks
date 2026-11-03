@@ -15,7 +15,7 @@ scalacOptions ++= {
   }
 }
 
-val zioBlocksVersion = "0.0.56"
+val zioBlocksVersion = "0.017"
 
 // Scala 3.9+ uses the `zio-blocks-next-*` artifacts (built with Scala 3.9.0, unreadable by older Scala 3 compilers); older Scala versions use `zio-blocks-*`.
 def zioBlocks(module: String) = Def.setting {
@@ -31,9 +31,9 @@ libraryDependencies ++= Seq(
   zioBlocks("streams").value,
   zioBlocks("sql-zio").value,
   zioBlocks("data-migration").value,
-  "org.xerial"      % "sqlite-jdbc"  % "3.53.4.0",
-  "org.postgresql"  % "postgresql"   % "42.7.14",
-  "com.zaxxer"      % "HikariCP"     % "7.1.0",
-  "dev.zio"        %% "zio-test"     % "2.1.27" % Test,
-  "dev.zio"        %% "zio-test-sbt" % "2.1.27" % Test
+  "org.xerial"     % "sqlite-jdbc"  % "3.53.4.0",
+  "org.postgresql" % "postgresql"   % "42.7.14",
+  "com.zaxxer"     % "HikariCP"     % "7.1.0",
+  "dev.zio"       %% "zio-test"     % "2.1.27" % Test,
+  "dev.zio"       %% "zio-test-sbt" % "2.1.27" % Test
 )

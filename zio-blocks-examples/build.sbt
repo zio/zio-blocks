@@ -1,7 +1,7 @@
 ThisBuild / version      := "0.1.0"
 ThisBuild / scalaVersion := "3.9.0"
 
-val zioBlocksVersion = "0.0.56"
+val zioBlocksVersion = "0.017"
 
 // For Scala 3.10+, artifacts are published as `zio-blocks-next-*`; older Scala versions use `zio-blocks-*`.
 def zioBlocks(module: String) = Def.setting {
@@ -75,7 +75,7 @@ lazy val ironRefinedTypes = (project in file("iron-refined-types"))
     commonSettings,
     name := "iron-refined-types",
     libraryDependencies ++= Seq(
-      "dev.zio"            %% "zio-blocks-next-schema" % zioBlocksVersion,
+      "dev.zio"             %% "zio-blocks-next-schema" % zioBlocksVersion,
       ("io.github.iltotore" %% "iron-zio-blocks-schema" % "3.4.1").exclude("dev.zio", "zio-blocks-schema_3")
     )
   )
