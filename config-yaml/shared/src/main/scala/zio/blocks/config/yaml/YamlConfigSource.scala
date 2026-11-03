@@ -48,7 +48,8 @@ object YamlConfigSource {
 
   /**
    * Parses `yaml` and returns its values as a source. A value that is `null`,
-   * `~` or empty is left out, as is a mapping key that is not a scalar.
+   * `~` or missing (`key:` with nothing after it) is left out, as is a mapping
+   * key that is not a scalar; a quoted empty string is kept.
    *
    * The parser is lenient: it stops at the first line it cannot read and keeps
    * what it read so far, without an error, and a document whose top level is a
@@ -61,8 +62,7 @@ object YamlConfigSource {
    * @param sourceId
    *   a unique identifier for this source (default: "yaml:string")
    * @return
-   *   Either a ConfigError if parsing fails, or a ConfigSource with flattened
-   *   YAML data
+   *   a `ParseError` if the YAML reader throws, or the source
    */
   def fromString(yaml: String, sourceId: String = "yaml:string"): Either[ConfigError, ConfigSource] =
     try {
