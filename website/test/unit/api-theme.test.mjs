@@ -75,7 +75,7 @@ test('the navbar links match the Docusaurus navbar, with API as the current page
   // The left items follow the logo in the left group; GitHub and Discord stay in the right group.
   const leftGroup = /<div class="zb-navbar__left">([\s\S]*?)<\/div><div class="zb-navbar__right">/.exec(nav)[1];
   assert.deepEqual([...leftGroup.matchAll(/class="zb-navbar__link[^"]*" href="[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]),
-    ['Getting Started', 'Reference', 'Guides', 'API', 'Blocks']);
+    ['Getting Started', 'Reference', 'Guides', 'API']);
   assert.match(nav, /<a class="zb-navbar__link zb-navbar__link--active" href="\/api\/" aria-current="page">API<\/a>/);
   assert.match(nav, /<a class="zb-navbar__link" href="https:\/\/github\.com\/zio\/zio-blocks" target="_blank" rel="noopener noreferrer">GitHub<svg/);
   assert.match(nav, /<a class="zb-navbar__link" href="https:\/\/discord\.gg\/2ccFBr4" target="_blank" rel="noopener noreferrer">Discord<svg/);

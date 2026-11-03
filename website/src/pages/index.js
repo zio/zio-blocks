@@ -15,7 +15,7 @@ const DESCRIPTION =
   'Type-safe, modular building blocks for Scala. Standalone libraries with zero or minimal dependencies, designed to work with any Scala stack.';
 
 // Section ids are plain JSX attributes, which Docusaurus' anchor check cannot see; register them
-// so navbar links such as `/#catalog` validate on every page.
+// so links such as `/#catalog` validate on every page.
 const ANCHORS = RAIL.map((s) => s.id);
 
 export default function Home() {

@@ -138,9 +138,6 @@ const config = {
           // The Scaladoc is plain HTML copied into static/api by `sbt docs/generateApiDocs`, outside the Docusaurus
           // router: pathname:// makes it a full page load and keeps the broken link checker off it.
           { to: 'pathname:///api/', label: 'API', position: 'left', target: '_self' },
-          // A hash link to the landing page: never mark it active. Docusaurus' default prefix match on `/` would light it
-          // up on every docs page, now that docs are served at the site root. A pathname is never empty, so '^$' never matches.
-          { to: '/#catalog', label: 'Blocks', position: 'left', activeBaseRegex: '^$' },
           { href: 'https://github.com/zio/zio-blocks', position: 'right', className: 'header-github-link', 'aria-label': 'GitHub repository' },
           { href: 'https://discord.gg/2ccFBr4', position: 'right', className: 'header-discord-link', 'aria-label': 'Join the ZIO Discord server' },
         ],

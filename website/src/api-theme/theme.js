@@ -102,7 +102,7 @@
         foldedByReader[top.getAttribute('data-loc')] = top.classList.contains('expanded');
       }
       // Scaladoc loads every same-origin link in place, swapping in the fetched page's #main. The navbar's site links
-      // (/overview, /#catalog) are not Scaladoc pages, so stop the click before it reaches Scaladoc's handler on the
+      // (/overview, /reference/) are not Scaladoc pages, so stop the click before it reaches Scaladoc's handler on the
       // link itself (this listener runs first, in the capture phase) and let the browser load them normally.
       if (target && target.closest('#header a, .zb-mobile-links a')) e.stopPropagation();
 

@@ -72,12 +72,24 @@ Every page ends with the same footer: the logo (linking home) and the site tagli
 ## Index pages for `/guides/` and `/reference/`
 
 `docs/guides/index.md` and `docs/reference/index.md` give the two folders an index page each. They are not entries in
-`docs/sidebars.js`: `displayed_sidebar` shows the guides or the main sidebar beside them, and `docs/SidebarCards.jsx`
-draws one card per entry of that sidebar with Docusaurus' `DocCardList`: one per section on `/guides/` (Tutorials,
-How-to guides, Migration guides, Deep dives) and one per block category on `/reference/` (`categoriesOnly`). Each guides
-section and how-to topic links a `generated-index` page under `/guides/` that lists its items as cards, so a new guide
-or block group appears on these pages without editing them; `test/unit/guides-sidebar.test.mjs` fails if a guide page
-is missing from the guides sidebar. `src/clientModules/folderIndexes.js` gives `/guides`
+`docs/sidebars.js`: `displayed_sidebar` shows the guides or the main sidebar beside them. `/guides/` is drawn by
+`docs/SidebarCards.jsx`, one Docusaurus `DocCardList` card per entry of the guides sidebar (Tutorials, How-to guides,
+Migration guides, Deep dives). Each guides section and how-to topic links a `generated-index` page under `/guides/` that
+lists its items as cards, so a new guide appears there without editing the page; `test/unit/guides-sidebar.test.mjs`
+fails if a guide page is missing from the guides sidebar.
+
+`/reference/` is a block directory (`docs/ReferenceDirectory.jsx`): every block of the "All Blocks" tables in
+`docs/index.md`, grouped under the same headings as the reference sidebar, with its description, artifact, platform and
+Scala badges, a filter box (matches name, artifact and description) and a jump link per group. The data is `reference` in
+the generated `src/data/site.json` (`scripts/lib/reference.mjs`): a row that ships inside another row becomes that row's
+link instead of a row of its own, either because it shares the artifact (Resource, Unscoped, ... under Scope) or because
+`REFERENCE_FOLDS` in `scripts/build-catalog.mjs` says so (the format codecs under Schema, the config adapters under
+Configuration, HTTP Model Schema under HTTP Model, OTLP Export under Telemetry). A fold naming a block that is not in the
+docs fails the build. Every group in the sidebar links an introduction page (`docs/reference/<group>/index.md`), and `test/unit/reference-sidebar.test.mjs` fails if one loses its link. A new block or group therefore appears on the page by editing `docs/index.md` only, but it must
+also be in `docs/sidebars.js` under the same heading. The filter and the two-column split are the pure functions in
+`src/lib/reference-directory.mjs`; the styles are `.zb-ref*` in `src/css/custom.css`.
+
+`src/clientModules/folderIndexes.js` gives `/guides`
 and `/reference` their trailing slash in place (hosts serve the same page for both forms); a unit test checks each
 folder it lists has an index page. The cards are flattened to the brand (no shadow, square, no link underline) in
 `src/css/custom.css`.

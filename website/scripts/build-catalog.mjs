@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { collapseSameArtifact } from './lib/collapse.mjs';
 import { overridePrincipleText } from './lib/override.mjs';
 import { parseIndex } from './lib/parse-index.mjs';
+import { referenceGroups } from './lib/reference.mjs';
 import { renameCategories } from './lib/rename.mjs';
 import { splitCategories } from './lib/split.mjs';
 import { resolveVersion } from './lib/version.mjs';
@@ -15,6 +16,18 @@ const LANDING_ROOT = fileURLToPath(new URL('../', import.meta.url));
 /** Categories shown as two on the page: the blocks matching `where` move to a new category after the original. */
 export const CATEGORY_SPLITS = [
   { from: 'Meta Programming', into: 'Codecs', where: (block) => / Codec$/.test(block.name) },
+];
+
+/**
+ * Rows of docs/index.md that the /reference/ directory shows as links under another block instead of as rows of their
+ * own (they have their own artifacts, so same-artifact folding alone would keep them): the blocks of the category
+ * holding `into` that satisfy `where` fold into it.
+ */
+export const REFERENCE_FOLDS = [
+  { into: 'Schema', where: (block) => / Codec$/.test(block.name) },
+  { into: 'Configuration', where: (block) => /^Config (YAML|JSON|HOCON)$/.test(block.name) },
+  { into: 'HTTP Model', where: (block) => block.name === 'HTTP Model Schema' },
+  { into: 'Telemetry', where: (block) => block.name === 'OTLP Export' },
 ];
 
 /** Principle texts shown instead of the (first sentence of the) text in docs/index.md. */
@@ -48,6 +61,7 @@ export async function build({ repoRoot = REPO_ROOT, outDir = LANDING_ROOT, versi
     ...parsed,
     principles: overridePrincipleText(parsed.principles, PRINCIPLE_TEXT),
     categories,
+    reference: referenceGroups(parsed.categories, REFERENCE_FOLDS),
     deepDives: parsed.deepDives.map((d) => ({ ...d, install: d.install.replaceAll('@VERSION@', resolved) })),
     blockCount: categories.reduce((n, c) => n + c.blocks.length, 0),
   };
