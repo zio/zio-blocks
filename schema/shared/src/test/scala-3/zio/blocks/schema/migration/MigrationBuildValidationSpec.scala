@@ -110,6 +110,49 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
 
         assertTrue(result == Right(PersonV2(30L)))
       },
+      test("build succeeds when required field is optionalized") {
+        // Compile-only: the macro accepts required->Option. Runtime execution of
+        // OptionalizeField is a separate gap (executeOptionalize wraps the value as
+        // Variant("Some", v) but the target schema decoder expects
+        // Variant("Some", Record("value" -> v))).
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.migration.Migration
+
+          case class V1(age: Int)
+          case class V2(age: Option[Int])
+
+          given Schema[V1] = Schema.derived[V1]
+          given Schema[V2] = Schema.derived[V2]
+
+          Migration.newBuilder[V1, V2].optionalizeField(_.age, _.age).build
+          """
+        }.map { result =>
+          assertTrue(result.isRight)
+        }
+      },
+      test("optionalizeField fails to compile when source field is already Option") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.migration.Migration
+
+          case class V1(nickname: Option[String])
+          case class V2(nickname: Option[String])
+
+          given Schema[V1] = Schema.derived[V1]
+          given Schema[V2] = Schema.derived[V2]
+
+          Migration.newBuilder[V1, V2].optionalizeField(_.nickname, _.nickname).build
+          """
+        }.map { result =>
+          assertTrue(
+            result.isLeft,
+            result.left.exists(_.contains("non-Option"))
+          )
+        }
+      },
       test("build fails to compile when target field is missing") {
         typeCheck {
           """
@@ -436,7 +479,97 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(result.isRight)
         }
-      } @@ TestAspect.exceptJS
+      } @@ TestAspect.exceptJS,
+      test("build fails to compile on duplicate AddField for same target") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.SchemaExpr
+          import zio.blocks.schema.migration.Migration
+
+          case class V1(name: String)
+          case class V2(name: String, age: Int)
+          given Schema[V1] = Schema.derived
+          given Schema[V2] = Schema.derived
+
+          Migration.newBuilder[V1, V2]
+            .addField(_.age, SchemaExpr.literal(0))
+            .addField(_.age, SchemaExpr.literal(1))
+            .build
+          """
+        }.map { result =>
+          // NOTE: typeCheck surfaces only the "No given instance ..." wrapper, never
+          // report.errorAndAbort bodies, so no substring assertion is possible here.
+          // isLeft is conclusive: this scenario is coverage-complete, so nothing else
+          // can fail it — only the call-site duplicate check fires.
+          assertTrue(result.isLeft)
+        }
+      },
+      test("build fails to compile when rename target collides with auto-mapped field") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.migration.Migration
+
+          case class V1(name: String, fullName: String)
+          case class V2(fullName: String)
+          given Schema[V1] = Schema.derived
+          given Schema[V2] = Schema.derived
+
+          Migration.newBuilder[V1, V2]
+            .renameField(_.name, _.fullName)
+            .build
+          """
+        }.map { result =>
+          // NOTE: typeCheck surfaces only the "No given instance ..." wrapper, never
+          // report.errorAndAbort bodies, so no substring assertion is possible here.
+          // isLeft is conclusive: this scenario is coverage-complete, so nothing else
+          // can fail it — only the rename-onto-automapped collision check fires.
+          assertTrue(result.isLeft)
+        }
+      },
+      test("build fails to compile when two ops provide the same target field") {
+        typeCheck {
+          """
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.SchemaExpr
+          import zio.blocks.schema.migration.Migration
+
+          case class V1(name: String, extra: String)
+          case class V2(name: String, total: Int)
+          given Schema[V1] = Schema.derived
+          given Schema[V2] = Schema.derived
+
+          Migration.newBuilder[V1, V2]
+            .addField(_.total, SchemaExpr.literal(0))
+            .renameField(_.extra, _.total)
+            .build
+          """
+        }.map { result =>
+          // `addField` and `renameField` are structurally different Changeset members, so
+          // the type is NOT collapsed — this is the cross-op case that only a name-based
+          // call-site check catches. isLeft is conclusive (coverage otherwise complete).
+          assertTrue(result.isLeft)
+        }
+      },
+      test("build succeeds chaining rename and transform on disjoint targets") {
+        case class PersonV1(name: String, age: Int)
+        case class PersonV2(fullName: String, age: Long)
+
+        given Schema[PersonV1] = Schema.derived[PersonV1]
+        given Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .renameField(_.name, _.fullName)
+          .transformField(_.age, _.age, literal(30L))
+          .build
+
+        val input  = PersonV1("Alice", 30)
+        val result = migration(input)
+
+        assertTrue(result == Right(PersonV2("Alice", 30L)))
+      }
     ),
     suite("Changeset type inference")(
       test("addField accumulates AddField in Changeset") {
