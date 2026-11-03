@@ -76,8 +76,10 @@ trait ConfigSource extends FlagSource {
    *
    * A value keeps the provenance of the source that held it. The combined
    * `sourceId` is `this.sourceId|fallback.sourceId`, and errors such as
-   * [[ConfigError.MissingKey]] name that combined id. `all` merges the entries
-   * of both, and this source's entry wins for a key that both have.
+   * [[ConfigError.MissingKey]] name that combined id. An `InvalidValue` names
+   * the combined id too, not the source that held the bad value, a known bug.
+   * `all` merges the entries of both, and this source's entry wins for a key
+   * that both have.
    *
    * {{{
    * val env      = ConfigSource.fromMap(Map("http.port" -> "9000"), "env")

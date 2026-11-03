@@ -68,10 +68,10 @@ final case class ProvenanceMap[A](value: A, private val source: ConfigSource) {
    * supplied it, or `(no keys found)` when there is none.
    *
    * The table lists the source's keys, not only the keys the value was decoded
-   * from, so an unprefixed [[EnvSource]] prints the whole environment. Values
-   * are hidden as `<secret>` by key name only (a key containing `password`,
-   * `token` or a similar marker), so a [[Secret]] field under another name is
-   * printed in clear, a known bug.
+   * from, so an unprefixed [[EnvSource]] prints the whole environment, a known
+   * bug. Values are hidden as `<secret>` by key name only (a key containing
+   * `password`, `token` or a similar marker), so a [[Secret]] field under
+   * another name is printed in clear, a known bug.
    */
   def dump(prefix: String = ""): String = {
     val entries = source.all(prefix)

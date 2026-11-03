@@ -46,8 +46,9 @@ object Config {
 
   /**
    * Returns a shared wire that decodes an `A` from the [[ConfigSource]] of the
-   * wire graph with [[loadOrThrow]], so a decoding failure throws
-   * [[ConfigLoadException]] while the graph is being built.
+   * wire graph with [[loadOrThrow]]. Decoding happens when the resource is
+   * allocated, for example by `use`, not when `Resource.from` builds it, and a
+   * failure throws [[ConfigLoadException]] there.
    *
    * {{{
    * import zio.blocks.schema.Schema
