@@ -85,7 +85,7 @@ the generated `src/data/site.json` (`scripts/lib/reference.mjs`): a row that shi
 link instead of a row of its own, either because it shares the artifact (Resource, Unscoped, ... under Scope) or because
 `REFERENCE_FOLDS` in `scripts/build-catalog.mjs` says so (the format codecs under Schema, the config adapters under
 Configuration, HTTP Model Schema under HTTP Model, OTLP Export under Telemetry). A fold naming a block that is not in the
-docs fails the build. A new block or group therefore appears on the page by editing `docs/index.md` only, but it must
+docs fails the build. Every group in the sidebar links an introduction page (`docs/reference/<group>/index.md`), and `test/unit/reference-sidebar.test.mjs` fails if one loses its link. A new block or group therefore appears on the page by editing `docs/index.md` only, but it must
 also be in `docs/sidebars.js` under the same heading. The filter and the two-column split are the pure functions in
 `src/lib/reference-directory.mjs`; the styles are `.zb-ref*` in `src/css/custom.css`.
 

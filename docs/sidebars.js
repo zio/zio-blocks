@@ -36,6 +36,7 @@ const sidebars = {
          {
            type: "category",
            label: "Meta Programming",
+           link: { type: "doc", id: "reference/meta-programming/index" },
            items: [
              {
                type: "category",
@@ -162,6 +163,7 @@ const sidebars = {
          {
            type: "category",
            label: "Dependency Injection",
+           link: { type: "doc", id: "reference/dependency-injection/index" },
            items: [
              "reference/resource-management/wire",
              "reference/context",
@@ -183,6 +185,7 @@ const sidebars = {
           {
             type: "category",
             label: "Web & HTTP",
+            link: { type: "doc", id: "reference/web-and-http/index" },
             items: [
               "reference/media-type",
               {
@@ -247,6 +250,7 @@ const sidebars = {
           {
             type: "category",
             label: "Data Types",
+            link: { type: "doc", id: "reference/data-types/index" },
             items: [
               "reference/chunk",
               "reference/maybe",
@@ -256,6 +260,7 @@ const sidebars = {
           {
             type: "category",
             label: "Concurrency",
+            link: { type: "doc", id: "reference/concurrency/index" },
             items: [
               "reference/async",
               "reference/mux",
@@ -392,6 +397,7 @@ const sidebars = {
           {
             type: "category",
             label: "Persistence",
+            link: { type: "doc", id: "reference/persistence/index" },
             items: [
             {
               type: "category",
@@ -470,6 +476,7 @@ const sidebars = {
           {
             type: "category",
             label: "Tooling & Codegen",
+            link: { type: "doc", id: "reference/tooling-and-codegen/index" },
             items: [
               {
                 type: "category",
