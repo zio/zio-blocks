@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from '@docusaurus/Link';
 import site from '@site/src/data/site.json';
 import {
@@ -9,6 +9,10 @@ import {
 // box and a jump link per group. The data is `reference` in src/data/site.json, which scripts/build-catalog.mjs
 // generates from the "All Blocks" tables of docs/index.md (rows that ship inside another row are that row's related
 // links: Resource under Scope, the codecs under Schema). Styles: `.zb-ref*` in src/css/custom.css.
+
+// Artifacts of the related links that are not the block's own (the codecs of Schema), shown in text because the chip's
+// title is invisible on touch and keyboard.
+const alsoShips = (block) => [...new Set(block.related.map((r) => r.artifact).filter((a) => a !== block.artifact))];
 
 function Group({ group }) {
   const id = groupId(group.name);
@@ -29,6 +33,9 @@ function Group({ group }) {
           </div>
           <p className="zb-ref-desc">{block.description}</p>
           <code className="zb-ref-artifact">{block.artifact}</code>
+          {alsoShips(block).length > 0 && (
+            <p className="zb-ref-also">Also ships as {alsoShips(block).join(', ')}</p>
+          )}
           {block.related.length > 0 && (
             <div className="zb-ref-related">
               {block.related.map((r) => (
@@ -57,10 +64,16 @@ export default function ReferenceDirectory() {
   const total = countBlocks(all);
   const summary = query.trim() ? shown + ' of ' + total + ' blocks match' : total + ' blocks in ' + all.length + ' areas';
   const columns = splitColumns(groups);
+  // The live region announces the count once typing pauses, not on every keystroke.
+  const [announced, setAnnounced] = useState(summary);
+  useEffect(() => {
+    const t = setTimeout(() => setAnnounced(summary), 500);
+    return () => clearTimeout(t);
+  }, [summary]);
 
   return (
     <div className="zb-ref">
-      <div className="zb-ref-filter">
+      <div className="zb-ref-filter" role="search">
         <label htmlFor="zb-ref-q">Filter blocks</label>
         <input
           id="zb-ref-q"
@@ -71,14 +84,16 @@ export default function ReferenceDirectory() {
           autoComplete="off"
         />
       </div>
-      <nav className="zb-ref-jump" aria-label="Areas">
-        {groups.map((g) => (
-          <a key={g.name} href={'#' + groupId(g.name)}>
-            {g.name} <span>{g.blocks.length}</span>
-          </a>
-        ))}
-      </nav>
-      <p className="zb-ref-summary" aria-live="polite">{summary}</p>
+      {groups.length > 0 && (
+        <nav className="zb-ref-jump" aria-label="Areas">
+          {groups.map((g) => (
+            <a key={g.name} href={'#' + groupId(g.name)}>
+              {g.name} <span>{g.blocks.length}</span>
+            </a>
+          ))}
+        </nav>
+      )}
+      <p className="zb-ref-summary" role="status" aria-atomic="true">{announced}</p>
       {shown === 0 ? (
         <p className="zb-ref-empty">No block matches that. Try a shorter name, such as <code>stream</code> or <code>http</code>.</p>
       ) : (

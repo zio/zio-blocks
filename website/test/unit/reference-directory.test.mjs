@@ -64,6 +64,12 @@ test('two columns keep the groups in order and balance the height', () => {
   assert.deepEqual(right.map((x) => x.name), ['C', 'D', 'E']);
   assert.deepEqual(splitColumns(groups()).flat().map((x) => x.name), ['Meta Programming', 'Web & HTTP']);
   assert.deepEqual(splitColumns([]), [[], []]);
-  const [one, none] = splitColumns([g('Solo', 3)]);
-  assert.equal(one.length + none.length, 1);
+  assert.deepEqual(splitColumns([g('Solo', 3)]).map((c) => c.map((x) => x.name)), [['Solo'], []]);
+});
+
+test('a block with related links weighs one line more when the columns are cut', () => {
+  const withRelated = { name: 'X', blocks: [blk('X0', 'a', 'd', [rel('R', 'a', 'd')])] };
+  const plain = (name) => ({ name, blocks: [blk(name + '0', 'a', 'd')] });
+  assert.deepEqual(splitColumns([withRelated, plain('Y'), plain('Z')]).map((c) => c.map((x) => x.name)), [['X'], ['Y', 'Z']]);
+  assert.deepEqual(splitColumns([plain('X'), plain('Y'), plain('Z')]).map((c) => c.map((x) => x.name)), [['X', 'Y'], ['Z']]);
 });

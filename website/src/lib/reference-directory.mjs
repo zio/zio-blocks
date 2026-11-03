@@ -50,8 +50,8 @@ const weight = (group) => 2 + group.blocks.reduce((n, b) => n + 3 + (b.related.l
 
 /**
  * Two columns that keep the groups in order (the first run goes left, the rest right), cut where the heights are
- * closest, so reading down the left column and then the right one follows the order of the jump links. One group is a
- * single column; the right column is empty then.
+ * closest (a tie goes to the later cut, so a single group is the left column), so reading down the left column and then the right one follows the order of the jump links. One group is a
+ * single left column; the right one is empty then.
  */
 export function splitColumns(groups) {
   let best = groups.length;
@@ -60,7 +60,7 @@ export function splitColumns(groups) {
   let left = 0;
   for (let i = 0; i <= groups.length; i += 1) {
     const gap = Math.abs(total - 2 * left);
-    if (gap < bestGap) { bestGap = gap; best = i; }
+    if (gap <= bestGap) { bestGap = gap; best = i; }
     if (i < groups.length) left += weight(groups[i]);
   }
   return [groups.slice(0, best), groups.slice(best)];
