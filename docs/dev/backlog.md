@@ -638,7 +638,7 @@ Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-1
 
 | Item | Result |
 |---|---|
-| PR | #1919 (one PR), CI green after one re-run (coverage step failed after all tests passed) |
+| PR | #1919 (one PR), **merged 2026-11-03**; CI green after one re-run (coverage step failed after all tests passed) |
 | Coverage | 90 / 230 → 230 / 230 (config 79 → 202 / 202, hocon 9 → 22 / 22, json 0 → 2 / 2, yaml 2 → 4 / 4); `EnvSource`/`SysPropSource` jvm/js drift unified, probed on Scala.js 1.22 |
 | Examples | 6 existing `{{{` blocks made to compile (3 used `derives` and failed on 3.9.0; the `DynamicFlag` rollout example could never match a call with attributes; the `Rollout` grammar marked no-check); 28 compiled examples, outputs from real runs on 2.13.18 and 3.9.0 against 0.0.56 |
 | Tooling | the four projects in `scaladocCheckedModules`, one extractor test, the style-guide module list, two AGENTS.md lines (Milad approved) |
