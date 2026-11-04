@@ -19,37 +19,140 @@ package zio.http
 import zio.blocks.chunk.Chunk
 import zio.blocks.mediatype.MediaType
 
+/**
+ * One HTTP header field as a typed value that knows its name and how to write
+ * its value. The built-in headers live in the [[Header]] companion, such as
+ * `Header.ContentLength` and `Header.CacheControl`: each is a case class or
+ * sealed trait that extends `Header`, and its companion object is the
+ * [[Header.Codec]] that parses it. Use [[Header.Custom]] for a header that has
+ * no typed model.
+ *
+ * {{{
+ * val length = Header.ContentLength(512)
+ *
+ * length.headerName    // content-length
+ * length.renderedValue // 512
+ * Headers.empty.add(length).rawGet("Content-Length") // Some(512)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/headers/ Header]]
+ */
 trait Header {
+
+  /**
+   * The header name. Every built-in header returns its lower-case wire name,
+   * such as `content-length`; a [[Header.Custom]] returns the name it was
+   * given.
+   */
   def headerName: String
+
+  /** The header value in wire format, which `Headers#add` stores. */
   def renderedValue: String
 }
 
+/**
+ * The built-in typed headers and the type classes behind them. Each built-in
+ * header's companion object is a [[Header.Typed]] codec, so a name such as
+ * `Header.ContentLength` is both the type of the value and the codec that
+ * [[Headers#get]] takes.
+ *
+ * {{{
+ * val headers = Headers("content-length" -> "2048", "cache-control" -> "max-age=600")
+ *
+ * headers.get(Header.ContentLength) // Some(ContentLength(2048))
+ * headers.get(Header.CacheControl)  // Some(MaxAge(600))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/headers/ Header]]
+ */
 object Header {
 
   /**
-   * Type class for typed access to a single HTTP header.
+   * A type class that reads and writes one HTTP header as a value of type `A`:
+   * it names the header and converts between `A` and the header's string value.
+   * [[Headers#get]], [[Headers#getAll]], `Request#header` and `Response#header`
+   * take a codec. Write your own to read a header that the built-ins do not
+   * model; `A` does not have to extend [[Header]].
    *
-   * Implementations provide the canonical header name together with parsing and
-   * rendering logic for a domain value. Parsing failures should return a human-
-   * readable error instead of constructing an invalid value.
+   * {{{
+   * final case class TenantId(value: String)
+   *
+   * object TenantIdCodec extends Header.Codec[TenantId] {
+   *   def name: String = "x-tenant-id"
+   *   def parse(value: String): Either[String, TenantId] =
+   *     if (value.isEmpty) Left("x-tenant-id must not be empty") else Right(TenantId(value))
+   *   def render(value: TenantId): String = value.value
+   * }
+   *
+   * Headers("X-Tenant-Id" -> "shop-7").get(TenantIdCodec) // Some(TenantId(shop-7))
+   * Headers("x-tenant-id" -> "").get(TenantIdCodec)       // None
+   * TenantIdCodec.parse("")                               // Left(x-tenant-id must not be empty)
+   * }}}
+   *
+   * Keep a codec in a `val` or an `object`. `Headers` caches a parsed value per
+   * entry and per codec instance, compared by reference, so a codec built anew
+   * for every read never reuses the cache.
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/http-model/headers/#a-custom-headercodec A Custom Header.Codec]]
    */
   trait Codec[A] {
+
+    /**
+     * The name of the header this codec reads. `Headers` lower-cases it before
+     * comparing it with the stored names, so its letter case does not matter.
+     */
     def name: String
+
+    /**
+     * Parses a raw header value, or returns `Left` with a message that says
+     * what was expected. `Headers#get` and `Headers#getAll` skip an entry whose
+     * parse fails and drop the message.
+     */
     def parse(value: String): Either[String, A]
+
+    /** Renders a value as a raw header value. */
     def render(value: A): String
   }
 
   /**
-   * Marker trait for built-in header models that are also valid
-   * [[Header.Codec]]s.
+   * A [[Header.Codec]] whose value type is itself a [[Header]]. Every built-in
+   * header's companion object is one, and [[Headers#getLast]] takes one.
    */
   trait Typed[H <: Header] extends Codec[H]
 
+  /**
+   * A header with a name and a value given as plain strings, for a header that
+   * has no typed model. It renders `rawValue` unchanged. `Custom` checks
+   * neither field; `Headers#add` validates both and stores the name in lower
+   * case. It has no codec, so read it back with [[Headers#rawGet]].
+   *
+   * {{{
+   * val tenant = Header.Custom("X-Tenant-Id", "shop-7")
+   *
+   * Headers.empty.add(tenant).toList // List((x-tenant-id,shop-7))
+   * }}}
+   */
   final case class Custom(override val headerName: String, rawValue: String) extends Header {
+
+    /** Returns `rawValue`. */
     def renderedValue: String = rawValue
   }
 
-  val Cookie: Typed[CookieHeader]       = CookieHeader
+  /**
+   * The codec of the `cookie` request header: the [[CookieHeader]] companion,
+   * typed as a codec. It keeps the whole value as one string; `Request#cookies`
+   * and `Cookie.parseRequest` split it into cookies.
+   */
+  val Cookie: Typed[CookieHeader] = CookieHeader
+
+  /**
+   * The codec of the `set-cookie` response header: the [[SetCookieHeader]]
+   * companion, typed as a codec. It keeps the whole value as one string;
+   * `Response#cookies` and `Cookie.parseResponse` read the cookie in it.
+   */
   val SetCookie: Typed[SetCookieHeader] = SetCookieHeader
 
   sealed trait Authorization extends zio.http.Header {
