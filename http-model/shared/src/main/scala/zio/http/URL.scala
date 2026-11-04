@@ -212,7 +212,9 @@ object URL {
    * Parses an absolute URL (`scheme://host:port/path?query#fragment`) or a
    * relative one (`/path?query#fragment`). The path, query and fragment are
    * percent-decoded. The scheme is lower-cased and the host is kept as written;
-   * user info before an `@` is dropped.
+   * user info before an `@` is dropped. A URL that starts with `//`, such as
+   * `//cdn.example.com/app.js`, has no scheme, so it parses as a path whose
+   * first segment is empty, with no host.
    *
    * It returns `Left` only for the empty string, a port that is not a number
    * from 0 to 65535, and an empty host before a `:`. Anything else parses, so a
@@ -221,8 +223,8 @@ object URL {
    * {{{
    * URL.parse("https://shop.example.com:8443/api/orders/42?page=2").map(_.port) // Right(Some(8443))
    * URL.parse("/search?q=tea%20cups").map(_.queryParams.getFirst("q"))          // Right(Some(tea cups))
-   * URL.parse("http://shop.example.com:99999/")                                   // Left(Invalid port: 99999)
-   * URL.parse("")                                                                // Left(Empty URL string)
+   * URL.parse("http://shop.example.com:99999/")                                 // Left(Invalid port: 99999)
+   * URL.parse("")                                                               // Left(Empty URL string)
    * }}}
    *
    * Known bugs: a `+` in the query stays a plus sign instead of becoming a
@@ -233,7 +235,7 @@ object URL {
    * `/login?next=https` and the host `shop.example.com`,
    * `http://shop.example.com?back=/cart` with the host
    * `shop.example.com?back=`, and `http://shop.example.com?to=a@b.com` with the
-   * host `b.com`. A URL that starts with `//` parses as a path.
+   * host `b.com`.
    */
   def parse(s: String): Either[String, URL] = {
     if (s.isEmpty) return Left("Empty URL string")
