@@ -16,49 +16,122 @@
 
 package zio.http
 
+/**
+ * The scheme of a URL, such as `http` or `wss`.
+ *
+ * The four built-in schemes are [[Scheme.HTTP]], [[Scheme.HTTPS]],
+ * [[Scheme.WS]] and [[Scheme.WSS]]; any other scheme is a [[Scheme.Custom]].
+ * `toString` returns `text`.
+ */
 sealed trait Scheme {
+
+  /** The scheme as it appears in a URL, for example `https`. */
   def text: String
+
+  /**
+   * The port used when a URL names none: `Some(80)` for `http` and `ws`,
+   * `Some(443)` for `https` and `wss`, `None` for a [[Scheme.Custom]].
+   */
   def defaultPort: Option[Int]
+
+  /** Whether the scheme runs over TLS (`https` and `wss`). */
   def isSecure: Boolean
+
+  /** Whether the scheme is a WebSocket scheme (`ws` and `wss`). */
   def isWebSocket: Boolean
   override def toString: String = text
 }
 
+/** The [[Scheme]] values and their text conversions. */
 object Scheme {
+
+  /** The `http` scheme: default port 80, not secure, not WebSocket. */
   case object HTTP extends Scheme {
-    val text: String             = "http"
+
+    /** The scheme text, `http`. */
+    val text: String = "http"
+
+    /** The default port of the scheme. */
     val defaultPort: Option[Int] = Some(80)
-    val isSecure: Boolean        = false
-    val isWebSocket: Boolean     = false
+
+    /** Whether the scheme is secure. */
+    val isSecure: Boolean = false
+
+    /** Whether the scheme is a WebSocket scheme. */
+    val isWebSocket: Boolean = false
   }
 
+  /** The `https` scheme: default port 443, secure, not WebSocket. */
   case object HTTPS extends Scheme {
-    val text: String             = "https"
+
+    /** The scheme text, `https`. */
+    val text: String = "https"
+
+    /** The default port of the scheme. */
     val defaultPort: Option[Int] = Some(443)
-    val isSecure: Boolean        = true
-    val isWebSocket: Boolean     = false
+
+    /** Whether the scheme is secure. */
+    val isSecure: Boolean = true
+
+    /** Whether the scheme is a WebSocket scheme. */
+    val isWebSocket: Boolean = false
   }
 
+  /** The `ws` scheme: default port 80, not secure, WebSocket. */
   case object WS extends Scheme {
-    val text: String             = "ws"
+
+    /** The scheme text, `ws`. */
+    val text: String = "ws"
+
+    /** The default port of the scheme. */
     val defaultPort: Option[Int] = Some(80)
-    val isSecure: Boolean        = false
-    val isWebSocket: Boolean     = true
+
+    /** Whether the scheme is secure. */
+    val isSecure: Boolean = false
+
+    /** Whether the scheme is a WebSocket scheme. */
+    val isWebSocket: Boolean = true
   }
 
+  /** The `wss` scheme: default port 443, secure, WebSocket. */
   case object WSS extends Scheme {
-    val text: String             = "wss"
+
+    /** The scheme text, `wss`. */
+    val text: String = "wss"
+
+    /** The default port of the scheme. */
     val defaultPort: Option[Int] = Some(443)
-    val isSecure: Boolean        = true
-    val isWebSocket: Boolean     = true
+
+    /** Whether the scheme is secure. */
+    val isSecure: Boolean = true
+
+    /** Whether the scheme is a WebSocket scheme. */
+    val isWebSocket: Boolean = true
   }
 
+  /**
+   * A scheme other than the four built-in ones, for example `ftp`. It has no
+   * default port, is not secure and is not a WebSocket scheme. The `text` is
+   * kept as given.
+   */
   final case class Custom(text: String) extends Scheme {
+
+    /** Always `None`. */
     val defaultPort: Option[Int] = None
-    val isSecure: Boolean        = false
-    val isWebSocket: Boolean     = false
+
+    /** Always `false`. */
+    val isSecure: Boolean = false
+
+    /** Always `false`. */
+    val isWebSocket: Boolean = false
   }
 
+  /**
+   * Converts `s` to lower case and returns the matching built-in scheme
+   * (`http`, `https`, `ws` or `wss`), or a [[Custom]] holding the lower-cased
+   * text for any other input, including the empty string. Whitespace is kept:
+   * `" http"` gives `Custom(" http")`.
+   */
   def fromString(s: String): Scheme = s.toLowerCase match {
     case "http"  => HTTP
     case "https" => HTTPS
@@ -67,5 +140,6 @@ object Scheme {
     case other   => Custom(other)
   }
 
+  /** Returns the `text` of `scheme`. */
   def render(scheme: Scheme): String = scheme.text
 }

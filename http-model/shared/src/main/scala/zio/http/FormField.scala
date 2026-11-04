@@ -18,14 +18,26 @@ package zio.http
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * One field of a multipart form: a [[FormField.Simple]] name and value, a
+ * [[FormField.Text]] with optional content type and file name, or a
+ * [[FormField.Binary]] with raw bytes.
+ */
 sealed trait FormField {
+
+  /** The field name. */
   def name: String
 }
 
+/** The [[FormField]] variants. */
 object FormField {
 
+  /** A plain name and text value, without a content type or file name. */
   final case class Simple(name: String, value: String) extends FormField
 
+  /**
+   * A text field, with an optional content type and an optional file name.
+   */
   final case class Text(
     name: String,
     value: String,
@@ -33,6 +45,10 @@ object FormField {
     filename: Option[String] = None
   ) extends FormField
 
+  /**
+   * A field holding raw bytes, with a required content type and an optional
+   * file name.
+   */
   final case class Binary(
     name: String,
     data: Chunk[Byte],

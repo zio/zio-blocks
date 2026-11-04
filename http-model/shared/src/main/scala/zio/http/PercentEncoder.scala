@@ -33,13 +33,29 @@ package zio.http
  */
 object PercentEncoder {
 
+  /**
+   * The URL component an encoded string goes into. It decides which punctuation
+   * characters stay unescaped.
+   */
   sealed trait ComponentType
+
+  /** The [[ComponentType]] variants. */
   object ComponentType {
+
+    /** A path segment: keeps `:@!$&'()*+,;=` unescaped. */
     case object PathSegment extends ComponentType
-    case object QueryKey    extends ComponentType
-    case object QueryValue  extends ComponentType
-    case object Fragment    extends ComponentType
-    case object UserInfo    extends ComponentType
+
+    /** A query parameter name: keeps `/?:@!$'()*+,;` unescaped. */
+    case object QueryKey extends ComponentType
+
+    /** A query parameter value: keeps `/?:@!$'()*+,;=` unescaped. */
+    case object QueryValue extends ComponentType
+
+    /** A fragment: keeps `/?:@!$&'()*+,;=` unescaped. */
+    case object Fragment extends ComponentType
+
+    /** The user-info part of a URL: keeps only `:` unescaped. */
+    case object UserInfo extends ComponentType
   }
 
   private def isUnreserved(b: Int): Boolean =
@@ -74,6 +90,12 @@ object PercentEncoder {
 
   private val hexChars: Array[Char] = "0123456789ABCDEF".toCharArray
 
+  /**
+   * Percent-encodes `s` for the given component. The unreserved characters
+   * `A-Z a-z 0-9 - _ . ~` and the characters the component allows are kept;
+   * every other byte of the UTF-8 form of `s` becomes `%XX` with upper-case hex
+   * digits. The empty string gives the empty string.
+   */
   def encode(s: String, componentType: ComponentType): String = {
     if (s.isEmpty) return ""
 
@@ -100,6 +122,13 @@ object PercentEncoder {
     else if (c >= 'a' && c <= 'f') c - 'a' + 10
     else -1
 
+  /**
+   * Decodes `%XX` sequences (upper- or lower-case hex digits) in `s`, reading
+   * the decoded bytes as UTF-8. A `%` not followed by two hex digits is kept as
+   * it is, and `+` is not turned into a space. Bytes that are not valid UTF-8
+   * decode to the replacement character. The empty string gives the empty
+   * string.
+   */
   def decode(s: String): String = {
     if (s.isEmpty) return ""
 
