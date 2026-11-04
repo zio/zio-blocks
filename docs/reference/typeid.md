@@ -430,7 +430,7 @@ paramF.kind
 paramF.isTypeConstructor
 ```
 
-Although `F` is declared as `F[_]`, the last two lines show `Kind.Type` and `false`: derivation does not record kinds. A parameter built by hand with `TypeParam.higherKinded` does carry one:
+Although `F` is declared as `F[_]`, the last two lines show `Type` and `false`: derivation does not record kinds. A parameter built by hand with `TypeParam.higherKinded` does carry one:
 
 ```scala mdoc
 val handBuiltF = TypeParam.higherKinded("F", 0)
