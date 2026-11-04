@@ -29,19 +29,19 @@ Full text: `.superpowers/sdd/2026-11-04-typeid-scaladoc/global-constraints.md` (
 **Reference page:** `docs/reference/typeid.md` (`https://zioblocks.com/reference/typeid/`, anchors allowed).
 **Known issues:** the `typeid` entries in `library-issues.md` (full coordinator copy: `/home/milad/sources/scala/zio-blocks-worktrees/tutorials-and-guides-lists/docs/dev/library-issues.md`), in particular the resolved `IsNominalType` entry and its two remaining Scala 2/3 differences, and the named-tuple note (a named tuple is an applied `NamedTuple`, not `TypeRepr.Tuple`).
 
-- [ ] Step 1: add `typeid.jvm`, the extractor test, run the checker, fix the 3 blocks.
-- [ ] Step 2: unify the 13 drifting members (state per-version behaviour, probes on 2.13.18 and 3.9.0).
-- [ ] Step 3: tier 1 Scaladoc; fact-check table for all existing comments.
-- [ ] Step 4: gates, one commit per file group, report.
+- [x] Step 1: add `typeid.jvm`, the extractor test, run the checker, fix the 3 blocks.
+- [x] Step 2: unify the 13 drifting members (state per-version behaviour, probes on 2.13.18 and 3.9.0).
+- [x] Step 3: tier 1 Scaladoc; fact-check table for all existing comments.
+- [x] Step 4: gates, one commit per file group, report.
 
 ## Task 2 (Sonnet): tier 2 and 3 gaps
 
-- [ ] Step 1: list every member the coverage script reports undocumented (after Task 1).
-- [ ] Step 2: write comments; probe anything behavioural; no absolute words unless verified.
-- [ ] Step 3: gates, commit, report.
+- [x] Step 1: list every member the coverage script reports undocumented (after Task 1).
+- [x] Step 2: write comments; probe anything behavioural; no absolute words unless verified.
+- [x] Step 3: gates, commit, report.
 
 ## Task 3: review and ship
 
-- [ ] Opus fact-check review (fresh context), fix round (authors resumed), Sonnet scoped re-review.
+- [x] Opus fact-check review (fresh context), fix round (authors resumed), Sonnet scoped re-review.
 - [ ] Push `khajavi scaladoc-typeid`, open PR, watch CI to green.
 - [ ] Report coverage before/after and the §13d text and metric to the coordinator.
