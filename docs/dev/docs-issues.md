@@ -245,62 +245,6 @@ Found 2026-10-29 by the `streams-examples-213` session (PR #1897), which ran `sb
 
 **Suggested fix.** One PR per build, done the way #1897 did it: `._` imports, `implicit` instead of `given`, `implicitly` instead of `summon`, and skipping genuinely Scala 3-only files on 2.x. Look at the telemetry `GlobalLogState` and async `Completer` errors separately: they may be real 2.13 API gaps, not syntax. Then consider adding a 2.13 compile step for the supporting example builds to CI (needs Milad's approval).
 
-### JdkHttp adapter: an `Error` in a handler (e.g. `ExceptionInInitializerError`, `UnsupportedClassVersionError`) closes the connection with no response and no log line
-
-Found 2026-10-29 while writing H-57 (`docs/guides/protect-pages-with-basic-auth-or-a-session-cookie.md`), on `main` `9d8bb9d70`, when the H-57 examples were run on JDK 17. The adapter is the same in every copy listed below.
-
-**Summary.** `JdkHttp.handler` catches only `NonFatal` throwables. `scala.util.control.NonFatal` excludes `LinkageError` (and `VirtualMachineError`, `InterruptedException`, `ControlThrowable`), so an `ExceptionInInitializerError` from an `object` whose initializer throws, a `NoClassDefFoundError`, or an `UnsupportedClassVersionError` (the http-model 0.0.56 jars on JDK 17) escapes the handler. The `finally` closes the exchange, the JDK server swallows the error, and the client sees only `java.io.IOException: HTTP/1.1 header parser received no bytes`. Nothing is printed on the server, so the reader has no hint of the cause. The server keeps serving other requests.
-
-**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56, JDK 21). Copy the adapter next to the script and change its package: `sed '1s/.*/package repro/' http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala > JdkHttp.scala`, then save as `Repro.scala` and run `scala-cli run --server=false .`:
-
-```scala
-//> using scala 3.9.0
-//> using dep dev.zio::zio-blocks-http-model:0.0.56
-//> using options -experimental
-//> using jvm 21
-//> using file JdkHttp.scala
-package repro
-
-import java.net.URI
-import java.net.http.{HttpClient, HttpRequest, HttpResponse}
-import java.time.Duration
-import scala.util.Try
-import zio.http._
-
-object Prices {
-  val table: Map[String, Int] = sys.error("prices.csv is missing") // fails on first use
-}
-
-object Repro {
-  def main(args: Array[String]): Unit = {
-    val app: Request => Response = request =>
-      if (request.path.encode == "/price") Response.text(Prices.table("espresso").toString)
-      else Response.text("ok")
-    val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build()
-    JdkHttp.withServer(app) { port =>
-      def get(path: String): Unit = {
-        val request = HttpRequest.newBuilder(URI.create(s"http://127.0.0.1:$port$path")).timeout(Duration.ofSeconds(3)).build()
-        println(s"GET $path -> " + Try(client.send(request, HttpResponse.BodyHandlers.ofString())).map(r => s"${r.statusCode} ${r.body}"))
-      }
-      get("/price")
-      get("/health")
-    }
-  }
-}
-// GET /price -> Failure(java.io.IOException: HTTP/1.1 header parser received no bytes)
-// GET /health -> Success(200 ok)
-```
-
-Nothing else is printed: no "Handler failed" line, no stack trace. The same happens with the H-57 `Step3UnprotectedAdminExample` under `sbt --java-home ~/.jdks/ms-17.0.15 "runMain ..."`, where the real cause is `java.lang.UnsupportedClassVersionError: zio/blocks/streams/Stream$ has been compiled by a more recent version of the Java Runtime (class file version 65.0), this version of the Java Runtime only recognizes class file versions up to 61.0` (seen only with a direct `scala-cli run --jvm 17` probe).
-
-**Expected.** The adapter logs the error (`Handler failed: java.lang.ExceptionInInitializerError ...`) and answers `500 Internal Server Error`, as it does for an exception.
-
-**Root cause.** `http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala:79` (`case NonFatal(error) =>` around `app(request)`) and `:85` (around `writeResponse`); `:92` `finally exchange.close()` then closes the exchange with no response.
-
-**Impact.** Every copy of the adapter: `http-model-examples/.../servehttpmodelrequests/JdkHttp.scala`, `.../validatequeryparametersandheaders/JdkHttp.scala`, `.../protectpageswithbasicauthorasessioncookie/JdkHttp.scala` (H-57), `jwt-examples/.../protectendpointswithjwt/JdkHttp.scala`, `capstone-examples/.../smalljsonbackendfromblocks/JdkHttp.scala`, `zio-blocks-htmx-examples/.../returnhtmxfragments/JdkHttp.scala` and `.../addinteractivitywithhtmx/JdkHttp.scala`, `datastar-examples/.../buildalivedashboardwithdatastar/JdkHttp.scala`; the inline `mdoc:invisible` copies in `serve-http-model-requests.md`, `validate-query-parameters-and-headers.md`, `protect-endpoints-with-jwt.md`, `small-json-backend-from-blocks.md` and H-57; probably the two `StreamingJdkHttp.scala` copies too (not checked). A reader who runs an example on JDK 17, or whose handler hits a failing initializer, gets a client-side I/O error and no clue.
-
-**Suggested fix.** At the handler boundary, catch `Throwable` except `VirtualMachineError` and `InterruptedException` (e.g. `case error: LinkageError =>` added next to `NonFatal`), log it, and answer 500 when no headers have been sent. Change the serving guide's copy and its prose first, then every copy and inline block above in one sweep. H-57 keeps the adapter identical to the serving guide's copy and does not change it.
-
 ### `wire.md` has no mdoc-checked code blocks
 
 Found 2026-10-30 by the scope reference fixes (#1917), on `main` `8d6216d7a`. From source; the blocks were not compiled.
@@ -313,6 +257,7 @@ Found 2026-10-30 by the scope reference fixes (#1917), on `main` `8d6216d7a`. Fr
 
 ## Resolved
 
+- JdkHttp adapter: an `Error` in a handler (e.g. `ExceptionInInitializerError`, `UnsupportedClassVersionError`) closed the connection with no response and no log line, because the adapter caught only `NonFatal` (found 2026-10-29 by H-57). Fixed in #1923 (merge `aa7023da6`, 2026-11-04): both catch sites are now `case error @ (NonFatal(_) | _: LinkageError) =>`, so the error is logged and answered with 500; `VirtualMachineError` and `InterruptedException` still propagate. Applied to all 10 copies (8 `JdkHttp.scala`, 2 `StreamingJdkHttp.scala` in http-model, jwt, capstone, htmx and datastar examples) and the inline code in 5 guides; the serving guide explains it. Verified with the entry's reproducer: before, `GET /price -> Failure(IOException: HTTP/1.1 header parser received no bytes)`; after, `Handler failed: java.lang.ExceptionInInitializerError` and `GET /price -> Success(500 Internal Server Error)`. **Known limit, kept on purpose (Milad):** the 500 body is built with http-model classes (`Response.text` → `Body.fromString` → `Stream`), so when the broken class is http-model or streams itself (the http-model 0.0.56 jars on JDK 17, `UnsupportedClassVersionError`), building the 500 throws again and the client still sees an empty reply; the log line now names the cause. The serving guide states this. A JDK-only 500 fallback would close it but adds code to every copy; not done.
 - Three scope reference pages that contradicted the code and the fact-checked scope Scaladoc (#1916) fixed in #1917 (merge `31563a0e1`, 2026-11-03), each confirmed first against source and with scala-cli probes on 0.0.56 (Scala 3.9.0, 2.13.18, Scala.js 1.22.0): `resource.md` no longer says `Resource.from[T]` always registers `close()` (the no-argument form skips an `AutoCloseable` whose constructor takes a `Finalizer` or `Scope`, a known bug; the wires form does close it) and no longer calls `Resource.shared` "lock-free" or its initializer "exactly once"; `wire.md` no longer promises a fresh instance from every unique wire (Scala 3 treats an explicit `Wire.unique` as shared), says `fromFunction` never closes an `AutoCloseable` result, and its four `Context.empty[Any]` blocks are now compiled `mdoc:compile-only` blocks; `scope.md` states the Scala.js behaviour of `Scope.global` and `isOwner`. `guides/resource-and-di-migration.md:441` got the same `Finalizer`/`Scope` exception. Still open: the rest of `wire.md` has no mdoc-checked blocks (Docs tooling entry).
 - Four `docs/reference/chunk.md` errors found by the chunk Scaladoc fact-check (#1908) fixed in #1913 (merge `c5cc1ec96`, 2026-10-30): `ChunkBuilder` was described as a buffer that feeds a tree; `dropUntil` was said to keep the matching element; the `reduceMapLeft`/`reduceMapRight` examples reduced a one-element chunk (now `NonEmptyChunk(10, 20, 30, 40)` and `(1, 2, 3, 4)`); the "Bitwise Operations" section documented private methods (removed). The same PR replaced the 23 Zionomicon sample-data lines in the chunk Scaladoc and changed `scaladoc-style.md:58` to the new sample-data rule.
 - Batch 5 doc errors fixed in #1914 (merge `610a89803`, 2026-10-30), each confirmed first by a fresh-context Opus fact-check with probes on 0.0.56: (1) `instrument-a-program-with-logs-traces-and-metrics.md:562` said exporting to an OpenTelemetry Collector "isn't possible yet" (it is, from the public `OtlpJsonEncoder` and `HttpSender`; the page now links the custom-exporter reference); `telemetry-guide.md` Part 5 now uses only public API (the package-declaration trick survives only in a warning), and its uncompilable plain block, its Part 4 `new OtlpJsonMetricExporter`, the shutdown order and the FAQ were fixed; (2) `NioBinaryTelemetryWalkthrough` section 6 no longer says its replay-window bug was "since fixed" (it still fails on 0.0.56, a known library bug), and three references to a nonexistent `NioSpec` test were removed; (3) `reference/http-model/model.md` cookies now use ZIO Blocks' `Chunk` and render the header, say `SameSite` has no default attribute, and describe `Lax` as cross-site top-level GET only.
