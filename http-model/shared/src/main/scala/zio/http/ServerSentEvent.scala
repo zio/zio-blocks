@@ -20,11 +20,27 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.maybe.Maybe
 
 /**
- * A Server-Sent Event (SSE) envelope carrying typed data.
+ * One Server-Sent Event: a payload of type `A` and the optional `event`, `id`
+ * and `retry` fields. [[render]] writes it in the `text/event-stream` wire
+ * format, turning the payload into `data:` lines with an [[SseDataEncoder]];
+ * `String` and `Chunk[String]` payloads have one built in. The event and id may
+ * not contain a line break and the retry may not be negative; the methods that
+ * set them throw `IllegalArgumentException` otherwise.
  *
- * The payload `A` is rendered into one or more `data:` lines via an
- * [[SseDataEncoder]]. The remaining fields (`event`, `id`, `retry`) are SSE
- * metadata owned by the envelope itself.
+ * {{{
+ * val event = ServerSentEvent("order 42 shipped", "order").id("17").retry(5000)
+ *
+ * event.render
+ * // "event: order\nid: 17\nretry: 5000\ndata: order 42 shipped\n\n"
+ * }}}
+ *
+ * To serve events, write each rendered event to a response body whose content
+ * type is `text/event-stream`. http-model has no constant for that content
+ * type, a known bug, so build it with
+ * `ContentType(MediaType("text", "event-stream"))`.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/server-sent-event/ ServerSentEvent]]
  */
 final class ServerSentEvent[+A] private (
   val data: A,
@@ -33,7 +49,19 @@ final class ServerSentEvent[+A] private (
   val retryMillis: Maybe[Long]
 ) {
 
-  /** Sets the event field. */
+  /**
+   * Returns a copy with the `event:` field set, the event name a browser
+   * `EventSource` dispatches on.
+   *
+   * {{{
+   * ServerSentEvent("cart updated").event("cart").render // "event: cart\ndata: cart updated\n\n"
+   * }}}
+   *
+   * @throws IllegalArgumentException
+   *   if `event` contains CR or LF
+   * @see
+   *   [[https://zioblocks.com/reference/http-model/server-sent-event/#setting-metadata Setting Metadata]]
+   */
   def event(event: String): ServerSentEvent[A] =
     ServerSentEvent.create(
       data,
@@ -42,11 +70,17 @@ final class ServerSentEvent[+A] private (
       retryMillis
     )
 
-  /** Removes the event field. */
+  /** Returns a copy without the `event:` field. */
   def clearEvent: ServerSentEvent[A] =
     ServerSentEvent.create(data, Maybe.absent, eventId, retryMillis)
 
-  /** Sets the event id. */
+  /**
+   * Returns a copy with the `id:` field set, which a reconnecting browser sends
+   * back in the `Last-Event-ID` header. There is no method that removes it.
+   *
+   * @throws IllegalArgumentException
+   *   if `id` contains CR or LF
+   */
   def id(id: String): ServerSentEvent[A] =
     ServerSentEvent.create(
       data,
@@ -55,15 +89,41 @@ final class ServerSentEvent[+A] private (
       retryMillis
     )
 
-  /** Sets the retry interval in milliseconds. */
+  /**
+   * Returns a copy with the `retry:` field set: how many milliseconds the
+   * browser waits before reconnecting.
+   *
+   * @throws IllegalArgumentException
+   *   if `millis` is negative
+   */
   def retry(millis: Long): ServerSentEvent[A] =
     ServerSentEvent.create(data, eventType, eventId, Maybe.present(millis))
 
-  /** Removes the retry field. */
+  /** Returns a copy without the `retry:` field. */
   def clearRetry: ServerSentEvent[A] =
     ServerSentEvent.create(data, eventType, eventId, Maybe.absent)
 
-  /** Renders this event to SSE wire format. */
+  /**
+   * Renders the event in the SSE wire format: the `event:`, `id:` and `retry:`
+   * lines that are set, in that order, then one `data: ` line per line the
+   * encoder returns, then a blank line that ends the event. Lines end with
+   * `\n`.
+   *
+   * At least one `data:` line is always written, even when the encoder returns
+   * no lines, so an event with an empty payload reaches the browser as a
+   * message with empty data; this is a known bug, and there is no way to write
+   * a comment line or a field-only frame such as a heartbeat. The encoder's
+   * lines are written as they are, so a custom encoder must not return a line
+   * that contains a line break.
+   *
+   * {{{
+   * ServerSentEvent("line one\nline two").render // "data: line one\ndata: line two\n\n"
+   * ServerSentEvent("").render                   // "data: \n\n"
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/http-model/server-sent-event/#rendering Rendering]]
+   */
   def render(implicit encoder: SseDataEncoder[A]): String = {
     val sb = new java.lang.StringBuilder(256)
     renderTo(sb)
@@ -86,6 +146,11 @@ final class ServerSentEvent[+A] private (
     sb.append('\n')
   }
 
+  /**
+   * Two events are equal when their payloads are equal by `==` and their event,
+   * id and retry fields are equal. Events that render the same text with
+   * payloads of different types, such as `"a"` and `Chunk("a")`, are not equal.
+   */
   override def equals(other: Any): Boolean =
     other match {
       case that: ServerSentEvent[?] =>
@@ -93,6 +158,7 @@ final class ServerSentEvent[+A] private (
       case _ => false
     }
 
+  /** A hash consistent with `equals`. */
   override def hashCode(): Int = {
     var result = data.##
     result = 31 * result + eventType.##
@@ -101,21 +167,56 @@ final class ServerSentEvent[+A] private (
     result
   }
 
+  /**
+   * A description for logs, such as
+   * `ServerSentEvent(data=order shipped, event=null, id=9, retry=null)`, not
+   * the wire format; use [[render]] for that.
+   */
   override def toString: String =
     s"ServerSentEvent(data=$data, event=${eventType.fold("null")(identity)}, id=${eventId.fold("null")(identity)}, retry=${retryMillis.fold("null")(_.toString)})"
 }
 
+/**
+ * Creates [[ServerSentEvent]]s.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/server-sent-event/#construction Construction]]
+ */
 object ServerSentEvent {
 
-  /** Creates a new Server-Sent Event without an explicit `event` field. */
+  /**
+   * Creates an event with the payload `data` and no `event`, `id` or `retry`
+   * field.
+   *
+   * {{{
+   * ServerSentEvent("tick").render // "data: tick\n\n"
+   * }}}
+   */
   def apply[A](data: A): ServerSentEvent[A] =
     create(data, Maybe.absent, Maybe.absent, Maybe.absent)
 
-  /** Creates a new Server-Sent Event with an explicit `event` field. */
+  /**
+   * Creates an event with the payload `data` and the `event:` field set to
+   * `event`.
+   *
+   * @throws IllegalArgumentException
+   *   if `event` contains CR or LF
+   */
   def apply[A](data: A, event: String): ServerSentEvent[A] =
     create(data, Maybe.present(validateSingleLineField(event, "event")), Maybe.absent, Maybe.absent)
 
-  /** Creates a new Server-Sent Event from optional metadata fields. */
+  /**
+   * Creates an event with the payload `data` and whichever of `event`, `id` and
+   * `retry` are `Some`.
+   *
+   * {{{
+   * ServerSentEvent.fromOptions("stock low", id = Some("7"), retry = Some(1000L)).render
+   * // "id: 7\nretry: 1000\ndata: stock low\n\n"
+   * }}}
+   *
+   * @throws IllegalArgumentException
+   *   if `event` or `id` contains CR or LF, or `retry` is negative
+   */
   def fromOptions[A](
     data: A,
     event: Option[String] = None,
@@ -129,6 +230,7 @@ object ServerSentEvent {
       Maybe.fromOption(retry)
     )
 
+  /** Creates an event, checking only that `retry` is not negative. */
   private[http] def create[A](
     data: A,
     event: Maybe[String],
@@ -139,6 +241,7 @@ object ServerSentEvent {
     new ServerSentEvent(data, event, id, retry)
   }
 
+  /** Returns `value`, or throws if it contains CR or LF. */
   private[http] def validateSingleLineField(value: String, fieldName: String): String = {
     if (value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0) {
       throw new IllegalArgumentException(s"SSE $fieldName must not contain CR or LF characters")
@@ -152,20 +255,58 @@ object ServerSentEvent {
     }
 }
 
-/** Encodes typed SSE payloads into one or more `data:` lines. */
+/**
+ * A type class that turns an SSE payload into the lines of its `data:` field;
+ * [[ServerSentEvent#render]] writes one `data:` line per returned line.
+ * Instances for `String` and `Chunk[String]` are built in. For your own type,
+ * return lines without line breaks, or reuse [[SseDataEncoder.string]], which
+ * splits them.
+ *
+ * {{{
+ * import zio.blocks.chunk.Chunk
+ *
+ * final case class Progress(done: Int, total: Int)
+ *
+ * implicit val progressEncoder: SseDataEncoder[Progress] = new SseDataEncoder[Progress] {
+ *   def lines(value: Progress): Chunk[String] = Chunk("done=" + value.done, "total=" + value.total)
+ * }
+ *
+ * ServerSentEvent(Progress(3, 10), "progress").render
+ * // "event: progress\ndata: done=3\ndata: total=10\n\n"
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/server-sent-event/#ssedataencoder SseDataEncoder]]
+ */
 trait SseDataEncoder[-A] {
+
+  /**
+   * Returns the `data:` lines for `value`. Each line is written as it is after
+   * `data: `, so it must not contain CR or LF.
+   */
   def lines(value: A): Chunk[String]
 }
 
+/** The built-in [[SseDataEncoder]] instances. */
 object SseDataEncoder {
 
+  /** Returns the implicit encoder for `A`. */
   def apply[A](implicit encoder: SseDataEncoder[A]): SseDataEncoder[A] = encoder
 
+  /**
+   * Splits a string at each `\n`, `\r` or `\r\n` into lines. A string without a
+   * line break is one line, the empty string included, and a trailing line
+   * break gives an empty last line.
+   */
   implicit val string: SseDataEncoder[String] =
     new SseDataEncoder[String] {
       def lines(value: String): Chunk[String] = splitLines(value)
     }
 
+  /**
+   * Splits each element as [[string]] does and concatenates the lines. An empty
+   * `Chunk` gives one empty line.
+   */
   implicit val stringChunk: SseDataEncoder[Chunk[String]] =
     new SseDataEncoder[Chunk[String]] {
       def lines(value: Chunk[String]): Chunk[String] =
@@ -184,6 +325,7 @@ object SseDataEncoder {
         }
     }
 
+  /** Splits at `\n`, `\r` and `\r\n`, always returning at least one line. */
   private def splitLines(value: String): Chunk[String] = {
     val builder = ChunkBuilder.make[String]()
     var start   = 0
