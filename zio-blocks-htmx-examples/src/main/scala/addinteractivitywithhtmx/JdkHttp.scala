@@ -61,10 +61,10 @@ object JdkHttp {
 
   /**
    * Turns an application into an `HttpHandler`. A `HEAD` request runs the `GET`
-   * route and drops the body; an exception in the application becomes a 500
-   * response; a failure while writing the response is logged and, if no headers
-   * have gone out yet, also becomes a 500; the exchange is closed on every
-   * path.
+   * route and drops the body; a non-fatal exception or `LinkageError` in the
+   * application becomes a 500 response; a failure while writing the response is
+   * logged and, if no headers have gone out yet, also becomes a 500; the
+   * exchange is closed on every path.
    */
   def handler(app: Request => Response): HttpHandler = exchange =>
     try {
@@ -76,13 +76,13 @@ object JdkHttp {
             case Right(request)                                  => app(request)
           }
         catch {
-          case NonFatal(error) =>
+          case error @ (NonFatal(_) | _: LinkageError) =>
             System.err.println(s"Handler failed: $error")
             Response.text(Status.InternalServerError, "Internal Server Error")
         }
       try writeResponse(exchange, response)
       catch {
-        case NonFatal(error) =>
+        case error @ (NonFatal(_) | _: LinkageError) =>
           System.err.println(s"Writing the response failed: $error")
           if (exchange.getResponseCode == -1) {
             exchange.getResponseHeaders.clear()
