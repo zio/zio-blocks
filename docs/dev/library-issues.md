@@ -14407,6 +14407,43 @@ Repro.scala:10: error: Cannot derive IsNominalType for non-nominal type: 8080. O
 
 **Suggested fix.** Decide the intended answer; then, in the Scala 3 macro, check `ref.widenTermRefByName` (which keeps the `ConstantType`) instead of `ref.widen`, or in the Scala 2 macro widen a `ConstantType` to its underlying class. Add a shared test.
 
+### async: `Async.promise(succeed(...))` compiles on Scala 3 but not on 2.13: the Scala 2 `promise` body is a plain function, so the bare `succeed`/`fail` helpers find no implicit `Completer`
+
+Found 2026-11-04 while making async-examples compile on 2.13 (PR #1936, branch base `02856d333`; the sources are identical at 0.0.56). `AsyncShowcaseExample.scala:177`.
+
+**Summary.** The Scala 3 `Async.promise` takes a context function `Completer[A] ?=> Unit`, so the body can call the bare helpers `succeed(v)` / `fail(e)`, whose `Completer` comes from `using`. The Scala 2 `promise` takes a plain `Completer[A] => Unit`, so the lambda parameter is not implicit and `succeed(v)` (which needs an `implicit c: Completer[A]`) fails to compile. The `Completer => Unit` form works on both; the docs' bare form works on Scala 3 only. On 2.13 the body must bind the completer: `{ implicit c => succeed(v) }` or `c => c.succeed(v)`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-async` 0.0.56, `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-async:0.0.56
+import zio.blocks.async._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(Async.promise[String] { implicit c => succeed("ok") }.block)
+    println(Async.promise[String](c => c.succeed("direct")).block)
+    println(Async.promise[String](succeed("bare")).block)
+  }
+}
+// Repro.scala:13: error: could not find implicit value for parameter c: zio.blocks.async.Completer[String]
+//   (at succeed("bare"))
+// With the third line deleted it prints:
+// ok
+// direct
+```
+
+**Expected.** Either the bare form works on 2.13 too, or the docs and Scaladoc say that on 2.13 the body must bind the completer: `{ implicit c => succeed(v) }`.
+
+**Root cause.** `async/shared/src/main/scala-3/zio/blocks/async/AsyncCompanionVersionSpecific.scala:38` declares `inline def promise[A](inline body: Completer[A] ?=> Unit)`; `async/shared/src/main/scala-2/zio/blocks/async/AsyncCompanionVersionSpecific.scala:40` declares `def promise[A](body: Completer[A] => Unit)`. Scala 2 has no context functions, so the lambda parameter is not implicit; `succeed`/`fail` in `async/shared/src/main/scala-2/zio/blocks/async/AsyncSyntaxVersionSpecific.scala:269,272` take `(implicit c: Completer[A])`.
+
+**Impact.** Scala 2.13 users who copy a Scala 3 `Async.promise { succeed(...) }` snippet from the docs or `AsyncShowcaseExample` get a confusing "could not find implicit value" error. In PR #1936 the example is skipped on 2.x.
+
+**Test gap.** No test compiles the documented bare form on Scala 2.
+
+**Suggested fix.** Say in the `Async.promise` Scaladoc and the reference page that on Scala 2 the body must be `{ implicit c => succeed(v) }` (or call `c.succeed`), and show both forms in the examples. No code change needed.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
