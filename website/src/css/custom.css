@@ -362,3 +362,98 @@ html[data-theme='dark'] .zb-footer { --zb-footer-bg: var(--code-bg); }
 
 .navbar-sidebar .header-discord-link { display: flex; align-items: center; gap: 0.5rem; }
 .navbar-sidebar .header-discord-link::after { content: 'Discord'; }
+
+/* Chat assistant (src/theme/Footer/index.js): the ByteBrain widget, restyled to the site's flat, square look.
+   The widget's Tailwind build marks every utility `!important`, and for important declarations an earlier layer wins,
+   so these overrides sit in the `components` layer (declared before `utilities`) and are `!important` too. All of them
+   hang off `.zb-chat`, so nothing leaks to the rest of the page. Colours come from the site tokens, which already
+   switch in dark mode, so one rule serves both. */
+@layer components {
+  .zb-chat [class*='rounded'],
+  .zb-chat input,
+  .zb-chat button {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Launcher: a square primary-colour button in the bottom-right corner, the label kept visible. */
+  .zb-chat #chat-button {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    cursor: pointer;
+    z-index: 300;
+    margin: 0 1.25rem 1.25rem 0 !important;
+    padding: 0.75rem 1.125rem !important;
+    background: var(--ifm-color-primary) !important;
+    color: #ffffff !important;
+    border: 0 !important;
+    font-family: var(--ifm-font-family-base) !important;
+    font-size: 0.9375rem !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    transform: none !important;
+    transition: background-color 0.15s ease !important;
+  }
+  .zb-chat #chat-button:hover { background: var(--ifm-color-primary-dark) !important; }
+  .zb-chat #chat-button:focus-visible { outline: 2px solid var(--ifm-color-primary-lightest); outline-offset: 2px; }
+
+  /* Window: the page background with a hairline border. */
+  .zb-chat #container { z-index: 300; }
+  .zb-chat #ChatPrompt {
+    background: var(--ifm-background-color) !important;
+    color: var(--fg) !important;
+    border: 1px solid var(--rule) !important;
+    font-family: var(--ifm-font-family-base);
+  }
+  .zb-chat #ChatPrompt h1 {
+    margin-bottom: 1rem !important;
+    color: var(--fg) !important;
+    font-size: 1.5rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em;
+  }
+
+  /* Bot answers (a header and body segments, bg-blue-600 / bg-blue-500): one surface, one primary accent stripe. */
+  .zb-chat .bg-blue-600,
+  .zb-chat .bg-blue-500 {
+    background: var(--surface) !important;
+    color: var(--fg) !important;
+    border-left: 3px solid var(--ifm-color-primary) !important;
+  }
+  .zb-chat .bg-blue-600 *,
+  .zb-chat .bg-blue-500 * { color: inherit !important; }
+  .zb-chat .bg-blue-600 a,
+  .zb-chat .bg-blue-500 a {
+    color: var(--ifm-link-color) !important;
+    text-decoration: underline;
+  }
+
+  /* The reader's own messages. */
+  .zb-chat .bg-gray-300 {
+    background: var(--rule) !important;
+    color: var(--fg) !important;
+  }
+  .zb-chat .bg-gray-300 *,
+  .zb-chat .text-gray-600 { color: var(--fg) !important; }
+
+  /* Input and send button. */
+  .zb-chat #promptInput {
+    background: var(--ifm-background-color) !important;
+    color: var(--fg) !important;
+    border: 1px solid var(--rule) !important;
+    font-family: var(--ifm-font-family-base);
+  }
+  .zb-chat #promptInput:focus-visible { outline: 2px solid var(--ifm-color-primary); outline-offset: -1px; }
+  .zb-chat #generateBtn,
+  .zb-chat .bg-black {
+    background: var(--ifm-color-primary) !important;
+    color: #ffffff !important;
+  }
+  .zb-chat #generateBtn:hover:not(:disabled),
+  .zb-chat .bg-black:hover:not(:disabled) { background: var(--ifm-color-primary-dark) !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .zb-chat #chat-button { transition: none !important; }
+  }
+}
