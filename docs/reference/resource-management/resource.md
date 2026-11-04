@@ -709,7 +709,21 @@ Resource is a core abstraction in ZIO Blocks' resource management ecosystem:
 
 For example, `Resource.from[T](wires*)` uses `Wire` values to construct instances with their dependencies, and registers `close()` for each `AutoCloseable` class the macro derives (an explicit wire registers its own cleanup):
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final case class Config(host: String, port: Int)
+
+final class Logger(config: Config) extends AutoCloseable {
+  def log(msg: String): Unit = println(s"[${config.host}:${config.port}] $msg")
+  def close(): Unit          = log("Logger shutting down")
+}
+
+final class Service(logger: Logger) extends AutoCloseable {
+  def run(): Unit   = logger.log("Service running")
+  def close(): Unit = logger.log("Service shutting down")
+}
+
 def serviceResource = Resource.from[Service](
   Wire(Config("localhost", 8080))
 )
