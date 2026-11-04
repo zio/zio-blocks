@@ -143,13 +143,13 @@ object JdkHttp {
             case Right(request)                                  => app(request)
           }
         catch {
-          case NonFatal(error) =>
+          case error @ (NonFatal(_) | _: LinkageError) =>
             System.err.println(s"Handler failed: $error")
             Response.text(Status.InternalServerError, "Internal Server Error")
         }
       try writeResponse(exchange, response)
       catch {
-        case NonFatal(error) =>
+        case error @ (NonFatal(_) | _: LinkageError) =>
           System.err.println(s"Writing the response failed: $error")
           if (exchange.getResponseCode == -1) {
             exchange.getResponseHeaders.clear()

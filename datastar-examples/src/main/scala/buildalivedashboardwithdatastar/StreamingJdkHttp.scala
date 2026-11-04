@@ -65,7 +65,7 @@ object StreamingJdkHttp {
       val response =
         try JdkHttp.toRequest(exchange).fold(identity, app)
         catch {
-          case NonFatal(error) =>
+          case error @ (NonFatal(_) | _: LinkageError) =>
             System.err.println(s"Handler failed: $error")
             Response.text(Status.InternalServerError, "Internal Server Error")
         }
@@ -73,8 +73,8 @@ object StreamingJdkHttp {
         if (isEventStream(response)) writeEventStream(exchange, response)
         else JdkHttp.writeResponse(exchange, response)
       catch {
-        case _: IOException  => ()
-        case NonFatal(error) =>
+        case _: IOException                          => ()
+        case error @ (NonFatal(_) | _: LinkageError) =>
           System.err.println(s"Writing the response failed: $error")
           if (exchange.getResponseCode == -1) {
             exchange.getResponseHeaders.clear()
