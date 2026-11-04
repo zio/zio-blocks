@@ -241,6 +241,22 @@ object MetricSpec extends ZIOSpecDefault {
         histogram.record(42.5)
         val points = histogramPoints(histogram.collect())
         assertTrue(points.size == 1 && points.head.count == 1L && points.head.attributes.isEmpty)
+      },
+      test("a bound-but-unrecorded label set does not report sentinel min/max") {
+        val histogram = Histogram("latency", "Request latency", "ms")
+
+        val us = histogram.bind(usEast)
+        histogram.bind(euWest)
+        us.record(42.0)
+
+        val points = histogramPoints(histogram.collect())
+        val idle   = points.filter(_.count == 0L)
+
+        assertTrue(
+          points.size == 1,
+          points.head.attributes == usEast,
+          idle.forall(p => p.min != Double.MaxValue && p.max != Double.MinValue)
+        )
       }
     ),
     suite("Gauge")(

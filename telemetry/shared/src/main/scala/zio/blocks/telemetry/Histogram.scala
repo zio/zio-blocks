@@ -75,19 +75,21 @@ final class Histogram private[telemetry] (
     states.forEach { (attrs, state) =>
       state.lock.lock()
       try {
-        points.add(
-          HistogramDataPoint(
-            attrs,
-            0L,
-            now,
-            state.count,
-            state.sum,
-            state.min,
-            state.max,
-            state.bucketCounts.clone(),
-            boundaries.clone()
+        if (state.count > 0L) {
+          points.add(
+            HistogramDataPoint(
+              attrs,
+              0L,
+              now,
+              state.count,
+              state.sum,
+              state.min,
+              state.max,
+              state.bucketCounts.clone(),
+              boundaries.clone()
+            )
           )
-        )
+        }
       } finally {
         state.lock.unlock()
       }
