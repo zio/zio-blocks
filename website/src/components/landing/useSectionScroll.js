@@ -22,6 +22,9 @@ function nestedScrollerCanMove(node, root, dir) {
   return false;
 }
 
+/** True when the event came from inside the chat assistant (src/theme/Footer), which scrolls and types on its own. */
+const inChat = (e) => e.target instanceof Element && e.target.closest('.zb-chat') !== null;
+
 export default function useSectionScroll(ids) {
   useEffect(() => {
     const sections = () => ids.map((id) => document.getElementById(id)).filter(Boolean);
@@ -40,6 +43,7 @@ export default function useSectionScroll(ids) {
     };
 
     const onWheel = (e) => {
+      if (inChat(e)) return;
       if (e.ctrlKey || reducedMotion()) return; // pinch-zoom, or the visitor opted out of motion
       if (isLocked()) {
         e.preventDefault(); // swallow trackpad inertia from the previous gesture
@@ -52,6 +56,7 @@ export default function useSectionScroll(ids) {
     };
 
     const onKeyDown = (e) => {
+      if (inChat(e)) return;
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || reducedMotion() || isLocked()) return;
       if (e.target instanceof Element && e.target.closest(OWNS_KEYS)) return;
       const dir = e.key === ' ' ? (e.shiftKey ? -1 : 1) : KEY_DIR[e.key];
