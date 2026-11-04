@@ -219,8 +219,11 @@ object Header {
      * split at the first colon; otherwise the result is
      * `Left("Invalid base64 in basic authorization")` or
      * `Left("Basic authorization missing colon separator")`. For `Digest`, the
-     * credentials are split on commas into `key=value` pairs, and a pair
-     * without `=` is dropped.
+     * credentials are split on commas into `key=value` pairs with surrounding
+     * double quotes removed, and a pair without `=` is dropped. A parameter
+     * value that is only a double quote, as in `nonce=`, throws a
+     * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
+     * /
      */
     def parse(value: String): Either[String, Authorization] = {
       val trimmed = value.trim
@@ -345,8 +348,11 @@ object Header {
      * split at the first colon; otherwise the result is
      * `Left("Invalid base64 in basic proxy-authorization")` or
      * `Left("Basic proxy-authorization missing colon separator")`. For
-     * `Digest`, the credentials are split on commas into `key=value` pairs, and
-     * a pair without `=` is dropped.
+     * `Digest`, the credentials are split on commas into `key=value` pairs with
+     * surrounding double quotes removed, and a pair without `=` is dropped. A
+     * parameter value that is only a double quote, as in `nonce=`, throws a
+     * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
+     * /
      */
     def parse(value: String): Either[String, ProxyAuthorization] = {
       val trimmed = value.trim
@@ -440,7 +446,9 @@ object Header {
      * a scheme with no parameters. Otherwise the text before the first space is
      * the scheme, and the rest is split on commas into `key=value` pairs with
      * surrounding double quotes removed; a pair without `=` is dropped, and a
-     * comma inside a quoted value splits it (a known bug).
+     * comma inside a quoted value splits it (a known bug). / A parameter value
+     * that is only a double quote, as in `realm=`, throws a
+     * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
      */
     def parse(value: String): Either[String, WWWAuthenticate] = {
       val trimmed = value.trim
@@ -514,7 +522,9 @@ object Header {
      * becomes a scheme with no parameters. Otherwise the text before the first
      * space is the scheme, and the rest is split on commas into `key=value`
      * pairs with surrounding double quotes removed; a pair without `=` is
-     * dropped, and a comma inside a quoted value splits it (a known bug).
+     * dropped, and a comma inside a quoted value splits it (a known bug). / A
+     * parameter value that is only a double quote, as in `realm=`, throws a
+     * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
      */
     def parse(value: String): Either[String, ProxyAuthenticate] = {
       val trimmed = value.trim
@@ -619,7 +629,8 @@ object Header {
      * Parses the value as a `Long`. It does not trim, so a value with spaces
      * gives `Left`. A negative number gives
      * `Left("Invalid content-length: <number>")`, and a value that is not an
-     * integer gives `Left("Invalid content-length: <value>")`.
+     * integer gives `Left("Invalid content-length: <value>")`. / A leading `+`
+     * is accepted, so `+12` gives `ContentLength(12)`.
      */
     def parse(value: String): Either[String, ContentLength] =
       try {
@@ -925,7 +936,8 @@ object Header {
      * asterisk for an unknown total, or `unit ` followed by an asterisk, a
      * slash and the total for an unknown range, such as `bytes 0-99/1000`. It
      * trims the value. Any other form, including one with both an unknown range
-     * and an unknown total, gives `Left("Invalid content-range: <value>")`.
+     * and an unknown total, gives `Left("Invalid content-range: <value>")`. /
+     * The positions are not checked against each other or against the total.
      */
     def parse(value: String): Either[String, ContentRange] =
       value.trim match {
@@ -1242,7 +1254,9 @@ object Header {
      * `:port` after the host, splitting at the last colon after `://`. It trims
      * the value. A value without `://` gives `Left("Invalid origin: <value>")`,
      * and a port that is not an integer from 0 to 65535 gives
-     * `Left("Invalid origin port: <text>")`.
+     * `Left("Invalid origin port: <text>")`. / An IPv6 literal with a port,
+     * such as `http://[::1]:80`, parses, but one without a port does not,
+     * because its last colon is read as the port separator.
      */
     def parse(value: String): Either[String, Origin] = {
       val trimmed = value.trim
@@ -1988,8 +2002,9 @@ object Header {
     /**
      * Parses `"tag"` as a strong tag and `W/"tag"` as a weak one, after
      * trimming; the `W/` prefix must be upper case. Any other value gives
-     * `Left("Invalid etag: <value>")`. A value that is only one double quote
-     * throws a `StringIndexOutOfBoundsException` instead.
+     * `Left("Invalid etag: <value>")`. A value that is only a double quote, or
+     * `W/` and a double quote, throws a `StringIndexOutOfBoundsException`
+     * instead of giving `Left` (a known bug). /
      */
     def parse(value: String): Either[String, ETag] = {
       val trimmed = value.trim
@@ -2045,7 +2060,11 @@ object Header {
      * Parses `*` as `Any`, or a comma-separated list of entity tags, after
      * trimming. Each item is trimmed and parsed as an `ETag`, and the first
      * failing item gives its `Left`, such as `Left("Invalid etag: <item>")`; an
-     * empty value gives that error too.
+     * empty value gives that error too. / The value is split at every comma,
+     * including one inside a quoted tag, so `"v1,2"` gives `Left`. An item that
+     * is only a double quote makes `ETag.parse` throw a
+     * `StringIndexOutOfBoundsException`, which this method does not catch (a
+     * known bug).
      */
     def parse(value: String): Either[String, IfMatch] = {
       val trimmed = value.trim
@@ -2108,7 +2127,11 @@ object Header {
      * Parses `*` as `Any`, or a comma-separated list of entity tags, after
      * trimming. Each item is trimmed and parsed as an `ETag`, and the first
      * failing item gives its `Left`, such as `Left("Invalid etag: <item>")`; an
-     * empty value gives that error too.
+     * empty value gives that error too. / The value is split at every comma,
+     * including one inside a quoted tag, so `"v1,2"` gives `Left`. An item that
+     * is only a double quote makes `ETag.parse` throw a
+     * `StringIndexOutOfBoundsException`, which this method does not catch (a
+     * known bug).
      */
     def parse(value: String): Either[String, IfNoneMatch] = {
       val trimmed = value.trim
@@ -2590,11 +2613,13 @@ object Header {
     /**
      * Parses a comma-separated list. It trims each item and drops empty ones;
      * none left gives `Left("Invalid accept-encoding: <value>")`. One item
-     * gives its case, several give `Multiple`. A weight written as
-     * `;q=<number>` with no space is read, and one that is not a number is
-     * dropped. A name other than `gzip`, `deflate`, `br`, `compress`,
-     * `identity` and an asterisk, matched in any letter case, becomes `GZip`
-     * with the item's weight.
+     * gives its case, several give `Multiple`. A weight is read only when it is
+     * written as `;q=<number>` with no space; with a space, as in `gzip; q=0`
+     * or `deflate; q=0.5`, the whole item is read as an unknown name and
+     * becomes `GZip(None)`. A weight that is not a number is dropped, and
+     * weights are not range-checked. A name other than `gzip`, `deflate`, `br`,
+     * `compress`, `identity` and an asterisk, matched in any letter case,
+     * becomes `GZip` with the item's weight. /
      */
     def parse(value: String): Either[String, AcceptEncoding] = {
       val parts = value.split(',').map(_.trim).filter(_.nonEmpty)
@@ -2683,7 +2708,9 @@ object Header {
      * Parses a comma-separated list of language ranges. A blank value gives
      * `Left("Accept-Language cannot be empty")`. It trims each item and drops
      * empty ones, reads a quality written as `;q=<number>` with no space, and
-     * falls back to `1.0` when that is not a number. Tags are not checked.
+     * falls back to `1.0` when that is not a number. Tags are not checked. /
+     * With a space, as in `en; q=0.5`, the `; q=0.5` stays in the tag and the
+     * quality is `1.0`.
      */
     def parse(value: String): Either[String, AcceptLanguage] = {
       if (value.trim.isEmpty) return Left("Accept-Language cannot be empty")
@@ -3763,7 +3790,8 @@ object Header {
      * Splits the value on commas, trims each item, drops empty ones and removes
      * a pair of surrounding double quotes. No items gives
      * `Left("Empty clear-site-data header")`; the directive names are not
-     * checked.
+     * checked. / An item that is only a double quote throws a
+     * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
      */
     def parse(value: String): Either[String, ClearSiteData] = {
       val parts = value.split(",").map(_.trim).filter(_.nonEmpty)
