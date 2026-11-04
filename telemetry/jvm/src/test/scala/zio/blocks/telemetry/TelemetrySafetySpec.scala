@@ -98,6 +98,19 @@ object TelemetrySafetySpec extends ZIOSpecDefault {
 
       assertTrue(successes.get() == 1)
     },
+    test("LogRateLimit keeps unrelated call sites independent") {
+      val siteA = "/app/src/main/scala/com/example/OrderService.scala:10".hashCode
+      val siteB = "/app/src/main/scala/com/example/InventoryService.scala:241".hashCode
+
+      val aEmitted            = (1 to 99).count(_ => LogRateLimit.shouldLogEvery(siteA, 100))
+      val bEmittedOnFirstCall = LogRateLimit.shouldLogEvery(siteB, 100)
+
+      assertTrue(
+        siteA != siteB,
+        aEmitted == 0,
+        !bEmittedOnFirstCall
+      )
+    },
     test("InMemorySpanProcessor handles Int.MinValue write index") {
       val processor = new InMemorySpanProcessor(capacity = 8)
       val field     = processor.getClass.getDeclaredField("writeIndex")

@@ -16,26 +16,34 @@
 
 package zio.blocks.telemetry
 
-import java.util.concurrent.atomic.AtomicLongArray
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 private[telemetry] object LogRateLimit {
-  private val SIZE       = 4096
-  private val MASK       = SIZE - 1
-  private val counters   = new AtomicLongArray(SIZE)
-  private val timestamps = new AtomicLongArray(SIZE)
+  private val counters   = new ConcurrentHashMap[Int, AtomicLong]()
+  private val timestamps = new ConcurrentHashMap[Int, AtomicLong]()
+
+  private def getOrCreate(map: ConcurrentHashMap[Int, AtomicLong], siteId: Int): AtomicLong = {
+    var ref = map.get(siteId)
+    if (ref == null) {
+      ref = new AtomicLong(0L)
+      val existing = map.putIfAbsent(siteId, ref)
+      if (existing != null) ref = existing
+    }
+    ref
+  }
 
   def shouldLogEvery(siteId: Int, every: Int): Boolean = {
     if (every <= 0) return false
-    val idx = siteId & MASK
-    counters.incrementAndGet(idx) % every == 0
+    getOrCreate(counters, siteId).incrementAndGet() % every == 0
   }
 
   def shouldLogAtMost(siteId: Int, intervalMillis: Long): Boolean = {
-    val idx  = siteId & MASK
+    val ts   = getOrCreate(timestamps, siteId)
     val now  = System.currentTimeMillis()
-    val last = timestamps.get(idx)
+    val last = ts.get()
     if (now - last >= intervalMillis) {
-      timestamps.compareAndSet(idx, last, now)
+      ts.compareAndSet(last, now)
     } else false
   }
 }
