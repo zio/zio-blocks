@@ -19,21 +19,28 @@ package zio.blocks.typeid
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
+/**
+ * The macros that derive [[TypeId]] values. Call them through [[TypeId.of]] and
+ * the implicit [[TypeIdLowPriority#derived]].
+ */
 object TypeIdMacros {
 
   /**
-   * Derives a TypeId for any type or type constructor.
-   *
-   * This macro first searches for an existing implicit TypeId instance. If
-   * found, it uses that instance. Otherwise, it derives a new one by
-   * extracting:
-   *   - The type's simple name
-   *   - The owner path (packages, enclosing objects/classes)
-   *   - Type parameters (for type constructors)
-   *   - Classification (nominal or alias - opaque types don't exist in Scala 2)
+   * Derives a `TypeId[A]` the way the implicit [[TypeIdLowPriority#derived]]
+   * does. It reads the definition of `A` and does not look for an existing
+   * implicit `TypeId[A]` first; for an applied type, it reuses the id of the
+   * type constructor when one is predefined or found implicitly. On Scala 3 it
+   * also derives opaque types, enums and their cases, and union types; an
+   * intersection type gets an id on both versions (named `"Intersection"` on
+   * Scala 3 and `"<refinement>"` on Scala 2). On Scala 2, an applied type
+   * written with an alias from the `scala` package or `Predef`, such as
+   * `List[Int]`, gives the alias instead (a known bug).
    */
   def derived[A]: TypeId[A] = macro derivedImpl[A]
 
+  /**
+   * The macro implementation of [[TypeId.of]].
+   */
   def ofImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[TypeId[A]] = {
     import c.universe._
 
@@ -92,6 +99,10 @@ object TypeIdMacros {
     }
   }
 
+  /**
+   * The macro implementation of [[derived]] and of
+   * [[TypeIdLowPriority#derived]].
+   */
   def derivedImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[TypeId[A]] =
     deriveTypeId[A](c)
 

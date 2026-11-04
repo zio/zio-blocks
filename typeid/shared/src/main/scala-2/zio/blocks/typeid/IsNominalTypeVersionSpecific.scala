@@ -19,11 +19,28 @@ package zio.blocks.typeid
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
+/**
+ * Holds the implicit [[derived]] for [[IsNominalType]].
+ */
 private[typeid] trait IsNominalTypeVersionSpecific {
+
+  /**
+   * Derives `IsNominalType[A]` when `A` is nominal, and stops compilation with
+   * a "Cannot derive IsNominalType" message when it is not. See
+   * [[IsNominalType]] for the types it accepts on each Scala version.
+   */
   implicit def derived[A]: IsNominalType[A] = macro IsNominalTypeMacros.deriveImpl[A]
 }
 
+/**
+ * The macro behind [[IsNominalTypeVersionSpecific#derived]].
+ */
 private[typeid] object IsNominalTypeMacros {
+
+  /**
+   * Checks that `A`, with aliases followed, is nominal, and builds the instance
+   * from `TypeId.of[A]`.
+   */
   def deriveImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[IsNominalType[A]] = {
     import c.universe._
 

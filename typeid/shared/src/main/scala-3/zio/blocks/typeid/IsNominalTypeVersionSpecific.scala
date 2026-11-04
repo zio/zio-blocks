@@ -18,10 +18,22 @@ package zio.blocks.typeid
 
 import scala.quoted.*
 
+/**
+ * Holds the implicit [[derived]] for [[IsNominalType]].
+ */
 private[typeid] trait IsNominalTypeVersionSpecific {
+
+  /**
+   * Derives `IsNominalType[A]` when `A` is nominal, and stops compilation with
+   * a "Cannot derive IsNominalType" message when it is not. See
+   * [[IsNominalType]] for the types it accepts on each Scala version.
+   */
   inline implicit def derived[A]: IsNominalType[A] = ${ IsNominalTypeMacros.deriveImpl[A] }
 }
 
+/**
+ * The macro behind [[IsNominalTypeVersionSpecific#derived]].
+ */
 private[typeid] object IsNominalTypeMacros {
 
   /**
@@ -68,6 +80,10 @@ private[typeid] object IsNominalTypeMacros {
     }
   }
 
+  /**
+   * Checks that `A`, with aliases followed, is nominal, and builds the instance
+   * from `TypeId.of[A]`.
+   */
   def deriveImpl[A: Type](using Quotes): Expr[IsNominalType[A]] = {
     import quotes.reflect.*
 

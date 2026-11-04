@@ -17,29 +17,27 @@
 package zio.blocks.typeid
 
 /**
- * Represents a type parameter specification.
+ * A type parameter of a type: its name, position, variance, bounds and kind, as
+ * [[TypeId#typeParams]] lists them.
  *
- * A TypeParam captures the essential information about a type parameter,
- * including its name, position, variance, bounds, and kind.
- *
- * For example, for `Either[+A, +B]`:
- *   - `A` would be `TypeParam("A", 0, Variance.Covariant)`
- *   - `B` would be `TypeParam("B", 1, Variance.Covariant)`
- *
- * For `Functor[F[_]]`:
- *   - `F` would be
- *     `TypeParam("F", 0, Variance.Invariant, TypeBounds.Unbounded, Kind.Star1)`
+ * For `Either[+A, +B]`, `A` is `TypeParam("A", 0, Variance.Covariant)` and `B`
+ * is `TypeParam("B", 1, Variance.Covariant)`. The macros record only the name,
+ * index and variance: a derived parameter has [[TypeBounds.Unbounded]] bounds
+ * and kind [[Kind.Type]], so `F` in `Functor[F[_]]` comes out as
+ * `TypeParam("F", 0)` instead of a parameter of kind [[Kind.Star1]] (a known
+ * bug). Build a parameter by hand, with [[TypeParam.higherKinded]] for example,
+ * to record a kind.
  *
  * @param name
- *   The name of the type parameter
+ *   the name of the type parameter
  * @param index
- *   The position in the type parameter list (0-indexed)
+ *   the position in the type parameter list, from 0
  * @param variance
- *   The variance annotation (+, -, or none)
+ *   the variance annotation (`+`, `-` or none)
  * @param bounds
- *   The type bounds (>: Lower <: Upper)
+ *   the bounds (`>: Lower <: Upper`)
  * @param kind
- *   The kind of this type parameter (*, * -> *, etc.)
+ *   the kind of the parameter (`*`, `* -> *` and so on)
  */
 final case class TypeParam(
   name: String,
@@ -91,6 +89,10 @@ final case class TypeParam(
   override def toString: String = TypeIdPrinter.render(this)
 }
 
+/**
+ * Constructors for type parameters: `covariant`, `contravariant`, `bounded` and
+ * `higherKinded`.
+ */
 object TypeParam {
 
   private[typeid] val A: TypeParam        = TypeParam("A", 0, Variance.Covariant)

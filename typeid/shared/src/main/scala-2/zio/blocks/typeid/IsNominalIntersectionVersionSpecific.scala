@@ -19,11 +19,28 @@ package zio.blocks.typeid
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
+/**
+ * Holds the implicit [[derived]] for [[IsNominalIntersection]].
+ */
 private[typeid] trait IsNominalIntersectionVersionSpecific {
+
+  /**
+   * Derives `IsNominalIntersection[A]` when every member of `A` is nominal, and
+   * stops compilation with a "Cannot derive IsNominalIntersection" message when
+   * one is not.
+   */
   implicit def derived[A]: IsNominalIntersection[A] = macro IsNominalIntersectionMacros.deriveImpl[A]
 }
 
+/**
+ * The macro behind [[IsNominalIntersectionVersionSpecific#derived]].
+ */
 private[typeid] object IsNominalIntersectionMacros {
+
+  /**
+   * Splits `A` into the members of its intersection, checks that each is
+   * nominal, and builds the instance from their erased ids.
+   */
   def deriveImpl[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[IsNominalIntersection[A]] = {
     import c.universe._
 

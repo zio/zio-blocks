@@ -64,8 +64,9 @@ sealed trait Variance {
   }
 
   /**
-   * Combines two variances. Used when a type parameter appears in a nested
-   * position.
+   * Composes two variances, as for a type parameter in a nested position: two
+   * contravariant positions give covariant, a covariant and a contravariant
+   * position give contravariant, and an invariant position gives invariant.
    */
   def *(other: Variance): Variance = (this, other) match {
     case (Variance.Invariant, _)                          => Variance.Invariant
@@ -77,22 +78,24 @@ sealed trait Variance {
   }
 }
 
+/**
+ * The three cases of [[Variance]]: `Covariant`, `Contravariant` and
+ * `Invariant`.
+ */
 object Variance {
 
   /**
-   * Covariant: +A Preserves subtyping: if Dog <: Animal, then F[Dog] <:
-   * F[Animal]
+   * Covariant (`+A`): if `Dog <: Animal`, then `F[Dog] <: F[Animal]`.
    */
   case object Covariant extends Variance
 
   /**
-   * Contravariant: -A Reverses subtyping: if Dog <: Animal, then F[Animal] <:
-   * F[Dog]
+   * Contravariant (`-A`): if `Dog <: Animal`, then `F[Animal] <: F[Dog]`.
    */
   case object Contravariant extends Variance
 
   /**
-   * Invariant: A No subtyping relationship between F[Dog] and F[Animal]
+   * Invariant (`A`): `F[Dog]` and `F[Animal]` are not subtypes of each other.
    */
   case object Invariant extends Variance
 }
