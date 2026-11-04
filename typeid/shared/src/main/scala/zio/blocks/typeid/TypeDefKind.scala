@@ -17,37 +17,60 @@
 package zio.blocks.typeid
 
 /**
- * Classifies what kind of type definition a `TypeId` represents.
+ * What kind of definition a [[TypeId]] describes, as [[TypeId#defKind]] returns
+ * it: a [[TypeDefKind.Class]] with its `final`, `abstract`, `case` and
+ * value-class flags, a [[TypeDefKind.Trait]] (sealed or not), an
+ * [[TypeDefKind.Object]], a Scala 3 [[TypeDefKind.Enum]] or one of its cases
+ * ([[TypeDefKind.EnumCase]]), a [[TypeDefKind.TypeAlias]], a Scala 3
+ * [[TypeDefKind.OpaqueType]], an [[TypeDefKind.AbstractType]], or
+ * [[TypeDefKind.Unknown]]. Classes, traits, objects and enums carry their
+ * parents in [[baseTypes]].
  *
- * This enables distinguishing between:
- *   - Classes (regular, case, abstract, final, value)
- *   - Traits (regular, sealed)
- *   - Objects (singleton objects)
- *   - Enums (Scala 3 enums with cases)
- *   - Type aliases and opaque types
- *   - Abstract type members
+ * The predefined ids of `Int`, `List`, `Option` and most other standard library
+ * types have kind [[TypeDefKind.Unknown]].
+ *
+ * {{{
+ * sealed trait Shape
+ * final case class Circle(radius: Double) extends Shape
+ *
+ * TypeId.of[Shape].defKind // Trait(true,List())
+ *
+ * TypeId.of[Circle].defKind match {
+ *   case TypeDefKind.Class(isFinal, _, isCase, _, bases) => (isFinal, isCase, bases.size)
+ *   case _                                               => (false, false, 0)
+ * }
+ * // (true,true,1)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/typeid/#typedefkind-reference TypeDefKind Reference]]
  */
 sealed trait TypeDefKind {
 
-  /** The base types (parent classes/traits) of this type definition. */
+  /**
+   * The parents this definition carries: the bases of a class, trait, object or
+   * enum, and the enum of an enum case. Empty for the other kinds.
+   */
   def baseTypes: List[TypeRepr] = Nil
 }
 
 object TypeDefKind {
 
   /**
-   * A class definition.
+   * A class definition, including case classes and value classes.
    *
    * @param isFinal
-   *   Whether the class is final
+   *   whether the class is final
    * @param isAbstract
-   *   Whether the class is abstract
+   *   whether the class is abstract
    * @param isCase
-   *   Whether the class is a case class
+   *   whether the class is a case class
    * @param isValue
-   *   Whether the class extends AnyVal
+   *   whether the class extends `AnyVal`
    * @param bases
-   *   Parent classes and traits this class extends
+   *   its base classes and traits in linearization order, without `Any`,
+   *   `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
+   *   `java.io.Serializable` and the `Mirror` types
    */
   final case class Class(
     isFinal: Boolean = false,
@@ -63,9 +86,11 @@ object TypeDefKind {
    * A trait definition.
    *
    * @param isSealed
-   *   Whether the trait is sealed
+   *   whether the trait is sealed
    * @param bases
-   *   Parent traits this trait extends
+   *   its base classes and traits in linearization order, without `Any`,
+   *   `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
+   *   `java.io.Serializable` and the `Mirror` types
    */
   final case class Trait(
     isSealed: Boolean = false,
@@ -75,10 +100,12 @@ object TypeDefKind {
   }
 
   /**
-   * A singleton object.
+   * A singleton object, including a case object.
    *
    * @param bases
-   *   Parent classes and traits this object extends
+   *   its base classes and traits in linearization order, without `Any`,
+   *   `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
+   *   `java.io.Serializable` and the `Mirror` types
    */
   final case class Object(
     bases: List[TypeRepr] = Nil
@@ -87,10 +114,13 @@ object TypeDefKind {
   }
 
   /**
-   * A Scala 3 enum definition.
+   * A Scala 3 enum definition, such as `enum Color { case Red, Green }`.
    *
    * @param bases
-   *   Parent traits this enum extends
+   *   its base classes and traits in linearization order, without `Any`,
+   *   `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
+   *   `java.io.Serializable` and the `Mirror` types, such as
+   *   `scala.reflect.Enum`
    */
   final case class Enum(
     bases: List[TypeRepr] = Nil
@@ -99,14 +129,16 @@ object TypeDefKind {
   }
 
   /**
-   * An individual enum case (when represented as its own type).
+   * A case of a Scala 3 enum, such as `Color.Red`.
    *
    * @param parentEnum
-   *   Reference to the parent enum type
+   *   a reference to the enum the case belongs to
    * @param ordinal
-   *   The ordinal index of this case
+   *   the position of the case in its enum; the Scala 3 macro writes `-1` (a
+   *   known bug)
    * @param isObjectCase
-   *   True for `case Red`, false for `case RGB(...)`
+   *   `true` for a case without parameters (`case Red`), `false` for a case
+   *   with parameters (`case Custom(rgb: Int)`)
    */
   final case class EnumCase(
     parentEnum: TypeRepr,
@@ -117,23 +149,34 @@ object TypeDefKind {
     override def baseTypes: List[TypeRepr] = List(parentEnum)
   }
 
-  /** A type alias: `type Foo = Bar`. */
+  /**
+   * A type alias, `type Age = Int`. On Scala 3, the ids derived for union and
+   * intersection types have this kind too.
+   */
   case object TypeAlias extends TypeDefKind
 
   /**
-   * An opaque type: `opaque type Foo = Bar`.
+   * A Scala 3 opaque type, `opaque type Email = String`.
    *
    * @param publicBounds
-   *   Bounds visible outside the defining scope
+   *   the bounds visible outside the scope that defines the type; the Scala 3
+   *   macro leaves them [[TypeBounds.Unbounded]]
    */
   final case class OpaqueType(
     publicBounds: TypeBounds = TypeBounds.Unbounded
   ) extends TypeDefKind
 
-  /** An abstract type member. */
+  /**
+   * An abstract type: an abstract type member, or a type parameter given to
+   * [[TypeId.of]].
+   */
   case object AbstractType extends TypeDefKind
 
-  /** Unknown or unclassified type definition kind. */
+  /**
+   * No known kind. The predefined ids of `Int`, `List`, `Option` and most other
+   * standard library types have it, and it is the default `defKind` of
+   * `TypeId.nominal`.
+   */
   case object Unknown extends TypeDefKind
 
   // Predefined instances for common patterns (reduces macro-generated bytecode)
