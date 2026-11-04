@@ -1,12 +1,12 @@
-import React, {useEffect, useRef} from 'react';
-import BrowserOnly from '@docusaurus/BrowserOnly';
+import React, {useEffect, useRef, useState} from 'react';
 import Footer from '@theme-original/Footer';
 
 // The ZIO Blocks chat assistant (ByteBrain widget), mounted on every page that renders the Docusaurus footer. It
 // answers from the ZIO Blocks docs. The key is public by design: the chat server accepts it only from the origin
 // https://zioblocks.com, so locally and on previews the widget shows but its connection is refused.
-// Styles: `.zb-chat` in src/css/custom.css. The wheel/key handlers of the landing page ignore events inside it.
+// The widget loads on demand (see Chat below). Styles: `.zb-chat` in src/css/custom.css. The wheel/key handlers of the landing page ignore events inside it.
 const CHAT_KEY = '61bd74f5-859e-45c0-a80d-9abd1623fc6e';
+const BUTTON_LABEL = 'Ask ZIO Blocks';
 const WELCOME = ["Hi, I'm the ZIO Blocks assistant.", 'Ask me anything about the docs.'];
 
 /** True when `node` sits in a scroller inside `root` that can still move in the direction of `deltaY`. */
@@ -20,6 +20,51 @@ function innerScrollerCanMove(node, root, deltaY) {
     }
   }
   return false;
+}
+
+let widgetImport = null;
+/** Fetches the widget bundle once, on demand. It is large, so it stays out of the page load (the landing page has a Lighthouse performance budget). */
+const loadWidget = () => (widgetImport ??= import('@bytebrain.ai/bytebrain-ui').then((m) => m.ChatApp));
+
+/**
+ * Shows a plain launcher button first and loads the widget when the reader hovers, focuses or clicks it. Once the
+ * widget has mounted, its own launcher takes the placeholder's place (same id, same styles) and opens if the reader
+ * had clicked.
+ */
+function Chat() {
+  const [ChatApp, setChatApp] = useState(null);
+  const [openWhenReady, setOpenWhenReady] = useState(false);
+  const load = () => loadWidget().then((C) => setChatApp(() => C));
+  useEffect(() => {
+    if (ChatApp && openWhenReady) document.querySelector('.zb-chat #chat-button')?.click();
+  }, [ChatApp, openWhenReady]);
+  if (!ChatApp) {
+    return (
+      <button
+        id="chat-button"
+        type="button"
+        onPointerEnter={load}
+        onFocus={load}
+        onClick={() => {
+          setOpenWhenReady(true);
+          load();
+        }}>
+        {BUTTON_LABEL}
+      </button>
+    );
+  }
+  return (
+    <ChatApp
+      websocketHost="chat.zio.dev"
+      websocketPort="80"
+      websocketEndpoint="/chat"
+      apikey={CHAT_KEY}
+      title="ZIO Blocks Chat"
+      buttonLabel={BUTTON_LABEL}
+      placeholder="Ask a question about ZIO Blocks"
+      welcomeMessages={WELCOME}
+    />
+  );
 }
 
 export default function FooterWrapper(props) {
@@ -41,24 +86,7 @@ export default function FooterWrapper(props) {
     <>
       <Footer {...props} />
       <div className="zb-chat" ref={root}>
-        {/* The widget reads window and opens a WebSocket, so it renders in the browser only. */}
-        <BrowserOnly>
-          {() => {
-            const ChatApp = require('@bytebrain.ai/bytebrain-ui').ChatApp;
-            return (
-              <ChatApp
-                websocketHost="chat.zio.dev"
-                websocketPort="80"
-                websocketEndpoint="/chat"
-                apikey={CHAT_KEY}
-                title="ZIO Blocks Chat"
-                buttonLabel="Ask ZIO Blocks"
-                placeholder="Ask a question about ZIO Blocks"
-                welcomeMessages={WELCOME}
-              />
-            );
-          }}
-        </BrowserOnly>
+        <Chat />
       </div>
     </>
   );

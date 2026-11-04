@@ -378,6 +378,10 @@ html[data-theme='dark'] .zb-footer { --zb-footer-bg: var(--code-bg); }
 
   /* Launcher: a square primary-colour button in the bottom-right corner, the label kept visible. */
   .zb-chat #chat-button {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    cursor: pointer;
     z-index: 300;
     margin: 0 1.25rem 1.25rem 0 !important;
     padding: 0.75rem 1.125rem !important;
