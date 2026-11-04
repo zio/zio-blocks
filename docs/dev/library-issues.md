@@ -9967,6 +9967,213 @@ The same program on 3.9.0 prints `isShared = true, same instance = true, created
 
 **Suggested fix.** Use `wireTpe <:< TypeRepr.of[Wire.Shared[?, ?]]` (or `wireTpe.baseClasses.contains(TypeRepr.of[Wire.Shared[?, ?]].typeSymbol)`). Add a diamond test with a unique leaf to `DependencySharingSpec` that asserts two instances on both Scala versions. When the static type is neither `Wire.Shared` nor `Wire.Unique`, decide at run time with `wire.isShared`, or reject it with a compile error; add a statically `Wire[In, Out]`-typed shared wire to the same test.
 
+### config: an `Option` of a record is `None` when one of its keys is missing, and a missing section fails even when the field is an `Option` or has a default
+
+Found 2026-11-03 while fact-checking the `config` Scaladoc (config Scaladoc rollout, task 1), on `scaladoc-config` at `593c7f344` (base `8d6216d7a`). The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** A field of type `Option[Db]`, where `Db` is a case class with two or more required fields, decodes the wrong way round. When the `db` section is missing entirely, which is what `Option` is for, the load fails with two `MissingKey` errors. When the section is half there (`db.host` set, `db.port` missing), the load succeeds with `None` and silently throws away `db.host`, instead of reporting the missing `db.port`. An `Option` of a primitive (`Option[String]`) behaves correctly.
+
+**Reproduction** (`OptionRecord.sc`, run with `scala-cli run --server=false OptionRecord.sc`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-config:0.0.56
+
+import zio.blocks.config._
+import zio.blocks.schema.Schema
+
+case class Db(host: String, port: Int)
+object Db { implicit val schema: Schema[Db] = Schema.derived }
+
+case class App(name: String, db: Option[Db])
+object App { implicit val schema: Schema[App] = Schema.derived }
+
+def show(label: String, keys: Map[String, String]): Unit =
+  println(label + ": " + Config.load[App](ConfigSource.fromMap(keys)).left.map(_.map(_.message)))
+
+show("no db section  ", Map("name" -> "api"))
+show("db.host only   ", Map("name" -> "api", "db.host" -> "db.internal"))
+show("full db section", Map("name" -> "api", "db.host" -> "db.internal", "db.port" -> "5432"))
+// no db section  : Left(List(Missing required key 'db.host' in source 'map'
+// Missing required key 'db.port' in source 'map'))
+// db.host only   : Right(App(api,None))
+// full db section: Right(App(api,Some(Db(db.internal,5432))))
+```
+
+The same cause reaches further than `Option` of a record (`OptionDefaults.sc`, from the review probes, run with `scala-cli run --server=false OptionDefaults.sc`): a missing sealed trait fails even when the field is an `Option` or has a default, because its error is `MissingDiscriminatorKey`, not `MissingKey`; and a missing record with two or more required fields fails even when the field has a default value. Separately (a usability trap rather than the same bug), an `Option` of a sequence or map is never `None`, because a missing sequence or map decodes to an empty collection.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-config:0.0.56
+
+import zio.blocks.config._
+import zio.blocks.schema.Schema
+
+case class Db(host: String, port: Int)
+object Db { implicit val schema: Schema[Db] = Schema.derived }
+
+sealed trait Store
+object Store {
+  case class Memory(size: Int) extends Store
+  case class Disk(path: String) extends Store
+  implicit val schema: Schema[Store] = Schema.derived
+}
+
+case class OptStore(name: String, store: Option[Store])
+object OptStore { implicit val schema: Schema[OptStore] = Schema.derived }
+case class DefStore(name: String, store: Store = Store.Memory(1))
+object DefStore { implicit val schema: Schema[DefStore] = Schema.derived }
+case class DefDb(name: String, db: Db = Db("localhost", 5432))
+object DefDb { implicit val schema: Schema[DefDb] = Schema.derived }
+case class OptColl(name: String, tags: Option[List[String]], labels: Option[Map[String, String]])
+object OptColl { implicit val schema: Schema[OptColl] = Schema.derived }
+
+val src = ConfigSource.fromMap(Map("name" -> "api"))
+println("Option[Store], no store   : " + Config.load[OptStore](src).left.map(_.map(_.message)))
+println("Store with default        : " + Config.load[DefStore](src).left.map(_.map(_.message)))
+println("Db with default           : " + Config.load[DefDb](src).left.map(_.map(_.message)))
+println("Option[List]/Option[Map]  : " + Config.load[OptColl](src))
+// Option[Store], no store   : Left(List(Missing discriminator key 'type' at 'store'))
+// Store with default        : Left(List(Missing discriminator key 'type' at 'store'))
+// Db with default           : Left(List(Missing required key 'db.host' in source 'map'
+// Missing required key 'db.port' in source 'map'))
+// Option[List]/Option[Map]  : Right(OptColl(api,Some(List()),Some(Map())))
+```
+
+**Expected.** `no db section` gives `Right(App(api,None))`. `OptStore` gives `Right(OptStore(api,None))`, `DefStore` gives `Right(DefStore(api,Memory(1)))`, and `DefDb` gives `Right(DefDb(api,Db(localhost,5432)))`. `db.host only` gives a `Left` with `Missing required key 'db.port'` (the section is present, so it must be complete), or at least not a silent `None`.
+
+**Root cause.** The `Option` decoder turns the inner result into `None` only when every error in it is a `ConfigError.MissingKey` (`config/shared/src/main/scala/zio/blocks/config/ConfigDecoderDeriver.scala:150-156`, the check at `:154`). The record decoder returns one bare error when exactly one field fails, but wraps two or more in a single `ConfigError.Composite` (`ConfigDecoderDeriver.scala:122-128`). So a record with one missing key yields `List(MissingKey)` and becomes `None`, while a record with every key missing yields `List(Composite(...))`, which is not a `MissingKey`, and fails. The record decoder's own optional-field path has the same check (`ConfigDecoderDeriver.scala:105-107`) and the same two outcomes. The decision is never "is any key of this section present?".
+
+**Impact.** Optional or defaulted sections (an optional `tls`, `proxy` or `replica` block, a `storage` sealed trait with a default case, a `db` record with a default value) cannot be left out of the configuration when their case class has two or more required fields, which is the normal case; users have to make every inner field optional or give it a default. Worse, a typo in one key of an optional section (`db.prot`) silently disables the whole section with no error.
+
+**Test gap.** `ConfigDecoderSpec` "Option fields" tests only `Option[String]` (`config/shared/src/test/scala/zio/blocks/config/ConfigDecoderSpec.scala:135-147`). No test in `config/shared/src/test` decodes an `Option` of a record.
+
+**Suggested fix.** Before decoding an `Option` of a record, check whether the source has any key at or under the field's path (`source.get(prefix)` or a non-empty `source.all(prefix)`): absent means `None`, present means decode the record and return its errors as they are. Alternatively, flatten `Composite` before the `forall(MissingKey)` test and treat "every field missing" as `None` and "some fields missing" as an error. Deciding "absent" by checking `source.get(path)` / `source.all(path)` before decoding also covers sealed traits and defaults. Add `ConfigDecoderSpec` tests for an `Option` of a two-field record (section absent, complete, partial), an `Option` of a sealed trait, a defaulted sealed trait and a defaulted two-field record.
+
+### config: `StaticFlag` and `DynamicFlag` never read environment variables on Scala.js
+
+Found 2026-11-03 while writing the `StaticFlag` / `DynamicFlag` Scaladoc (config Scaladoc rollout, task 1), on `scaladoc-config` at `593c7f344` (base `8d6216d7a`). The code is the same at tag `v0.0.56`. Verified by running on Scala.js 1.22.0 under Node.js 22 and on the JVM.
+
+**Summary.** A flag's value (for `DynamicFlag`, its initial expression) is looked up in `FlagSource.Registry`, then in a system property, then in an environment variable named like the flag, then in the constructor default. On Scala.js the environment step never finds anything: the flags call `System.getenv(name)`, which returns `null` on Scala.js for every name, even under Node.js where `process.env` holds the variable. `EnvSource`, in the same module, reads `process.env` and sees the variable. `docs/reference/config/flags.md` ("Resolution Order") lists the environment step with no platform note.
+
+**Reproduction** (two files; run each in its own folder with `POOLSIZE=64 NEWCHECKOUT=true scala-cli run --server=false --js-cli-on-jvm .` for `js/JsFlags.scala` and `POOLSIZE=64 NEWCHECKOUT=true scala-cli run --server=false .` for `jvm/JvmFlags.scala`; Scala.js needs `--js-cli-on-jvm` because scala-cli 1.10's native linker cannot read IR 1.22):
+
+`js/JsFlags.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using platform scala-js
+//> using jsVersion 1.22.0
+//> using dep dev.zio::zio-blocks-config::0.0.56
+
+import zio.blocks.config._
+
+object PoolSize extends StaticFlag[Int](10)
+object NewCheckout extends DynamicFlag[Boolean](false, "false")
+
+object JsFlags {
+  def main(args: Array[String]): Unit = {
+    println("POOLSIZE in process.env:    " + EnvSource.get("poolsize").toOption.map(_.value))
+    println("System.getenv(\"POOLSIZE\"): " + System.getenv("POOLSIZE"))
+    println("PoolSize:                   " + PoolSize.value + " from " + PoolSize.source)
+    println("NewCheckout expression:     " + NewCheckout.expression)
+  }
+}
+// POOLSIZE in process.env:    Some(64)
+// System.getenv("POOLSIZE"): null
+// PoolSize:                   10 from Default
+// NewCheckout expression:     false
+```
+
+`jvm/JvmFlags.scala` is the same file without the two Scala.js directives, with `dev.zio::zio-blocks-config:0.0.56` and `object JvmFlags`:
+
+```scala
+// POOLSIZE in process.env:    Some(64)
+// System.getenv("POOLSIZE"): 64
+// PoolSize:                   64 from EnvironmentVariable
+// NewCheckout expression:     true
+```
+
+**Expected.** On Scala.js under Node.js, `PoolSize` resolves to `64 from EnvironmentVariable` and `NewCheckout.expression` is `true`, as on the JVM. If environment lookup is not meant to work on Scala.js, the Scaladoc and `flags.md` should say so.
+
+**Root cause.** `StaticFlag.resolve` reads `System.getenv(envName)` (`config/shared/src/main/scala/zio/blocks/config/StaticFlag.scala:91`), and `DynamicFlag.resolveInitialExpression` does the same (`config/shared/src/main/scala/zio/blocks/config/DynamicFlag.scala:250`). Both files are shared, and the Scala.js `java.lang.System.getenv(String)` returns `null` (the run above prints `null` with the variable set). The JS `EnvSource` avoids this by reading `js.Dynamic.global.process.env` (`config/js/src/main/scala/zio/blocks/config/PlatformConfigSource.scala:52-60`).
+
+**Impact.** A Node.js service built with Scala.js cannot set a flag, or a dynamic flag's initial rollout, through its environment, the usual way to configure a container. The flag silently keeps its default; `source` says `Default`, so nothing points at the cause.
+
+**Test gap.** `StaticFlagSpec` covers the default, a system property and a `FlagSource` (`config/shared/src/test/scala/zio/blocks/config/StaticFlagSpec.scala:41-140`), but no test sets an environment variable on either platform, and `config` has no `js/src/test` folder.
+
+**Suggested fix.** Read the variable through `EnvSource.get(envName)`-style platform code, for example a `private[config]` `PlatformEnv.get(name): Option[String]` with `System.getenv` on the JVM and `process.env` on Scala.js, and call it from both flags. Add a JS test that sets `process.env` before touching a flag. Until then, add a Scala.js note to the "Resolution Order" section of `flags.md` (the new Scaladoc already states the gap).
+
+### config-hocon: a quoted key that contains a dot is split into nested objects
+
+Found 2026-11-03 while fact-checking the `config-hocon` comments (config Scaladoc rollout, task 1); the line comment on `splitKeyPath` says "Quoted keys preserve dots inside", which is false for a fully quoted key. On `scaladoc-config` at `593c7f344` (base `8d6216d7a`). The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** In HOCON, quoting a key keeps its dots: `"metrics.prefix" = app` is one key named `metrics.prefix`, and Typesafe Config treats it so. `HoconParser` drops the quotes before it splits the key path, so the key becomes the path `metrics` / `prefix`, the same tree as `metrics { prefix = app }`. Through `ConfigSource.fromHocon` the flattened key looks the same, but a later assignment to the first segment then replaces the quoted key: `"cache.ttl" = 60` followed by `cache = redis` loses `cache.ttl`. Only a partly quoted key such as `labels."k8s.io/name"` keeps its dot.
+
+**Reproduction** (`QuotedKey.sc`, run with `scala-cli run --server=false QuotedKey.sc`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-config-hocon:0.0.56
+
+import zio.blocks.config._
+import zio.blocks.config.hocon._
+
+println(HoconParser.parse("\"metrics.prefix\" = app"))
+println(HoconParser.parse("metrics { prefix = app }"))
+println(HoconParser.parse("labels.\"k8s.io/name\" = api"))
+println(ConfigSource.fromHocon("\"cache.ttl\" = 60\ncache = redis").map(_.all("").map { case (k, v) => k -> v.value }))
+// Right(Obj(Map(metrics -> Obj(Map(prefix -> Str(app))))))
+// Right(Obj(Map(metrics -> Obj(Map(prefix -> Str(app))))))
+// Right(Obj(Map(labels -> Obj(Map(k8s.io/name -> Str(api))))))
+// Right(Map(cache -> redis))
+```
+
+**Expected.** The first line is `Right(Obj(Map(metrics.prefix -> Str(app))))`, and the last is `Right(Map(cache.ttl -> 60, cache -> redis))` (both keys kept, as in Typesafe Config).
+
+**Root cause.** `parseKey` returns the content of a quoted key without its quotes (`config-hocon/shared/src/main/scala/zio/blocks/config/hocon/HoconParser.scala:185-186`, via `parseQuotedString` at `:302`). `buildMerged` then calls `splitKeyPath`, which keeps a dot only while it is between `"` characters in the key text (`HoconParser.scala:510-530`, the quote check at `:518`); a fully quoted key has none left, so every dot splits.
+
+**Impact.** Keys that legitimately contain dots (Kubernetes labels such as `"app.kubernetes.io/name"`, metric names, hostnames used as map keys) become nested objects in `HoconParser.parse` output, and can be overwritten by an unrelated key that shares their first segment. Configuration ported from Typesafe Config can lose values without an error.
+
+**Test gap.** `HoconParserSpec` has no test with a quoted key that contains a dot (`config-hocon/shared/src/test/scala/zio/blocks/config/hocon/HoconParserSpec.scala`; its key tests, such as "key path with braces" at `:279` and "key path deep-merges with explicit object" at `:324`, use unquoted keys).
+
+**Suggested fix.** Have `parseKey` return the key as path segments (quoted segments kept whole) instead of a string that `splitKeyPath` re-splits, or keep the quotes in the key text so `splitKeyPath` sees them. Add `HoconParserSpec` tests for `"a.b" = 1`, `a."b.c" = 1`, and `"a.b" = 1` followed by `a = 2`.
+
+### config: `DynamicFlag` keeps its initial expression untrimmed, so `reload` of the same expression reports `Updated`
+
+Found 2026-11-03 by the fact-check review of the `config` Scaladoc (config Scaladoc rollout, task 3); reproducer re-run by the task-1 implementer. On `scaladoc-config` at `043f18b7d` (base `8d6216d7a`). The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `DynamicFlag#update` and `#reload` trim the expression they store, but the initial expression (from `FlagSource.Registry`, a system property, the environment or the constructor's `defaultExpression`) is stored as found. With surrounding spaces, `expression` returns them, `Flag.dump` shows them, and a `reload` that reads the same expression reports `Updated` and adds an `updateHistory` entry instead of returning `Unchanged`.
+
+**Reproduction** (`TrimRepro.sc`, run with `scala-cli run --server=false TrimRepro.sc`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-config:0.0.56
+
+import zio.blocks.config._
+
+object Beta extends DynamicFlag[Boolean](false, " on@beta; off ")
+
+println("[" + Beta.expression + "]")
+FlagSource.Registry.register(FlagSource.fromMap(Map(Beta.name -> "on@beta; off"), "remote"))
+println(Beta.reload())
+println("[" + Beta.expression + "]")
+// [ on@beta; off ]
+// Updated( on@beta; off ,on@beta; off)
+// [on@beta; off]
+```
+
+**Expected.** `[on@beta; off]` on the first line, `Unchanged` on the second.
+
+**Root cause.** The constructor stores `DynamicFlag.resolveInitialExpression(...)` (`config/shared/src/main/scala/zio/blocks/config/DynamicFlag.scala:45`, defined at `:239-254`) through `initSnapshot`, which keeps the string as is (`DynamicFlag.scala:256-263`). `update` trims (`:83`), and `reload` trims and then compares with the stored, untrimmed expression (`:100-101`).
+
+**Impact.** Low: a spurious `Updated` result and history entry on the first reload, and stray spaces in `expression` and `Flag.dump`. Code that alerts on `Updated` sees a change that is not one.
+
+**Test gap.** `DynamicFlagSpec` "returns Unchanged when provider value matches current expression" (`config/shared/src/test/scala/zio/blocks/config/DynamicFlagSpec.scala:140`) starts from an expression without surrounding spaces; no test gives the initial expression spaces.
+
+**Suggested fix.** Trim in `resolveInitialExpression` (or in `initSnapshot`), and add a `DynamicFlagSpec` test with a padded default expression followed by `reload` of the trimmed text.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
