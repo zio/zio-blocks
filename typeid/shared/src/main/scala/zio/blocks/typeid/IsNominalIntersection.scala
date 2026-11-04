@@ -19,24 +19,60 @@ package zio.blocks.typeid
 import zio.blocks.chunk.Chunk
 
 /**
- * A compile-time witness that `A` is a nominal intersection type — either a
- * single nominal type or a conjunction (`A & B` / `A with B`) of nominal types.
+ * Compile-time evidence that `A` is a nominal type or an intersection of
+ * nominal types (`A with B` on Scala 2, `A & B` on Scala 3), with the erased id
+ * of each member in [[typeIdsErased]]. Each member must be nominal in the sense
+ * of [[IsNominalType]]; a member that is a type parameter or a structural type
+ * stops compilation with a message that starts with "Cannot derive
+ * IsNominalIntersection".
  *
- * Each member of the intersection must itself satisfy [[IsNominalType]]
- * constraints: no union branches, no structural refinements, no unresolved type
- * parameters. Derivation fails at compile time if any member is non-nominal.
+ * Use it to key a map by each member of an intersection; `Context#prune` in the
+ * `context` module does this. A single type gives one id, and an intersection
+ * gives one id per member, in the order written. On Scala 3 the compiler
+ * simplifies the intersection first, so a member that is a supertype of another
+ * is dropped: for `class Dog extends Animal`, `Dog & Named & Animal` gives the
+ * ids of `Dog` and `Named`. Scala 2 keeps all three.
  *
- * The primary use-case is `Context`, which keys its internal map by the erased
- * `TypeId` of each member in the intersection.
+ * {{{
+ * // scala-3-only
+ * trait Logger
+ * trait Metrics
+ *
+ * IsNominalIntersection[Logger & Metrics].typeIdsErased.map(_.name) // Chunk(Logger,Metrics)
+ * IsNominalIntersection[Logger].typeIdsErased.size                  // 1
+ * }}}
+ *
+ * {{{
+ * // scala-2-only
+ * trait Logger
+ * trait Metrics
+ *
+ * IsNominalIntersection[Logger with Metrics].typeIdsErased.map(_.name) // Chunk(Logger,Metrics)
+ * }}}
  *
  * @tparam A
- *   The intersection type being witnessed. May be a plain nominal type (in
- *   which case [[typeIdsErased]] has length 1) or an intersection (length ≥ 2).
+ *   the type witnessed: one nominal type, or an intersection of them
+ * @see
+ *   [[https://zioblocks.com/reference/typeid/ TypeId]]
  */
 trait IsNominalIntersection[A] {
+
+  /**
+   * The erased id of each member of the intersection, in the order written, or
+   * the id of `A` alone when `A` is not an intersection.
+   */
   def typeIdsErased: Chunk[TypeId.Erased]
 }
 
+/**
+ * Summons and derives [[IsNominalIntersection]] instances. The macro that
+ * derives them runs wherever an implicit `IsNominalIntersection[A]` is
+ * required.
+ */
 object IsNominalIntersection extends IsNominalIntersectionVersionSpecific {
+
+  /**
+   * Returns the implicit `IsNominalIntersection[A]`.
+   */
   def apply[A](implicit ev: IsNominalIntersection[A]): IsNominalIntersection[A] = ev
 }

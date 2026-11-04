@@ -19,11 +19,28 @@ package zio.blocks.typeid
 import zio.blocks.chunk.Chunk
 import scala.quoted.*
 
+/**
+ * Holds the implicit [[derived]] for [[IsNominalIntersection]].
+ */
 private[typeid] trait IsNominalIntersectionVersionSpecific {
+
+  /**
+   * Derives `IsNominalIntersection[A]` when every member of `A` is nominal, and
+   * stops compilation with a "Cannot derive IsNominalIntersection" message when
+   * one is not.
+   */
   inline implicit def derived[A]: IsNominalIntersection[A] = ${ IsNominalIntersectionMacros.deriveImpl[A] }
 }
 
+/**
+ * The macro behind [[IsNominalIntersectionVersionSpecific#derived]].
+ */
 private[typeid] object IsNominalIntersectionMacros {
+
+  /**
+   * Splits `A` into the members of its intersection, checks that each is
+   * nominal, and builds the instance from their erased ids.
+   */
   def deriveImpl[A: Type](using Quotes): Expr[IsNominalIntersection[A]] = {
     import quotes.reflect.*
 
