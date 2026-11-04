@@ -677,6 +677,10 @@ Skill update: "Lessons from typeid" in the `scaladoc-rollout` skill's `reference
 
 Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%.
 
+## 13e. Scaladoc: http-model module (in progress)
+
+Session `http-model-scaladoc` (Opus), started 2026-11-04 on `main` `5eb809c8f`. Phase 0: 57 / 1113 (5%); `Header.scala` alone has 648 items (2 documented), the `Status` scala-2/scala-3 pair 66 + 67 (0); `--drift` empty; no `{{{` blocks; http-model's main sources are byte-identical to `v0.0.56`, so probes run against the release; it compiles on 2.13.18 (JVM main and test, JS main), only its tests are missing from `testJVMScala2Command`/`testJSScala2Command` (out of scope). Milad's Phase 1 decisions: one PR (tooling plus all 1,113 members), not waves; tier 1 = `Request`, `Response`, `Body`, `URL`, `Path`, `QueryParams`, `Headers`, `Header` (with `Header.Codec`), `Method`, `Status`, `Cookie`, `ServerSentEvent`, the rest tier 2; the checker override is a `packageOverrides` table in `project/ScaladocSnippets.scala` (`"http-model" -> "zio.http"`), used by `moduleImport` and `objectName`, with a unit test; the AGENTS.md edit approved (scaladoc-check bullet adds http-model and points new modules at `packageOverrides`; downstream line `http-model*` → `scaladoc-check`, `http-model-schema*`, `endpoint*`, `datastar*`, `htmx*`, `docs`).
+
 ## 13. Scaladoc: next modules
 
 Plan for the next module-wide Scaladoc rollouts, from a read-only research pass on 2026-10-29 (`main` at `bafc31bef`). Coverage was counted with the repo's `.claude/scripts/scaladoc-coverage.py`, the scope-aware count the streams rollout used.
