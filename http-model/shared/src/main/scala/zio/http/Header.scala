@@ -204,7 +204,7 @@ object Header {
     /**
      * Credentials for any scheme other than `Basic`, `Bearer` and `Digest`: the
      * scheme name and the rest of the value, trimmed but not parsed. It renders
-     * as the scheme, a space and `params`. /
+     * as the scheme, a space and `params`.
      */
     final case class Unparsed(scheme: String, params: String) extends Authorization
 
@@ -223,7 +223,6 @@ object Header {
      * double quotes removed, and a pair without `=` is dropped. A parameter
      * value that is only a double quote, as in `nonce=`, throws a
      * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
-     * / /
      *
      * The scheme is lower-cased with the JVM's default locale, so under a
      * Turkish or Azerbaijani locale `BASIC` and `DIGEST` give `Unparsed`; this
@@ -337,7 +336,7 @@ object Header {
     /**
      * Credentials for any scheme other than `Basic`, `Bearer` and `Digest`: the
      * scheme name and the rest of the value, trimmed but not parsed. It renders
-     * as the scheme, a space and `params`. /
+     * as the scheme, a space and `params`.
      */
     final case class Unparsed(scheme: String, params: String) extends ProxyAuthorization
 
@@ -356,7 +355,6 @@ object Header {
      * surrounding double quotes removed, and a pair without `=` is dropped. A
      * parameter value that is only a double quote, as in `nonce=`, throws a
      * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
-     * /
      *
      * The scheme is lower-cased with the JVM's default locale, so under a
      * Turkish or Azerbaijani locale `BASIC` and `DIGEST` give `Unparsed`; this
@@ -951,8 +949,8 @@ object Header {
      * asterisk for an unknown total, or `unit ` followed by an asterisk, a
      * slash and the total for an unknown range, such as `bytes 0-99/1000`. It
      * trims the value. Any other form, including one with both an unknown range
-     * and an unknown total, gives `Left("Invalid content-range: <value>")`. /
-     * The positions are not checked against each other or against the total.
+     * and an unknown total, gives `Left("Invalid content-range: <value>")`. The
+     * positions are not checked against each other or against the total.
      */
     def parse(value: String): Either[String, ContentRange] =
       value.trim match {
@@ -2034,7 +2032,7 @@ object Header {
      * trimming; the `W/` prefix must be upper case. Any other value gives
      * `Left("Invalid etag: <value>")`. A value that is only a double quote, or
      * `W/` and a double quote, throws a `StringIndexOutOfBoundsException`
-     * instead of giving `Left` (a known bug). /
+     * instead of giving `Left` (a known bug).
      */
     def parse(value: String): Either[String, ETag] = {
       val trimmed = value.trim
@@ -2649,7 +2647,7 @@ object Header {
      * becomes `GZip(None)`. A weight that is not a number is dropped, and
      * weights are not range-checked. A name other than `gzip`, `deflate`, `br`,
      * `compress`, `identity` and an asterisk, matched in any letter case,
-     * becomes `GZip` with the item's weight. /
+     * becomes `GZip` with the item's weight.
      *
      * The lower-casing uses the JVM's default locale, so under a Turkish or
      * Azerbaijani locale a name with an upper-case `I`, such as `IDENTITY`,
@@ -2742,8 +2740,8 @@ object Header {
      * Parses a comma-separated list of language ranges. A blank value gives
      * `Left("Accept-Language cannot be empty")`. It trims each item and drops
      * empty ones, reads a quality written as `;q=<number>` with no space, and
-     * falls back to `1.0` when that is not a number. Tags are not checked. /
-     * With a space, as in `en; q=0.5`, the `; q=0.5` stays in the tag and the
+     * falls back to `1.0` when that is not a number. Tags are not checked. With
+     * a space, as in `en; q=0.5`, the `; q=0.5` stays in the tag and the
      * quality is `1.0`.
      */
     def parse(value: String): Either[String, AcceptLanguage] = {
