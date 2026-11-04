@@ -911,7 +911,7 @@ val appResources = dbResource.zip(cacheResource)
 // Allocate once inside scope
 Scope.global.scoped { scope =>
   import scope._
-  val (db, cache) = allocate(appResources)
+  val both = allocate(appResources)
   // Use both — cleanup happens in LIFO order (cache first, then db)
 }
 ```
@@ -1013,8 +1013,19 @@ To fix this, you have two options:
 
 Call a method on the resource to get pure data (strings, numbers, etc.) that are naturally `Unscoped`:
 
-```scala
-$(db)(_.query("data"))  // ✓ Correct: Returns String, which is Unscoped
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+Scope.global.scoped { scope =>
+  import scope._
+  val db = allocate(new Database)
+  $(db)(_.query("data"))  // ✓ Correct: Returns String, which is Unscoped
+}
 ```
 
 The `String` returned by `query()` is pure data with no cleanup logic, so it can safely escape the scope.
@@ -1059,17 +1070,40 @@ The macro detects several violations:
 
 **What works — calling methods on the parameter:**
 
-```scala
-$(db)(d => d.query("SELECT * FROM users"))      // ✓ Method call on receiver
-$(db)(_.query("data"))                           // ✓ Using underscore shorthand
-$(db)(d => d.execute(statement).rows)           // ✓ Chain method calls
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+Scope.global.scoped { scope =>
+  import scope._
+  val db = allocate(new Database)
+  $(db)(d => d.query("SELECT * FROM users"))  // ✓ Method call on receiver
+  $(db)(_.query("data"))                      // ✓ Using underscore shorthand
+  $(db)(d => d.query("x").length)             // ✓ Chain method calls
+  ()
+}
 ```
 
 If you need to transform or extract data from a resource before using it elsewhere, call a method to extract what you need:
 
-```scala
-$(db)(d => d.query("SELECT COUNT(*)"))  // ✓ Returns String (pure data)
-// The returned String can now be passed to other functions
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+Scope.global.scoped { scope =>
+  import scope._
+  val db = allocate(new Database)
+  $(db)(d => d.query("SELECT COUNT(*)"))  // ✓ Returns String (pure data)
+  // The returned String can now be passed to other functions
+}
 ```
 
 **Why this restriction exists:** Scoped values are bound to a specific cleanup phase. Allowing them to escape (via arguments or closures) would let them be used after cleanup, causing crashes or data corruption. By restricting usage to method calls only, the macro ensures the resource never leaves its scope.

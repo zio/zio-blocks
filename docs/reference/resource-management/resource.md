@@ -712,14 +712,14 @@ For example, `Resource.from[T](wires*)` uses `Wire` values to construct instance
 ```scala mdoc:compile-only
 import zio.blocks.scope._
 
-case class Config(host: String, port: Int)
+final case class Config(host: String, port: Int)
 
-class Logger(config: Config) extends AutoCloseable {
-  def log(msg: String): Unit = println(s"[$msg] ${config.host}:${config.port}")
+final class Logger(config: Config) extends AutoCloseable {
+  def log(msg: String): Unit = println(s"[${config.host}:${config.port}] $msg")
   def close(): Unit          = log("Logger shutting down")
 }
 
-class Service(logger: Logger) extends AutoCloseable {
+final class Service(logger: Logger) extends AutoCloseable {
   def run(): Unit   = logger.log("Service running")
   def close(): Unit = logger.log("Service shutting down")
 }
