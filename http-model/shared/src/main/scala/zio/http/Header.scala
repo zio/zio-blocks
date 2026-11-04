@@ -1111,18 +1111,42 @@ object Header {
     def render(h: ContentBase): String = h.renderedValue
   }
 
+  /**
+   * The `Host` request header: the host name of the target, with an optional
+   * port.
+   */
   final case class Host(host: String, port: Option[Int]) extends zio.http.Header {
+
+    /** Returns the name of this header, `Host.name`. */
     def headerName: String = Host.name
 
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Host.render` returns.
+     */
     def renderedValue: String = port match {
       case Some(p) => host + ":" + p
       case None    => host
     }
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Host]]: it parses and renders the `host`
+   * header.
+   */
   object Host extends Typed[Host] {
+
+    /** The header name, `host`. */
     val name: String = "host"
 
+    /**
+     * Parses `host` or `host:port`, splitting at the last colon. It does not
+     * trim. An empty value, or an empty host part, gives
+     * `Left("Invalid host: cannot be empty")`; a port that is not an integer
+     * from 0 to 65535 gives `Left("Invalid port: <text>")`. An IPv6 literal
+     * with a port, such as `[::1]:80`, parses, but one without a port does not,
+     * because its last colon is read as the port separator.
+     */
     def parse(value: String): Either[String, Host] = {
       if (value.isEmpty) return Left("Invalid host: cannot be empty")
       val colonIdx = value.lastIndexOf(':')
@@ -1141,32 +1165,83 @@ object Header {
       }
     }
 
+    /** Writes `host`, or `host:port` when there is a port. */
     def render(h: Host): String = h.renderedValue
   }
 
+  /**
+   * The `Location` response header: the URI to go to, for example in a
+   * redirect. `uri` holds the text.
+   */
   final case class Location(uri: String) extends zio.http.Header {
-    def headerName: String    = Location.name
+
+    /** Returns the name of this header, `Location.name`. */
+    def headerName: String = Location.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Location.render` returns.
+     */
     def renderedValue: String = uri
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Location]]: it parses and renders the
+   * `location` header.
+   */
   object Location extends Typed[Location] {
-    val name: String                                   = "location"
+
+    /** The header name, `location`. */
+    val name: String = "location"
+
+    /**
+     * Wraps the value after trimming surrounding whitespace; the text is not
+     * checked.
+     */
     def parse(value: String): Either[String, Location] = Right(Location(value.trim))
-    def render(h: Location): String                    = h.renderedValue
+
+    /** Writes `uri` unchanged. */
+    def render(h: Location): String = h.renderedValue
   }
 
+  /**
+   * The `Origin` request header: where a request comes from, as a
+   * `scheme://host[:port]` origin or the opaque `null` origin.
+   */
   sealed trait Origin extends zio.http.Header {
-    def headerName: String    = Origin.name
+
+    /** Returns the name of this header, `Origin.name`. */
+    def headerName: String = Origin.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Origin.render` returns.
+     */
     def renderedValue: String = Origin.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Origin]]: it parses and renders the
+   * `origin` header.
+   */
   object Origin extends Typed[Origin] {
+
+    /** The header name, `origin`. */
     val name: String = "origin"
 
+    /** The opaque origin, written `null`. */
     case object Null_ extends Origin
 
+    /** An origin with a scheme, a host and an optional port. */
     final case class Value(scheme: String, host: String, port: Option[Int]) extends Origin
 
+    /**
+     * Parses `null` in any letter case, or `scheme://host` with an optional
+     * `:port` after the host, splitting at the last colon after `://`. It trims
+     * the value. A value without `://` gives `Left("Invalid origin: <value>")`,
+     * and a port that is not an integer from 0 to 65535 gives
+     * `Left("Invalid origin port: <text>")`.
+     */
     def parse(value: String): Either[String, Origin] = {
       val trimmed = value.trim
       if (trimmed.equalsIgnoreCase("null")) Right(Null_)
@@ -1193,6 +1268,7 @@ object Header {
       }
     }
 
+    /** Writes `null`, `scheme://host` or `scheme://host:port`. */
     def render(h: Origin): String = h match {
       case Null_                           => "null"
       case Value(scheme, host, Some(port)) => s"$scheme://$host:$port"
@@ -1200,56 +1276,150 @@ object Header {
     }
   }
 
+  /**
+   * The `Referer` request header: the URI of the page that led to the request.
+   * `uri` holds the text.
+   */
   final case class Referer(uri: String) extends zio.http.Header {
-    def headerName: String    = Referer.name
+
+    /** Returns the name of this header, `Referer.name`. */
+    def headerName: String = Referer.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Referer.render` returns.
+     */
     def renderedValue: String = uri
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Referer]]: it parses and renders the
+   * `referer` header.
+   */
   object Referer extends Typed[Referer] {
-    val name: String                                  = "referer"
+
+    /** The header name, `referer`. */
+    val name: String = "referer"
+
+    /**
+     * Wraps the value after trimming surrounding whitespace; the text is not
+     * checked.
+     */
     def parse(value: String): Either[String, Referer] = Right(Referer(value.trim))
-    def render(h: Referer): String                    = h.renderedValue
+
+    /** Writes `uri` unchanged. */
+    def render(h: Referer): String = h.renderedValue
   }
 
+  /**
+   * The `Via` header: the proxies and gateways a message passed through, one
+   * entry each, such as `1.1 cache.example`.
+   */
   final case class Via(entries: Chunk[String]) extends zio.http.Header {
-    def headerName: String    = Via.name
+
+    /** Returns the name of this header, `Via.name`. */
+    def headerName: String = Via.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Via.render` returns.
+     */
     def renderedValue: String = entries.mkString(", ")
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Via]]: it parses and renders the `via`
+   * header.
+   */
   object Via extends Typed[Via] {
+
+    /** The header name, `via`. */
     val name: String = "via"
 
+    /** Builds a `Via` from one or more entries. */
     def apply(first: String, rest: String*): Via =
       Via(Chunk.fromIterable(first +: rest))
 
+    /**
+     * Splits the value on commas, trims each item and drops empty ones. No
+     * items gives `Left("Empty via header")`.
+     */
     def parse(value: String): Either[String, Via] = {
       val parts = value.split(",").map(_.trim).filter(_.nonEmpty)
       if (parts.isEmpty) Left("Empty via header")
       else Right(Via(Chunk.fromArray(parts)))
     }
 
+    /** Writes the entries joined with `, `. */
     def render(h: Via): String = h.renderedValue
   }
 
+  /**
+   * The `Forwarded` header: the details a proxy adds about the original
+   * request, such as `for=` and `proto=`. `params` holds the whole value as
+   * text.
+   */
   final case class Forwarded(params: String) extends zio.http.Header {
-    def headerName: String    = Forwarded.name
+
+    /** Returns the name of this header, `Forwarded.name`. */
+    def headerName: String = Forwarded.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Forwarded.render` returns.
+     */
     def renderedValue: String = params
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Forwarded]]: it parses and renders the
+   * `forwarded` header.
+   */
   object Forwarded extends Typed[Forwarded] {
-    val name: String                                    = "forwarded"
+
+    /** The header name, `forwarded`. */
+    val name: String = "forwarded"
+
+    /**
+     * Wraps the value after trimming surrounding whitespace; the text is not
+     * checked.
+     */
     def parse(value: String): Either[String, Forwarded] = Right(Forwarded(value.trim))
-    def render(h: Forwarded): String                    = h.renderedValue
+
+    /** Writes `params` unchanged. */
+    def render(h: Forwarded): String = h.renderedValue
   }
 
+  /**
+   * The `Max-Forwards` request header: how many more times a `TRACE` or
+   * `OPTIONS` request may be forwarded.
+   */
   final case class MaxForwards(count: Int) extends zio.http.Header {
-    def headerName: String    = MaxForwards.name
+
+    /** Returns the name of this header, `MaxForwards.name`. */
+    def headerName: String = MaxForwards.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `MaxForwards.render` returns.
+     */
     def renderedValue: String = count.toString
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[MaxForwards]]: it parses and renders the
+   * `max-forwards` header.
+   */
   object MaxForwards extends Typed[MaxForwards] {
+
+    /** The header name, `max-forwards`. */
     val name: String = "max-forwards"
 
+    /**
+     * Parses the trimmed value as an `Int`. A negative number gives
+     * `Left("Invalid max-forwards: <number>")`, and a value that is not an
+     * integer gives `Left("Invalid max-forwards: <value>")`.
+     */
     def parse(value: String): Either[String, MaxForwards] =
       try {
         val n = value.trim.toInt
@@ -1259,55 +1429,148 @@ object Header {
         case _: NumberFormatException => Left(s"Invalid max-forwards: $value")
       }
 
+    /** Writes `count` in decimal. */
     def render(h: MaxForwards): String = h.renderedValue
   }
 
+  /**
+   * The `From` request header: the email address of the person behind the
+   * request. `email` holds the text.
+   */
   final case class From(email: String) extends zio.http.Header {
-    def headerName: String    = From.name
+
+    /** Returns the name of this header, `From.name`. */
+    def headerName: String = From.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `From.render` returns.
+     */
     def renderedValue: String = email
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[From]]: it parses and renders the `from`
+   * header.
+   */
   object From extends Typed[From] {
-    val name: String                               = "from"
+
+    /** The header name, `from`. */
+    val name: String = "from"
+
+    /**
+     * Wraps the value after trimming surrounding whitespace; the text is not
+     * checked.
+     */
     def parse(value: String): Either[String, From] = Right(From(value.trim))
-    def render(h: From): String                    = h.renderedValue
+
+    /** Writes `email` unchanged. */
+    def render(h: From): String = h.renderedValue
   }
 
+  /**
+   * The `Cookie` request header: the cookies a client sends back, held as the
+   * whole value in `value`. `Request#cookies` splits it into cookies.
+   */
   final case class CookieHeader(value: String) extends zio.http.Header {
-    def headerName: String    = CookieHeader.name
+
+    /** Returns the name of this header, `CookieHeader.name`. */
+    def headerName: String = CookieHeader.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `CookieHeader.render` returns.
+     */
     def renderedValue: String = value
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[CookieHeader]]: it parses and renders the
+   * `cookie` header.
+   */
   object CookieHeader extends Typed[CookieHeader] {
-    val name: String                                       = "cookie"
+
+    /** The header name, `cookie`. */
+    val name: String = "cookie"
+
+    /** Wraps the value unchanged: it is neither trimmed nor checked. */
     def parse(value: String): Either[String, CookieHeader] = Right(CookieHeader(value))
-    def render(h: CookieHeader): String                    = h.renderedValue
+
+    /** Writes `value` unchanged. */
+    def render(h: CookieHeader): String = h.renderedValue
   }
 
+  /**
+   * The `Set-Cookie` response header: one cookie a server sets, held as the
+   * whole value in `value`. `Response#cookies` reads the cookie in it.
+   */
   final case class SetCookieHeader(value: String) extends zio.http.Header {
-    def headerName: String    = SetCookieHeader.name
+
+    /** Returns the name of this header, `SetCookieHeader.name`. */
+    def headerName: String = SetCookieHeader.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `SetCookieHeader.render` returns.
+     */
     def renderedValue: String = value
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[SetCookieHeader]]: it parses and renders
+   * the `set-cookie` header.
+   */
   object SetCookieHeader extends Typed[SetCookieHeader] {
-    val name: String                                          = "set-cookie"
+
+    /** The header name, `set-cookie`. */
+    val name: String = "set-cookie"
+
+    /** Wraps the value unchanged: it is neither trimmed nor checked. */
     def parse(value: String): Either[String, SetCookieHeader] = Right(SetCookieHeader(value))
-    def render(h: SetCookieHeader): String                    = h.renderedValue
+
+    /** Writes `value` unchanged. */
+    def render(h: SetCookieHeader): String = h.renderedValue
   }
 
+  /**
+   * The `Connection` header: whether the connection closes or stays open after
+   * this exchange. Any other value is `Other`.
+   */
   sealed trait Connection extends zio.http.Header {
-    def headerName: String    = Connection.name
+
+    /** Returns the name of this header, `Connection.name`. */
+    def headerName: String = Connection.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Connection.render` returns.
+     */
     def renderedValue: String = Connection.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Connection]]: it parses and renders the
+   * `connection` header.
+   */
   object Connection extends Typed[Connection] {
+
+    /** The header name, `connection`. */
     val name: String = "connection"
 
-    case object Close     extends Connection
+    /** The `close` option: the connection closes after this exchange. */
+    case object Close extends Connection
+
+    /** The `keep-alive` option: the connection stays open. */
     case object KeepAlive extends Connection
 
+    /** Any other option, held as lower-case text in `value`. */
     final case class Other(value: String) extends Connection
 
+    /**
+     * Trims and lower-cases the value, then maps `close` and `keep-alive` to
+     * their case objects. Every other value, including an empty one, gives
+     * `Other` with the lower-cased text.
+     */
     def parse(value: String): Either[String, Connection] =
       value.trim.toLowerCase match {
         case "close"      => Right(Close)
@@ -1315,6 +1578,7 @@ object Header {
         case other        => Right(Other(other))
       }
 
+    /** Writes `close`, `keep-alive`, or the text of `Other`. */
     def render(h: Connection): String = h match {
       case Close     => "close"
       case KeepAlive => "keep-alive"
@@ -1322,62 +1586,161 @@ object Header {
     }
   }
 
+  /**
+   * The `Upgrade` header: the protocols the sender offers to switch to, such as
+   * `websocket`. `protocol` holds the text.
+   */
   final case class Upgrade(protocol: String) extends zio.http.Header {
-    def headerName: String    = Upgrade.name
+
+    /** Returns the name of this header, `Upgrade.name`. */
+    def headerName: String = Upgrade.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Upgrade.render` returns.
+     */
     def renderedValue: String = protocol
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Upgrade]]: it parses and renders the
+   * `upgrade` header.
+   */
   object Upgrade extends Typed[Upgrade] {
-    val name: String                                  = "upgrade"
+
+    /** The header name, `upgrade`. */
+    val name: String = "upgrade"
+
+    /**
+     * Wraps the value after trimming surrounding whitespace; the text is not
+     * checked.
+     */
     def parse(value: String): Either[String, Upgrade] = Right(Upgrade(value.trim))
-    def render(h: Upgrade): String                    = h.renderedValue
+
+    /** Writes `protocol` unchanged. */
+    def render(h: Upgrade): String = h.renderedValue
   }
 
+  /**
+   * The `TE` request header: the transfer codings the client accepts. `value`
+   * holds the text.
+   */
   final case class Te(value: String) extends zio.http.Header {
-    def headerName: String    = Te.name
+
+    /** Returns the name of this header, `Te.name`. */
+    def headerName: String = Te.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Te.render` returns.
+     */
     def renderedValue: String = value
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Te]]: it parses and renders the `te`
+   * header.
+   */
   object Te extends Typed[Te] {
-    val name: String                             = "te"
+
+    /** The header name, `te`. */
+    val name: String = "te"
+
+    /**
+     * Wraps the value after trimming surrounding whitespace; the text is not
+     * checked.
+     */
     def parse(value: String): Either[String, Te] = Right(Te(value.trim))
-    def render(h: Te): String                    = h.renderedValue
+
+    /** Writes `value` unchanged. */
+    def render(h: Te): String = h.renderedValue
   }
 
+  /**
+   * The `Trailer` header: the names of the headers that follow the body as
+   * trailers.
+   */
   final case class Trailer(headers: Chunk[String]) extends zio.http.Header {
-    def headerName: String    = Trailer.name
+
+    /** Returns the name of this header, `Trailer.name`. */
+    def headerName: String = Trailer.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Trailer.render` returns.
+     */
     def renderedValue: String = headers.mkString(", ")
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Trailer]]: it parses and renders the
+   * `trailer` header.
+   */
   object Trailer extends Typed[Trailer] {
+
+    /** The header name, `trailer`. */
     val name: String = "trailer"
 
+    /** Builds a `Trailer` from one or more header names. */
     def apply(first: String, rest: String*): Trailer =
       Trailer(Chunk.fromIterable(first +: rest))
 
+    /**
+     * Splits the value on commas, trims each item and drops empty ones. No
+     * items gives `Left("Empty trailer header")`.
+     */
     def parse(value: String): Either[String, Trailer] = {
       val parts = value.split(",").map(_.trim).filter(_.nonEmpty)
       if (parts.isEmpty) Left("Empty trailer header")
       else Right(Trailer(Chunk.fromArray(parts)))
     }
 
+    /** Writes the names joined with `, `. */
     def render(h: Trailer): String = h.renderedValue
   }
 
+  /**
+   * The `Transfer-Encoding` header: the codings applied to the message body for
+   * transfer. One coding is a case object; several, in the order listed, are a
+   * `Multiple`.
+   */
   sealed trait TransferEncoding extends zio.http.Header {
-    def headerName: String    = TransferEncoding.name
+
+    /** Returns the name of this header, `TransferEncoding.name`. */
+    def headerName: String = TransferEncoding.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `TransferEncoding.render` returns.
+     */
     def renderedValue: String = TransferEncoding.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[TransferEncoding]]: it parses and renders
+   * the `transfer-encoding` header.
+   */
   object TransferEncoding extends Typed[TransferEncoding] {
+
+    /** The header name, `transfer-encoding`. */
     val name: String = "transfer-encoding"
 
-    case object Chunked  extends TransferEncoding
+    /** The `chunked` coding. */
+    case object Chunked extends TransferEncoding
+
+    /** The `compress` coding. */
     case object Compress extends TransferEncoding
-    case object Deflate  extends TransferEncoding
-    case object GZip     extends TransferEncoding
+
+    /** The `deflate` coding. */
+    case object Deflate extends TransferEncoding
+
+    /** The `gzip` coding. */
+    case object GZip extends TransferEncoding
+
+    /** The `identity` coding: no encoding. */
     case object Identity extends TransferEncoding
 
+    /** Several codings, in the order given. */
     final case class Multiple(values: Chunk[TransferEncoding]) extends TransferEncoding
 
     private def findEncoding(value: String): Option[TransferEncoding] =
@@ -1390,6 +1753,13 @@ object Header {
         case _          => None
       }
 
+    /**
+     * Parses a comma-separated list. It trims each item and matches `chunked`,
+     * `compress`, `deflate`, `gzip` or `identity` in any letter case; an item
+     * that matches none of them is dropped. One match gives that coding,
+     * several give `Multiple`, and none gives
+     * `Left("Invalid transfer-encoding: <value>")`.
+     */
     def parse(value: String): Either[String, TransferEncoding] = {
       val parts  = value.split(',')
       val parsed = Chunk.fromArray(parts.flatMap(s => findEncoding(s)))
@@ -1398,6 +1768,10 @@ object Header {
       else Right(Multiple(parsed))
     }
 
+    /**
+     * Writes the coding name in lower case; `Multiple` joins its names with
+     * `, `.
+     */
     def render(h: TransferEncoding): String = h match {
       case Chunked     => "chunked"
       case Compress    => "compress"
@@ -1408,33 +1782,99 @@ object Header {
     }
   }
 
+  /**
+   * The `Cache-Control` header: the caching directives of a request or
+   * response. One directive is a case object or case class; several, in the
+   * order listed, are a `Multiple`.
+   */
   sealed trait CacheControl extends zio.http.Header {
-    def headerName: String    = CacheControl.name
+
+    /** Returns the name of this header, `CacheControl.name`. */
+    def headerName: String = CacheControl.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `CacheControl.render` returns.
+     */
     def renderedValue: String = CacheControl.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[CacheControl]]: it parses and renders the
+   * `cache-control` header.
+   */
   object CacheControl extends Typed[CacheControl] {
+
+    /** The header name, `cache-control`. */
     val name: String = "cache-control"
 
-    case object NoCache         extends CacheControl
-    case object NoStore         extends CacheControl
-    case object NoTransform     extends CacheControl
-    case object Public          extends CacheControl
-    case object Private         extends CacheControl
-    case object MustRevalidate  extends CacheControl
-    case object ProxyRevalidate extends CacheControl
-    case object Immutable       extends CacheControl
-    case object OnlyIfCached    extends CacheControl
-    case object MustUnderstand  extends CacheControl
+    /** The `no-cache` directive. */
+    case object NoCache extends CacheControl
 
-    final case class MaxAge(seconds: Long)                     extends CacheControl
-    final case class SMaxAge(seconds: Long)                    extends CacheControl
-    final case class MaxStale(seconds: Option[Long])           extends CacheControl
-    final case class MinFresh(seconds: Long)                   extends CacheControl
-    final case class StaleWhileRevalidate(seconds: Long)       extends CacheControl
-    final case class StaleIfError(seconds: Long)               extends CacheControl
+    /** The `no-store` directive. */
+    case object NoStore extends CacheControl
+
+    /** The `no-transform` directive. */
+    case object NoTransform extends CacheControl
+
+    /** The `public` directive. */
+    case object Public extends CacheControl
+
+    /** The `private` directive. */
+    case object Private extends CacheControl
+
+    /** The `must-revalidate` directive. */
+    case object MustRevalidate extends CacheControl
+
+    /** The `proxy-revalidate` directive. */
+    case object ProxyRevalidate extends CacheControl
+
+    /** The `immutable` directive. */
+    case object Immutable extends CacheControl
+
+    /** The `only-if-cached` directive. */
+    case object OnlyIfCached extends CacheControl
+
+    /** The `must-understand` directive. */
+    case object MustUnderstand extends CacheControl
+
+    /** The `max-age` directive, with a lifetime in seconds. */
+    final case class MaxAge(seconds: Long) extends CacheControl
+
+    /**
+     * The `s-maxage` directive, with a lifetime in seconds for shared caches.
+     */
+    final case class SMaxAge(seconds: Long) extends CacheControl
+
+    /**
+     * The `max-stale` directive, with an optional number of seconds; it renders
+     * as `max-stale` alone when `seconds` is `None`.
+     */
+    final case class MaxStale(seconds: Option[Long]) extends CacheControl
+
+    /** The `min-fresh` directive, with a number of seconds. */
+    final case class MinFresh(seconds: Long) extends CacheControl
+
+    /** The `stale-while-revalidate` directive, with a number of seconds. */
+    final case class StaleWhileRevalidate(seconds: Long) extends CacheControl
+
+    /** The `stale-if-error` directive, with a number of seconds. */
+    final case class StaleIfError(seconds: Long) extends CacheControl
+
+    /** Several directives, in the order given. */
     final case class Multiple(directives: Chunk[CacheControl]) extends CacheControl
 
+    /**
+     * Parses a comma-separated list of directives. It trims the value, and an
+     * empty value gives `Left("Empty cache-control header")`. Each item is
+     * trimmed and its name matched in lower case; one directive gives its case,
+     * several give `Multiple`, and the first failing item gives the `Left`. An
+     * unknown name gives `Left("Unknown cache-control directive: <name>")`, and
+     * a value after `=` that is not an integer, including a quoted one such as
+     * in `no-cache="set-cookie"`, gives
+     * `Left("Invalid number in cache-control directive: <value>")`. A negative
+     * number is accepted.
+     */
     def parse(value: String): Either[String, CacheControl] = {
       val trimmed = value.trim
       if (trimmed.isEmpty) return Left("Empty cache-control header")
@@ -1454,6 +1894,10 @@ object Header {
       }
     }
 
+    /**
+     * Writes each directive as in a header, such as `max-age=600` or
+     * `no-store`; `Multiple` joins them with `, `.
+     */
     def render(h: CacheControl): String = h match {
       case NoCache                 => "no-cache"
       case NoStore                 => "no-store"
@@ -1513,14 +1957,38 @@ object Header {
     }
   }
 
+  /**
+   * The `ETag` header: an identifier for one version of a resource. `tag` is
+   * the tag without its double quotes, and `weak` is `true` for a weak
+   * validator, written with a `W/` prefix.
+   */
   final case class ETag(tag: String, weak: Boolean) extends zio.http.Header {
-    def headerName: String    = ETag.name
+
+    /** Returns the name of this header, `ETag.name`. */
+    def headerName: String = ETag.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ETag.render` returns.
+     */
     def renderedValue: String = ETag.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ETag]]: it parses and renders the `etag`
+   * header.
+   */
   object ETag extends Typed[ETag] {
+
+    /** The header name, `etag`. */
     val name: String = "etag"
 
+    /**
+     * Parses `"tag"` as a strong tag and `W/"tag"` as a weak one, after
+     * trimming; the `W/` prefix must be upper case. Any other value gives
+     * `Left("Invalid etag: <value>")`. A value that is only one double quote
+     * throws a `StringIndexOutOfBoundsException` instead.
+     */
     def parse(value: String): Either[String, ETag] = {
       val trimmed = value.trim
       if (trimmed.startsWith("W/\"") && trimmed.endsWith("\""))
@@ -1531,22 +1999,52 @@ object Header {
         Left(s"Invalid etag: $trimmed")
     }
 
+    /**
+     * Writes the tag in double quotes, with a `W/` prefix when `weak` is
+     * `true`. The tag is not escaped.
+     */
     def render(h: ETag): String =
       if (h.weak) s"""W/\"${h.tag}\""""
       else s"""\"${h.tag}\""""
   }
 
+  /**
+   * The `If-Match` request header: the request applies only when the current
+   * entity tag of the resource matches. It is `Any` or a list of tags.
+   */
   sealed trait IfMatch extends zio.http.Header {
-    def headerName: String    = IfMatch.name
+
+    /** Returns the name of this header, `IfMatch.name`. */
+    def headerName: String = IfMatch.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `IfMatch.render` returns.
+     */
     def renderedValue: String = IfMatch.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[IfMatch]]: it parses and renders the
+   * `if-match` header.
+   */
   object IfMatch extends Typed[IfMatch] {
+
+    /** The header name, `if-match`. */
     val name: String = "if-match"
 
-    case object Any                           extends IfMatch
+    /** Matches any version: the `*` value. */
+    case object Any extends IfMatch
+
+    /** Matches the listed entity tags. */
     final case class ETags(tags: Chunk[ETag]) extends IfMatch
 
+    /**
+     * Parses `*` as `Any`, or a comma-separated list of entity tags, after
+     * trimming. Each item is trimmed and parsed as an `ETag`, and the first
+     * failing item gives its `Left`, such as `Left("Invalid etag: <item>")`; an
+     * empty value gives that error too.
+     */
     def parse(value: String): Either[String, IfMatch] = {
       val trimmed = value.trim
       if (trimmed == "*") Right(Any)
@@ -1566,23 +2064,50 @@ object Header {
       }
     }
 
+    /** Writes `*` for `Any`, or the tags joined with `, `. */
     def render(h: IfMatch): String = h match {
       case Any       => "*"
       case ETags(ts) => ts.map(ETag.render).mkString(", ")
     }
   }
 
+  /**
+   * The `If-None-Match` request header: the request applies only when no entity
+   * tag of the resource matches. It is `Any` or a list of tags.
+   */
   sealed trait IfNoneMatch extends zio.http.Header {
-    def headerName: String    = IfNoneMatch.name
+
+    /** Returns the name of this header, `IfNoneMatch.name`. */
+    def headerName: String = IfNoneMatch.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `IfNoneMatch.render` returns.
+     */
     def renderedValue: String = IfNoneMatch.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[IfNoneMatch]]: it parses and renders the
+   * `if-none-match` header.
+   */
   object IfNoneMatch extends Typed[IfNoneMatch] {
+
+    /** The header name, `if-none-match`. */
     val name: String = "if-none-match"
 
-    case object Any                           extends IfNoneMatch
+    /** Matches any version: the `*` value. */
+    case object Any extends IfNoneMatch
+
+    /** Matches the listed entity tags. */
     final case class ETags(tags: Chunk[ETag]) extends IfNoneMatch
 
+    /**
+     * Parses `*` as `Any`, or a comma-separated list of entity tags, after
+     * trimming. Each item is trimmed and parsed as an `ETag`, and the first
+     * failing item gives its `Left`, such as `Left("Invalid etag: <item>")`; an
+     * empty value gives that error too.
+     */
     def parse(value: String): Either[String, IfNoneMatch] = {
       val trimmed = value.trim
       if (trimmed == "*") Right(Any)
@@ -1602,64 +2127,183 @@ object Header {
       }
     }
 
+    /** Writes `*` for `Any`, or the tags joined with `, `. */
     def render(h: IfNoneMatch): String = h match {
       case Any       => "*"
       case ETags(ts) => ts.map(ETag.render).mkString(", ")
     }
   }
 
+  /**
+   * The `If-Modified-Since` request header: the request applies only if the
+   * resource changed after this date. `date` holds the text.
+   */
   final case class IfModifiedSince(date: String) extends zio.http.Header {
-    def headerName: String    = IfModifiedSince.name
+
+    /** Returns the name of this header, `IfModifiedSince.name`. */
+    def headerName: String = IfModifiedSince.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `IfModifiedSince.render` returns.
+     */
     def renderedValue: String = date
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[IfModifiedSince]]: it parses and renders
+   * the `if-modified-since` header.
+   */
   object IfModifiedSince extends Typed[IfModifiedSince] {
-    val name: String                                          = "if-modified-since"
+
+    /** The header name, `if-modified-since`. */
+    val name: String = "if-modified-since"
+
+    /**
+     * Wraps the value after trimming surrounding whitespace; the text is not
+     * checked. It is not parsed as a date.
+     */
     def parse(value: String): Either[String, IfModifiedSince] = Right(IfModifiedSince(value.trim))
-    def render(h: IfModifiedSince): String                    = h.renderedValue
+
+    /** Writes `date` unchanged. */
+    def render(h: IfModifiedSince): String = h.renderedValue
   }
 
+  /**
+   * The `If-Unmodified-Since` request header: the request applies only if the
+   * resource has not changed since this date. `date` holds the text.
+   */
   final case class IfUnmodifiedSince(date: String) extends zio.http.Header {
-    def headerName: String    = IfUnmodifiedSince.name
+
+    /** Returns the name of this header, `IfUnmodifiedSince.name`. */
+    def headerName: String = IfUnmodifiedSince.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `IfUnmodifiedSince.render` returns.
+     */
     def renderedValue: String = date
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[IfUnmodifiedSince]]: it parses and renders
+   * the `if-unmodified-since` header.
+   */
   object IfUnmodifiedSince extends Typed[IfUnmodifiedSince] {
-    val name: String                                            = "if-unmodified-since"
+
+    /** The header name, `if-unmodified-since`. */
+    val name: String = "if-unmodified-since"
+
+    /**
+     * Wraps the value after trimming surrounding whitespace; the text is not
+     * checked. It is not parsed as a date.
+     */
     def parse(value: String): Either[String, IfUnmodifiedSince] = Right(IfUnmodifiedSince(value.trim))
-    def render(h: IfUnmodifiedSince): String                    = h.renderedValue
+
+    /** Writes `date` unchanged. */
+    def render(h: IfUnmodifiedSince): String = h.renderedValue
   }
 
+  /**
+   * The `If-Range` request header: a range request applies only if the resource
+   * still matches this entity tag or date. `value` holds the text.
+   */
   final case class IfRange(value: String) extends zio.http.Header {
-    def headerName: String    = IfRange.name
+
+    /** Returns the name of this header, `IfRange.name`. */
+    def headerName: String = IfRange.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `IfRange.render` returns.
+     */
     def renderedValue: String = value
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[IfRange]]: it parses and renders the
+   * `if-range` header.
+   */
   object IfRange extends Typed[IfRange] {
-    val name: String                                  = "if-range"
+
+    /** The header name, `if-range`. */
+    val name: String = "if-range"
+
+    /**
+     * Wraps the value after trimming surrounding whitespace; the text is not
+     * checked.
+     */
     def parse(value: String): Either[String, IfRange] = Right(IfRange(value.trim))
-    def render(h: IfRange): String                    = h.renderedValue
+
+    /** Writes `value` unchanged. */
+    def render(h: IfRange): String = h.renderedValue
   }
 
+  /**
+   * The `Expires` response header: the date after which the response is stale.
+   * `date` holds the text.
+   */
   final case class Expires(date: String) extends zio.http.Header {
-    def headerName: String    = Expires.name
+
+    /** Returns the name of this header, `Expires.name`. */
+    def headerName: String = Expires.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Expires.render` returns.
+     */
     def renderedValue: String = date
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Expires]]: it parses and renders the
+   * `expires` header.
+   */
   object Expires extends Typed[Expires] {
-    val name: String                                  = "expires"
+
+    /** The header name, `expires`. */
+    val name: String = "expires"
+
+    /**
+     * Wraps the value after trimming surrounding whitespace; the text is not
+     * checked. It is not parsed as a date.
+     */
     def parse(value: String): Either[String, Expires] = Right(Expires(value.trim))
-    def render(h: Expires): String                    = h.renderedValue
+
+    /** Writes `date` unchanged. */
+    def render(h: Expires): String = h.renderedValue
   }
 
+  /**
+   * The `Age` response header: how many seconds the response has been in a
+   * cache.
+   */
   final case class Age(seconds: Long) extends zio.http.Header {
-    def headerName: String    = Age.name
+
+    /** Returns the name of this header, `Age.name`. */
+    def headerName: String = Age.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Age.render` returns.
+     */
     def renderedValue: String = seconds.toString
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Age]]: it parses and renders the `age`
+   * header.
+   */
   object Age extends Typed[Age] {
+
+    /** The header name, `age`. */
     val name: String = "age"
 
+    /**
+     * Parses the trimmed value as a `Long`. A negative number gives
+     * `Left("Invalid age: <number>")`, and a value that is not an integer gives
+     * `Left("Invalid age: <value>")`.
+     */
     def parse(value: String): Either[String, Age] =
       try {
         val s = value.trim.toLong
@@ -1669,48 +2313,130 @@ object Header {
         case _: NumberFormatException => Left(s"Invalid age: $value")
       }
 
+    /** Writes `seconds` in decimal. */
     def render(h: Age): String = h.renderedValue
   }
 
+  /**
+   * The `Last-Modified` response header: the date the resource last changed.
+   * `date` holds the text.
+   */
   final case class LastModified(date: String) extends zio.http.Header {
-    def headerName: String    = LastModified.name
+
+    /** Returns the name of this header, `LastModified.name`. */
+    def headerName: String = LastModified.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `LastModified.render` returns.
+     */
     def renderedValue: String = date
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[LastModified]]: it parses and renders the
+   * `last-modified` header.
+   */
   object LastModified extends Typed[LastModified] {
-    val name: String                                       = "last-modified"
+
+    /** The header name, `last-modified`. */
+    val name: String = "last-modified"
+
+    /**
+     * Wraps the value after trimming surrounding whitespace; the text is not
+     * checked. It is not parsed as a date.
+     */
     def parse(value: String): Either[String, LastModified] = Right(LastModified(value.trim))
-    def render(h: LastModified): String                    = h.renderedValue
+
+    /** Writes `date` unchanged. */
+    def render(h: LastModified): String = h.renderedValue
   }
 
+  /**
+   * The `Pragma` header: legacy cache directives, held as the text
+   * `directives`.
+   */
   final case class Pragma(directives: String) extends zio.http.Header {
-    def headerName: String    = Pragma.name
+
+    /** Returns the name of this header, `Pragma.name`. */
+    def headerName: String = Pragma.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Pragma.render` returns.
+     */
     def renderedValue: String = directives
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Pragma]]: it parses and renders the
+   * `pragma` header.
+   */
   object Pragma extends Typed[Pragma] {
-    val name: String                                 = "pragma"
-    val NoCache: Pragma                              = Pragma("no-cache")
+
+    /** The header name, `pragma`. */
+    val name: String = "pragma"
+
+    /** The header `Pragma: no-cache`. */
+    val NoCache: Pragma = Pragma("no-cache")
+
+    /**
+     * Wraps the value after trimming surrounding whitespace; the text is not
+     * checked.
+     */
     def parse(value: String): Either[String, Pragma] = Right(Pragma(value.trim))
-    def render(h: Pragma): String                    = h.renderedValue
+
+    /** Writes `directives` unchanged. */
+    def render(h: Pragma): String = h.renderedValue
   }
 
+  /**
+   * The `Vary` response header: the request headers that the response depends
+   * on, which caches use as part of the key. It is `Any` or a list of header
+   * names.
+   */
   sealed trait Vary extends zio.http.Header {
-    def headerName: String    = Vary.name
+
+    /** Returns the name of this header, `Vary.name`. */
+    def headerName: String = Vary.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Vary.render` returns.
+     */
     def renderedValue: String = Vary.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Vary]]: it parses and renders the `vary`
+   * header.
+   */
   object Vary extends Typed[Vary] {
+
+    /** The header name, `vary`. */
     val name: String = "vary"
 
-    case object Any                                extends Vary
+    /**
+     * The `*` value: the response depends on factors beyond the request
+     * headers.
+     */
+    case object Any extends Vary
+
+    /** A list of request header names. */
     final case class Headers(names: Chunk[String]) extends Vary
 
+    /** Another name for `Any`. */
     val Star: Vary = Any
 
+    /** Builds a `Vary` from one or more header names. */
     def apply(first: String, rest: String*): Vary =
       Headers(Chunk.fromIterable(first +: rest))
 
+    /**
+     * Parses `*` as `Any`, or a comma-separated list of header names: it trims
+     * the value, splits on commas, trims each item and drops empty ones. No
+     * names gives `Left("Empty vary header")`.
+     */
     def parse(value: String): Either[String, Vary] = {
       val trimmed = value.trim
       if (trimmed == "*") Right(Any)
@@ -1721,6 +2447,7 @@ object Header {
       }
     }
 
+    /** Writes `*` for `Any`, or the names joined with `, `. */
     def render(h: Vary): String = h match {
       case Any        => "*"
       case Headers(n) => n.mkString(", ")
