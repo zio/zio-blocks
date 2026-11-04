@@ -19,14 +19,20 @@ package zio.blocks.typeid
 import zio.blocks.chunk.Chunk
 
 /**
- * JS-specific implementation of TypeId platform methods.
- *
- * Returns None for all reflection operations since JavaScript does not support
- * Java reflection.
+ * The platform implementation of [[TypeId#clazz]] and [[TypeId#construct]]:
+ * reflection on the JVM, nothing on Scala.js.
  */
 private[typeid] object TypeIdPlatformMethods {
+
+  /**
+   * Returns the runtime class of `id` on the JVM; `None` on Scala.js.
+   */
   def getClass(id: TypeId[_]): Option[Class[_]] = None
 
+  /**
+   * Creates a value of the type `id` describes from `args` on the JVM; `Left`
+   * on Scala.js.
+   */
   def construct(@annotation.unused id: TypeId[_], @annotation.unused args: Chunk[AnyRef]): Either[String, Any] =
     Left("Reflective construction is only supported on the JVM platform")
 }
