@@ -98,7 +98,6 @@ final class Body private (val stream: Stream[Nothing, Byte], val contentType: Co
    * body that knows its bytes and otherwise when the stream ends.
    *
    * {{{
-   * import zio.blocks.chunk.Chunk
    * import zio.blocks.streams.Stream
    *
    * val body = Body.fromStream(Stream.fromIterable(List[Byte](104, 105)))

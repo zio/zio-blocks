@@ -141,8 +141,6 @@ object CookiePriority {
  * `Response#addCookie` use these functions.
  *
  * {{{
- * import zio.blocks.chunk.Chunk
- *
  * Cookie.parseRequest("session=abc123; theme=dark")
  * // Chunk(RequestCookie(session,abc123),RequestCookie(theme,dark))
  *
