@@ -47,5 +47,25 @@ def skipBelowJdk21(sources: Seq[File], log: Logger): Seq[File] =
     Nil
   }
 
-Compile / unmanagedSources := skipBelowJdk21((Compile / unmanagedSources).value, streams.value.log)
-Test / unmanagedSources    := skipBelowJdk21((Test / unmanagedSources).value, streams.value.log)
+// The `log.*` macros of the 0.0.56 telemetry jar expand to a call into `private[telemetry] GlobalLogState`, which
+// Scala 2.13 rejects at the call site, so the examples that log through `log.*` are skipped on Scala 2.13.
+val usesLogMacros = """\blog\.(trace|debug|info|warn|error|fatal)\(""".r
+
+def skipOnScala2(sources: Seq[File], scalaV: String): Seq[File] =
+  CrossVersion.partialVersion(scalaV) match {
+    case Some((2, _)) => sources.filterNot(f => usesLogMacros.findFirstIn(IO.read(f)).isDefined)
+    case _            => sources
+  }
+
+Compile / unmanagedSources := skipOnScala2(
+  skipBelowJdk21((Compile / unmanagedSources).value, streams.value.log),
+  scalaVersion.value
+)
+// The tests exercise the skipped examples (`testtelemetry.Checkout`), so there is nothing to test on Scala 2.13.
+Test / unmanagedSources := {
+  val sources = skipBelowJdk21((Test / unmanagedSources).value, streams.value.log)
+  CrossVersion.partialVersion(scalaVersion.value) match {
+    case Some((2, _)) => Nil
+    case _            => sources
+  }
+}
