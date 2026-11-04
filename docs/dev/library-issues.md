@@ -10174,6 +10174,560 @@ println("[" + Beta.expression + "]")
 
 **Suggested fix.** Trim in `resolveInitialExpression` (or in `initSnapshot`), and add a `DynamicFlagSpec` test with a padded default expression followed by `reload` of the trimmed text.
 
+### typeid: `TypeId#isSum` is `false` for `Either`
+
+Found 2026-11-04 while writing the typeid Scaladoc (branch `scaladoc-typeid`, base `7b51118b7`). Same at v0.0.56. Verified on Scala 2.13.18 and 3.9.0 (identical output).
+
+**Summary.** `isSum` is documented as "a Scala sum type (Either or Option)", but it checks for a type named `Either` in package `scala`. Every `Either` id the library produces (`TypeId.of`, the implicit, the predefined `TypeId.either`) is `scala.util.Either`, so `isSum` is `false` for every real `Either` and `true` only for `Option`.
+
+**Reproduction.**
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+import zio.blocks.typeid._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val either = TypeId.of[Either[String, Int]]
+    println(either.fullName)
+    println(either.isSum)
+    println(either.isEither)
+    println(TypeId.of[Option[Int]].isSum)
+  }
+}
+// scala.util.Either
+// false
+// true
+// true
+```
+
+`//> using scala 3.9.0` prints the same.
+
+**Expected.** `TypeId.of[Either[String, Int]].isSum` is `true`.
+
+**Root cause.** `isSum` compares the normalized owner with `Owner.fromPackagePath("scala")` (`typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeId.scala:131-134`, `scala-2/.../TypeId.scala:128-131`), while `TypeId.either` is owned by `scala.util` (`typeid/shared/src/main/scala/zio/blocks/typeid/TypeIdInstances.scala:74-75`). `isEither` checks `scala.util` correctly (`scala-3/.../TypeId.scala:137-140`).
+
+**Impact.** Generic code that branches on `isSum` treats `Either` as a plain class. `docs/reference/typeid.md` hides the problem: its explanation of `isSum` is commented out, and its mdoc output shows `isSum == false` for `Either` without comment.
+
+**Test gap.** `TypeIdAdvancedSpec` "TypeId.isSum returns true for Either" (`typeid/shared/src/test/scala/zio/blocks/typeid/TypeIdAdvancedSpec.scala:849-853`) builds `TypeId.nominal[Int]("Either", Owner.scala, ...)`, an id no derivation produces; no test calls `isSum` on `TypeId.of[Either[...]]`.
+
+**Suggested fix.** Check `scala.util` for `Either` (`norm.owner == Owner.scalaUtil && norm.name == "Either" || norm.owner == Owner.scala && norm.name == "Option"`), and change the test to use `TypeId.of[Either[String, Int]]`.
+
+### typeid: `TypeId.of` gives your own `Either`, `List`, `Map`, ... the standard library's identity (constructors on Scala 3; type arguments and parents on both versions)
+
+Found 2026-11-04 while writing the typeid Scaladoc (base `7b51118b7`); amended after review (type arguments and parents). Same at v0.0.56. For the type constructor, Scala 2 is not affected (it matches the full name). Type arguments and parents are matched by simple name on both versions.
+
+**Summary.** On Scala 3, an applied type whose constructor's simple name is `List`, `Option`, `Some`, `Map`, `Either`, `Set`, `Vector`, `Seq` or `IndexedSeq` gets the predefined standard-library id with the type arguments added, whatever package the constructor lives in. A user's `shop.Either[Int, String]` is reported as `scala.util.Either`: wrong name, owner, type parameters, kind and runtime class, and it compares equal to the real `Either[Int, String]`.
+
+**Reproduction.**
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+package shop
+
+import zio.blocks.typeid.*
+
+final case class Either[A, B](left: A, right: B)
+
+@main def run(): Unit = {
+  val id = TypeId.of[shop.Either[Int, String]]
+  println(id.fullName)
+  println(id.typeParams)
+  println(id.defKind)
+  println(id.isCaseClass)
+  println(id.clazz)
+}
+// scala.util.Either
+// List(+A, +B)
+// Unknown
+// false
+// Some(class scala.util.Either)
+```
+
+With `//> using scala 2.13.18` (and `import zio.blocks.typeid._`, an `object` with `main`), the same type gives `shop.Either`, `List(A, B)`, `Class(true,false,true,false,List())`, `true`, `Some(class shop.Either)`.
+
+The same lookup by simple name maps a **type argument** or a **parent** of your own named `Int`, `String`, `Long`, `Boolean`, `Double`, `Float`, `Byte`, `Short`, `Char`, `Unit`, `List`, `Option`, `Map`, `Either`, `Set` or `Vector` to the predefined id (and `Any`, `Nothing`, `Null` to the special reprs), on both versions:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+package shop
+
+import zio.blocks.typeid.*
+
+final case class Option(flag: String)
+trait Set
+final class Tags extends Set
+
+@main def run(): Unit = {
+  val arg = TypeId.of[List[shop.Option]].typeArgs
+  println(arg)
+  println(arg.collect { case TypeRepr.Ref(id) => id.fullName })
+  println(TypeId.of[Tags].parents.collect { case TypeRepr.Ref(id) => id.fullName })
+  println(TypeId.of[Tags].isSubtypeOf(TypeId.of[shop.Set]))
+}
+// List(Ref(Option[+A]))
+// List(scala.Option)
+// List(scala.collection.immutable.Set)
+// false
+```
+
+The Scala 2 copy (`//> using scala 2.13.18`, `import zio.blocks.typeid._`, an `object Repro` with `def main`) prints the same four lines.
+
+**Expected.** `shop.Either`, invariant `A` and `B`, a final case class, its own class; `shop.Option` as the type argument, `shop.Set` as the parent, and `Tags` a subtype of `shop.Set`.
+
+**Root cause.** `deriveAppliedTypeNew` looks the constructor up with `getPredefinedTypeConstructor(tyconName)`, where `tyconName = tyconSym.name` is the simple name (`typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeIdMacros.scala:802`, table at `:862-873`). The Scala 2 macro matches `sym.fullName` for the constructor (`typeid/shared/src/main/scala-2/zio/blocks/typeid/TypeIdMacros.scala:159-178`). For type arguments and parents, both macros match `sym.name`: Scala 2 `buildTypeReprFromSymbol` (`scala-2/.../TypeIdMacros.scala:432-455`, used for type arguments at `:420`/`:425` and for parents at `:641-645`) and `buildTypeReprMinimal` (`:768-795`); Scala 3 `analyzeTypeReprMinimal` (`scala-3/.../TypeIdMacros.scala:421-458`, parents via `:475-479`), `buildTypeRefRepr` (`:1262-1287`, type arguments) and `buildTypeReprMinimal` (`:1417-1449`).
+
+**Impact.** Silent misidentification: registries keyed by `TypeId`, schema derivation and codecs treat a user type named like a standard collection as that collection, and two different types compare equal.
+
+**Test gap.** No test derives an id for a user type whose name collides with a standard one (`grep -rn "class Either\|class List\|class Map" typeid/shared/src/test` finds none), and none uses such a type as a type argument or parent.
+
+**Suggested fix.** Match on `tyconSym.fullName` (with the `scala.package` / `Predef` aliases dealiased first), as the Scala 2 macro does, match type arguments and parents by full name too (the four helpers named above), and add tests with a user `Either` as a constructor, a type argument and a parent.
+
+### typeid (Scala 3): ids of type aliases with type parameters, or of aliases of applied types, are wrong
+
+Found 2026-11-04 while writing the typeid Scaladoc (base `7b51118b7`). Same at v0.0.56. Scala 2 gives the expected results for the same aliases.
+
+**Summary.** On Scala 3:
+- an alias of an applied type reports the type parameters of the aliased class: `type Coords = (Int, Int)` has `T1`, `T2` (arity 2), `type Names = List[String]` has `A`;
+- an applied alias with type parameters loses its type arguments: `StrMap[Int]` for `type StrMap[V] = Map[String, V]` has no `typeArgs` and the parameters `K, +V` of `Map`, so `StrMap[Int] == StrMap[Long]` is `true` and `StrMap[Int] != Map[String, Int]`;
+- `TypeId.normalize` returns both aliases unchanged, so `isTuple` is `false` for `Coords`;
+- `TypeId.of[List]` derives the `scala.package.List` alias, which equals neither `TypeId.list` nor `TypeId.unapplied(TypeId.of[List[Int]])`.
+
+**Reproduction.**
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+package geo
+
+import zio.blocks.typeid.*
+
+type Coords = (Int, Int)
+type Names = List[String]
+type StrMap[V] = Map[String, V]
+
+@main def run(): Unit = {
+  val coords = TypeId.of[Coords]
+  println(s"Coords: params=${coords.typeParams} arity=${coords.arity} isTuple=${coords.isTuple} normalize=${TypeId.normalize(coords)}")
+  val names = TypeId.of[Names]
+  println(s"Names: params=${names.typeParams} arity=${names.arity}")
+  val strMap = TypeId.of[StrMap[Int]]
+  println(s"StrMap[Int]: params=${strMap.typeParams} args=${strMap.typeArgs} normalize=${TypeId.normalize(strMap)}")
+  println(s"StrMap[Int] == Map[String, Int]: ${strMap == TypeId.of[Map[String, Int]]}")
+  println(s"StrMap[Int] == StrMap[Long]: ${strMap == TypeId.of[StrMap[Long]]}")
+  val list = TypeId.of[List]
+  println(s"List: fullName=${list.fullName} isAlias=${list.isAlias}")
+  println(s"of[List] == TypeId.list: ${list == TypeId.list}")
+  println(s"of[List] == unapplied(List[Int]): ${list == TypeId.unapplied(TypeId.of[List[Int]])}")
+}
+// Coords: params=List(+T1, +T2) arity=2 isTuple=false normalize=Coords[+T1, +T2]
+// Names: params=List(+A) arity=1
+// StrMap[Int]: params=List(K, +V) args=List() normalize=StrMap[K, +V]
+// StrMap[Int] == Map[String, Int]: false
+// StrMap[Int] == StrMap[Long]: true
+// List: fullName=scala.package.List isAlias=true
+// of[List] == TypeId.list: false
+// of[List] == unapplied(List[Int]): false
+```
+
+On Scala 2.13.18 the same aliases (declared in an `object`) give `Coords` arity 0, `isTuple == true`, normalized to `Tuple2[Int, Int]`; `Names` arity 0; `StrMap[Int]` with `typeArgs == List(Ref(Int))`, normalized to `Map[String, Int]`; and `TypeId.of[List[_]] == TypeId.list`.
+
+**Expected.** An alias reports its own type parameters (none for `Coords` and `Names`, `V` for `StrMap`), an applied alias keeps its type arguments, `normalize` resolves both to the aliased type, `StrMap[Int] == Map[String, Int]`, `StrMap[Int] != StrMap[Long]`, and `TypeId.of[List] == TypeId.list`.
+
+**Root cause.**
+- `analyzeTypeParams` reads `sym.declaredTypes.filter(_.isTypeParam)` (`typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeIdMacros.scala:400-419`); for an alias symbol this returns the type parameters of the class it dealiases to, not the alias's own.
+- `deriveAppliedTypeAlias` ignores its `args` (marked `@annotation.unused`, `:903-929`) and passes `Nil` as `typeArgs`, so the arguments are lost.
+- The alias target is a `TypeRepr.Tuple` (for `Coords`) or a `TypeRepr.TypeLambda` (for `StrMap`, `List`), and `TypeIdOps.normalizeWithArgs` follows only `Ref` and `Applied(Ref(...))` targets (`typeid/shared/src/main/scala/zio/blocks/typeid/TypeIdOps.scala:54-75`).
+- `TypeId.of[List]` reaches `deriveNew` → `deriveTypeAlias` for the non-user alias `scala.package.List` (`TypeIdMacros.scala:734-735, 977`), since `getPredefinedTypeId` only resolves `String`, `BigInt` and `BigDecimal`.
+
+**Impact.** Two different types compare equal (`StrMap[Int] == StrMap[Long]`), registry lookups by alias fail, `isTuple` is wrong for tuple aliases, and the reference page's `TypeId.unapplied` claim ("returns the equivalent of `TypeId.of[List]`") is false on Scala 3.
+
+**Test gap.** `TypeIdDerivationSpec` "Type Aliases" (`typeid/shared/src/test/scala/zio/blocks/typeid/TypeIdDerivationSpec.scala:647-680`) asserts only `name`, `isAlias` and that `aliasedTo` names `Map`; nothing checks `typeParams`, `typeArgs`, `normalize` or equality of an applied alias, or `TypeId.of[List]` against `TypeId.list`.
+
+**Suggested fix.** In `analyzeTypeParams`, read an alias's own parameters (`sym.typeMembers`/`TypeLambda` params of `sym.info`), pass `args` through in `deriveAppliedTypeAlias`, teach `normalizeWithArgs` to apply a `TypeLambda` target to the alias's arguments and to treat a `Tuple` target as `TupleN`, and dealias `scala.package`/`Predef` aliases of type constructors to their class in `deriveTypeIdCore`. Add the reproduction as Scala 3 tests.
+
+### typeid (Scala 3): `TypeDefKind.EnumCase#ordinal` is always `-1`
+
+Found 2026-11-04 while writing the typeid Scaladoc (base `7b51118b7`). Same at v0.0.56. Scala 3 only (enums).
+
+**Summary.** The id of every enum case has `ordinal == -1`.
+
+**Reproduction.**
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+package paint
+
+import zio.blocks.typeid.*
+
+enum Color {
+  case Red, Green
+  case Custom(rgb: Int)
+}
+
+@main def run(): Unit = {
+  println(TypeId.of[Color.Red.type].defKind)
+  println(TypeId.of[Color.Green.type].defKind)
+  println(TypeId.of[Color.Custom].defKind)
+  println(Color.Green.ordinal)
+}
+// EnumCase(Ref(Color),-1,true)
+// EnumCase(Ref(Color),-1,true)
+// EnumCase(Ref(Color),-1,false)
+// 1
+```
+
+**Expected.** `EnumCase(Ref(Color),0,true)`, `EnumCase(Ref(Color),1,true)`, `EnumCase(Ref(Color),2,false)`.
+
+**Root cause.** `analyzeEnumCaseDefKind` takes `caseSym.owner` as the enum and searches its `children` (`typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeIdMacros.scala:536-549`), and `buildEnumCaseDefKindFromTermSymbol` does the same (`:1673-1691`). The owner of an enum case is the enum's companion object, not the enum class, so `siblings.indexOf(caseSym)` is `-1`.
+
+**Impact.** Anything that orders or indexes enum cases by `ordinal` (codecs, generated code) gets `-1` for every case.
+
+**Test gap.** No test reads `ordinal` (`grep -rn ordinal typeid/shared/src/test` finds nothing).
+
+**Suggested fix.** Use the enum class (`caseSym.owner.companionClass`, or the parent from the case's `typeRef.baseClasses`) and its `children`, or read the `ordinal` from the case symbol's position among `companionClass.children`; add a test that checks the ordinals of `Color`.
+
+### typeid: derived `TypeParam`s never record a kind or bounds
+
+Found 2026-11-04 while writing the typeid Scaladoc (base `7b51118b7`). Same at v0.0.56. Verified on Scala 2.13.18 and 3.9.0 (identical output).
+
+**Summary.** `TypeParam` has `bounds` and `kind` fields, and the reference page shows `Runnable[F[_]]`'s parameter with kind `* -> *`, but both macros build `TypeParam(name, index, variance)` only. A derived higher-kinded parameter has kind `Kind.Type` (`isTypeConstructor == false`), and a bounded parameter is `TypeBounds.Unbounded`.
+
+**Reproduction.**
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+import zio.blocks.typeid._
+
+trait Functor[F[_]]
+class Bounded[A <: AnyVal]
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val f = TypeId.of[Functor[List]].typeParams.head
+    println(f)
+    println(f.kind)
+    println(f.isTypeConstructor)
+    val b = TypeId.of[Bounded[Int]].typeParams.head
+    println(b.bounds)
+    println(b.hasUpperBound)
+  }
+}
+// F
+// Type
+// false
+// TypeBounds(None,None)
+// false
+```
+
+`//> using scala 3.9.0` prints the same.
+
+**Expected.** `F[_]`, `Arrow(List(Type),Type)`, `true`, an upper bound of `AnyVal`, `true`.
+
+**Root cause.** `analyzeTypeParams` returns `TypeParam(p.name, idx, variance)` (`typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeIdMacros.scala:417`); the Scala 2 `buildTypeParams` emits `TypeParam($paramName, $idx, $varianceExpr)` (`typeid/shared/src/main/scala-2/zio/blocks/typeid/TypeIdMacros.scala:576-593`). Neither reads the parameter's bounds or its own type parameters.
+
+**Impact.** `TypeParam#kind`, `isTypeConstructor`, `isProperType`, `hasUpperBound`, `hasLowerBound` and `bounds` are wrong for every derived id; two types that differ only in a bound or a parameter kind cannot be told apart.
+
+**Test gap.** The only `kind` assertions use hand-built parameters (`TypeIdAdvancedSpec.scala:318-327`, `TypeParam.higherKinded`); no test derives an id for a higher-kinded or bounded type and checks its parameter.
+
+**Suggested fix.** Compute `Kind` from the parameter symbol's own type parameters (recursively) and `TypeBounds` from its declared bounds (Scala 3: `p.info` as `TypeBounds`; Scala 2: `p.typeSignature`), and add derived-id tests for `Functor[F[_]]` and `Bounded[A <: AnyVal]`.
+
+### typeid: `isSubtypeOf` is `false` for standard-library subtypes (`Some` of `Option`, `List` of `Seq`) and for `Product`
+
+Found 2026-11-04 while writing the typeid Scaladoc (base `7b51118b7`). Same at v0.0.56. Verified on Scala 2.13.18 and 3.9.0 (identical output).
+
+**Summary.** `isSubtypeOf` walks the parents stored in the ids. The predefined ids that `TypeId.of` uses for `Some`, `Option`, `List`, `Seq`, `Int` and the other standard types store no parents (kind `Unknown`), and derived parents drop `Product`, `Serializable`, `AnyRef` and a few others. So `Some[Int]` is not a subtype of `Option[Int]`, `List[Int]` not of `Seq[Int]`, `Int` not of `AnyVal`, and a case class not of `Product`.
+
+**Reproduction.**
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+import zio.blocks.typeid._
+
+final case class Point(x: Int, y: Int)
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(TypeId.of[Some[Int]].isSubtypeOf(TypeId.of[Option[Int]]))
+    println(TypeId.of[List[Int]].isSubtypeOf(TypeId.of[Seq[Int]]))
+    println(TypeId.of[Int].isSubtypeOf(TypeId.of[AnyVal]))
+    println(TypeId.of[Point].isSubtypeOf(TypeId.of[Product]))
+    println(TypeId.of[Some[Int]].parents)
+    println(TypeId.of[Some[Int]].defKind)
+  }
+}
+// false
+// false
+// false
+// false
+// List()
+// Unknown
+```
+
+`//> using scala 3.9.0` prints the same.
+
+**Expected.** `true` for all four, as the Scala compiler answers.
+
+**Root cause.** `TypeIdInstances` builds the predefined ids with `TypeId.nominal(name, owner, typeParams)`, so `defKind` is `Unknown` and `baseTypes` is `Nil` (`typeid/shared/src/main/scala/zio/blocks/typeid/TypeIdInstances.scala:33-87`), and both macros reuse them for applied types (`scala-2/.../TypeIdMacros.scala:165-196`, `scala-3/.../TypeIdMacros.scala:802-816`). `TypeIdOps.checkParents` (`TypeIdOps.scala:274-285`) has nothing to walk. Derived ids drop `scala.Product`, `java.io.Serializable`, `scala.AnyRef` and others through `filteredBaseTypes` (`scala-3/.../TypeIdMacros.scala:461-473`, `scala-2/.../TypeIdMacros.scala:616-640`).
+
+**Impact.** `isSubtypeOf`, `isSupertypeOf` and `isEquivalentTo` give false negatives for the most common types; code that dispatches by subtype (a handler registered for `Option[Int]` or `Seq[A]`) never matches `Some` or `List`.
+
+**Test gap.** Subtype tests use user hierarchies and `String`/`CharSequence` (`TypeIdDerivationSpec.scala:778`); none checks a standard collection or `Option` subtype.
+
+**Suggested fix.** Give the predefined ids their parents (`Some` → `Option`, `List` → `Seq` ..., or derive them with the macro), and either keep `Product`/`Serializable` in derived parents or special-case them in `isSubtypeOf`. At minimum, document the limitation (the Scaladoc now does).
+
+### typeid (Scala 2): an implicit `TypeId[List[Int]]` is the `scala.package.List` alias without type arguments
+
+Found 2026-11-04 while writing the typeid Scaladoc (base `7b51118b7`). Same at v0.0.56. Scala 3 is not affected.
+
+**Summary.** On Scala 2, the implicit `TypeId.derived` (and `TypeIdMacros.derived`) for an applied type written with a `scala` package or `Predef` alias (`List[Int]`, `Map[String, Int]`, `Either[String, Int]`, `Seq`, `Vector`, ...) derives the alias itself: `fullName == "scala.package.List"`, `typeArgs == Nil`, `toString == "List[+A]"`, with the arguments only inside `aliasedTo`. `TypeId.of[List[Int]]` gives `scala.collection.immutable.List` with `typeArgs == List(Ref(Int))`. The two ids are equal, but every field differs, so code that reads `typeArgs`, `fullName` or `toString` of an implicitly supplied id sees the wrong values.
+
+**Reproduction.**
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+import zio.blocks.typeid._
+
+object Repro {
+  def describe[A](implicit id: TypeId[A]): TypeId[A] = id
+
+  def main(args: Array[String]): Unit = {
+    val implicitId = describe[List[Int]]
+    println(implicitId)
+    println(implicitId.fullName)
+    println(implicitId.typeArgs)
+    println(implicitId.aliasedTo)
+    val ofId = TypeId.of[List[Int]]
+    println(ofId)
+    println(ofId.fullName)
+    println(ofId.typeArgs)
+    println(implicitId == ofId)
+  }
+}
+// List[+A]
+// scala.package.List
+// List()
+// Some(Applied(Ref(List[+A]),List(Ref(Int))))
+// List[Int]
+// scala.collection.immutable.List
+// List(Ref(Int))
+// true
+```
+
+With `//> using scala 3.9.0` the first four lines are `List[Int]`, `scala.collection.immutable.List`, `List(Ref(Int))`, `None`.
+
+**Expected.** The implicit id is the same as `TypeId.of[List[Int]]`.
+
+**Root cause.** `derivedImpl` calls `deriveTypeId` (`typeid/shared/src/main/scala-2/zio/blocks/typeid/TypeIdMacros.scala:95-120`), which tests `sym.asType.isAliasType` before `args.nonEmpty` (`:105`); for a non-user alias it tries `getPredefinedTypeId` (only `String`, `BigInt`, `BigDecimal`, `:110`) and then `deriveNew`, which builds an alias with `Nil` type arguments. `ofImpl` tests `args.nonEmpty` first (`:43-47`) and so reaches `deriveAppliedTypeNew`.
+
+**Impact.** Any API that takes `(implicit id: TypeId[A])` and is called with a standard collection type on Scala 2 gets an id whose `typeArgs` are empty and whose `fullName` is `scala.package.List` (schema, codecs and registries that read the arguments).
+
+**Test gap.** No test summons an implicit `TypeId` for an applied standard type and checks its fields (`grep -rn "implicitly\[TypeId\[List" typeid/shared/src/test` finds nothing).
+
+**Suggested fix.** In `deriveTypeId`, handle `args.nonEmpty` before the alias branch for non-user aliases (as `ofImpl` does), or make `derivedImpl` delegate to `ofImpl`.
+
+### typeid: `isSubtypeOf` is `false` for a parent with type arguments (`IntBox extends Box[Int]`), and on Scala 3 for the parents of an enum
+
+Found 2026-11-04 while reviewing the typeid Scaladoc (branch `scaladoc-typeid`, base `7b51118b7`). Same at v0.0.56. Verified on Scala 2.13.18 and 3.9.0. Sibling of entry 6 (a second root cause of false negatives).
+
+**Summary.** Derived parents are stored without their type arguments: Scala 2 records `Ref(Box[A])`, Scala 3 records `Ref(Box)` as a `TypeDefKind.Unknown` id with no type parameters. `isSubtypeOf` compares a parent with the target by structural equality, so a class is never a subtype of an applied parent (`Box[Int]`, `Ordered[Price]`, and `String` of `Comparable[String]`); on Scala 3 it is not a subtype of the unapplied parent either. On Scala 3, an enum case is compared with its enum only, so it is not a subtype of the traits the enum extends.
+
+**Reproduction.**
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+package shop
+
+import zio.blocks.typeid.*
+
+trait Box[A]
+final class IntBox extends Box[Int]
+final case class Price(cents: Long) extends Ordered[Price] {
+  def compare(that: Price): Int = cents.compare(that.cents)
+}
+trait HasMass
+enum Planet extends HasMass { case Earth, Mars }
+
+@main def run(): Unit = {
+  println(TypeId.of[IntBox].parents)
+  println(TypeId.of[IntBox].isSubtypeOf(TypeId.of[Box[Int]]))
+  println(TypeId.of[IntBox].isSubtypeOf(TypeId.of[Box]))
+  println(TypeId.of[Price].isSubtypeOf(TypeId.of[Ordered[Price]]))
+  println(TypeId.of[String].isSubtypeOf(TypeId.of[Comparable[String]]))
+  println(TypeId.of[Planet].isSubtypeOf(TypeId.of[HasMass]))
+  println(TypeId.of[Planet.Earth.type].isSubtypeOf(TypeId.of[Planet]))
+  println(TypeId.of[Planet.Earth.type].isSubtypeOf(TypeId.of[HasMass]))
+}
+// List(Ref(Box))
+// false
+// false
+// false
+// false
+// true
+// true
+// false
+```
+
+On Scala 2.13.18 (no enum; `import zio.blocks.typeid._`, an `object Repro` with `def main`, `TypeId.of[Box[_]]` for the unapplied parent) the first five lines are `List(Ref(Box[A]))`, `false`, `true`, `false`, `false`.
+
+**Expected.** `true` for every subtype check, as the compiler answers.
+
+**Root cause.** Parents are built from `baseClasses` without the base type's arguments: Scala 3 `analyzeBaseTypes` maps `base.typeRef` through `analyzeTypeReprMinimal`, which builds `TypeId.nominal(name, owner, TypeDefKind.Unknown)` with no type parameters (`typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeIdMacros.scala:421-458, 475-479`); Scala 2 `buildBaseTypesFromClasses` uses `buildTypeReprFromSymbol`, which keeps the parameters but no arguments (`typeid/shared/src/main/scala-2/zio/blocks/typeid/TypeIdMacros.scala:432-470, 641-645`). `TypeIdOps.checkParents` compares a `Ref` parent with `structurallyEqual` (`typeid/shared/src/main/scala/zio/blocks/typeid/TypeIdOps.scala:274-285`), which fails on the missing arguments (and, on Scala 3, on the missing parameters); its `Applied` branch, which compares only full names, is never reached because derivation produces no `Applied` parents. The Scala 3 `isSubtypeOf` sends an enum case to a branch that compares `other` with the enum and stops (`typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeId.scala:198-203`). The predefined `TypeId.string` lists the unapplied `Comparable[T]` (`typeid/shared/src/main/scala/zio/blocks/typeid/TypeIdInstances.scala:28-29`, used in `string`).
+
+**Impact.** Dispatch by subtype misses every generic interface (`Ordered`, `Comparable`, `Function1`, `Iterable[A]`, a user `Repository[User]`), and Scala 3 enum cases miss the enum's traits.
+
+**Test gap.** Subtype tests use parents without type parameters (`TypeIdDerivationSpec.scala:582-780`, `TypeIdAdvancedSpec.scala:905-942`); the only Scala 3 enum test (`Scala3DerivationSpec.scala:141-148`) checks a case against its own enum.
+
+**Suggested fix.** Record parents with their arguments (`sym.typeRef.baseType(base)` on Scala 3, `tpe.baseType(base)` on Scala 2, built as `TypeRepr.Applied`), and let `checkParents` compare an `Applied` parent with an applied target by full name and arguments (with variance); in the Scala 3 `EnumCase` branch, fall through to `checkParents` on the enum's parents. The Scaladoc of `isSubtypeOf` and `parents` now states the limitation.
+
+### typeid: `TypeId.of[x.type]` (and `IsNominalType[x.type]`) for a value of an applied type drops the type arguments, and on Scala 3 gives the alias's id
+
+Found 2026-11-04 while reviewing the typeid Scaladoc (base `7b51118b7`). Same at v0.0.56 for `TypeId.of`; `IsNominalType` builds its id from `TypeId.of`, verified against the local publish of `main` by the reviewer. Filed under Library bugs rather than Usability traps: the id is wrong (it equals a different type), not merely surprising.
+
+**Summary.** The singleton type of a value gets the id of the value's class with no type arguments: for `val xs: List[Int]`, `TypeId.of[xs.type]` is `List[+A]` (equal to `TypeId.list`, not to `TypeId.of[List[Int]]`), and for `val pair: (Int, Int)` it is `Tuple2[+T1, +T2]`. On Scala 3, for a value declared with an alias (`val title: Title` with `type Title = String`), the id is the alias's (`Values.Title`); Scala 2 gives `java.lang.String`.
+
+**Reproduction.**
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+import zio.blocks.typeid._
+
+object Values {
+  type Title = String
+  val xs: List[Int] = List(1, 2)
+  val pair: (Int, Int) = (1, 2)
+  val title: Title = "Scala"
+}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val xsId = TypeId.of[Values.xs.type]
+    println(xsId)
+    println(xsId.typeArgs)
+    println(xsId == TypeId.of[List[Int]])
+    println(TypeId.of[Values.pair.type])
+    println(TypeId.of[Values.title.type].fullName)
+  }
+}
+// List[+A]
+// List()
+// false
+// Tuple2[+T1, +T2]
+// java.lang.String
+```
+
+With `//> using scala 3.9.0` the first four lines are the same and the last is `Values.Title`.
+
+**Expected.** The id of the value's type, with its type arguments: `List[Int]`, `Tuple2[Int, Int]`, and the same answer for `title.type` on both versions.
+
+**Root cause.** Scala 2 `deriveNew` falls into its `case _` branch for a `SingleType` and builds `TypeId.nominal` from `tpe.typeSymbol` (the class) with `Nil` type arguments (`typeid/shared/src/main/scala-2/zio/blocks/typeid/TypeIdMacros.scala:349-372`). Scala 3 `deriveTypeIdCore` sends a `TermRef` to `deriveNew` → `deriveNominalOrOpaque` (`typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeIdMacros.scala:978, 1007-1104`), which reads `tpe.typeSymbol` (`:1012`), the class or, for a value typed with an alias, the alias symbol, and writes no type arguments.
+
+**Impact.** A DSL that takes `x: A` with `A: IsNominalType`, or calls `TypeId.of[x.type]`, gets a constructor id for every value of a generic type, so `List[Int]` and `List[String]` values share one id; on Scala 3, values typed with an alias get an id that is neither the alias's target nor equal across versions.
+
+**Test gap.** The Scala 3 tests assert the current output (`typeid/shared/src/test/scala-3.4+/zio/blocks/typeid/IsNominalTypeNegativeSpec.scala:171-176` expects `Pair[+T1, +T2]` for `pair.type`, `:182-185` expects `scala.Predef.String` for `title.type`); no shared test covers `TypeId.of[x.type]` for a value of an applied type.
+
+**Suggested fix.** Widen a singleton (`tpe.widen` on Scala 2, `tpe.widenTermRefByName.dealias`-style on Scala 3) before deriving, so the id is that of the value's type with its arguments; update the two Scala 3 tests.
+
+### typeid: annotation arguments written as `Array(...)` are dropped, Scala 3 records `classOf[T]` as `Const(null)`, and Scala 2 drops class literals, enum values and the names of a custom annotation's arguments
+
+Found 2026-11-04 while reviewing the typeid Scaladoc (base `7b51118b7`). Same at v0.0.56. Verified on Scala 2.13.18 and 3.9.0.
+
+**Summary.** `AnnotationArg` has `ArrayArg`, `ClassOf` and `EnumValue` cases, but neither macro records an argument written as `Array(...)`; the Scala 3 macro records `classOf[String]` as `Const(null)` and never produces `ClassOf`; the Scala 2 macro drops class literals and enum values (Java's included). Varargs differ: Scala 3 writes one `ArrayArg`, Scala 2 separate `Const`s.
+
+**Reproduction.**
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+import zio.blocks.typeid._
+import java.lang.annotation.{Retention, RetentionPolicy}
+import scala.annotation.StaticAnnotation
+
+class Ann(cls: Class[_]) extends StaticAnnotation
+class Arr(values: Array[String]) extends StaticAnnotation
+class Tags(names: String*) extends StaticAnnotation
+
+@Retention(RetentionPolicy.RUNTIME) class Kept
+@Ann(classOf[String]) class WithClass
+@Arr(Array("a", "b")) class WithArray
+@Tags("a", "b") class WithTags
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(TypeId.of[Kept].annotations.map(_.args))
+    println(TypeId.of[WithClass].annotations.map(_.args))
+    println(TypeId.of[WithArray].annotations.map(_.args))
+    println(TypeId.of[WithTags].annotations.map(_.args))
+  }
+}
+// List(List())
+// List(List())
+// List(List())
+// List(List(Const(a), Const(b)))
+```
+
+With `//> using scala 3.9.0` (and `Class[?]` in `Ann`):
+
+```
+// List(List(Named(value,EnumValue(RetentionPolicy$,RUNTIME))))
+// List(List(Const(null)))
+// List(List())
+// List(List(ArrayArg(List(Const(a), Const(b)))))
+```
+
+Argument names are not kept either for a custom Scala annotation on Scala 2 (found in review round 2, re-run on both versions):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+import zio.blocks.typeid._
+import scala.annotation.StaticAnnotation
+
+class Label(name: String = "d", weight: Int = 0) extends StaticAnnotation
+
+@Label(name = "x", weight = 3) class Custom
+@Label("y", 4) class CustomPositional
+@deprecated(message = "use Point", since = "1.0") class Old
+@Deprecated(since = "9", forRemoval = true) class JavaOld
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(TypeId.of[Custom].annotations.map(_.args))
+    println(TypeId.of[CustomPositional].annotations.map(_.args))
+    println(TypeId.of[Old].annotations.map(_.args))
+    println(TypeId.of[JavaOld].annotations.map(_.args))
+  }
+}
+// List(List(Const(x), Const(3)))
+// List(List(Const(y), Const(4)))
+// List(List(Named(message,Const(use Point)), Named(since,Const(1.0))))
+// List(List(Named(since,Const(9)), Named(forRemoval,Const(true))))
+```
+
+With `//> using scala 3.9.0` the first line is `List(List(Named(name,Const(x)), Named(weight,Const(3))))` and the other three are the same. So on Scala 2, `@Label(name = "x", weight = 3)` loses its argument names (`buildAnnotationArg` records `Named` only for a `NamedArg` tree, `scala-2/.../TypeIdMacros.scala:878-881`; the annotation tree of `Label` reaches it with plain arguments, so the names are lost; why the Scala 2 typer keeps `NamedArg` for `@deprecated` and not for `Label` was not investigated), while `@deprecated` gets `Named` even for positional arguments; a reader cannot tell a value's parameter from the `AnnotationArg` list.
+
+**Expected.** `EnumValue(RetentionPolicy, RUNTIME)`, `ClassOf(Ref(String))` and `ArrayArg(List(Const(a), Const(b)))` for the first three on both versions, one shape for varargs, and argument names kept (or dropped) the same way on both versions for every annotation.
+
+**Root cause.**
+- `Array(...)`: both macros match only an untyped-looking `Ident("Array")` (`typeid/shared/src/main/scala-2/zio/blocks/typeid/TypeIdMacros.scala:886`, `typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeIdMacros.scala:602`); the typed tree is `scala.Array.apply[T](...)(classTag)`, so it falls through to `case _ => None` (Scala 2 `:900`).
+- `classOf` on Scala 3: the typer turns `classOf[String]` into a `Literal` class constant, which the `Literal` case records as `Const(<type>)` (`scala-3/.../TypeIdMacros.scala:593`); the `ToExpr` for `Const` writes an unknown value as `Const(null)` (`:339-354`, the `case _` at `:354`). The `classOf` case at `:610` is never reached.
+- Scala 2 `buildAnnotationArg` has no case for class literals or enum selections (`scala-2/.../TypeIdMacros.scala:853-903`).
+
+**Impact.** Code that reads annotation arguments from a `TypeId` (for example a codec that honours `@Retention`-like or class-valued annotations) sees nothing, or a `null`, and gets different results on Scala 2 and 3.
+
+**Test gap.** Annotation tests check names and simple constants (`typeid/shared/src/test/scala/zio/blocks/typeid/TypeIdAdvancedSpec.scala:490-540`); the `AnnotationArg` tests build the cases by hand. No test derives an id for a class with an array, class-literal or enum-valued annotation argument.
+
+**Suggested fix.** Match `Apply(Apply(TypeApply(Select(_, "apply"), _), elems), _)` with an `Array` module symbol check; on Scala 3, turn a `Literal(ClassOfConstant(t))` into `ClassOf`, and give the `Const` `ToExpr` a case for it; on Scala 2, add `Literal(Constant(t: Type))` → `ClassOf` and enum `Select` → `EnumValue`. Add a test with each argument kind on both versions.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -13723,6 +14277,96 @@ A grep of `docs/` for opaque types with a `Schema[...]` in the companion found n
 **Test gap.** No docs example or test compiles the opaque-companion pattern on Scala 3.3–3.6. mdoc and schema-examples run only on 3.9.0.
 
 **Suggested fix.** Docs only. In every opaque-type companion, build the base schema with the named instance (`Schema.long`, `Schema.string`, `Schema.int`, ...) instead of `Schema[<base>]`, or define the instance outside the opaque scope. Add one sentence explaining why to the "Use Scala 3 Opaque Types" sections. A library-side lint is out of reach, because the compiler resolves the implicit before ZIO Blocks code runs.
+
+### typeid: `IsNominalType[x.type]` for a value of an intersection type compiles on Scala 2 and fails on Scala 3
+
+Found 2026-11-04 while writing the typeid Scaladoc (base `7b51118b7`). Named as a remaining difference in the "Fix" paragraph of the resolved entry "typeid (Scala 3): `IsNominalType` and `IsNominalIntersection` accept an abstract type parameter ..." (#1826). The code at v0.0.56 is the older macro; verified against a local publish of `main` at `7b51118b7` (`sbt 'set ThisBuild / version := "0.0.0-typeid-SNAPSHOT"; ++3.9.0; chunkJVM/publishLocal; typeidJVM/publishLocal; ++2.13.18; chunkJVM/publishLocal; typeidJVM/publishLocal'`).
+
+**Summary.** For `val both: Logger with Metrics`, `IsNominalType[both.type]` derives on Scala 2, with an id named `<refinement>`, and does not compile on Scala 3. Cross-built code that compiles on one version fails on the other, and the Scala 2 id is not useful.
+
+**Reproduction.**
+
+```scala
+//> using scala 2.13.18
+//> using repository ivy2Local
+//> using dep dev.zio::zio-blocks-typeid:0.0.0-typeid-SNAPSHOT
+import zio.blocks.typeid._
+
+trait Logger
+trait Metrics
+class Service extends Logger with Metrics
+
+object Repro {
+  val both: Logger with Metrics = new Service
+
+  def main(args: Array[String]): Unit =
+    println(IsNominalType[both.type].typeId)
+}
+// <refinement>
+```
+
+With `//> using scala 3.9.0` and `val both: Logger & Metrics = new Service` (the `&` form, which also compiles on 3.10.0, where `with` as a type operator is an error):
+
+```
+-- Error: Repro.scala:14:36
+14 |    println(IsNominalType[both.type].typeId)
+   |                                    ^
+   |Cannot derive IsNominalType for non-nominal type: Repro.both. Only classes, traits, objects, enums, and applied types are supported. Intersection types (A & B), union types (A | B), structural types, and type lambdas are not allowed.
+1 error found
+Compilation failed
+```
+
+**Expected.** Both versions reject it, as both reject `IsNominalType[Logger with Metrics]`.
+
+**Root cause.** Scala 3 widens a `TermRef` and checks the widened type (`typeid/shared/src/main/scala-3/zio/blocks/typeid/IsNominalTypeVersionSpecific.scala:53`), where `AndType` is rejected (`:44`). Scala 2 dealiases `both.type` and accepts it because its `typeSymbol` (the refinement class of `Logger with Metrics`) `isClass` (`typeid/shared/src/main/scala-2/zio/blocks/typeid/IsNominalTypeVersionSpecific.scala:30, 39`); the intersection check (`:45-48`) looks only at a `RefinedType`, not a `SingleType`.
+
+**Impact.** Cross-built code behaves differently; on Scala 2 a method constrained by `IsNominalType` accepts a value of an intersection type and gets a meaningless `<refinement>` id.
+
+**Test gap.** `IsNominalTypeNegativeSpec` covers only Scala 3 (`typeid/shared/src/test/scala-3.4+/zio/blocks/typeid/IsNominalTypeNegativeSpec.scala:120-132`, with a comment that Scala 2 accepts it); the shared `IsNominalTypeSpec` tests the singleton types of objects only, not of values (`typeid/shared/src/test/scala/zio/blocks/typeid/IsNominalTypeSpec.scala:59-66`).
+
+**Suggested fix.** In the Scala 2 macro, widen a `SingleType` (`tpe.widen.dealias`) before the checks, so `x.type` of an intersection is rejected like the intersection itself; add a shared test.
+
+### typeid: `IsNominalType[lit.type]` for `final val lit = 1` compiles on Scala 3 and fails on Scala 2
+
+Found 2026-11-04 while writing the typeid Scaladoc (base `7b51118b7`). Named as a remaining difference in the "Fix" paragraph of the resolved #1826 entry. Verified against the same local publish of `main` as entry 8.
+
+**Summary.** For a constant `final val port = 8080`, `IsNominalType[port.type]` derives on Scala 3 (its id is `Int`) and does not compile on Scala 2, which sees the literal type `8080`.
+
+**Reproduction.**
+
+```scala
+//> using scala 3.9.0
+//> using repository ivy2Local
+//> using dep dev.zio::zio-blocks-typeid:0.0.0-typeid-SNAPSHOT
+import zio.blocks.typeid._
+
+object Repro {
+  final val port = 8080
+
+  def main(args: Array[String]): Unit =
+    println(IsNominalType[port.type].typeId)
+}
+// Int
+```
+
+With `//> using scala 2.13.18`:
+
+```
+Repro.scala:10: error: Cannot derive IsNominalType for non-nominal type: 8080. Only classes, traits, objects, and applied types are supported. Intersection types (A with B), structural types, and type lambdas are not allowed.
+    println(IsNominalType[port.type].typeId)
+                         ^
+1 error
+```
+
+**Expected.** One answer on both versions. Both reject the literal type `IsNominalType[8080]`, so rejecting `port.type` on Scala 3 too is the consistent choice (or accepting it on both with id `Int`).
+
+**Root cause.** Scala 3 widens a `TermRef` before checking (`typeid/shared/src/main/scala-3/zio/blocks/typeid/IsNominalTypeVersionSpecific.scala:53`); `port.type` widens to `Int`. On Scala 2, `weakTypeOf[A].dealias` of a constant `final val` is the `ConstantType(8080)` (`typeid/shared/src/main/scala-2/zio/blocks/typeid/IsNominalTypeVersionSpecific.scala:30`), which `isNominal` rejects (`:37`).
+
+**Impact.** Cross-built code behaves differently for `final val` constants.
+
+**Test gap.** No test covers the singleton type of a constant `final val` on either version (`IsNominalTypeNegativeSpec.scala` and `IsNominalTypeSpec.scala`).
+
+**Suggested fix.** Decide the intended answer; then, in the Scala 3 macro, check `ref.widenTermRefByName` (which keeps the `ConstantType`) instead of `ref.widen`, or in the Scala 2 macro widen a `ConstantType` to its underlying class. Add a shared test.
 
 ## Test and CI
 
