@@ -77,6 +77,36 @@ object SchemaFromJsonSchemaSpec extends SchemaBaseSpec {
         val result      = codec.decode("""{"name": "Alice", "age": 30}""")
         assertTrue(result.isRight)
       },
+      test("object schema accepts omitted optional properties and omits them from decoded DynamicValue.Record") {
+        val jsonSchema = JsonSchema.obj(
+          properties = Some(ChunkMap("title" -> JsonSchema.string(), "isbn" -> JsonSchema.string())),
+          required = Some(Set("title"))
+        )
+        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
+        val codec       = schemaForJs.derive(JsonFormat)
+        val withoutIsbn = codec.decode("""{"title":"Programming in Scala"}""")
+        val withIsbn    = codec.decode("""{"title":"Programming in Scala","isbn":"978-0981531687"}""")
+        val nullIsbn    = codec.decode("""{"title":"Programming in Scala","isbn":null}""")
+        assertTrue(
+          withoutIsbn == Right(DynamicValue.Record("title" -> DynamicValue.string("Programming in Scala"))),
+          withIsbn == Right(
+            DynamicValue.Record(
+              "title" -> DynamicValue.string("Programming in Scala"),
+              "isbn"  -> DynamicValue.string("978-0981531687")
+            )
+          ),
+          nullIsbn.isLeft
+        )
+      },
+      test("object schema with no required set treats all properties as optional") {
+        val jsonSchema = JsonSchema.obj(
+          properties = Some(ChunkMap("a" -> JsonSchema.string(), "b" -> JsonSchema.integer()))
+        )
+        val schemaForJs = Schema.fromJsonSchema(jsonSchema)
+        val codec       = schemaForJs.derive(JsonFormat)
+        val emptyObj    = codec.decode("""{}""")
+        assertTrue(emptyObj == Right(DynamicValue.Record.empty))
+      },
       test("nested object schema validates correctly") {
         val addressSchema = JsonSchema.obj(
           properties = Some(ChunkMap("city" -> JsonSchema.string(), "zip" -> JsonSchema.string())),

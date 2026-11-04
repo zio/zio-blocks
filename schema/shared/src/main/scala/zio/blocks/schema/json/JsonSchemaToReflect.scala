@@ -355,15 +355,31 @@ private[schema] object JsonSchemaToReflect {
     new Reflect.Wrapper(innerReflect, TypeId.of[DynamicValue], wrapperBinding)
   }
 
+  private[schema] val AbsentValue: DynamicValue =
+    new DynamicValue.Record(Chunk.single(("__zio_blocks_absent__", DynamicValue.Null)))
+
+  private[this] def withOptionalDefault(reflect: Reflect[Binding, DynamicValue]): Reflect[Binding, DynamicValue] =
+    reflect match {
+      case w: Reflect.Wrapper[Binding, DynamicValue, _] => w.copy(storedDefaultValue = new Some(AbsentValue))
+      case r: Reflect.Record[Binding, DynamicValue]     => r.copy(storedDefaultValue = new Some(AbsentValue))
+      case v: Reflect.Variant[Binding, DynamicValue]    => v.copy(storedDefaultValue = new Some(AbsentValue))
+      case d: Reflect.Dynamic[Binding]                  => d.copy(storedDefaultValue = new Some(AbsentValue))
+      case other                                        => other
+    }
+
   private[this] def buildRecord(
     fields: ChunkMap[String, JsonSchema],
-    @scala.annotation.unused required: Set[String],
+    required: Set[String],
     closed: Boolean,
     title: Option[String]
   ): Reflect[Binding, DynamicValue] = {
     val fieldCount = fields.size
     val fieldTerms = Chunk.from(fields).map { case (fieldName, fieldSchema) =>
-      new Term[Binding, DynamicValue, DynamicValue](fieldName, toReflect(fieldSchema))
+      val fieldReflect = toReflect(fieldSchema)
+      val termReflect  =
+        if (required.contains(fieldName)) fieldReflect
+        else withOptionalDefault(fieldReflect)
+      new Term[Binding, DynamicValue, DynamicValue](fieldName, termReflect)
     }
     val fieldNames    = fields.toArray.map(_._1)
     val recordBinding = new Binding.Record[DynamicValue](
@@ -371,15 +387,16 @@ private[schema] object JsonSchemaToReflect {
         def usedRegisters: RegisterOffset = RegisterOffset(objects = fieldCount)
 
         def construct(in: Registers, offset: RegisterOffset): DynamicValue = {
-          val result = new Array[(String, DynamicValue)](fieldCount)
-          var idx    = 0
+          val builder = Chunk.newBuilder[(String, DynamicValue)]
+          var idx     = 0
           while (idx < fieldCount) {
-            var elem = in.getObject(offset + idx).asInstanceOf[DynamicValue]
-            if (elem eq null) elem = DynamicValue.Null
-            result(idx) = (fieldNames(idx), elem)
+            val elem = in.getObject(offset + idx).asInstanceOf[DynamicValue]
+            if ((elem ne null) && (elem ne AbsentValue)) {
+              builder.addOne((fieldNames(idx), elem))
+            }
             idx += 1
           }
-          new DynamicValue.Record(Chunk.fromArray(result))
+          new DynamicValue.Record(builder.result())
         }
       },
       deconstructor = new Deconstructor[DynamicValue] {
@@ -390,7 +407,11 @@ private[schema] object JsonSchemaToReflect {
             val fieldMap = r.fields.toMap
             var idx      = 0
             while (idx < fieldCount) {
-              val value = fieldMap.getOrElse(fieldNames(idx), DynamicValue.Null)
+              val name  = fieldNames(idx)
+              val value = fieldMap.getOrElse(
+                name,
+                if (required.contains(name)) DynamicValue.Null else AbsentValue
+              )
               out.setObject(offset + idx, value.asInstanceOf[AnyRef])
               idx += 1
             }

@@ -786,7 +786,10 @@ object Reflect {
     def doc(value: Doc): Record[F, A] = copy(doc = value)
 
     def getDefaultValue(implicit F: HasBinding[F]): Option[A] =
-      storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
+      storedDefaultValue.flatMap { dv =>
+        if (dv eq zio.blocks.schema.json.JsonSchemaToReflect.AbsentValue) storedDefaultValue.asInstanceOf[Option[A]]
+        else fromDynamicValue(dv).toOption
+      }
 
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Record[F, A] =
       copy(storedDefaultValue = new Some(toDynamicValue(value)))
@@ -1068,7 +1071,10 @@ object Reflect {
     def doc(value: Doc): Variant[F, A] = copy(doc = value)
 
     def getDefaultValue(implicit F: HasBinding[F]): Option[A] =
-      storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
+      storedDefaultValue.flatMap { dv =>
+        if (dv eq zio.blocks.schema.json.JsonSchemaToReflect.AbsentValue) storedDefaultValue.asInstanceOf[Option[A]]
+        else fromDynamicValue(dv).toOption
+      }
 
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Variant[F, A] =
       copy(storedDefaultValue = new Some(toDynamicValue(value)))
@@ -1712,7 +1718,10 @@ object Reflect {
     def doc(value: Doc): Wrapper[F, A, B] = copy(doc = value)
 
     def getDefaultValue(implicit F: HasBinding[F]): Option[A] =
-      storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
+      storedDefaultValue.flatMap { dv =>
+        if (dv eq zio.blocks.schema.json.JsonSchemaToReflect.AbsentValue) storedDefaultValue.asInstanceOf[Option[A]]
+        else fromDynamicValue(dv).toOption
+      }
 
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Wrapper[F, A, B] =
       copy(storedDefaultValue = new Some(toDynamicValue(value)))
