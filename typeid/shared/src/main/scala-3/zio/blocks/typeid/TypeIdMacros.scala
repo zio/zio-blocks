@@ -30,6 +30,9 @@ object TypeIdMacros {
   // ToExpr Instances (needed for top-level cache to convert TypeId values to Expr)
   // ============================================================================
 
+  /**
+   * Writes an `Owner.Segment` as the expression that builds it.
+   */
   given ownerSegmentToExpr: ToExpr[Owner.Segment] with {
     def apply(seg: Owner.Segment)(using Quotes): Expr[Owner.Segment] = seg match {
       case Owner.Package(name) => '{ Owner.Package(${ Expr(name) }) }
@@ -38,6 +41,11 @@ object TypeIdMacros {
     }
   }
 
+  /**
+   * Writes an `Owner` as `Owner.Root` when it is empty, and otherwise as
+   * `Owner.fromPackagePath` for its leading package segments followed by a
+   * `term`, `tpe` or `/` call for each later segment.
+   */
   given ToExpr[Owner] with {
     def apply(owner: Owner)(using Quotes): Expr[Owner] =
       if (owner.segments.isEmpty) '{ Owner.Root }
@@ -57,6 +65,9 @@ object TypeIdMacros {
       }
   }
 
+  /**
+   * Writes a `Variance` as a reference to its case object.
+   */
   given ToExpr[Variance] with {
     def apply(v: Variance)(using Quotes): Expr[Variance] = v match {
       case Variance.Covariant     => '{ Variance.Covariant }
@@ -65,6 +76,10 @@ object TypeIdMacros {
     }
   }
 
+  /**
+   * Writes a `Kind` as `Kind.Type`, or as a `Kind.Arrow` built from its written
+   * parameters and result.
+   */
   given ToExpr[Kind] with {
     def apply(k: Kind)(using Quotes): Expr[Kind] = k match {
       case Kind.Type           => '{ Kind.Type }
@@ -75,6 +90,10 @@ object TypeIdMacros {
     }
   }
 
+  /**
+   * Writes a `TypeRepr` as the expression that builds it. A `Ref` writes its id
+   * through `typeIdToExpr`.
+   */
   given typeReprToExpr: ToExpr[TypeRepr] with {
     def apply(tr: TypeRepr)(using Quotes): Expr[TypeRepr] = tr match {
       case TypeRepr.Ref(id) =>
@@ -215,6 +234,10 @@ object TypeIdMacros {
     }
   }
 
+  /**
+   * Writes a `TypeBounds` as the expression that builds it from its written
+   * lower and upper bounds.
+   */
   given ToExpr[TypeBounds] with {
     def apply(tb: TypeBounds)(using Quotes): Expr[TypeBounds] = {
       val lowerExpr: Expr[Option[TypeRepr]] = tb.lower match {
@@ -229,6 +252,9 @@ object TypeIdMacros {
     }
   }
 
+  /**
+   * Writes a `TypeParam` with its name, index, variance, bounds and kind.
+   */
   given ToExpr[TypeParam] with {
     def apply(tp: TypeParam)(using Quotes): Expr[TypeParam] =
       '{
@@ -242,6 +268,9 @@ object TypeIdMacros {
       }
   }
 
+  /**
+   * Writes a `TupleElement` with its label and type.
+   */
   given ToExpr[TupleElement] with {
     def apply(te: TupleElement)(using Quotes): Expr[TupleElement] = {
       val labelExpr = te.label match {
@@ -252,6 +281,10 @@ object TypeIdMacros {
     }
   }
 
+  /**
+   * Writes a `Member` of any of its three cases (`Val`, `Def` or `TypeMember`)
+   * as the expression that builds it.
+   */
   given ToExpr[Member] with {
     def apply(m: Member)(using Quotes): Expr[Member] = m match {
       case Member.Val(name, tpe, isVar) =>
@@ -274,11 +307,18 @@ object TypeIdMacros {
     }
   }
 
+  /**
+   * Writes a `Param` with its name, type, `isImplicit` and `hasDefault`.
+   */
   given ToExpr[Param] with {
     def apply(p: Param)(using Quotes): Expr[Param] =
       '{ Param(${ Expr(p.name) }, ${ Expr(p.tpe) }, ${ Expr(p.isImplicit) }, ${ Expr(p.hasDefault) }) }
   }
 
+  /**
+   * Writes a `TermPath.Segment` (package or term) as the expression that builds
+   * it.
+   */
   given termPathSegmentToExpr: ToExpr[TermPath.Segment] with {
     def apply(seg: TermPath.Segment)(using Quotes): Expr[TermPath.Segment] = seg match {
       case TermPath.Package(name) => '{ TermPath.Package(${ Expr(name) }) }
@@ -286,6 +326,10 @@ object TypeIdMacros {
     }
   }
 
+  /**
+   * Writes a `TermPath` as the expression that builds it from its written
+   * segments.
+   */
   given ToExpr[TermPath] with {
     def apply(tp: TermPath)(using Quotes): Expr[TermPath] = {
       val segmentsExpr = Expr.ofList(tp.segments.map(s => Expr(s)))
@@ -293,11 +337,19 @@ object TypeIdMacros {
     }
   }
 
+  /**
+   * Writes an `EnumCaseParam` with its name and type.
+   */
   given ToExpr[EnumCaseParam] with {
     def apply(ecp: EnumCaseParam)(using Quotes): Expr[EnumCaseParam] =
       '{ EnumCaseParam(${ Expr(ecp.name) }, ${ Expr(ecp.tpe) }) }
   }
 
+  /**
+   * Writes a `TypeDefKind`. A class, trait, object or enum that matches a
+   * predefined value such as `TypeDefKind.basicClass` becomes a reference to
+   * that value; the other kinds are written through their constructors.
+   */
   given ToExpr[TypeDefKind] with {
     def apply(tdk: TypeDefKind)(using Quotes): Expr[TypeDefKind] = tdk match {
       // Predefined val fast paths (emit field access instead of constructor)
@@ -340,6 +392,10 @@ object TypeIdMacros {
     }
   }
 
+  /**
+   * Writes an `AnnotationArg`. A `Const` keeps a string, a number, a `Boolean`,
+   * a `Char`, `null` or unit, and writes any other value as `null`.
+   */
   given ToExpr[AnnotationArg] with {
     def apply(arg: AnnotationArg)(using Quotes): Expr[AnnotationArg] = arg match {
       case AnnotationArg.Const(value) =>
@@ -371,6 +427,10 @@ object TypeIdMacros {
     }
   }
 
+  /**
+   * Writes an `Annotation` with its id (through `typeIdToExpr`) and written
+   * arguments.
+   */
   given ToExpr[Annotation] with {
     def apply(ann: Annotation)(using Quotes): Expr[Annotation] = {
       val argsExpr = Expr.ofList(ann.args.map(a => Expr(a)))
