@@ -48,11 +48,10 @@ object Version {
   val values: Chunk[Version] = Chunk(`HTTP/1.0`, `HTTP/1.1`, `HTTP/2.0`, `HTTP/3.0`)
 
   /**
-   * Returns the version whose text is exactly `s`. Besides `HTTP/1.0`,
-   * `HTTP/1.1`, `HTTP/2.0` and `HTTP/3.0`, the short forms `HTTP/2` and
-   * `HTTP/3` are accepted. Matching is case-sensitive and does not trim
-   * whitespace: `http/1.1`, `"HTTP/1.1 "`, `HTTP/2.1` and the empty string give
-   * `None`.
+   * Returns the version named by `s`: `HTTP/1.0`, `HTTP/1.1`, `HTTP/2.0` or
+   * `HTTP/3.0`, or the short forms `HTTP/2` and `HTTP/3`. Matching is
+   * case-sensitive and does not trim whitespace: `http/1.1`, `"HTTP/1.1 "`,
+   * `HTTP/2.1` and the empty string give `None`.
    */
   def fromString(s: String): Option[Version] = s match {
     case "HTTP/1.0"            => Some(`HTTP/1.0`)

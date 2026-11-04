@@ -113,10 +113,8 @@ object SameSite {
 }
 
 /**
- * Represents the `Priority` attribute of a `Set-Cookie` header.
- *
- * Supported values are `Low`, `Medium`, and `High`, which render directly as
- * the corresponding `Priority` attribute values.
+ * The `Priority` attribute of a `set-cookie` header. `Low`, `Medium` and `High`
+ * render as `Priority=Low`, `Priority=Medium` and `Priority=High`.
  */
 sealed trait CookiePriority
 

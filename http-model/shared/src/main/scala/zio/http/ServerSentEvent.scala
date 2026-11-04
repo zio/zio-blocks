@@ -37,7 +37,8 @@ import zio.blocks.maybe.Maybe
  * To serve events, write each rendered event to a response body whose content
  * type is `text/event-stream`. http-model has no constant for that content
  * type, a known bug, so build it with
- * `ContentType(MediaType("text", "event-stream"))`.
+ * `ContentType(MediaType("text", "event-stream"))`, where `MediaType` is
+ * `zio.blocks.mediatype.MediaType`.
  *
  * @see
  *   [[https://zioblocks.com/reference/http-model/server-sent-event/ ServerSentEvent]]
