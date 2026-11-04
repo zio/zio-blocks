@@ -178,8 +178,9 @@ sealed trait TypeId[A] extends TypeIdPlatformSpecific {
   /**
    * The parents recorded in [[defKind]]. For a derived class, trait or object,
    * they are its base classes and traits in linearization order, without their
-   * type arguments (a parent `Ordered[Square]` is recorded as `Ordered`), and
-   * without `Any`, `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
+   * type arguments (a parent `Ordered[Square]` is recorded as the unapplied
+   * `Ordered`, with its type parameter on Scala 2 and without it on Scala 3),
+   * and without `Any`, `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
    * `java.io.Serializable` and the `Mirror` types; for a Scala 3 enum case, its
    * enum. Aliases, opaque types and the predefined ids of `Int`, `List`,
    * `Option` and most other standard library types have none.
