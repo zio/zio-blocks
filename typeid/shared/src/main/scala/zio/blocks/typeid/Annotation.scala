@@ -47,9 +47,13 @@ final case class Annotation(
 
 /**
  * An argument of an [[Annotation]]: a constant, an array, a named argument, a
- * nested annotation, a class literal or an enum value. The Scala 2 macro
- * records constants, arrays, named arguments and nested annotations; the Scala
- * 3 macro also records class literals and Scala 3 enum values.
+ * nested annotation, a class literal or an enum value. Both macros record
+ * constants, named arguments and nested annotations, and drop an argument
+ * written as `Array(...)`. The Scala 3 macro also records the values passed to
+ * a repeated parameter as one [[AnnotationArg.ArrayArg]] (Scala 2 records each
+ * as a [[AnnotationArg.Const]]) and enum values, Java ones included, as
+ * [[AnnotationArg.EnumValue]]; it records a `classOf[T]` argument as
+ * `Const(null)` (a known bug), and Scala 2 drops it.
  */
 sealed trait AnnotationArg
 
@@ -68,10 +72,9 @@ object AnnotationArg {
   final case class Const(value: Any) extends AnnotationArg
 
   /**
-   * An array of annotation arguments.
-   *
-   * Used for annotation parameters that accept arrays:
-   * `@Ann(values = Array("a", "b", "c"))`
+   * An array of arguments. The Scala 3 macro writes the values passed to a
+   * repeated parameter this way, as in `@Tags("a", "b")` for
+   * `class Tags(names: String*)`.
    */
   final case class ArrayArg(values: List[AnnotationArg]) extends AnnotationArg
 
@@ -85,24 +88,20 @@ object AnnotationArg {
   final case class Named(name: String, value: AnnotationArg) extends AnnotationArg
 
   /**
-   * A nested annotation argument.
-   *
-   * Used when an annotation contains another annotation:
-   * `@Outer(@Inner("value"))`
+   * A nested annotation argument, as in `@Outer(new Inner("value"))`.
    */
   final case class Nested(annotation: Annotation) extends AnnotationArg
 
   /**
-   * A class literal reference.
-   *
-   * Used for classOf references: `@Ann(classOf[String])`
+   * A class literal, `classOf[T]`. The macros do not produce it: Scala 3
+   * records `classOf[T]` as `Const(null)` (a known bug) and Scala 2 drops it.
    */
   final case class ClassOf(tpe: TypeRepr) extends AnnotationArg
 
   /**
-   * An enum value reference.
-   *
-   * Used for enum constant references: `@Retention(RetentionPolicy.RUNTIME)`
+   * An enum value, such as `RetentionPolicy.RUNTIME` in
+   * `@Retention(RetentionPolicy.RUNTIME)`. Only the Scala 3 macro produces it,
+   * for Scala 3 and Java enums.
    */
   final case class EnumValue(enumType: TypeId[_], valueName: String) extends AnnotationArg
 }
