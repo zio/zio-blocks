@@ -19,84 +19,310 @@ package zio.blocks.typeid
 import zio.blocks.chunk.Chunk
 
 /**
- * Represents the identity of a type or type constructor.
+ * A `TypeId[A]` describes the type `A` as a value: its name, its [[Owner]] (the
+ * packages, objects and classes around its definition), its type parameters and
+ * type arguments, what kind of definition it is (class, trait, object, enum,
+ * alias, opaque type), its parents and its annotations. Derive one with
+ * [[TypeId.of]], or ask for an implicit `TypeId[A]` and let [[TypeId.derived]]
+ * supply it. Use it as a key in a type-indexed registry, or to describe a type
+ * to a serializer or a code generator.
  *
- * TypeId provides rich type identity information including:
- *   - The type's name
- *   - The owner (package/class/object where it's defined)
- *   - Type parameters (for type constructors)
- *   - Classification (nominal, alias, or opaque)
- *   - Parent types and self type
- *   - Annotations
+ * Two ids are equal when they describe the same type after aliases are
+ * resolved: the same full name, type parameters and type arguments
+ * ([[TypeId.structurallyEqual]]). So the id of `type Age = Int` equals the id
+ * of `Int`, while an opaque type stays different from its representation.
  *
- * The phantom type parameter `A` ensures type safety when working with TypeId
- * values. In Scala 3, `A` is bounded by `AnyKind` to support higher-kinded
- * types.
+ * On Scala 3, `A` is bounded by `AnyKind`, so it can be a type constructor:
+ * `TypeId.of[Option]` describes `Option` itself. On Scala 2, `A` is a proper
+ * type, and a type constructor is written with a wildcard:
+ * `TypeId.of[Option[_]]`. Both give an id equal to [[TypeId.option]].
+ *
+ * {{{
+ * final case class Point(x: Int, y: Int)
+ *
+ * val point = TypeId.of[Point]
+ * point.name        // "Point"
+ * point.isCaseClass // true
+ *
+ * val scores = TypeId.of[Map[String, Int]]
+ * scores.fullName   // "scala.collection.immutable.Map"
+ * scores.typeArgs   // List(Ref(String), Ref(Int))
+ * scores.toString   // "Map[String, Int]"
+ * }}}
  *
  * @tparam A
- *   The type (or type constructor) this TypeId represents
+ *   the type this id describes
+ * @see
+ *   [[https://zioblocks.com/reference/typeid/ TypeId]]
  */
 sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
+
+  /**
+   * The simple name of the type, such as `"Map"` for `Map[String, Int]`. For an
+   * object it is the object's name, without the trailing dollar sign.
+   *
+   * On Scala 3, the id derived for a union type is named `"Union"` and the one
+   * for an intersection type `"Intersection"`. On Scala 2, an intersection
+   * `A with B` is named `"<refinement>"`.
+   */
   def name: String
+
+  /**
+   * Where the type is defined: the packages, objects and enclosing classes
+   * around its definition, such as `scala.collection.immutable` for
+   * `List[Int]`. See [[Owner]].
+   */
   def owner: Owner
+
+  /**
+   * The type parameters the type declares, in order, with their variance; empty
+   * for a proper type such as `Int`. An applied type keeps the parameters of
+   * its constructor, so `TypeId.of[List[Int]].typeParams` holds one covariant
+   * parameter `A`.
+   *
+   * The macros record only the name, index and variance of a parameter: its
+   * bounds are [[TypeBounds.Unbounded]] and its kind is [[Kind.Type]], even for
+   * a higher-kinded parameter such as `F[_]` (a known bug). On Scala 3, the id
+   * of an alias with no type parameters of its own, such as
+   * `type Names = List[String]`, reports the type parameters of the aliased
+   * type (a known bug).
+   */
   def typeParams: List[TypeParam]
+
+  /**
+   * The type arguments of an applied type, such as
+   * `List(Ref(String), Ref(Int))` for `Map[String, Int]`; empty when the type
+   * is not applied.
+   *
+   * On Scala 3, the id of an applied alias with type parameters, such as
+   * `StrMap[Int]` for `type StrMap[V] = Map[String, V]`, has no type arguments
+   * (a known bug).
+   */
   def typeArgs: List[TypeRepr]
+
+  /**
+   * What kind of definition the type is: a class (with its `case`, `final`,
+   * `abstract` and value-class flags), trait, object, enum, enum case, alias,
+   * opaque type or abstract type, together with its parents. The predefined ids
+   * of `Int`, `List`, `Option` and most other standard library types have
+   * [[TypeDefKind.Unknown]]. See [[TypeDefKind]].
+   */
   def defKind: TypeDefKind
+
+  /**
+   * The self-type the trait or class declares, if any. The macros capture it as
+   * an intersection: for `trait Named { self: Animal => }`, Scala 3 gives
+   * `Animal & Named`, and Scala 2 an intersection of `Animal` and a refinement.
+   */
   def selfType: Option[TypeRepr]
-  def aliasedTo: Option[TypeRepr]      // For type aliases
-  def representation: Option[TypeRepr] // For opaque types
+
+  /**
+   * For a type alias, the type it stands for, such as `Ref(Int)` for
+   * `type Age = Int`; `None` for other types. On Scala 3, the ids derived for
+   * union and intersection types are aliases of a [[TypeRepr.Union]] or a
+   * [[TypeRepr.Intersection]].
+   */
+  def aliasedTo: Option[TypeRepr]
+
+  /**
+   * For an opaque type, its underlying type, such as `Ref(String)` for
+   * `opaque type Email = String`; `None` for other types. Opaque types exist
+   * only on Scala 3, so the Scala 2 macro never sets it.
+   */
+  def representation: Option[TypeRepr]
+
+  /**
+   * The annotations on the type's definition, such as `@deprecated`, with the
+   * arguments the macro can read. For `@deprecated("old", "1.0")`, Scala 2
+   * records the arguments as [[AnnotationArg.Named]] values and Scala 3 as
+   * positional [[AnnotationArg.Const]] values.
+   */
   def annotations: List[Annotation]
 
+  /**
+   * Returns the runtime class of this type on the JVM, or `None` when there is
+   * none. A primitive gives its primitive class (`int` for `Int`), an applied
+   * type its erased class (`List` for `List[Int]`), and an object the class of
+   * its single instance. Aliases, opaque types, `Any`, `Nothing`, and classes
+   * that cannot be loaded give `None`. On Scala.js it returns `None`.
+   */
   final def clazz: Option[Class[?]] = TypeIdPlatformMethods.getClass(this)
 
+  /**
+   * Creates a value of this type from `args`, on the JVM. Some standard types
+   * are built directly: `List`, `Vector`, `Set`, `Seq`, `IndexedSeq`, `Map`
+   * (keys and values interleaved), `Option` (no argument for `None`), `Some`,
+   * `None`, `Either` (a `java.lang.Boolean` that is `true` for `Right`, then
+   * the value), `Tuple2`, `Tuple3` and several `java.time` types. Any other
+   * type is built by reflection, with the first public constructor whose
+   * parameter count and types fit `args`; pass primitive values boxed.
+   *
+   * Returns `Left` with a message when no class or constructor fits, or when
+   * the constructor throws. On Scala.js it returns `Left` for every type.
+   *
+   * {{{
+   * import zio.blocks.chunk.Chunk
+   *
+   * final case class Point(x: Int, y: Int)
+   *
+   * TypeId.of[Point].construct(Chunk[AnyRef](Int.box(1), Int.box(2)))
+   * // Right(Point(1,2))
+   * TypeId.of[List[String]].construct(Chunk[AnyRef]("a", "b"))
+   * // Right(List(a, b))
+   * }}}
+   */
   final def construct(args: Chunk[AnyRef]): Either[String, Any] = TypeIdPlatformMethods.construct(this, args)
 
+  /**
+   * The parents recorded in [[defKind]]. For a derived class, trait or object,
+   * they are its base classes and traits in linearization order, without `Any`,
+   * `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
+   * `java.io.Serializable` and the `Mirror` types; for a Scala 3 enum case, its
+   * enum. Aliases, opaque types and the predefined ids of `Int`, `List`,
+   * `Option` and most other standard library types have none.
+   *
+   * {{{
+   * trait Animal
+   * trait Pet extends Animal
+   * class Dog extends Pet
+   *
+   * TypeId.of[Dog].parents.map(_.toString) // List(Ref(Pet), Ref(Animal))
+   * }}}
+   */
   final def parents: List[TypeRepr] = defKind.baseTypes
 
-  /** Returns true if this is an applied type (has type arguments) */
+  /**
+   * Returns `true` if this id has type arguments, as the id of `List[Int]`
+   * does. The id of a type constructor, such as [[TypeId.list]], is not
+   * applied.
+   */
   final def isApplied: Boolean = typeArgs.nonEmpty
 
+  /**
+   * Returns this id typed as [[TypeId.Erased]], so that ids of different types
+   * can be stored together, for example as the keys of one map. It returns the
+   * same object.
+   *
+   * {{{
+   * val ids: List[TypeId.Erased] = List(TypeId.of[Int].erased, TypeId.of[String].erased)
+   * ids.map(_.name) // List(Int, String)
+   * }}}
+   */
   final def erased: TypeId.Erased = this.asInstanceOf[TypeId.Erased]
 
   // Derived properties
+
+  /**
+   * The number of type parameters the type declares, `typeParams.size`. An
+   * applied type keeps its constructor's parameters, so `List[Int]` has arity 1.
+   */
   final def arity: Int = typeParams.size
 
+  /**
+   * The owner and the name joined with a dot, such as
+   * `"scala.collection.immutable.List"`, or the name alone when the owner is
+   * [[Owner.Root]]. A type declared inside an object includes the object, as in
+   * `"com.example.Outer.Inner"`.
+   */
   final def fullName: String =
     if (owner.isRoot) name
     else s"${owner.asString}.$name"
 
-  final def isProperType: Boolean      = arity == 0
+  /**
+   * Returns `true` if the type declares no type parameters (`arity == 0`). An
+   * applied type such as `List[Int]` keeps its constructor's parameters, so it
+   * gives `false`.
+   */
+  final def isProperType: Boolean = arity == 0
+
+  /**
+   * Returns `true` if the type declares type parameters (`arity > 0`). An
+   * applied type such as `List[Int]` keeps its constructor's parameters, so it
+   * gives `true`.
+   */
   final def isTypeConstructor: Boolean = arity > 0
 
-  final def isClass: Boolean    = defKind.isInstanceOf[TypeDefKind.Class]
-  final def isTrait: Boolean    = defKind.isInstanceOf[TypeDefKind.Trait]
-  final def isObject: Boolean   = defKind.isInstanceOf[TypeDefKind.Object]
-  final def isEnum: Boolean     = defKind.isInstanceOf[TypeDefKind.Enum]
-  final def isAlias: Boolean    = defKind == TypeDefKind.TypeAlias
-  final def isOpaque: Boolean   = defKind.isInstanceOf[TypeDefKind.OpaqueType]
+  /**
+   * Returns `true` if [[defKind]] is a [[TypeDefKind.Class]]: a class, case
+   * class or value class. The predefined ids of `Int`, `List`, `Option` and
+   * most other standard library types give `false`, as their kind is
+   * [[TypeDefKind.Unknown]].
+   */
+  final def isClass: Boolean = defKind.isInstanceOf[TypeDefKind.Class]
+
+  /**
+   * Returns `true` if [[defKind]] is a [[TypeDefKind.Trait]].
+   */
+  final def isTrait: Boolean = defKind.isInstanceOf[TypeDefKind.Trait]
+
+  /**
+   * Returns `true` if [[defKind]] is a [[TypeDefKind.Object]], as for the
+   * derived id of an object or a case object.
+   */
+  final def isObject: Boolean = defKind.isInstanceOf[TypeDefKind.Object]
+
+  /**
+   * Returns `true` if [[defKind]] is a [[TypeDefKind.Enum]], a Scala 3 enum.
+   * The id of one of its cases gives `false`: its kind is
+   * [[TypeDefKind.EnumCase]].
+   */
+  final def isEnum: Boolean = defKind.isInstanceOf[TypeDefKind.Enum]
+
+  /**
+   * Returns `true` if [[defKind]] is [[TypeDefKind.TypeAlias]]. On Scala 3, the
+   * ids derived for union and intersection types are aliases too.
+   */
+  final def isAlias: Boolean = defKind == TypeDefKind.TypeAlias
+
+  /**
+   * Returns `true` if [[defKind]] is a [[TypeDefKind.OpaqueType]], a Scala 3
+   * opaque type.
+   */
+  final def isOpaque: Boolean = defKind.isInstanceOf[TypeDefKind.OpaqueType]
+
+  /**
+   * Returns `true` if [[defKind]] is [[TypeDefKind.AbstractType]]: an abstract
+   * type member, or a type parameter given to [[TypeId.of]]. An abstract class
+   * gives `false`: its kind is a [[TypeDefKind.Class]] with `isAbstract` set.
+   */
   final def isAbstract: Boolean = defKind == TypeDefKind.AbstractType
 
+  /**
+   * Returns `true` for a sealed trait. A sealed abstract class and a Scala 3
+   * enum give `false`; read their [[defKind]] instead.
+   */
   final def isSealed: Boolean = defKind match {
     case TypeDefKind.Trait(isSealed, _) => isSealed
     case _                              => false
   }
 
+  /**
+   * Returns `true` if [[defKind]] is a [[TypeDefKind.Class]] with `isCase` set:
+   * a case class, including a tuple class such as `Tuple2`. A case object gives
+   * `false`, as its kind is [[TypeDefKind.Object]].
+   */
   final def isCaseClass: Boolean = defKind match {
     case TypeDefKind.Class(_, _, isCase, _, _) => isCase
     case _                                     => false
   }
 
+  /**
+   * Returns `true` if [[defKind]] is a [[TypeDefKind.Class]] with `isValue`
+   * set: a class that extends `AnyVal`, such as
+   * `final case class UserId(value: Long) extends AnyVal`. The predefined ids
+   * of `Int` and the other primitive types give `false`.
+   */
   final def isValueClass: Boolean = defKind match {
     case TypeDefKind.Class(_, _, _, isValue, _) => isValue
     case _                                      => false
   }
 
   /**
-   * Returns a ClassTag for this type, using the correct primitive ClassTag for
-   * primitive types (Int, Long, Float, Double, Boolean, Byte, Short, Char,
-   * Unit) and ClassTag.AnyRef for all reference types.
-   *
-   * This is useful for creating properly-typed arrays at runtime.
+   * A `ClassTag` for creating arrays of this type at runtime. For `Int`,
+   * `Long`, `Float`, `Double`, `Boolean`, `Byte`, `Short`, `Char` and `Unit`
+   * (an id in package `scala` with one of those names), it is the primitive
+   * `ClassTag`; for every other type it is `ClassTag.AnyRef`, not a tag for the
+   * type's own class.
    */
   lazy val classTag: scala.reflect.ClassTag[?] = {
     import scala.reflect.ClassTag
@@ -115,61 +341,105 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
     else ClassTag.AnyRef
   }
 
-  /** Checks if the normalized type is a Scala Tuple */
+  /**
+   * Returns `true` if the type, after [[TypeId.normalize]], is in package
+   * `scala` and its name starts with `Tuple`: `Tuple1` to `Tuple22`, and on
+   * Scala 3 also `Tuple`. A Scala 3 named tuple gives `false`: it is an opaque
+   * `NamedTuple`.
+   *
+   * On Scala 3, an alias of a tuple such as `type Coords = (Int, Int)` gives
+   * `false` (a known bug); on Scala 2 it gives `true`.
+   */
   final def isTuple: Boolean = {
     val norm = TypeId.normalize(this)
     norm.owner == Owner.fromPackagePath("scala") && norm.name.startsWith("Tuple")
   }
 
-  /** Checks if the normalized type is a Scala Product */
+  /**
+   * Returns `true` if the type, after [[TypeId.normalize]], is `scala.Product`
+   * or one of `scala.Product1` to `scala.Product22`. A case class gives
+   * `false`; use [[isCaseClass]] for it.
+   */
   final def isProduct: Boolean = {
     val norm = TypeId.normalize(this)
     norm.owner == Owner.fromPackagePath("scala") && norm.name.startsWith("Product")
   }
 
-  /** Checks if the normalized type is a Scala sum type (Either or Option) */
+  /**
+   * Returns `true` if the type, after [[TypeId.normalize]], is `scala.Option`
+   * or a type named `Either` in package `scala`. The id of
+   * `Either[String, Int]` is `scala.util.Either`, so it gives `false` (a known
+   * bug); use [[isEither]] for it.
+   */
   final def isSum: Boolean = {
     val norm = TypeId.normalize(this)
     norm.owner == Owner.fromPackagePath("scala") && (norm.name == "Either" || norm.name == "Option")
   }
 
-  /** Checks if the normalized type is scala.util.Either */
+  /**
+   * Returns `true` if the type, after [[TypeId.normalize]], is
+   * `scala.util.Either`, as `TypeId.of[Either[String, Int]]` is. `Left` and
+   * `Right` give `false`.
+   */
   final def isEither: Boolean = {
     val norm = TypeId.normalize(this)
     norm.owner == Owner.fromPackagePath("scala.util") && norm.name == "Either"
   }
 
-  /** Checks if the normalized type is scala.Option */
+  /**
+   * Returns `true` if the type, after [[TypeId.normalize]], is `scala.Option`.
+   * `Some` and `None` give `false`.
+   */
   final def isOption: Boolean = {
     val norm = TypeId.normalize(this)
     norm.owner == Owner.fromPackagePath("scala") && norm.name == "Option"
   }
 
+  /**
+   * Returns `true` if the type is `Maybe` from the `zio.blocks.maybe` package
+   * (or its package object). Unlike [[isOption]], it does not resolve aliases
+   * first.
+   */
   final def isMaybe: Boolean =
     (owner == Owner.fromPackagePath("zio.blocks.maybe") ||
       owner == Owner.fromPackagePath("zio.blocks.maybe.package")) && name == "Maybe"
 
   /**
-   * Checks if this type is a subtype of another type.
+   * Returns `true` when this type is known to be a subtype of `other`, judged
+   * from the data in the two ids. It returns `true` when the ids are equal,
+   * when this type is `Nothing`, when `other` is `Any`, and when `other` is one
+   * of this type's parents or one of theirs, at any depth. For two applications
+   * of the same type constructor, it compares each type argument by the
+   * parameter's variance: `List[Circle]` is a subtype of `List[Shape]`, and
+   * `Set[Circle]` is not a subtype of `Set[Shape]`.
    *
-   * This method checks the type hierarchy using the extracted parent types. It
-   * handles:
-   *   - Direct subtype relationships (class extends trait)
-   *   - Enum cases being subtypes of their parent enum
-   *   - Sealed trait subtypes
-   *   - Transitive inheritance
-   *   - Variance-aware subtyping for applied types (List[Dog] <: List[Animal]
-   *     for covariant)
+   * On Scala 3, it also returns `true` when `other` is a union type, or an
+   * alias of one, that lists this type, and when this type is an intersection
+   * type, or an alias of one, with `other` among its members. On Scala 2, the
+   * id of an alias of `A with B` has no parents, so it is not a subtype of `A`.
    *
-   * Note: This is a best-effort check based on compile-time extracted
-   * information. For complex cases involving type parameters or implicit
-   * conversions, the check may return false even when a true subtype
-   * relationship exists at runtime.
+   * The check sees only what the ids store, so it misses some real subtypes:
    *
-   * @param other
-   *   The potential supertype to check against
-   * @return
-   *   true if this type is a subtype of other
+   *   - the predefined ids of `List`, `Option`, `Some`, `Int` and most other
+   *     standard library types store no parents, so `Some[Int]` is not a
+   *     subtype of `Option[Int]`, and `List[Int]` is not a subtype of
+   *     `Seq[Int]`;
+   *   - derived parents leave out `AnyRef`, `Product` and `Serializable`, so a
+   *     case class is not a subtype of `Product`;
+   *   - an alias on the left is not resolved: for `type MyDog = Dog`, `MyDog`
+   *     is not a subtype of `Dog`'s parents.
+   *
+   * {{{
+   * sealed trait Shape
+   * final case class Circle(radius: Double) extends Shape
+   *
+   * TypeId.of[Circle].isSubtypeOf(TypeId.of[Shape])                   // true
+   * TypeId.of[List[Circle]].isSubtypeOf(TypeId.of[List[Shape]])       // true
+   * TypeId.of[Some[Int]].isSubtypeOf(TypeId.of[Option[Int]])          // false
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/typeid/#subtype-relationships Subtype Relationships]]
    */
   def isSubtypeOf(other: TypeId[?]): Boolean = {
     if (TypeId.structurallyEqual(this, other)) return true
@@ -207,38 +477,72 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
   }
 
   /**
-   * Checks if this type is a supertype of another type.
-   *
-   * @param other
-   *   The potential subtype to check against
-   * @return
-   *   true if this type is a supertype of other
+   * Returns `other.isSubtypeOf(this)`; see [[isSubtypeOf]] for what the check
+   * covers.
    */
   def isSupertypeOf(other: TypeId[?]): Boolean = other.isSubtypeOf(this)
 
   /**
-   * Checks if this type is equivalent to another type (mutually subtypes).
-   *
-   * @param other
-   *   The type to compare with
-   * @return
-   *   true if both types are subtypes of each other
+   * Returns `true` when each type is a subtype of the other by [[isSubtypeOf]],
+   * as for two equal ids, or for `type Age = Int` and `Int`.
    */
   def isEquivalentTo(other: TypeId[?]): Boolean =
     this.isSubtypeOf(other) && other.isSubtypeOf(this)
 
   // equals and hashCode are overridden in TypeId.Impl with cached hash for performance.
   // The sealed trait delegates to structurallyEqual/structuralHash as the default.
+  /**
+   * Returns `true` when `other` is a `TypeId` that describes the same type, by
+   * [[TypeId.structurallyEqual]].
+   */
   override def equals(other: Any): Boolean = other match {
     case that: TypeId[?] => TypeId.structurallyEqual(this, that)
     case _               => false
   }
 
+  /**
+   * Returns [[TypeId.structuralHash]] of this id, so equal ids have equal hash
+   * codes.
+   */
   override def hashCode(): Int = TypeId.structuralHash(this)
 
+  /**
+   * Renders the type as Scala source with [[TypeIdPrinter]], such as
+   * `"Map[String, Int]"`. Types print by their simple name, except types from a
+   * `java` package other than `java.lang`, which print by full name
+   * (`"java.util.UUID"`). A type constructor prints with its parameters
+   * (`"List[+A]"`).
+   */
   override def toString: String = TypeIdPrinter.render(this)
 }
 
+/**
+ * Derives, builds and compares [[TypeId]] values. [[of]] derives the id of a
+ * type at compile time, and the implicit [[TypeIdLowPriority#derived]] supplies
+ * one wherever a `TypeId[A]` is required. The companion also holds predefined
+ * ids for common types, such as [[TypeId.int]], [[TypeId.string]] and
+ * [[TypeId.list]]; constructors that build ids by hand (`nominal`, [[alias]],
+ * [[opaque]], [[applied]]); extractors that classify an id in a pattern match;
+ * and the helpers [[normalize]], [[structurallyEqual]] and [[unapplied]].
+ *
+ * {{{
+ * final case class Point(x: Int, y: Int)
+ *
+ * def describe[A](implicit id: TypeId[A]): String = id.name
+ *
+ * describe[Point] // "Point"
+ *
+ * TypeId.of[Option[Int]] match {
+ *   case TypeId.Alias(name, _, _, _)          => "alias " + name
+ *   case TypeId.Nominal(name, owner, _, _, _) => owner.asString + "." + name
+ *   case _                                    => "other"
+ * }
+ * // "scala.Option"
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/typeid/ TypeId]]
+ */
 object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   // Private implementation class with cached hashCode for performance.
@@ -281,12 +585,33 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   // ========== Smart Constructors ==========
 
+  /**
+   * Creates the id of a nominal type (a class, trait, object or enum) from its
+   * name, owner and kind, with no type parameters, type arguments, self-type or
+   * annotations. [[of]] derives ids from real types; this constructor is for
+   * tests and generated code.
+   */
   def nominal[A <: AnyKind](
     name: String,
     owner: Owner,
     kind: TypeDefKind
   ): TypeId[A] = new Impl[A](name, owner, Nil, Nil, kind, None, None, None, Nil)
 
+  /**
+   * Creates the id of a nominal type (a class, trait, object or enum) from its
+   * parts. A hand-built id equals a derived one when the full name, type
+   * parameters and type arguments match.
+   *
+   * {{{
+   * val point = TypeId.nominal[Any](
+   *   "Point",
+   *   Owner.fromPackagePath("com.example"),
+   *   defKind = TypeDefKind.Class(isCase = true)
+   * )
+   * point.fullName    // "com.example.Point"
+   * point.isCaseClass // true
+   * }}}
+   */
   def nominal[A <: AnyKind](
     name: String,
     owner: Owner,
@@ -307,6 +632,21 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
     annotations
   )
 
+  /**
+   * Creates the id of a type alias named `name` that stands for `aliased`, with
+   * kind [[TypeDefKind.TypeAlias]]. The id equals the id of the type it stands
+   * for once aliases are resolved.
+   *
+   * {{{
+   * val age = TypeId.alias[Any](
+   *   "Age",
+   *   Owner.fromPackagePath("com.example"),
+   *   aliased = TypeRepr.Ref(TypeId.int)
+   * )
+   * age.isAlias        // true
+   * age == TypeId.int  // true
+   * }}}
+   */
   def alias[A <: AnyKind](
     name: String,
     owner: Owner,
@@ -326,6 +666,11 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
     annotations
   )
 
+  /**
+   * Creates the id of an opaque type named `name` with the given representation
+   * and public bounds, with kind [[TypeDefKind.OpaqueType]]. Unlike an alias,
+   * it is not equal to the id of its representation.
+   */
   def opaque[A <: AnyKind](
     name: String,
     owner: Owner,
@@ -347,8 +692,15 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   )
 
   /**
-   * Creates an applied type from a type constructor and type arguments. For
-   * example: applied(TypeId.list, TypeRepr.Ref(TypeId.int)) creates List[Int]
+   * Applies the type constructor `typeConstructor` to `args`. The result keeps
+   * the constructor's name, owner, type parameters, kind, self-type, alias
+   * target, representation and annotations, and takes `args` as its type
+   * arguments in place of any it had.
+   *
+   * {{{
+   * val listOfInt = TypeId.applied[List[Int]](TypeId.list, TypeRepr.Ref(TypeId.int))
+   * listOfInt == TypeId.of[List[Int]] // true
+   * }}}
    */
   def applied[A <: AnyKind](
     typeConstructor: TypeId[?],
@@ -367,6 +719,13 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   // ========== Extractors ==========
 
+  /**
+   * Matches an id that is neither an alias nor an opaque type (its
+   * [[TypeId#aliasedTo]] and [[TypeId#representation]] are empty), and gives
+   * its name, owner, type parameters, kind and parents. Classes, traits,
+   * objects, enums, enum cases and the predefined ids match. On Scala 3, the
+   * ids of union and intersection types are aliases, so they do not match.
+   */
   object Nominal {
     def unapply(id: TypeId[?]): Option[(String, Owner, List[TypeParam], TypeDefKind, List[TypeRepr])] =
       if (id.aliasedTo.isEmpty && id.representation.isEmpty)
@@ -374,11 +733,20 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
       else None
   }
 
+  /**
+   * Matches an id with an alias target ([[TypeId#aliasedTo]]), and gives its
+   * name, owner, type parameters and that target.
+   */
   object Alias {
     def unapply(id: TypeId[?]): Option[(String, Owner, List[TypeParam], TypeRepr)] =
       id.aliasedTo.map(a => (id.name, id.owner, id.typeParams, a))
   }
 
+  /**
+   * Matches the id of an opaque type (kind [[TypeDefKind.OpaqueType]] with a
+   * [[TypeId#representation]]), and gives its name, owner, type parameters,
+   * representation and public bounds.
+   */
   object Opaque {
     def unapply(id: TypeId[?]): Option[(String, Owner, List[TypeParam], TypeRepr, TypeBounds)] =
       (id.defKind, id.representation) match {
@@ -388,6 +756,10 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
       }
   }
 
+  /**
+   * Matches the id of a sealed trait and gives its name. A sealed abstract
+   * class and a Scala 3 enum do not match.
+   */
   object Sealed {
     def unapply(id: TypeId[?]): Option[String] =
       id.defKind match {
@@ -396,6 +768,10 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
       }
   }
 
+  /**
+   * Matches the id of a Scala 3 enum, not of one of its cases, and gives its
+   * name and owner.
+   */
   object Enum {
     def unapply(id: TypeId[?]): Option[(String, Owner)] =
       id.defKind match {
@@ -406,29 +782,84 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   // ========== Macro Derivation ==========
 
+  /**
+   * Derives the id of `A` at compile time. The primitive types and `String`,
+   * `BigInt` and `BigDecimal` give their predefined ids, such as
+   * [[TypeId.int]]. For an applied type whose constructor has a predefined id,
+   * such as `List[Int]` or `Map[String, Int]`, it takes that id and adds the
+   * type arguments. For other types the macro reads the definition: name,
+   * owner, type parameters, kind, parents, self-type and annotations.
+   *
+   * A type alias keeps its own name, with [[TypeId#aliasedTo]] set to the type
+   * it stands for, so the id of `type Age = Int` is named `Age` (and equals the
+   * id of `Int`). On Scala 3, `of` also derives opaque types, enums and their
+   * cases, and union and intersection types.
+   *
+   * On Scala 3, the predefined constructor is chosen by its simple name, so an
+   * applied type of your own named `List`, `Option`, `Some`, `Map`, `Either`,
+   * `Set`, `Vector`, `Seq` or `IndexedSeq` gets the standard library's name and
+   * owner (a known bug).
+   *
+   * {{{
+   * final case class Point(x: Int, y: Int)
+   *
+   * TypeId.of[Point].name                      // "Point"
+   * TypeId.of[Option[Int]].typeArgs            // List(Ref(Int))
+   * TypeId.of[Either[String, Int]].fullName    // "scala.util.Either"
+   * TypeId.of[Int] eq TypeId.int               // true
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/typeid/#automatic-derivation Automatic Derivation]]
+   */
   inline def of[A <: AnyKind]: TypeId[A] = ${ TypeIdMacros.ofImpl[A] }
 
   // ========== Normalization and Equality ==========
 
+  /**
+   * Resolves aliases: follows [[TypeId#aliasedTo]] through chains of aliases
+   * and substitutes type arguments, so `type Age2 = Age` with `type Age = Int`
+   * gives the id of `Int`, and `type Names = List[String]` gives
+   * `List[String]`. An id that is not an alias comes back unchanged, and an
+   * opaque type is not unwrapped. An alias of a union or intersection type
+   * stays as it is.
+   *
+   * On Scala 3, an alias of a tuple type and an applied alias with type
+   * parameters come back unchanged (a known bug).
+   */
   def normalize(id: TypeId[?]): TypeId[?] = TypeIdOps.normalize(id)
 
+  /**
+   * Returns `true` when `a` and `b` describe the same type: after
+   * [[normalize]], they have the same full name, the same type parameters and
+   * equal type arguments (aliases inside the arguments are resolved too, so
+   * `List[Age]` equals `List[Int]` for `type Age = Int`), and, for an alias
+   * that remains after normalizing, such as a union, the same target. Kind,
+   * parents and annotations are not compared. An opaque type is equal only to
+   * an opaque type with the same name, parameters and arguments. `==` on ids
+   * uses this test.
+   */
   def structurallyEqual(a: TypeId[?], b: TypeId[?]): Boolean = TypeIdOps.structurallyEqual(a, b)
 
+  /**
+   * Returns a hash code consistent with [[structurallyEqual]]: equal ids get
+   * equal hashes. `hashCode` on an id returns it.
+   */
   def structuralHash(id: TypeId[?]): Int = TypeIdOps.structuralHash(id)
 
   /**
-   * Returns the type constructor by stripping all type arguments.
+   * Returns `id` without its type arguments, the type constructor of an applied
+   * type, so that it can be looked up in a registry keyed by type constructor.
+   * An id that is not applied comes back unchanged.
    *
-   * For example, `TypeId.unapplied(TypeId.of[List[Int]])` returns a TypeId
-   * equivalent to `TypeId.of[List]` (the unapplied type constructor).
+   * On Scala 2, `TypeId.unapplied(TypeId.of[List[Int]])` also equals
+   * `TypeId.of[List[_]]`. On Scala 3, `TypeId.of[List]` derives the
+   * `scala.package.List` alias instead, which does not equal it (a known bug);
+   * compare with [[TypeId.list]].
    *
-   * This is useful for TypeRegistry lookups where Seq/Map bindings are stored
-   * by their type constructor rather than applied types.
-   *
-   * @param id
-   *   The TypeId to unapply
-   * @return
-   *   A TypeId with empty typeArgs representing the type constructor
+   * {{{
+   * TypeId.unapplied(TypeId.of[List[Int]]) == TypeId.list // true
+   * }}}
    */
   def unapplied(id: TypeId[?]): TypeId[?] = TypeIdOps.unapplied(id)
 
@@ -463,7 +894,14 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   // ========== Erased TypeId for Type-Indexed Maps ==========
 
+  /**
+   * The placeholder type argument of [[Erased]].
+   */
   type Unknown <: AnyKind
 
+  /**
+   * An id whose type parameter is unknown, used to store the ids of different
+   * types together. [[TypeId#erased]] returns one.
+   */
   type Erased = TypeId[Unknown]
 }

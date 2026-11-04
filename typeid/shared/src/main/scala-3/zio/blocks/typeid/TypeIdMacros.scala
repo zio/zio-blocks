@@ -19,6 +19,10 @@ package zio.blocks.typeid
 import scala.quoted.*
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * The macros that derive [[TypeId]] values. Call them through [[TypeId.of]] and
+ * the implicit [[TypeIdLowPriority#derived]].
+ */
 object TypeIdMacros {
   private[this] val typeIdCache = new ConcurrentHashMap[Any, TypeId[?]]
 
@@ -655,18 +659,20 @@ object TypeIdMacros {
     Expr.ofList(analyzeAnnotations(sym).map(a => Expr(a)))
 
   /**
-   * Derives a TypeId for any type or type constructor.
-   *
-   * This macro first searches for an existing implicit TypeId instance. If
-   * found, it uses that instance. Otherwise, it derives a new one by
-   * extracting:
-   *   - The type's simple name
-   *   - The owner path (packages, enclosing objects/classes)
-   *   - Type parameters (for type constructors)
-   *   - Classification (nominal, alias, or opaque)
+   * Derives a `TypeId[A]` the way the implicit [[TypeIdLowPriority#derived]]
+   * does. It reads the definition of `A` and does not look for an existing
+   * implicit `TypeId[A]` first; for an applied type, it reuses the id of the
+   * type constructor when one is predefined or found implicitly. On Scala 3 it
+   * also derives opaque types, enums and their cases, and union and
+   * intersection types. On Scala 2, an applied type written with an alias from
+   * the `scala` package or `Predef`, such as `List[Int]`, gives the alias
+   * instead (a known bug).
    */
   inline def derived[A <: AnyKind]: TypeId[A] = ${ derivedImpl[A] }
 
+  /**
+   * The macro implementation of [[TypeId.of]].
+   */
   def ofImpl[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] = {
     import quotes.reflect.*
 
@@ -689,9 +695,8 @@ object TypeIdMacros {
   }
 
   /**
-   * Entry point for given TypeId.derived[A] - always derives directly, never
-   * searches at top level. Used as implicit/given for automatic derivation. The
-   * compiler already searched for implicits and chose derived.
+   * The macro implementation of [[derived]] and of
+   * [[TypeIdLowPriority#derived]].
    */
   def derivedImpl[A <: AnyKind: Type](using Quotes): Expr[TypeId[A]] =
     deriveTypeId[A]
