@@ -20,8 +20,8 @@ import zio.test._
 
 object ToAttrValueSpec extends ZIOSpecDefault {
   def spec = suite("ToAttrValue")(
-    test("String is HTML-escaped") {
-      assertTrue(ToAttrValue[String].toAttrValue("a&b") == "a&amp;b")
+    test("String is preserved raw") {
+      assertTrue(ToAttrValue[String].toAttrValue("a&b") == "a&b")
     },
     test("Int renders as string") {
       assertTrue(ToAttrValue[Int].toAttrValue(42) == "42")
@@ -29,13 +29,13 @@ object ToAttrValueSpec extends ZIOSpecDefault {
     test("Boolean renders as string") {
       assertTrue(ToAttrValue[Boolean].toAttrValue(true) == "true")
     },
-    test("Js is HTML-escaped") {
+    test("Js is preserved raw") {
       assertTrue(ToAttrValue[Js].toAttrValue(Js("fn()")) == "fn()")
     },
-    test("Js with HTML special chars is escaped") {
-      assertTrue(ToAttrValue[Js].toAttrValue(Js("""alert("xss")""")) == "alert(&quot;xss&quot;)")
+    test("Js with HTML special chars is preserved raw") {
+      assertTrue(ToAttrValue[Js].toAttrValue(Js("""alert("xss")""")) == """alert("xss")""")
     },
-    test("Css is HTML-escaped") {
+    test("Css is preserved raw") {
       assertTrue(ToAttrValue[Css].toAttrValue(Css("color: red")) == "color: red")
     },
     test("Long renders as string") {
@@ -44,11 +44,11 @@ object ToAttrValueSpec extends ZIOSpecDefault {
     test("Double renders as string") {
       assertTrue(ToAttrValue[Double].toAttrValue(3.14) == "3.14")
     },
-    test("Char is HTML-escaped") {
-      assertTrue(ToAttrValue[Char].toAttrValue('<') == "&lt;")
+    test("Char is preserved raw") {
+      assertTrue(ToAttrValue[Char].toAttrValue('<') == "<")
     },
-    test("Css with special chars is HTML-escaped") {
-      assertTrue(ToAttrValue[Css].toAttrValue(Css("a&b")) == "a&amp;b")
+    test("Css with special chars is preserved raw") {
+      assertTrue(ToAttrValue[Css].toAttrValue(Css("a&b")) == "a&b")
     },
     test("Option[String] Some") {
       assertTrue(ToAttrValue[Option[String]].toAttrValue(Some("x")) == "x")
@@ -59,8 +59,8 @@ object ToAttrValueSpec extends ZIOSpecDefault {
     test("Iterable[String]") {
       assertTrue(ToAttrValue[Iterable[String]].toAttrValue(List("a", "b")) == "a b")
     },
-    test("Iterable[String] with escaping") {
-      assertTrue(ToAttrValue[Iterable[String]].toAttrValue(List("a&b", "c<d")) == "a&amp;b c&lt;d")
+    test("Iterable[String] preserves raw items") {
+      assertTrue(ToAttrValue[Iterable[String]].toAttrValue(List("a&b", "c<d")) == "a&b c<d")
     }
   )
 }
