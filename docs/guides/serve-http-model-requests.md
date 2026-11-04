@@ -162,7 +162,7 @@ A few more details matter here:
 
 ## Wrapping a Handler Function
 
-Now we can turn any `Request => Response` function into a JDK `HttpHandler`. The handler must close the exchange on every path: if it doesn't, the client waits forever. It also turns an exception thrown by the application into a 500 response, so one bad request can't leave a connection hanging. Writing the response can fail too, and that failure gets the same treatment, as the paragraph after the code explains:
+Now we can turn any `Request => Response` function into a JDK `HttpHandler`. The handler must close the exchange on every path: if it doesn't, the client waits forever. It also turns an exception or a `LinkageError` thrown by the application into a 500 response, so one bad request can't leave a connection hanging. Writing the response can fail too, and that failure gets the same treatment, as the paragraph after the code explains:
 
 ```scala mdoc:silent
 def handler(app: Request => Response): HttpHandler = exchange =>
@@ -175,13 +175,13 @@ def handler(app: Request => Response): HttpHandler = exchange =>
           case Right(request)                                  => app(request)
         }
       catch {
-        case NonFatal(error) =>
+        case error @ (NonFatal(_) | _: LinkageError) =>
           System.err.println(s"Handler failed: $error")
           Response.text(Status.InternalServerError, "Internal Server Error")
       }
     try writeResponse(exchange, response)
     catch {
-      case NonFatal(error) =>
+      case error @ (NonFatal(_) | _: LinkageError) =>
         System.err.println(s"Writing the response failed: $error")
         if (exchange.getResponseCode == -1) {
           exchange.getResponseHeaders.clear()
@@ -192,6 +192,8 @@ def handler(app: Request => Response): HttpHandler = exchange =>
 ```
 
 The handler runs a `HEAD` request as a `GET`, and `writeResponse` drops the body afterwards. That way every `GET` route also answers `HEAD` without writing it twice. The endpoint module's [`RouteTree`](../reference/endpoint/route-tree.md) uses the same fallback. The error message goes to standard error and the client only sees `Internal Server Error`, so exception details never leak to callers.
+
+The pattern `NonFatal(_) | _: LinkageError` is deliberate. `NonFatal` leaves out `LinkageError`, the family of errors that includes `ExceptionInInitializerError` (an `object` whose initializer throws), `NoClassDefFoundError` and `UnsupportedClassVersionError` (a jar built for a newer JDK than the one running). A handler hits these through no fault of the request, and if the adapter let them escape, the `finally` would close the connection with no response and nothing in the log: the client would only see an empty reply. The adapter still lets `VirtualMachineError` (such as `OutOfMemoryError` and `StackOverflowError`) and `InterruptedException` through, because the JVM or the thread is in no state to carry on and the adapter should not hide that.
 
 The second `try` covers `writeResponse`. Writing can fail after the handler has returned, for example when a header value contains a character the JDK refuses, such as a `✓` in `HX-Trigger`. Without that `try`, the exception escaped to the JDK's dispatcher: the client got an empty reply, and nothing was logged. Now the failure is logged, and when no header has gone out yet the client gets a 500. If the response is already partly written, there is no status to change, so the adapter only logs it and the `finally` still closes the exchange.
 
