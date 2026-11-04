@@ -53,60 +53,6 @@ Flags read `System.getProperty` and do see such properties on Scala.js (a `Stati
 
 **Suggested fix.** Replace the sentence with the expected text above. (If the library should read the emulated properties instead, that is a one-line change to the JS `SysPropSource`.)
 
-### typeid.md: four claims contradict the library (kinds, opaque normalization, `construct`, `unapplied`)
-
-Found 2026-11-04 while fact-checking the typeid Scaladoc against `docs/reference/typeid.md` (base `7b51118b7`). Same at v0.0.56.
-
-**Summary.**
-1. "TypeId captures kind information at runtime" (Kind section, around line 1615) and the `TypeParam` section (around lines 395-430, `paramF.kind`, `paramF.isTypeConstructor`) present the kind of `F[_]` as captured. Derived parameters always have `Kind.Type` (library entry 5 above), so the rendered mdoc output shows `Type` and `false` under prose that says otherwise; the Kind table lists `Runnable` as `(* -> *) -> *`.
-2. "an opaque type like `opaque type Email = String` normalizes to `String`" (Semantic Predicates, around line 760) and "Opaque types such as `opaque type UserId = String` normalize to their representation" (Normalization and Equality, around line 1368): `TypeId.normalize` returns an opaque id unchanged (`TypeIdOps.normalizeWithArgs` follows only `aliasedTo`, `typeid/shared/src/main/scala/zio/blocks/typeid/TypeIdOps.scala:54-75`).
-3. "Sequence-like types (`List`, `Vector`, `Set`, `Seq`, `IndexedSeq`, `Array`, `ArraySeq`, `Chunk`) each pass a variadic sequence of elements" (`construct` → Collection Types, around line 1331): `Array`, `ArraySeq` and `Chunk` are not in `knownTypeConstructors` (`typeid/jvm/src/main/scala/zio/blocks/typeid/TypeIdPlatformMethods.scala:66-89`) and fall back to reflection, which fails.
-4. "`TypeId.unapplied(TypeId.of[List[Int]])` returns the equivalent of `TypeId.of[List]`" (around line 1431): on Scala 3 (the version mdoc runs) `TypeId.of[List]` is the `scala.package.List` alias and is not equal (library entry 3 above); it equals `TypeId.list`.
-
-**Reproduction.**
-
-```scala
-//> using scala 3.9.0
-//> using dep dev.zio::zio-blocks-typeid:0.0.56
-package docs
-
-import zio.blocks.typeid.*
-import zio.blocks.chunk.Chunk
-
-object Domain {
-  opaque type Email = String
-}
-
-trait Runnable[F[_]]
-
-@main def run(): Unit = {
-  val f = TypeId.of[Runnable].typeParams.head
-  println(s"kind=${f.kind} isTypeConstructor=${f.isTypeConstructor}")
-  val email = TypeId.of[Domain.Email]
-  println(s"normalize(Email)=${TypeId.normalize(email)} fullName=${TypeId.normalize(email).fullName}")
-  println(TypeId.of[Chunk[Int]].construct(Chunk[AnyRef](Int.box(1), Int.box(2))))
-  println(TypeId.of[Array[Int]].construct(Chunk[AnyRef](Int.box(1), Int.box(2))))
-  println(TypeId.of[scala.collection.immutable.ArraySeq[Int]].construct(Chunk[AnyRef](Int.box(1), Int.box(2))))
-}
-// kind=Type isTypeConstructor=false
-// normalize(Email)=Email fullName=docs.Domain.Email
-// Left(No matching constructor found for zio.blocks.chunk.Chunk with 2 arguments of types: java.lang.Integer, java.lang.Integer)
-// Left(No matching constructor found for scala.Array with 2 arguments of types: java.lang.Integer, java.lang.Integer)
-// Left(No matching constructor found for scala.collection.immutable.ArraySeq with 2 arguments of types: java.lang.Integer, java.lang.Integer)
-```
-
-(Claim 4 is reproduced by library entry 3: `of[List] == unapplied(List[Int]): false`.)
-
-**Expected.** The page states what the library does: kinds and bounds are not captured by derivation (a known bug); `normalize` resolves aliases only and leaves opaque types as they are; `construct` builds `List`, `Vector`, `Set`, `Seq`, `IndexedSeq` and `Map` directly but not `Array`, `ArraySeq` or `Chunk`; `unapplied(TypeId.of[List[Int]])` equals `TypeId.list`.
-
-**Root cause.** Prose written from the data model and intent, not from the derived values; the mdoc output that contradicts it (claims 1 and 4) renders without comment.
-
-**Impact.** Readers rely on kind information that is not there, expect opaque types to normalize, and call `construct` for `Chunk` or `Array` and get `Left`.
-
-**Test gap.** mdoc evaluates the examples but does not check the prose against the output.
-
-**Suggested fix.** Rewrite the four passages as in Expected (the Scaladoc on `TypeParam`, `Kind`, `TypeId.normalize`, `TypeId#construct` and `TypeId.unapplied` now carries the correct wording), and add the `construct` claim for `Chunk` as a library feature request if wanted.
-
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
@@ -257,6 +203,7 @@ Found 2026-10-30 by the scope reference fixes (#1917), on `main` `8d6216d7a`. Fr
 
 ## Resolved
 
+- `typeid.md`: four claims that contradicted the library (found 2026-11-04 by the typeid Scaladoc rollout, #1924) fixed in #1933 (merge `6ee89c6b8`, 2026-11-04): (1) derived `TypeParam`s record name, index and variance only, always `Kind.Type` and unbounded (a known bug in 0.0.56), with a `TypeParam.higherKinded` example and the Kind table fixed; (2) `normalize` follows aliases only and leaves opaque types as they are, with an example; (3) `construct` builds `List`, `Vector`, `Set`, `Seq`, `IndexedSeq` and `Map`, while `Chunk`, `Array` and `ArraySeq` give `Left`, with an example; (4) `unapplied(TypeId.of[List[Int]])` equals `TypeId.list` on Scala 3. Probed against 0.0.56; Opus review 6 findings, 6 applied. Merged while GitHub Actions was down, so its PR CI never ran.
 - JdkHttp adapter: an `Error` in a handler (e.g. `ExceptionInInitializerError`, `UnsupportedClassVersionError`) closed the connection with no response and no log line, because the adapter caught only `NonFatal` (found 2026-10-29 by H-57). Fixed in #1923 (merge `aa7023da6`, 2026-11-04): both catch sites are now `case error @ (NonFatal(_) | _: LinkageError) =>`, so the error is logged and answered with 500; `VirtualMachineError` and `InterruptedException` still propagate. Applied to all 10 copies (8 `JdkHttp.scala`, 2 `StreamingJdkHttp.scala` in http-model, jwt, capstone, htmx and datastar examples) and the inline code in 5 guides; the serving guide explains it. Verified with the entry's reproducer: before, `GET /price -> Failure(IOException: HTTP/1.1 header parser received no bytes)`; after, `Handler failed: java.lang.ExceptionInInitializerError` and `GET /price -> Success(500 Internal Server Error)`. **Known limit, kept on purpose (Milad):** the 500 body is built with http-model classes (`Response.text` → `Body.fromString` → `Stream`), so when the broken class is http-model or streams itself (the http-model 0.0.56 jars on JDK 17, `UnsupportedClassVersionError`), building the 500 throws again and the client still sees an empty reply; the log line now names the cause. The serving guide states this. A JDK-only 500 fallback would close it but adds code to every copy; not done.
 - Three scope reference pages that contradicted the code and the fact-checked scope Scaladoc (#1916) fixed in #1917 (merge `31563a0e1`, 2026-11-03), each confirmed first against source and with scala-cli probes on 0.0.56 (Scala 3.9.0, 2.13.18, Scala.js 1.22.0): `resource.md` no longer says `Resource.from[T]` always registers `close()` (the no-argument form skips an `AutoCloseable` whose constructor takes a `Finalizer` or `Scope`, a known bug; the wires form does close it) and no longer calls `Resource.shared` "lock-free" or its initializer "exactly once"; `wire.md` no longer promises a fresh instance from every unique wire (Scala 3 treats an explicit `Wire.unique` as shared), says `fromFunction` never closes an `AutoCloseable` result, and its four `Context.empty[Any]` blocks are now compiled `mdoc:compile-only` blocks; `scope.md` states the Scala.js behaviour of `Scope.global` and `isOwner`. `guides/resource-and-di-migration.md:441` got the same `Finalizer`/`Scope` exception. Still open: the rest of `wire.md` has no mdoc-checked blocks (Docs tooling entry).
 - Four `docs/reference/chunk.md` errors found by the chunk Scaladoc fact-check (#1908) fixed in #1913 (merge `c5cc1ec96`, 2026-10-30): `ChunkBuilder` was described as a buffer that feeds a tree; `dropUntil` was said to keep the matching element; the `reduceMapLeft`/`reduceMapRight` examples reduced a one-element chunk (now `NonEmptyChunk(10, 20, 30, 40)` and `(1, 2, 3, 4)`); the "Bitwise Operations" section documented private methods (removed). The same PR replaced the 23 Zionomicon sample-data lines in the chunk Scaladoc and changed `scaladoc-style.md:58` to the new sample-data rule.
