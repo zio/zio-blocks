@@ -17,23 +17,25 @@
 package zio.blocks.typeid
 
 /**
- * Represents a path to a term value, used for singleton types.
+ * The path to a value, used by [[TypeRepr.Singleton]] to describe a singleton
+ * type such as `MyObject.Inner.value.type`. Its segments name the enclosing
+ * packages and objects and then the value itself, outermost first.
  *
- * For example, for a singleton type `MyObject.Inner.value.type`:
  * {{{
- * TermPath(List(
+ * val path = TermPath(List(
  *   TermPath.Package("com"),
  *   TermPath.Package("example"),
  *   TermPath.Term("MyObject"),
  *   TermPath.Term("Inner"),
  *   TermPath.Term("value")
  * ))
+ * path.asString // "com.example.MyObject.Inner.value"
  * }}}
  */
 final case class TermPath(segments: List[TermPath.Segment]) {
 
   /**
-   * Returns the path as a dot-separated string.
+   * Returns the segment names joined with dots, or `""` for an empty path.
    */
   def asString: String = segments
     .foldLeft(new java.lang.StringBuilder) { (sb, s) =>
@@ -78,7 +80,9 @@ object TermPath {
   val Empty: TermPath = TermPath(Nil)
 
   /**
-   * Creates a TermPath from an Owner and a term name.
+   * Creates the path to the value `termName` declared in `owner`. Package
+   * segments stay packages, and both term and type segments of the owner become
+   * [[TermPath.Term]] segments.
    */
   def fromOwner(owner: Owner, termName: String): TermPath = {
     val ownerSegments = owner.segments.map {

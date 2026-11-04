@@ -17,32 +17,37 @@
 package zio.blocks.typeid
 
 /**
- * Represents where a type is defined in the Scala/Java ecosystem.
+ * The place where a type is defined: the chain of packages, objects and
+ * enclosing classes or traits around it, outermost first. [[TypeId#owner]]
+ * returns it, and [[TypeId#fullName]] is the owner's [[asString]] followed by
+ * the type's name.
  *
- * An Owner encapsulates the hierarchical ownership chain of a type, which can
- * include packages, terms (objects/values), and types.
+ * A package is a [[Owner.Package]] segment, an object is a [[Owner.Term]]
+ * segment, and a class or trait is a [[Owner.Type]] segment. For a class
+ * `MyClass` declared inside `object Outer` in package `com.example`, the owner
+ * is `Owner(List(Package("com"), Package("example"), Term("Outer")))`. A class
+ * declared inside a method body gets the owner of the method: the method itself
+ * is not a segment.
  *
- * For example, for a type `MyClass` defined as:
  * {{{
- * package com.example
- * object Outer {
- *   class MyClass
- * }
+ * val outer = Owner.fromPackagePath("com.example").term("Outer")
+ * outer.asString // "com.example.Outer"
+ * outer.segments // List(Package(com), Package(example), Term(Outer))
+ *
+ * TypeId.of[List[Int]].owner.asString // "scala.collection.immutable"
  * }}}
  *
- * The owner would be:
- * {{{
- * Owner(List(
- *   Owner.Package("com"),
- *   Owner.Package("example"),
- *   Owner.Term("Outer")
- * ))
- * }}}
+ * @param segments
+ *   the segments of the path, outermost first; empty for [[Owner.Root]]
+ * @see
+ *   [[https://zioblocks.com/reference/typeid/#namespaces-and-owners Namespaces and Owners]]
  */
 final case class Owner(segments: List[Owner.Segment]) {
 
   /**
-   * Returns the owner path as a dot-separated string.
+   * Returns the segment names joined with dots, such as
+   * `"scala.collection.immutable"`, or `""` for [[Owner.Root]]. Package, term
+   * and type segments all print as their plain name.
    */
   def asString: String = segments
     .foldLeft(new java.lang.StringBuilder) { (sb, s) =>
@@ -67,19 +72,20 @@ final case class Owner(segments: List[Owner.Segment]) {
   def tpe(name: String): Owner = new Owner(segments :+ new Owner.Type(name))
 
   /**
-   * Returns true if this owner represents the root (empty) owner.
+   * Returns `true` if this owner has no segments, as [[Owner.Root]] does.
    */
   def isRoot: Boolean = segments.isEmpty
 
   /**
-   * Returns the parent owner, or Root if this is already the root.
+   * Returns this owner without its last segment, or [[Owner.Root]] if this is
+   * already the root.
    */
   def parent: Owner =
     if (segments.isEmpty) Owner.Root
     else new Owner(segments.init)
 
   /**
-   * Returns the last segment's name, or empty string if root.
+   * Returns the name of the last segment, or `""` for [[Owner.Root]].
    */
   def lastName: String = segments.lastOption match {
     case Some(s) => s.name
@@ -102,7 +108,7 @@ object Owner {
   final case class Package(name: String) extends Segment
 
   /**
-   * A term segment (e.g., an object or value).
+   * An object segment, such as `Outer` in `com.example.Outer.MyClass`.
    */
   final case class Term(name: String) extends Segment
 
@@ -112,13 +118,15 @@ object Owner {
   final case class Type(name: String) extends Segment
 
   /**
-   * The root owner (no segments).
+   * The owner with no segments. Types declared in the empty package have it,
+   * and so do the ids the Scala 3 macro derives for union and intersection
+   * types.
    */
   val Root: Owner = new Owner(Nil)
 
   /**
-   * Creates an Owner from a dot-separated package path. All segments are
-   * treated as packages.
+   * Creates an owner from a dot-separated path, with every part as a
+   * [[Owner.Package]] segment. An empty string gives [[Owner.Root]].
    */
   def fromPackagePath(path: String): Owner =
     if (path.isEmpty) Root
