@@ -203,13 +203,13 @@ object Header {
 
     /**
      * Credentials for any scheme other than `Basic`, `Bearer` and `Digest`: the
-     * scheme name and the rest of the value, unchanged. It renders as the
-     * scheme, a space and `params`.
+     * scheme name and the rest of the value, trimmed but not parsed. It renders
+     * as the scheme, a space and `params`. /
      */
     final case class Unparsed(scheme: String, params: String) extends Authorization
 
     /**
-     * Parses a `authorization` value. It trims the value and splits it at the
+     * Parses an `authorization` value. It trims the value and splits it at the
      * first space into a scheme and the credentials; the scheme is matched as
      * `basic`, `bearer` or `digest` in any letter case, and any other scheme
      * gives `Unparsed`. An empty value gives
@@ -223,7 +223,7 @@ object Header {
      * double quotes removed, and a pair without `=` is dropped. A parameter
      * value that is only a double quote, as in `nonce=`, throws a
      * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
-     * /
+     * / /
      */
     def parse(value: String): Either[String, Authorization] = {
       val trimmed = value.trim
@@ -332,8 +332,8 @@ object Header {
 
     /**
      * Credentials for any scheme other than `Basic`, `Bearer` and `Digest`: the
-     * scheme name and the rest of the value, unchanged. It renders as the
-     * scheme, a space and `params`.
+     * scheme name and the rest of the value, trimmed but not parsed. It renders
+     * as the scheme, a space and `params`. /
      */
     final case class Unparsed(scheme: String, params: String) extends ProxyAuthorization
 
@@ -2840,7 +2840,7 @@ object Header {
       else Right(AcceptPatch(Chunk.fromArray(parsed)))
     }
 
-    /** Writes the media types joined with `, `. */
+    /** Writes each media type without its parameters, joined with `, `. */
     def render(h: AcceptPatch): String =
       h.mediaTypes.map(_.fullType).mkString(", ")
   }
