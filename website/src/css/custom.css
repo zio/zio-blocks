@@ -369,6 +369,10 @@ html[data-theme='dark'] .zb-footer { --zb-footer-bg: var(--code-bg); }
    hang off `.zb-chat`, so nothing leaks to the rest of the page. Colours come from the site tokens, which already
    switch in dark mode, so one rule serves both. */
 @layer components {
+  /* The widget caps its open window at 100dvh minus this offset, so the window stops below the sticky navbar
+     instead of covering it. The site has no announcement bar, so the navbar height is the whole offset. */
+  .zb-chat { --bytebrain-offset-top: var(--ifm-navbar-height); }
+
   .zb-chat [class*='rounded'],
   .zb-chat input,
   .zb-chat button {
@@ -382,7 +386,6 @@ html[data-theme='dark'] .zb-footer { --zb-footer-bg: var(--code-bg); }
     right: 0;
     bottom: 0;
     cursor: pointer;
-    z-index: 300;
     margin: 0 1.25rem 1.25rem 0 !important;
     padding: 0.75rem 1.125rem !important;
     background: var(--ifm-color-primary) !important;
@@ -399,7 +402,6 @@ html[data-theme='dark'] .zb-footer { --zb-footer-bg: var(--code-bg); }
   .zb-chat #chat-button:focus-visible { outline: 2px solid var(--ifm-color-primary-lightest); outline-offset: 2px; }
 
   /* Window: the page background with a hairline border. */
-  .zb-chat #container { z-index: 300; }
   .zb-chat #ChatPrompt {
     background: var(--ifm-background-color) !important;
     color: var(--fg) !important;
