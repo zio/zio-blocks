@@ -89,8 +89,10 @@ object AnnotationArg {
    * by position, as in `@deprecated("use Point", "1.0")`, and records the
    * arguments of a Scala annotation class compiled together with the annotated
    * type as [[Const]] values without their names, even when they are written by
-   * name. Scala 3 records named arguments as `Named` and positional ones as
-   * [[Const]].
+   * name. Scala 3 records the arguments of a Scala annotation as `Named` when
+   * they are written by name and as [[Const]] when they are written by
+   * position; it records a Java annotation's arguments as `Named`, including a
+   * `value` written by position, as in `@Retention(RetentionPolicy.RUNTIME)`.
    */
   final case class Named(name: String, value: AnnotationArg) extends AnnotationArg
 
