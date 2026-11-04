@@ -16,7 +16,7 @@
 
 package zio.blocks.telemetry
 
-trait LogEnrichment[A] {
+trait LogEnrichment[-A] {
   def enrich(record: LogRecord, value: A): LogRecord
 }
 

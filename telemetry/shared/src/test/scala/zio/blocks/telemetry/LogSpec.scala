@@ -195,6 +195,24 @@ object LogSpec extends ZIOSpecDefault {
           processor.emitted.head.throwable.contains(ex)
         )
       },
+      test("concrete Throwable subtypes work inline without widening to Throwable") {
+        val ex        = new IllegalStateException("inline boom")
+        val processor = withLogger() { _ =>
+          log.error("failed", ex)
+          log.error("inline", new RuntimeException("rt boom"))
+        }
+        val firstAttrs  = processor.emitted(0).attributes
+        val secondAttrs = processor.emitted(1).attributes
+        assertTrue(
+          processor.emitted.size == 2,
+          firstAttrs.get(AttributeKey.string("exception.type")).contains("java.lang.IllegalStateException"),
+          firstAttrs.get(AttributeKey.string("exception.message")).contains("inline boom"),
+          processor.emitted(0).throwable.contains(ex),
+          secondAttrs.get(AttributeKey.string("exception.type")).contains("java.lang.RuntimeException"),
+          secondAttrs.get(AttributeKey.string("exception.message")).contains("rt boom"),
+          processor.emitted(1).throwable.isDefined
+        )
+      },
       test("severity enrichment overrides level") {
         val sev: Severity = Severity.Error
         val processor     = withLogger() { _ =>

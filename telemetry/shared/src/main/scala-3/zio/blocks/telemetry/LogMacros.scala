@@ -167,7 +167,7 @@ private[telemetry] object LogMacros {
         case '[(String, Int)]                       => StringIntKV(idx)
         case '[(String, Double)]                    => StringDoubleKV(idx)
         case '[(String, Boolean)]                   => StringBooleanKV(idx)
-        case '[_] if tpe <:< TypeRepr.of[Throwable] => ThrowableKind(idx)
+        case '[t] if tpe <:< TypeRepr.of[Throwable] => ThrowableKind(idx)
         case '[Severity]                            => SeverityKind(idx)
         case '[Attributes]                          => AttributesKind(idx)
         case '[String]                              => StringBodyKind(idx)
