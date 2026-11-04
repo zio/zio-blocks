@@ -195,7 +195,9 @@ object Path {
    * Splits decoded text at `/` into segments, recording a leading and a
    * trailing slash. Nothing is decoded: `%20` stays as the three characters,
    * and [[Path#encode]] writes it as `%2520`. Use [[fromEncoded]] for text
-   * taken from a URL. Empty segments between two slashes are kept.
+   * taken from a URL. Empty segments between two slashes are kept, except at
+   * the end: `a//b` has the segments `a`, the empty string and `b`, but `/a//`
+   * has the one segment `a` and renders as `/a/`; this is a known bug.
    *
    * {{{
    * Path("/api/orders/42").segments // Chunk(api,orders,42)
@@ -222,7 +224,7 @@ object Path {
    * Splits percent-encoded text at `/` and decodes each segment, as
    * [[URL.parse]] does with a path. The split happens before decoding, so an
    * encoded slash (`%2F`) stays inside its segment, and a `+` stays a plus
-   * sign.
+   * sign. Empty segments are handled as in [[apply]].
    *
    * {{{
    * Path.fromEncoded("/notes/caf%C3%A9/a%2Fb").segments // Chunk(notes,café,a/b)

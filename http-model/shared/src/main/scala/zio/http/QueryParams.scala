@@ -20,11 +20,11 @@ import zio.blocks.chunk.Chunk
 
 /**
  * The query parameters of a URL: an immutable map from each key to one or more
- * values, with keys in the order they first appeared. A repeated key, as in
- * `?tag=tea&tag=green`, keeps all its values under one entry. Keys and values
- * hold decoded text; [[encode]] percent-encodes them for the wire and
- * [[QueryParams.fromEncoded]] parses a query string. Keys are compared exactly,
- * including letter case.
+ * values, with keys in insertion order (`set` moves its key to the end). A
+ * repeated key, as in `?tag=tea&tag=green`, keeps all its values under one
+ * entry. Keys and values hold decoded text; [[encode]] percent-encodes them for
+ * the wire and [[QueryParams.fromEncoded]] parses a query string. Keys are
+ * compared exactly, including letter case.
  *
  * {{{
  * val params = QueryParams.fromEncoded("page=2&sort=price&tag=tea&tag=green")

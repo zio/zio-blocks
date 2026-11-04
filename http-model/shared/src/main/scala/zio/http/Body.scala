@@ -26,8 +26,8 @@ import zio.blocks.streams.Stream
  * The body of an HTTP message: a byte stream and its [[ContentType]]. A body
  * built from bytes or a string ([[Body.fromChunk]], [[Body.fromArray]],
  * [[Body.fromString]]) knows its bytes and length up front; a body built with
- * [[Body.fromStream]] knows them only if the stream does, and reading it
- * consumes the stream.
+ * [[Body.fromStream]] knows them only if the stream does, and each read runs
+ * the stream again.
  *
  * Read the bytes with `toChunkAsync`, `toArrayAsync` or `textAsync`, which work
  * on the JVM and on Scala.js. The synchronous twins (`toChunk`, `toArray`,
