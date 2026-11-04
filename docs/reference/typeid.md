@@ -394,9 +394,9 @@ cacheId.typeParams.map(p => (p.name, p.variance.symbol))
 
 #### `TypeParam` — Type Parameter Details
 
-Each element in `TypeId#typeParams` is a `TypeParam` value. A type parameter defines a single formal parameter in a generic type's declaration — its name, position, variance (covariance, contravariance, invariance), bounds, and kind. When you derive a `TypeId` for a generic type like `Box[+A]`, the macro captures each declared parameter as a `TypeParam` so you can inspect them at runtime.
+Each element in `TypeId#typeParams` is a `TypeParam` value. A type parameter defines a single formal parameter in a generic type's declaration — its name, position, variance (covariance, contravariance, invariance), bounds, and kind. When you derive a `TypeId` for a generic type like `Box[+A]`, the macro records each declared parameter's name, position, and variance as a `TypeParam` so you can inspect them at runtime. The macro does not record bounds or kinds: every derived parameter has `TypeBounds.Unbounded` bounds and `Kind.Type` (a known bug in 0.0.56). To record a kind, build the parameter by hand, for example with `TypeParam.higherKinded`.
 
-`TypeParam` captures these pieces of information about a type parameter:
+`TypeParam` has these fields:
 
 ```scala
 final case class TypeParam(
@@ -428,6 +428,15 @@ paramF.variance
 paramF.isInvariant
 paramF.kind
 paramF.isTypeConstructor
+```
+
+Although `F` is declared as `F[_]`, the last two lines show `Kind.Type` and `false`: derivation does not record kinds. A parameter built by hand with `TypeParam.higherKinded` does carry one:
+
+```scala mdoc
+val handBuiltF = TypeParam.higherKinded("F", 0)
+
+handBuiltF.kind
+handBuiltF.isTypeConstructor
 ```
 
 `TypeParam` provides convenience predicates for checking variance without inspecting the raw `variance` field:
@@ -759,7 +768,7 @@ colorId.isEnum
 
 **Semantic predicates** check specific semantic properties of the type after normalization, allowing you to identify built-in Scala types like tuples, products, sums, options, and either. These are useful for generic serializers and validators that treat built-in types specially.
 
-**Normalization** resolves type aliases and opaque types to their underlying representations. For example, if you have `type UserId = String`, normalization reveals that the underlying type is `String`. Similarly, an opaque type like `opaque type Email = String` normalizes to `String`. This allows predicates like `isOption` to work correctly even when the type is wrapped in an alias or opaque type — it will look through the wrapper to find the actual semantic type.
+**Normalization** resolves type aliases to the types they stand for. For example, if you have `type UserId = String`, normalization reveals that the underlying type is `String`. An opaque type is not unwrapped: `opaque type Email = String` stays `Email`. This allows predicates like `isOption` to work correctly when the type is wrapped in an alias — it looks through the alias to find the actual semantic type — but not when it is wrapped in an opaque type, for which `isOption` returns `false` even if the representation is an `Option`.
 
 | Predicate   | Checks                                                 |
 |-------------|--------------------------------------------------------|
@@ -950,7 +959,7 @@ fishId.isSupertypeOf(mammalId)
 
 #### `isEquivalentTo` — Check Type Equivalence
 
-Returns `true` when two types are structurally equivalent — meaning they are **mutual subtypes** of each other. In other words, both `A.isSubtypeOf(B)` and `B.isSubtypeOf(A)` must be true. Two types are equivalent when they represent the same type through different paths, or when they normalize to the same underlying type (important for type aliases and opaque types):
+Returns `true` when two types are structurally equivalent — meaning they are **mutual subtypes** of each other. In other words, both `A.isSubtypeOf(B)` and `B.isSubtypeOf(A)` must be true. Two types are equivalent when they represent the same type through different paths, or when they normalize to the same underlying type (important for type aliases; an opaque type is not unwrapped, so it is not equivalent to its representation):
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1328,7 +1337,7 @@ userId.construct(Chunk("Bob"))
 
 ##### Collection Types
 
-Collection types accept variadic arguments representing elements. Sequence-like types (`List`, `Vector`, `Set`, `Seq`, `IndexedSeq`, `Array`, `ArraySeq`, `Chunk`) each pass a variadic sequence of elements:
+Collection types accept variadic arguments representing elements. `construct` builds `List`, `Vector`, `Set`, `Seq`, and `IndexedSeq` directly from a sequence of elements:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -1339,6 +1348,13 @@ import zio.blocks.chunk.Chunk
 TypeId.of[List[String]].construct(Chunk("a", "b", "c"))
 TypeId.of[Vector[Int]].construct(Chunk(1: Integer, 2: Integer, 3: Integer))
 TypeId.of[Set[String]].construct(Chunk("x", "y", "z"))
+```
+
+`Array`, `ArraySeq`, and `Chunk` are not among the types `construct` knows, so it falls back to reflection and returns `Left`:
+
+```scala mdoc
+TypeId.of[Chunk[Int]].construct(Chunk(1: Integer, 2: Integer))
+TypeId.of[Array[Int]].construct(Chunk(1: Integer, 2: Integer))
 ```
 
 Map types pass interleaved key-value pairs and fail on odd argument counts:
@@ -1365,15 +1381,15 @@ TypeId.of[Either[String, Int]].construct(Chunk(false: java.lang.Boolean, "error"
 
 ### Normalization and Equality
 
-**Normalization** resolves type aliases and opaque type representations to their underlying concrete types. For example, `type Age = Int` normalizes to `Int`, and chained aliases like `type UserId = NonEmpty; type NonEmpty = List[Int]` both resolve to `List[Int]`. Opaque types such as `opaque type UserId = String` normalize to their representation. Normalization is crucial because multiple syntactic names often refer to the same underlying type, enabling deduplication and caching strategies.
+**Normalization** resolves type aliases to the underlying concrete types. For example, `type Age = Int` normalizes to `Int`, and chained aliases like `type UserId = NonEmpty; type NonEmpty = List[Int]` both resolve to `List[Int]`. Opaque types are not unwrapped: `opaque type UserId = String` stays `UserId` after normalization. Normalization is crucial because multiple syntactic names often refer to the same underlying type, enabling deduplication and caching strategies.
 
-**Structural Equality** compares two TypeIds by their normalized form, treating types with identical underlying structure as equal. Importantly, opaque types preserve their semantic identity even after normalization—`TypeId.of[UserId]` where `opaque type UserId = String` remains distinct from `TypeId.of[String]` for equality purposes, preserving runtime type safety. This distinction enables type-safe registries and validators that respect opaque type boundaries.
+**Structural Equality** compares two TypeIds by their normalized form, treating types with identical underlying structure as equal. Because normalization leaves opaque types as they are, an opaque type keeps its own identity: `TypeId.of[UserId]` where `opaque type UserId = String` is never equal to `TypeId.of[String]`, preserving runtime type safety. This distinction enables type-safe registries and validators that respect opaque type boundaries.
 
 These concepts are essential for building type-indexed registries that recognize multiple alias names as referring to the same handler, implementing serialization strategies based on normalized type structure, and enforcing opaque type safety in type-indexed maps where different opaque types wrapping the same base type should have separate validators or handlers.
 
 #### `TypeId.normalize` — Resolve Aliases
 
-Resolves chains of type aliases to the underlying type. For example, `type MyList = List[Int]` normalizes to `List[Int]`:
+Resolves chains of type aliases to the underlying type. For example, `type MyList = List[Int]` normalizes to `List[Int]`. An id that is not an alias comes back unchanged, and an opaque type is not unwrapped:
 
 ```scala
 object TypeId {
@@ -1391,6 +1407,22 @@ type Age = Int
 val ageId = TypeId.of[Age]
 val norm = TypeId.normalize(ageId)
 norm.fullName
+```
+
+To see that an opaque type survives normalization, define one and normalize its id:
+
+```scala mdoc:silent:reset
+import zio.blocks.typeid._
+
+opaque type Email = String
+```
+
+```scala mdoc
+val emailId = TypeId.of[Email]
+val normalizedEmail = TypeId.normalize(emailId)
+normalizedEmail.isOpaque
+normalizedEmail == emailId
+normalizedEmail == TypeId.of[String]
 ```
 
 #### `TypeId.structurallyEqual` — Structural Equality
@@ -1428,7 +1460,7 @@ object TypeId {
 
 #### `TypeId.unapplied` — Strip Type Arguments
 
-Returns the type constructor by stripping all type arguments. For example, `TypeId.unapplied(TypeId.of[List[Int]])` returns the equivalent of `TypeId.of[List]`:
+Returns the type constructor by stripping all type arguments; an id that is not applied comes back unchanged. For example, `TypeId.unapplied(TypeId.of[List[Int]])` equals `TypeId.list`. On Scala 2 it also equals `TypeId.of[List[_]]`, but on Scala 3 it does not equal `TypeId.of[List]`, which derives the `scala.package.List` alias instead (a known bug in 0.0.56), so compare with `TypeId.list`:
 
 ```scala
 object TypeId {
@@ -1441,6 +1473,8 @@ val listInt = TypeId.of[List[Int]]
 val unapplied = TypeId.unapplied(listInt)
 unapplied.isApplied
 unapplied.name
+unapplied == TypeId.list
+unapplied == TypeId.of[List]
 ```
 
 ### Pattern Matching Extractors
@@ -1497,7 +1531,7 @@ The `defKind` property (documented in [Core Operations](#type-classification)) r
 
 ## Type Parameters and Generics
 
-When you derive a TypeId for a generic type, the macro captures its type parameters (variance, bounds, kind) and any applied type arguments.
+When you derive a TypeId for a generic type, the macro captures its type parameters (name, position, and variance) and any applied type arguments. It does not record the parameters' bounds or kinds (a known bug in 0.0.56).
 
 A **raw type constructor** is a generic type without any type arguments filled in. For example, `List` by itself (without `[Int]` or `[String]`) is a raw type constructor. Scala 3 supports deriving TypeIds directly for raw type constructors, but Scala 2 has restrictions due to its type system:
 
@@ -1550,7 +1584,7 @@ cacheId.typeParams
 cacheId.arity
 ```
 
-Each `TypeParam` records the parameter's name, position, variance, bounds, and kind:
+Each derived `TypeParam` records the parameter's name, position, and variance, and always reports `Kind.Type`:
 
 ```scala mdoc
 val containerParam = containerId.typeParams.head
@@ -1614,7 +1648,7 @@ Variance.Covariant.flip
 
 **Kind** describes the "type of a type"—it captures whether something is a concrete type or a type constructor, and how many type parameters it requires. A **proper type** like `Int` or `Box[String]` has kind `*` (zero parameters). A **unary type constructor** like `List` has kind `* -> *` (takes one type parameter). A **binary type constructor** like `Map` has kind `* -> * -> *` (takes two). **Higher-kinded types** like `Runnable[F[_]]` have kinds like `(* -> *) -> *` (takes a type constructor as a parameter). Kind information is essential for generic programming, enforcing API contracts, and enabling advanced patterns like monad transformers.
 
-TypeId captures kind information at runtime, allowing you to inspect and validate the structure of types:
+`TypeId` reports how many type parameters a type declares through `arity`, but derivation does not compute the `Kind` of those parameters: every derived `TypeParam` has kind `Kind.Type`, even when the parameter is itself a type constructor (a known bug in 0.0.56). The `kind` values below therefore all print `Type`; the `Kind` values in the table at the end of this section are what you get when you build a `TypeParam` by hand:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -1654,7 +1688,7 @@ cacheId.arity
 cacheId.typeParams.map(p => (p.name, p.kind))
 ```
 
-A higher-kinded type (`(* -> *) -> *`) — a type parameter that itself is a type constructor:
+A higher-kinded type (`(* -> *) -> *`) — a type parameter that itself is a type constructor. `Runnable` declares `F[_]`, yet the derived parameter reports kind `Type` with arity 0:
 
 ```scala mdoc
 val runnableId = TypeId.of[Runnable]
@@ -1662,12 +1696,22 @@ runnableId.typeParams.head.kind
 runnableId.typeParams.head.kind.arity
 ```
 
-| Kind                      | Notation        | Arity | Examples              |
-|---------------------------|-----------------|-------|-----------------------|
-| `Kind.Type` / `Kind.Star` | `*`             | 0     | `Int`, `Box[Int]`     |
-| `Kind.Star1`              | `* -> *`        | 1     | `Container`, `Option` |
-| `Kind.Star2`              | `* -> * -> *`   | 2     | `Cache`, `Either`     |
-| `Kind.HigherStar1`        | `(* -> *) -> *` | 1     | `Runnable`            |
+To record the kind, build the parameter by hand with `TypeParam.higherKinded`:
+
+```scala mdoc
+val handBuiltParam = TypeParam.higherKinded("F", 0)
+handBuiltParam.kind
+handBuiltParam.kind.arity
+```
+
+The `Kind` values and the types whose kind each one describes:
+
+| Kind                      | Notation        | Arity | Describes the kind of  |
+|---------------------------|-----------------|-------|------------------------|
+| `Kind.Type` / `Kind.Star` | `*`             | 0     | `Int`, `Box[Int]`      |
+| `Kind.Star1`              | `* -> *`        | 1     | `Container`, `Option`  |
+| `Kind.Star2`              | `* -> * -> *`   | 2     | `Cache`, `Either`      |
+| `Kind.HigherStar1`        | `(* -> *) -> *` | 1     | `Runnable`             |
 
 ## Subtype Relationships
 
@@ -2045,7 +2089,7 @@ TypeId occupies a different niche from the reflection and type-tagging mechanism
 | Cross-version (2 & 3)             | Yes      | Yes        | Scala 2 only        | Scala 3 only         | Scala 3 only       |
 | Pure data (no runtime reflection) | Yes      | No         | No                  | No                   | Yes                |
 | Captures annotations              | Yes      | No         | Yes                 | No                   | No                 |
-| Captures variance & kind          | Yes      | No         | Yes                 | No                   | No                 |
+| Captures variance                 | Yes      | No         | Yes                 | No                   | No                 |
 | Subtype relationship checks       | Yes      | No         | Yes                 | Yes                  | No                 |
 
 **When to migrate from `ClassTag`:** If you only need `ClassTag` to create arrays of the correct runtime type, keep using it — TypeId does not replace that functionality. If you are using `ClassTag` to identify or dispatch on types, TypeId provides strictly more information (generics, opaque types, annotations) and works identically on JVM and Scala.js.
