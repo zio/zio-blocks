@@ -663,7 +663,7 @@ Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-1
 
 | Item | Result |
 |---|---|
-| PR | #1924 (one PR), CI green on the first run (23 pass, 10 skipping) |
+| PR | #1924 (one PR), **merged 2026-11-04** (`a1d158f95`); CI green on the first run (23 pass, 10 skipping) |
 | Coverage | 162 / 390 → 390 / 390; the 13 scala-2/scala-3 drift items unified (`--drift` empty), jvm/js `TypeIdPlatformMethods` probed on Scala.js 1.22 |
 | Examples | 3 existing `{{{` blocks made to compile; 58 compiled blocks (counting both copies of the scala-2/3 pair), 2 `// scala-2-only` + 2 `// scala-3-only` (Scala 3.10 rejects `with` as a type operator); outputs from real runs on 2.13.18 and 3.9.0 against 0.0.56 |
 | Tooling | `typeid.jvm` in `scaladocCheckedModules`, one extractor test, the style-guide module list, two AGENTS.md lines (Milad approved) |
