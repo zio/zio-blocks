@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import Footer from '@theme-original/Footer';
 
 // The ZIO Blocks chat assistant (ByteBrain widget), mounted on every page that renders the Docusaurus footer. It
@@ -8,6 +8,17 @@ import Footer from '@theme-original/Footer';
 const CHAT_KEY = '61bd74f5-859e-45c0-a80d-9abd1623fc6e';
 const BUTTON_LABEL = 'Ask ZIO Blocks';
 const WELCOME = ["Hi, I'm the ZIO Blocks assistant.", 'Ask me anything about the docs.'];
+// Readers can ask about text they select inside the docs. The widget shows its "Ask" button there (askOnSelect), and
+// selecting that text also starts loading the widget, so the button is ready by the time the reader reaches for it.
+const DOC_TEXT = '.theme-doc-markdown';
+
+/** True when the current, non-empty text selection starts or ends inside the docs content. */
+function selectionInDocs() {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.anchorNode) return false;
+  const el = sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode.parentElement;
+  return el !== null && el.closest(DOC_TEXT) !== null;
+}
 
 /** True when `node` sits in a scroller inside `root` that can still move in the direction of `deltaY`. */
 function innerScrollerCanMove(node, root, deltaY) {
@@ -34,10 +45,24 @@ const loadWidget = () => (widgetImport ??= import('@bytebrain.ai/bytebrain-ui').
 function Chat() {
   const [ChatApp, setChatApp] = useState(null);
   const [openWhenReady, setOpenWhenReady] = useState(false);
-  const load = () => loadWidget().then((C) => setChatApp(() => C));
+  const load = useCallback(() => loadWidget().then((C) => setChatApp(() => C)), []);
   useEffect(() => {
     if (ChatApp && openWhenReady) document.querySelector('.zb-chat #chat-button')?.click();
   }, [ChatApp, openWhenReady]);
+  // Selecting docs text starts the load early. This listener goes away once the widget is in.
+  useEffect(() => {
+    if (ChatApp) return undefined;
+    const onSelectionChange = () => {
+      if (selectionInDocs()) load();
+    };
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => document.removeEventListener('selectionchange', onSelectionChange);
+  }, [ChatApp, load]);
+  // The widget only reacts to selection changes that happen after it mounts, so a selection made while it was loading
+  // would be missed. Replaying one change event after mount makes it read the selection that is already there.
+  useEffect(() => {
+    if (ChatApp && selectionInDocs()) document.dispatchEvent(new Event('selectionchange'));
+  }, [ChatApp]);
   if (!ChatApp) {
     return (
       <button
@@ -63,6 +88,7 @@ function Chat() {
       buttonLabel={BUTTON_LABEL}
       placeholder="Ask a question about ZIO Blocks"
       welcomeMessages={WELCOME}
+      askOnSelect
     />
   );
 }
