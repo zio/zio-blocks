@@ -92,7 +92,7 @@ final case class Request(
    * // List((accept,application/json))
    * }}}
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name or `value` contains CR or LF
    */
   def addHeader(name: String, value: String): Request = copy(headers = headers.add(name, value))
@@ -100,7 +100,7 @@ final case class Request(
   /**
    * Appends a typed header, keeping existing headers with the same name.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if the header's name or rendered value is invalid
    */
   def addHeader(header: Header): Request = copy(headers = headers.add(header))
@@ -130,7 +130,7 @@ final case class Request(
   /**
    * Removes every header named `name`, ignoring letter case.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name
    */
   def removeHeader(name: String): Request = copy(headers = headers.remove(name))
@@ -139,7 +139,7 @@ final case class Request(
    * Replaces every header named `name` with one header holding `value` (see
    * `Headers#set`).
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name or `value` contains CR or LF
    */
   def setHeader(name: String, value: String): Request = copy(headers = headers.set(name, value))
@@ -147,7 +147,7 @@ final case class Request(
   /**
    * Replaces every header with `header`'s name by `header`.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if the header's name or rendered value is invalid
    */
   def setHeader(header: Header): Request = copy(headers = headers.set(header))

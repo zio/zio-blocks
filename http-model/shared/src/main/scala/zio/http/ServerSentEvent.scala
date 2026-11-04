@@ -57,7 +57,7 @@ final class ServerSentEvent[+A] private (
    * ServerSentEvent("cart updated").event("cart").render // "event: cart\ndata: cart updated\n\n"
    * }}}
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `event` contains CR or LF
    * @see
    *   [[https://zioblocks.com/reference/http-model/server-sent-event/#setting-metadata Setting Metadata]]
@@ -78,7 +78,7 @@ final class ServerSentEvent[+A] private (
    * Returns a copy with the `id:` field set, which a reconnecting browser sends
    * back in the `Last-Event-ID` header. There is no method that removes it.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `id` contains CR or LF
    */
   def id(id: String): ServerSentEvent[A] =
@@ -93,7 +93,7 @@ final class ServerSentEvent[+A] private (
    * Returns a copy with the `retry:` field set: how many milliseconds the
    * browser waits before reconnecting.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `millis` is negative
    */
   def retry(millis: Long): ServerSentEvent[A] =
@@ -199,7 +199,7 @@ object ServerSentEvent {
    * Creates an event with the payload `data` and the `event:` field set to
    * `event`.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `event` contains CR or LF
    */
   def apply[A](data: A, event: String): ServerSentEvent[A] =
@@ -214,7 +214,7 @@ object ServerSentEvent {
    * // "id: 7\nretry: 1000\ndata: stock low\n\n"
    * }}}
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `event` or `id` contains CR or LF, or `retry` is negative
    */
   def fromOptions[A](

@@ -321,7 +321,7 @@ object Cookie {
    * Renders a cookie as the value of a `set-cookie` header, as
    * [[renderResponseEither]] does, but throws where that returns `Left`.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if the name or the value is invalid, or `SameSite=None` is set without
    *   `Secure`
    */

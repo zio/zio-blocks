@@ -122,7 +122,7 @@ final class Headers private[http] (
    * headers.rawGetAll("x-trace")  // Chunk(a1,b2)
    * }}}
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name (see [[Headers.validateName]]), even
    *   though the method only reads
    * @see
@@ -143,7 +143,7 @@ final class Headers private[http] (
    * Returns the value of the last entry named `name`, ignoring letter case,
    * without parsing it.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name
    */
   def rawGetLast(name: String): Option[String] = {
@@ -161,7 +161,7 @@ final class Headers private[http] (
    * Returns the values of every entry named `name`, ignoring letter case, in
    * the order they were added, without parsing them.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name
    */
   def rawGetAll(name: String): Chunk[String] = {
@@ -248,7 +248,7 @@ final class Headers private[http] (
    * base.set(Header.ContentLength(200)).toList // List((content-length,200))
    * }}}
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if the name or the value is invalid
    * @see
    *   [[https://zioblocks.com/reference/http-model/headers/#appending-and-replacing Appending and Replacing]]
@@ -259,7 +259,7 @@ final class Headers private[http] (
    * Appends an entry with `name` in lower case and `value` as given, keeping
    * existing entries with the same name.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name or `value` contains CR or LF
    */
   def add(name: String, value: String): Headers = {
@@ -280,7 +280,7 @@ final class Headers private[http] (
    * Removes every entry named `name`, ignoring letter case, and appends one
    * entry with `value`. The new entry goes last, after the other headers.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name or `value` contains CR or LF
    */
   def set(name: String, value: String): Headers = {
@@ -301,7 +301,7 @@ final class Headers private[http] (
    * Replaces every entry with `header`'s name by one entry holding its rendered
    * value, placed last.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if the name or the value is invalid
    */
   def set(header: Header): Headers = set(header.headerName, header.renderedValue)
@@ -309,7 +309,7 @@ final class Headers private[http] (
   /**
    * Removes every entry named `name`, ignoring letter case.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name
    */
   def remove(name: String): Headers = {
@@ -327,7 +327,7 @@ final class Headers private[http] (
   /**
    * Whether an entry named `name` exists, ignoring letter case.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name
    */
   def has(name: String): Boolean = {
@@ -389,7 +389,7 @@ final class Headers private[http] (
   /**
    * Alias for [[has]].
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name
    */
   def contains(name: String): Boolean = has(name)
@@ -508,7 +508,7 @@ object Headers {
    * // List((accept,text/html), (cache-control,no-cache))
    * }}}
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if a name or a value is invalid
    */
   def apply(pairs: (String, String)*): Headers = {
@@ -543,7 +543,7 @@ final class HeadersBuilder private (
   /**
    * Appends an entry with `name` in lower case and `value` as given.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name or `value` contains CR or LF
    */
   def add(name: String, value: String): Unit = {

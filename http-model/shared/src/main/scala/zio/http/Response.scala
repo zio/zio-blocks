@@ -86,7 +86,7 @@ final case class Response(
    * Appends a header, keeping existing headers with the same name (see
    * `Headers#add`).
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name or `value` contains CR or LF
    */
   def addHeader(name: String, value: String): Response = copy(headers = headers.add(name, value))
@@ -94,7 +94,7 @@ final case class Response(
   /**
    * Appends a typed header, keeping existing headers with the same name.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if the header's name or rendered value is invalid
    */
   def addHeader(header: Header): Response = copy(headers = headers.add(header))
@@ -105,7 +105,7 @@ final case class Response(
   /**
    * Removes every header named `name`, ignoring letter case.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name
    */
   def removeHeader(name: String): Response = copy(headers = headers.remove(name))
@@ -114,7 +114,7 @@ final case class Response(
    * Replaces every header named `name` with one header holding `value` (see
    * `Headers#set`).
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name or `value` contains CR or LF
    */
   def setHeader(name: String, value: String): Response = copy(headers = headers.set(name, value))
@@ -122,7 +122,7 @@ final case class Response(
   /**
    * Replaces every header with `header`'s name by `header`.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if the header's name or rendered value is invalid
    */
   def setHeader(header: Header): Response = copy(headers = headers.set(header))
@@ -153,7 +153,7 @@ final case class Response(
    * // Chunk(session=abc123; Path=/; Secure; HttpOnly)
    * }}}
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if the cookie's name or value is invalid, or it has `SameSite=None`
    *   without `Secure` (see `Cookie.renderResponseEither`)
    */
@@ -247,7 +247,7 @@ object Response {
    * `308 Permanent Redirect` when `isPermanent` is `true`. Both keep the
    * request method; use [[seeOther]] to send the client on with a `GET`.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `location` contains CR or LF
    */
   def redirect(location: String, isPermanent: Boolean = false): Response =
@@ -260,7 +260,7 @@ object Response {
    * A `303 See Other` response to `location` with an empty body, which tells
    * the client to fetch `location` with `GET`, for example after a form post.
    *
-   * @throws IllegalArgumentException
+   * @throws java.lang.IllegalArgumentException
    *   if `location` contains CR or LF
    */
   def seeOther(location: String): Response =
