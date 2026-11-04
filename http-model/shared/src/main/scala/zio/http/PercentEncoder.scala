@@ -17,16 +17,14 @@
 package zio.http
 
 /**
- * RFC 3986 percent-encoding utilities.
- *
- * Provides component-specific encoding via [[ComponentType]] variants
- * (`PathSegment`, `QueryKey`, `QueryValue`, `Fragment`, `UserInfo`), each
- * allowing a different set of unescaped characters as defined by the RFC.
- * Non-ASCII characters are first encoded to UTF-8 bytes, then each byte is
- * percent-encoded.
- *
- * `decode` converts percent-encoded triplets back to characters; invalid or
- * incomplete percent sequences are passed through unchanged.
+ * Percent-encoding for the parts of a URL (RFC 3986). [[encode]] keeps the
+ * unreserved characters and the punctuation its [[ComponentType]] allows, and
+ * writes every other byte of the UTF-8 form as `%XX`. The path-segment and
+ * fragment sets are the RFC's; the query sets also escape `&` (and `=` in keys)
+ * so that pairs stay separable, and the user-info set keeps only `:`.
+ * [[decode]] reads `%XX` sequences as UTF-8 bytes (invalid UTF-8 becomes
+ * U+FFFD) and keeps any other text, including an incomplete `%` sequence and
+ * `+`, as it is.
  *
  * Note: this encoder does '''not''' use `application/x-www-form-urlencoded`
  * rules (spaces are encoded as `%20`, never as `+`).
