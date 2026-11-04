@@ -46,6 +46,13 @@ object LogProcessorSpec extends ZIOSpecDefault {
       throw new IllegalStateException(message)
   }
 
+  private final class RecordingProcessor(override val minimumLevel: Int) extends LogRecordProcessor {
+    val received: ArrayBuffer[Severity]    = ArrayBuffer.empty
+    def onEmit(logRecord: LogRecord): Unit = { received += logRecord.severity; () }
+    def shutdown(): Unit                   = ()
+    def forceFlush(): Unit                 = ()
+  }
+
   private def captureStdout[A](body: => A): (A, String) = {
     val original = System.out
     val bytes    = new ByteArrayOutputStream()
@@ -165,8 +172,55 @@ object LogProcessorSpec extends ZIOSpecDefault {
     consoleLogRecordProcessorSuite,
     formattedLogRecordProcessorSuite,
     formattedLogEmitterSuite,
-    logWriterSuite
+    logWriterSuite,
+    minimumLevelSuite
   ) @@ TestAspect.sequential
+
+  private val minimumLevelSuite = suite("LogRecordProcessor.minimumLevel")(
+    test("a processor does not receive records below its own minimumLevel") {
+      val verbose   = new RecordingProcessor(Severity.Trace.number)
+      val errorOnly = new RecordingProcessor(Severity.Error.number)
+
+      val logger = LoggerProvider.builder
+        .addLogRecordProcessor(verbose)
+        .addLogRecordProcessor(errorOnly)
+        .build()
+        .get("com.example")
+
+      logger.debug("a debug line")
+
+      assertTrue(
+        verbose.received.contains(Severity.Debug),
+        errorOnly.received.isEmpty
+      )
+    },
+    test("StandardLogEmitter filters per processor minimumLevel") {
+      val verbose   = new RecordingProcessor(Severity.Trace.number)
+      val errorOnly = new RecordingProcessor(Severity.Error.number)
+      val emitter   = new StandardLogEmitter(Array(verbose, errorOnly), Severity.Trace.number)
+      val builder   = emitterBuilder()
+
+      emitter.emit(
+        timestampNanos = 1L,
+        severity = Severity.Debug,
+        severityText = Severity.Debug.text,
+        body = "debug message",
+        builder = builder,
+        traceIdHi = 0L,
+        traceIdLo = 0L,
+        spanId = 0L,
+        traceFlags = 0,
+        resource = Resource.empty,
+        instrumentationScope = InstrumentationScope("test"),
+        throwable = None
+      )
+
+      assertTrue(
+        verbose.received.contains(Severity.Debug),
+        errorOnly.received.isEmpty
+      )
+    }
+  )
 
   private val stdoutLogRecordProcessorSuite = suite("StdoutLogRecordProcessor")(
     test("onEmit renders full log record with source location user attributes and throwable") {

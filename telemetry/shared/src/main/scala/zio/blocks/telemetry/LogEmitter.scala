@@ -87,11 +87,14 @@ private[telemetry] final class StandardLogEmitter(
       builder.clear()
       var i = 0
       while (i < processors.length) {
-        try {
-          processors(i).onEmit(record)
-        } catch {
-          case NonFatal(e) =>
-            System.err.println("[zio-blocks-telemetry] logging error: " + e.getMessage)
+        val proc = processors(i)
+        if (severity.number >= proc.minimumLevel) {
+          try {
+            proc.onEmit(record)
+          } catch {
+            case NonFatal(e) =>
+              System.err.println("[zio-blocks-telemetry] logging error: " + e.getMessage)
+          }
         }
         i += 1
       }
