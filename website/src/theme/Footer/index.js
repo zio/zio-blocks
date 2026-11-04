@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect, useRef} from 'react';
 import BrowserOnly from '@docusaurus/BrowserOnly';
 import Footer from '@theme-original/Footer';
 
@@ -9,11 +9,38 @@ import Footer from '@theme-original/Footer';
 const CHAT_KEY = '61bd74f5-859e-45c0-a80d-9abd1623fc6e';
 const WELCOME = ["Hi, I'm the ZIO Blocks assistant.", 'Ask me anything about the docs.'];
 
+/** True when `node` sits in a scroller inside `root` that can still move in the direction of `deltaY`. */
+function innerScrollerCanMove(node, root, deltaY) {
+  for (let el = node; el && el !== root; el = el.parentElement) {
+    const {overflowY} = getComputedStyle(el);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
+      const atTop = el.scrollTop <= 0;
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+      if (!(deltaY < 0 && atTop) && !(deltaY > 0 && atBottom)) return true;
+    }
+  }
+  return false;
+}
+
 export default function FooterWrapper(props) {
+  const root = useRef(null);
+  // The wheel stays inside the chat: when its message list cannot scroll further (or there is nothing to scroll, as with
+  // a short conversation), Chromium would otherwise hand the gesture to the page behind. `overscroll-behavior` alone
+  // does not stop that for a box with no overflow, so the gesture is cancelled here.
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return undefined;
+    const onWheel = (e) => {
+      if (e.ctrlKey) return; // pinch-zoom
+      if (!innerScrollerCanMove(e.target, el, e.deltaY)) e.preventDefault();
+    };
+    el.addEventListener('wheel', onWheel, {passive: false});
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
   return (
     <>
       <Footer {...props} />
-      <div className="zb-chat">
+      <div className="zb-chat" ref={root}>
         {/* The widget reads window and opens a WebSocket, so it renders in the browser only. */}
         <BrowserOnly>
           {() => {
