@@ -453,6 +453,15 @@ html[data-theme='dark'] .zb-footer { --zb-footer-bg: var(--code-bg); }
   .zb-chat #generateBtn:hover:not(:disabled),
   .zb-chat .bg-black:hover:not(:disabled) { background: var(--ifm-color-primary-dark) !important; }
 
+  /* "Ask" button over a text selection (askOnSelect): the site's primary colour, like the launcher, so it reads in
+     light and dark mode (the widget's own near-black fill disappears on the dark background). */
+  .zb-chat #bytebrain-ask-button {
+    background: var(--ifm-color-primary) !important;
+    color: #ffffff !important;
+    font-family: var(--ifm-font-family-base) !important;
+  }
+  .zb-chat #bytebrain-ask-button:hover { background: var(--ifm-color-primary-dark) !important; }
+
   @media (prefers-reduced-motion: reduce) {
     .zb-chat #chat-button { transition: none !important; }
   }
