@@ -41,8 +41,8 @@ lazy val bookstoreApp = (project in file("bookstore-app"))
   .settings(
     publish / skip := true,
     run / fork     := true,
-    // The generator emits Scala 3 syntax (`derives`, `enum`), and the app code uses the generated types, so there is
-    // nothing to compile on Scala 2.13.
+    // The generator is run with its default Scala 3 output (`derives`, `enum`), and the app code uses the generated
+    // types, so nothing in this project is compiled on Scala 2.13.
     Compile / sources := {
       CrossVersion.partialVersion(scalaVersion.value) match {
         case Some((2, _)) => Seq.empty

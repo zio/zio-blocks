@@ -61,11 +61,7 @@ Compile / unmanagedSources := skipOnScala2(
   skipBelowJdk21((Compile / unmanagedSources).value, streams.value.log),
   scalaVersion.value
 )
-// The tests exercise the skipped examples (`testtelemetry.Checkout`), so there is nothing to test on Scala 2.13.
-Test / unmanagedSources := {
-  val sources = skipBelowJdk21((Test / unmanagedSources).value, streams.value.log)
-  CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((2, _)) => Nil
-    case _            => sources
-  }
-}
+Test / unmanagedSources := skipOnScala2(
+  skipBelowJdk21((Test / unmanagedSources).value, streams.value.log),
+  scalaVersion.value
+).filterNot(f => CrossVersion.partialVersion(scalaVersion.value).exists(_._1 == 2) && f.getName == "GlobalTelemetrySpec.scala")

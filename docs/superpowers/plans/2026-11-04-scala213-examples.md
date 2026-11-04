@@ -32,21 +32,16 @@ No `_2.13` artifact (out of scope, skipped by the brief): datastar, htmx, sql, p
 
 Correction to the docs-issues entry: the parser errors "expected start of definition" are `@main def`, not `import x.*`.
 
-## Fix patterns
+## Decision (Milad, 2026-11-04)
 
-1. `@main def X(): Unit = {...}` -> `object X { def main(args: Array[String]): Unit = {...} }`. The class name and `runMain` target stay the same on Scala 3. Helper definitions that sit at top level next to the `@main` move into the object.
-2. `import x.*` -> `import x._`; `given`/`using` -> `implicit`; `summon[T]` -> `implicitly[T]` where the library API allows it.
-3. Genuinely Scala 3-only files (`derives`, `enum`, union types, context functions `?=>`, `extension`, `inline`/`opaque`) are listed in a `scala3OnlyExamples` set in `build.sbt` and filtered out when `scalaVersion` is 2.x, as in `streams-examples/build.sbt`.
-4. Real API gaps on 2.13 (async `Completer` implicit, telemetry `GlobalLogState`): skip the file on 2.x and send the coordinator a library entry. Do not rewrite the example around the gap.
-5. Generated sources (openapi): skip the generated Scala 3 output on 2.x unless the generator has a 2.13 option; report.
+It does not matter if Scala 3-only examples are not compiled on Scala 2.13. So no example code is rewritten and no guide changes: each build skips its Scala 3-only sources on 2.x with a `Compile / unmanagedSources` filter, the #1897 mechanism. One PR, one commit per build.
 
-## Per-build plan
+## Approach actually taken
 
-- endpoint, http-model, mux, smithy, scope: pattern 1 for the `@main` files, then re-compile and apply 2/3 for what remains.
-- schema: patterns 2 and 3 (large build, iterate on compiler output; Scala 2 reports parser errors per file before typer errors, so expect several rounds).
-- async: `summon` -> `implicitly`; the `c ?=>` context-function files and `AsyncShowcaseExample` go into the skip set unless a `Completer` is reachable on 2.13 another way (investigate).
-- openapi: investigate the generator options; otherwise skip the generated sources on 2.x.
-- telemetry: investigate `GlobalLogState` visibility; if the 2.13 macro really needs it, skip those files and report.
+- A content regex per build (`@main`, `derives`, `enum`, `?=>`, `extension`, `given`, `(using`, `summon[`, wildcard `import x.*`, `inline`/`opaque`, top-level `def`/`val`, leading `++`) drops Scala 3-only files on 2.x. schema adds `import zio.sbt.` (same reason as #1897), whole-package and per-file skip sets for `namedtuples` and nine examples that hit 0.0.56 limits on 2.13 (`json"..."`/`yaml"..."` interpolators, migration builder, type inference). mux skips `muxoverasocket` (top-level defs shared by its files). async skips `AsyncShowcaseExample` (implicit `Completer`).
+- smithy and openapi: the app subprojects (`orders-app`, `bookstore-app`) compile nothing on 2.x because the generated code uses `derives`/`enum`.
+- telemetry: files that use the `log.*` macros are skipped on 2.x (the macro expands to the `private[telemetry]` `GlobalLogState`); `GlobalTelemetrySpec` is skipped with them.
+- Trade-off: files that use these constructs drop out of the 2.13 compile silently. endpoint and scope end up with almost nothing compiled on 2.13.
 
 ## Order and rules
 
