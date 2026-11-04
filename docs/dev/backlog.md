@@ -653,11 +653,29 @@ Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-1
 
 Open question, not filed: a missing sequence or map field decodes to an empty collection instead of a missing-key error. The Scaladoc describes it; it may be intended (candidate usability trap).
 
-**typeid started 2026-11-04:** session `scaladoc-typeid` (Opus controller, at Milad's choice). Phase 0 on `main` `7b51118b7`: 162 / 390 (41%); 13 members differ between the scala-2 and scala-3 copies (11 in `TypeId.scala`, 2 in `TypeIdMacros.scala`); 3 existing `{{{` blocks (`Owner.scala` x2, `TermPath.scala`), none compiled. `main` differs from `v0.0.56` only in `IsNominal*VersionSpecific` (the #1826 fix), so claims about `IsNominalType`/`IsNominalIntersection` are probed against a local publish of `main`; everything else against 0.0.56.
-
 **config started 2026-10-30:** session `scaladoc-config` (Sonnet controller, Opus subagents per §13.4), all four config modules. Phase 0: 90 / 230 documented (config 79/202, config-hocon 9/22, config-json 0/2, config-yaml 2/4); 6 existing `{{{` blocks, none compiled; 2 jvm/js drift items (`EnvSource`, `SysPropSource`). Milad's Phase 1 decisions: one PR for all four modules; tier 1 = `Config`, `ConfigSource`, `ConfigDecoder`/`ConfigDecoderDeriver`, `ConfigError`, `Provenance`/`ProvenanceMap`, `Secret`, `DynamicFlag`, `StaticFlag`, `FlagSource`, `Rollout`, `HoconConfigSource`, `JsonConfigSource`, `YamlConfigSource`; flag examples compile-only with distinct names; the AGENTS.md edit approved.
 
 **scope started 2026-10-30:** session `scaladoc-scope` (Sonnet controller, Opus subagents for tier 1, the existing-comment fact-check and the review, per §13.4). Phase 0: 125 / 223 (56%); 12 members differ between the scala-2 and scala-3 copies; 23 `{{{` blocks (inside 18 `@example` tags), none compiled; scope has its own `scope/AGENTS.md` example-style rules. Milad's Phase 1 decisions: tier 1 = `Scope`, `Resource`, `Wire`, `Finalizer`, `Unscoped`, `Finalization`, `DeferHandle`; one PR (tooling + wave); macros tier 3 one-liners; the `@example` tags are dropped and the plain `{{{` blocks kept; the AGENTS.md edit (lines 113 and 178) approved. **PR #1916** (2026-10-30): 125 / 223 → 223 / 223, 32 compiled examples, no drift; fact-check of 189 existing comments found 26 false and 32 imprecise (about 14% wrong), all fixed; Opus review 5 Important + 9 Minor fixed; Sonnet re-review approve with 3 Minor applied. 2 new library bugs and 6 additions to existing `scope:` entries recorded.
+
+## 13d. Scaladoc: typeid module
+
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-04 typeid Scaladoc). Session `scaladoc-typeid` (Opus controller, Opus subagents for tier 1, the existing-comment fact-check and the review, Sonnet for tier 2/3 and the re-reviews). Milad's Phase 1 decisions: one PR; tier 1 = `TypeId` (scala-2/3 pair), `TypeRepr`, `TypeDefKind`, `Owner`, `IsNominalType`, `IsNominalIntersection`; Scala 2/3 differences stated in identical text in both copies ("On Scala 3, ..."), probed on both versions; the AGENTS.md edit (scaladoc-check bullet, `typeid*` downstream line) approved. Phase 0 on `main` `7b51118b7`: `main` differs from `v0.0.56` only in `IsNominal*VersionSpecific` (the #1826 fix), so claims about `IsNominalType`/`IsNominalIntersection` were probed against a local SNAPSHOT publish of `main`, everything else against 0.0.56.
+
+| Item | Result |
+|---|---|
+| PR | #1924 (one PR), **merged 2026-11-04** (`a1d158f95`); CI green on the first run (23 pass, 10 skipping) |
+| Coverage | 162 / 390 → 390 / 390; the 13 scala-2/scala-3 drift items unified (`--drift` empty), jvm/js `TypeIdPlatformMethods` probed on Scala.js 1.22 |
+| Examples | 3 existing `{{{` blocks made to compile; 58 compiled blocks (counting both copies of the scala-2/3 pair), 2 `// scala-2-only` + 2 `// scala-3-only` (Scala 3.10 rejects `with` as a type operator); outputs from real runs on 2.13.18 and 3.9.0 against 0.0.56 |
+| Tooling | `typeid.jvm` in `scaladocCheckedModules`, one extractor test, the style-guide module list, two AGENTS.md lines (Milad approved) |
+| Existing comments | 171 checked: 13 false and 28 imprecise (41, 24%), all fixed; most were claims about what the macros record (parents, type params, kinds, annotation args, enum ordinals) |
+| Review (2 Opus, fresh, in parallel on disjoint files) | 7 Important + 12 Minor, all applied (3 were comments Task 1 had marked true); re-review (Sonnet) round 1: 1 Important (a reviewer-suggested sentence, half false) + 2 Minor, applied; round 2: APPROVE with 1 Minor, applied |
+| Sonnet tier 2/3 | 113 comments (predefined ids, extractors, Scala 3 `ToExpr` instances, companions, constants); 0 findings against them |
+| Bugs | 13 new entries: 10 Library bugs, 2 Usability traps (`library-issues.md`), 1 Documentation error (`typeid.md`, `docs-issues.md`) |
+| Time | about 2 h 20 min from survey to PR (Task 1 47 min, Task 2 13 min, parallel review 13 min, fix rounds 14 + 11 min, re-reviews 7 + 1 min), plus about 1 h of CI |
+
+Skill update: "Lessons from typeid" in the `scaladoc-rollout` skill's `references/lessons.md` (probe macro claims on both versions; the wrapper-owner trap for `fullName`; 3.10 rejects `with` types; overloaded `[[links]]` break only the 2.13 doc tool; a local SNAPSHOT publish when `main` is ahead of the release in some files; parallel split review; re-probe reviewer-suggested text).
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%.
 
 ## 13. Scaladoc: next modules
 
@@ -694,7 +712,7 @@ Follow the `scaladoc-rollout` skill (`~/.claude/skills/scaladoc-rollout/SKILL.md
 |---|---|---|---|---|---|
 | 1 | chunk | 153 / 205 → 205 / 205, #1908 | 74 → 100 | 6 / 5,069 | none |
 | 2 | scope | 125 / 223 → 223 / 223, #1916 | 56 → 100 | 36 / 7,085 | none (23 existing `{{{` blocks to fix first) |
-| 3 | typeid | 162 / 390 (in progress, session `scaladoc-typeid`) | 41 | 28 / 6,496 | none |
+| 3 | typeid | 162 / 390 → 390 / 390, #1924 | 41 → 100 | 28 / 6,496 | none |
 | 4 | config / -hocon / -json / -yaml | 90 / 230 → 230 / 230, #1919 | 39 → 100 | 35 / 4,150 | none |
 | 5 | sql / sql-zio | 127/405, 7/14 | 31 / 50 | 41 / 8,207 | Scala 3 only; sql-zio has the `zio` package clash |
 | 6 | http-model / -schema | 57/1113, 6/55 | 5 / 10 | 38 / 5,967 | `moduleImport` override (`zio.http`) |
