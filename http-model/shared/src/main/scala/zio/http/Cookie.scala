@@ -20,17 +20,58 @@ import java.util.Locale
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * A cookie as a client sends it in the `cookie` request header: a name and a
+ * value, without attributes. Neither field is checked; [[Cookie.renderRequest]]
+ * writes them as given.
+ */
 final case class RequestCookie(name: String, value: String)
 
 /**
- * Cookie emitted in a `Set-Cookie` response header.
+ * A cookie that a server sets with a `set-cookie` response header: the name,
+ * the value and the attributes that tell the browser where to send it and when
+ * to drop it. [[Cookie.renderResponse]] writes it and [[Cookie.parseResponse]]
+ * reads it; `Response#addCookie` adds one to a response.
  *
- * The `expires` field is rendered verbatim as the `Expires` attribute and is
- * expected to already be in the HTTP-date format used by RFC 6265, such as
- * `Wed, 21 Oct 2026 07:28:00 GMT`. The `priority` field maps to the non-RFC but
- * commonly used `Priority` attribute, and `isPartitioned` maps to the
- * `Partitioned` attribute. Rendering validates the cookie name and unquoted
- * cookie value and rejects `SameSite=None` unless `Secure` is also set.
+ * {{{
+ * val session = ResponseCookie(
+ *   name = "session",
+ *   value = "abc123",
+ *   path = Some(Path("/")),
+ *   maxAge = Some(3600L),
+ *   isSecure = true,
+ *   isHttpOnly = true,
+ *   sameSite = Some(SameSite.Lax)
+ * )
+ *
+ * Cookie.renderResponse(session)
+ * // session=abc123; Path=/; Max-Age=3600; Secure; HttpOnly; SameSite=Lax
+ * }}}
+ *
+ * Rendering checks the name and the value and rejects `SameSite=None` without
+ * `Secure` (see [[Cookie.renderResponseEither]]). The other attributes are
+ * written as given and not checked.
+ *
+ * @param expires
+ *   the `Expires` attribute, written as given, so pass an HTTP date such as
+ *   `Wed, 21 Oct 2026 07:28:00 GMT`
+ * @param domain
+ *   the `Domain` attribute, written as given
+ * @param path
+ *   the `Path` attribute, written with `Path#render`, without percent-encoding
+ * @param maxAge
+ *   the `Max-Age` attribute in seconds; `0` asks the browser to delete the
+ *   cookie
+ * @param sameSite
+ *   the `SameSite` attribute; `None` writes no attribute and leaves the
+ *   browser's default
+ * @param isPartitioned
+ *   whether to write the `Partitioned` attribute (CHIPS)
+ * @param priority
+ *   the `Priority` attribute, which Chromium-based browsers read and RFC 6265
+ *   does not define
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/model/#responsecookie ResponseCookie]]
  */
 final case class ResponseCookie(
   name: String,
@@ -46,12 +87,29 @@ final case class ResponseCookie(
   priority: Option[CookiePriority] = scala.None
 )
 
+/**
+ * The `SameSite` attribute of a cookie: whether the browser sends it on
+ * requests that come from another site.
+ */
 sealed trait SameSite
 
+/** The three `SameSite` values. */
 object SameSite {
+
+  /** `SameSite=Strict`: sent only on requests from the same site. */
   case object Strict extends SameSite
-  case object Lax    extends SameSite
-  case object None_  extends SameSite
+
+  /**
+   * `SameSite=Lax`: also sent when the user follows a link from another site (a
+   * top-level `GET` navigation), but not on cross-site form posts.
+   */
+  case object Lax extends SameSite
+
+  /**
+   * `SameSite=None`: sent on cross-site requests too. Browsers require `Secure`
+   * with it, and rendering a cookie without `Secure` fails.
+   */
+  case object None_ extends SameSite
 }
 
 /**
@@ -74,8 +132,40 @@ object CookiePriority {
   case object High extends CookiePriority
 }
 
+/**
+ * Reads and writes the values of the `cookie` and `set-cookie` headers.
+ * `cookie` holds the [[RequestCookie]]s a client sends, as `name=value` pairs
+ * separated by `; `. `set-cookie` holds one [[ResponseCookie]] with its
+ * attributes. `Request#cookies`, `Request#addCookie`, `Response#cookies` and
+ * `Response#addCookie` use these functions.
+ *
+ * {{{
+ * import zio.blocks.chunk.Chunk
+ *
+ * Cookie.parseRequest("session=abc123; theme=dark")
+ * // Chunk(RequestCookie(session,abc123),RequestCookie(theme,dark))
+ *
+ * Cookie.renderResponse(ResponseCookie("theme", "dark", maxAge = Some(0L)))
+ * // theme=dark; Max-Age=0
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/model/#cookie-management Cookie Management]]
+ */
 object Cookie {
 
+  /**
+   * Parses the value of a `cookie` header. It splits at `;`, trims each part
+   * and splits it at the first `=` into a name and a value, both trimmed. Parts
+   * without `=` or with an empty name are skipped. Names and values are not
+   * checked, quotes around a value are kept, and repeated names are all
+   * returned in order. The empty string gives an empty `Chunk`.
+   *
+   * {{{
+   * Cookie.parseRequest("session=abc123;theme; =x; lang=en")
+   * // Chunk(RequestCookie(session,abc123),RequestCookie(lang,en))
+   * }}}
+   */
   def parseRequest(s: String): Chunk[RequestCookie] = {
     if (s.isEmpty) return Chunk.empty[RequestCookie]
     val parts   = s.split(';')
@@ -96,6 +186,28 @@ object Cookie {
     builder.result()
   }
 
+  /**
+   * Parses the value of a `set-cookie` header. The text before the first `;` is
+   * `name=value`: the name is trimmed and must be a valid cookie name, and the
+   * value is trimmed and loses surrounding double quotes but is not checked.
+   * The attributes after it match by name in any letter case: `Expires`,
+   * `Domain` and `Path` are kept as text (`Path` is not percent-decoded),
+   * `Max-Age` is read as a number, `SameSite` and `Priority` as one of their
+   * values, and `Secure`, `HttpOnly` and `Partitioned` as flags. A `Max-Age`,
+   * `SameSite` or `Priority` value it cannot read, and any unknown attribute,
+   * is skipped. `SameSite=None` without `Secure` is accepted.
+   *
+   * It returns `Left` for the empty string, a first part with no name before
+   * `=`, and an invalid name.
+   *
+   * {{{
+   * Cookie.parseResponse("session=abc123; Path=/; Max-Age=3600; Secure; HttpOnly; SameSite=Lax")
+   *   .map(c => (c.name, c.value, c.maxAge, c.sameSite))
+   * // Right((session,abc123,Some(3600),Some(Lax)))
+   *
+   * Cookie.parseResponse("novalue") // Left(Missing cookie name)
+   * }}}
+   */
   def parseResponse(s: String): Either[String, ResponseCookie] = {
     if (s.isEmpty) return Left("Empty cookie string")
 
@@ -180,6 +292,19 @@ object Cookie {
     )
   }
 
+  /**
+   * Renders cookies as the value of a `cookie` header: `name=value` pairs
+   * joined with `; `. Names and values are written as given, without any check,
+   * so a `;` or `=` in them changes how the header parses. No cookies give the
+   * empty string.
+   *
+   * {{{
+   * import zio.blocks.chunk.Chunk
+   *
+   * Cookie.renderRequest(Chunk(RequestCookie("session", "abc123"), RequestCookie("theme", "dark")))
+   * // session=abc123; theme=dark
+   * }}}
+   */
   def renderRequest(cookies: Chunk[RequestCookie]): String = {
     if (cookies.isEmpty) return ""
     val sb = new StringBuilder
@@ -193,12 +318,43 @@ object Cookie {
     sb.toString
   }
 
+  /**
+   * Renders a cookie as the value of a `set-cookie` header, as
+   * [[renderResponseEither]] does, but throws where that returns `Left`.
+   *
+   * @throws IllegalArgumentException
+   *   if the name or the value is invalid, or `SameSite=None` is set without
+   *   `Secure`
+   */
   def renderResponse(cookie: ResponseCookie): String =
     renderResponseEither(cookie) match {
       case Right(value) => value
       case Left(err)    => throw new IllegalArgumentException(err)
     }
 
+  /**
+   * Renders a cookie as the value of a `set-cookie` header: `name=value`, then
+   * the attributes that are set, in the order `Expires`, `Domain`, `Path`,
+   * `Max-Age`, `Secure`, `HttpOnly`, `SameSite`, `Partitioned`, `Priority`.
+   *
+   * It returns `Left` when the name is empty or contains a space, a control or
+   * non-ASCII character, or one of `()<>@,;:\"/[]?={}`; when the value contains
+   * a character RFC 6265 does not allow in a cookie value (a space, `"`, `,`,
+   * `;`, `\`, a control or non-ASCII character; so a value in double quotes is
+   * rejected too); or when `SameSite=None` is set without `Secure`.
+   *
+   * `expires`, `domain` and `path` are written without any check, so a `;` in
+   * them adds attributes: `domain = Some("shop.example.com; HttpOnly")` writes
+   * an `HttpOnly` attribute. This is a known bug; do not pass untrusted text in
+   * them.
+   *
+   * {{{
+   * Cookie.renderResponseEither(ResponseCookie("session", "abc 123"))
+   * // Left(Invalid cookie value)
+   * Cookie.renderResponseEither(ResponseCookie("session", "abc123", sameSite = Some(SameSite.None_)))
+   * // Left(SameSite=None cookies must also be Secure)
+   * }}}
+   */
   def renderResponseEither(cookie: ResponseCookie): Either[String, String] = {
     validateCookieName(cookie.name) match {
       case Left(err) => return Left(err)
@@ -244,6 +400,7 @@ object Cookie {
     Right(sb.toString)
   }
 
+  /** Checks a cookie name against the RFC 6265 token rules. */
   private def validateCookieName(name: String): Either[String, Unit] = {
     if (name.isEmpty) return Left("Cookie name cannot be empty")
     var i = 0
@@ -263,6 +420,7 @@ object Cookie {
     c == 0x21 || (c >= 0x23 && c <= 0x2b) || (c >= 0x2d && c <= 0x3a) || (c >= 0x3c && c <= 0x5b) ||
       (c >= 0x5d && c <= 0x7e)
 
+  /** Checks that every character of a cookie value is a cookie-octet. */
   private def validateCookieValue(value: String): Either[String, Unit] = {
     var i = 0
     while (i < value.length) {
