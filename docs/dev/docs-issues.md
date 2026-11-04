@@ -53,6 +53,73 @@ Flags read `System.getProperty` and do see such properties on Scala.js (a `Stati
 
 **Suggested fix.** Replace the sentence with the expected text above. (If the library should read the emulated properties instead, that is a one-line change to the JS `SysPropSource`.)
 
+### `reference/http-model/model.md`, `headers.md` and `server-sent-event.md`: eleven statements that contradict http-model 0.0.56
+
+Found 2026-11-04 while fact-checking the reference pages against the source for the http-model Scaladoc (branch `http-model-scaladoc`, base `main` `5eb809c8f`; the http-model sources are identical at tag `v0.0.56`). Each item was checked with the reproduction below or by compiling the snippet.
+
+**Items** (page:line on `5eb809c8f`, then the correct statement):
+
+1. `model.md:505`: "Returns: Either[ParseError, URL]". There is no `ParseError`; `URL.parse` returns `Either[String, URL]`.
+2. `model.md:567`: `Path.fromEncoded("%2Fapi%2Fv1%2Fusers") // Parse from percent-encoded string` suggests the path `/api/v1/users`. `fromEncoded` splits at `/` before decoding, so this gives one segment `/api/v1/users` and no leading slash. Use `Path.fromEncoded("/api/v1/caf%C3%A9")` to show decoding.
+3. `model.md:590`: "`QueryParams` is an immutable, case-insensitive multi-map". Keys are compared exactly: `QueryParams("Page" -> "1").get("page")` is `None`.
+4. `model.md:293-297`: "`Status` is an opaque type alias for `Int`". Only on Scala 3. On Scala 2.13 it is `final case class Status(code: Int) extends AnyVal`, and `toString` gives `Status(200)` instead of `200`. Say both.
+5. `model.md:1349-1379` ("Lazy Header Parsing"): `request.headers.get("authorization")` and `headers.get("content-type")` do not compile; `Headers#get` takes a `Header.Codec[A]`, not a name (compile error below). Use `headers.get(Header.Authorization)` and `headers.get(Header.ContentType)`, or `rawGet` for the strings. The comment "parsed and cached as: ContentType(mediaType=ApplicationJson, charset=UTF8)" names no real value either.
+6. `headers.md:569`: the catalog row for `Header.Trailer` says `value: String`; the field is `headers: Chunk[String]` (`Header.scala:768`).
+7. `headers.md:314`: "the class is immutable and the arrays are never mutated in place". A typed read stores the parsed value in the entry's cache slot in place (the page's own "The Parse Cache" section, `:262-272`, says so). Say that the names and values are never changed in place.
+8. `server-sent-event.md:110`: "Four methods produce a modified copy", followed by a table of five (`event`, `clearEvent`, `id`, `retry`, `clearRetry`).
+9. `server-sent-event.md:276`: "two envelopes are equal when they would render identically". Equality compares the payloads with `==`, so `ServerSentEvent("a")` and `ServerSentEvent(Chunk("a"))` render the same text but are not equal. Say "equal payloads and equal metadata".
+10. `model.md:293`: "predefined constants for all standard codes (1xx–5xx)". There is no constant for 208, 226, 423, 424, 506, 508 and 510, and `Status(c).text` gives `Unknown` for each (run on 3.9.0 and 2.13.18). Say "constants for the common codes".
+11. `model.md:285`: `m.ordinal // ordinal position for sorting`. `Method.ANY` and every `Method.Methods` have ordinal -1. Say "0 to 8 for the standard methods, -1 for `ANY` and `Methods`".
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `DocsRepro.scala`, run with `scala-cli run --server=false DocsRepro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+import zio.blocks.chunk.Chunk
+
+object DocsRepro {
+  def main(args: Array[String]): Unit = {
+    val parsed: Either[String, URL] = URL.parse("https://example.com/api/users") // compiles: the error type is String
+    println(parsed.isRight)
+    println(Path.fromEncoded("%2Fapi%2Fv1%2Fusers").segments)
+    println(Path.fromEncoded("%2Fapi%2Fv1%2Fusers").hasLeadingSlash)
+    println(QueryParams("Page" -> "1").get("page"))
+    println(Header.Trailer(Chunk("expires", "digest")).renderedValue)
+    println(ServerSentEvent("a") == ServerSentEvent(Chunk("a")))
+    println(ServerSentEvent("a").render == ServerSentEvent(Chunk("a")).render)
+    println(Status.Ok.toString)
+  }
+}
+// true
+// Chunk(/api/v1/users)
+// false
+// None
+// expires, digest
+// false
+// true
+// 200
+```
+
+With `//> using scala 2.13.18` the last line prints `Status(200)`.
+
+Item 5, `GetString.scala`, run with `scala-cli compile --server=false GetString.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+object GetString { val headers = Headers("authorization" -> "Bearer abc123"); val t = headers.get("authorization") }
+// -- [E007] Type Mismatch Error: GetString.scala:4:98
+// Found:    ("authorization" : String)
+// Required: zio.http.Header.Codec[A]
+```
+
+**Impact.** Items 2, 3 and 5 mislead readers about behaviour they rely on (case-insensitive query keys, decoding of `%2F`, a header read by name); item 5's block is a plain fence, so mdoc never compiled it. The others are small inaccuracies.
+
+**Suggested fix.** Apply the corrections above; turn the "Lazy Header Parsing" block into `mdoc:compile-only` so it is compiled.
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
