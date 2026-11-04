@@ -118,7 +118,14 @@ Scope.global.scoped { scope1 =>
 
 To safely use a parent scope's resource in a child scope, use `lower`:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
 Scope.global.scoped { outer =>
   import outer._
   val db = allocate(new Database)
@@ -184,7 +191,14 @@ Scope.global.scoped { scope =>
 
 Only types with an `Unscoped` instance can cross the scope boundary—typically pure data:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
 Scope.global.scoped { scope =>
   import scope._
   val db = allocate(new Database)
