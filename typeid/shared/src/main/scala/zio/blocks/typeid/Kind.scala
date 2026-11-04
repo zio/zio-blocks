@@ -44,6 +44,11 @@ sealed trait Kind {
   }
 }
 
+/**
+ * The cases of [[Kind]], `Type` and `Arrow`, the predefined kinds `Star`,
+ * `Star1`, `Star2` and `HigherStar1`, and `constructor`, which builds the kind
+ * of a type constructor with a given number of proper-type parameters.
+ */
 object Kind {
 
   /**

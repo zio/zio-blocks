@@ -55,12 +55,19 @@ final case class TermPath(segments: List[TermPath.Segment]) {
   def isEmpty: Boolean = segments.isEmpty
 }
 
+/**
+ * The segment cases of a [[TermPath]]: `Package` and `Term`.
+ */
 object TermPath {
 
   /**
    * A segment in a term path.
    */
   sealed trait Segment {
+
+    /**
+     * The name of the package or term this segment stands for.
+     */
     def name: String
   }
 

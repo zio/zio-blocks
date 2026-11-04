@@ -69,6 +69,10 @@ final case class TypeBounds(
   def aliasType: Option[TypeRepr] = if (isAlias) lower else None
 }
 
+/**
+ * The unbounded value `Unbounded` and the constructors `upper`, `lower`,
+ * `alias` and `apply` with both bounds, for [[TypeBounds]].
+ */
 object TypeBounds {
 
   /**

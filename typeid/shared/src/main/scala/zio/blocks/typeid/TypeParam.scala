@@ -89,6 +89,10 @@ final case class TypeParam(
   override def toString: String = TypeIdPrinter.render(this)
 }
 
+/**
+ * Constructors for type parameters: `covariant`, `contravariant`, `bounded` and
+ * `higherKinded`.
+ */
 object TypeParam {
 
   private[typeid] val A: TypeParam        = TypeParam("A", 0, Variance.Covariant)

@@ -83,6 +83,10 @@ sealed trait TypeRepr {
   }
 }
 
+/**
+ * The cases of [[TypeRepr]], and the constructors `intersection`, `union`,
+ * `tuple` and `function`.
+ */
 object TypeRepr {
 
   // ============================================================================
@@ -163,9 +167,22 @@ object TypeRepr {
     override def toString: String = TypeIdPrinter.render(this)
   }
 
+  /**
+   * Creates and matches an [[Intersection]].
+   */
   object Intersection {
+
+    /**
+     * Creates an [[Intersection]] that holds `types` as given: it does not
+     * flatten nested intersections, remove duplicates or check the length.
+     * [[TypeRepr.intersection]] handles an empty list and a one-element list.
+     */
     def apply(types: List[TypeRepr]): Intersection = new Intersection(types)
 
+    /**
+     * Gives the types of the [[Intersection]], in the order it was created
+     * with.
+     */
     def unapply(i: Intersection): Some[List[TypeRepr]] = Some(i.types)
   }
 
@@ -187,9 +204,21 @@ object TypeRepr {
     override def toString: String = TypeIdPrinter.render(this)
   }
 
+  /**
+   * Creates and matches a [[Union]].
+   */
   object Union {
+
+    /**
+     * Creates a [[Union]] that holds `types` as given: it does not flatten
+     * nested unions, remove duplicates or check the length. [[TypeRepr.union]]
+     * handles an empty list and a one-element list.
+     */
     def apply(types: List[TypeRepr]): Union = new Union(types)
 
+    /**
+     * Gives the types of the [[Union]], in the order it was created with.
+     */
     def unapply(u: Union): Some[List[TypeRepr]] = Some(u.types)
   }
 
@@ -322,17 +351,62 @@ object TypeRepr {
    */
   sealed trait Constant extends TypeRepr
 
+  /**
+   * The literal types: `IntConst`, `LongConst`, `FloatConst`, `DoubleConst`,
+   * `BooleanConst`, `CharConst`, `StringConst`, `NullConst`, `UnitConst` and
+   * `ClassOfConst`.
+   */
   object Constant {
-    final case class IntConst(value: Int)         extends Constant
-    final case class LongConst(value: Long)       extends Constant
-    final case class FloatConst(value: Float)     extends Constant
-    final case class DoubleConst(value: Double)   extends Constant
+
+    /**
+     * An `Int` literal type, such as `42`.
+     */
+    final case class IntConst(value: Int) extends Constant
+
+    /**
+     * A `Long` literal type, such as `42L`.
+     */
+    final case class LongConst(value: Long) extends Constant
+
+    /**
+     * A `Float` literal type, such as `1.5f`.
+     */
+    final case class FloatConst(value: Float) extends Constant
+
+    /**
+     * A `Double` literal type, such as `1.5`.
+     */
+    final case class DoubleConst(value: Double) extends Constant
+
+    /**
+     * A `Boolean` literal type, `true` or `false`.
+     */
     final case class BooleanConst(value: Boolean) extends Constant
-    final case class CharConst(value: Char)       extends Constant
-    final case class StringConst(value: String)   extends Constant
-    case object NullConst                         extends Constant
-    case object UnitConst                         extends Constant
-    final case class ClassOfConst(tpe: TypeRepr)  extends Constant
+
+    /**
+     * A `Char` literal type, such as `'a'`.
+     */
+    final case class CharConst(value: Char) extends Constant
+
+    /**
+     * A `String` literal type, such as `"foo"`.
+     */
+    final case class StringConst(value: String) extends Constant
+
+    /**
+     * The type of the `null` literal.
+     */
+    case object NullConst extends Constant
+
+    /**
+     * The type of the unit literal `()`.
+     */
+    case object UnitConst extends Constant
+
+    /**
+     * A class literal type, `classOf[T]`, where `tpe` is `T`.
+     */
+    final case class ClassOfConst(tpe: TypeRepr) extends Constant
   }
 
   // ============================================================================

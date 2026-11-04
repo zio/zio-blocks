@@ -93,12 +93,21 @@ final case class Owner(segments: List[Owner.Segment]) {
   }
 }
 
+/**
+ * The segment cases of an [[Owner]] (`Package`, `Term` and `Type`), the empty
+ * owner `Root`, and `fromPackagePath`, which builds an owner from a dotted
+ * package path.
+ */
 object Owner {
 
   /**
    * A segment in the ownership chain.
    */
   sealed trait Segment {
+
+    /**
+     * The name of the package, object or type this segment stands for.
+     */
     def name: String
   }
 

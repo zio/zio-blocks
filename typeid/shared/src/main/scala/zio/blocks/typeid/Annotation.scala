@@ -53,6 +53,10 @@ final case class Annotation(
  */
 sealed trait AnnotationArg
 
+/**
+ * The cases of [[AnnotationArg]]: `Const`, `ArrayArg`, `Named`, `Nested`,
+ * `ClassOf` and `EnumValue`.
+ */
 object AnnotationArg {
 
   /**

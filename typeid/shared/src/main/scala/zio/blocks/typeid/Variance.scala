@@ -78,6 +78,10 @@ sealed trait Variance {
   }
 }
 
+/**
+ * The three cases of [[Variance]]: `Covariant`, `Contravariant` and
+ * `Invariant`.
+ */
 object Variance {
 
   /**

@@ -25,9 +25,16 @@ package zio.blocks.typeid
  *   - Type members (`type T`, `type T <: Bound`)
  */
 sealed trait Member {
+
+  /**
+   * The name of the member.
+   */
   def name: String
 }
 
+/**
+ * The cases of [[Member]]: `Val`, `Def` and `TypeMember`.
+ */
 object Member {
 
   /**
