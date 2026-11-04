@@ -41,6 +41,14 @@ lazy val bookstoreApp = (project in file("bookstore-app"))
   .settings(
     publish / skip := true,
     run / fork     := true,
+    // The generator is run with its default Scala 3 output (`derives`, `enum`), and the app code uses the generated
+    // types, so nothing in this project is compiled on Scala 2.13.
+    Compile / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Seq.empty
+        case _            => (Compile / sources).value
+      }
+    },
     libraryDependencies ++= Seq(
       zioBlocks("schema").value,
       zioBlocks("openapi").value

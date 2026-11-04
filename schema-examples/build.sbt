@@ -45,3 +45,34 @@ libraryDependencies ++= Seq(
   // MongoDB Java driver for the store-case-classes-in-mongodb guide; 5.13.0 matches the bson 5.13.0 that schema-bson uses
   "org.mongodb" % "mongodb-driver-sync" % "5.13.0"
 )
+
+// Examples written in Scala 3-only syntax (`@main`, `derives`, `enum`, `given`/`using`, context functions `?=>`,
+// `extension`, `opaque`/`inline`, top-level definitions, `zio.sbt` source macros (their expansion calls a `private[sbt]` method 2.13 rejects), wildcard `import x.*`) are skipped on Scala 2.13, so the rest of the build compiles there.
+val scala3OnlySyntax =
+  """(?m)^\s*@main\b|^(?!\s*(\*|//)).*\bderives\s+[A-Z]|^\s*(final\s+)?enum\s|\?=>|^\s*extension\s|^\s*given\s|\(using\b|\bsummon\[|^import\s.*\*|^\s*(inline|opaque|transparent)\s|^(def|val|var|type)\s|^\s*(\+\+|\+)\s|^import\s+zio\.sbt\.""".r
+
+// Whole example packages that are Scala 3-only: `namedtuples` uses Scala 3 named tuples.
+val scala3OnlyPackages = Set("namedtuples")
+
+// Single examples that hit Scala 2.13 limits in the 0.0.56 artifacts: `json"..."`/`yaml"..."` interpolators and the
+// migration builder expand to calls into `private[...]` members, and a few examples rely on Scala 3 type inference.
+val scala3OnlyExamples = Set(
+  "avrorecords/Step5TypeMappingExample.scala",
+  "comptime/RdbmsExample.scala",
+  "evolveyourdata/CompleteExample.scala",
+  "evolveyourdata/Concept4MigrationExample.scala",
+  "evolveyourdata/Concept5ReverseMigrationExample.scala",
+  "jsonwithoutcaseclasses/Step6BuildJsonExample.scala",
+  "nesteddatawithoptics/CompleteExample.scala",
+  "nesteddatawithoptics/Concept4EachExample.scala",
+  "readandwriteyaml/Step5BuildYamlInCodeExample.scala"
+)
+
+Compile / unmanagedSources := {
+  val sources = (Compile / unmanagedSources).value
+  CrossVersion.partialVersion(scalaVersion.value) match {
+    case Some((2, _)) =>
+      sources.filterNot(f => scala3OnlyPackages(f.getParentFile.getName) || scala3OnlyExamples(f.getParentFile.getName + "/" + f.getName) || scala3OnlySyntax.findFirstIn(IO.read(f)).isDefined)
+    case _            => sources
+  }
+}
