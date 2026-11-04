@@ -53,6 +53,60 @@ Flags read `System.getProperty` and do see such properties on Scala.js (a `Stati
 
 **Suggested fix.** Replace the sentence with the expected text above. (If the library should read the emulated properties instead, that is a one-line change to the JS `SysPropSource`.)
 
+### typeid.md: four claims contradict the library (kinds, opaque normalization, `construct`, `unapplied`)
+
+Found 2026-11-04 while fact-checking the typeid Scaladoc against `docs/reference/typeid.md` (base `7b51118b7`). Same at v0.0.56.
+
+**Summary.**
+1. "TypeId captures kind information at runtime" (Kind section, around line 1615) and the `TypeParam` section (around lines 395-430, `paramF.kind`, `paramF.isTypeConstructor`) present the kind of `F[_]` as captured. Derived parameters always have `Kind.Type` (library entry 5 above), so the rendered mdoc output shows `Type` and `false` under prose that says otherwise; the Kind table lists `Runnable` as `(* -> *) -> *`.
+2. "an opaque type like `opaque type Email = String` normalizes to `String`" (Semantic Predicates, around line 760) and "Opaque types such as `opaque type UserId = String` normalize to their representation" (Normalization and Equality, around line 1368): `TypeId.normalize` returns an opaque id unchanged (`TypeIdOps.normalizeWithArgs` follows only `aliasedTo`, `typeid/shared/src/main/scala/zio/blocks/typeid/TypeIdOps.scala:54-75`).
+3. "Sequence-like types (`List`, `Vector`, `Set`, `Seq`, `IndexedSeq`, `Array`, `ArraySeq`, `Chunk`) each pass a variadic sequence of elements" (`construct` → Collection Types, around line 1331): `Array`, `ArraySeq` and `Chunk` are not in `knownTypeConstructors` (`typeid/jvm/src/main/scala/zio/blocks/typeid/TypeIdPlatformMethods.scala:66-89`) and fall back to reflection, which fails.
+4. "`TypeId.unapplied(TypeId.of[List[Int]])` returns the equivalent of `TypeId.of[List]`" (around line 1431): on Scala 3 (the version mdoc runs) `TypeId.of[List]` is the `scala.package.List` alias and is not equal (library entry 3 above); it equals `TypeId.list`.
+
+**Reproduction.**
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+package docs
+
+import zio.blocks.typeid.*
+import zio.blocks.chunk.Chunk
+
+object Domain {
+  opaque type Email = String
+}
+
+trait Runnable[F[_]]
+
+@main def run(): Unit = {
+  val f = TypeId.of[Runnable].typeParams.head
+  println(s"kind=${f.kind} isTypeConstructor=${f.isTypeConstructor}")
+  val email = TypeId.of[Domain.Email]
+  println(s"normalize(Email)=${TypeId.normalize(email)} fullName=${TypeId.normalize(email).fullName}")
+  println(TypeId.of[Chunk[Int]].construct(Chunk[AnyRef](Int.box(1), Int.box(2))))
+  println(TypeId.of[Array[Int]].construct(Chunk[AnyRef](Int.box(1), Int.box(2))))
+  println(TypeId.of[scala.collection.immutable.ArraySeq[Int]].construct(Chunk[AnyRef](Int.box(1), Int.box(2))))
+}
+// kind=Type isTypeConstructor=false
+// normalize(Email)=Email fullName=docs.Domain.Email
+// Left(No matching constructor found for zio.blocks.chunk.Chunk with 2 arguments of types: java.lang.Integer, java.lang.Integer)
+// Left(No matching constructor found for scala.Array with 2 arguments of types: java.lang.Integer, java.lang.Integer)
+// Left(No matching constructor found for scala.collection.immutable.ArraySeq with 2 arguments of types: java.lang.Integer, java.lang.Integer)
+```
+
+(Claim 4 is reproduced by library entry 3: `of[List] == unapplied(List[Int]): false`.)
+
+**Expected.** The page states what the library does: kinds and bounds are not captured by derivation (a known bug); `normalize` resolves aliases only and leaves opaque types as they are; `construct` builds `List`, `Vector`, `Set`, `Seq`, `IndexedSeq` and `Map` directly but not `Array`, `ArraySeq` or `Chunk`; `unapplied(TypeId.of[List[Int]])` equals `TypeId.list`.
+
+**Root cause.** Prose written from the data model and intent, not from the derived values; the mdoc output that contradicts it (claims 1 and 4) renders without comment.
+
+**Impact.** Readers rely on kind information that is not there, expect opaque types to normalize, and call `construct` for `Chunk` or `Array` and get `Left`.
+
+**Test gap.** mdoc evaluates the examples but does not check the prose against the output.
+
+**Suggested fix.** Rewrite the four passages as in Expected (the Scaladoc on `TypeParam`, `Kind`, `TypeId.normalize`, `TypeId#construct` and `TypeId.unapplied` now carries the correct wording), and add the `construct` claim for `Chunk` as a library feature request if wanted.
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
