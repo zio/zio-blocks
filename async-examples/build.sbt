@@ -29,3 +29,16 @@ def zioBlocks(module: String) = Def.setting {
 libraryDependencies ++= Seq(
   zioBlocks("async").value
 )
+
+// Examples written in Scala 3-only syntax (`@main`, `derives`, `enum`, `given`/`using`, context functions `?=>`,
+// `extension`, `opaque`/`inline`, top-level definitions, `Async.promise` (its `Completer` is a context function), wildcard `import x.*`) are skipped on Scala 2.13, so the rest of the build compiles there.
+val scala3OnlySyntax =
+  """(?m)^\s*@main\b|^(?!\s*(\*|//)).*\bderives\s+[A-Z]|^\s*(final\s+)?enum\s|\?=>|^\s*extension\s|^\s*given\s|\(using\b|\bsummon\[|^import\s.*\*|^\s*(inline|opaque|transparent)\s|^(def|val|var|type)\s|^\s*(\+\+|\+)\s|\bAsync\.promise\b""".r
+
+Compile / unmanagedSources := {
+  val sources = (Compile / unmanagedSources).value
+  CrossVersion.partialVersion(scalaVersion.value) match {
+    case Some((2, _)) => sources.filterNot(f => scala3OnlySyntax.findFirstIn(IO.read(f)).isDefined)
+    case _            => sources
+  }
+}
