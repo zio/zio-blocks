@@ -425,6 +425,7 @@ final class Headers private[http] (
   }
 }
 
+/** Creates [[Headers]] and checks header names and values. */
 object Headers {
   private final class ParsedValue(val codec: Header.Codec[_], val value: AnyRef)
 

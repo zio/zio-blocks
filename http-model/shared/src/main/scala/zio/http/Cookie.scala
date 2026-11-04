@@ -120,6 +120,7 @@ object SameSite {
  */
 sealed trait CookiePriority
 
+/** The three `Priority` values. */
 object CookiePriority {
 
   /** The `Priority=Low` cookie attribute value. */
